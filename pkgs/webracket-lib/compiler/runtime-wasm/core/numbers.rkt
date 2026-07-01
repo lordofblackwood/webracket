@@ -1,9 +1,11 @@
 #lang racket
 
-(provide number-runtime-only-helpers
+(provide generic-numeric-runtime-only-helper-names
+         number-runtime-only-helpers
          number-type-runtime-only-helper-names)
 
 (require "../core-helper.rkt"
+         "../../private/wasm-utils.rkt"
          "../../private/immediates.rkt")
 
 ;; number-type-runtime-only-helper-names : (listof symbol?)
@@ -45,11 +47,11 @@
     $nonnegative-integer?
     $natural?))
 
-;; number-runtime-only-helpers : (listof core-runtime-helper?)
-;;   Enumerate number helpers that still depend on monolithic runtime globals.
-(define number-runtime-only-helpers
+;; number-type-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate number-type helpers that still depend on monolithic runtime globals.
+(define number-type-runtime-only-helpers
   (function-forms->runtime-helpers
-   'number-runtime-only-helpers
+   'number-type-runtime-only-helpers
    `(
          (func $number? (type $Prim1)
                (param $v (ref eq))
@@ -923,3 +925,855 @@
 
 
      )))
+
+
+;; generic-numeric-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for generic numeric helpers.
+(define generic-numeric-runtime-only-helper-names
+  '($quotient
+    $remainder
+    $modulo
+    $quotient/remainder
+    $add1
+    $sub1
+    $sqr
+    $sqrt
+    $abs
+    $round
+    $floor
+    $ceiling
+    $truncate
+    $sgn
+    $exact-round
+    $exact-floor
+    $exact-ceiling
+    $exact-truncate
+    $sin
+    $cos
+    $tan
+    $asin
+    $acos
+    $sinh
+    $cosh
+    $tanh
+    $asinh
+    $acosh
+    $atanh
+    $atan
+    $degrees->radians
+    $radians->degrees
+    $order-of-magnitude))
+
+;; generic-numeric-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate generic numeric helpers that still depend on monolithic runtime globals.
+(define generic-numeric-runtime-only-helpers
+  (function-forms->runtime-helpers
+   'generic-numeric-runtime-only-helpers
+   `(
+         ;; 4.3.2 Generic Numerics
+         ;;     https://docs.racket-lang.org/reference/generic-numbers.html
+
+         ;; 4.3.2.1 Arithmetic
+         ;;   https://docs.racket-lang.org/reference/generic-numbers.html#%28part._.Arithmetic%29
+
+         (func $quotient (type $Prim2)
+               (param $n (ref eq))
+               (param $m (ref eq))
+               (result   (ref eq))
+
+               (local $nu i32)
+               (local $mu i32)
+               (local $fl (ref $Flonum))
+               (local $nf f64)
+               (local $mf f64)
+               (local $qf f64)
+
+               ;; Case 1: both fixnums
+               (if (ref.test (ref i31) (local.get $n))
+                   (then (local.set $nu (i31.get_s (ref.cast i31ref (local.get $n))))
+                         (if (i32.eqz (i32.and (local.get $nu) (i32.const 1)))
+                             (then (if (ref.test (ref i31) (local.get $m))
+                                       (then (local.set $mu (i31.get_s (ref.cast i31ref (local.get $m))))
+                                             (if (i32.eqz (i32.and (local.get $mu) (i32.const 1)))
+                                                 (then (return (call $fxquotient (local.get $n) (local.get $m)))))))))))
+
+               ;; Case 2: flonum/inexact
+               ;; convert n to f64
+               (if (ref.test (ref $Flonum) (local.get $n))
+                   (then (local.set $fl (ref.cast (ref $Flonum) (local.get $n)))
+                         (local.set $nf (struct.get $Flonum $v (local.get $fl))))
+                   (else (if (ref.test (ref i31) (local.get $n))
+                             (then (local.set $nu (i31.get_s (ref.cast i31ref (local.get $n))))
+                                   (if (i32.eqz (i32.and (local.get $nu) (i32.const 1)))
+                                       (then (local.set $nf (f64.convert_i32_s (i32.shr_s (local.get $nu) (i32.const 1)))))
+                                       (else (call $raise-expected-number (local.get $n)) (unreachable))))
+                             (else (call $raise-expected-number (local.get $n)) (unreachable)))))
+
+               ;; ensure n is a finite integer
+               (if (f64.eq (local.get $nf) (f64.const inf))
+                   (then (call $raise-expected-number (local.get $n)) (unreachable)))
+               (if (f64.eq (local.get $nf) (f64.const -inf))
+                   (then (call $raise-expected-number (local.get $n)) (unreachable)))
+               (if (f64.eq (f64.floor (local.get $nf)) (local.get $nf))
+                   (then)
+                   (else (call $raise-expected-number (local.get $n)) (unreachable)))
+
+               ;; convert m to f64
+               (if (ref.test (ref $Flonum) (local.get $m))
+                   (then (local.set $fl (ref.cast (ref $Flonum) (local.get $m)))
+                         (local.set $mf (struct.get $Flonum $v (local.get $fl))))
+                   (else (if (ref.test (ref i31) (local.get $m))
+                             (then (local.set $mu (i31.get_s (ref.cast i31ref (local.get $m))))
+                                   (if (i32.eqz (i32.and (local.get $mu) (i32.const 1)))
+                                       (then (local.set $mf (f64.convert_i32_s (i32.shr_s (local.get $mu) (i32.const 1)))))
+                                       (else (call $raise-expected-number (local.get $m)) (unreachable))))
+                             (else (call $raise-expected-number (local.get $m)) (unreachable)))))
+
+               ;; ensure m is a finite integer
+               (if (f64.eq (local.get $mf) (f64.const inf))
+                   (then (call $raise-expected-number (local.get $m)) (unreachable)))
+               (if (f64.eq (local.get $mf) (f64.const -inf))
+                   (then (call $raise-expected-number (local.get $m)) (unreachable)))
+               (if (f64.eq (f64.floor (local.get $mf)) (local.get $mf))
+                   (then)
+                   (else (call $raise-expected-number (local.get $m)) (unreachable)))
+
+               ;; divide by zero?
+               (if (f64.eq (local.get $mf) (f64.const 0.0))
+                   (then (call $raise-division-by-zero) (unreachable)))
+
+               ;; compute quotient in flonum
+               (local.set $qf (f64.trunc (f64.div (local.get $nf) (local.get $mf))))
+               (return (struct.new $Flonum (i32.const 0) (local.get $qf))))
+
+
+         (func $remainder (type $Prim2)
+               (param $n (ref eq))
+               (param $m (ref eq))
+               (result   (ref eq))
+
+               (local $nu i32)
+               (local $mu i32)
+               (local $fl (ref $Flonum))
+               (local $nf f64)
+               (local $mf f64)
+               (local $rf f64)
+
+               ;; Case 1: both fixnums
+               (if (ref.test (ref i31) (local.get $n))
+                   (then (local.set $nu (i31.get_s (ref.cast i31ref (local.get $n))))
+                         (if (i32.eqz (i32.and (local.get $nu) (i32.const 1)))
+                             (then (if (ref.test (ref i31) (local.get $m))
+                                       (then (local.set $mu (i31.get_s (ref.cast i31ref (local.get $m))))
+                                             (if (i32.eqz (i32.and (local.get $mu) (i32.const 1)))
+                                                 (then (if (i32.eqz (local.get $mu))
+                                                           (then (call $raise-division-by-zero) (unreachable)))
+                                                       (return (ref.i31 (i32.rem_s (local.get $nu) (local.get $mu))))))))))))
+
+               ;; Case 2: flonum/inexact
+               ;; convert n to f64
+               (if (ref.test (ref $Flonum) (local.get $n))
+                   (then (local.set $fl (ref.cast (ref $Flonum) (local.get $n)))
+                         (local.set $nf (struct.get $Flonum $v (local.get $fl))))
+                   (else (if (ref.test (ref i31) (local.get $n))
+                             (then (local.set $nu (i31.get_s (ref.cast i31ref (local.get $n))))
+                                   (if (i32.eqz (i32.and (local.get $nu) (i32.const 1)))
+                                       (then (local.set $nf (f64.convert_i32_s (i32.shr_s (local.get $nu) (i32.const 1)))))
+                                       (else (call $raise-expected-number (local.get $n)) (unreachable))))
+                             (else (call $raise-expected-number (local.get $n)) (unreachable)))))
+
+               ;; ensure n is a finite integer
+               (if (f64.eq (local.get $nf) (f64.const inf))
+                   (then (call $raise-expected-number (local.get $n)) (unreachable)))
+               (if (f64.eq (local.get $nf) (f64.const -inf))
+                   (then (call $raise-expected-number (local.get $n)) (unreachable)))
+               (if (f64.eq (f64.floor (local.get $nf)) (local.get $nf))
+                   (then)
+                   (else (call $raise-expected-number (local.get $n)) (unreachable)))
+
+               ;; convert m to f64
+               (if (ref.test (ref $Flonum) (local.get $m))
+                   (then (local.set $fl (ref.cast (ref $Flonum) (local.get $m)))
+                         (local.set $mf (struct.get $Flonum $v (local.get $fl))))
+                   (else (if (ref.test (ref i31) (local.get $m))
+                             (then (local.set $mu (i31.get_s (ref.cast i31ref (local.get $m))))
+                                   (if (i32.eqz (i32.and (local.get $mu) (i32.const 1)))
+                                       (then (local.set $mf (f64.convert_i32_s (i32.shr_s (local.get $mu) (i32.const 1)))))
+                                       (else (call $raise-expected-number (local.get $m)) (unreachable))))
+                             (else (call $raise-expected-number (local.get $m)) (unreachable)))))
+
+               ;; ensure m is a finite integer
+               (if (f64.eq (local.get $mf) (f64.const inf))
+                   (then (call $raise-expected-number (local.get $m)) (unreachable)))
+               (if (f64.eq (local.get $mf) (f64.const -inf))
+                   (then (call $raise-expected-number (local.get $m)) (unreachable)))
+               (if (f64.eq (f64.floor (local.get $mf)) (local.get $mf))
+                   (then)
+                   (else (call $raise-expected-number (local.get $m)) (unreachable)))
+
+               ;; divide by zero?
+               (if (f64.eq (local.get $mf) (f64.const 0.0))
+                   (then (call $raise-division-by-zero) (unreachable)))
+
+               ;; compute remainder in flonum
+               (local.set $rf (f64.sub
+                               (local.get $nf)
+                               (f64.mul
+                                (f64.trunc (f64.div (local.get $nf) (local.get $mf)))
+                                (local.get $mf))))
+                (return (struct.new $Flonum (i32.const 0) (local.get $rf))))
+
+         (func $modulo (type $Prim2)
+               (param $n (ref eq))
+               (param $m (ref eq))
+               (result (ref eq))
+
+               (local $r  (ref eq))
+               (local $ru i32)
+               (local $mu i32)
+               (local $fl (ref $Flonum))
+               (local $mf f64)
+               (local $rf f64)
+
+               ;; Compute remainder; it validates numeric args and non-zero divisor.
+               (local.set $r (call $remainder (local.get $n) (local.get $m)))
+               ;; Convert m to f64 for sign checks; capture integer payload when fixnum.
+               (if (ref.test (ref i31) (local.get $m))
+                   (then
+                    (local.set $mu (i31.get_s (ref.cast (ref i31) (local.get $m))))
+                    ;; Ensure it's a fixnum (lsb=0), else raise (should be unreachable if
+                    ;; $remainder already validated).
+                    (if (i32.eqz (i32.and (local.get $mu) (i32.const 1)))
+                        (then
+                         (local.set $mf
+                                    (f64.convert_i32_s
+                                     (i32.shr_s (local.get $mu) (i32.const 1)))))
+                        (else
+                         (call $raise-expected-number (local.get $m))
+                         (unreachable))))
+                   (else
+                    (local.set $fl (ref.cast (ref $Flonum) (local.get $m)))
+                    (local.set $mf (struct.get $Flonum $v (local.get $fl)))))
+               ;; Result expression: handle integer and flonum remainders.
+               (if (result (ref eq))
+                   (ref.test (ref i31) (local.get $r))
+                   ;; --- Integer remainder case ------------------------------------------
+                   (then
+                    (block (result (ref eq))
+                           (local.set $ru (i31.get_s (ref.cast (ref i31) (local.get $r))))
+                           (if (result (ref eq))
+                               (i32.eqz (local.get $ru))             ;; r == 0  → exact 0
+                               (then (local.get $r))
+                               ;; If r and m have same sign → r, else r + m (still a fixnum).
+                               (else (if (result (ref eq))
+                                         (i32.eq (i32.lt_s (local.get $ru) (i32.const 0))
+                                                 (i32.lt_s (local.get $mu) (i32.const 0)))
+                                         (then (local.get $r))
+                                         (else (ref.i31
+                                                (i32.add (local.get $ru) (local.get $mu)))))))))
+                   ;; --- Flonum remainder case -------------------------------------------
+                   (else
+                    (block (result (ref eq))
+                           (local.set $fl (ref.cast (ref $Flonum) (local.get $r)))
+                           (local.set $rf (struct.get $Flonum $v (local.get $fl)))
+                           (if (result (ref eq))
+                               (f64.eq (local.get $rf) (f64.const 0.0))
+                               ;; Preserve signed zero: 0.0 * mf carries mf's sign.
+                               (then (struct.new $Flonum (i32.const 0)
+                                                 (f64.mul (f64.const 0.0) (local.get $mf))))
+                               ;; Non-zero: if signs match → r, else r + m.
+                               (else (if (result (ref eq))
+                                         (i32.eq (f64.lt (local.get $rf) (f64.const 0.0))
+                                                 (f64.lt (local.get $mf) (f64.const 0.0)))
+                                         (then (local.get $r))
+                                         (else (struct.new $Flonum (i32.const 0)
+                                                           (f64.add (local.get $rf) (local.get $mf)))))))))))
+
+
+         (func $quotient/remainder (type $Prim2)
+               (param $n (ref eq))
+               (param $m (ref eq))
+               (result   (ref eq))
+
+               (local $nu i32)
+               (local $mu i32)
+               (local $q  i32)
+               (local $r  i32)
+               (local $fl (ref $Flonum))
+               (local $nf f64)
+               (local $mf f64)
+               (local $qf f64)
+               (local $rf f64)
+
+               ;; Case 1: both fixnums
+               (if (ref.test (ref i31) (local.get $n))
+                   (then (local.set $nu (i31.get_s (ref.cast i31ref (local.get $n))))
+                         (if (i32.eqz (i32.and (local.get $nu) (i32.const 1)))
+                             (then (if (ref.test (ref i31) (local.get $m))
+                                       (then (local.set $mu (i31.get_s (ref.cast i31ref (local.get $m))))
+                                             (if (i32.eqz (i32.and (local.get $mu) (i32.const 1)))
+                                                 (then (if (i32.eqz (local.get $mu))
+                                                           (then (call $raise-division-by-zero) (unreachable)))
+                                                      (local.set $q (i32.shl (i32.div_s (local.get $nu) (local.get $mu))
+                                                                            (i32.const 1)))
+                                                      (local.set $r (i32.rem_s (local.get $nu) (local.get $mu)))
+                                                      (return (array.new_fixed $Values 2
+                                                                              (ref.i31 (local.get $q))
+                                                                              (ref.i31 (local.get $r))))))))))))
+
+               ;; Case 2: flonum/inexact
+               ;; convert n to f64
+               (if (ref.test (ref $Flonum) (local.get $n))
+                   (then (local.set $fl (ref.cast (ref $Flonum) (local.get $n)))
+                         (local.set $nf (struct.get $Flonum $v (local.get $fl))))
+                   (else (if (ref.test (ref i31) (local.get $n))
+                             (then (local.set $nu (i31.get_s (ref.cast i31ref (local.get $n))))
+                                   (if (i32.eqz (i32.and (local.get $nu) (i32.const 1)))
+                                       (then (local.set $nf (f64.convert_i32_s (i32.shr_s (local.get $nu) (i32.const 1)))))
+                                       (else (call $raise-expected-number (local.get $n)) (unreachable))))
+                             (else (call $raise-expected-number (local.get $n)) (unreachable)))))
+
+               ;; ensure n is a finite integer
+               (if (f64.eq (local.get $nf) (f64.const inf))
+                   (then (call $raise-expected-number (local.get $n)) (unreachable)))
+               (if (f64.eq (local.get $nf) (f64.const -inf))
+                   (then (call $raise-expected-number (local.get $n)) (unreachable)))
+               (if (f64.eq (f64.floor (local.get $nf)) (local.get $nf))
+                   (then)
+                   (else (call $raise-expected-number (local.get $n)) (unreachable)))
+
+               ;; convert m to f64
+               (if (ref.test (ref $Flonum) (local.get $m))
+                   (then (local.set $fl (ref.cast (ref $Flonum) (local.get $m)))
+                         (local.set $mf (struct.get $Flonum $v (local.get $fl))))
+                   (else (if (ref.test (ref i31) (local.get $m))
+                             (then (local.set $mu (i31.get_s (ref.cast i31ref (local.get $m))))
+                                   (if (i32.eqz (i32.and (local.get $mu) (i32.const 1)))
+                                       (then (local.set $mf (f64.convert_i32_s (i32.shr_s (local.get $mu) (i32.const 1)))))
+                                       (else (call $raise-expected-number (local.get $m)) (unreachable))))
+                             (else (call $raise-expected-number (local.get $m)) (unreachable)))))
+
+               ;; ensure m is a finite integer
+               (if (f64.eq (local.get $mf) (f64.const inf))
+                   (then (call $raise-expected-number (local.get $m)) (unreachable)))
+               (if (f64.eq (local.get $mf) (f64.const -inf))
+                   (then (call $raise-expected-number (local.get $m)) (unreachable)))
+               (if (f64.eq (f64.floor (local.get $mf)) (local.get $mf))
+                   (then)
+                   (else (call $raise-expected-number (local.get $m)) (unreachable)))
+
+               ;; divide by zero?
+               (if (f64.eq (local.get $mf) (f64.const 0.0))
+                   (then (call $raise-division-by-zero) (unreachable)))
+
+               ;; compute quotient and remainder in flonum
+               (local.set $qf (f64.trunc (f64.div (local.get $nf) (local.get $mf))))
+               (local.set $rf (f64.sub (local.get $nf) (f64.mul (local.get $qf) (local.get $mf))))
+               (return (array.new_fixed $Values 2
+                                        (struct.new $Flonum (i32.const 0) (local.get $qf))
+                                        (struct.new $Flonum (i32.const 0) (local.get $rf)))))
+
+
+         (func $add1 (type $Prim1)
+               (param $v (ref eq))
+               (result   (ref eq))
+
+               (local $v/fx i32)
+               (local $sum  i32)
+               (local $v/fl (ref $Flonum))
+               (local $f64v f64)
+
+               ;; Case 1: Fixnum
+               (if (ref.test (ref i31) (local.get $v))
+                   (then (local.set $v/fx (i31.get_u (ref.cast (ref i31) (local.get $v))))
+                         (if (i32.eqz (i32.and (local.get $v/fx) (i32.const 1)))
+                             (then (local.set $sum (i32.add (local.get $v/fx) (i32.const 2))) ;; add1 on unshifted
+                                   (return (ref.i31 (local.get $sum)))))))
+               ;; Case 2: Flonum
+               (if (ref.test (ref $Flonum) (local.get $v))
+                   (then (local.set $v/fl (ref.cast (ref $Flonum) (local.get $v)))
+                         (local.set $f64v (struct.get $Flonum $v (local.get $v/fl)))
+                         (return (struct.new $Flonum
+                                             (i32.const 0)
+                                             (f64.add (local.get $f64v) (f64.const 1.0))))))
+               ;; Not a number
+               (call $raise-expected-number (local.get $v))
+               (unreachable))
+
+         (func $sub1 (type $Prim1)
+               (param $v (ref eq))
+               (result   (ref eq))
+
+               (local $v/fx i32)
+               (local $diff i32)
+               (local $v/fl (ref $Flonum))
+               (local $f64v f64)
+               ;; Case 1: Fixnum
+               (if (ref.test (ref i31) (local.get $v))
+                   (then (local.set $v/fx (i31.get_u (ref.cast (ref i31) (local.get $v))))
+                         (if (i32.eqz (i32.and (local.get $v/fx) (i32.const 1)))
+                             (then (local.set $diff (i32.sub (local.get $v/fx) (i32.const 2))) ;; sub1 = -1 << 1
+                                   (return (ref.i31 (local.get $diff)))))))
+               ;; Case 2: Flonum
+               (if (ref.test (ref $Flonum) (local.get $v))
+                   (then (local.set $v/fl (ref.cast (ref $Flonum) (local.get $v)))
+                         (local.set $f64v (struct.get $Flonum $v (local.get $v/fl)))
+                         (return
+                          (struct.new $Flonum
+                                      (i32.const 0)
+                                      (f64.sub (local.get $f64v) (f64.const 1.0))))))
+               ;; Not a number
+               (call $raise-expected-number (local.get $v))
+               (unreachable))
+
+         (func $sqr (type $Prim1)
+               (param $x (ref eq))
+               (result (ref eq))
+
+               (local $bits i32)
+
+               ;; Case 1: Fixnum
+               (if (ref.test (ref i31) (local.get $x))
+                   (then (local.set $bits (i31.get_u (ref.cast (ref i31) (local.get $x))))
+                         (if (i32.eqz (i32.and (local.get $bits) (i32.const 1)))
+                             (then (return (call $fx* (local.get $x) (local.get $x)))))))
+               ;; Case 2: Flonum
+               (if (ref.test (ref $Flonum) (local.get $x))
+                   (then (return (call $fl* (local.get $x) (local.get $x)))))
+               ;; Not a number
+               (call $raise-expected-number (local.get $x))
+               (unreachable))
+
+
+         (func $sqrt (type $Prim1)
+               (param $x (ref eq))
+               (result (ref eq))
+
+               (local $bits i32)
+               (local $fl (ref $Flonum))
+               (local $f64 f64)
+
+               ;; If x is a fixnum, compute sqrt and return fixnum if integral
+               (if (ref.test (ref i31) (local.get $x))
+                   (then
+                    (local.set $bits (i31.get_s (ref.cast (ref i31) (local.get $x))))
+                    (if (i32.eqz (i32.and (local.get $bits) (i32.const 1)))
+                        (then
+                         (local.set $f64
+                                    (call $js-raw-math-sqrt
+                                          (f64.convert_i32_s
+                                           (i32.shr_s (local.get $bits) (i32.const 1)))))
+                         (if (f64.eq (f64.floor (local.get $f64)) (local.get $f64))
+                             (then
+                              (local.set $bits (i32.trunc_f64_s (local.get $f64)))
+                              (return (ref.i31 (i32.shl (local.get $bits) (i32.const 1)))))
+                             (else
+                              (return (struct.new $Flonum (i32.const 0) (local.get $f64))))))
+                        (else (call $raise-expected-number (local.get $x))
+                              (unreachable)))))
+
+               ;; If x is a flonum, compute sqrt and box
+               (if (ref.test (ref $Flonum) (local.get $x))
+                   (then
+                    (local.set $fl (ref.cast (ref $Flonum) (local.get $x)))
+                    (local.set $f64 (struct.get $Flonum $v (local.get $fl)))
+                    (return (struct.new $Flonum
+                                        (i32.const 0)
+                                        (call $js-raw-math-sqrt (local.get $f64))))))
+
+               ;; Not a number
+               (call $raise-expected-number (local.get $x))
+               (unreachable))
+
+
+        ;; Generic numeric unary functions
+        ;               name      kind    flonum-expr
+        ; Implements: $abs $round $floor $ceiling $truncate
+        ,@(let ([ops '((abs     fx-abs   (f64.abs     (local.get $f64)))
+                       (round   fx-id    (f64.nearest (local.get $f64)))
+                       (floor   fx-id    (f64.floor   (local.get $f64)))
+                       (ceiling fx-id    (f64.ceil    (local.get $f64)))
+                       (truncate fx-id   (f64.trunc   (local.get $f64))))])
+            (for/list ([p ops])
+              (define name (car p))
+              (define kind (cadr p))
+              (define expr (caddr p))
+              (define fixstmts
+                (case kind
+                  [(fx-id)  `((return (local.get $x)))]
+                  [(fx-abs) `((local.set $bits (i32.shr_s (local.get $bits) (i32.const 1)))
+                              (if (i32.lt_s (local.get $bits) (i32.const 0))
+                                  (then (local.set $bits (i32.sub (i32.const 0) (local.get $bits)))))
+                              (if (i32.lt_u (local.get $bits) (i32.const 1073741824))
+                                  (then (return (ref.i31 (i32.shl (local.get $bits) (i32.const 1)))))
+                                  (else (return (struct.new $Flonum
+                                                            (i32.const 0)
+                                                            (f64.convert_i32_s (local.get $bits)))))))]))
+              `(func ,(string->symbol (format "$~a" name))
+                     (type $Prim1)
+                     (param $x (ref eq))
+                     (result (ref eq))
+
+                     (local $bits i32)
+                     (local $fl (ref $Flonum))
+                     (local $f64 f64)
+
+                     ;; Fixnum case
+                     (if (ref.test (ref i31) (local.get $x))
+                         (then
+                          (local.set $bits (i31.get_s (ref.cast (ref i31) (local.get $x))))
+                          (if (i32.eqz (i32.and (local.get $bits) (i32.const 1)))
+                              (then ,@fixstmts)
+                              (else (call $raise-expected-number (local.get $x))
+                                    (unreachable)))))
+
+                     ;; Flonum case
+                     (if (ref.test (ref $Flonum) (local.get $x))
+                         (then
+                          (local.set $fl (ref.cast (ref $Flonum) (local.get $x)))
+                          (local.set $f64 (struct.get $Flonum $v (local.get $fl)))
+                          (return (struct.new $Flonum
+                                              (i32.const 0)
+                                              ,expr))))
+
+                     ;; Not a number
+                     (call $raise-expected-number (local.get $x))
+                     (unreachable))))
+
+        (func $sgn (type $Prim1)
+              (param $x (ref eq))
+              (result (ref eq))
+
+              (local $bits i32)
+              (local $fl   (ref $Flonum))
+              (local $f64  f64)
+
+              ;; Fixnum case
+              (if (ref.test (ref i31) (local.get $x))
+                  (then
+                   (local.set $bits (i31.get_s (ref.cast (ref i31) (local.get $x))))
+                   (if (i32.eqz (i32.and (local.get $bits) (i32.const 1)))
+                       (then
+                        (local.set $bits (i32.shr_s (local.get $bits) (i32.const 1)))
+                        (if (i32.eqz (local.get $bits))
+                            (then (return (local.get $x)))
+                            (else (if (i32.gt_s (local.get $bits) (i32.const 0))
+                                      (then (return ,(Imm 1)))
+                                      (else (return ,(Imm -1)))))))
+                       (else (call $raise-expected-number (local.get $x))
+                             (unreachable)))))
+
+              ;; Flonum case
+              (if (ref.test (ref $Flonum) (local.get $x))
+                  (then
+                   (local.set $fl (ref.cast (ref $Flonum) (local.get $x)))
+                   (local.set $f64 (struct.get $Flonum $v (local.get $fl)))
+                   (if (f64.eq (local.get $f64) (f64.const 0.0))
+                       (then (return (local.get $x)))
+                       (else (if (f64.gt (local.get $f64) (f64.const 0.0))
+                                 (then (return (struct.new $Flonum (i32.const 0) (f64.const 1.0))))
+                                 (else (if (f64.lt (local.get $f64) (f64.const 0.0))
+                                           (then (return (struct.new $Flonum (i32.const 0) (f64.const -1.0))))
+                                           (else (return (struct.new $Flonum (i32.const 0)
+                                                                     (f64.div (f64.const 0.0)
+                                                                              (f64.const 0.0))))))))))))
+
+              ;; Not a number
+              (call $raise-expected-number (local.get $x))
+              (unreachable))
+
+        ;; Exact integer rounding functions
+        ;; Implements: $exact-round $exact-floor $exact-ceiling $exact-truncate
+        ,@(let ([ops '((exact-round   f64.nearest)
+                       (exact-floor   f64.floor)
+                       (exact-ceiling f64.ceil)
+                       (exact-truncate f64.trunc))])
+            (for/list ([p ops])
+              (define name (car p))
+              (define expr (cadr p))
+              `(func ,(string->symbol (format "$~a" name))
+                     (type $Prim1)
+                     (param $x (ref eq))
+                     (result (ref eq))
+
+                     (local $bits i32)
+                     (local $fl (ref $Flonum))
+                     (local $f64 f64)
+
+                     ;; Fixnum case
+                     (if (ref.test (ref i31) (local.get $x))
+                         (then
+                          (local.set $bits (i31.get_s (ref.cast (ref i31) (local.get $x))))
+                          (if (i32.eqz (i32.and (local.get $bits) (i32.const 1)))
+                              (then (return (local.get $x)))
+                              (else (call $raise-expected-number (local.get $x))
+                                    (unreachable)))))
+
+                     ;; Flonum case
+                     (if (ref.test (ref $Flonum) (local.get $x))
+                         (then
+                          (local.set $fl (ref.cast (ref $Flonum) (local.get $x)))
+                          (local.set $f64 (struct.get $Flonum $v (local.get $fl)))
+                          (if (f64.ne (local.get $f64) (local.get $f64))
+                              (then (call $raise-expected-number (local.get $x)) (unreachable)))
+                          (if (f64.eq (local.get $f64) (f64.const +inf))
+                              (then (call $raise-expected-number (local.get $x)) (unreachable)))
+                          (if (f64.eq (local.get $f64) (f64.const -inf))
+                              (then (call $raise-expected-number (local.get $x)) (unreachable)))
+                          (local.set $f64 (,expr (local.get $f64)))
+                          (if (f64.gt (local.get $f64) (f64.const 1073741823.0))
+                              (then (call $raise-expected-number (local.get $x)) (unreachable)))
+                          (if (f64.lt (local.get $f64) (f64.const -1073741824.0))
+                              (then (call $raise-expected-number (local.get $x)) (unreachable)))
+                          (local.set $bits (i32.trunc_f64_s (local.get $f64)))
+                          (return (ref.i31 (i32.shl (local.get $bits) (i32.const 1))))))
+
+                     ;; Not a number
+                     (call $raise-expected-number (local.get $x))
+                     (unreachable))))
+
+        ;; Trigonometric functions
+        ;               name js            inbits outbits
+        ,@(let ([ops '((sin  $js-raw-math-sin  0      0)    ;  sin(0) = 0
+                       (cos  $js-raw-math-cos  0      2)    ;  cos(0) = 1
+                       (tan  $js-raw-math-tan  0      0)    ;  tan(0) = 0
+                       (asin $js-raw-math-asin 0      0)    ; asin(0) = 0
+                       (acos $js-raw-math-acos 2      0)    ; acos(1) = 0
+                       (sinh  $js-raw-math-sinh  0      0) ;  sinh(0) = 0
+                       (cosh  $js-raw-math-cosh  0      2) ;  cosh(0) = 1
+                       (tanh  $js-raw-math-tanh  0      0) ;  tanh(0) = 0
+                       (asinh $js-raw-math-asinh 0      0) ; asinh(0) = 0
+                       (acosh $js-raw-math-acosh 2      0) ; acosh(1) = 0
+                       (atanh $js-raw-math-atanh 0      0))]) ; atanh(0) = 0
+            ;; inbits and outbits are raw i31 fixnum encodings.
+            ;; They mark trivial exact identities of trig functions
+            ;; (e.g. sin 0 = 0, cos 0 = 1, acos 1 = 0).
+            ;; This avoids JS calls and flonum allocation in those cases.
+            (for/list ([p ops])
+              (define name    (car p))
+              (define js      (cadr p))
+              (define inbits  (caddr p))
+              (define outbits (cadddr p))
+              `(func ,(string->symbol (format "$~a" name))
+                     (type $Prim1)
+                     (param $x (ref eq))
+                     (result (ref eq))
+
+                     (local $bits i32)
+                     (local $fl (ref $Flonum))
+                     (local $f64 f64)
+
+                     (if (ref.test (ref i31) (local.get $x))
+                         (then
+                          (local.set $bits (i31.get_s (ref.cast (ref i31) (local.get $x))))
+                          (if (i32.eqz (i32.and (local.get $bits) (i32.const 1)))
+                              (then
+                               (if (i32.eq (local.get $bits) (i32.const ,inbits))
+                                   (then (return (ref.i31 (i32.const ,outbits)))))
+                               (return (struct.new $Flonum
+                                                   (i32.const 0)
+                                                   (call ,js
+                                                         (f64.convert_i32_s
+                                                          (i32.shr_s (local.get $bits) (i32.const 1)))))))
+                              (else (call $raise-expected-number (local.get $x))
+                                    (unreachable)))))
+
+                     (if (ref.test (ref $Flonum) (local.get $x))
+                         (then
+                          (local.set $fl (ref.cast (ref $Flonum) (local.get $x)))
+                          (local.set $f64 (struct.get $Flonum $v (local.get $fl)))
+                          (return (struct.new $Flonum
+                                               (i32.const 0)
+                                               (call ,js (local.get $f64))))))
+
+                     (call $raise-expected-number (local.get $x))
+                     (unreachable))))
+
+        (func $atan (type $Prim12)
+              (param $y (ref eq))
+              (param $x (ref eq))
+              (result   (ref eq))
+
+              (local $bits i32)
+              (local $y/f64 f64)
+              (local $x/f64 f64)
+              (local $y-exact i32)
+
+              ;; Decode y. In the one-argument case this is the ordinary
+              ;; unary atan input; with x present, Racket computes atan2(y, x).
+              (if (ref.test (ref i31) (local.get $y))
+                  (then
+                   (local.set $bits (i31.get_s (ref.cast (ref i31) (local.get $y))))
+                   (if (i32.eqz (i32.and (local.get $bits) (i32.const 1)))
+                       (then (local.set $y/f64
+                                        (f64.convert_i32_s
+                                         (i32.shr_s (local.get $bits) (i32.const 1))))
+                             (local.set $y-exact (i32.const 1)))
+                       (else (call $raise-expected-number (local.get $y)) (unreachable))))
+                  (else
+                   (if (ref.test (ref $Flonum) (local.get $y))
+                       (then (local.set $y/f64
+                                        (struct.get $Flonum $v
+                                                    (ref.cast (ref $Flonum) (local.get $y)))))
+                       (else (call $raise-expected-number (local.get $y)) (unreachable)))))
+
+              (if (ref.eq (local.get $x) (global.get $missing))
+                  (then
+                   (if (i32.and (local.get $y-exact)
+                                (f64.eq (local.get $y/f64) (f64.const 0.0)))
+                       (then (return ,(Imm 0))))
+                   (return (struct.new $Flonum
+                                       (i32.const 0)
+                                       (call $js-raw-math-atan (local.get $y/f64))))))
+
+              ;; Decode x for the two-argument case.
+              (if (ref.test (ref i31) (local.get $x))
+                  (then
+                   (local.set $bits (i31.get_s (ref.cast (ref i31) (local.get $x))))
+                   (if (i32.eqz (i32.and (local.get $bits) (i32.const 1)))
+                       (then (local.set $x/f64
+                                        (f64.convert_i32_s
+                                         (i32.shr_s (local.get $bits) (i32.const 1)))))
+                       (else (call $raise-expected-number (local.get $x)) (unreachable))))
+                  (else
+                   (if (ref.test (ref $Flonum) (local.get $x))
+                       (then (local.set $x/f64
+                                        (struct.get $Flonum $v
+                                                    (ref.cast (ref $Flonum) (local.get $x)))))
+                       (else (call $raise-expected-number (local.get $x)) (unreachable)))))
+
+              (struct.new $Flonum
+                          (i32.const 0)
+                          (call $js-raw-math-atan2 (local.get $y/f64) (local.get $x/f64))))
+
+        ;; Angle conversion functions
+        ,@(let ([ops '((degrees->radians 0.017453292519943295)
+                       (radians->degrees 57.29577951308232))])
+            (for/list ([p ops])
+              (define name (car p))
+              (define factor (cadr p))
+              `(func ,(string->symbol (format "$~a" name))
+                     (type $Prim1)
+                     (param $x (ref eq))
+                     (result (ref eq))
+
+                     (local $bits i32)
+                     (local $fl (ref $Flonum))
+                     (local $f64 f64)
+
+                     (if (ref.test (ref i31) (local.get $x))
+                         (then
+                          (local.set $bits (i31.get_s (ref.cast (ref i31) (local.get $x))))
+                          (if (i32.eqz (i32.and (local.get $bits) (i32.const 1)))
+                              (then
+                               (local.set $f64
+                                          (f64.mul
+                                           (f64.convert_i32_s
+                                            (i32.shr_s (local.get $bits) (i32.const 1)))
+                                           (f64.const ,factor)))
+                               (return (struct.new $Flonum
+                                                   (i32.const 0)
+                                                   (local.get $f64))))
+                              (else (call $raise-expected-number (local.get $x))
+                                    (unreachable)))))
+
+                     (if (ref.test (ref $Flonum) (local.get $x))
+                         (then
+                          (local.set $fl (ref.cast (ref $Flonum) (local.get $x)))
+                          (local.set $f64 (struct.get $Flonum $v (local.get $fl)))
+                          (return (struct.new $Flonum
+                                               (i32.const 0)
+                                               (f64.mul (local.get $f64) (f64.const ,factor))))))
+
+                    (call $raise-expected-number (local.get $x))
+                    (unreachable))))
+
+        (func $order-of-magnitude (type $Prim1)
+              (param $r (ref eq))
+              (result (ref eq))
+
+              (local $bits i32)
+              (local $i i32)
+              (local $fl (ref $Flonum))
+              (local $f64 f64)
+              (local $m i32)
+              (local $p f64)
+              (local $u f64)
+              (local $ok i32)
+
+              (local.set $ok (i32.const 0))
+
+              (if (ref.test (ref i31) (local.get $r))
+                  (then
+                   (local.set $bits (i31.get_s (ref.cast (ref i31) (local.get $r))))
+                   (if (i32.eqz (i32.and (local.get $bits) (i32.const 1)))
+                       (then
+                        (local.set $i (i32.shr_s (local.get $bits) (i32.const 1)))
+                        (if (i32.gt_s (local.get $i) (i32.const 0))
+                            (then
+                             (local.set $f64 (f64.convert_i32_s (local.get $i)))
+                             (local.set $ok (i32.const 1)))
+                            (else (call $raise-argument-error/internal (local.get $r))
+                                  (unreachable))))
+                       (else (call $raise-argument-error/internal (local.get $r))
+                             (unreachable)))))
+
+              (if (i32.eqz (local.get $ok))
+                  (then
+                   (if (ref.test (ref $Flonum) (local.get $r))
+                       (then
+                        (local.set $fl (ref.cast (ref $Flonum) (local.get $r)))
+                        (local.set $f64 (struct.get $Flonum $v (local.get $fl)))
+                        (if (f64.le (local.get $f64) (f64.const 0))
+                            (then (call $raise-argument-error/internal (local.get $r))
+                                  (unreachable)))
+                        (if (f64.eq (local.get $f64) (f64.const inf))
+                            (then (call $raise-argument-error/internal (local.get $r))
+                                  (unreachable)))
+                        (if (f64.ne (local.get $f64) (local.get $f64))
+                            (then (call $raise-argument-error/internal (local.get $r))
+                                  (unreachable)))
+                        (local.set $ok (i32.const 1))))))
+
+              (if (i32.eqz (local.get $ok))
+                  (then (call $raise-argument-error/internal (local.get $r))
+                        (unreachable)))
+
+              (local.set $m
+                         (i32.trunc_f64_s
+                          (f64.floor
+                           (f64.mul
+                            (call $js-raw-math-log (local.get $f64))
+                            (f64.const 0.4342944819032518)))))
+              (local.set $p
+                         (call $js-raw-math-pow
+                               (f64.const 10)
+                               (f64.convert_i32_s (local.get $m))))
+
+              (block $down
+                     (loop $loop-down
+                           (br_if $down (f64.le (local.get $p) (local.get $f64)))
+                           (local.set $m (i32.sub (local.get $m) (i32.const 1)))
+                           (local.set $p (f64.mul (local.get $p) (f64.const 0.1)))
+                           (br $loop-down)))
+
+              (local.set $u (f64.mul (local.get $p) (f64.const 10)))
+
+              (block $up
+                     (loop $loop-up
+                           (br_if $up (f64.lt (local.get $f64) (local.get $u)))
+                           (local.set $m (i32.add (local.get $m) (i32.const 1)))
+                           (local.set $p (local.get $u))
+                           (local.set $u (f64.mul (local.get $u) (f64.const 10)))
+                           (br $loop-up)))
+
+              (ref.i31 (i32.shl (local.get $m) (i32.const 1))))
+
+
+     )))
+
+;; number-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate number helpers that still depend on monolithic runtime globals.
+(define number-runtime-only-helpers
+  (append number-type-runtime-only-helpers
+          generic-numeric-runtime-only-helpers))
