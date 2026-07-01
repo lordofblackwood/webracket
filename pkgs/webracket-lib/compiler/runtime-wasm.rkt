@@ -33,7 +33,8 @@
                   filesystem-runtime-only-helpers
                   filesystem-runtime-only-helper-names)
          (only-in "runtime-wasm/core/hashes.rkt"
-                  hash-runtime-only-helpers)
+                  hash-runtime-only-helpers
+                  hash-predicate-runtime-only-helper-names)
          (only-in "runtime-wasm/core/immutable-hashes.rkt"
                   immutable-hash-runtime-only-helpers)
          (only-in "runtime-wasm/core/immediates.rkt"
@@ -9993,78 +9994,9 @@
                              (else (global.get $false))))
                    (else (global.get $false))))
 
-         ;; hash-leaf?/i32 : any/c -> i32
-         ;;   Check concrete hash representations instead of the broad $Hash
-         ;;   prefix type, which can also match non-hash structs by shape.
-         (func $hash-leaf?/i32
-               (param $v (ref eq)) ;; any/c
-               (result   i32)
-               ;; Wasm-GC struct subtyping is structural enough that the
-               ;; broad hash wrapper shapes can accidentally match ordinary
-               ;; Racket structs. Reject `$Struct` first; WebRacket hash
-               ;; wrappers are runtime objects, not Racket struct values.
-               (if (result i32)
-                   (ref.test (ref $Struct) (local.get $v))
-                   (then (i32.const 0))
-                   (else
-                    (i32.or (call $mutable-hash-leaf?/i32 (local.get $v))
-                            (call $immutable-hash-leaf?/i32 (local.get $v))))))
-
-         ;; mutable-hash-leaf?/i32 : any/c -> i32
-         ;;   Check concrete mutable hash representations.
-         (func $mutable-hash-leaf?/i32
-               (param $v (ref eq)) ;; any/c
-               (result   i32)
-               (i32.or
-                (i32.or
-                 (if (result i32)
-                     (ref.test (ref $HashEqMutable) (local.get $v))
-                     (then (ref.eq (struct.get $HashEqMutable $mutable?
-                                               (ref.cast (ref $HashEqMutable) (local.get $v)))
-                                   (global.get $true)))
-                     (else (i32.const 0)))
-                 (if (result i32)
-                     (ref.test (ref $HashEqvMutable) (local.get $v))
-                     (then (ref.eq (struct.get $HashEqvMutable $mutable?
-                                               (ref.cast (ref $HashEqvMutable) (local.get $v)))
-                                   (global.get $true)))
-                     (else (i32.const 0))))
-                (i32.or
-                 (if (result i32)
-                     (ref.test (ref $HashEqualMutable) (local.get $v))
-                     (then (ref.eq (struct.get $HashEqualMutable $mutable?
-                                               (ref.cast (ref $HashEqualMutable) (local.get $v)))
-                                   (global.get $true)))
-                     (else (i32.const 0)))
-                 (if (result i32)
-                     (ref.test (ref $HashEqualAlwaysMutable) (local.get $v))
-                     (then (ref.eq (struct.get $HashEqualAlwaysMutable $mutable?
-                                               (ref.cast (ref $HashEqualAlwaysMutable) (local.get $v)))
-                                   (global.get $true)))
-                     (else (i32.const 0))))))
-
-         ;; immutable-hash-leaf?/i32 : any/c -> i32
-         ;;   Check concrete immutable hash representations.
-         (func $immutable-hash-leaf?/i32
-               (param $v (ref eq)) ;; any/c
-               (result   i32)
-               (i32.or
-                (i32.or (ref.test (ref $HashEqImmutable) (local.get $v))
-                        (ref.test (ref $HashEqvImmutable) (local.get $v)))
-                (i32.or (ref.test (ref $HashEqualImmutable) (local.get $v))
-                        (ref.test (ref $HashEqualAlwaysImmutable) (local.get $v)))))
-
-         (func $mutable-hash? (type $Prim1) (param $v (ref eq)) (result (ref eq))
-               (if (result (ref eq))
-                   (call $mutable-hash-leaf?/i32 (local.get $v))
-                   (then (global.get $true))
-                   (else (global.get $false))))
-
-         (func $immutable-hash? (type $Prim1) (param $v (ref eq)) (result (ref eq))
-               (if (result (ref eq))
-                   (call $immutable-hash-leaf?/i32 (local.get $v))
-                   (then (global.get $true))
-                   (else (global.get $false))))
+         ;;   Hash predicates are implemented in runtime-wasm/core/hashes.rkt.
+         ,@(for/list ([name (in-list hash-predicate-runtime-only-helper-names)])
+             (core-runtime-helper-form runtime-helper-index name))
 
          ; todo: Benchmark the two implementations of $boolean? below
 
