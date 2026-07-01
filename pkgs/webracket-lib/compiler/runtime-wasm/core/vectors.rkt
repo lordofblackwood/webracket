@@ -1,6 +1,7 @@
 #lang racket
 
-(provide vector-build-runtime-only-helper-names
+(provide vector-append-runtime-only-helper-names
+         vector-build-runtime-only-helper-names
          vector-constructor-runtime-only-helper-names
          vector-copy-runtime-only-helper-names
          vector-core-runtime-helpers
@@ -1170,6 +1171,134 @@
 (define vector-extend-runtime-only-helper-names
   (map core-runtime-helper-name vector-extend-runtime-only-helpers))
 
+
+;; vector-append-runtime-only-forms : (listof datum?)
+;;   Enumerate vector append helpers used by the monolithic runtime.
+(define vector-append-runtime-only-forms
+  '(
+         (func $vector-append (type $Prim>=0)
+              (param $xs    (ref eq))        ;; list of vectors
+              (result       (ref eq))
+
+              (local $n     i32)
+              (local $node  (ref $Pair))
+              (local $vec   (ref $Vector))
+              (local $v     (ref eq))
+              (local $orig  (ref eq))
+              (local $total i32)
+              (local $len   i32)
+              (local $arr   (ref $Array))
+              (local $pos   i32)
+
+              ;; initialize non-defaultable refs
+              (local.set $vec (global.get $dummy-vector))
+
+              ;; Preserve original list
+              (local.set $orig (local.get $xs))
+              ;; Determine number of arguments
+              (local.set $n (call $length/i32 (local.get $xs)))
+              ;; Zero arguments -> empty vector
+              (if (i32.eqz (local.get $n))
+                  (then (return (struct.new $Vector
+                                           (i32.const 0)
+                                           (i32.const 0)
+                                           (call $make-array
+                                                 (i32.const 0)
+                                                 (global.get $false))))))
+              ;; Extract and check first argument
+              (local.set $node (ref.cast (ref $Pair) (local.get $xs)))
+              (local.set $v    (struct.get $Pair $a (local.get $node)))
+              (if (ref.test (ref $Vector) (local.get $v))
+                  (then (local.set $vec (ref.cast (ref $Vector) (local.get $v))))
+                  (else (call $raise-check-vector/who
+                              (global.get $symbol:vector-append)
+                              (local.get $v))))
+              ;; Single argument -> copy to ensure fresh vector
+              (if (i32.eq (local.get $n) (i32.const 1))
+                  (then (return (call $vector-copy
+                                      (local.get $v)
+                                      (global.get $missing)
+                                      (global.get $missing)))))
+              ;; Compute total length
+              (local.set $total (array.len (struct.get $Vector $arr (local.get $vec))))
+              (local.set $xs    (struct.get $Pair $d (local.get $node)))
+              (block $done1
+                     (loop $loop1
+                           (br_if $done1 (ref.eq (local.get $xs) (global.get $null)))
+                           (local.set $node (ref.cast (ref $Pair) (local.get $xs)))
+                           (local.set $v    (struct.get $Pair $a (local.get $node)))
+                           (if (ref.test (ref $Vector) (local.get $v))
+                               (then (local.set $vec   (ref.cast (ref $Vector) (local.get $v)))
+                                     (local.set $len   (array.len (struct.get $Vector $arr (local.get $vec))))
+                                     (local.set $total (i32.add (local.get $total) (local.get $len))))
+                               (else (call $raise-check-vector/who
+                                           (global.get $symbol:vector-append)
+                                           (local.get $v))))
+                           (local.set $xs (struct.get $Pair $d (local.get $node)))
+                           (br $loop1)))
+              ;; Allocate result array
+              (local.set $arr (call $make-array (local.get $total) (global.get $false)))
+              ;; Copy vectors into result array
+              (local.set $xs (local.get $orig))
+              (local.set $pos (i32.const 0))
+              (block $done2
+                     (loop $loop2
+                           (br_if $done2 (ref.eq (local.get $xs) (global.get $null)))
+                           (local.set $node (ref.cast (ref $Pair) (local.get $xs)))
+                           (local.set $vec  (ref.cast (ref $Vector)
+                                                      (struct.get $Pair $a (local.get $node))))
+                           (local.set $len  (array.len (struct.get $Vector $arr (local.get $vec))))
+                           (call $array-copy!
+                                 (local.get $arr) (local.get $pos)
+                                 (struct.get $Vector $arr (local.get $vec))
+                                 (i32.const 0) (local.get $len))
+                           (local.set $pos (i32.add (local.get $pos) (local.get $len)))
+                           (local.set $xs (struct.get $Pair $d (local.get $node)))
+                           (br $loop2)))
+
+              (struct.new $Vector
+                          (i32.const 0)
+                          (i32.const 0)
+                          (local.get $arr)))
+
+         (func $vector-append/2 (param $a (ref eq)) (param $b (ref eq)) (result (ref eq))
+               (local $va (ref $Vector))
+               (local $vb (ref $Vector))
+               (local.set $va (global.get $dummy-vector))
+               (local.set $vb (global.get $dummy-vector))
+               (if (ref.test (ref $Vector) (local.get $a))
+                   (then (local.set $va (ref.cast (ref $Vector) (local.get $a))))
+                   (else (call $raise-check-vector/who
+                               (global.get $symbol:vector-append)
+                               (local.get $a))))
+               (if (ref.test (ref $Vector) (local.get $b))
+                   (then (local.set $vb (ref.cast (ref $Vector) (local.get $b))))
+                   (else (call $raise-check-vector/who
+                               (global.get $symbol:vector-append)
+                               (local.get $b))))
+
+               (struct.new $Vector (i32.const 0)
+                           (i32.const 0)
+                           (call $array-append
+                                 (struct.get $Vector $arr (local.get $va))
+                                 (struct.get $Vector $arr (local.get $vb)))))
+
+
+
+     ))
+
+;; vector-append-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate vector append helpers used by the monolithic runtime.
+(define vector-append-runtime-only-helpers
+  (function-forms->runtime-helpers
+   'vector-append-runtime-only-helpers
+   vector-append-runtime-only-forms))
+
+;; vector-append-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for vector append helpers.
+(define vector-append-runtime-only-helper-names
+  (map core-runtime-helper-name vector-append-runtime-only-helpers))
+
 ;; vector-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate vector helpers that still depend on monolithic runtime globals.
 (define vector-runtime-only-helpers
@@ -1181,6 +1310,7 @@
    vector-operation-runtime-only-helpers
    vector-copy-runtime-only-helpers
    vector-extend-runtime-only-helpers
+   vector-append-runtime-only-helpers
    (function-forms->runtime-helpers
     'vector-runtime-only-helpers
     '(
