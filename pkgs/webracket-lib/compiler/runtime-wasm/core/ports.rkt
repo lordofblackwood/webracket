@@ -7,7 +7,8 @@
          (only-in "../../private/immediates.rkt"
                   char-mask
                   char-shift
-                  char-tag))
+                  char-tag
+                  eof-value))
 
 ;; port-predicate-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate port predicate and wrapper-recognition helpers.
@@ -1320,6 +1321,240 @@
            (local.set $arr    (struct.get $Bytes $bs (local.get $buffer)))
            (local.set $byte   (array.get_u $I8Array (local.get $arr) (i32.const 0)))
            (ref.i31 (i32.shl (local.get $byte) (i32.const 1)))))))
+
+;; port-byte-char-input-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate primitive byte and character input helpers.
+(define port-byte-char-input-runtime-only-helpers
+  (function-forms->runtime-helpers
+   'port-byte-char-input-runtime-only-helpers
+   (list
+    `(func $read-byte (type $Prim01)
+           (param $in (ref eq)) ;; optional input-port?, default = (current-input-port)
+           (result    (ref eq))
+
+           (local $sp        (ref null $InputStringPort))
+           (local $bs        (ref eq))
+           (local $arr       (ref $I8Array))
+           (local $idx       i32)
+           (local $limit     i32)
+           (local $byte      i32)
+           (local $loc       (ref $Location))
+
+           (local $pos       (ref eq))
+           (local $line      (ref eq))
+           (local $col       (ref eq))
+
+           (local $int-pos   i32)
+           (local $int-line  i32)
+           (local $int-col   i32)
+
+           (local $len       i32)
+           (local $left      i32)
+           (local $seen      i32)
+
+           (if (ref.eq (local.get $in) (global.get $missing))
+               (then (local.set $in (call $current-input-port
+                                          (global.get $missing)))))
+           ;; Ensure the input is a string port.
+           (if (ref.test (ref $InputStringPort) (local.get $in))
+               (then (local.set $sp (ref.cast (ref $InputStringPort) (local.get $in))))
+               (else
+                (if (ref.test (ref $CustomInputPort) (local.get $in))
+                    (then (return (call $read-byte/custom
+                                         (ref.cast (ref $CustomInputPort) (local.get $in)))))
+                    (else (return (global.get $false))))))
+           (if (struct.get $InputStringPort $closed (local.get $sp))
+               (then (call $raise-input-port-closed
+                           (global.get $string:read-byte:input-port-closed))
+                     (unreachable)))
+
+           (local.set $idx   (struct.get $InputStringPort $idx (local.get $sp)))
+           (local.set $limit (struct.get $InputStringPort $len (local.get $sp)))
+           ;; Return the EOF object when no more bytes remain.
+           (if (i32.ge_u (local.get $idx) (local.get $limit))
+               (then (return (ref.i31 (i32.const ,eof-value)))))
+
+           (local.set $bs  (struct.get $InputStringPort $bytes (local.get $sp)))
+           (local.set $arr (struct.get $Bytes $bs (ref.cast (ref $Bytes) (local.get $bs))))
+           (local.set $byte (array.get_u $I8Array (local.get $arr) (local.get $idx)))
+
+           (struct.set $InputStringPort $idx (local.get $sp)
+                       (i32.add (local.get $idx) (i32.const 1)))
+           ;; Load the existing location information.
+           (local.set $loc  (struct.get $InputStringPort $loc  (local.get $sp)))
+           (local.set $pos  (struct.get $Location        $pos  (local.get $loc)))
+           (local.set $line (struct.get $Location        $line (local.get $loc)))
+           (local.set $col  (struct.get $Location        $col  (local.get $loc)))
+
+           (local.set $int-pos  (if (result i32)
+                                    (ref.test (ref i31) (local.get $pos))
+                                    (then (i32.shr_s (i31.get_u (ref.cast (ref i31) (local.get $pos)))
+                                                     (i32.const 1)))
+                                    (else (i32.const 0))))
+           (local.set $int-line (if (result i32)
+                                    (ref.test (ref i31) (local.get $line))
+                                    (then (i32.shr_s (i31.get_u (ref.cast (ref i31) (local.get $line)))
+                                                     (i32.const 1)))
+                                    (else (i32.const 0))))
+           (local.set $int-col  (if (result i32)
+                                    (ref.test (ref i31) (local.get $col))
+                                    (then (i32.shr_s (i31.get_u (ref.cast (ref i31) (local.get $col)))
+                                                     (i32.const 1)))
+                                    (else (i32.const 0))))
+           ;; Update UTF-8 state and column tracking using the read byte.
+           (local.set $len  (struct.get $InputStringPort $utf8-len   (local.get $sp)))
+           (local.set $left (struct.get $InputStringPort $utf8-left  (local.get $sp)))
+           (local.set $seen (struct.get $InputStringPort $utf8-bytes (local.get $sp)))
+           (if (i32.eqz (local.get $len))
+               (then
+                ;; Start of UTF-8 sequence
+                (if (i32.lt_u (local.get $byte) (i32.const 128))
+                    (then (local.set $int-col (i32.add (local.get $int-col) (i32.const 1))))
+                    (else
+                     (if (i32.and (i32.ge_u (local.get $byte) (i32.const 192))
+                                  (i32.le_u (local.get $byte) (i32.const 253)))
+                         (then
+                          (block
+                           (local.set $len
+                                      (i32.clz (i32.xor (i32.shl (local.get $byte) (i32.const 24))
+                                                        (i32.const 0xFF000000))))
+                           (local.set $len
+                                      (select
+                                       (local.get $len)
+                                       (i32.const 4)
+                                       (i32.lt_u (local.get $len) (i32.const 4))))
+                           (struct.set $InputStringPort $utf8-len   (local.get $sp) (local.get $len))
+                           (struct.set $InputStringPort $utf8-left  (local.get $sp)
+                                       (i32.sub (local.get $len) (i32.const 1)))
+                           (struct.set $InputStringPort $utf8-bytes (local.get $sp) (i32.const 1))))))))
+               (else
+                (block
+                 (local.set $seen (i32.add (local.get $seen) (i32.const 1)))
+                 (local.set $left (i32.sub (local.get $left) (i32.const 1)))
+                 (struct.set $InputStringPort $utf8-left  (local.get $sp) (local.get $left))
+                 (struct.set $InputStringPort $utf8-bytes (local.get $sp) (local.get $seen))
+                 (if (i32.eqz (local.get $left))
+                     (then
+                      ;; UTF-8 sequence complete: count one character column.
+                      (local.set $int-col
+                                 (i32.add (local.get $int-col) (i32.const 1)))
+                      (struct.set $InputStringPort $utf8-len   (local.get $sp) (i32.const 0))
+                      (struct.set $InputStringPort $utf8-left  (local.get $sp) (i32.const 0))
+                      (struct.set $InputStringPort $utf8-bytes (local.get $sp) (i32.const 0)))))))
+           ;; Handle newline, return, and tab characters.
+           (if (i32.eq (local.get $byte) (i32.const 10))
+               (then (local.set $int-line (i32.add (local.get $int-line) (i32.const 1)))
+                     (local.set $int-col  (i32.const 0))))
+           (if (i32.eq (local.get $byte) (i32.const 13))
+               (then (local.set $int-line (i32.add (local.get $int-line) (i32.const 1)))
+                     (local.set $int-col  (i32.const 0))))
+           (if (i32.eq (local.get $byte) (i32.const 9))
+               (then (local.set $int-col
+                           (i32.add (local.get $int-col)
+                                    (i32.sub
+                                     (i32.const 8)
+                                     (i32.rem_u (local.get $int-col) (i32.const 8)))))))
+           ;; Always advance the absolute position.
+           (local.set $int-pos (i32.add (local.get $int-pos) (i32.const 1)))
+           ;; Store updated location back into the port.
+           (struct.set $InputStringPort $loc (local.get $sp)
+                       (struct.new $Location
+                                   (i32.const 0)
+                                   (ref.i31 (i32.shl (local.get $int-line) (i32.const 1)))
+                                   (ref.i31 (i32.shl (local.get $int-col)  (i32.const 1)))
+                                   (ref.i31 (i32.shl (local.get $int-pos)  (i32.const 1)))))
+           ;; Return the read byte as a fixnum.
+           (ref.i31 (i32.shl (local.get $byte) (i32.const 1))))
+
+    `(func $read-char (type $Prim01)
+           (param $in (ref eq)) ;; optional input-port?, default = (current-input-port)
+           (result    (ref eq))
+
+           (local $first        (ref eq))
+           (local $next         (ref eq))
+           (local $byte         i32)
+           (local $need         i32)
+           (local $initial-need i32)
+           (local $acc          i32)
+           (local $cp           i32)
+           (local $cont         i32)
+
+           (if (ref.eq (local.get $in) (global.get $missing))
+               (then (local.set $in (call $current-input-port
+                                          (global.get $missing)))))
+           ;; Ensure the input is an input port.
+           (if (i32.eqz (ref.test (ref $InputPort) (local.get $in)))
+               (then (return (global.get $false))))
+
+           (local.set $first (call $read-byte (local.get $in)))
+           (if (ref.eq (local.get $first) (global.get $eof))
+               (then (return (global.get $eof))))
+
+           (if (i32.eqz (ref.test (ref i31) (local.get $first)))
+               (then (return (global.get $false))))
+
+           (local.set $byte
+                      (i32.shr_u (i31.get_u (ref.cast (ref i31) (local.get $first)))
+                                 (i32.const 1)))
+
+           ;; ASCII fast path.
+           (if (i32.lt_u (local.get $byte) (i32.const 128))
+               (then (return (ref.i31 (i32.or (i32.shl (local.get $byte) (i32.const ,char-shift))
+                                             (i32.const ,char-tag))))))
+
+           ;; Determine continuation byte count and initial accumulator bits.
+           (call $bytes->string/utf-8:determine-utf-8-sequence (local.get $byte))
+           (local.set $acc)
+           (local.set $need)
+           (local.set $initial-need (local.get $need))
+
+           ;; Reject invalid lead bytes.
+           (if (i32.lt_s (local.get $need) (i32.const 0))
+               (then (return (global.get $false))))
+
+           (local.set $cp (local.get $acc))
+
+           ;; Consume required continuation bytes.
+           (block $done
+                  (loop $loop
+                        (br_if $done (i32.eqz (local.get $need)))
+                        (local.set $next (call $read-byte (local.get $in)))
+                        (if (ref.eq (local.get $next) (global.get $eof))
+                            (then (return (global.get $eof))))
+                        (if (i32.eqz (ref.test (ref i31) (local.get $next)))
+                            (then (return (global.get $false))))
+                        (local.set $cont
+                                   (i32.shr_u (i31.get_u (ref.cast (ref i31) (local.get $next)))
+                                              (i32.const 1)))
+                        ;; Continuation bytes must have the form #b10xxxxxx.
+                        (if (i32.or (i32.lt_u (local.get $cont) (i32.const 128))
+                                    (i32.ge_u (local.get $cont) (i32.const 192)))
+                            (then (return (global.get $false))))
+                        (local.set $cp
+                                   (i32.or (i32.shl (local.get $cp) (i32.const 6))
+                                           (i32.and (local.get $cont) (i32.const 63))))
+                        (local.set $need (i32.sub (local.get $need) (i32.const 1)))
+                        (br $loop)))
+
+           ;; Validate resulting code point: reject surrogates, overlong encodings, and out-of-range values.
+           (if (i32.gt_u (local.get $cp) (i32.const #x10FFFF))
+               (then (return (global.get $false))))
+           (if (i32.and (i32.ge_u (local.get $cp) (i32.const #xD800))
+                        (i32.le_u (local.get $cp) (i32.const #xDFFF)))
+               (then (return (global.get $false))))
+           (if (i32.eq (local.get $initial-need) (i32.const 1))
+               (then (if (i32.lt_u (local.get $cp) (i32.const #x80))
+                         (then (return (global.get $false))))))
+           (if (i32.eq (local.get $initial-need) (i32.const 2))
+               (then (if (i32.lt_u (local.get $cp) (i32.const #x800))
+                         (then (return (global.get $false))))))
+           (if (i32.eq (local.get $initial-need) (i32.const 3))
+               (then (if (i32.lt_u (local.get $cp) (i32.const #x10000))
+                         (then (return (global.get $false))))))
+
+           ;; Construct and return the character immediate.
+           (ref.i31 (i32.or (i32.shl (local.get $cp) (i32.const ,char-shift))
+                            (i32.const ,char-tag)))))))
 
 ;; port-read-special-wrapper-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate read-byte-or-special and read-char-or-special wrappers.
@@ -3568,6 +3803,7 @@
           port-custom-constructor-runtime-only-helpers
           port-capability-runtime-only-helpers
           port-custom-input-byte-runtime-only-helpers
+          port-byte-char-input-runtime-only-helpers
           port-read-special-wrapper-runtime-only-helpers
           port-read-bytes-runtime-only-helpers
           port-read-string-runtime-only-helpers
