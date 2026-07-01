@@ -2,6 +2,7 @@
 
 (provide vector-build-runtime-only-helper-names
          vector-constructor-runtime-only-helper-names
+         vector-copy-runtime-only-helper-names
          vector-core-runtime-helpers
          vector-error-runtime-only-helper-names
          vector-make-runtime-only-helper-names
@@ -761,6 +762,313 @@
 (define vector-operation-runtime-only-helper-names
   (map core-runtime-helper-name vector-operation-runtime-only-helpers))
 
+
+;; vector-copy-runtime-only-forms : (listof datum?)
+;;   Enumerate vector copy and conversion helpers used by the monolithic runtime.
+(define vector-copy-runtime-only-forms
+  '(
+         (func $vector-copy!
+               (param $dest       (ref eq))
+               (param $dest-start (ref eq))   ;; fixnum
+               (param $src        (ref eq))
+               (param $src-start  (ref eq))   ;; fixnum or $missing, default: 0)
+               (param $src-end    (ref eq))   ;; fixnum or $missing, default: (vector-length src)
+               (result            (ref eq))
+
+               (local $d       (ref $Vector))
+               (local $s       (ref $Vector))
+               (local $ds      i32)
+               (local $ss      i32)
+               (local $se      i32)
+               (local $src-len i32)
+
+               ;; --- Validate $dest ---
+               (if (i32.eqz (ref.test (ref $Vector) (local.get $dest)))
+                   (then (call $raise-check-vector/who
+                               (global.get $symbol:vector-copy!)
+                               (local.get $dest))))
+               ;; --- Validate $src ---
+               (if (i32.eqz (ref.test (ref $Vector) (local.get $src)))
+                   (then (call $raise-check-vector/who
+                               (global.get $symbol:vector-copy!)
+                               (local.get $src))))
+               ;; --- Validate $dest-start ---
+               (if (i32.eqz (ref.test (ref i31) (local.get $dest-start)))
+                   (then (call $raise-check-fixnum/who
+                               (global.get $symbol:vector-copy!)
+                               (local.get $dest-start))))
+               (if (i32.and (i31.get_u (ref.cast (ref i31) (local.get $dest-start)))
+                            (i32.const 1))
+                   (then (call $raise-check-fixnum/who
+                               (global.get $symbol:vector-copy!)
+                               (local.get $dest-start))))
+               ;; --- Validate $src-start ---
+               (if (i32.eqz (ref.eq (local.get $src-start) (global.get $missing)))
+                   (then (if (i32.eqz (ref.test (ref i31) (local.get $src-start)))
+                             (then (call $raise-check-fixnum/who
+                                         (global.get $symbol:vector-copy!)
+                                         (local.get $src-start))))
+                         (if (i32.and (i31.get_u (ref.cast (ref i31) (local.get $src-start)))
+                                      (i32.const 1))
+                             (then (call $raise-check-fixnum/who
+                                         (global.get $symbol:vector-copy!)
+                                         (local.get $src-start))))))
+               ;; --- Validate $src-end ---
+               (if (i32.eqz (ref.eq (local.get $src-end) (global.get $missing)))
+                   (then (if (i32.eqz (ref.test (ref i31) (local.get $src-end)))
+                             (then (call $raise-check-fixnum/who
+                                         (global.get $symbol:vector-copy!)
+                                         (local.get $src-end))))
+                         (if (i32.and (i31.get_u (ref.cast (ref i31) (local.get $src-end)))
+                                      (i32.const 1))
+                             (then (call $raise-check-fixnum/who
+                                         (global.get $symbol:vector-copy!)
+                                         (local.get $src-end))))))
+               ;; --- Cast and decode after validation ---
+               (local.set $d  (ref.cast (ref $Vector) (local.get $dest)))
+               (local.set $s  (ref.cast (ref $Vector) (local.get $src)))
+               (if (i32.ne (struct.get $Vector $immutable (local.get $d)) (i32.const 0))
+                   (then (call $raise-immutable-vector/who
+                               (global.get $symbol:vector-copy!)
+                               (local.get $dest))))
+               (local.set $ds (i32.shr_u (i31.get_u (ref.cast (ref i31) (local.get $dest-start)))
+                                         (i32.const 1)))
+
+               (local.set $src-len (array.len (struct.get $Vector $arr (local.get $s))))
+
+               (if (ref.eq (local.get $src-start) (global.get $missing))
+                   (then (local.set $ss (i32.const 0)))
+                   (else (local.set $ss (i32.shr_u (i31.get_u (ref.cast (ref i31)
+                                                                        (local.get $src-start)))
+                                                   (i32.const 1)))))
+
+               (if (ref.eq (local.get $src-end) (global.get $missing))
+                   (then (local.set $se (local.get $src-len)))
+                   (else (local.set $se (i32.shr_u (i31.get_u (ref.cast (ref i31)
+                                                                        (local.get $src-end)))
+                                                   (i32.const 1)))))
+               ;; --- Delegate to checked copy ---
+               (call $vector-copy!/checked/who
+                     (global.get $symbol:vector-copy!)
+                     (local.get $d) (local.get $ds)
+                     (local.get $s) (local.get $ss)
+                     (local.get $se)))
+
+         (func $vector-copy!/checked/who
+               (param $who  (ref eq))
+               (param $dest (ref $Vector)) (param $ds i32)
+               (param $src  (ref $Vector)) (param $ss i32) (param $se i32)
+               (result (ref eq))
+
+               (local $src-len i32)
+               (local $dest-len i32)
+               (if (i32.ne (struct.get $Vector $immutable (local.get $dest)) (i32.const 0))
+                   (then (call $raise-immutable-vector/who
+                               (local.get $who)
+                               (local.get $dest))
+                         (unreachable)))
+               (local.set $src-len  (array.len (struct.get $Vector $arr (local.get $src))))
+               (local.set $dest-len (array.len (struct.get $Vector $arr (local.get $dest))))
+               (if (i32.or
+                    (i32.or (i32.gt_u (local.get $ss) (local.get $src-len))
+                            (i32.gt_u (local.get $se) (local.get $src-len)))
+                    (i32.gt_u (i32.add (local.get $ds) (i32.sub (local.get $se) (local.get $ss))) (local.get $dest-len)))
+                   (then (call $raise-bad-vector-copy-range/who
+                               (local.get $who)
+                               (local.get $dest) (local.get $ds)
+                               (local.get $src) (local.get $ss) (local.get $se))
+                         (unreachable)))
+
+               (call $array-copy!
+                     (struct.get $Vector $arr (local.get $dest)) (local.get $ds)
+                     (struct.get $Vector $arr (local.get $src))  (local.get $ss) (local.get $se))
+               (global.get $void))
+
+         (func $vector-copy!/checked
+               (param $dest (ref $Vector)) (param $ds i32)
+               (param $src  (ref $Vector)) (param $ss i32) (param $se i32)
+               (result (ref eq))
+
+               (call $vector-copy!/checked/who
+                     (global.get $symbol:vector-copy!)
+                     (local.get $dest) (local.get $ds)
+                     (local.get $src) (local.get $ss) (local.get $se)))
+
+         (func $vector-copy (type $Prim13)
+               (param $v     (ref eq))
+               (param $start (ref eq))   ;; fixnum or $missing, default: 0
+               (param $end   (ref eq))   ;; fixnum or $missing, default: (vector-length v)
+               (result       (ref eq))
+
+               (local $vec (ref $Vector))
+               (local $ss  i32)
+               (local $se  i32)
+               (local $len i32)
+
+               ;; --- Validate vector ---
+               (local.set $vec (global.get $dummy-vector))
+               (if (ref.test (ref $Vector) (local.get $v))
+                   (then (local.set $vec (ref.cast (ref $Vector) (local.get $v))))
+                   (else (call $raise-check-vector/who
+                               (global.get $symbol:vector-copy)
+                               (local.get $v))))
+               (local.set $len (array.len (struct.get $Vector $arr (local.get $vec))))
+               ;; --- Decode $start ---
+               (if (ref.eq (local.get $start) (global.get $missing))
+                   (then (local.set $ss (i32.const 0)))
+                   (else (if (ref.test (ref i31) (local.get $start))
+                             (then (local.set $ss (i31.get_u (ref.cast (ref i31) (local.get $start))))
+                                   (if (i32.and (local.get $ss) (i32.const 1))
+                                       (then (call $raise-check-fixnum/who
+                                                   (global.get $symbol:vector-copy)
+                                                   (local.get $start))))
+                                   (local.set $ss (i32.shr_u (local.get $ss) (i32.const 1))))
+                             (else (call $raise-check-fixnum/who
+                                         (global.get $symbol:vector-copy)
+                                         (local.get $start))))))
+               ;; --- Decode $end ---
+               (if (ref.eq (local.get $end) (global.get $missing))
+                   (then (local.set $se (local.get $len)))
+                   (else (if (ref.test (ref i31) (local.get $end))
+                             (then (local.set $se (i31.get_u (ref.cast (ref i31) (local.get $end))))
+                                   (if (i32.and (local.get $se) (i32.const 1))
+                                       (then (call $raise-check-fixnum/who
+                                                   (global.get $symbol:vector-copy)
+                                                   (local.get $end))))
+                                   (local.set $se (i32.shr_u (local.get $se) (i32.const 1))))
+                             (else (call $raise-check-fixnum/who
+                                         (global.get $symbol:vector-copy)
+                                         (local.get $end))))))
+               ;; --- Bounds check: start <= end <= len ---
+               (if (i32.or (i32.gt_u (local.get $ss) (local.get $se))
+                           (i32.gt_u (local.get $se) (local.get $len)))
+                   (then (call $raise-bad-vector-copy-range/who
+                               (global.get $symbol:vector-copy)
+                               (local.get $vec) (i32.const 0)
+                               (local.get $vec) (local.get $ss) (local.get $se))
+                         (unreachable)))
+               ;; --- Allocate and return new mutable vector ---
+               (struct.new $Vector (i32.const 0)
+                           (i32.const 0)
+                           (call $array-copy
+                                 (struct.get $Vector $arr (local.get $vec))
+                                 (local.get $ss) (local.get $se))))
+
+         (func $vector->immutable-vector (type $Prim1)
+               (param $v (ref eq))
+               (result   (ref eq))
+
+               (local $vec (ref $Vector))
+
+               ;; --- Validate vector ---
+               (local.set $vec (global.get $dummy-vector))
+               (if (ref.test (ref $Vector) (local.get $v))
+                   (then (local.set $vec (ref.cast (ref $Vector) (local.get $v))))
+                   (else (call $raise-check-vector/who
+                               (global.get $symbol:vector->immutable-vector)
+                               (local.get $v))))
+
+               ;; --- If already immutable, return as-is ---
+               (if (result (ref eq))
+                   (i32.eq (struct.get $Vector $immutable (local.get $vec)) (i32.const 1))
+                   (then (local.get $vec))
+                   (else
+                    ;; Otherwise, allocate immutable copy
+                    (struct.new $Vector
+                                (struct.get $Vector $hash (local.get $vec))
+                                (i32.const 1)
+                                (call $array-copy
+                                      (struct.get $Vector $arr (local.get $vec))
+                                      (i32.const 0)
+                                      (array.len (struct.get $Vector $arr (local.get $vec))))))))
+
+         (func $vector->values (type $Prim13)
+               (param $v     (ref eq))
+               (param $start (ref eq))   ;; fixnum or $missing, default: 0
+               (param $end   (ref eq))   ;; fixnum or $missing, default: (vector-length v)
+               (result       (ref eq))
+
+               (local $vec  (ref $Vector))
+               (local $arr  (ref $Array))
+               (local $ss   i32)
+               (local $se   i32)
+               (local $len  i32)
+               (local $n    i32)
+               (local $vals (ref $Values))
+
+               ;; --- Validate vector ---
+               (local.set $vec (global.get $dummy-vector))
+               (if (ref.test (ref $Vector) (local.get $v))
+                   (then (local.set $vec (ref.cast (ref $Vector) (local.get $v))))
+                   (else (call $raise-check-vector/who
+                               (global.get $symbol:vector->values)
+                               (local.get $v))))
+               (local.set $arr (struct.get $Vector $arr (local.get $vec)))
+               (local.set $len (array.len (local.get $arr)))
+
+               ;; --- Decode $start ---
+               (if (ref.eq (local.get $start) (global.get $missing))
+                   (then (local.set $ss (i32.const 0)))
+                   (else (if (ref.test (ref i31) (local.get $start))
+                             (then (local.set $ss (i31.get_u (ref.cast (ref i31) (local.get $start))))
+                                   (if (i32.and (local.get $ss) (i32.const 1))
+                                       (then (call $raise-check-fixnum/who
+                                                   (global.get $symbol:vector->values)
+                                                   (local.get $start))))
+                                   (local.set $ss (i32.shr_u (local.get $ss) (i32.const 1))))
+                             (else (call $raise-check-fixnum/who
+                                         (global.get $symbol:vector->values)
+                                         (local.get $start))))))
+
+               ;; --- Decode $end ---
+               (if (ref.eq (local.get $end) (global.get $missing))
+                   (then (local.set $se (local.get $len)))
+                   (else (if (ref.test (ref i31) (local.get $end))
+                             (then (local.set $se (i31.get_u (ref.cast (ref i31) (local.get $end))))
+                                   (if (i32.and (local.get $se) (i32.const 1))
+                                       (then (call $raise-check-fixnum/who
+                                                   (global.get $symbol:vector->values)
+                                                   (local.get $end))))
+                                   (local.set $se (i32.shr_u (local.get $se) (i32.const 1))))
+                             (else (call $raise-check-fixnum/who
+                                         (global.get $symbol:vector->values)
+                                         (local.get $end))))))
+
+               ;; --- Bounds check: start <= end <= len ---
+               (if (i32.or (i32.gt_u (local.get $ss) (local.get $se))
+                           (i32.gt_u (local.get $se) (local.get $len)))
+                   (then (call $raise-bad-vector-copy-range/who
+                               (global.get $symbol:vector->values)
+                               (local.get $vec) (i32.const 0)
+                               (local.get $vec) (local.get $ss) (local.get $se))
+                         (unreachable)))
+
+               (local.set $n (i32.sub (local.get $se) (local.get $ss)))
+               (if (i32.eq (local.get $n) (i32.const 1))
+                   (then (return (array.get $Array (local.get $arr) (local.get $ss)))))
+
+               (local.set $vals (array.new $Values (global.get $null) (local.get $n)))
+               (array.copy $Values $Array
+                           (local.get $vals) (i32.const 0)
+                           (local.get $arr) (local.get $ss)
+                           (local.get $n))
+               (local.get $vals))
+
+
+     ))
+
+;; vector-copy-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate vector copy and conversion helpers used by the monolithic runtime.
+(define vector-copy-runtime-only-helpers
+  (function-forms->runtime-helpers
+   'vector-copy-runtime-only-helpers
+   vector-copy-runtime-only-forms))
+
+;; vector-copy-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for vector copy and conversion helpers.
+(define vector-copy-runtime-only-helper-names
+  (map core-runtime-helper-name vector-copy-runtime-only-helpers))
+
 ;; vector-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate vector helpers that still depend on monolithic runtime globals.
 (define vector-runtime-only-helpers
@@ -770,6 +1078,7 @@
    vector-constructor-runtime-only-helpers
    vector-build-runtime-only-helpers
    vector-operation-runtime-only-helpers
+   vector-copy-runtime-only-helpers
    (function-forms->runtime-helpers
     'vector-runtime-only-helpers
     '(
