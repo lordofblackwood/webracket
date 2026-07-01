@@ -1,7 +1,8 @@
 #lang racket
 
 (provide hash-runtime-only-helpers
-         hash-predicate-runtime-only-helper-names)
+         hash-predicate-runtime-only-helper-names
+         hash-table-predicate-runtime-only-helper-names)
 
 (require "../core-helper.rkt")
 
@@ -95,6 +96,57 @@
 
 
      )))
+
+;; hash-table-predicate-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for public hash table predicates.
+(define hash-table-predicate-runtime-only-helper-names
+  '($hash?
+    $hash-eq?
+    $hash-eqv?
+    $hash-equal?
+    $hash-equal-always?))
+
+;; hash-table-predicate-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate public hash table predicate helpers.
+(define hash-table-predicate-runtime-only-helpers
+  (append
+   (function-forms->runtime-helpers
+    'hash-table-predicate-runtime-only-helpers
+    '(
+        (func $hash? (type $Prim1)
+              (param $v (ref eq))
+              (result   (ref eq))
+
+              (if (result (ref eq))
+                  (call $hash-leaf?/i32 (local.get $v))
+                  (then (global.get $true))
+                  (else (global.get $false))))))
+
+   (for/list ([pred '($hash-eq? $hash-eqv? $hash-equal? $hash-equal-always?)]
+              [mutable-type '($HashEqMutable
+                              $HashEqvMutable
+                              $HashEqualMutable
+                              $HashEqualAlwaysMutable)]
+              [immutable-type '($HashEqImmutable
+                                $HashEqvImmutable
+                                $HashEqualImmutable
+                                $HashEqualAlwaysImmutable)])
+     (core-runtime-helper
+      pred
+      (symbol->string pred)
+      (lambda ()
+        `(func ,pred (type $Prim1)
+               (param $ht (ref eq)) ;; hash table
+               (result    (ref eq))
+               ;; Validate argument is a hash table
+               (if (i32.eqz (call $hash-leaf?/i32 (local.get $ht)))
+                   (then (call $raise-argument-error:hash-expected)
+                         (unreachable)))
+               (if (result (ref eq))
+                   (i32.or (ref.test (ref ,mutable-type) (local.get $ht))
+                           (ref.test (ref ,immutable-type) (local.get $ht)))
+                   (then (global.get $true))
+                   (else (global.get $false)))))))))
 
 ;; hash-count-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate generic and mutable hash count helpers.
@@ -2290,6 +2342,7 @@
 ;;   Enumerate generic hash helpers that span mutable and immutable hash kinds.
 (define hash-runtime-only-helpers
   (append hash-predicate-runtime-only-helpers
+          hash-table-predicate-runtime-only-helpers
           hash-count-runtime-only-helpers
           hash-list-runtime-only-helpers
           hash-for-each-runtime-only-helpers

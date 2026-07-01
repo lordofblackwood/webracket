@@ -52,6 +52,7 @@
                   formatting-runtime-only-helpers)
          (only-in "runtime-wasm/core/hashes.rkt"
                   hash-runtime-only-helpers
+                  hash-table-predicate-runtime-only-helper-names
                   hash-predicate-runtime-only-helper-names)
          (only-in "runtime-wasm/core/immutable-hashes.rkt"
                   immutable-hash-runtime-only-helpers)
@@ -14495,36 +14496,10 @@
          ;; Currently `webracket` supports mutable, strong hash tables only.
 
 
-         (func $hash? (type $Prim1)
-               (param $v (ref eq))
-               (result   (ref eq))
-
-               (if (result (ref eq))
-                   (call $hash-leaf?/i32 (local.get $v))
-                   (then (global.get $true))
-                   (else (global.get $false))))
-
-         ,@(for/list ([pred '($hash-eq? $hash-eqv? $hash-equal? $hash-equal-always?)]
-                      [mutable-type '($HashEqMutable
-                                      $HashEqvMutable
-                                      $HashEqualMutable
-                                      $HashEqualAlwaysMutable)]
-                      [immutable-type '($HashEqImmutable
-                                        $HashEqvImmutable
-                                        $HashEqualImmutable
-                                        $HashEqualAlwaysImmutable)])
-             `(func ,pred (type $Prim1)
-                    (param $ht (ref eq)) ;; hash table
-                    (result    (ref eq))
-                    ;; Validate argument is a hash table
-                    (if (i32.eqz (call $hash-leaf?/i32 (local.get $ht)))
-                        (then (call $raise-argument-error:hash-expected)
-                              (unreachable)))
-                    (if (result (ref eq))
-                        (i32.or (ref.test (ref ,mutable-type) (local.get $ht))
-                                (ref.test (ref ,immutable-type) (local.get $ht)))
-                        (then (global.get $true))
-                        (else (global.get $false)))))
+         ;; Hash table predicates
+         ;;   Implemented in runtime-wasm/core/hashes.rkt.
+         ,@(for/list ([name (in-list hash-table-predicate-runtime-only-helper-names)])
+             (core-runtime-helper-form runtime-helper-index name))
 
 
          ;;;
