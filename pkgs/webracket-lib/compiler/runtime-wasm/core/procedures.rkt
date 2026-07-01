@@ -747,6 +747,86 @@
                        (ref.func $dummy-code)
                        (local.get $free)))
 
+     (func $procedure-arity (type $Prim1)
+           ; Wrapper: accepts any value, checks that it’s a procedure, then delegates
+           ; to the checked version that expects (ref $Procedure).
+           (param $proc (ref eq))
+           (result      (ref eq))
+          ;; 1. Check that $proc is a semantic procedure. Structs are
+          ;; represented under $Procedure for fast application, but only
+          ;; structs with prop:procedure are Racket procedures.
+          (if (ref.eq (call $procedure? (local.get $proc)) (global.get $false))
+              (then (call $raise-argument-error:procedure-expected (local.get $proc))
+                    (unreachable)))
+           ;; 2. Delegate to the checked implementation
+           (return_call $procedure-arity/checked
+                        (ref.cast (ref $Procedure) (local.get $proc))))
+
+     (func $procedure-arity/checked
+           ; Produces normalized arity information: exact integers or arity-at-least structs.
+           (param $p (ref $Procedure))
+           (result (ref eq))
+
+           (local $a         (ref eq))
+           (local $arr       (ref $I32Array))
+           (local $n         i32)
+           (local $i         i32)
+           (local $m         i32)
+           (local $list      (ref eq))
+           (local $fx        (ref i31))
+           (local $elem      (ref eq))
+           (local $arity-i32 i32)
+           (local $value     i32)
+           (local $delegate  (ref eq))
+
+           ;; Initialize non-defaultable locals
+           (local.set $elem (global.get $false))
+           (local.set $delegate (global.get $false))
+
+           ;; Applicable structs should reflect the arity of their
+           ;; field-based prop:procedure delegate, not their wrapper
+           ;; struct's internal zero-arity application shell.
+           (if (ref.test (ref $Struct) (local.get $p))
+               (then
+                (local.set $delegate (call $struct-procedure-delegate
+                                           (local.get $p)))
+                (if (ref.test (ref $Procedure) (local.get $delegate))
+                    (then (return_call $procedure-arity/checked
+                                       (ref.cast (ref $Procedure)
+                                                 (local.get $delegate)))))))
+
+           ;; 1. Extract arity field (either a fixnum (ref i31) or an $I32Array of markers)
+           (local.set $a (struct.get $Procedure $arity (local.get $p)))
+           ;; 2. If it’s a single-arity fixnum, normalize negatives to arity-at-least
+           (if (ref.test (ref i31) (local.get $a))
+               (then (local.set $fx       (ref.cast (ref i31) (local.get $a)))
+                     (local.set $arity-i32 (i32.shr_s (i31.get_s (local.get $fx)) (i32.const 1)))
+                     (if (i32.ge_s (local.get $arity-i32) (i32.const 0))
+                         (then (return (local.get $a)))
+                         (else (local.set $value (i32.sub (i32.const -1) (local.get $arity-i32)))
+                               (return (call $arity-at-least/make (local.get $value)))))))
+           ;; 3. Otherwise, cast to $I32Array and build a list of ALL markers (incl. negatives)
+           (local.set $arr (ref.cast (ref $I32Array) (local.get $a)))
+           (local.set $n   (array.len (local.get $arr)))
+           (local.set $list (global.get $null))
+           ;;    Iterate right-to-left so that consing preserves original order
+           (local.set $i (i32.sub (local.get $n) (i32.const 1)))
+           (loop $rev
+                 ;; 4. If done, return the accumulated list
+                 (if (i32.lt_s (local.get $i) (i32.const 0))
+                     (then (return (local.get $list))))
+                 ;; 5. Read marker m at index i and normalize it
+                 (local.set $m (array.get $I32Array (local.get $arr) (local.get $i)))
+                 (if (i32.ge_s (local.get $m) (i32.const 0))
+                     (then (local.set $elem (ref.i31 (i32.shl (local.get $m) (i32.const 1)))))
+                     (else (local.set $value (i32.sub (i32.const -1) (local.get $m)))
+                           (local.set $elem (call $arity-at-least/make (local.get $value)))))
+                 (local.set $list (call $cons (local.get $elem) (local.get $list)))
+                 ;; 6. Decrement i and continue
+                 (local.set $i (i32.sub (local.get $i) (i32.const 1)))
+                 (br $rev))
+           (unreachable))
+
      ;; procedure-result-arity : procedure? -> (or/c #f procedure-arity?)
      ;;   Return known result arity. WebRacket currently does not track
      ;;   result arity for closures, so report #f conservatively except
