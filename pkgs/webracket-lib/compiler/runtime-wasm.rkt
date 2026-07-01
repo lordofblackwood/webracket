@@ -45902,43 +45902,10 @@
                                     $error-module-path->string-handler)])
                    (core-runtime-helper-form runtime-helper-index name))
 
-               (func $current-directory (type $Prim01)
-                     (param $path-raw (ref eq)) ;; optional path-string?
-                     (result          (ref eq))
-
-                     (local $path (ref $Path))
-
-                     (if (ref.eq (local.get $path-raw) (global.get $missing))
-                         (then (return (global.get $current-directory-path))))
-                     (local.set $path
-                                (call $path-string->path/checked
-                                      (global.get $symbol:current-directory)
-                                      (local.get $path-raw)))
-                     (if (i32.eqz (call $path-bytes-absolute?
-                                        (struct.get $Path $bytes (local.get $path))))
-                         (then (call $raise-path-expected (local.get $path-raw))
-                               (unreachable)))
-                     (global.set $current-directory-path (local.get $path))
-                     (global.get $void))
-
-               (func $current-directory-for-user (type $Prim01)
-                     (param $path-raw (ref eq)) ;; optional path-string?
-                     (result          (ref eq))
-
-                     (local $path (ref $Path))
-
-                     (if (ref.eq (local.get $path-raw) (global.get $missing))
-                         (then (return (global.get $current-directory-for-user-path))))
-                     (local.set $path
-                                (call $path-string->path/checked
-                                      (global.get $symbol:current-directory-for-user)
-                                      (local.get $path-raw)))
-                     (if (i32.eqz (call $path-bytes-absolute?
-                                        (struct.get $Path $bytes (local.get $path))))
-                         (then (call $raise-path-expected (local.get $path-raw))
-                               (unreachable)))
-                     (global.set $current-directory-for-user-path (local.get $path))
-                     (global.get $void))
+               ;;   Implemented in runtime-wasm/core/parameters.rkt.
+               ,@(for/list ([name '($current-directory
+                                    $current-directory-for-user)])
+                   (core-runtime-helper-form runtime-helper-index name))
 
                ;;   Implemented in runtime-wasm/core/parameters.rkt.
                ,(core-runtime-helper-form runtime-helper-index '$current-load-relative-directory)

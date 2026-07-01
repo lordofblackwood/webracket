@@ -885,6 +885,48 @@
            (global.set $current-environment-variables-value (local.get $env-raw))
            (global.get $void))
 
+     ;; current-directory : [path-string?] -> path? or void?
+     ;;   Get or set WebRacket's current absolute path.
+     (func $current-directory (type $Prim01)
+           (param $path-raw (ref eq)) ;; optional path-string?
+           (result          (ref eq))
+
+           (local $path (ref $Path))
+
+           (if (ref.eq (local.get $path-raw) (global.get $missing))
+               (then (return (global.get $current-directory-path))))
+           (local.set $path
+                      (call $path-string->path/checked
+                            (global.get $symbol:current-directory)
+                            (local.get $path-raw)))
+           (if (i32.eqz (call $path-bytes-absolute?
+                              (struct.get $Path $bytes (local.get $path))))
+               (then (call $raise-path-expected (local.get $path-raw))
+                     (unreachable)))
+           (global.set $current-directory-path (local.get $path))
+           (global.get $void))
+
+     ;; current-directory-for-user : [path-string?] -> path? or void?
+     ;;   Get or set the user-facing current absolute path.
+     (func $current-directory-for-user (type $Prim01)
+           (param $path-raw (ref eq)) ;; optional path-string?
+           (result          (ref eq))
+
+           (local $path (ref $Path))
+
+           (if (ref.eq (local.get $path-raw) (global.get $missing))
+               (then (return (global.get $current-directory-for-user-path))))
+           (local.set $path
+                      (call $path-string->path/checked
+                            (global.get $symbol:current-directory-for-user)
+                            (local.get $path-raw)))
+           (if (i32.eqz (call $path-bytes-absolute?
+                              (struct.get $Path $bytes (local.get $path))))
+               (then (call $raise-path-expected (local.get $path-raw))
+                     (unreachable)))
+           (global.set $current-directory-for-user-path (local.get $path))
+           (global.get $void))
+
      ;; current-load-relative-directory : [(or/c path-string? #f)] -> (or/c path? #f) or void?
      ;;   Reference: this parameter defaults to #f; when set to a path
      ;;   or string, it is immediately converted to a complete path.
