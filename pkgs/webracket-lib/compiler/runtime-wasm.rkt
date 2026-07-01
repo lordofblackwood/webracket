@@ -21,6 +21,8 @@
                   immutable-hash-runtime-only-helpers)
          (only-in "runtime-wasm/core/lists.rkt"
                   list-runtime-only-helpers)
+         (only-in "runtime-wasm/core/locations.rkt"
+                  location-runtime-only-helpers)
          (only-in "runtime-wasm/core/locks.rkt"
                   lock-runtime-only-helpers)
          (only-in "runtime-wasm/core/loggers.rkt"
@@ -60,6 +62,7 @@
 (define-runtime-path core-hashes-path "runtime-wasm/core/hashes.rkt")
 (define-runtime-path core-immutable-hashes-path "runtime-wasm/core/immutable-hashes.rkt")
 (define-runtime-path core-lists-path "runtime-wasm/core/lists.rkt")
+(define-runtime-path core-locations-path "runtime-wasm/core/locations.rkt")
 (define-runtime-path core-locks-path "runtime-wasm/core/locks.rkt")
 (define-runtime-path core-loggers-path "runtime-wasm/core/loggers.rkt")
 (define-runtime-path core-mlists-path "runtime-wasm/core/mlists.rkt")
@@ -82,6 +85,7 @@
            hash-runtime-only-helpers
            immutable-hash-runtime-only-helpers
            list-runtime-only-helpers
+           location-runtime-only-helpers
            lock-runtime-only-helpers
            logger-runtime-only-helpers
            mutable-hash-runtime-only-helpers
@@ -434,6 +438,7 @@
                                           core-hashes-path
                                           core-immutable-hashes-path
                                           core-lists-path
+                                          core-locations-path
                                           core-locks-path
                                           core-loggers-path
                                           core-mlists-path
@@ -27745,13 +27750,8 @@
          ;;   pos and line counts from 1
          ;;   column       counts from 0
 
-         (func $make-initial-location (result (ref eq))
-               ;; (location 1 0 1)
-               (struct.new $Location
-                           (i32.const 0)            ;; hash (placeholder)
-                           (global.get $one)        ;; line
-                           (global.get $zero)       ;; col
-                           (global.get $one)))      ;; pos
+         ;;   Implemented in runtime-wasm/core/locations.rkt.
+         ,(core-runtime-helper-form runtime-helper-index '$make-initial-location)
 
          ;;;
          ;;; 13.1.6  STRING PORT
