@@ -35366,44 +35366,11 @@
                                $reparameterize)])
              (core-runtime-helper-form runtime-helper-index name))
 
-         ;; current-namespace : [namespace?] -> namespace?
-         ;;   Built-in parameter for the active namespace. WebRacket uses a
-         ;;   lightweight namespace for module/bootstrap code; parameterize
-         ;;   works through the same poor-man parameterization overlay as the
-         ;;   other built-in parameters.
-         (func $current-namespace/get (type $Prim0)
-               (result (ref eq))
-               (call $parameter-value-or-global
-                     (global.get $prim:current-namespace)
-                     (global.get $current-namespace-value)))
-
-         (func $current-namespace/set (type $Prim1)
-               (param $ns (ref eq)) ;; namespace?
-               (result    (ref eq))
-
-               (if (ref.eq (call $namespace? (local.get $ns)) (global.get $true))
-                   (then (nop))
-                   (else
-                    (call $raise-argument-error1
-                          (global.get $symbol:current-namespace)
-                          (global.get $string:namespace?)
-                          (local.get $ns))
-                    (unreachable)))
-               (if (i32.eqz (ref.eq (global.get $current-parameterization-value)
-                                    (global.get $false)))
-                   (then (return (call $extend-current-parameterization!
-                                       (global.get $prim:current-namespace)
-                                       (local.get $ns)))))
-               (global.set $current-namespace-value (local.get $ns))
-               (global.get $void))
-
-         (func $current-namespace (type $Prim01)
-               (param $ns (ref eq)) ;; optional namespace?, default = current value
-               (result    (ref eq))
-
-               (if (ref.eq (local.get $ns) (global.get $missing))
-                   (then (return (call $current-namespace/get))))
-               (call $current-namespace/set (local.get $ns)))
+         ;;   Implemented in runtime-wasm/core/parameters.rkt.
+         ,@(for/list ([name '($current-namespace/get
+                               $current-namespace/set
+                               $current-namespace)])
+             (core-runtime-helper-form runtime-helper-index name))
 
          ;; $build-parameterization-bindings : list? -> list?
          ;;   Reverse parameter/value pairs so lookup can stop at the first
