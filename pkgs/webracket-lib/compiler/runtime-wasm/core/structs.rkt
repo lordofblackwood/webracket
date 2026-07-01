@@ -6,6 +6,7 @@
          struct-format-runtime-only-helper-names
          struct-prefab-basic-runtime-only-helper-names
          struct-prefab-key-runtime-only-helper-names
+         struct-prefab-key-validation-runtime-only-helper-names
          struct-procedure-predicate-runtime-only-helper-names
          struct-core-runtime-helpers
          struct-runtime-only-helpers)
@@ -76,6 +77,12 @@
     $simple-prefab-public-key
     $simple-prefab-type-metadata
     $prefab-key?))
+
+;; struct-prefab-key-validation-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for prefab key validation helpers.
+(define struct-prefab-key-validation-runtime-only-helper-names
+  '($simple-prefab-mutable-mask-valid?/i32
+    $simple-prefab-key?/i32))
 
 ;; struct-procedure-predicate-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for struct procedure predicates.
@@ -1000,6 +1007,520 @@
                (else (global.get $false))))
      )))
 
+
+;; struct-prefab-key-validation-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate prefab key validation helpers used by the monolithic runtime.
+(define struct-prefab-key-validation-runtime-only-helpers
+  (function-forms->runtime-helpers
+   'struct-prefab-key-validation-runtime-only-helpers
+   '(
+     ;; simple-prefab-mutable-mask-valid?/i32 : any/c i32 -> i32
+     ;;   Validate a mutable-field vector; negative total disables range checks.
+     (func $simple-prefab-mutable-mask-valid?/i32
+           (param $mutables (ref eq))
+           (param $total    i32)
+           (result          i32)
+
+           (local $mlen     i32)
+           (local $midx     (ref eq))
+           (local $midx-i32 i32)
+           (local $seen     (ref eq))
+           (local $i        i32)
+           (local $j        i32)
+
+           (if (i32.eqz (ref.test (ref $Vector) (local.get $mutables)))
+               (then (return (i32.const 0))))
+           (local.set $mlen (call $vector-length/checked/i32
+                                  (ref.cast (ref $Vector) (local.get $mutables))))
+           (local.set $i (i32.const 0))
+           (block $done
+                  (loop $check
+                        (br_if $done (i32.ge_u (local.get $i) (local.get $mlen)))
+                        (local.set $midx
+                                   (array.get $Array
+                                              (struct.get $Vector $arr
+                                                          (ref.cast (ref $Vector) (local.get $mutables)))
+                                              (local.get $i)))
+                        (if (ref.eq (call $exact-nonnegative-integer? (local.get $midx)) (global.get $false))
+                            (then (return (i32.const 0))))
+                        (local.set $midx-i32
+                                   (i32.shr_s
+                                    (i31.get_s (ref.cast (ref i31) (local.get $midx)))
+                                    (i32.const 1)))
+                        (if (i32.and
+                             (i32.ge_s (local.get $total) (i32.const 0))
+                             (i32.ge_u (local.get $midx-i32) (local.get $total)))
+                            (then (return (i32.const 0))))
+                        (local.set $j (i32.const 0))
+                        (block $done-duplicates
+                               (loop $check-duplicate
+                                     (br_if $done-duplicates (i32.ge_u (local.get $j) (local.get $i)))
+                                     (local.set $seen
+                                                (array.get $Array
+                                                           (struct.get $Vector $arr
+                                                                       (ref.cast (ref $Vector) (local.get $mutables)))
+                                                           (local.get $j)))
+                                     (if (i32.eq
+                                          (i32.shr_s
+                                           (i31.get_s (ref.cast (ref i31) (local.get $seen)))
+                                           (i32.const 1))
+                                          (local.get $midx-i32))
+                                         (then (return (i32.const 0))))
+                                     (local.set $j (i32.add (local.get $j) (i32.const 1)))
+                                     (br $check-duplicate)))
+                        (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                        (br $check)))
+           (i32.const 1))
+
+     ;; simple-prefab-key?/i32 : any/c -> i32
+     ;;   Accept symbols and mutable masks with supported scalar auto values.
+     (func $simple-prefab-key?/i32
+           (param $key (ref eq))
+           (result     i32)
+
+           (local $len        i32)
+           (local $name       (ref eq))
+           (local $count      (ref eq))
+           (local $auto-spec  (ref eq))
+           (local $mutables   (ref eq))
+           (local $auto-count (ref eq))
+           (local $auto-val   (ref eq))
+           (local $total      i32)
+           (local $mlen       i32)
+           (local $midx       (ref eq))
+           (local $midx-i32   i32)
+           (local $i          i32)
+           (local $j          i32)
+           (local $seen       (ref eq))
+           (local $parent-count (ref eq))
+           (local $parent-mutables (ref eq))
+           (local $child-mutables  (ref eq))
+
+           ;; A symbol key is shorthand for the simple no-super/no-auto shape.
+           (if (ref.test (ref $Symbol) (local.get $key))
+               (then (return (i32.const 1))))
+
+           (if (ref.eq (call $list? (local.get $key)) (global.get $false))
+               (then (return (i32.const 0))))
+           (local.set $len (call $length/i32 (local.get $key)))
+           (if (i32.or
+                (i32.lt_u (local.get $len) (i32.const 1))
+                (i32.and (i32.gt_u (local.get $len) (i32.const 6))
+                         (i32.or
+                          (i32.and
+                           (i32.lt_u (local.get $len) (i32.const 8))
+                           (i32.ne
+                            (i32.rem_u
+                             (i32.sub (local.get $len) (i32.const 1))
+                             (i32.const 2))
+                            (i32.const 0)))
+                          (i32.and
+                           (i32.ge_u (local.get $len) (i32.const 8))
+                           (i32.and
+                            (i32.ne
+                             (i32.rem_u
+                              (i32.sub (local.get $len) (i32.const 4))
+                              (i32.const 4))
+                             (i32.const 0))
+                            (i32.ne
+                             (i32.rem_u (local.get $len) (i32.const 2))
+                             (i32.const 1)))))))
+               (then (return (i32.const 0))))
+
+           (local.set $name (call $list-ref/checked (ref.cast (ref $Pair) (local.get $key)) (i32.const 0)))
+           (if (i32.eqz (ref.test (ref $Symbol) (local.get $name)))
+               (then (return (i32.const 0))))
+           (if (i32.eq (local.get $len) (i32.const 1))
+               (then (return (i32.const 1))))
+
+           ;; Supertype aliases:
+           ;;   (child parent parent-init)
+           ;;   (child child-init parent parent-init)
+           ;;   (child child-mutables parent parent-init parent-mutables)
+           ;;   (child child-init child-mutables parent parent-init parent-mutables)
+           (if (i32.eq (local.get $len) (i32.const 3))
+               (then
+                (local.set $parent-count
+                           (call $list-ref/checked
+                                 (ref.cast (ref $Pair) (local.get $key))
+                                 (i32.const 2)))
+                (if (i32.and
+                     (ref.test (ref $Symbol)
+                               (call $list-ref/checked
+                                     (ref.cast (ref $Pair) (local.get $key))
+                                     (i32.const 1)))
+                     (ref.eq (call $exact-nonnegative-integer? (local.get $parent-count))
+                             (global.get $true)))
+                    (then (return (i32.const 1))))))
+           (if (i32.eq (local.get $len) (i32.const 4))
+               (then
+                (local.set $count
+                           (call $list-ref/checked
+                                 (ref.cast (ref $Pair) (local.get $key))
+                                 (i32.const 1)))
+                (local.set $parent-count
+                           (call $list-ref/checked
+                                 (ref.cast (ref $Pair) (local.get $key))
+                                 (i32.const 3)))
+                (if (i32.and
+                     (ref.eq (call $exact-nonnegative-integer? (local.get $count))
+                             (global.get $true))
+                     (i32.and
+                      (ref.test (ref $Symbol)
+                                (call $list-ref/checked
+                                      (ref.cast (ref $Pair) (local.get $key))
+                                      (i32.const 2)))
+                      (ref.eq (call $exact-nonnegative-integer? (local.get $parent-count))
+                              (global.get $true))))
+                    (then (return (i32.const 1))))))
+           (if (i32.eq (local.get $len) (i32.const 5))
+               (then
+                ;; Nested supertype alias: (child parent parent-init grandparent grandparent-init).
+                (local.set $parent-count
+                           (call $list-ref/checked
+                                 (ref.cast (ref $Pair) (local.get $key))
+                                 (i32.const 2)))
+                (local.set $count
+                           (call $list-ref/checked
+                                 (ref.cast (ref $Pair) (local.get $key))
+                                 (i32.const 4)))
+                (if (i32.and
+                     (ref.test (ref $Symbol)
+                               (call $list-ref/checked
+                                     (ref.cast (ref $Pair) (local.get $key))
+                                     (i32.const 1)))
+                     (i32.and
+                      (ref.eq (call $exact-nonnegative-integer? (local.get $parent-count))
+                              (global.get $true))
+                      (i32.and
+                       (ref.test (ref $Symbol)
+                                 (call $list-ref/checked
+                                       (ref.cast (ref $Pair) (local.get $key))
+                                       (i32.const 3)))
+                       (ref.eq (call $exact-nonnegative-integer? (local.get $count))
+                               (global.get $true)))))
+                    (then (return (i32.const 1))))
+                (local.set $child-mutables
+                           (call $list-ref/checked
+                                 (ref.cast (ref $Pair) (local.get $key))
+                                 (i32.const 1)))
+                (local.set $parent-count
+                           (call $list-ref/checked
+                                 (ref.cast (ref $Pair) (local.get $key))
+                                 (i32.const 3)))
+                (local.set $parent-mutables
+                           (call $list-ref/checked
+                                 (ref.cast (ref $Pair) (local.get $key))
+                                 (i32.const 4)))
+                (if (i32.and
+                     (call $simple-prefab-mutable-mask-valid?/i32
+                           (local.get $child-mutables)
+                           (i32.const -1))
+                     (i32.and
+                      (ref.test (ref $Symbol)
+                                (call $list-ref/checked
+                                      (ref.cast (ref $Pair) (local.get $key))
+                                      (i32.const 2)))
+                      (i32.and
+                       (ref.eq (call $exact-nonnegative-integer? (local.get $parent-count))
+                               (global.get $true))
+                       (call $simple-prefab-mutable-mask-valid?/i32
+                             (local.get $parent-mutables)
+                             (i32.shr_s
+                              (i31.get_s (ref.cast (ref i31) (local.get $parent-count)))
+                              (i32.const 1))))))
+                    (then (return (i32.const 1))))))
+           (if (i32.gt_u (local.get $len) (i32.const 6))
+               (then
+                (if (i32.and
+                     (i32.eq
+                      (i32.rem_u (local.get $len) (i32.const 2))
+                      (i32.const 1))
+                     (ref.test
+                      (ref $Symbol)
+                      (call $list-ref/checked
+                            (ref.cast (ref $Pair) (local.get $key))
+                            (i32.const 1))))
+                    (then
+                     (local.set $i (i32.const 1))
+                     (block $done-chain-alias
+                            (loop $check-chain-alias
+                                  (br_if $done-chain-alias
+                                         (i32.ge_u (local.get $i) (local.get $len)))
+                                  (if (i32.eqz
+                                       (ref.test
+                                        (ref $Symbol)
+                                        (call $list-ref/checked
+                                              (ref.cast (ref $Pair) (local.get $key))
+                                              (local.get $i))))
+                                      (then (return (i32.const 0))))
+                                  (local.set $count
+                                             (call $list-ref/checked
+                                                   (ref.cast (ref $Pair) (local.get $key))
+                                                   (i32.add (local.get $i) (i32.const 1))))
+                                  (if (ref.eq
+                                       (call $exact-nonnegative-integer? (local.get $count))
+                                       (global.get $false))
+                                      (then (return (i32.const 0))))
+                                  (local.set $i (i32.add (local.get $i) (i32.const 2)))
+                                  (br $check-chain-alias)))
+                     (return (i32.const 1))))))
+           (if (i32.eq (local.get $len) (i32.const 6))
+               (then
+                (local.set $count
+                           (call $list-ref/checked
+                                 (ref.cast (ref $Pair) (local.get $key))
+                                 (i32.const 1)))
+                (local.set $child-mutables
+                           (call $list-ref/checked
+                                 (ref.cast (ref $Pair) (local.get $key))
+                                 (i32.const 2)))
+                (local.set $parent-count
+                           (call $list-ref/checked
+                                 (ref.cast (ref $Pair) (local.get $key))
+                                 (i32.const 4)))
+                (local.set $parent-mutables
+                           (call $list-ref/checked
+                                 (ref.cast (ref $Pair) (local.get $key))
+                                 (i32.const 5)))
+                ;; Nested supertype alias: (child child-init parent parent-init grandparent grandparent-init).
+                (local.set $parent-count
+                           (call $list-ref/checked
+                                 (ref.cast (ref $Pair) (local.get $key))
+                                 (i32.const 3)))
+                (if (i32.and
+                     (ref.eq (call $exact-nonnegative-integer? (local.get $count))
+                             (global.get $true))
+                     (i32.and
+                      (ref.test (ref $Symbol)
+                                (local.get $child-mutables))
+                      (i32.and
+                       (ref.eq (call $exact-nonnegative-integer? (local.get $parent-count))
+                               (global.get $true))
+                       (i32.and
+                        (ref.test (ref $Symbol)
+                                  (call $list-ref/checked
+                                        (ref.cast (ref $Pair) (local.get $key))
+                                        (i32.const 4)))
+                        (ref.eq (call $exact-nonnegative-integer? (local.get $parent-mutables))
+                                (global.get $true))))))
+                    (then (return (i32.const 1))))
+                (local.set $parent-count
+                           (call $list-ref/checked
+                                 (ref.cast (ref $Pair) (local.get $key))
+                                 (i32.const 4)))
+                (if (i32.and
+                     (ref.eq (call $exact-nonnegative-integer? (local.get $count))
+                             (global.get $true))
+                     (i32.and
+                      (call $simple-prefab-mutable-mask-valid?/i32
+                            (local.get $child-mutables)
+                            (i32.shr_s
+                             (i31.get_s (ref.cast (ref i31) (local.get $count)))
+                             (i32.const 1)))
+                      (i32.and
+                       (ref.test (ref $Symbol)
+                                 (call $list-ref/checked
+                                       (ref.cast (ref $Pair) (local.get $key))
+                                       (i32.const 3)))
+                       (i32.and
+                        (ref.eq (call $exact-nonnegative-integer? (local.get $parent-count))
+                                (global.get $true))
+                        (call $simple-prefab-mutable-mask-valid?/i32
+                              (local.get $parent-mutables)
+                              (i32.shr_s
+                               (i31.get_s (ref.cast (ref i31) (local.get $parent-count)))
+                               (i32.const 1)))))))
+                    (then (return (i32.const 1))))))
+           (if (i32.gt_u (local.get $len) (i32.const 6))
+               (then
+                (if (i32.and
+                     (i32.eqz
+                      (i32.rem_u (local.get $len) (i32.const 2)))
+                     (ref.test
+                      (ref $Symbol)
+                      (call $list-ref/checked
+                            (ref.cast (ref $Pair) (local.get $key))
+                            (i32.const 2))))
+                    (then
+                     (local.set $count
+                                (call $list-ref/checked
+                                      (ref.cast (ref $Pair) (local.get $key))
+                                      (i32.const 1)))
+                     (if (ref.eq (call $exact-nonnegative-integer? (local.get $count))
+                                 (global.get $false))
+                         (then (return (i32.const 0))))
+                     (local.set $i (i32.const 2))
+                     (block $done-chain-alias
+                            (loop $check-chain-alias
+                                  (br_if $done-chain-alias
+                                         (i32.ge_u (local.get $i) (local.get $len)))
+                                  (if (i32.eqz
+                                       (ref.test
+                                        (ref $Symbol)
+                                        (call $list-ref/checked
+                                              (ref.cast (ref $Pair) (local.get $key))
+                                              (local.get $i))))
+                                      (then (return (i32.const 0))))
+                                  (local.set $count
+                                             (call $list-ref/checked
+                                                   (ref.cast (ref $Pair) (local.get $key))
+                                                   (i32.add (local.get $i) (i32.const 1))))
+                                  (if (ref.eq
+                                       (call $exact-nonnegative-integer? (local.get $count))
+                                       (global.get $false))
+                                      (then (return (i32.const 0))))
+                                  (local.set $i (i32.add (local.get $i) (i32.const 2)))
+                                  (br $check-chain-alias)))
+                     (return (i32.const 1))))))
+
+           (local.set $count (call $list-ref/checked (ref.cast (ref $Pair) (local.get $key)) (i32.const 1)))
+           (if (ref.eq (call $exact-nonnegative-integer? (local.get $count)) (global.get $false))
+               (then (return (i32.const 0))))
+           (if (i32.eq (local.get $len) (i32.const 2))
+               (then (return (i32.const 1))))
+
+           (local.set $auto-spec (call $list-ref/checked (ref.cast (ref $Pair) (local.get $key)) (i32.const 2)))
+           (if (ref.eq (call $list? (local.get $auto-spec)) (global.get $false))
+               (then (return (i32.const 0))))
+           (if (i32.ne (call $length/i32 (local.get $auto-spec)) (i32.const 2))
+               (then (return (i32.const 0))))
+           (local.set $auto-count
+                      (call $list-ref/checked
+                            (ref.cast (ref $Pair) (local.get $auto-spec))
+                            (i32.const 0)))
+           (local.set $auto-val
+                      (call $list-ref/checked
+                            (ref.cast (ref $Pair) (local.get $auto-spec))
+                            (i32.const 1)))
+           (if (ref.eq (call $exact-nonnegative-integer? (local.get $auto-count)) (global.get $false))
+               (then (return (i32.const 0))))
+           (if (i32.eqz (call $simple-prefab-auto-value-supported?/i32
+                              (local.get $auto-val)))
+               (then (return (i32.const 0))))
+           (if (i32.eq (local.get $len) (i32.const 3))
+               (then (return (i32.const 1))))
+
+           (local.set $mutables (call $list-ref/checked (ref.cast (ref $Pair) (local.get $key)) (i32.const 3)))
+           (if (i32.eqz (ref.test (ref $Vector) (local.get $mutables)))
+               (then (return (i32.const 0))))
+           (local.set $mlen (call $vector-length/checked/i32
+                                  (ref.cast (ref $Vector) (local.get $mutables))))
+           (local.set $total
+                      (i32.add
+                       (i32.shr_s (i31.get_s (ref.cast (ref i31) (local.get $count))) (i32.const 1))
+                       (i32.shr_s (i31.get_s (ref.cast (ref i31) (local.get $auto-count))) (i32.const 1))))
+           (local.set $i (i32.const 0))
+           (block $done-mutables
+                  (loop $check-mutable
+                        (br_if $done-mutables (i32.ge_u (local.get $i) (local.get $mlen)))
+                        (local.set $midx
+                                   (array.get $Array
+                                              (struct.get $Vector $arr
+                                                          (ref.cast (ref $Vector) (local.get $mutables)))
+                                              (local.get $i)))
+                        (if (ref.eq (call $exact-nonnegative-integer? (local.get $midx)) (global.get $false))
+                            (then (return (i32.const 0))))
+                        (local.set $midx-i32
+                                   (i32.shr_s
+                                    (i31.get_s (ref.cast (ref i31) (local.get $midx)))
+                                    (i32.const 1)))
+                        (if (i32.ge_u (local.get $midx-i32) (local.get $total))
+                            (then (return (i32.const 0))))
+                        (local.set $j (i32.const 0))
+                        (block $done-duplicates
+                               (loop $check-duplicate
+                                     (br_if $done-duplicates (i32.ge_u (local.get $j) (local.get $i)))
+                                     (local.set $seen
+                                                (array.get $Array
+                                                           (struct.get $Vector $arr
+                                                                       (ref.cast (ref $Vector) (local.get $mutables)))
+                                                           (local.get $j)))
+                                     (if (i32.eq
+                                          (i32.shr_s
+                                           (i31.get_s (ref.cast (ref i31) (local.get $seen)))
+                                           (i32.const 1))
+                                          (local.get $midx-i32))
+                                         (then (return (i32.const 0))))
+                                     (local.set $j (i32.add (local.get $j) (i32.const 1)))
+                                     (br $check-duplicate)))
+                        (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                        (br $check-mutable)))
+           (if (i32.eq (local.get $len) (i32.const 4))
+               (then (return (i32.const 1))))
+
+           (local.set $name (call $list-ref/checked (ref.cast (ref $Pair) (local.get $key)) (i32.const 4)))
+           (if (i32.eqz (ref.test (ref $Symbol) (local.get $name)))
+               (then (return (i32.const 0))))
+           (local.set $count (call $list-ref/checked (ref.cast (ref $Pair) (local.get $key)) (i32.const 5)))
+           (if (ref.eq (call $exact-nonnegative-integer? (local.get $count)) (global.get $false))
+               (then (return (i32.const 0))))
+           (local.set $auto-spec (call $list-ref/checked (ref.cast (ref $Pair) (local.get $key)) (i32.const 6)))
+           (if (ref.eq (call $list? (local.get $auto-spec)) (global.get $false))
+               (then (return (i32.const 0))))
+           (if (i32.ne (call $length/i32 (local.get $auto-spec)) (i32.const 2))
+               (then (return (i32.const 0))))
+           (local.set $auto-count
+                      (call $list-ref/checked
+                            (ref.cast (ref $Pair) (local.get $auto-spec))
+                            (i32.const 0)))
+           (local.set $auto-val
+                      (call $list-ref/checked
+                            (ref.cast (ref $Pair) (local.get $auto-spec))
+                            (i32.const 1)))
+           (if (ref.eq (call $exact-nonnegative-integer? (local.get $auto-count)) (global.get $false))
+               (then (return (i32.const 0))))
+           (if (i32.eqz (call $simple-prefab-auto-value-supported?/i32
+                              (local.get $auto-val)))
+               (then (return (i32.const 0))))
+           (local.set $mutables (call $list-ref/checked (ref.cast (ref $Pair) (local.get $key)) (i32.const 7)))
+           (if (i32.eqz (ref.test (ref $Vector) (local.get $mutables)))
+               (then (return (i32.const 0))))
+           (local.set $mlen (call $vector-length/checked/i32
+                                  (ref.cast (ref $Vector) (local.get $mutables))))
+           (local.set $total
+                      (i32.add
+                       (i32.shr_s (i31.get_s (ref.cast (ref i31) (local.get $count))) (i32.const 1))
+                       (i32.shr_s (i31.get_s (ref.cast (ref i31) (local.get $auto-count))) (i32.const 1))))
+           (local.set $i (i32.const 0))
+           (block $done-parent-mutables
+                  (loop $check-parent-mutable
+                        (br_if $done-parent-mutables (i32.ge_u (local.get $i) (local.get $mlen)))
+                        (local.set $midx
+                                   (array.get $Array
+                                              (struct.get $Vector $arr
+                                                          (ref.cast (ref $Vector) (local.get $mutables)))
+                                              (local.get $i)))
+                        (if (ref.eq (call $exact-nonnegative-integer? (local.get $midx)) (global.get $false))
+                            (then (return (i32.const 0))))
+                        (local.set $midx-i32
+                                   (i32.shr_s
+                                    (i31.get_s (ref.cast (ref i31) (local.get $midx)))
+                                    (i32.const 1)))
+                        (if (i32.ge_u (local.get $midx-i32) (local.get $total))
+                            (then (return (i32.const 0))))
+                        (local.set $j (i32.const 0))
+                        (block $done-parent-duplicates
+                               (loop $check-parent-duplicate
+                                     (br_if $done-parent-duplicates (i32.ge_u (local.get $j) (local.get $i)))
+                                     (local.set $seen
+                                                (array.get $Array
+                                                           (struct.get $Vector $arr
+                                                                       (ref.cast (ref $Vector) (local.get $mutables)))
+                                                           (local.get $j)))
+                                     (if (i32.eq
+                                          (i32.shr_s
+                                           (i31.get_s (ref.cast (ref i31) (local.get $seen)))
+                                           (i32.const 1))
+                                          (local.get $midx-i32))
+                                         (then (return (i32.const 0))))
+                                     (local.set $j (i32.add (local.get $j) (i32.const 1)))
+                                     (br $check-parent-duplicate)))
+                        (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                        (br $check-parent-mutable)))
+           (i32.const 1))
+     )))
+
 ;; struct-procedure-predicate-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate predicates for generated struct procedure wrappers.
 (define struct-procedure-predicate-runtime-only-helpers
@@ -1049,6 +1570,7 @@
    struct-format-runtime-only-helpers
    struct-prefab-basic-runtime-only-helpers
    struct-prefab-key-runtime-only-helpers
+   struct-prefab-key-validation-runtime-only-helpers
    struct-procedure-predicate-runtime-only-helpers
    (list
     ;; initialize-prefab-struct-type-registry : -> void
