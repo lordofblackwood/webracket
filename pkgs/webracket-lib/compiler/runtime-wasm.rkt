@@ -150,6 +150,7 @@
                   unsafe-runtime-helper-names)
          (only-in "runtime-wasm/core/vectors.rkt"
                   vector-append-runtime-only-helper-names
+                  vector-argminmax-runtime-only-helper-names
                   vector-build-runtime-only-helper-names
                   vector-constructor-runtime-only-helper-names
                   vector-copy-runtime-only-helper-names
@@ -14166,74 +14167,10 @@
          ,@(for/list ([name (in-list vector-map-count-runtime-only-helper-names)])
              (core-runtime-helper-form runtime-helper-index name))
 
-        ,@(let ()
-            (define (gen-vector-argminmax $name cmp)
-              `((func ,$name (type $Prim2)
-                      (param $proc (ref eq)) ;; procedure
-                      (param $vec  (ref eq)) ;; vector
-                      (result (ref eq))
-
-                      (local $f      (ref $Procedure))
-                      (local $finv   (ref $ProcedureInvoker))
-                      (local $vector (ref $Vector))
-                      (local $args   (ref $Args))
-                      (local $len    i32)
-                      (local $i      i32)
-                      (local $elem   (ref eq))
-                      (local $best   (ref eq))
-                      (local $bestv  (ref eq))
-                      (local $val    (ref eq))
-
-                      (local.set $vector (global.get $dummy-vector))
-
-                      ;; Validate procedure
-                      (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
-                          (then (call $raise-argument-error:procedure-expected (local.get $proc))
-                                (unreachable)))
-                      (local.set $f    (ref.cast (ref $Procedure) (local.get $proc)))
-                      (local.set $finv (struct.get $Procedure $invoke (local.get $f)))
-
-                      ;; Validate vector
-                      (if (ref.test (ref $Vector) (local.get $vec))
-                          (then (local.set $vector (ref.cast (ref $Vector) (local.get $vec))))
-                          (else (call $raise-check-vector (local.get $vec))
-                                (unreachable)))
-                      (local.set $len (array.len (struct.get $Vector $arr (local.get $vector))))
-                      ;; non-empty vector
-                      (if (i32.eqz (local.get $len))
-                          (then (call $raise-argument-error/internal (local.get $vec))
-                                (unreachable)))
-                      ;; Prepare argument array
-                      (local.set $args (array.new $Args (global.get $null) (i32.const 1)))
-                      ;; Seed with first element
-                      (local.set $best (array.get $Array (struct.get $Vector $arr (local.get $vector)) (i32.const 0)))
-                      (array.set $Args (local.get $args) (i32.const 0) (local.get $best))
-                      (local.set $bestv (call_ref $ProcedureInvoker
-                                                  (local.get $f)
-                                                  (local.get $args)
-                                                  (local.get $finv)))
-                      (local.set $i (i32.const 1))
-                      ;; Iterate remaining elements
-                      (block $done
-                             (loop $loop
-                                   (br_if $done (i32.ge_u (local.get $i) (local.get $len)))
-                                   (local.set $elem (array.get $Array
-                                                               (struct.get $Vector $arr (local.get $vector))
-                                                               (local.get $i)))
-                                   (array.set $Args (local.get $args) (i32.const 0) (local.get $elem))
-                                   (local.set $val (call_ref $ProcedureInvoker
-                                                             (local.get $f)
-                                                             (local.get $args)
-                                                             (local.get $finv)))
-                                   (if (ref.eq (call ,cmp (local.get $bestv) (local.get $val))
-                                               (global.get $true))
-                                       (then (local.set $best  (local.get $elem))
-                                             (local.set $bestv (local.get $val))))
-                                   (local.set $i (i32.add (local.get $i) (i32.const 1)))
-                                   (br $loop)))
-                      (local.get $best))))
-            (append (gen-vector-argminmax '$vector-argmax '$</2)
-                    (gen-vector-argminmax '$vector-argmin '$>/2)))
+         ;; vector argmin/argmax helpers
+         ;;   Implemented in runtime-wasm/core/vectors.rkt.
+         ,@(for/list ([name (in-list vector-argminmax-runtime-only-helper-names)])
+             (core-runtime-helper-form runtime-helper-index name))
 
         (func $vector-filter/template
               (param $proc (ref eq))  ;; predicate, must accept one argument
