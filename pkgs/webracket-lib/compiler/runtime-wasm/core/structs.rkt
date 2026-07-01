@@ -2,6 +2,7 @@
 
 (provide struct-basic-runtime-only-helper-names
          struct-conversion-runtime-only-helper-names
+         struct-descriptor-runtime-only-helper-names
          struct-format-runtime-only-helper-names
          struct-procedure-predicate-runtime-only-helper-names
          struct-core-runtime-helpers
@@ -45,6 +46,12 @@
 (define struct-conversion-runtime-only-helper-names
   '($struct->list
     $struct->vector))
+
+;; struct-descriptor-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for struct type descriptor helpers.
+(define struct-descriptor-runtime-only-helper-names
+  '($make-struct-type-descriptor
+    $make-struct-type-descriptor/checked))
 
 ;; struct-format-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for struct formatting helpers.
@@ -301,6 +308,248 @@
                        (local.get $arr)))
      )))
 
+;; struct-descriptor-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate struct type descriptor helpers used by the monolithic runtime.
+(define struct-descriptor-runtime-only-helpers
+  (function-forms->runtime-helpers
+   'struct-descriptor-runtime-only-helpers
+   '(
+     (func $make-struct-type-descriptor
+           (param $name               (ref eq))  ;; (ref $Symbol)
+           (param $super-type         (ref eq))  ;; (ref $StructType) or #f
+           (param $init-field-count   (ref eq))  ;; fixnum
+           (param $auto-field-count   (ref eq))  ;; fixnum
+           ; optional:
+           (param $auto-field-value   (ref eq))  ;; value to repeat
+           (param $opt-props          (ref eq))  ;; or #f
+           (param $inspector          (ref eq))  ;; or #f
+           (param $proc-spec          (ref eq))  ;; or #f
+           (param $immutables         (ref eq))  ;; or #f
+           (param $opt-guard          (ref eq))  ;; or #f
+           (param $constructor-name   (ref eq))  ;; or #f
+           (result                    (ref $StructType))
+
+           (local $ifc   i32)
+           (local $afc   i32)
+           (local $props (ref eq))
+           (local $super (ref $StructType))
+
+           ;; --- Argument checks ---
+           (if (i32.eqz (ref.test (ref $Symbol) (local.get $name)))
+               (then (call $raise-argument-error/internal (local.get $name))))
+           (if (i32.or
+                (i32.eqz (ref.test (ref i31) (local.get $init-field-count)))
+                (i32.ne (i32.and (i31.get_u (ref.cast (ref i31) (local.get $init-field-count))) (i32.const 1)) (i32.const 0)))
+               (then (call $raise-argument-error/internal (local.get $init-field-count))))
+           (if (i32.or
+                (i32.eqz (ref.test (ref i31) (local.get $auto-field-count)))
+                (i32.ne (i32.and (i31.get_u (ref.cast (ref i31) (local.get $auto-field-count))) (i32.const 1)) (i32.const 0)))
+               (then (call $raise-argument-error/internal (local.get $auto-field-count))))
+
+           ;; --- Decode fixnums ---
+           (local.set $ifc (i32.shr_u (i31.get_u (ref.cast (ref i31) (local.get $init-field-count))) (i32.const 1)))
+           (local.set $afc (i32.shr_u (i31.get_u (ref.cast (ref i31) (local.get $auto-field-count))) (i32.const 1)))
+
+           ;; --- Handle optional props ---
+           (local.set $props (local.get $opt-props))
+           (if (ref.eq (local.get $props) (global.get $missing))
+               (then (local.set $props (global.get $null)))
+               (else (if (ref.eq (local.get $props) (global.get $false))
+                         (then (local.set $props (global.get $null))))))
+
+           ;; --- Cast super if not #f ---
+           #;(local.set $super (if (result (ref $StructType))
+                                   (ref.eq (local.get $super-type) (global.get $false))
+                                   (then (ref.null $StructType))
+                                   (else (ref.cast (ref $StructType) (local.get $super-type)))))
+
+           ;; --- Delegate to /checked ---
+           (call $make-struct-type-descriptor/checked
+                 (ref.cast (ref $Symbol) (local.get $name))
+                 (local.get $super-type)
+                 (local.get $ifc)
+                 (local.get $afc)
+                 (local.get $auto-field-value)
+                 (local.get $props)
+                 (local.get $inspector)
+                 (local.get $proc-spec)
+                 (local.get $immutables)
+                 (local.get $opt-guard)
+                 (local.get $constructor-name)))
+
+
+     (func $make-struct-type-descriptor/checked
+           (param $name             (ref $Symbol))    ;; Struct name
+           (param $super            (ref eq))         ;; (ref $StructType) or #f
+           (param $ifc              i32)              ;; Init field count (decoded)
+           (param $afc              i32)              ;; Auto field count (decoded)
+           (param $auto-value       (ref eq))         ;; Value to fill auto fields
+           (param $props            (ref eq))         ;; Property hash or #f
+           (param $inspector        (ref eq))         ;; Inspector or #f
+           (param $proc-spec        (ref eq))         ;; Unused
+           (param $immutables       (ref eq))         ;; Immutables or #f
+           (param $guard            (ref eq))         ;; Guard or #f
+           (param $constructor-name (ref eq))         ;; Symbol or #f
+           (result (ref $StructType))
+
+           (local $has-super    i32)
+           (local $super-typed  (ref null $StructType))
+           (local $stfc         i32)
+           (local $init-indices (ref eq))
+           (local $auto-indices (ref eq))
+           (local $auto-values  (ref eq))
+           (local $total-fields i32)
+           (local $props-table  (ref $HashEqMutable))
+
+           ;; Default all list fields
+           (local.set $init-indices (global.get $false))
+           (local.set $auto-indices (global.get $false))
+           (local.set $auto-values  (global.get $false))
+
+           ;; Determine presence of supertype
+           (local.set $has-super (i32.eqz (ref.eq (local.get $super) (global.get $false))))
+
+           (if (local.get $has-super)
+               (then
+                (local.set $super-typed (ref.cast (ref $StructType) (local.get $super)))
+                (local.set $stfc (struct.get $StructType $field-count (local.get $super-typed)))
+
+                (local.set $init-indices
+                           (call $append/2
+                                 (struct.get $StructType $init-indices (local.get $super-typed))
+                                 (call $list-from-range/checked
+                                       (local.get $stfc)
+                                       (i32.add (local.get $stfc) (local.get $ifc)))))
+                (local.set $auto-indices
+                           (call $append/2
+                                 (struct.get $StructType $auto-indices (local.get $super-typed))
+                                 (call $list-from-range/checked
+                                       (i32.add (local.get $stfc) (local.get $ifc))
+                                       (i32.add (local.get $stfc) (i32.add (local.get $ifc) (local.get $afc))))))
+
+                (local.set $auto-values
+                           (call $append/2
+                                 (struct.get $StructType $auto-values (local.get $super-typed))
+                                 (call $make-list/checked (local.get $afc) (local.get $auto-value)))))
+               (else
+                (local.set $stfc (i32.const 0))
+                (local.set $init-indices
+                           (call $list-from-range/checked (i32.const 0) (local.get $ifc)))
+                (local.set $auto-indices
+                           (call $list-from-range/checked
+                                 (local.get $ifc)
+                                 (i32.add (local.get $ifc) (local.get $afc))))
+                (local.set $auto-values
+                           (call $make-list/checked (local.get $afc) (local.get $auto-value)))))
+
+           ;; Structure type properties
+           (local.set $props-table
+                      (if (result (ref $HashEqMutable))
+                          (ref.test (ref $HashEqMutable) (local.get $props))
+                          (then (ref.cast (ref $HashEqMutable) (local.get $props)))
+                          (else (ref.cast (ref $HashEqMutable)
+                                          (call $struct-type-properties-normalize
+                                                (local.get $has-super)
+                                                (local.get $super-typed)
+                                                (local.get $props))))))
+
+           ;; Compute total field count
+           (local.set $total-fields
+                      (i32.add (local.get $stfc)
+                               (i32.add (local.get $ifc) (local.get $afc))))
+
+           ;; Create struct type descriptor
+           (struct.new $StructType
+                       (i32.const 0)               ;; hash (lazily computed)
+                       (local.get $name)
+                       (local.get $super)
+                       (local.get $total-fields)
+                       (local.get $init-indices)
+                       (local.get $auto-indices)
+                       (local.get $auto-values)
+                       (ref.cast (ref eq) (local.get $props-table))
+                       (local.get $inspector)
+                       (local.get $immutables)
+                       (local.get $guard)
+                       (local.get $constructor-name)))
+
+     #;(func $make-struct-type-descriptor/checked
+           ;; Required
+           (param $name             (ref $Symbol))  ;; Symbol naming the struct type
+           (param $super            (ref eq))       ;; (ref $StructType) or #f
+           (param $ifc              i32)            ;; Number of init fields (unwrapped fixnum)
+           (param $afc              i32)            ;; Number of auto fields (unwrapped fixnum)
+           (param $auto-value       (ref eq))       ;; Value to fill for each auto field
+
+           ;; Optional (already defaulted appropriately)
+           (param $props            (ref eq))       ;; Property table (hash table) or #f
+           (param $inspector        (ref eq))       ;; Inspector object or #f
+           (param $proc-spec        (ref eq))       ;; Currently unused
+           (param $immutables       (ref eq))       ;; Immutables descriptor or #f
+           (param $guard            (ref eq))       ;; Guard procedure or #f
+           (param $constructor-name (ref eq))       ;; Name symbol or #f
+
+           (result (ref $StructType))
+
+           (local $has-super    i32)
+           (local $super-typed  (ref null $StructType))
+           (local $stfc         i32)
+           (local $init-indices (ref eq))
+           (local $auto-indices (ref eq))
+           (local $auto-values  (ref eq))
+           (local $total-fields i32)
+
+           ;; Initialize locals
+           (local.set $init-indices (global.get $false))
+           (local.set $auto-indices (global.get $false))
+           (local.set $auto-values  (global.get $false))
+
+           ;; Determine if super is present
+           (local.set $has-super (i32.eqz (ref.eq (local.get $super) (global.get $false))))
+
+           (if (local.get $has-super)
+               (then
+                (local.set $super-typed (ref.cast (ref $StructType) (local.get $super)))
+                (local.set $stfc (struct.get $StructType $field-count (local.get $super-typed)))
+                (local.set $init-indices
+                           (call $append/2
+                                 (struct.get $StructType $init-indices (local.get $super-typed))
+                                 (call $list-from-range/checked (local.get $stfc) (local.get $ifc))))
+                (local.set $auto-indices
+                           (call $append/2
+                                 (struct.get $StructType $auto-indices (local.get $super-typed))
+                                 (call $list-from-range/checked
+                                       (i32.add (local.get $stfc) (local.get $ifc))
+                                       (local.get $afc))))
+                (local.set $auto-values
+                           (call $append/2
+                                 (struct.get $StructType $auto-values (local.get $super-typed))
+                                 (call $make-list/checked (local.get $afc) (local.get $auto-value)))))
+               (else
+                (local.set $stfc (i32.const 0))
+                (local.set $init-indices (call $list-from-range/checked (i32.const 0) (local.get $ifc)))
+                (local.set $auto-indices (call $list-from-range/checked (local.get $ifc) (local.get $afc)))
+                (local.set $auto-values  (call $make-list/checked (local.get $afc) (local.get $auto-value)))))
+
+           (local.set $total-fields (i32.add          (local.get $stfc)
+                                             (i32.add (local.get $ifc)
+                                                      (local.get $afc))))
+
+           (struct.new $StructType
+                       (i32.const 0)                  ;; $hash
+                       (local.get $name)
+                       (local.get $super)
+                       (local.get $total-fields)
+                       (local.get $init-indices)
+                       (local.get $auto-indices)
+                       (local.get $auto-values)
+                       (local.get $props)
+                       (local.get $inspector)
+                       (local.get $immutables)
+                       (local.get $guard)
+                       (local.get $constructor-name)))
+     )))
+
 ;; struct-format-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate struct formatting helpers used by the monolithic runtime.
 (define struct-format-runtime-only-helpers
@@ -407,6 +656,7 @@
   (append
    struct-basic-runtime-only-helpers
    struct-conversion-runtime-only-helpers
+   struct-descriptor-runtime-only-helpers
    struct-format-runtime-only-helpers
    struct-procedure-predicate-runtime-only-helpers
    (list
