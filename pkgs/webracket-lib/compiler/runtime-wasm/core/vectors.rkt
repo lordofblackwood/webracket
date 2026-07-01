@@ -2,6 +2,7 @@
 
 (provide vector-core-runtime-helpers
          vector-error-runtime-only-helper-names
+         vector-make-runtime-only-helper-names
          vector-mutability-runtime-only-helper-names
          vector-runtime-only-helpers)
 
@@ -142,11 +143,74 @@
 (define vector-error-runtime-only-helper-names
   (map core-runtime-helper-name vector-error-runtime-only-helpers))
 
+;; vector-make-runtime-only-forms : (listof datum?)
+;;   Enumerate make-vector helpers used by the monolithic runtime.
+(define vector-make-runtime-only-forms
+  '(
+         (func $make-vector (type $Prim12)
+               (param $k-fx   (ref eq))  ;; fixnum
+               (param $val    (ref eq))  ;; optional, defaults to 0
+               (result        (ref eq))
+
+               (local $k   i32)
+               (local $k/s i32)
+               (local $v   (ref eq))  ;; possibly rewritten value
+               ;; --- Type check for fixnum ---
+               (if (i32.eqz (ref.test (ref i31) (local.get $k-fx)))
+                   (then (call $raise-make-vector:bad-length (local.get $k-fx))
+                         (unreachable)))
+               ;; --- Decode fixnum to i32 ---
+               (local.set $k/s
+                          (i32.shr_s
+                           (i31.get_s (ref.cast (ref i31) (local.get $k-fx)))
+                           (i32.const 1)))
+               (if (i32.lt_s (local.get $k/s) (i32.const 0))
+                   (then (call $raise-make-vector:bad-length (local.get $k-fx))
+                         (unreachable)))
+               (local.set $k (local.get $k/s))
+               ;; --- Substitute default value if missing ---
+               (local.set $v (if (result (ref eq))
+                                 (ref.eq (local.get $val) (global.get $missing))
+                                 (then (global.get $zero))
+                                 (else (local.get $val))))
+               ;; --- Delegate to checked version ---
+               (call $make-vector/checked (local.get $k) (local.get $v)))
+
+         (func $make-vector/checked
+               (param $k   i32)        ;; number of elements
+               (param $val (ref eq))   ;; initial value
+               (result     (ref $Vector))
+
+               (local $arr (ref $Array))
+               (call $debug-allocation-tick (i32.const 1))
+               ;; Create the array
+               (local.set $arr (array.new $Array (local.get $val) (local.get $k)))
+               ;; Construct and return the vector
+               (struct.new $Vector
+                           (i32.const 0)    ;; hash = 0
+                           (i32.const 0)    ;; mutable
+                           (local.get $arr)))
+
+     ))
+
+;; vector-make-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate make-vector helpers used by the monolithic runtime.
+(define vector-make-runtime-only-helpers
+  (function-forms->runtime-helpers
+   'vector-make-runtime-only-helpers
+   vector-make-runtime-only-forms))
+
+;; vector-make-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for make-vector helpers.
+(define vector-make-runtime-only-helper-names
+  (map core-runtime-helper-name vector-make-runtime-only-helpers))
+
 ;; vector-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate vector helpers that still depend on monolithic runtime globals.
 (define vector-runtime-only-helpers
   (append
    vector-error-runtime-only-helpers
+   vector-make-runtime-only-helpers
    (function-forms->runtime-helpers
     'vector-runtime-only-helpers
     '(
