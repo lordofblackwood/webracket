@@ -35,6 +35,8 @@
                   logger-runtime-only-helpers)
          (only-in "runtime-wasm/core/mutable-hashes.rkt"
                   mutable-hash-runtime-only-helpers)
+         (only-in "runtime-wasm/core/parameters.rkt"
+                  parameter-runtime-only-helpers)
          (only-in "runtime-wasm/core/ports.rkt"
                   port-runtime-only-helpers)
          (only-in "runtime-wasm/core/procedures.rkt"
@@ -80,6 +82,7 @@
 (define-runtime-path core-loggers-path "runtime-wasm/core/loggers.rkt")
 (define-runtime-path core-mlists-path "runtime-wasm/core/mlists.rkt")
 (define-runtime-path core-mutable-hashes-path "runtime-wasm/core/mutable-hashes.rkt")
+(define-runtime-path core-parameters-path "runtime-wasm/core/parameters.rkt")
 (define-runtime-path core-ports-path "runtime-wasm/core/ports.rkt")
 (define-runtime-path core-procedures-path "runtime-wasm/core/procedures.rkt")
 (define-runtime-path core-semaphores-path "runtime-wasm/core/semaphores.rkt")
@@ -106,6 +109,7 @@
            lock-runtime-only-helpers
            logger-runtime-only-helpers
            mutable-hash-runtime-only-helpers
+           parameter-runtime-only-helpers
            port-runtime-only-helpers
            procedure-runtime-only-helpers
            semaphore-runtime-only-helpers
@@ -465,6 +469,7 @@
                                           core-loggers-path
                                           core-mlists-path
                                           core-mutable-hashes-path
+                                          core-parameters-path
                                           core-ports-path
                                           core-procedures-path
                                           core-semaphores-path
@@ -35354,93 +35359,12 @@
                                $continuation-mark-set-first)])
              (core-runtime-helper-form runtime-helper-index name))
 
-         ;; current-parameterization : -> parameterization?
-         ;;   Return the current poor-man parameterization overlay.
-         (func $current-parameterization (type $Prim0)
-               (result (ref eq))
-               (global.get $current-parameterization-value))
-
-         ;; parameterization? : any/c -> boolean?
-         ;;   Recognize WebRacket's lightweight parameterization overlays.
-         (func $parameterization? (type $Prim1)
-               ,@(make-predicate-body '$Parameterization))
-
-         ;; parameter? : any/c -> boolean?
-         ;;   Recognize the built-in parameter procedures currently modeled by
-         ;;   WebRacket. User-created parameters need make-parameter support.
-         (func $parameter? (type $Prim1)
-               (param $v (ref eq)) ;; any/c
-               (result   (ref eq))
-
-               (if (ref.eq (local.get $v) (global.get $prim:current-input-port))
-                   (then (return (global.get $true))))
-               (if (ref.eq (local.get $v) (global.get $prim:current-output-port))
-                   (then (return (global.get $true))))
-               (if (ref.eq (local.get $v) (global.get $prim:current-error-port))
-                   (then (return (global.get $true))))
-               (if (ref.eq (local.get $v) (global.get $prim:current-logger))
-                   (then (return (global.get $true))))
-               (if (ref.eq (local.get $v) (global.get $prim:current-thread-group))
-                   (then (return (global.get $true))))
-               (if (ref.eq (local.get $v) (global.get $prim:current-security-guard))
-                   (then (return (global.get $true))))
-               (if (ref.eq (local.get $v) (global.get $prim:current-custodian))
-                   (then (return (global.get $true))))
-               (if (ref.eq (local.get $v) (global.get $prim:current-print))
-                   (then (return (global.get $true))))
-               (if (ref.eq (local.get $v) (global.get $prim:current-readtable))
-                   (then (return (global.get $true))))
-               (if (ref.eq (local.get $v) (global.get $prim:current-read-interaction))
-                   (then (return (global.get $true))))
-               (if (ref.eq (local.get $v) (global.get $prim:current-namespace))
-                   (then (return (global.get $true))))
-               (if (ref.eq (local.get $v) (global.get $prim:current-compile-target-machine))
-                   (then (return (global.get $true))))
-               (if (ref.eq (local.get $v) (global.get $prim:current-compile-realm))
-                   (then (return (global.get $true))))
-               (if (ref.eq (local.get $v) (global.get $prim:print-syntax-width))
-                   (then (return (global.get $true))))
-               (if (ref.eq (local.get $v) (global.get $prim:error-print-width))
-                   (then (return (global.get $true))))
-               (if (ref.eq (local.get $v) (global.get $prim:error-print-source-location))
-                   (then (return (global.get $true))))
-               (if (ref.eq (local.get $v) (global.get $prim:error-value->string-handler))
-                   (then (return (global.get $true))))
-               (if (ref.eq (local.get $v) (global.get $prim:error-syntax->string-handler))
-                   (then (return (global.get $true))))
-               (if (ref.eq (local.get $v) (global.get $prim:error-module-path->string-handler))
-                   (then (return (global.get $true))))
-               ,@(for/list ([primitive '($prim:load-on-demand-enabled
-                                          $prim:use-user-specific-search-paths
-                                          $prim:read-square-bracket-as-paren
-                                          $prim:read-curly-brace-as-paren
-                                          $prim:read-square-bracket-with-tag
-                                          $prim:read-curly-brace-with-tag
-                                          $prim:read-accept-reader
-                                          $prim:read-accept-lang
-                                          $prim:read-accept-compiled
-                                          $prim:read-accept-box
-                                          $prim:read-accept-bar-quote
-                                          $prim:read-accept-graph
-                                          $prim:read-syntax-accept-graph
-                                          $prim:read-accept-dot
-                                          $prim:read-accept-infix-dot
-                                          $prim:read-accept-quasiquote
-                                          $prim:read-cdot
-                                          $prim:read-single-flonum
-                                          $prim:read-decimal-as-inexact
-                                          $prim:read-case-sensitive)])
-                   `(if (ref.eq (local.get $v) (global.get ,primitive))
-                        (then (return (global.get $true)))))
-               (global.get $false))
-
-         ;; reparameterize : any/c -> any/c
-         ;;   Bootstrap identity for the extracted expander. The scoped
-         ;;   installation operation is modeled by call-with-parameterization.
-         (func $reparameterize (type $Prim1)
-               (param $p (ref eq)) ;; parameterization
-               (result   (ref eq))
-               (local.get $p))
+         ;;   Implemented in runtime-wasm/core/parameters.rkt.
+         ,@(for/list ([name '($current-parameterization
+                               $parameterization?
+                               $parameter?
+                               $reparameterize)])
+             (core-runtime-helper-form runtime-helper-index name))
 
          ;; current-namespace : [namespace?] -> namespace?
          ;;   Built-in parameter for the active namespace. WebRacket uses a
