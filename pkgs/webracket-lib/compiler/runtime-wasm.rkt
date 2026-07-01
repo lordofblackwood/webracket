@@ -35384,56 +35384,8 @@
          ;;   Implemented in runtime-wasm/core/parameters.rkt.
          ,(core-runtime-helper-form runtime-helper-index '$call-with-parameterization)
 
-         ;; cache-configuration : exact-nonnegative-integer? (-> any/c) -> any/c
-         ;;   Small #%paramz cache used by racket/private/config during
-         ;;   expander startup. Racket CS records these once per place; WebRacket
-         ;;   keeps an eight-slot cache, enough for the current configuration
-         ;;   slots 0, 1, 3, and 4.
-         (func $cache-configuration (type $Prim2)
-               (param $index-raw (ref eq)) ;; exact-nonnegative-integer?
-               (param $thunk-raw (ref eq)) ;; procedure?
-               (result           (ref eq))
-               (local $index i32)
-               (local $cache (ref $Array))
-               (local $thunk (ref $Procedure))
-               (local $cached (ref eq))
-               (local $invoke (ref $ProcedureInvoker))
-
-               (local.set $index (call $fixnum->i32 (local.get $index-raw)))
-               (if (i32.ge_u (local.get $index) (i32.const 8))
-                   (then (call $raise-argument-error1
-                               (global.get $symbol:cache-configuration)
-                               (global.get $string:exact-nonnegative-integer?)
-                               (local.get $index-raw))
-                         (unreachable)))
-               (if (i32.eqz (ref.test (ref $Procedure) (local.get $thunk-raw)))
-                   (then (call $raise-argument-error:procedure-expected
-                               (local.get $thunk-raw))
-                         (unreachable)))
-               (local.set $thunk (ref.cast (ref $Procedure) (local.get $thunk-raw)))
-               (if (i32.eqz (ref.test (ref $Array)
-                                       (global.get $cache-configuration-values)))
-                   (then
-                    (global.set $cache-configuration-values
-                                (array.new $Array
-                                           (global.get $missing)
-                                           (i32.const 8)))))
-               (local.set $cache
-                          (ref.cast (ref $Array)
-                                    (global.get $cache-configuration-values)))
-               (local.set $cached (array.get $Array (local.get $cache) (local.get $index)))
-               (if (i32.eqz (ref.eq (local.get $cached) (global.get $missing)))
-                   (then (return (local.get $cached))))
-               (local.set $invoke (struct.get $Procedure $invoke (local.get $thunk)))
-               (local.set $cached
-                          (call_ref $ProcedureInvoker
-                                    (local.get $thunk)
-                                    (array.new $Args
-                                               (global.get $null)
-                                               (i32.const 0))
-                                    (local.get $invoke)))
-               (array.set $Array (local.get $cache) (local.get $index) (local.get $cached))
-               (local.get $cached))
+         ;;   Implemented in runtime-wasm/core/parameters.rkt.
+         ,(core-runtime-helper-form runtime-helper-index '$cache-configuration)
 
          ;; 10.6 Breaks
          ;; 10.7 Exiting
