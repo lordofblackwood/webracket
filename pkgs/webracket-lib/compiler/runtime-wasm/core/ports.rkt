@@ -2976,6 +2976,246 @@
 
            (local.get $buf)))))
 
+;; port-byte-string-output-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate byte/string output delegation helpers.
+(define port-byte-string-output-runtime-only-helpers
+  (function-forms->runtime-helpers
+   'port-byte-string-output-runtime-only-helpers
+   '(
+     ;; write-bytes/custom : custom-output-port? bytes? i32 i32 -> exact-nonnegative-integer? or #f
+     ;;   Dispatch a byte slice to a custom output port's delegate.
+     (func $write-bytes/custom
+           (param $port (ref $CustomOutputPort)) ;; custom-output-port?
+           (param $bstr (ref $Bytes))            ;; bytes?
+           (param $from i32)                     ;; start byte
+           (param $to   i32)                     ;; end byte
+           (result      (ref eq))
+
+           (local $delegate (ref eq))
+           (local $proc     (ref $Procedure))
+           (local $inv      (ref $ProcedureInvoker))
+           (local $args     (ref $Args))
+           (local $result   (ref eq))
+           (local $n        i32)
+
+           (if (struct.get $CustomOutputPort $closed (local.get $port))
+               (then (call $raise-output-port-closed
+                           (global.get $string:write-byte:output-port-closed))
+                     (unreachable)))
+           (local.set $delegate
+                      (struct.get $CustomOutputPort $write-proc (local.get $port)))
+           (if (ref.test (ref $OutputPort) (local.get $delegate))
+               (then
+                (local.set $result
+                           (call $write-bytes
+                                 (ref.cast (ref eq) (local.get $bstr))
+                                 (local.get $delegate)
+                                 (ref.i31 (i32.shl (local.get $from) (i32.const 1)))
+                                 (ref.i31 (i32.shl (local.get $to)   (i32.const 1)))))
+                (if (ref.test (ref i31) (local.get $result))
+                    (then
+                     (local.set $n (i32.shr_u
+                                    (i31.get_u (ref.cast (ref i31) (local.get $result)))
+                                    (i32.const 1)))
+                     (struct.set $CustomOutputPort $idx
+                                 (local.get $port)
+                                 (i32.add
+                                  (struct.get $CustomOutputPort $idx (local.get $port))
+                                  (local.get $n)))))
+                (return (local.get $result))))
+
+           (local.set $proc (ref.cast (ref $Procedure) (local.get $delegate)))
+           (local.set $inv  (struct.get $Procedure $invoke (local.get $proc)))
+           (local.set $args
+                      (array.new_fixed $Args 5
+                                       (ref.cast (ref eq) (local.get $bstr))
+                                       (ref.i31 (i32.shl (local.get $from) (i32.const 1)))
+                                       (ref.i31 (i32.shl (local.get $to)   (i32.const 1)))
+                                       (global.get $false)
+                                       (global.get $true)))
+           (local.set $result
+                      (call $expect-one-value
+                            (call_ref $ProcedureInvoker
+                                      (local.get $proc)
+                                      (local.get $args)
+                                      (local.get $inv))))
+           (if (ref.test (ref i31) (local.get $result))
+               (then
+                (local.set $n (i32.shr_u
+                               (i31.get_u (ref.cast (ref i31) (local.get $result)))
+                               (i32.const 1)))
+                (struct.set $CustomOutputPort $idx
+                            (local.get $port)
+                            (i32.add
+                             (struct.get $CustomOutputPort $idx (local.get $port))
+                             (local.get $n)))))
+           (local.get $result))
+
+     ;; Like Racket's write-bytes, but currently only string ports are supported
+     ;; as output destinations.
+     (func $write-bytes (type $Prim14)
+           (param $bstr  (ref eq)) ;; bytes?
+           (param $out   (ref eq)) ;; output-port?               (optional, default = (current-output-port))
+           (param $start (ref eq)) ;; exact-nonnegative-integer? (optional, default = 0)
+           (param $end   (ref eq)) ;; exact-nonnegative-integer? (optional, default = (bytes-length bstr))
+           (result       (ref eq))
+
+           (local $bs    (ref $Bytes))
+           (local $arr   (ref $I8Array))
+           (local $len   i32)
+           (local $from  i32)
+           (local $to    i32)
+           (local $count i32)
+           (local $idx   i32)
+           (local $byte  i32)
+           (local $i     i32)
+           (local $res   (ref eq))
+
+           ;; --- Validate byte string argument ---
+           (if (i32.eqz (ref.test (ref $Bytes) (local.get $bstr)))
+               (then (call $raise-check-bytes (local.get $bstr)) (unreachable)))
+           (local.set $bs  (ref.cast (ref $Bytes) (local.get $bstr)))
+           (local.set $arr (struct.get $Bytes $bs (local.get $bs)))
+           (local.set $len (call $i8array-length (local.get $arr)))
+           ;; --- Determine output port ---
+           (if (ref.eq (local.get $out) (global.get $missing))
+               (then (local.set $out (call $current-output-port
+                                           (global.get $missing)))))
+           (if (i32.eqz (ref.test (ref $OutputPort) (local.get $out)))
+               (then (local.set $out (call $prop-output-port-target
+                                           (local.get $out)))))
+           (if (i32.eqz (ref.test (ref $OutputPort) (local.get $out)))
+               (then (call $raise-check-string-port (local.get $out)) (unreachable)))
+           ;; --- Decode optional start index ---
+           (if (ref.eq (local.get $start) (global.get $missing))
+               (then (local.set $from (i32.const 0)))
+               (else (if (ref.test (ref i31) (local.get $start))
+                         (then (local.set $from (i31.get_u (ref.cast (ref i31) (local.get $start))))
+                               (if (i32.eqz (i32.and (local.get $from) (i32.const 1)))
+                                   (then (local.set $from (i32.shr_u (local.get $from) (i32.const 1))))
+                                   (else (call $raise-check-fixnum (local.get $start)) (unreachable))))
+                         (else (call $raise-check-fixnum (local.get $start)) (unreachable)))))
+           ;; --- Decode optional end index ---
+           (if (ref.eq (local.get $end) (global.get $missing))
+               (then (local.set $to (local.get $len)))
+               (else (if (ref.test (ref i31) (local.get $end))
+                         (then (local.set $to (i31.get_u (ref.cast (ref i31) (local.get $end))))
+                               (if (i32.eqz (i32.and (local.get $to) (i32.const 1)))
+                                   (then (local.set $to (i32.shr_u (local.get $to) (i32.const 1))))
+                                   (else (call $raise-check-fixnum (local.get $end)) (unreachable))))
+                         (else (call $raise-check-fixnum (local.get $end)) (unreachable)))))
+           ;; --- Bounds checks ---
+           (if (i32.gt_u (local.get $from) (local.get $to))
+               (then (call $raise-bad-bytes-range (local.get $bstr) (local.get $from) (local.get $to)) (unreachable)))
+           (if (i32.gt_u (local.get $to) (local.get $len))
+               (then (call $raise-bad-bytes-range (local.get $bstr) (local.get $from) (local.get $to)) (unreachable)))
+
+           (local.set $count (i32.sub (local.get $to) (local.get $from)))
+           (if (ref.test (ref $CustomOutputPort) (local.get $out))
+               (then
+                (return_call $write-bytes/custom
+                             (ref.cast (ref $CustomOutputPort) (local.get $out))
+                             (local.get $bs)
+                             (local.get $from)
+                             (local.get $to))))
+           (if (i32.eqz (ref.test (ref $OutputPort) (local.get $out)))
+               (then (call $raise-check-string-port (local.get $out)) (unreachable)))
+           ;; --- Write the requested slice byte by byte ---
+           (local.set $i (i32.const 0))
+           (block $done
+                  (loop $loop
+                        (br_if $done (i32.ge_u (local.get $i) (local.get $count)))
+                        (local.set $idx (i32.add (local.get $from) (local.get $i)))
+                        (local.set $byte (call $i8array-ref (local.get $arr) (local.get $idx)))
+                        (local.set $res
+                                   (call $write-byte
+                                         (ref.i31 (i32.shl (local.get $byte) (i32.const 1)))
+                                         (local.get $out)))
+                        (if (ref.eq (local.get $res) (global.get $false))
+                            (then (return (global.get $false))))
+                        (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                        (br $loop)))
+           ;; --- Report number of bytes written ---
+           (ref.i31 (i32.shl (local.get $count) (i32.const 1))))
+
+
+     (func $raise-bad-string-range (param $x (ref eq)) (param i32) (param i32) (unreachable))
+
+     ;; Like Racket's write-string, but currently only string ports are supported
+     ;; as output destinations. The port argument must be provided explicitly.
+     (func $write-string (type $Prim14)
+           (param $str   (ref eq)) ;; string?
+           (param $out   (ref eq)) ;; output-port?               (optional, default = (current-output-port))
+           (param $start (ref eq)) ;; exact-nonnegative-integer? (optional, default = 0)
+           (param $end   (ref eq)) ;; exact-nonnegative-integer? (optional, default = (string-length str))
+           (result       (ref eq))
+
+           (local $s     (ref $String))
+           (local $arr   (ref $I32Array))
+           (local $len   i32)
+           (local $from  i32)
+           (local $to    i32)
+           (local $count i32)
+           (local $bytes (ref $Bytes))
+           (local $res   (ref eq))
+
+           ;; --- Validate string argument ---
+           (if (i32.eqz (ref.test (ref $String) (local.get $str)))
+               (then (call $raise-check-string (local.get $str)) (unreachable)))
+           (local.set $s   (ref.cast (ref $String) (local.get $str)))
+           (local.set $arr (struct.get $String $codepoints (local.get $s)))
+           (local.set $len (call $i32array-length (local.get $arr)))
+           ;; --- Determine output port ---
+           (if (ref.eq (local.get $out) (global.get $missing))
+               (then (local.set $out (call $current-output-port
+                                           (global.get $missing)))))
+           (if (i32.eqz (call $output-port-like?/i32 (local.get $out)))
+               (then (call $raise-check-string-port (local.get $out)) (unreachable)))
+           ;; --- Decode optional start index ---
+           (if (ref.eq (local.get $start) (global.get $missing))
+               (then (local.set $from (i32.const 0)))
+               (else (if (ref.test (ref i31) (local.get $start))
+                         (then (local.set $from (i31.get_u (ref.cast (ref i31) (local.get $start))))
+                               (if (i32.eqz (i32.and (local.get $from) (i32.const 1)))
+                                   (then (local.set $from (i32.shr_u (local.get $from) (i32.const 1))))
+                                   (else (call $raise-check-fixnum (local.get $start)) (unreachable))))
+                         (else (call $raise-check-fixnum (local.get $start)) (unreachable)))))
+           ;; --- Decode optional end index ---
+           (if (ref.eq (local.get $end) (global.get $missing))
+               (then (local.set $to (local.get $len)))
+               (else (if (ref.test (ref i31) (local.get $end))
+                         (then (local.set $to (i31.get_u (ref.cast (ref i31) (local.get $end))))
+                               (if (i32.eqz (i32.and (local.get $to) (i32.const 1)))
+                                   (then (local.set $to (i32.shr_u (local.get $to) (i32.const 1))))
+                                   (else (call $raise-check-fixnum (local.get $end)) (unreachable))))
+                         (else (call $raise-check-fixnum (local.get $end)) (unreachable)))))
+           ;; --- Bounds checks ---
+           (if (i32.gt_u (local.get $from) (local.get $to))
+               (then (call $raise-bad-string-range (local.get $str) (local.get $from) (local.get $to)) (unreachable)))
+           (if (i32.gt_u (local.get $to) (local.get $len))
+               (then (call $raise-bad-string-range (local.get $str) (local.get $from) (local.get $to)) (unreachable)))
+
+           (local.set $count (i32.sub (local.get $to) (local.get $from)))
+           ;; --- Convert requested slice to bytes ---
+           (local.set $bytes
+                      (ref.cast (ref $Bytes)
+                                (call $string->bytes/utf-8
+                                      (local.get $str)
+                                      (global.get $false)
+                                      (ref.i31 (i32.shl (local.get $from) (i32.const 1)))
+                                      (ref.i31 (i32.shl (local.get $to)   (i32.const 1))))))
+           ;; --- Delegate to write-bytes ---
+           (local.set $res
+                      (call $write-bytes
+                            (local.get $bytes)
+                            (local.get $out)
+                            (global.get $missing)
+                            (global.get $missing)))
+           (if (ref.eq (local.get $res) (global.get $false))
+               (then (return (global.get $false))))
+           ;; --- Report number of characters written ---
+           (ref.i31 (i32.shl (local.get $count) (i32.const 1)))))))
+
 ;; port-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate port helpers used by the monolithic runtime.
 (define port-runtime-only-helpers
@@ -2995,4 +3235,5 @@
           port-peek-bytes-runtime-only-helpers
           port-peek-string-runtime-only-helpers
           port-peek-single-runtime-only-helpers
-          port-peek-wrapper-runtime-only-helpers))
+          port-peek-wrapper-runtime-only-helpers
+          port-byte-string-output-runtime-only-helpers))
