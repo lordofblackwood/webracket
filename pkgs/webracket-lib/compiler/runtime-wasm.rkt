@@ -143,6 +143,7 @@
                   time-runtime-only-helpers
                   time-runtime-only-helper-names)
          (only-in "runtime-wasm/core/treelists.rkt"
+                  treelist-error-runtime-only-helper-names
                   treelist-runtime-only-helpers)
          (only-in "runtime-wasm/core/unsafe.rkt"
                   unsafe-runtime-only-helpers
@@ -13899,66 +13900,10 @@
 
          ,(core-runtime-helper-form runtime-helper-index '$treelist-node-split/checked)
 
-         (func $raise-check-treelist/who
-               (param $who (ref eq))
-               (param $x   (ref eq))
-               (call $raise-argument-error1
-                     (local.get $who)
-                     (global.get $string:treelist?)
-                     (local.get $x)))
-         (func $raise-bad-treelist-ref-index
-               (param $tl (ref $Treelist)) (param $i i32) (param $len i32)
-               (call $raise-argument-error1
-                     (global.get $symbol:treelist-ref)
-                     (global.get $string:exact-nonnegative-integer?)
-                     (ref.i31 (i32.shl (local.get $i) (i32.const 1)))))
-         (func $raise-bad-treelist-set-index
-               (param $tl (ref $Treelist)) (param $i i32) (param $len i32)
-               (call $raise-argument-error1
-                     (global.get $symbol:treelist-set)
-                     (global.get $string:exact-nonnegative-integer?)
-                     (ref.i31 (i32.shl (local.get $i) (i32.const 1)))))
-         (func $raise-treelist-empty
-               (param $who (ref eq))
-               (local $out (ref $GrowableArray))
-               (local $message (ref $String))
-               (local.set $out (call $make-growable-array (i32.const 2)))
-               (call $growable-array-add! (local.get $out)
-                     (call $format/display (local.get $who)))
-               (call $growable-array-add! (local.get $out)
-                     (global.get $string:treelist-empty))
-               (local.set $message
-                          (call $growable-array-of-strings->string (local.get $out)))
-               (call $raise
-                     (call $exn:fail:contract/make
-                           (local.get $message)
-                           (call $current-continuation-marks (global.get $missing)))
-                     (global.get $true))
-               (unreachable))
-         (func $raise-bad-treelist-split-index
-               (param $who (ref eq)) (param $tl (ref $Treelist)) (param $i i32) (param $len i32)
-               (call $raise-argument-error1
-                     (local.get $who)
-                     (global.get $string:exact-nonnegative-integer?)
-                     (ref.i31 (i32.shl (local.get $i) (i32.const 1)))))
-         (func $raise-bad-treelist-insert-index
-               (param $tl (ref $Treelist)) (param $i i32) (param $len i32)
-               (call $raise-argument-error1
-                     (global.get $symbol:treelist-insert)
-                     (global.get $string:exact-nonnegative-integer?)
-                     (ref.i31 (i32.shl (local.get $i) (i32.const 1)))))
-         (func $raise-bad-treelist-delete-index
-               (param $tl (ref $Treelist)) (param $i i32) (param $len i32)
-               (call $raise-argument-error1
-                     (global.get $symbol:treelist-delete)
-                     (global.get $string:exact-nonnegative-integer?)
-                     (ref.i31 (i32.shl (local.get $i) (i32.const 1)))))
-         (func $raise-make-treelist:bad-length
-               (param $n (ref eq))
-               (call $raise-argument-error1
-                     (global.get $symbol:make-treelist)
-                     (global.get $string:exact-nonnegative-integer?)
-                     (local.get $n)))
+         ;; Treelist related exceptions
+         ;;   Implemented in runtime-wasm/core/treelists.rkt.
+         ,@(for/list ([name (in-list treelist-error-runtime-only-helper-names)])
+             (core-runtime-helper-form runtime-helper-index name))
 
          ,(core-runtime-helper-form runtime-helper-index '$treelist?)
 
