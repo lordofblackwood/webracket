@@ -683,4 +683,64 @@
                            (local.get $reader-raw))
                      (unreachable)))
            (global.set $current-read-interaction-value (local.get $reader-raw))
+           (global.get $void))
+
+     ;; current-pseudo-random-generator : [pseudo-random-generator?] -> any/c
+     ;;   Poor-man parameter for the current generator.
+     (func $current-pseudo-random-generator (type $Prim01)
+           (param $gen (ref eq)) ;; optional pseudo-random-generator?
+           (result     (ref eq))
+           (if (ref.eq (local.get $gen) (global.get $missing))
+               (then (return (global.get $current-pseudo-random-generator-value))))
+           (if (i32.eqz (ref.test (ref $PseudoRandomGenerator) (local.get $gen)))
+               (then (call $raise-argument-error1
+                           (global.get $symbol:current-pseudo-random-generator)
+                           (global.get $string:pseudo-random-generator?)
+                           (local.get $gen))
+                     (unreachable)))
+           (global.set $current-pseudo-random-generator-value (local.get $gen))
+           (global.get $void))
+
+     ;; current-environment-variables : [environment-variables?] -> environment-variables?
+     ;;   Get or set the current environment-variable set. WebRacket
+     ;;   starts with an empty set instead of host OS variables.
+     (func $current-environment-variables (type $Prim01)
+           (param $env-raw (ref eq)) ;; optional environment-variables?, default current set
+           (result (ref eq))
+           (if (ref.eq (local.get $env-raw) (global.get $missing))
+               (then (return (global.get $current-environment-variables-value))))
+           (if (i32.eqz (ref.test (ref $EnvironmentVariables) (local.get $env-raw)))
+               (then (return (global.get $error))))
+           (global.set $current-environment-variables-value (local.get $env-raw))
+           (global.get $void))
+
+     ;; current-load-relative-directory : [(or/c path-string? #f)] -> (or/c path? #f) or void?
+     ;;   Reference: this parameter defaults to #f; when set to a path
+     ;;   or string, it is immediately converted to a complete path.
+     (func $current-load-relative-directory (type $Prim01)
+           (param $path-raw (ref eq)) ;; optional path-string?/#f, default = current value
+           (result          (ref eq))
+
+           (local $path (ref $Path))
+
+           (if (ref.eq (local.get $path-raw) (global.get $missing))
+               (then (return (global.get $current-load-relative-directory-path))))
+           (if (ref.eq (local.get $path-raw) (global.get $false))
+               (then
+                (global.set $current-load-relative-directory-path
+                            (global.get $false))
+                (return (global.get $void))))
+           (local.set $path
+                      (call $path-string->path/checked
+                            (global.get $symbol:current-load-relative-directory)
+                            (local.get $path-raw)))
+           (if (i32.eqz (call $path-bytes-absolute?
+                              (struct.get $Path $bytes (local.get $path))))
+               (then (local.set $path
+                                (ref.cast (ref $Path)
+                                          (call $path->complete-path
+                                                (local.get $path)
+                                                (global.get $missing))))))
+           (global.set $current-load-relative-directory-path
+                       (local.get $path))
            (global.get $void)))))
