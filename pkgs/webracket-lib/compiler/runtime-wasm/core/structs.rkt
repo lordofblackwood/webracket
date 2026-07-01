@@ -3,6 +3,7 @@
 (provide struct-basic-runtime-only-helper-names
          struct-conversion-runtime-only-helper-names
          struct-format-runtime-only-helper-names
+         struct-procedure-predicate-runtime-only-helper-names
          struct-core-runtime-helpers
          struct-runtime-only-helpers)
 
@@ -50,6 +51,14 @@
 (define struct-format-runtime-only-helper-names
   '($raise-format/display:struct:expected-struct
     $format/display:struct))
+
+;; struct-procedure-predicate-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for struct procedure predicates.
+(define struct-procedure-predicate-runtime-only-helper-names
+  '($struct-constructor-procedure?
+    $struct-predicate-procedure?
+    $struct-accessor-procedure?
+    $struct-mutator-procedure?))
 
 ;; struct-basic-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate basic struct predicates and checkers used by the monolithic runtime.
@@ -353,6 +362,45 @@
            (call $growable-array-of-strings->string (local.get $out)))
      )))
 
+;; struct-procedure-predicate-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate predicates for generated struct procedure wrappers.
+(define struct-procedure-predicate-runtime-only-helpers
+  (function-forms->runtime-helpers
+   'struct-procedure-predicate-runtime-only-helpers
+   '(
+     (func $struct-constructor-procedure? (type $Prim1)
+           (param $v (ref eq))
+           (result   (ref eq))
+           (if (result (ref eq))
+               (ref.test (ref $StructConstructorProcedure) (local.get $v))
+               (then (global.get $true))
+               (else (global.get $false))))
+
+     (func $struct-predicate-procedure? (type $Prim1)
+           (param $v (ref eq))
+           (result   (ref eq))
+           (if (result (ref eq))
+               (ref.test (ref $StructPredicateProcedure) (local.get $v))
+               (then (global.get $true))
+               (else (global.get $false))))
+
+     (func $struct-accessor-procedure? (type $Prim1)
+           (param $v (ref eq))
+           (result   (ref eq))
+           (if (result (ref eq))
+               (ref.test (ref $StructAccessorProcedure) (local.get $v))
+               (then (global.get $true))
+               (else (global.get $false))))
+
+     (func $struct-mutator-procedure? (type $Prim1)
+           (param $v (ref eq))
+           (result   (ref eq))
+           (if (result (ref eq))
+               (ref.test (ref $StructMutatorProcedure) (local.get $v))
+               (then (global.get $true))
+               (else (global.get $false))))
+     )))
+
 ;; struct-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate struct helpers that depend on monolithic runtime globals.
 (define struct-runtime-only-helpers
@@ -360,6 +408,7 @@
    struct-basic-runtime-only-helpers
    struct-conversion-runtime-only-helpers
    struct-format-runtime-only-helpers
+   struct-procedure-predicate-runtime-only-helpers
    (list
     ;; initialize-prefab-struct-type-registry : -> void
     ;;   Lazily allocate the global prefab struct type registry.

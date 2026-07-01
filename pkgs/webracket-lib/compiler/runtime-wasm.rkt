@@ -138,6 +138,7 @@
                   struct-basic-runtime-only-helper-names
                   struct-conversion-runtime-only-helper-names
                   struct-format-runtime-only-helper-names
+                  struct-procedure-predicate-runtime-only-helper-names
                   struct-runtime-only-helpers)
          (only-in "runtime-wasm/core/symbols.rkt"
                   symbol-gensym-runtime-only-helper-names
@@ -19703,17 +19704,10 @@
                          (struct.get $Closure $code (local.get $accessor))))
 
 
-         (func $struct-constructor-procedure? (type $Prim1)
-               ,@(make-predicate-body '$StructConstructorProcedure))
-
-         (func $struct-predicate-procedure? (type $Prim1)
-               ,@(make-predicate-body '$StructPredicateProcedure))
-
-         (func $struct-accessor-procedure? (type $Prim1)
-               ,@(make-predicate-body '$StructAccessorProcedure))
-
-         (func $struct-mutator-procedure? (type $Prim1)
-               ,@(make-predicate-body '$StructMutatorProcedure))
+         ;; Struct procedure predicates
+         ;;   Implemented in runtime-wasm/core/structs.rkt.
+         ,@(for/list ([name (in-list struct-procedure-predicate-runtime-only-helper-names)])
+             (core-runtime-helper-form runtime-helper-index name))
 
 
          (func $struct-constructor/with-guard
