@@ -36,7 +36,8 @@
          (only-in "runtime-wasm/core/mutable-hashes.rkt"
                   mutable-hash-runtime-only-helpers)
          (only-in "runtime-wasm/core/parameters.rkt"
-                  parameter-runtime-only-helpers)
+                  parameter-runtime-only-helpers
+                  reader-printer-policy-parameter-helper-names)
          (only-in "runtime-wasm/core/ports.rkt"
                   port-runtime-only-helpers)
          (only-in "runtime-wasm/core/procedures.rkt"
@@ -45855,155 +45856,8 @@
                ;;   load-on-demand-enabled a default of #t; WebRacket exposes
                ;;   the parameter now, while delayed source loading is deferred
                ;;   until the reader/load layer is richer.
-               ,@(for/list ([name '($load-on-demand-enabled
-                                    $use-user-specific-search-paths
-                                    $read-square-bracket-as-paren
-                                    $read-curly-brace-as-paren
-                                    $read-square-bracket-with-tag
-                                    $read-curly-brace-with-tag
-                                    $read-accept-reader
-                                    $read-accept-lang
-                                    $read-accept-compiled
-                                    $read-accept-box
-                                    $read-accept-bar-quote
-                                    $read-accept-graph
-                                    $read-syntax-accept-graph
-                                    $read-accept-dot
-                                    $read-accept-infix-dot
-                                    $read-accept-quasiquote
-                                    $read-cdot
-                                    $read-single-flonum
-                                    $read-decimal-as-inexact
-                                    $read-case-sensitive
-                                    $print-pair-curly-braces
-                                    $print-mpair-curly-braces
-                                    $print-unreadable
-                                    $print-graph
-                                    $print-struct
-                                    $print-box
-                                    $print-vector-length
-                                    $print-hash-table
-                                    $print-boolean-long-form
-                                    $print-reader-abbreviations
-                                    $print-as-expression
-                                    $error-print-source-location)]
-                             [symbol '($symbol:load-on-demand-enabled
-                                       $symbol:use-user-specific-search-paths
-                                       $symbol:read-square-bracket-as-paren
-                                       $symbol:read-curly-brace-as-paren
-                                       $symbol:read-square-bracket-with-tag
-                                       $symbol:read-curly-brace-with-tag
-                                       $symbol:read-accept-reader
-                                       $symbol:read-accept-lang
-                                       $symbol:read-accept-compiled
-                                       $symbol:read-accept-box
-                                       $symbol:read-accept-bar-quote
-                                       $symbol:read-accept-graph
-                                       $symbol:read-syntax-accept-graph
-                                       $symbol:read-accept-dot
-                                       $symbol:read-accept-infix-dot
-                                       $symbol:read-accept-quasiquote
-                                       $symbol:read-cdot
-                                       $symbol:read-single-flonum
-                                       $symbol:read-decimal-as-inexact
-                                       $symbol:read-case-sensitive
-                                       $symbol:print-pair-curly-braces
-                                       $symbol:print-mpair-curly-braces
-                                       $symbol:print-unreadable
-                                       $symbol:print-graph
-                                       $symbol:print-struct
-                                       $symbol:print-box
-                                       $symbol:print-vector-length
-                                       $symbol:print-hash-table
-                                       $symbol:print-boolean-long-form
-                                       $symbol:print-reader-abbreviations
-                                       $symbol:print-as-expression
-                                       $symbol:error-print-source-location)]
-                             [global '($load-on-demand-enabled-value
-                                       $use-user-specific-search-paths-value
-                                       $read-square-bracket-as-paren-value
-                                       $read-curly-brace-as-paren-value
-                                       $read-square-bracket-with-tag-value
-                                       $read-curly-brace-with-tag-value
-                                       $read-accept-reader-value
-                                       $read-accept-lang-value
-                                       $read-accept-compiled-value
-                                       $read-accept-box-value
-                                       $read-accept-bar-quote-value
-                                       $read-accept-graph-value
-                                       $read-syntax-accept-graph-value
-                                       $read-accept-dot-value
-                                       $read-accept-infix-dot-value
-                                       $read-accept-quasiquote-value
-                                       $read-cdot-value
-                                       $read-single-flonum-value
-                                       $read-decimal-as-inexact-value
-                                       $read-case-sensitive-value
-                                       $print-pair-curly-braces-value
-                                       $print-mpair-curly-braces-value
-                                       $print-unreadable-value
-                                       $print-graph-value
-                                       $print-struct-value
-                                       $print-box-value
-                                       $print-vector-length-value
-                                       $print-hash-table-value
-                                       $print-boolean-long-form-value
-                                       $print-reader-abbreviations-value
-                                       $print-as-expression-value
-                                       $error-print-source-location-value)]
-                             [primitive '($prim:load-on-demand-enabled
-                                          $prim:use-user-specific-search-paths
-                                          $prim:read-square-bracket-as-paren
-                                          $prim:read-curly-brace-as-paren
-                                          $prim:read-square-bracket-with-tag
-                                          $prim:read-curly-brace-with-tag
-                                          $prim:read-accept-reader
-                                          $prim:read-accept-lang
-                                          $prim:read-accept-compiled
-                                          $prim:read-accept-box
-                                          $prim:read-accept-bar-quote
-                                          $prim:read-accept-graph
-                                          $prim:read-syntax-accept-graph
-                                          $prim:read-accept-dot
-                                          $prim:read-accept-infix-dot
-                                          $prim:read-accept-quasiquote
-                                          $prim:read-cdot
-                                          $prim:read-single-flonum
-                                          $prim:read-decimal-as-inexact
-                                          $prim:read-case-sensitive
-                                          $prim:print-pair-curly-braces
-                                          $prim:print-mpair-curly-braces
-                                          $prim:print-unreadable
-                                          $prim:print-graph
-                                          $prim:print-struct
-                                          $prim:print-box
-                                          $prim:print-vector-length
-                                          $prim:print-hash-table
-                                          $prim:print-boolean-long-form
-                                          $prim:print-reader-abbreviations
-                                          $prim:print-as-expression
-                                          $prim:error-print-source-location)])
-                   `(func ,name (type $Prim01)
-                          (param $v (ref eq)) ;; optional boolean?
-                          (result   (ref eq))
-
-                          (if (ref.eq (local.get $v) (global.get $missing))
-                              (then (return (call $parameter-value-or-global
-                                                  (global.get ,primitive)
-                                                  (global.get ,global)))))
-                          (if (ref.eq (call $boolean? (local.get $v)) (global.get $false))
-                              (then (call $raise-argument-error1
-                                          (global.get ,symbol)
-                                          (global.get $string:boolean?)
-                                          (local.get $v))
-                                    (unreachable)))
-                          (if (i32.eqz (ref.eq (global.get $current-parameterization-value)
-                                               (global.get $false)))
-                              (then (return (call $extend-current-parameterization!
-                                                  (global.get ,primitive)
-                                                  (local.get $v)))))
-                          (global.set ,global (local.get $v))
-                          (global.get $void)))
+               ,@(for/list ([name (in-list reader-printer-policy-parameter-helper-names)])
+                   (core-runtime-helper-form runtime-helper-index name))
 
                ;; print-syntax-width : [(or/c +inf.0 0 exact-integer>=3)] -> any/c
                ;;   Bootstrap parameter for syntax-object printing. It accepts

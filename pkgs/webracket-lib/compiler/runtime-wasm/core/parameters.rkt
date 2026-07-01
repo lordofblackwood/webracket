@@ -1,15 +1,186 @@
 #lang racket
 
-(provide parameter-runtime-only-helpers)
+(provide parameter-runtime-only-helpers
+         reader-printer-policy-parameter-helper-names)
 
 (require "../core-helper.rkt")
+
+;; reader-printer-policy-parameter-specs : (listof (list symbol? symbol? symbol? symbol?))
+;;   Describe the boolean reader/printing policy parameters with their
+;;   function, error-name symbol, global value cell, and primitive procedure.
+(define reader-printer-policy-parameter-specs
+  '(( $load-on-demand-enabled
+      $symbol:load-on-demand-enabled
+      $load-on-demand-enabled-value
+      $prim:load-on-demand-enabled)
+    ( $use-user-specific-search-paths
+      $symbol:use-user-specific-search-paths
+      $use-user-specific-search-paths-value
+      $prim:use-user-specific-search-paths)
+    ( $read-square-bracket-as-paren
+      $symbol:read-square-bracket-as-paren
+      $read-square-bracket-as-paren-value
+      $prim:read-square-bracket-as-paren)
+    ( $read-curly-brace-as-paren
+      $symbol:read-curly-brace-as-paren
+      $read-curly-brace-as-paren-value
+      $prim:read-curly-brace-as-paren)
+    ( $read-square-bracket-with-tag
+      $symbol:read-square-bracket-with-tag
+      $read-square-bracket-with-tag-value
+      $prim:read-square-bracket-with-tag)
+    ( $read-curly-brace-with-tag
+      $symbol:read-curly-brace-with-tag
+      $read-curly-brace-with-tag-value
+      $prim:read-curly-brace-with-tag)
+    ( $read-accept-reader
+      $symbol:read-accept-reader
+      $read-accept-reader-value
+      $prim:read-accept-reader)
+    ( $read-accept-lang
+      $symbol:read-accept-lang
+      $read-accept-lang-value
+      $prim:read-accept-lang)
+    ( $read-accept-compiled
+      $symbol:read-accept-compiled
+      $read-accept-compiled-value
+      $prim:read-accept-compiled)
+    ( $read-accept-box
+      $symbol:read-accept-box
+      $read-accept-box-value
+      $prim:read-accept-box)
+    ( $read-accept-bar-quote
+      $symbol:read-accept-bar-quote
+      $read-accept-bar-quote-value
+      $prim:read-accept-bar-quote)
+    ( $read-accept-graph
+      $symbol:read-accept-graph
+      $read-accept-graph-value
+      $prim:read-accept-graph)
+    ( $read-syntax-accept-graph
+      $symbol:read-syntax-accept-graph
+      $read-syntax-accept-graph-value
+      $prim:read-syntax-accept-graph)
+    ( $read-accept-dot
+      $symbol:read-accept-dot
+      $read-accept-dot-value
+      $prim:read-accept-dot)
+    ( $read-accept-infix-dot
+      $symbol:read-accept-infix-dot
+      $read-accept-infix-dot-value
+      $prim:read-accept-infix-dot)
+    ( $read-accept-quasiquote
+      $symbol:read-accept-quasiquote
+      $read-accept-quasiquote-value
+      $prim:read-accept-quasiquote)
+    ( $read-cdot
+      $symbol:read-cdot
+      $read-cdot-value
+      $prim:read-cdot)
+    ( $read-single-flonum
+      $symbol:read-single-flonum
+      $read-single-flonum-value
+      $prim:read-single-flonum)
+    ( $read-decimal-as-inexact
+      $symbol:read-decimal-as-inexact
+      $read-decimal-as-inexact-value
+      $prim:read-decimal-as-inexact)
+    ( $read-case-sensitive
+      $symbol:read-case-sensitive
+      $read-case-sensitive-value
+      $prim:read-case-sensitive)
+    ( $print-pair-curly-braces
+      $symbol:print-pair-curly-braces
+      $print-pair-curly-braces-value
+      $prim:print-pair-curly-braces)
+    ( $print-mpair-curly-braces
+      $symbol:print-mpair-curly-braces
+      $print-mpair-curly-braces-value
+      $prim:print-mpair-curly-braces)
+    ( $print-unreadable
+      $symbol:print-unreadable
+      $print-unreadable-value
+      $prim:print-unreadable)
+    ( $print-graph
+      $symbol:print-graph
+      $print-graph-value
+      $prim:print-graph)
+    ( $print-struct
+      $symbol:print-struct
+      $print-struct-value
+      $prim:print-struct)
+    ( $print-box
+      $symbol:print-box
+      $print-box-value
+      $prim:print-box)
+    ( $print-vector-length
+      $symbol:print-vector-length
+      $print-vector-length-value
+      $prim:print-vector-length)
+    ( $print-hash-table
+      $symbol:print-hash-table
+      $print-hash-table-value
+      $prim:print-hash-table)
+    ( $print-boolean-long-form
+      $symbol:print-boolean-long-form
+      $print-boolean-long-form-value
+      $prim:print-boolean-long-form)
+    ( $print-reader-abbreviations
+      $symbol:print-reader-abbreviations
+      $print-reader-abbreviations-value
+      $prim:print-reader-abbreviations)
+    ( $print-as-expression
+      $symbol:print-as-expression
+      $print-as-expression-value
+      $prim:print-as-expression)
+    ( $error-print-source-location
+      $symbol:error-print-source-location
+      $error-print-source-location-value
+      $prim:error-print-source-location)))
+
+;; reader-printer-policy-parameter-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for generated policy parameters.
+(define reader-printer-policy-parameter-helper-names
+  (map first reader-printer-policy-parameter-specs))
+
+;; reader-printer-policy-parameter-form : symbol? symbol? symbol? symbol? -> datum?
+;;   Generate one boolean reader/printing policy parameter function.
+(define (reader-printer-policy-parameter-form name symbol global primitive)
+  `(func ,name (type $Prim01)
+         (param $v (ref eq)) ;; optional boolean?
+         (result   (ref eq))
+
+         (if (ref.eq (local.get $v) (global.get $missing))
+             (then (return (call $parameter-value-or-global
+                                 (global.get ,primitive)
+                                 (global.get ,global)))))
+         (if (ref.eq (call $boolean? (local.get $v)) (global.get $false))
+             (then (call $raise-argument-error1
+                         (global.get ,symbol)
+                         (global.get $string:boolean?)
+                         (local.get $v))
+                   (unreachable)))
+         (if (i32.eqz (ref.eq (global.get $current-parameterization-value)
+                              (global.get $false)))
+             (then (return (call $extend-current-parameterization!
+                                 (global.get ,primitive)
+                                 (local.get $v)))))
+         (global.set ,global (local.get $v))
+         (global.get $void)))
+
+;; reader-printer-policy-parameter-forms : (listof datum?)
+;;   Generate the reader/printing policy parameter function forms.
+(define reader-printer-policy-parameter-forms
+  (for/list ([spec (in-list reader-printer-policy-parameter-specs)])
+    (apply reader-printer-policy-parameter-form spec)))
 
 ;; parameter-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate parameterization helpers used by the monolithic runtime.
 (define parameter-runtime-only-helpers
-  (function-forms->runtime-helpers
-   'parameter-runtime-only-helpers
-   '(
+  (append
+   (function-forms->runtime-helpers
+    'parameter-runtime-only-helpers
+    '(
      ;; current-parameterization : -> parameterization?
      ;;   Return the current poor-man parameterization overlay.
      (func $current-parameterization (type $Prim0)
@@ -743,4 +914,7 @@
                                                 (global.get $missing))))))
            (global.set $current-load-relative-directory-path
                        (local.get $path))
-           (global.get $void)))))
+           (global.get $void))))
+   (function-forms->runtime-helpers
+    'reader-printer-policy-parameter-forms
+    reader-printer-policy-parameter-forms)))
