@@ -1,6 +1,7 @@
 #lang racket
 
-(provide vector-core-runtime-helpers
+(provide vector-constructor-runtime-only-helper-names
+         vector-core-runtime-helpers
          vector-error-runtime-only-helper-names
          vector-make-runtime-only-helper-names
          vector-mutability-runtime-only-helper-names
@@ -205,12 +206,181 @@
 (define vector-make-runtime-only-helper-names
   (map core-runtime-helper-name vector-make-runtime-only-helpers))
 
+;; vector-constructor-runtime-only-forms : (listof datum?)
+;;   Enumerate vector constructor helpers used by the monolithic runtime.
+(define vector-constructor-runtime-only-forms
+  '(
+         (func $vector (type $Prim>=0)
+               (param $args (ref eq))
+               (result      (ref eq))
+
+               (local $as        (ref $Args))
+               (local $len       i32)
+               (local $arr       (ref $Array))
+               (local $use-args? i32)
+               (local $list      (ref eq))
+               (local $node      (ref eq))
+               (local $pair      (ref $Pair))
+               (local $i         i32)
+               (local $x         (ref eq))
+
+               ;; Initialize non-defaultable locals
+               (local.set $as   (array.new $Args (global.get $null) (i32.const 0)))
+               (local.set $x    (global.get $false))
+               (local.set $list (global.get $null))
+               (local.set $node (global.get $null))
+
+               ;; Determine whether we received an $Args array or a list of rest arguments.
+               (local.set $use-args? (ref.test (ref $Args) (local.get $args)))
+               (if (local.get $use-args?)
+                   (then
+                    (local.set $as (ref.cast (ref $Args) (local.get $args)))
+                    (local.set $len (array.len (local.get $as))))
+                   (else
+                    (local.set $list (local.get $args))
+                    (local.set $node (local.get $list))
+                    (local.set $len (call $length/i32 (local.get $list)))))
+
+               ;; Allocate backing array
+               (local.set $arr (call $make-array (local.get $len) (global.get $false)))
+               (local.set $i   (i32.const 0))
+
+               ;; Copy arguments from either $Args or list form
+               (if (local.get $use-args?)
+                   (then
+                    (block $done-args
+                           (loop $loop-args
+                                 (br_if $done-args
+                                        (i32.ge_u (local.get $i) (local.get $len)))
+                                 (local.set $x (array.get $Args (local.get $as) (local.get $i)))
+                                 (array.set $Array (local.get $arr)
+                                            (local.get $i)
+                                            (local.get $x))
+                                 (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                                 (br $loop-args))))
+                   (else
+                    (local.set $node (local.get $list))
+                    (block $done-list
+                           (loop $loop-list
+                                 (br_if $done-list
+                                        (i32.ge_u (local.get $i) (local.get $len)))
+                                 (if (ref.test (ref $Pair) (local.get $node))
+                                     (then
+                                      (local.set $pair (ref.cast (ref $Pair) (local.get $node)))
+                                      (local.set $x (struct.get $Pair $a (local.get $pair)))
+                                      (local.set $node (struct.get $Pair $d (local.get $pair))))
+                                     (else
+                                      (call $raise-pair-expected (local.get $node))
+                                      (unreachable)))
+                                 (array.set $Array (local.get $arr)
+                                            (local.get $i)
+                                            (local.get $x))
+                                 (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                                 (br $loop-list)))))
+
+               ;; Wrap in a mutable vector structure
+               (struct.new $Vector
+                           (i32.const 0)          ;; hash
+                           (i32.const 0)          ;; mutable
+                           (local.get $arr)))
+
+
+         (func $vector-immutable (type $Prim>=0)
+               (param $args (ref eq))
+               (result      (ref eq))
+
+               (local $as        (ref $Args))
+               (local $len       i32)
+               (local $arr       (ref $Array))
+               (local $use-args? i32)
+               (local $list      (ref eq))
+               (local $node      (ref eq))
+               (local $pair      (ref $Pair))
+               (local $i         i32)
+               (local $x         (ref eq))
+
+               ;; Initialize non-defaultable locals
+               (local.set $as   (array.new $Args (global.get $null) (i32.const 0)))
+               (local.set $x    (global.get $false))
+               (local.set $list (global.get $null))
+               (local.set $node (global.get $null))
+
+               ;; Determine whether we received an $Args array or a list of rest arguments.
+               (local.set $use-args? (ref.test (ref $Args) (local.get $args)))
+               (if (local.get $use-args?)
+                   (then
+                    (local.set $as (ref.cast (ref $Args) (local.get $args)))
+                    (local.set $len (array.len (local.get $as))))
+                   (else
+                    (local.set $list (local.get $args))
+                    (local.set $node (local.get $list))
+                    (local.set $len (call $length/i32 (local.get $list)))))
+
+               ;; Allocate backing array
+               (local.set $arr (call $make-array (local.get $len) (global.get $false)))
+               (local.set $i   (i32.const 0))
+
+               ;; Copy arguments from either $Args or list form
+               (if (local.get $use-args?)
+                   (then
+                    (block $done-args
+                           (loop $loop-args
+                                 (br_if $done-args
+                                        (i32.ge_u (local.get $i) (local.get $len)))
+                                 (local.set $x (array.get $Args (local.get $as) (local.get $i)))
+                                 (array.set $Array (local.get $arr)
+                                            (local.get $i)
+                                            (local.get $x))
+                                 (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                                 (br $loop-args))))
+                   (else
+                    (local.set $node (local.get $list))
+                    (block $done-list
+                           (loop $loop-list
+                                 (br_if $done-list
+                                        (i32.ge_u (local.get $i) (local.get $len)))
+                                 (if (ref.test (ref $Pair) (local.get $node))
+                                     (then
+                                      (local.set $pair (ref.cast (ref $Pair) (local.get $node)))
+                                      (local.set $x (struct.get $Pair $a (local.get $pair)))
+                                      (local.set $node (struct.get $Pair $d (local.get $pair))))
+                                     (else
+                                      (call $raise-pair-expected (local.get $node))
+                                      (unreachable)))
+                                 (array.set $Array (local.get $arr)
+                                            (local.get $i)
+                                            (local.get $x))
+                                 (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                                 (br $loop-list)))))
+
+               ;; Wrap in a mutable vector structure
+               (struct.new $Vector
+                           (i32.const 0)          ;; hash
+                           (i32.const 1)          ;; immutable
+                           (local.get $arr)))
+
+
+     ))
+
+;; vector-constructor-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate vector constructor helpers used by the monolithic runtime.
+(define vector-constructor-runtime-only-helpers
+  (function-forms->runtime-helpers
+   'vector-constructor-runtime-only-helpers
+   vector-constructor-runtime-only-forms))
+
+;; vector-constructor-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for vector constructor helpers.
+(define vector-constructor-runtime-only-helper-names
+  (map core-runtime-helper-name vector-constructor-runtime-only-helpers))
+
 ;; vector-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate vector helpers that still depend on monolithic runtime globals.
 (define vector-runtime-only-helpers
   (append
    vector-error-runtime-only-helpers
    vector-make-runtime-only-helpers
+   vector-constructor-runtime-only-helpers
    (function-forms->runtime-helpers
     'vector-runtime-only-helpers
     '(
