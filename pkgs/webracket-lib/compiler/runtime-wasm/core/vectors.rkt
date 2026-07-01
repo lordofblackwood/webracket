@@ -7,6 +7,7 @@
          vector-core-runtime-helpers
          vector-error-runtime-only-helper-names
          vector-extend-runtime-only-helper-names
+         vector-list-conversion-runtime-only-helper-names
          vector-make-runtime-only-helper-names
          vector-mutability-runtime-only-helper-names
          vector-operation-runtime-only-helper-names
@@ -1544,6 +1545,72 @@
 (define vector-slice-runtime-only-helper-names
   (map core-runtime-helper-name vector-slice-runtime-only-helpers))
 
+
+;; vector-list-conversion-runtime-only-forms : (listof datum?)
+;;   Enumerate vector/list conversion helpers used by the monolithic runtime.
+(define vector-list-conversion-runtime-only-forms
+  '(
+         (func $raise-expected-vector (unreachable))
+
+         (func $list->vector (type $Prim1)
+               (param $xs (ref eq))
+               (result    (ref eq))
+
+               (local $arr (ref $Array))
+
+               (local.set $arr (call $list->array (local.get $xs)))
+               (struct.new $Vector
+                           (i32.const 0)     ; hash
+                           (i32.const 0)     ; immutable
+                           (local.get $arr)))
+
+         (func $vector->list (type $Prim1)
+               (param $v (ref eq))
+               (result (ref eq))
+               (if (i32.eqz (ref.test (ref $Vector) (local.get $v)))
+                   (then (call $raise-expected-vector (local.get $v)) (unreachable)))
+               (call $vector->list/checked (ref.cast (ref $Vector) (local.get $v))))
+
+         (func $vector->list/checked
+               (param $v (ref $Vector))
+               (result   (ref eq))
+
+               (local $arr (ref $Array))
+               (local $i   i32)         ;; current index (starts from len - 1 and decrements)
+               (local $x   (ref eq))
+               (local $xs  (ref eq))
+               ;; Extract backing array and initialize
+               (local.set $arr (struct.get $Vector $arr (local.get $v)))
+               (local.set $i   (i32.sub (array.len (local.get $arr)) (i32.const 1)))
+               (local.set $xs  (global.get $null))
+               ;; Loop backwards
+               (block $done
+                      (loop $loop
+                            (br_if $done (i32.lt_s (local.get $i) (i32.const 0)))
+                            (local.set $x (array.get $Array (local.get $arr) (local.get $i)))
+                            (local.set $xs (struct.new $Pair
+                                                       (i32.const 0)
+                                                       (local.get $x)
+                                                       (local.get $xs)))
+                            (local.set $i (i32.sub (local.get $i) (i32.const 1)))
+                            (br $loop)))
+               (return (local.get $xs)))
+
+
+     ))
+
+;; vector-list-conversion-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate vector/list conversion helpers used by the monolithic runtime.
+(define vector-list-conversion-runtime-only-helpers
+  (function-forms->runtime-helpers
+   'vector-list-conversion-runtime-only-helpers
+   vector-list-conversion-runtime-only-forms))
+
+;; vector-list-conversion-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for vector/list conversion helpers.
+(define vector-list-conversion-runtime-only-helper-names
+  (map core-runtime-helper-name vector-list-conversion-runtime-only-helpers))
+
 ;; vector-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate vector helpers that still depend on monolithic runtime globals.
 (define vector-runtime-only-helpers
@@ -1557,6 +1624,7 @@
    vector-extend-runtime-only-helpers
    vector-append-runtime-only-helpers
    vector-slice-runtime-only-helpers
+   vector-list-conversion-runtime-only-helpers
    (function-forms->runtime-helpers
     'vector-runtime-only-helpers
     '(
