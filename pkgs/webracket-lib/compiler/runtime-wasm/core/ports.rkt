@@ -499,9 +499,254 @@
                             (struct.get $Location $col  (local.get $loc))
                             (struct.get $Location $pos  (local.get $loc)))))))
 
+;; port-byte-string-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate byte/string port constructors and byte extraction helpers.
+(define port-byte-string-runtime-only-helpers
+  (function-forms->runtime-helpers
+   'port-byte-string-runtime-only-helpers
+   '(
+     (func $open-input-bytes (type $Prim12)
+           (param $bstr-raw (ref eq)) ;; bytes?
+           (param $name     (ref eq)) ;; optional any/c, default = 'string
+           (result          (ref eq))
+
+           (local $bstr      (ref $Bytes))
+           (local $port-bs   (ref $Bytes))
+           (local $name-val  (ref eq))
+           (local $src-arr   (ref $I8Array))
+           (local $arr       (ref $I8Array))
+           (local $len       i32)
+           (local $loc       (ref $Location))
+           (local $immutable i32)
+
+           ;; --- Initialize non-defaultable locals ---
+           (local.set $bstr    (ref.cast (ref $Bytes) (global.get $bytes:empty)))
+           (local.set $port-bs (ref.cast (ref $Bytes) (global.get $bytes:empty)))
+           ;; --- Validate byte string argument ---
+           (if (i32.eqz (ref.test (ref $Bytes) (local.get $bstr-raw)))
+               (then (call $raise-check-bytes (local.get $bstr-raw))))
+           (local.set $bstr (ref.cast (ref $Bytes) (local.get $bstr-raw)))
+           ;; --- Determine port name, honoring optional argument ---
+           (local.set $name-val
+                      (if (result (ref eq))
+                          (ref.eq (local.get $name) (global.get $missing))
+                          (then (global.get $symbol:string))
+                          (else (local.get $name))))
+           ;; --- Ensure the port holds an immutable copy of the bytes ---
+           (local.set $immutable (struct.get $Bytes $immutable (local.get $bstr)))
+           (local.set $src-arr (struct.get $Bytes $bs (local.get $bstr)))
+           (if (i32.eq (local.get $immutable) (i32.const 1))
+               (then (local.set $port-bs (local.get $bstr)))
+               (else
+                (local.set $port-bs
+                           (struct.new $Bytes
+                                       (struct.get $Bytes $hash (local.get $bstr))
+                                       (i32.const 1)
+                                       (call $i8array-copy
+                                             (local.get $src-arr)
+                                             (i32.const 0)
+                                             (call $i8array-length (local.get $src-arr)))))))
+           ;; --- Cache backing array and byte length ---
+           (local.set $arr (struct.get $Bytes $bs (local.get $port-bs)))
+           (local.set $len (array.len (local.get $arr)))
+           ;; --- Initialize location and construct the port ---
+           (local.set $loc (ref.cast (ref $Location) (call $make-initial-location)))
+           (struct.new $InputStringPort
+                       (i32.const 0)         ;; $hash
+                       (local.get $name-val) ;; $name
+                       (i32.const 0)         ;; $closed
+                       (local.get $port-bs)  ;; $bytes
+                       (local.get $len)      ;; $len
+                       (i32.const 0)         ;; $idx
+                       (local.get $loc)      ;; $loc
+                       (global.get $false)   ;; $read-handler
+                       (i32.const 0)         ;; $utf8-len
+                       (i32.const 0)         ;; $utf8-left
+                       (i32.const 0)))       ;; $utf8-bytes
+
+     (func $open-input-string (type $Prim12)
+           (param $str-raw (ref eq)) ;; string?
+           (param $name    (ref eq)) ;; optional any/c, default = 'string
+           (result         (ref eq))
+
+           (local $str      (ref $String))
+           (local $name-val (ref eq))
+           (local $bytes    (ref $Bytes))
+           (local $arr      (ref $I8Array))
+           (local $len      i32)
+           (local $loc      (ref $Location))
+
+           ;; --- Validate string argument ---
+           (if (i32.eqz (ref.test (ref $String) (local.get $str-raw)))
+               (then (call $raise-check-string (local.get $str-raw))))
+           (local.set $str (ref.cast (ref $String) (local.get $str-raw)))
+           ;; --- Determine port name, honoring optional argument ---
+           (local.set $name-val
+                      (if (result (ref eq))
+                          (ref.eq (local.get $name) (global.get $missing))
+                          (then (global.get $symbol:string))
+                          (else (local.get $name))))
+           ;; --- Convert string contents to immutable UTF-8 bytes ---
+           (local.set $bytes
+                      (ref.cast (ref $Bytes)
+                                (call $string->bytes/utf-8
+                                      (local.get $str)
+                                      (global.get $false)
+                                      (global.get $false)
+                                      (global.get $false))))
+           (local.set $arr (struct.get $Bytes $bs (local.get $bytes)))
+           (local.set $len (array.len (local.get $arr)))
+           ;; --- Initialize location and construct the port ---
+           (local.set $loc (ref.cast (ref $Location) (call $make-initial-location)))
+           (struct.new $InputStringPort
+                       (i32.const 0)          ;; $hash
+                       (local.get $name-val)  ;; $name
+                       (i32.const 0)          ;; $closed
+                       (local.get $bytes)     ;; $bytes
+                       (local.get $len)       ;; $len (byte length)
+                       (i32.const 0)          ;; $idx
+                       (local.get $loc)       ;; $loc
+                       (global.get $false)    ;; $read-handler
+                       (i32.const 0)          ;; $utf8-len
+                       (i32.const 0)          ;; $utf8-left
+                       (i32.const 0)))        ;; $utf8-bytes
+
+
+     (func $open-output-bytes (type $Prim01)
+           (param $name (ref eq)) ;; optional any/c, default = 'string
+           (result (ref eq))
+
+           (local $bs       (ref $Bytes))
+           (local $loc      (ref $Location))
+           (local $name-val (ref eq))
+           (local $port     (ref $OutputStringPort))
+           ;; Step 1: Allocate the backing I8Array with capacity 32 and fill with 0
+           (local.set $bs
+                      (struct.new $Bytes
+                        (i32.const 0)                                       ;; hash = 0
+                        (i32.const 0)                                       ;; mutable = false
+                        (call $i8make-array (i32.const 32) (i32.const 0)))) ;; backing array
+           ;; Step 2: Make initial location: (line 1, col 0, pos 1)
+           (local.set $loc (ref.cast (ref $Location) (call $make-initial-location)))
+           ;; Step 3: Determine the port name, defaulting to 'string
+           (local.set $name-val
+                      (if (result (ref eq))
+                          (ref.eq (local.get $name) (global.get $missing))
+                          (then (global.get $symbol:string))
+                          (else (local.get $name))))
+           ;; Step 4: Construct and return the StringPort
+           (local.set $port
+                      (struct.new $OutputStringPort
+                                  (i32.const 0)                 ;; $hash
+                                  (local.get $name-val)         ;; $name  : (ref eq)
+                                  (i32.const 0)                 ;; $closed
+                                  (local.get $bs)               ;; $bytes : (ref $Bytes)
+                                  (i32.const 32)                ;; $len   : i32
+                                  (i32.const 0)                 ;; $idx   : i32
+                                  (local.get $loc)              ;; $loc   : (ref $Location)
+                                  (i32.const 0)                 ;; $utf8-len
+                                  (i32.const 0)                 ;; $utf8-left
+                                  (i32.const 0)))               ;; $utf8-bytes
+           (local.get $port))
+
+     (func $open-output-string (type $Prim01)
+           (param $name (ref eq)) ;; optional any/c, default = 'string
+           (result (ref eq))
+
+           (local $port     (ref $OutputStringPort))
+           (local $name-val (ref eq))
+           ;; Determine the port name, defaulting to 'string when omitted
+           (local.set $name-val
+                      (if (result (ref eq))
+                          (ref.eq (local.get $name) (global.get $missing))
+                          (then (global.get $symbol:string))
+                          (else (local.get $name))))
+           ;; Reuse the byte-backed string port and update its name field
+           (local.set $port (ref.cast (ref $OutputStringPort)
+                                      (call $open-output-bytes (global.get $missing))))
+           (struct.set $OutputStringPort $name (local.get $port) (local.get $name-val))
+           (local.get $port))
+
+     (func $get-output-bytes (type $Prim14)
+           (param $out    (ref eq))
+           (param $reset? (ref eq)) ;; optional any/c, default = #f
+           (param $start  (ref eq)) ;; optional exact-nonnegative-integer?, default = 0
+           (param $end    (ref eq)) ;; optional exact-nonnegative-integer?, default = current output length
+           (result        (ref eq))
+
+           (local $sp   (ref null $OutputStringPort))
+           (local $bs   (ref $Bytes))
+           (local $idx  i32)
+           (local $from i32)
+           (local $to   i32)
+           (local $src  (ref $I8Array))
+           (local $dest (ref $I8Array))
+           (local $res  (ref $Bytes))
+           ;; 1. Check that $out is a StringPort
+           (if (ref.test (ref $OutputStringPort) (local.get $out))
+               (then (local.set $sp (ref.cast (ref $OutputStringPort) (local.get $out))))
+               (else (call $raise-check-string-port (local.get $out)) (unreachable)))
+           ;; 2. Get internal byte string and index
+           (local.set $bs  (struct.get $OutputStringPort $bytes (local.get $sp)))
+           (local.set $idx (struct.get $OutputStringPort $idx   (local.get $sp)))
+           ;; 3. Extract the I8Array from the Bytes object
+           (local.set $src (struct.get $Bytes $bs (local.get $bs)))
+           ;; 4. Decode the optional slice bounds. The visible content is
+           ;;    the written prefix [0, idx), not the backing capacity.
+           (if (ref.eq (local.get $start) (global.get $missing))
+               (then (local.set $from (i32.const 0)))
+               (else (if (ref.test (ref i31) (local.get $start))
+                         (then
+                          (local.set $from (i31.get_u (ref.cast (ref i31) (local.get $start))))
+                          (if (i32.eqz (i32.and (local.get $from) (i32.const 1)))
+                              (then (local.set $from (i32.shr_u (local.get $from) (i32.const 1))))
+                              (else (call $raise-check-fixnum (local.get $start)) (unreachable))))
+                         (else (call $raise-check-fixnum (local.get $start)) (unreachable)))))
+           (if (ref.eq (local.get $end) (global.get $missing))
+               (then (local.set $to (local.get $idx)))
+               (else (if (ref.test (ref i31) (local.get $end))
+                         (then
+                          (local.set $to (i31.get_u (ref.cast (ref i31) (local.get $end))))
+                          (if (i32.eqz (i32.and (local.get $to) (i32.const 1)))
+                              (then (local.set $to (i32.shr_u (local.get $to) (i32.const 1))))
+                              (else (call $raise-check-fixnum (local.get $end)) (unreachable))))
+                         (else (call $raise-check-fixnum (local.get $end)) (unreachable)))))
+           (if (i32.gt_u (local.get $from) (local.get $to))
+               (then (call $raise-bad-bytes-range (local.get $out) (local.get $from) (local.get $to)) (unreachable)))
+           (if (i32.gt_u (local.get $to) (local.get $idx))
+               (then (call $raise-bad-bytes-range (local.get $out) (local.get $from) (local.get $to)) (unreachable)))
+           ;; 5. Allocate a new array for the requested slice.
+           (local.set $dest (call $i8make-array
+                                  (i32.sub (local.get $to) (local.get $from))
+                                  (i32.const 0)))
+           ;; 6. Copy contents into the new array
+           (drop (call $i8array-copy!/error
+                       (local.get $dest)            ;; dest
+                       (i32.const 0)                ;; dest-start
+                       (local.get $src)             ;; src
+                       (local.get $from)             ;; src-start
+                       (local.get $to)))             ;; src-end
+           ;; 7. Construct new Bytes object
+           (local.set $res
+                      (struct.new $Bytes
+                                  (i32.const 0)              ;; hash
+                                  (i32.const 1)              ;; immutable
+                                  (local.get $dest)))        ;; backing array
+           ;; 8. A true reset? clears the visible output but keeps capacity.
+           (if (i32.and
+                (i32.eqz (ref.eq (local.get $reset?) (global.get $false)))
+                (i32.eqz (ref.eq (local.get $reset?) (global.get $missing))))
+               (then (struct.set $OutputStringPort $idx (local.get $sp) (i32.const 0))
+                     (struct.set $OutputStringPort $utf8-len (local.get $sp) (i32.const 0))
+                     (struct.set $OutputStringPort $utf8-left (local.get $sp) (i32.const 0))
+                     (struct.set $OutputStringPort $utf8-bytes (local.get $sp) (i32.const 0))))
+           ;; 9. Return the new Bytes
+           (local.get $res)))))
+
 ;; port-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate port helpers used by the monolithic runtime.
 (define port-runtime-only-helpers
   (append port-predicate-runtime-only-helpers
           port-state-runtime-only-helpers
-          port-location-runtime-only-helpers))
+          port-location-runtime-only-helpers
+          port-byte-string-runtime-only-helpers))
