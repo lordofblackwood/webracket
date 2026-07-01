@@ -62,6 +62,9 @@
                   io-handler-port-runtime-only-helper-names
                   io-handler-reader-printer-runtime-only-helper-names
                   io-handler-runtime-only-helpers)
+         (only-in "runtime-wasm/core/keywords.rkt"
+                  keyword-runtime-only-helper-names
+                  keyword-runtime-only-helpers)
          (only-in "runtime-wasm/core/lists.rkt"
                   list-runtime-only-helpers)
          (only-in "runtime-wasm/core/linklet-instances.rkt"
@@ -178,6 +181,7 @@
 (define-runtime-path core-immediates-path "runtime-wasm/core/immediates.rkt")
 (define-runtime-path core-impersonators-path "runtime-wasm/core/impersonators.rkt")
 (define-runtime-path core-io-handlers-path "runtime-wasm/core/io-handlers.rkt")
+(define-runtime-path core-keywords-path "runtime-wasm/core/keywords.rkt")
 (define-runtime-path core-lists-path "runtime-wasm/core/lists.rkt")
 (define-runtime-path core-linklet-instances-path "runtime-wasm/core/linklet-instances.rkt")
 (define-runtime-path core-linklets-path "runtime-wasm/core/linklets.rkt")
@@ -231,6 +235,7 @@
            immediate-runtime-only-helpers
            impersonator-runtime-only-helpers
            io-handler-runtime-only-helpers
+           keyword-runtime-only-helpers
            list-runtime-only-helpers
            linklet-instance-runtime-only-helpers
            location-runtime-only-helpers
@@ -614,6 +619,7 @@
                                           core-immediates-path
                                           core-impersonators-path
                                           core-io-handlers-path
+                                          core-keywords-path
                                           core-lists-path
                                           core-linklet-instances-path
                                           core-linklets-path
@@ -13402,155 +13408,10 @@
          ;;; 4.9 KEYWORDS
          ;;;
 
-         ;; https://docs.racket-lang.org/reference/keywords.html
-
-         ;; Keywords are interned using `the-keywords-table` which maps strings (without #:)
-         ;; to keywords.
-
+         ;;   Keyword helpers are implemented in runtime-wasm/core/keywords.rkt.
          ,(core-runtime-helper-form core-runtime-helper-index '$keyword?/i32)
-
-         (func $keyword? (type $Prim1)
-               ,@(make-predicate-body '$Keyword))
-
-         (func $string->keyword (type $Prim1)
-               (param $str (ref eq))
-               (result (ref eq)) ; an (ref $Keyword)
-               ;; Type check: must be a string
-               (if (i32.eqz (ref.test (ref $String) (local.get $str)))
-                   (then (call $raise-argument-error:string-expected (local.get $str))
-                         (unreachable)))
-               ;; Cast and delegate
-               (call $string->keyword/checked (ref.cast (ref $String) (local.get $str))))
-
-
-         (func $string->keyword/checked
-               (param $str (ref $String))
-               (result     (ref $Keyword))
-
-               (local $existing (ref eq))
-               (local $kw       (ref $Keyword))
-               ;; Look up in table
-               (local.set $existing (call $symbol-table-find
-                                          (ref.as_non_null (global.get $the-keyword-table))
-                                          (local.get $str)))
-               (if (result (ref $Keyword))
-                   (ref.eq (local.get $existing) (global.get $missing))
-                   (then
-                    ;; Not found – allocate and intern new keyword
-                    (local.set $kw (struct.new $Keyword
-                                               (i32.const 0) ;; hash will be assigned later
-                                               (local.get $str)))
-                    (call $symbol-table-insert
-                          (ref.as_non_null (global.get $the-keyword-table))
-                          (local.get $str)
-                          (local.get $kw))
-                    (local.get $kw))
-                   (else
-                    (ref.cast (ref $Keyword)
-                              (local.get $existing)))))
-
-         (func $raise-argument-error:keyword-expected (unreachable))
-
-         (func $keyword->string (type $Prim1) ; the result does not contain #:
-               (param $kw (ref eq))
-               (result    (ref eq)) ; an (ref $String)
-               ;; Type check: must be a keyword
-               (if (i32.eqz (ref.test (ref $Keyword) (local.get $kw)))
-                   (then (call $raise-argument-error:keyword-expected (local.get $kw))
-                         (unreachable)))
-               ;; Cast and delegate
-               (call $keyword->string/checked (ref.cast (ref $Keyword) (local.get $kw))))
-
-         (func $keyword->string/checked
-               (param $kw       (ref $Keyword))
-               (result          (ref $String))
-
-               (local $name     (ref $String))
-               (local.set $name (struct.get $Keyword $str (local.get $kw)))
-
-               (ref.cast (ref $String) (call $string-copy (local.get $name))))
-
-         (func $keyword->immutable-string (type $Prim1)
-               (param $kw (ref eq))
-               (result    (ref eq)) ; an (ref $String)
-               ;; Type check: must be a keyword
-               (if (i32.eqz (ref.test (ref $Keyword) (local.get $kw)))
-                   (then (call $raise-argument-error:keyword-expected (local.get $kw))
-                         (unreachable)))
-               ;; Cast and delegate
-               (call $keyword->immutable-string/checked (ref.cast (ref $Keyword) (local.get $kw))))
-
-         (func $keyword->immutable-string/checked
-               (param $kw (ref $Keyword))
-               (result    (ref $String))
-
-               (local $name (ref $String))
-               (local $src  (ref $I32Array))
-               (local $dst  (ref $I32Array))
-               (local $len  i32)
-
-               (local.set $name (struct.get $Keyword $str (local.get $kw)))
-
-               (if (result (ref $String))
-                   (i32.eq (struct.get $String $immutable (local.get $name)) (i32.const 1))
-                   (then (local.get $name))
-                   (else
-                    (local.set $src (struct.get $String $codepoints (local.get $name)))
-                    (local.set $len (array.len (local.get $src)))
-                    (local.set $dst (call $i32array-copy
-                                              (local.get $src) (i32.const 0) (local.get $len)))
-                    (struct.new $String (i32.const 0) (i32.const 1) (local.get $dst)))))
-
-        (func $raise-keyword-expected (unreachable))
-
-         ;; keyword<? : (ref eq) (ref eq) ... -> (ref eq)  ;; returns #t/#f
-         (func $keyword<? (type $Prim>=1)
-               (param $a    (ref eq))
-               (param $rest (ref eq))
-               (result      (ref eq))
-
-               (local $prev-str  (ref $String))
-               (local $curr-str  (ref $String))
-               (local $rest-list (ref eq))
-               (local $pair      (ref $Pair))
-               (local $next      (ref eq))
-
-               ;; Type check: the first argument must be a keyword
-               (if (i32.eqz (ref.test (ref $Keyword) (local.get $a)))
-                   (then (call $raise-expected-keyword (global.get $symbol:keyword<?) (local.get $a))
-                         (unreachable)))
-
-               ;; Extract underlying string (without "#:") and prepare to iterate over the rest
-               (local.set $prev-str (struct.get $Keyword $str (ref.cast (ref $Keyword) (local.get $a))))
-               (local.set $rest-list (local.get $rest))
-
-               ;; With a single argument, the result is #t
-               (if (ref.eq (local.get $rest-list) (global.get $null))
-                   (then (return (global.get $true))))
-
-               (loop $loop
-                     (if (ref.eq (local.get $rest-list) (global.get $null))
-                         (then (return (global.get $true))))
-                     (if (i32.eqz (ref.test (ref $Pair) (local.get $rest-list)))
-                         (then (call $raise-pair-expected (local.get $rest-list))
-                               (unreachable)))
-                     (local.set $pair (ref.cast (ref $Pair) (local.get $rest-list)))
-                     (local.set $next (struct.get $Pair $a (local.get $pair)))
-                     ;; Ensure each remaining argument is a keyword
-                     (if (i32.eqz (ref.test (ref $Keyword) (local.get $next)))
-                         (then (call $raise-expected-keyword (global.get $symbol:keyword<?) (local.get $next))
-                               (unreachable)))
-                     (local.set $curr-str
-                                (struct.get $Keyword $str
-                                            (ref.cast (ref $Keyword) (local.get $next))))
-                    (if (ref.eq (call $string<?/2 (local.get $prev-str) (local.get $curr-str))
-                                 (global.get $false))
-                         (then (return (global.get $false))))
-                     (local.set $prev-str (local.get $curr-str))
-                     (local.set $rest-list (struct.get $Pair $d (local.get $pair)))
-                     (br $loop))
-               (unreachable))
-
+         ,@(for/list ([name (in-list keyword-runtime-only-helper-names)])
+             (core-runtime-helper-form runtime-helper-index name))
 
          ;;;
          ;;; 4.10 Pairs and lists
