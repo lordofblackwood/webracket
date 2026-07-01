@@ -55,6 +55,7 @@
                   hash-table-predicate-runtime-only-helper-names
                   hash-predicate-runtime-only-helper-names)
          (only-in "runtime-wasm/core/immutable-hashes.rkt"
+                  immutable-hash-public-runtime-only-helper-names
                   immutable-hash-runtime-only-helpers)
          (only-in "runtime-wasm/core/immediates.rkt"
                   immediate-runtime-only-helpers)
@@ -14916,73 +14917,11 @@
 
          ,(core-runtime-helper-form runtime-helper-index '$hashalw-ref-key/plain/checked)
 
-         ;; hash-set : immutable-hash? any/c any/c -> immutable-hash?
-         ;;   Functionally update an immutable hash through the wrapper's key
-         ;;   comparison and hash-code strategy.
-         (func $hash-set (type $Prim3)
-               (param $ht  (ref eq)) ;; immutable hash table
-               (param $key (ref eq)) ;; key
-               (param $val (ref eq)) ;; value
-               (result     (ref eq))
-               (call $debug-allocation-tick (i32.const 3))
-               (if (i32.eqz (call $immutable-hash-leaf?/i32 (local.get $ht)))
-                   (then (drop (call $js-log (global.get $string:hash-set-non-hash)))
-                         (if (ref.eq (call $exn? (local.get $ht)) (global.get $true))
-                             (then (drop (call $js-log (global.get $string:hash-set-exn-message)))
-                                   (drop (call $js-log (call $exn-message (local.get $ht))))))
-                         (call $raise-argument-error:hash-expected)
-                         (unreachable)))
-               (if (ref.test (ref $HashEqImmutable) (local.get $ht))
-                   (then (return (call $immutable-hasheq-set
-                                       (local.get $ht)
-                                       (local.get $key)
-                                       (local.get $val)))))
-               (if (ref.test (ref $HashEqvImmutable) (local.get $ht))
-                   (then (return (call $immutable-hasheqv-set
-                                       (local.get $ht)
-                                       (local.get $key)
-                                       (local.get $val)))))
-               (if (ref.test (ref $HashEqualImmutable) (local.get $ht))
-                   (then (return (call $immutable-hash-set
-                                       (local.get $ht)
-                                       (local.get $key)
-                                       (local.get $val)))))
-               (if (ref.test (ref $HashEqualAlwaysImmutable) (local.get $ht))
-                   (then (return (call $immutable-hashalw-set
-                                       (local.get $ht)
-                                       (local.get $key)
-                                       (local.get $val)))))
-               (drop (call $js-log (global.get $string:hash-set-unsupported)))
-               (drop (call $js-log (local.get $ht)))
-               (unreachable))
-
-         ;; hash-remove : immutable-hash? any/c -> immutable-hash?
-         ;;   Functionally remove a key from an immutable hash through the
-         ;;   wrapper's key comparison and hash-code strategy.
-         (func $hash-remove (type $Prim2)
-               (param $ht  (ref eq)) ;; immutable hash table
-               (param $key (ref eq)) ;; key
-               (result     (ref eq))
-               (if (i32.eqz (call $immutable-hash-leaf?/i32 (local.get $ht)))
-                   (then (call $raise-argument-error:hash-expected)
-                         (unreachable)))
-               (if (ref.test (ref $HashEqImmutable) (local.get $ht))
-                   (then (return (call $immutable-hasheq-remove
-                                       (local.get $ht)
-                                       (local.get $key)))))
-               (if (ref.test (ref $HashEqvImmutable) (local.get $ht))
-                   (then (return (call $immutable-hasheqv-remove
-                                       (local.get $ht)
-                                       (local.get $key)))))
-               (if (ref.test (ref $HashEqualImmutable) (local.get $ht))
-                   (then (return (call $immutable-hash-remove
-                                       (local.get $ht)
-                                       (local.get $key)))))
-               (if (ref.test (ref $HashEqualAlwaysImmutable) (local.get $ht))
-                   (then (return (call $immutable-hashalw-remove
-                                       (local.get $ht)
-                                       (local.get $key)))))
-               (unreachable))
+         ;; Public immutable hash functional update wrappers
+         ;;   Implemented in runtime-wasm/core/immutable-hashes.rkt.
+         ,@(for/list ([name (in-list immutable-hash-public-runtime-only-helper-names)]
+                      #:when (memq name '($hash-set $hash-remove)))
+             (core-runtime-helper-form runtime-helper-index name))
 
          ,(core-runtime-helper-form runtime-helper-index '$hash-set!)
 
@@ -15053,47 +14992,8 @@
          ,(core-runtime-helper-form runtime-helper-index '$hashalw-ref!/plain/checked)
 
          ;; hash-update : immutable-hash? any/c (any/c -> any/c) [any/c or (-> any/c)] -> immutable-hash?
-         ;;   Functionally update an immutable hash. The optional failure
-         ;;   argument defaults to $missing, which makes hash-ref raise when
-         ;;   the key is absent.
-         (func $hash-update (type $Prim34)
-               (param $ht   (ref eq)) ;; immutable hash table
-               (param $key  (ref eq)) ;; key
-               (param $proc (ref eq)) ;; updater procedure
-               (param $fail (ref eq)) ;; optional failure/default, default = raises
-               (result      (ref eq))
-
-               (local $f         (ref $Procedure))
-               (local $finv      (ref $ProcedureInvoker))
-               (local $args      (ref $Args))
-               (local $old-value (ref eq))
-               (local $new-value (ref eq))
-
-               (if (i32.eqz (call $immutable-hash-leaf?/i32 (local.get $ht)))
-                   (then (call $raise-argument-error:hash-expected)
-                         (unreachable)))
-               (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
-                   (then (call $raise-argument-error:procedure-expected (local.get $proc))
-                         (unreachable)))
-
-               (local.set $old-value
-                          (call $hash-ref
-                                (local.get $ht)
-                                (local.get $key)
-                                (local.get $fail)))
-               (local.set $f    (ref.cast (ref $Procedure) (local.get $proc)))
-               (local.set $finv (struct.get $Procedure $invoke (local.get $f)))
-               (local.set $args (array.new $Args (global.get $null) (i32.const 1)))
-               (array.set $Args (local.get $args) (i32.const 0) (local.get $old-value))
-               (local.set $new-value
-                          (call_ref $ProcedureInvoker
-                                    (local.get $f)
-                                    (local.get $args)
-                                    (local.get $finv)))
-               (call $hash-set
-                     (local.get $ht)
-                     (local.get $key)
-                     (local.get $new-value)))
+         ;;   Implemented in runtime-wasm/core/immutable-hashes.rkt.
+         ,(core-runtime-helper-form runtime-helper-index '$hash-update)
 
 
          ,(core-runtime-helper-form runtime-helper-index '$hash-update!)
@@ -15294,25 +15194,8 @@
          ,(core-runtime-helper-form runtime-helper-index '$hashalw-clear!/mutable/checked)
 
          ;; hash-clear : immutable-hash? -> immutable-hash?
-         ;;   Functionally clear immutable hashes. Chaperone/impersonator
-         ;;   traversal is not implemented; WebRacket returns a fresh empty
-         ;;   hash with the same comparison wrapper.
-         (func $hash-clear (type $Prim1)
-               (param $ht (ref eq)) ;; immutable hash table
-               (result    (ref eq))
-               (if (i32.eqz (ref.test (ref $Hash) (local.get $ht)))
-                   (then (call $raise-argument-error:hash-expected)
-                         (unreachable)))
-               (if (ref.test (ref $HashEqImmutable) (local.get $ht))
-                   (then (return (call $make-empty-immutable-hasheq))))
-               (if (ref.test (ref $HashEqvImmutable) (local.get $ht))
-                   (then (return (call $make-empty-immutable-hasheqv))))
-               (if (ref.test (ref $HashEqualImmutable) (local.get $ht))
-                   (then (return (call $make-empty-immutable-hash))))
-               (if (ref.test (ref $HashEqualAlwaysImmutable) (local.get $ht))
-                   (then (return (call $make-empty-immutable-hashalw))))
-               (call $raise-argument-error:hash-expected)
-               (unreachable))
+         ;;   Implemented in runtime-wasm/core/immutable-hashes.rkt.
+         ,(core-runtime-helper-form runtime-helper-index '$hash-clear)
 
 
 
