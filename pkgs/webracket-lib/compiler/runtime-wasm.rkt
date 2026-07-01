@@ -35970,128 +35970,15 @@
                                            (local.get $proc))))))
                (global.get $false))
 
-         ;; chaperone-procedure : procedure? (or/c procedure? #f) any/c ... -> procedure?
-         ;;   Reference chaperones interpose on calls while preserving
-         ;;   chaperone-of? constraints. WebRacket does not implement real
-         ;;   chaperones yet, so use the same Goal-1 bridge as the unsafe
-         ;;   variant: a wrapper procedure becomes the callable result, and
-         ;;   #f means "no interposition", so the original procedure is kept.
-         (func $chaperone-procedure (type $Prim>=2)
-               (param $proc    (ref eq)) ;; original procedure
-               (param $wrapper (ref eq)) ;; wrapper procedure or #f
-               (param $props   (ref eq)) ;; ignored property/value list
-               (result         (ref eq))
-
-               (if (ref.eq (call $procedure? (local.get $proc)) (global.get $false))
-                   (then (call $raise-argument-error:procedure-expected (local.get $proc))
-                         (unreachable)))
-               (if (ref.eq (local.get $wrapper) (global.get $false))
-                   (then (return (local.get $proc))))
-               (if (ref.eq (call $procedure? (local.get $wrapper)) (global.get $false))
-                   (then (call $raise-argument-error1
-                               (global.get $symbol:chaperone-procedure)
-                               (global.get $string:procedure-or-false?)
-                               (local.get $wrapper))
-                         (unreachable)))
-               (local.get $wrapper))
-
-         ;; chaperone-struct : any/c any/c ... -> any/c
-         ;;   Full Racket interposes on struct accessors, mutators, property
-         ;;   accessors, and struct-info. WebRacket has no chaperone wrappers
-         ;;   yet; for Goal 1, preserve identity and ignore interposition so
-         ;;   contract-heavy libraries can instantiate their helper structs.
-         (func $chaperone-struct (type $Prim>=1)
-               (param $v    (ref eq)) ;; value to chaperone
-               (param $args (ref eq)) ;; ignored struct/type/proc/property args
-               (result      (ref eq))
-
-               (local.get $v))
-
-         ;; chaperone-vector : vector? (or/c procedure? #f) (or/c procedure? #f) any/c ... -> vector?
-         ;;   Goal-1 identity bridge. Full Racket interposes on vector ref/set;
-         ;;   WebRacket currently has no chaperone wrapper representation.
-         (func $chaperone-vector (type $Prim>=3)
-               (param $vec      (ref eq)) ;; vector?
-               (param $ref-proc (ref eq)) ;; ignored ref interposer
-               (param $set-proc (ref eq)) ;; ignored set interposer
-               (param $props    (ref eq)) ;; ignored property/value list
-               (result          (ref eq))
-
-               (if (i32.eqz (ref.test (ref $Vector) (local.get $vec)))
-                   (then (call $raise-argument-error1
-                               (global.get $symbol:chaperone-vector)
-                               (global.get $string:vector?)
-                               (local.get $vec))
-                         (unreachable)))
-               (local.get $vec))
-
-         ;; chaperone-box : box? procedure? procedure? any/c ... -> box?
-         ;;   Goal-1 identity bridge. Full Racket interposes on unbox/set-box!;
-         ;;   WebRacket currently has no chaperone wrapper representation.
-         (func $chaperone-box (type $Prim>=3)
-               (param $box        (ref eq)) ;; box?
-               (param $unbox-proc (ref eq)) ;; ignored unbox interposer
-               (param $set-proc   (ref eq)) ;; ignored set interposer
-               (param $props      (ref eq)) ;; ignored property/value list
-               (result            (ref eq))
-
-               (if (i32.eqz (ref.test (ref $Box) (local.get $box)))
-                   (then (call $raise-argument-error1
-                               (global.get $symbol:chaperone-box)
-                               (global.get $string:box?)
-                               (local.get $box))
-                         (unreachable)))
-               (local.get $box))
-
-         ;; chaperone-hash : hash? procedure? procedure? procedure? procedure? any/c ... -> hash?
-         ;;   Goal-1 identity bridge. Full Racket interposes on hash access,
-         ;;   update, remove, key extraction, and optional clear/equal-key
-         ;;   operations; WebRacket currently keeps the original hash.
-         (func $chaperone-hash (type $Prim>=3)
-               (param $hash     (ref eq)) ;; hash?
-               (param $ref-proc (ref eq)) ;; ignored ref interposer
-               (param $set-proc (ref eq)) ;; ignored set interposer
-               (param $rest     (ref eq)) ;; remove/key/optional/properties
-               (result          (ref eq))
-
-               (if (ref.eq (call $hash? (local.get $hash)) (global.get $false))
-                   (then (call $raise-argument-error1
-                               (global.get $symbol:chaperone-hash)
-                               (global.get $string:hash?)
-                               (local.get $hash))
-                         (unreachable)))
-               (local.get $hash))
-
-         ;; unsafe-chaperone-procedure : procedure? procedure? any/c ... -> procedure?
-         ;;   WebRacket does not implement chaperones yet. Preserve the useful
-         ;;   contract-wrapper behavior by returning the wrapper procedure,
-         ;;   which is responsible for delegating to the original procedure.
-         (func $unsafe-chaperone-procedure (type $Prim>=2)
-               (param $proc    (ref eq)) ;; original procedure
-               (param $wrapper (ref eq)) ;; replacement/wrapper procedure
-               (param $props   (ref eq)) ;; ignored property/value list
-               (result         (ref eq))
-
-               (if (ref.eq (call $procedure? (local.get $proc)) (global.get $false))
-                   (then (call $raise-argument-error:procedure-expected (local.get $proc))
-                         (unreachable)))
-               (if (ref.eq (call $procedure? (local.get $wrapper)) (global.get $false))
-                   (then (call $raise-argument-error:procedure-expected (local.get $wrapper))
-                         (unreachable)))
-               (local.get $wrapper))
-
-         ;; unsafe-impersonate-procedure : procedure? procedure? any/c ... -> procedure?
-         ;;   Same temporary representation as unsafe-chaperone-procedure.
-         (func $unsafe-impersonate-procedure (type $Prim>=2)
-               (param $proc    (ref eq)) ;; original procedure
-               (param $wrapper (ref eq)) ;; replacement procedure
-               (param $props   (ref eq)) ;; ignored property/value list
-               (result         (ref eq))
-
-               (return_call $unsafe-chaperone-procedure
-                            (local.get $proc)
-                            (local.get $wrapper)
-                            (local.get $props)))
+         ;;   Implemented in runtime-wasm/core/impersonators.rkt.
+         ,@(for/list ([name '($chaperone-procedure
+                               $chaperone-struct
+                               $chaperone-vector
+                               $chaperone-box
+                               $chaperone-hash
+                               $unsafe-chaperone-procedure
+                               $unsafe-impersonate-procedure)])
+             (core-runtime-helper-form runtime-helper-index name))
 
 
 
