@@ -46,26 +46,29 @@
 (provide
  ;; Initialize Racket's process environment from the user's login shell.
  ;; Intended for GUI-launched Racket so (system ...) sees the same PATH,
- ;; MANPATH, etc. as a terminal session.
+ ;; MANPATH, etc. as a terminal session.  Pass #:quiet? #t to suppress
+ ;; slow-shell warnings, or set WEBRACKET_EXEC_PATH_FROM_SHELL_QUIET.
  exec-path-from-shell-initialize
 
  ;; Import a single environment variable from the user's login shell and
  ;; install it into Racket's environment.  Returns the variable's value
- ;; or #f if it is unset in the shell.
+ ;; or #f if it is unset in the shell.  Accepts #:quiet? like initialize.
  exec-path-from-shell-copy-env
 
  ;; Import multiple environment variables from the user's login shell and
  ;; install them into Racket's environment.  Returns an alist mapping
- ;; variable names to their values (or #f if unset).
+ ;; variable names to their values (or #f if unset).  Accepts #:quiet?
+ ;; like initialize.
  exec-path-from-shell-copy-envs
 
  ;; Query a single environment variable from the user's login shell without
  ;; modifying Racket's current environment.  Returns the value or #f.
+ ;; Accepts #:quiet? like initialize.
  exec-path-from-shell-getenv
 
  ;; Query multiple environment variables from the user's login shell without
  ;; modifying Racket's current environment.  Returns an alist mapping names
- ;; to values (or #f if unset).
+ ;; to values (or #f if unset).  Accepts #:quiet? like initialize.
  exec-path-from-shell-getenvs)
 
 
@@ -193,9 +196,9 @@
 (define (now-ms)
   (current-inexact-monotonic-milliseconds))
 
-(define (warn-duration start-ms)
+(define (warn-duration start-ms quiet?)
   (define dur (- (now-ms) start-ms))
-  (when (and (not (exec-path-from-shell-quiet?))
+  (when (and (not quiet?)
              (> dur exec-path-from-shell-warn-ms))
     (define rounded-ms (inexact->exact (round dur)))
     (eprintf
@@ -223,7 +226,7 @@
   payload)
 
 
-(define (run-shell-c shell args)
+(define (run-shell-c shell args #:quiet? [quiet? (exec-path-from-shell-quiet?)])
   (unless shell
     (error 'exec-path-from-shell
            "No shell available. Set SHELL or install a POSIX shell (bash/sh)."))
@@ -245,7 +248,7 @@
   (subprocess-wait proc)               
   (define ec (subprocess-status proc)) 
 
-  (warn-duration start)
+  (warn-duration start quiet?)
 
   (unless (and (integer? ec) (zero? ec))
     (error 'exec-path-from-shell
@@ -258,7 +261,7 @@
 ;; The "printf with NUL separators" path
 ;; -------------------------------------
 
-(define (shell-printf fmt args)
+(define (shell-printf fmt args #:quiet? [quiet? (exec-path-from-shell-quiet?)])
   ;; fmt should contain sequences like "\\000" (one backslash in the string)
   ;; so that printf receives \000 and emits a NUL byte.
   (define printf-bin (or (find-executable-path "printf") "printf"))
@@ -288,9 +291,9 @@
                        (format "sh -c ~s" cmd)))
 
   (extract-between-markers
-   (run-shell-c sh (list "-c" full-cmd))))
+   (run-shell-c sh (list "-c" full-cmd) #:quiet? quiet?)))
 
-(define (getenvs-standard names)
+(define (getenvs-standard names #:quiet? [quiet? (exec-path-from-shell-quiet?)])
   ;; Returns list of (name . value/#f) pairs.
   (define random-default (bytes->hex-string
                           (sha1-bytes
@@ -302,7 +305,7 @@
   (define dollar-names  (for/list ([n names])
                           (format "${~a-~a}" n random-default)))
   (define fmt           (string-join (make-list (length names) "%s") "\\000"))
-  (define payload-bytes (shell-printf fmt dollar-names))
+  (define payload-bytes (shell-printf fmt dollar-names #:quiet? quiet?))
   (define values        (map bytes->string/utf-8
                              (bytes-split payload-bytes (bytes 0))))
 
@@ -320,7 +323,7 @@
 ;; Nushell path (JSON)
 ;; ----------------------------
 
-(define (getenvs-nushell names)
+(define (getenvs-nushell names #:quiet? [quiet? (exec-path-from-shell-quiet?)])
   ;; nu expression: [ $env."PATH"? , ... ] | to json
   (define sh   (shell-to-use))
   (define expr (format "[ ~a ] | to json"
@@ -328,7 +331,7 @@
                         (for/list ([n names])
                           (format "$env.~s?" n))
                         ", ")))
-  (define out  (run-shell-c sh (list "-c" expr)))
+  (define out  (run-shell-c sh (list "-c" expr) #:quiet? quiet?))
   (define js   (bytes->jsexpr out))
 
   ;; Nu may return list values for paths; join with ":".
@@ -355,7 +358,7 @@
   ;; Escape single quotes for PowerShell single-quoted strings.
   (format "'~a'" (string-replace s "'" "''")))
 
-(define (getenvs-powershell names)
+(define (getenvs-powershell names #:quiet? [quiet? (exec-path-from-shell-quiet?)])
   ;; Query environment variables in PowerShell and return as JSON.
   (define sh (shell-to-use))
   (define names-lit (string-join (map ps-quote names) ", "))
@@ -365,7 +368,7 @@
      "$names = @(" names-lit "); "
      "foreach ($n in $names) { $obj[$n] = [Environment]::GetEnvironmentVariable($n) }; "
      "$obj | ConvertTo-Json -Compress"))
-  (define out (run-shell-c sh (list "-Command" expr)))
+  (define out (run-shell-c sh (list "-Command" expr) #:quiet? quiet?))
   (define js (bytes->jsexpr out))
   (for/list ([n names])
     (define v (hash-ref/name js n 'missing))
@@ -376,19 +379,19 @@
 ;; Public API
 ;; ----------------------------
 
-(define (exec-path-from-shell-getenvs names)
+(define (exec-path-from-shell-getenvs names #:quiet? [quiet? (exec-path-from-shell-quiet?)])
   (define sh (shell-to-use))
   (cond
     [sh
      (cond
-       [(powershell? sh) (getenvs-powershell names)]
-       [(nushell? sh) (getenvs-nushell names)]
-       [else (getenvs-standard names)])]
+       [(powershell? sh) (getenvs-powershell names #:quiet? quiet?)]
+       [(nushell? sh) (getenvs-nushell names #:quiet? quiet?)]
+       [else (getenvs-standard names #:quiet? quiet?)])]
     [else
      (for/list ([n names]) (cons n #f))]))
 
-(define (exec-path-from-shell-getenv name)
-  (define p (assoc name (exec-path-from-shell-getenvs (list name))))
+(define (exec-path-from-shell-getenv name #:quiet? [quiet? (exec-path-from-shell-quiet?)])
+  (define p (assoc name (exec-path-from-shell-getenvs (list name) #:quiet? quiet?)))
   (and p (cdr p)))
 
 (define (exec-path-from-shell-setenv! name value)
@@ -397,17 +400,18 @@
       (putenv name value)
       (void)))
 
-(define (exec-path-from-shell-copy-envs names)
-  (define pairs (exec-path-from-shell-getenvs names))
+(define (exec-path-from-shell-copy-envs names #:quiet? [quiet? (exec-path-from-shell-quiet?)])
+  (define pairs (exec-path-from-shell-getenvs names #:quiet? quiet?))
   (for ([p pairs])
     (exec-path-from-shell-setenv! (car p) (cdr p)))
   pairs)
 
-(define (exec-path-from-shell-copy-env name)
-  (define pairs (exec-path-from-shell-copy-envs (list name)))
+(define (exec-path-from-shell-copy-env name #:quiet? [quiet? (exec-path-from-shell-quiet?)])
+  (define pairs (exec-path-from-shell-copy-envs (list name) #:quiet? quiet?))
   (define p (assoc name pairs))
   (and p (cdr p)))
 
 (define (exec-path-from-shell-initialize
-         #:vars [vars exec-path-from-shell-variables])
-  (exec-path-from-shell-copy-envs vars))
+         #:vars [vars exec-path-from-shell-variables]
+         #:quiet? [quiet? (exec-path-from-shell-quiet?)])
+  (exec-path-from-shell-copy-envs vars #:quiet? quiet?))
