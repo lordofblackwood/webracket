@@ -14193,15 +14193,7 @@
 	        ;; These "boxes" are not the same as the Racket datatype `box`.
 	        ;; See next section.
 
-	         (func $raise-letrec-placeholder-access
-	               (drop (call $raise
-	                           (call $exn:fail:contract:variable
-	                                 (global.get $string:use-before-initialization)
-	                                 (call $current-continuation-marks
-	                                       (global.get $missing))
-	                                 (global.get $symbol:exn:fail:contract:variable))
-	                           (global.get $true)))
-	               (unreachable))
+         ,(core-runtime-helper-form runtime-helper-index '$raise-letrec-placeholder-access)
 
          ;;;
          ;;; Internal Compiler Boxes

@@ -10,6 +10,21 @@
 (define box-base-runtime-only-helpers
   (list
    (core-runtime-helper
+    '$raise-letrec-placeholder-access
+    "$raise-letrec-placeholder-access"
+    (lambda ()
+      `(func $raise-letrec-placeholder-access
+             (drop (call $raise
+                         (call $exn:fail:contract:variable
+                               (global.get $string:use-before-initialization)
+                               (call $current-continuation-marks
+                                     (global.get $missing))
+                               (global.get $symbol:exn:fail:contract:variable))
+                         (global.get $true)))
+             (unreachable))))
+
+
+   (core-runtime-helper
     '$boxed
     "$boxed"
     (lambda ()
