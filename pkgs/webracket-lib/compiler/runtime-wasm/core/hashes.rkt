@@ -1419,6 +1419,189 @@
 
                     (local.get $acc)))))))))))
 
+;; hash-code-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate hash-code helpers shared by mutable and immutable hash support.
+(define hash-code-runtime-only-helpers
+  (function-forms->runtime-helpers
+   'hash-code-runtime-only-helpers
+   '(
+      (func $splitmix32 (result i32)
+            (local $z i32)
+            ;; z = state += 0x9E3779B9
+            (local.set $z (i32.add (global.get $next-hash-state) (i32.const 0x9E3779B9)))
+            (global.set $next-hash-state (local.get $z))
+            ;; z ^= (z >> 16)
+            (local.set $z (i32.xor (local.get $z) (i32.shr_u (local.get $z) (i32.const 16))))
+            ;; z *= 0x85EBCA6B
+            (local.set $z (i32.mul (local.get $z) (i32.const 0x85EBCA6B)))
+            ;; z ^= (z >> 13)
+            (local.set $z (i32.xor (local.get $z) (i32.shr_u (local.get $z) (i32.const 13))))
+            ;; z *= 0xC2B2AE35
+            (local.set $z (i32.mul (local.get $z) (i32.const 0xC2B2AE35)))
+            ;; z ^= (z >> 16)
+            (local.set $z (i32.xor (local.get $z) (i32.shr_u (local.get $z) (i32.const 16))))
+            (local.get $z))
+
+      (func $eq-hash-code (type $Prim1)
+            (param $v (ref eq))
+            (result (ref eq))
+
+            (ref.i31
+             (i32.shl (call $eq-hash/i32
+                            (local.get $v))
+                      (i32.const 1))))
+
+      (func $eq-hash/i32
+            (param $v (ref eq))
+            (result   i32)
+
+            (local $v-i31 i32)
+            (local $heap  (ref $Heap))
+            (local $h     i32)
+            (local $f     (ref $Flonum))
+            (local $bits i64)
+            (local $low  i32)
+            (local $high i32)
+            (local $x    i32)
+
+            (if (result i32)
+                (ref.test (ref i31) (local.get $v))
+                ;; Immediates
+                (then
+                 ;; --- Mix i31 immediate using Murmur3-style scramble ---
+                 (local.set $v-i31 (i31.get_u (ref.cast (ref i31) (local.get $v))))
+                 (i32.mul
+                  (i32.rotl
+                   (i32.mul (local.get $v-i31) (i32.const 0xcc9e2d51))
+                   (i32.const 15))
+                  (i32.const 0x1b873593)))
+                ;; Notes:
+                ;;   If the special case is commented out, then eq-hash-code
+                ;;   will always produce the same hash code for the same flonum value.
+                ;;   But that is not enough to make flonums work with $HashEQ since,
+                ;;   we are using (ref.eq ...) to test for equality.
+                ;; (else
+                ;;  ;; --- Special case: flonum ---
+                ;;  (if (result i32)
+                ;;      (ref.test (ref $Flonum) (local.get $v))
+                ;;      (then
+                ;;       (local.set $f    (ref.cast (ref $Flonum) (local.get $v)))
+                ;;       (local.set $bits (i64.reinterpret_f64
+                ;;                         (struct.get $Flonum $v (local.get $f))))
+                ;;       (local.set $low  (i32.wrap_i64 (local.get $bits)))
+                ;;       (local.set $high (i32.wrap_i64 (i64.shr_u (local.get $bits) (i64.const 32))))
+                ;;       (local.set $x    (i32.xor (local.get $low) (local.get $high)))
+                ;;       ;; Murmur3 mix again
+                ;;       (i32.mul
+                ;;        (i32.rotl
+                ;;         (i32.mul (local.get $x) (i32.const 0xcc9e2d51))
+                ;;         (i32.const 15))
+                ;;        (i32.const 0x1b873593)))
+
+                (else
+                 ;; --- Heap object: return or assign hash without mixing for now ---
+                 (local.set $heap (ref.cast (ref $Heap) (local.get $v)))
+                 (local.set $h    (struct.get $Heap $hash (local.get $heap)))
+                 (if (result i32)
+                     (i32.eqz (local.get $h))
+                     ;; If the current stored hash value is zero,
+                     ;; it means the hash value hasn't been computed yet.
+                     (then (local.set $h (call $splitmix32))
+                           ;; If $splitmix32 happens to return 0, we need a different
+                           ;; value - since 0 means "not computed yet".
+                           (if (i32.eqz (local.get $h))
+                               (then (local.set $h (i32.const 2))))
+                           ; Store we newly computed hash value.
+                           (struct.set $Heap $hash (local.get $heap) (local.get $h))
+                           (local.get $h))
+                     ;; Just use the existing hash value.
+                     (else (local.get $h))))))
+
+
+      (func $eqv-hash-code (type $Prim1)
+            (param $v (ref eq))
+            (result (ref eq))
+
+            (ref.i31
+             (i32.shl (call $eqv-hash/i32
+                            (local.get $v))
+                      (i32.const 1))))
+
+      (func $eqv-hash/i32
+            (param $v (ref eq))
+            (result   i32)
+
+            (local $v-i31 i32)
+            (local $heap  (ref $Heap))
+            (local $h     i32)
+            (local $f     (ref $Flonum))
+            (local $c     (ref $Complex))
+            (local $bits i64)
+            (local $low  i32)
+            (local $high i32)
+            (local $x    i32)
+            (local $hr   i32)
+            (local $hi   i32)
+
+            (if (result i32)
+                (ref.test (ref i31) (local.get $v))
+                (then
+                 ;; --- Mix i31 immediate using Murmur3-style scramble ---
+                 (local.set $v-i31 (i31.get_u (ref.cast (ref i31) (local.get $v))))
+                 (i32.mul
+                  (i32.rotl
+                   (i32.mul (local.get $v-i31) (i32.const 0xcc9e2d51))
+                   (i32.const 15))
+                  (i32.const 0x1b873593)))
+                (else
+                 ;; --- Special case: flonum hashed by value ---
+                 (if (result i32)
+                     (ref.test (ref $Flonum) (local.get $v))
+                     (then
+                      (local.set $f    (ref.cast (ref $Flonum) (local.get $v)))
+                      (local.set $bits (i64.reinterpret_f64
+                                        (struct.get $Flonum $v (local.get $f))))
+                      (local.set $low  (i32.wrap_i64 (local.get $bits)))
+                      (local.set $high (i32.wrap_i64 (i64.shr_u (local.get $bits) (i64.const 32))))
+                      (local.set $x    (i32.xor (local.get $low) (local.get $high)))
+                      ;; Murmur3 mix again
+                      (i32.mul
+                       (i32.rotl
+                        (i32.mul (local.get $x) (i32.const 0xcc9e2d51))
+                        (i32.const 15))
+                       (i32.const 0x1b873593)))
+                     (else
+                      ;; --- Complex numbers are hashed by their components. ---
+                      (if (result i32)
+                          (ref.test (ref $Complex) (local.get $v))
+                          (then
+                           (local.set $c (ref.cast (ref $Complex) (local.get $v)))
+                           (local.set $hr (call $eqv-hash/i32
+                                                (struct.get $Complex $real (local.get $c))))
+                           (local.set $hi (call $eqv-hash/i32
+                                                (struct.get $Complex $imag (local.get $c))))
+                           (i32.add (i32.mul (local.get $hr) (i32.const 33))
+                                    (local.get $hi)))
+                          (else
+                           ;; --- Heap object: return or assign hash without mixing for now ---
+                           (local.set $heap (ref.cast (ref $Heap) (local.get $v)))
+                           (local.set $h (struct.get $Heap $hash (local.get $heap)))
+                           (if (result i32)
+                               (i32.eqz (local.get $h))
+                               ;; If the current stored hash value is zero,
+                               ;; it means the hash value hasn't been computed yet.
+                               (then (local.set $h (call $splitmix32))
+                                     ;; If $splitmix32 happens to return 0, we need a different
+                                     ;; value - since 0 means "not computed yet".
+                                     (if (i32.eqz (local.get $h))
+                                         (then (local.set $h (i32.const 2))))
+                                     ; Store the newly computed hash value.
+                                     (struct.set $Heap $hash (local.get $heap) (local.get $h))
+                                     (local.get $h))
+                               ;; Just use the existing hash value.
+                               (else (local.get $h))))))))))))
+   )
+
 ;; hash-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate generic hash helpers that span mutable and immutable hash kinds.
 (define hash-runtime-only-helpers
@@ -1428,4 +1611,5 @@
           hash-map-runtime-only-helpers
           hash-map/copy-runtime-only-helpers
           hash-filter-runtime-only-helpers
-          hash-keys-values-runtime-only-helpers))
+          hash-keys-values-runtime-only-helpers
+          hash-code-runtime-only-helpers))
