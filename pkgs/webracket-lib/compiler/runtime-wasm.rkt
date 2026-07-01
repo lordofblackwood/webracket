@@ -27374,103 +27374,24 @@
 
 
 
-         ;; hash-empty?
-
-         (func $hash-empty? (type $Prim1)
-               (param $ht (ref eq))
-               (result    (ref eq))
-               ;; Check type: must be (ref $Hash)
-               (if (i32.eqz (ref.test (ref $Hash) (local.get $ht)))
-                   (then (call $raise-argument-error:hash-expected)
-                         (unreachable)))
-               ;; Dispatch on table type
-               (if (ref.test (ref $HashEqMutable) (local.get $ht))
-                   (then (return (call $hasheq-empty? (local.get $ht)))))
-               (if (ref.test (ref $HashEqvMutable) (local.get $ht))
-                   (then (return (call $hasheqv-empty? (local.get $ht)))))
-               (if (ref.test (ref $HashEqImmutable) (local.get $ht))
-                   (then
-                    (return
-                     (if (result (ref eq))
-                         (i32.eqz
-                          (struct.get $HashEqImmutable $count
-                                      (ref.cast (ref $HashEqImmutable)
-                                                (local.get $ht))))
-                         (then (global.get $true))
-                         (else (global.get $false))))))
-               (if (ref.test (ref $HashEqvImmutable) (local.get $ht))
-                   (then
-                    (return
-                     (if (result (ref eq))
-                         (i32.eqz
-                          (struct.get $HashEqvImmutable $count
-                                      (ref.cast (ref $HashEqvImmutable)
-                                                (local.get $ht))))
-                         (then (global.get $true))
-                         (else (global.get $false))))))
-               (if (ref.test (ref $HashEqualMutable) (local.get $ht))
-                   (then (return (call $hashequal-empty? (local.get $ht)))))
-               (if (ref.test (ref $HashEqualImmutable) (local.get $ht))
-                   (then
-                    (return
-                     (if (result (ref eq))
-                         (i32.eqz
-                          (struct.get $HashEqualImmutable $count
-                                      (ref.cast (ref $HashEqualImmutable)
-                                                (local.get $ht))))
-                         (then (global.get $true))
-                         (else (global.get $false))))))
-               (if (ref.test (ref $HashEqualAlwaysMutable) (local.get $ht))
-                   (then (return (call $hashalw-empty? (local.get $ht)))))
-               (unreachable))
+         ,(core-runtime-helper-form runtime-helper-index '$hash-empty?)
 
 
-         ,@(for/list ([hash-empty      '($hasheq-empty?
-                                         $hasheqv-empty?
-                                         $hashequal-empty?
-                                         $hashalw-empty?)]
-                      [empty?/checked  '($hasheq-empty?/mutable/checked
-                                         $hasheqv-empty?/mutable/checked
-                                         $hash-empty?/mutable/checked
-                                         $hashalw-empty?/mutable/checked)]
-                      [type            '($HashEqMutable
-                                         $HashEqvMutable
-                                         $HashEqualMutable
-                                         $HashEqualAlwaysMutable)]
-                      [raise-expected  '($raise-argument-error:hasheq-expected
-                                         $raise-argument-error:hasheqv-expected
-                                         $raise-argument-error:hash-expected
-                                         $raise-argument-error:hashalw-expected)])
-             `(func ,hash-empty
-                    (param $ht (ref eq))   ;; table
-                    (result (ref eq))      ;; boolean result
+         ,(core-runtime-helper-form runtime-helper-index '$hasheq-empty?)
 
-                    (local $table (ref ,type))
-                    ;; Check that ht is expected table type
-                    (if (i32.eqz (ref.test (ref ,type) (local.get $ht)))
-                        (then (call ,raise-expected (local.get $ht))
-                              (unreachable)))
-                    ;; Decode
-                    (local.set $table (ref.cast (ref ,type) (local.get $ht)))
-                    ;; Delegate
-                    (call ,empty?/checked (local.get $table))))
+         ,(core-runtime-helper-form runtime-helper-index '$hasheqv-empty?)
 
-        ,@(for/list ([empty?/checked '($hasheq-empty?/mutable/checked
-                                       $hasheqv-empty?/mutable/checked
-                                       $hash-empty?/mutable/checked
-                                       $hashalw-empty?/mutable/checked)]
-                     [type           '($HashEqMutable
-                                       $HashEqvMutable
-                                       $HashEqualMutable
-                                       $HashEqualAlwaysMutable)])
-             `(func ,empty?/checked
-                    (param $ht (ref ,type))   ;; hash table
-                    (result (ref eq))         ;; boolean result
+         ,(core-runtime-helper-form runtime-helper-index '$hashequal-empty?)
 
-                    (if (result (ref eq))
-                        (i32.eqz (struct.get ,type $count (local.get $ht)))
-                        (then (global.get $true))
-                        (else (global.get $false)))))
+         ,(core-runtime-helper-form runtime-helper-index '$hashalw-empty?)
+
+         ,(core-runtime-helper-form runtime-helper-index '$hasheq-empty?/mutable/checked)
+
+         ,(core-runtime-helper-form runtime-helper-index '$hasheqv-empty?/mutable/checked)
+
+         ,(core-runtime-helper-form runtime-helper-index '$hash-empty?/mutable/checked)
+
+         ,(core-runtime-helper-form runtime-helper-index '$hashalw-empty?/mutable/checked)
 
         (func $raise-mutable-hash-iterate-bad-index
               (param $pos (ref eq))  ;; iteration position

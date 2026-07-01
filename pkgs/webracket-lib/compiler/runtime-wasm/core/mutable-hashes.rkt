@@ -1932,6 +1932,120 @@
                ;; Reset count to 0
                (struct.set ,type $count (local.get $ht) (i32.const 0))))))))
 
+;; mutable-hash-empty-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate hash emptiness predicates for mutable hash tables.
+(define mutable-hash-empty-runtime-only-helpers
+  (append
+   (list
+    (core-runtime-helper
+     '$hash-empty?
+     "$hash-empty?"
+     (lambda ()
+       `;; hash-empty?
+
+        (func $hash-empty? (type $Prim1)
+              (param $ht (ref eq))
+              (result    (ref eq))
+              ;; Check type: must be (ref $Hash)
+              (if (i32.eqz (ref.test (ref $Hash) (local.get $ht)))
+                  (then (call $raise-argument-error:hash-expected)
+                        (unreachable)))
+              ;; Dispatch on table type
+              (if (ref.test (ref $HashEqMutable) (local.get $ht))
+                  (then (return (call $hasheq-empty? (local.get $ht)))))
+              (if (ref.test (ref $HashEqvMutable) (local.get $ht))
+                  (then (return (call $hasheqv-empty? (local.get $ht)))))
+              (if (ref.test (ref $HashEqImmutable) (local.get $ht))
+                  (then
+                   (return
+                    (if (result (ref eq))
+                        (i32.eqz
+                         (struct.get $HashEqImmutable $count
+                                     (ref.cast (ref $HashEqImmutable)
+                                               (local.get $ht))))
+                        (then (global.get $true))
+                        (else (global.get $false))))))
+              (if (ref.test (ref $HashEqvImmutable) (local.get $ht))
+                  (then
+                   (return
+                    (if (result (ref eq))
+                        (i32.eqz
+                         (struct.get $HashEqvImmutable $count
+                                     (ref.cast (ref $HashEqvImmutable)
+                                               (local.get $ht))))
+                        (then (global.get $true))
+                        (else (global.get $false))))))
+              (if (ref.test (ref $HashEqualMutable) (local.get $ht))
+                  (then (return (call $hashequal-empty? (local.get $ht)))))
+              (if (ref.test (ref $HashEqualImmutable) (local.get $ht))
+                  (then
+                   (return
+                    (if (result (ref eq))
+                        (i32.eqz
+                         (struct.get $HashEqualImmutable $count
+                                     (ref.cast (ref $HashEqualImmutable)
+                                               (local.get $ht))))
+                        (then (global.get $true))
+                        (else (global.get $false))))))
+              (if (ref.test (ref $HashEqualAlwaysMutable) (local.get $ht))
+                  (then (return (call $hashalw-empty? (local.get $ht)))))
+              (unreachable)))))
+
+   (for/list ([hash-empty     '($hasheq-empty?
+                                $hasheqv-empty?
+                                $hashequal-empty?
+                                $hashalw-empty?)]
+              [empty?/checked '($hasheq-empty?/mutable/checked
+                                $hasheqv-empty?/mutable/checked
+                                $hash-empty?/mutable/checked
+                                $hashalw-empty?/mutable/checked)]
+              [type           '($HashEqMutable
+                                $HashEqvMutable
+                                $HashEqualMutable
+                                $HashEqualAlwaysMutable)]
+              [raise-expected '($raise-argument-error:hasheq-expected
+                                $raise-argument-error:hasheqv-expected
+                                $raise-argument-error:hash-expected
+                                $raise-argument-error:hashalw-expected)])
+     (core-runtime-helper
+      hash-empty
+      (symbol->string hash-empty)
+      (lambda ()
+        `(func ,hash-empty
+               (param $ht (ref eq))   ;; table
+               (result (ref eq))      ;; boolean result
+
+               (local $table (ref ,type))
+               ;; Check that ht is expected table type
+               (if (i32.eqz (ref.test (ref ,type) (local.get $ht)))
+                   (then (call ,raise-expected (local.get $ht))
+                         (unreachable)))
+               ;; Decode
+               (local.set $table (ref.cast (ref ,type) (local.get $ht)))
+               ;; Delegate
+               (call ,empty?/checked (local.get $table))))))
+
+   (for/list ([empty?/checked '($hasheq-empty?/mutable/checked
+                                $hasheqv-empty?/mutable/checked
+                                $hash-empty?/mutable/checked
+                                $hashalw-empty?/mutable/checked)]
+              [type           '($HashEqMutable
+                                $HashEqvMutable
+                                $HashEqualMutable
+                                $HashEqualAlwaysMutable)])
+     (core-runtime-helper
+      empty?/checked
+      (symbol->string empty?/checked)
+      (lambda ()
+        `(func ,empty?/checked
+               (param $ht (ref ,type))   ;; hash table
+               (result (ref eq))         ;; boolean result
+
+               (if (result (ref eq))
+                   (i32.eqz (struct.get ,type $count (local.get $ht)))
+                   (then (global.get $true))
+                   (else (global.get $false)))))))))
+
 ;; mutable-hash-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate mutable hash helpers that still depend on monolithic runtime globals.
 (define mutable-hash-runtime-only-helpers
@@ -1944,4 +2058,5 @@
           mutable-hash-remove-bang-runtime-only-helpers
           mutable-hash-resize-runtime-only-helpers
           mutable-hash-membership-runtime-only-helpers
-          mutable-hash-clear-bang-runtime-only-helpers))
+          mutable-hash-clear-bang-runtime-only-helpers
+          mutable-hash-empty-runtime-only-helpers))
