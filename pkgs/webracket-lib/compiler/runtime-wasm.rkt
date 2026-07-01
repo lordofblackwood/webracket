@@ -35381,82 +35381,8 @@
                                $extend-current-parameterization!)])
              (core-runtime-helper-form runtime-helper-index name))
 
-         ;; call-with-parameterization : parameterization? (-> any/c) -> any/c
-         ;;   Install a poor-man parameterization while thunk runs. This is the
-         ;;   dynamic-scoping half that the with-continuation-mark erasure lacks.
-         (func $call-with-parameterization (type $Prim2)
-               (param $paramz-raw (ref eq)) ;; parameterization?
-               (param $thunk-raw  (ref eq)) ;; procedure?
-               (result            (ref eq))
-
-               (local $thunk   (ref $Procedure))
-               (local $inv     (ref $ProcedureInvoker))
-               (local $args    (ref $Args))
-               (local $old     (ref eq))
-               (local $res     (ref eq))
-               (local $exn-val (ref eq))
-               (local $thunk-name (ref eq))
-               (local $thunk-debug-id (ref eq))
-
-               (if (i32.eqz (ref.test (ref $Parameterization) (local.get $paramz-raw)))
-                   (then (call $raise-argument-error1
-                               (global.get $symbol:call-with-parameterization)
-                               (global.get $string:parameterization?)
-                               (local.get $paramz-raw))
-                         (unreachable)))
-               (if (i32.eqz (ref.test (ref $Procedure) (local.get $thunk-raw)))
-                   (then (call $raise-argument-error:procedure-expected
-                               (local.get $thunk-raw))
-                         (unreachable)))
-               (local.set $thunk (ref.cast (ref $Procedure) (local.get $thunk-raw)))
-               (local.set $inv   (struct.get $Procedure $invoke (local.get $thunk)))
-               (local.set $args  (array.new $Args (global.get $null) (i32.const 0)))
-               (if (i32.gt_u (global.get $debug-invoke-budget) (i32.const 0))
-                   (then
-                    (if (i32.le_u (global.get $debug-label102683-count) (i32.const 12))
-                        (then
-                         (local.set $thunk-name
-                                    (struct.get $Procedure $name (local.get $thunk)))
-                         (local.set $thunk-debug-id (global.get $false))
-                         (if (ref.test (ref $Closure) (local.get $thunk-raw))
-                             (then
-                              (local.set $thunk-debug-id
-                                         (struct.get $Closure $debug-id
-                                                     (ref.cast (ref $Closure)
-                                                               (local.get $thunk-raw))))))
-                         (drop (call $js-log
-                                     (global.get $symbol:call-with-parameterization-primitive-entry)))
-                         (drop (call $js-log
-                                     (call $cons
-                                           (call $cons (global.get $symbol:arg1-name)
-                                                 (call $cons (local.get $thunk-name)
-                                                       (global.get $null)))
-                                           (global.get $null))))
-                         (drop (call $js-log
-                                     (call $cons
-                                           (call $cons (global.get $symbol:arg1-debug-id)
-                                                 (call $cons (local.get $thunk-debug-id)
-                                                       (global.get $null)))
-                                           (global.get $null))))))))
-               (local.set $old   (global.get $current-parameterization-value))
-               (global.set $current-parameterization-value (local.get $paramz-raw))
-               (local.set $res
-                          (block $done (result (ref eq))
-                                 (block $handler-block (result (ref eq))
-                                        (try_table (result (ref eq))
-                                                   (catch $exn $handler-block)
-                                                   (call_ref $ProcedureInvoker
-                                                             (local.get $thunk)
-                                                             (local.get $args)
-                                                             (local.get $inv))
-                                                   (br $done)))
-                                 (local.set $exn-val)
-                                 (global.set $current-parameterization-value
-                                             (local.get $old))
-                                 (throw $exn (local.get $exn-val))
-                                 (unreachable)))
-               (global.set $current-parameterization-value (local.get $old))
-               (local.get $res))
+         ;;   Implemented in runtime-wasm/core/parameters.rkt.
+         ,(core-runtime-helper-form runtime-helper-index '$call-with-parameterization)
 
          ;; cache-configuration : exact-nonnegative-integer? (-> any/c) -> any/c
          ;;   Small #%paramz cache used by racket/private/config during
