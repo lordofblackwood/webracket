@@ -32,6 +32,8 @@
                   equality-runtime-only-helpers
                   equality-runtime-only-helper-names)
          (only-in "runtime-wasm/core/exceptions.rkt"
+                  exception-contract-runtime-only-helper-names
+                  exception-contract-runtime-only-helpers
                   exception-runtime-only-helper-names
                   exception-runtime-only-helpers)
          (only-in "runtime-wasm/core/events.rkt"
@@ -227,6 +229,7 @@
            checker-runtime-only-helpers
            control-flow-runtime-only-helpers
            equality-runtime-only-helpers
+           exception-contract-runtime-only-helpers
            exception-runtime-only-helpers
            event-runtime-only-helpers
            fasl-runtime-only-helpers
@@ -13595,99 +13598,10 @@
 
          ,(core-runtime-helper-form runtime-helper-index '$argmin)
 
-         (func $raise-argument-error/internal
-               (param $x (ref eq))
-
-               (call $raise-argument-error1
-                     (global.get $symbol:error)
-                     (global.get $string:valid-argument)
-                     (local.get $x)))
-
-         ;; raise-argument-error : symbol? string? any/c any/c ... -> none
-         ;;   Public primitive used by compiled library code to report
-         ;;   contract violations. In the optional variant, the third argument
-         ;;   is the bad argument position and the actual bad value is the
-         ;;   first rest argument; extra values are currently ignored.
-         (func $raise-argument-error (type $Prim>=3)
-               (param $who      (ref eq)) ;; symbol?
-               (param $expected (ref eq)) ;; string?
-               (param $third    (ref eq)) ;; bad value or bad argument index
-               (param $rest     (ref eq)) ;; rest arguments as $Args
-               (result          (ref eq)) ;; unreachable
-               (local $got      (ref eq))
-               (local $rest-args (ref $Args))
-               (local.set $got (local.get $third))
-               (if (ref.test (ref $Args) (local.get $rest))
-                   (then
-                    (local.set $rest-args (ref.cast (ref $Args) (local.get $rest)))
-                    (if (i32.gt_u (array.len (local.get $rest-args)) (i32.const 0))
-                        (then (local.set $got
-                                         (array.get $Args
-                                                    (local.get $rest-args)
-                                                    (i32.const 0)))))))
-               (call $raise-argument-error1
-                     (local.get $who)
-                     (local.get $expected)
-                     (local.get $got))
-               (unreachable))
-
-         ;; raise-argument-error* : symbol? symbol? string? any/c any/c ... -> none
-         ;;   Realm-aware variant of raise-argument-error. WebRacket does not
-         ;;   yet adjust error messages by realm, so the realm argument is
-         ;;   validated by compiled code but ignored here.
-         (func $raise-argument-error* (type $Prim>=4)
-               (param $who      (ref eq)) ;; symbol?
-               (param $realm    (ref eq)) ;; symbol?, currently ignored
-               (param $expected (ref eq)) ;; string?
-               (param $fourth   (ref eq)) ;; bad value or bad argument index
-               (param $rest     (ref eq)) ;; rest arguments as $Args
-               (result          (ref eq)) ;; unreachable
-               (local $got       (ref eq))
-               (local $rest-args (ref $Args))
-               (local.set $got (local.get $fourth))
-               (if (ref.test (ref $Args) (local.get $rest))
-                   (then
-                    (local.set $rest-args (ref.cast (ref $Args) (local.get $rest)))
-                    (if (i32.gt_u (array.len (local.get $rest-args)) (i32.const 0))
-                        (then (local.set $got
-                                         (array.get $Args
-                                                    (local.get $rest-args)
-                                                    (i32.const 0)))))))
-               (call $raise-argument-error1
-                     (local.get $who)
-                     (local.get $expected)
-                     (local.get $got))
-               (unreachable))
-
-         ;; raise-arguments-error : symbol? string? any/c ... -> none
-         ;;   Report a multi-argument contract error. WebRacket currently
-         ;;   omits field/value detail formatting, but preserves the
-         ;;   non-returning exn:fail:contract behavior that bootstrap code
-         ;;   relies on.
-         (func $raise-arguments-error (type $Prim>=2)
-               (param $who     (ref eq)) ;; symbol?
-               (param $message (ref eq)) ;; string?
-               (param $rest    (ref eq)) ;; ignored field/value details
-               (result         (ref eq)) ;; unreachable
-               (local $out          (ref $GrowableArray))
-               (local $full-message (ref $String))
-               (local.set $out (call $make-growable-array (i32.const 3)))
-               (call $growable-array-add! (local.get $out)
-                     (call $format/display (local.get $who)))
-               (call $growable-array-add! (local.get $out)
-                     (global.get $string:contract-violation:prefix))
-               (call $growable-array-add! (local.get $out)
-                     (call $format/display (local.get $message)))
-               (local.set $full-message
-                          (call $growable-array-of-strings->string (local.get $out)))
-               (drop (call $raise
-                           (call $exn:fail:contract/make
-                                 (local.get $full-message)
-                                 (call $current-continuation-marks (global.get $missing)))
-                           (global.get $true)))
-               (unreachable))
-
-         (func $raise-expected-fixnum (param $x (ref eq)) (unreachable))
+         ;; Generic contract-error helpers
+         ;;   Implemented in runtime-wasm/core/exceptions.rkt.
+         ,@(for/list ([name (in-list exception-contract-runtime-only-helper-names)])
+             (core-runtime-helper-form runtime-helper-index name))
 
          ,(core-runtime-helper-form runtime-helper-index '$list-from-range)
 
