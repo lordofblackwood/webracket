@@ -2397,6 +2397,210 @@
                             ))
                (global.get $false)))))))
 
+;; mutable-hash-iteration-accessor-dispatch-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate mutable hash iterator accessor dispatch helpers.
+(define mutable-hash-iteration-accessor-dispatch-runtime-only-helpers
+  (list
+   (core-runtime-helper
+    '$mutable-hash-iterate-key
+    "$mutable-hash-iterate-key"
+    (lambda ()
+      `;; mutable-hash-iterate-key
+       (func $mutable-hash-iterate-key (type $Prim23)
+             (param $ht         (ref eq))  ;; mutable hash table
+             (param $pos        (ref eq))  ;; iteration position
+             (param $bad-index  (ref eq))  ;; optional bad-index value, default = raise
+             (result            (ref eq))
+             (local $entry      (ref $ImmutableHashEntry))
+
+             ;; Check type: must be (ref $Hash)
+             (if (i32.eqz (ref.test (ref $Hash) (local.get $ht)))
+                 (then (call $raise-argument-error:hash-expected)
+                       (unreachable)))
+             ;; Dispatch on table type
+             (if (ref.test (ref $HashEqMutable) (local.get $ht))
+                 (then (return (call $hasheq-iterate-key
+                                     (local.get $ht)
+                                     (local.get $pos)
+                                     (local.get $bad-index)))))
+             (if (ref.test (ref $HashEqvMutable) (local.get $ht))
+                 (then (return (call $hasheqv-iterate-key
+                                     (local.get $ht)
+                                     (local.get $pos)
+                                     (local.get $bad-index)))))
+             (if (ref.test (ref $HashEqualMutable) (local.get $ht))
+                 (then (return (call $hashequal-iterate-key
+                                     (local.get $ht)
+                                     (local.get $pos)
+                                     (local.get $bad-index)))))
+             (if (ref.test (ref $HashEqualAlwaysMutable) (local.get $ht))
+                 (then (return (call $hashalw-iterate-key
+                                     (local.get $ht)
+                                     (local.get $pos)
+                                     (local.get $bad-index)))))
+             (if (ref.test (ref $Hash) (local.get $ht))
+                 (then
+                  (local.set $entry
+                             (ref.cast (ref $ImmutableHashEntry)
+                                       (call $immutable-hasheqv-iterate-entry
+                                             (call $immutable-hash-as-hasheqv (local.get $ht))
+                                             (local.get $pos)
+                                             (local.get $bad-index))))
+                  (return (struct.get $ImmutableHashEntry $key (local.get $entry)))))
+             (call $raise-argument-error:mutable-hash-expected (local.get $ht))
+             (unreachable))))
+
+   (core-runtime-helper
+    '$mutable-hash-iterate-value
+    "$mutable-hash-iterate-value"
+    (lambda ()
+      `;; mutable-hash-iterate-value
+       (func $mutable-hash-iterate-value (type $Prim23)
+             (param $ht         (ref eq))  ;; mutable hash table
+             (param $pos        (ref eq))  ;; iteration position
+             (param $bad-index  (ref eq))  ;; optional bad-index value, default = raise
+             (result (ref eq))
+             (local $entry      (ref $ImmutableHashEntry))
+
+             ;; Check type: must be (ref $Hash)
+             (if (i32.eqz (ref.test (ref $Hash) (local.get $ht)))
+                 (then (call $raise-argument-error:hash-expected)
+                       (unreachable)))
+             ;; Dispatch on table type
+             (if (ref.test (ref $HashEqMutable) (local.get $ht))
+                 (then (return (call $hasheq-iterate-value
+                                     (local.get $ht)
+                                     (local.get $pos)
+                                     (local.get $bad-index)))))
+             (if (ref.test (ref $HashEqvMutable) (local.get $ht))
+                 (then (return (call $hasheqv-iterate-value
+                                     (local.get $ht)
+                                     (local.get $pos)
+                                     (local.get $bad-index)))))
+             (if (ref.test (ref $HashEqualMutable) (local.get $ht))
+                 (then (return (call $hashequal-iterate-value
+                                     (local.get $ht)
+                                     (local.get $pos)
+                                     (local.get $bad-index)))))
+             (if (ref.test (ref $HashEqualAlwaysMutable) (local.get $ht))
+                 (then (return (call $hashalw-iterate-value
+                                     (local.get $ht)
+                                     (local.get $pos)
+                                     (local.get $bad-index)))))
+             (if (ref.test (ref $Hash) (local.get $ht))
+                 (then
+                  (local.set $entry
+                             (ref.cast (ref $ImmutableHashEntry)
+                                       (call $immutable-hasheqv-iterate-entry
+                                             (call $immutable-hash-as-hasheqv (local.get $ht))
+                                             (local.get $pos)
+                                             (local.get $bad-index))))
+                  (return (struct.get $ImmutableHashEntry $value (local.get $entry)))))
+             (call $raise-argument-error:mutable-hash-expected (local.get $ht))
+             (unreachable))))
+
+   (core-runtime-helper
+    '$mutable-hash-iterate-pair
+    "$mutable-hash-iterate-pair"
+    (lambda ()
+      `;; mutable-hash-iterate-pair
+       (func $mutable-hash-iterate-pair (type $Prim23)
+             (param $ht         (ref eq))  ;; mutable hash table
+             (param $pos        (ref eq))  ;; iteration position
+             (param $bad-index  (ref eq))  ;; optional bad-index value, default = raise
+             (result            (ref eq))
+             (local $entry      (ref $ImmutableHashEntry))
+
+             ;; Check type: must be (ref $Hash)
+             (if (i32.eqz (ref.test (ref $Hash) (local.get $ht)))
+                 (then (call $raise-argument-error:hash-expected)
+                       (unreachable)))
+             ;; Dispatch on table type
+             (if (ref.test (ref $HashEqMutable) (local.get $ht))
+                 (then (return (call $hasheq-iterate-pair
+                                     (local.get $ht)
+                                     (local.get $pos)
+                                     (local.get $bad-index)))))
+             (if (ref.test (ref $HashEqvMutable) (local.get $ht))
+                 (then (return (call $hasheqv-iterate-pair
+                                     (local.get $ht)
+                                     (local.get $pos)
+                                     (local.get $bad-index)))))
+             (if (ref.test (ref $HashEqualMutable) (local.get $ht))
+                 (then (return (call $hashequal-iterate-pair
+                                     (local.get $ht)
+                                     (local.get $pos)
+                                     (local.get $bad-index)))))
+             (if (ref.test (ref $HashEqualAlwaysMutable) (local.get $ht))
+                 (then (return (call $hashalw-iterate-pair
+                                     (local.get $ht)
+                                     (local.get $pos)
+                                     (local.get $bad-index)))))
+             (if (ref.test (ref $Hash) (local.get $ht))
+                 (then
+                  (local.set $entry
+                             (ref.cast (ref $ImmutableHashEntry)
+                                       (call $immutable-hasheqv-iterate-entry
+                                             (call $immutable-hash-as-hasheqv (local.get $ht))
+                                             (local.get $pos)
+                                             (local.get $bad-index))))
+                  (return (call $cons
+                                (struct.get $ImmutableHashEntry $key (local.get $entry))
+                                (struct.get $ImmutableHashEntry $value (local.get $entry))))))
+             (call $raise-argument-error:mutable-hash-expected (local.get $ht))
+             (unreachable))))
+
+   (core-runtime-helper
+    '$mutable-hash-iterate-key+value
+    "$mutable-hash-iterate-key+value"
+    (lambda ()
+      `;; mutable-hash-iterate-key+value
+       (func $mutable-hash-iterate-key+value (type $Prim23)
+             (param $ht         (ref eq))  ;; mutable hash table
+             (param $pos        (ref eq))  ;; iteration position
+             (param $bad-index  (ref eq))  ;; optional bad-index value, default = raise
+             (result            (ref eq))  ;; returns two values encoded in $Values
+             (local $entry      (ref $ImmutableHashEntry))
+
+             ;; Check type: must be (ref $Hash)
+             (if (i32.eqz (ref.test (ref $Hash) (local.get $ht)))
+                 (then (call $raise-argument-error:hash-expected)
+                       (unreachable)))
+             ;; Dispatch on table type
+             (if (ref.test (ref $HashEqMutable) (local.get $ht))
+                 (then (return (call $hasheq-iterate-key+value
+                                     (local.get $ht)
+                                     (local.get $pos)
+                                     (local.get $bad-index)))))
+             (if (ref.test (ref $HashEqvMutable) (local.get $ht))
+                 (then (return (call $hasheqv-iterate-key+value
+                                     (local.get $ht)
+                                     (local.get $pos)
+                                     (local.get $bad-index)))))
+             (if (ref.test (ref $HashEqualMutable) (local.get $ht))
+                 (then (return (call $hashequal-iterate-key+value
+                                     (local.get $ht)
+                                     (local.get $pos)
+                                     (local.get $bad-index)))))
+             (if (ref.test (ref $HashEqualAlwaysMutable) (local.get $ht))
+                 (then (return (call $hashalw-iterate-key+value
+                                     (local.get $ht)
+                                     (local.get $pos)
+                                     (local.get $bad-index)))))
+             (if (ref.test (ref $Hash) (local.get $ht))
+                 (then
+                  (local.set $entry
+                             (ref.cast (ref $ImmutableHashEntry)
+                                       (call $immutable-hasheqv-iterate-entry
+                                             (call $immutable-hash-as-hasheqv (local.get $ht))
+                                             (local.get $pos)
+                                             (local.get $bad-index))))
+                  (return (array.new_fixed $Values 2
+                                           (struct.get $ImmutableHashEntry $key (local.get $entry))
+                                           (struct.get $ImmutableHashEntry $value (local.get $entry))))))
+             (call $raise-argument-error:mutable-hash-expected (local.get $ht))
+             (unreachable))))))
+
 ;; mutable-hash-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate mutable hash helpers that still depend on monolithic runtime globals.
 (define mutable-hash-runtime-only-helpers
@@ -2412,4 +2616,5 @@
           mutable-hash-clear-bang-runtime-only-helpers
           mutable-hash-empty-runtime-only-helpers
           mutable-hash-iteration-dispatch-runtime-only-helpers
-          mutable-hash-iteration-position-runtime-only-helpers))
+          mutable-hash-iteration-position-runtime-only-helpers
+          mutable-hash-iteration-accessor-dispatch-runtime-only-helpers))
