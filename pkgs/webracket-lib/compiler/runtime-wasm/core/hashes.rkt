@@ -1602,6 +1602,147 @@
                                (else (local.get $h))))))))))))
    )
 
+;; hash-equal-code-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate equal?/equal-always? hash-code dispatch helpers.
+(define hash-equal-code-runtime-only-helpers
+  (function-forms->runtime-helpers
+   'hash-equal-code-runtime-only-helpers
+   '(
+      ;; equal-hash-code -- computes a hash code consistent with equal?
+      ;;   Supports struct customization via prop:equal+hash.
+      ;;   Note: currently does not support user-defined extensions via
+      ;;         gen:equal+hash or gen:equal-mode+hash.
+
+      (func $equal-hash-code (type $Prim1)
+            (param $v (ref eq))
+            (result (ref eq))
+
+            (ref.i31
+             (i32.shl (call $equal-hash/i32 (local.get $v))
+                      (i32.const 1))))
+
+      ;; equal-always-hash-code : any/c -> fixnum?
+      ;;   Compute a hash code consistent with equal-always?. Mutable
+      ;;   containers hash by identity; immutable containers hash
+      ;;   structurally with equal-always-hash/i32 for their contents.
+      (func $equal-always-hash-code (type $Prim1)
+            (param $v (ref eq))
+            (result (ref eq))
+
+            (ref.i31
+             (i32.shl (call $equal-always-hash/i32 (local.get $v))
+                      (i32.const 1))))
+
+      (func $equal-always-hash/i32
+            (param $v (ref eq))
+            (result i32)
+
+            (local $str (ref $String))
+            (local $bs  (ref $Bytes))
+            (local $kw  (ref $Keyword))
+
+            (if (ref.test (ref i31) (local.get $v))
+                (then (return (call $eqv-hash/i32 (local.get $v)))))
+            (if (ref.test (ref $Flonum) (local.get $v))
+                (then (return (call $eqv-hash/i32 (local.get $v)))))
+            (if (ref.test (ref $Complex) (local.get $v))
+                (then (return (call $eqv-hash/i32 (local.get $v)))))
+            (if (ref.test (ref $String) (local.get $v))
+                (then (local.set $str (ref.cast (ref $String) (local.get $v)))
+                      (if (i32.eq (struct.get $String $immutable (local.get $str))
+                                  (i32.const 1))
+                          (then (return (call $string-hash/i32 (local.get $str))))
+                          (else (return (call $eq-hash/i32 (local.get $v)))))))
+            (if (ref.test (ref $Keyword) (local.get $v))
+                (then (local.set $kw (ref.cast (ref $Keyword) (local.get $v)))
+                      (return (call $string-hash/i32
+                                    (struct.get $Keyword $str (local.get $kw))))))
+            (if (ref.test (ref $Bytes) (local.get $v))
+                (then (local.set $bs (ref.cast (ref $Bytes) (local.get $v)))
+                      (if (i32.eq (struct.get $Bytes $immutable (local.get $bs))
+                                  (i32.const 1))
+                          (then (return (call $bytes-hash/i32 (local.get $bs))))
+                          (else (return (call $eq-hash/i32 (local.get $v)))))))
+            (if (ref.test (ref $Pair) (local.get $v))
+                (then (return_call $equal-always-hash/pair
+                                   (ref.cast (ref $Pair) (local.get $v)))))
+            (if (ref.test (ref $MPair) (local.get $v))
+                (then (return (call $eq-hash/i32 (local.get $v)))))
+            (if (ref.test (ref $Box) (local.get $v))
+                (then (return_call $equal-always-hash/box
+                                   (ref.cast (ref $Box) (local.get $v)))))
+            (if (ref.test (ref $Vector) (local.get $v))
+                (then (return_call $equal-always-hash/vector
+                                   (ref.cast (ref $Vector) (local.get $v)))))
+            (if (ref.test (ref $Struct) (local.get $v))
+                (then (return_call $equal-always-hash/struct
+                                   (ref.cast (ref $Struct) (local.get $v)))))
+            (return (call $eqv-hash/i32 (local.get $v))))
+
+      (func $equal-hash/i32
+            (param $v (ref eq))
+            (result i32)
+
+            (local $str   (ref $String))
+            (local $bs    (ref $Bytes))
+            (local $kw    (ref $Keyword))
+            (local $h     i32)
+
+            ;; immediates and numbers fall back to eqv-hash
+            (if (ref.test (ref i31) (local.get $v))
+                (then (return (call $eqv-hash/i32 (local.get $v)))))
+            (if (ref.test (ref $Flonum) (local.get $v))
+                (then (return (call $eqv-hash/i32 (local.get $v)))))
+            (if (ref.test (ref $Complex) (local.get $v))
+                (then (return (call $eqv-hash/i32 (local.get $v)))))
+            ;; strings
+            (if (ref.test (ref $String) (local.get $v))
+                (then (local.set $str (ref.cast (ref $String) (local.get $v)))
+                      (local.set $h (call $string-hash/i32 (local.get $str)))
+                      ;; reset memoized hash so eq-hash-code can still assign
+                      (struct.set $String $hash (local.get $str) (i32.const 0))
+                      (return (local.get $h))))
+            ;; keywords
+            (if (ref.test (ref $Keyword) (local.get $v))
+                (then (local.set $kw  (ref.cast (ref $Keyword) (local.get $v)))
+                      (local.set $str (struct.get $Keyword $str (local.get $kw)))
+                      (local.set $h   (call $string-hash/i32 (local.get $str)))
+                      ;; reset memoized hashes so eq-hash-code can still assign
+                      (struct.set $String  $hash (local.get $str) (i32.const 0))
+                      (struct.set $Keyword $hash (local.get $kw)  (i32.const 0))
+                      (return (local.get $h))))
+            ;; bytes
+            (if (ref.test (ref $Bytes) (local.get $v))
+                (then (local.set $bs (ref.cast (ref $Bytes) (local.get $v)))
+                      (return (call $bytes-hash/i32 (local.get $bs)))))
+            ;; pair
+            (if (ref.test (ref $Pair) (local.get $v))
+                (then (return_call $equal-hash/pair
+                                   (ref.cast (ref $Pair) (local.get $v)))))
+            ;; mpair
+            (if (ref.test (ref $MPair) (local.get $v))
+                (then (return_call $equal-hash/mpair
+                                   (ref.cast (ref $MPair) (local.get $v)))))
+            ;; box
+            (if (ref.test (ref $Box) (local.get $v))
+                (then (return_call $equal-hash/box
+                                   (ref.cast (ref $Box) (local.get $v)))))
+            ;; vector
+            (if (ref.test (ref $Vector) (local.get $v))
+                (then (return_call $equal-hash/vector
+                                   (ref.cast (ref $Vector) (local.get $v)))))
+            ;; struct
+            (if (ref.test (ref $Struct) (local.get $v))
+                (then (return_call $equal-hash/struct
+                                   (ref.cast (ref $Struct) (local.get $v)))))
+            ;; hash table
+            (if (ref.test (ref $Hash) (local.get $v))
+                (then (return_call $equal-hash/hash
+                                   (ref.cast (ref $Hash) (local.get $v)))))
+            ;; fallback to eqv-hash for other heap objects (symbols, etc.)
+            (return (call $eqv-hash/i32 (local.get $v))))))
+   )
+
 ;; hash-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate generic hash helpers that span mutable and immutable hash kinds.
 (define hash-runtime-only-helpers
@@ -1612,4 +1753,5 @@
           hash-map/copy-runtime-only-helpers
           hash-filter-runtime-only-helpers
           hash-keys-values-runtime-only-helpers
-          hash-code-runtime-only-helpers))
+          hash-code-runtime-only-helpers
+          hash-equal-code-runtime-only-helpers))
