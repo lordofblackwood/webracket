@@ -36996,30 +36996,8 @@
                          (unreachable)))
                (local.get $proc))
 
-         ;; current-security-guard : [security-guard?] -> security-guard? or void?
-         ;;   Parameter-like current security guard. Access checks are not wired
-         ;;   into the browser VFS/network layer yet, but the value protocol is
-         ;;   enough for racket/base provider initialization.
-         (func $current-security-guard (type $Prim01)
-               (param $guard-raw (ref eq)) ;; optional security-guard?
-               (result           (ref eq))
-               (if (ref.eq (local.get $guard-raw) (global.get $missing))
-                   (then (return (call $parameter-value-or-global
-                                       (global.get $prim:current-security-guard)
-                                       (global.get $current-security-guard-value)))))
-               (if (i32.eqz (ref.test (ref $SecurityGuard) (local.get $guard-raw)))
-                   (then (call $raise-argument-error1
-                               (global.get $symbol:current-security-guard)
-                               (global.get $string:security-guard?)
-                               (local.get $guard-raw))
-                         (unreachable)))
-               (if (i32.eqz (ref.eq (global.get $current-parameterization-value)
-                                     (global.get $false)))
-                   (then (return (call $extend-current-parameterization!
-                                       (global.get $prim:current-security-guard)
-                                       (local.get $guard-raw)))))
-               (global.set $current-security-guard-value (local.get $guard-raw))
-               (global.get $void))
+         ;;   Implemented in runtime-wasm/core/parameters.rkt.
+         ,(core-runtime-helper-form runtime-helper-index '$current-security-guard)
 
          ;; make-security-guard : security-guard? procedure? procedure? [procedure? or #f] -> security-guard?
          ;;   Create a minimal security guard. The file guard must accept 3
@@ -37072,30 +37050,8 @@
          (func $custodian? (type $Prim1)
                ,@(make-predicate-body '$Custodian))
 
-         ;; current-custodian : [custodian?] -> custodian? or void?
-         ;;   Parameter-like current custodian. This currently determines the
-         ;;   custodian attached to byte converters and custodian boxes; full
-         ;;   resource ownership belongs with the future scheduler/rktio layer.
-         (func $current-custodian (type $Prim01)
-               (param $cust-raw (ref eq)) ;; optional custodian?
-               (result          (ref eq))
-               (if (ref.eq (local.get $cust-raw) (global.get $missing))
-                   (then (return (call $parameter-value-or-global
-                                       (global.get $prim:current-custodian)
-                                       (global.get $current-custodian-value)))))
-               (if (i32.eqz (ref.test (ref $Custodian) (local.get $cust-raw)))
-                   (then (call $raise-argument-error1
-                               (global.get $symbol:current-custodian)
-                               (global.get $string:custodian?)
-                               (local.get $cust-raw))
-                         (unreachable)))
-               (if (i32.eqz (ref.eq (global.get $current-parameterization-value)
-                                     (global.get $false)))
-                   (then (return (call $extend-current-parameterization!
-                                       (global.get $prim:current-custodian)
-                                       (local.get $cust-raw)))))
-               (global.set $current-custodian-value (local.get $cust-raw))
-               (global.get $void))
+         ;;   Implemented in runtime-wasm/core/parameters.rkt.
+         ,(core-runtime-helper-form runtime-helper-index '$current-custodian)
 
          ;; make-custodian : [custodian?] -> custodian?
          ;;   Create a minimal custodian. The optional parent is validated but
