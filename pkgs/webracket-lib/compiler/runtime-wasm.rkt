@@ -139,6 +139,7 @@
                   struct-conversion-runtime-only-helper-names
                   struct-descriptor-runtime-only-helper-names
                   struct-format-runtime-only-helper-names
+                  struct-prefab-basic-runtime-only-helper-names
                   struct-procedure-predicate-runtime-only-helper-names
                   struct-runtime-only-helpers)
          (only-in "runtime-wasm/core/symbols.rkt"
@@ -15836,83 +15837,10 @@
          ;;     struct-accessor-procedure?
          ;;     struct-mutator-procedure?
 
-         ;; raise-sealed-struct-supertype : -> none
-         ;;   Reject attempts to derive a structure type from a sealed parent.
-         (func $raise-sealed-struct-supertype
-               (call $raise
-                     (call $exn:fail:contract/make
-                           (global.get $string:sealed-struct-supertype)
-                           (call $current-continuation-marks (global.get $missing)))
-                     (global.get $true))
-               (unreachable))
-
-         ;; simple-prefab-auto-value-supported?/i32 : any/c -> i32
-         ;;   Accept stable scalar auto values for the supported prefab subset.
-         (func $simple-prefab-auto-value-supported?/i32
-               (param $v (ref eq))
-               (result   i32)
-
-               (local $raw    i32)
-               (local $cursor (ref eq))
-               (local $cell   (ref $Pair))
-               (local $vec    (ref $Vector))
-               (local $i      i32)
-               (local $len    i32)
-
-               (if (ref.eq (local.get $v) (global.get $false))
-                   (then (return (i32.const 1))))
-               (if (ref.eq (local.get $v) (global.get $true))
-                   (then (return (i32.const 1))))
-               (if (ref.eq (local.get $v) (global.get $null))
-                   (then (return (i32.const 1))))
-               (if (ref.eq (local.get $v) (global.get $void))
-                   (then (return (i32.const 1))))
-               (if (ref.test (ref $Symbol) (local.get $v))
-                   (then (return (i32.const 1))))
-               (if (ref.test (ref $String) (local.get $v))
-                   (then (return (i32.const 1))))
-               (if (ref.test (ref i31) (local.get $v))
-                   (then
-                    (local.set $raw (i31.get_u (ref.cast (ref i31) (local.get $v))))
-                    (if (i32.or
-                         (i32.eqz (i32.and (local.get $raw) (i32.const 1)))
-                        (i32.eq (i32.and (local.get $raw) (i32.const ,char-mask))
-                                 (i32.const ,char-tag)))
-                        (then (return (i32.const 1))))))
-               (if (i32.and
-                    (ref.test (ref $Pair) (local.get $v))
-                    (ref.eq (call $list? (local.get $v)) (global.get $true)))
-                   (then
-                    (local.set $cursor (local.get $v))
-                    (block $done-list
-                           (loop $check-list
-                                 (br_if $done-list (ref.eq (local.get $cursor) (global.get $null)))
-                                 (local.set $cell (ref.cast (ref $Pair) (local.get $cursor)))
-                                 (if (i32.eqz
-                                      (call $simple-prefab-auto-value-supported?/i32
-                                            (struct.get $Pair $a (local.get $cell))))
-                                     (then (return (i32.const 0))))
-                                 (local.set $cursor (struct.get $Pair $d (local.get $cell)))
-                                 (br $check-list)))
-                    (return (i32.const 1))))
-               (if (ref.test (ref $Vector) (local.get $v))
-                   (then
-                    (local.set $vec (ref.cast (ref $Vector) (local.get $v)))
-                    (local.set $len (call $vector-length/checked/i32 (local.get $vec)))
-                    (local.set $i (i32.const 0))
-                    (block $done-vector
-                           (loop $check-vector
-                                 (br_if $done-vector (i32.ge_u (local.get $i) (local.get $len)))
-                                 (if (i32.eqz
-                                      (call $simple-prefab-auto-value-supported?/i32
-                                            (array.get $Array
-                                                       (struct.get $Vector $arr (local.get $vec))
-                                                       (local.get $i))))
-                                     (then (return (i32.const 0))))
-                                 (local.set $i (i32.add (local.get $i) (i32.const 1)))
-                                 (br $check-vector)))
-                    (return (i32.const 1))))
-               (i32.const 0))
+         ;; Initial prefab helpers
+         ;;   Implemented in runtime-wasm/core/structs.rkt.
+         ,@(for/list ([name (in-list struct-prefab-basic-runtime-only-helper-names)])
+             (core-runtime-helper-form runtime-helper-index name))
 
          ;; simple-prefab-auto-value-registry-fragment : any/c -> string?
          ;;   Build a type-tagged fragment for supported scalar auto values.
