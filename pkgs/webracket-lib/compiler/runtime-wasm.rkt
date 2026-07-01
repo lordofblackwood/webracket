@@ -19,6 +19,8 @@
                   hash-runtime-only-helpers)
          (only-in "runtime-wasm/core/immutable-hashes.rkt"
                   immutable-hash-runtime-only-helpers)
+         (only-in "runtime-wasm/core/immediates.rkt"
+                  immediate-runtime-only-helpers)
          (only-in "runtime-wasm/core/impersonators.rkt"
                   impersonator-runtime-only-helpers)
          (only-in "runtime-wasm/core/lists.rkt"
@@ -67,6 +69,7 @@
 (define-runtime-path core-events-path "runtime-wasm/core/events.rkt")
 (define-runtime-path core-hashes-path "runtime-wasm/core/hashes.rkt")
 (define-runtime-path core-immutable-hashes-path "runtime-wasm/core/immutable-hashes.rkt")
+(define-runtime-path core-immediates-path "runtime-wasm/core/immediates.rkt")
 (define-runtime-path core-impersonators-path "runtime-wasm/core/impersonators.rkt")
 (define-runtime-path core-lists-path "runtime-wasm/core/lists.rkt")
 (define-runtime-path core-locations-path "runtime-wasm/core/locations.rkt")
@@ -92,6 +95,7 @@
            event-runtime-only-helpers
            hash-runtime-only-helpers
            immutable-hash-runtime-only-helpers
+           immediate-runtime-only-helpers
            impersonator-runtime-only-helpers
            list-runtime-only-helpers
            location-runtime-only-helpers
@@ -448,6 +452,7 @@
                                           core-events-path
                                           core-hashes-path
                                           core-immutable-hashes-path
+                                          core-immediates-path
                                           core-impersonators-path
                                           core-lists-path
                                           core-locations-path
@@ -35295,23 +35300,11 @@
 
          ;; https://docs.racket-lang.org/reference/void.html
 
-         (func $void? (type $Prim1)
-               (param $v (ref eq))
-               (result   (ref eq))
-
-               (if (result (ref eq))
-                   (ref.eq (local.get $v) (global.get $void))
-                   (then (global.get $true))
-                   (else (global.get $false))))
-
-         (func $void (type $Prim>=0)
-               (param $xs (ref eq))
-               (result    (ref eq))
-
-               (global.get $void))
-
-         (func $make-void (type $Prim0) (result (ref eq)) ; no arguments
-               (return (global.get $void)))
+         ;;   Implemented in runtime-wasm/core/immediates.rkt.
+         ,@(for/list ([name '($void?
+                               $void
+                               $make-void)])
+             (core-runtime-helper-form runtime-helper-index name))
 
 
          ;;;

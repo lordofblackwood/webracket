@@ -3,9 +3,11 @@
 (provide i31-ref
          immediate-ref
          false-ref
-         true-ref)
+         true-ref
+         immediate-runtime-only-helpers)
 
-(require "../../private/immediates.rkt")
+(require "../core-helper.rkt"
+         "../../private/immediates.rkt")
 
 ;; i31-ref : integer? -> datum?
 ;;   Return WAT that injects bits into an i31 reference.
@@ -24,3 +26,27 @@
 ;; true-ref : datum?
 ;;   Return the WebRacket true immediate expression.
 (define true-ref (immediate-ref #t))
+
+;; immediate-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate immediate-value helpers used by the monolithic runtime.
+(define immediate-runtime-only-helpers
+  (function-forms->runtime-helpers
+   'immediate-runtime-only-helpers
+   '(
+     (func $void? (type $Prim1)
+           (param $v (ref eq))
+           (result   (ref eq))
+
+           (if (result (ref eq))
+               (ref.eq (local.get $v) (global.get $void))
+               (then (global.get $true))
+               (else (global.get $false))))
+
+     (func $void (type $Prim>=0)
+           (param $xs (ref eq))
+           (result    (ref eq))
+
+           (global.get $void))
+
+     (func $make-void (type $Prim0) (result (ref eq)) ; no arguments
+           (return (global.get $void))))))
