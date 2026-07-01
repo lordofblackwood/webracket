@@ -51,6 +51,11 @@
                   immediate-runtime-only-helpers)
          (only-in "runtime-wasm/core/impersonators.rkt"
                   impersonator-runtime-only-helpers)
+         (only-in "runtime-wasm/core/io-handlers.rkt"
+                  io-handler-error-runtime-only-helper-names
+                  io-handler-port-runtime-only-helper-names
+                  io-handler-reader-printer-runtime-only-helper-names
+                  io-handler-runtime-only-helpers)
          (only-in "runtime-wasm/core/lists.rkt"
                   list-runtime-only-helpers)
          (only-in "runtime-wasm/core/locations.rkt"
@@ -144,6 +149,7 @@
 (define-runtime-path core-immutable-hashes-path "runtime-wasm/core/immutable-hashes.rkt")
 (define-runtime-path core-immediates-path "runtime-wasm/core/immediates.rkt")
 (define-runtime-path core-impersonators-path "runtime-wasm/core/impersonators.rkt")
+(define-runtime-path core-io-handlers-path "runtime-wasm/core/io-handlers.rkt")
 (define-runtime-path core-lists-path "runtime-wasm/core/lists.rkt")
 (define-runtime-path core-locations-path "runtime-wasm/core/locations.rkt")
 (define-runtime-path core-locks-path "runtime-wasm/core/locks.rkt")
@@ -189,6 +195,7 @@
            immutable-hash-runtime-only-helpers
            immediate-runtime-only-helpers
            impersonator-runtime-only-helpers
+           io-handler-runtime-only-helpers
            list-runtime-only-helpers
            location-runtime-only-helpers
            lock-runtime-only-helpers
@@ -565,6 +572,7 @@
                                           core-immutable-hashes-path
                                           core-immediates-path
                                           core-impersonators-path
+                                          core-io-handlers-path
                                           core-lists-path
                                           core-locations-path
                                           core-locks-path
@@ -34203,306 +34211,28 @@
                ,@(for/list ([name (in-list path-runtime-only-helper-names)])
                    (core-runtime-helper-form runtime-helper-index name))
 
-               ;; environment-variables? : any/c -> boolean?
-               ;;   Check whether a value is WebRacket's environment-variable set.
-               (func $environment-variables? (type $Prim1)
-                     ,@(make-predicate-body '$EnvironmentVariables))
+               ;;   Environment variable helpers are implemented in runtime-wasm/core/io-handlers.rkt.
+               ,(core-runtime-helper-form runtime-helper-index '$environment-variables?)
 
                ;;   Implemented in runtime-wasm/core/parameters.rkt.
                ,(core-runtime-helper-form runtime-helper-index '$current-environment-variables)
 
-               ;; environment-variables-ref : environment-variables? bytes? -> (or/c bytes? #f)
-               ;;   Look up a variable in WebRacket's empty environment.
-               (func $environment-variables-ref (type $Prim2)
-                     (param $env-raw  (ref eq)) ;; environment-variable set
-                     (param $name-raw (ref eq)) ;; byte string name
-                     (result (ref eq))
-                     (if (i32.eqz (ref.test (ref $EnvironmentVariables) (local.get $env-raw)))
-                         (then (return (global.get $error))))
-                     (if (i32.eqz (ref.test (ref $Bytes) (local.get $name-raw)))
-                         (then (return (global.get $error))))
-                     (global.get $false))
+               ;;   Environment variable helpers are implemented in runtime-wasm/core/io-handlers.rkt.
+               ,(core-runtime-helper-form runtime-helper-index '$environment-variables-ref)
 
                ;;   Implemented in runtime-wasm/core/parameters.rkt.
                ,(core-runtime-helper-form runtime-helper-index '$current-print)
 
-               ;; print-values : any/c ... -> any/c ...
-               ;;   Module-begin helper from racket/private/modbeg. It prints
-               ;;   each result through current-print and returns the original
-               ;;   values unchanged.
-               (func $print-values (type $Prim>=0)
-                     (param $args-raw (ref eq)) ;; rest arguments as $Args
-                     (result          (ref eq))
-
-                     (local $args    (ref $Args))
-                     (local $arr     (ref $Array))
-                     (local $printer (ref $Procedure))
-                     (local $inv     (ref $ProcedureInvoker))
-                     (local $one     (ref $Args))
-                     (local $len     i32)
-                     (local $i       i32)
-                     (local $v       (ref eq))
-
-                     (local.set $args (array.new $Args (global.get $null) (i32.const 0)))
-                     (local.set $arr  (call $make-array (i32.const 0) (global.get $null)))
-                     (if (ref.test (ref $Args) (local.get $args-raw))
-                         (then
-                          (local.set $args (ref.cast (ref $Args) (local.get $args-raw)))
-                          (local.set $len  (array.len (local.get $args)))
-                          (local.set $arr  (call $make-array (local.get $len) (global.get $null)))
-                          (array.copy $Array $Args
-                                      (local.get $arr) (i32.const 0)
-                                      (local.get $args) (i32.const 0)
-                                      (local.get $len)))
-                         (else
-                          (local.set $arr (call $list->array (local.get $args-raw)))
-                          (local.set $len (array.len (local.get $arr)))))
-                     (local.set $printer
-                                (ref.cast (ref $Procedure)
-                                          (call $current-print (global.get $missing))))
-                     (local.set $inv (struct.get $Procedure $invoke (local.get $printer)))
-                     (local.set $i   (i32.const 0))
-                     (block $done
-                            (loop $loop
-                                  (br_if $done (i32.ge_u (local.get $i) (local.get $len)))
-                                  (local.set $v (array.get $Array (local.get $arr) (local.get $i)))
-                                  (local.set $one (array.new_fixed $Args 1 (local.get $v)))
-                                  (drop (call_ref $ProcedureInvoker
-                                                  (local.get $printer)
-                                                  (local.get $one)
-                                                  (local.get $inv)))
-                                  (local.set $i (i32.add (local.get $i) (i32.const 1)))
-                                  (br $loop)))
-
-                     (call $values (local.get $args-raw)))
-
-               ;; default-current-read-interaction : any/c input-port? -> eof-object?
-               ;;   Bootstrap reader used by current-read-interaction. The
-               ;;   full interactive reader is outside the current WebRacket
-               ;;   startup bridge; returning EOF lets expander boot code
-               ;;   install the parameter without attempting REPL reads.
-               (func $default-current-read-interaction (type $Prim2)
-                     (param $source-name (ref eq)) ;; source name, currently ignored
-                     (param $in          (ref eq)) ;; input-port?, currently ignored
-                     (result             (ref eq))
-                     (global.get $eof))
-
-               ;; default-port-read-handler : input-port? [any/c] -> eof-object?
-               ;;   Bootstrap port reader used until WebRacket has its own
-               ;;   reader. This unblocks expander code that expects a valid
-               ;;   port-read-handler protocol; it intentionally does not parse.
-               (func $default-port-read-handler (type $Prim12)
-                     (param $in     (ref eq)) ;; input-port?
-                     (param $source (ref eq)) ;; optional source name, ignored
-                     (result        (ref eq))
-                     (global.get $eof))
-
-               (func $default-port-read-handler/1 (type $Prim1)
-                     (param $in (ref eq)) ;; input-port?
-                     (result    (ref eq))
-                     (global.get $eof))
-
-               ;; read : [input-port?] -> any/c
-               ;;   Full `read` parses Racket datums from a port. WebRacket has
-               ;;   byte/string input helpers, but not the Racket reader yet.
-               ;;   Keep this as a loud link-time bridge for provider code that
-               ;;   imports `read` without calling it.
-               (func $read (type $Prim01)
-                     (param $in (ref eq)) ;; optional input-port?, default = current-input-port
-                     (result    (ref eq))
-                     (call $raise-argument-error1
-                           (global.get $symbol:read)
-                           (global.get $string:reader-unsupported)
-                           (local.get $in))
-                     (unreachable))
-
-               ;; read-syntax : [any/c] [input-port?] -> syntax?
-               ;;   See `read`: syntax-producing reader support is intentionally
-               ;;   absent until the reader subsystem is implemented.
-               (func $read-syntax (type $Prim02)
-                     (param $source-name (ref eq)) ;; optional source name
-                     (param $in          (ref eq)) ;; optional input-port?, default = current-input-port
-                     (result             (ref eq))
-                     (call $raise-argument-error1
-                           (global.get $symbol:read-syntax)
-                           (global.get $string:reader-unsupported)
-                           (local.get $in))
-                     (unreachable))
+               ;;   Bootstrap reader and printer helpers are implemented in runtime-wasm/core/io-handlers.rkt.
+               ,@(for/list ([name (in-list io-handler-reader-printer-runtime-only-helper-names)])
+                   (core-runtime-helper-form runtime-helper-index name))
 
                ;;   Implemented in runtime-wasm/core/parameters.rkt.
                ,(core-runtime-helper-form runtime-helper-index '$current-readtable)
 
-               ;; port-read-handler : input-port? -> procedure?
-               ;;   Get the Racket-level read handler attached to an input
-               ;;   port. The setter form is deferred until WebRacket has a
-               ;;   robust optional-argument primitive path for [1 2] arities.
-               ;;   File/device substrate may later come from rktio-like host
-               ;;   support, but this hook belongs to the Racket port layer.
-               (func $port-read-handler (type $Prim1)
-                     (param $in-raw (ref eq)) ;; input-port?
-                     (result        (ref eq))
-
-                     (local $in      (ref $InputPort))
-                     (local $handler (ref eq))
-
-                     (if (i32.eqz (ref.test (ref $InputPort) (local.get $in-raw)))
-                         (then (call $raise-argument-error1
-                                     (global.get $symbol:port-read-handler)
-                                     (global.get $string:input-port?)
-                                     (local.get $in-raw))
-                               (unreachable)))
-                     (local.set $in (ref.cast (ref $InputPort) (local.get $in-raw)))
-                     (local.set $handler
-                                (struct.get $InputPort $read-handler (local.get $in)))
-                     (if (ref.eq (local.get $handler) (global.get $false))
-                         (then (return (global.get $default-port-read-handler-value)))
-                         (else (return (local.get $handler))))
-                     (unreachable))
-
-               ;; default-port-write-handler : any/c output-port? -> void?
-               ;;   Minimal default write handler. It uses WebRacket's narrow
-               ;;   write-mode formatter so strings are quoted for `~s` and
-               ;;   other write-through-handler paths.
-               (func $default-port-write-handler (type $Prim2)
-                     (param $v   (ref eq)) ;; any/c
-                     (param $out (ref eq)) ;; output-port?
-                     (result     (ref eq))
-                     (drop (call $write-string
-                                 (call $format/write (local.get $v))
-                                 (local.get $out)
-                                 (global.get $missing)
-                                 (global.get $missing)))
-                     (global.get $void))
-
-               ;; default-port-display-handler : any/c output-port? -> void?
-               ;;   Minimal default display handler using WebRacket's existing
-               ;;   generic value renderer. Despite the helper name, that
-               ;;   renderer is not a complete implementation of Racket display.
-               (func $default-port-display-handler (type $Prim2)
-                     (param $v   (ref eq)) ;; any/c
-                     (param $out (ref eq)) ;; output-port?
-                     (result     (ref eq))
-                     (drop (call $write-string
-                                 (call $format/display (local.get $v))
-                                 (local.get $out)
-                                 (global.get $missing)
-                                 (global.get $missing)))
-                     (global.get $void))
-
-               ;; default-port-print-handler : any/c output-port? [0-or-1] -> void?
-               ;;   Minimal default print handler. The optional quote-depth
-               ;;   argument is accepted for Racket's port-print-handler shape.
-               ;;   The current formatter handles the first print-as-expression
-               ;;   quoting step and otherwise falls back to write mode.
-               (func $default-port-print-handler (type $Prim23)
-                     (param $v           (ref eq)) ;; any/c
-                     (param $out         (ref eq)) ;; output-port?
-                     (param $quote-depth (ref eq)) ;; optional (or/c 0 1), ignored
-                     (result             (ref eq))
-                     (drop (call $write-string
-                                 (call $format/print
-                                       (local.get $v)
-                                       (local.get $quote-depth))
-                                 (local.get $out)
-                                 (global.get $missing)
-                                 (global.get $missing)))
-                     (global.get $void))
-
-               ;; port-write-handler : output-port? [procedure?] -> procedure? or void?
-               ;;   WebRacket accepts the setter protocol but currently keeps
-               ;;   string ports on the default handler. This is enough for
-               ;;   libraries that copy handlers while constructing ports. A
-               ;;   prop:output-port wrapper is accepted when it resolves to an
-               ;;   underlying native output port; full per-port handler storage
-               ;;   should be added with richer ports.
-               (func $port-write-handler (type $Prim12)
-                     (param $out-raw     (ref eq)) ;; output-port?
-                     (param $handler-raw (ref eq)) ;; optional procedure?
-                     (result             (ref eq))
-                     (local $out (ref eq))
-                     (local.set $out
-                                (if (result (ref eq))
-                                    (ref.test (ref $OutputPort) (local.get $out-raw))
-                                    (then (local.get $out-raw))
-                                    (else (call $prop-output-port-target
-                                                (local.get $out-raw)))))
-                     (if (i32.eqz (ref.test (ref $OutputPort) (local.get $out)))
-                         (then (call $raise-argument-error1
-                                     (global.get $symbol:port-write-handler)
-                                     (global.get $string:output-port?)
-                                     (local.get $out-raw))
-                               (unreachable)))
-                     (if (ref.eq (local.get $handler-raw) (global.get $missing))
-                         (then (return (global.get $default-port-write-handler-value))))
-                     (if (i32.eqz (ref.test (ref $Procedure) (local.get $handler-raw)))
-                         (then (call $raise-argument-error1
-                                     (global.get $symbol:port-write-handler)
-                                     (global.get $string:procedure?)
-                                     (local.get $handler-raw))
-                               (unreachable)))
-                     (global.get $void))
-
-               ;; port-display-handler : output-port? [procedure?] -> procedure? or void?
-               ;;   See port-write-handler for the current setter limitation.
-               (func $port-display-handler (type $Prim12)
-                     (param $out-raw     (ref eq)) ;; output-port?
-                     (param $handler-raw (ref eq)) ;; optional procedure?
-                     (result             (ref eq))
-                     (local $out (ref eq))
-                     (local.set $out
-                                (if (result (ref eq))
-                                    (ref.test (ref $OutputPort) (local.get $out-raw))
-                                    (then (local.get $out-raw))
-                                    (else (call $prop-output-port-target
-                                                (local.get $out-raw)))))
-                     (if (i32.eqz (ref.test (ref $OutputPort) (local.get $out)))
-                         (then (call $raise-argument-error1
-                                     (global.get $symbol:port-display-handler)
-                                     (global.get $string:output-port?)
-                                     (local.get $out-raw))
-                               (unreachable)))
-                     (if (ref.eq (local.get $handler-raw) (global.get $missing))
-                         (then (return (global.get $default-port-display-handler-value))))
-                     (if (i32.eqz (ref.test (ref $Procedure) (local.get $handler-raw)))
-                         (then (call $raise-argument-error1
-                                     (global.get $symbol:port-display-handler)
-                                     (global.get $string:procedure?)
-                                     (local.get $handler-raw))
-                               (unreachable)))
-                     (global.get $void))
-
-               ;; port-print-handler : output-port? [procedure?] -> procedure? or void?
-               ;;   WebRacket does not yet store handlers per port. The setter
-               ;;   updates the process-wide print handler, which is enough for
-               ;;   the staged io/format `~v` path to honor print handling.
-               (func $port-print-handler (type $Prim12)
-                     (param $out-raw     (ref eq)) ;; output-port?
-                     (param $handler-raw (ref eq)) ;; optional procedure?
-                     (result             (ref eq))
-                     (local $out (ref eq))
-                     (local.set $out
-                                (if (result (ref eq))
-                                    (ref.test (ref $OutputPort) (local.get $out-raw))
-                                    (then (local.get $out-raw))
-                                    (else (call $prop-output-port-target
-                                                (local.get $out-raw)))))
-                     (if (i32.eqz (ref.test (ref $OutputPort) (local.get $out)))
-                         (then (call $raise-argument-error1
-                                     (global.get $symbol:port-print-handler)
-                                     (global.get $string:output-port?)
-                                     (local.get $out-raw))
-                               (unreachable)))
-                     (if (ref.eq (local.get $handler-raw) (global.get $missing))
-                         (then (return (global.get $default-port-print-handler-value))))
-                     (if (i32.eqz (ref.test (ref $Procedure) (local.get $handler-raw)))
-                         (then (call $raise-argument-error1
-                                     (global.get $symbol:port-print-handler)
-                                     (global.get $string:procedure?)
-                                     (local.get $handler-raw))
-                               (unreachable)))
-                     (global.set $default-port-print-handler-value
-                                 (local.get $handler-raw))
-                     (global.get $void))
+               ;;   Port handler helpers are implemented in runtime-wasm/core/io-handlers.rkt.
+               ,@(for/list ([name (in-list io-handler-port-runtime-only-helper-names)])
+                   (core-runtime-helper-form runtime-helper-index name))
 
                ;;   Implemented in runtime-wasm/core/parameters.rkt.
                ,(core-runtime-helper-form runtime-helper-index '$current-read-interaction)
@@ -34520,36 +34250,9 @@
                                     $error-print-width)])
                    (core-runtime-helper-form runtime-helper-index name))
 
-               ;; default-error-syntax->name-handler : syntax? -> #f
-               ;;   Bootstrap default for error-syntax->name-handler.
-               (func $default-error-syntax->name-handler (type $Prim1)
-                     (param $stx (ref eq)) ;; syntax object, currently ignored
-                     (result     (ref eq))
-                     (global.get $false))
-
-               ;; default-error-value->string-handler : any/c exact-nonnegative-integer? -> string?
-               ;;   Bootstrap default for error-value->string-handler.
-               (func $default-error-value->string-handler (type $Prim2)
-                     (param $v   (ref eq)) ;; value to render
-                     (param $len (ref eq)) ;; maximum length, currently ignored
-                     (result     (ref eq))
-                     (call $format/display (local.get $v)))
-
-               ;; default-error-syntax->string-handler : any/c (or/c exact-nonnegative-integer? #f) -> string?
-               ;;   Bootstrap default for error-syntax->string-handler.
-               (func $default-error-syntax->string-handler (type $Prim2)
-                     (param $v   (ref eq)) ;; syntax object or S-expression
-                     (param $len (ref eq)) ;; maximum length or #f, currently ignored
-                     (result     (ref eq))
-                     (call $format/display (local.get $v)))
-
-               ;; default-error-module-path->string-handler : any/c exact-nonnegative-integer? -> string?
-               ;;   Bootstrap default for error-module-path->string-handler.
-               (func $default-error-module-path->string-handler (type $Prim2)
-                     (param $v   (ref eq)) ;; module path value
-                     (param $len (ref eq)) ;; maximum length, currently ignored
-                     (result     (ref eq))
-                     (call $format/display (local.get $v)))
+               ;;   Error rendering defaults are implemented in runtime-wasm/core/io-handlers.rkt.
+               ,@(for/list ([name (in-list io-handler-error-runtime-only-helper-names)])
+                   (core-runtime-helper-form runtime-helper-index name))
 
                ;;   Implemented in runtime-wasm/core/parameters.rkt.
                ,@(for/list ([name '($error-syntax->name-handler
