@@ -13,6 +13,9 @@
          "runtime-wasm/core-helper.rkt"
          (only-in "runtime-wasm/core/boxes.rkt"
                   box-runtime-only-helpers)
+         (only-in "runtime-wasm/core/checkers.rkt"
+                  checker-runtime-only-helpers
+                  checker-runtime-only-helper-names)
          (only-in "runtime-wasm/core/control-flow.rkt"
                   control-flow-runtime-only-helpers)
          (only-in "runtime-wasm/core/events.rkt"
@@ -97,6 +100,7 @@
 (define-runtime-path immediates-path "private/immediates.rkt")
 (define-runtime-path constants-path "runtime-wasm/constants.rkt")
 (define-runtime-path core-boxes-path "runtime-wasm/core/boxes.rkt")
+(define-runtime-path core-checkers-path "runtime-wasm/core/checkers.rkt")
 (define-runtime-path core-control-flow-path "runtime-wasm/core/control-flow.rkt")
 (define-runtime-path core-events-path "runtime-wasm/core/events.rkt")
 (define-runtime-path core-fasl-path "runtime-wasm/core/fasl.rkt")
@@ -133,6 +137,7 @@
   (make-core-runtime-helper-index
    (append core-runtime-helpers
            box-runtime-only-helpers
+           checker-runtime-only-helpers
            control-flow-runtime-only-helpers
            event-runtime-only-helpers
            fasl-runtime-only-helpers
@@ -500,6 +505,7 @@
                                           immediates-path
                                           constants-path
                                           core-boxes-path
+                                          core-checkers-path
                                           core-control-flow-path
                                           core-events-path
                                           core-fasl-path
@@ -9866,181 +9872,12 @@
 
 
          ;;;
-         ;;; RUNTIME SUPPORT FOR MATCH
+         ;;; RUNTIME SUPPORT FOR MATCH AND CHECKERS
          ;;;
 
-         (func $match:error (type $Prim3)
-               (param $val       (ref eq))
-               (param $srclocs   (ref eq))
-               (param $form-name (ref eq))
-               (result           (ref eq))
-
-               (local $name-str (ref eq))
-               (local $prefix   (ref eq))
-               (local $val-str  (ref eq))
-
-               (local.set $name-str
-                          (block $done (result (ref eq))
-                            (if (ref.eq (call $symbol? (local.get $form-name))
-                                         (global.get $true))
-                                (then (br $done (call $symbol->immutable-string
-                                                       (local.get $form-name)))))
-                            (if (ref.eq (local.get $form-name) (global.get $false))
-                                (then (br $done (call $symbol->immutable-string
-                                                       (global.get $symbol:match)))))
-                            (if (ref.eq (call $string? (local.get $form-name))
-                                         (global.get $true))
-                                (then (br $done (local.get $form-name))))
-                            (br $done (call $format/display (local.get $form-name)))))
-
-               (local.set $prefix
-                          (call $string-append/2
-                                (local.get $name-str)
-                                (global.get $string:match-error:prefix)))
-
-               (local.set $val-str (call $format/display (local.get $val)))
-
-               (call $raise
-                     (call $string-append/2 (local.get $prefix) (local.get $val-str))
-                     (global.get $missing))
-
-               (unreachable))
-
-         ;;;
-         ;;; Checkers
-         ;;;
-
-         (func $check-list (type $Prim12)
-               (param $a (ref eq)) ;; list, or who when b is supplied
-               (param $b (ref eq)) ;; optional list; defaults to $missing
-               (result   (ref eq))
-               (local $who (ref eq))
-               (local $l   (ref eq))
-               (local.set $who (local.get $a))
-               (local.set $l   (local.get $a))
-               (if (ref.eq (local.get $b) (global.get $missing))
-                   (then
-                    (local.set $who (global.get $symbol:in-list))
-                    (local.set $l   (local.get $a)))
-                   (else
-                    (local.set $who (local.get $a))
-                    (local.set $l   (local.get $b))))
-               (if (result (ref eq))
-                   (ref.eq (call $list? (local.get $l)) (global.get $true))
-                   (then (global.get $void))
-                   (else (call $raise-argument-error1
-                               (local.get $who)
-                               (global.get $string:list?)
-                               (local.get $l))
-                         (unreachable))))
-
-         (func $check-vector (type $Prim1)
-               (param $v (ref eq)) ;; vector
-               (result   (ref eq))
-               (if (result (ref eq))
-                   (ref.eq (call $vector? (local.get $v)) (global.get $true))
-                   (then (global.get $void))
-                   (else (call $raise-argument-error1
-                               (global.get $symbol:in-vector)
-                               (global.get $string:vector?)
-                               (local.get $v))
-                         (unreachable))))
-
-
-         (func $check-string (type $Prim1)
-               (param $s (ref eq)) ;; string
-               (result   (ref eq))
-               (if (result (ref eq))
-                   (ref.eq (call $string? (local.get $s)) (global.get $true))
-                   (then (global.get $void))
-                   (else (call $raise-argument-error1
-                               (global.get $symbol:in-string)
-                               (global.get $string:string?)
-                               (local.get $s))
-                         (unreachable))))
-
-         ;; Racket's check-mlist accepts only mutable pairs; mpairs are
-         ;; currently unsupported, so this version accepts any pair.
-         (func $check-mlist (type $Prim1)
-               (param $l (ref eq))                 ;; mutable list
-               (result (ref eq))
-               (if (result (ref eq))
-                   (ref.eq (local.get $l) (global.get $null))
-                   (then (global.get $void))
-                   (else (if (result (ref eq))
-                             (ref.eq (call $pair? (local.get $l)) (global.get $true))
-                             (then (global.get $void))
-                             (else (call $raise-argument-error1
-                                         (global.get $symbol:in-mlist)
-                                         (global.get $string:mpair-or-null)
-                                         (local.get $l))
-                                   (unreachable))))))
-
-         (func $check-range (type $Prim3)
-               (param $a (ref eq))     ;; start
-               (param $b (ref eq))     ;; end
-               (param $step (ref eq))  ;; step
-               (result (ref eq))
-               (call $check-range-generic (global.get $symbol:in-range)
-                     (local.get $a)
-                     (local.get $b)
-                     (local.get $step)))
-
-         (func $check-range-generic
-               (param $who  (ref eq))  ;; symbol
-               (param $a    (ref eq))  ;; start
-               (param $b    (ref eq))  ;; end
-               (param $step (ref eq))  ;; step
-               (result (ref eq))
-               (if (result (ref eq))
-                   (ref.eq (call $real? (local.get $a)) (global.get $true))
-                   (then (if (result (ref eq))
-                             (ref.eq (call $real? (local.get $b)) (global.get $true))
-                             (then (if (result (ref eq))
-                                       (ref.eq (call $real? (local.get $step)) (global.get $true))
-                                       (then (global.get $void))
-                                       (else (call $raise-argument-error1
-                                                   (local.get $who) (global.get $string:real?) (local.get $step))
-                                             (unreachable))))
-                             (else (call $raise-argument-error1
-                                         (local.get $who) (global.get $string:real?) (local.get $b))
-                                   (unreachable))))
-                   (else (call $raise-argument-error1
-                               (local.get $who) (global.get $string:real?) (local.get $a))
-                         (unreachable))))
-
-         (func $check-naturals (type $Prim1)
-               (param $n (ref eq))   ;; n
-               (result (ref eq))
-               (if (result (ref eq))
-                   (ref.eq (call $integer? (local.get $n)) (global.get $true))
-                   (then (if (result (ref eq))
-                             (ref.eq (call $exact? (local.get $n)) (global.get $true))
-                             (then (if (result (ref eq))
-                                       (ref.test (ref i31) (local.get $n))
-                                       (then (if (result (ref eq))
-                                                 (i32.ge_s (i31.get_s (ref.cast (ref i31) (local.get $n))) (i32.const 0))
-                                                 (then (global.get $void))
-                                                 (else (call $raise-argument-error1
-                                                             (global.get $symbol:in-naturals)
-                                                             (global.get $string:exact-nonnegative-integer?)
-                                                             (local.get $n))
-                                                       (unreachable))))
-                                       (else (call $raise-argument-error1
-                                                   (global.get $symbol:in-naturals)
-                                                   (global.get $string:exact-nonnegative-integer?)
-                                                   (local.get $n))
-                                             (unreachable))))
-                             (else (call $raise-argument-error1
-                                         (global.get $symbol:in-naturals)
-                                         (global.get $string:exact-nonnegative-integer?)
-                                         (local.get $n))
-                                   (unreachable))))
-                   (else (call $raise-argument-error1
-                               (global.get $symbol:in-naturals)
-                               (global.get $string:exact-nonnegative-integer?)
-                               (local.get $n))
-                         (unreachable))))
+         ;;   Implemented in runtime-wasm/core/checkers.rkt.
+         ,@(for/list ([name (in-list checker-runtime-only-helper-names)])
+             (core-runtime-helper-form runtime-helper-index name))
 
          ;;;
          ;;; DATATYPES
