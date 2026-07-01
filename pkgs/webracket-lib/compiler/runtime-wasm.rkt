@@ -45589,21 +45589,8 @@
                          (then (return (global.get $error))))
                      (global.get $false))
 
-               ;; current-print : [procedure?] -> procedure?
-               ;;   Get or set the top-level printer. The default printer logs
-               ;;   the value through `js-log`, which is sufficient for probes.
-               (func $current-print (type $Prim01)
-                     (param $printer-raw (ref eq)) ;; optional procedure?, default current printer
-                     (result (ref eq))
-                     (if (ref.eq (local.get $printer-raw) (global.get $missing))
-                         (then
-                          (if (ref.eq (global.get $current-print-value) (global.get $false))
-                              (then (return (global.get $prim:js-log)))
-                              (else (return (global.get $current-print-value))))))
-                     (if (i32.eqz (ref.test (ref $Procedure) (local.get $printer-raw)))
-                         (then (return (global.get $error))))
-                     (global.set $current-print-value (local.get $printer-raw))
-                     (global.get $void))
+               ;;   Implemented in runtime-wasm/core/parameters.rkt.
+               ,(core-runtime-helper-form runtime-helper-index '$current-print)
 
                ;; print-values : any/c ... -> any/c ...
                ;;   Module-begin helper from racket/private/modbeg. It prints
@@ -45708,31 +45695,8 @@
                            (local.get $in))
                      (unreachable))
 
-               ;; current-readtable : [(or/c readtable? #f)] -> (or/c readtable? #f) or void?
-               ;;   WebRacket has no readtable values yet, so #f is the only
-               ;;   supported setting. This keeps provider code linkable while
-               ;;   making real custom-readtable use fail clearly.
-               (func $current-readtable (type $Prim01)
-                     (param $v (ref eq)) ;; optional (or/c readtable? #f), default = current value
-                     (result   (ref eq))
-                     (if (ref.eq (local.get $v) (global.get $missing))
-                         (then (return (call $parameter-value-or-global
-                                             (global.get $prim:current-readtable)
-                                             (global.get $current-readtable-value)))))
-                     (if (i32.eqz (ref.eq (local.get $v) (global.get $false)))
-                         (then
-                          (call $raise-argument-error1
-                                (global.get $symbol:current-readtable)
-                                (global.get $string:readtable-or-false)
-                                (local.get $v))
-                          (unreachable)))
-                     (if (i32.eqz (ref.eq (global.get $current-parameterization-value)
-                                          (global.get $false)))
-                         (then (return (call $extend-current-parameterization!
-                                             (global.get $prim:current-readtable)
-                                             (local.get $v)))))
-                     (global.set $current-readtable-value (local.get $v))
-                     (global.get $void))
+               ;;   Implemented in runtime-wasm/core/parameters.rkt.
+               ,(core-runtime-helper-form runtime-helper-index '$current-readtable)
 
                ;; port-read-handler : input-port? -> procedure?
                ;;   Get the Racket-level read handler attached to an input
@@ -45906,23 +45870,8 @@
                                  (local.get $handler-raw))
                      (global.get $void))
 
-               ;; current-read-interaction : [procedure?] -> procedure? or void?
-               ;;   Parameter for the interactive reader. The default returns
-               ;;   EOF, which is enough for expander startup probes that only
-               ;;   need the binding to exist.
-               (func $current-read-interaction (type $Prim01)
-                     (param $reader-raw (ref eq)) ;; optional procedure?, default current reader
-                     (result (ref eq))
-                     (if (ref.eq (local.get $reader-raw) (global.get $missing))
-                         (then (return (global.get $current-read-interaction-value))))
-                     (if (i32.eqz (ref.test (ref $Procedure) (local.get $reader-raw)))
-                         (then (call $raise-argument-error1
-                                     (global.get $symbol:current-read-interaction)
-                                     (global.get $string:procedure?)
-                                     (local.get $reader-raw))
-                               (unreachable)))
-                     (global.set $current-read-interaction-value (local.get $reader-raw))
-                     (global.get $void))
+               ;;   Implemented in runtime-wasm/core/parameters.rkt.
+               ,(core-runtime-helper-form runtime-helper-index '$current-read-interaction)
 
                ;; load-on-demand-enabled/use-user-specific-search-paths/read-accept-* : [boolean?] -> boolean? or void?
                ;;   Bootstrap reader policy parameters. The Reference gives
