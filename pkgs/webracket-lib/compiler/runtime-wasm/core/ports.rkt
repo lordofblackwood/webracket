@@ -404,8 +404,104 @@
            (struct.set $OutputPort $closed (local.get $port) (i32.const 1))
            (global.get $void)))))
 
+;; port-location-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate port line-count, position, and location helpers.
+(define port-location-runtime-only-helpers
+  (function-forms->runtime-helpers
+   'port-location-runtime-only-helpers
+   '(
+     ;; Note:
+     ;;   WebRacket's current string ports always track line and column
+     ;;   information, so enabling line counting is a no-op.
+     ;;
+     ;;   For now the primitives port-count-lines! and port-counts-lines?
+     ;;   exists to preserve compatibility with Racket
+     ;;   programs that explicitly request line counting.
+     ;;
+     ;;   When support for file ports is added, these functions needs
+     ;;   to be revised.
+
+     (func $port-count-lines! (type $Prim1)
+           (param $p (ref eq))
+           (result   (ref eq))
+           (global.get $void))
+
+     ;; Note:
+     ;;   See previous note.
+     (func $port-counts-lines? (type $Prim1)
+           (param $p (ref eq))
+           (result   (ref eq))
+           (global.get $true))
+
+     ;; file-position* : port? -> (or/c exact-nonnegative-integer? #f)
+     ;;   Return the known byte position for WebRacket string/VFS ports.
+     ;;   Other future port kinds should return #f when the position is
+     ;;   unknown instead of raising.
+     (func $file-position* (type $Prim1)
+           (param $p (ref eq)) ;; port?
+           (result   (ref eq))
+
+           (local $port (ref $Port))
+
+           (if (i32.eqz (ref.test (ref $Port) (local.get $p)))
+               (then (call $raise-argument-error1
+                           (global.get $symbol:file-position*)
+                           (global.get $string:port?)
+                           (local.get $p))
+                     (unreachable)))
+           (local.set $port (ref.cast (ref $Port) (local.get $p)))
+           (if (struct.get $Port $closed (local.get $port))
+               (then (call $raise-argument-error1
+                           (global.get $symbol:file-position*)
+                           (global.get $string:port?)
+                           (local.get $p))
+                     (unreachable)))
+           (if (ref.test (ref $InputPort) (local.get $p))
+               (then (return (ref.i31
+                              (i32.shl
+                               (struct.get $InputPort $idx
+                                           (ref.cast (ref $InputPort) (local.get $p)))
+                               (i32.const 1))))))
+           (if (ref.test (ref $OutputPort) (local.get $p))
+               (then (return (ref.i31
+                              (i32.shl
+                               (struct.get $OutputPort $idx
+                                           (ref.cast (ref $OutputPort) (local.get $p)))
+                               (i32.const 1))))))
+           (global.get $false))
+
+     (func $port-next-location (type $Prim1)
+           (param $p (ref eq))
+           (result   (ref eq))
+
+           (local $port (ref null $Port))
+           (local $loc  (ref null $Location))
+           ;; 1. Check and cast $p to (ref $Port). Some Goal 1 formatter
+           ;; paths can pass higher-level port wrappers before WebRacket
+           ;; fully models prop:input-port/prop:output-port. Preserve the
+           ;; Reference-mandated three-result shape; when possible, resolve
+           ;; prop:output-port to the underlying native port first.
+           (if (ref.test (ref $Port) (local.get $p))
+               (then (local.set $port (ref.cast (ref $Port) (local.get $p))))
+               (else
+                (local.set $p (call $prop-output-port-target (local.get $p)))
+                (if (ref.test (ref $Port) (local.get $p))
+                    (then (local.set $port (ref.cast (ref $Port) (local.get $p))))
+                    (else (return (array.new_fixed $Values 3
+                                                   (global.get $false)
+                                                   (global.get $false)
+                                                   (global.get $false)))))))
+           ;; 2. Get location struct from the port
+           (local.set $loc (struct.get $Port $loc (local.get $port)))
+           ;; 3. Extract and return as fixed array of 3 elements
+           (array.new_fixed $Values 3
+                            (struct.get $Location $line (local.get $loc))
+                            (struct.get $Location $col  (local.get $loc))
+                            (struct.get $Location $pos  (local.get $loc)))))))
+
 ;; port-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate port helpers used by the monolithic runtime.
 (define port-runtime-only-helpers
   (append port-predicate-runtime-only-helpers
-          port-state-runtime-only-helpers))
+          port-state-runtime-only-helpers
+          port-location-runtime-only-helpers))
