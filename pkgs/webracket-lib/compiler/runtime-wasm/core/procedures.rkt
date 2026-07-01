@@ -85,6 +85,144 @@
   (function-forms->runtime-helpers
    'procedure-runtime-only-helpers
    '(
+     ;; Support for the arity-at-least structure used by procedure-arity.
+     (func $ensure-arity-at-least-type
+           (result (ref $StructType))
+
+           (local $existing (ref null $StructType))
+           (local $std      (ref $StructType))
+           (local $indices  (ref eq))
+
+           (local.set $existing (global.get $arity-at-least-type))
+           (if (ref.is_null (local.get $existing))
+               (then
+                (local.set $indices (call $list-from-range/checked (i32.const 0) (i32.const 1)))
+                (local.set $std
+                           (struct.new $StructType
+                                       (i32.const 0)
+                                       (ref.cast (ref $Symbol) (global.get $symbol:arity-at-least))
+                                       (global.get $false)
+                                       (i32.const 1)
+                                       (local.get $indices)
+                                       (global.get $null)
+                                       (global.get $null)
+                                       (ref.cast (ref eq) (call $struct-type-property-table-empty))
+                                       (global.get $false)
+                                       (local.get $indices)
+                                       (global.get $false)
+                                       (ref.cast (ref $Symbol) (global.get $symbol:arity-at-least))))
+                (global.set $arity-at-least-type (local.get $std))
+                (local.set $existing (local.get $std))))
+           (ref.as_non_null (local.get $existing)))
+
+     (func $arity-at-least/make
+           (param $value i32)   ;; exact non-negative integer
+           (result (ref eq))
+
+           (local $std    (ref $StructType))
+           (local $fields (ref $Array))
+
+           (local.set $std (call $ensure-arity-at-least-type))
+           (local.set $fields
+                      (array.new_fixed $Array 1
+                                       (ref.i31 (i32.shl (local.get $value) (i32.const 1)))))
+           (ref.cast (ref eq)
+                     (struct.new $Struct
+                                 (i32.const 0)
+                                 (global.get $false)
+                                 (ref.i31 (i32.const 0))
+                                 (global.get $false)
+                                 (ref.func $invoke-struct)
+                                 (local.get $std)
+                                 (local.get $fields))))
+
+     (func $make-arity-at-least (type $Prim1)
+           (param $value (ref eq)) ; exact-nonnegative-integer?
+           (result (ref eq))
+
+           (if (ref.eq (call $exact-nonnegative-integer? (local.get $value)) (global.get $false))
+               (then (call $raise-argument-error1
+                           (global.get $symbol:make-arity-at-least)
+                           (global.get $string:exact-nonnegative-integer?)
+                           (local.get $value))
+                     (unreachable)))
+           (call $arity-at-least/make
+                 (i32.shr_s
+                  (i31.get_s (ref.cast (ref i31) (local.get $value)))
+                  (i32.const 1))))
+
+     (func $arity-at-least (type $Prim1)
+           (param $value (ref eq)) ; exact-nonnegative-integer?
+           (result (ref eq))
+
+           (return_call $make-arity-at-least (local.get $value)))
+
+     (func $raise-argument-error:arity-at-least-expected
+           (param $who (ref eq))
+           (param $got (ref eq))
+
+           (call $raise-argument-error1
+                 (local.get $who)
+                 (global.get $string:arity-at-least?)
+                 (local.get $got)))
+
+     (func $arity-at-least-unwrap
+           (param $who (ref eq))
+           (param $v   (ref eq))
+           (result (ref $Struct))
+
+           (local $struct (ref $Struct))
+           (local $type   (ref eq))
+           (local $std    (ref $StructType))
+           (local $ok     i32)
+
+           (local.set $std (call $ensure-arity-at-least-type))
+           (if (i32.eqz (ref.test (ref $Struct) (local.get $v)))
+               (then (call $raise-argument-error:arity-at-least-expected (local.get $who) (local.get $v))
+                     (unreachable)))
+           (local.set $struct (ref.cast (ref $Struct) (local.get $v)))
+           (local.set $type   (struct.get $Struct $type (local.get $struct)))
+           (local.set $ok     (call $struct-type-is-a?/i32 (local.get $type) (local.get $std)))
+           (if (i32.eqz (local.get $ok))
+               (then (call $raise-argument-error:arity-at-least-expected (local.get $who) (local.get $v))
+                     (unreachable)))
+           (local.get $struct))
+
+     (func $arity-at-least? (type $Prim1)
+           (param $v (ref eq))
+           (result   (ref eq))
+
+           (local $struct (ref $Struct))
+           (local $type   (ref eq))
+           (local $std    (ref $StructType))
+           (local $ok     i32)
+
+           (local.set $std (call $ensure-arity-at-least-type))
+           (if (result (ref eq))
+               (ref.test (ref $Struct) (local.get $v))
+               (then
+                (local.set $struct (ref.cast (ref $Struct) (local.get $v)))
+                (local.set $type   (struct.get $Struct $type (local.get $struct)))
+                (local.set $ok     (call $struct-type-is-a?/i32 (local.get $type) (local.get $std)))
+                (if (result (ref eq))
+                    (local.get $ok)
+                    (then (global.get $true))
+                    (else (global.get $false))))
+               (else (global.get $false))))
+
+     (func $arity-at-least-value (type $Prim1)
+           (param $v (ref eq))
+           (result (ref eq))
+
+           (local $struct (ref $Struct))
+           (local $fields (ref $Array))
+
+           (local.set $struct (call $arity-at-least-unwrap
+                                     (global.get $symbol:arity-at-least-value)
+                                     (local.get $v)))
+           (local.set $fields (struct.get $Struct $fields (local.get $struct)))
+           (array.get $Array (local.get $fields) (i32.const 0)))
+
      ;; procedure-result-arity : procedure? -> (or/c #f procedure-arity?)
      ;;   Return known result arity. WebRacket currently does not track
      ;;   result arity for closures, so report #f conservatively except
