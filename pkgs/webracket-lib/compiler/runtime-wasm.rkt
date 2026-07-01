@@ -13811,95 +13811,14 @@
                    (then (return (global.get $false))))
                (global.get $false))
 
-         ;; current-compile-target-machine : [any/c] -> any/c
-         ;;   Bootstrap compiler target parameter. WebRacket currently has one
-         ;;   target, so the default matches `(system-type 'target-machine)`.
-         ;;   The setter accepts any value for expander/compiler compatibility.
-         (func $current-compile-target-machine/get (type $Prim0)
-               (result (ref eq))
-               (local $v (ref eq))
-
-               (local.set $v
-                          (call $parameterization-ref
-                                (global.get $current-parameterization-value)
-                                (global.get $prim:current-compile-target-machine)))
-               (if (result (ref eq))
-                   (ref.eq (local.get $v) (global.get $missing))
-                   (then
-                    (if (result (ref eq))
-                        (ref.eq (global.get $current-compile-target-machine-value)
-                                (global.get $false))
-                        (then (global.get $symbol:webracket))
-                        (else (global.get $current-compile-target-machine-value))))
-                   (else (local.get $v))))
-
-         (func $current-compile-target-machine/set (type $Prim1)
-               (param $v (ref eq)) ;; target machine value
-               (result   (ref eq))
-
-               (if (i32.eqz (ref.eq (global.get $current-parameterization-value)
-                                    (global.get $false)))
-                   (then (return (call $extend-current-parameterization!
-                                       (global.get $prim:current-compile-target-machine)
-                                       (local.get $v)))))
-               (global.set $current-compile-target-machine-value (local.get $v))
-               (global.get $void))
-
-         (func $current-compile-target-machine (type $Prim01)
-               (param $v (ref eq)) ;; optional target machine value
-               (result   (ref eq))
-
-               (if (ref.eq (local.get $v) (global.get $missing))
-                   (then (return (call $current-compile-target-machine/get))))
-               (call $current-compile-target-machine/set (local.get $v)))
-
-         ;; current-compile-realm : [symbol?] -> symbol?
-         ;;   Bootstrap parameter for expander compilation. Racket uses this
-         ;;   realm to annotate generated procedures and module code; WebRacket
-         ;;   defaults to 'racket and supports parameterize-style overrides.
-         (func $current-compile-realm/get (type $Prim0)
-               (result (ref eq))
-               (local $v (ref eq))
-
-               (local.set $v
-                          (call $parameterization-ref
-                                (global.get $current-parameterization-value)
-                                (global.get $prim:current-compile-realm)))
-               (if (result (ref eq))
-                   (ref.eq (local.get $v) (global.get $missing))
-                   (then
-                    (if (result (ref eq))
-                        (ref.eq (global.get $current-compile-realm-value)
-                                (global.get $false))
-                        (then (global.get $symbol:racket))
-                        (else (global.get $current-compile-realm-value))))
-                   (else (local.get $v))))
-
-         (func $current-compile-realm/set (type $Prim1)
-               (param $v (ref eq)) ;; realm symbol
-               (result   (ref eq))
-
-               (if (i32.eqz (ref.test (ref $Symbol) (local.get $v)))
-                   (then (call $raise-argument-error1
-                               (global.get $symbol:current-compile-realm)
-                               (global.get $string:symbol?)
-                               (local.get $v))
-                         (unreachable)))
-               (if (i32.eqz (ref.eq (global.get $current-parameterization-value)
-                                    (global.get $false)))
-                   (then (return (call $extend-current-parameterization!
-                                       (global.get $prim:current-compile-realm)
-                                       (local.get $v)))))
-               (global.set $current-compile-realm-value (local.get $v))
-               (global.get $void))
-
-         (func $current-compile-realm (type $Prim01)
-               (param $v (ref eq)) ;; optional realm symbol, default 'racket
-               (result   (ref eq))
-
-               (if (ref.eq (local.get $v) (global.get $missing))
-                   (then (return (call $current-compile-realm/get))))
-               (call $current-compile-realm/set (local.get $v)))
+         ;;   Implemented in runtime-wasm/core/parameters.rkt.
+         ,@(for/list ([name '($current-compile-target-machine/get
+                               $current-compile-target-machine/set
+                               $current-compile-target-machine
+                               $current-compile-realm/get
+                               $current-compile-realm/set
+                               $current-compile-realm)])
+             (core-runtime-helper-form runtime-helper-index name))
 
          ;; version : -> string?
          ;;   Return the Racket version used to generate this WebRacket runtime.
