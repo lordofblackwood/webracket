@@ -806,6 +806,215 @@
            ;; 5. Return the accumulated output as a string
            (call $get-output-string (local.get $port))))))
 
+;; port-custom-constructor-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate custom input and output port constructors.
+(define port-custom-constructor-runtime-only-helpers
+  (function-forms->runtime-helpers
+   'port-custom-constructor-runtime-only-helpers
+   '(
+     ;; NOTE: Procedure-based custom ports currently support only immediate
+     ;;       byte operations without events or special results.
+     (func $make-input-port (type $Prim>=4)
+           (param $name   (ref eq)) ;; any/c
+           (param $read   (ref eq)) ;; input-port? or procedure?
+           (param $peek   (ref eq)) ;; input-port? or #f
+           (param $close  (ref eq)) ;; procedure?
+           (param $rest   (ref eq)) ;; list of optional arguments (get-progress-evt commit get-location count-lines! init-position buffer-mode)
+           (result        (ref eq))
+
+           (local $args          (ref eq))
+           (local $node          (ref $Pair))
+           (local $arg           (ref eq))
+           (local $count         i32)
+           (local $progress-evt  (ref eq))
+           (local $commit-proc   (ref eq))
+           (local $get-location  (ref eq))
+           (local $count-lines!  (ref eq))
+           (local $init-position (ref eq))
+           (local $buffer-mode   (ref eq))
+           (local $loc           (ref $Location))
+           (local $bytes         (ref $Bytes))
+
+           ;; --- Initialize optional arguments with their defaults ---
+           (local.set $progress-evt  (global.get $false))
+           (local.set $commit-proc   (global.get $false))
+           (local.set $get-location  (global.get $false))
+           (local.set $count-lines!  (global.get $void))
+           (local.set $init-position (ref.i31 (i32.shl (i32.const 1) (i32.const 1))))
+           (local.set $buffer-mode   (global.get $false))
+
+           ;; --- Decode optional rest arguments ---
+           (local.set $args  (local.get $rest))
+           (local.set $count (i32.const 0))
+           (block $done
+                  (loop $loop
+                        (if (ref.eq (local.get $args) (global.get $null))
+                            (then (br $done)))
+                        (local.set $node  (ref.cast (ref $Pair) (local.get $args)))
+                        (local.set $arg   (struct.get $Pair $a (local.get $node)))
+                        (local.set $args  (struct.get $Pair $d (local.get $node)))
+                        (local.set $count (i32.add (local.get $count) (i32.const 1)))
+                        (if (i32.gt_u (local.get $count) (i32.const 6))
+                            (then (call $primitive-invoke:raise-arity-error
+                                        (ref.cast (ref $PrimitiveProcedure)
+                                                  (global.get $prim:make-input-port))
+                                        (local.get $count))
+                                  (unreachable)))
+                        (if (i32.eq (local.get $count) (i32.const 1))
+                            (then (local.set $progress-evt (local.get $arg)))
+                            (else
+                             (if (i32.eq (local.get $count) (i32.const 2))
+                                 (then (local.set $commit-proc (local.get $arg)))
+                                 (else
+                                  (if (i32.eq (local.get $count) (i32.const 3))
+                                      (then (local.set $get-location (local.get $arg)))
+                                      (else
+                                       (if (i32.eq (local.get $count) (i32.const 4))
+                                           (then (local.set $count-lines! (local.get $arg)))
+                                           (else
+                                            (if (i32.eq (local.get $count) (i32.const 5))
+                                                (then (local.set $init-position (local.get $arg)))
+                                                (else (local.set $buffer-mode (local.get $arg))))))))))))
+                        (br $loop)))
+
+           ;; --- Ensure read-in is either an input port or a procedure ---
+           (if (i32.eqz (i32.or (ref.test (ref $InputPort) (local.get $read))
+                                (ref.test (ref $Procedure) (local.get $read))))
+               ; TODO: raise exception
+               (then (return (global.get $false))))
+
+           ;; --- Ensure peek-in is #f, an input port, or a procedure ---
+           (if (i32.eqz (ref.eq (local.get $peek) (global.get $false)))
+               (then
+                (if (i32.eqz (i32.or (ref.test (ref $InputPort) (local.get $peek))
+                                     (ref.test (ref $Procedure) (local.get $peek))))
+                    ; TODO: raise exception
+                    (then (return (global.get $false))))))
+
+           (local.set $bytes (ref.cast (ref $Bytes)    (global.get $bytes:empty)))
+           (local.set $loc   (ref.cast (ref $Location) (call $make-initial-location)))
+
+           (struct.new $CustomInputPort
+                       (i32.const 0)              ;; $hash
+                       (local.get $name)          ;; $name
+                       (i32.const 0)              ;; $closed
+                       (local.get $bytes)         ;; $bytes (scratch buffer)
+                       (i32.const 0)              ;; $len placeholder
+                       (i32.const 0)              ;; $idx placeholder
+                       (local.get $loc)           ;; $loc
+                       (global.get $false)        ;; $read-handler
+                       (local.get $read)          ;; $read-proc
+                       (local.get $peek)          ;; $peek-proc
+                       (local.get $close)         ;; $close-proc
+                       (local.get $progress-evt)  ;; $get-progress-evt
+                       (local.get $commit-proc)   ;; $commit-proc
+                       (local.get $get-location)  ;; $get-location-proc
+                       (local.get $count-lines!)  ;; $count-lines-proc
+                       (local.get $init-position) ;; $init-position-arg
+                       (local.get $buffer-mode))) ;; $buffer-mode-arg
+
+     ;; make-output-port : any/c evt? (or/c output-port? procedure?) procedure? ... -> output-port?
+     ;;   First useful custom-output-port slice: support byte/string writes
+     ;;   via either an output-port delegate or a five-argument write
+     ;;   procedure. Events and special writes are stored but not modeled
+     ;;   by the current single-threaded runtime.
+     (func $make-output-port (type $Prim>=4)
+           (param $name  (ref eq)) ;; any/c
+           (param $evt   (ref eq)) ;; evt?; accepted but not used yet
+           (param $write (ref eq)) ;; output-port? or procedure?
+           (param $close (ref eq)) ;; procedure?
+           (param $rest  (ref eq)) ;; optional arguments
+           (result       (ref eq))
+
+           (local $args              (ref eq))
+           (local $node              (ref $Pair))
+           (local $arg               (ref eq))
+           (local $count             i32)
+           (local $write-special     (ref eq))
+           (local $get-write-evt     (ref eq))
+           (local $get-write-special (ref eq))
+           (local $get-location      (ref eq))
+           (local $count-lines!      (ref eq))
+           (local $init-position     (ref eq))
+           (local $buffer-mode       (ref eq))
+           (local $loc               (ref $Location))
+           (local $bytes             (ref $Bytes))
+
+           (local.set $write-special     (global.get $false))
+           (local.set $get-write-evt     (global.get $false))
+           (local.set $get-write-special (global.get $false))
+           (local.set $get-location      (global.get $false))
+           (local.set $count-lines!      (global.get $void))
+           (local.set $init-position     (ref.i31 (i32.shl (i32.const 1) (i32.const 1))))
+           (local.set $buffer-mode       (global.get $false))
+
+           (local.set $args  (local.get $rest))
+           (local.set $count (i32.const 0))
+           (block $done
+                  (loop $loop
+                        (if (ref.eq (local.get $args) (global.get $null))
+                            (then (br $done)))
+                        (local.set $node  (ref.cast (ref $Pair) (local.get $args)))
+                        (local.set $arg   (struct.get $Pair $a (local.get $node)))
+                        (local.set $args  (struct.get $Pair $d (local.get $node)))
+                        (local.set $count (i32.add (local.get $count) (i32.const 1)))
+                        (if (i32.gt_u (local.get $count) (i32.const 7))
+                            (then (call $primitive-invoke:raise-arity-error
+                                        (ref.cast (ref $PrimitiveProcedure)
+                                                  (global.get $prim:make-output-port))
+                                        (local.get $count))
+                                  (unreachable)))
+                        (if (i32.eq (local.get $count) (i32.const 1))
+                            (then (local.set $write-special (local.get $arg)))
+                            (else
+                             (if (i32.eq (local.get $count) (i32.const 2))
+                                 (then (local.set $get-write-evt (local.get $arg)))
+                                 (else
+                                  (if (i32.eq (local.get $count) (i32.const 3))
+                                      (then (local.set $get-write-special (local.get $arg)))
+                                      (else
+                                       (if (i32.eq (local.get $count) (i32.const 4))
+                                           (then (local.set $get-location (local.get $arg)))
+                                           (else
+                                            (if (i32.eq (local.get $count) (i32.const 5))
+                                                (then (local.set $count-lines! (local.get $arg)))
+                                                (else
+                                                 (if (i32.eq (local.get $count) (i32.const 6))
+                                                     (then (local.set $init-position (local.get $arg)))
+                                                     (else (local.set $buffer-mode (local.get $arg))))))))))))))
+                        (br $loop)))
+
+           (if (i32.eqz (i32.or (ref.test (ref $OutputPort) (local.get $write))
+                                (ref.test (ref $Procedure) (local.get $write))))
+               (then (call $raise-argument-error1
+                           (global.get $symbol:make-output-port)
+                           (global.get $string:output-port?)
+                           (local.get $write))
+                     (unreachable)))
+           (if (ref.eq (call $procedure? (local.get $close)) (global.get $false))
+               (then (call $raise-argument-error:procedure-expected (local.get $close))
+                     (unreachable)))
+
+           (local.set $bytes (ref.cast (ref $Bytes)    (global.get $bytes:empty)))
+           (local.set $loc   (ref.cast (ref $Location) (call $make-initial-location)))
+           (struct.new $CustomOutputPort
+                       (i32.const 0)                  ;; $hash
+                       (local.get $name)              ;; $name
+                       (i32.const 0)                  ;; $closed
+                       (local.get $bytes)             ;; $bytes placeholder
+                       (i32.const 0)                  ;; $len placeholder
+                       (i32.const 0)                  ;; $idx known byte position
+                       (local.get $loc)               ;; $loc
+                       (local.get $write)             ;; $write-proc
+                       (local.get $close)             ;; $close-proc
+                       (local.get $write-special)     ;; $write-special-proc
+                       (local.get $get-write-evt)     ;; $get-write-evt-proc
+                       (local.get $get-write-special) ;; $get-write-special-proc
+                       (local.get $get-location)      ;; $get-location-proc
+                       (local.get $count-lines!)      ;; $count-lines-proc
+                       (local.get $init-position)     ;; $init-position-arg
+                       (local.get $buffer-mode))))))  ;; $buffer-mode-arg
+
 ;; port-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate port helpers used by the monolithic runtime.
 (define port-runtime-only-helpers
@@ -813,4 +1022,5 @@
           port-state-runtime-only-helpers
           port-location-runtime-only-helpers
           port-byte-string-runtime-only-helpers
-          port-output-string-runtime-only-helpers))
+          port-output-string-runtime-only-helpers
+          port-custom-constructor-runtime-only-helpers))
