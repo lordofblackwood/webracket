@@ -1,9 +1,12 @@
 #lang racket
 
-(provide linklet-runtime-only-helper-names
+(provide linklet-bootstrap-runtime-only-helper-names
+         linklet-bootstrap-runtime-only-helpers
+         linklet-runtime-only-helper-names
          linklet-runtime-only-helper-forms)
 
-(require "../../private/wasm-utils.rkt")
+(require "../core-helper.rkt"
+         "../../private/wasm-utils.rkt")
 
 ;; make-predicate-body : symbol? -> (listof datum?)
 ;;   Generate a standard WebRacket predicate body for ref-type.
@@ -14,6 +17,242 @@
         (ref.test (ref ,ref-type) (local.get $v))
         (then (global.get $true))
         (else (global.get $false)))))
+
+;; linklet-bootstrap-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for source-linklet bootstrap helpers.
+(define linklet-bootstrap-runtime-only-helper-names
+  '($primitive->compiled-position
+    $compiled-position->primitive
+    $primitive-in-category?
+    $primitive-lookup
+    $compile-linklet/placeholder-result
+    $compile-linklet
+    $recompile-linklet
+    $eval-linklet
+    $linklet-add-target-machine-info
+    $linklet-summarize-target-machine-info
+    $linklet-virtual-machine-bytes
+    $linklet-cross-machine-type
+    $write-linklet-bundle-hash
+    $read-linklet-bundle-hash))
+
+;; linklet-bootstrap-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate source-linklet bootstrap and placeholder helpers.
+(define linklet-bootstrap-runtime-only-helpers
+  (function-forms->runtime-helpers
+   'linklet-bootstrap-runtime-only-helpers
+   '(
+         ;; primitive->compiled-position : any/c -> #f
+         ;;   WebRacket has no bytecode primitive-position table yet. This
+         ;;   matches the source-linklet bootstrap implementation in Racket's
+         ;;   expander, where machine-specific compiled positions are absent.
+         (func $primitive->compiled-position (type $Prim1)
+               (param $v (ref eq)) ;; primitive candidate
+               (result   (ref eq))
+               (global.get $false))
+
+         ;; compiled-position->primitive : any/c -> #f
+         ;;   Inverse of primitive->compiled-position; unsupported without
+         ;;   machine-specific bytecode metadata.
+         (func $compiled-position->primitive (type $Prim1)
+               (param $pos (ref eq)) ;; compiled primitive position
+               (result     (ref eq))
+               (global.get $false))
+
+         ;; primitive-in-category? : any/c any/c -> #f
+         ;;   Primitive categories are JIT/bytecode metadata, so the bootstrap
+         ;;   expander-compatible answer is always false for now.
+         (func $primitive-in-category? (type $Prim2)
+               (param $name     (ref eq)) ;; primitive name
+               (param $category (ref eq)) ;; category symbol
+               (result          (ref eq))
+               (global.get $false))
+
+         ;; primitive-lookup : symbol? -> #f
+         ;;   Bootstrap-compatible placeholder; primitive-table remains the
+         ;;   supported way to obtain primitive procedures.
+         (func $primitive-lookup (type $Prim1)
+               (param $sym (ref eq)) ;; primitive name
+               (result     (ref eq))
+               (global.get $false))
+
+         ;; compile-linklet/placeholder-result : any/c -> any/c
+         ;;   Build a metadata-only compiled linklet for linklet-shaped data.
+         (func $compile-linklet/placeholder-result
+               (param $c (ref eq)) ;; candidate linklet datum
+               (result   (ref eq))
+
+               (local $rest    (ref eq))
+               (local $imports (ref eq))
+               (local $exports (ref eq))
+               (local $proc    (ref $Closure))
+               (local $imports-node (ref eq))
+               (local $import-count i32)
+
+               (if (i32.eqz (ref.test (ref $Pair) (local.get $c)))
+                   (then (return (global.get $false))))
+               (if (i32.eqz
+                    (ref.eq (struct.get $Pair $a
+                                        (ref.cast (ref $Pair) (local.get $c)))
+                            (global.get $symbol:linklet)))
+                   (then (return (global.get $false))))
+
+               (local.set $rest (struct.get $Pair $d
+                                            (ref.cast (ref $Pair) (local.get $c))))
+               (if (i32.eqz (ref.test (ref $Pair) (local.get $rest)))
+                   (then (return (global.get $false))))
+               (local.set $imports
+                          (struct.get $Pair $a
+                                      (ref.cast (ref $Pair) (local.get $rest))))
+               (local.set $rest
+                          (struct.get $Pair $d
+                                      (ref.cast (ref $Pair) (local.get $rest))))
+               (if (i32.eqz (ref.test (ref $Pair) (local.get $rest)))
+                   (then (return (global.get $false))))
+               (local.set $exports
+                          (struct.get $Pair $a
+                                      (ref.cast (ref $Pair) (local.get $rest))))
+               ;; The linklet body procedure is called with the target instance
+               ;; followed by one instance for each import group.
+               (local.set $imports-node (local.get $imports))
+               (local.set $import-count (i32.const 0))
+               (block $imports-done
+                      (loop $imports-loop
+                            (br_if $imports-done
+                                   (ref.eq (local.get $imports-node)
+                                           (global.get $null)))
+                            (if (i32.eqz (ref.test (ref $Pair) (local.get $imports-node)))
+                                (then (return (global.get $false))))
+                            (local.set $import-count
+                                       (i32.add (local.get $import-count)
+                                                (i32.const 1)))
+                            (local.set $imports-node
+                                       (struct.get $Pair $d
+                                                   (ref.cast (ref $Pair)
+                                                             (local.get $imports-node))))
+                            (br $imports-loop)))
+               (local.set $proc
+                          (struct.new $Closure
+                                      (i32.const 0)
+                                      (global.get $false)
+                                      (ref.i31
+                                       (i32.shl
+                                        (i32.add (local.get $import-count)
+                                                 (i32.const 1))
+                                        (i32.const 1)))
+                                      (global.get $false)
+                                      (ref.func $invoke-closure)
+                                      (global.get $false)
+                                      (ref.func $interpreted-linklet-code)
+                                      (array.new_fixed $Free 2
+                                                       (local.get $c)
+                                                       (local.get $imports))))
+
+               (ref.cast (ref eq)
+                         (struct.new $CompiledLinklet
+                                     (i32.const 0)
+                                     (global.get $false)
+                                     (local.get $imports)
+                                     (local.get $exports)
+                                     (ref.cast (ref eq) (local.get $proc)))))
+
+         ;; compile-linklet : linklet-datum? [any/c any/c any/c any/c] -> any/c
+         ;;   Runtime machine-code compilation is unavailable in WebAssembly.
+         ;;   For linklet-shaped data, return a compiled-linklet record whose
+         ;;   closure interprets a small source-linklet subset. This is enough
+         ;;   for bootstrap module bodies while preserving metadata access.
+         ;;   When import-keys is supplied, preserve the expander protocol by
+         ;;   returning the unchanged import keys too.
+         (func $compile-linklet (type $Prim15)
+               (param $c           (ref eq)) ;; linklet datum
+               (param $info        (ref eq)) ;; optional info, default #f
+               (param $import-keys (ref eq)) ;; optional import keys, default #f
+               (param $get-import  (ref eq)) ;; optional getter, default #f
+               (param $options     (ref eq)) ;; optional options
+               (result             (ref eq))
+               (local $compiled (ref eq))
+
+               (local.set $compiled (call $compile-linklet/placeholder-result
+                                          (local.get $c)))
+               (if (result (ref eq))
+                   (i32.or
+                    (ref.eq (local.get $import-keys) (global.get $false))
+                    (ref.eq (local.get $import-keys) (global.get $missing)))
+                   (then (local.get $compiled))
+                   (else (array.new_fixed $Values 2
+                                          (local.get $compiled)
+                                          (local.get $import-keys)))))
+
+         ;; recompile-linklet : any/c any/c [any/c any/c any/c] -> any/c
+         ;;   Re-optimization is unavailable, so return the original linklet.
+         ;;   When import-keys is supplied, return it as a second value as in
+         ;;   the Racket expander's boot linklet implementation.
+         (func $recompile-linklet (type $Prim25)
+               (param $linklet     (ref eq)) ;; existing linklet
+               (param $info        (ref eq)) ;; optimization info
+               (param $import-keys (ref eq)) ;; optional import keys
+               (param $get-import  (ref eq)) ;; optional getter
+               (param $options     (ref eq)) ;; optional options
+               (result             (ref eq))
+               (if (result (ref eq))
+                   (i32.or
+                    (ref.eq (local.get $import-keys) (global.get $false))
+                    (ref.eq (local.get $import-keys) (global.get $missing)))
+                   (then (local.get $linklet))
+                   (else (array.new_fixed $Values 2
+                                          (local.get $linklet)
+                                          (local.get $import-keys)))))
+
+         ;; eval-linklet : any/c -> any/c
+         ;;   Source-linklet bootstrap placeholder: evaluation is identity.
+         (func $eval-linklet (type $Prim1)
+               (param $c (ref eq)) ;; linklet datum
+               (result   (ref eq))
+               (local.get $c))
+
+         ;; linklet-add-target-machine-info : any/c any/c -> any/c
+         ;;   Cross-machine optimization metadata is not represented.
+         (func $linklet-add-target-machine-info (type $Prim2)
+               (param $linklet       (ref eq)) ;; linklet
+               (param $other-linklet (ref eq)) ;; other target linklet
+               (result               (ref eq))
+               (local.get $linklet))
+
+         ;; linklet-summarize-target-machine-info : any/c -> immutable hash?
+         ;;   Return an empty table, matching the source-linklet bootstrap.
+         (func $linklet-summarize-target-machine-info (type $Prim1)
+               (param $linklet (ref eq)) ;; linklet
+               (result         (ref eq))
+               (call $make-empty-hash))
+
+         ;; linklet-virtual-machine-bytes : -> bytes?
+         ;;   Bootstrap VM tag used by the expander's linklet layer.
+         (func $linklet-virtual-machine-bytes (type $Prim0)
+               (result (ref eq))
+               (global.get $bytes:exp))
+
+         ;; linklet-cross-machine-type : any/c -> #f
+         ;;   WebRacket currently has one target machine.
+         (func $linklet-cross-machine-type (type $Prim1)
+               (param $ht (ref eq)) ;; target-machine info table
+               (result    (ref eq))
+               (global.get $false))
+
+         ;; write-linklet-bundle-hash : any/c output-port? -> void?
+         ;;   Serialization of runtime linklet bundles is not implemented.
+         (func $write-linklet-bundle-hash (type $Prim2)
+               (param $bundle (ref eq)) ;; linklet bundle/hash
+               (param $out    (ref eq)) ;; output port
+               (result        (ref eq))
+               (global.get $void))
+
+         ;; read-linklet-bundle-hash : input-port? any/c -> #f
+         ;;   Deserialization of runtime linklet bundles is not implemented.
+         (func $read-linklet-bundle-hash (type $Prim2)
+               (param $in            (ref eq)) ;; input port
+               (param $cross-machine (ref eq)) ;; cross-machine type
+               (result               (ref eq))
+               (global.get $false)))))
 
 ;; linklet-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for linklet helpers.
