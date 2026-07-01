@@ -1345,6 +1345,126 @@
 
            (call $read-char (local.get $in))))))
 
+;; port-read-bytes-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate byte-vector input helpers.
+(define port-read-bytes-runtime-only-helpers
+  (function-forms->runtime-helpers
+   'port-read-bytes-runtime-only-helpers
+   '(
+     (func $read-bytes! (type $Prim14)
+           (param $bstr  (ref eq)) ;; bytes?
+           (param $in    (ref eq)) ;; input-port?               (optional, default = (current-input-port))
+           (param $start (ref eq)) ;; exact-nonnegative-integer? (optional, default = 0)
+           (param $end   (ref eq)) ;; exact-nonnegative-integer? (optional, default = (bytes-length bstr))
+           (result       (ref eq))
+
+           (local $bs        (ref $Bytes))
+           (local $arr       (ref $I8Array))
+           (local $len       i32)
+           (local $from      i32)
+           (local $to        i32)
+           (local $count     i32)
+           (local $i         i32)
+           (local $res       (ref eq))
+           (local $byte      i32)
+           (local $dest-idx  i32)
+
+           ;; --- Validate byte string argument ---
+           (if (i32.eqz (ref.test (ref $Bytes) (local.get $bstr)))
+               (then (call $raise-check-bytes (local.get $bstr)) (unreachable)))
+           (local.set $bs (ref.cast (ref $Bytes) (local.get $bstr)))
+           ;; Reject immutable byte strings
+           (if (i32.eq (struct.get $Bytes $immutable (local.get $bs)) (i32.const 1))
+               (then (call $raise-expected-mutable-bytes (local.get $bstr)) (unreachable)))
+           (local.set $arr (struct.get $Bytes $bs (local.get $bs)))
+           (local.set $len (call $i8array-length (local.get $arr)))
+           ;; --- Determine input port ---
+           (if (ref.eq (local.get $in) (global.get $missing))
+               (then (local.set $in (call $current-input-port
+                                          (global.get $missing)))))
+           (if (i32.eqz (ref.test (ref $InputPort) (local.get $in)))
+               (then (call $raise-check-string-port (local.get $in)) (unreachable)))
+           ;; --- Decode optional start index ---
+           (if (ref.eq (local.get $start) (global.get $missing))
+               (then (local.set $from (i32.const 0)))
+               (else (if (ref.test (ref i31) (local.get $start))
+                         (then (local.set $from (i31.get_u (ref.cast (ref i31) (local.get $start))))
+                               (if (i32.eqz (i32.and (local.get $from) (i32.const 1)))
+                                   (then (local.set $from (i32.shr_u (local.get $from) (i32.const 1))))
+                                   (else (call $raise-check-fixnum (local.get $start)) (unreachable))))
+                         (else (call $raise-check-fixnum (local.get $start)) (unreachable)))))
+           ;; --- Decode optional end index ---
+           (if (ref.eq (local.get $end) (global.get $missing))
+               (then (local.set $to (local.get $len)))
+               (else (if (ref.test (ref i31) (local.get $end))
+                         (then (local.set $to (i31.get_u (ref.cast (ref i31) (local.get $end))))
+                               (if (i32.eqz (i32.and (local.get $to) (i32.const 1)))
+                                   (then (local.set $to (i32.shr_u (local.get $to) (i32.const 1))))
+                                   (else (call $raise-check-fixnum (local.get $end)) (unreachable))))
+                         (else (call $raise-check-fixnum (local.get $end)) (unreachable)))))
+           ;; --- Bounds checks ---
+           (if (i32.gt_u (local.get $from) (local.get $to))
+               (then (call $raise-bad-bytes-range (local.get $bstr) (local.get $from) (local.get $to))
+                     (unreachable)))
+           (if (i32.gt_u (local.get $to) (local.get $len))
+               (then (call $raise-bad-bytes-range (local.get $bstr) (local.get $from) (local.get $to))
+                     (unreachable)))
+
+           (local.set $count (i32.sub (local.get $to) (local.get $from)))
+           (local.set $i (i32.const 0))
+           ;; --- Read bytes into destination ---
+           (block $done
+                  (loop $loop
+                        (br_if $done (i32.ge_u (local.get $i) (local.get $count)))
+                        (local.set $res (call $read-byte (local.get $in)))
+                        (if (ref.eq (local.get $res) (global.get $false))
+                            (then (return (global.get $false))))
+                        (if (ref.eq (local.get $res) (global.get $eof))
+                            (then (if (i32.eqz (local.get $i))
+                                      (then (return (global.get $eof))))
+                                  (br $done)))
+                        (if (i32.eqz (ref.test (ref i31) (local.get $res)))
+                            (then (return (global.get $false))))
+                        (local.set $byte (i32.shr_u (i31.get_u (ref.cast (ref i31) (local.get $res)))
+                                                    (i32.const 1)))
+                        (local.set $dest-idx (i32.add (local.get $from) (local.get $i)))
+                        (call $i8array-set! (local.get $arr) (local.get $dest-idx) (local.get $byte))
+                        (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                        (br $loop)))
+           ;; --- Report number of bytes read ---
+           (ref.i31 (i32.shl (local.get $i) (i32.const 1))))
+
+     ;; NOTE: Like Racket's read-bytes-avail!, but currently only string ports are supported
+     ;;       and the runtime does not yet produce special results.
+     (func $read-bytes-avail! (type $Prim14)
+           (param $bstr  (ref eq)) ;; bytes?
+           (param $in    (ref eq)) ;; input-port?                (optional, default = (current-input-port))
+           (param $start (ref eq)) ;; exact-nonnegative-integer? (optional, default = 0)
+           (param $end   (ref eq)) ;; exact-nonnegative-integer? (optional, default = (bytes-length bstr))
+           (result       (ref eq))
+
+           (call $read-bytes!
+                 (local.get $bstr)
+                 (local.get $in)
+                 (local.get $start)
+                 (local.get $end)))
+
+
+     ;; NOTE: Like Racket's read-bytes-avail!*, but currently only string ports are supported
+     ;;       and the runtime does not yet produce special results.
+     (func $read-bytes-avail!* (type $Prim14)
+           (param $bstr  (ref eq)) ;; bytes?
+           (param $in    (ref eq)) ;; input-port?                (optional, default = (current-input-port))
+           (param $start (ref eq)) ;; exact-nonnegative-integer? (optional, default = 0)
+           (param $end   (ref eq)) ;; exact-nonnegative-integer? (optional, default = (bytes-length bstr))
+           (result       (ref eq))
+
+           (call $read-bytes-avail!
+                 (local.get $bstr)
+                 (local.get $in)
+                 (local.get $start)
+                 (local.get $end))))))
+
 ;; port-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate port helpers used by the monolithic runtime.
 (define port-runtime-only-helpers
@@ -1356,4 +1476,5 @@
           port-custom-constructor-runtime-only-helpers
           port-capability-runtime-only-helpers
           port-custom-input-byte-runtime-only-helpers
-          port-read-special-wrapper-runtime-only-helpers))
+          port-read-special-wrapper-runtime-only-helpers
+          port-read-bytes-runtime-only-helpers))
