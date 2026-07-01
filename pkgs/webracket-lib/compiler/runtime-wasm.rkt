@@ -27437,256 +27437,37 @@
 
          ,(core-runtime-helper-form runtime-helper-index '$mutable-hash-iterate-key+value)
 
-        ,@(append*
-           (for/list ([iter-key         '($hasheq-iterate-key
-                                          $hasheqv-iterate-key
-                                          $hashequal-iterate-key
-                                          $hashalw-iterate-key)]
-                      [iter-value       '($hasheq-iterate-value
-                                          $hasheqv-iterate-value
-                                          $hashequal-iterate-value
-                                          $hashalw-iterate-value)]
-                      [iter-pair        '($hasheq-iterate-pair
-                                          $hasheqv-iterate-pair
-                                          $hashequal-iterate-pair
-                                          $hashalw-iterate-pair)]
-                      [iter-key+value   '($hasheq-iterate-key+value
-                                          $hasheqv-iterate-key+value
-                                          $hashequal-iterate-key+value
-                                          $hashalw-iterate-key+value)]
-                      [type             '($HashEqMutable
-                                          $HashEqvMutable
-                                          $HashEqualMutable
-                                          $HashEqualAlwaysMutable)]
-                      [raise-expected   '($raise-argument-error:mutable-hasheq-expected
-                                          $raise-argument-error:mutable-hasheqv-expected
-                                          $raise-argument-error:mutable-hash-expected
-                                          $raise-argument-error:mutable-hashalw-expected)])
-             `((func ,iter-key
-                     (type $Prim13)
-                     (param $ht        (ref eq))  ;; mutable hash table
-                     (param $pos       (ref eq))  ;; iteration position
-                     (param $bad-index (ref eq))  ;; optional bad-index value, default = raise
-                     (result (ref eq))
+         ,(core-runtime-helper-form runtime-helper-index '$hasheq-iterate-key)
 
-                     (local $table   (ref ,type))
-                     (local $entries (ref $Array))
-                     (local $capacity i32)
-                     (local $index    i32)
-                     (local $key      (ref eq))
+         ,(core-runtime-helper-form runtime-helper-index '$hasheqv-iterate-key)
 
-                     (block $bad-index
-                            ;; Check that ht is expected table type
-                            (if (i32.eqz (ref.test (ref ,type) (local.get $ht)))
-                                (then (call ,raise-expected (local.get $ht))
-                                      (unreachable)))
+         ,(core-runtime-helper-form runtime-helper-index '$hashequal-iterate-key)
 
-                            ;; Decode and validate position
-                            (if (i32.eqz (ref.test (ref i31) (local.get $pos)))
-                                (then (call $raise-check-fixnum (local.get $pos))
-                                      (unreachable)))
-                            (local.set $index (i31.get_u (ref.cast (ref i31) (local.get $pos))))
-                            (if (i32.and (local.get $index) (i32.const 1))
-                                (then (call $raise-check-fixnum (local.get $pos))
-                                      (unreachable)))
-                            (local.set $index (i32.shr_u (local.get $index) (i32.const 1)))
+         ,(core-runtime-helper-form runtime-helper-index '$hashalw-iterate-key)
 
-                            (local.set $table   (ref.cast (ref ,type) (local.get $ht)))
-                            (local.set $entries (struct.get ,type $entries (local.get $table)))
-                            (local.set $capacity (i32.div_u (array.len (local.get $entries)) (i32.const 2)))
+         ,(core-runtime-helper-form runtime-helper-index '$hasheq-iterate-value)
 
-                            (if (i32.ge_u (local.get $index) (local.get $capacity))
-                                (then (br $bad-index)))
+         ,(core-runtime-helper-form runtime-helper-index '$hasheqv-iterate-value)
 
-                            (local.set $key
-                                       (array.get $Array
-                                                  (local.get $entries)
-                                                  (i32.shl (local.get $index) (i32.const 1))))
-                            (if (ref.eq (local.get $key) (global.get $missing))
-                                (then (br $bad-index)))
-                            (if (ref.eq (local.get $key) (global.get $tombstone))
-                                (then (br $bad-index)))
+         ,(core-runtime-helper-form runtime-helper-index '$hashequal-iterate-value)
 
-                            (return (local.get $key)))
+         ,(core-runtime-helper-form runtime-helper-index '$hashalw-iterate-value)
 
-                     (if (ref.eq (local.get $bad-index) (global.get $missing))
-                         (then (call $raise-mutable-hash-iterate-bad-index (local.get $pos))
-                               (unreachable)))
-                     (return (local.get $bad-index)))
+         ,(core-runtime-helper-form runtime-helper-index '$hasheq-iterate-pair)
 
-               (func ,iter-value
-                     (type $Prim13)
-                     (param $ht        (ref eq))  ;; mutable hash table
-                     (param $pos       (ref eq))  ;; iteration position
-                     (param $bad-index (ref eq))  ;; optional bad-index value, default = raise
-                     (result (ref eq))
+         ,(core-runtime-helper-form runtime-helper-index '$hasheqv-iterate-pair)
 
-                     (local $table   (ref ,type))
-                     (local $entries (ref $Array))
-                     (local $capacity i32)
-                     (local $index    i32)
-                     (local $key      (ref eq))
+         ,(core-runtime-helper-form runtime-helper-index '$hashequal-iterate-pair)
 
-                     (block $bad-index
-                            ;; Check that ht is expected table type
-                            (if (i32.eqz (ref.test (ref ,type) (local.get $ht)))
-                                (then (call ,raise-expected (local.get $ht))
-                                      (unreachable)))
+         ,(core-runtime-helper-form runtime-helper-index '$hashalw-iterate-pair)
 
-                            ;; Decode and validate position
-                            (if (i32.eqz (ref.test (ref i31) (local.get $pos)))
-                                (then (call $raise-check-fixnum (local.get $pos))
-                                      (unreachable)))
-                            (local.set $index (i31.get_u (ref.cast (ref i31) (local.get $pos))))
-                            (if (i32.and (local.get $index) (i32.const 1))
-                                (then (call $raise-check-fixnum (local.get $pos))
-                                      (unreachable)))
-                            (local.set $index (i32.shr_u (local.get $index) (i32.const 1)))
+         ,(core-runtime-helper-form runtime-helper-index '$hasheq-iterate-key+value)
 
-                            (local.set $table   (ref.cast (ref ,type) (local.get $ht)))
-                            (local.set $entries (struct.get ,type $entries (local.get $table)))
-                            (local.set $capacity (i32.div_u (array.len (local.get $entries)) (i32.const 2)))
+         ,(core-runtime-helper-form runtime-helper-index '$hasheqv-iterate-key+value)
 
-                            (if (i32.ge_u (local.get $index) (local.get $capacity))
-                                (then (br $bad-index)))
+         ,(core-runtime-helper-form runtime-helper-index '$hashequal-iterate-key+value)
 
-                            (local.set $key
-                                       (array.get $Array
-                                                  (local.get $entries)
-                                                  (i32.shl (local.get $index) (i32.const 1))))
-                            (if (ref.eq (local.get $key) (global.get $missing))
-                                (then (br $bad-index)))
-                            (if (ref.eq (local.get $key) (global.get $tombstone))
-                                (then (br $bad-index)))
-
-                            (return (array.get $Array
-                                               (local.get $entries)
-                                               (i32.add (i32.shl (local.get $index) (i32.const 1))
-                                                        (i32.const 1)))))
-
-                     (if (ref.eq (local.get $bad-index) (global.get $missing))
-                         (then (call $raise-mutable-hash-iterate-bad-index (local.get $pos))
-                               (unreachable)))
-                     (return (local.get $bad-index)))
-
-               (func ,iter-pair
-                     (type $Prim13)
-                     (param $ht        (ref eq))  ;; mutable hash table
-                     (param $pos       (ref eq))  ;; iteration position
-                     (param $bad-index (ref eq))  ;; optional bad-index value, default = raise
-                     (result (ref eq))
-
-                     (local $table   (ref ,type))
-                     (local $entries (ref $Array))
-                     (local $capacity i32)
-                     (local $index    i32)
-                     (local $key      (ref eq))
-                     (local $val      (ref eq))
-
-                     (block $bad-index
-                            ;; Check that ht is expected table type
-                            (if (i32.eqz (ref.test (ref ,type) (local.get $ht)))
-                                (then (call ,raise-expected (local.get $ht))
-                                      (unreachable)))
-
-                            ;; Decode and validate position
-                            (if (i32.eqz (ref.test (ref i31) (local.get $pos)))
-                                (then (call $raise-check-fixnum (local.get $pos))
-                                      (unreachable)))
-                            (local.set $index (i31.get_u (ref.cast (ref i31) (local.get $pos))))
-                            (if (i32.and (local.get $index) (i32.const 1))
-                                (then (call $raise-check-fixnum (local.get $pos))
-                                      (unreachable)))
-
-                            (local.set $index (i32.shr_u (local.get $index) (i32.const 1)))
-
-                            (local.set $table   (ref.cast (ref ,type) (local.get $ht)))
-                            (local.set $entries (struct.get ,type $entries (local.get $table)))
-                            (local.set $capacity (i32.div_u (array.len (local.get $entries)) (i32.const 2)))
-
-                            (if (i32.ge_u (local.get $index) (local.get $capacity))
-                                (then (br $bad-index)))
-
-                            (local.set $key
-                                       (array.get $Array
-                                                  (local.get $entries)
-                                                  (i32.shl (local.get $index) (i32.const 1))))
-                            (if (ref.eq (local.get $key) (global.get $missing))
-                                (then (br $bad-index)))
-                            (if (ref.eq (local.get $key) (global.get $tombstone))
-                                (then (br $bad-index)))
-
-                            (local.set $val
-                                       (array.get $Array
-                                                  (local.get $entries)
-                                                  (i32.add (i32.shl (local.get $index) (i32.const 1))
-                                                           (i32.const 1))))
-                            (return (call $cons (local.get $key) (local.get $val))))
-
-                     (if (ref.eq (local.get $bad-index) (global.get $missing))
-                         (then (call $raise-mutable-hash-iterate-bad-index (local.get $pos))
-                               (unreachable)))
-                     (return (call $cons (local.get $bad-index) (local.get $bad-index))))
-
-               (func ,iter-key+value
-                     (type $Prim13)
-                     (param $ht        (ref eq))  ;; mutable hash table
-                     (param $pos       (ref eq))  ;; iteration position
-                     (param $bad-index (ref eq))  ;; optional bad-index value, default = raise
-                     (result (ref eq))            ;; returns two values encoded in $Values
-
-                     (local $table   (ref ,type))
-                     (local $entries (ref $Array))
-                     (local $capacity i32)
-                     (local $index    i32)
-                     (local $key      (ref eq))
-                     (local $val      (ref eq))
-
-                     (block $bad-index
-                            ;; Check that ht is expected table type
-                            (if (i32.eqz (ref.test (ref ,type) (local.get $ht)))
-                                (then (call ,raise-expected (local.get $ht))
-                                      (unreachable)))
-
-                            ;; Decode and validate position
-                            (if (i32.eqz (ref.test (ref i31) (local.get $pos)))
-                                (then (call $raise-check-fixnum (local.get $pos))
-                                      (unreachable)))
-                            (local.set $index (i31.get_u (ref.cast (ref i31) (local.get $pos))))
-                            (if (i32.and (local.get $index) (i32.const 1))
-                                (then (call $raise-check-fixnum (local.get $pos))
-                                      (unreachable)))
-                            (local.set $index (i32.shr_u (local.get $index) (i32.const 1)))
-
-                            (local.set $table   (ref.cast (ref ,type) (local.get $ht)))
-                            (local.set $entries (struct.get ,type $entries (local.get $table)))
-                            (local.set $capacity (i32.div_u (array.len (local.get $entries)) (i32.const 2)))
-
-                            (if (i32.ge_u (local.get $index) (local.get $capacity))
-                                (then (br $bad-index)))
-
-                            (local.set $key
-                                       (array.get $Array
-                                                  (local.get $entries)
-                                                  (i32.shl (local.get $index) (i32.const 1))))
-                            (if (ref.eq (local.get $key) (global.get $missing))
-                                (then (br $bad-index)))
-                            (if (ref.eq (local.get $key) (global.get $tombstone))
-                                (then (br $bad-index)))
-
-                            (local.set $val
-                                       (array.get $Array
-                                                  (local.get $entries)
-                                                  (i32.add (i32.shl (local.get $index) (i32.const 1))
-                                                           (i32.const 1))))
-                            (return (array.new_fixed $Values 2 (local.get $key) (local.get $val))))
-
-                     (if (ref.eq (local.get $bad-index) (global.get $missing))
-                         (then (call $raise-mutable-hash-iterate-bad-index (local.get $pos))
-                               (unreachable)))
-                     (return (array.new_fixed $Values 2
-                                              (local.get $bad-index)
-                                              (local.get $bad-index)))))))
+         ,(core-runtime-helper-form runtime-helper-index '$hashalw-iterate-key+value)
 
         ;; unsafe-immutable-hash-iterate-* : immutable hash iteration
         ;;   Racket CS exposes these as unsafe primitives for iterating
