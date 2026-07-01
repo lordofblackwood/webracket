@@ -8,6 +8,7 @@
          vector-core-runtime-helpers
          vector-error-runtime-only-helper-names
          vector-extend-runtime-only-helper-names
+         vector-filter-search-runtime-only-helper-names
          vector-list-conversion-runtime-only-helper-names
          vector-map-count-runtime-only-helper-names
          vector-make-runtime-only-helper-names
@@ -1975,6 +1976,216 @@
 (define vector-argminmax-runtime-only-helper-names
   (map core-runtime-helper-name vector-argminmax-runtime-only-helpers))
 
+
+;; vector-filter-search-runtime-only-forms : (listof datum?)
+;;   Enumerate vector filter and search helpers used by the monolithic runtime.
+(define vector-filter-search-runtime-only-forms
+  `(
+        (func $vector-filter/template
+              (param $proc (ref eq))  ;; predicate, must accept one argument
+              (param $vec  (ref eq))  ;; vector
+              (param $not? i32)       ;; 1 => keep elements where predicate returns #f
+              (result      (ref eq))
+
+              (local $f     (ref $Procedure))
+              (local $finv  (ref $ProcedureInvoker))
+              (local $v     (ref $Vector))
+              (local $len   i32)
+              (local $call  (ref $Args))
+              (local $i     i32)
+              (local $elem  (ref eq))
+              (local $r     (ref eq))
+              (local $ga    (ref $GrowableArray))
+              (local $arr   (ref $Array))
+
+              ;; 1) Validate procedure
+              (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
+                  (then (call $raise-argument-error:procedure-expected (local.get $proc))
+                        (unreachable)))
+              (local.set $f    (ref.cast (ref $Procedure) (local.get $proc)))
+              (local.set $finv (struct.get $Procedure $invoke (local.get $f)))
+              ;; 2) Validate vector
+              (local.set $v (global.get $dummy-vector))
+              (if (ref.test (ref $Vector) (local.get $vec))
+                  (then (local.set $v (ref.cast (ref $Vector) (local.get $vec))))
+                  (else (call $raise-check-vector (local.get $vec))
+                        (unreachable)))
+              (local.set $len (array.len (struct.get $Vector $arr (local.get $v))))
+              ;; 3) Prepare argument array and growable result array
+              (local.set $call (array.new $Args (global.get $null) (i32.const 1)))
+              (local.set $ga   (call $make-growable-array (local.get $len)))
+              ;; 4) Single pass over elements
+              (local.set $i (i32.const 0))
+              (block $loop-done
+                     (loop $loop
+                           (br_if $loop-done (i32.ge_u (local.get $i) (local.get $len)))
+                           (local.set $elem
+                                      (array.get $Array
+                                                 (struct.get $Vector $arr (local.get $v))
+                                                 (local.get $i)))
+                           (array.set $Args (local.get $call) (i32.const 0) (local.get $elem))
+                           (local.set $r
+                                      (call_ref $ProcedureInvoker
+                                                (local.get $f)
+                                                (local.get $call)
+                                                (local.get $finv)))
+                           (if (i32.eqz (local.get $not?))
+                               (then (if (ref.eq (local.get $r) (global.get $false))
+                                         (then (nop))
+                                         (else (call $growable-array-add! (local.get $ga) (local.get $elem)))))
+                               (else (if (ref.eq (local.get $r) (global.get $false))
+                                         (then (call $growable-array-add! (local.get $ga) (local.get $elem))))))
+                           (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                           (br $loop)))
+              ;; 5) Turn growable array into vector
+              (local.set $arr (call $growable-array->array (local.get $ga)))
+              (struct.new $Vector (i32.const 0) (i32.const 0) (local.get $arr)))
+
+
+
+            (func $vector-filter (type $Prim2)
+                  (param $proc (ref eq))  ;; predicate
+                  (param $vec  (ref eq))  ;; vector
+                  (result (ref eq))
+                  (call $vector-filter/template (local.get $proc) (local.get $vec) (i32.const 0)))
+
+            (func $vector-filter-not (type $Prim2)
+                  (param $proc (ref eq))  ;; predicate
+                  (param $vec  (ref eq))  ;; vector
+                  (result (ref eq))
+                  (call $vector-filter/template (local.get $proc) (local.get $vec) (i32.const 1)))
+
+            ,@(for/list ([name '($vector-memq $vector-memv)]
+                         [cmp  '((ref.eq (local.get $needle)             (local.get $elem))
+                                 (ref.eq (call $eqv? (local.get $needle) (local.get $elem))
+                                         (global.get $true)))])
+                `(func ,name (type $Prim2)
+                       (param $needle (ref eq)) ;; value to find
+                       (param $v      (ref eq)) ;; vector to search
+                       (result (ref eq))        ;; fixnum index or #f
+
+                       (local $vec  (ref $Vector))
+                       (local $arr  (ref $Array))
+                       (local $len  i32)
+                       (local $i    i32)
+                       (local $elem (ref eq))
+
+                       ;; Ensure $v is a vector
+                       (local.set $vec (global.get $dummy-vector))
+                       (if (ref.test (ref $Vector) (local.get $v))
+                           (then (local.set $vec (ref.cast (ref $Vector) (local.get $v))))
+                           (else (call $raise-check-vector (local.get $v))
+                                 (unreachable)))
+
+                       (local.set $arr (struct.get $Vector $arr (local.get $vec)))
+                       (local.set $len (array.len (local.get $arr)))
+                       (local.set $i   (i32.const 0))
+                       (loop $loop
+                             (if (i32.ge_u (local.get $i) (local.get $len))
+                                 (then (return (global.get $false))))
+                             (local.set $elem (array.get $Array (local.get $arr) (local.get $i)))
+                             (if ,cmp
+                                 (then (return (ref.i31 (i32.shl (local.get $i)
+                                                                 (i32.const 1))))))
+                             (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                             (br $loop))
+                       (unreachable)))
+
+            (func $vector-member/2
+                  (param $v   (ref eq))  ;; value to find
+                  (param $vec (ref eq))  ;; vector to search
+                  (result     (ref eq))
+
+                  (local $vecv (ref $Vector))
+                  (local $len  i32)
+                  (local $i    i32)
+                  (local $elem (ref eq))
+
+                  (local.set $vecv (global.get $dummy-vector))
+                  (if (ref.test (ref $Vector) (local.get $vec))
+                      (then (local.set $vecv (ref.cast (ref $Vector) (local.get $vec))))
+                      (else (call $raise-check-vector (local.get $vec))))
+                  (local.set $len (array.len (struct.get $Vector $arr (local.get $vecv))))
+                  (local.set $i   (i32.const 0))
+                  (loop $loop
+                        (if (i32.ge_u (local.get $i) (local.get $len))
+                            (then (return (global.get $false))))
+                        (local.set $elem
+                                   (array.get $Array
+                                              (struct.get $Vector $arr (local.get $vecv))
+                                              (local.get $i)))
+                        (if (ref.eq (call $equal? (local.get $v) (local.get $elem))
+                                    (global.get $true))
+                            (then (return (ref.i31 (i32.shl (local.get $i) (i32.const 1))))))
+                        (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                        (br $loop))
+                  (unreachable))
+
+            (func $vector-member (type $Prim23)
+                  (param $v     (ref eq)) ;; value to find
+                  (param $vec   (ref eq)) ;; vector to search
+                  (param $same? (ref eq)) ;; optional comparator, default equal?
+                  (result       (ref eq))
+
+                  (local $vecv (ref $Vector))
+                  (local $len  i32)
+                  (local $i    i32)
+                  (local $elem (ref eq))
+                  (local $args (ref $Args))
+                  (local $res  (ref eq))
+
+                  (if (ref.eq (local.get $same?) (global.get $missing))
+                      (then (return (call $vector-member/2 (local.get $v) (local.get $vec)))))
+
+                  (local.set $vecv (global.get $dummy-vector))
+                  (if (ref.test (ref $Vector) (local.get $vec))
+                      (then (local.set $vecv (ref.cast (ref $Vector) (local.get $vec))))
+                      (else (call $raise-check-vector (local.get $vec))))
+
+                  (if (i32.eqz (ref.test (ref $Procedure) (local.get $same?)))
+                      (then (call $raise-argument-error:procedure-expected (local.get $same?))
+                            (unreachable)))
+
+                  (local.set $args (array.new $Args (global.get $null) (i32.const 2)))
+                  (local.set $len  (array.len (struct.get $Vector $arr (local.get $vecv))))
+                  (local.set $i    (i32.const 0))
+
+                  (loop $loop
+                        (if (i32.ge_u (local.get $i) (local.get $len))
+                            (then (return (global.get $false))))
+                        (local.set $elem (array.get $Array
+                                                    (struct.get $Vector $arr (local.get $vecv))
+                                                    (local.get $i)))
+                        (array.set $Args (local.get $args) (i32.const 0) (local.get $v))
+                        (array.set $Args (local.get $args) (i32.const 1) (local.get $elem))
+                        (local.set $res
+                                   (call_ref $ProcedureInvoker
+                                             (ref.cast (ref $Procedure) (local.get $same?))
+                                             (local.get $args)
+                                             (struct.get $Procedure $invoke
+                                                         (ref.cast (ref $Procedure) (local.get $same?)))))
+                        (if (ref.eq (local.get $res) (global.get $true))
+                            (then (return (ref.i31 (i32.shl (local.get $i) (i32.const 1))))))
+                        (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                        (br $loop))
+                  (unreachable))
+
+
+
+     ))
+
+;; vector-filter-search-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate vector filter and search helpers used by the monolithic runtime.
+(define vector-filter-search-runtime-only-helpers
+  (function-forms->runtime-helpers
+   'vector-filter-search-runtime-only-helpers
+   vector-filter-search-runtime-only-forms))
+
+;; vector-filter-search-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for vector filter and search helpers.
+(define vector-filter-search-runtime-only-helper-names
+  (map core-runtime-helper-name vector-filter-search-runtime-only-helpers))
+
 ;; vector-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate vector helpers that still depend on monolithic runtime globals.
 (define vector-runtime-only-helpers
@@ -1991,6 +2202,7 @@
    vector-list-conversion-runtime-only-helpers
    vector-map-count-runtime-only-helpers
    vector-argminmax-runtime-only-helpers
+   vector-filter-search-runtime-only-helpers
    (function-forms->runtime-helpers
     'vector-runtime-only-helpers
     '(
