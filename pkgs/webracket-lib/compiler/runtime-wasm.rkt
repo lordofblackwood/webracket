@@ -66,6 +66,7 @@
                   keyword-runtime-only-helper-names
                   keyword-runtime-only-helpers)
          (only-in "runtime-wasm/core/lists.rkt"
+                  list-error-runtime-only-helper-names
                   list-runtime-only-helpers)
          (only-in "runtime-wasm/core/linklet-instances.rkt"
                   linklet-instance-runtime-only-helper-names
@@ -13425,65 +13426,10 @@
                              (global.get $false)      ;; a = null
                              (global.get $false)))    ;; d = null
 
-        ;; Pair/list related exceptions
-         (func $raise-pair-expected/who
-               (param $who (ref eq))
-               (param $x   (ref eq))
-               (call $raise-argument-error1
-                     (local.get $who)
-                     (global.get $string:pair?)
-                     (local.get $x)))
-         (func $raise-pair-expected
-               (param $x (ref eq))
-               (call $raise-pair-expected/who
-                     (global.get $symbol:pair?)
-                     (local.get $x)))
-         (func $raise-list-expected/who
-               (param $who (ref eq))
-               (param $x   (ref eq))
-               (call $raise-argument-error1
-                     (local.get $who)
-                     (global.get $string:list?)
-                     (local.get $x)))
-         (func $raise-exact-nonnegative-integer-expected/who
-               (param $who (ref eq))
-               (param $x   (ref eq))
-               (call $raise-argument-error1
-                     (local.get $who)
-                     (global.get $string:exact-nonnegative-integer?)
-                     (local.get $x)))
-         (func $raise-bad-list-ref-index/who
-               (param $who (ref eq))
-               (param $xs  (ref eq))
-               (param $i   i32)
-               (param $len i32)
-               (call $raise-argument-error1
-                     (local.get $who)
-                     (global.get $string:exact-nonnegative-integer?)
-                     (ref.i31 (i32.shl (local.get $i) (i32.const 1)))))
-         (func $raise-bad-list-ref-index
-               (param $xs (ref eq)) (param $i i32) (param $len i32)
-               (call $raise-bad-list-ref-index/who
-                     (global.get $symbol:list-ref)
-                     (local.get $xs)
-                     (local.get $i)
-                     (local.get $len)))
-         (func $raise-bad-list-set-index/who
-               (param $who (ref eq))
-               (param $xs  (ref eq))
-               (param $i   i32)
-               (param $len i32)
-               (call $raise-argument-error1
-                     (local.get $who)
-                     (global.get $string:exact-nonnegative-integer?)
-                     (ref.i31 (i32.shl (local.get $i) (i32.const 1)))))
-         (func $raise-bad-list-set-index
-               (param $xs (ref eq)) (param $i i32) (param $len i32)
-               (call $raise-bad-list-set-index/who
-                     (global.get $symbol:list-set)
-                     (local.get $xs)
-                     (local.get $i)
-                     (local.get $len)))
+         ;; Pair/list related exceptions
+         ;;   Implemented in runtime-wasm/core/lists.rkt.
+         ,@(for/list ([name (in-list list-error-runtime-only-helper-names)])
+             (core-runtime-helper-form runtime-helper-index name))
 
          ,(core-runtime-helper-form core-runtime-helper-index '$pair?)
 
