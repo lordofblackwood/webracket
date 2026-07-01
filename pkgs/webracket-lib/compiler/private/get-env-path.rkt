@@ -78,8 +78,19 @@
 
 (define exec-path-from-shell-warn-ms 500)
 
+(define exec-path-from-shell-quiet-env-var
+  "WEBRACKET_EXEC_PATH_FROM_SHELL_QUIET")
+
 (define exec-path-from-shell-shell-name
   #f) ; if #f, use (getenv "SHELL") or error
+
+(define (truthy-env-value? v)
+  (and v
+       (regexp-match? #rx"^(1|true|yes|on)$"
+                      (string-downcase v))))
+
+(define (exec-path-from-shell-quiet?)
+  (truthy-env-value? (getenv exec-path-from-shell-quiet-env-var)))
 
 (define (shell->string sh)
   (cond [(path? sh)   (path->string sh)]
@@ -184,7 +195,8 @@
 
 (define (warn-duration start-ms)
   (define dur (- (now-ms) start-ms))
-  (when (> dur exec-path-from-shell-warn-ms)
+  (when (and (not (exec-path-from-shell-quiet?))
+             (> dur exec-path-from-shell-warn-ms))
     (define rounded-ms (inexact->exact (round dur)))
     (eprintf
      "Warning: exec-path-from-shell took ~ams; consider slimming shell init.\n"

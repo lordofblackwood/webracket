@@ -329,6 +329,10 @@
       env
       #"PLTCOMPILEDROOTS"
       (path->bytes compiled-root))
+     (environment-variables-set!
+      env
+      #"WEBRACKET_EXEC_PATH_FROM_SHELL_QUIET"
+      #"1")
      (parameterize ([current-environment-variables env])
        (thunk env compiled-root)))
    (lambda ()
