@@ -28203,26 +28203,10 @@
                (ref.i31 (i32.or (i32.shl (local.get $cp) (i32.const ,char-shift))
                                 (i32.const ,char-tag))))
 
-         ;; read-byte-or-special : [input-port?] [special-wrap/c] [any/c] -> (or/c byte? eof-object? any/c)
-         ;;   Bootstrap implementation: WebRacket ports do not yet produce special values.
-         (func $read-byte-or-special (type $Prim03)
-               (param $in           (ref eq)) ;; optional input-port?, default = (current-input-port)
-               (param $special-wrap (ref eq)) ;; optional procedure-or-false?, ignored until special values exist
-               (param $source-name  (ref eq)) ;; optional any/c, passed to special producers in full Racket
-               (result              (ref eq))
-
-               (call $read-byte (local.get $in)))
-
-         ;; read-char-or-special : [input-port?] [special-wrap/c] [any/c] -> (or/c char? eof-object? any/c)
-         ;;   Bootstrap implementation: WebRacket ports do not yet produce special values.
-         (func $read-char-or-special (type $Prim03)
-               (param $in           (ref eq)) ;; optional input-port?, default = (current-input-port)
-               (param $special-wrap (ref eq)) ;; optional procedure-or-false?, ignored until special values exist
-               (param $source-name  (ref eq)) ;; optional any/c, passed to special producers in full Racket
-               (result              (ref eq))
-
-               (call $read-char (local.get $in)))
-
+         ;;   Implemented in runtime-wasm/core/ports.rkt.
+         ,@(for/list ([name '($read-byte-or-special
+                               $read-char-or-special)])
+             (core-runtime-helper-form runtime-helper-index name))
 
          (func $read-bytes! (type $Prim14)
                (param $bstr  (ref eq)) ;; bytes?

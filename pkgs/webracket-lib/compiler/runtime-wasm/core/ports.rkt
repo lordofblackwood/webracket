@@ -1319,6 +1319,32 @@
            (local.set $byte   (array.get_u $I8Array (local.get $arr) (i32.const 0)))
            (ref.i31 (i32.shl (local.get $byte) (i32.const 1)))))))
 
+;; port-read-special-wrapper-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate read-byte-or-special and read-char-or-special wrappers.
+(define port-read-special-wrapper-runtime-only-helpers
+  (function-forms->runtime-helpers
+   'port-read-special-wrapper-runtime-only-helpers
+   '(
+     ;; read-byte-or-special : [input-port?] [special-wrap/c] [any/c] -> (or/c byte? eof-object? any/c)
+     ;;   Bootstrap implementation: WebRacket ports do not yet produce special values.
+     (func $read-byte-or-special (type $Prim03)
+           (param $in           (ref eq)) ;; optional input-port?, default = (current-input-port)
+           (param $special-wrap (ref eq)) ;; optional procedure-or-false?, ignored until special values exist
+           (param $source-name  (ref eq)) ;; optional any/c, passed to special producers in full Racket
+           (result              (ref eq))
+
+           (call $read-byte (local.get $in)))
+
+     ;; read-char-or-special : [input-port?] [special-wrap/c] [any/c] -> (or/c char? eof-object? any/c)
+     ;;   Bootstrap implementation: WebRacket ports do not yet produce special values.
+     (func $read-char-or-special (type $Prim03)
+           (param $in           (ref eq)) ;; optional input-port?, default = (current-input-port)
+           (param $special-wrap (ref eq)) ;; optional procedure-or-false?, ignored until special values exist
+           (param $source-name  (ref eq)) ;; optional any/c, passed to special producers in full Racket
+           (result              (ref eq))
+
+           (call $read-char (local.get $in))))))
+
 ;; port-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate port helpers used by the monolithic runtime.
 (define port-runtime-only-helpers
@@ -1329,4 +1355,5 @@
           port-output-string-runtime-only-helpers
           port-custom-constructor-runtime-only-helpers
           port-capability-runtime-only-helpers
-          port-custom-input-byte-runtime-only-helpers))
+          port-custom-input-byte-runtime-only-helpers
+          port-read-special-wrapper-runtime-only-helpers))
