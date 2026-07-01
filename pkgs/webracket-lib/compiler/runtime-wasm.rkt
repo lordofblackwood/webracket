@@ -35282,27 +35282,12 @@
 
          ; 4.20.2 Reflecting on Primitives
 
-         (func $raise-argument-error:primitive-procedure-expected (unreachable))
-
-         (func $primitive? (type $Prim1)
-               ,@(make-predicate-body '$PrimitiveProcedure))
-
-         (func $primitive-result-arity (type $Prim1)
-               (param $v (ref eq))
-               (result (ref eq))
-
-               (local $p (ref $PrimitiveProcedure))
-               ;; Step 1: Validate type
-               (if (i32.eqz (ref.test (ref $PrimitiveProcedure) (local.get $v)))
-                   (then (call $raise-argument-error:primitive-procedure-expected)))
-               ;; Step 2: Cast after validation
-               (local.set $p (ref.cast (ref $PrimitiveProcedure) (local.get $v)))
-               ;; Step 3: Return result-arity field
-               (struct.get $PrimitiveProcedure $result-arity (local.get $p)))
-
-
-         (func $primitive-closure? (type $Prim1)
-               ,@(make-predicate-body '$PrimitiveClosure))
+         ;;   Implemented in runtime-wasm/core/procedures.rkt.
+         ,@(for/list ([name '($raise-argument-error:primitive-procedure-expected
+                               $primitive?
+                               $primitive-result-arity
+                               $primitive-closure?)])
+             (core-runtime-helper-form runtime-helper-index name))
 
          ;;;
          ;;;  4.21 Void

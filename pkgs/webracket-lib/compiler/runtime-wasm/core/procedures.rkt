@@ -989,4 +989,36 @@
            ;; Step 2: check if bit $k-i32 is set in $mask
            (i32.ne (i32.and (local.get $mask)
                             (i32.shl (i32.const 1) (local.get $k-i32)))
-                   (i32.const 0))))))
+                   (i32.const 0)))
+
+     (func $raise-argument-error:primitive-procedure-expected (unreachable))
+
+     (func $primitive? (type $Prim1)
+           (param $v (ref eq))
+           (result   (ref eq))
+           (if (result (ref eq))
+               (ref.test (ref $PrimitiveProcedure) (local.get $v))
+               (then (global.get $true))
+               (else (global.get $false))))
+
+     (func $primitive-result-arity (type $Prim1)
+           (param $v (ref eq))
+           (result (ref eq))
+
+           (local $p (ref $PrimitiveProcedure))
+           ;; Step 1: Validate type
+           (if (i32.eqz (ref.test (ref $PrimitiveProcedure) (local.get $v)))
+               (then (call $raise-argument-error:primitive-procedure-expected)))
+           ;; Step 2: Cast after validation
+           (local.set $p (ref.cast (ref $PrimitiveProcedure) (local.get $v)))
+           ;; Step 3: Return result-arity field
+           (struct.get $PrimitiveProcedure $result-arity (local.get $p)))
+
+
+     (func $primitive-closure? (type $Prim1)
+           (param $v (ref eq))
+           (result   (ref eq))
+           (if (result (ref eq))
+               (ref.test (ref $PrimitiveClosure) (local.get $v))
+               (then (global.get $true))
+               (else (global.get $false)))))))
