@@ -2,7 +2,10 @@
 
 (provide port-runtime-only-helpers)
 
-(require "../core-helper.rkt")
+(require "../core-helper.rkt"
+         (only-in "../../private/immediates.rkt"
+                  char-shift
+                  char-tag))
 
 ;; port-predicate-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate port predicate and wrapper-recognition helpers.
@@ -743,10 +746,71 @@
            ;; 9. Return the new Bytes
            (local.get $res)))))
 
+;; port-output-string-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate output string extraction and convenience helpers.
+(define port-output-string-runtime-only-helpers
+  (function-forms->runtime-helpers
+   'port-output-string-runtime-only-helpers
+   (list
+    `(func $get-output-string (type $Prim1)
+           (param $out (ref eq))
+           (result     (ref eq))
+
+           (local $bs (ref $Bytes))
+
+           (local.set $bs
+                      (ref.cast (ref $Bytes)
+                                (call $get-output-bytes
+                                      (local.get $out)
+                                      (global.get $missing)
+                                      (global.get $missing)
+                                      (global.get $missing))))
+           (call $bytes->string/utf-8
+                 (local.get $bs)
+                 ;; Replacement character #\uFFFD
+                 (ref.i31 (i32.or (i32.shl (i32.const 65533) (i32.const ,char-shift))
+                                  (i32.const ,char-tag)))
+                 (global.get $missing)
+                 (global.get $missing)))
+
+    '(func $call-with-output-string (type $Prim1)
+           (param $proc (ref eq)) ;; procedure?
+           (result      (ref eq))
+
+           (local $f    (ref $Procedure))
+           (local $finv (ref $ProcedureInvoker))
+           (local $port (ref $OutputStringPort))
+           (local $args (ref $Args))
+
+           ;; 1. Ensure the argument is a procedure
+           (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
+               (then (call $raise-argument-error:procedure-expected (local.get $proc))
+                     (unreachable)))
+
+           ;; 2. Open a fresh output string port
+           (local.set $port
+                      (ref.cast (ref $OutputStringPort)
+                                (call $open-output-string (global.get $missing))))
+
+           ;; 3. Prepare the procedure invocation with the port argument
+           (local.set $f    (ref.cast (ref $Procedure) (local.get $proc)))
+           (local.set $finv (struct.get $Procedure $invoke (local.get $f)))
+           (local.set $args (array.new_fixed $Args 1 (local.get $port)))
+
+           ;; 4. Invoke the procedure and ignore its result
+           (drop (call_ref $ProcedureInvoker
+                           (local.get $f)
+                           (local.get $args)
+                           (local.get $finv)))
+
+           ;; 5. Return the accumulated output as a string
+           (call $get-output-string (local.get $port))))))
+
 ;; port-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate port helpers used by the monolithic runtime.
 (define port-runtime-only-helpers
   (append port-predicate-runtime-only-helpers
           port-state-runtime-only-helpers
           port-location-runtime-only-helpers
-          port-byte-string-runtime-only-helpers))
+          port-byte-string-runtime-only-helpers
+          port-output-string-runtime-only-helpers))
