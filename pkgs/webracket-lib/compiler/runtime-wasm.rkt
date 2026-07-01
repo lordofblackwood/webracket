@@ -153,6 +153,7 @@
                   vector-constructor-runtime-only-helper-names
                   vector-copy-runtime-only-helper-names
                   vector-error-runtime-only-helper-names
+                  vector-extend-runtime-only-helper-names
                   vector-make-runtime-only-helper-names
                   vector-mutability-runtime-only-helper-names
                   vector-operation-runtime-only-helper-names
@@ -14136,85 +14137,10 @@
          ,@(for/list ([name (in-list vector-copy-runtime-only-helper-names)])
              (core-runtime-helper-form runtime-helper-index name))
 
-         (func $raise-vector-extend:bad-length
-               (param $v        (ref $Vector))
-               (param $new-size (ref eq))
-               (param $len      i32)
-               (call $raise-argument-error1
-                     (global.get $symbol:vector-extend)
-                     (global.get $string:valid-vector-length)
-                     (local.get $new-size)))
-
-         ; TODO:
-         ;   Error message in original vector-extend
-         ;     vector-extend: new length is shorter than existing length
-         ;       new length: 3
-         ;       existing length: 7
-
-         (func $vector-extend (type $Prim23)
-               (param $v        (ref eq))  ;; vector
-               (param $new-size (ref eq))  ;; fixnum
-               (param $val      (ref eq))  ;; optional, defaults to 0
-               (result          (ref eq))
-
-               (local $vec  (ref $Vector))
-               (local $ns   i32)
-               (local $len  i32)
-               (local $fill (ref eq))
-
-               (local.set $vec  (global.get $dummy-vector))
-               (local.set $fill (global.get $zero))
-
-               (if (ref.test (ref $Vector) (local.get $v))
-                   (then (local.set $vec (ref.cast (ref $Vector) (local.get $v))))
-                   (else (call $raise-check-vector/who
-                               (global.get $symbol:vector-extend)
-                               (local.get $v))))
-
-               (if (ref.test (ref i31) (local.get $new-size))
-                   (then (local.set $ns (i31.get_s (ref.cast (ref i31) (local.get $new-size))))
-                         (if (i32.and (local.get $ns) (i32.const 1))
-                             (then (call $raise-check-fixnum/who
-                                         (global.get $symbol:vector-extend)
-                                         (local.get $new-size))))
-                         (local.set $ns (i32.shr_s (local.get $ns) (i32.const 1))))
-                   (else (call $raise-check-fixnum/who
-                               (global.get $symbol:vector-extend)
-                               (local.get $new-size))))
-
-               (local.set $fill (if (result (ref eq))
-                                    (ref.eq (local.get $val) (global.get $missing))
-                                    (then (global.get $zero))
-                                    (else (local.get $val))))
-
-               (local.set $len (array.len (struct.get $Vector $arr (local.get $vec))))
-               (if (i32.lt_s (local.get $ns) (local.get $len))
-                   (then (call $raise-vector-extend:bad-length
-                               (local.get $vec) (local.get $new-size) (local.get $len))
-                         (unreachable)))
-
-               (struct.new $Vector (i32.const 0)
-                           (i32.const 0)
-                           (call $array-extend
-                                 (struct.get $Vector $arr (local.get $vec))
-                                 (local.get $ns)
-                                 (local.get $fill))))
-
-         (func $vector-empty? (type $Prim1) (param $v (ref eq)) (result (ref eq))
-               (local $vec (ref $Vector))
-               (local $len i32)
-               (if (result (ref eq))
-                   (ref.test (ref $Vector) (local.get $v))
-                   (then (local.set $vec (ref.cast (ref $Vector) (local.get $v)))
-                         (local.set $len (array.len (struct.get $Vector $arr (local.get $vec))))
-                         (if (result (ref eq))
-                             (i32.eqz (local.get $len))
-                             (then (global.get $true))
-                             (else (global.get $false))))
-                   (else (call $raise-check-vector/who
-                               (global.get $symbol:vector-empty?)
-                               (local.get $v))
-                         (unreachable))))
+         ;; vector extend helpers
+         ;;   Implemented in runtime-wasm/core/vectors.rkt.
+         ,@(for/list ([name (in-list vector-extend-runtime-only-helper-names)])
+             (core-runtime-helper-form runtime-helper-index name))
 
          (func $vector-append (type $Prim>=0)
               (param $xs    (ref eq))        ;; list of vectors
