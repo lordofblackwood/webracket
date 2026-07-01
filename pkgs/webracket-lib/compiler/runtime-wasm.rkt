@@ -148,6 +148,7 @@
                   unsafe-runtime-only-helpers
                   unsafe-runtime-helper-names)
          (only-in "runtime-wasm/core/vectors.rkt"
+                  vector-error-runtime-only-helper-names
                   vector-mutability-runtime-only-helper-names
                   vector-runtime-only-helpers)
          (only-in "runtime-wasm/core/wills.rkt"
@@ -13826,102 +13827,9 @@
                             (global.get $dummy-array)))
 
         ;; Vector related exceptions
-        (func $raise-check-vector/who
-              (param $who (ref eq))
-              (param $x   (ref eq))
-              (call $raise-argument-error1
-                    (local.get $who)
-                    (global.get $string:vector?)
-                    (local.get $x)))
-        (func $raise-check-vector
-              (param $x (ref eq))
-              (call $raise-check-vector/who
-                    (global.get $symbol:vector?)
-                    (local.get $x)))
-        (func $raise-check-fixnum/who
-              (param $who (ref eq))
-              (param $x   (ref eq))
-              (call $raise-argument-error1
-                    (local.get $who)
-                    (global.get $string:fixnum?)
-                    (local.get $x)))
-        (func $raise-check-fixnum (param $x (ref eq))
-              (call $raise-check-fixnum/who
-                    (global.get $symbol:fixnum?)
-                    (local.get $x)))
-        (func $raise-immutable-vector/who
-              (param $who (ref eq))
-              (param $x   (ref eq))
-              (call $raise-argument-error1
-                    (local.get $who)
-                    (global.get $string:mutable-vector?)
-                    (local.get $x)))
-        (func $raise-immutable-vector
-              (param $x (ref eq))
-              (call $raise-immutable-vector/who
-                    (global.get $symbol:vector-set!)
-                    (local.get $x)))
-        (func $raise-bad-vector-ref-index/who
-              (param $who (ref eq))
-              (param $v   (ref $Vector))
-              (param $i   i32)
-              (param $len i32)
-              (call $raise-argument-error1
-                    (local.get $who)
-                    (global.get $string:valid-vector-index)
-                    (ref.i31 (i32.shl (local.get $i) (i32.const 1)))))
-        (func $raise-bad-vector-ref-index
-              (param $v (ref $Vector)) (param $i i32) (param $len i32)
-              (call $raise-bad-vector-ref-index/who
-                    (global.get $symbol:vector-ref)
-                    (local.get $v)
-                    (local.get $i)
-                    (local.get $len)))
-         (func $raise-bad-vector-copy-range/who
-               (param $who        (ref eq))
-               (param $dest       (ref $Vector))
-               (param $dest-start i32)
-               (param $src        (ref $Vector))
-               (param $src-start  i32)
-               (param $src-end    i32)
-               (call $raise-argument-error1
-                     (local.get $who)
-                     (global.get $string:valid-vector-index)
-                     (ref.i31 (i32.shl (local.get $src-start) (i32.const 1)))))
-         (func $raise-bad-vector-copy-range
-               (param $dest (ref $Vector)) (param $dest-start i32)
-               (param $src  (ref $Vector)) (param $src-start  i32) (param $src-end i32)
-               (call $raise-bad-vector-copy-range/who
-                     (global.get $symbol:vector-copy)
-                     (local.get $dest)
-                     (local.get $dest-start)
-                     (local.get $src)
-                     (local.get $src-start)
-                     (local.get $src-end)))
-         (func $raise-bad-vector-take-index/who
-               (param $who (ref eq))
-               (param $v   (ref $Vector))
-               (param $i   i32)
-               (param $len i32)
-               (call $raise-argument-error1
-                     (local.get $who)
-                     (global.get $string:valid-vector-index)
-                     (ref.i31 (i32.shl (local.get $i) (i32.const 1)))))
-         (func $raise-bad-vector-take-index
-               (param $v (ref $Vector)) (param $i i32) (param $len i32)
-               (call $raise-bad-vector-take-index/who
-                     (global.get $symbol:vector-take)
-                     (local.get $v)
-                     (local.get $i)
-                     (local.get $len)))
-
-
-         (func $raise-make-vector:bad-length
-               (param $x (ref eq))
-               (call $raise-argument-error1
-                     (global.get $symbol:make-vector)
-                     (global.get $string:exact-nonnegative-integer?)
-                     (local.get $x)))
+        ;;   Implemented in runtime-wasm/core/vectors.rkt.
+        ,@(for/list ([name (in-list vector-error-runtime-only-helper-names)])
+            (core-runtime-helper-form runtime-helper-index name))
 
          ,(core-runtime-helper-form runtime-helper-index '$treelist-node-children)
 
