@@ -1,6 +1,8 @@
 #lang racket
 
-(provide string-core-runtime-helpers)
+(provide string-core-runtime-helpers
+         string-mutability-runtime-only-helper-names
+         string-runtime-only-helpers)
 
 (require "../core-helper.rkt")
 
@@ -89,3 +91,40 @@
                   ;; Memoize
                   (struct.set $String $hash (local.get $s) (local.get $hash))
                   (local.get $hash))))))))
+
+;; string-mutability-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for string mutability predicates.
+(define string-mutability-runtime-only-helper-names
+  '($mutable-string?
+    $immutable-string?))
+
+;; string-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate string helpers that still depend on monolithic runtime globals.
+(define string-runtime-only-helpers
+  (function-forms->runtime-helpers
+   'string-runtime-only-helpers
+   '(
+         (func $mutable-string? (type $Prim1) (param $v (ref eq)) (result (ref eq))
+               (if (result (ref eq))
+                   (ref.test (ref $String) (local.get $v))
+                   (then (if (result (ref eq))
+                             (i32.eq (struct.get $String $immutable
+                                                 (ref.cast (ref $String) (local.get $v)))
+                                     (i32.const 0))
+                             (then (global.get $true))
+                             (else (global.get $false))))
+                   (else (global.get $false))))
+
+         (func $immutable-string? (type $Prim1) (param $v (ref eq)) (result (ref eq))
+               (if (result (ref eq))
+                   (ref.test (ref $String) (local.get $v))
+                   (then (if (result (ref eq))
+                             (i32.eq (struct.get $String $immutable
+                                                 (ref.cast (ref $String) (local.get $v)))
+                                     (i32.const 1))
+                             (then (global.get $true))
+                             (else (global.get $false))))
+                   (else (global.get $false))))
+
+
+     )))

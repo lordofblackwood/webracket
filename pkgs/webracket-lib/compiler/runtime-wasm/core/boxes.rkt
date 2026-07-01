@@ -1,12 +1,13 @@
 #lang racket
 
-(provide box-runtime-only-helpers)
+(provide box-mutability-runtime-only-helper-names
+         box-runtime-only-helpers)
 
 (require "../core-helper.rkt")
 
-;; box-runtime-only-helpers : (listof core-runtime-helper?)
+;; box-base-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate box helpers that still depend on monolithic runtime globals.
-(define box-runtime-only-helpers
+(define box-base-runtime-only-helpers
   (list
    (core-runtime-helper
     '$boxed
@@ -285,3 +286,46 @@
                            (br_on_cast $ok (ref eq) (ref $WeakBox) (local.get $wb))
                            (return (global.get $error)))))))
 ))
+
+;; box-mutability-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for box mutability predicates.
+(define box-mutability-runtime-only-helper-names
+  '($mutable-box?
+    $immutable-box?))
+
+;; box-mutability-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate box mutability predicates.
+(define box-mutability-runtime-only-helpers
+  (function-forms->runtime-helpers
+   'box-mutability-runtime-only-helpers
+   '(
+         (func $mutable-box? (type $Prim1) (param $v (ref eq)) (result (ref eq))
+               (if (result (ref eq))
+                   (ref.test (ref $Box) (local.get $v))
+                   (then (if (result (ref eq))
+                             (i32.eq (struct.get $Box $immutable
+                                                 (ref.cast (ref $Box) (local.get $v)))
+                                     (i32.const 0))
+                             (then (global.get $true))
+                             (else (global.get $false))))
+                   (else (global.get $false))))
+
+         (func $immutable-box? (type $Prim1) (param $v (ref eq)) (result (ref eq))
+               (if (result (ref eq))
+                   (ref.test (ref $Box) (local.get $v))
+                   (then (if (result (ref eq))
+                             (i32.eq (struct.get $Box $immutable
+                                                 (ref.cast (ref $Box) (local.get $v)))
+                                     (i32.const 1))
+                             (then (global.get $true))
+                             (else (global.get $false))))
+                   (else (global.get $false))))
+
+
+     )))
+
+;; box-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate box helpers that still depend on monolithic runtime globals.
+(define box-runtime-only-helpers
+  (append box-base-runtime-only-helpers
+          box-mutability-runtime-only-helpers))

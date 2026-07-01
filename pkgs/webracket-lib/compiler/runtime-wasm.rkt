@@ -15,7 +15,11 @@
                   boolean-runtime-only-helpers
                   boolean-runtime-only-helper-names)
          (only-in "runtime-wasm/core/boxes.rkt"
+                  box-mutability-runtime-only-helper-names
                   box-runtime-only-helpers)
+         (only-in "runtime-wasm/core/bytes.rkt"
+                  bytes-mutability-runtime-only-helper-names
+                  bytes-runtime-only-helpers)
          (only-in "runtime-wasm/core/checkers.rkt"
                   checker-runtime-only-helpers
                   checker-runtime-only-helper-names)
@@ -73,6 +77,9 @@
                   semaphore-runtime-only-helpers)
          (only-in "runtime-wasm/core/stencil-vectors.rkt"
                   stencil-vector-runtime-only-helpers)
+         (only-in "runtime-wasm/core/strings.rkt"
+                  string-mutability-runtime-only-helper-names
+                  string-runtime-only-helpers)
          (only-in "runtime-wasm/core/symbols.rkt"
                   symbol-runtime-only-helpers)
          (only-in "runtime-wasm/core/syntax.rkt"
@@ -88,6 +95,9 @@
          (only-in "runtime-wasm/core/unsafe.rkt"
                   unsafe-runtime-only-helpers
                   unsafe-runtime-helper-names)
+         (only-in "runtime-wasm/core/vectors.rkt"
+                  vector-mutability-runtime-only-helper-names
+                  vector-runtime-only-helpers)
          (only-in "runtime-wasm/core/wills.rkt"
                   will-runtime-only-helpers)
          "runtime-wasm/core-runtime.rkt"
@@ -108,6 +118,7 @@
 (define-runtime-path constants-path "runtime-wasm/constants.rkt")
 (define-runtime-path core-booleans-path "runtime-wasm/core/booleans.rkt")
 (define-runtime-path core-boxes-path "runtime-wasm/core/boxes.rkt")
+(define-runtime-path core-bytes-path "runtime-wasm/core/bytes.rkt")
 (define-runtime-path core-checkers-path "runtime-wasm/core/checkers.rkt")
 (define-runtime-path core-control-flow-path "runtime-wasm/core/control-flow.rkt")
 (define-runtime-path core-equality-path "runtime-wasm/core/equality.rkt")
@@ -132,12 +143,14 @@
 (define-runtime-path core-procedures-path "runtime-wasm/core/procedures.rkt")
 (define-runtime-path core-semaphores-path "runtime-wasm/core/semaphores.rkt")
 (define-runtime-path core-stencil-vectors-path "runtime-wasm/core/stencil-vectors.rkt")
+(define-runtime-path core-strings-path "runtime-wasm/core/strings.rkt")
 (define-runtime-path core-symbols-path "runtime-wasm/core/symbols.rkt")
 (define-runtime-path core-syntax-path "runtime-wasm/core/syntax.rkt")
 (define-runtime-path core-threads-path "runtime-wasm/core/threads.rkt")
 (define-runtime-path core-time-path "runtime-wasm/core/time.rkt")
 (define-runtime-path core-treelists-path "runtime-wasm/core/treelists.rkt")
 (define-runtime-path core-unsafe-path "runtime-wasm/core/unsafe.rkt")
+(define-runtime-path core-vectors-path "runtime-wasm/core/vectors.rkt")
 (define-runtime-path core-wills-path "runtime-wasm/core/wills.rkt")
 
 ;; runtime-helper-index : hasheq?
@@ -147,6 +160,7 @@
    (append core-runtime-helpers
            boolean-runtime-only-helpers
            box-runtime-only-helpers
+           bytes-runtime-only-helpers
            checker-runtime-only-helpers
            control-flow-runtime-only-helpers
            equality-runtime-only-helpers
@@ -170,12 +184,14 @@
            procedure-runtime-only-helpers
            semaphore-runtime-only-helpers
            stencil-vector-runtime-only-helpers
+           string-runtime-only-helpers
            symbol-runtime-only-helpers
            syntax-runtime-only-helpers
            thread-runtime-only-helpers
            time-runtime-only-helpers
            treelist-runtime-only-helpers
            unsafe-runtime-only-helpers
+           vector-runtime-only-helpers
            will-runtime-only-helpers)))
 
 (module+ test
@@ -517,6 +533,7 @@
                                           constants-path
                                           core-booleans-path
                                           core-boxes-path
+                                          core-bytes-path
                                           core-checkers-path
                                           core-control-flow-path
                                           core-equality-path
@@ -541,12 +558,14 @@
                                           core-procedures-path
                                           core-semaphores-path
                                           core-stencil-vectors-path
+                                          core-strings-path
                                           core-symbols-path
                                           core-syntax-path
                                           core-threads-path
                                           core-time-path
                                           core-treelists-path
                                           core-unsafe-path
+                                          core-vectors-path
                                           core-wills-path))])
             (list (path->string path)
                   (file-size path)
@@ -9912,93 +9931,21 @@
 
          ;; https://docs.racket-lang.org/reference/booleans.html
 
-         (func $mutable-string? (type $Prim1) (param $v (ref eq)) (result (ref eq))
-               (if (result (ref eq))
-                   (ref.test (ref $String) (local.get $v))
-                   (then (if (result (ref eq))
-                             (i32.eq (struct.get $String $immutable
-                                                 (ref.cast (ref $String) (local.get $v)))
-                                     (i32.const 0))
-                             (then (global.get $true))
-                             (else (global.get $false))))
-                   (else (global.get $false))))
+         ;;   String mutability predicates are implemented in runtime-wasm/core/strings.rkt.
+         ,@(for/list ([name (in-list string-mutability-runtime-only-helper-names)])
+             (core-runtime-helper-form runtime-helper-index name))
 
-         (func $immutable-string? (type $Prim1) (param $v (ref eq)) (result (ref eq))
-               (if (result (ref eq))
-                   (ref.test (ref $String) (local.get $v))
-                   (then (if (result (ref eq))
-                             (i32.eq (struct.get $String $immutable
-                                                 (ref.cast (ref $String) (local.get $v)))
-                                     (i32.const 1))
-                             (then (global.get $true))
-                             (else (global.get $false))))
-                   (else (global.get $false))))
+         ;;   Bytes mutability predicates are implemented in runtime-wasm/core/bytes.rkt.
+         ,@(for/list ([name (in-list bytes-mutability-runtime-only-helper-names)])
+             (core-runtime-helper-form runtime-helper-index name))
 
-         (func $mutable-bytes? (type $Prim1) (param $v (ref eq)) (result (ref eq))
-               (if (result (ref eq))
-                   (ref.test (ref $Bytes) (local.get $v))
-                   (then (if (result (ref eq))
-                             (i32.eq (struct.get $Bytes $immutable
-                                                 (ref.cast (ref $Bytes) (local.get $v)))
-                                     (i32.const 0))
-                             (then (global.get $true))
-                             (else (global.get $false))))
-                   (else (global.get $false))))
+         ;;   Vector mutability predicates are implemented in runtime-wasm/core/vectors.rkt.
+         ,@(for/list ([name (in-list vector-mutability-runtime-only-helper-names)])
+             (core-runtime-helper-form runtime-helper-index name))
 
-         (func $immutable-bytes? (type $Prim1) (param $v (ref eq)) (result (ref eq))
-               (if (result (ref eq))
-                   (ref.test (ref $Bytes) (local.get $v))
-                   (then (if (result (ref eq))
-                             (i32.eq (struct.get $Bytes $immutable
-                                                 (ref.cast (ref $Bytes) (local.get $v)))
-                                     (i32.const 1))
-                             (then (global.get $true))
-                             (else (global.get $false))))
-                   (else (global.get $false))))
-
-         (func $mutable-vector? (type $Prim1) (param $v (ref eq)) (result (ref eq))
-               (if (result (ref eq))
-                   (ref.test (ref $Vector) (local.get $v))
-                   (then (if (result (ref eq))
-                             (i32.eq (struct.get $Vector $immutable
-                                                 (ref.cast (ref $Vector) (local.get $v)))
-                                     (i32.const 0))
-                             (then (global.get $true))
-                             (else (global.get $false))))
-                   (else (global.get $false))))
-
-         (func $immutable-vector? (type $Prim1) (param $v (ref eq)) (result (ref eq))
-               (if (result (ref eq))
-                   (ref.test (ref $Vector) (local.get $v))
-                   (then (if (result (ref eq))
-                             (i32.eq (struct.get $Vector $immutable
-                                                 (ref.cast (ref $Vector) (local.get $v)))
-                                     (i32.const 1))
-                             (then (global.get $true))
-                             (else (global.get $false))))
-                   (else (global.get $false))))
-
-         (func $mutable-box? (type $Prim1) (param $v (ref eq)) (result (ref eq))
-               (if (result (ref eq))
-                   (ref.test (ref $Box) (local.get $v))
-                   (then (if (result (ref eq))
-                             (i32.eq (struct.get $Box $immutable
-                                                 (ref.cast (ref $Box) (local.get $v)))
-                                     (i32.const 0))
-                             (then (global.get $true))
-                             (else (global.get $false))))
-                   (else (global.get $false))))
-
-         (func $immutable-box? (type $Prim1) (param $v (ref eq)) (result (ref eq))
-               (if (result (ref eq))
-                   (ref.test (ref $Box) (local.get $v))
-                   (then (if (result (ref eq))
-                             (i32.eq (struct.get $Box $immutable
-                                                 (ref.cast (ref $Box) (local.get $v)))
-                                     (i32.const 1))
-                             (then (global.get $true))
-                             (else (global.get $false))))
-                   (else (global.get $false))))
+         ;;   Box mutability predicates are implemented in runtime-wasm/core/boxes.rkt.
+         ,@(for/list ([name (in-list box-mutability-runtime-only-helper-names)])
+             (core-runtime-helper-form runtime-helper-index name))
 
          ;;   Hash predicates are implemented in runtime-wasm/core/hashes.rkt.
          ,@(for/list ([name (in-list hash-predicate-runtime-only-helper-names)])
