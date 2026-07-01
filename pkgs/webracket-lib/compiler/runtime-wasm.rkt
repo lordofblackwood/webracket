@@ -80,6 +80,7 @@
          (only-in "runtime-wasm/core/linklets.rkt"
                   linklet-bootstrap-runtime-only-helper-names
                   linklet-bootstrap-runtime-only-helpers
+                  linklet-primitive-table-runtime-only-helper-forms
                   linklet-runtime-only-helper-forms)
          (only-in "runtime-wasm/core/locations.rkt"
                   location-runtime-only-helpers
@@ -14773,79 +14774,11 @@
          ,@(for/list ([name (in-list linklet-bootstrap-runtime-only-helper-names)])
              (core-runtime-helper-form runtime-helper-index name))
 
-         ;; make-webify-primitive-table : -> mutable-hasheq?
-         ;;   Build a Racket CS-style primitive table from WebRacket's current
-         ;;   primitive procedure globals. This bridge is intentionally broad:
-         ;;   it gives the webified expander a primitive-module table shape
-         ;;   while later milestones decide exact per-module membership.
-         (func $make-webify-primitive-table
-               (result (ref eq))
-               (local $table (ref $HashEqMutable))
-               (local.set $table
-                          (ref.cast (ref $HashEqMutable)
-                                    (call $make-empty-hasheq)))
-               ,@(for/list ([pr (in-list (active-described-primitives-sorted))])
-                   `(call $hasheq-set!/mutable/checked
-                          (local.get $table)
-                          (global.get ,($ (string->symbol (~a "symbol:" pr))))
-                          (global.get ,($ (prim: pr)))))
-               ;; Racket CS exposes these #%paramz keys as authentic primitive
-               ;; values instead of procedures. WebRacket uses stable symbols
-               ;; for the bootstrap identity of each key until continuation
-               ;; parameterizations are modeled directly.
-               (call $hasheq-set!/mutable/checked
-                     (local.get $table)
-                     (global.get $symbol:break-enabled-key)
-                     (global.get $symbol:break-enabled-key))
-               (call $hasheq-set!/mutable/checked
-                     (local.get $table)
-                     (global.get $symbol:exception-handler-key)
-                     (global.get $symbol:exception-handler-key))
-               (call $hasheq-set!/mutable/checked
-                     (local.get $table)
-                     (global.get $symbol:parameterization-key)
-                     (global.get $symbol:parameterization-key))
-               (local.get $table))
-
-         ;; primitive-table : symbol? [hash?] -> (or/c hash? void? #f)
-         ;;   Bridge the Racket CS expander's primitive-module lookup to
-         ;;   WebRacket's existing primitive procedure globals. With one
-         ;;   argument, return the current table for `key`. With two arguments,
-         ;;   install `table` for `key`, matching the host-side bootstrap shim.
-         (func $primitive-table (type $Prim12)
-               (param $key   (ref eq)) ;; primitive table name
-               (param $table (ref eq)) ;; optional installed table, default = lookup
-               (result       (ref eq))
-
-               (if (i32.eqz (ref.test (ref $Symbol) (local.get $key)))
-                   (then (call $raise-check-symbol (local.get $key))
-                         (unreachable)))
-
-               (call $initialize-primitive-table-user-installed)
-
-               (if (i32.eqz (ref.eq (local.get $table) (global.get $missing)))
-                   (then
-                    (call $hasheq-set!/mutable/checked
-                          (ref.as_non_null (global.get $primitive-table-user-installed))
-                          (local.get $key)
-                          (local.get $table))
-                    (return (global.get $void))))
-
-               (if (ref.eq (local.get $key) (global.get $symbol:#%bootstrap-linklet))
-                   (then (return (global.get $false))))
-               (if (ref.eq (local.get $key) (global.get $symbol:#%read))
-                   (then (return (call $make-empty-hasheq))))
-
-               ,@(for/list ([name (in-list (remove* '(#%bootstrap-linklet #%read)
-                                                     primitive-table-module-symbols))])
-                   `(if (ref.eq (local.get $key)
-                                (global.get ,($ (string->symbol (~a "symbol:" name)))))
-                        (then (return (call $make-webify-primitive-table)))))
-
-               (call $hasheq-ref
-                     (ref.as_non_null (global.get $primitive-table-user-installed))
-                     (local.get $key)
-                     (global.get $false)))
+         ;; Primitive-table bridge helpers
+         ;;   Implemented in runtime-wasm/core/linklets.rkt.
+         ,@(linklet-primitive-table-runtime-only-helper-forms
+            (active-described-primitives-sorted)
+            primitive-table-module-symbols)
 
          (func $initialize-prefab-struct-type-registry
                (if (ref.is_null (global.get $prefab-struct-type-registry))
