@@ -1015,6 +1015,67 @@
                        (local.get $init-position)     ;; $init-position-arg
                        (local.get $buffer-mode))))))  ;; $buffer-mode-arg
 
+;; port-capability-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate port progress, atomic-write, and special-write capability predicates.
+(define port-capability-runtime-only-helpers
+  (function-forms->runtime-helpers
+   'port-capability-runtime-only-helpers
+   '(
+     ;; NOTE: WebRacket currently lacks progress events, so report #f.
+     (func $progress-evt? (type $Prim12)
+           (param $v  (ref eq)) ;; any/c
+           (param $in (ref eq)) ;; input-port? (optional, default = (current-input-port))
+           (result    (ref eq))
+
+           (global.get $false))
+
+     ;; port-provides-progress-evts? : input-port? -> boolean?
+     ;;   Racket's built-in ports normally support progress events, but
+     ;;   WebRacket has not implemented port-progress-evt yet. Report #f
+     ;;   so libraries take their no-progress-event fallback paths.
+     (func $port-provides-progress-evts? (type $Prim1)
+           (param $in (ref eq)) ;; input-port?
+           (result    (ref eq))
+
+           (if (i32.eqz (ref.test (ref $InputPort) (local.get $in)))
+               (then (call $raise-argument-error1
+                           (global.get $symbol:port-provides-progress-evts?)
+                           (global.get $string:input-port?)
+                           (local.get $in))
+                     (unreachable)))
+           (global.get $false))
+
+     ;; port-writes-atomic? : output-port? -> boolean?
+     ;;   WebRacket output writes are sequential in the current runtime,
+     ;;   but the event-based atomic write protocol is not implemented.
+     ;;   Report #f so libraries avoid atomic-write event paths.
+     (func $port-writes-atomic? (type $Prim1)
+           (param $out (ref eq)) ;; output-port?
+           (result     (ref eq))
+
+           (if (i32.eqz (call $output-port-like?/i32 (local.get $out)))
+               (then (call $raise-argument-error1
+                           (global.get $symbol:port-writes-atomic?)
+                           (global.get $string:output-port?)
+                           (local.get $out))
+                     (unreachable)))
+           (global.get $false))
+
+     ;; port-writes-special? : output-port? -> boolean?
+     ;;   Racket's ordinary output ports reject special values. WebRacket
+     ;;   does not yet model custom output ports with write-special hooks.
+     (func $port-writes-special? (type $Prim1)
+           (param $out (ref eq)) ;; output-port?
+           (result     (ref eq))
+
+           (if (i32.eqz (call $output-port-like?/i32 (local.get $out)))
+               (then (call $raise-argument-error1
+                           (global.get $symbol:port-writes-special?)
+                           (global.get $string:output-port?)
+                           (local.get $out))
+                     (unreachable)))
+           (global.get $false)))))
+
 ;; port-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate port helpers used by the monolithic runtime.
 (define port-runtime-only-helpers
@@ -1023,4 +1084,5 @@
           port-location-runtime-only-helpers
           port-byte-string-runtime-only-helpers
           port-output-string-runtime-only-helpers
-          port-custom-constructor-runtime-only-helpers))
+          port-custom-constructor-runtime-only-helpers
+          port-capability-runtime-only-helpers))
