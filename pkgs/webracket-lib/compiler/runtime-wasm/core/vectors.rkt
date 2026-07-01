@@ -10,6 +10,7 @@
          vector-make-runtime-only-helper-names
          vector-mutability-runtime-only-helper-names
          vector-operation-runtime-only-helper-names
+         vector-slice-runtime-only-helper-names
          vector-runtime-only-helpers)
 
 (require "../core-helper.rkt")
@@ -1299,6 +1300,250 @@
 (define vector-append-runtime-only-helper-names
   (map core-runtime-helper-name vector-append-runtime-only-helpers))
 
+
+;; vector-slice-runtime-only-forms : (listof datum?)
+;;   Enumerate vector take, drop, and split helpers used by the monolithic runtime.
+(define vector-slice-runtime-only-forms
+  '(
+         (func $vector-take (type $Prim2) (param $v (ref eq)) (param $i (ref eq)) (result (ref eq))
+               (local $vec (ref $Vector))
+               (local $ix i32)
+               (local $len i32)
+               (local.set $vec (global.get $dummy-vector))
+               (if (ref.test (ref $Vector) (local.get $v))
+                   (then (local.set $vec (ref.cast (ref $Vector) (local.get $v))))
+                   (else (call $raise-check-vector/who
+                               (global.get $symbol:vector-take)
+                               (local.get $v))))
+               (if (ref.test (ref i31) (local.get $i))
+                   (then (local.set $ix (i31.get_u (ref.cast (ref i31) (local.get $i))))
+                         (if (i32.eqz (i32.and (local.get $ix) (i32.const 1)))
+                             (then (local.set $ix (i32.shr_u (local.get $ix) (i32.const 1))))
+                             (else (call $raise-check-fixnum/who
+                                         (global.get $symbol:vector-take)
+                                         (local.get $i)))))
+                   (else (call $raise-check-fixnum/who
+                               (global.get $symbol:vector-take)
+                               (local.get $i))))
+               (local.set $len (array.len (struct.get $Vector $arr (local.get $vec))))
+               (if (i32.gt_u (local.get $ix) (local.get $len))
+                   (then (call $raise-bad-vector-take-index/who
+                               (global.get $symbol:vector-take)
+                               (local.get $vec) (local.get $ix) (local.get $len))
+                         (unreachable)))
+               (struct.new $Vector (i32.const 0)
+                           (i32.const 0)
+                           (call $array-take (struct.get $Vector $arr (local.get $vec)) (local.get $ix))))
+
+         (func $vector-drop (type $Prim2) (param $v (ref eq)) (param $i (ref eq)) (result (ref eq))
+               (local $vec (ref $Vector))
+               (local $ix i32)
+               (local $len i32)
+               (local.set $vec (global.get $dummy-vector))
+               (if (ref.test (ref $Vector) (local.get $v))
+                   (then (local.set $vec (ref.cast (ref $Vector) (local.get $v))))
+                   (else (call $raise-check-vector/who
+                               (global.get $symbol:vector-drop)
+                               (local.get $v))))
+               (if (ref.test (ref i31) (local.get $i))
+                   (then (local.set $ix (i31.get_u (ref.cast (ref i31) (local.get $i))))
+                         (if (i32.eqz (i32.and (local.get $ix) (i32.const 1)))
+                             (then (local.set $ix (i32.shr_u (local.get $ix) (i32.const 1))))
+                             (else (call $raise-check-fixnum/who
+                                         (global.get $symbol:vector-drop)
+                                         (local.get $i)))))
+                   (else (call $raise-check-fixnum/who
+                               (global.get $symbol:vector-drop)
+                               (local.get $i))))
+               (local.set $len (array.len (struct.get $Vector $arr (local.get $vec))))
+               (if (i32.gt_u (local.get $ix) (local.get $len))
+                   (then (call $raise-bad-vector-take-index/who
+                               (global.get $symbol:vector-drop)
+                               (local.get $vec) (local.get $ix) (local.get $len))
+                         (unreachable)))
+               (struct.new $Vector (i32.const 0)
+                           (i32.const 0)
+                           (call $array-drop (struct.get $Vector $arr (local.get $vec)) (local.get $ix))))
+
+         (func $vector-drop-right (type $Prim2) (param $v (ref eq)) (param $i (ref eq)) (result (ref eq))
+               (local $vec (ref $Vector))
+               (local $ix i32)
+               (local $len i32)
+               (local.set $vec (global.get $dummy-vector))
+               (if (ref.test (ref $Vector) (local.get $v))
+                   (then (local.set $vec (ref.cast (ref $Vector) (local.get $v))))
+                   (else (call $raise-check-vector/who
+                               (global.get $symbol:vector-drop-right)
+                               (local.get $v))))
+               (if (ref.test (ref i31) (local.get $i))
+                   (then (local.set $ix (i31.get_u (ref.cast (ref i31) (local.get $i))))
+                         (if (i32.eqz (i32.and (local.get $ix) (i32.const 1)))
+                             (then (local.set $ix (i32.shr_u (local.get $ix) (i32.const 1))))
+                             (else (call $raise-check-fixnum/who
+                                         (global.get $symbol:vector-drop-right)
+                                         (local.get $i)))))
+                   (else (call $raise-check-fixnum/who
+                               (global.get $symbol:vector-drop-right)
+                               (local.get $i))))
+               (local.set $len (array.len (struct.get $Vector $arr (local.get $vec))))
+               (if (i32.gt_u (local.get $ix) (local.get $len))
+                   (then (call $raise-bad-vector-take-index/who
+                               (global.get $symbol:vector-drop-right)
+                               (local.get $vec) (local.get $ix) (local.get $len))
+                         (unreachable)))
+               (struct.new $Vector (i32.const 0)
+                           (i32.const 0)
+                           (call $array-drop-right (struct.get $Vector $arr (local.get $vec)) (local.get $ix))))
+
+         (func $vector-take-right (type $Prim2)
+               (param $v (ref eq))
+               (param $i (ref eq))
+               (result   (ref eq))
+               (local $vec (ref $Vector))
+               (local $ix i32)
+               (local $len i32)
+               (local.set $vec (global.get $dummy-vector))
+               (if (ref.test (ref $Vector) (local.get $v))
+                   (then (local.set $vec (ref.cast (ref $Vector) (local.get $v))))
+                   (else (call $raise-check-vector/who
+                               (global.get $symbol:vector-take-right)
+                               (local.get $v))))
+               (if (ref.test (ref i31) (local.get $i))
+                   (then (local.set $ix (i31.get_u (ref.cast (ref i31) (local.get $i))))
+                         (if (i32.eqz (i32.and (local.get $ix) (i32.const 1)))
+                             (then (local.set $ix (i32.shr_u (local.get $ix) (i32.const 1))))
+                             (else (call $raise-check-fixnum/who
+                                         (global.get $symbol:vector-take-right)
+                                         (local.get $i)))))
+                   (else (call $raise-check-fixnum/who
+                               (global.get $symbol:vector-take-right)
+                               (local.get $i))))
+               (local.set $len (array.len (struct.get $Vector $arr (local.get $vec))))
+               (if (i32.gt_u (local.get $ix) (local.get $len))
+                   (then (call $raise-bad-vector-take-index/who
+                               (global.get $symbol:vector-take-right)
+                               (local.get $vec) (local.get $ix) (local.get $len))
+                         (unreachable)))
+               (struct.new $Vector (i32.const 0)
+                           (i32.const 0)
+                           (call $array-take-right (struct.get $Vector $arr (local.get $vec)) (local.get $ix))))
+
+
+
+         (func $vector-split-at (type $Prim2)
+               (param $v (ref eq))
+               (param $i (ref eq))
+               (result   (ref eq))  ; returns two values
+
+               (local $vec (ref $Vector))
+               (local $ix  i32)
+               (local $len i32)
+               (local $res (ref $Array))
+
+               ; 1. Check $v is a vector
+               (local.set $vec (global.get $dummy-vector))
+               (if (ref.test (ref $Vector) (local.get $v))
+                   (then (local.set $vec (ref.cast (ref $Vector) (local.get $v))))
+                   (else (call $raise-check-vector/who
+                               (global.get $symbol:vector-split-at)
+                               (local.get $v))))
+               ; 2. Check $i is a fixnum
+               (if (ref.test (ref i31) (local.get $i))
+                   (then (local.set $ix (i31.get_u (ref.cast (ref i31) (local.get $i))))
+                         (if (i32.eqz (i32.and (local.get $ix) (i32.const 1)))
+                             (then (local.set $ix (i32.shr_u (local.get $ix) (i32.const 1))))
+                             (else (call $raise-check-fixnum/who
+                                         (global.get $symbol:vector-split-at)
+                                         (local.get $i)))))
+                   (else (call $raise-check-fixnum/who
+                               (global.get $symbol:vector-split-at)
+                               (local.get $i))))
+               ; 3. Range check
+               (local.set $len (array.len (struct.get $Vector $arr (local.get $vec))))
+               (if (i32.gt_u (local.get $ix) (local.get $len))
+                   (then (call $raise-bad-vector-take-index/who
+                               (global.get $symbol:vector-split-at)
+                               (local.get $vec) (local.get $ix) (local.get $len))
+                         (unreachable)))
+               ; 4. Split the vector
+               (local.set $res (call $array-split-at (struct.get $Vector $arr (local.get $vec)) (local.get $ix)))
+               (array.new_fixed $Values 2
+                                (struct.new $Vector
+                                            (i32.const 0)  ; hash
+                                            (i32.const 0)  ; mutable
+                                            (ref.cast (ref $Array)
+                                                      (array.get $Array (local.get $res) (i32.const 0))))
+                                (struct.new $Vector
+                                            (i32.const 0) ; hash
+                                            (i32.const 0) ; mutable
+                                            (ref.cast (ref $Array)
+                                                      (array.get $Array (local.get $res) (i32.const 1))))))
+
+         (func $vector-split-at-right (type $Prim2)
+               (param $v (ref eq))      ; vec
+               (param $i (ref eq))      ; count
+               (result   (ref eq))      ; returns two values
+
+               (local $vec  (ref $Vector))
+               (local $ix   i32)
+               (local $len  i32)
+               (local $take (ref $Array))
+               (local $drop (ref $Array))
+
+               ; 1. Check $v is a vector
+               (local.set $vec (global.get $dummy-vector))
+               (if (ref.test (ref $Vector) (local.get $v))
+                   (then (local.set $vec (ref.cast (ref $Vector) (local.get $v))))
+                   (else (call $raise-check-vector/who
+                               (global.get $symbol:vector-split-at-right)
+                               (local.get $v))))
+               ; 2. Check $i is a fixnum
+               (if (ref.test (ref i31) (local.get $i))
+                   (then (local.set $ix (i31.get_u (ref.cast (ref i31) (local.get $i))))
+                         (if (i32.eqz (i32.and (local.get $ix) (i32.const 1)))
+                             (then (local.set $ix (i32.shr_u (local.get $ix) (i32.const 1))))
+                             (else (call $raise-check-fixnum/who
+                                         (global.get $symbol:vector-split-at-right)
+                                         (local.get $i)))))
+                   (else (call $raise-check-fixnum/who
+                               (global.get $symbol:vector-split-at-right)
+                               (local.get $i))))
+               ; 3. Range check
+               (local.set $len (array.len (struct.get $Vector $arr (local.get $vec))))
+               (if (i32.gt_u (local.get $ix) (local.get $len))
+                   (then (call $raise-bad-vector-take-index/who
+                               (global.get $symbol:vector-split-at-right)
+                               (local.get $vec) (local.get $ix) (local.get $len))
+                         (unreachable)))
+               ; 4. Split the vector from the right
+               (local.set $take (call $array-take-right (struct.get $Vector $arr (local.get $vec)) (local.get $ix)))
+               (local.set $drop (call $array-drop-right (struct.get $Vector $arr (local.get $vec)) (local.get $ix)))
+               (array.new_fixed $Values 2
+                                (struct.new $Vector
+                                            (i32.const 0) ; hash
+                                            (i32.const 0) ; mutable
+                                            (local.get $take))
+                                (struct.new $Vector
+                                            (i32.const 0) ; hash
+                                            (i32.const 0) ; mutable
+                                            (local.get $drop))))
+
+
+
+     ))
+
+;; vector-slice-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate vector take, drop, and split helpers used by the monolithic runtime.
+(define vector-slice-runtime-only-helpers
+  (function-forms->runtime-helpers
+   'vector-slice-runtime-only-helpers
+   vector-slice-runtime-only-forms))
+
+;; vector-slice-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for vector take, drop, and split helpers.
+(define vector-slice-runtime-only-helper-names
+  (map core-runtime-helper-name vector-slice-runtime-only-helpers))
+
 ;; vector-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate vector helpers that still depend on monolithic runtime globals.
 (define vector-runtime-only-helpers
@@ -1311,6 +1556,7 @@
    vector-copy-runtime-only-helpers
    vector-extend-runtime-only-helpers
    vector-append-runtime-only-helpers
+   vector-slice-runtime-only-helpers
    (function-forms->runtime-helpers
     'vector-runtime-only-helpers
     '(
