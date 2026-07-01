@@ -2046,6 +2046,140 @@
                    (then (global.get $true))
                    (else (global.get $false)))))))))
 
+;; mutable-hash-iteration-dispatch-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate public hash iteration dispatch helpers.
+(define mutable-hash-iteration-dispatch-runtime-only-helpers
+  (list
+   (core-runtime-helper
+    '$raise-mutable-hash-iterate-bad-index
+    "$raise-mutable-hash-iterate-bad-index"
+    (lambda ()
+      `(func $raise-mutable-hash-iterate-bad-index
+             (param $pos (ref eq))  ;; iteration position
+             (unreachable))))
+
+   (core-runtime-helper
+    '$hash-iterate-first
+    "$hash-iterate-first"
+    (lambda ()
+      `;; hash-iterate-first : hash? -> (or/c #f exact-nonnegative-integer?)
+       ;;   Public hash iterator entry point for mutable and immutable hashes.
+       (func $hash-iterate-first (type $Prim1)
+             (param $ht (ref eq)) ;; hash table
+             (result    (ref eq))
+             (if (call $immutable-hash-leaf?/i32 (local.get $ht))
+                 (then
+                  (return_call $immutable-hash-iterate-first/public
+                               (local.get $ht))))
+             (return_call $mutable-hash-iterate-first (local.get $ht)))))
+
+   (core-runtime-helper
+    '$hash-iterate-next
+    "$hash-iterate-next"
+    (lambda ()
+      `;; hash-iterate-next : hash? exact-nonnegative-integer? -> (or/c #f exact-nonnegative-integer?)
+       ;;   Public hash iterator successor for mutable and immutable hashes.
+       (func $hash-iterate-next (type $Prim2)
+             (param $ht  (ref eq)) ;; hash table
+             (param $pos (ref eq)) ;; iteration position
+             (result     (ref eq))
+             (if (call $immutable-hash-leaf?/i32 (local.get $ht))
+                 (then
+                  (return_call $immutable-hash-iterate-next/public
+                               (local.get $ht)
+                               (local.get $pos))))
+             (return_call $mutable-hash-iterate-next
+                          (local.get $ht)
+                          (local.get $pos)))))
+
+   (core-runtime-helper
+    '$hash-iterate-key
+    "$hash-iterate-key"
+    (lambda ()
+      `;; hash-iterate-key : hash? exact-nonnegative-integer? [any/c] -> any/c
+       ;;   Public hash iterator key accessor. Optional bad-index value defaults to raising.
+       (func $hash-iterate-key (type $Prim23)
+             (param $ht        (ref eq)) ;; hash table
+             (param $pos       (ref eq)) ;; iteration position
+             (param $bad-index (ref eq)) ;; optional bad-index value, default = raise
+             (result           (ref eq))
+             (if (call $immutable-hash-leaf?/i32 (local.get $ht))
+                 (then
+                  (return_call $immutable-hash-iterate-key/public
+                               (local.get $ht)
+                               (local.get $pos)
+                               (local.get $bad-index))))
+             (return_call $mutable-hash-iterate-key
+                          (local.get $ht)
+                          (local.get $pos)
+                          (local.get $bad-index)))))
+
+   (core-runtime-helper
+    '$hash-iterate-value
+    "$hash-iterate-value"
+    (lambda ()
+      `;; hash-iterate-value : hash? exact-nonnegative-integer? [any/c] -> any/c
+       ;;   Public hash iterator value accessor. Optional bad-index value defaults to raising.
+       (func $hash-iterate-value (type $Prim23)
+             (param $ht        (ref eq)) ;; hash table
+             (param $pos       (ref eq)) ;; iteration position
+             (param $bad-index (ref eq)) ;; optional bad-index value, default = raise
+             (result           (ref eq))
+             (if (call $immutable-hash-leaf?/i32 (local.get $ht))
+                 (then
+                  (return_call $immutable-hash-iterate-value/public
+                               (local.get $ht)
+                               (local.get $pos)
+                               (local.get $bad-index))))
+             (return_call $mutable-hash-iterate-value
+                          (local.get $ht)
+                          (local.get $pos)
+                          (local.get $bad-index)))))
+
+   (core-runtime-helper
+    '$hash-iterate-pair
+    "$hash-iterate-pair"
+    (lambda ()
+      `;; hash-iterate-pair : hash? exact-nonnegative-integer? [any/c] -> pair?
+       ;;   Public hash iterator pair accessor. Optional bad-index value defaults to raising.
+       (func $hash-iterate-pair (type $Prim23)
+             (param $ht        (ref eq)) ;; hash table
+             (param $pos       (ref eq)) ;; iteration position
+             (param $bad-index (ref eq)) ;; optional bad-index value, default = raise
+             (result           (ref eq))
+             (if (call $immutable-hash-leaf?/i32 (local.get $ht))
+                 (then
+                  (return_call $immutable-hash-iterate-pair/public
+                               (local.get $ht)
+                               (local.get $pos)
+                               (local.get $bad-index))))
+             (return_call $mutable-hash-iterate-pair
+                          (local.get $ht)
+                          (local.get $pos)
+                          (local.get $bad-index)))))
+
+   (core-runtime-helper
+    '$hash-iterate-key+value
+    "$hash-iterate-key+value"
+    (lambda ()
+      `;; hash-iterate-key+value : hash? exact-nonnegative-integer? [any/c] -> values
+       ;;   Public hash iterator key/value accessor. Optional bad-index value defaults to raising.
+       (func $hash-iterate-key+value (type $Prim23)
+             (param $ht        (ref eq)) ;; hash table
+             (param $pos       (ref eq)) ;; iteration position
+             (param $bad-index (ref eq)) ;; optional bad-index value, default = raise
+             (result           (ref eq))
+             (if (call $immutable-hash-leaf?/i32 (local.get $ht))
+                 (then
+                  (return_call $immutable-hash-iterate-key+value/public
+                               (local.get $ht)
+                               (local.get $pos)
+                               (local.get $bad-index))))
+             (return_call $mutable-hash-iterate-key+value
+                          (local.get $ht)
+                          (local.get $pos)
+                          (local.get $bad-index)))))))
+
 ;; mutable-hash-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate mutable hash helpers that still depend on monolithic runtime globals.
 (define mutable-hash-runtime-only-helpers
@@ -2059,4 +2193,5 @@
           mutable-hash-resize-runtime-only-helpers
           mutable-hash-membership-runtime-only-helpers
           mutable-hash-clear-bang-runtime-only-helpers
-          mutable-hash-empty-runtime-only-helpers))
+          mutable-hash-empty-runtime-only-helpers
+          mutable-hash-iteration-dispatch-runtime-only-helpers))
