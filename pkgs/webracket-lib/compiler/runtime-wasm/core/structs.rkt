@@ -2,6 +2,7 @@
 
 (provide struct-basic-runtime-only-helper-names
          struct-conversion-runtime-only-helper-names
+         struct-format-runtime-only-helper-names
          struct-core-runtime-helpers
          struct-runtime-only-helpers)
 
@@ -43,6 +44,12 @@
 (define struct-conversion-runtime-only-helper-names
   '($struct->list
     $struct->vector))
+
+;; struct-format-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for struct formatting helpers.
+(define struct-format-runtime-only-helper-names
+  '($raise-format/display:struct:expected-struct
+    $format/display:struct))
 
 ;; struct-basic-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate basic struct predicates and checkers used by the monolithic runtime.
@@ -285,12 +292,74 @@
                        (local.get $arr)))
      )))
 
+;; struct-format-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate struct formatting helpers used by the monolithic runtime.
+(define struct-format-runtime-only-helpers
+  (function-forms->runtime-helpers
+   'struct-format-runtime-only-helpers
+   '(
+     (func $raise-format/display:struct:expected-struct (unreachable))
+
+     (func $format/display:struct
+           (param $v (ref eq))
+           (result (ref $String))
+
+           (local $s      (ref $Struct))
+           (local $type   (ref $StructType))
+           (local $name   (ref eq))
+           (local $fields (ref $Array))
+           (local $n      i32)
+           (local $i      i32)
+           (local $out    (ref $GrowableArray))
+
+           ;; Check struct type
+           (if (i32.eqz (ref.test (ref $Struct) (local.get $v)))
+               (then (call $raise-format/display:struct:expected-struct)))
+
+           ;; Cast and extract
+           (local.set $s      (ref.cast (ref $Struct) (local.get $v)))
+           (local.set $type   (struct.get $Struct     $type   (local.get $s)))
+           (local.set $name   (struct.get $StructType $name   (local.get $type)))
+           (local.set $fields (struct.get $Struct     $fields (local.get $s)))
+           (local.set $n      (array.len (local.get $fields)))
+
+           ;; Start output
+           (local.set $out (call $make-growable-array (i32.const 8)))
+           (call $growable-array-add! (local.get $out)
+                                    (ref.cast (ref $String) (global.get $string:struct-open))) ;; "#(struct "
+
+           ;; Add name
+           (call $growable-array-add! (local.get $out)
+                 (call $format/display (local.get $name)))
+
+           ;; Add each field
+           (local.set $i (i32.const 0))
+           (block $done
+                  (loop $loop
+                        (br_if $done (i32.ge_u (local.get $i) (local.get $n)))
+                        (call $growable-array-add! (local.get $out)
+                                                   (ref.cast (ref $String)
+                                                            (global.get $string:space)))
+                        (call $growable-array-add! (local.get $out)
+                              (call $format/display
+                                    (array.get $Array (local.get $fields) (local.get $i))))
+                        (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                        (br $loop)))
+
+           ;; Close output
+           (call $growable-array-add! (local.get $out)
+                                    (ref.cast (ref $String)
+                                             (global.get $string:close-paren)))
+           (call $growable-array-of-strings->string (local.get $out)))
+     )))
+
 ;; struct-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate struct helpers that depend on monolithic runtime globals.
 (define struct-runtime-only-helpers
   (append
    struct-basic-runtime-only-helpers
    struct-conversion-runtime-only-helpers
+   struct-format-runtime-only-helpers
    (list
     ;; initialize-prefab-struct-type-registry : -> void
     ;;   Lazily allocate the global prefab struct type registry.

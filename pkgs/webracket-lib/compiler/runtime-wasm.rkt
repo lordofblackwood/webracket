@@ -137,6 +137,7 @@
          (only-in "runtime-wasm/core/structs.rkt"
                   struct-basic-runtime-only-helper-names
                   struct-conversion-runtime-only-helper-names
+                  struct-format-runtime-only-helper-names
                   struct-runtime-only-helpers)
          (only-in "runtime-wasm/core/symbols.rkt"
                   symbol-gensym-runtime-only-helper-names
@@ -15789,59 +15790,10 @@
          ,@(for/list ([name (in-list struct-conversion-runtime-only-helper-names)])
              (core-runtime-helper-form runtime-helper-index name))
 
-         (func $raise-format/display:struct:expected-struct (unreachable))
-
-         (func $format/display:struct
-               (param $v (ref eq))
-               (result (ref $String))
-
-               (local $s      (ref $Struct))
-               (local $type   (ref $StructType))
-               (local $name   (ref eq))
-               (local $fields (ref $Array))
-               (local $n      i32)
-               (local $i      i32)
-               (local $out    (ref $GrowableArray))
-
-               ;; Check struct type
-               (if (i32.eqz (ref.test (ref $Struct) (local.get $v)))
-                   (then (call $raise-format/display:struct:expected-struct)))
-
-               ;; Cast and extract
-               (local.set $s      (ref.cast (ref $Struct) (local.get $v)))
-               (local.set $type   (struct.get $Struct     $type   (local.get $s)))
-               (local.set $name   (struct.get $StructType $name   (local.get $type)))
-               (local.set $fields (struct.get $Struct     $fields (local.get $s)))
-               (local.set $n      (array.len (local.get $fields)))
-
-               ;; Start output
-               (local.set $out (call $make-growable-array (i32.const 8)))
-               (call $growable-array-add! (local.get $out)
-                                        (ref.cast (ref $String) (global.get $string:struct-open))) ;; "#(struct "
-
-               ;; Add name
-               (call $growable-array-add! (local.get $out)
-                     (call $format/display (local.get $name)))
-
-               ;; Add each field
-               (local.set $i (i32.const 0))
-               (block $done
-                      (loop $loop
-                            (br_if $done (i32.ge_u (local.get $i) (local.get $n)))
-                            (call $growable-array-add! (local.get $out)
-                                                       (ref.cast (ref $String)
-                                                                (global.get $string:space)))
-                            (call $growable-array-add! (local.get $out)
-                                  (call $format/display
-                                        (array.get $Array (local.get $fields) (local.get $i))))
-                            (local.set $i (i32.add (local.get $i) (i32.const 1)))
-                            (br $loop)))
-
-               ;; Close output
-               (call $growable-array-add! (local.get $out)
-                                        (ref.cast (ref $String)
-                                                 (global.get $string:close-paren)))
-               (call $growable-array-of-strings->string (local.get $out)))
+         ;; Struct formatting helpers
+         ;;   Implemented in runtime-wasm/core/structs.rkt.
+         ,@(for/list ([name (in-list struct-format-runtime-only-helper-names)])
+             (core-runtime-helper-form runtime-helper-index name))
 
 
          (func $make-struct-type-descriptor
