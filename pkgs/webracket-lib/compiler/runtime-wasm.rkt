@@ -68,6 +68,7 @@
          (only-in "runtime-wasm/core/lists.rkt"
                   list-error-runtime-only-helper-names
                   list-ordinal-accessor-runtime-only-helper-names
+                  pair-accessor-runtime-only-helper-names
                   list-runtime-only-helpers)
          (only-in "runtime-wasm/core/linklet-instances.rkt"
                   linklet-instance-runtime-only-helper-names
@@ -13448,13 +13449,7 @@
 
          ,(core-runtime-helper-form runtime-helper-index '$cdr)
 
-         ,@(for/list ([name '($caar $cadr $cdar $cddr
-                              $caaar $caadr $cadar $caddr
-                              $cdaar $cdadr $cddar $cdddr
-                              $caaaar $caaadr $caadar $caaddr
-                              $cadaar $cadadr $caddar $cadddr
-                              $cdaaar $cdaadr $cdadar $cdaddr
-                              $cddaar $cddadr $cdddar $cddddr)])
+         ,@(for/list ([name (in-list pair-accessor-runtime-only-helper-names)])
              (core-runtime-helper-form runtime-helper-index name))
 
          ,(core-runtime-helper-form core-runtime-helper-index '$list?)

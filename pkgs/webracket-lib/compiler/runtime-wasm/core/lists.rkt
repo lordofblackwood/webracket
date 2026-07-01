@@ -3,6 +3,7 @@
 (provide list-core-runtime-helpers
          list-error-runtime-only-helper-names
          list-ordinal-accessor-runtime-only-helper-names
+         pair-accessor-runtime-only-helper-names
          list-runtime-only-helpers)
 
 (require "../core-helper.rkt"
@@ -214,6 +215,11 @@
     $cadaar $cadadr $caddar $cadddr
     $cdaaar $cdaadr $cdadar $cdaddr
     $cddaar $cddadr $cdddar $cddddr))
+
+;; pair-accessor-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for generated composed car/cdr accessors.
+(define pair-accessor-runtime-only-helper-names
+  pair-accessor-names)
 
 ;; pair-accessor-helper : symbol? -> core-runtime-helper?
 ;;   Build a helper for a generated composed car/cdr accessor.
