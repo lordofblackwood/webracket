@@ -4,21 +4,6 @@
 
 (require "../core-helper.rkt")
 
-;; function-forms->runtime-helpers : symbol? (listof datum?) -> (listof core-runtime-helper?)
-;;   Register quoted WAT function forms as core runtime helpers.
-(define (function-forms->runtime-helpers who forms)
-  (for/list ([form (in-list forms)])
-    (define name
-      (and (pair? form)
-           (eq? 'func (car form))
-           (pair? (cdr form))
-           (cadr form)))
-    (unless (symbol? name)
-      (error who "expected a function form, got: ~s" form))
-    (core-runtime-helper name
-                         (symbol->string name)
-                         (lambda () form))))
-
 ;; immutable-hash-prelude-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate immutable hash and reader-placeholder prelude helpers.
 (define immutable-hash-prelude-runtime-only-helpers

@@ -4,7 +4,8 @@
          make-core-runtime-helper-index
          core-runtime-helper-ref
          core-runtime-helper-form
-         core-runtime-helper-forms)
+         core-runtime-helper-forms
+         function-forms->runtime-helpers)
 
 ;; A core runtime helper is a runtime function that can be emitted in the
 ;; monolithic runtime or exported from the experimental core runtime module.
@@ -12,6 +13,21 @@
 ;; representation notes with the registry row, and preserve the original
 ;; WAT-expression indentation where possible.
 (struct core-runtime-helper (name export-name make-form) #:transparent)
+
+;; function-forms->runtime-helpers : symbol? (listof datum?) -> (listof core-runtime-helper?)
+;;   Register quoted WAT function forms as core runtime helpers.
+(define (function-forms->runtime-helpers who forms)
+  (for/list ([form (in-list forms)])
+    (define name
+      (and (pair? form)
+           (eq? 'func (car form))
+           (pair? (cdr form))
+           (cadr form)))
+    (unless (symbol? name)
+      (error who "expected a function form, got: ~s" form))
+    (core-runtime-helper name
+                         (symbol->string name)
+                         (lambda () form))))
 
 ;; make-core-runtime-helper-index : (listof core-runtime-helper?) -> hasheq?
 ;;   Build an index from Wasm function names to registered core helpers.
