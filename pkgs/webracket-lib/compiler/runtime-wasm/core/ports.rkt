@@ -4,11 +4,11 @@
 
 (require "../core-helper.rkt")
 
-;; port-runtime-only-helpers : (listof core-runtime-helper?)
+;; port-predicate-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate port predicate and wrapper-recognition helpers.
-(define port-runtime-only-helpers
+(define port-predicate-runtime-only-helpers
   (function-forms->runtime-helpers
-   'port-runtime-only-helpers
+   'port-predicate-runtime-only-helpers
    '(
      (func $raise-check-string-port (param $x (ref eq)) (unreachable))
      (func $raise-check-port-or-false (param $x (ref eq)) (unreachable))
@@ -186,3 +186,226 @@
                (call $output-port-like?/i32 (local.get $v))
                (then (global.get $true))
                (else (global.get $false)))))))
+
+;; port-state-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate port status, current-port, flush, and close helpers.
+(define port-state-runtime-only-helpers
+  (function-forms->runtime-helpers
+   'port-state-runtime-only-helpers
+   '(
+     (func $port-closed? (type $Prim1)
+           (param $p (ref eq)) ;; port?
+           (result   (ref eq))
+
+           (local $port (ref $Port))
+
+           (if (i32.eqz (ref.test (ref $Port) (local.get $p)))
+               (then (call $raise-argument-error1
+                           (global.get $symbol:port-closed?)
+                           (global.get $string:port?)
+                           (local.get $p))
+                     (unreachable)))
+           (local.set $port (ref.cast (ref $Port) (local.get $p)))
+           (if (result (ref eq))
+               (struct.get $Port $closed (local.get $port))
+               (then (global.get $true))
+               (else (global.get $false))))
+
+     ;; close-input-port : input-port? -> void?
+     ;;   Call a custom input port's close thunk once, then mark the port closed.
+     (func $close-input-port (type $Prim1)
+           (param $p (ref eq)) ;; input-port?
+           (result   (ref eq))
+
+           (local $port       (ref $InputPort))
+           (local $custom     (ref $CustomInputPort))
+           (local $close-proc (ref eq))
+           (local $f          (ref $Procedure))
+           (local $finv       (ref $ProcedureInvoker))
+           (local $args       (ref $Args))
+
+           (if (i32.eqz (ref.test (ref $InputPort) (local.get $p)))
+               (then (call $raise-argument-error1
+                           (global.get $symbol:close-input-port)
+                           (global.get $string:input-port?)
+                           (local.get $p))
+                     (unreachable)))
+           (local.set $port (ref.cast (ref $InputPort) (local.get $p)))
+           (if (struct.get $InputPort $closed (local.get $port))
+               (then (return (global.get $void))))
+           (if (ref.test (ref $CustomInputPort) (local.get $p))
+               (then
+                (local.set $custom (ref.cast (ref $CustomInputPort) (local.get $p)))
+                (local.set $close-proc
+                           (struct.get $CustomInputPort $close-proc
+                                       (local.get $custom)))
+                (if (ref.test (ref $Procedure) (local.get $close-proc))
+                    (then
+                     (local.set $f (ref.cast (ref $Procedure)
+                                             (local.get $close-proc)))
+                     (local.set $finv
+                                (struct.get $Procedure $invoke (local.get $f)))
+                     (local.set $args (array.new_fixed $Args 0))
+                     (drop (call_ref $ProcedureInvoker
+                                     (local.get $f)
+                                     (local.get $args)
+                                     (local.get $finv)))))))
+           (struct.set $InputPort $closed (local.get $port) (i32.const 1))
+           (global.get $void))
+
+     ;; current-input-port : [input-port?] -> input-port? or void?
+     ;;   Get or set the runtime current input port.
+     (func $current-input-port (type $Prim01)
+           (param $p (ref eq)) ;; optional input-port?
+           (result   (ref eq))
+
+           (if (ref.eq (local.get $p) (global.get $missing))
+               (then (return (global.get $current-input-port-value))))
+           (if (i32.eqz (ref.test (ref $InputPort) (local.get $p)))
+               (then (call $raise-argument-error1
+                           (global.get $symbol:current-input-port)
+                           (global.get $string:input-port?)
+                           (local.get $p))
+                     (unreachable)))
+           (global.set $current-input-port-value (local.get $p))
+           (global.get $void))
+
+     ;; current-output-port : [output-port?] -> output-port? or void?
+     ;;   Get or set the runtime current output port.
+     (func $current-output-port (type $Prim01)
+           (param $p (ref eq)) ;; optional output-port?
+           (result   (ref eq))
+
+           (if (ref.eq (local.get $p) (global.get $missing))
+               (then (return (global.get $current-output-port-value))))
+           (if (i32.eqz (ref.test (ref $OutputPort) (local.get $p)))
+               (then (call $raise-argument-error1
+                           (global.get $symbol:current-output-port)
+                           (global.get $string:output-port?)
+                           (local.get $p))
+                     (unreachable)))
+           (global.set $current-output-port-value (local.get $p))
+           (global.get $void))
+
+     ;; current-error-port : [output-port?] -> output-port? or void?
+     ;;   Get or set the runtime current error port.
+     (func $current-error-port (type $Prim01)
+           (param $p (ref eq)) ;; optional output-port?
+           (result   (ref eq))
+
+           (if (ref.eq (local.get $p) (global.get $missing))
+               (then (return (global.get $current-error-port-value))))
+           (if (i32.eqz (ref.test (ref $OutputPort) (local.get $p)))
+               (then (call $raise-argument-error1
+                           (global.get $symbol:current-error-port)
+                           (global.get $string:output-port?)
+                           (local.get $p))
+                     (unreachable)))
+           (global.set $current-error-port-value (local.get $p))
+           (global.get $void))
+
+     ;; reset-current-input-port! : -> void?
+     ;;   Reset the runtime current input port to an empty string port.
+     (func $reset-current-input-port! (type $Prim0)
+           (result (ref eq))
+
+           (global.set $current-input-port-value
+                       (call $open-input-string
+                             (global.get $string:empty)
+                             (global.get $missing)))
+           (global.get $void))
+
+     ;; reset-current-output-port! : -> void?
+     ;;   Reset the runtime current output port to a fresh output string port.
+     (func $reset-current-output-port! (type $Prim0)
+           (result (ref eq))
+
+           (global.set $current-output-port-value
+                       (call $open-output-string (global.get $missing)))
+           (global.get $void))
+
+     ;; reset-current-error-port! : -> void?
+     ;;   Reset the runtime current error port to a fresh output string port.
+     (func $reset-current-error-port! (type $Prim0)
+           (result (ref eq))
+
+           (global.set $current-error-port-value
+                       (call $open-output-string (global.get $missing)))
+           (global.get $void))
+
+     ;; flush-output : [output-port?] -> void?
+     ;;   Flush a VFS output file port; string and bytes output ports are no-ops.
+     (func $flush-output (type $Prim01)
+           (param $p (ref eq)) ;; optional output-port?, default = current output port
+           (result   (ref eq))
+
+           (local $port      (ref $OutputPort))
+           (local $file-port (ref $OutputFilePort))
+
+           (if (ref.eq (local.get $p) (global.get $missing))
+               (then (local.set $p (call $current-output-port
+                                         (global.get $missing)))))
+           (if (i32.eqz (ref.test (ref $OutputPort) (local.get $p)))
+               (then (call $raise-argument-error1
+                           (global.get $symbol:flush-output)
+                           (global.get $string:output-port?)
+                           (local.get $p))
+                     (unreachable)))
+           (local.set $port (ref.cast (ref $OutputPort) (local.get $p)))
+           (if (struct.get $OutputPort $closed (local.get $port))
+               (then (call $raise-output-port-closed
+                           (global.get $string:flush-output:output-port-closed))
+                     (unreachable)))
+           (if (ref.test (ref $OutputFilePort) (local.get $p))
+               (then
+                (local.set $file-port (ref.cast (ref $OutputFilePort) (local.get $p)))
+                (drop (call $webracket-vfs-write-file
+                            (struct.get $OutputFilePort $path (local.get $file-port))
+                            (call $get-output-bytes
+                                  (local.get $p)
+                                  (global.get $missing)
+                                  (global.get $missing)
+                                  (global.get $missing))))))
+           (global.get $void))
+
+     ;; close-output-port : output-port? -> void?
+     ;;   Flush a VFS file output port if needed, then mark the port closed.
+     (func $close-output-port (type $Prim1)
+           (param $p (ref eq)) ;; output-port?
+           (result   (ref eq))
+
+           (local $port       (ref $OutputPort))
+           (local $custom     (ref $CustomOutputPort))
+           (local $close-proc (ref eq))
+           (local $f          (ref $Procedure))
+           (local $finv       (ref $ProcedureInvoker))
+
+           (if (i32.eqz (ref.test (ref $OutputPort) (local.get $p)))
+               (then (call $raise-argument-error1
+                           (global.get $symbol:close-output-port)
+                           (global.get $string:output-port?)
+                           (local.get $p))
+                     (unreachable)))
+           (local.set $port (ref.cast (ref $OutputPort) (local.get $p)))
+           (if (struct.get $OutputPort $closed (local.get $port))
+               (then (return (global.get $void))))
+           (drop (call $flush-output (local.get $p)))
+           (if (ref.test (ref $CustomOutputPort) (local.get $p))
+               (then
+                (local.set $custom (ref.cast (ref $CustomOutputPort) (local.get $p)))
+                (local.set $close-proc
+                           (struct.get $CustomOutputPort $close-proc (local.get $custom)))
+                (local.set $f (ref.cast (ref $Procedure) (local.get $close-proc)))
+                (local.set $finv (struct.get $Procedure $invoke (local.get $f)))
+                (drop (call_ref $ProcedureInvoker
+                                (local.get $f)
+                                (array.new_fixed $Args 0)
+                                (local.get $finv)))))
+           (struct.set $OutputPort $closed (local.get $port) (i32.const 1))
+           (global.get $void)))))
+
+;; port-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate port helpers used by the monolithic runtime.
+(define port-runtime-only-helpers
+  (append port-predicate-runtime-only-helpers
+          port-state-runtime-only-helpers))
