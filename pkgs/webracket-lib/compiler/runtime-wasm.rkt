@@ -134,6 +134,8 @@
          (only-in "runtime-wasm/core/strings.rkt"
                   string-mutability-runtime-only-helper-names
                   string-runtime-only-helpers)
+         (only-in "runtime-wasm/core/structs.rkt"
+                  struct-runtime-only-helpers)
          (only-in "runtime-wasm/core/symbols.rkt"
                   symbol-gensym-runtime-only-helper-names
                   symbol-public-runtime-only-helper-names
@@ -282,6 +284,7 @@
            semaphore-runtime-only-helpers
            stencil-vector-runtime-only-helpers
            string-runtime-only-helpers
+           struct-runtime-only-helpers
            symbol-runtime-only-helpers
            syntax-runtime-only-helpers
            thread-runtime-only-helpers
@@ -14780,12 +14783,9 @@
             (active-described-primitives-sorted)
             primitive-table-module-symbols)
 
-         (func $initialize-prefab-struct-type-registry
-               (if (ref.is_null (global.get $prefab-struct-type-registry))
-                   (then
-                    (global.set $prefab-struct-type-registry
-                                (ref.cast (ref $HashEqMutable)
-                                          (call $make-empty-hasheq))))))
+         ;; Prefab struct registry helpers
+         ;;   Implemented in runtime-wasm/core/structs.rkt.
+         ,(core-runtime-helper-form runtime-helper-index '$initialize-prefab-struct-type-registry)
 
 
          ,(core-runtime-helper-form runtime-helper-index '$raise-hash-ref-key-not-found)

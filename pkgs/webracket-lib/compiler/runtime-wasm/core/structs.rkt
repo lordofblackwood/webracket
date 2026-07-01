@@ -1,6 +1,7 @@
 #lang racket
 
-(provide struct-core-runtime-helpers)
+(provide struct-core-runtime-helpers
+         struct-runtime-only-helpers)
 
 (require "../core-helper.rkt")
 
@@ -24,3 +25,20 @@
     (lambda ()
       `(func $struct-type?/i32 (param $v (ref eq)) (result i32)
              (ref.test (ref $StructType) (local.get $v)))))))
+
+;; struct-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate struct helpers that depend on monolithic runtime globals.
+(define struct-runtime-only-helpers
+  (list
+   ;; initialize-prefab-struct-type-registry : -> void
+   ;;   Lazily allocate the global prefab struct type registry.
+   (core-runtime-helper
+    '$initialize-prefab-struct-type-registry
+    "$initialize-prefab-struct-type-registry"
+    (lambda ()
+      `(func $initialize-prefab-struct-type-registry
+             (if (ref.is_null (global.get $prefab-struct-type-registry))
+                 (then
+                  (global.set $prefab-struct-type-registry
+                              (ref.cast (ref $HashEqMutable)
+                                        (call $make-empty-hasheq))))))))))
