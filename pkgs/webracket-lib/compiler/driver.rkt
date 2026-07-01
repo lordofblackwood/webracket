@@ -58,6 +58,7 @@
          (only-in "assembler.rkt"
                   run
                   wat->wasm
+                  initialize-assembler-environment!
                   runtime)
          (only-in racket/list       append* append-map remove-duplicates second take)
          (only-in racket/match      match)
@@ -2879,6 +2880,7 @@
          #:vfs-mounts        vfs-mounts
          ;; Convenience
          #:run-after?        run-after?
+         #:exec-path-from-shell? [exec-path-from-shell? #t]
          ;; Foreign Function Interface
          #:ffi-files         ffi-files    ; list of file paths for .ffi files
          ;; Standard Library
@@ -3177,6 +3179,8 @@
   (ensure-output-path-writable! 'drive-compilation out-host "host output file")
   
   ; Preflight: ensure wasm-tools exists and can run.
+  (initialize-assembler-environment!
+   #:exec-path-from-shell? exec-path-from-shell?)
   (check-wasm-tools! 'drive-compilation)
   (define t-preflight-end (now-ms))
 

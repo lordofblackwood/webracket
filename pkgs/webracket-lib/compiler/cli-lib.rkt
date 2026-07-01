@@ -40,6 +40,7 @@
    alpha-rename-profile?                  ; print alpha-rename pass diagnostics
    simplify-profile?                      ; print simplify-LFE diagnostics
    pretty-wat?                            ; pretty-print emitted WAT
+   exec-path-from-shell?                   ; import PATH/MANPATH from login shell before assembler preflight
    enable-cc-analysis?                    ; enable the new closure-conversion analysis
    enable-simplify?                       ; enable the early simplify pass
    module-bridge-elide-public-cells?      ; expose safe public bridge exports as plain values
@@ -87,6 +88,7 @@
     (alpha-rename-profile? . ,(webracket-compile-config-alpha-rename-profile? cfg))
     (simplify-profile? . ,(webracket-compile-config-simplify-profile? cfg))
     (pretty-wat? . ,(webracket-compile-config-pretty-wat? cfg))
+    (exec-path-from-shell? . ,(webracket-compile-config-exec-path-from-shell? cfg))
     (enable-cc-analysis? . ,(webracket-compile-config-enable-cc-analysis? cfg))
     (enable-simplify? . ,(webracket-compile-config-enable-simplify? cfg))
     (module-bridge-elide-public-cells? . ,(webracket-compile-config-module-bridge-elide-public-cells? cfg))
@@ -141,6 +143,7 @@
    (ref 'alpha-rename-profile?)
    (ref 'simplify-profile?)
    (ref 'pretty-wat?)
+   (ref/default 'exec-path-from-shell? #t)
    (ref 'enable-cc-analysis?)
    (ref 'enable-simplify?)
    (ref 'module-bridge-elide-public-cells?)
@@ -186,6 +189,7 @@
   (define alpha-rename-profile? #f)
   (define simplify-profile? #f)
   (define pretty-wat? #f)
+  (define exec-path-from-shell? #t)
   (define list-primitives? #f)
   (define list-provider-slices? #f)
   (define enable-cc-analysis? #f)
@@ -346,6 +350,12 @@
                        (set! pretty-wat? #t)]
      [("--no-pretty-wat") "Write .wat without pretty formatting (default)"
                           (set! pretty-wat? #f)]
+     [("--exec-path-from-shell")
+      "Import PATH/MANPATH from the login shell before finding wasm-tools (default)"
+      (set! exec-path-from-shell? #t)]
+     [("--no-exec-path-from-shell")
+      "Use the current process environment when finding wasm-tools"
+      (set! exec-path-from-shell? #f)]
      [("--list-primitives") "Print the list of all primitives and exit"
                             (set! list-primitives? #t)]
      [("--list-provider-slices") "Print original-Racket provider slices and exit"
@@ -520,6 +530,7 @@
        alpha-rename-profile?
        simplify-profile?
        pretty-wat?
+       exec-path-from-shell?
        enable-cc-analysis?
        enable-simplify?
        module-bridge-elide-public-cells?
@@ -573,6 +584,8 @@
                        #:alpha-rename-profile? (webracket-compile-config-alpha-rename-profile? cfg)
                        #:simplify-profile? (webracket-compile-config-simplify-profile? cfg)
                        #:pretty-wat? (webracket-compile-config-pretty-wat? cfg)
+                       #:exec-path-from-shell?
+                       (webracket-compile-config-exec-path-from-shell? cfg)
                        #:verbose? (webracket-compile-config-verbose-mode cfg)
                        #:browser? (webracket-compile-config-browser cfg)
                        #:node? (webracket-compile-config-nodejs cfg)

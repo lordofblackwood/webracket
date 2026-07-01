@@ -1,5 +1,5 @@
 #lang at-exp racket
-(provide run wat->wasm runtime)
+(provide run wat->wasm runtime initialize-assembler-environment!)
 
 (module+ test
   (require rackunit))
@@ -72,7 +72,15 @@
 ; and some of the other tools support the GC proposal.
 
 
-(void (exec-path-from-shell-initialize)) ; use the search path for a normal shell
+;; initialize-assembler-environment! : [#:exec-path-from-shell? boolean?] -> void?
+;;   Optionally import the normal shell search path before locating wasm-tools.
+(define assembler-environment-initialized? #f)
+
+(define (initialize-assembler-environment! #:exec-path-from-shell? [exec-path-from-shell? #t])
+  (when (and exec-path-from-shell?
+             (not assembler-environment-initialized?))
+    (exec-path-from-shell-initialize)
+    (set! assembler-environment-initialized? #t)))
 
 
 ;;;
