@@ -35230,96 +35230,12 @@
                                $procedure-arity-mask-value->field)])
              (core-runtime-helper-form runtime-helper-index name))
 
-         ;; make-composed-procedure : list? boolean? -> procedure?
-         ;;   Build the procedure returned by compose or compose1.
-         (func $make-composed-procedure
-               (param $args    (ref eq))
-               (param $single? (ref eq))
-               (result         (ref eq))
-
-               (local $procs (ref $Array))
-               (local $n     i32)
-               (local $i     i32)
-               (local $p     (ref $Procedure))
-               (local $free  (ref $Free))
-
-               (local.set $procs (call $list->array (local.get $args)))
-               (local.set $n     (array.len (local.get $procs)))
-               (block $done
-                      (loop $loop
-                            (br_if $done (i32.ge_u (local.get $i) (local.get $n)))
-                            (if (i32.eqz
-                                 (ref.test (ref $Procedure)
-                                           (array.get $Array
-                                                      (local.get $procs)
-                                                      (local.get $i))))
-                                (then
-                                 (call $raise-argument-error:procedure-expected
-                                       (array.get $Array
-                                                  (local.get $procs)
-                                                  (local.get $i)))
-                                 (unreachable)))
-                            (local.set $i (i32.add (local.get $i) (i32.const 1)))
-                            (br $loop)))
-               (if (i32.eq (local.get $n) (i32.const 1))
-                   (then (return (array.get $Array (local.get $procs) (i32.const 0)))))
-               (if (i32.eqz (local.get $n))
-                   (then
-                    (local.set $free
-                               (array.new_fixed $Free
-                                                2
-                                                (ref.cast (ref eq) (local.get $procs))
-                                                (local.get $single?)))
-                    (return
-                     (struct.new $Closure
-                                 (i32.const 0)
-                                 (global.get $symbol:compose)
-                                 (ref.i31 (i32.const -2))
-                                 (global.get $the-racket-realm)
-                                 (ref.func $invoke-composed-procedure)
-                                 (global.get $symbol:compose)
-                                 (ref.func $dummy-code)
-                                 (local.get $free)))))
-               (local.set $p (ref.cast (ref $Procedure)
-                                        (array.get $Array
-                                                   (local.get $procs)
-                                                   (i32.sub (local.get $n) (i32.const 1)))))
-               (local.set $free
-                          (array.new_fixed $Free
-                                           2
-                                           (ref.cast (ref eq) (local.get $procs))
-                                           (local.get $single?)))
-               (struct.new $Closure
-                           (i32.const 0)
-                           (global.get $symbol:compose)
-                           (struct.get $Procedure $arity (local.get $p))
-                           (global.get $the-racket-realm)
-                           (ref.func $invoke-composed-procedure)
-                           (global.get $symbol:compose)
-                           (ref.func $dummy-code)
-                           (local.get $free)))
-
-         (func $compose (type $Prim>=0)
-               (param $args (ref eq))
-               (result      (ref eq))
-               (call $make-composed-procedure (local.get $args) (global.get $false)))
-
-         (func $compose1 (type $Prim>=0)
-               (param $args (ref eq))
-               (result      (ref eq))
-               (call $make-composed-procedure (local.get $args) (global.get $true)))
-
-         (func $procedure-extract-target (type $Prim1)
-               (param $proc (ref eq)) ; procedure?
-               (result      (ref eq))
-               ;; Racket extracts a target procedure from a struct procedure
-               ;; whose prop:procedure value names a field. WebRacket does
-               ;; not yet expose that internal target, so ordinary procedures
-               ;; conservatively return #f for now.
-               (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
-                   (then (call $raise-argument-error:procedure-expected (local.get $proc))
-                         (unreachable)))
-               (global.get $false))
+         ;;   Implemented in runtime-wasm/core/procedures.rkt.
+         ,@(for/list ([name '($make-composed-procedure
+                               $compose
+                               $compose1
+                               $procedure-extract-target)])
+             (core-runtime-helper-form runtime-helper-index name))
 
          (func $procedure-reduce-arity (type $Prim24)
                (param $proc  (ref eq)) ; procedure?
