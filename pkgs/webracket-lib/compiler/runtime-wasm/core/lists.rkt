@@ -2,6 +2,7 @@
 
 (provide list-core-runtime-helpers
          list-error-runtime-only-helper-names
+         list-ordinal-accessor-runtime-only-helper-names
          list-runtime-only-helpers)
 
 (require "../core-helper.rkt"
@@ -239,6 +240,48 @@
             (param $v (ref eq))
             (result (ref eq))
             ,body))))
+
+;; list-ordinal-accessor-names : (listof symbol?)
+;;   Names for generated ordinal list accessors.
+(define list-ordinal-accessor-names
+  '($first $second $third $fourth $fifth $sixth $seventh $eighth
+    $ninth $tenth $eleventh $twelfth $thirteenth $fourteenth $fifteenth))
+
+;; list-ordinal-accessor-helper : symbol? exact-nonnegative-integer? -> core-runtime-helper?
+;;   Build a helper for a generated ordinal list accessor.
+(define (list-ordinal-accessor-helper name idx)
+  (core-runtime-helper
+   name
+   (symbol->string name)
+   (lambda ()
+     `(func ,name (type $Prim1)
+            (param $xs (ref eq))
+            (result (ref eq))
+            ;; Type check: non-empty proper list
+            (if (ref.eq (local.get $xs) (global.get $null))
+                (then (call $js-log (call $format/display (local.get $xs)))
+                      (call $raise-argument-error/internal (local.get $xs))
+                      (unreachable)))
+            (if (ref.eq (call $list? (local.get $xs)) (global.get $false))
+                (then (call $js-log (call $format/display (local.get $xs)))
+                      (call $raise-argument-error/internal (local.get $xs))
+                      (unreachable)))
+            ;; Retrieve element using list-ref
+            (call $list-ref
+                  (local.get $xs)
+                  (ref.i31 (i32.shl (i32.const ,idx) (i32.const 1))))))))
+
+;; list-ordinal-accessor-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate generated ordinal list accessors used by the monolithic runtime.
+(define list-ordinal-accessor-runtime-only-helpers
+  (for/list ([name (in-list list-ordinal-accessor-names)]
+             [idx  (in-naturals)])
+    (list-ordinal-accessor-helper name idx)))
+
+;; list-ordinal-accessor-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for generated ordinal list accessors.
+(define list-ordinal-accessor-runtime-only-helper-names
+  (map core-runtime-helper-name list-ordinal-accessor-runtime-only-helpers))
 
 ;; member-runtime-helper : symbol? symbol? boolean? any/c -> core-runtime-helper?
 ;;   Build a member-family helper with an optional comparator procedure.
@@ -718,6 +761,7 @@
                               (global.get $symbol:list-ref)
                               (local.get $xs))
                         (unreachable)))))))
+   list-ordinal-accessor-runtime-only-helpers
    (map pair-accessor-helper pair-accessor-names)
    (list
     ;; rest : (ref eq) -> (ref eq)

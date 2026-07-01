@@ -67,6 +67,7 @@
                   keyword-runtime-only-helpers)
          (only-in "runtime-wasm/core/lists.rkt"
                   list-error-runtime-only-helper-names
+                  list-ordinal-accessor-runtime-only-helper-names
                   list-runtime-only-helpers)
          (only-in "runtime-wasm/core/linklet-instances.rkt"
                   linklet-instance-runtime-only-helper-names
@@ -13468,25 +13469,10 @@
 
          ,(core-runtime-helper-form runtime-helper-index '$list-ref)
 
-         ,@(for/list ([name '($first $second $third $fourth $fifth $sixth $seventh $eighth
-                              $ninth $tenth $eleventh $twelfth $thirteenth $fourteenth $fifteenth)]
-                     [idx (in-naturals)])
-            `(func ,name (type $Prim1)
-                   (param $xs (ref eq))
-                   (result (ref eq))
-                   ;; Type check: non-empty proper list
-                   (if (ref.eq (local.get $xs) (global.get $null))
-                       (then (call $js-log (call $format/display (local.get $xs)))
-                             (call $raise-argument-error/internal (local.get $xs))
-                             (unreachable)))
-                   (if (ref.eq (call $list? (local.get $xs)) (global.get $false))
-                       (then (call $js-log (call $format/display (local.get $xs)))
-                             (call $raise-argument-error/internal (local.get $xs))
-                             (unreachable)))
-                   ;; Retrieve element using list-ref
-                   (call $list-ref
-                         (local.get $xs)
-                         (ref.i31 (i32.shl (i32.const ,idx) (i32.const 1))))))
+         ;; first through fifteenth
+         ;;   Implemented in runtime-wasm/core/lists.rkt.
+         ,@(for/list ([name (in-list list-ordinal-accessor-runtime-only-helper-names)])
+             (core-runtime-helper-form runtime-helper-index name))
 
         ,(core-runtime-helper-form runtime-helper-index '$rest)
 
