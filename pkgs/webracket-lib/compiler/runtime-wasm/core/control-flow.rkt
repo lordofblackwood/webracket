@@ -276,4 +276,135 @@
      ;;   compare this value without exercising prompt control behavior.
      (func $unsafe-root-continuation-prompt-tag (type $Prim0)
            (result (ref eq))
-           (global.get $symbol:root-continuation-prompt-tag)))))
+           (global.get $symbol:root-continuation-prompt-tag))
+
+     ;; call-with-immediate-continuation-mark : any/c (any/c -> any/c) [any/c] -> any/c
+     ;;   WebRacket currently erases with-continuation-mark frames, so the
+     ;;   current frame has no mark to inspect. Follow the Reference's
+     ;;   "not found" behavior and tail-call proc with default-v, whose
+     ;;   optional default is #f.
+     (func $call-with-immediate-continuation-mark (type $Prim23)
+           (param $key       (ref eq)) ;; any/c, ignored until real marks exist
+           (param $proc-raw  (ref eq)) ;; procedure?
+           (param $default-v (ref eq)) ;; optional any/c, default = #f
+           (result           (ref eq))
+
+           (local $proc (ref $Procedure))
+           (local $inv  (ref $ProcedureInvoker))
+           (local $arg  (ref eq))
+
+           (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc-raw)))
+               (then (call $raise-argument-error:procedure-expected
+                           (local.get $proc-raw))
+                     (unreachable)))
+           (local.set $proc (ref.cast (ref $Procedure) (local.get $proc-raw)))
+           (local.set $inv  (struct.get $Procedure $invoke (local.get $proc)))
+           (local.set $arg
+                      (if (result (ref eq))
+                          (ref.eq (local.get $default-v) (global.get $missing))
+                          (then (global.get $false))
+                          (else (local.get $default-v))))
+           (return_call_ref $ProcedureInvoker
+                            (local.get $proc)
+                            (array.new_fixed $Args 1 (local.get $arg))
+                            (local.get $inv)))
+
+     ;; make-continuation-mark-key : [symbol?] -> continuation-mark-key?
+     ;;   Allocate a fresh opaque key. The optional symbol defaults to #f
+     ;;   in WebRacket for now; Racket uses it only for printing.
+     (func $make-continuation-mark-key (type $Prim01)
+           (param $name-raw (ref eq)) ;; optional symbol?, default = fresh print name
+           (result          (ref eq))
+           (if (i32.and
+                (i32.eqz (ref.eq (local.get $name-raw) (global.get $missing)))
+                (i32.eqz (ref.test (ref $Symbol) (local.get $name-raw))))
+               (then (call $raise-argument-error1
+                           (global.get $symbol:make-continuation-mark-key)
+                           (global.get $string:symbol?)
+                           (local.get $name-raw))
+                     (unreachable)))
+           (struct.new $ContinuationMarkKey
+                       (i32.const 0)
+                       (if (result (ref eq))
+                           (ref.eq (local.get $name-raw) (global.get $missing))
+                           (then (global.get $false))
+                           (else (local.get $name-raw)))))
+
+     ;; continuation-mark-key? : any/c -> boolean?
+     ;;   Recognize keys allocated by make-continuation-mark-key.
+     (func $continuation-mark-key? (type $Prim1)
+           (param $v (ref eq))
+           (result   (ref eq))
+           (if (result (ref eq))
+               (ref.test (ref $ContinuationMarkKey) (local.get $v))
+               (then (global.get $true))
+               (else (global.get $false))))
+
+     ;; current-continuation-marks : [continuation-prompt-tag?] -> continuation-mark-set?
+     (func $current-continuation-marks (type $Prim01)
+           ;; prompt-tag : continuation-prompt-tag? (optional, default = (default-continuation-prompt-tag))
+           ;; NOTE: WebRacket currently lacks continuation marks, so this
+           ;; stub returns a fresh empty mark set. Reinstating real marks
+           ;; matters for mark-sensitive error reporting and protocols.
+           (param $prompt-tag (ref eq))
+           (result            (ref eq))
+           (struct.new $ContinuationMarkSet (i32.const 0)))
+
+     ;; continuation-mark-set? : any/c -> boolean?
+     ;;   Recognize WebRacket's opaque empty mark-set placeholder.
+     (func $continuation-mark-set? (type $Prim1)
+           (param $v (ref eq))
+           (result   (ref eq))
+           (if (result (ref eq))
+               (ref.test (ref $ContinuationMarkSet) (local.get $v))
+               (then (global.get $true))
+               (else (global.get $false))))
+
+     ;; continuation-prompt-available? : continuation-prompt-tag? [continuation?] -> boolean?
+     ;;   WebRacket does not implement prompt control yet. Returning #t is
+     ;;   the permissive bootstrap choice for libraries that merely check
+     ;;   whether an exception/control prompt is installed before raising.
+     (func $continuation-prompt-available? (type $Prim12)
+           (param $prompt-tag (ref eq)) ;; continuation-prompt-tag?, currently unchecked
+           (param $cont       (ref eq)) ;; optional continuation?, currently ignored
+           (result            (ref eq))
+           (global.get $true))
+
+     ;; continuation-prompt-tag? : any/c -> boolean?
+     ;;   Recognize WebRacket's stable root prompt placeholder. Full prompt
+     ;;   tag allocation should introduce a distinct prompt-tag type later.
+     (func $continuation-prompt-tag? (type $Prim1)
+           (param $v (ref eq))
+           (result   (ref eq))
+           (if (result (ref eq))
+               (ref.eq (local.get $v) (global.get $symbol:root-continuation-prompt-tag))
+               (then (global.get $true))
+               (else (global.get $false))))
+
+     ;; continuation? : any/c -> boolean?
+     ;;   WebRacket does not expose first-class continuations yet.
+     (func $continuation? (type $Prim1)
+           (param $v (ref eq))
+           (result   (ref eq))
+           (global.get $false))
+
+     ;; continuation-mark-set-first : continuation-mark-set? any/c [any/c] [continuation-prompt-tag?] -> any/c
+     ;;   Bootstrap-only approximation used while bringing up the Racket
+     ;;   expander. Since `with-continuation-mark*` is currently erased by
+     ;;   Webify, there is no mark stack to inspect. Returning the
+     ;;   caller's `none-v` value (default #f) matches Racket's "not found"
+     ;;   convention closely enough for startup probes, but real
+     ;;   continuation marks should replace this before relying on
+     ;;   mark-sensitive error reporting or dynamic protocols.
+     (func $continuation-mark-set-first (type $Prim24)
+           (param $marks      (ref eq)) ;; continuation-mark-set? or #f
+           (param $key        (ref eq)) ;; any/c
+           (param $none-v     (ref eq)) ;; optional any/c, default = #f
+           (param $prompt-tag (ref eq)) ;; optional continuation-prompt-tag?
+           (result            (ref eq))
+           (if (ref.eq (local.get $key) (global.get $parameterization-key))
+               (then (return (global.get $current-parameterization-value))))
+           (if (result (ref eq))
+               (ref.eq (local.get $none-v) (global.get $missing))
+               (then (global.get $false))
+               (else (local.get $none-v)))))))
