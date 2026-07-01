@@ -2112,6 +2112,222 @@
                  (global.get $false)
                  (global.get $false))))))
 
+;; port-peek-bytes-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate byte-vector peek helpers.
+(define port-peek-bytes-runtime-only-helpers
+  (function-forms->runtime-helpers
+   'port-peek-bytes-runtime-only-helpers
+   '(
+     (func $peek-bytes! (type $Prim25)
+           (param $bstr  (ref eq)) ;; bytes?
+           (param $skip  (ref eq)) ;; exact-nonnegative-integer?
+           (param $in    (ref eq)) ;; input-port?               (optional, default = (current-input-port))
+           (param $start (ref eq)) ;; exact-nonnegative-integer? (optional, default = 0)
+           (param $end   (ref eq)) ;; exact-nonnegative-integer? (optional, default = (bytes-length bstr))
+           (result       (ref eq))
+
+           (local $bs          (ref $Bytes))
+           (local $arr         (ref $I8Array))
+           (local $len         i32)
+           (local $from        i32)
+           (local $to          i32)
+           (local $count       i32)
+           (local $skip-count  i32)
+           (local $sp          (ref null $InputStringPort))
+           (local $port-bytes  (ref $Bytes))
+           (local $port-arr    (ref $I8Array))
+           (local $idx         i32)
+           (local $limit       i32)
+           (local $remaining   i32)
+           (local $peek-start  i32)
+           (local $copy-count  i32)
+           (local $i           i32)
+           (local $dest-idx    i32)
+           (local $byte        i32)
+
+           ;; --- Validate byte string argument ---
+           (if (i32.eqz (ref.test (ref $Bytes) (local.get $bstr)))
+               (then (call $raise-check-bytes (local.get $bstr)) (unreachable)))
+           (local.set $bs (ref.cast (ref $Bytes) (local.get $bstr)))
+           ;; Reject immutable byte strings
+           (if (i32.eq (struct.get $Bytes $immutable (local.get $bs)) (i32.const 1))
+               (then (call $raise-expected-mutable-bytes (local.get $bstr)) (unreachable)))
+           (local.set $arr (struct.get $Bytes $bs (local.get $bs)))
+           (local.set $len (call $i8array-length (local.get $arr)))
+
+           ;; --- Decode skip amount ---
+           (if (i32.eqz (ref.test (ref i31) (local.get $skip)))
+               (then (call $raise-check-fixnum (local.get $skip)) (unreachable)))
+           (local.set $skip-count (i31.get_u (ref.cast (ref i31) (local.get $skip))))
+           (if (i32.eqz (i32.and (local.get $skip-count) (i32.const 1)))
+               (then (local.set $skip-count (i32.shr_u (local.get $skip-count) (i32.const 1))))
+               (else (call $raise-check-fixnum (local.get $skip)) (unreachable)))
+
+           ;; --- Determine input port ---
+           (if (ref.eq (local.get $in) (global.get $missing))
+               (then (local.set $in (call $current-input-port
+                                          (global.get $missing)))))
+           (if (i32.eqz (ref.test (ref $InputStringPort) (local.get $in)))
+               (then (call $raise-check-string-port (local.get $in)) (unreachable)))
+           (local.set $sp (ref.cast (ref $InputStringPort) (local.get $in)))
+
+           ;; --- Decode optional start index ---
+           (if (ref.eq (local.get $start) (global.get $missing))
+               (then (local.set $from (i32.const 0)))
+               (else (if (ref.test (ref i31) (local.get $start))
+                         (then (local.set $from (i31.get_u (ref.cast (ref i31) (local.get $start))))
+                               (if (i32.eqz (i32.and (local.get $from) (i32.const 1)))
+                                   (then (local.set $from (i32.shr_u (local.get $from) (i32.const 1))))
+                                   (else (call $raise-check-fixnum (local.get $start)) (unreachable))))
+                         (else (call $raise-check-fixnum (local.get $start)) (unreachable)))))
+           ;; --- Decode optional end index ---
+           (if (ref.eq (local.get $end) (global.get $missing))
+               (then (local.set $to (local.get $len)))
+               (else (if (ref.test (ref i31) (local.get $end))
+                         (then (local.set $to (i31.get_u (ref.cast (ref i31) (local.get $end))))
+                               (if (i32.eqz (i32.and (local.get $to) (i32.const 1)))
+                                   (then (local.set $to (i32.shr_u (local.get $to) (i32.const 1))))
+                                   (else (call $raise-check-fixnum (local.get $end)) (unreachable))))
+                         (else (call $raise-check-fixnum (local.get $end)) (unreachable)))))
+           ;; --- Bounds checks ---
+           (if (i32.gt_u (local.get $from) (local.get $to))
+               (then (call $raise-bad-bytes-range (local.get $bstr) (local.get $from) (local.get $to))
+                     (unreachable)))
+           (if (i32.gt_u (local.get $to) (local.get $len))
+               (then (call $raise-bad-bytes-range (local.get $bstr) (local.get $from) (local.get $to))
+                     (unreachable)))
+
+           (local.set $count (i32.sub (local.get $to) (local.get $from)))
+           (if (i32.eqz (local.get $count))
+               (then (return (ref.i31 (i32.const 0)))))
+
+           ;; --- Determine peek window ---
+           (local.set $idx       (struct.get $InputStringPort $idx (local.get $sp)))
+           (local.set $limit     (struct.get $InputStringPort $len (local.get $sp)))
+           (local.set $remaining (i32.sub (local.get $limit) (local.get $idx)))
+           (if (i32.le_u (local.get $remaining) (local.get $skip-count))
+               (then (return (global.get $eof))))
+           (local.set $peek-start (i32.add (local.get $idx)   (local.get $skip-count)))
+           (local.set $remaining  (i32.sub (local.get $limit) (local.get $peek-start)))
+
+           ;; --- Determine number of bytes to copy ---
+           (local.set $copy-count (local.get $count))
+           (if (i32.lt_u (local.get $remaining) (local.get $copy-count))
+               (then (local.set $copy-count (local.get $remaining))))
+
+           (local.set $port-bytes (struct.get $InputStringPort $bytes (local.get $sp)))
+           (local.set $port-arr (struct.get $Bytes $bs (local.get $port-bytes)))
+           (local.set $i (i32.const 0))
+           ;; --- Copy bytes without consuming the port ---
+           (block $done
+                  (loop $loop
+                        (br_if $done (i32.ge_u (local.get $i) (local.get $copy-count)))
+                        (local.set $dest-idx (i32.add (local.get $from) (local.get $i)))
+                        (local.set $byte
+                                   (array.get_u $I8Array
+                                                (local.get $port-arr)
+                                                (i32.add (local.get $peek-start) (local.get $i))))
+                        (call $i8array-set! (local.get $arr) (local.get $dest-idx) (local.get $byte))
+                        (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                        (br $loop)))
+
+           ;; --- Report number of bytes peeked ---
+           (ref.i31 (i32.shl (local.get $copy-count) (i32.const 1))))
+
+
+     (func $peek-bytes-avail!:progress-not-supported (unreachable))
+
+     ;; NOTE: Like Racket's peek-bytes-avail!, but currently only string ports are supported
+     ;;       and the progress argument must be #f.
+     ;;       Takes at least 1 argument and at most 6.
+     ;;       Instead of introducing a new shaped ($Prim16) we reuse $Prim>=1
+     (func $peek-bytes-avail! (type $Prim>=1)
+           (param $bstr (ref eq)) ;; bytes?
+           (param $rest (ref eq)) ;; remaining arguments as a list
+           (result      (ref eq))
+
+           (local $args     (ref eq))
+           (local $node     (ref $Pair))
+           (local $arg      (ref eq))
+           (local $count    i32)
+           (local $skip     (ref eq))
+           (local $progress (ref eq))
+           (local $in       (ref eq))
+           (local $start    (ref eq))
+           (local $end      (ref eq))
+
+           ;; Initialize optional arguments to "missing"
+           (local.set $skip     (global.get $missing))
+           (local.set $progress (global.get $missing))
+           (local.set $in       (global.get $missing))
+           (local.set $start    (global.get $missing))
+           (local.set $end      (global.get $missing))
+
+           ;; Decode rest arguments (skip, progress, in, start, end)
+           (local.set $args  (local.get $rest))
+           (local.set $count (i32.const 0))
+           (block $done
+                  (loop $loop
+                        (if (ref.eq (local.get $args) (global.get $null))
+                            (then (br $done)))
+                        (local.set $node (ref.cast (ref $Pair) (local.get $args)))
+                        (local.set $arg  (struct.get $Pair $a (local.get $node)))
+                        (local.set $args (struct.get $Pair $d (local.get $node)))
+                        (local.set $count (i32.add (local.get $count) (i32.const 1)))
+                        (if (i32.gt_u (local.get $count) (i32.const 5))
+                            (then (call $primitive-invoke:raise-arity-error
+                                        (ref.cast (ref $PrimitiveProcedure)
+                                                  (global.get $prim:peek-bytes-avail!))
+                                        (local.get $count))
+                                  (unreachable)))
+                        (if (i32.eq (local.get $count) (i32.const 1))
+                            (then (local.set $skip (local.get $arg)))
+                            (else
+                             (if (i32.eq (local.get $count) (i32.const 2))
+                                 (then (local.set $progress (local.get $arg)))
+                                 (else
+                                  (if (i32.eq (local.get $count) (i32.const 3))
+                                      (then (local.set $in (local.get $arg)))
+                                      (else
+                                       (if (i32.eq (local.get $count) (i32.const 4))
+                                           (then (local.set $start (local.get $arg)))
+                                           (else (local.set $end (local.get $arg))))))))))
+                        (br $loop)))
+
+           ;; Require the skip argument
+           (if (ref.eq (local.get $skip) (global.get $missing))
+               (then (call $primitive-invoke:raise-arity-error
+                           (ref.cast (ref $PrimitiveProcedure)
+                                     (global.get $prim:peek-bytes-avail!))
+                           (local.get $count))
+                     (unreachable)))
+
+           ;; Progress defaults to #f and must be #f
+           (if (ref.eq (local.get $progress) (global.get $missing))
+               (then (local.set $progress (global.get $false))))
+           (if (i32.eqz (ref.eq (local.get $progress) (global.get $false)))
+               (then (call $peek-bytes-avail!:progress-not-supported)
+                     (unreachable)))
+
+           (call $peek-bytes!
+                 (local.get $bstr)
+                 (local.get $skip)
+                 (local.get $in)
+                 (local.get $start)
+                 (local.get $end)))
+
+     ;; NOTE: Like Racket's peek-bytes-avail!*, but currently only string ports are supported
+     ;;       and the progress argument must be #f.
+     ;;       Takes at least 1 argument and at most 6.
+     (func $peek-bytes-avail!* (type $Prim>=1)
+           (param $bstr (ref eq))
+           (param $rest (ref eq))
+           (result      (ref eq))
+
+           (call $peek-bytes-avail!
+                 (local.get $bstr)
+                 (local.get $rest))))))
+
 ;; port-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate port helpers used by the monolithic runtime.
 (define port-runtime-only-helpers
@@ -2127,4 +2343,5 @@
           port-read-bytes-runtime-only-helpers
           port-read-string-runtime-only-helpers
           port-readiness-runtime-only-helpers
-          port-read-line-runtime-only-helpers))
+          port-read-line-runtime-only-helpers
+          port-peek-bytes-runtime-only-helpers))
