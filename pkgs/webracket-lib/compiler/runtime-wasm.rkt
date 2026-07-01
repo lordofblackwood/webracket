@@ -135,6 +135,7 @@
                   string-mutability-runtime-only-helper-names
                   string-runtime-only-helpers)
          (only-in "runtime-wasm/core/structs.rkt"
+                  struct-basic-runtime-only-helper-names
                   struct-runtime-only-helpers)
          (only-in "runtime-wasm/core/symbols.rkt"
                   symbol-gensym-runtime-only-helper-names
@@ -15775,92 +15776,12 @@
          ;; [x] struct->list
 
          ,(core-runtime-helper-form core-runtime-helper-index '$struct?/i32)
-
-         (func $struct? (type $Prim1)
-               ,@(make-predicate-body '$Struct))
-
          ,(core-runtime-helper-form core-runtime-helper-index '$struct-type?/i32)
 
-         (func $struct-type? (type $Prim1)
-               ,@(make-predicate-body '$StructType))
-
-         (func $raise-check-struct-type (unreachable))
-
-         (func $check-struct-type
-               (param $name (ref $String))
-               (param $v    (ref eq))
-               (result      (ref eq))
-
-               (if (result (ref eq))
-                   (ref.eq (local.get $v) (global.get $false))
-                   (then (local.get $v)) ;; allow #f
-                   (else (if (result (ref eq))
-                             (ref.test (ref $StructType) (local.get $v))
-                             (then (local.get $v))
-                             (else (call $raise-check-struct-type)
-                                   #;(call $raise-argument-error
-                                           (local.get $name)
-                                           (call $str-struct-type-or-false)
-                                           (local.get $v))
-                                   (unreachable))))))
-
-         (func $struct-type-is-a?/i32
-               ; is $a a subtype of $b ?
-               (param $a (ref eq)) (param $b (ref eq))
-               (result i32)
-
-               (local $cur (ref eq))
-               (local.set $cur (local.get $a))
-
-               (loop $walk
-                     ;; Success: found a matching struct type in the hierarchy.
-                     (if (ref.eq (local.get $cur) (local.get $b))
-                         (then (return (i32.const 1))))
-
-                     ;; Failure: reached the end of the chain or encountered a
-                     ;; non-struct descriptor before finding $b.
-                     (if (ref.eq (local.get $cur) (global.get $false))
-                         (then (return (i32.const 0))))
-                     (if (i32.eqz (ref.test (ref $StructType) (local.get $cur)))
-                         (then (return (i32.const 0))))
-
-                     ;; Walk up the supertype chain and continue searching.
-                     (local.set $cur
-                                (struct.get $StructType $super
-                                            (ref.cast (ref $StructType) (local.get $cur))))
-                     (br $walk))
-               (unreachable))
-
-         (func $struct-type-authentic? (type $Prim1)
-               (param $v (ref eq))
-               (result   (ref eq))
-
-               (local $std   (ref $StructType))
-               (local $props (ref $HashEqMutable))
-               (local $has   i32)
-
-               (if (i32.eqz (ref.test (ref $StructType) (local.get $v)))
-                   (then (call $raise-argument-error1
-                               (global.get $symbol:struct-type-authentic?)
-                               (global.get $string:struct-type?)
-                               (local.get $v))
-                         (unreachable)))
-
-               (local.set $std (ref.cast (ref $StructType) (local.get $v)))
-               (local.set $props
-                          (ref.cast (ref $HashEqMutable)
-                                    (struct.get $StructType $properties (local.get $std))))
-               (local.set $has
-                          (call $struct-type-property-table-has-name?/i32
-                                (local.get $props)
-                                (ref.cast (ref $Symbol)
-                                          (global.get $symbol:prop:authentic))))
-               (if (result (ref eq))
-                   (i32.eq (local.get $has) (i32.const 1))
-                   (then (global.get $true))
-                   (else (global.get $false))))
-
-
+         ;; Basic struct predicates and checkers
+         ;;   Implemented in runtime-wasm/core/structs.rkt.
+         ,@(for/list ([name (in-list struct-basic-runtime-only-helper-names)])
+             (core-runtime-helper-form runtime-helper-index name))
 
          ;; Note: The #:on-opaque keyword is accepted as a positional optional argument.
          ;;       Keyword arguments are not yet supported, so callers must pass the
