@@ -2180,6 +2180,223 @@
                           (local.get $pos)
                           (local.get $bad-index)))))))
 
+;; mutable-hash-iteration-position-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate mutable hash iterator position helpers.
+(define mutable-hash-iteration-position-runtime-only-helpers
+  (append
+   (list
+    (core-runtime-helper
+     '$mutable-hash-iterate-first
+     "$mutable-hash-iterate-first"
+     (lambda ()
+       `;; mutable-hash-iterate-first
+        (func $mutable-hash-iterate-first (type $Prim1)
+              (param $ht (ref eq))   ;; mutable hash table
+              (result    (ref eq))   ;; first iteration position or #f
+
+              ;; Check type: must be (ref $Hash)
+              (if (i32.eqz (ref.test (ref $Hash) (local.get $ht)))
+                  (then (call $raise-argument-error:hash-expected)
+                        (unreachable)))
+              ;; Dispatch on table type
+              (if (ref.test (ref $HashEqMutable) (local.get $ht))
+                  (then (return (call $hasheq-iterate-first (local.get $ht)))))
+              (if (ref.test (ref $HashEqvMutable) (local.get $ht))
+                  (then (return (call $hasheqv-iterate-first (local.get $ht)))))
+              (if (ref.test (ref $HashEqualMutable) (local.get $ht))
+                  (then (return (call $hashequal-iterate-first (local.get $ht)))))
+              (if (ref.test (ref $HashEqualAlwaysMutable) (local.get $ht))
+                  (then (return (call $hashalw-iterate-first (local.get $ht)))))
+              ;; Bootstrap compatibility: schemified expander code uses
+              ;; `hash-iterate-first`, which can currently resolve through
+              ;; this helper. Preserve general hash iteration for immutable
+              ;; hashes instead of failing on the misleading helper name.
+              (if (ref.test (ref $HashEqImmutable) (local.get $ht))
+                  (then (return (call $immutable-hasheqv-iterate-first
+                                      (call $immutable-hash-as-hasheqv (local.get $ht))))))
+              (if (ref.test (ref $HashEqvImmutable) (local.get $ht))
+                  (then (return (call $immutable-hasheqv-iterate-first
+                                      (call $immutable-hash-as-hasheqv (local.get $ht))))))
+              (if (ref.test (ref $HashEqualImmutable) (local.get $ht))
+                  (then (return (call $immutable-hasheqv-iterate-first
+                                      (call $immutable-hash-as-hasheqv (local.get $ht))))))
+              (if (ref.test (ref $HashEqualAlwaysImmutable) (local.get $ht))
+                  (then (return (call $immutable-hasheqv-iterate-first
+                                      (call $immutable-hash-as-hasheqv (local.get $ht))))))
+              (call $raise-argument-error:mutable-hash-expected (local.get $ht))
+              (unreachable))))
+
+    (core-runtime-helper
+     '$mutable-hash-iterate-next
+     "$mutable-hash-iterate-next"
+     (lambda ()
+       `;; mutable-hash-iterate-next
+        (func $mutable-hash-iterate-next (type $Prim2)
+              (param $ht  (ref eq))   ;; mutable hash table
+              (param $pos (ref eq))   ;; current position
+              (result     (ref eq))   ;; next position or #f
+
+              ;; Check type: must be (ref $Hash)
+              (if (i32.eqz (ref.test (ref $Hash) (local.get $ht)))
+                  (then (call $raise-argument-error:hash-expected)
+                        (unreachable)))
+              ;; Dispatch on table type
+              (if (ref.test (ref $HashEqMutable) (local.get $ht))
+                  (then (return (call $hasheq-iterate-next (local.get $ht) (local.get $pos)))))
+              (if (ref.test (ref $HashEqvMutable) (local.get $ht))
+                  (then (return (call $hasheqv-iterate-next (local.get $ht) (local.get $pos)))))
+              (if (ref.test (ref $HashEqualMutable) (local.get $ht))
+                  (then (return (call $hashequal-iterate-next (local.get $ht) (local.get $pos)))))
+              (if (ref.test (ref $HashEqualAlwaysMutable) (local.get $ht))
+                  (then (return (call $hashalw-iterate-next (local.get $ht) (local.get $pos)))))
+              (if (ref.test (ref $HashEqImmutable) (local.get $ht))
+                  (then (return (call $immutable-hasheqv-iterate-next
+                                      (call $immutable-hash-as-hasheqv (local.get $ht))
+                                      (local.get $pos)))))
+              (if (ref.test (ref $HashEqvImmutable) (local.get $ht))
+                  (then (return (call $immutable-hasheqv-iterate-next
+                                      (call $immutable-hash-as-hasheqv (local.get $ht))
+                                      (local.get $pos)))))
+              (if (ref.test (ref $HashEqualImmutable) (local.get $ht))
+                  (then (return (call $immutable-hasheqv-iterate-next
+                                      (call $immutable-hash-as-hasheqv (local.get $ht))
+                                      (local.get $pos)))))
+              (if (ref.test (ref $HashEqualAlwaysImmutable) (local.get $ht))
+                  (then (return (call $immutable-hasheqv-iterate-next
+                                      (call $immutable-hash-as-hasheqv (local.get $ht))
+                                      (local.get $pos)))))
+              (call $raise-argument-error:mutable-hash-expected (local.get $ht))
+              (unreachable)))))
+
+   (for/list ([iter-first     '($hasheq-iterate-first
+                                $hasheqv-iterate-first
+                                $hashequal-iterate-first
+                                $hashalw-iterate-first)]
+              [type           '($HashEqMutable
+                                $HashEqvMutable
+                                $HashEqualMutable
+                                $HashEqualAlwaysMutable)]
+              [raise-expected '($raise-argument-error:mutable-hasheq-expected
+                                $raise-argument-error:mutable-hasheqv-expected
+                                $raise-argument-error:mutable-hash-expected
+                                $raise-argument-error:mutable-hashalw-expected)])
+     (core-runtime-helper
+      iter-first
+      (symbol->string iter-first)
+      (lambda ()
+        `(func ,iter-first
+               (type $Prim1)
+               (param $ht (ref eq))   ;; mutable hash table
+               (result    (ref eq))
+
+               (local $table    (ref ,type))
+               (local $entries  (ref $Array))
+               (local $capacity i32)
+               (local $i        i32)
+               (local $key      (ref eq))
+
+               ;; Check that ht is expected table type
+               (if (i32.eqz (ref.test (ref ,type) (local.get $ht)))
+                   (then (call ,raise-expected (local.get $ht))
+                         (unreachable)))
+
+               (local.set $table   (ref.cast (ref ,type) (local.get $ht)))
+               (if (i32.eqz (struct.get ,type $count (local.get $table)))
+                   (then (return (global.get $false))))
+
+               (local.set $entries  (struct.get ,type $entries (local.get $table)))
+               (local.set $capacity (i32.div_u (array.len (local.get $entries)) (i32.const 2)))
+               (local.set $i        (i32.const 0))
+               (block $done
+                      (loop $loop
+                            (br_if $done (i32.ge_u (local.get $i) (local.get $capacity)))
+                            (local.set $key
+                                       (array.get $Array
+                                                  (local.get $entries)
+                                                  (i32.shl (local.get $i) (i32.const 1))))
+                            ;; Skip empty or tombstone slots
+                            (if (ref.eq (local.get $key) (global.get $missing))
+                                (then
+                                 (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                                 (br $loop)))
+                            (if (ref.eq (local.get $key) (global.get $tombstone))
+                                (then
+                                 (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                                 (br $loop)))
+
+                            (return (ref.i31 (i32.shl (local.get $i) (i32.const 1))))
+                            ))
+               (global.get $false)))))
+
+   (for/list ([iter-next      '($hasheq-iterate-next
+                                $hasheqv-iterate-next
+                                $hashequal-iterate-next
+                                $hashalw-iterate-next)]
+              [type           '($HashEqMutable
+                                $HashEqvMutable
+                                $HashEqualMutable
+                                $HashEqualAlwaysMutable)]
+              [raise-expected '($raise-argument-error:mutable-hasheq-expected
+                                $raise-argument-error:mutable-hasheqv-expected
+                                $raise-argument-error:mutable-hash-expected
+                                $raise-argument-error:mutable-hashalw-expected)])
+     (core-runtime-helper
+      iter-next
+      (symbol->string iter-next)
+      (lambda ()
+        `(func ,iter-next
+               (type $Prim2)
+               (param $ht  (ref eq))   ;; mutable hash table
+               (param $pos (ref eq))   ;; current iteration position
+               (result     (ref eq))   ;; next iteration position or #f
+
+               (local $table    (ref ,type))
+               (local $entries  (ref $Array))
+               (local $capacity i32)
+               (local $i        i32)
+               (local $key      (ref eq))
+
+               ;; Check that ht is expected table type
+               (if (i32.eqz (ref.test (ref ,type) (local.get $ht)))
+                   (then (call ,raise-expected (local.get $ht))
+                         (unreachable)))
+
+               ;; Decode and validate position
+               (if (i32.eqz (ref.test (ref i31) (local.get $pos)))
+                   (then (call $raise-check-fixnum (local.get $pos))
+                         (unreachable)))
+               (local.set $i (i31.get_u (ref.cast (ref i31) (local.get $pos))))
+               (if (i32.and (local.get $i) (i32.const 1))
+                   (then (call $raise-check-fixnum (local.get $pos))
+                         (unreachable)))
+
+               (local.set $table   (ref.cast (ref ,type) (local.get $ht)))
+               (local.set $entries (struct.get ,type $entries (local.get $table)))
+               (local.set $capacity (i32.div_u (array.len (local.get $entries)) (i32.const 2)))
+
+               (local.set $i (i32.add (i32.shr_u (local.get $i) (i32.const 1)) (i32.const 1)))
+
+               (block $done
+                      (loop $loop
+                            (br_if $done (i32.ge_u (local.get $i) (local.get $capacity)))
+                            (local.set $key
+                                       (array.get $Array
+                                                  (local.get $entries)
+                                                  (i32.shl (local.get $i) (i32.const 1))))
+                            ;; Skip empty or tombstone slots
+                            (if (ref.eq (local.get $key) (global.get $missing))
+                                (then
+                                 (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                                 (br $loop)))
+                            (if (ref.eq (local.get $key) (global.get $tombstone))
+                                (then
+                                 (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                                 (br $loop)))
+
+                            (return (ref.i31 (i32.shl (local.get $i) (i32.const 1))))
+                            ))
+               (global.get $false)))))))
+
 ;; mutable-hash-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate mutable hash helpers that still depend on monolithic runtime globals.
 (define mutable-hash-runtime-only-helpers
@@ -2194,4 +2411,5 @@
           mutable-hash-membership-runtime-only-helpers
           mutable-hash-clear-bang-runtime-only-helpers
           mutable-hash-empty-runtime-only-helpers
-          mutable-hash-iteration-dispatch-runtime-only-helpers))
+          mutable-hash-iteration-dispatch-runtime-only-helpers
+          mutable-hash-iteration-position-runtime-only-helpers))
