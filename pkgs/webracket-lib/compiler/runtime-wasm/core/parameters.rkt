@@ -14,6 +14,9 @@
          parameter-directory-runtime-only-helper-names
          environment-parameter-global-forms
          environment-parameter-initializer-forms
+         error-rendering-handler-global-forms
+         error-value-handler-late-initializer-forms
+         error-syntax-handler-late-initializer-forms
          print-read-parameter-global-forms
          print-read-parameter-late-initializer-forms
          reader-printer-policy-parameter-global-forms
@@ -187,6 +190,61 @@
                                             (global.get $the-racket/primitive-realm)
                                             (ref.func $primitive-invoke:shape-2)
                                             (ref.func $default-current-read-interaction)
+                                            (global.get $false)))))
+
+;; error-rendering-handler-global-forms : (listof datum?)
+;;   Declare globals backing error-rendering handler parameters.
+(define error-rendering-handler-global-forms
+  '(
+               (global $error-value->string-handler-value (mut (ref eq)) (global.get $false))
+               (global $error-syntax->string-handler-value (mut (ref eq)) (global.get $false))
+               (global $error-syntax->name-handler-value (mut (ref eq)) (global.get $false))
+               (global $error-module-path->string-handler-value (mut (ref eq)) (global.get $false))))
+
+;; error-value-handler-late-initializer-forms : (listof datum?)
+;;   Initialize error-value->string-handler after primitive globals are ready.
+(define error-value-handler-late-initializer-forms
+  '(
+                    (global.set $error-value->string-handler-value
+                                (struct.new $PrimitiveProcedure
+                                            (i32.const 0)
+                                            (global.get $symbol:error-value->string-handler)
+                                            (ref.i31 (i32.const 4))
+                                            (global.get $the-racket/primitive-realm)
+                                            (ref.func $primitive-invoke:shape-2)
+                                            (ref.func $default-error-value->string-handler)
+                                            (global.get $false)))))
+
+;; error-syntax-handler-late-initializer-forms : (listof datum?)
+;;   Initialize syntax and module-path error-rendering handlers.
+(define error-syntax-handler-late-initializer-forms
+  '(
+                    (global.set $error-syntax->string-handler-value
+                                (struct.new $PrimitiveProcedure
+                                            (i32.const 0)
+                                            (global.get $symbol:error-syntax->string-handler)
+                                            (ref.i31 (i32.const 4))
+                                            (global.get $the-racket/primitive-realm)
+                                            (ref.func $primitive-invoke:shape-2)
+                                            (ref.func $default-error-syntax->string-handler)
+                                            (global.get $false)))
+                    (global.set $error-syntax->name-handler-value
+                                (struct.new $PrimitiveProcedure
+                                            (i32.const 0)
+                                            (global.get $symbol:error-syntax->name-handler)
+                                            (ref.i31 (i32.const 2))
+                                            (global.get $the-racket/primitive-realm)
+                                            (ref.func $primitive-invoke:shape-1)
+                                            (ref.func $default-error-syntax->name-handler)
+                                            (global.get $false)))
+                    (global.set $error-module-path->string-handler-value
+                                (struct.new $PrimitiveProcedure
+                                            (i32.const 0)
+                                            (global.get $symbol:error-module-path->string-handler)
+                                            (ref.i31 (i32.const 4))
+                                            (global.get $the-racket/primitive-realm)
+                                            (ref.func $primitive-invoke:shape-2)
+                                            (ref.func $default-error-module-path->string-handler)
                                             (global.get $false)))))
 
 ;; reader-printer-policy-parameter-global-forms : (listof datum?)

@@ -206,6 +206,9 @@
                   parameterization-runtime-only-helper-names
                   parameter-runtime-only-helpers
                   parameter-width-runtime-only-helper-names
+                  error-rendering-handler-global-forms
+                  error-value-handler-late-initializer-forms
+                  error-syntax-handler-late-initializer-forms
                   print-read-parameter-global-forms
                   print-read-parameter-late-initializer-forms
                   environment-parameter-global-forms
@@ -7177,10 +7180,7 @@
                (global $current-namespace-value (mut (ref eq)) (global.get $false))
                ,@random-current-global-forms
                ,@thread-group-current-global-forms
-               (global $error-value->string-handler-value (mut (ref eq)) (global.get $false))
-               (global $error-syntax->string-handler-value (mut (ref eq)) (global.get $false))
-               (global $error-syntax->name-handler-value (mut (ref eq)) (global.get $false))
-               (global $error-module-path->string-handler-value (mut (ref eq)) (global.get $false))
+               ,@error-rendering-handler-global-forms
                (global $result-bytes             (mut (ref eq)) (ref.i31 (i32.const 0)))
                ,@thread-current-global-forms
                ,@event-global-forms
@@ -7269,15 +7269,7 @@
                     ,@(initialize-ffi-primitives-as-globals)
                     (call $initialize-unsafe-ffi-primitive-table)
                     ,@security-guard-current-initializer-forms
-                    (global.set $error-value->string-handler-value
-                                (struct.new $PrimitiveProcedure
-                                            (i32.const 0)
-                                            (global.get $symbol:error-value->string-handler)
-                                            (ref.i31 (i32.const 4))
-                                            (global.get $the-racket/primitive-realm)
-                                            (ref.func $primitive-invoke:shape-2)
-                                            (ref.func $default-error-value->string-handler)
-                                            (global.get $false)))
+                    ,@error-value-handler-late-initializer-forms
                     ,@print-read-parameter-late-initializer-forms
                     (global.set $default-port-read-handler-value
                                 (struct.new $PrimitiveProcedure
@@ -7315,33 +7307,7 @@
                                             (ref.func $primitive-invoke:shape-14)
                                             (ref.func $default-port-print-handler)
                                             (global.get $false)))
-                    (global.set $error-syntax->string-handler-value
-                                (struct.new $PrimitiveProcedure
-                                            (i32.const 0)
-                                            (global.get $symbol:error-syntax->string-handler)
-                                            (ref.i31 (i32.const 4))
-                                            (global.get $the-racket/primitive-realm)
-                                            (ref.func $primitive-invoke:shape-2)
-                                            (ref.func $default-error-syntax->string-handler)
-                                            (global.get $false)))
-                    (global.set $error-syntax->name-handler-value
-                                (struct.new $PrimitiveProcedure
-                                            (i32.const 0)
-                                            (global.get $symbol:error-syntax->name-handler)
-                                            (ref.i31 (i32.const 2))
-                                            (global.get $the-racket/primitive-realm)
-                                            (ref.func $primitive-invoke:shape-1)
-                                            (ref.func $default-error-syntax->name-handler)
-                                            (global.get $false)))
-                    (global.set $error-module-path->string-handler-value
-                                (struct.new $PrimitiveProcedure
-                                            (i32.const 0)
-                                            (global.get $symbol:error-module-path->string-handler)
-                                            (ref.i31 (i32.const 4))
-                                            (global.get $the-racket/primitive-realm)
-                                            (ref.func $primitive-invoke:shape-2)
-                                            (ref.func $default-error-module-path->string-handler)
-                                            (global.get $false)))
+                    ,@error-syntax-handler-late-initializer-forms
 
                      ;; Initialize top-level variables.
                      ;; These are all "boxed".
