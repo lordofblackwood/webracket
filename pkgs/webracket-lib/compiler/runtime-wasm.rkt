@@ -190,6 +190,7 @@
                   string-number-conversion-runtime-only-helper-names
                   number-type-runtime-only-helper-names)
          (only-in "runtime-wasm/core/parameters.rkt"
+                  compile-parameter-global-forms
                   compile-parameter-runtime-only-helper-names
                   namespace-parameter-runtime-only-helper-names
                   parameterization-binding-runtime-only-helper-names
@@ -7159,8 +7160,7 @@
                (global $current-custodian-value   (mut (ref eq)) (global.get $false))
                ,@io-handler-default-port-global-forms
                ,@reader-printer-policy-parameter-global-forms
-               (global $current-compile-target-machine-value (mut (ref eq)) (global.get $false))
-               (global $current-compile-realm-value (mut (ref eq)) (global.get $false))
+               ,@compile-parameter-global-forms
                (global $current-parameterization-value (mut (ref eq)) (global.get $false))
                (global $current-namespace-value (mut (ref eq)) (global.get $false))
                (global $current-pseudo-random-generator-value (mut (ref eq)) (global.get $false))

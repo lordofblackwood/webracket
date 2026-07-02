@@ -1,6 +1,7 @@
 #lang racket
 
-(provide compile-parameter-runtime-only-helper-names
+(provide compile-parameter-global-forms
+         compile-parameter-runtime-only-helper-names
          parameterization-runtime-only-helper-names
          namespace-parameter-runtime-only-helper-names
          parameterization-binding-runtime-only-helper-names
@@ -207,6 +208,13 @@
 ;;   Preserve the runtime emission order for generated policy parameters.
 (define reader-printer-policy-parameter-helper-names
   (map first reader-printer-policy-parameter-specs))
+
+;; compile-parameter-global-forms : (listof datum?)
+;;   Declare globals backing compile metadata parameters.
+(define compile-parameter-global-forms
+  '(
+               (global $current-compile-target-machine-value (mut (ref eq)) (global.get $false))
+               (global $current-compile-realm-value (mut (ref eq)) (global.get $false))))
 
 ;; compile-parameter-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for compile metadata parameters.
