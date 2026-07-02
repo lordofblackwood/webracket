@@ -1,11 +1,106 @@
 #lang racket
 
-(provide exception-contract-runtime-only-helper-names
+(provide bootstrap-error-runtime-only-helper-names
+         exception-contract-runtime-only-helper-names
          exception-contract-runtime-only-helpers
          exception-runtime-only-helper-names
          exception-runtime-only-helpers)
 
 (require "../core-helper.rkt")
+
+;; bootstrap-error-runtime-only-forms : (listof datum?)
+;;   Enumerate early error helpers used before the main exception section.
+(define bootstrap-error-runtime-only-forms
+  '(
+         (func $raise-expected-string                 (unreachable))
+         (func $raise-unexpected-argument             (unreachable))
+
+         ;; Convert a host exception caught at an FFI boundary into a
+         ;; regular WebRacket exn:fail so `with-handlers` can catch it.
+         (func $raise-ffi-host-exception
+               (param $host externref)
+               (local $message (ref eq))
+
+               (local.set $message
+                          (call $linear-memory->string
+                                (call $js-external-string->string
+                                      (local.get $host))))
+               (drop (call $raise
+                           (call $make-exn:fail
+                                 (local.get $message)
+                                 (call $current-continuation-marks
+                                       (global.get $missing)))
+                           (global.get $true)))
+               (unreachable))
+
+         ;; raise-input-port-closed : string? -> none
+         ;;   Raise an exn:fail for an operation on a closed input port.
+         (func $raise-input-port-closed
+               (param $message (ref eq))
+
+               (drop (call $raise
+                           (call $make-exn:fail
+                                 (local.get $message)
+                                 (call $current-continuation-marks
+                                       (global.get $missing)))
+                           (global.get $true)))
+               (unreachable))
+
+         ;; raise-output-port-closed : string? -> none
+         ;;   Raise an exn:fail for an operation on a closed output port.
+         (func $raise-output-port-closed
+               (param $message (ref eq))
+
+               (drop (call $raise
+                           (call $make-exn:fail
+                                 (local.get $message)
+                                 (call $current-continuation-marks
+                                       (global.get $missing)))
+                           (global.get $true)))
+               (unreachable))
+
+         ;; raise-vfs-file-error : string? -> none
+         ;;   Raise a catchable exn:fail:filesystem for VFS filesystem errors.
+         (func $raise-vfs-file-error
+               (param $message (ref eq))
+
+               (drop (call $raise
+                           (call $make-exn:fail:filesystem
+                                 (local.get $message)
+                                 (call $current-continuation-marks
+                                       (global.get $missing)))
+                           (global.get $true)))
+               (unreachable))
+
+         (func $raise-argument-error1
+               (param $who      (ref eq))      ;; symbol
+               (param $expected (ref eq))      ;; expected description
+               (param $got      (ref eq))      ;; received value
+
+               (local $out     (ref $GrowableArray))
+               (local $message (ref $String))
+
+               (local.set $out
+                          (call $make-growable-array (i32.const 5)))
+               (call $growable-array-add! (local.get $out)
+                     (call $format/display (local.get $who)))
+               (call $growable-array-add! (local.get $out)
+                     (global.get $string:contract-violation:prefix))
+               (call $growable-array-add! (local.get $out)
+                     (ref.cast (ref $String) (local.get $expected)))
+               (call $growable-array-add! (local.get $out)
+                     (global.get $string:arity-error:given))
+               (call $growable-array-add! (local.get $out)
+                     (call $format/display (local.get $got)))
+               (local.set $message
+                          (call $growable-array-of-strings->string (local.get $out)))
+
+               (call $raise
+                     (call $exn:fail:contract/make
+                           (local.get $message)
+                           (call $current-continuation-marks (global.get $missing)))
+                     (global.get $true))
+               (unreachable))))
 
 ;; exception-runtime-only-forms : (listof datum?)
 ;;   Enumerate exception, exception-structure, and reader-error helpers.
@@ -4087,14 +4182,32 @@
 (define exception-contract-runtime-only-helper-names
   (map core-runtime-helper-name exception-contract-runtime-only-helpers))
 
-;; exception-runtime-only-helpers : (listof core-runtime-helper?)
+;; bootstrap-error-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Register early bootstrap error helpers.
+(define bootstrap-error-runtime-only-helpers
+  (function-forms->runtime-helpers
+   'bootstrap-error-runtime-only-helpers
+   bootstrap-error-runtime-only-forms))
+
+;; bootstrap-error-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for bootstrap error helpers.
+(define bootstrap-error-runtime-only-helper-names
+  (map core-runtime-helper-name bootstrap-error-runtime-only-helpers))
+
+;; exception-main-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Register exception, exception-structure, and reader-error helpers.
-(define exception-runtime-only-helpers
+(define exception-main-runtime-only-helpers
   (function-forms->runtime-helpers
    'exception-runtime-only-helpers
    exception-runtime-only-forms))
 
+;; exception-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Register exception, exception-structure, and reader-error helpers.
+(define exception-runtime-only-helpers
+  (append bootstrap-error-runtime-only-helpers
+          exception-main-runtime-only-helpers))
+
 ;; exception-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for exception helpers.
 (define exception-runtime-only-helper-names
-  (map core-runtime-helper-name exception-runtime-only-helpers))
+  (map core-runtime-helper-name exception-main-runtime-only-helpers))

@@ -46,6 +46,7 @@
                   immutable-predicate-runtime-only-helper-names
                   equality-runtime-only-helper-names)
          (only-in "runtime-wasm/core/exceptions.rkt"
+                  bootstrap-error-runtime-only-helper-names
                   exception-contract-runtime-only-helper-names
                   exception-contract-runtime-only-helpers
                   exception-runtime-only-helper-names
@@ -3699,99 +3700,13 @@
          ;;; Exceptions
          ;;;
 
-         (func $raise-expected-string                 (unreachable))
-         (func $raise-unexpected-argument             (unreachable))
+         ;;   Bootstrap error helpers are implemented in runtime-wasm/core/exceptions.rkt.
+         ,@(for/list ([name (in-list bootstrap-error-runtime-only-helper-names)])
+             (core-runtime-helper-form runtime-helper-index name))
 
          ;;   Multiple-value expectation helpers are implemented in runtime-wasm/core/control-flow.rkt.
          ,@(for/list ([name (in-list value-expectation-runtime-only-helper-names)])
              (core-runtime-helper-form runtime-helper-index name))
-
-         ;; Convert a host exception caught at an FFI boundary into a
-         ;; regular WebRacket exn:fail so `with-handlers` can catch it.
-         (func $raise-ffi-host-exception
-               (param $host externref)
-               (local $message (ref eq))
-
-               (local.set $message
-                          (call $linear-memory->string
-                                (call $js-external-string->string
-                                      (local.get $host))))
-               (drop (call $raise
-                           (call $make-exn:fail
-                                 (local.get $message)
-                                 (call $current-continuation-marks
-                                       (global.get $missing)))
-                           (global.get $true)))
-               (unreachable))
-
-         ;; raise-input-port-closed : string? -> none
-         ;;   Raise an exn:fail for an operation on a closed input port.
-         (func $raise-input-port-closed
-               (param $message (ref eq))
-
-               (drop (call $raise
-                           (call $make-exn:fail
-                                 (local.get $message)
-                                 (call $current-continuation-marks
-                                       (global.get $missing)))
-                           (global.get $true)))
-               (unreachable))
-
-         ;; raise-output-port-closed : string? -> none
-         ;;   Raise an exn:fail for an operation on a closed output port.
-         (func $raise-output-port-closed
-               (param $message (ref eq))
-
-               (drop (call $raise
-                           (call $make-exn:fail
-                                 (local.get $message)
-                                 (call $current-continuation-marks
-                                       (global.get $missing)))
-                           (global.get $true)))
-               (unreachable))
-
-         ;; raise-vfs-file-error : string? -> none
-         ;;   Raise a catchable exn:fail:filesystem for VFS filesystem errors.
-         (func $raise-vfs-file-error
-               (param $message (ref eq))
-
-               (drop (call $raise
-                           (call $make-exn:fail:filesystem
-                                 (local.get $message)
-                                 (call $current-continuation-marks
-                                       (global.get $missing)))
-                           (global.get $true)))
-               (unreachable))
-
-         (func $raise-argument-error1
-               (param $who      (ref eq))      ;; symbol
-               (param $expected (ref eq))      ;; expected description
-               (param $got      (ref eq))      ;; received value
-
-               (local $out     (ref $GrowableArray))
-               (local $message (ref $String))
-
-               (local.set $out
-                          (call $make-growable-array (i32.const 5)))
-               (call $growable-array-add! (local.get $out)
-                     (call $format/display (local.get $who)))
-               (call $growable-array-add! (local.get $out)
-                     (global.get $string:contract-violation:prefix))
-               (call $growable-array-add! (local.get $out)
-                     (ref.cast (ref $String) (local.get $expected)))
-               (call $growable-array-add! (local.get $out)
-                     (global.get $string:arity-error:given))
-               (call $growable-array-add! (local.get $out)
-                     (call $format/display (local.get $got)))
-               (local.set $message
-                          (call $growable-array-of-strings->string (local.get $out)))
-
-               (call $raise
-                     (call $exn:fail:contract/make
-                           (local.get $message)
-                           (call $current-continuation-marks (global.get $missing)))
-                     (global.get $true))
-               (unreachable))
 
          ;;   Unquoted printing string helpers are implemented in runtime-wasm/core/formatting.rkt.
          ,@(for/list ([name (in-list unquoted-printing-string-runtime-only-helper-names)])
