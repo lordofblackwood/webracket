@@ -9,6 +9,7 @@
          string-mutation-runtime-only-helper-names
          string-mutability-runtime-only-helper-names
          string-selector-runtime-only-helper-names
+         string-split-runtime-only-helper-names
          string-runtime-only-helpers)
 
 (require "../core-helper.rkt"
@@ -166,6 +167,17 @@
     $string-append
     $string-append-immutable
     $string-append*))
+
+;; string-split-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for string join and split helpers.
+(define string-split-runtime-only-helper-names
+  '($string-join
+    $string-split
+    $string-split:matches?
+    $string-split:trim-left
+    $string-split:trim-right
+    $string-split:find-match
+    $string-split:skip-repeats))
 
 ;; string-mutability-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate string mutability helpers that still depend on monolithic runtime globals.
@@ -753,6 +765,449 @@
                (call $string-append (local.get $args)))
      )))
 
+;; string-split-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate string join and split helpers that still depend on monolithic runtime globals.
+(define string-split-runtime-only-helpers
+  (function-forms->runtime-helpers
+   'string-split-runtime-only-helpers
+   '(
+         ;; Note: Simplified version: accepts list of strings and optional separator only.
+         (func $string-join (type $Prim12)
+               (param $strs (ref eq)) ;; listof string?
+               (param $sep  (ref eq)) ;; optional string?, default = " "
+               (result      (ref eq))
+
+               (local $xs      (ref eq))
+               (local $node    (ref $Pair))
+               (local $v       (ref eq))
+               (local $str     (ref $String))
+               (local $sep-str (ref $String))
+               (local $sep-len i32)
+               (local $n       i32)
+               (local $total   i32)
+               (local $len     i32)
+               (local $arr     (ref $I32Array))
+               (local $pos     i32)
+
+               ;; --- Handle optional separator ---
+               (local.set $sep-str
+                          (if (result (ref $String))
+                              (ref.eq (local.get $sep) (global.get $missing))
+                              (then (ref.cast (ref $String) (global.get $string:space)))
+                              (else (if (result (ref $String))
+                                        (ref.test (ref $String) (local.get $sep))
+                                        (then (ref.cast (ref $String) (local.get $sep)))
+                                        (else (call $raise-check-string (local.get $sep))
+                                              (unreachable))))))
+               ;; --- Determine separator length ---
+               (local.set $sep-len
+                          (call $i32array-length
+                                (struct.get $String $codepoints (local.get $sep-str))))
+               ;; --- Determine number of strings ---
+               (local.set $n (call $length/i32 (local.get $strs)))
+               (if (i32.eqz (local.get $n))
+                   (then (return (global.get $string:empty))))
+               ;; --- Compute total length ---
+               (local.set $xs (local.get $strs))
+               (local.set $total
+                          (i32.mul (i32.sub (local.get $n) (i32.const 1))
+                                   (local.get $sep-len)))
+               (block $done1
+                      (loop $loop1
+                            (br_if $done1 (ref.eq (local.get $xs) (global.get $null)))
+                            (local.set $node (ref.cast (ref $Pair) (local.get $xs)))
+                            (local.set $v (struct.get $Pair $a (local.get $node)))
+                            (if (ref.test (ref $String) (local.get $v))
+                                (then
+                                 (local.set $str (ref.cast (ref $String) (local.get $v)))
+                                 (local.set $len
+                                            (call $i32array-length
+                                                  (struct.get $String $codepoints (local.get $str))))
+                                 (local.set $total (i32.add (local.get $total) (local.get $len))))
+                                (else (call $raise-check-string (local.get $v)) (unreachable)))
+                            (local.set $xs (struct.get $Pair $d (local.get $node)))
+                            (br $loop1)))
+               ;; --- All empty -> empty string ---
+               (if (i32.eqz (local.get $total))
+                   (then (return (global.get $string:empty))))
+               ;; --- Allocate result array ---
+               (local.set $arr (call $i32array-make (local.get $total) (i32.const 0)))
+               ;; --- Copy strings and separators ---
+               (local.set $xs (local.get $strs))
+               (local.set $pos (i32.const 0))
+               (block $done2
+                      (loop $loop2
+                            (br_if $done2 (ref.eq (local.get $xs) (global.get $null)))
+                            (local.set $node (ref.cast (ref $Pair) (local.get $xs)))
+                            (local.set $str
+                                       (ref.cast (ref $String)
+                                                 (struct.get $Pair $a (local.get $node))))
+                            (local.set $len
+                                       (call $i32array-length
+                                             (struct.get $String $codepoints (local.get $str))))
+                            (call $i32array-copy!
+                                  (local.get $arr) (local.get $pos)
+                                  (struct.get $String $codepoints (local.get $str))
+                                  (i32.const 0) (local.get $len))
+                            (local.set $pos (i32.add (local.get $pos) (local.get $len)))
+                            (local.set $xs (struct.get $Pair $d (local.get $node)))
+                            (if (ref.eq (local.get $xs) (global.get $null))
+                                (then (nop))
+                                (else
+                                 (call $i32array-copy!
+                                       (local.get $arr) (local.get $pos)
+                                       (struct.get $String $codepoints (local.get $sep-str))
+                                       (i32.const 0) (local.get $sep-len))
+                                 (local.set $pos
+                                            (i32.add (local.get $pos) (local.get $sep-len)))))
+                            (br $loop2)))
+               ;; --- Build result string ---
+               (struct.new $String
+                           (i32.const 0)
+                           (i32.const 0)
+                           (local.get $arr)))
+
+
+         ;; Note: Unlike Racket's string-split, this variant does not support
+         ;; keyword arguments or regular-expression separators.
+         (func $string-split (type $Prim14)
+               (param $str-raw    (ref eq)) ;; string?
+               (param $sep-raw    (ref eq)) ;; optional string?, default = " "
+               (param $trim-raw   (ref eq)) ;; optional any/c, default = #t
+               (param $repeat-raw (ref eq)) ;; optional any/c, default = #f
+               (result            (ref eq))
+
+               (local $str          (ref $String))
+               (local $sep          (ref $String))
+               (local $trim-val     (ref eq))
+               (local $repeat-val   (ref eq))
+               (local $arr-str      (ref $I32Array))
+               (local $arr-sep      (ref $I32Array))
+               (local $len-str      i32)
+               (local $len-sep      i32)
+               (local $trim-flag    i32)
+               (local $repeat-flag  i32)
+               (local $start        i32)
+               (local $end          i32)
+               (local $match-pos    i32)
+               (local $segment-len  i32)
+               (local $acc          (ref eq))
+               (local $piece        (ref $String))
+               (local $idx          i32)
+               (local $empty        (ref $String))
+               (local $found        i32)
+               (local $pos          i32)
+
+               ;; --- Decode defaults ---
+               (if (i32.eqz (ref.test (ref $String) (local.get $str-raw)))
+                   (then (call $raise-check-string (local.get $str-raw))))
+               (local.set $str (ref.cast (ref $String) (local.get $str-raw)))
+
+               (local.set $sep
+                          (if (result (ref $String))
+                              (ref.eq (local.get $sep-raw) (global.get $missing))
+                              (then (ref.cast (ref $String) (global.get $string:space)))
+                              (else (if (result (ref $String))
+                                        (ref.test (ref $String) (local.get $sep-raw))
+                                        (then (ref.cast (ref $String) (local.get $sep-raw)))
+                                        (else (call $raise-check-string (local.get $sep-raw))
+                                              (unreachable))))))
+
+               (local.set $trim-val
+                          (if (result (ref eq))
+                              (ref.eq (local.get $trim-raw) (global.get $missing))
+                              (then (global.get $true))
+                              (else (local.get $trim-raw))))
+               (local.set $repeat-val
+                          (if (result (ref eq))
+                              (ref.eq (local.get $repeat-raw) (global.get $missing))
+                              (then (global.get $false))
+                              (else (local.get $repeat-raw))))
+
+               (local.set $trim-flag
+                          (if (result i32)
+                              (ref.eq (local.get $trim-val) (global.get $false))
+                              (then (i32.const 0))
+                              (else (i32.const 1))))
+               (local.set $repeat-flag
+                          (if (result i32)
+                              (ref.eq (local.get $repeat-val) (global.get $false))
+                              (then (i32.const 0))
+                              (else (i32.const 1))))
+
+               (local.set $arr-str (struct.get $String $codepoints (local.get $str)))
+               (local.set $arr-sep (struct.get $String $codepoints (local.get $sep)))
+               (local.set $len-str (call $i32array-length (local.get $arr-str)))
+               (local.set $len-sep (call $i32array-length (local.get $arr-sep)))
+
+               (local.set $start (i32.const 0))
+               (local.set $end   (local.get $len-str))
+
+               ;; --- Trim using literal separator when requested ---
+               (if (i32.and (local.get $trim-flag)
+                            (i32.ne (local.get $len-sep) (i32.const 0)))
+                   (then
+                    (local.set $start
+                               (call $string-split:trim-left
+                                     (local.get $arr-str)
+                                     (local.get $arr-sep)
+                                     (local.get $len-sep)
+                                     (local.get $start)
+                                     (local.get $end)
+                                     (local.get $repeat-flag)))
+                    (local.set $end
+                               (call $string-split:trim-right
+                                     (local.get $arr-str)
+                                     (local.get $arr-sep)
+                                     (local.get $len-sep)
+                                     (local.get $start)
+                                     (local.get $end)
+                                     (local.get $repeat-flag)))))
+
+               ;; --- Special-case empty after trimming ---
+               (if (i32.eq (local.get $start) (local.get $end))
+                   (then
+                    (if (local.get $trim-flag)
+                        (then (return (global.get $null)))
+                        (else
+                         (local.set $empty (ref.cast (ref $String) (global.get $string:empty)))
+                         (return (struct.new $Pair
+                                             (i32.const 0)
+                                             (local.get $empty)
+                                             (global.get $null)))))))
+
+               ;; --- Handle empty separator by splitting into codepoints ---
+               (if (i32.eqz (local.get $len-sep))
+                   (then
+                    (local.set $acc (global.get $null))
+                    (local.set $idx (i32.sub (local.get $end) (i32.const 1)))
+                    (block $chars-done
+                           (loop $chars
+                                 (br_if $chars-done (i32.lt_s (local.get $idx) (local.get $start)))
+                                 (local.set $piece
+                                            (call $codepoint->string
+                                                  (call $i32array-ref
+                                                        (local.get $arr-str)
+                                                        (local.get $idx))))
+                                 (local.set $acc
+                                            (struct.new $Pair
+                                                        (i32.const 0)
+                                                        (local.get $piece)
+                                                        (local.get $acc)))
+                                 (if (i32.eq (local.get $idx) (local.get $start))
+                                     (then (br $chars-done)))
+                                 (local.set $idx (i32.sub (local.get $idx) (i32.const 1)))
+                                 (br $chars)))
+                    (return (local.get $acc))))
+
+               (local.set $acc (global.get $null))
+               (local.set $pos (local.get $start))
+               (local.set $empty (ref.cast (ref $String) (global.get $string:empty)))
+
+               (block $done
+                      (loop $split
+                            (local.set $match-pos
+                                       (call $string-split:find-match
+                                             (local.get $arr-str)
+                                             (local.get $arr-sep)
+                                             (local.get $len-sep)
+                                             (local.get $pos)
+                                             (local.get $end)))
+                            (local.set $segment-len
+                                       (i32.sub (local.get $match-pos) (local.get $pos)))
+                            (local.set $found
+                                       (i32.ne (local.get $match-pos) (local.get $end)))
+                            (if (i32.or (i32.ne (local.get $segment-len) (i32.const 0))
+                                        (i32.eqz (local.get $repeat-flag)))
+                                (then
+                                 (local.set $piece
+                                            (if (result (ref $String))
+                                                (i32.eqz (local.get $segment-len))
+                                                (then (local.get $empty))
+                                                (else (call $i32array->string
+                                                            (call $i32array-copy
+                                                                  (local.get $arr-str)
+                                                                  (local.get $pos)
+                                                                  (local.get $match-pos))))))
+                                 (local.set $acc
+                                            (struct.new $Pair
+                                                        (i32.const 0)
+                                                        (local.get $piece)
+                                                        (local.get $acc)))))
+                            (if (i32.eqz (local.get $found))
+                                (then (br $done)))
+                            (local.set $pos
+                                       (i32.add (local.get $match-pos) (local.get $len-sep)))
+                            (if (local.get $repeat-flag)
+                                (then
+                                 (local.set $pos
+                                            (call $string-split:skip-repeats
+                                                  (local.get $arr-str)
+                                                  (local.get $arr-sep)
+                                                  (local.get $len-sep)
+                                                  (local.get $pos)
+                                                  (local.get $end)))))
+                            (br $split)))
+
+               (call $reverse (local.get $acc)))
+
+         (func $string-split:matches?
+               (param $arr-str (ref $I32Array))
+               (param $arr-sep (ref $I32Array))
+               (param $pos     i32)
+               (param $len-sep i32)
+               (result i32)
+
+               (local $j i32)
+
+               (local.set $j (i32.const 0))
+
+               (block $done
+                      (loop $loop
+                            (br_if $done (i32.ge_u (local.get $j) (local.get $len-sep)))
+                            (if (i32.ne (call $i32array-ref
+                                              (local.get $arr-str)
+                                              (i32.add (local.get $pos) (local.get $j)))
+                                        (call $i32array-ref (local.get $arr-sep) (local.get $j)))
+                                (then (return (i32.const 0))))
+                            (local.set $j (i32.add (local.get $j) (i32.const 1)))
+                            (br $loop)))
+
+               (i32.const 1))
+
+         (func $string-split:trim-left
+               (param $arr-str  (ref $I32Array))
+               (param $arr-sep  (ref $I32Array))
+               (param $len-sep  i32)
+               (param $start    i32)
+               (param $end      i32)
+               (param $repeat   i32)
+               (result i32)
+
+               (local $pos i32)
+
+               (local.set $pos (local.get $start))
+
+               (block $done
+                      (loop $loop
+                            (br_if $done
+                                   (i32.lt_u (i32.sub (local.get $end) (local.get $pos))
+                                             (local.get $len-sep)))
+                            (if (i32.eqz (call $string-split:matches?
+                                               (local.get $arr-str)
+                                               (local.get $arr-sep)
+                                               (local.get $pos)
+                                               (local.get $len-sep)))
+                                (then (br $done)))
+                            (local.set $pos (i32.add (local.get $pos) (local.get $len-sep)))
+                            (if (i32.eqz (local.get $repeat)) (then (br $done)))
+                            (br $loop)))
+
+               (local.get $pos))
+
+         (func $string-split:trim-right
+               (param $arr-str  (ref $I32Array))
+               (param $arr-sep  (ref $I32Array))
+               (param $len-sep  i32)
+               (param $start    i32)
+               (param $end      i32)
+               (param $repeat   i32)
+               (result i32)
+
+               (local $limit       i32)
+               (local $match-start i32)
+
+               (local.set $limit (local.get $end))
+
+               (block $done
+                      (loop $loop
+                            (br_if $done
+                                   (i32.lt_u (i32.sub (local.get $limit) (local.get $start))
+                                             (local.get $len-sep)))
+                            (local.set $match-start
+                                       (i32.sub (local.get $limit) (local.get $len-sep)))
+                            (if (i32.eqz (call $string-split:matches?
+                                               (local.get $arr-str)
+                                               (local.get $arr-sep)
+                                               (local.get $match-start)
+                                               (local.get $len-sep)))
+                                (then (br $done)))
+                            (local.set $limit (local.get $match-start))
+                            (if (i32.eqz (local.get $repeat)) (then (br $done)))
+                            (br $loop)))
+
+               (local.get $limit))
+
+         (func $string-split:find-match
+               (param $arr-str  (ref $I32Array))
+               (param $arr-sep  (ref $I32Array))
+               (param $len-sep  i32)
+               (param $pos      i32)
+               (param $end      i32)
+               (result i32)
+
+               (local $limit i32)
+               (local $scan  i32)
+
+               (if (i32.eqz (local.get $len-sep))
+                   (then (return (local.get $pos))))
+               (if (i32.gt_u (local.get $len-sep) (local.get $end))
+                   (then (return (local.get $end))))
+
+               (local.set $limit (i32.sub (local.get $end) (local.get $len-sep)))
+               (if (i32.gt_u (local.get $pos) (local.get $limit))
+                   (then (return (local.get $end))))
+
+               (local.set $scan (local.get $pos))
+
+               (block $done
+                      (loop $loop
+                            (br_if $done (i32.gt_u (local.get $scan) (local.get $limit)))
+                            (if (call $string-split:matches?
+                                      (local.get $arr-str)
+                                      (local.get $arr-sep)
+                                      (local.get $scan)
+                                      (local.get $len-sep))
+                                (then (return (local.get $scan))))
+                            (local.set $scan (i32.add (local.get $scan) (i32.const 1)))
+                            (br $loop)))
+
+               (local.get $end))
+
+         (func $string-split:skip-repeats
+               (param $arr-str  (ref $I32Array))
+               (param $arr-sep  (ref $I32Array))
+               (param $len-sep  i32)
+               (param $pos      i32)
+               (param $end      i32)
+               (result i32)
+
+               (local $scan  i32)
+               (local $limit i32)
+
+               (if (i32.eqz (local.get $len-sep))
+                   (then (return (local.get $pos))))
+               (if (i32.gt_u (local.get $len-sep) (local.get $end))
+                   (then (return (local.get $pos))))
+
+               (local.set $limit (i32.sub (local.get $end) (local.get $len-sep)))
+               (local.set $scan (local.get $pos))
+
+               (block $done
+                      (loop $loop
+                            (br_if $done (i32.gt_u (local.get $scan) (local.get $limit)))
+                            (if (i32.eqz (call $string-split:matches?
+                                               (local.get $arr-str)
+                                               (local.get $arr-sep)
+                                               (local.get $scan)
+                                               (local.get $len-sep)))
+                                (then (br $done)))
+                            (local.set $scan (i32.add (local.get $scan) (local.get $len-sep)))
+                            (br $loop)))
+
+               (local.get $scan))
+     )))
+
 ;; string-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate string helpers that still depend on monolithic runtime globals.
 (define string-runtime-only-helpers
@@ -763,4 +1218,5 @@
           string-selector-runtime-only-helpers
           string-mutation-runtime-only-helpers
           string-copy-runtime-only-helpers
-          string-append-runtime-only-helpers))
+          string-append-runtime-only-helpers
+          string-split-runtime-only-helpers))
