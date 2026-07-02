@@ -30,7 +30,8 @@
 
 ;; (wat->wasm x
 ;;            #:wat [out.wat "out.wat"]
-;;            #:wasm [out.wasm "out.wasm"])
+;;            #:wasm [out.wasm "out.wasm"]
+;;            #:exec-path-from-shell? [exec-path-from-shell? #t])
 
 
 ;;;
@@ -81,6 +82,24 @@
              (not assembler-environment-initialized?))
     (exec-path-from-shell-initialize)
     (set! assembler-environment-initialized? #t)))
+
+;; path-string->system-argument : path-string? -> string?
+;;   Convert a path string to a subprocess argument.
+(define (path-string->system-argument p)
+  (cond [(path? p)   (path->string p)]
+        [(string? p) p]
+        [else        (raise-argument-error 'path-string->system-argument
+                                           "path-string?"
+                                           p)]))
+
+;; wasm-tools-executable : [#:exec-path-from-shell? boolean?] -> path?
+;;   Locate wasm-tools after optionally importing the shell environment.
+(define (wasm-tools-executable #:exec-path-from-shell? [exec-path-from-shell? #t])
+  (initialize-assembler-environment!
+   #:exec-path-from-shell? exec-path-from-shell?)
+  (or (find-executable-path "wasm-tools")
+      (error 'wat->wasm
+             "required executable `wasm-tools` was not found in PATH")))
 
 
 ;;;
@@ -5475,7 +5494,8 @@ const wasmModule
 (define (wat->wasm x
                    #:wat [out.wat "out.wat"]
                    #:wasm [out.wasm "out.wasm"]
-                   #:write-wat? [write-wat? #t])
+                   #:write-wat? [write-wat? #t]
+                   #:exec-path-from-shell? [exec-path-from-shell? #t])
   ; The argument x is an s-expresssion.
   ; It represents a WebAssembly module in textual format.
   ; Note: `wasm-tools parse` enables all proposals automatically,
@@ -5489,14 +5509,19 @@ const wasmModule
         (wat-pretty-write x))
       #:exists 'replace))
   ; 2. Compile the wat file into a wasm file.
+  (define wasm-tools
+    (wasm-tools-executable
+     #:exec-path-from-shell? exec-path-from-shell?))
   (define success? #t)
   (define compilation-output
     (with-output-to-string
       (λ ()
         (set! success?
-              (system
-               (format (~a "wasm-tools  parse ~a -o ~a")
-                       out.wat out.wasm))))))
+              (system* wasm-tools
+                       "parse"
+                       (path-string->system-argument out.wat)
+                       "-o"
+                       (path-string->system-argument out.wasm))))))
   ; 3. If there were any errors, display the error messages
   (unless success?
     (displayln "* Compilation Error *")
@@ -5509,12 +5534,16 @@ const wasmModule
              #:wat        [out.wat    "out.wat"]
              #:wasm       [out.wasm   "out.wasm"]
              #:runtime.js [runtime.js "runtime.js"]
-             #:write-runtime? [write-runtime? #t])
+             #:write-runtime? [write-runtime? #t]
+             #:exec-path-from-shell? [exec-path-from-shell? #t])
   ; (print-wat x)
   ; 1. If needed compile textual format to wasm file.  
   (define okay?
     (if x
-        (wat->wasm x #:wat out.wat #:wasm out.wasm)
+        (wat->wasm x
+                   #:wat out.wat
+                   #:wasm out.wasm
+                   #:exec-path-from-shell? exec-path-from-shell?)
         #t))
   (if (not okay?)
       1

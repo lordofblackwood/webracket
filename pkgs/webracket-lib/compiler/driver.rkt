@@ -3228,7 +3228,11 @@
     (with-handlers ([exn:fail? (λ (e)
                                  (error 'drive-compilation
                                         (~a "wat->wasm failed: " (exn-message e))))])
-      (wat->wasm wat #:wat out-wat #:wasm out-wasm #:write-wat? #f)))
+      (wat->wasm wat
+                 #:wat out-wat
+                 #:wasm out-wasm
+                 #:write-wat? #f
+                 #:exec-path-from-shell? exec-path-from-shell?)))
   (unless wat->wasm-success?
     (error 'drive-compilation
            (~a "wat->wasm failed to produce bytecode for " filename)))
