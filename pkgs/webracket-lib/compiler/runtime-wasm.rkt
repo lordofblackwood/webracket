@@ -233,6 +233,7 @@
          (only-in "runtime-wasm/core/stencil-vectors.rkt"
                   stencil-vector-runtime-only-helpers)
          (only-in "runtime-wasm/core/strings.rkt"
+                  string-constructor-runtime-only-helper-names
                   string-mutability-runtime-only-helper-names
                   string-runtime-only-helpers)
          (only-in "runtime-wasm/core/structs.rkt"
@@ -6654,93 +6655,9 @@
                            (local.get $arr)))
 
 
-         (func $raise-make-string:bad-length       (unreachable))
-         (func $raise-make-string:bad-char         (unreachable))
-         (func $raise-argument-error:char-expected (unreachable))
-
-         (func $make-string (type $Prim12)
-               (param $n-raw  (ref eq))    ;; fixnum
-               (param $ch-raw (ref eq))    ;; optional immediate character
-               (result        (ref eq))
-
-               (local $n          i32)
-               (local $ch-tagged  i32)
-               (local $ch         i32)
-               ;; --- Type check for length ---
-               (if (i32.eqz (ref.test (ref i31) (local.get $n-raw)))
-                   (then (call $raise-make-string:bad-length)))
-               ;; --- Decode length ---
-               (local.set $n (i32.shr_u (i31.get_u (ref.cast (ref i31) (local.get $n-raw))) (i32.const 1)))
-               ;; --- Handle optional character ---
-               (if (ref.eq (local.get $ch-raw) (global.get $missing))
-                   (then (local.set $ch (i32.const 0)))
-                   (else
-                    ;; --- Validate character ---
-                    (if (i32.eqz (ref.test (ref i31) (local.get $ch-raw)))
-                        (then (call $raise-make-string:bad-char)))
-                    (local.set $ch-tagged (i31.get_u (ref.cast (ref i31) (local.get $ch-raw))))
-                    (if (i32.ne (i32.and (local.get $ch-tagged) (i32.const ,char-mask)) (i32.const ,char-tag))
-                        (then (call $raise-make-string:bad-char)))
-                    ;; --- Extract code point from character ---
-                    (local.set $ch (i32.shr_u (local.get $ch-tagged) (i32.const ,char-shift)))))
-               ;; --- Delegate ---
-               (call $make-string/checked (local.get $n) (local.get $ch)))
-
-         (func $make-string/checked
-               (param $n  i32)      ;; number of characters
-               (param $ch i32)      ;; codepoint to fill
-               (result    (ref $String))
-
-               (local $arr (ref $I32Array))
-               ;; Create backing array and fill with `ch`
-               (local.set $arr (array.new $I32Array (local.get $ch) (local.get $n)))
-               ;; Construct mutable string
-               (call $debug-allocation-tick (i32.const 6))
-               (struct.new $String
-                           (i32.const 0)     ;; hash = 0
-                           (i32.const 0)     ;; mutable
-                           (local.get $arr)))
-
-         (func $make-immutable-string/checked
-               (param $n  i32)      ;; number of characters
-               (param $ch i32)      ;; codepoint to fill
-               (result    (ref $String))
-
-               (local $arr (ref $I32Array))
-               ;; Create backing array and fill with `ch`
-               (local.set $arr (array.new $I32Array (local.get $ch) (local.get $n)))
-               ;; Construct mutable string
-               (struct.new $String
-                           (i32.const 0)     ;; hash = 0
-                           (i32.const 1)     ;; immutable
-                           (local.get $arr)))
-
-         (func $string->immutable-string (type $Prim1)
-               (param $s (ref eq))
-               (result   (ref eq))
-
-               (local $str (ref $String))
-
-               (local.set $str (call $make-dummy-string))
-               ;; 1. Check that s is a String
-               (if (i32.eqz (ref.test (ref $String) (local.get $s)))
-                   (then (call $raise-check-string (local.get $s))))
-               (local.set $str (ref.cast (ref $String) (local.get $s)))
-               ;; 2. If already immutable, return it directly
-               (if (result (ref eq))
-                   (i32.eq (struct.get $String $immutable (local.get $str)) (i32.const 1))
-                   (then (local.get $str))
-                   (else
-                    ;; Otherwise, create a new immutable copy
-                    (struct.new $String
-                                ; Note: now the mutable and immutable string gets the same hash code.
-                                ;       Okay?
-                                (struct.get $String $hash (local.get $str))  ;; inherit hash
-                                (i32.const 1)                                ;; immutable
-                                (call $i32array-copy
-                                      (struct.get $String $codepoints (local.get $str))
-                                      (i32.const 0)
-                                      (call $i32array-length (struct.get $String $codepoints (local.get $str))))))))
+         ;;   String construction helpers are implemented in runtime-wasm/core/strings.rkt.
+         ,@(for/list ([name (in-list string-constructor-runtime-only-helper-names)])
+             (core-runtime-helper-form runtime-helper-index name))
 
          (func $raise-build-string:bad-length    (unreachable))
          (func $raise-build-string:char-expected
