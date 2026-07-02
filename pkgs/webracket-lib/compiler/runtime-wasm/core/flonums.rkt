@@ -4,7 +4,6 @@
          flonum-arithmetic-runtime-only-helper-names
          flonum-constructor-runtime-only-helper-names
          flonum-conversion-runtime-only-helper-names
-         flonum-host-import-forms
          flonum-math-runtime-only-helper-names
          flonum-minmax-runtime-only-helper-names
          flonum-predicate-runtime-only-helper-names
@@ -12,117 +11,6 @@
          flonum-runtime-only-helpers)
 
 (require "../core-helper.rkt")
-
-;; flonum-host-import-forms : (listof datum?)
-;;   Declare host math imports used by flonum primitives.
-(define flonum-host-import-forms
-  '(
-        ;; Math functions
-        (func $js-raw-math-abs
-              (import "math" "abs")
-              (param f64) (result f64))
-        (func $js-raw-math-acos
-              (import "math" "acos")
-              (param f64) (result f64))
-        (func $js-raw-math-acosh
-              (import "math" "acosh")
-              (param f64) (result f64))
-        (func $js-raw-math-asin
-              (import "math" "asin")
-              (param f64) (result f64))
-        (func $js-raw-math-asinh
-              (import "math" "asinh")
-              (param f64) (result f64))
-        (func $js-raw-math-atan
-              (import "math" "atan")
-              (param f64) (result f64))
-        (func $js-raw-math-atan2
-              (import "math" "atan2")
-              (param f64) (param f64) (result f64))
-        (func $js-raw-math-atanh
-              (import "math" "atanh")
-              (param f64) (result f64))
-        (func $js-raw-math-cbrt
-              (import "math" "cbrt")
-              (param f64) (result f64))
-        (func $js-raw-math-ceil
-              (import "math" "ceil")
-              (param f64) (result f64))
-        (func $js-raw-math-clz32
-              (import "math" "clz32")
-              (param i32) (result i32))
-        (func $js-raw-math-cos
-              (import "math" "cos")
-              (param f64) (result f64))
-        (func $js-raw-math-cosh
-              (import "math" "cosh")
-              (param f64) (result f64))
-        (func $js-raw-math-exp
-              (import "math" "exp")
-              (param f64) (result f64))
-        (func $js-raw-math-expm1
-              (import "math" "expm1")
-              (param f64) (result f64))
-        (func $js-raw-math-floor
-              (import "math" "floor")
-              (param f64) (result f64))
-        (func $js-raw-math-fround
-              (import "math" "fround")
-              (param f64) (result f64))
-        (func $js-raw-math-hypot
-              (import "math" "hypot")
-              (param f64) (param f64) (result f64))
-        (func $js-raw-math-imul
-              (import "math" "imul")
-              (param i32) (param i32) (result i32))
-        (func $js-raw-math-log
-              (import "math" "log")
-              (param f64) (result f64))
-        (func $js-raw-math-log10
-              (import "math" "log10")
-              (param f64) (result f64))
-        (func $js-raw-math-log1p
-              (import "math" "log1p")
-              (param f64) (result f64))
-        (func $js-raw-math-log2
-              (import "math" "log2")
-              (param f64) (result f64))
-        (func $js-raw-math-max
-              (import "math" "max")
-              (param f64) (param f64) (result f64))
-        (func $js-raw-math-min
-              (import "math" "min")
-              (param f64) (param f64) (result f64))
-        (func $js-raw-math-pow
-              (import "math" "pow")
-              (param f64) (param f64) (result f64))
-        (func $js-raw-math-random
-              (import "math" "random")
-              (result f64))
-        (func $js-raw-math-round
-              (import "math" "round")
-              (param f64) (result f64))
-        (func $js-raw-math-sign
-              (import "math" "sign")
-              (param f64) (result f64))
-        (func $js-raw-math-sin
-              (import "math" "sin")
-              (param f64) (result f64))
-        (func $js-raw-math-sinh
-              (import "math" "sinh")
-              (param f64) (result f64))
-        (func $js-raw-math-sqrt
-              (import "math" "sqrt")
-              (param f64) (result f64))
-        (func $js-raw-math-tan
-              (import "math" "tan")
-              (param f64) (result f64))
-        (func $js-raw-math-tanh
-              (import "math" "tanh")
-              (param f64) (result f64))
-        (func $js-raw-math-trunc
-              (import "math" "trunc")
-              (param f64) (result f64))))
 
 ;; flonum-constructor-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for flonum construction helpers.
