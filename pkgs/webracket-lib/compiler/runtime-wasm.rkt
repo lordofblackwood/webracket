@@ -60,7 +60,10 @@
                   fixnum-predicate-runtime-only-helper-names
                   fixnum-runtime-only-helpers)
          (only-in "runtime-wasm/core/flonums.rkt"
+                  flonum-constructor-runtime-only-helper-names
+                  flonum-conversion-runtime-only-helper-names
                   flonum-minmax-runtime-only-helper-names
+                  flonum-predicate-runtime-only-helper-names
                   flonum-runtime-only-helpers)
          (only-in "runtime-wasm/core/formatting.rkt"
                   printer-extension-runtime-only-helper-names
@@ -6494,129 +6497,19 @@
 
          ;; https://docs.racket-lang.org/reference/flonums.html
 
-         (func $i32->flonum (param $n i32) (result (ref $Flonum))
-               (struct.new $Flonum
-                           (i32.const 0)  ;; initial hash = 0
-                           (f64.convert_i32_s (local.get $n))))
+         ;; Flonum construction helpers are implemented in runtime-wasm/core/flonums.rkt.
+         ,@(for/list ([name (in-list flonum-constructor-runtime-only-helper-names)])
+             (core-runtime-helper-form runtime-helper-index name))
 
          ,(core-runtime-helper-form core-runtime-helper-index '$fl?/i32)
 
-         ;; flonum? : (ref eq) -> (ref eq)
-         ;;   Returns #t if the value is a flonum, #f otherwise
-         (func $flonum? (type $Prim1) (param $a (ref eq)) (result (ref eq))
-               (if (result (ref eq))
-                   (ref.test (ref $Flonum) (local.get $a))
-                   (then (global.get $true))
-                   (else (global.get $false))))
+         ;; Flonum predicate helpers are implemented in runtime-wasm/core/flonums.rkt.
+         ,@(for/list ([name (in-list flonum-predicate-runtime-only-helper-names)])
+             (core-runtime-helper-form runtime-helper-index name))
 
-        ;; double-flonum? : (ref eq) -> (ref eq)
-        ;;   All flonums are double precision, so reuse flonum?
-        (func $double-flonum? (type $Prim1) (param $a (ref eq)) (result (ref eq))
-              (call $flonum? (local.get $a)))
-
-        (func $fx->fl/precise (param $v (ref eq)) (result (ref $Flonum))
-              (local $v/i32 i32)
-              ;; Check that v is a fixnum (ref i31) and has low bit 0
-              (if (i32.eqz (ref.test (ref i31) (local.get $v)))
-                  (then (call $raise-check-fixnum (local.get $v))
-                        (unreachable)))
-              (local.set $v/i32 (i31.get_s (ref.cast (ref i31) (local.get $v))))
-              (if (i32.and (local.get $v/i32) (i32.const 1))
-                  (then (call $raise-check-fixnum (local.get $v))
-                        (unreachable)))
-              ;; Convert fixnum to flonum
-              (struct.new $Flonum
-                          (i32.const 0)                             ;; hash = 0
-                          (f64.convert_i32_s (i32.shr_s (local.get $v/i32) (i32.const 1)))))
-
-        (func $fx->fl (type $Prim1)
-              (param $v (ref eq))
-              (result   (ref eq))  ; a $Flonum
-
-              (local $v/i32 i32)
-              ;; Check that v is a fixnum (ref i31) and has low bit 0
-              (if (i32.eqz (ref.test (ref i31) (local.get $v)))
-                  (then (call $raise-check-fixnum (local.get $v))
-                        (unreachable)))
-              (local.set $v/i32 (i31.get_s (ref.cast (ref i31) (local.get $v))))
-              (if (i32.and (local.get $v/i32) (i32.const 1))
-                  (then (call $raise-check-fixnum (local.get $v))
-                        (unreachable)))
-              ;; Convert fixnum to flonum
-              (struct.new $Flonum
-                          (i32.const 0)                             ;; hash = 0
-                          (f64.convert_i32_s (i32.shr_s (local.get $v/i32) (i32.const 1)))))
-
-        (func $->fl (type $Prim1)
-              (param $v (ref eq))
-              (result (ref eq))
-              (call $fx->fl (local.get $v)))
-
-        (func $raise-fl->fx (param $x (ref eq)) (unreachable))
-
-        (func $fl->fx (type $Prim1)
-              (param $v (ref eq))
-              (result   (ref eq)) ; a fixnum
-
-              (local $v/fl  (ref $Flonum))
-              (local $x/f64 f64)
-              (local $t/f64 f64)
-              (local $i32   i32)
-
-              ;; Check that v is a flonum
-              (if (i32.eqz (ref.test (ref $Flonum) (local.get $v)))
-                  (then (call $raise-check-flonum (local.get $v))
-                        (unreachable)))
-              (local.set $v/fl  (ref.cast (ref $Flonum) (local.get $v)))
-              (local.set $x/f64 (struct.get $Flonum $v (local.get $v/fl)))
-              ;; Truncate toward zero
-              (local.set $t/f64 (f64.trunc (local.get $x/f64)))
-              ;; NaN?
-              (if (f64.ne (local.get $t/f64) (local.get $t/f64))
-                  (then (call $raise-fl->fx (local.get $v))
-                        (unreachable)))
-              ;; Check fixnum range
-              (if (i32.or (f64.gt (local.get $t/f64) (f64.const 536870911.0))
-                          (f64.lt (local.get $t/f64) (f64.const -536870912.0)))
-                  (then (call $raise-fl->fx (local.get $v))
-                        (unreachable)))
-              ;; Convert to i32 and box
-              (local.set $i32 (i32.trunc_f64_s (local.get $t/f64)))
-              (ref.i31 (i32.shl (local.get $i32) (i32.const 1))))
-
-        (func $raise-fl->exact-integer (param $x (ref eq)) (unreachable))
-
-        (func $fl->exact-integer (type $Prim1)
-              (param $v (ref eq))
-              (result (ref eq))
-
-              (local $v/fl  (ref $Flonum))
-              (local $x/f64 f64)
-              (local $t/f64 f64)
-              (local $i32   i32)
-
-              ;; Check that v is a flonum
-              (if (i32.eqz (ref.test (ref $Flonum) (local.get $v)))
-                  (then (call $raise-check-flonum (local.get $v))
-                        (unreachable)))
-              (local.set $v/fl  (ref.cast (ref $Flonum) (local.get $v)))
-              (local.set $x/f64 (struct.get $Flonum $v (local.get $v/fl)))
-              (local.set $t/f64 (f64.trunc (local.get $x/f64)))
-              ;; Must be integer
-              (if (f64.ne (local.get $x/f64) (local.get $t/f64))
-                  (then (call $raise-fl->exact-integer (local.get $v))
-                        (unreachable)))
-              ;; NaN?
-              (if (f64.ne (local.get $t/f64) (local.get $t/f64))
-                  (then (call $raise-fl->exact-integer (local.get $v))
-                        (unreachable)))
-              ;; Check fixnum range
-              (if (i32.or (f64.gt (local.get $t/f64) (f64.const 536870911.0))
-                          (f64.lt (local.get $t/f64) (f64.const -536870912.0)))
-                  (then (call $raise-fl->exact-integer (local.get $v))
-                        (unreachable)))
-              (local.set $i32 (i32.trunc_f64_s (local.get $t/f64)))
-              (ref.i31 (i32.shl (local.get $i32) (i32.const 1))))
+         ;; Flonum conversion helpers are implemented in runtime-wasm/core/flonums.rkt.
+         ,@(for/list ([name (in-list flonum-conversion-runtime-only-helper-names)])
+             (core-runtime-helper-form runtime-helper-index name))
 
         #;(func $fl+
               (param $x (ref eq)) (param $y (ref eq)) (result (ref eq))
