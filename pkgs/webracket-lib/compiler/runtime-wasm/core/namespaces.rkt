@@ -2,6 +2,7 @@
 
 (provide namespace-current-global-forms
          namespace-initializer-forms
+         namespace-module-registry-global-forms
          namespace-runtime-only-helpers
          namespace-runtime-only-helper-names
          namespace-top-level-global-forms)
@@ -19,6 +20,16 @@
 (define namespace-top-level-global-forms
   '(
          (global $top-level-namespace (mut (ref null $Namespace)) (ref.null $Namespace))))
+
+;; namespace-module-registry-global-forms : (listof datum?)
+;;   Declare the empty namespace module registry value.
+(define namespace-module-registry-global-forms
+  '(
+         ;; Module Registry
+         (global $empty-module-registry (ref $ModuleRegistry)
+                 (struct.new $ModuleRegistry
+                             (i32.const 0)
+                             (array.new $Array (global.get $null) (i32.const 0))))))
 
 ;; namespace-initializer-forms : (listof datum?)
 ;;   Initialize the top-level and current namespaces.

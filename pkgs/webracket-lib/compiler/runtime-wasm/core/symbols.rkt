@@ -3,11 +3,20 @@
 (provide symbol-runtime-only-helpers
          symbol-public-runtime-only-helper-names
          symbol-gensym-runtime-only-helper-names
+         symbol-table-global-forms
          symbol-table-initializer-runtime-only-helper-names
          symbol-table-runtime-only-helper-names)
 
 (require "../core-helper.rkt"
          "../../private/wasm-utils.rkt")
+
+;; symbol-table-global-forms : (listof datum?)
+;;   Declare the global symbol interning table.
+(define symbol-table-global-forms
+  '(
+         ;; The symbol table from strings to symbols.
+         ;; Used to intern symbols.
+         (global $the-symbol-table (mut (ref null $SymbolTable)) (ref.null $SymbolTable))))
 
 ;; symbol-table-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for symbol table helpers.

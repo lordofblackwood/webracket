@@ -1,11 +1,20 @@
 #lang racket
 
 (provide keyword-core-runtime-helpers
+         keyword-table-global-forms
          keyword-table-initializer-runtime-only-helper-names
          keyword-runtime-only-helper-names
          keyword-runtime-only-helpers)
 
 (require "../core-helper.rkt")
+
+;; keyword-table-global-forms : (listof datum?)
+;;   Declare the global keyword interning table.
+(define keyword-table-global-forms
+  '(
+         ;; The keyword table from strings to keywords.
+         ;; Used to intern keywords.
+         (global $the-keyword-table (mut (ref null $SymbolTable)) (ref.null $SymbolTable))))
 
 ;; keyword-core-runtime-helpers : (listof core-runtime-helper?)
 ;;   Enumerate keyword helpers that can be emitted in core runtime.

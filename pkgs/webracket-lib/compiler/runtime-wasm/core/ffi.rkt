@@ -6,6 +6,7 @@
          ffi-runtime-only-helpers
          ffi-runtime-only-helper-names
          ffi-runtime-only-helper-forms
+         unsafe-ffi-primitive-table-global-forms
          unsafe-ffi-runtime-only-helper-forms)
 
 (require "../core-helper.rkt"
@@ -58,6 +59,13 @@
                (global $debug-label102683-count        (mut i32)      (i32.const 0))
                (global $debug-current-procedure        (mut (ref eq)) (global.get $false))
                (global $debug-current-procedure-name   (mut (ref eq)) (global.get $false))))
+
+;; unsafe-ffi-primitive-table-global-forms : (listof datum?)
+;;   Declare the generated unsafe FFI primitive table.
+(define unsafe-ffi-primitive-table-global-forms
+  '(
+         ;; Symbol -> primitive procedure table for generated unsafe FFI modules.
+         (global $unsafe-ffi-primitive-table (mut (ref null $HashEqMutable)) (ref.null $HashEqMutable))))
 
 ;; ffi-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for FFI, callback, and browser bridge helpers.

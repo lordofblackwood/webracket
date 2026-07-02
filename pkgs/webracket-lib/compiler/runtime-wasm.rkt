@@ -79,6 +79,7 @@
                   ffi-entry-global-forms
                   ffi-runtime-only-helpers
                   ffi-runtime-only-helper-forms
+                  unsafe-ffi-primitive-table-global-forms
                   unsafe-ffi-runtime-only-helper-forms)
          (only-in "runtime-wasm/core/filesystem.rkt"
                   filesystem-temporary-global-forms
@@ -150,6 +151,7 @@
                   io-handler-reader-printer-runtime-only-helper-names
                   io-handler-runtime-only-helpers)
          (only-in "runtime-wasm/core/keywords.rkt"
+                  keyword-table-global-forms
                   keyword-table-initializer-runtime-only-helper-names
                   keyword-runtime-only-helper-names
                   keyword-runtime-only-helpers)
@@ -171,6 +173,7 @@
                   linklet-bootstrap-runtime-only-helpers
                   linklet-interpreter-runtime-only-helper-names
                   linklet-interpreter-runtime-only-helpers
+                  linklet-primitive-table-global-forms
                   linklet-primitive-table-initializer-runtime-only-helper-names
                   linklet-primitive-table-initializer-runtime-only-helpers
                   linklet-primitive-table-runtime-only-helper-forms
@@ -193,6 +196,7 @@
          (only-in "runtime-wasm/core/namespaces.rkt"
                   namespace-current-global-forms
                   namespace-initializer-forms
+                  namespace-module-registry-global-forms
                   namespace-runtime-only-helpers
                   namespace-runtime-only-helper-names
                   namespace-top-level-global-forms)
@@ -361,10 +365,12 @@
                   struct-type-property-constructor-runtime-only-helper-names
                   struct-procedure-invoker-runtime-only-helper-names
                   struct-procedure-runtime-only-helper-names
+                  struct-prefab-registry-global-forms
                   struct-runtime-only-helpers)
          (only-in "runtime-wasm/core/symbols.rkt"
                   symbol-gensym-runtime-only-helper-names
                   symbol-public-runtime-only-helper-names
+                  symbol-table-global-forms
                   symbol-table-runtime-only-helper-names
                   symbol-table-initializer-runtime-only-helper-names
                   symbol-runtime-only-helpers)
@@ -3467,11 +3473,7 @@
 
          ,@syntax-global-forms
 
-         ;; Module Registry
-         (global $empty-module-registry (ref $ModuleRegistry)
-                 (struct.new $ModuleRegistry
-                             (i32.const 0)
-                             (array.new $Array (global.get $null) (i32.const 0))))
+         ,@namespace-module-registry-global-forms
 
          ;; Namespaces
          ,@namespace-top-level-global-forms
@@ -3588,20 +3590,15 @@
          ;; Variables defined at the top-level
          ,@top-level-variable-declarations
 
-         ;; The symbol table from strings to symbols.
-         ;; Used to intern symbols.
-         (global $the-symbol-table (mut (ref null $SymbolTable)) (ref.null $SymbolTable))
-         ;; The keyword table from strings to keywords.
-         ;; Used to intern keywords.
-         (global $the-keyword-table (mut (ref null $SymbolTable)) (ref.null $SymbolTable))
-         ;; Simple prefab struct types are interned by prefab key.
-         (global $prefab-struct-type-registry (mut (ref null $HashEqMutable)) (ref.null $HashEqMutable))
-         ;; Placeholder for future Racket CS-style primitive-table installs.
-         ;; The current WebRacket bridge implements the one-argument lookup
-         ;; path needed by the expander startup path.
-         (global $primitive-table-user-installed (mut (ref null $HashEqMutable)) (ref.null $HashEqMutable))
-         ;; Symbol -> primitive procedure table for generated unsafe FFI modules.
-         (global $unsafe-ffi-primitive-table (mut (ref null $HashEqMutable)) (ref.null $HashEqMutable))
+         ,@symbol-table-global-forms
+
+         ,@keyword-table-global-forms
+
+         ,@struct-prefab-registry-global-forms
+
+         ,@linklet-primitive-table-global-forms
+
+         ,@unsafe-ffi-primitive-table-global-forms
 
          ;;   Symbol table initializer is implemented in runtime-wasm/core/symbols.rkt.
          ,@(for/list ([name (in-list symbol-table-initializer-runtime-only-helper-names)])

@@ -4,6 +4,7 @@
          linklet-bootstrap-runtime-only-helpers
          linklet-interpreter-runtime-only-helper-names
          linklet-interpreter-runtime-only-helpers
+         linklet-primitive-table-global-forms
          linklet-primitive-table-initializer-runtime-only-helper-names
          linklet-primitive-table-initializer-runtime-only-helpers
          linklet-primitive-table-runtime-only-helper-forms
@@ -12,6 +13,15 @@
 
 (require "../core-helper.rkt"
          "../../private/wasm-utils.rkt")
+
+;; linklet-primitive-table-global-forms : (listof datum?)
+;;   Declare the primitive-table bridge registry.
+(define linklet-primitive-table-global-forms
+  '(
+         ;; Placeholder for future Racket CS-style primitive-table installs.
+         ;; The current WebRacket bridge implements the one-argument lookup
+         ;; path needed by the expander startup path.
+         (global $primitive-table-user-installed (mut (ref null $HashEqMutable)) (ref.null $HashEqMutable))))
 
 ;; make-predicate-body : symbol? -> (listof datum?)
 ;;   Generate a standard WebRacket predicate body for ref-type.

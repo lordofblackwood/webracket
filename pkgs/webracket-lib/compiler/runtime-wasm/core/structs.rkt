@@ -31,11 +31,19 @@
          struct-type-property-constructor-runtime-only-helper-names
          struct-procedure-invoker-runtime-only-helper-names
          struct-procedure-runtime-only-helper-names
+         struct-prefab-registry-global-forms
          struct-core-runtime-helpers
          struct-runtime-only-helpers)
 
 (require "../core-helper.rkt"
          "../../private/immediates.rkt")
+
+;; struct-prefab-registry-global-forms : (listof datum?)
+;;   Declare the prefab struct type registry.
+(define struct-prefab-registry-global-forms
+  '(
+         ;; Simple prefab struct types are interned by prefab key.
+         (global $prefab-struct-type-registry (mut (ref null $HashEqMutable)) (ref.null $HashEqMutable))))
 
 ;; struct-core-runtime-helpers : (listof core-runtime-helper?)
 ;;   Enumerate struct helpers that can be emitted in core runtime.
