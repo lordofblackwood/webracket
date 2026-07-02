@@ -29,6 +29,7 @@
          struct-type-property-descriptor-runtime-only-helper-names
          struct-type-property-table-runtime-only-helper-names
          struct-type-property-constructor-runtime-only-helper-names
+         struct-procedure-runtime-only-helper-names
          struct-core-runtime-helpers
          struct-runtime-only-helpers)
 
@@ -107,6 +108,15 @@
     $struct-type-properties-normalize
     $make-struct-type-property
     $unsafe-make-struct-type-property/guard-calls-no-arguments))
+
+;; struct-procedure-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for procedural struct helpers.
+(define struct-procedure-runtime-only-helper-names
+  '($applicable-struct?/i32
+    $checked-procedure-struct?/i32
+    $struct-procedure-delegate
+    $procedure-struct-type?
+    $checked-procedure-check-and-extract))
 
 ;; struct-basic-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for basic struct helpers.
@@ -5882,6 +5892,314 @@
                  (local.get $realm-info)))
      )))
 
+;; struct-procedure-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Implement helpers for structs that behave as procedures.
+(define struct-procedure-runtime-only-helpers
+  (function-forms->runtime-helpers
+   'struct-procedure-runtime-only-helpers
+   '(
+     ;; applicable-struct?/i32 : any/c -> i32
+     ;;   Check whether a struct instance has a prop:procedure association.
+     (func $applicable-struct?/i32
+           (param $v (ref eq)) ;; candidate value
+           (result   i32)
+           (local $type     (ref $StructType))
+           (local $sentinel (ref eq))
+           (local $prop-val (ref eq))
+           (if (i32.eqz (ref.test (ref $Struct) (local.get $v)))
+               (then (return (i32.const 0))))
+           (local.set $type
+                      (struct.get $Struct $type
+                                  (ref.cast (ref $Struct) (local.get $v))))
+           (local.set $sentinel (call $cons (global.get $false) (global.get $false)))
+           (local.set $prop-val
+                      (call $struct-type-property-lookup
+                            (local.get $type)
+                           (ref.cast (ref $StructTypeProperty)
+                                      (global.get $prop:procedure))
+                            (local.get $sentinel)))
+           (i32.eqz (ref.eq (local.get $prop-val) (local.get $sentinel))))
+
+     ;; checked-procedure-struct?/i32 : any/c -> i32
+     ;;   Check whether a struct instance has prop:checked-procedure. Racket
+     ;;   CS uses this property for keyword-procedure records, which are
+     ;;   procedures even though they do not carry an ordinary prop:procedure
+     ;;   association.
+     (func $checked-procedure-struct?/i32
+           (param $v (ref eq)) ;; candidate value
+           (result   i32)
+           (local $type     (ref $StructType))
+           (local $sentinel (ref eq))
+           (local $prop-val (ref eq))
+           (if (i32.eqz (ref.test (ref $Struct) (local.get $v)))
+               (then (return (i32.const 0))))
+           (local.set $type
+                      (struct.get $Struct $type
+                                  (ref.cast (ref $Struct) (local.get $v))))
+           (local.set $sentinel (call $cons (global.get $false) (global.get $false)))
+           (local.set $prop-val
+                      (call $struct-type-property-lookup
+                            (local.get $type)
+                            (ref.cast (ref $StructTypeProperty)
+                                      (global.get $prop:checked-procedure))
+                            (local.get $sentinel)))
+           (i32.eqz (ref.eq (local.get $prop-val) (local.get $sentinel))))
+
+     ;; struct-procedure-delegate : any/c -> (or/c procedure? #f)
+     ;;   Resolve a field-based prop:procedure struct to its delegate
+     ;;   procedure. This mirrors invoke-struct's field-index case so
+     ;;   reflection such as procedure-arity sees the real callable arity.
+     (func $struct-procedure-delegate
+           (param $v (ref eq))
+           (result   (ref eq))
+
+           (local $struct      (ref $Struct))
+           (local $type        (ref $StructType))
+           (local $sentinel    (ref eq))
+           (local $prop-val    (ref eq))
+           (local $idx         i32)
+           (local $super       (ref eq))
+           (local $super-type  (ref null $StructType))
+           (local $super-count i32)
+           (local $abs-index   i32)
+           (local $fields      (ref $Array))
+           (local $target      (ref eq))
+
+           (if (i32.eqz (ref.test (ref $Struct) (local.get $v)))
+               (then (return (global.get $false))))
+           (local.set $struct (ref.cast (ref $Struct) (local.get $v)))
+           (local.set $type   (struct.get $Struct $type (local.get $struct)))
+           (local.set $sentinel (call $cons (global.get $false) (global.get $false)))
+           (local.set $prop-val
+                      (call $struct-type-property-lookup
+                            (local.get $type)
+                            (ref.cast (ref $StructTypeProperty)
+                                      (global.get $prop:procedure))
+                            (local.get $sentinel)))
+           (if (ref.eq (local.get $prop-val) (local.get $sentinel))
+               (then (return (global.get $false))))
+           (if (i32.eqz (ref.test (ref i31) (local.get $prop-val)))
+               (then (return (global.get $false))))
+           (local.set $idx (i32.shr_u
+                            (i31.get_u (ref.cast (ref i31) (local.get $prop-val)))
+                            (i32.const 1)))
+           (local.set $super (struct.get $StructType $super (local.get $type)))
+           (local.set $super-type (ref.null $StructType))
+           (local.set $super-count (i32.const 0))
+           (if (i32.eqz (ref.eq (local.get $super) (global.get $false)))
+               (then (local.set $super-type (ref.cast (ref $StructType) (local.get $super)))
+                     (local.set $super-count
+                                (struct.get $StructType $field-count
+                                            (local.get $super-type)))))
+           (local.set $fields (struct.get $Struct $fields (local.get $struct)))
+           (local.set $abs-index (i32.add (local.get $super-count) (local.get $idx)))
+           (if (i32.ge_u (local.get $abs-index) (array.len (local.get $fields)))
+               (then (return (global.get $false))))
+           (local.set $target (array.get $Array (local.get $fields) (local.get $abs-index)))
+           (if (result (ref eq))
+               (ref.test (ref $Procedure) (local.get $target))
+               (then (local.get $target))
+               (else (global.get $false))))
+
+     ;; procedure-struct-type? : struct-type? -> boolean?
+     ;;   Check whether instances of a structure type act as procedures.
+     (func $procedure-struct-type? (type $Prim1)
+           (param $type-raw (ref eq)) ;; struct-type?
+           (result          (ref eq))
+
+           (local $type     (ref $StructType))
+           (local $sentinel (ref eq))
+           (local $prop-val (ref eq))
+
+           (if (i32.eqz (ref.test (ref $StructType) (local.get $type-raw)))
+               (then (call $raise-argument-error1
+                           (global.get $symbol:procedure-struct-type?)
+                           (global.get $string:struct-type?)
+                           (local.get $type-raw))
+                     (unreachable)))
+           (local.set $type (ref.cast (ref $StructType) (local.get $type-raw)))
+           (local.set $sentinel (call $cons (global.get $false) (global.get $false)))
+           (local.set $prop-val
+                      (call $struct-type-property-lookup
+                            (local.get $type)
+                            (ref.cast (ref $StructTypeProperty)
+                                      (global.get $prop:procedure))
+                            (local.get $sentinel)))
+           (if (result (ref eq))
+               (ref.eq (local.get $prop-val) (local.get $sentinel))
+               (then (global.get $false))
+               (else (global.get $true))))
+
+     ;; checked-procedure-check-and-extract :
+     ;;   struct-type? any/c (any/c any/c any/c -> any/c) any/c any/c -> any/c
+     ;;   Runtime helper for prop:checked-procedure. Racket CS uses this in
+     ;;   keyword-procedure fast paths: if `v` is an instance of `type`, has
+     ;;   prop:checked-procedure, and its first field accepts v1/v2, return
+     ;;   its second field; otherwise delegate to the fallback procedure.
+     ;;   WebRacket does not implement impersonators yet, so raw struct
+     ;;   field access matches unsafe-struct*-ref for currently supported
+     ;;   values.
+     (func $checked-procedure-check-and-extract (type $Prim5)
+           (param $type-raw     (ref eq)) ;; struct-type?
+           (param $v            (ref eq)) ;; candidate checked procedure
+           (param $fallback-raw (ref eq)) ;; fallback procedure
+           (param $v1           (ref eq)) ;; checker argument 1
+           (param $v2           (ref eq)) ;; checker argument 2
+           (result              (ref eq))
+
+           (local $type        (ref $StructType))
+           (local $fallback    (ref $Procedure))
+           (local $struct      (ref $Struct))
+           (local $struct-type (ref $StructType))
+           (local $sentinel    (ref eq))
+           (local $prop-val    (ref eq))
+           (local $fields      (ref $Array))
+           (local $checker     (ref $Procedure))
+           (local $extracted   (ref eq))
+           (local $args2       (ref $Args))
+           (local $args3       (ref $Args))
+           (local $accepted    (ref eq))
+           (local $primitive   (ref $PrimitiveProcedure))
+
+           (if (i32.eqz (ref.test (ref $StructType) (local.get $type-raw)))
+               (then (call $raise-argument-error1
+                           (global.get $symbol:checked-procedure-check-and-extract)
+                           (global.get $string:struct-type?)
+                           (local.get $type-raw))
+                     (unreachable)))
+           (local.set $type (ref.cast (ref $StructType) (local.get $type-raw)))
+
+           (if (i32.eqz (ref.test (ref $Procedure) (local.get $fallback-raw)))
+               (then (call $raise-argument-error1
+                           (global.get $symbol:checked-procedure-check-and-extract)
+                           (global.get $string:procedure?)
+                           (local.get $fallback-raw))
+                     (unreachable)))
+           (local.set $fallback (ref.cast (ref $Procedure) (local.get $fallback-raw)))
+
+           ;; Racket expands keyword calls to primitive sort through
+           ;; checked-procedure-check-and-extract when the primitive is
+           ;; imported as a module variable. Return a small keyword-apply
+           ;; primitive instead of delegating to keyword-procedure-extract.
+           (if (ref.test (ref $PrimitiveProcedure) (local.get $v))
+               (then
+                (local.set $primitive (ref.cast (ref $PrimitiveProcedure) (local.get $v)))
+                (if (call $string=?/i32
+                          (call $symbol->string
+                                (struct.get $PrimitiveProcedure $name (local.get $primitive)))
+                          (call $symbol->string (global.get $symbol:sort)))
+                    (then
+                     (return
+                      (struct.new $PrimitiveProcedure
+                                  (i32.const 0)
+                                  (global.get $symbol:sort)
+                                  (ref.i31 (i32.const 8))
+                                  (global.get $the-racket/primitive-realm)
+                                  (ref.func $primitive-invoke:shape-4)
+                                  (ref.func $sort/keyword-apply)
+                                  (global.get $false)))))
+                (if (call $string=?/i32
+                          (call $symbol->string
+                                (struct.get $PrimitiveProcedure $name (local.get $primitive)))
+                          (call $symbol->string (global.get $symbol:vector-sort)))
+                    (then
+                     (return
+                      (struct.new $PrimitiveProcedure
+                                  (i32.const 0)
+                                  (global.get $symbol:vector-sort)
+                                  (ref.i31 (i32.const 8))
+                                  (global.get $the-racket/primitive-realm)
+                                  (ref.func $primitive-invoke:shape-4)
+                                  (ref.func $vector-sort/keyword-apply)
+                                  (global.get $false)))))
+                (if (call $string=?/i32
+                          (call $symbol->string
+                                (struct.get $PrimitiveProcedure $name (local.get $primitive)))
+                          (call $symbol->string (global.get $symbol:vector-sort!)))
+                    (then
+                     (return
+                      (struct.new $PrimitiveProcedure
+                                  (i32.const 0)
+                                  (global.get $symbol:vector-sort!)
+                                  (ref.i31 (i32.const 8))
+                                  (global.get $the-racket/primitive-realm)
+                                  (ref.func $primitive-invoke:shape-4)
+                                  (ref.func $vector-sort!/keyword-apply)
+                                  (global.get $false)))))))
+
+           (if (i32.eqz (ref.test (ref $Struct) (local.get $v)))
+               (then
+                (local.set $args3 (array.new_fixed $Args 3
+                                                   (local.get $v)
+                                                   (local.get $v1)
+                                                   (local.get $v2)))
+                (return_call_ref $ProcedureInvoker
+                                 (local.get $fallback)
+                                 (local.get $args3)
+                                 (struct.get $Procedure $invoke (local.get $fallback)))))
+
+           (local.set $struct      (ref.cast (ref $Struct) (local.get $v)))
+           (local.set $struct-type (struct.get $Struct $type (local.get $struct)))
+
+           (if (i32.eqz (call $struct-type-is-a?/i32
+                               (ref.cast (ref eq) (local.get $struct-type))
+                               (ref.cast (ref eq) (local.get $type))))
+               (then
+                (local.set $args3 (array.new_fixed $Args 3
+                                                   (local.get $v)
+                                                   (local.get $v1)
+                                                   (local.get $v2)))
+                (return_call_ref $ProcedureInvoker
+                                 (local.get $fallback)
+                                 (local.get $args3)
+                                 (struct.get $Procedure $invoke (local.get $fallback)))))
+
+           (local.set $sentinel (call $cons (global.get $false) (global.get $false)))
+           (local.set $prop-val
+                      (call $struct-type-property-lookup
+                            (local.get $struct-type)
+                            (ref.cast (ref $StructTypeProperty)
+                                      (global.get $prop:checked-procedure))
+                            (local.get $sentinel)))
+           (if (ref.eq (local.get $prop-val) (local.get $sentinel))
+               (then
+                (local.set $args3 (array.new_fixed $Args 3
+                                                   (local.get $v)
+                                                   (local.get $v1)
+                                                   (local.get $v2)))
+                (return_call_ref $ProcedureInvoker
+                                 (local.get $fallback)
+                                 (local.get $args3)
+                                 (struct.get $Procedure $invoke (local.get $fallback)))))
+
+           (local.set $fields (struct.get $Struct $fields (local.get $struct)))
+           (local.set $checker
+                      (ref.cast (ref $Procedure)
+                                (array.get $Array (local.get $fields) (i32.const 0))))
+           (local.set $extracted (array.get $Array (local.get $fields) (i32.const 1)))
+           (local.set $args2 (array.new_fixed $Args 2
+                                              (local.get $v1)
+                                              (local.get $v2)))
+           (local.set $accepted
+                      (call $expect-one-value
+                            (call_ref $ProcedureInvoker
+                                      (local.get $checker)
+                                      (local.get $args2)
+                                      (struct.get $Procedure $invoke (local.get $checker)))))
+           (if (result (ref eq))
+               (ref.eq (local.get $accepted) (global.get $false))
+               (then
+                (local.set $args3 (array.new_fixed $Args 3
+                                                   (local.get $v)
+                                                   (local.get $v1)
+                                                   (local.get $v2)))
+                (return_call_ref $ProcedureInvoker
+                                 (local.get $fallback)
+                                 (local.get $args3)
+                                 (struct.get $Procedure $invoke (local.get $fallback))))
+               (else (local.get $extracted))))
+     )))
+
 ;; struct-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate struct helpers that depend on monolithic runtime globals.
 (define struct-runtime-only-helpers
@@ -5915,6 +6233,7 @@
    struct-type-property-descriptor-runtime-only-helpers
    struct-type-property-table-runtime-only-helpers
    struct-type-property-constructor-runtime-only-helpers
+   struct-procedure-runtime-only-helpers
    (list
     ;; initialize-prefab-struct-type-registry : -> void
     ;;   Lazily allocate the global prefab struct type registry.
