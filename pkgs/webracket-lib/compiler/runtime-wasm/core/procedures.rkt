@@ -2,6 +2,14 @@
 
 (provide procedure-core-runtime-helpers
          procedure-basic-runtime-only-helper-names
+         procedure-arity-at-least-runtime-only-helper-names
+         procedure-arity-field-runtime-only-helper-names
+         procedure-composition-runtime-only-helper-names
+         procedure-reduction-runtime-only-helper-names
+         procedure-arity-runtime-only-helper-names
+         procedure-result-arity-runtime-only-helper-names
+         procedure-arity-mask-runtime-only-helper-names
+         primitive-reflection-runtime-only-helper-names
          procedure-runtime-only-helpers)
 
 (require "../core-helper.rkt"
@@ -91,6 +99,69 @@
     $procedure-realm
     $raise-argument-error:procedure-expected/who
     $raise-argument-error:procedure-expected))
+
+;; procedure-arity-at-least-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for arity-at-least helpers.
+(define procedure-arity-at-least-runtime-only-helper-names
+  '($ensure-arity-at-least-type
+    $arity-at-least/make
+    $make-arity-at-least
+    $arity-at-least
+    $raise-argument-error:arity-at-least-expected
+    $arity-at-least-unwrap
+    $arity-at-least?
+    $arity-at-least-value))
+
+;; procedure-arity-field-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for procedure arity field helpers.
+(define procedure-arity-field-runtime-only-helper-names
+  '($procedure-arity-entry->marker/i32
+    $procedure-arity?
+    $procedure-arity-value->field
+    $procedure-arity-field->mask/i32
+    $procedure-arity-mask-value->field))
+
+;; procedure-composition-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for procedure composition helpers.
+(define procedure-composition-runtime-only-helper-names
+  '($make-composed-procedure
+    $compose
+    $compose1
+    $procedure-extract-target))
+
+;; procedure-reduction-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for procedure arity reduction helpers.
+(define procedure-reduction-runtime-only-helper-names
+  '($procedure-reduce-arity
+    $procedure-reduce-arity-mask))
+
+;; procedure-arity-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for procedure arity accessors.
+(define procedure-arity-runtime-only-helper-names
+  '($procedure-arity
+    $procedure-arity/checked))
+
+;; procedure-result-arity-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for procedure result arity helpers.
+(define procedure-result-arity-runtime-only-helper-names
+  '($procedure-result-arity))
+
+;; procedure-arity-mask-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for procedure arity mask helpers.
+(define procedure-arity-mask-runtime-only-helper-names
+  '($procedure-arity-mask
+    $procedure-arity-mask/checked/i32
+    $raise-argument-error:fixnum-expected
+    $procedure-arity-includes?
+    $procedure-arity-includes?/checked/i32))
+
+;; primitive-reflection-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for primitive reflection helpers.
+(define primitive-reflection-runtime-only-helper-names
+  '($raise-argument-error:primitive-procedure-expected
+    $primitive?
+    $primitive-result-arity
+    $primitive-closure?))
 
 ;; procedure-basic-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate basic procedure helpers used by the monolithic runtime.

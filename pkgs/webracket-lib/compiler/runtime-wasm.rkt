@@ -113,7 +113,15 @@
          (only-in "runtime-wasm/core/ports.rkt"
                   port-runtime-only-helpers)
          (only-in "runtime-wasm/core/procedures.rkt"
+                  primitive-reflection-runtime-only-helper-names
+                  procedure-arity-at-least-runtime-only-helper-names
+                  procedure-arity-field-runtime-only-helper-names
+                  procedure-arity-mask-runtime-only-helper-names
+                  procedure-arity-runtime-only-helper-names
                   procedure-basic-runtime-only-helper-names
+                  procedure-composition-runtime-only-helper-names
+                  procedure-reduction-runtime-only-helper-names
+                  procedure-result-arity-runtime-only-helper-names
                   procedure-runtime-only-helpers)
          (only-in "runtime-wasm/core/random.rkt"
                   random-generator-runtime-only-helper-names
@@ -16060,45 +16068,36 @@
          ,@(for/list ([name (in-list procedure-basic-runtime-only-helper-names)])
              (core-runtime-helper-form runtime-helper-index name))
 
+         ;; Procedure arity-at-least helpers
          ;;   Implemented in runtime-wasm/core/procedures.rkt.
-         ,@(for/list ([name '($ensure-arity-at-least-type
-                               $arity-at-least/make
-                               $make-arity-at-least
-                               $arity-at-least
-                               $raise-argument-error:arity-at-least-expected
-                               $arity-at-least-unwrap
-                               $arity-at-least?
-                               $arity-at-least-value)])
+         ,@(for/list ([name (in-list procedure-arity-at-least-runtime-only-helper-names)])
              (core-runtime-helper-form runtime-helper-index name))
 
+         ;; Procedure arity field helpers
          ;;   Implemented in runtime-wasm/core/procedures.rkt.
-         ,@(for/list ([name '($procedure-arity-entry->marker/i32
-                               $procedure-arity?
-                               $procedure-arity-value->field
-                               $procedure-arity-field->mask/i32
-                               $procedure-arity-mask-value->field)])
+         ,@(for/list ([name (in-list procedure-arity-field-runtime-only-helper-names)])
              (core-runtime-helper-form runtime-helper-index name))
 
+         ;; Procedure composition helpers
          ;;   Implemented in runtime-wasm/core/procedures.rkt.
-         ,@(for/list ([name '($make-composed-procedure
-                               $compose
-                               $compose1
-                               $procedure-extract-target)])
+         ,@(for/list ([name (in-list procedure-composition-runtime-only-helper-names)])
              (core-runtime-helper-form runtime-helper-index name))
 
+         ;; Procedure arity reduction helpers
          ;;   Implemented in runtime-wasm/core/procedures.rkt.
-         ,@(for/list ([name '($procedure-reduce-arity
-                               $procedure-reduce-arity-mask)])
+         ,@(for/list ([name (in-list procedure-reduction-runtime-only-helper-names)])
              (core-runtime-helper-form runtime-helper-index name))
 
+         ;; Procedure arity accessors
          ;;   Implemented in runtime-wasm/core/procedures.rkt.
-         ,@(for/list ([name '($procedure-arity
-                               $procedure-arity/checked)])
+         ,@(for/list ([name (in-list procedure-arity-runtime-only-helper-names)])
              (core-runtime-helper-form runtime-helper-index name))
 
 
+         ;; Procedure result arity helpers
          ;;   Implemented in runtime-wasm/core/procedures.rkt.
-         ,(core-runtime-helper-form runtime-helper-index '$procedure-result-arity)
+         ,@(for/list ([name (in-list procedure-result-arity-runtime-only-helper-names)])
+             (core-runtime-helper-form runtime-helper-index name))
 
          ;;   Implemented in runtime-wasm/core/impersonators.rkt.
          ,@(for/list ([name '($chaperone-procedure
@@ -16114,12 +16113,9 @@
 
 
 
+         ;; Procedure arity mask helpers
          ;;   Implemented in runtime-wasm/core/procedures.rkt.
-         ,@(for/list ([name '($procedure-arity-mask
-                               $procedure-arity-mask/checked/i32
-                               $raise-argument-error:fixnum-expected
-                               $procedure-arity-includes?
-                               $procedure-arity-includes?/checked/i32)])
+         ,@(for/list ([name (in-list procedure-arity-mask-runtime-only-helper-names)])
              (core-runtime-helper-form runtime-helper-index name))
 
 
@@ -16131,11 +16127,9 @@
 
          ; 4.20.2 Reflecting on Primitives
 
+         ;; Primitive reflection helpers
          ;;   Implemented in runtime-wasm/core/procedures.rkt.
-         ,@(for/list ([name '($raise-argument-error:primitive-procedure-expected
-                               $primitive?
-                               $primitive-result-arity
-                               $primitive-closure?)])
+         ,@(for/list ([name (in-list primitive-reflection-runtime-only-helper-names)])
              (core-runtime-helper-form runtime-helper-index name))
 
          ;;;
