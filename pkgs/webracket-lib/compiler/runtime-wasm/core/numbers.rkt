@@ -5,6 +5,7 @@
          generic-numeric-runtime-only-helper-names
          number-runtime-only-helpers
          number-string-conversion-runtime-only-helper-names
+         string-number-conversion-runtime-only-helper-names
          number-type-runtime-only-helper-names)
 
 (require "../core-helper.rkt"
@@ -69,6 +70,15 @@
     $number->string:max-length
     $number->string:convert
     $number->string))
+
+;; string-number-conversion-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for string/number conversion helpers.
+(define string-number-conversion-runtime-only-helper-names
+  '($raise-string->number:bad-argument
+    $raise-string->number:bad-radix
+    $string->number:parse-fractional-part
+    $string->number:parse-integer
+    $string->number))
 
 ;; number-type-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate number-type helpers that still depend on monolithic runtime globals.
@@ -2815,6 +2825,357 @@
            ;; Step 5: Convert and return
            (call $number->string:convert (local.get $n) (local.get $radix) (local.get $max))))))
 
+;; string-number-conversion-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate string/number conversion helpers used by the monolithic runtime.
+(define string-number-conversion-runtime-only-helpers
+  (function-forms->runtime-helpers
+   'string-number-conversion-runtime-only-helpers
+   '(
+     (func $raise-string->number:bad-argument (unreachable))
+     (func $raise-string->number:bad-radix (unreachable))
+
+     ;; string->number:parse-fractional-part : string? i32 -> f64 i32
+     ;;   Parse decimal digits into an inexact fractional value.
+     (func $string->number:parse-fractional-part
+           (param $s (ref $String))
+           (param $i i32)
+           (result f64 i32)
+
+           (local $arr   (ref $I32Array))
+           (local $len   i32)
+           (local $cp    i32)
+           (local $digit i32)
+           (local $start i32)
+           (local $frac  f64)
+           (local $scale f64)
+
+           ;; Cache the source array and remember where the fractional scan began.
+           (local.set $arr   (struct.get $String $codepoints (local.get $s)))
+           (local.set $len   (call $i32array-length (local.get $arr)))
+           (local.set $start (local.get $i))
+
+           ;; Build the fraction from left to right:
+           ;;   0.1 * digit1 + 0.01 * digit2 + ...
+           (local.set $frac  (f64.const 0.0))
+           (local.set $scale (f64.const 0.1))
+
+           (block $done
+                  (loop $loop
+                        (br_if $done (i32.ge_u (local.get $i) (local.get $len)))
+
+                        (local.set $cp
+                                   (call $i32array-ref (local.get $arr) (local.get $i)))
+
+                        ;; Stop immediately if the next character is not a decimal digit.
+                        (if (i32.or
+                             (i32.lt_u (local.get $cp) (i32.const 48))
+                             (i32.gt_u (local.get $cp) (i32.const 57)))
+                            (then
+                             (return
+                              (f64.const 0.0)
+                              (i32.const 0)))
+                            (else (nop)))
+
+                        (local.set $digit
+                                   (i32.sub (local.get $cp) (i32.const 48)))
+
+                        ;; Add the next digit at the current decimal place.
+                        (local.set $frac
+                                   (f64.add
+                                    (local.get $frac)
+                                    (f64.mul
+                                     (f64.convert_i32_s (local.get $digit))
+                                     (local.get $scale))))
+
+                        (local.set $scale
+                                   (f64.mul (local.get $scale) (f64.const 0.1)))
+
+                        (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                        (br $loop)))
+
+           ;; Return the parsed fraction and the number of consumed characters.
+           (return
+            (local.get $frac)
+            (i32.sub (local.get $i) (local.get $start))))
+
+     (func $string->number:parse-integer
+           (param $s     (ref $String))
+           (param $i     i32)
+           (param $radix i32)
+           ;; returns:
+           ;;   1. fixnum or #f
+           ;;   2. number of parsed characters or 0
+           (result       (ref eq) i32)
+
+           (local $arr       (ref $I32Array))
+           (local $len       i32)
+           (local $cp        i32)
+           (local $digit     i32)
+           (local $acc       i32)
+           (local $start     i32)
+           (local $limit-div i32)
+           (local $limit-rem i32)
+
+           (local.set $arr   (struct.get $String $codepoints (local.get $s)))
+           (local.set $len   (call $i32array-length (local.get $arr)))
+           (local.set $start (local.get $i))
+           (local.set $acc   (i32.const 0))
+
+           ;; largest non-negative 30-bit fixnum payload
+           ;;   = 2^29 - 1 = 536870911
+           (local.set $limit-div
+                      (i32.div_u (i32.const 536870911) (local.get $radix)))
+           (local.set $limit-rem
+                      (i32.rem_u (i32.const 536870911) (local.get $radix)))
+
+           (block $overflow (result (ref eq) i32)
+                  (block $done
+                         (loop $loop
+                               (br_if $done
+                                      (i32.ge_u (local.get $i) (local.get $len)))
+
+                               (local.set $cp
+                                          (call $i32array-ref (local.get $arr) (local.get $i)))
+
+                               ;; Try '0'..'9'
+                               (local.set $digit
+                                          (i32.sub (local.get $cp) (i32.const 48)))
+                               (if (i32.lt_u (local.get $digit) (i32.const 10))
+                                   (then (nop))
+                                   (else
+                                    ;; Try 'a'..'z'
+                                    (local.set $digit
+                                               (i32.sub (local.get $cp) (i32.const 97)))
+                                    (if (i32.lt_u (local.get $digit) (i32.const 26))
+                                        (then
+                                         (local.set $digit
+                                                    (i32.add (local.get $digit) (i32.const 10))))
+                                        (else
+                                         ;; Try 'A'..'Z'
+                                         (local.set $digit
+                                                    (i32.sub (local.get $cp) (i32.const 65)))
+                                         (if (i32.lt_u (local.get $digit) (i32.const 26))
+                                             (then
+                                              (local.set $digit
+                                                         (i32.add (local.get $digit) (i32.const 10))))
+                                             (else
+                                              (br $done)))))))
+
+                               (if (i32.ge_u (local.get $digit) (local.get $radix))
+                                   (then (br $done))
+                                   (else (nop)))
+
+                               ;; Overflow check for:
+                               ;;   acc * radix + digit <= 536870911
+                               (if (i32.or
+                                    (i32.gt_u (local.get $acc) (local.get $limit-div))
+                                    (i32.and
+                                     (i32.eq (local.get $acc) (local.get $limit-div))
+                                     (i32.gt_u (local.get $digit) (local.get $limit-rem))))
+                                   (then
+                                    (global.get $false)
+                                    (i32.const 0)
+                                    (br $overflow))
+                                   (else (nop)))
+
+                               (local.set $acc
+                                          (i32.add
+                                           (i32.mul (local.get $acc) (local.get $radix))
+                                           (local.get $digit)))
+                               (local.set $i
+                                          (i32.add (local.get $i) (i32.const 1)))
+                               (br $loop)))
+
+                  ;; Normal return
+                  (if (result (ref eq) i32)
+                      (i32.eq (local.get $i) (local.get $start))
+                      (then
+                       (global.get $false)
+                       (i32.const 0))
+                      (else
+                       (ref.i31 (i32.shl (local.get $acc) (i32.const 1)))
+                       (i32.sub (local.get $i) (local.get $start))))))
+
+     (func $string->number (type $Prim15)
+           (param $s-raw        (ref eq))
+           (param $radix-raw    (ref eq))
+           (param $convert-mode (ref eq))
+           (param $decimal-mode (ref eq))
+           (param $single-mode  (ref eq))
+           (result              (ref eq))
+
+           (local $s        (ref $String))
+           (local $radix    i32)
+           (local $arr      (ref $I32Array))
+           (local $len      i32)
+           (local $i        i32)
+           (local $neg      i32)
+           (local $cp       i32)
+           (local $int      (ref eq))
+           (local $n        i32)
+           (local $has-int  i32)
+           (local $acc      i32)
+           (local $frac     f64)
+           (local $m        i32)
+           (local $res      f64)
+
+           ;; Validate string
+           (if (ref.test (ref $String) (local.get $s-raw))
+               (then (nop))
+               (else
+                (call $raise-string->number:bad-argument)
+                (unreachable)))
+           (local.set $s (ref.cast (ref $String) (local.get $s-raw)))
+
+           ;; Radix
+           (if (ref.eq (local.get $radix-raw) (global.get $missing))
+               (then (local.set $radix (i32.const 10)))
+               (else
+                (if (ref.test (ref i31) (local.get $radix-raw))
+                    (then
+                     (local.set $radix
+                                (i32.shr_u
+                                 (i31.get_u
+                                  (ref.cast (ref i31) (local.get $radix-raw)))
+                                 (i32.const 1))))
+                    (else
+                     (call $raise-string->number:bad-radix)
+                     (unreachable)))))
+
+           (if (i32.or
+                (i32.lt_u (local.get $radix) (i32.const 2))
+                (i32.gt_u (local.get $radix) (i32.const 16)))
+               (then
+                (call $raise-string->number:bad-radix)
+                (unreachable))
+               (else (nop)))
+
+           ;; String data
+           (local.set $arr (struct.get $String $codepoints (local.get $s)))
+           (local.set $len (call $i32array-length (local.get $arr)))
+
+           (if (i32.eqz (local.get $len))
+               (then (return (global.get $false)))
+               (else (nop)))
+
+           ;; Sign
+           (local.set $i   (i32.const 0))
+           (local.set $neg (i32.const 0))
+
+           (local.set $cp (call $i32array-ref (local.get $arr) (i32.const 0)))
+           (if (i32.eq (local.get $cp) (i32.const 45))
+               (then
+                (local.set $neg (i32.const 1))
+                (local.set $i   (i32.const 1)))
+               (else
+                (if (i32.eq (local.get $cp) (i32.const 43))
+                    (then (local.set $i (i32.const 1)))
+                    (else (nop)))))
+
+           ;; Cannot be only sign
+           (if (i32.eq (local.get $i) (local.get $len))
+               (then (return (global.get $false)))
+               (else (nop)))
+
+           ;; Parse integer
+           (call $string->number:parse-integer
+                 (local.get $s)
+                 (local.get $i)
+                 (local.get $radix))
+           (local.set $n)
+           (local.set $int)
+           (if (ref.eq (local.get $int) (global.get $false))
+               (then (local.set $has-int (i32.const 0)))
+               (else (local.set $has-int (i32.const 1))))
+
+           ;; Handle ".1" case
+           (if (ref.eq (local.get $int) (global.get $false))
+               (then
+                (if (i32.eq (local.get $i) (local.get $len))
+                    (then (return (global.get $false)))
+                    (else
+                     (local.set $cp
+                                (call $i32array-ref (local.get $arr) (local.get $i)))
+                     (if (i32.eq (local.get $cp) (i32.const 46))
+                         (then
+                          (local.set $int (ref.i31 (i32.const 0)))
+                          (local.set $n   (i32.const 0)))
+                         (else
+                          (return (global.get $false)))))))
+               (else (nop)))
+
+           (local.set $i (i32.add (local.get $i) (local.get $n)))
+
+           ;; No fractional part → return fixnum
+           (if (i32.eq (local.get $i) (local.get $len))
+               (then
+                (local.set $acc
+                           (i32.shr_u
+                            (i31.get_u (ref.cast (ref i31) (local.get $int)))
+                            (i32.const 1)))
+                (if (local.get $neg)
+                    (then
+                     (local.set $acc
+                                (i32.sub (i32.const 0) (local.get $acc))))
+                    (else (nop)))
+                (return
+                 (ref.i31 (i32.shl (local.get $acc) (i32.const 1)))))
+               (else (nop)))
+
+           ;; Must be '.'
+           (local.set $cp (call $i32array-ref (local.get $arr) (local.get $i)))
+           (if (i32.ne (local.get $cp) (i32.const 46))
+               (then (return (global.get $false)))
+               (else (nop)))
+
+           ;; Only decimal radix
+           (if (i32.ne (local.get $radix) (i32.const 10))
+               (then (return (global.get $false)))
+               (else (nop)))
+
+           ;; Convert integer part
+           (local.set $acc
+                      (i32.shr_u
+                       (i31.get_u (ref.cast (ref i31) (local.get $int)))
+                       (i32.const 1)))
+
+           ;; Skip '.'
+           (local.set $i (i32.add (local.get $i) (i32.const 1)))
+
+           ;; Parse fractional digits
+           (call $string->number:parse-fractional-part
+                 (local.get $s)
+                 (local.get $i))
+           (local.set $m)
+           (local.set $frac)
+
+           ;; A bare decimal point is not a number.
+           (if (i32.and
+                (i32.eqz (local.get $has-int))
+                (i32.eqz (local.get $m)))
+               (then (return (global.get $false)))
+               (else (nop)))
+
+           ;; Must consume entire string
+           (local.set $i (i32.add (local.get $i) (local.get $m)))
+
+           (if (i32.ne (local.get $i) (local.get $len))
+               (then (return (global.get $false)))
+               (else (nop)))
+
+           (local.set $res
+                      (f64.add
+                       (f64.convert_i32_s (local.get $acc))
+                       (local.get $frac)))
+
+           (if (local.get $neg)
+               (then (local.set $res (f64.neg (local.get $res))))
+               (else (nop)))
+
+           (struct.new $Flonum
+                       (i32.const 0)
+                       (local.get $res))))))
+
 
 ;; number-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate number helpers that still depend on monolithic runtime globals.
@@ -2823,4 +3184,5 @@
           generic-numeric-runtime-only-helpers
           generic-arithmetic-runtime-only-helpers
           generic-bitwise-runtime-only-helpers
-          number-string-conversion-runtime-only-helpers))
+          number-string-conversion-runtime-only-helpers
+          string-number-conversion-runtime-only-helpers))
