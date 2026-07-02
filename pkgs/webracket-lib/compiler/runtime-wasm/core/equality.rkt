@@ -1,6 +1,7 @@
 #lang racket
 
 (provide equality-runtime-only-helpers
+         immutable-predicate-runtime-only-helper-names
          equality-runtime-only-helper-names)
 
 (require "../core-helper.rkt")
@@ -774,7 +775,58 @@
 
     ))
 
-(define equality-runtime-only-helpers
+;; immutable-predicate-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for generic immutability predicates.
+(define immutable-predicate-runtime-only-helper-names
+  '($immutable?))
+
+;; immutable-predicate-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate generic immutability predicates used by the monolithic runtime.
+(define immutable-predicate-runtime-only-helpers
   (function-forms->runtime-helpers
-   'equality-runtime-only-helpers
-   equality-runtime-only-forms))
+   'immutable-predicate-runtime-only-helpers
+   '(
+         (func $immutable? (type $Prim1)
+               (param $v (ref eq))
+               (result (ref eq))
+
+               (local $s    (ref $String))
+               (local $bs   (ref $Bytes))
+               (local $vec  (ref $Vector))
+               (local $hash (ref $Hash))
+               (local $box  (ref $Box))
+
+               (if (ref.test (ref $String) (local.get $v))
+                   (then
+                    (local.set $s (ref.cast (ref $String) (local.get $v)))
+                    (if (i32.eq (struct.get $String $immutable (local.get $s)) (i32.const 1))
+                        (then (return (global.get $true)))
+                        (else (return (global.get $false))))))
+               (if (ref.test (ref $Bytes) (local.get $v))
+                   (then
+                    (local.set $bs (ref.cast (ref $Bytes) (local.get $v)))
+                    (if (i32.eq (struct.get $Bytes $immutable (local.get $bs)) (i32.const 1))
+                        (then (return (global.get $true)))
+                        (else (return (global.get $false))))))
+               (if (ref.test (ref $Vector) (local.get $v))
+                   (then
+                    (local.set $vec (ref.cast (ref $Vector) (local.get $v)))
+                    (if (i32.eq (struct.get $Vector $immutable (local.get $vec)) (i32.const 1))
+                        (then (return (global.get $true)))
+                        (else (return (global.get $false))))))
+               (if (call $immutable-hash-leaf?/i32 (local.get $v))
+                   (then (return (global.get $true))))
+               (if (ref.test (ref $Box) (local.get $v))
+                   (then
+                    (local.set $box (ref.cast (ref $Box) (local.get $v)))
+                    (if (i32.eq (struct.get $Box $immutable (local.get $box)) (i32.const 1))
+                        (then (return (global.get $true)))
+                        (else (return (global.get $false))))))
+               (global.get $false))
+     )))
+
+(define equality-runtime-only-helpers
+  (append (function-forms->runtime-helpers
+           'equality-runtime-only-helpers
+           equality-runtime-only-forms)
+          immutable-predicate-runtime-only-helpers))

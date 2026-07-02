@@ -43,6 +43,7 @@
                   control-flow-runtime-only-helpers)
          (only-in "runtime-wasm/core/equality.rkt"
                   equality-runtime-only-helpers
+                  immutable-predicate-runtime-only-helper-names
                   equality-runtime-only-helper-names)
          (only-in "runtime-wasm/core/exceptions.rkt"
                   exception-contract-runtime-only-helper-names
@@ -4322,43 +4323,9 @@
          ,@(for/list ([name (in-list boolean-runtime-only-helper-names)])
              (core-runtime-helper-form runtime-helper-index name))
 
-         (func $immutable? (type $Prim1)
-               (param $v (ref eq))
-               (result (ref eq))
-
-               (local $s    (ref $String))
-               (local $bs   (ref $Bytes))
-               (local $vec  (ref $Vector))
-               (local $hash (ref $Hash))
-               (local $box  (ref $Box))
-
-               (if (ref.test (ref $String) (local.get $v))
-                   (then
-                    (local.set $s (ref.cast (ref $String) (local.get $v)))
-                    (if (i32.eq (struct.get $String $immutable (local.get $s)) (i32.const 1))
-                        (then (return (global.get $true)))
-                        (else (return (global.get $false))))))
-               (if (ref.test (ref $Bytes) (local.get $v))
-                   (then
-                    (local.set $bs (ref.cast (ref $Bytes) (local.get $v)))
-                    (if (i32.eq (struct.get $Bytes $immutable (local.get $bs)) (i32.const 1))
-                        (then (return (global.get $true)))
-                        (else (return (global.get $false))))))
-               (if (ref.test (ref $Vector) (local.get $v))
-                   (then
-                    (local.set $vec (ref.cast (ref $Vector) (local.get $v)))
-                    (if (i32.eq (struct.get $Vector $immutable (local.get $vec)) (i32.const 1))
-                        (then (return (global.get $true)))
-                        (else (return (global.get $false))))))
-               (if (call $immutable-hash-leaf?/i32 (local.get $v))
-                   (then (return (global.get $true))))
-               (if (ref.test (ref $Box) (local.get $v))
-                   (then
-                    (local.set $box (ref.cast (ref $Box) (local.get $v)))
-                    (if (i32.eq (struct.get $Box $immutable (local.get $box)) (i32.const 1))
-                        (then (return (global.get $true)))
-                        (else (return (global.get $false))))))
-               (global.get $false))
+         ;;   Generic immutability predicates are implemented in runtime-wasm/core/equality.rkt.
+         ,@(for/list ([name (in-list immutable-predicate-runtime-only-helper-names)])
+             (core-runtime-helper-form runtime-helper-index name))
 
          ;;;
          ;;; 4.3 Numbers
