@@ -236,12 +236,17 @@
                   string-additional-runtime-only-helper-names
                   string-append-runtime-only-helper-names
                   string-array-conversion-runtime-only-helper-names
+                  string-basic-runtime-only-helper-names
+                  string-build-runtime-only-helper-names
                   string-case-runtime-only-helper-names
+                  string-check-runtime-only-helper-names
                   string-comparison-runtime-only-helper-names
                   string-constructor-runtime-only-helper-names
+                  string-codepoint-runtime-only-helper-names
                   string-copy!-runtime-only-helper-names
                   string-copy-runtime-only-helper-names
                   string-dummy-runtime-only-helper-names
+                  string-error-runtime-only-helper-names
                   string-index-runtime-only-helper-names
                   string-list-conversion-runtime-only-helper-names
                   string-mutation-runtime-only-helper-names
@@ -6524,34 +6529,17 @@
 
         ;; https://docs.racket-lang.org/reference/strings.html
 
-         (func $raise-check-string         (param $x (ref eq))                      (unreachable))
+         ;;   String check helpers are implemented in runtime-wasm/core/strings.rkt.
+         ,@(for/list ([name (in-list string-check-runtime-only-helper-names)])
+             (core-runtime-helper-form runtime-helper-index name))
 
          ;;   String index error helpers are implemented in runtime-wasm/core/strings.rkt.
          ,@(for/list ([name (in-list string-index-runtime-only-helper-names)])
              (core-runtime-helper-form runtime-helper-index name))
 
-         ; for single character strings
-         (func $codepoint->string
-               (param  $ch i32)                    ;; Unicode scalar value
-               (result     (ref $String))
-
-               (local $cp  (ref $I32Array))
-               ;; Validate that ch is a Unicode scalar (i.e. not in surrogate range)
-               (if (i32.or (i32.lt_u (local.get $ch) (i32.const 0))
-                           (i32.gt_u (local.get $ch) (i32.const 0x10FFFF)))
-                   (then (call $raise-argument-error:char-expected (ref.i31 (local.get $ch)))
-                         (unreachable)))
-               (if (i32.and (i32.ge_u (local.get $ch) (i32.const 0xD800))
-                            (i32.le_u (local.get $ch) (i32.const 0xDFFF)))
-                   (then (call $raise-argument-error:char-expected (ref.i31 (local.get $ch)))
-                         (unreachable)))
-               ;; Allocate I32Array of length 1
-               (local.set $cp (array.new_fixed $I32Array 1 (local.get $ch)))
-               ;; Create string with immutable = 1, hash = 0
-               (struct.new $String
-                           (i32.const 0)       ;; hash (lazy)
-                           (i32.const 1)       ;; immutable
-                           (local.get $cp)))
+         ;;   Single-codepoint string helpers are implemented in runtime-wasm/core/strings.rkt.
+         ,@(for/list ([name (in-list string-codepoint-runtime-only-helper-names)])
+             (core-runtime-helper-form runtime-helper-index name))
 
          ,(core-runtime-helper-form core-runtime-helper-index '$i32array->string)
 
@@ -6568,180 +6556,18 @@
 
          ;; 4.4.1 String Constructors, Selectors, and Mutators
 
-         (func $string? (type $Prim1) (param $s (ref eq)) (result (ref eq))
-               (if (result (ref eq))
-                   (ref.test (ref $String) (local.get $s))
-                   (then (global.get $true))
-                   (else (global.get $false))))
-
-         (func $non-empty-string? (type $Prim1)
-               (param $s (ref eq))
-               (result   (ref eq))
-
-               (local $str (ref $String))
-               (local $len i32)
-               (if (result (ref eq))
-                   (ref.test (ref $String) (local.get $s))
-                   (then (local.set $str (ref.cast (ref $String) (local.get $s)))
-                         (local.set $len (call $i32array-length
-                                                  (struct.get $String $codepoints (local.get $str))))
-                         (if (result (ref eq))
-                             (i32.eqz (local.get $len))
-                             (then (global.get $false))
-                             (else (global.get $true))))
-                   (else (global.get $false))))
-
-         ;; Constructors
-
-         (func $string (type $Prim>=0)
-               (param $args (ref eq))
-               (result      (ref eq))
-
-               (local $argv      (ref $Args))
-               (local $len       i32)
-               (local $arr       (ref $I32Array))
-               (local $i         i32)
-               (local $ch        (ref eq))
-               (local $use-args? i32)
-               (local $list      (ref eq))
-               (local $node      (ref eq))
-               (local $pair      (ref $Pair))
-
-               ;; Initialize non-defaultable locals
-               (local.set $argv (array.new $Args (global.get $null) (i32.const 0)))
-               (local.set $ch   (global.get $false))
-
-               ;; Support both $Args arrays and ordinary rest argument lists.
-               (local.set $use-args? (ref.test (ref $Args) (local.get $args)))
-               (local.set $list      (global.get $null))
-               (local.set $node      (global.get $null))
-               (local.set $len       (if (result i32) (local.get $use-args?)
-                                         (then
-                                          (local.set $argv (ref.cast (ref $Args) (local.get $args)))
-                                          (array.len (local.get $argv)))
-                                         (else
-                                          (local.set $list (local.get $args))
-                                          (local.set $node (local.get $list))
-                                          (call $length/i32 (local.get $list)))))
-
-               ;; Allocate array for codepoints
-               (local.set $arr (array.new $I32Array (i32.const 0) (local.get $len)))
-
-               ;; Fill array with characters from either representation
-               (local.set $i (i32.const 0))
-               (if (i32.eqz (local.get $use-args?))
-                   (then
-                    (local.set $node (local.get $list))
-                    (block $done
-                           (loop $loop
-                                 (br_if $done (i32.ge_u (local.get $i) (local.get $len)))
-                                 (if (ref.test (ref $Pair) (local.get $node))
-                                     (then
-                                      (local.set $pair (ref.cast (ref $Pair) (local.get $node)))
-                                      (local.set $ch   (struct.get $Pair $a (local.get $pair)))
-                                      (local.set $node (struct.get $Pair $d (local.get $pair))))
-                                     (else
-                                      (call $raise-pair-expected (local.get $node))
-                                      (unreachable)))
-                                 (array.set $I32Array
-                                            (local.get $arr)
-                                            (local.get $i)
-                                            (call $char->integer/i32 (local.get $ch)))
-                                 (local.set $i (i32.add (local.get $i) (i32.const 1)))
-                                 (br $loop))))
-                   (else
-                    (block $done
-                           (loop $loop
-                                 (br_if $done (i32.ge_u (local.get $i) (local.get $len)))
-                                 (local.set $ch (array.get $Args (local.get $argv) (local.get $i)))
-                                 (array.set $I32Array
-                                            (local.get $arr)
-                                            (local.get $i)
-                                            (call $char->integer/i32 (local.get $ch)))
-                                 (local.set $i (i32.add (local.get $i) (i32.const 1)))
-                                 (br $loop)))))
-               ;; Construct mutable string
-               (struct.new $String
-                           (i32.const 0)  ;; hash
-                           (i32.const 0)  ;; mutable
-                           (local.get $arr)))
+         ;;   Basic string predicates and constructors are implemented in runtime-wasm/core/strings.rkt.
+         ,@(for/list ([name (in-list string-basic-runtime-only-helper-names)])
+             (core-runtime-helper-form runtime-helper-index name))
 
 
          ;;   String construction helpers are implemented in runtime-wasm/core/strings.rkt.
          ,@(for/list ([name (in-list string-constructor-runtime-only-helper-names)])
              (core-runtime-helper-form runtime-helper-index name))
 
-         (func $raise-build-string:bad-length    (unreachable))
-         (func $raise-build-string:char-expected
-               (param $v (ref eq)) (call $js-log (local.get $v)) (unreachable))
-
-         (func $build-string (type $Prim2)
-               (param $n-raw (ref eq))
-               (param $proc  (ref eq))
-               (result       (ref eq))
-
-               (local $n    i32)
-               (local $f    (ref $Procedure))
-               (local $finv (ref $ProcedureInvoker))
-               (local $args (ref $Args))
-               (local $arr  (ref $I32Array))
-               (local $i    i32)
-               (local $res  (ref eq))
-               (local $cp   i32)
-               (local $str  (ref $String))
-
-               ;; --- Check arguments ---
-               (if (i32.eqz (ref.test (ref i31) (local.get $n-raw)))
-                   (then (call $raise-build-string:bad-length)))
-	               (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
-	                   (then (call $raise-argument-error:procedure-expected/who
-	                               (global.get $symbol:build-string)
-	                               (local.get $proc))
-	                         (unreachable)))
-
-               ;; --- Decode and prepare ---
-               (local.set $n    (i32.shr_u (i31.get_u (ref.cast (ref i31) (local.get $n-raw)))
-                                           (i32.const 1)))
-               (local.set $f    (ref.cast (ref $Procedure) (local.get $proc)))
-               (local.set $finv (struct.get $Procedure $invoke (local.get $f)))
-
-               (local.set $arr  (call $i32array-make (local.get $n) (i32.const 0)))
-               (local.set $args (array.new $Args (global.get $null) (i32.const 1)))
-
-               ;; --- Loop ---
-               (local.set $i (i32.const 0))
-               (block $done
-                      (loop $loop
-                            (br_if $done (i32.ge_u (local.get $i) (local.get $n)))
-                            ;; Set argument to current index as fixnum
-                            (array.set $Args (local.get $args) (i32.const 0)
-                                       (ref.i31 (i32.shl (local.get $i) (i32.const 1))))
-                            ;; Call procedure
-                            (local.set $res
-                                       (call_ref $ProcedureInvoker
-                                                 (local.get $f)
-                                                 (local.get $args)
-                                                 (local.get $finv)))
-                            ;; Validate character result
-                            (if (i32.eqz (ref.test (ref i31) (local.get $res)))
-                                (then (call $raise-build-string:char-expected (local.get $res))
-                                      (unreachable)))
-                            (local.set $cp (i31.get_u (ref.cast (ref i31) (local.get $res))))
-                            (if (i32.ne (i32.and (local.get $cp) (i32.const ,char-mask))
-                                        (i32.const ,char-tag))
-                                (then (call $raise-build-string:char-expected (local.get $res))
-                                      (unreachable)))
-                            (local.set $cp (i32.shr_u (local.get $cp) (i32.const ,char-shift)))
-                            (call $i32array-set! (local.get $arr) (local.get $i) (local.get $cp))
-                            (local.set $i (i32.add (local.get $i) (i32.const 1)))
-                            (br $loop)))
-               ;; --- Construct string ---
-               (local.set $str
-                          (struct.new $String
-                                      (i32.const 0)
-                                      (i32.const 0)
-                                      (local.get $arr)))
-               (local.get $str))
+         ;;   Build-string helpers are implemented in runtime-wasm/core/strings.rkt.
+         ,@(for/list ([name (in-list string-build-runtime-only-helper-names)])
+             (core-runtime-helper-form runtime-helper-index name))
 
 
          ;;   String selector helpers are implemented in runtime-wasm/core/strings.rkt.
@@ -6803,17 +6629,9 @@
          ,@(for/list ([name (in-list string-take-drop-runtime-only-helper-names)])
              (core-runtime-helper-form runtime-helper-index name))
 
-
-
-
-
-         (func $raise-argument-error:string-expected (unreachable))
-
-         (func $bomb (unreachable))
-
-
-
-
+         ;;   String-section error stubs are implemented in runtime-wasm/core/strings.rkt.
+         ,@(for/list ([name (in-list string-error-runtime-only-helper-names)])
+             (core-runtime-helper-form runtime-helper-index name))
 
          ;;   String trim helpers are implemented in runtime-wasm/core/strings.rkt.
          ,@(for/list ([name (in-list string-trim-runtime-only-helper-names)])
