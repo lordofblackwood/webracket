@@ -60,6 +60,7 @@
                   fixnum-predicate-runtime-only-helper-names
                   fixnum-runtime-only-helpers)
          (only-in "runtime-wasm/core/flonums.rkt"
+                  flonum-arithmetic-runtime-only-helper-names
                   flonum-constructor-runtime-only-helper-names
                   flonum-conversion-runtime-only-helper-names
                   flonum-minmax-runtime-only-helper-names
@@ -6511,107 +6512,9 @@
          ,@(for/list ([name (in-list flonum-conversion-runtime-only-helper-names)])
              (core-runtime-helper-form runtime-helper-index name))
 
-        #;(func $fl+
-              (param $x (ref eq)) (param $y (ref eq)) (result (ref eq))
-              ;; Type checks
-              (if (i32.eqz (ref.test (ref $Flonum) (local.get $x)))
-                  (then (call $raise-argument-error:flonum-expected (local.get $x))))
-               (if (i32.eqz (ref.test (ref $Flonum) (local.get $y)))
-                   (then (call $raise-argument-error:flonum-expected (local.get $y))))
-               ;; Compute and box result
-               (struct.new $Flonum
-                           (f64.add
-                            (struct.get $Flonum $v
-                                        (ref.cast (ref $Flonum) (local.get $x)))
-                            (struct.get $Flonum $v
-                                        (ref.cast (ref $Flonum) (local.get $y))))))
-
-         (func $raise-argument-error:flonum-expected (unreachable))
-
-         ,@(let ()
-             (define (flbinop name flbinop)
-               `(func ,name
-                      (param $x (ref eq)) (param $y (ref eq))
-                      (result (ref eq))
-                      ;; Type checks
-                      (if (i32.eqz (ref.test (ref $Flonum) (local.get $x)))
-                          (then (call $raise-argument-error:flonum-expected (local.get $x))
-                                (unreachable)))
-                      (if (i32.eqz (ref.test (ref $Flonum) (local.get $y)))
-                          (then (call $raise-argument-error:flonum-expected (local.get $y))
-                                (unreachable)))
-                      ;; Compute and box result
-                      (struct.new $Flonum
-                                  (i32.const 0)
-                                  (,flbinop
-                                   (struct.get $Flonum $v
-                                               (ref.cast (ref $Flonum) (local.get $x)))
-                                   (struct.get $Flonum $v
-                                               (ref.cast (ref $Flonum) (local.get $y)))))))
-             (map flbinop
-                  '($fl+    $fl-    $fl*)
-                  '(f64.add f64.sub f64.mul)))
-
-         (func $unsafe-fl/ (type $Prim2)
-               (param $x (ref eq))
-               (param $y (ref eq))
-               (result   (ref eq))
-
-               (local $x/fl (ref $Flonum))
-               (local $y/fl (ref $Flonum))
-               (local $x/f64 f64)
-               (local $y/f64 f64)
-               ;; Validate via cast (will trap if not a Flonum - hence unsafe)
-               (local.set $x/fl (ref.cast (ref $Flonum) (local.get $x)))
-               (local.set $y/fl (ref.cast (ref $Flonum) (local.get $y)))
-               ;; Extract f64 values
-               (local.set $x/f64 (struct.get $Flonum $v (local.get $x/fl)))
-               (local.set $y/f64 (struct.get $Flonum $v (local.get $y/fl)))
-               ;; Compute and box result
-               (struct.new $Flonum
-                           (i32.const 0)  ;; hash = 0
-                           (f64.div (local.get $x/f64) (local.get $y/f64))))
-
-
-         (func $fl//checked
-               (param $x (ref $Flonum))
-               (param $y (ref $Flonum))
-               (result   (ref $Flonum))
-
-               (struct.new $Flonum
-                           (i32.const 0) ;; hash = 0
-                           (f64.div
-                            (struct.get $Flonum $v (local.get $x))
-                            (struct.get $Flonum $v (local.get $y)))))
-
-
-         (func $raise-check-flonum (unreachable))
-
-         (func $fl/ (type $Prim2)
-               (param $x (ref eq))
-               (param $y (ref eq))
-               (result   (ref eq)) ; An (ref $Flonum)
-
-               (local $x/fl  (ref $Flonum))
-               (local $y/fl  (ref $Flonum))
-               (local $x/f64 f64)
-               (local $y/f64 f64)
-               ;; Type checks
-               (if (i32.eqz (ref.test (ref $Flonum) (local.get $x)))
-                   (then (call $raise-check-flonum (local.get $x))
-                         (unreachable)))
-               (if (i32.eqz (ref.test (ref $Flonum) (local.get $y)))
-                   (then (call $raise-check-flonum (local.get $y))
-                         (unreachable)))
-               ;; Cast and extract
-               (local.set $x/fl  (ref.cast (ref $Flonum) (local.get $x)))
-               (local.set $y/fl  (ref.cast (ref $Flonum) (local.get $y)))
-               (local.set $x/f64 (struct.get $Flonum $v (local.get $x/fl)))
-               (local.set $y/f64 (struct.get $Flonum $v (local.get $y/fl)))
-               ;; Compute and box result
-               (struct.new $Flonum
-                           (i32.const 0)
-                           (f64.div (local.get $x/f64) (local.get $y/f64))))
+         ;; Flonum arithmetic helpers are implemented in runtime-wasm/core/flonums.rkt.
+         ,@(for/list ([name (in-list flonum-arithmetic-runtime-only-helper-names)])
+             (core-runtime-helper-form runtime-helper-index name))
 
 
          ;; flonum -> flonum
