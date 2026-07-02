@@ -15,6 +15,7 @@
          struct-prefab-constructor-runtime-only-helper-names
          struct-type-constructor-runtime-only-helper-names
          struct-accessor-runtime-only-helper-names
+         struct-predicate-runtime-only-helper-names
          struct-procedure-predicate-runtime-only-helper-names
          struct-core-runtime-helpers
          struct-runtime-only-helpers)
@@ -155,6 +156,13 @@
   '($make-struct-accessor
     $make-struct-accessor/checked
     $struct-accessor))
+
+;; struct-predicate-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for generic struct predicate helpers.
+(define struct-predicate-runtime-only-helper-names
+  '($make-struct-predicate
+    $make-struct-predicate/checked
+    $struct-predicate))
 
 ;; struct-procedure-predicate-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for struct procedure predicates.
@@ -3781,6 +3789,72 @@
                       (i32.add (local.get $skip) (local.get $index))))
      )))
 
+;; struct-predicate-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate generic struct predicate helpers used by the monolithic runtime.
+(define struct-predicate-runtime-only-helpers
+  (function-forms->runtime-helpers
+   'struct-predicate-runtime-only-helpers
+   '(
+     (func $make-struct-predicate
+           (param $v (ref eq)) ;; expected: (ref $StructType)
+           (result (ref eq))   ;; returns: closure
+
+           (if (i32.eqz (ref.test (ref $StructType) (local.get $v)))
+               (then (call $raise-argument-error/internal (local.get $v))))
+
+           (call $make-struct-predicate/checked
+                 (ref.cast (ref $StructType) (local.get $v))))
+
+     (func $make-struct-predicate/checked
+           (param $std (ref $StructType))
+           (result (ref eq)) ;; returns closure
+
+           (local $free (ref $Free))
+
+           (local.set $free
+                      (array.new_fixed $Free 1 (local.get $std)))
+
+           (struct.new $Closure
+                       (i32.const 0)               ; hash
+                       (global.get $false)         ; name:  #f or $String
+                       (ref.i31 (i32.const 2))     ; arity: 1
+                       (global.get $false)         ; realm: #f or $Symbol
+                       (ref.func $invoke-closure)  ; invoke (used by apply, map, etc.)
+                       (global.get $false)         ; debug-id
+                       (ref.func $struct-predicate)
+                       (local.get $free)))
+
+
+     (func $struct-predicate  ; closure code
+           (type $ClosureCode)
+
+           (param $clos (ref $Closure))
+           (param $args (ref $Args))
+           (result      (ref eq))
+
+           (local $free (ref $Free))
+           (local $std  (ref $StructType))
+           (local $v    (ref eq))
+           (local $ok   i32)
+
+           (local.set $free (struct.get $Closure $free (local.get $clos)))
+           (local.set $std  (ref.cast (ref $StructType)
+                                      (array.get $Free (local.get $free) (i32.const 0))))
+           (local.set $v    (array.get $Args (local.get $args) (i32.const 0)))
+           (local.set $ok   (if (result i32)
+                                (ref.test (ref $Struct) (local.get $v))
+                                (then ;; Is $struct a subtype of $std
+                                 (call $struct-type-is-a?/i32
+                                           (struct.get $Struct $type
+                                                       (ref.cast (ref $Struct) (local.get $v)))
+                                           (local.get $std)))
+                                (else (i32.const 0))))
+           (if (result (ref eq))
+               (local.get $ok)
+               (then (global.get $true))
+               (else (global.get $false))))
+     )))
+
 ;; struct-procedure-predicate-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate predicates for generated struct procedure wrappers.
 (define struct-procedure-predicate-runtime-only-helpers
@@ -3839,6 +3913,7 @@
    struct-prefab-constructor-runtime-only-helpers
    struct-type-constructor-runtime-only-helpers
    struct-accessor-runtime-only-helpers
+   struct-predicate-runtime-only-helpers
    struct-procedure-predicate-runtime-only-helpers
    (list
     ;; initialize-prefab-struct-type-registry : -> void
