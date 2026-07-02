@@ -6,6 +6,7 @@
          byte-indexing-runtime-only-helper-names
          byte-converter-runtime-only-helper-names
          byte-sequence-runtime-only-helper-names
+         byte-text-decoding-runtime-only-helper-names
          bytes-mutability-runtime-only-helper-names
          bytes-runtime-only-helpers)
 
@@ -1334,6 +1335,437 @@
            (local.get $bs))
      )))
 
+;; byte-text-decoding-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for byte text-decoding helpers.
+(define byte-text-decoding-runtime-only-helper-names
+  '($raise-bytes-utf-8-length:bad-argument
+    $raise-bytes-utf-8-length:invalid-err-char
+    $raise-bytes-utf-8-length:range-error
+    $bytes-utf-8-length
+    $raise-bytes->string/latin-1
+    $raise-bytes->string/latin-1:invalid-err-char
+    $bytes->string/latin-1
+    $raise-bytes->string/utf-8
+    $raise-bytes->string/utf-8:invalid-err-char
+    $bytes->string/utf-8
+    $bytes->string/utf-8/defaults
+    $bytes->string/utf-8/checked
+    $bytes->string/utf-8:work
+    $bytes->string/utf-8:determine-utf-8-sequence))
+
+;; byte-text-decoding-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate byte string-to-text decoding helpers.
+(define byte-text-decoding-runtime-only-helpers
+  (function-forms->runtime-helpers
+   'byte-text-decoding-runtime-only-helpers
+   '(
+     (func $raise-bytes-utf-8-length:bad-argument      (unreachable))
+     (func $raise-bytes-utf-8-length:invalid-err-char  (unreachable))
+     (func $raise-bytes-utf-8-length:range-error       (unreachable))
+
+     (func $bytes-utf-8-length (type $Prim14)
+           (param $bstr         (ref eq)) ; bytes?
+           (param $err-char     (ref eq)) ; optional char?, defaults to #f
+           (param $start-raw    (ref eq)) ; optional exact-nonnegative-integer?, defaults to 0
+           (param $end-raw      (ref eq)) ; optional exact-nonnegative-integer?, defaults to (bytes-length bstr)
+           (result              (ref eq))
+
+           (local $bs           (ref null $Bytes))
+           (local $arr          (ref $I8Array))
+           (local $len          i32)
+           (local $start        i32)
+           (local $end          i32)
+           (local $use-err-char i32)
+           (local $i            i32)
+           (local $byte         i32)
+           (local $need         i32)
+           (local $acc          i32)
+           (local $b2           i32)
+           (local $count        i32)
+
+           ;; --- Type check for bytes argument ---
+           (if (ref.test (ref $Bytes) (local.get $bstr))
+               (then (local.set $bs (ref.cast (ref $Bytes) (local.get $bstr))))
+               (else (call $raise-bytes-utf-8-length:bad-argument)))
+           (local.set $arr (struct.get $Bytes $bs (local.get $bs)))
+           (local.set $len (array.len (local.get $arr)))
+
+           ;; --- Decode optional start ---
+           (if (ref.eq (local.get $start-raw) (global.get $missing))
+               (then (local.set $start (i32.const 0)))
+               (else (if (ref.test (ref i31) (local.get $start-raw))
+                         (then (local.set $start
+                                          (i32.shr_u
+                                           (i31.get_u (ref.cast (ref i31) (local.get $start-raw)))
+                                           (i32.const 1))))
+                         (else (call $raise-bytes-utf-8-length:bad-argument)))))
+
+           ;; --- Decode optional end ---
+           (if (ref.eq (local.get $end-raw) (global.get $missing))
+               (then (local.set $end (local.get $len)))
+               (else (if (ref.test (ref i31) (local.get $end-raw))
+                         (then (local.set $end
+                                          (i32.shr_u
+                                           (i31.get_u (ref.cast (ref i31) (local.get $end-raw)))
+                                           (i32.const 1))))
+                         (else (call $raise-bytes-utf-8-length:bad-argument)))))
+
+           ;; --- Decode optional err-char ---
+           (if (ref.eq (local.get $err-char) (global.get $missing))
+               (then (local.set $use-err-char (i32.const 0)))
+               (else (if (ref.eq (local.get $err-char) (global.get $false))
+                         (then (local.set $use-err-char (i32.const 0)))
+                         (else (if (ref.test (ref i31) (local.get $err-char))
+                                   (then (local.set $use-err-char (i32.const 1)))
+                                   (else (call $raise-bytes-utf-8-length:invalid-err-char)))))))
+
+           ;; --- Range checks ---
+           (if (i32.or (i32.gt_u (local.get $start) (local.get $end))
+                       (i32.gt_u (local.get $end) (local.get $len)))
+               (then (call $raise-bytes-utf-8-length:range-error)))
+
+           ;; --- Main decoding loop ---
+           (local.set $i     (local.get $start))
+           (local.set $count (i32.const 0))
+           (block $done
+                  (loop $loop
+                        (br_if $done (i32.ge_u (local.get $i) (local.get $end)))
+                        (local.set $byte (array.get_u $I8Array (local.get $arr) (local.get $i)))
+                        ;; ASCII fast path
+                        (if (i32.lt_u (local.get $byte) (i32.const 128))
+                            (then
+                             (local.set $count (i32.add (local.get $count) (i32.const 1)))
+                             (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                             (br $loop)))
+
+                        (call $bytes->string/utf-8:determine-utf-8-sequence (local.get $byte))
+                        (local.set $acc) (local.set $need)
+
+                        ;; Invalid lead byte
+                        (if (i32.lt_s (local.get $need) (i32.const 0))
+                            (then
+                             (if (i32.eqz (local.get $use-err-char))
+                                 (then (return (global.get $false)))
+                                 (else
+                                  (local.set $count (i32.add (local.get $count) (i32.const 1)))
+                                  (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                                  (br $loop)))))
+
+                        ;; Not enough bytes left in substring
+                        (if (i32.gt_u (i32.add (local.get $i) (local.get $need)) (local.get $end))
+                            (then
+                             (if (i32.eqz (local.get $use-err-char))
+                                 (then (return (global.get $false)))
+                                 (else
+                                  (local.set $count (i32.add (local.get $count) (i32.const 1)))
+                                  (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                                  (br $loop)))))
+
+                        ;; Consume continuation bytes
+                        (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                        (block $cont-fail
+                               (loop $cont-loop
+                                     (br_if $cont-fail (i32.eqz (local.get $need)))
+                                     (local.set $b2 (array.get_u $I8Array (local.get $arr) (local.get $i)))
+                                     (if (i32.and (i32.ge_u (local.get $b2) (i32.const 128))
+                                                  (i32.lt_u (local.get $b2) (i32.const 192)))
+                                         (then
+                                          (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                                          (local.set $need (i32.sub (local.get $need) (i32.const 1)))
+                                          (br $cont-loop)))))
+
+                        ;; Invalid continuation sequence
+                        (if (i32.ne (local.get $need) (i32.const 0))
+                            (then
+                             (if (i32.eqz (local.get $use-err-char))
+                                 (then (return (global.get $false)))
+                                 (else
+                                  (local.set $count (i32.add (local.get $count) (i32.const 1)))
+                                  (br $loop)))))
+
+                        ;; Successful multi-byte sequence
+                        (local.set $count (i32.add (local.get $count) (i32.const 1)))
+                        (br $loop)))
+
+           (ref.i31 (i32.shl (local.get $count) (i32.const 1))))
+
+     (func $raise-bytes->string/latin-1                  (unreachable))
+     (func $raise-bytes->string/latin-1:invalid-err-char (unreachable))
+
+     (func $bytes->string/latin-1 (type $Prim14)
+           (param $bstr      (ref eq)) ; bytes?
+           (param $err-char  (ref eq)) ; optional char?, defaults to #f
+           (param $start-raw (ref eq)) ; optional exact-nonnegative-integer?, defaults to 0
+           (param $end-raw   (ref eq)) ; optional exact-nonnegative-integer?, defaults to (bytes-length bstr)
+           (result           (ref eq))
+
+           (local $bs          (ref null $Bytes))
+           (local $arr         (ref $I8Array))
+           (local $len         i32)
+           (local $start       i32)
+           (local $end         i32)
+           (local $count       i32)
+           (local $codepoints  (ref $I32Array))
+           (local $i           i32)
+           (local $idx         i32)
+           (local $byte        i32)
+
+           ;; --- Validate byte string argument ---
+           (if (ref.test (ref $Bytes) (local.get $bstr))
+               (then (local.set $bs (ref.cast (ref $Bytes) (local.get $bstr))))
+               (else (call $raise-bytes->string/latin-1)))
+           (local.set $arr (struct.get $Bytes $bs (local.get $bs)))
+           (local.set $len (array.len (local.get $arr)))
+
+           ;; --- Decode optional start ---
+           (if (ref.eq (local.get $start-raw) (global.get $missing))
+               (then (local.set $start (i32.const 0)))
+               (else (if (ref.test (ref i31) (local.get $start-raw))
+                         (then (local.set $start
+                                          (i32.shr_u
+                                           (i31.get_u (ref.cast (ref i31) (local.get $start-raw)))
+                                           (i32.const 1))))
+                         (else (call $raise-bytes->string/latin-1)))))
+
+           ;; --- Decode optional end ---
+           (if (ref.eq (local.get $end-raw) (global.get $missing))
+               (then (local.set $end (local.get $len)))
+               (else (if (ref.test (ref i31) (local.get $end-raw))
+                         (then (local.set $end
+                                          (i32.shr_u
+                                           (i31.get_u (ref.cast (ref i31) (local.get $end-raw)))
+                                           (i32.const 1))))
+                         (else (call $raise-bytes->string/latin-1)))))
+
+           ;; --- Validate optional err-char (ignored value) ---
+           (if (ref.eq (local.get $err-char) (global.get $missing))
+               (then (nop))
+               (else (if (ref.eq (local.get $err-char) (global.get $false))
+                         (then (nop))
+                         (else (if (ref.test (ref i31) (local.get $err-char))
+                                   (then (nop))
+                                   (else (call $raise-bytes->string/latin-1:invalid-err-char)))))))
+
+           ;; --- Range checks ---
+           (if (i32.gt_u (local.get $start) (local.get $end))
+               (then (call $raise-bad-bytes-range (local.get $bstr) (local.get $start) (local.get $end))
+                     (unreachable)))
+           (if (i32.gt_u (local.get $end) (local.get $len))
+               (then (call $raise-bad-bytes-range (local.get $bstr) (local.get $start) (local.get $end))
+                     (unreachable)))
+
+           ;; --- Allocate codepoint array and copy bytes ---
+           (local.set $count (i32.sub (local.get $end) (local.get $start)))
+           (local.set $codepoints (call $i32array-make (local.get $count) (i32.const 0)))
+           (local.set $i    (i32.const 0))
+           (local.set $idx  (local.get $start))
+           (block $done
+                  (loop $loop
+                        (br_if $done (i32.ge_u (local.get $i) (local.get $count)))
+                        (local.set $byte (array.get_u $I8Array (local.get $arr) (local.get $idx)))
+                        (array.set $I32Array (local.get $codepoints) (local.get $i) (local.get $byte))
+                        (local.set $i   (i32.add (local.get $i) (i32.const 1)))
+                        (local.set $idx (i32.add (local.get $idx) (i32.const 1)))
+                        (br $loop)))
+
+           (call $i32array->immutable-string (local.get $codepoints)))
+
+
+     (func $raise-bytes->string/utf-8                  (unreachable))
+     (func $raise-bytes->string/utf-8:invalid-err-char (unreachable))
+
+     (func $bytes->string/utf-8 (type $Prim14)
+           (param $bstr         (ref eq))
+           (param $err-char     (ref eq)) ; optional character?, defaults to #f
+           (param $start-raw    (ref eq)) ; optional exact-nonnegative-integer?, defaults to 0
+           (param $end-raw      (ref eq)) ; optional exact-nonnegative-integer?, defaults to (bytes-length bstr)
+           (result              (ref eq))
+
+           (local $bs               (ref null $Bytes))
+           (local $start            i32)
+           (local $end              i32)
+           (local $use-err-char     i32)
+           (local $decoded-err-char i32)
+
+           ;; Cast input to $Bytes
+           (if (ref.test (ref $Bytes) (local.get $bstr))
+               (then (local.set $bs (ref.cast (ref $Bytes) (local.get $bstr))))
+               (else (call $raise-bytes->string/utf-8)))
+           ;; Decode start
+           (if (ref.eq (local.get $start-raw) (global.get $missing))
+               (then (local.set $start (i32.const 0)))
+               (else
+                (if (ref.test (ref i31) (local.get $start-raw))
+                    (then (local.set $start (i32.shr_u (i31.get_u (ref.cast (ref i31) (local.get $start-raw))) (i32.const 1))))
+                    (else (call $raise-bytes->string/utf-8)))))
+           ;; Decode end
+           (if (ref.eq (local.get $end-raw) (global.get $missing))
+               (then (local.set $end (array.len (struct.get $Bytes $bs (local.get $bs)))))
+               (else
+                (if (ref.test (ref i31) (local.get $end-raw))
+                    (then (local.set $end
+                                     (i32.shr_u
+                                      (i31.get_u (ref.cast (ref i31) (local.get $end-raw)))
+                                      (i32.const 1))))
+                    (else (call $raise-bytes->string/utf-8)))))
+           ;; Decode err-char
+           (if (ref.eq (local.get $err-char) (global.get $missing))
+               ; missing
+               (then (local.set $use-err-char     (i32.const 0))
+                     (local.set $decoded-err-char (i32.const 0)))
+               (else
+                ; false
+                (if (ref.eq (local.get $err-char) (global.get $false))
+                    (then (local.set $use-err-char     (i32.const 0))
+                          (local.set $decoded-err-char (i32.const 0)))
+                    (else
+                     ; character
+                     (if (ref.test (ref i31) (local.get $err-char))
+                         (then (local.set $use-err-char (i32.const 1))
+                               (local.set $decoded-err-char
+                                          (i32.shr_u
+                                           (i31.get_u (ref.cast (ref i31) (local.get $err-char)))
+                                           (i32.const 1))))
+                         (else (call $raise-bytes->string/utf-8:invalid-err-char)))))))
+           ;; Delegate to implementation
+           (call $bytes->string/utf-8:work
+                 (ref.as_non_null (local.get $bs))
+                 (local.get $use-err-char)
+                 (local.get $decoded-err-char)
+                 (local.get $start)
+                 (local.get $end)))
+
+     (func $bytes->string/utf-8/defaults
+           (param $bs (ref $Bytes))
+           (result (ref $String))
+           (ref.cast (ref $String)
+                     (call $bytes->string/utf-8
+                           (local.get $bs)
+                           (global.get $missing)    ;; err-char = #f
+                           (global.get $missing)    ;; start    = 0
+                           (global.get $missing)))) ;; end      = full length
+
+     (func $bytes->string/utf-8/checked
+           (param $bs (ref $Bytes))
+           (result (ref $String))
+           (local $end i32)
+           (local.set $end (array.len (struct.get $Bytes $bs (local.get $bs))))
+           (call $bytes->string/utf-8:work
+                 (local.get $bs)
+                 (i32.const 0)   ;; use-err-char? = false
+                 (i32.const 0)   ;; err-char = dummy
+                 (i32.const 0)   ;; start
+                 (local.get $end)))
+
+     (func $bytes->string/utf-8:work
+           (param $bs           (ref $Bytes))
+           (param $use-err-char i32)
+           (param $err-char     i32)
+           (param $start        i32)
+           (param $end          i32)
+           (result              (ref $String))
+
+           (local $buf  (ref $I32GrowableArray))
+           (local $arr  (ref $I8Array))
+           (local $i    i32)
+           (local $byte i32)
+           (local $need i32)
+           (local $acc  i32)
+           (local $b2   i32)
+           (local $cp   i32)
+
+           ;; Get underlying I8Array from Bytes
+           (local.set $arr (struct.get $Bytes $bs (local.get $bs)))
+           ;; Allocate buffer for codepoints
+           (local.set $buf (call $make-i32growable-array (i32.const 16)))
+           ;; Start decoding loop
+           (local.set $i (local.get $start))
+           (block $done
+                  (loop $loop
+                        (br_if $done (i32.ge_u (local.get $i) (local.get $end)))
+                        (local.set $byte (array.get_u $I8Array (local.get $arr) (local.get $i)))
+                        ;; ASCII fast path
+                        (if (i32.lt_u (local.get $byte) (i32.const 128))
+                            (then
+                             (call $i32growable-array-add! (local.get $buf) (local.get $byte))
+                             (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                             (br $loop)))
+                        ;; Determine UTF-8 sequence size and initial accumulator
+                        (call $bytes->string/utf-8:determine-utf-8-sequence (local.get $byte))
+                        (local.set $acc) (local.set $need)
+                        ;; Invalid lead byte
+                        (if (i32.lt_s (local.get $need) (i32.const 0))
+                            (then
+                             (if (i32.eqz (local.get $use-err-char))
+                                 (then (call $raise-bytes->string/utf-8))
+                                 (else
+                                  (call $i32growable-array-add! (local.get $buf) (local.get $err-char))
+                                  (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                                  (br $loop)))))
+                        ;; Not enough bytes left
+                        (if (i32.gt_u (i32.add (local.get $i) (local.get $need)) (local.get $end))
+                            (then
+                             (if (i32.eqz (local.get $use-err-char))
+                                 (then (call $raise-bytes->string/utf-8))
+                                 (else
+                                  (call $i32growable-array-add! (local.get $buf) (local.get $err-char))
+                                  (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                                  (br $loop)))))
+                        ;; Decode continuation bytes
+                        (local.set $cp (local.get $acc))
+                        (local.set $i (i32.add (local.get $i) (i32.const 1))) ;; skip lead byte
+                        (block $cont-fail
+                               (loop $cont-loop
+                                     (br_if $cont-fail (i32.eqz (local.get $need)))
+                                     (local.set $b2 (array.get_u $I8Array (local.get $arr) (local.get $i)))
+                                     (if (i32.and
+                                          (i32.ge_u (local.get $b2) (i32.const 128))
+                                          (i32.lt_u (local.get $b2) (i32.const 192)))
+                                         (then
+                                          (local.set $cp
+                                                     (i32.or
+                                                      (i32.shl (local.get $cp) (i32.const 6))
+                                                      (i32.and (local.get $b2) (i32.const 0x3F))))
+                                          (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                                          (local.set $need (i32.sub (local.get $need) (i32.const 1)))
+                                          (br $cont-loop)))))
+                        ;; If we didn't finish the sequence, it's invalid
+                        (if (i32.ne (local.get $need) (i32.const 0))
+                            (then
+                             (if (i32.eqz (local.get $use-err-char))
+                                 (then (call $raise-bytes->string/utf-8))
+                                 (else
+                                  (call $i32growable-array-add! (local.get $buf) (local.get $err-char))
+                                  (br $loop)))))
+                        ;; Valid sequence
+                        (call $i32growable-array-add! (local.get $buf) (local.get $cp))
+                        (br $loop)))
+           ;; Convert buffer to immutable string
+           (call $i32growable-array->immutable-string (local.get $buf)))
+
+
+     (func $bytes->string/utf-8:determine-utf-8-sequence ; returns two i32s
+           ; This function determines how many continuation bytes are needed for
+           ; a given UTF-8 lead byte, and extracts the initial bits for the code point accumulator.
+           (param $lead i32)
+           (result i32  i32) ;; (need acc) or (-1 -1) if invalid
+
+           (if (i32.and (i32.ge_u (local.get $lead) (i32.const 0xC0))
+                        (i32.lt_u (local.get $lead) (i32.const 0xE0)))
+               (then (return (i32.const 1) (i32.and (local.get $lead) (i32.const 0x1F)))))
+
+           (if (i32.and (i32.ge_u (local.get $lead) (i32.const 0xE0))
+                        (i32.lt_u (local.get $lead) (i32.const 0xF0)))
+               (then (return (i32.const 2) (i32.and (local.get $lead) (i32.const 0x0F)))))
+
+           (if (i32.and (i32.ge_u (local.get $lead) (i32.const 0xF0))
+                        (i32.lt_u (local.get $lead) (i32.const 0xF8)))
+               (then (return (i32.const 3) (i32.and (local.get $lead) (i32.const 0x07)))))
+
+           ;; Not a valid lead byte
+           (return (i32.const -1) (i32.const -1)))
+     )))
+
 ;; bytes-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate bytes helpers that still depend on monolithic runtime globals.
 (define bytes-runtime-only-helpers
@@ -1343,6 +1775,7 @@
    byte-indexing-runtime-only-helpers
    byte-converter-runtime-only-helpers
    byte-sequence-runtime-only-helpers
+   byte-text-decoding-runtime-only-helpers
    (function-forms->runtime-helpers
     'bytes-runtime-only-helpers
     '(
