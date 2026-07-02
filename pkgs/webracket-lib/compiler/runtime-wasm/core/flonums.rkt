@@ -7,6 +7,7 @@
          flonum-math-runtime-only-helper-names
          flonum-minmax-runtime-only-helper-names
          flonum-predicate-runtime-only-helper-names
+         flonum-utility-runtime-only-helper-names
          flonum-runtime-only-helpers)
 
 (require "../core-helper.rkt")
@@ -110,6 +111,18 @@
     $unsafe-flmin
     $unsafe-flmax))
 
+;; flonum-utility-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for remaining flonum utility helpers.
+(define flonum-utility-runtime-only-helper-names
+  '($fl=
+    $fl<
+    $fl>
+    $fl<=
+    $fl>=
+    $flrandom
+    $unsafe-flrandom
+    $flbit-field))
+
 ;; flonum-binary-arithmetic-runtime-helper : symbol? symbol? -> core-runtime-helper?
 ;;   Build a checked binary flonum arithmetic helper.
 (define (flonum-binary-arithmetic-runtime-helper name flbinop)
@@ -193,6 +206,33 @@
             (struct.new $Flonum
                         (i32.const 0)
                         ,expr)))))
+
+;; flonum-comparison-runtime-helper : symbol? symbol? -> core-runtime-helper?
+;;   Build a checked binary flonum comparison helper.
+(define (flonum-comparison-runtime-helper flname flcmp)
+  (core-runtime-helper
+   flname
+   (symbol->string flname)
+   (lambda ()
+     `(func ,flname
+            (param $x (ref eq)) (param $y (ref eq))
+            (result (ref eq))
+            ;; Type checks
+            (if (i32.eqz (ref.test (ref $Flonum) (local.get $x)))
+                (then (call $raise-argument-error:flonum-expected (local.get $x))
+                      (unreachable)))
+            (if (i32.eqz (ref.test (ref $Flonum) (local.get $y)))
+                (then (call $raise-argument-error:flonum-expected (local.get $y))
+                      (unreachable)))
+            ;; Compute and box result
+            (if (result (ref eq))
+                (,flcmp
+                 (struct.get $Flonum $v
+                             (ref.cast (ref $Flonum) (local.get $x)))
+                 (struct.get $Flonum $v
+                             (ref.cast (ref $Flonum) (local.get $y))))
+                (then (global.get $true))
+                (else (global.get $false)))))))
 
 ;; flonum-binary-minmax-runtime-helper : symbol? datum? boolean? -> core-runtime-helper?
 ;;   Build a binary flonum min/max helper, optionally assuming validated arguments.
@@ -504,6 +544,129 @@
    (for/list ([p (in-list flonum-binary-math-ops)])
      (flonum-binary-math-runtime-helper (car p) (cadr p) #t))))
 
+;; flonum-utility-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate remaining flonum utility helpers used by the monolithic runtime.
+(define flonum-utility-runtime-only-helpers
+  (append
+   (for/list ([flname '($fl=    $fl<    $fl>    $fl<=     $fl>=)]
+              [flcmp  '(f64.eq  f64.lt  f64.gt  f64.le    f64.ge)])
+     (flonum-comparison-runtime-helper flname flcmp))
+   (function-forms->runtime-helpers
+    'flonum-utility-runtime-only-helpers
+    '(
+      (func $flrandom (type $Prim01) ; one optional argument
+            ;; (flrandom [rand-gen pseudo-random-generator?]) -> flonum in (0,1)
+            ;; rand-gen : pseudo-random-generator? (optional, default: uses shared generator)
+            ;; The rand-gen argument is currently ignored.
+            (param $rg (ref eq))
+            (result    (ref eq))
+
+            (local $r i32)
+
+            (local.set $r (call $random-u32))
+            (struct.new $Flonum
+                        (i32.const 0)
+                        (f64.div
+                         (f64.add (f64.convert_i32_u (local.get $r))
+                                  (f64.const 1))
+                         (f64.const 4294967298.0))))
+
+      (func $unsafe-flrandom (type $Prim01)
+            ;; Unsafe variant, same behaviour as flrandom.
+            ;; rand-gen : pseudo-random-generator? (optional, default ignored)
+            (param $rg (ref eq))
+            (result    (ref eq))
+
+            (local $r i32)
+
+            (local.set $r (call $random-u32))
+            (struct.new $Flonum
+                        (i32.const 0)
+                        (f64.div
+                         (f64.add (f64.convert_i32_u (local.get $r))
+                                  (f64.const 1))
+                         (f64.const 4294967298.0))))
+
+
+      ;; NOTE: Limited to results that fit in the fixnum range until bignums land.
+      (func $flbit-field (type $Prim3)
+            (param $a     (ref eq)) ;; [a]     flonum?
+            (param $start (ref eq)) ;; [start] exact-nonnegative-integer?
+            (param $end   (ref eq)) ;; [end]   exact-nonnegative-integer?
+            (result       (ref eq))
+
+            (local $fl         (ref $Flonum))
+            (local $bits       i64)
+            (local $start/tag  i32)
+            (local $end/tag    i32)
+            (local $start/i    i32)
+            (local $end/i      i32)
+            (local $width      i32)
+            (local $mask       i64)
+            (local $shifted    i64)
+            (local $result64   i64)
+            (local $result/i32 i32)
+
+            ;; Validate flonum argument
+            (if (i32.eqz (ref.test (ref $Flonum) (local.get $a)))
+                (then (call $raise-argument-error:flonum-expected (local.get $a))
+                      (unreachable)))
+            (local.set $fl (ref.cast (ref $Flonum) (local.get $a)))
+            (local.set $bits (i64.reinterpret_f64 (struct.get $Flonum $v (local.get $fl))))
+
+            ;; Validate start/end as fixnums
+            (if (i32.eqz (call $fx?/i32 (local.get $start)))
+                (then (call $raise-check-fixnum (local.get $start))
+                      (unreachable)))
+            (if (i32.eqz (call $fx?/i32 (local.get $end)))
+                (then (call $raise-check-fixnum (local.get $end))
+                      (unreachable)))
+
+            ;; Extract integer values
+            (local.set $start/tag (i31.get_s (ref.cast (ref i31) (local.get $start))))
+            (local.set $end/tag   (i31.get_s (ref.cast (ref i31) (local.get $end))))
+            (local.set $start/i   (i32.shr_s (local.get $start/tag) (i32.const 1)))
+            (local.set $end/i     (i32.shr_s (local.get $end/tag) (i32.const 1)))
+
+            ;; Range checks: 0 <= start <= end <= 64
+            (if (i32.lt_s (local.get $start/i) (i32.const 0))
+                (then (call $raise-argument-error/internal (local.get $start))
+                      (unreachable)))
+            (if (i32.lt_s (local.get $end/i) (i32.const 0))
+                (then (call $raise-argument-error/internal (local.get $end))
+                      (unreachable)))
+            (if (i32.gt_u (local.get $start/i) (i32.const 64))
+                (then (call $raise-argument-error/internal (local.get $start))
+                      (unreachable)))
+            (if (i32.gt_u (local.get $end/i) (i32.const 64))
+                (then (call $raise-argument-error/internal (local.get $end))
+                      (unreachable)))
+            (if (i32.lt_s (local.get $end/i) (local.get $start/i))
+                (then (call $raise-argument-error/internal (local.get $end))
+                      (unreachable)))
+
+            ;; Compute mask for requested width
+            (local.set $width (i32.sub (local.get $end/i) (local.get $start/i)))
+            (local.set $mask
+                       (if (result i64) (i32.ge_u (local.get $width) (i32.const 64))
+                           (then (i64.const -1))
+                           (else (i64.sub (i64.shl (i64.const 1)
+                                                   (i64.extend_i32_u (local.get $width)))
+                                          (i64.const 1)))))
+
+            ;; Shift and mask the raw bits
+            (local.set $shifted (i64.shr_u (local.get $bits)
+                                           (i64.extend_i32_u (local.get $start/i))))
+            (local.set $result64 (i64.and (local.get $shifted) (local.get $mask)))
+
+            ;; Enforce fixnum-sized result (no bignum support yet)
+            (if (i64.gt_u (local.get $result64) (i64.const 536870911))
+                (then (call $raise-argument-error/internal (local.get $a))
+                      (unreachable)))
+
+            (local.set $result/i32 (i32.wrap_i64 (local.get $result64)))
+            (ref.i31 (i32.shl (local.get $result/i32) (i32.const 1))))))))
+
 ;; flonum-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate flonum helpers that depend on monolithic runtime errors.
 (define flonum-runtime-only-helpers
@@ -526,7 +689,8 @@
      (flonum-minmax-runtime-helper name cmp #f))
    (for/list ([name '( $unsafe-flmin $unsafe-flmax )]
               [cmp  '( $unsafe-flmin/2 $unsafe-flmax/2 )])
-     (flonum-minmax-runtime-helper name cmp #t))))
+     (flonum-minmax-runtime-helper name cmp #t))
+   flonum-utility-runtime-only-helpers))
 
 ;; flonum-core-runtime-helpers : (listof core-runtime-helper?)
 ;;   Enumerate flonum helpers that can be emitted in core runtime.
