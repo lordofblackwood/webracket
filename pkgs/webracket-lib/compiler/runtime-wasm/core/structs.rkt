@@ -10,6 +10,7 @@
          struct-prefab-key-accessor-runtime-only-helper-names
          struct-prefab-chain-runtime-only-helper-names
          struct-prefab-struct-type-runtime-only-helper-names
+         struct-prefab-metadata-runtime-only-helper-names
          struct-procedure-predicate-runtime-only-helper-names
          struct-core-runtime-helpers
          struct-runtime-only-helpers)
@@ -120,6 +121,14 @@
     $simple-prefab-super-struct-type/checked
     $simple-prefab-substruct-type/checked
     $simple-prefab-struct-type-for-key/checked))
+
+;; struct-prefab-metadata-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for prefab metadata helpers.
+(define struct-prefab-metadata-runtime-only-helper-names
+  '($prefab-metadata?/i32
+    $prefab-struct-type-key+field-count
+    $prefab-struct-key
+    $prefab-struct-field-mutable?/i32))
 
 ;; struct-procedure-predicate-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for struct procedure predicates.
@@ -2601,6 +2610,94 @@
                  (local.get $parent-registry-key)))
      )))
 
+
+;; struct-prefab-metadata-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate prefab metadata helpers used by the monolithic runtime.
+(define struct-prefab-metadata-runtime-only-helpers
+  (function-forms->runtime-helpers
+   'struct-prefab-metadata-runtime-only-helpers
+   '(
+     ;; prefab-metadata? : any/c -> i32
+     ;;   Detect the simple prefab metadata stored in StructType's immutables slot.
+     (func $prefab-metadata?/i32
+           (param $metadata (ref eq))
+           (result          i32)
+
+           (local $cell (ref $Pair))
+           (local $key  (ref eq))
+           (local $cnt  (ref eq))
+
+           (if (i32.eqz (ref.test (ref $Pair) (local.get $metadata)))
+               (then (return (i32.const 0))))
+           (local.set $cell (ref.cast (ref $Pair) (local.get $metadata)))
+           (local.set $key  (struct.get $Pair $a (local.get $cell)))
+           (local.set $cnt  (struct.get $Pair $d (local.get $cell)))
+           (if (i32.and
+                (call $simple-prefab-key?/i32 (local.get $key))
+                (ref.eq (call $exact-nonnegative-integer? (local.get $cnt)) (global.get $true)))
+               (then (return (i32.const 1))))
+           (i32.const 0))
+
+     ;; prefab-struct-type-key+field-count : struct-type? -> (or/c pair? #f)
+     ;;   Return stored simple prefab metadata for prefab struct types.
+     (func $prefab-struct-type-key+field-count (type $Prim1)
+           (param $v (ref eq))
+           (result   (ref eq))
+
+           (local $std      (ref $StructType))
+           (local $metadata (ref eq))
+
+           (if (i32.eqz (ref.test (ref $StructType) (local.get $v)))
+               (then (call $raise-argument-error/internal (local.get $v))
+                     (unreachable)))
+           (local.set $std (ref.cast (ref $StructType) (local.get $v)))
+           (local.set $metadata (struct.get $StructType $immutables (local.get $std)))
+           (if (result (ref eq))
+               (call $prefab-metadata?/i32 (local.get $metadata))
+               (then (local.get $metadata))
+               (else (global.get $false))))
+
+     ;; prefab-struct-key : any/c -> (or/c prefab-key? #f)
+     ;;   Return the shortest supported simple prefab key for prefab instances.
+     (func $prefab-struct-key (type $Prim1)
+           (param $v (ref eq))
+           (result   (ref eq))
+
+           (local $struct   (ref $Struct))
+           (local $metadata (ref eq))
+
+           (if (i32.eqz (ref.test (ref $Struct) (local.get $v)))
+               (then (return (global.get $false))))
+           (local.set $struct (ref.cast (ref $Struct) (local.get $v)))
+           (local.set $metadata
+                      (struct.get $StructType $immutables
+                                  (struct.get $Struct $type (local.get $struct))))
+           (if (result (ref eq))
+               (call $prefab-metadata?/i32 (local.get $metadata))
+               (then (struct.get $Pair $a (ref.cast (ref $Pair) (local.get $metadata))))
+               (else (global.get $false))))
+
+     ;; prefab-struct-field-mutable?/i32 : struct-type? i32 -> i32
+     ;;   For prefab metadata, allow mutation only for fields in the mask.
+     (func $prefab-struct-field-mutable?/i32
+           (param $std   (ref $StructType))
+           (param $index i32)
+           (result       i32)
+
+           (local $metadata      (ref eq))
+           (local $key           (ref eq))
+           (local $mutables      (ref $Vector))
+
+           (local.set $metadata (struct.get $StructType $immutables (local.get $std)))
+           (if (i32.eqz (call $prefab-metadata?/i32 (local.get $metadata)))
+               (then (return (i32.const 1))))
+           (local.set $key (struct.get $Pair $a (ref.cast (ref $Pair) (local.get $metadata))))
+           (local.set $mutables (call $simple-prefab-key-mutables/checked (local.get $key)))
+           (call $simple-prefab-mutable-mask-member?/i32
+                 (local.get $mutables)
+                 (local.get $index)))
+     )))
+
 ;; struct-procedure-predicate-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate predicates for generated struct procedure wrappers.
 (define struct-procedure-predicate-runtime-only-helpers
@@ -2654,6 +2751,7 @@
    struct-prefab-key-accessor-runtime-only-helpers
    struct-prefab-chain-runtime-only-helpers
    struct-prefab-struct-type-runtime-only-helpers
+   struct-prefab-metadata-runtime-only-helpers
    struct-procedure-predicate-runtime-only-helpers
    (list
     ;; initialize-prefab-struct-type-registry : -> void

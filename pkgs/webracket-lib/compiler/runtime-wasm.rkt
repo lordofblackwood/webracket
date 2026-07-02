@@ -145,6 +145,7 @@
                   struct-prefab-key-accessor-runtime-only-helper-names
                   struct-prefab-chain-runtime-only-helper-names
                   struct-prefab-struct-type-runtime-only-helper-names
+                  struct-prefab-metadata-runtime-only-helper-names
                   struct-procedure-predicate-runtime-only-helper-names
                   struct-runtime-only-helpers)
          (only-in "runtime-wasm/core/symbols.rkt"
@@ -15872,85 +15873,10 @@
          ,@(for/list ([name (in-list struct-prefab-struct-type-runtime-only-helper-names)])
              (core-runtime-helper-form runtime-helper-index name))
 
-         ;; prefab-metadata? : any/c -> i32
-         ;;   Detect the simple prefab metadata stored in StructType's immutables slot.
-         (func $prefab-metadata?/i32
-               (param $metadata (ref eq))
-               (result          i32)
-
-               (local $cell (ref $Pair))
-               (local $key  (ref eq))
-               (local $cnt  (ref eq))
-
-               (if (i32.eqz (ref.test (ref $Pair) (local.get $metadata)))
-                   (then (return (i32.const 0))))
-               (local.set $cell (ref.cast (ref $Pair) (local.get $metadata)))
-               (local.set $key  (struct.get $Pair $a (local.get $cell)))
-               (local.set $cnt  (struct.get $Pair $d (local.get $cell)))
-               (if (i32.and
-                    (call $simple-prefab-key?/i32 (local.get $key))
-                    (ref.eq (call $exact-nonnegative-integer? (local.get $cnt)) (global.get $true)))
-                   (then (return (i32.const 1))))
-               (i32.const 0))
-
-         ;; prefab-struct-type-key+field-count : struct-type? -> (or/c pair? #f)
-         ;;   Return stored simple prefab metadata for prefab struct types.
-         (func $prefab-struct-type-key+field-count (type $Prim1)
-               (param $v (ref eq))
-               (result   (ref eq))
-
-               (local $std      (ref $StructType))
-               (local $metadata (ref eq))
-
-               (if (i32.eqz (ref.test (ref $StructType) (local.get $v)))
-                   (then (call $raise-argument-error/internal (local.get $v))
-                         (unreachable)))
-               (local.set $std (ref.cast (ref $StructType) (local.get $v)))
-               (local.set $metadata (struct.get $StructType $immutables (local.get $std)))
-               (if (result (ref eq))
-                   (call $prefab-metadata?/i32 (local.get $metadata))
-                   (then (local.get $metadata))
-                   (else (global.get $false))))
-
-         ;; prefab-struct-key : any/c -> (or/c prefab-key? #f)
-         ;;   Return the shortest supported simple prefab key for prefab instances.
-         (func $prefab-struct-key (type $Prim1)
-               (param $v (ref eq))
-               (result   (ref eq))
-
-               (local $struct   (ref $Struct))
-               (local $metadata (ref eq))
-
-               (if (i32.eqz (ref.test (ref $Struct) (local.get $v)))
-                   (then (return (global.get $false))))
-               (local.set $struct (ref.cast (ref $Struct) (local.get $v)))
-               (local.set $metadata
-                          (struct.get $StructType $immutables
-                                      (struct.get $Struct $type (local.get $struct))))
-               (if (result (ref eq))
-                   (call $prefab-metadata?/i32 (local.get $metadata))
-                   (then (struct.get $Pair $a (ref.cast (ref $Pair) (local.get $metadata))))
-                   (else (global.get $false))))
-
-         ;; prefab-struct-field-mutable?/i32 : struct-type? i32 -> i32
-         ;;   For prefab metadata, allow mutation only for fields in the mask.
-         (func $prefab-struct-field-mutable?/i32
-               (param $std   (ref $StructType))
-               (param $index i32)
-               (result       i32)
-
-               (local $metadata      (ref eq))
-               (local $key           (ref eq))
-               (local $mutables      (ref $Vector))
-
-               (local.set $metadata (struct.get $StructType $immutables (local.get $std)))
-               (if (i32.eqz (call $prefab-metadata?/i32 (local.get $metadata)))
-                   (then (return (i32.const 1))))
-               (local.set $key (struct.get $Pair $a (ref.cast (ref $Pair) (local.get $metadata))))
-               (local.set $mutables (call $simple-prefab-key-mutables/checked (local.get $key)))
-               (call $simple-prefab-mutable-mask-member?/i32
-                     (local.get $mutables)
-                     (local.get $index)))
+         ;; Prefab metadata helpers
+         ;;   Implemented in runtime-wasm/core/structs.rkt.
+         ,@(for/list ([name (in-list struct-prefab-metadata-runtime-only-helper-names)])
+             (core-runtime-helper-form runtime-helper-index name))
 
          ;; simple-prefab-immutables->mutables : any/c i32 -> vector?
          ;;   Convert make-struct-type immutables into a prefab mutable-field mask.
