@@ -13,6 +13,7 @@
          procedure-application-error-runtime-only-helper-names
          procedure-invocation-error-runtime-only-helper-names
          procedure-invoker-runtime-only-helper-names
+         primitive-invocation-error-runtime-only-helper-names
          procedure-runtime-only-helpers)
 
 (require "../core-helper.rkt"
@@ -192,6 +193,14 @@
     $invoke-reduced-procedure
     $invoke-composed-procedure
     $invoke-case-closure))
+
+;; primitive-invocation-error-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for primitive invocation error helpers.
+(define primitive-invocation-error-runtime-only-helper-names
+  '($raise-no-code
+    $raise-code-type-mismatch
+    $primitive-invoke:raise-arity-error
+    $raise-primitive-invoke:unhandled-shape))
 
 ;; procedure-invocation-error-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate procedure invocation error helpers used by the monolithic runtime.
@@ -768,6 +777,61 @@
                                 (local.get $clos)
                                 (local.get $args)
                                 (local.get $code)))
+     )))
+
+;; primitive-invocation-error-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate primitive invocation error helpers used by the monolithic runtime.
+(define primitive-invocation-error-runtime-only-helpers
+  (function-forms->runtime-helpers
+   'primitive-invocation-error-runtime-only-helpers
+   '(
+        (func $raise-no-code
+              (param $pproc (ref $PrimitiveProcedure))
+              (result (ref eq))
+              (unreachable))
+
+        (func $raise-code-type-mismatch
+              (param $pproc (ref $PrimitiveProcedure))
+              (result (ref eq))
+              (call $js-log (call $format/display (local.get $pproc)))
+              (unreachable))
+
+        (func $primitive-invoke:raise-arity-error
+              (param $pproc (ref $PrimitiveProcedure))
+              (param $argc  i32)
+              (result       (ref eq))
+              (local $name         (ref eq))
+              (local $expected-str (ref $String))
+              (local $received-str (ref $String))
+              (local $out          (ref $GrowableArray))
+              (local $message      (ref $String))
+
+              (local.set $name
+                         (struct.get $Procedure $name (local.get $pproc)))
+
+              (local.set $expected-str
+                         (call $procedure-arity->expected-string (local.get $pproc)))
+              (local.set $received-str
+                         (call $i32->string (local.get $argc)))
+
+              (local.set $out
+                         (call $make-growable-array (i32.const 5)))
+              (call $growable-array-add! (local.get $out) (call $format/display (local.get $name)))
+              (call $growable-array-add! (local.get $out) (global.get $string:arity-error:start))
+              (call $growable-array-add! (local.get $out) (local.get $expected-str))
+              (call $growable-array-add! (local.get $out) (global.get $string:arity-error:given))
+              (call $growable-array-add! (local.get $out) (local.get $received-str))
+              (local.set $message
+                         (call $growable-array-of-strings->string (local.get $out)))
+
+              (call $raise
+                    (call $exn:fail:contract:arity/make
+                          (local.get $message)
+                          (call $current-continuation-marks (global.get $missing)))
+                    (global.get $true))
+              (unreachable))
+
+        (func $raise-primitive-invoke:unhandled-shape (unreachable))
      )))
 
 ;; procedure-basic-runtime-only-helpers : (listof core-runtime-helper?)
@@ -1992,5 +2056,6 @@
   (append procedure-invocation-error-runtime-only-helpers
           procedure-application-error-runtime-only-helpers
           procedure-invoker-runtime-only-helpers
+          primitive-invocation-error-runtime-only-helpers
           procedure-basic-runtime-only-helpers
           procedure-arity-and-reflection-runtime-only-helpers))

@@ -203,6 +203,7 @@
                   port-write-bytes-runtime-only-helper-names
                   port-runtime-only-helpers)
          (only-in "runtime-wasm/core/procedures.rkt"
+                  primitive-invocation-error-runtime-only-helper-names
                   primitive-reflection-runtime-only-helper-names
                   procedure-arity-at-least-runtime-only-helper-names
                   procedure-arity-field-runtime-only-helper-names
@@ -4007,51 +4008,9 @@
              (core-runtime-helper-form runtime-helper-index name))
 
         ;; Primitive procedure invocation helpers
-        (func $raise-no-code
-              (param $pproc (ref $PrimitiveProcedure))
-              (result (ref eq))
-              (unreachable))
-
-        (func $raise-code-type-mismatch
-              (param $pproc (ref $PrimitiveProcedure))
-              (result (ref eq))
-              (call $js-log (call $format/display (local.get $pproc)))
-              (unreachable))
-
-        (func $primitive-invoke:raise-arity-error
-              (param $pproc (ref $PrimitiveProcedure))
-              (param $argc  i32)
-              (result       (ref eq))
-              (local $name         (ref eq))
-              (local $expected-str (ref $String))
-              (local $received-str (ref $String))
-              (local $out          (ref $GrowableArray))
-              (local $message      (ref $String))
-
-              (local.set $name
-                         (struct.get $Procedure $name (local.get $pproc)))
-
-              (local.set $expected-str
-                         (call $procedure-arity->expected-string (local.get $pproc)))
-              (local.set $received-str
-                         (call $i32->string (local.get $argc)))
-
-              (local.set $out
-                         (call $make-growable-array (i32.const 5)))
-              (call $growable-array-add! (local.get $out) (call $format/display (local.get $name)))
-              (call $growable-array-add! (local.get $out) (global.get $string:arity-error:start))
-              (call $growable-array-add! (local.get $out) (local.get $expected-str))
-              (call $growable-array-add! (local.get $out) (global.get $string:arity-error:given))
-              (call $growable-array-add! (local.get $out) (local.get $received-str))
-              (local.set $message
-                         (call $growable-array-of-strings->string (local.get $out)))
-
-              (call $raise
-                    (call $exn:fail:contract:arity/make
-                          (local.get $message)
-                          (call $current-continuation-marks (global.get $missing)))
-                    (global.get $true))
-              (unreachable))
+        ;;   Primitive invocation error helpers are implemented in runtime-wasm/core/procedures.rkt.
+        ,@(for/list ([name (in-list primitive-invocation-error-runtime-only-helper-names)])
+            (core-runtime-helper-form runtime-helper-index name))
 
         ;; Shape codes:
         ;;   0: exact 0
@@ -4077,8 +4036,6 @@
         ;;  23: between 2 and 5 arguments
         ;;  24: between 3 and 5 arguments
         ;;  25: between 6 and 7 arguments
-
-        (func $raise-primitive-invoke:unhandled-shape (unreachable))
 
         (func $primitive-invoke (type $ProcedureInvoker)
               (param $proc (ref $Procedure))
