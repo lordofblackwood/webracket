@@ -4,6 +4,7 @@
          immediate-ref
          false-ref
          true-ref
+         void-runtime-only-helper-names
          immediate-runtime-only-helpers)
 
 (require "../core-helper.rkt"
@@ -26,6 +27,13 @@
 ;; true-ref : datum?
 ;;   Return the WebRacket true immediate expression.
 (define true-ref (immediate-ref #t))
+
+;; void-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for void helpers.
+(define void-runtime-only-helper-names
+  '($void?
+    $void
+    $make-void))
 
 ;; immediate-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate immediate-value helpers used by the monolithic runtime.

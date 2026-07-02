@@ -1,8 +1,41 @@
 #lang racket
 
-(provide control-flow-runtime-only-helpers)
+(provide multiple-value-runtime-only-helper-names
+         continuation-runtime-only-helper-names
+         continuation-mark-runtime-only-helper-names
+         control-flow-runtime-only-helpers)
 
 (require "../core-helper.rkt")
+
+;; multiple-value-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for multiple-value helpers.
+(define multiple-value-runtime-only-helper-names
+  '($values
+    $call-with-values))
+
+;; continuation-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for continuation helpers.
+(define continuation-runtime-only-helper-names
+  '($invoke-escape-continuation
+    $call-thunk
+    $dynamic-wind
+    $dynamic-require
+    $call-with-continuation-barrier
+    $call-with-escape-continuation
+    $unsafe-root-continuation-prompt-tag))
+
+;; continuation-mark-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for continuation-mark helpers.
+(define continuation-mark-runtime-only-helper-names
+  '($call-with-immediate-continuation-mark
+    $make-continuation-mark-key
+    $continuation-mark-key?
+    $current-continuation-marks
+    $continuation-mark-set?
+    $continuation-prompt-available?
+    $continuation-prompt-tag?
+    $continuation?
+    $continuation-mark-set-first))
 
 ;; control-flow-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate control-flow helpers used by the monolithic runtime.

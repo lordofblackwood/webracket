@@ -27,6 +27,9 @@
                   checker-runtime-only-helpers
                   checker-runtime-only-helper-names)
          (only-in "runtime-wasm/core/control-flow.rkt"
+                  continuation-mark-runtime-only-helper-names
+                  continuation-runtime-only-helper-names
+                  multiple-value-runtime-only-helper-names
                   control-flow-runtime-only-helpers)
          (only-in "runtime-wasm/core/equality.rkt"
                   equality-runtime-only-helpers
@@ -61,8 +64,11 @@
                   immutable-hash-public-runtime-only-helper-names
                   immutable-hash-runtime-only-helpers)
          (only-in "runtime-wasm/core/immediates.rkt"
+                  void-runtime-only-helper-names
                   immediate-runtime-only-helpers)
          (only-in "runtime-wasm/core/impersonators.rkt"
+                  chaperone-procedure-runtime-only-helper-names
+                  impersonator-basic-runtime-only-helper-names
                   impersonator-runtime-only-helpers)
          (only-in "runtime-wasm/core/io-handlers.rkt"
                   io-handler-error-runtime-only-helper-names
@@ -104,6 +110,11 @@
                   number-runtime-only-helpers
                   number-type-runtime-only-helper-names)
          (only-in "runtime-wasm/core/parameters.rkt"
+                  compile-parameter-runtime-only-helper-names
+                  namespace-parameter-runtime-only-helper-names
+                  parameterization-binding-runtime-only-helper-names
+                  parameterization-call-runtime-only-helper-names
+                  parameterization-runtime-only-helper-names
                   parameter-runtime-only-helpers
                   reader-printer-policy-parameter-helper-names)
          (only-in "runtime-wasm/core/paths.rkt"
@@ -6398,12 +6409,7 @@
                (global.get $false))
 
          ;;   Implemented in runtime-wasm/core/parameters.rkt.
-         ,@(for/list ([name '($current-compile-target-machine/get
-                               $current-compile-target-machine/set
-                               $current-compile-target-machine
-                               $current-compile-realm/get
-                               $current-compile-realm/set
-                               $current-compile-realm)])
+         ,@(for/list ([name (in-list compile-parameter-runtime-only-helper-names)])
              (core-runtime-helper-form runtime-helper-index name))
 
          ;; version : -> string?
@@ -15588,15 +15594,7 @@
             (core-runtime-helper-form runtime-helper-index name))
 
         ;;   Implemented in runtime-wasm/core/impersonators.rkt.
-        ,@(for/list ([name '($impersonator?
-                              $procedure-impersonator*?
-                              $chaperone?
-                              $impersonator-val
-                              $make-impersonator-property
-                              $impersonator-property?
-                              $impersonator-property-accessor-procedure?
-                              $webracket-impersonator-property-predicate
-                              $webracket-impersonator-property-accessor)])
+        ,@(for/list ([name (in-list impersonator-basic-runtime-only-helper-names)])
             (core-runtime-helper-form runtime-helper-index name))
 
         ;;   Implemented in runtime-wasm/core/ports.rkt.
@@ -16100,13 +16098,7 @@
              (core-runtime-helper-form runtime-helper-index name))
 
          ;;   Implemented in runtime-wasm/core/impersonators.rkt.
-         ,@(for/list ([name '($chaperone-procedure
-                               $chaperone-struct
-                               $chaperone-vector
-                               $chaperone-box
-                               $chaperone-hash
-                               $unsafe-chaperone-procedure
-                               $unsafe-impersonate-procedure)])
+         ,@(for/list ([name (in-list chaperone-procedure-runtime-only-helper-names)])
              (core-runtime-helper-form runtime-helper-index name))
 
 
@@ -16139,9 +16131,7 @@
          ;; https://docs.racket-lang.org/reference/void.html
 
          ;;   Implemented in runtime-wasm/core/immediates.rkt.
-         ,@(for/list ([name '($void?
-                               $void
-                               $make-void)])
+         ,@(for/list ([name (in-list void-runtime-only-helper-names)])
              (core-runtime-helper-form runtime-helper-index name))
 
 
@@ -16152,8 +16142,7 @@
          ;; 10.1 Multiple Values
 
          ;;   Implemented in runtime-wasm/core/control-flow.rkt.
-         ,@(for/list ([name '($values
-                               $call-with-values)])
+         ,@(for/list ([name (in-list multiple-value-runtime-only-helper-names)])
              (core-runtime-helper-form runtime-helper-index name))
 
 
@@ -16164,56 +16153,30 @@
          ;; 10.4 Continuations
 
          ;;   Implemented in runtime-wasm/core/control-flow.rkt.
-         ,@(for/list ([name '($invoke-escape-continuation
-                               $call-thunk
-                               $dynamic-wind
-                               $dynamic-require
-                               $call-with-continuation-barrier
-                               $call-with-escape-continuation
-                               $unsafe-root-continuation-prompt-tag)])
+         ,@(for/list ([name (in-list continuation-runtime-only-helper-names)])
              (core-runtime-helper-form runtime-helper-index name))
 
          ;; 10.5 Continuation Marks
 
          ;;   Implemented in runtime-wasm/core/control-flow.rkt.
-         ,@(for/list ([name '($call-with-immediate-continuation-mark
-                               $make-continuation-mark-key
-                               $continuation-mark-key?
-                               $current-continuation-marks
-                               $continuation-mark-set?
-                               $continuation-prompt-available?
-                               $continuation-prompt-tag?
-                               $continuation?
-                               $continuation-mark-set-first)])
+         ,@(for/list ([name (in-list continuation-mark-runtime-only-helper-names)])
              (core-runtime-helper-form runtime-helper-index name))
 
          ;;   Implemented in runtime-wasm/core/parameters.rkt.
-         ,@(for/list ([name '($current-parameterization
-                               $parameterization?
-                               $parameter?
-                               $reparameterize)])
+         ,@(for/list ([name (in-list parameterization-runtime-only-helper-names)])
              (core-runtime-helper-form runtime-helper-index name))
 
          ;;   Implemented in runtime-wasm/core/parameters.rkt.
-         ,@(for/list ([name '($current-namespace/get
-                               $current-namespace/set
-                               $current-namespace)])
+         ,@(for/list ([name (in-list namespace-parameter-runtime-only-helper-names)])
              (core-runtime-helper-form runtime-helper-index name))
 
          ;;   Implemented in runtime-wasm/core/parameters.rkt.
-         ,@(for/list ([name '($build-parameterization-bindings
-                               $extend-parameterization
-                               $parameterization-ref
-                               $parameter-value-or-global
-                               $parameterization-set!
-                               $extend-current-parameterization!)])
+         ,@(for/list ([name (in-list parameterization-binding-runtime-only-helper-names)])
              (core-runtime-helper-form runtime-helper-index name))
 
          ;;   Implemented in runtime-wasm/core/parameters.rkt.
-         ,(core-runtime-helper-form runtime-helper-index '$call-with-parameterization)
-
-         ;;   Implemented in runtime-wasm/core/parameters.rkt.
-         ,(core-runtime-helper-form runtime-helper-index '$cache-configuration)
+         ,@(for/list ([name (in-list parameterization-call-runtime-only-helper-names)])
+             (core-runtime-helper-form runtime-helper-index name))
 
          ;; 10.6 Breaks
          ;; 10.7 Exiting

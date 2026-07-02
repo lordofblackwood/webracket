@@ -1,6 +1,11 @@
 #lang racket
 
-(provide parameter-runtime-only-helpers
+(provide compile-parameter-runtime-only-helper-names
+         parameterization-runtime-only-helper-names
+         namespace-parameter-runtime-only-helper-names
+         parameterization-binding-runtime-only-helper-names
+         parameterization-call-runtime-only-helper-names
+         parameter-runtime-only-helpers
          reader-printer-policy-parameter-helper-names)
 
 (require "../core-helper.rkt")
@@ -142,6 +147,47 @@
 ;;   Preserve the runtime emission order for generated policy parameters.
 (define reader-printer-policy-parameter-helper-names
   (map first reader-printer-policy-parameter-specs))
+
+;; compile-parameter-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for compile metadata parameters.
+(define compile-parameter-runtime-only-helper-names
+  '($current-compile-target-machine/get
+    $current-compile-target-machine/set
+    $current-compile-target-machine
+    $current-compile-realm/get
+    $current-compile-realm/set
+    $current-compile-realm))
+
+;; parameterization-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for parameterization predicates and accessors.
+(define parameterization-runtime-only-helper-names
+  '($current-parameterization
+    $parameterization?
+    $parameter?
+    $reparameterize))
+
+;; namespace-parameter-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for current-namespace parameter helpers.
+(define namespace-parameter-runtime-only-helper-names
+  '($current-namespace/get
+    $current-namespace/set
+    $current-namespace))
+
+;; parameterization-binding-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for parameterization binding helpers.
+(define parameterization-binding-runtime-only-helper-names
+  '($build-parameterization-bindings
+    $extend-parameterization
+    $parameterization-ref
+    $parameter-value-or-global
+    $parameterization-set!
+    $extend-current-parameterization!))
+
+;; parameterization-call-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for parameterization call/configuration helpers.
+(define parameterization-call-runtime-only-helper-names
+  '($call-with-parameterization
+    $cache-configuration))
 
 ;; reader-printer-policy-parameter-form : symbol? symbol? symbol? symbol? -> datum?
 ;;   Generate one boolean reader/printing policy parameter function.

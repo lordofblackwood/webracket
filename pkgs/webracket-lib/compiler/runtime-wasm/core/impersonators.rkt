@@ -1,8 +1,34 @@
 #lang racket
 
-(provide impersonator-runtime-only-helpers)
+(provide impersonator-basic-runtime-only-helper-names
+         chaperone-procedure-runtime-only-helper-names
+         impersonator-runtime-only-helpers)
 
 (require "../core-helper.rkt")
+
+;; impersonator-basic-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for basic impersonator helpers.
+(define impersonator-basic-runtime-only-helper-names
+  '($impersonator?
+    $procedure-impersonator*?
+    $chaperone?
+    $impersonator-val
+    $make-impersonator-property
+    $impersonator-property?
+    $impersonator-property-accessor-procedure?
+    $webracket-impersonator-property-predicate
+    $webracket-impersonator-property-accessor))
+
+;; chaperone-procedure-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for chaperone procedure helpers.
+(define chaperone-procedure-runtime-only-helper-names
+  '($chaperone-procedure
+    $chaperone-struct
+    $chaperone-vector
+    $chaperone-box
+    $chaperone-hash
+    $unsafe-chaperone-procedure
+    $unsafe-impersonate-procedure))
 
 ;; impersonator-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate inert impersonator and chaperone support helpers.
