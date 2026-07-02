@@ -149,6 +149,7 @@
                   struct-prefab-immutables-runtime-only-helper-names
                   struct-prefab-constructor-runtime-only-helper-names
                   struct-type-constructor-runtime-only-helper-names
+                  struct-accessor-runtime-only-helper-names
                   struct-procedure-predicate-runtime-only-helper-names
                   struct-runtime-only-helpers)
          (only-in "runtime-wasm/core/symbols.rkt"
@@ -15896,109 +15897,10 @@
          ,@(for/list ([name (in-list struct-type-constructor-runtime-only-helper-names)])
              (core-runtime-helper-form runtime-helper-index name))
 
-         (func $make-struct-accessor
-               (param $std (ref eq))
-               (param $field-index (ref eq))   ;; fixnum
-               (param $super-count (ref eq))   ;; fixnum
-               (result (ref eq))               ;; $StructAccessorProcedure
-
-               (local $i            i32)
-               (local $std-typed    (ref $StructType))
-               (local $struct-name  (ref eq))
-
-               ;; Type checks
-               (if (i32.eqz (ref.test (ref $StructType) (local.get $std)))
-                   (then (call $raise-argument-error/internal (local.get $std))))
-               (if (i32.eqz (ref.test (ref i31) (local.get $field-index)))
-                   (then (call $raise-argument-error/internal (local.get $field-index))))
-               (if (i32.eqz (ref.test (ref i31) (local.get $super-count)))
-                   (then (call $raise-argument-error/internal (local.get $super-count))))
-               ;; Decode
-               (local.set $i (i32.shr_u (i31.get_u (ref.cast (ref i31) (local.get $field-index))) (i32.const 1)))
-               ;; Prepare typed std and accessor name
-               (local.set $std-typed   (ref.cast (ref $StructType) (local.get $std)))
-               (local.set $struct-name (struct.get $StructType $name (local.get $std-typed)))
-               ;; Delegate
-               (call $make-struct-accessor/checked
-                     (local.get $std-typed)
-                     (local.get $super-count)
-                     (local.get $struct-name)))
-
-         (func $make-struct-accessor/checked
-               (param $std         (ref $StructType))
-               (param $super-count (ref eq))
-               (param $struct-name (ref eq))
-               (result             (ref eq)) ;; StructAccessorProcedure
-
-               (local $free (ref $Free))
-
-               ;; Pack just std and super-count; index comes at runtime
-               (local.set $free
-                          (array.new_fixed $Free 2
-                                           (local.get $std)
-                                           (local.get $super-count)))
-
-               (struct.new $StructAccessorProcedure
-                           (i32.const 0)               ; hash
-                           (local.get $struct-name)    ; name:  #f or $String
-                           (ref.i31 (i32.const 4))     ; arity: 2
-                           (global.get $false)         ; realm: #f or $Symbol
-                           (ref.func $invoke-closure) ; invoke (used by apply, map, etc.)
-                           (global.get $false)         ; debug-id
-                           (ref.func $struct-accessor)
-                           (local.get $free)))
-
-
-         (func $struct-accessor
-               (type $ClosureCode)
-               (param $clos (ref $Closure))
-               (param $args (ref $Args))
-               (result      (ref eq))
-
-               (local $free           (ref $Free))
-               (local $std            (ref $StructType))  ; free[0]
-               (local $super-count-fx (ref eq))           ; free[1]
-               (local $super-count    i32)
-               (local $target         (ref eq))           ; args[0]
-               (local $struct         (ref $Struct))
-               (local $index-fx       (ref eq))           ; args[1]
-               (local $index          i32)
-               (local $skip           i32)
-               (local $fields         (ref $Array))
-
-               ;; Unpack free vars
-               (local.set $free            (struct.get $Closure $free (local.get $clos)))
-               (local.set $std             (ref.cast (ref $StructType)
-                                                     (array.get $Free (local.get $free) (i32.const 0))))
-
-               (local.set $super-count-fx  (array.get $Free (local.get $free) (i32.const 1)))
-               (local.set $super-count     (i32.shr_u (i31.get_u (ref.cast (ref i31) (local.get $super-count-fx)))
-                                                      (i32.const 1)))
-               (local.set $skip            (local.get $super-count))
-
-               ;; Get struct
-               (local.set $target (array.get $Args (local.get $args) (i32.const 0)))
-               (if (i32.eqz (ref.test (ref $Struct) (local.get $target)))
-                   (then (call $raise-argument-error/internal (local.get $target))))
-               (local.set $struct (ref.cast (ref $Struct) (local.get $target)))
-
-               ;; Get index and decode
-               (local.set $index-fx (array.get $Args (local.get $args) (i32.const 1)))
-               (if (i32.or (i32.eqz (ref.test (ref i31) (local.get $index-fx)))
-                           (i32.ne (i32.and (i31.get_u (ref.cast (ref i31) (local.get $index-fx))) (i32.const 1)) (i32.const 0)))
-                   (then (call $raise-argument-error/internal (local.get $index-fx))))
-               (local.set $index (i32.shr_u (i31.get_u (ref.cast (ref i31) (local.get $index-fx))) (i32.const 1)))
-
-               ;; Type match - is $struct a subtype of $std
-               (if (i32.eqz (call $struct-type-is-a?/i32
-                                  (struct.get $Struct $type (local.get $struct))
-                                  (local.get $std)))
-                   (then (call $raise-argument-error/internal (local.get $target))))
-
-               ;; Get and return field
-               (local.set $fields (struct.get $Struct $fields (local.get $struct)))
-               (array.get $Array (local.get $fields)
-                          (i32.add (local.get $skip) (local.get $index))))
+         ;; Struct accessor helpers
+         ;;   Implemented in runtime-wasm/core/structs.rkt.
+         ,@(for/list ([name (in-list struct-accessor-runtime-only-helper-names)])
+             (core-runtime-helper-form runtime-helper-index name))
 
          (func $make-struct-constructor
                ;; Parameters
