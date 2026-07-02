@@ -367,6 +367,7 @@
                   system-runtime-only-helpers)
          (only-in "runtime-wasm/core/syntax.rkt"
                   correlated-syntax-runtime-only-helper-names
+                  syntax-global-forms
                   syntax-runtime-only-helpers
                   syntax-runtime-only-helper-names)
          (only-in "runtime-wasm/core/threads.rkt"
@@ -3476,15 +3477,7 @@
          ;; Cached arity-at-least struct type descriptor
          (global $arity-at-least-type (mut (ref null $StructType)) (ref.null $StructType))
 
-         ;; Cached correlated struct type descriptor
-         (global $correlated-type (mut (ref null $StructType)) (ref.null $StructType))
-         ;; Shared empty correlated properties table
-         (global $correlated-empty-props (mut (ref eq)) ,(Undefined))
-
-         ;; Cached syntax struct type descriptor
-         (global $syntax-type (mut (ref null $StructType)) (ref.null $StructType))
-         ;; Shared empty syntax properties table
-         (global $syntax-empty-props (mut (ref eq)) ,(Undefined))
+         ,@syntax-global-forms
 
          ;; Module Registry
          (global $empty-module-registry (ref $ModuleRegistry)

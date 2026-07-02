@@ -1,10 +1,27 @@
 #lang racket
 
-(provide syntax-runtime-only-helpers
+(provide syntax-global-forms
+         syntax-runtime-only-helpers
          syntax-runtime-only-helper-names
          correlated-syntax-runtime-only-helper-names)
 
-(require "../core-helper.rkt")
+(require "../core-helper.rkt"
+         (only-in "../../private/wasm-utils.rkt"
+                  Undefined))
+
+;; syntax-global-forms : (listof datum?)
+;;   Declare cached syntax and correlated syntax descriptors and property tables.
+(define syntax-global-forms
+  `(
+         ;; Cached correlated struct type descriptor
+         (global $correlated-type (mut (ref null $StructType)) (ref.null $StructType))
+         ;; Shared empty correlated properties table
+         (global $correlated-empty-props (mut (ref eq)) ,(Undefined))
+
+         ;; Cached syntax struct type descriptor
+         (global $syntax-type (mut (ref null $StructType)) (ref.null $StructType))
+         ;; Shared empty syntax properties table
+         (global $syntax-empty-props (mut (ref eq)) ,(Undefined))))
 
 ;; syntax-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for syntax-object helpers.
