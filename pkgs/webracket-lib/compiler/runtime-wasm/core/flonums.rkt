@@ -4,6 +4,7 @@
          flonum-arithmetic-runtime-only-helper-names
          flonum-constructor-runtime-only-helper-names
          flonum-conversion-runtime-only-helper-names
+         flonum-math-runtime-only-helper-names
          flonum-minmax-runtime-only-helper-names
          flonum-predicate-runtime-only-helper-names
          flonum-runtime-only-helpers)
@@ -44,6 +45,59 @@
     $raise-check-flonum
     $fl/))
 
+;; flonum-unary-math-ops : (listof (list symbol? datum?))
+;;   Enumerate unary flonum math operators and their f64 implementations.
+(define flonum-unary-math-ops
+  '((flabs      (f64.abs (local.get $a/f64)))
+    (flround    (f64.nearest (local.get $a/f64)))
+    (flfloor    (f64.floor (local.get $a/f64)))
+    (flceiling  (f64.ceil (local.get $a/f64)))
+    (fltruncate (f64.trunc (local.get $a/f64)))
+    (flsingle   (f64.promote_f32 (f32.demote_f64 (local.get $a/f64))))
+    (flsin      (call $js-raw-math-sin   (local.get $a/f64)))
+    (flcos      (call $js-raw-math-cos   (local.get $a/f64)))
+    (fltan      (call $js-raw-math-tan   (local.get $a/f64)))
+    (flasin     (call $js-raw-math-asin  (local.get $a/f64)))
+    (flacos     (call $js-raw-math-acos  (local.get $a/f64)))
+    (flatan     (call $js-raw-math-atan  (local.get $a/f64)))
+    (flsinh     (call $js-raw-math-sinh  (local.get $a/f64)))
+    (flcosh     (call $js-raw-math-cosh  (local.get $a/f64)))
+    (fltanh     (call $js-raw-math-tanh  (local.get $a/f64)))
+    (flasinh    (call $js-raw-math-asinh (local.get $a/f64)))
+    (flacosh    (call $js-raw-math-acosh (local.get $a/f64)))
+    (flatanh    (call $js-raw-math-atanh (local.get $a/f64)))
+    (fllog      (call $js-raw-math-log  (local.get $a/f64)))
+    (flexp      (call $js-raw-math-exp  (local.get $a/f64)))
+    (flsqrt     (call $js-raw-math-sqrt (local.get $a/f64)))))
+
+;; flonum-binary-math-ops : (listof (list symbol? datum?))
+;;   Enumerate binary flonum math operators and their f64 implementations.
+(define flonum-binary-math-ops
+  '((flexpt (call $pow-special (local.get $a/f64) (local.get $b/f64)))))
+
+;; flonum-checked-name : symbol? -> symbol?
+;;   Convert a public flonum operator name to its Wasm helper name.
+(define (flonum-checked-name name)
+  (string->symbol (format "$~a" name)))
+
+;; flonum-unsafe-name : symbol? -> symbol?
+;;   Convert a public flonum operator name to its unsafe Wasm helper name.
+(define (flonum-unsafe-name name)
+  (string->symbol (format "$unsafe-~a" name)))
+
+;; flonum-math-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for flonum math helpers.
+(define flonum-math-runtime-only-helper-names
+  (append
+   (for/list ([p (in-list flonum-unary-math-ops)])
+     (flonum-checked-name (car p)))
+   (for/list ([p (in-list flonum-unary-math-ops)])
+     (flonum-unsafe-name (car p)))
+   (for/list ([p (in-list flonum-binary-math-ops)])
+     (flonum-checked-name (car p)))
+   (for/list ([p (in-list flonum-binary-math-ops)])
+     (flonum-unsafe-name (car p)))))
+
 ;; flonum-minmax-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for flonum min/max helpers.
 (define flonum-minmax-runtime-only-helper-names
@@ -81,6 +135,64 @@
                                      (ref.cast (ref $Flonum) (local.get $x)))
                          (struct.get $Flonum $v
                                      (ref.cast (ref $Flonum) (local.get $y)))))))))
+
+;; flonum-unary-math-runtime-helper : symbol? datum? boolean? -> core-runtime-helper?
+;;   Build a unary flonum math helper, optionally assuming a validated argument.
+(define (flonum-unary-math-runtime-helper name expr unsafe?)
+  (define wasm-name (if unsafe? (flonum-unsafe-name name) (flonum-checked-name name)))
+  (core-runtime-helper
+   wasm-name
+   (symbol->string wasm-name)
+   (lambda ()
+     `(func ,wasm-name
+            (type $Prim1)
+            (param $a (ref eq))
+            (result (ref eq))
+            (local $a/fl (ref $Flonum))
+            (local $a/f64 f64)
+            ,@(if unsafe?
+                  '()
+                  `((if (i32.eqz (ref.test (ref $Flonum) (local.get $a)))
+                        (then (call $raise-argument-error:flonum-expected (local.get $a))
+                              (unreachable)))))
+            (local.set $a/fl (ref.cast (ref $Flonum) (local.get $a)))
+            (local.set $a/f64 (struct.get $Flonum $v (local.get $a/fl)))
+            (struct.new $Flonum
+                        (i32.const 0)
+                        ,expr)))))
+
+;; flonum-binary-math-runtime-helper : symbol? datum? boolean? -> core-runtime-helper?
+;;   Build a binary flonum math helper, optionally assuming validated arguments.
+(define (flonum-binary-math-runtime-helper name expr unsafe?)
+  (define wasm-name (if unsafe? (flonum-unsafe-name name) (flonum-checked-name name)))
+  (core-runtime-helper
+   wasm-name
+   (symbol->string wasm-name)
+   (lambda ()
+     `(func ,wasm-name
+            (type $Prim2)
+            (param $a (ref eq))
+            (param $b (ref eq))
+            (result (ref eq))
+            (local $a/fl (ref $Flonum))
+            (local $b/fl (ref $Flonum))
+            (local $a/f64 f64)
+            (local $b/f64 f64)
+            ,@(if unsafe?
+                  '()
+                  `((if (i32.eqz (ref.test (ref $Flonum) (local.get $a)))
+                        (then (call $raise-argument-error:flonum-expected (local.get $a))
+                              (unreachable)))
+                    (if (i32.eqz (ref.test (ref $Flonum) (local.get $b)))
+                        (then (call $raise-argument-error:flonum-expected (local.get $b))
+                              (unreachable)))))
+            (local.set $a/fl (ref.cast (ref $Flonum) (local.get $a)))
+            (local.set $b/fl (ref.cast (ref $Flonum) (local.get $b)))
+            (local.set $a/f64 (struct.get $Flonum $v (local.get $a/fl)))
+            (local.set $b/f64 (struct.get $Flonum $v (local.get $b/fl)))
+            (struct.new $Flonum
+                        (i32.const 0)
+                        ,expr)))))
 
 ;; flonum-binary-minmax-runtime-helper : symbol? datum? boolean? -> core-runtime-helper?
 ;;   Build a binary flonum min/max helper, optionally assuming validated arguments.
@@ -376,6 +488,22 @@
                         (i32.const 0)
                         (f64.div (local.get $x/f64) (local.get $y/f64))))))))
 
+;; flonum-math-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate flonum math helpers used by the monolithic runtime.
+(define flonum-math-runtime-only-helpers
+  (append
+   ;; flonum -> flonum
+   (for/list ([p (in-list flonum-unary-math-ops)])
+     (flonum-unary-math-runtime-helper (car p) (cadr p) #f))
+   (for/list ([p (in-list flonum-unary-math-ops)])
+     (flonum-unary-math-runtime-helper (car p) (cadr p) #t))
+
+   ;; flonum flonum -> flonum
+   (for/list ([p (in-list flonum-binary-math-ops)])
+     (flonum-binary-math-runtime-helper (car p) (cadr p) #f))
+   (for/list ([p (in-list flonum-binary-math-ops)])
+     (flonum-binary-math-runtime-helper (car p) (cadr p) #t))))
+
 ;; flonum-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate flonum helpers that depend on monolithic runtime errors.
 (define flonum-runtime-only-helpers
@@ -384,6 +512,7 @@
    flonum-predicate-runtime-only-helpers
    flonum-conversion-runtime-only-helpers
    flonum-arithmetic-runtime-only-helpers
+   flonum-math-runtime-only-helpers
    (for/list ([name '( $flmin/2 $flmax/2 )]
               [expr '((f64.min (local.get $a/f64) (local.get $b/f64))
                       (f64.max (local.get $a/f64) (local.get $b/f64)))])
