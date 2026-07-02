@@ -208,6 +208,7 @@
                   procedure-arity-field-runtime-only-helper-names
                   procedure-arity-mask-runtime-only-helper-names
                   procedure-arity-runtime-only-helper-names
+                  procedure-application-error-runtime-only-helper-names
                   procedure-basic-runtime-only-helper-names
                   procedure-composition-runtime-only-helper-names
                   procedure-invocation-error-runtime-only-helper-names
@@ -3996,149 +3997,9 @@
          ,@(for/list ([name (in-list procedure-invocation-error-runtime-only-helper-names)])
              (core-runtime-helper-form runtime-helper-index name))
 
-        (func $raise-application-not-procedure
-              (param $v (ref eq))
-              (local $out     (ref $GrowableArray))
-              (local $message (ref $String))
-              (local $caller-proc (ref eq))
-              (local $caller-name (ref eq))
-              (local $caller-debug-id (ref eq))
-              (local $got-struct-type (ref eq))
-
-              (if (i32.gt_u (global.get $debug-invoke-budget) (i32.const 0))
-                  (then
-                   (local.set $caller-proc (global.get $debug-current-procedure))
-                   (local.set $caller-name (global.get $debug-current-procedure-name))
-                   (local.set $caller-debug-id (global.get $false))
-                   (local.set $got-struct-type (global.get $false))
-                   (if (ref.test (ref $Procedure) (local.get $caller-proc))
-                       (then
-                        (local.set $caller-name
-                                   (struct.get $Procedure $name
-                                               (ref.cast (ref $Procedure)
-                                                         (local.get $caller-proc))))))
-                   (if (ref.test (ref $Closure) (local.get $caller-proc))
-                       (then
-                        (local.set $caller-debug-id
-                                   (struct.get $Closure $debug-id
-                                               (ref.cast (ref $Closure)
-                                                         (local.get $caller-proc))))))
-                   (if (ref.test (ref $Struct) (local.get $v))
-                       (then
-                        (local.set $got-struct-type
-                                   (struct.get $StructType $name
-                                               (struct.get $Struct $type
-                                                           (ref.cast (ref $Struct)
-                                                                     (local.get $v)))))))
-                   (drop (call $js-log
-                               (global.get $symbol:application-not-procedure-frontier)))
-                   (drop (call $js-log
-                               (call $cons
-                                     (call $cons (global.get $symbol:got-struct-type)
-                                           (call $cons (local.get $got-struct-type)
-                                                 (global.get $null)))
-                                     (global.get $null))))
-                   (drop (call $js-log
-                               (call $cons
-                                     (call $cons (global.get $symbol:got-procedure?)
-                                           (call $cons (call $procedure? (local.get $v))
-                                                 (global.get $null)))
-                                     (global.get $null))))
-                   (drop (call $js-log
-                               (call $cons
-                                     (call $cons (global.get $symbol:caller-name)
-                                           (call $cons (local.get $caller-name)
-                                                 (global.get $null)))
-                                     (global.get $null))))
-                   (drop (call $js-log
-                               (call $cons
-                                     (call $cons (global.get $symbol:caller-debug-id)
-                                           (call $cons (local.get $caller-debug-id)
-                                                 (global.get $null)))
-                                     (global.get $null))))))
-
-              (local.set $out
-                         (call $make-growable-array (i32.const 2)))
-              (call $growable-array-add! (local.get $out)
-                    (global.get $string:application:not-procedure))
-              (call $growable-array-add! (local.get $out)
-                    (call $format/display (local.get $v)))
-              (local.set $message
-                         (call $growable-array-of-strings->string (local.get $out)))
-
-              (call $raise
-                    (call $exn:fail:contract/make
-                          (local.get $message)
-                          (call $current-continuation-marks (global.get $missing)))
-                    (global.get $true))
-              (unreachable))
-
-        (func $raise-apply-final-arg-not-list
-              (param $v (ref eq))
-              (local $out     (ref $GrowableArray))
-              (local $message (ref $String))
-
-              ;; TODO: include "argument position: last" and "other arguments..." block like Racket.
-              (local.set $out
-                         (call $make-growable-array (i32.const 5)))
-              (call $growable-array-add! (local.get $out)
-                    (call $format/display (global.get $symbol:apply)))
-              (call $growable-array-add! (local.get $out)
-                    (global.get $string:contract-violation:prefix))
-              (call $growable-array-add! (local.get $out)
-                    (global.get $string:list?))
-              (call $growable-array-add! (local.get $out)
-                    (global.get $string:arity-error:given))
-              (call $growable-array-add! (local.get $out)
-                    (call $format/display (local.get $v)))
-              (local.set $message
-                         (call $growable-array-of-strings->string (local.get $out)))
-
-              (call $raise
-                    (call $exn:fail:contract/make
-                          (local.get $message)
-                          (call $current-continuation-marks (global.get $missing)))
-                    (global.get $true))
-              (unreachable))
-
-        (func $raise-struct-type-property-accessor-contract
-              (param $prop (ref $StructTypeProperty))
-              (param $v    (ref eq))
-              (local $accessor-name     (ref $String))
-              (local $prop-name-str     (ref $String))
-              (local $expected-str      (ref $String))
-              (local $out               (ref $GrowableArray))
-              (local $message           (ref $String))
-
-              (local.set $prop-name-str
-                         (ref.cast (ref $String)
-                                   (call $symbol->string
-                                         (struct.get $StructTypeProperty $name (local.get $prop)))))
-              (local.set $accessor-name
-                         (call $string-append/2
-                               (local.get $prop-name-str)
-                               (global.get $string:accessor-suffix)))
-              (local.set $expected-str
-                         (call $string-append/2
-                               (local.get $prop-name-str)
-                               (global.get $string:question)))
-
-              (local.set $out
-                         (call $make-growable-array (i32.const 5)))
-              (call $growable-array-add! (local.get $out) (local.get $accessor-name))
-              (call $growable-array-add! (local.get $out) (global.get $string:contract-violation:prefix))
-              (call $growable-array-add! (local.get $out) (local.get $expected-str))
-              (call $growable-array-add! (local.get $out) (global.get $string:arity-error:given))
-              (call $growable-array-add! (local.get $out) (call $format/display (local.get $v)))
-              (local.set $message
-                         (call $growable-array-of-strings->string (local.get $out)))
-
-              (call $raise
-                    (call $exn:fail:contract/make
-                          (local.get $message)
-                          (call $current-continuation-marks (global.get $missing)))
-                    (global.get $true))
-              (unreachable))
+         ;;   Procedure application error helpers are implemented in runtime-wasm/core/procedures.rkt.
+         ,@(for/list ([name (in-list procedure-application-error-runtime-only-helper-names)])
+             (core-runtime-helper-form runtime-helper-index name))
 
          (func $invoke-closure
                (type $ProcedureInvoker)
