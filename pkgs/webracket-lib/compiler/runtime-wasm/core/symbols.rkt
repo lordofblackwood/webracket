@@ -2,10 +2,21 @@
 
 (provide symbol-runtime-only-helpers
          symbol-public-runtime-only-helper-names
-         symbol-gensym-runtime-only-helper-names)
+         symbol-gensym-runtime-only-helper-names
+         symbol-table-runtime-only-helper-names)
 
 (require "../core-helper.rkt"
          "../../private/wasm-utils.rkt")
+
+;; symbol-table-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for symbol table helpers.
+(define symbol-table-runtime-only-helper-names
+  '($make-symbol-table
+    $symbol-table-find
+    $raise-symbol-table-insert:table-full
+    $symbol-table-insert
+    $symbol-table-resize
+    $maybe-resize-symbol-table))
 
 ;; symbol-table-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate symbol table helpers used by the monolithic runtime.

@@ -229,6 +229,7 @@
          (only-in "runtime-wasm/core/symbols.rkt"
                   symbol-gensym-runtime-only-helper-names
                   symbol-public-runtime-only-helper-names
+                  symbol-table-runtime-only-helper-names
                   symbol-runtime-only-helpers)
          (only-in "runtime-wasm/core/syntax.rkt"
                   correlated-syntax-runtime-only-helper-names
@@ -15385,12 +15386,7 @@
          ; Count is number of active entries (not tombstones).
 
          ;;   Implemented in runtime-wasm/core/symbols.rkt.
-         ,@(for/list ([name '($make-symbol-table
-                               $symbol-table-find
-                               $raise-symbol-table-insert:table-full
-                               $symbol-table-insert
-                               $symbol-table-resize
-                               $maybe-resize-symbol-table)])
+         ,@(for/list ([name (in-list symbol-table-runtime-only-helper-names)])
              (core-runtime-helper-form runtime-helper-index name))
 
 
