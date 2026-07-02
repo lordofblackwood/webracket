@@ -15,6 +15,7 @@
          string-mutability-runtime-only-helper-names
          string-selector-runtime-only-helper-names
          string-split-runtime-only-helper-names
+         string-take-drop-runtime-only-helper-names
          string-utf8-runtime-only-helper-names
          string-runtime-only-helpers)
 
@@ -194,6 +195,18 @@
 (define string-array-conversion-runtime-only-helper-names
   '($array-of-strings->string
     $growable-array-of-strings->string))
+
+;; string-take-drop-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for string take/drop helpers.
+(define string-take-drop-runtime-only-helper-names
+  '($string-take
+    $string-take/checked
+    $string-take-right
+    $string-take-right/checked
+    $string-drop
+    $string-drop/checked
+    $string-drop-right
+    $string-drop-right/checked))
 
 ;; string-split-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for string join and split helpers.
@@ -2277,6 +2290,161 @@
                      (call $growable-array->array (local.get $g))))
      )))
 
+;; string-take-drop-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate string take/drop helpers that still depend on monolithic runtime globals.
+(define string-take-drop-runtime-only-helpers
+  (function-forms->runtime-helpers
+   'string-take-drop-runtime-only-helpers
+   '(
+         (func $string-take (type $Prim2)
+               (param $s (ref eq))
+               (param $n (ref eq))
+               (result   (ref eq))  ; an (ref $String)
+
+               (local $str   (ref $String))
+               (local $n/tag i32)
+               (local $n/i32 i32)
+               (local $len   i32)
+
+               (if (i32.eqz (ref.test (ref $String) (local.get $s)))
+                   (then (call $raise-check-string (local.get $s))))
+               (if (i32.eqz (ref.test (ref i31) (local.get $n)))
+                   (then (call $raise-check-fixnum (local.get $n))))
+
+               (local.set $str   (ref.cast (ref $String) (local.get $s)))
+               (local.set $n/tag (i31.get_u (ref.cast (ref i31) (local.get $n))))
+
+               (if (i32.and (local.get $n/tag) (i32.const 1))
+                   (then (call $raise-check-fixnum (local.get $n))))
+               (local.set $n/i32 (i32.shr_u (local.get $n/tag) (i32.const 1)))
+
+               (local.set $len
+                          (call $string-length/checked/i32 (local.get $str)))
+               (if (i32.gt_u (local.get $n/i32) (local.get $len))
+                   (then (call $raise-bad-string-index/i32
+                               (local.get $s) (local.get $n/i32))))
+
+               (call $string-take/checked (local.get $str) (local.get $n/i32)))
+
+         (func $string-take/checked
+               (param $s (ref $String)) (param $n i32)
+               (result (ref $String))
+               (call $i32array->string
+                     (call $i32array-take
+                           (struct.get $String $codepoints (local.get $s))
+                           (local.get $n))))
+
+
+
+         (func $string-take-right (type $Prim2)
+               (param $s (ref eq))
+               (param $n (ref eq))
+               (result   (ref eq))  ; an (ref $String)
+
+               (local $str   (ref $String))
+               (local $n/tag i32)
+               (local $n/i32 i32)
+               (local $len   i32)
+
+               (if (i32.eqz (ref.test (ref $String) (local.get $s)))
+                   (then (call $raise-check-string (local.get $s))))
+               (if (i32.eqz (ref.test (ref i31) (local.get $n)))
+                   (then (call $raise-check-fixnum (local.get $n))))
+
+               (local.set $str   (ref.cast (ref $String) (local.get $s)))
+               (local.set $n/tag (i31.get_u (ref.cast (ref i31) (local.get $n))))
+               (if (i32.and (local.get $n/tag) (i32.const 1))
+                   (then (call $raise-check-fixnum (local.get $n))))
+               (local.set $n/i32 (i32.shr_u (local.get $n/tag) (i32.const 1)))
+
+               (local.set $len (call $string-length/checked/i32 (local.get $str)))
+               (if (i32.gt_u (local.get $n/i32) (local.get $len))
+                   (then (call $raise-bad-string-index/i32 (local.get $s) (local.get $n/i32))
+                         (unreachable)))
+
+               (call $string-take-right/checked (local.get $str) (local.get $n/i32)))
+
+         (func $string-take-right/checked
+               (param $s (ref $String))
+               (param $n i32)
+               (result   (ref $String))
+
+               (call $i32array->string
+                     (call $i32array-take-right
+                           (struct.get $String $codepoints (local.get $s))
+                           (local.get $n))))
+
+         (func $string-drop (type $Prim2)
+               (param $s (ref eq))
+               (param $n (ref eq))
+               (result   (ref eq))  ; an (ref $String)
+
+               (local $str   (ref $String))
+               (local $n/tag i32)
+               (local $n/i32 i32)
+               (local $len   i32)
+
+               (if (i32.eqz (ref.test (ref $String) (local.get $s)))
+                   (then (call $raise-check-string (local.get $s))))
+               (if (i32.eqz (ref.test (ref i31) (local.get $n)))
+                   (then (call $raise-check-fixnum (local.get $n))))
+
+               (local.set $str   (ref.cast (ref $String) (local.get $s)))
+               (local.set $n/tag (i31.get_u (ref.cast (ref i31) (local.get $n))))
+               (if (i32.and (local.get $n/tag) (i32.const 1))
+                   (then (call $raise-check-fixnum (local.get $n))))
+               (local.set $n/i32 (i32.shr_u (local.get $n/tag) (i32.const 1)))
+
+               (local.set $len (call $string-length/checked/i32 (local.get $str)))
+               (if (i32.gt_u (local.get $n/i32) (local.get $len))
+                   (then (call $raise-bad-string-index/i32 (local.get $s) (local.get $n/i32))))
+
+               (call $string-drop/checked (local.get $str) (local.get $n/i32)))
+
+         (func $string-drop/checked
+               (param $s (ref $String)) (param $n i32)
+               (result (ref $String))
+               (call $i32array->string
+                     (call $i32array-drop
+                           (struct.get $String $codepoints (local.get $s))
+                           (local.get $n))))
+
+         (func $string-drop-right (type $Prim2)
+               (param $s (ref eq))
+               (param $n (ref eq))
+               (result   (ref eq)) ; an (ref $String)
+
+               (local $str   (ref $String))
+               (local $n/tag i32)
+               (local $n/i32 i32)
+               (local $len   i32)
+
+               (if (i32.eqz (ref.test (ref $String) (local.get $s)))
+                   (then (call $raise-check-string (local.get $s))))
+               (if (i32.eqz (ref.test (ref i31) (local.get $n)))
+                   (then (call $raise-check-fixnum (local.get $n))))
+
+               (local.set $str   (ref.cast (ref $String) (local.get $s)))
+               (local.set $n/tag (i31.get_u (ref.cast (ref i31) (local.get $n))))
+               (if (i32.and (local.get $n/tag) (i32.const 1))
+                   (then (call $raise-check-fixnum (local.get $n))))
+               (local.set $n/i32 (i32.shr_u (local.get $n/tag) (i32.const 1)))
+
+               (local.set $len (call $string-length/checked/i32 (local.get $str)))
+               (if (i32.gt_u (local.get $n/i32) (local.get $len))
+                   (then (call $raise-bad-string-index/i32 (local.get $s) (local.get $n/i32))))
+
+               (call $string-drop-right/checked (local.get $str) (local.get $n/i32)))
+
+         (func $string-drop-right/checked
+               (param $s (ref $String)) (param $n i32)
+               (result (ref $String))
+               (call $i32array->string
+                     (call $i32array-drop-right
+                           (struct.get $String $codepoints (local.get $s))
+                           (local.get $n))))
+     )))
+
 ;; string-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate string helpers that still depend on monolithic runtime globals.
 (define string-runtime-only-helpers
@@ -2294,4 +2462,5 @@
           string-comparison-runtime-only-helpers
           string-utf8-runtime-only-helpers
           string-copy!-runtime-only-helpers
-          string-array-conversion-runtime-only-helpers))
+          string-array-conversion-runtime-only-helpers
+          string-take-drop-runtime-only-helpers))
