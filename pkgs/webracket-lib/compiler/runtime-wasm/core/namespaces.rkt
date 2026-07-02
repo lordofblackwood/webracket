@@ -1,9 +1,33 @@
 #lang racket
 
-(provide namespace-runtime-only-helpers
-         namespace-runtime-only-helper-names)
+(provide namespace-current-global-forms
+         namespace-initializer-forms
+         namespace-runtime-only-helpers
+         namespace-runtime-only-helper-names
+         namespace-top-level-global-forms)
 
 (require "../core-helper.rkt")
+
+;; namespace-current-global-forms : (listof datum?)
+;;   Declare the current namespace backing global.
+(define namespace-current-global-forms
+  '(
+               (global $current-namespace-value (mut (ref eq)) (global.get $false))))
+
+;; namespace-top-level-global-forms : (listof datum?)
+;;   Declare the top-level namespace global.
+(define namespace-top-level-global-forms
+  '(
+         (global $top-level-namespace (mut (ref null $Namespace)) (ref.null $Namespace))))
+
+;; namespace-initializer-forms : (listof datum?)
+;;   Initialize the top-level and current namespaces.
+(define namespace-initializer-forms
+  '(
+                     (global.set $top-level-namespace
+                                 (ref.cast (ref $Namespace) (call $make-empty-namespace)))
+                     (global.set $current-namespace-value
+                                 (ref.cast (ref eq) (global.get $top-level-namespace)))))
 
 ;; namespace-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for namespace helpers.

@@ -180,8 +180,11 @@
                   mutable-hash-pair-error-runtime-only-helper-names
                   mutable-hash-runtime-only-helpers)
          (only-in "runtime-wasm/core/namespaces.rkt"
+                  namespace-current-global-forms
+                  namespace-initializer-forms
                   namespace-runtime-only-helpers
-                  namespace-runtime-only-helper-names)
+                  namespace-runtime-only-helper-names
+                  namespace-top-level-global-forms)
          (only-in "runtime-wasm/core/numbers.rkt"
                   generic-arithmetic-runtime-only-helper-names
                   generic-bitwise-runtime-only-helper-names
@@ -3547,7 +3550,7 @@
                              (array.new $Array (global.get $null) (i32.const 0))))
 
          ;; Namespaces
-         (global $top-level-namespace (mut (ref null $Namespace)) (ref.null $Namespace))
+         ,@namespace-top-level-global-forms
 
          ;; Callback registry
          (global $callback-registry (ref $GrowableArray)
@@ -3606,7 +3609,6 @@
              (core-runtime-helper-form runtime-helper-index name))
 
          ,(core-runtime-helper-form core-runtime-helper-index '$rest-arguments->list)
-
          ,(core-runtime-helper-form core-runtime-helper-index '$rest-arguments->args)
 
          ;;   Source-linklet interpreter helpers are implemented in runtime-wasm/core/linklets.rkt.
@@ -3709,37 +3711,21 @@
          ; (type $Array (array (mut (ref eq))))
 
          ,(core-runtime-helper-form core-runtime-helper-index '$make-array)
-
          ,(core-runtime-helper-form core-runtime-helper-index '$array-length #:export? #t #:export-name "array-length")
-
          ,(core-runtime-helper-form core-runtime-helper-index '$array-ref #:export? #t #:export-name "array-ref")
-
          ,(core-runtime-helper-form core-runtime-helper-index '$array-set! #:export? #t #:export-name "array-set!")
-
          ,(core-runtime-helper-form core-runtime-helper-index '$array-fill! #:export? #t #:export-name "array-fill!")
-
          ,(core-runtime-helper-form core-runtime-helper-index '$array-copy! #:export? #t #:export-name "array-copy!")
-
          ,(core-runtime-helper-form core-runtime-helper-index '$array-copy!/error #:export? #t #:export-name "array-copy!/error")
-
          ,(core-runtime-helper-form core-runtime-helper-index '$array-append)
-
          ,(core-runtime-helper-form core-runtime-helper-index '$array-append-all)
-
          ,(core-runtime-helper-form core-runtime-helper-index '$array-take)
-
          ,(core-runtime-helper-form core-runtime-helper-index '$array-take-right)
-
          ,(core-runtime-helper-form core-runtime-helper-index '$array-drop)
-
          ,(core-runtime-helper-form core-runtime-helper-index '$array-drop-right)
-
          ,(core-runtime-helper-form core-runtime-helper-index '$array-split-at)
-
          ,(core-runtime-helper-form core-runtime-helper-index '$array-copy)
-
          ,(core-runtime-helper-form core-runtime-helper-index '$array-set/copy)
-
          ,(core-runtime-helper-form core-runtime-helper-index '$array-extend)
 
          ;;   Generic array conversion helpers are implemented in runtime-wasm/core/arrays.rkt.
@@ -3751,29 +3737,17 @@
          ;;;
 
          ,(core-runtime-helper-form core-runtime-helper-index '$make-growable-array)
-
          ,(core-runtime-helper-form core-runtime-helper-index '$growable-array??)
-
          ,(core-runtime-helper-form core-runtime-helper-index '$growable-array?)
-
          ,(core-runtime-helper-form core-runtime-helper-index '$growable-array-ref)
-
          ,(core-runtime-helper-form core-runtime-helper-index '$growable-array-ref/default)
-
          ,(core-runtime-helper-form core-runtime-helper-index '$growable-array-add!)
-
          ,(core-runtime-helper-form core-runtime-helper-index '$growable-array-insert!)
-
          ,(core-runtime-helper-form core-runtime-helper-index '$growable-array-set!)
-
          ,(core-runtime-helper-form core-runtime-helper-index '$growable-array-remove!)
-
          ,(core-runtime-helper-form core-runtime-helper-index '$growable-array-remove-last!)
-
          ,(core-runtime-helper-form core-runtime-helper-index '$growable-array-count)
-
          ,(core-runtime-helper-form core-runtime-helper-index '$growable-array->array)
-
          ,(core-runtime-helper-form core-runtime-helper-index '$array->growable-array)
 
 
@@ -3784,9 +3758,7 @@
          ;;;
 
          ,(core-runtime-helper-form core-runtime-helper-index '$make-growable-bytes)
-
          ,(core-runtime-helper-form core-runtime-helper-index '$growable-bytes-add!)
-
          ,(core-runtime-helper-form core-runtime-helper-index '$growable-bytes->bytes)
 
          ;;;
@@ -3802,17 +3774,11 @@
                  (field $i   (mut i32))))           ;; current size
 
          ,(core-runtime-helper-form core-runtime-helper-index '$make-i32growable-array)
-
          ,(core-runtime-helper-form core-runtime-helper-index '$i32growable-array-add!)
-
          ,(core-runtime-helper-form core-runtime-helper-index '$i32growable-array-add-string!)
-
          ,(core-runtime-helper-form core-runtime-helper-index '$i32growable-array-ref)
-
          ,(core-runtime-helper-form core-runtime-helper-index '$i32growable-array-count)
-
          ,(core-runtime-helper-form core-runtime-helper-index '$i32growable-array->array)
-
          ,(core-runtime-helper-form core-runtime-helper-index '$i32array->growable-array)
 
 
@@ -3823,35 +3789,20 @@
          ; (type $I32Array (array (mut i32)))
 
          ,(core-runtime-helper-form core-runtime-helper-index '$i32array-make)
-
          ,(core-runtime-helper-form core-runtime-helper-index '$i32array-length)
-
          ,(core-runtime-helper-form core-runtime-helper-index '$i32array-ref)
-
          ,(core-runtime-helper-form core-runtime-helper-index '$i32array-set!)
-
          ,(core-runtime-helper-form core-runtime-helper-index '$i32array-equal?)
-
          ,(core-runtime-helper-form core-runtime-helper-index '$i32array-fill!)
-
          ,(core-runtime-helper-form core-runtime-helper-index '$i32array-copy!)
-
          ,(core-runtime-helper-form core-runtime-helper-index '$i32array-copy!/error)
-
          ,(core-runtime-helper-form core-runtime-helper-index '$i32array-copy)
-
          ,(core-runtime-helper-form core-runtime-helper-index '$i32array-append)
-
          ,(core-runtime-helper-form core-runtime-helper-index '$i32array-take)
-
          ,(core-runtime-helper-form core-runtime-helper-index '$i32array-take-right)
-
          ,(core-runtime-helper-form core-runtime-helper-index '$i32array-drop)
-
          ,(core-runtime-helper-form core-runtime-helper-index '$i32array-drop-right)
-
          ,(core-runtime-helper-form core-runtime-helper-index '$i32array-set/copy)
-
          ,(core-runtime-helper-form core-runtime-helper-index '$i32array-extend)
 
          ;;   I32 array conversion helpers are implemented in runtime-wasm/core/i32-arrays.rkt.
@@ -3870,25 +3821,15 @@
              (core-runtime-helper-form runtime-helper-index name))
 
          ,(core-runtime-helper-form core-runtime-helper-index '$i8make-array)
-
          ,(core-runtime-helper-form core-runtime-helper-index '$i8array-length #:export? #t #:export-name "i8array-length")
-
          ,(core-runtime-helper-form core-runtime-helper-index '$i8array-ref #:export? #t #:export-name "i8array-ref")
-
          ,(core-runtime-helper-form core-runtime-helper-index '$i8array-set! #:export? #t #:export-name "i8array-set!")
-
          ,(core-runtime-helper-form core-runtime-helper-index '$i8array-fill! #:export? #t #:export-name "i8array-fill!")
-
          ,(core-runtime-helper-form core-runtime-helper-index '$i8array-copy! #:export? #t #:export-name "i8array-copy!")
-
          ,(core-runtime-helper-form core-runtime-helper-index '$i8array-copy!/error #:export? #t #:export-name "i8array-copy!/error")
-
          ,(core-runtime-helper-form core-runtime-helper-index '$i8array-copy)
-
          ,(core-runtime-helper-form core-runtime-helper-index '$i8array-set/copy)
-
          ,(core-runtime-helper-form core-runtime-helper-index '$i8array-extend)
-
          ,(core-runtime-helper-form core-runtime-helper-index '$i8array-append)
 
          ;;   I8 array conversion helpers are implemented in runtime-wasm/core/i8-arrays.rkt.
@@ -3896,7 +3837,6 @@
              (core-runtime-helper-form runtime-helper-index name))
 
          ,(core-runtime-helper-form core-runtime-helper-index '$i8array->bytes)
-
          ,(core-runtime-helper-form core-runtime-helper-index '$i8array->immutable-bytes)
 
          ;;;
@@ -4072,39 +4012,22 @@
              (core-runtime-helper-form runtime-helper-index name))
 
          ,(core-runtime-helper-form core-runtime-helper-index '$fixnum?/i32)
-
          ,(core-runtime-helper-form core-runtime-helper-index '$fxand/2)
-
          ,(core-runtime-helper-form runtime-helper-index '$fxand)
-
          ,(core-runtime-helper-form core-runtime-helper-index '$fxior/2)
-
          ,(core-runtime-helper-form runtime-helper-index '$fxior)
-
          ,(core-runtime-helper-form core-runtime-helper-index '$fxxor/2)
-
          ,(core-runtime-helper-form runtime-helper-index '$fxxor)
-
          ,(core-runtime-helper-form core-runtime-helper-index '$fxnot)
-
          ,(core-runtime-helper-form core-runtime-helper-index '$fxlshift)
-
          ,(core-runtime-helper-form core-runtime-helper-index '$fxrshift)
-
          ,(core-runtime-helper-form core-runtime-helper-index '$fxpopcount)
-
          ,(core-runtime-helper-form core-runtime-helper-index '$fxpopcount32)
-
          ,(core-runtime-helper-form core-runtime-helper-index '$fxpopcount16)
-
          ,(core-runtime-helper-form core-runtime-helper-index '$fx+/wraparound)
-
          ,(core-runtime-helper-form runtime-helper-index '$fx-/wraparound)
-
          ,(core-runtime-helper-form core-runtime-helper-index '$fx*/wraparound)
-
          ,(core-runtime-helper-form core-runtime-helper-index '$fxlshift/wraparound)
-
          ,(core-runtime-helper-form core-runtime-helper-index '$fxrshift/logical)
 
          ;; Fixnum comparison helpers are implemented in runtime-wasm/core/fixnums.rkt.
@@ -4248,11 +4171,8 @@
              (core-runtime-helper-form runtime-helper-index name))
 
          ,(core-runtime-helper-form core-runtime-helper-index '$i32array->string)
-
          ,(core-runtime-helper-form core-runtime-helper-index '$i32array->immutable-string)
-
          ,(core-runtime-helper-form core-runtime-helper-index '$i32growable-array->string)
-
          ,(core-runtime-helper-form core-runtime-helper-index '$i32growable-array->immutable-string)
 
          ;;   String dummy construction helpers are implemented in runtime-wasm/core/strings.rkt.
@@ -4409,34 +4329,22 @@
              (core-runtime-helper-form runtime-helper-index name))
 
          ,(core-runtime-helper-form core-runtime-helper-index '$pair?)
-
          ,(core-runtime-helper-form core-runtime-helper-index '$cons?)
-
          ,(core-runtime-helper-form core-runtime-helper-index '$null?)
-
          ,(core-runtime-helper-form core-runtime-helper-index '$empty?)
-
          ,(core-runtime-helper-form core-runtime-helper-index '$cons)
-
          ,(core-runtime-helper-form core-runtime-helper-index '$list*)
-
          ,(core-runtime-helper-form runtime-helper-index '$car)
-
          ,(core-runtime-helper-form runtime-helper-index '$cdr)
 
          ,@(for/list ([name (in-list pair-accessor-runtime-only-helper-names)])
              (core-runtime-helper-form runtime-helper-index name))
 
          ,(core-runtime-helper-form core-runtime-helper-index '$list?)
-
          ,(core-runtime-helper-form core-runtime-helper-index '$list)
-
          ,(core-runtime-helper-form runtime-helper-index '$length/i32)
-
          ,(core-runtime-helper-form runtime-helper-index '$length)
-
          ,(core-runtime-helper-form runtime-helper-index '$list-ref/checked)
-
          ,(core-runtime-helper-form runtime-helper-index '$list-ref)
 
          ;; first through fifteenth
@@ -4445,58 +4353,30 @@
              (core-runtime-helper-form runtime-helper-index name))
 
         ,(core-runtime-helper-form runtime-helper-index '$rest)
-
         ,(core-runtime-helper-form core-runtime-helper-index '$last-pair/checked)
-
         ,(core-runtime-helper-form runtime-helper-index '$last)
-
         ,(core-runtime-helper-form runtime-helper-index '$last-pair)
-
         ,(core-runtime-helper-form runtime-helper-index '$list-tail/checked/who)
-
         ,(core-runtime-helper-form runtime-helper-index '$list-tail/checked)
-
         ,(core-runtime-helper-form runtime-helper-index '$list-tail)
-
         ,(core-runtime-helper-form runtime-helper-index '$list-set/checked)
-
         ,(core-runtime-helper-form runtime-helper-index '$list-set)
-
-
         ,(core-runtime-helper-form runtime-helper-index '$drop/who)
-
         ,(core-runtime-helper-form runtime-helper-index '$drop)
-
         ,(core-runtime-helper-form runtime-helper-index '$drop-right/who)
-
         ,(core-runtime-helper-form runtime-helper-index '$drop-right)
-
         ,(core-runtime-helper-form runtime-helper-index '$dropf)
-
         ,(core-runtime-helper-form runtime-helper-index '$dropf-right)
-
-
         ,(core-runtime-helper-form runtime-helper-index '$split-at)
-
         ,(core-runtime-helper-form runtime-helper-index '$split-at-right)
-
         ,(core-runtime-helper-form runtime-helper-index '$splitf-at)
-
         ,(core-runtime-helper-form runtime-helper-index '$splitf-at-right)
-
-
          ,(core-runtime-helper-form runtime-helper-index '$append)
-
          ,(core-runtime-helper-form runtime-helper-index '$append/2)
-
          ,(core-runtime-helper-form runtime-helper-index '$qq-append)
-
          ,(core-runtime-helper-form runtime-helper-index '$append*)
-
          ,(core-runtime-helper-form runtime-helper-index '$flatten)
-
          ,(core-runtime-helper-form runtime-helper-index '$reverse)
-
          ,(core-runtime-helper-form runtime-helper-index '$alt-reverse)
 
          ,@(for/list ([name (in-list list-member-runtime-only-helper-names)])
@@ -4509,15 +4389,10 @@
              (core-runtime-helper-form runtime-helper-index name))
 
          ,(core-runtime-helper-form runtime-helper-index '$assf)
-
          ,(core-runtime-helper-form runtime-helper-index '$findf)
-
          ,(core-runtime-helper-form runtime-helper-index '$index-of)
-
          ,(core-runtime-helper-form runtime-helper-index '$index-where)
-
          ,(core-runtime-helper-form runtime-helper-index '$indexes-of)
-
          ,(core-runtime-helper-form runtime-helper-index '$indexes-where)
 
 
@@ -4527,43 +4402,23 @@
 
 
          ,(core-runtime-helper-form runtime-helper-index '$cartesian-product)
-
          ,(core-runtime-helper-form runtime-helper-index '$permutations)
-
-
          ,(core-runtime-helper-form runtime-helper-index '$make-list)
-
          ,(core-runtime-helper-form core-runtime-helper-index '$make-list/checked)
-
-
          ,(core-runtime-helper-form runtime-helper-index '$build-list)
-
          ,(core-runtime-helper-form runtime-helper-index '$build-list/checked)
-
          ,(core-runtime-helper-form runtime-helper-index '$range-proc)
-
          ,(core-runtime-helper-form runtime-helper-index '$range)
-
          ,(core-runtime-helper-form runtime-helper-index '$range/fixnum)
-
          ,(core-runtime-helper-form runtime-helper-index '$range/flonum)
-
          ,(core-runtime-helper-form runtime-helper-index '$inclusive-range-proc)
-
          ,(core-runtime-helper-form runtime-helper-index '$inclusive-range)
-
          ,(core-runtime-helper-form runtime-helper-index '$inclusive-range/fixnum)
-
          ,(core-runtime-helper-form runtime-helper-index '$inclusive-range/flonum)
-
          ,(core-runtime-helper-form runtime-helper-index '$list-update/checked/who)
-
          ,(core-runtime-helper-form runtime-helper-index '$list-update/checked)
-
          ,(core-runtime-helper-form runtime-helper-index '$list-update)
-
          ,(core-runtime-helper-form runtime-helper-index '$argmax)
-
          ,(core-runtime-helper-form runtime-helper-index '$argmin)
 
          ;; Generic contract-error helpers
@@ -4572,76 +4427,35 @@
              (core-runtime-helper-form runtime-helper-index name))
 
          ,(core-runtime-helper-form runtime-helper-index '$list-from-range)
-
          ,(core-runtime-helper-form runtime-helper-index '$list-from-range/checked)
-
          ,(core-runtime-helper-form runtime-helper-index '$map)
-
-
-
          ,(core-runtime-helper-form runtime-helper-index '$andmap)
-
-
          ,(core-runtime-helper-form runtime-helper-index '$ormap)
-
-
          ,(core-runtime-helper-form runtime-helper-index '$validate-list-args)
-
          ,(core-runtime-helper-form runtime-helper-index '$seed-list-args)
-
          ,(core-runtime-helper-form runtime-helper-index '$append-map)
-
-
          ,(core-runtime-helper-form runtime-helper-index '$count)
-
-
          ,(core-runtime-helper-form runtime-helper-index '$for-each)
-
          ,(core-runtime-helper-form runtime-helper-index '$foldl)
-
          ,(core-runtime-helper-form runtime-helper-index '$foldl/1)
-
          ,(core-runtime-helper-form runtime-helper-index '$foldl/2)
-
          ,(core-runtime-helper-form runtime-helper-index '$foldl/n)
-
-
          ,(core-runtime-helper-form runtime-helper-index '$foldr)
-
-
          ,(core-runtime-helper-form runtime-helper-index '$foldr/1-loop)
-
-
-
          ,(core-runtime-helper-form runtime-helper-index '$foldr/1)
-
          ,(core-runtime-helper-form runtime-helper-index '$foldr/2-loop)
-
          ,(core-runtime-helper-form runtime-helper-index '$foldr/2)
-
          ,(core-runtime-helper-form runtime-helper-index '$foldr/n-loop)
-
          ,(core-runtime-helper-form runtime-helper-index '$foldr/n)
-
-
-
-
-
          ,(core-runtime-helper-form runtime-helper-index '$filter)
-
          ,(core-runtime-helper-form runtime-helper-index '$filter-map)
 
          ;; Like filter, but keeps elements for which the predicate returns false
          ,(core-runtime-helper-form runtime-helper-index '$filter-not)
-
          ,(core-runtime-helper-form runtime-helper-index '$shuffle)
-
          ,(core-runtime-helper-form runtime-helper-index '$partition)
-
          ,(core-runtime-helper-form runtime-helper-index '$remove)
-
          ,(core-runtime-helper-form runtime-helper-index '$remf)
-
          ,(core-runtime-helper-form runtime-helper-index '$remf*)
 
         ;; Remove list elements using predicate
@@ -4668,61 +4482,31 @@
             (core-runtime-helper-form runtime-helper-index name))
 
          ,(core-runtime-helper-form runtime-helper-index '$raise-take:bad-length)
-
          ,(core-runtime-helper-form runtime-helper-index '$raise-take:bad-length/who)
-
          ,(core-runtime-helper-form runtime-helper-index '$raise-take-right:bad-length)
-
          ,(core-runtime-helper-form runtime-helper-index '$raise-take-right:bad-length/who)
-
          ,(core-runtime-helper-form runtime-helper-index '$take/who)
-
          ,(core-runtime-helper-form runtime-helper-index '$take)
-
          ,(core-runtime-helper-form runtime-helper-index '$take-right/who)
-
          ,(core-runtime-helper-form runtime-helper-index '$take-right)
-
          ,(core-runtime-helper-form runtime-helper-index '$takef)
-
          ,(core-runtime-helper-form runtime-helper-index '$takef-right)
-
-
          ,(core-runtime-helper-form runtime-helper-index '$list-prefix?)
-
-
          ,(core-runtime-helper-form runtime-helper-index '$take-common-prefix)
-
-
          ,(core-runtime-helper-form runtime-helper-index '$drop-common-prefix)
-
          ,(core-runtime-helper-form runtime-helper-index '$split-common-prefix)
-
-
          ,(core-runtime-helper-form runtime-helper-index '$add-between)
-
          ,(core-runtime-helper-form runtime-helper-index '$sort)
-
          ,(core-runtime-helper-form runtime-helper-index '$sort/expanded-keywords)
-
          ,(core-runtime-helper-form runtime-helper-index '$sort/keyword-apply)
-
          ,(core-runtime-helper-form runtime-helper-index '$sort:merge)
-
          ,(core-runtime-helper-form runtime-helper-index '$sort:merge/key)
-
          ,(core-runtime-helper-form runtime-helper-index '$sort:split)
-
          ,(core-runtime-helper-form runtime-helper-index '$sort:merge-sort)
-
          ,(core-runtime-helper-form runtime-helper-index '$sort:merge-sort/key)
-
          ,(core-runtime-helper-form runtime-helper-index '$sort:cache-key-pairs)
-
          ,(core-runtime-helper-form runtime-helper-index '$sort:extract-cached-values)
-
          ,(core-runtime-helper-form runtime-helper-index '$sort:merge/cached-key)
-
          ,(core-runtime-helper-form runtime-helper-index '$sort:merge-sort/cached-key)
 
 
@@ -4799,71 +4583,38 @@
             (core-runtime-helper-form runtime-helper-index name))
 
          ,(core-runtime-helper-form runtime-helper-index '$treelist-node-children)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-node-sizes)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-node-leftwise-dense?/i32)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-node-child-count)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-node-find-child-index/relaxed)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-node-child-start)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-node-child-size)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-make-parent-root/checked)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-rebalance-node-count)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-rebalance-pack-sizes)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-pack-children-range/checked)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-rebalance-same-height/checked)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-pack-same-height/checked)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-short-node)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-concat-plan/distribute)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-concat-plan)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-merge-boundary-slots/checked)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-exec-concat-plan/checked)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-rebalance-boundary/checked)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-concat-subtree/checked)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-append2/checked)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-leaf)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-radix)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-node-capacity)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-height-for-size)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-build-dense-node)
-
          ,(core-runtime-helper-form runtime-helper-index '$array->treelist/checked)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-node-build/checked)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-from-node/checked)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-singleton-branch)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-node-child-sizes/exact)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-node-copy-into!)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist->array/checked)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-node-split/checked)
 
          ;; Treelist related exceptions
@@ -4872,156 +4623,80 @@
              (core-runtime-helper-form runtime-helper-index name))
 
          ,(core-runtime-helper-form runtime-helper-index '$treelist?)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-empty?)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-length)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-length/checked/i32)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-ref-node/checked)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-ref/checked)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-node-set/checked)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-node-can-add-right-fast?/i32)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-node-can-add-left-fast?/i32)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-node-add-right/checked)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-node-add-left/checked)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-set/checked)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-add/checked)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-ref)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-first)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-last)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-add)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-set)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-slice/checked)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-sublist/checked)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-split-at/checked)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-take)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-drop)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-split-at)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-take-right)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-drop-right)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-sublist)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-node-reverse/checked)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-reverse/checked)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-reverse)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-node-size/check)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-node-valid?/i32)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-valid?/i32)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-node-count/checked)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-node-relaxed-count/checked)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-node-max-child-count/checked)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-node-unary-start-depth/checked)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-node-max-unary-depth/checked)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-debug-shape)
-
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-rest)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-node-append*-collect-into!)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-append*)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-node-flatten-into!)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-flatten-into!)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-flatten)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-sort/checked)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-sort)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-node-map-into!)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-node-for-each)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-node-filter-into!)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-node-find/checked)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-same?/i32)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-node-member?/checked)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-node-index-of/checked)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-map)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-for-each)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-filter)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-find)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-member?)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-index-of)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-append/checked)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-append)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-cons/checked)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-cons)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-insert/checked)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-insert)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-delete/checked)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist-delete)
-
          ,(core-runtime-helper-form runtime-helper-index '$make-treelist)
-
          ,(core-runtime-helper-form runtime-helper-index '$make-treelist/checked)
-
          ,(core-runtime-helper-form runtime-helper-index '$vector->treelist)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist->vector)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist->vector/checked)
-
          ,(core-runtime-helper-form runtime-helper-index '$list->treelist)
-
          ,(core-runtime-helper-form runtime-helper-index '$treelist->list)
 
 
@@ -5051,45 +4726,25 @@
          ;;;
 
          ,(core-runtime-helper-form runtime-helper-index '$stencil-vector-mask-width)
-
          ,(core-runtime-helper-form runtime-helper-index '$$stencil-vector-mask-valid?/i32)
-
          ,(core-runtime-helper-form runtime-helper-index '$$stencil-vector-popcount/i32)
-
          ,(core-runtime-helper-form runtime-helper-index '$$make-stencil-vector/checked)
-
          ,(core-runtime-helper-form runtime-helper-index '$stencil-vector)
-
          ,(core-runtime-helper-form runtime-helper-index '$$system-stencil-vector)
-
          ,(core-runtime-helper-form runtime-helper-index '$stencil-vector?)
-
          ,(core-runtime-helper-form runtime-helper-index '$$stencil-vector?)
-
          ,(core-runtime-helper-form runtime-helper-index '$$system-stencil-vector?)
-
          ,(core-runtime-helper-form runtime-helper-index '$stencil-vector-length)
-
          ,(core-runtime-helper-form runtime-helper-index '$$stencil-vector-length)
-
          ,(core-runtime-helper-form runtime-helper-index '$stencil-vector-mask)
-
          ,(core-runtime-helper-form runtime-helper-index '$$stencil-vector-mask)
-
          ,(core-runtime-helper-form runtime-helper-index '$stencil-vector-ref)
-
          ,(core-runtime-helper-form runtime-helper-index '$$stencil-vector-ref)
-
          ,(core-runtime-helper-form runtime-helper-index '$stencil-vector-set!)
-
          ,(core-runtime-helper-form runtime-helper-index '$$stencil-vector-set!)
-
          ,(core-runtime-helper-form runtime-helper-index '$$stencil-vector-update/core)
-
          ,(core-runtime-helper-form runtime-helper-index '$stencil-vector-update)
-
          ,(core-runtime-helper-form runtime-helper-index '$$system-stencil-vector-update)
-
          ,(core-runtime-helper-form runtime-helper-index '$$system-stencil-vector-truncate!)
 
          ;; vector copy and conversion helpers
@@ -5153,13 +4808,9 @@
          ;;;
 
          ,(core-runtime-helper-form runtime-helper-index '$boxed)
-
          ,(core-runtime-helper-form runtime-helper-index '$unboxed)
-
          ,(core-runtime-helper-form runtime-helper-index '$set-boxed!)
-
          ,(core-runtime-helper-form runtime-helper-index '$initialize-boxed!)
-
          ,(core-runtime-helper-form runtime-helper-index '$boxed?)
 
          ;;;
@@ -5167,29 +4818,17 @@
          ;;;
 
          ,(core-runtime-helper-form runtime-helper-index '$box?)
-
          ,(core-runtime-helper-form runtime-helper-index '$box)
-
          ,(core-runtime-helper-form runtime-helper-index '$box-immutable)
-
          ,(core-runtime-helper-form runtime-helper-index '$unbox)
-
          ,(core-runtime-helper-form runtime-helper-index '$unbox*)
-
          ,(core-runtime-helper-form runtime-helper-index '$raise-immutable-box)
-
          ,(core-runtime-helper-form runtime-helper-index '$set-box!)
-
          ,(core-runtime-helper-form runtime-helper-index '$set-box*!)
-
          ,(core-runtime-helper-form runtime-helper-index '$box-cas!)
-
          ,(core-runtime-helper-form runtime-helper-index '$unsafe-box*-cas!)
-
          ,(core-runtime-helper-form runtime-helper-index '$make-weak-box)
-
          ,(core-runtime-helper-form runtime-helper-index '$weak-box?)
-
          ,(core-runtime-helper-form runtime-helper-index '$weak-box-value)
 
          ;;;
@@ -5197,25 +4836,15 @@
          ;;;
 
          ,(core-runtime-helper-form runtime-helper-index '$make-thread-cell)
-
          ,(core-runtime-helper-form runtime-helper-index '$thread-cell?)
-
          ,(core-runtime-helper-form runtime-helper-index '$thread-cell-ref)
-
          ,(core-runtime-helper-form runtime-helper-index '$thread-cell-set!)
-
          ,(core-runtime-helper-form runtime-helper-index '$current-thread)
-
          ,(core-runtime-helper-form runtime-helper-index '$thread?)
-
          ,(core-runtime-helper-form runtime-helper-index '$thread-dead?)
-
          ,(core-runtime-helper-form runtime-helper-index '$thread-running?)
-
          ,(core-runtime-helper-form runtime-helper-index '$thread-group?)
-
          ,(core-runtime-helper-form runtime-helper-index '$current-thread-group)
-
          ,(core-runtime-helper-form runtime-helper-index '$make-thread-group)
 
          ;;;
@@ -5223,21 +4852,13 @@
          ;;;
 
          ,(core-runtime-helper-form runtime-helper-index '$logger?)
-
          ,(core-runtime-helper-form runtime-helper-index '$log-receiver?)
-
          ,(core-runtime-helper-form runtime-helper-index '$make-logger)
-
          ,(core-runtime-helper-form runtime-helper-index '$make-log-receiver)
-
          ,(core-runtime-helper-form runtime-helper-index '$logger-name)
-
          ,(core-runtime-helper-form runtime-helper-index '$current-logger)
-
          ,(core-runtime-helper-form runtime-helper-index '$log-level?)
-
          ,(core-runtime-helper-form runtime-helper-index '$log-max-level)
-
          ,(core-runtime-helper-form runtime-helper-index '$log-message)
 
          ;;;
@@ -5245,23 +4866,14 @@
          ;;;
 
          ,(core-runtime-helper-form runtime-helper-index '$make-channel)
-
          ,(core-runtime-helper-form runtime-helper-index '$channel?)
-
          ,(core-runtime-helper-form runtime-helper-index '$channel-put-evt?)
-
          ,(core-runtime-helper-form runtime-helper-index '$handle-evt?)
-
          ,(core-runtime-helper-form runtime-helper-index '$evt?)
-
          ,(core-runtime-helper-form runtime-helper-index '$channel-put)
-
          ,(core-runtime-helper-form runtime-helper-index '$channel-try-get)
-
          ,(core-runtime-helper-form runtime-helper-index '$channel-get)
-
          ,(core-runtime-helper-form runtime-helper-index '$channel-put-evt)
-
          ,(core-runtime-helper-form runtime-helper-index '$handle-evt)
 
          ;;;
@@ -5269,17 +4881,11 @@
          ;;;
 
          ,(core-runtime-helper-form runtime-helper-index '$make-semaphore)
-
          ,(core-runtime-helper-form runtime-helper-index '$semaphore?)
-
          ,(core-runtime-helper-form runtime-helper-index '$semaphore-peek-evt?)
-
          ,(core-runtime-helper-form runtime-helper-index '$semaphore-post)
-
          ,(core-runtime-helper-form runtime-helper-index '$semaphore-try-wait?)
-
          ,(core-runtime-helper-form runtime-helper-index '$call-with-semaphore)
-
          ,(core-runtime-helper-form runtime-helper-index '$semaphore-peek-evt)
 
          ;;;
@@ -5287,13 +4893,9 @@
          ;;;
 
          ,(core-runtime-helper-form runtime-helper-index '$make-will-executor)
-
          ,(core-runtime-helper-form runtime-helper-index '$will-executor?)
-
          ,(core-runtime-helper-form runtime-helper-index '$will-register)
-
          ,(core-runtime-helper-form runtime-helper-index '$will-try-execute)
-
          ,(core-runtime-helper-form runtime-helper-index '$will-execute)
 
          ;;;
@@ -5301,9 +4903,7 @@
          ;;;
 
          ,(core-runtime-helper-form runtime-helper-index '$sync-one)
-
          ,(core-runtime-helper-form runtime-helper-index '$sync)
-
          ,(core-runtime-helper-form runtime-helper-index '$sync/timeout)
 
          ;;;
@@ -5311,9 +4911,7 @@
          ;;;
 
          ,(core-runtime-helper-form runtime-helper-index '$unsafe-make-uninterruptible-lock)
-
          ,(core-runtime-helper-form runtime-helper-index '$unsafe-uninterruptible-lock-acquire)
-
          ,(core-runtime-helper-form runtime-helper-index '$unsafe-uninterruptible-lock-release)
 
          ;;;
@@ -5477,235 +5075,120 @@
              (core-runtime-helper-form runtime-helper-index name))
 
          ,(core-runtime-helper-form runtime-helper-index '$hash-placeholder?)
-
          ,(core-runtime-helper-form runtime-helper-index '$placeholder?)
-
          ,(core-runtime-helper-form runtime-helper-index '$make-placeholder)
-
          ,(core-runtime-helper-form runtime-helper-index '$placeholder-set!)
-
          ,(core-runtime-helper-form runtime-helper-index '$placeholder-get)
-
          ,(core-runtime-helper-form runtime-helper-index '$reader-graph-resolve)
-
          ,(core-runtime-helper-form runtime-helper-index '$make-reader-graph)
-
          ,(core-runtime-helper-form runtime-helper-index '$hash-weak?)
-
          ,(core-runtime-helper-form runtime-helper-index '$make-hash-placeholder/kind)
-
          ,(core-runtime-helper-form runtime-helper-index '$make-hash-placeholder)
-
          ,(core-runtime-helper-form runtime-helper-index '$make-hasheq-placeholder)
-
          ,(core-runtime-helper-form runtime-helper-index '$make-hasheqv-placeholder)
-
          ,(core-runtime-helper-form runtime-helper-index '$make-hashalw-placeholder)
-
          ,(core-runtime-helper-form runtime-helper-index '$immutable-hasheqv-bucket-index)
-
          ,(core-runtime-helper-form runtime-helper-index '$immutable-hamt-packed-group-index)
-
          ,(core-runtime-helper-form runtime-helper-index '$immutable-hamt-packed-child-bit)
-
          ,(core-runtime-helper-form runtime-helper-index '$immutable-hamt-packed-key-bit)
-
          ,(core-runtime-helper-form runtime-helper-index '$immutable-hamt-packed-value-bit)
-
          ,(core-runtime-helper-form runtime-helper-index '$immutable-hamt-packed-bits)
-
          ,(core-runtime-helper-form runtime-helper-index '$immutable-hamt-slot-kind)
-
          ,(core-runtime-helper-form runtime-helper-index '$immutable-hamt-bnode-packed-metadata)
-
          ,(core-runtime-helper-form runtime-helper-index '$immutable-hamt-store-bnode-metadata)
-
          ,(core-runtime-helper-form runtime-helper-index '$immutable-hamt-bnode-metadata)
-
          ,(core-runtime-helper-form runtime-helper-index '$immutable-hamt-packed-bnode?)
-
          ,(core-runtime-helper-form runtime-helper-index '$immutable-hamt-packed-index)
-
          ,(core-runtime-helper-form runtime-helper-index '$immutable-hamt-packed-slot)
-
          ,(core-runtime-helper-form runtime-helper-index '$immutable-hamt-packed-child-slot)
-
          ,(core-runtime-helper-form runtime-helper-index '$immutable-hamt-packed-key-slot)
-
          ,(core-runtime-helper-form runtime-helper-index '$immutable-hamt-packed-value-slot)
-
          ,(core-runtime-helper-form runtime-helper-index '$immutable-hamt-empty-packed-node)
-
          ,(core-runtime-helper-form runtime-helper-index '$immutable-hamt-store-packed-bnode-metadata)
-
          ,(core-runtime-helper-form runtime-helper-index '$immutable-hamt-key-hash/kind)
-
          ,(core-runtime-helper-form runtime-helper-index '$immutable-hamt-wrap-inline-key/kind)
-
          ,(core-runtime-helper-form runtime-helper-index '$immutable-hamt-inline-key-unwrap)
-
          ,(core-runtime-helper-form runtime-helper-index '$immutable-hamt-inline-key-cached-hash)
-
          ,(core-runtime-helper-form runtime-helper-index '$immutable-hamt-entry-for-key/kind)
-
          ,(core-runtime-helper-form runtime-helper-index '$immutable-hamt-packed-metadata-present?/i32)
-
          ,(core-runtime-helper-form runtime-helper-index '$immutable-hasheqv-bucket-has-key?)
-
          ,(core-runtime-helper-form runtime-helper-index '$immutable-hasheqv-bucket-ref)
-
          ,(core-runtime-helper-form runtime-helper-index '$immutable-hasheqv-bucket-ref-key)
-
          ,(core-runtime-helper-form runtime-helper-index '$immutable-hasheq-bucket-has-key?)
-
          ,(core-runtime-helper-form runtime-helper-index '$immutable-hasheq-bucket-ref)
-
          ,(core-runtime-helper-form runtime-helper-index '$immutable-hasheq-bucket-ref-key)
-
          ,(core-runtime-helper-form runtime-helper-index '$immutable-hamt-bit)
-
          ,(core-runtime-helper-form runtime-helper-index '$immutable-hamt-bucket-ref/kind)
-
          ,(core-runtime-helper-form runtime-helper-index '$immutable-hamt-bucket-ref-key/kind)
-
          ,(core-runtime-helper-form runtime-helper-index '$immutable-hamt-bucket-has-key?/kind)
-
          ,(core-runtime-helper-form runtime-helper-index '$immutable-hamt-key-matches?/kind)
-
          ,(core-runtime-helper-form runtime-helper-index '$immutable-hamt-packed-node-ref/kind)
-
          ,(core-runtime-helper-form runtime-helper-index '$immutable-hamt-packed-node-ref-key/kind)
-
          ,(core-runtime-helper-form runtime-helper-index '$immutable-hamt-packed-node-has-key?/kind)
-
          ,(core-runtime-helper-form runtime-helper-index '$immutable-hamt-packed-node-set/kind)
-
          ,(core-runtime-helper-form runtime-helper-index '$immutable-hamt-packed-bnode-collapse-if-single/kind)
-
          ,(core-runtime-helper-form runtime-helper-index '$immutable-hamt-packed-node-remove/kind)
-
          ,(core-runtime-helper-form runtime-helper-index '$immutable-hamt-node-ref/kind)
-
          ,(core-runtime-helper-form runtime-helper-index '$immutable-hamt-node-ref-key/kind)
-
          ,(core-runtime-helper-form runtime-helper-index '$immutable-hamt-node-has-key?/kind)
-
          ,(core-runtime-helper-form runtime-helper-index '$immutable-hamt-empty-node)
-
          ,(core-runtime-helper-form runtime-helper-index '$immutable-hamt-bnode-collapse-if-single)
-
          ,(core-runtime-helper-form runtime-helper-index '$immutable-hamt-bucket-length)
-
          ,(core-runtime-helper-form runtime-helper-index '$immutable-hamt-bucket-first-entry)
-
          ,(core-runtime-helper-form runtime-helper-index '$immutable-hamt-collapse-small-bucket)
-
          ,(core-runtime-helper-form runtime-helper-index '$immutable-hamt-entry-matches?/kind)
-
          ,(core-runtime-helper-form runtime-helper-index '$immutable-hamt-bucket-remove/kind)
-
          ,(core-runtime-helper-form runtime-helper-index '$immutable-hamt-cnode-ref/kind)
-
          ,(core-runtime-helper-form runtime-helper-index '$immutable-hamt-cnode-ref-key/kind)
-
          ,(core-runtime-helper-form runtime-helper-index '$immutable-hamt-cnode-has-key?/kind)
-
          ,(core-runtime-helper-form runtime-helper-index '$immutable-hamt-cnode-set/kind)
-
          ,(core-runtime-helper-form runtime-helper-index '$immutable-hamt-cnode-remove/kind)
-
          ,(core-runtime-helper-form runtime-helper-index '$immutable-hamt-bucket->cnode)
-
          ,(core-runtime-helper-form runtime-helper-index '$immutable-hamt-bucket->node/kind)
-
          ,(core-runtime-helper-form runtime-helper-index '$immutable-hamt-node-set/kind)
-
          ,(core-runtime-helper-form runtime-helper-index '$immutable-hamt-node-remove/kind)
-
          ,(core-runtime-helper-form runtime-helper-index '$immutable-hasheqv-ref)
-
          ,(core-runtime-helper-form runtime-helper-index '$immutable-hasheq-ref)
-
          ,(core-runtime-helper-form runtime-helper-index '$immutable-hasheqv-ref-key)
-
          ,(core-runtime-helper-form runtime-helper-index '$immutable-hasheq-ref-key)
-
          ,(core-runtime-helper-form runtime-helper-index '$immutable-hasheqv-has-key?)
-
          ,(core-runtime-helper-form runtime-helper-index '$immutable-hasheq-has-key?)
-
          ,(core-runtime-helper-form runtime-helper-index '$immutable-hash-bucket-has-key?)
-
          ,(core-runtime-helper-form runtime-helper-index '$immutable-hash-bucket-ref)
-
          ,(core-runtime-helper-form runtime-helper-index '$immutable-hash-bucket-ref-key)
-
          ,(core-runtime-helper-form runtime-helper-index '$immutable-hashalw-bucket-has-key?)
-
          ,(core-runtime-helper-form runtime-helper-index '$immutable-hashalw-bucket-ref)
-
          ,(core-runtime-helper-form runtime-helper-index '$immutable-hashalw-bucket-ref-key)
-
          ,(core-runtime-helper-form runtime-helper-index '$immutable-hash-ref)
-
          ,(core-runtime-helper-form runtime-helper-index '$immutable-hash-ref-key)
-
          ,(core-runtime-helper-form runtime-helper-index '$immutable-hash-has-key?)
-
          ,(core-runtime-helper-form runtime-helper-index '$immutable-hashalw-ref)
-
          ,(core-runtime-helper-form runtime-helper-index '$immutable-hashalw-ref-key)
-
          ,(core-runtime-helper-form runtime-helper-index '$immutable-hashalw-has-key?)
-
          ,(core-runtime-helper-form runtime-helper-index '$immutable-hasheqv-set)
-
          ,(core-runtime-helper-form runtime-helper-index '$raise-hasheqv-odd-arguments)
-
          ,(core-runtime-helper-form runtime-helper-index '$immutable-hasheq-set)
-
          ,(core-runtime-helper-form runtime-helper-index '$immutable-hash-set)
-
          ,(core-runtime-helper-form runtime-helper-index '$immutable-hashalw-set)
-
          ,(core-runtime-helper-form runtime-helper-index '$immutable-hasheqv-remove)
-
          ,(core-runtime-helper-form runtime-helper-index '$immutable-hasheq-remove)
-
          ,(core-runtime-helper-form runtime-helper-index '$immutable-hash-remove)
-
          ,(core-runtime-helper-form runtime-helper-index '$immutable-hashalw-remove)
-
          ,(core-runtime-helper-form runtime-helper-index '$hash)
-
          ,(core-runtime-helper-form runtime-helper-index '$hasheq)
-
          ,(core-runtime-helper-form runtime-helper-index '$hashalw)
-
          ,(core-runtime-helper-form runtime-helper-index '$hasheqv)
-
          ,(core-runtime-helper-form runtime-helper-index '$make-immutable-hash)
-
          ,(core-runtime-helper-form runtime-helper-index '$make-immutable-hashalw)
-
          ,(core-runtime-helper-form runtime-helper-index '$make-immutable-hasheq)
-
          ,(core-runtime-helper-form runtime-helper-index '$make-immutable-hasheqv)
-
          ,(core-runtime-helper-form runtime-helper-index '$make-weak-hash)
-
          ,(core-runtime-helper-form runtime-helper-index '$make-weak-hasheq)
-
          ,(core-runtime-helper-form runtime-helper-index '$make-ephemeron-hasheq)
-
          ,(core-runtime-helper-form runtime-helper-index '$make-ephemeron)
-
          ,(core-runtime-helper-form runtime-helper-index '$ephemeron?)
-
          ,(core-runtime-helper-form runtime-helper-index '$ephemeron-value)
-
          ,(core-runtime-helper-form runtime-helper-index '$make-weak-hasheqv)
-
          ,(core-runtime-helper-form runtime-helper-index '$make-weak-hashalw)
 
          ;; Source-linklet bootstrap helpers
@@ -5722,68 +5205,36 @@
          ;; Prefab struct registry helpers
          ;;   Implemented in runtime-wasm/core/structs.rkt.
          ,(core-runtime-helper-form runtime-helper-index '$initialize-prefab-struct-type-registry)
-
-
          ,(core-runtime-helper-form runtime-helper-index '$raise-hash-ref-key-not-found)
-
          ,(core-runtime-helper-form runtime-helper-index '$hash-ref)
-
          ,(core-runtime-helper-form runtime-helper-index '$hasheq-ref)
-
          ,(core-runtime-helper-form runtime-helper-index '$hasheqv-ref)
-
          ,(core-runtime-helper-form runtime-helper-index '$hashequal-ref)
-
          ,(core-runtime-helper-form runtime-helper-index '$hashalw-ref)
-
          ,(core-runtime-helper-form runtime-helper-index '$raise-argument-error:hasheq-expected)
-
          ,(core-runtime-helper-form runtime-helper-index '$raise-argument-error:hasheqv-expected)
-
          ,(core-runtime-helper-form runtime-helper-index '$raise-argument-error:hash-expected)
-
          ,(core-runtime-helper-form runtime-helper-index '$raise-argument-error:hashalw-expected)
-
          ,(core-runtime-helper-form runtime-helper-index '$hasheq-ref/plain)
-
          ,(core-runtime-helper-form runtime-helper-index '$hasheqv-ref/plain)
-
          ,(core-runtime-helper-form runtime-helper-index '$hashequal-ref/plain)
-
          ,(core-runtime-helper-form runtime-helper-index '$hashalw-ref/plain)
-
          ,(core-runtime-helper-form runtime-helper-index '$hasheq-ref/plain/checked)
-
          ,(core-runtime-helper-form runtime-helper-index '$hasheqv-ref/plain/checked)
-
          ,(core-runtime-helper-form runtime-helper-index '$hashequal-ref/plain/checked)
-
          ,(core-runtime-helper-form runtime-helper-index '$hashalw-ref/plain/checked)
-
          ,(core-runtime-helper-form runtime-helper-index '$hash-ref-key)
-
          ,(core-runtime-helper-form runtime-helper-index '$hasheq-ref-key)
-
          ,(core-runtime-helper-form runtime-helper-index '$hasheqv-ref-key)
-
          ,(core-runtime-helper-form runtime-helper-index '$hashequal-ref-key)
-
          ,(core-runtime-helper-form runtime-helper-index '$hashalw-ref-key)
-
          ,(core-runtime-helper-form runtime-helper-index '$hasheq-ref-key/plain)
-
          ,(core-runtime-helper-form runtime-helper-index '$hasheqv-ref-key/plain)
-
          ,(core-runtime-helper-form runtime-helper-index '$hashequal-ref-key/plain)
-
          ,(core-runtime-helper-form runtime-helper-index '$hashalw-ref-key/plain)
-
          ,(core-runtime-helper-form runtime-helper-index '$hasheq-ref-key/plain/checked)
-
          ,(core-runtime-helper-form runtime-helper-index '$hasheqv-ref-key/plain/checked)
-
          ,(core-runtime-helper-form runtime-helper-index '$hashequal-ref-key/plain/checked)
-
          ,(core-runtime-helper-form runtime-helper-index '$hashalw-ref-key/plain/checked)
 
          ;; Public immutable hash functional update wrappers
@@ -5793,106 +5244,54 @@
              (core-runtime-helper-form runtime-helper-index name))
 
          ,(core-runtime-helper-form runtime-helper-index '$hash-set!)
-
          ,(core-runtime-helper-form runtime-helper-index '$hash-copy)
-
-
          ,(core-runtime-helper-form runtime-helper-index '$hasheq-set!)
-
          ,(core-runtime-helper-form runtime-helper-index '$hasheqv-set!)
-
          ,(core-runtime-helper-form runtime-helper-index '$hashequal-set!)
-
          ,(core-runtime-helper-form runtime-helper-index '$hashalw-set!)
-
-
          ,(core-runtime-helper-form runtime-helper-index '$raise-argument-error:mutable-hasheq-expected)
-
          ,(core-runtime-helper-form runtime-helper-index '$raise-argument-error:mutable-hasheqv-expected)
-
          ,(core-runtime-helper-form runtime-helper-index '$raise-argument-error:mutable-hash-expected)
-
          ,(core-runtime-helper-form runtime-helper-index '$raise-argument-error:mutable-hashalw-expected)
-
          ,(core-runtime-helper-form runtime-helper-index '$raise-hash-insert:table-full)
-
          ,(core-runtime-helper-form runtime-helper-index '$hash-kind/i32)
-
          ,(core-runtime-helper-form runtime-helper-index '$hash-mutable?/i32)
-
          ,(core-runtime-helper-form runtime-helper-index '$hash-key-hash/kind)
-
          ,(core-runtime-helper-form runtime-helper-index '$hash-key-matches?/kind)
-
-
          ,(core-runtime-helper-form runtime-helper-index '$hasheq-set!/mutable/checked)
-
          ,(core-runtime-helper-form runtime-helper-index '$hasheqv-set!/mutable/checked)
-
          ,(core-runtime-helper-form runtime-helper-index '$hash-set!/mutable/checked)
-
          ,(core-runtime-helper-form runtime-helper-index '$hashalw-set!/mutable/checked)
-
-
          ,(core-runtime-helper-form runtime-helper-index '$hash-ref!)
-
          ,(core-runtime-helper-form runtime-helper-index '$hasheq-ref!)
-
          ,(core-runtime-helper-form runtime-helper-index '$hasheqv-ref!)
-
          ,(core-runtime-helper-form runtime-helper-index '$hashequal-ref!)
-
          ,(core-runtime-helper-form runtime-helper-index '$hashalw-ref!)
-
          ,(core-runtime-helper-form runtime-helper-index '$hasheq-ref!/plain)
-
          ,(core-runtime-helper-form runtime-helper-index '$hasheqv-ref!/plain)
-
          ,(core-runtime-helper-form runtime-helper-index '$hashequal-ref!/plain)
-
          ,(core-runtime-helper-form runtime-helper-index '$hashalw-ref!/plain)
-
          ,(core-runtime-helper-form runtime-helper-index '$hasheq-ref!/plain/checked)
-
          ,(core-runtime-helper-form runtime-helper-index '$hasheqv-ref!/plain/checked)
-
          ,(core-runtime-helper-form runtime-helper-index '$hashequal-ref!/plain/checked)
-
          ,(core-runtime-helper-form runtime-helper-index '$hashalw-ref!/plain/checked)
 
          ;; hash-update : immutable-hash? any/c (any/c -> any/c) [any/c or (-> any/c)] -> immutable-hash?
          ;;   Implemented in runtime-wasm/core/immutable-hashes.rkt.
          ,(core-runtime-helper-form runtime-helper-index '$hash-update)
-
-
          ,(core-runtime-helper-form runtime-helper-index '$hash-update!)
-
          ,(core-runtime-helper-form runtime-helper-index '$hasheq-update!)
-
          ,(core-runtime-helper-form runtime-helper-index '$hasheqv-update!)
-
          ,(core-runtime-helper-form runtime-helper-index '$hashequal-update!)
-
          ,(core-runtime-helper-form runtime-helper-index '$hashalw-update!)
-
          ,(core-runtime-helper-form runtime-helper-index '$hasheq-update!/plain)
-
          ,(core-runtime-helper-form runtime-helper-index '$hasheqv-update!/plain)
-
          ,(core-runtime-helper-form runtime-helper-index '$hashequal-update!/plain)
-
          ,(core-runtime-helper-form runtime-helper-index '$hashalw-update!/plain)
-
          ,(core-runtime-helper-form runtime-helper-index '$hasheq-update!/plain/checked)
-
          ,(core-runtime-helper-form runtime-helper-index '$hasheqv-update!/plain/checked)
-
          ,(core-runtime-helper-form runtime-helper-index '$hashequal-update!/plain/checked)
-
          ,(core-runtime-helper-form runtime-helper-index '$hashalw-update!/plain/checked)
-
-
-
          ,(core-runtime-helper-form runtime-helper-index '$raise-argument-error:hasheq-mutable-expected)
 
          ;; (func $hash-remove! (type $Prim2)
@@ -5975,192 +5374,94 @@
 
 
          ,(core-runtime-helper-form runtime-helper-index '$hash-remove!)
-
          ,(core-runtime-helper-form runtime-helper-index '$hasheq-remove!)
-
          ,(core-runtime-helper-form runtime-helper-index '$hasheqv-remove!)
-
          ,(core-runtime-helper-form runtime-helper-index '$hashequal-remove!)
-
          ,(core-runtime-helper-form runtime-helper-index '$hashalw-remove!)
-
          ,(core-runtime-helper-form runtime-helper-index '$hasheq-remove!/mutable/checked)
-
          ,(core-runtime-helper-form runtime-helper-index '$hasheqv-remove!/mutable/checked)
-
          ,(core-runtime-helper-form runtime-helper-index '$hash-remove!/mutable/checked)
-
          ,(core-runtime-helper-form runtime-helper-index '$hashalw-remove!/mutable/checked)
-
-
-
          ,(core-runtime-helper-form runtime-helper-index '$hasheq-resize)
-
          ,(core-runtime-helper-form runtime-helper-index '$hasheqv-resize)
-
          ,(core-runtime-helper-form runtime-helper-index '$hashequal-resize)
-
          ,(core-runtime-helper-form runtime-helper-index '$hashalw-resize)
-
          ,(core-runtime-helper-form runtime-helper-index '$maybe-resize-hasheq)
-
          ,(core-runtime-helper-form runtime-helper-index '$maybe-resize-hasheqv)
-
          ,(core-runtime-helper-form runtime-helper-index '$maybe-resize-hashequal)
-
          ,(core-runtime-helper-form runtime-helper-index '$maybe-resize-hashalw)
-
-
          ,(core-runtime-helper-form runtime-helper-index '$hash-has-key?)
-
          ,(core-runtime-helper-form runtime-helper-index '$hash-keys-subset?)
-
-
          ,(core-runtime-helper-form runtime-helper-index '$hasheq-has-key?)
-
          ,(core-runtime-helper-form runtime-helper-index '$hasheqv-has-key?)
-
          ,(core-runtime-helper-form runtime-helper-index '$hashequal-has-key?)
-
          ,(core-runtime-helper-form runtime-helper-index '$hashalw-has-key?)
-
-
          ,(core-runtime-helper-form runtime-helper-index '$hasheq-has-key?/plain)
-
          ,(core-runtime-helper-form runtime-helper-index '$hasheqv-has-key?/plain)
-
          ,(core-runtime-helper-form runtime-helper-index '$hashequal-has-key?/plain)
-
          ,(core-runtime-helper-form runtime-helper-index '$hashalw-has-key?/plain)
-
          ,(core-runtime-helper-form runtime-helper-index '$hasheq-has-key?/plain/checked)
-
          ,(core-runtime-helper-form runtime-helper-index '$hasheqv-has-key?/plain/checked)
-
          ,(core-runtime-helper-form runtime-helper-index '$hashequal-has-key?/plain/checked)
-
          ,(core-runtime-helper-form runtime-helper-index '$hashalw-has-key?/plain/checked)
-
-
-
-
          ,(core-runtime-helper-form runtime-helper-index '$hash-clear!)
-
          ,(core-runtime-helper-form runtime-helper-index '$hasheq-clear!)
-
          ,(core-runtime-helper-form runtime-helper-index '$hasheqv-clear!)
-
          ,(core-runtime-helper-form runtime-helper-index '$hashequal-clear!)
-
          ,(core-runtime-helper-form runtime-helper-index '$hashalw-clear!)
-
          ,(core-runtime-helper-form runtime-helper-index '$hasheq-clear!/mutable/checked)
-
          ,(core-runtime-helper-form runtime-helper-index '$hasheqv-clear!/mutable/checked)
-
          ,(core-runtime-helper-form runtime-helper-index '$hash-clear!/mutable/checked)
-
          ,(core-runtime-helper-form runtime-helper-index '$hashalw-clear!/mutable/checked)
 
          ;; hash-clear : immutable-hash? -> immutable-hash?
          ;;   Implemented in runtime-wasm/core/immutable-hashes.rkt.
          ,(core-runtime-helper-form runtime-helper-index '$hash-clear)
-
-
-
          ,(core-runtime-helper-form runtime-helper-index '$hash-empty?)
-
-
          ,(core-runtime-helper-form runtime-helper-index '$hasheq-empty?)
-
          ,(core-runtime-helper-form runtime-helper-index '$hasheqv-empty?)
-
          ,(core-runtime-helper-form runtime-helper-index '$hashequal-empty?)
-
          ,(core-runtime-helper-form runtime-helper-index '$hashalw-empty?)
-
          ,(core-runtime-helper-form runtime-helper-index '$hasheq-empty?/mutable/checked)
-
          ,(core-runtime-helper-form runtime-helper-index '$hasheqv-empty?/mutable/checked)
-
          ,(core-runtime-helper-form runtime-helper-index '$hash-empty?/mutable/checked)
-
          ,(core-runtime-helper-form runtime-helper-index '$hashalw-empty?/mutable/checked)
-
          ,(core-runtime-helper-form runtime-helper-index '$raise-mutable-hash-iterate-bad-index)
-
          ,(core-runtime-helper-form runtime-helper-index '$hash-iterate-first)
-
          ,(core-runtime-helper-form runtime-helper-index '$hash-iterate-next)
-
          ,(core-runtime-helper-form runtime-helper-index '$hash-iterate-key)
-
          ,(core-runtime-helper-form runtime-helper-index '$hash-iterate-value)
-
          ,(core-runtime-helper-form runtime-helper-index '$hash-iterate-pair)
-
          ,(core-runtime-helper-form runtime-helper-index '$hash-iterate-key+value)
-
-
          ,(core-runtime-helper-form runtime-helper-index '$mutable-hash-iterate-first)
-
          ,(core-runtime-helper-form runtime-helper-index '$hasheq-iterate-first)
-
          ,(core-runtime-helper-form runtime-helper-index '$hasheqv-iterate-first)
-
          ,(core-runtime-helper-form runtime-helper-index '$hashequal-iterate-first)
-
          ,(core-runtime-helper-form runtime-helper-index '$hashalw-iterate-first)
-
          ,(core-runtime-helper-form runtime-helper-index '$mutable-hash-iterate-next)
-
          ,(core-runtime-helper-form runtime-helper-index '$hasheq-iterate-next)
-
          ,(core-runtime-helper-form runtime-helper-index '$hasheqv-iterate-next)
-
          ,(core-runtime-helper-form runtime-helper-index '$hashequal-iterate-next)
-
          ,(core-runtime-helper-form runtime-helper-index '$hashalw-iterate-next)
-
-
          ,(core-runtime-helper-form runtime-helper-index '$mutable-hash-iterate-key)
-
          ,(core-runtime-helper-form runtime-helper-index '$mutable-hash-iterate-value)
-
          ,(core-runtime-helper-form runtime-helper-index '$mutable-hash-iterate-pair)
-
          ,(core-runtime-helper-form runtime-helper-index '$mutable-hash-iterate-key+value)
-
          ,(core-runtime-helper-form runtime-helper-index '$hasheq-iterate-key)
-
          ,(core-runtime-helper-form runtime-helper-index '$hasheqv-iterate-key)
-
          ,(core-runtime-helper-form runtime-helper-index '$hashequal-iterate-key)
-
          ,(core-runtime-helper-form runtime-helper-index '$hashalw-iterate-key)
-
          ,(core-runtime-helper-form runtime-helper-index '$hasheq-iterate-value)
-
          ,(core-runtime-helper-form runtime-helper-index '$hasheqv-iterate-value)
-
          ,(core-runtime-helper-form runtime-helper-index '$hashequal-iterate-value)
-
          ,(core-runtime-helper-form runtime-helper-index '$hashalw-iterate-value)
-
          ,(core-runtime-helper-form runtime-helper-index '$hasheq-iterate-pair)
-
          ,(core-runtime-helper-form runtime-helper-index '$hasheqv-iterate-pair)
-
          ,(core-runtime-helper-form runtime-helper-index '$hashequal-iterate-pair)
-
          ,(core-runtime-helper-form runtime-helper-index '$hashalw-iterate-pair)
-
          ,(core-runtime-helper-form runtime-helper-index '$hasheq-iterate-key+value)
-
          ,(core-runtime-helper-form runtime-helper-index '$hasheqv-iterate-key+value)
-
          ,(core-runtime-helper-form runtime-helper-index '$hashequal-iterate-key+value)
-
          ,(core-runtime-helper-form runtime-helper-index '$hashalw-iterate-key+value)
 
         ;; unsafe-immutable-hash-iterate-* : immutable hash iteration
@@ -7177,7 +6478,7 @@
                ,@reader-printer-policy-parameter-global-forms
                ,@compile-parameter-global-forms
                ,@parameterization-global-forms
-               (global $current-namespace-value (mut (ref eq)) (global.get $false))
+               ,@namespace-current-global-forms
                ,@random-current-global-forms
                ,@thread-group-current-global-forms
                ,@error-rendering-handler-global-forms
@@ -7330,10 +6631,7 @@
                          `(global.set ,$name (call ,$ensure)))
 
                      ;; Initialize the top-level namespace
-                     (global.set $top-level-namespace
-                                 (ref.cast (ref $Namespace) (call $make-empty-namespace)))
-                     (global.set $current-namespace-value
-                                 (ref.cast (ref eq) (global.get $top-level-namespace)))
+                     ,@namespace-initializer-forms
 
 
                      ; Initialize local variables
