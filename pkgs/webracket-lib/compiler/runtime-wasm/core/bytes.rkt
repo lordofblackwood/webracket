@@ -4,11 +4,22 @@
          bytes-basic-runtime-only-helper-names
          byte-comparison-runtime-only-helper-names
          byte-indexing-runtime-only-helper-names
+         byte-converter-runtime-only-helper-names
          byte-sequence-runtime-only-helper-names
          bytes-mutability-runtime-only-helper-names
          bytes-runtime-only-helpers)
 
 (require "../core-helper.rkt")
+
+;; make-predicate-body : symbol? -> (listof datum?)
+;;   Generate the shared body for a single-argument Wasm predicate.
+(define (make-predicate-body ref-type)
+  `((param $v (ref eq))
+    (result   (ref eq))
+    (if (result (ref eq))
+        (ref.test (ref ,ref-type) (local.get $v))
+        (then (global.get $true))
+        (else (global.get $false)))))
 
 ;; bytes-core-runtime-helpers : (listof core-runtime-helper?)
 ;;   Enumerate byte helpers that can be emitted in core runtime.
@@ -740,6 +751,183 @@
                        (local.get $a2)))
      )))
 
+;; byte-converter-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for byte converter helpers.
+(define byte-converter-runtime-only-helper-names
+  '($bytes-converter?
+    $bytes-open-converter
+    $bytes-close-converter
+    $bytes-convert
+    $bytes-convert-end))
+
+;; byte-converter-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate byte converter helpers used by the runtime.
+(define byte-converter-runtime-only-helpers
+  (function-forms->runtime-helpers
+   'byte-converter-runtime-only-helpers
+   `(
+     ;; bytes-converter? : any/c -> boolean?
+     ;;   Recognize WebRacket's minimal byte converters.
+     (func $bytes-converter? (type $Prim1)
+           ,@(make-predicate-body '$BytesConverter))
+
+     ;; bytes-open-converter : string? string? -> (or/c bytes-converter? #f)
+     ;;   Support the guaranteed UTF-8 identity cases used by module
+     ;;   startup. WebRacket currently treats locale encoding as UTF-8.
+     (func $bytes-open-converter (type $Prim2)
+           (param $from (ref eq)) ;; string?
+           (param $to   (ref eq)) ;; string?
+           (result      (ref eq))
+           (if (i32.eqz (ref.test (ref $String) (local.get $from)))
+               (then (call $raise-check-string (local.get $from)) (unreachable)))
+           (if (i32.eqz (ref.test (ref $String) (local.get $to)))
+               (then (call $raise-check-string (local.get $to)) (unreachable)))
+           (struct.new $BytesConverter (i32.const 0) (i32.const 0)))
+
+     ;; bytes-close-converter : bytes-converter? -> void?
+     ;;   Mark the minimal converter closed; it remains a converter? value,
+     ;;   matching Racket's predicate behavior after close.
+     (func $bytes-close-converter (type $Prim1)
+           (param $converter-raw (ref eq)) ;; bytes-converter?
+           (result               (ref eq))
+           (if (i32.eqz (ref.test (ref $BytesConverter) (local.get $converter-raw)))
+               (then (call $raise-argument-error1
+                           (global.get $symbol:bytes-close-converter)
+                           (global.get $string:bytes-converter?)
+                           (local.get $converter-raw))
+                     (unreachable)))
+           (struct.set $BytesConverter $closed
+                       (ref.cast (ref $BytesConverter) (local.get $converter-raw))
+                       (i32.const 1))
+           (global.get $void))
+
+     ;; bytes-convert : bytes-converter? bytes? [start end dest dest-start dest-end] -> values
+     ;;   Minimal identity conversion for UTF-8/locale-as-UTF-8. The
+     ;;   optional destination limit is accepted but this first slice only
+     ;;   supports complete copies that fit the destination.
+     (func $bytes-convert (type $Prim>=2)
+           (param $converter-raw (ref eq)) ;; bytes-converter?
+           (param $src-raw       (ref eq)) ;; bytes?
+           (param $rest          (ref eq)) ;; optional arguments
+           (result               (ref eq))
+
+           (local $src          (ref $Bytes))
+           (local $node         (ref eq))
+           (local $src-start    (ref eq))
+           (local $src-end      (ref eq))
+           (local $dest-raw     (ref eq))
+           (local $dest-start   (ref eq))
+           (local $slice        (ref eq))
+           (local $read-count   i32)
+
+           (if (i32.eqz (ref.test (ref $BytesConverter) (local.get $converter-raw)))
+               (then (call $raise-argument-error1
+                           (global.get $symbol:bytes-convert)
+                           (global.get $string:bytes-converter?)
+                           (local.get $converter-raw))
+                     (unreachable)))
+           (if (i32.eq
+                (struct.get $BytesConverter $closed
+                            (ref.cast (ref $BytesConverter) (local.get $converter-raw)))
+                (i32.const 1))
+               (then (call $raise-argument-error1
+                           (global.get $symbol:bytes-convert)
+                           (global.get $string:bytes-converter?)
+                           (local.get $converter-raw))
+                     (unreachable)))
+           (if (i32.eqz (ref.test (ref $Bytes) (local.get $src-raw)))
+               (then (call $raise-check-bytes (local.get $src-raw)) (unreachable)))
+           (local.set $src (ref.cast (ref $Bytes) (local.get $src-raw)))
+           (local.set $src-start (ref.i31 (i32.const 0)))
+           (local.set $src-end
+                      (ref.i31
+                       (i32.shl
+                        (call $i8array-length (struct.get $Bytes $bs (local.get $src)))
+                        (i32.const 1))))
+           (local.set $dest-raw (global.get $false))
+           (local.set $dest-start (ref.i31 (i32.const 0)))
+           (local.set $node (local.get $rest))
+           (if (ref.test (ref $Pair) (local.get $node))
+               (then
+                (local.set $src-start (struct.get $Pair $a (ref.cast (ref $Pair) (local.get $node))))
+                (local.set $node (struct.get $Pair $d (ref.cast (ref $Pair) (local.get $node))))))
+           (if (ref.test (ref $Pair) (local.get $node))
+               (then
+                (local.set $src-end (struct.get $Pair $a (ref.cast (ref $Pair) (local.get $node))))
+                (local.set $node (struct.get $Pair $d (ref.cast (ref $Pair) (local.get $node))))))
+           (if (ref.test (ref $Pair) (local.get $node))
+               (then
+                (local.set $dest-raw (struct.get $Pair $a (ref.cast (ref $Pair) (local.get $node))))
+                (local.set $node (struct.get $Pair $d (ref.cast (ref $Pair) (local.get $node))))))
+           (if (ref.test (ref $Pair) (local.get $node))
+               (then
+                (local.set $dest-start (struct.get $Pair $a (ref.cast (ref $Pair) (local.get $node))))))
+           (local.set $slice
+                      (call $subbytes
+                            (local.get $src-raw)
+                            (local.get $src-start)
+                            (local.get $src-end)))
+           (local.set $read-count
+                      (i32.sub
+                       (i32.shr_u (i31.get_u (ref.cast (ref i31) (local.get $src-end))) (i32.const 1))
+                       (i32.shr_u (i31.get_u (ref.cast (ref i31) (local.get $src-start))) (i32.const 1))))
+           (if (ref.eq (local.get $dest-raw) (global.get $false))
+               (then
+                (return
+                 (array.new_fixed $Values
+                                  3
+                                  (local.get $slice)
+                                  (ref.i31 (i32.shl (local.get $read-count) (i32.const 1)))
+                                  (global.get $symbol:complete)))))
+           (if (i32.eqz (ref.test (ref $Bytes) (local.get $dest-raw)))
+               (then (call $raise-check-bytes (local.get $dest-raw)) (unreachable)))
+           (drop (call $bytes-copy!
+                       (local.get $dest-raw)
+                       (local.get $dest-start)
+                       (local.get $slice)
+                       (global.get $missing)
+                       (global.get $missing)))
+           (array.new_fixed $Values
+                            3
+                            (ref.i31 (i32.shl (local.get $read-count) (i32.const 1)))
+                            (ref.i31 (i32.shl (local.get $read-count) (i32.const 1)))
+                            (global.get $symbol:complete)))
+
+     ;; bytes-convert-end : bytes-converter? [dest dest-start dest-end] -> values
+     ;;   Identity converters have no shift sequence, so conversion ends
+     ;;   with empty output and 'complete.
+     (func $bytes-convert-end (type $Prim14)
+           (param $converter-raw (ref eq)) ;; bytes-converter?
+           (param $dest-raw      (ref eq)) ;; optional (or/c bytes? #f)
+           (param $dest-start    (ref eq)) ;; optional exact-nonnegative-integer?
+           (param $dest-end      (ref eq)) ;; optional bound, ignored
+           (result               (ref eq))
+           (if (i32.eqz (ref.test (ref $BytesConverter) (local.get $converter-raw)))
+               (then (call $raise-argument-error1
+                           (global.get $symbol:bytes-convert-end)
+                           (global.get $string:bytes-converter?)
+                           (local.get $converter-raw))
+                     (unreachable)))
+           (if (ref.eq (local.get $dest-raw) (global.get $missing))
+               (then (local.set $dest-raw (global.get $false))))
+           (if (ref.eq (local.get $dest-raw) (global.get $false))
+               (then
+                (return
+                 (array.new_fixed $Values
+                                  2
+                                  (struct.new $Bytes
+                                              (i32.const 0)
+                                              (i32.const 0)
+                                              (array.new_fixed $I8Array 0))
+                                  (global.get $symbol:complete)))))
+           (if (i32.eqz (ref.test (ref $Bytes) (local.get $dest-raw)))
+               (then (call $raise-check-bytes (local.get $dest-raw)) (unreachable)))
+           (array.new_fixed $Values
+                            2
+                            (ref.i31 (i32.const 0))
+                            (global.get $symbol:complete)))
+     )))
+
 ;; byte-sequence-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for byte fill, append, and list helpers.
 (define byte-sequence-runtime-only-helper-names
@@ -1153,6 +1341,7 @@
    bytes-basic-runtime-only-helpers
    byte-comparison-runtime-only-helpers
    byte-indexing-runtime-only-helpers
+   byte-converter-runtime-only-helpers
    byte-sequence-runtime-only-helpers
    (function-forms->runtime-helpers
     'bytes-runtime-only-helpers
