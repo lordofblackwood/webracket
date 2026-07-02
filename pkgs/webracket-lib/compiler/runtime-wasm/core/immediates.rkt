@@ -4,6 +4,7 @@
          immediate-ref
          false-ref
          true-ref
+         singleton-global-forms
          void-runtime-only-helper-names
          eof-object-runtime-only-helper-names
          immediate-runtime-only-helpers)
@@ -28,6 +29,25 @@
 ;; true-ref : datum?
 ;;   Return the WebRacket true immediate expression.
 (define true-ref (immediate-ref #t))
+
+;; singleton-global-forms : (listof datum?)
+;;   Declare globals for singleton and internal immediate values.
+(define singleton-global-forms
+  `(
+         ;;;
+         ;;; Singletons
+         ;;;
+
+         (global $null              (ref eq) ,(immediate-ref '()))
+         (global $undefined         (ref eq) ,(immediate-ref (undefined)))         ;  79
+         (global $unsafe-undefined  (ref eq) ,(immediate-ref (unsafe-undefined)))  ; 335
+         (global $void              (ref eq) ,(immediate-ref (void)))
+         (global $false             (ref eq) ,false-ref)  ; (ref.i31 (i32.const ?))
+         (global $true              (ref eq) ,true-ref)
+         (global $eof               (ref eq) ,(immediate-ref eof))
+         (global $error             (ref eq) ,(i31-ref 77))
+         (global $missing           (ref eq) ,(i31-ref missing-value))   ; #x7fffffff
+         (global $tombstone         (ref eq) ,(i31-ref tombstone-value)))) ; #x3fffffff"
 
 ;; void-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for void helpers.

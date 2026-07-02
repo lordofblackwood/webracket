@@ -88,6 +88,7 @@
                   fixnum-arithmetic-runtime-only-helper-names
                   fixnum-comparison-runtime-only-helper-names
                   fixnum-conversion-runtime-only-helper-names
+                  fixnum-global-forms
                   fixnum-minmax-runtime-only-helper-names
                   fixnum-predicate-runtime-only-helper-names
                   fixnum-runtime-only-helpers)
@@ -134,6 +135,7 @@
                   i8-array-conversion-runtime-only-helper-names
                   i8-array-runtime-only-helpers)
          (only-in "runtime-wasm/core/immediates.rkt"
+                  singleton-global-forms
                   void-runtime-only-helper-names
                   eof-object-runtime-only-helper-names
                   immediate-runtime-only-helpers)
@@ -3440,26 +3442,9 @@
          ,@(for/list ([name (in-list unquoted-printing-string-runtime-only-helper-names)])
              (core-runtime-helper-form runtime-helper-index name))
 
-        ;;;
-        ;;; Singletons
-        ;;;
+         ,@singleton-global-forms
 
-         (global $null              (ref eq) ,(Imm '()))
-         (global $undefined         (ref eq) ,(Imm (undefined)))         ;  79
-         (global $unsafe-undefined  (ref eq) ,(Imm (unsafe-undefined)))  ; 335
-         (global $void              (ref eq) ,(Imm (void)))
-         (global $false             (ref eq) ,(Imm #f))  ; (ref.i31 (i32.const ?))
-         (global $true              (ref eq) ,(Imm #t))
-         (global $eof               (ref eq) ,(Imm eof))
-         (global $error             (ref eq) ,(R 77))
-         (global $missing           (ref eq) ,(R missing-value))   ; #x7fffffff
-         (global $tombstone         (ref eq) ,(R tombstone-value)) ; #x3fffffff"
-
-         ;; Commonly used fixnums
-         (global $zero  (ref eq) ,(Imm 0))
-         (global $one   (ref eq) ,(Imm 1))
-         (global $two   (ref eq) ,(Imm 2))
-         (global $three (ref eq) ,(Imm 3))
+         ,@fixnum-global-forms
 
          ,@flonum-global-forms
 

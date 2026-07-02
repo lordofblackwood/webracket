@@ -1,6 +1,7 @@
 #lang racket
 
 (provide fixnum-core-runtime-helpers
+         fixnum-global-forms
          fixnum-arithmetic-runtime-only-helper-names
          fixnum-comparison-runtime-only-helper-names
          fixnum-conversion-runtime-only-helper-names
@@ -11,6 +12,16 @@
 (require "../core-helper.rkt"
          "../../private/immediates.rkt"
          "../../private/wasm-utils.rkt")
+
+;; fixnum-global-forms : (listof datum?)
+;;   Declare globals for commonly used fixnums.
+(define fixnum-global-forms
+  `(
+         ;; Commonly used fixnums
+         (global $zero  (ref eq) ,(Imm 0))
+         (global $one   (ref eq) ,(Imm 1))
+         (global $two   (ref eq) ,(Imm 2))
+         (global $three (ref eq) ,(Imm 3))))
 
 ;; local-fixnum-bits-s : symbol? -> datum?
 ;;   Return WAT that reads the signed tagged fixnum bits from local-name.
