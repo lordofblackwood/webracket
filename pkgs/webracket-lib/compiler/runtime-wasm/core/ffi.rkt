@@ -1,6 +1,8 @@
 #lang racket
 
 (provide external-value-runtime-only-helper-names
+         ffi-callback-global-forms
+         ffi-entry-global-forms
          ffi-runtime-only-helpers
          ffi-runtime-only-helper-names
          ffi-runtime-only-helper-forms
@@ -23,6 +25,39 @@
 ;;   Return the Wasm global name for a console bridge binding symbol.
 (define (console-bridge-symbol-global const-name)
   ($ (string->symbol (~a "symbol:" const-name))))
+
+;; ffi-callback-global-forms : (listof datum?)
+;;   Declare callback bridge globals used by FFI helpers.
+(define ffi-callback-global-forms
+  '(
+         ;; Callback registry
+         (global $callback-registry (ref $GrowableArray)
+                 (struct.new $GrowableArray
+                             (array.new $Array (global.get $false) (i32.const 4))
+                             (i32.const 4)
+                             (i32.const 0)))))
+
+;; ffi-entry-global-forms : (listof datum?)
+;;   Declare entry result and probe-only FFI debug globals.
+(define ffi-entry-global-forms
+  '(
+               (global $result-bytes             (mut (ref eq)) (ref.i31 (i32.const 0)))
+               (global $debug-allocation-budget        (mut i32)      (i32.const 0))
+               (global $debug-allocation-pairs         (mut i32)      (i32.const 0))
+               (global $debug-allocation-vectors       (mut i32)      (i32.const 0))
+               (global $debug-allocation-structs       (mut i32)      (i32.const 0))
+               (global $debug-allocation-hash-sets     (mut i32)      (i32.const 0))
+               (global $debug-allocation-closures      (mut i32)      (i32.const 0))
+               (global $debug-allocation-arg-arrays    (mut i32)      (i32.const 0))
+               (global $debug-allocation-strings       (mut i32)      (i32.const 0))
+               (global $debug-allocation-bytes         (mut i32)      (i32.const 0))
+               (global $debug-allocation-value-arrays  (mut i32)      (i32.const 0))
+               (global $debug-allocation-free-arrays   (mut i32)      (i32.const 0))
+               (global $debug-invoke-budget            (mut i32)      (i32.const 0))
+               (global $debug-invocations              (mut i32)      (i32.const 0))
+               (global $debug-label102683-count        (mut i32)      (i32.const 0))
+               (global $debug-current-procedure        (mut (ref eq)) (global.get $false))
+               (global $debug-current-procedure-name   (mut (ref eq)) (global.get $false))))
 
 ;; ffi-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for FFI, callback, and browser bridge helpers.
