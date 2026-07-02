@@ -4,6 +4,8 @@
          linklet-bootstrap-runtime-only-helpers
          linklet-interpreter-runtime-only-helper-names
          linklet-interpreter-runtime-only-helpers
+         linklet-primitive-table-initializer-runtime-only-helper-names
+         linklet-primitive-table-initializer-runtime-only-helpers
          linklet-primitive-table-runtime-only-helper-forms
          linklet-runtime-only-helper-names
          linklet-runtime-only-helper-forms)
@@ -54,6 +56,11 @@
     $linklet-define-values!
     $linklet-eval-expr
     $interpreted-linklet-code))
+
+;; linklet-primitive-table-initializer-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for primitive-table initializer helpers.
+(define linklet-primitive-table-initializer-runtime-only-helper-names
+  '($initialize-primitive-table-user-installed))
 
 ;; linklet-bootstrap-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate source-linklet bootstrap and placeholder helpers.
@@ -808,6 +815,20 @@
                      (local.get $importss)
                      (local.get $args)
                      (local.get $forms)))
+     )))
+
+;; linklet-primitive-table-initializer-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate primitive-table initializer helpers used by the monolithic runtime.
+(define linklet-primitive-table-initializer-runtime-only-helpers
+  (function-forms->runtime-helpers
+   'linklet-primitive-table-initializer-runtime-only-helpers
+   '(
+         (func $initialize-primitive-table-user-installed
+               (if (ref.is_null (global.get $primitive-table-user-installed))
+                   (then
+                    (global.set $primitive-table-user-installed
+                                (ref.cast (ref $HashEqMutable)
+                                          (call $make-empty-hasheq))))))
      )))
 
 ;; linklet-primitive-table-runtime-only-helper-forms : (listof symbol?) (listof symbol?) -> (listof datum?)

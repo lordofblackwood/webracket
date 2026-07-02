@@ -142,6 +142,8 @@
                   linklet-bootstrap-runtime-only-helpers
                   linklet-interpreter-runtime-only-helper-names
                   linklet-interpreter-runtime-only-helpers
+                  linklet-primitive-table-initializer-runtime-only-helper-names
+                  linklet-primitive-table-initializer-runtime-only-helpers
                   linklet-primitive-table-runtime-only-helper-forms
                   linklet-runtime-only-helper-forms)
          (only-in "runtime-wasm/core/locations.rkt"
@@ -441,6 +443,7 @@
            list-runtime-only-helpers
            linklet-bootstrap-runtime-only-helpers
            linklet-interpreter-runtime-only-helpers
+           linklet-primitive-table-initializer-runtime-only-helpers
            linklet-instance-runtime-only-helpers
            location-runtime-only-helpers
            lock-runtime-only-helpers
@@ -4490,12 +4493,9 @@
          ,@(for/list ([name (in-list keyword-table-initializer-runtime-only-helper-names)])
              (core-runtime-helper-form runtime-helper-index name))
 
-         (func $initialize-primitive-table-user-installed
-               (if (ref.is_null (global.get $primitive-table-user-installed))
-                   (then
-                    (global.set $primitive-table-user-installed
-                                (ref.cast (ref $HashEqMutable)
-                                          (call $make-empty-hasheq))))))
+         ;;   Primitive table initializer is implemented in runtime-wasm/core/linklets.rkt.
+         ,@(for/list ([name (in-list linklet-primitive-table-initializer-runtime-only-helper-names)])
+             (core-runtime-helper-form runtime-helper-index name))
 
          (func $initialize-unsafe-ffi-primitive-table
                (if (ref.is_null (global.get $unsafe-ffi-primitive-table))
