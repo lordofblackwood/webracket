@@ -53,6 +53,7 @@
                   filesystem-runtime-only-helpers
                   filesystem-runtime-only-helper-names)
          (only-in "runtime-wasm/core/fixnums.rkt"
+                  fixnum-comparison-runtime-only-helper-names
                   fixnum-minmax-runtime-only-helper-names
                   fixnum-runtime-only-helpers)
          (only-in "runtime-wasm/core/flonums.rkt"
@@ -7024,59 +7025,9 @@
 
          ,(core-runtime-helper-form core-runtime-helper-index '$fxrshift/logical)
 
-         (func $most-positive-fixnum (type $Prim0) (result (ref eq))
-               ,(Imm most-positive-fixnum))
-
-         (func $most-negative-fixnum (type $Prim0) (result (ref eq))
-               ,(Imm most-negative-fixnum))
-
-         (func $fx=/2 (type $Prim2) (param $v1 (ref eq)) (param $v2 (ref eq)) (result (ref eq))
-               (if (result (ref eq))
-                   (ref.eq (call $fixnum? (local.get $v1))
-                           (global.get $true))
-                   (then (return_call $eq? (local.get $v1) (local.get $v2)))
-                   (else (global.get $false))))
-
-         ,@(for/list ([$fx-cmp '($fx</2   $fx>/2   $fx<=/2  $fx>=/2)]
-                      [inst    '(i32.lt_s i32.gt_s i32.le_s i32.ge_s)])
-             `(func ,$fx-cmp
-                    (param $x (ref eq))
-                    (param $y (ref eq))
-                    (result   (ref eq))
-                    ; type check
-                    (if (i32.eqz (ref.test (ref i31) (local.get $x)))
-                        (then (call $raise-check-fixnum (local.get $x)) (unreachable)))
-                    (if (i32.eqz (ref.test (ref i31) (local.get $y)))
-                        (then (call $raise-check-fixnum (local.get $y)) (unreachable)))
-                    ; compare
-                    (if (result (ref eq))
-                        (,inst (i31.get_s (ref.cast (ref i31) (local.get $x)))
-                               (i31.get_s (ref.cast (ref i31) (local.get $y))))
-                        (then (global.get $true))
-                        (else (global.get $false)))))
-
-         ,@(for/list ([$cmp   (in-list '($fx=   $fx<   $fx>   $fx<=   $fx>=))]
-                      [$cmp/2 (in-list '($fx=/2 $fx</2 $fx>/2 $fx<=/2 $fx>=/2))])
-             `(func ,$cmp (param $x0 (ref eq)) (param $xs (ref eq)) (result (ref eq))
-                    (local $node (ref $Pair))
-                    (local $fx   (ref eq))
-                    ;; Validate the first argument
-                    (if (i32.eqz (ref.test (ref i31) (local.get $x0)))
-                        (then (call $raise-check-fixnum (local.get $x0)) (unreachable)))
-                    (block $done
-                           (loop $loop
-                                 (br_if $done (ref.eq (local.get $xs) (global.get $null)))
-                                 (local.set $node (ref.cast (ref $Pair) (local.get $xs)))
-                                 (local.set $fx   (struct.get $Pair $a (local.get $node)))
-                                 (if (i32.eqz (ref.test (ref i31) (local.get $fx)))
-                                     (then (call $raise-check-fixnum (local.get $fx)) (unreachable)))
-                                 (if (ref.eq (call ,$cmp/2 (local.get $x0) (local.get $fx))
-                                             (global.get $false))
-                                     (then (return (global.get $false))))
-                                 (local.set $x0 (local.get $fx))
-                                 (local.set $xs (struct.get $Pair $d (local.get $node)))
-                                 (br $loop)))
-                    (global.get $true)))
+         ;; Fixnum comparison helpers are implemented in runtime-wasm/core/fixnums.rkt.
+         ,@(for/list ([name (in-list fixnum-comparison-runtime-only-helper-names)])
+             (core-runtime-helper-form runtime-helper-index name))
 
         ,@(for/list ([name (in-list fixnum-minmax-runtime-only-helper-names)])
             (core-runtime-helper-form runtime-helper-index name))

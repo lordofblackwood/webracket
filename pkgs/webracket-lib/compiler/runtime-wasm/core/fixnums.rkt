@@ -1,10 +1,13 @@
 #lang racket
 
 (provide fixnum-core-runtime-helpers
+         fixnum-comparison-runtime-only-helper-names
          fixnum-minmax-runtime-only-helper-names
          fixnum-runtime-only-helpers)
 
-(require "../core-helper.rkt")
+(require "../core-helper.rkt"
+         "../../private/immediates.rkt"
+         "../../private/wasm-utils.rkt")
 
 ;; local-fixnum-bits-s : symbol? -> datum?
 ;;   Return WAT that reads the signed tagged fixnum bits from local-name.
@@ -38,6 +41,111 @@
     $fxmax/2
     $fxmin
     $fxmax))
+
+;; fixnum-comparison-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for fixnum comparison helpers.
+(define fixnum-comparison-runtime-only-helper-names
+  '($most-positive-fixnum
+    $most-negative-fixnum
+    $fx=/2
+    $fx</2
+    $fx>/2
+    $fx<=/2
+    $fx>=/2
+    $fx=
+    $fx<
+    $fx>
+    $fx<=
+    $fx>=))
+
+;; fixnum-bound-runtime-helper : symbol? exact-integer? -> core-runtime-helper?
+;;   Build a zero-argument helper that returns a tagged fixnum bound.
+(define (fixnum-bound-runtime-helper name value)
+  (core-runtime-helper
+   name
+   (symbol->string name)
+   (lambda ()
+     `(func ,name (type $Prim0) (result (ref eq))
+            ,(Imm value)))))
+
+;; fixnum-equal2-runtime-helper : -> core-runtime-helper?
+;;   Build the binary fixnum equality helper.
+(define (fixnum-equal2-runtime-helper)
+  (core-runtime-helper
+   '$fx=/2
+   "$fx=/2"
+   (lambda ()
+     '(func $fx=/2 (type $Prim2) (param $v1 (ref eq)) (param $v2 (ref eq)) (result (ref eq))
+            (if (result (ref eq))
+                (ref.eq (call $fixnum? (local.get $v1))
+                        (global.get $true))
+                (then (return_call $eq? (local.get $v1) (local.get $v2)))
+                (else (global.get $false)))))))
+
+;; fixnum-compare2-runtime-helper : symbol? symbol? -> core-runtime-helper?
+;;   Build a binary checked fixnum comparison helper.
+(define (fixnum-compare2-runtime-helper name inst)
+  (core-runtime-helper
+   name
+   (symbol->string name)
+   (lambda ()
+     `(func ,name
+            (param $x (ref eq))
+            (param $y (ref eq))
+            (result   (ref eq))
+            ; type check
+            (if (i32.eqz (ref.test (ref i31) (local.get $x)))
+                (then (call $raise-check-fixnum (local.get $x)) (unreachable)))
+            (if (i32.eqz (ref.test (ref i31) (local.get $y)))
+                (then (call $raise-check-fixnum (local.get $y)) (unreachable)))
+            ; compare
+            (if (result (ref eq))
+                (,inst (i31.get_s (ref.cast (ref i31) (local.get $x)))
+                       (i31.get_s (ref.cast (ref i31) (local.get $y))))
+                (then (global.get $true))
+                (else (global.get $false)))))))
+
+;; fixnum-compare-runtime-helper : symbol? symbol? -> core-runtime-helper?
+;;   Build a variadic checked fixnum comparison helper.
+(define (fixnum-compare-runtime-helper name binary-name)
+  (core-runtime-helper
+   name
+   (symbol->string name)
+   (lambda ()
+     `(func ,name (param $x0 (ref eq)) (param $xs (ref eq)) (result (ref eq))
+            (local $node (ref $Pair))
+            (local $fx   (ref eq))
+            ;; Validate the first argument
+            (if (i32.eqz (ref.test (ref i31) (local.get $x0)))
+                (then (call $raise-check-fixnum (local.get $x0)) (unreachable)))
+            (block $done
+                   (loop $loop
+                         (br_if $done (ref.eq (local.get $xs) (global.get $null)))
+                         (local.set $node (ref.cast (ref $Pair) (local.get $xs)))
+                         (local.set $fx   (struct.get $Pair $a (local.get $node)))
+                         (if (i32.eqz (ref.test (ref i31) (local.get $fx)))
+                             (then (call $raise-check-fixnum (local.get $fx)) (unreachable)))
+                         (if (ref.eq (call ,binary-name (local.get $x0) (local.get $fx))
+                                     (global.get $false))
+                             (then (return (global.get $false))))
+                         (local.set $x0 (local.get $fx))
+                         (local.set $xs (struct.get $Pair $d (local.get $node)))
+                         (br $loop)))
+            (global.get $true)))))
+
+;; fixnum-comparison-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate fixnum comparison helpers used by the monolithic runtime.
+(define fixnum-comparison-runtime-only-helpers
+  (append
+   (list (fixnum-bound-runtime-helper '$most-positive-fixnum most-positive-fixnum)
+         (fixnum-bound-runtime-helper '$most-negative-fixnum most-negative-fixnum)
+         (fixnum-equal2-runtime-helper))
+   (for/list ([name '( $fx</2   $fx>/2   $fx<=/2  $fx>=/2)]
+              [inst '( i32.lt_s i32.gt_s i32.le_s i32.ge_s)])
+     (fixnum-compare2-runtime-helper name inst))
+   (for/list ([name        '( $fx=   $fx<   $fx>   $fx<=   $fx>=)]
+              [binary-name '( $fx=/2 $fx</2 $fx>/2 $fx<=/2 $fx>=/2)])
+     (fixnum-compare-runtime-helper name binary-name))))
 
 ;; fixnum-minmax2-runtime-helper : symbol? symbol? -> core-runtime-helper?
 ;;   Build a binary fixnum min/max helper with checked arguments.
@@ -90,6 +198,7 @@
 ;;   Enumerate fixnum helpers that depend on monolithic runtime errors.
 (define fixnum-runtime-only-helpers
   (append
+   fixnum-comparison-runtime-only-helpers
    (for/list ([name '( $fxmin/2 $fxmax/2 )]
               [inst '( i32.lt_s i32.gt_s )])
      (fixnum-minmax2-runtime-helper name inst))
