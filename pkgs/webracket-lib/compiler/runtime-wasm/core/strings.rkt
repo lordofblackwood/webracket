@@ -3,6 +3,7 @@
 (provide string-core-runtime-helpers
          string-append-runtime-only-helper-names
          string-case-runtime-only-helper-names
+         string-comparison-runtime-only-helper-names
          string-constructor-runtime-only-helper-names
          string-copy-runtime-only-helper-names
          string-dummy-runtime-only-helper-names
@@ -1420,6 +1421,488 @@
                (local.get $str))
      )))
 
+;; string-comparison-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate string comparison helpers that still depend on monolithic runtime globals.
+(define string-comparison-runtime-only-helpers
+  (function-forms->runtime-helpers
+   'string-comparison-runtime-only-helpers
+   (append
+    '(
+         (func $string=?/2
+               (param $a (ref eq)) (param $b (ref eq))
+               (result (ref eq))
+               (if (result (ref eq)) (call $string=?/i32 (local.get $a) (local.get $b))
+                   (then (global.get $true))
+                   (else (global.get $false))))
+
+         ;; string=? : string? string? ... -> boolean? (at least 1)
+         (func $string=? (type $Prim>=1)
+               (param $a    (ref eq))   ;; string?
+               (param $rest (ref eq))   ;; list of string?
+               (result      (ref eq))
+
+               (local $prev     (ref $String))
+               (local $curr     (ref $String))
+               (local $restlist (ref eq))
+               (local $pair     (ref $Pair))
+               (local $next     (ref eq))
+
+               ;; Type check first argument
+               (if (i32.eqz (ref.test (ref $String) (local.get $a)))
+                   (then (call $raise-argument-error:string-expected (local.get $a))
+                         (unreachable)))
+               (local.set $prev (ref.cast (ref $String) (local.get $a)))
+               (local.set $restlist (local.get $rest))
+
+               ;; Single argument => #t
+               (if (ref.eq (local.get $restlist) (global.get $null))
+                   (then (return (global.get $true))))
+
+               (loop $loop
+                     (if (ref.eq (local.get $restlist) (global.get $null))
+                         (then (return (global.get $true))))
+                     (if (i32.eqz (ref.test (ref $Pair) (local.get $restlist)))
+                         (then (call $raise-pair-expected (local.get $restlist))
+                               (unreachable)))
+                     (local.set $pair (ref.cast (ref $Pair) (local.get $restlist)))
+                     (local.set $next (struct.get $Pair $a (local.get $pair)))
+                     (if (i32.eqz (ref.test (ref $String) (local.get $next)))
+                         (then (call $raise-argument-error:string-expected (local.get $next))
+                               (unreachable)))
+                     (local.set $curr (ref.cast (ref $String) (local.get $next)))
+                     (if (i32.eqz (call $string=?/i32/checked (local.get $prev) (local.get $curr)))
+                         (then (return (global.get $false))))
+                     (local.set $prev (local.get $curr))
+                     (local.set $restlist (struct.get $Pair $d (local.get $pair)))
+                     (br $loop))
+               (unreachable))
+
+         (func $string=?/i32
+               (param $a-raw (ref eq)) (param $b-raw (ref eq))
+               (result i32)
+
+               (local $a (ref $String))
+               (local $b (ref $String))
+               ;; Check types
+               (if (i32.eqz (ref.test (ref $String) (local.get $a-raw)))
+                   (then (return (i32.const 0))))
+               (if (i32.eqz (ref.test (ref $String) (local.get $b-raw)))
+                   (then (return (i32.const 0))))
+               ;; Cast and delegate
+               (local.set $a (ref.cast (ref $String) (local.get $a-raw)))
+               (local.set $b (ref.cast (ref $String) (local.get $b-raw)))
+               (return_call $string=?/i32/checked (local.get $a) (local.get $b)))
+
+         (func $string=?/i32/checked
+               (param $a (ref $String)) (param $b (ref $String))
+               (result i32)
+
+               (return_call $i32array-equal?
+                            (struct.get $String $codepoints (local.get $a))
+                            (struct.get $String $codepoints (local.get $b))))
+
+         (func $string<?/2
+               (param $a (ref eq)) (param $b (ref eq))
+               (result (ref eq))
+               (if (result (ref eq)) (call $string</i32 (local.get $a) (local.get $b))
+                   (then (global.get $true))
+                   (else (global.get $false))))
+
+         ;; string<? : string? string? ... -> boolean? (at least 1)
+         (func $string<? (type $Prim>=1)
+               (param $a    (ref eq))   ;; string?
+               (param $rest (ref eq))   ;; list of string?
+               (result      (ref eq))
+
+               (local $prev     (ref $String))
+               (local $curr     (ref $String))
+               (local $restlist (ref eq))
+               (local $pair     (ref $Pair))
+               (local $next     (ref eq))
+
+               ;; Type check first argument
+               (if (i32.eqz (ref.test (ref $String) (local.get $a)))
+                   (then (call $raise-argument-error:string-expected (local.get $a))
+                         (unreachable)))
+               (local.set $prev (ref.cast (ref $String) (local.get $a)))
+               (local.set $restlist (local.get $rest))
+
+               ;; Single argument => #t
+               (if (ref.eq (local.get $restlist) (global.get $null))
+                   (then (return (global.get $true))))
+
+               (loop $loop
+                     (if (ref.eq (local.get $restlist) (global.get $null))
+                         (then (return (global.get $true))))
+                     (if (i32.eqz (ref.test (ref $Pair) (local.get $restlist)))
+                         (then (call $raise-pair-expected (local.get $restlist))
+                               (unreachable)))
+                     (local.set $pair (ref.cast (ref $Pair) (local.get $restlist)))
+                     (local.set $next (struct.get $Pair $a (local.get $pair)))
+                     (if (i32.eqz (ref.test (ref $String) (local.get $next)))
+                         (then (call $raise-argument-error:string-expected (local.get $next))
+                               (unreachable)))
+                     (local.set $curr (ref.cast (ref $String) (local.get $next)))
+                     (if (i32.eqz (call $string</i32/checked (local.get $prev) (local.get $curr)))
+                         (then (return (global.get $false))))
+                     (local.set $prev (local.get $curr))
+                     (local.set $restlist (struct.get $Pair $d (local.get $pair)))
+                     (br $loop))
+               (unreachable))
+
+         (func $string<=?/2
+               (param $a (ref eq)) (param $b (ref eq))
+               (result (ref eq))
+               (if (result (ref eq))
+                   (i32.or (call $string</i32 (local.get $a) (local.get $b))
+                           (call $string=?/i32 (local.get $a) (local.get $b)))
+                   (then (global.get $true))
+                   (else (global.get $false))))
+
+         ;; string<=? : string? string? ... -> boolean? (at least 1)
+         (func $string<=? (type $Prim>=1)
+               (param $a    (ref eq))   ;; string?
+               (param $rest (ref eq))   ;; list of string?
+               (result      (ref eq))
+
+               (local $prev     (ref $String))
+               (local $curr     (ref $String))
+               (local $restlist (ref eq))
+               (local $pair     (ref $Pair))
+               (local $next     (ref eq))
+
+               ;; Type check first argument
+               (if (i32.eqz (ref.test (ref $String) (local.get $a)))
+                   (then (call $raise-argument-error:string-expected (local.get $a))
+                         (unreachable)))
+               (local.set $prev (ref.cast (ref $String) (local.get $a)))
+               (local.set $restlist (local.get $rest))
+
+               ;; Single argument => #t
+               (if (ref.eq (local.get $restlist) (global.get $null))
+                   (then (return (global.get $true))))
+
+               (loop $loop
+                     (if (ref.eq (local.get $restlist) (global.get $null))
+                         (then (return (global.get $true))))
+                     (if (i32.eqz (ref.test (ref $Pair) (local.get $restlist)))
+                         (then (call $raise-pair-expected (local.get $restlist))
+                               (unreachable)))
+                     (local.set $pair (ref.cast (ref $Pair) (local.get $restlist)))
+                     (local.set $next (struct.get $Pair $a (local.get $pair)))
+                     (if (i32.eqz (ref.test (ref $String) (local.get $next)))
+                         (then (call $raise-argument-error:string-expected (local.get $next))
+                               (unreachable)))
+                     (local.set $curr (ref.cast (ref $String) (local.get $next)))
+                     ;; Fail if current < previous
+                     (if (i32.ne (call $string</i32/checked (local.get $curr) (local.get $prev)) (i32.const 0))
+                         (then (return (global.get $false))))
+                     (local.set $prev (local.get $curr))
+                     (local.set $restlist (struct.get $Pair $d (local.get $pair)))
+                     (br $loop))
+               (unreachable))
+
+         (func $string>?/2
+               (param $a (ref eq)) (param $b (ref eq))
+               (result (ref eq))
+               (if (result (ref eq)) (call $string</i32 (local.get $b) (local.get $a))
+                   (then (global.get $true))
+                   (else (global.get $false))))
+
+         ;; string>? : string? string? ... -> boolean? (at least 1)
+         (func $string>? (type $Prim>=1)
+               (param $a    (ref eq))   ;; string?
+               (param $rest (ref eq))   ;; list of string?
+               (result      (ref eq))
+
+               (local $prev     (ref $String))
+               (local $curr     (ref $String))
+               (local $restlist (ref eq))
+               (local $pair     (ref $Pair))
+               (local $next     (ref eq))
+
+               ;; Type check first argument
+               (if (i32.eqz (ref.test (ref $String) (local.get $a)))
+                   (then (call $raise-argument-error:string-expected (local.get $a))
+                         (unreachable)))
+               (local.set $prev (ref.cast (ref $String) (local.get $a)))
+               (local.set $restlist (local.get $rest))
+
+               ;; Single argument => #t
+               (if (ref.eq (local.get $restlist) (global.get $null))
+                   (then (return (global.get $true))))
+
+               (loop $loop
+                     (if (ref.eq (local.get $restlist) (global.get $null))
+                         (then (return (global.get $true))))
+                     (if (i32.eqz (ref.test (ref $Pair) (local.get $restlist)))
+                         (then (call $raise-pair-expected (local.get $restlist))
+                               (unreachable)))
+                     (local.set $pair (ref.cast (ref $Pair) (local.get $restlist)))
+                     (local.set $next (struct.get $Pair $a (local.get $pair)))
+                     (if (i32.eqz (ref.test (ref $String) (local.get $next)))
+                         (then (call $raise-argument-error:string-expected (local.get $next))
+                               (unreachable)))
+                     (local.set $curr (ref.cast (ref $String) (local.get $next)))
+                     (if (i32.eqz (call $string</i32/checked (local.get $curr) (local.get $prev)))
+                         (then (return (global.get $false))))
+                     (local.set $prev (local.get $curr))
+                     (local.set $restlist (struct.get $Pair $d (local.get $pair)))
+                     (br $loop))
+               (unreachable))
+
+         (func $string>=?/2
+               (param $a (ref eq)) (param $b (ref eq))
+               (result (ref eq))
+               (if (result (ref eq))
+                   (i32.or (call $string</i32 (local.get $b) (local.get $a))
+                           (call $string=?/i32 (local.get $a) (local.get $b)))
+                   (then (global.get $true))
+                   (else (global.get $false))))
+
+         ;; string>=? : string? string? ... -> boolean? (at least 1)
+         (func $string>=? (type $Prim>=1)
+               (param $a    (ref eq))   ;; string?
+               (param $rest (ref eq))   ;; list of string?
+               (result      (ref eq))
+
+               (local $prev     (ref $String))
+               (local $curr     (ref $String))
+               (local $restlist (ref eq))
+               (local $pair     (ref $Pair))
+               (local $next     (ref eq))
+
+               ;; Type check first argument
+               (if (i32.eqz (ref.test (ref $String) (local.get $a)))
+                   (then (call $raise-argument-error:string-expected (local.get $a))
+                         (unreachable)))
+               (local.set $prev (ref.cast (ref $String) (local.get $a)))
+               (local.set $restlist (local.get $rest))
+
+               ;; Single argument => #t
+               (if (ref.eq (local.get $restlist) (global.get $null))
+                   (then (return (global.get $true))))
+
+               (loop $loop
+                     (if (ref.eq (local.get $restlist) (global.get $null))
+                         (then (return (global.get $true))))
+                     (if (i32.eqz (ref.test (ref $Pair) (local.get $restlist)))
+                         (then (call $raise-pair-expected (local.get $restlist))
+                               (unreachable)))
+                     (local.set $pair (ref.cast (ref $Pair) (local.get $restlist)))
+                     (local.set $next (struct.get $Pair $a (local.get $pair)))
+                     (if (i32.eqz (ref.test (ref $String) (local.get $next)))
+                         (then (call $raise-argument-error:string-expected (local.get $next))
+                               (unreachable)))
+                     (local.set $curr (ref.cast (ref $String) (local.get $next)))
+                     ;; Fail if previous < current
+                     (if (i32.ne (call $string</i32/checked (local.get $prev) (local.get $curr)) (i32.const 0))
+                         (then (return (global.get $false))))
+                     (local.set $prev (local.get $curr))
+                     (local.set $restlist (struct.get $Pair $d (local.get $pair)))
+                     (br $loop))
+               (unreachable))
+
+         (func $string</i32
+               (param $a-raw (ref eq)) (param $b-raw (ref eq))
+               (result i32)
+
+               (local $a (ref $String))
+               (local $b (ref $String))
+
+               ;; Check types
+               (if (i32.eqz (ref.test (ref $String) (local.get $a-raw)))
+                   (then (return (i32.const 0))))
+               (if (i32.eqz (ref.test (ref $String) (local.get $b-raw)))
+                   (then (return (i32.const 0))))
+               ;; Cast and delegate
+               (local.set $a (ref.cast (ref $String) (local.get $a-raw)))
+               (local.set $b (ref.cast (ref $String) (local.get $b-raw)))
+               (return_call $string</i32/checked (local.get $a) (local.get $b)))
+
+         (func $string</i32/checked
+               (param $a (ref $String)) (param $b (ref $String))
+               (result i32)
+
+               (local $arr-a (ref $I32Array))
+               (local $arr-b (ref $I32Array))
+               (local $len-a i32)
+               (local $len-b i32)
+               (local $i i32)
+               (local $cp-a i32)
+               (local $cp-b i32)
+
+               (local.set $arr-a (struct.get $String $codepoints (local.get $a)))
+               (local.set $arr-b (struct.get $String $codepoints (local.get $b)))
+               (local.set $len-a (array.len (local.get $arr-a)))
+               (local.set $len-b (array.len (local.get $arr-b)))
+               (local.set $i (i32.const 0))
+
+               (block $exit
+                      (loop $loop
+                            (br_if $exit (i32.ge_u (local.get $i) (local.get $len-a)))
+                            (br_if $exit (i32.ge_u (local.get $i) (local.get $len-b)))
+                            (local.set $cp-a (array.get $I32Array (local.get $arr-a) (local.get $i)))
+                            (local.set $cp-b (array.get $I32Array (local.get $arr-b) (local.get $i)))
+                            (if (i32.lt_u (local.get $cp-a) (local.get $cp-b))
+                                (then (return (i32.const 1))))
+                            (if (i32.gt_u (local.get $cp-a) (local.get $cp-b))
+                                (then (return (i32.const 0))))
+                            (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                            (br $loop)))
+               ;; If one is a prefix of the other
+               (return (i32.lt_u (local.get $len-a) (local.get $len-b))))
+
+
+         (func $string-ci-compare/checked
+               (param $a (ref $String)) (param $b (ref $String))
+               (result i32)
+
+               (local $arr-a (ref $I32Array))
+               (local $arr-b (ref $I32Array))
+               (local $len-a i32)
+               (local $len-b i32)
+               (local $i     i32)
+               (local $cp-a  i32)
+               (local $cp-b  i32)
+               (local $fc-a  i32)
+               (local $fc-b  i32)
+
+               (local.set $arr-a (struct.get $String $codepoints (local.get $a)))
+               (local.set $arr-b (struct.get $String $codepoints (local.get $b)))
+               (local.set $len-a (array.len (local.get $arr-a)))
+               (local.set $len-b (array.len (local.get $arr-b)))
+               (local.set $i (i32.const 0))
+
+               (block $done
+                      (loop $loop
+                            (br_if $done (i32.ge_u (local.get $i) (local.get $len-a)))
+                            (br_if $done (i32.ge_u (local.get $i) (local.get $len-b)))
+                            (local.set $cp-a (array.get $I32Array (local.get $arr-a) (local.get $i)))
+                            (local.set $cp-b (array.get $I32Array (local.get $arr-b) (local.get $i)))
+                            (local.set $fc-a (call $char-foldcase/ucs (local.get $cp-a)))
+                            (local.set $fc-b (call $char-foldcase/ucs (local.get $cp-b)))
+                            (if (i32.ne (local.get $fc-a) (local.get $fc-b))
+                                (then (return (i32.sub (local.get $fc-a) (local.get $fc-b)))))
+                            (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                            (br $loop)))
+               (return (i32.sub (local.get $len-a) (local.get $len-b))))
+     )
+    (for*/list ([entry (in-list '(($string-ci=?   eq)
+                                        ($string-ci<?   lt)
+                                        ($string-ci<=?  le)
+                                        ($string-ci>?   gt)
+                                        ($string-ci>=?  ge)))]
+                      [form
+                       (in-list
+                        (let* ([cmp             (car entry)]
+                               [kind            (cadr entry)]
+                               [cmp/2           (string->symbol (~a cmp "/2"))]
+                               [cmp/i32         (string->symbol (~a cmp "/i32"))]
+                               [cmp/i32/checked (string->symbol (~a cmp "/i32/checked"))]
+                               [cond-expr
+                                (case kind
+                                  [(eq) `(i32.eqz (call $string-ci-compare/checked
+                                                       (local.get $a)
+                                                       (local.get $b)))]
+                                  [(lt) `(i32.lt_s (call $string-ci-compare/checked
+                                                         (local.get $a)
+                                                         (local.get $b))
+                                                   (i32.const 0))]
+                                  [(le) `(i32.le_s (call $string-ci-compare/checked
+                                                         (local.get $a)
+                                                         (local.get $b))
+                                                   (i32.const 0))]
+                                  [(gt) `(i32.gt_s (call $string-ci-compare/checked
+                                                         (local.get $a)
+                                                         (local.get $b))
+                                                   (i32.const 0))]
+                                  [(ge) `(i32.ge_s (call $string-ci-compare/checked
+                                                         (local.get $a)
+                                                         (local.get $b))
+                                                   (i32.const 0))])]
+                               [fail-cond
+                                (case kind
+                                  [(eq) `(i32.ne (local.get $cmp) (i32.const 0))]
+                                  [(lt) `(i32.ge_s (local.get $cmp) (i32.const 0))]
+                                  [(le) `(i32.gt_s (local.get $cmp) (i32.const 0))]
+                                  [(gt) `(i32.le_s (local.get $cmp) (i32.const 0))]
+                                  [(ge) `(i32.lt_s (local.get $cmp) (i32.const 0))])])
+                          (list
+                           `(func ,cmp/2
+                                  (param $a (ref eq)) (param $b (ref eq))
+                                  (result (ref eq))
+                                  (if (result (ref eq))
+                                      (call ,cmp/i32 (local.get $a) (local.get $b))
+                                      (then (global.get $true))
+                                      (else (global.get $false))))
+                           `(func ,cmp (type $Prim>=1)
+                                  (param $a (ref eq))   ;; string?
+                                  (param $rest (ref eq)) ;; list of string?
+                                  (result (ref eq))
+
+                                  (local $prev (ref $String))
+                                  (local $curr (ref $String))
+                                  (local $restlist (ref eq))
+                                  (local $pair (ref $Pair))
+                                  (local $next (ref eq))
+                                  (local $cmp i32)
+
+                                  ;; Type check first argument
+                                  (if (i32.eqz (ref.test (ref $String) (local.get $a)))
+                                      (then (call $raise-argument-error:string-expected (local.get $a))
+                                            (unreachable)))
+                                  (local.set $prev (ref.cast (ref $String) (local.get $a)))
+                                  (local.set $restlist (local.get $rest))
+
+                                  ;; Single argument => #t
+                                  (if (ref.eq (local.get $restlist) (global.get $null))
+                                      (then (return (global.get $true))))
+
+                                  (loop $loop
+                                        (if (ref.eq (local.get $restlist) (global.get $null))
+                                            (then (return (global.get $true))))
+                                        (if (i32.eqz (ref.test (ref $Pair) (local.get $restlist)))
+                                            (then (call $raise-pair-expected (local.get $restlist))
+                                                  (unreachable)))
+                                        (local.set $pair (ref.cast (ref $Pair) (local.get $restlist)))
+                                        (local.set $next (struct.get $Pair $a (local.get $pair)))
+                                        (if (i32.eqz (ref.test (ref $String) (local.get $next)))
+                                            (then (call $raise-argument-error:string-expected (local.get $next))
+                                                  (unreachable)))
+                                        (local.set $curr (ref.cast (ref $String) (local.get $next)))
+                                        (local.set $cmp (call $string-ci-compare/checked (local.get $prev) (local.get $curr)))
+                                        (if ,fail-cond
+                                            (then (return (global.get $false))))
+                                        (local.set $prev (local.get $curr))
+                                        (local.set $restlist (struct.get $Pair $d (local.get $pair)))
+                                        (br $loop))
+                                  (unreachable))
+                           `(func ,cmp/i32
+                                  (param $a-raw (ref eq)) (param $b-raw (ref eq))
+                                  (result i32)
+
+                                  (local $a (ref $String))
+                                  (local $b (ref $String))
+
+                                  (if (i32.eqz (ref.test (ref $String) (local.get $a-raw)))
+                                      (then (return (i32.const 0))))
+                                  (if (i32.eqz (ref.test (ref $String) (local.get $b-raw)))
+                                      (then (return (i32.const 0))))
+                                  (local.set $a (ref.cast (ref $String) (local.get $a-raw)))
+                                  (local.set $b (ref.cast (ref $String) (local.get $b-raw)))
+                                  (return_call ,cmp/i32/checked (local.get $a) (local.get $b)))
+                           `(func ,cmp/i32/checked
+                                  (param $a (ref $String)) (param $b (ref $String))
+                                  (result i32)
+                                  (return ,cond-expr)))))])
+            form))))
+
+;; string-comparison-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for string comparison helpers.
+(define string-comparison-runtime-only-helper-names
+  (map core-runtime-helper-name string-comparison-runtime-only-helpers))
+
 ;; string-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate string helpers that still depend on monolithic runtime globals.
 (define string-runtime-only-helpers
@@ -1433,4 +1916,5 @@
           string-append-runtime-only-helpers
           string-split-runtime-only-helpers
           string-case-runtime-only-helpers
-          string-list-conversion-runtime-only-helpers))
+          string-list-conversion-runtime-only-helpers
+          string-comparison-runtime-only-helpers))
