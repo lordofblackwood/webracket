@@ -1,6 +1,7 @@
 #lang racket
 
 (provide fixnum-core-runtime-helpers
+         fixnum-arithmetic-runtime-only-helper-names
          fixnum-comparison-runtime-only-helper-names
          fixnum-conversion-runtime-only-helper-names
          fixnum-minmax-runtime-only-helper-names
@@ -36,6 +37,16 @@
 (define (tag-fixnum-bits bits)
   `(i32.shl ,bits (i32.const 1)))
 
+;; Half : datum? -> datum?
+;;   Decode a tagged fixnum expression to an i32 payload.
+(define (Half x)
+  `(i32.shr_s ,x (i32.const 1)))
+
+;; Double : datum? -> datum?
+;;   Encode an i32 payload as tagged fixnum bits.
+(define (Double x)
+  `(i32.shl ,x (i32.const 1)))
+
 ;; fixnum-predicate-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for fixnum predicate helpers.
 (define fixnum-predicate-runtime-only-helper-names
@@ -49,6 +60,25 @@
 (define fixnum-conversion-runtime-only-helper-names
   '($fixnum->i32
     $fixnum-for-every-system?))
+
+;; fixnum-arithmetic-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for fixnum arithmetic helpers.
+(define fixnum-arithmetic-runtime-only-helper-names
+  '($fx+
+    $fx-
+    $fx/
+    $raise-fx-overflow
+    $ensure-fixnum-argument
+    $fx*
+    $raise-division-by-zero
+    $unsafe-fxquotient
+    $fxquotient
+    $unsafe-fxremainder
+    $fxremainder
+    $unsafe-fxmodulo
+    $fxmodulo
+    $unsafe-fxabs
+    $fxabs))
 
 ;; fixnum-bitwise-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for variadic fixnum bitwise helpers.
@@ -246,6 +276,435 @@
                (then (return (global.get $false))))
            (global.get $true)))))
 
+;; fixnum-arithmetic-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate fixnum arithmetic helpers used by the monolithic runtime.
+(define fixnum-arithmetic-runtime-only-helpers
+  (function-forms->runtime-helpers
+   'fixnum-arithmetic-runtime-only-helpers
+   `(
+     #;(func $fx+ (type $Prim2)
+             (param $x (ref eq))
+             (param $y (ref eq))
+             (result   (ref eq))
+             (ref.i31 (i32.add (i31.get_s (ref.cast i31ref (local.get $x)))
+                               (i31.get_s (ref.cast i31ref (local.get $y))))))
+
+     (func $fx+ (type $Prim2)
+           (param $x (ref eq))
+           (param $y (ref eq))
+           (result   (ref eq))
+
+           (local $sum i64) ;; tagged sum payload: 2x + 2y
+
+           ;; Check fixnum arguments
+           ;; - note: this avoids functions calls in the non-error case
+           (if (i32.eqz
+                (i32.and
+                 (if (result i32) (ref.test (ref i31) (local.get $x))
+                     (then
+                      (i32.eqz
+                       (i32.and
+                        (i31.get_u (ref.cast (ref i31) (local.get $x)))
+                        (i32.const 1))))
+                     (else
+                      (i32.const 0)))
+                 (if (result i32) (ref.test (ref i31) (local.get $y))
+                     (then
+                      (i32.eqz
+                       (i32.and
+                        (i31.get_u (ref.cast (ref i31) (local.get $y)))
+                        (i32.const 1))))
+                     (else
+                      (i32.const 0)))))
+               (then
+                (call $ensure-fixnum-argument (global.get $symbol:fx+) (local.get $x))
+                (call $ensure-fixnum-argument (global.get $symbol:fx+) (local.get $y)))
+               (else))
+
+           ;; Add
+           (local.set $sum
+                      (i64.add
+                       (i64.extend_i32_s
+                        (i31.get_s (ref.cast (ref i31) (local.get $x))))
+                       (i64.extend_i32_s
+                        (i31.get_s (ref.cast (ref i31) (local.get $y))))))
+
+           ;; Tagged payload must fit in signed i31 and remain even:
+           ;; range is [-2^30, 2^30-2].
+           (if (i32.or
+                (i64.lt_s (local.get $sum) (i64.const -1073741824))  ;; -2^30
+                (i64.gt_s (local.get $sum) (i64.const  1073741822))) ;;  2^30-2
+               (then
+                (call $raise-fx-overflow (global.get $symbol:fx+) (local.get $x) (local.get $y))
+                (unreachable))
+               (else))
+
+           (ref.i31 (i32.wrap_i64 (local.get $sum))))
+
+     #;(func $fx- (type $Prim2) (param $x (ref eq)) (param $y (ref eq)) (result (ref eq))
+             (ref.i31 (i32.sub (i31.get_s (ref.cast i31ref (local.get $x)))
+                               (i31.get_s (ref.cast i31ref (local.get $y))))))
+
+     (func $fx- (type $Prim2)
+           (param $x (ref eq))
+           (param $y (ref eq))
+           (result   (ref eq))
+
+           (local $dt i64) ;; tagged difference payload: 2(x - y)
+
+           ;; Check fixnum arguments
+           ;; - note: this avoids functions calls in the non-error case
+           (if (i32.eqz
+                (i32.and
+                 (if (result i32) (ref.test (ref i31) (local.get $x))
+                     (then
+                      (i32.eqz
+                       (i32.and
+                        (i31.get_u (ref.cast (ref i31) (local.get $x)))
+                        (i32.const 1))))
+                     (else
+                      (i32.const 0)))
+                 (if (result i32) (ref.test (ref i31) (local.get $y))
+                     (then
+                      (i32.eqz
+                       (i32.and
+                        (i31.get_u (ref.cast (ref i31) (local.get $y)))
+                        (i32.const 1))))
+                     (else
+                      (i32.const 0)))))
+               (then
+                (call $ensure-fixnum-argument (global.get $symbol:fx-) (local.get $x))
+                (call $ensure-fixnum-argument (global.get $symbol:fx-) (local.get $y)))
+               (else))
+
+           ;; The subtraction
+           (local.set $dt
+                      (i64.sub
+                       (i64.extend_i32_s
+                        (i31.get_s (ref.cast (ref i31) (local.get $x))))
+                       (i64.extend_i32_s
+                        (i31.get_s (ref.cast (ref i31) (local.get $y))))))
+
+           ;; Tagged payload must fit in signed i31 and remain even:
+           ;; range is [-2^30, 2^30-2].
+           (if (i32.or
+                (i64.lt_s (local.get $dt) (i64.const -1073741824))  ;; -2^30
+                (i64.gt_s (local.get $dt) (i64.const  1073741822))) ;;  2^30-2
+               (then
+                (call $raise-fx-overflow (global.get $symbol:fx-) (local.get $x) (local.get $y))
+                (unreachable))
+               (else))
+
+           (ref.i31 (i32.wrap_i64 (local.get $dt))))
+
+     #;(func $fx/ (param $x (ref eq)) (param $y (ref eq)) (result (ref eq))
+             (ref.i31 (i32.div_s (i31.get_s (ref.cast i31ref (local.get $x)))
+                                 ,(Double `(i31.get_s (ref.cast i31ref (local.get $y)))))))
+
+     (func $fx/
+           (param $x (ref eq))
+           (param $y (ref eq))
+           (result   (ref eq))
+
+           (local $xi i32) ;; untagged x
+           (local $yi i32) ;; untagged y
+           (local $q  i32) ;; untagged quotient
+
+           ;; Check fixnum arguments
+           ;; - note: this avoids functions calls in the non-error case
+           (if (i32.eqz
+                (i32.and
+                 (if (result i32) (ref.test (ref i31) (local.get $x))
+                     (then
+                      (i32.eqz
+                       (i32.and
+                        (i31.get_u (ref.cast (ref i31) (local.get $x)))
+                        (i32.const 1))))
+                     (else
+                      (i32.const 0)))
+                 (if (result i32) (ref.test (ref i31) (local.get $y))
+                     (then
+                      (i32.eqz
+                       (i32.and
+                        (i31.get_u (ref.cast (ref i31) (local.get $y)))
+                        (i32.const 1))))
+                     (else
+                      (i32.const 0)))))
+               (then
+                (call $ensure-fixnum-argument (global.get $symbol:fx/) (local.get $x))
+                (call $ensure-fixnum-argument (global.get $symbol:fx/) (local.get $y)))
+               (else))
+
+           (local.set $xi (i32.shr_s (i31.get_s (ref.cast (ref i31) (local.get $x)))
+                                     (i32.const 1)))
+           (local.set $yi (i32.shr_s (i31.get_s (ref.cast (ref i31) (local.get $y)))
+                                     (i32.const 1)))
+
+           (if (i32.eqz (local.get $yi))
+               (then
+                (call $raise-division-by-zero)
+                (unreachable))
+               (else))
+
+           ;; Tagged quotient would overflow when -2^29 / -1 = 2^29.
+           (if (i32.and
+                (i32.eq (local.get $xi) (i32.const -536870912))
+                (i32.eq (local.get $yi) (i32.const -1)))
+               (then
+                (call $raise-fx-overflow (global.get $symbol:fx/) (local.get $x) (local.get $y))
+                (unreachable))
+               (else))
+
+           (local.set $q (i32.div_s (local.get $xi) (local.get $yi)))
+           (ref.i31 (i32.shl (local.get $q) (i32.const 1))))
+
+     ;; Since an integer n is represented as 2n, we need to halve one argument.
+     ;;   This version doesn't throw an exception on overflow.
+     #;(func $fx* (type $Prim2) (param $x (ref eq)) (param $y (ref eq)) (result (ref eq))
+             (ref.i31 (i32.mul (i31.get_s (ref.cast i31ref (local.get $x)))
+                               ,(Half `(i31.get_s (ref.cast i31ref (local.get $y)))))))
+
+     (func $raise-fx-overflow
+           (param $who (ref eq))
+           (param $x   (ref eq))
+           (param $y   (ref eq))
+
+           (local $message (ref $String))
+           (local $who-str (ref $String))
+           (local $x-str   (ref $String))
+           (local $y-str   (ref $String))
+           (local $exn     (ref $Struct))
+
+           (local.set $who-str (call $format/display (local.get $who)))
+           (local.set $x-str   (call $format/display (local.get $x)))
+           (local.set $y-str   (call $format/display (local.get $y)))
+
+           (local.set $message (call $string-append/2
+                                     (local.get $who-str)
+                                     (global.get $string:fx-overflow:middle)))
+           (local.set $message (call $string-append/2
+                                     (local.get $message)
+                                     (local.get $x-str)))
+           (local.set $message (call $string-append/2
+                                     (local.get $message)
+                                     (global.get $string:fx-overflow:and)))
+           (local.set $message (call $string-append/2
+                                     (local.get $message)
+                                     (local.get $y-str)))
+
+           (local.set $exn     (call $exn:fail:contract:non-fixnum-result/make
+                                     (ref.cast (ref eq) (local.get $message))
+                                     (global.get $null)))
+
+           ;; barrier? is ignored by WebRacket raise, but pass #t for compatibility
+           (call $raise
+                 (ref.cast (ref eq) (local.get $exn))
+                 (global.get $true))
+           (unreachable))
+
+     (func $ensure-fixnum-argument
+           (param $who (ref eq))
+           (param $x   (ref eq))
+
+           (local $message (ref $String))
+           (local $who-str (ref $String))
+           (local $x-str   (ref $String))
+           (local $exn     (ref $Struct))
+
+           (if (i32.eqz (call $fixnum?/i32 (local.get $x)))
+               (then
+                (local.set $who-str (call $format/display (local.get $who)))
+                (local.set $x-str   (call $format/display (local.get $x)))
+
+                (local.set $message (call $string-append/2
+                                          (local.get $who-str)
+                                          (global.get $string:expected-fixnum:got)))
+                (local.set $message (call $string-append/2
+                                          (local.get $message)
+                                          (local.get $x-str)))
+
+                (local.set $exn     (call $exn:fail:contract/make
+                                          (ref.cast (ref eq) (local.get $message))
+                                          (global.get $null)))
+
+                (call $raise (ref.cast (ref eq) (local.get $exn)) (global.get $true))
+                (unreachable))))
+
+     (func $fx* (type $Prim2)
+           (param $x (ref eq))
+           (param $y (ref eq))
+           (result   (ref eq))
+
+           (local $pt i64) ;; tagged product payload: 2xy
+
+           ;; Check fixnum arguments
+           ;; - note: this avoids functions calls in the non-error case
+           (if (i32.eqz
+                (i32.and
+                 (if (result i32) (ref.test (ref i31) (local.get $x))
+                     (then
+                      (i32.eqz
+                       (i32.and
+                        (i31.get_u (ref.cast (ref i31) (local.get $x)))
+                        (i32.const 1))))
+                     (else
+                      (i32.const 0)))
+                 (if (result i32) (ref.test (ref i31) (local.get $y))
+                     (then
+                      (i32.eqz
+                       (i32.and
+                        (i31.get_u (ref.cast (ref i31) (local.get $y)))
+                        (i32.const 1))))
+                     (else
+                      (i32.const 0)))))
+               (then
+                (call $ensure-fixnum-argument (global.get $symbol:fx*) (local.get $x))
+                (call $ensure-fixnum-argument (global.get $symbol:fx*) (local.get $y)))
+               (else))
+
+
+           ;; Fixnums are tagged as 2n.
+           ;; If x = 2a and y = 2b, then:
+           ;;   (x * y) >> 1 = (2a * 2b) >> 1 = 2ab
+           ;; which is exactly the tagged payload for the product.
+           (local.set $pt
+                      (i64.shr_s
+                       (i64.mul
+                        (i64.extend_i32_s
+                         (i31.get_s (ref.cast (ref i31) (local.get $x))))
+                        (i64.extend_i32_s
+                         (i31.get_s (ref.cast (ref i31) (local.get $y)))))
+                       (i64.const 1)))
+
+           ;; Tagged payload must fit in signed i31 and remain even:
+           ;; range is [-2^30, 2^30-2].
+           (if (i32.or
+                (i64.lt_s (local.get $pt) (i64.const -1073741824))  ;; -2^30
+                (i64.gt_s (local.get $pt) (i64.const  1073741822))) ;;  2^30-2
+               (then
+                (call $raise-fx-overflow (global.get $symbol:fx*) (local.get $x) (local.get $y))
+                (unreachable))
+               (else))
+
+           (ref.i31 (i32.wrap_i64 (local.get $pt))))
+
+     (func $raise-division-by-zero (unreachable))
+
+     (func $unsafe-fxquotient (type $Prim2)
+           (param $x (ref eq))
+           (param $y (ref eq))
+           (result   (ref eq))
+
+           (ref.i31 ,(Double `(i32.div_s ,(Half `(i31.get_s (ref.cast i31ref (local.get $x))))
+                                         ,(Half `(i31.get_s (ref.cast i31ref (local.get $y))))))))
+
+     (func $fxquotient (type $Prim2)
+           (param $x (ref eq))
+           (param $y (ref eq))
+           (result   (ref eq))
+
+           (local $xu i32) (local $yu i32)     ;; raw tagged bits
+           (local $xi i32) (local $yi i32)     ;; untagged i32s
+           (local $q  i32)                     ;; quotient
+
+           ;; --- check $x is a fixnum ---
+           (if (i32.eqz (ref.test (ref i31) (local.get $x)))
+               (then (call $raise-check-fixnum (local.get $x)) (unreachable)))
+           (local.set $xu (i31.get_s (ref.cast (ref i31) (local.get $x))))
+           (if (i32.and (local.get $xu) (i32.const 1))
+               (then (call $raise-check-fixnum (local.get $x)) (unreachable)))
+           (local.set $xi (i32.shr_s (local.get $xu) (i32.const 1)))
+           ;; --- check $y is a fixnum ---
+           (if (i32.eqz (ref.test (ref i31) (local.get $y)))
+               (then (call $raise-check-fixnum (local.get $y)) (unreachable)))
+           (local.set $yu (i31.get_s (ref.cast (ref i31) (local.get $y))))
+           (if (i32.and (local.get $yu) (i32.const 1))
+               (then (call $raise-check-fixnum (local.get $y)) (unreachable)))
+           (local.set $yi (i32.shr_s (local.get $yu) (i32.const 1)))
+           ;; --- divide by zero? ---
+           (if (i32.eqz (local.get $yi))
+               (then (call $raise-division-by-zero) (unreachable)))
+           ;; --- compute truncating quotient ---
+           (local.set $q (i32.div_s (local.get $xi) (local.get $yi)))
+           ;; --- (optional) fixnum-range check: [-2^29, 2^29-1] ---
+           ;; uncomment if you want to signal overflow instead of wrapping
+           ;; (if (i32.or
+           ;;       (i32.lt_s (local.get $q) (i32.const -536870912)) ;; -2^29
+           ;;       (i32.gt_s (local.get $q) (i32.const  536870911))) ;;  2^29-1
+           ;;     (then (call $raise-fixnum-overflow) (unreachable)))
+           ;; --- re-tag as fixnum ---
+           (ref.i31 (i32.shl (local.get $q) (i32.const 1))))
+
+     (func $unsafe-fxremainder (type $Prim2)
+           (param $x (ref eq))
+           (param $y (ref eq))
+           (result   (ref eq))
+
+           (ref.i31 (i32.rem_s (i31.get_s (ref.cast i31ref (local.get $x)))
+                               (i31.get_s (ref.cast i31ref (local.get $y))))))
+
+     (func $fxremainder (type $Prim2)
+           (param $x (ref eq)) (param $y (ref eq)) (result (ref eq))
+           (ref.i31 (i32.rem_s (i31.get_s (ref.cast i31ref (local.get $x)))
+                               (i31.get_s (ref.cast i31ref (local.get $y))))))
+
+     (func $unsafe-fxmodulo (type $Prim2)
+           (param $x (ref eq))
+           (param $y (ref eq))
+           (result   (ref eq))
+
+           (local $xv i32)
+           (local $yv i32)
+           (local $r  i32)
+
+           (local.set $xv (i31.get_s (ref.cast i31ref (local.get $x))))
+           (local.set $yv (i31.get_s (ref.cast i31ref (local.get $y))))
+           (local.set $r  (i32.rem_s (local.get $xv) (local.get $yv)))
+           (if (result (ref eq))
+               (i32.eqz (local.get $r))
+               (then (ref.i31 (local.get $r)))
+               (else (if (result (ref eq))
+                         (i32.eq (i32.lt_s (local.get $r) (i32.const 0))
+                                 (i32.lt_s (local.get $yv) (i32.const 0)))
+                         (then (ref.i31 (local.get $r)))
+                         (else (ref.i31 (i32.add (local.get $r) (local.get $yv))))))))
+
+     (func $fxmodulo (type $Prim2)
+           (param $x (ref eq)) (param $y (ref eq)) (result (ref eq))
+           (local $xv i32) (local $yv i32) (local $r i32)
+           (local.set $xv (i31.get_s (ref.cast i31ref (local.get $x))))
+           (local.set $yv (i31.get_s (ref.cast i31ref (local.get $y))))
+           (local.set $r  (i32.rem_s (local.get $xv) (local.get $yv)))
+           (if (result (ref eq))
+               (i32.eqz (local.get $r))
+               (then (ref.i31 (local.get $r)))
+               (else (if (result (ref eq))
+                         (i32.eq (i32.lt_s (local.get $r) (i32.const 0))
+                                 (i32.lt_s (local.get $yv) (i32.const 0)))
+                         (then (ref.i31 (local.get $r)))
+                         (else (ref.i31 (i32.add (local.get $r) (local.get $yv))))))))
+
+     (func $unsafe-fxabs (type $Prim1)
+           (param $x (ref eq))
+           (result   (ref eq))
+
+           (local $xi i32)
+
+           (local.set $xi (i31.get_s (ref.cast i31ref (local.get $x))))
+           (ref.i31 (if (result i32)
+                        (i32.lt_s (local.get $xi) (i32.const 0))
+                        (then (i32.sub (i32.const 0) (local.get $xi)))
+                        (else (local.get $xi)))))
+
+     (func $fxabs (type $Prim1)
+           (param $x (ref eq)) (result (ref eq))
+           (local $xi i32)
+           (local.set $xi (i31.get_s (ref.cast i31ref (local.get $x))))
+           (ref.i31 (if (result i32)
+                        (i32.lt_s (local.get $xi) (i32.const 0))
+                        (then (i32.sub (i32.const 0) (local.get $xi)))
+                        (else (local.get $xi))))))))
+
 ;; fixnum-bitwise-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate variadic fixnum bitwise helpers used by the monolithic runtime.
 (define fixnum-bitwise-runtime-only-helpers
@@ -417,6 +876,7 @@
 (define fixnum-runtime-only-helpers
   (append
    fixnum-predicate-runtime-only-helpers
+   fixnum-arithmetic-runtime-only-helpers
    fixnum-comparison-runtime-only-helpers
    fixnum-bitwise-runtime-only-helpers
    fixnum-wraparound-runtime-only-helpers
