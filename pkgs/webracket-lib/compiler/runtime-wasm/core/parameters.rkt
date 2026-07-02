@@ -9,6 +9,7 @@
          parameter-width-runtime-only-helper-names
          parameter-error-rendering-runtime-only-helper-names
          parameter-directory-runtime-only-helper-names
+         reader-printer-policy-parameter-global-forms
          reader-printer-policy-parameter-helper-names)
 
 (require "../core-helper.rkt")
@@ -145,6 +146,46 @@
       $symbol:error-print-source-location
       $error-print-source-location-value
       $prim:error-print-source-location)))
+
+;; reader-printer-policy-parameter-global-forms : (listof datum?)
+;;   Declare reader, printer, and error-rendering policy parameter globals.
+(define reader-printer-policy-parameter-global-forms
+  '(
+               (global $load-on-demand-enabled-value (mut (ref eq)) (global.get $true))
+               (global $use-user-specific-search-paths-value (mut (ref eq)) (global.get $true))
+               (global $read-square-bracket-as-paren-value (mut (ref eq)) (global.get $true))
+               (global $read-curly-brace-as-paren-value   (mut (ref eq)) (global.get $true))
+               (global $read-square-bracket-with-tag-value (mut (ref eq)) (global.get $false))
+               (global $read-curly-brace-with-tag-value   (mut (ref eq)) (global.get $false))
+               (global $read-accept-reader-value       (mut (ref eq)) (global.get $true))
+               (global $read-accept-lang-value         (mut (ref eq)) (global.get $true))
+               (global $read-accept-compiled-value     (mut (ref eq)) (global.get $false))
+               (global $read-accept-box-value          (mut (ref eq)) (global.get $true))
+               (global $read-accept-bar-quote-value    (mut (ref eq)) (global.get $true))
+               (global $read-accept-graph-value        (mut (ref eq)) (global.get $true))
+               (global $read-syntax-accept-graph-value (mut (ref eq)) (global.get $false))
+               (global $read-accept-dot-value          (mut (ref eq)) (global.get $true))
+               (global $read-accept-infix-dot-value    (mut (ref eq)) (global.get $true))
+               (global $read-accept-quasiquote-value   (mut (ref eq)) (global.get $true))
+               (global $read-cdot-value                (mut (ref eq)) (global.get $false))
+               (global $read-single-flonum-value       (mut (ref eq)) (global.get $false))
+               (global $read-decimal-as-inexact-value  (mut (ref eq)) (global.get $true))
+               (global $read-case-sensitive-value      (mut (ref eq)) (global.get $true))
+               (global $current-readtable-value        (mut (ref eq)) (global.get $false))
+               (global $print-pair-curly-braces-value       (mut (ref eq)) (global.get $false))
+               (global $print-mpair-curly-braces-value      (mut (ref eq)) (global.get $true))
+               (global $print-unreadable-value              (mut (ref eq)) (global.get $true))
+               (global $print-graph-value                   (mut (ref eq)) (global.get $false))
+               (global $print-struct-value                  (mut (ref eq)) (global.get $true))
+               (global $print-box-value                     (mut (ref eq)) (global.get $true))
+               (global $print-vector-length-value           (mut (ref eq)) (global.get $false))
+               (global $print-hash-table-value              (mut (ref eq)) (global.get $true))
+               (global $print-boolean-long-form-value       (mut (ref eq)) (global.get $false))
+               (global $print-reader-abbreviations-value    (mut (ref eq)) (global.get $false))
+               (global $print-as-expression-value           (mut (ref eq)) (global.get $true))
+               (global $print-syntax-width-value       (mut (ref eq)) (ref.i31 (i32.const 512)))
+               (global $error-print-width-value        (mut (ref eq)) (ref.i31 (i32.const 512)))
+               (global $error-print-source-location-value (mut (ref eq)) (global.get $true))))
 
 ;; reader-printer-policy-parameter-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for generated policy parameters.
