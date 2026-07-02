@@ -198,10 +198,12 @@
                   parameter-runtime-only-helpers
                   parameter-width-runtime-only-helper-names
                   environment-parameter-global-forms
+                  environment-parameter-initializer-forms
                   reader-printer-policy-parameter-global-forms
                   reader-printer-policy-parameter-helper-names)
          (only-in "runtime-wasm/core/paths.rkt"
                   path-current-global-forms
+                  path-current-initializer-forms
                   path-runtime-only-helpers
                   path-runtime-only-helper-names
                   path-manipulation-runtime-only-helper-names)
@@ -7259,17 +7261,8 @@
                      ,@entry-struct-property-initializer-forms
 
 
-                     ;; Default to the host platform's path convention (currently Unix)
-                     (global.set $system-path-convention (global.get $symbol:unix))
-                     (global.set $current-environment-variables-value
-                                 (struct.new $EnvironmentVariables
-                                             (i32.const 0)))
-                     (global.set $current-directory-path
-                                 (call $bytes->path
-                                       (global.get $bytes:app-dir)
-                                       (global.get $missing)))
-                     (global.set $current-directory-for-user-path
-                                 (global.get $current-directory-path))
+                     ,@path-current-initializer-forms
+                     ,@environment-parameter-initializer-forms
                      (drop (call $reset-current-input-port!))
                      (drop (call $reset-current-output-port!))
                      (drop (call $reset-current-error-port!))

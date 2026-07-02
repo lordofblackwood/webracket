@@ -1,6 +1,7 @@
 #lang racket
 
 (provide path-current-global-forms
+         path-current-initializer-forms
          path-runtime-only-helpers
          path-runtime-only-helper-names
          path-manipulation-runtime-only-helper-names)
@@ -15,6 +16,19 @@
                (global $current-directory-path   (mut (ref eq)) (ref.i31 (i32.const 0)))
                (global $current-directory-for-user-path (mut (ref eq)) (ref.i31 (i32.const 0)))
                (global $current-load-relative-directory-path (mut (ref eq)) (global.get $false))))
+
+;; path-current-initializer-forms : (listof datum?)
+;;   Initialize path convention and current-directory path state.
+(define path-current-initializer-forms
+  '(
+                     ;; Default to the host platform's path convention (currently Unix)
+                     (global.set $system-path-convention (global.get $symbol:unix))
+                     (global.set $current-directory-path
+                                 (call $bytes->path
+                                       (global.get $bytes:app-dir)
+                                       (global.get $missing)))
+                     (global.set $current-directory-for-user-path
+                                 (global.get $current-directory-path))))
 
 ;; path-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for basic path helpers.

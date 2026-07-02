@@ -10,6 +10,7 @@
          parameter-error-rendering-runtime-only-helper-names
          parameter-directory-runtime-only-helper-names
          environment-parameter-global-forms
+         environment-parameter-initializer-forms
          reader-printer-policy-parameter-global-forms
          reader-printer-policy-parameter-helper-names)
 
@@ -153,6 +154,14 @@
 (define environment-parameter-global-forms
   '(
                (global $current-environment-variables-value (mut (ref eq)) (ref.i31 (i32.const 0)))))
+
+;; environment-parameter-initializer-forms : (listof datum?)
+;;   Initialize the current-environment-variables backing value.
+(define environment-parameter-initializer-forms
+  '(
+                     (global.set $current-environment-variables-value
+                                 (struct.new $EnvironmentVariables
+                                             (i32.const 0)))))
 
 ;; reader-printer-policy-parameter-global-forms : (listof datum?)
 ;;   Declare reader, printer, and error-rendering policy parameter globals.
