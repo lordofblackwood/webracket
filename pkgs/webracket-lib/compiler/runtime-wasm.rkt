@@ -206,6 +206,8 @@
                   parameterization-runtime-only-helper-names
                   parameter-runtime-only-helpers
                   parameter-width-runtime-only-helper-names
+                  print-read-parameter-global-forms
+                  print-read-parameter-late-initializer-forms
                   environment-parameter-global-forms
                   environment-parameter-initializer-forms
                   reader-printer-policy-parameter-global-forms
@@ -7165,8 +7167,7 @@
                ,@environment-parameter-global-forms
                ,@filesystem-temporary-global-forms
                ,@port-current-global-forms
-               (global $current-print-value       (mut (ref eq)) (global.get $false))
-               (global $current-read-interaction-value (mut (ref eq)) (global.get $false))
+               ,@print-read-parameter-global-forms
                ,@logger-current-global-forms
                ,@security-current-global-forms
                ,@io-handler-default-port-global-forms
@@ -7277,15 +7278,7 @@
                                             (ref.func $primitive-invoke:shape-2)
                                             (ref.func $default-error-value->string-handler)
                                             (global.get $false)))
-                    (global.set $current-read-interaction-value
-                                (struct.new $PrimitiveProcedure
-                                            (i32.const 0)
-                                            (global.get $symbol:current-read-interaction)
-                                            (ref.i31 (i32.const 4))
-                                            (global.get $the-racket/primitive-realm)
-                                            (ref.func $primitive-invoke:shape-2)
-                                            (ref.func $default-current-read-interaction)
-                                            (global.get $false)))
+                    ,@print-read-parameter-late-initializer-forms
                     (global.set $default-port-read-handler-value
                                 (struct.new $PrimitiveProcedure
                                             (i32.const 0)

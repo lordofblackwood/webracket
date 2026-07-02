@@ -14,6 +14,8 @@
          parameter-directory-runtime-only-helper-names
          environment-parameter-global-forms
          environment-parameter-initializer-forms
+         print-read-parameter-global-forms
+         print-read-parameter-late-initializer-forms
          reader-printer-policy-parameter-global-forms
          reader-printer-policy-parameter-helper-names)
 
@@ -165,6 +167,27 @@
                      (global.set $current-environment-variables-value
                                  (struct.new $EnvironmentVariables
                                              (i32.const 0)))))
+
+;; print-read-parameter-global-forms : (listof datum?)
+;;   Declare globals backing current-print and current-read-interaction.
+(define print-read-parameter-global-forms
+  '(
+               (global $current-print-value       (mut (ref eq)) (global.get $false))
+               (global $current-read-interaction-value (mut (ref eq)) (global.get $false))))
+
+;; print-read-parameter-late-initializer-forms : (listof datum?)
+;;   Initialize current-read-interaction after primitive globals are ready.
+(define print-read-parameter-late-initializer-forms
+  '(
+                    (global.set $current-read-interaction-value
+                                (struct.new $PrimitiveProcedure
+                                            (i32.const 0)
+                                            (global.get $symbol:current-read-interaction)
+                                            (ref.i31 (i32.const 4))
+                                            (global.get $the-racket/primitive-realm)
+                                            (ref.func $primitive-invoke:shape-2)
+                                            (ref.func $default-current-read-interaction)
+                                            (global.get $false)))))
 
 ;; reader-printer-policy-parameter-global-forms : (listof datum?)
 ;;   Declare reader, printer, and error-rendering policy parameter globals.
