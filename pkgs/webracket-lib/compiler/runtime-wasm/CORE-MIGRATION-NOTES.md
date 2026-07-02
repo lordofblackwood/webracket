@@ -67,3 +67,31 @@ requires broader list, error, or decoding support in core:
 Before moving the list conversions, add or move enough error support for
 proper Racket exceptions. Do not make the new core list conversion paths
 trusted unchecked helpers just to make the migration easy.
+
+## Performance Notes
+
+### Module Fingerprints Should Not Serialize And Throw Away WAT Repeatedly
+
+Location:
+
+- `pkgs/webracket-lib/compiler/runtime-wasm.rkt`
+
+Concern:
+
+- `module-fingerprint` used to compute a SHA1 by writing a module to a
+  string, converting that string to UTF-8 bytes, hashing the bytes, and then
+  discarding the serialized module.
+- Full module serialization is expensive, especially during tree-shake and
+  runtime analysis where the module can be large.
+- The same general serialization work also happens when the driver writes the
+  final `.wat` file.
+
+Follow-up:
+
+- Prefer computing hashes and byte counts from the same serialized bytes/text
+  that are already needed for output.
+- The stable-runtime analysis cache key is needed before the final `.wat` file
+  is written, so it cannot simply be delayed until driver output time without
+  changing the cache lookup order. If that fingerprint remains necessary,
+  keep the serialization explicit and avoid extra string-to-bytes copies or
+  repeated full-module writes.

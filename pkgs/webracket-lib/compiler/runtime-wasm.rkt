@@ -831,6 +831,19 @@
         (current-runtime-metric-rows
          (cons (list label (~a value)) (current-runtime-metric-rows)))))
 
+    ;; runtime-metric-add/computed! : string? (-> any/c) -> void?
+    ;;   Compute and record a runtime metric only when metric rows are active.
+    (define (runtime-metric-add/computed! label thunk)
+      (when (current-runtime-metric-rows)
+        (runtime-metric-add! label (thunk))))
+
+    ;; module-write-bytes : list? -> bytes?
+    ;;   Serialize a WAT module with `write` for hashing and size metrics.
+    (define (module-write-bytes module)
+      (call-with-output-bytes
+       (lambda (out)
+         (write module out))))
+
     (define (runtime-source-fingerprint)
       `(runtime-source
         1
@@ -898,10 +911,7 @@
     (define (module-fingerprint module)
       (bytes->hex-string
        (sha1-bytes
-        (string->bytes/utf-8
-         (with-output-to-string
-           (lambda ()
-             (write module)))))))
+        (module-write-bytes module))))
 
     (define (stable-runtime-analysis-cache-fingerprint runtime-module)
       `(stable-runtime-analysis-cache
@@ -961,11 +971,7 @@
               (eq? (car form) 'export)))))
 
     (define (module-byte-size module)
-      (bytes-length
-       (string->bytes/utf-8
-        (with-output-to-string
-          (lambda ()
-            (write module))))))
+      (bytes-length (module-write-bytes module)))
 
     (define (symbol-prefix-count syms prefix)
       (for/sum ([sym (in-list syms)]
@@ -6614,8 +6620,9 @@
                          (length used-primitives))
     (define full-module
       (time-runtime-step "runtime:build-runtime-module" build-runtime-module))
-    (runtime-metric-add! "runtime:module-bytes-before-prune"
-                         (module-byte-size full-module))
+    (runtime-metric-add/computed! "runtime:module-bytes-before-prune"
+                                  (lambda ()
+                                    (module-byte-size full-module)))
     (runtime-metric-add! "runtime:function-count-before-prune"
                          (module-func-count full-module))
     (runtime-metric-add! "runtime:global-count-before-prune"
@@ -6755,7 +6762,8 @@
                          (module-func-count final-module))
     (runtime-metric-add! "tree-shake:global-count-after-prune"
                          (module-global-count final-module))
-    (runtime-metric-add! "tree-shake:module-bytes-after-prune"
-                         (module-byte-size final-module))
+    (runtime-metric-add/computed! "tree-shake:module-bytes-after-prune"
+                                  (lambda ()
+                                    (module-byte-size final-module)))
     final-module
     )))
