@@ -1,12 +1,111 @@
 #lang racket
 
 (provide bootstrap-error-runtime-only-helper-names
+         exception-struct-type-bindings
+         exception-struct-type-cache-global-forms
+         exception-struct-type-global-forms
+         exception-struct-type-initializer-forms
          exception-contract-runtime-only-helper-names
          exception-contract-runtime-only-helpers
          exception-runtime-only-helper-names
          exception-runtime-only-helpers)
 
 (require "../core-helper.rkt")
+
+;; exception-struct-type-bindings : (listof (list symbol? symbol?))
+;;   Map exported exception structure type names to their ensure helpers.
+(define exception-struct-type-bindings
+  '((struct:exn                                 ensure-exn-type)
+    (struct:exn:break                           ensure-exn:break-type)
+    (struct:exn:break:hang-up                   ensure-exn:break:hang-up-type)
+    (struct:exn:break:terminate                 ensure-exn:break:terminate-type)
+    (struct:exn:fail                            ensure-exn:fail-type)
+    (struct:exn:fail:contract                   ensure-exn:fail:contract-type)
+    (struct:exn:fail:contract:arity             ensure-exn:fail:contract:arity-type)
+    (struct:exn:fail:contract:continuation      ensure-exn:fail:contract:continuation-type)
+    (struct:exn:fail:contract:divide-by-zero    ensure-exn:fail:contract:divide-by-zero-type)
+    (struct:exn:fail:contract:non-fixnum-result ensure-exn:fail:contract:non-fixnum-result-type)
+    (struct:exn:fail:contract:variable          ensure-exn:fail:contract:variable-type)
+    (struct:exn:fail:read                       ensure-exn:fail:read-type)
+    (struct:exn:fail:read:eof                   ensure-exn:fail:read:eof-type)
+    (struct:exn:fail:read:non-char              ensure-exn:fail:read:non-char-type)
+    (struct:exn:fail:filesystem                 ensure-exn:fail:filesystem-type)
+    (struct:exn:fail:filesystem:exists          ensure-exn:fail:filesystem:exists-type)
+    (struct:exn:fail:filesystem:version         ensure-exn:fail:filesystem:version-type)
+    (struct:exn:fail:filesystem:errno           ensure-exn:fail:filesystem:errno-type)
+    (struct:exn:fail:network                    ensure-exn:fail:network-type)
+    (struct:exn:fail:network:errno              ensure-exn:fail:network:errno-type)
+    (struct:exn:fail:out-of-memory              ensure-exn:fail:out-of-memory-type)
+    (struct:exn:fail:unsupported                ensure-exn:fail:unsupported-type)
+    (struct:exn:fail:user                       ensure-exn:fail:user-type)
+    (struct:exn:fail:syntax                     ensure-exn:fail:syntax-type)
+    (struct:exn:fail:syntax:missing-module      ensure-exn:fail:syntax:missing-module-type)
+    (struct:exn:fail:syntax:unbound             ensure-exn:fail:syntax:unbound-type)))
+
+;; exception-struct-type->global-name : symbol? -> symbol?
+;;   Convert a Racket exception struct type name to its Wasm global name.
+(define (exception-struct-type->global-name name)
+  (string->symbol (~a "$" (symbol->string name))))
+
+;; exception-struct-type->ensure-name : symbol? -> symbol?
+;;   Convert an exception ensure helper name to its Wasm function name.
+(define (exception-struct-type->ensure-name name)
+  (string->symbol (~a "$" (symbol->string name))))
+
+;; exception-struct-type-cache-global-forms : (listof datum?)
+;;   Declare cached kernel exception struct type descriptors.
+(define exception-struct-type-cache-global-forms
+  '(
+         ;; Cached kernel exception struct type descriptors
+         (global $exn-type                              (mut (ref null $StructType)) (ref.null $StructType))
+         (global $exn:break-type                        (mut (ref null $StructType)) (ref.null $StructType))
+         (global $exn:break:hang-up-type                (mut (ref null $StructType)) (ref.null $StructType))
+         (global $exn:break:terminate-type              (mut (ref null $StructType)) (ref.null $StructType))
+         (global $exn:fail-type                         (mut (ref null $StructType)) (ref.null $StructType))
+
+         (global $exn:fail:contract-type                (mut (ref null $StructType)) (ref.null $StructType))
+         (global $exn:fail:contract:arity-type          (mut (ref null $StructType)) (ref.null $StructType))
+         (global $exn:fail:contract:continuation-type   (mut (ref null $StructType)) (ref.null $StructType))
+         (global $exn:fail:contract:divide-by-zero-type (mut (ref null $StructType)) (ref.null $StructType))
+         (global $exn:fail:contract:non-fixnum-result-type (mut (ref null $StructType)) (ref.null $StructType))
+         (global $exn:fail:contract:variable-type       (mut (ref null $StructType)) (ref.null $StructType))
+
+         (global $exn:fail:read-type                    (mut (ref null $StructType)) (ref.null $StructType))
+         (global $exn:fail:read:eof-type                (mut (ref null $StructType)) (ref.null $StructType))
+         (global $exn:fail:read:non-char-type           (mut (ref null $StructType)) (ref.null $StructType))
+
+         (global $exn:fail:filesystem-type              (mut (ref null $StructType)) (ref.null $StructType))
+         (global $exn:fail:filesystem:exists-type       (mut (ref null $StructType)) (ref.null $StructType))
+         (global $exn:fail:filesystem:version-type      (mut (ref null $StructType)) (ref.null $StructType))
+         (global $exn:fail:filesystem:errno-type        (mut (ref null $StructType)) (ref.null $StructType))
+         (global $exn:fail:filesystem:missing-module-type (mut (ref null $StructType)) (ref.null $StructType))
+         (global $exn:fail:network-type                 (mut (ref null $StructType)) (ref.null $StructType))
+         (global $exn:fail:network:errno-type           (mut (ref null $StructType)) (ref.null $StructType))
+         (global $exn:fail:out-of-memory-type           (mut (ref null $StructType)) (ref.null $StructType))
+         (global $exn:fail:unsupported-type             (mut (ref null $StructType)) (ref.null $StructType))
+         (global $exn:fail:user-type                    (mut (ref null $StructType)) (ref.null $StructType))
+
+         (global $exn:fail:syntax-type                  (mut (ref null $StructType)) (ref.null $StructType))
+         (global $exn:fail:syntax:missing-module-type   (mut (ref null $StructType)) (ref.null $StructType))
+         (global $exn:fail:syntax:unbound-type          (mut (ref null $StructType)) (ref.null $StructType))))
+
+;; exception-struct-type-global-forms : (listof datum?)
+;;   Declare exported exception struct type descriptor value globals.
+(define exception-struct-type-global-forms
+  (for/list ([binding (in-list exception-struct-type-bindings)])
+    (define name  (car binding))
+    (define $name (exception-struct-type->global-name name))
+    `(global ,$name (mut (ref eq)) (global.get $undefined))))
+
+;; exception-struct-type-initializer-forms : (listof datum?)
+;;   Populate exported exception struct type descriptor value globals.
+(define exception-struct-type-initializer-forms
+  (for/list ([binding (in-list exception-struct-type-bindings)])
+    (define name    (car binding))
+    (define ensure  (cadr binding))
+    (define $name   (exception-struct-type->global-name name))
+    (define $ensure (exception-struct-type->ensure-name ensure))
+    `(global.set ,$name (call ,$ensure))))
 
 ;; bootstrap-error-runtime-only-forms : (listof datum?)
 ;;   Enumerate early error helpers used before the main exception section.
