@@ -349,6 +349,9 @@
                   syntax-runtime-only-helpers
                   syntax-runtime-only-helper-names)
          (only-in "runtime-wasm/core/threads.rkt"
+                  thread-current-global-forms
+                  thread-current-initializer-forms
+                  thread-group-current-global-forms
                   thread-runtime-only-helpers)
          (only-in "runtime-wasm/core/time.rkt"
                   time-runtime-only-helpers
@@ -7166,13 +7169,13 @@
                ,@parameterization-global-forms
                (global $current-namespace-value (mut (ref eq)) (global.get $false))
                ,@random-current-global-forms
-               (global $current-thread-group-value (mut (ref eq)) (global.get $false))
+               ,@thread-group-current-global-forms
                (global $error-value->string-handler-value (mut (ref eq)) (global.get $false))
                (global $error-syntax->string-handler-value (mut (ref eq)) (global.get $false))
                (global $error-syntax->name-handler-value (mut (ref eq)) (global.get $false))
                (global $error-module-path->string-handler-value (mut (ref eq)) (global.get $false))
                (global $result-bytes             (mut (ref eq)) (ref.i31 (i32.const 0)))
-               (global $current-thread-value     (mut (ref eq)) (global.get $false))
+               ,@thread-current-global-forms
                (global $always-evt               (mut (ref eq)) (global.get $false))
                (global $never-evt                (mut (ref eq)) (global.get $false))
 
@@ -7237,12 +7240,7 @@
                                  (global.get $symbol:parameterization-key))
                      ,@parameterization-initializer-forms
                      ,@random-current-initializer-forms
-                     (global.set $current-thread-value
-                                 (struct.new $Thread (i32.const 0)))
-                     (global.set $current-thread-group-value
-                                 (struct.new $ThreadGroup
-                                             (i32.const 0)
-                                             (global.get $false)))
+                     ,@thread-current-initializer-forms
                      (global.set $current-logger-value
                                  (struct.new $Logger
                                              (i32.const 0)

@@ -1,8 +1,34 @@
 #lang racket
 
-(provide thread-runtime-only-helpers)
+(provide thread-current-global-forms
+         thread-current-initializer-forms
+         thread-group-current-global-forms
+         thread-runtime-only-helpers)
 
 (require "../core-helper.rkt")
+
+;; thread-group-current-global-forms : (listof datum?)
+;;   Declare the current thread group global at its monolithic runtime position.
+(define thread-group-current-global-forms
+  '(
+               (global $current-thread-group-value (mut (ref eq)) (global.get $false))))
+
+;; thread-current-global-forms : (listof datum?)
+;;   Declare the current thread global at its monolithic runtime position.
+(define thread-current-global-forms
+  '(
+               (global $current-thread-value     (mut (ref eq)) (global.get $false))))
+
+;; thread-current-initializer-forms : (listof datum?)
+;;   Initialize WebRacket's single thread and initial thread group.
+(define thread-current-initializer-forms
+  '(
+                     (global.set $current-thread-value
+                                 (struct.new $Thread (i32.const 0)))
+                     (global.set $current-thread-group-value
+                                 (struct.new $ThreadGroup
+                                             (i32.const 0)
+                                             (global.get $false)))))
 
 ;; thread-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate thread helpers that still depend on monolithic runtime globals.
