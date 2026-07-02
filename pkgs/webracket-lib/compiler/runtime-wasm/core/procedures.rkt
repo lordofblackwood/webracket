@@ -1,6 +1,7 @@
 #lang racket
 
 (provide procedure-core-runtime-helpers
+         procedure-global-forms
          procedure-basic-runtime-only-helper-names
          procedure-arity-at-least-runtime-only-helper-names
          procedure-arity-field-runtime-only-helper-names
@@ -20,6 +21,13 @@
 
 (require "../core-helper.rkt"
          "../../private/wasm-utils.rkt")
+
+;; procedure-global-forms : (listof datum?)
+;;   Declare cached procedure-related struct type descriptors.
+(define procedure-global-forms
+  '(
+         ;; Cached arity-at-least struct type descriptor
+         (global $arity-at-least-type (mut (ref null $StructType)) (ref.null $StructType))))
 
 ;; procedure-core-runtime-helpers : (listof core-runtime-helper?)
 ;;   Enumerate procedure-call helpers that can be emitted in core runtime.

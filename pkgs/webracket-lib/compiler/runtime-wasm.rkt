@@ -172,6 +172,7 @@
                   linklet-primitive-table-runtime-only-helper-forms
                   linklet-runtime-only-helper-forms)
          (only-in "runtime-wasm/core/locations.rkt"
+                  location-global-forms
                   location-runtime-only-helpers
                   source-location-runtime-only-helper-names)
          (only-in "runtime-wasm/core/locks.rkt"
@@ -254,6 +255,7 @@
          (only-in "runtime-wasm/core/procedures.rkt"
                   primitive-invocation-error-runtime-only-helper-names
                   primitive-reflection-runtime-only-helper-names
+                  procedure-global-forms
                   procedure-arity-at-least-runtime-only-helper-names
                   procedure-arity-field-runtime-only-helper-names
                   procedure-arity-mask-runtime-only-helper-names
@@ -3471,11 +3473,9 @@
 
          ,@exception-struct-type-cache-global-forms
 
-         ;; Cached srcloc struct type descriptor
-         (global $srcloc-type (mut (ref null $StructType)) (ref.null $StructType))
+         ,@location-global-forms
 
-         ;; Cached arity-at-least struct type descriptor
-         (global $arity-at-least-type (mut (ref null $StructType)) (ref.null $StructType))
+         ,@procedure-global-forms
 
          ,@syntax-global-forms
 

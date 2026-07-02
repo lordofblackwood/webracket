@@ -1,9 +1,17 @@
 #lang racket
 
-(provide location-runtime-only-helpers
+(provide location-global-forms
+         location-runtime-only-helpers
          source-location-runtime-only-helper-names)
 
 (require "../core-helper.rkt")
+
+;; location-global-forms : (listof datum?)
+;;   Declare cached source-location struct type descriptors.
+(define location-global-forms
+  '(
+         ;; Cached srcloc struct type descriptor
+         (global $srcloc-type (mut (ref null $StructType)) (ref.null $StructType))))
 
 ;; source-location-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for source-location helpers.
