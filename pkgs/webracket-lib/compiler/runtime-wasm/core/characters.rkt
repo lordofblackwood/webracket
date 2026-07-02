@@ -1,10 +1,57 @@
 #lang racket
 
-(provide character-runtime-only-helper-names
+(provide character-general-category-global-forms
+         character-general-category-initializer-forms
+         character-runtime-only-helper-names
          character-runtime-only-helpers)
 
 (require "../core-helper.rkt"
          "../../private/immediates.rkt")
+
+;; character-general-category-global-forms : (listof datum?)
+;;   Declare the symbol table used by char-general-category.
+(define character-general-category-global-forms
+  '(
+         ;; The function $char-general-category returns symbols from this array,
+         ;; based on an index computed on the host.
+         (global $char-general-category-symbols (mut (ref null $Array)) (ref.null $Array))))
+
+;; character-general-category-initializer-forms : (listof datum?)
+;;   Initialize the char-general-category result symbol table.
+(define character-general-category-initializer-forms
+  '(
+                     (global.set $char-general-category-symbols
+                                 (array.new_fixed $Array 30
+                                                  (global.get $symbol:lu)
+                                                  (global.get $symbol:ll)
+                                                  (global.get $symbol:lt)
+                                                  (global.get $symbol:lm)
+                                                  (global.get $symbol:lo)
+                                                  (global.get $symbol:mn)
+                                                  (global.get $symbol:mc)
+                                                  (global.get $symbol:me)
+                                                  (global.get $symbol:nd)
+                                                  (global.get $symbol:nl)
+                                                  (global.get $symbol:no)
+                                                  (global.get $symbol:ps)
+                                                  (global.get $symbol:pe)
+                                                  (global.get $symbol:pi)
+                                                  (global.get $symbol:pf)
+                                                  (global.get $symbol:pd)
+                                                  (global.get $symbol:pc)
+                                                  (global.get $symbol:po)
+                                                  (global.get $symbol:sc)
+                                                  (global.get $symbol:sm)
+                                                  (global.get $symbol:sk)
+                                                  (global.get $symbol:so)
+                                                  (global.get $symbol:zs)
+                                                  (global.get $symbol:zp)
+                                                  (global.get $symbol:zl)
+                                                  (global.get $symbol:cc)
+                                                  (global.get $symbol:cf)
+                                                  (global.get $symbol:cs)
+                                                  (global.get $symbol:co)
+                                                  (global.get $symbol:cn)))))
 
 ;; character-runtime-only-forms : (listof datum?)
 ;;   Enumerate character helpers used by the monolithic runtime.

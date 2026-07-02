@@ -37,6 +37,8 @@
                   bytes-mutability-runtime-only-helper-names
                   bytes-runtime-only-helpers)
          (only-in "runtime-wasm/core/characters.rkt"
+                  character-general-category-global-forms
+                  character-general-category-initializer-forms
                   character-runtime-only-helper-names
                   character-runtime-only-helpers)
          (only-in "runtime-wasm/core/checkers.rkt"
@@ -3459,9 +3461,7 @@
          ;; Symbol constants used in the runtime
          ,@(declare-runtime-symbol-constants)
 
-         ;; The function $char-general-category returns symbols from this array,
-         ;; based on an index computed on the host.
-         (global $char-general-category-symbols (mut (ref null $Array)) (ref.null $Array))
+         ,@character-general-category-global-forms
 
          ;; Commonly used realms
          (global $the-racket-realm           (mut (ref eq)) ,(Undefined)) ; the symbol 'racket
@@ -7267,38 +7267,7 @@
                      (drop (call $reset-current-output-port!))
                      (drop (call $reset-current-error-port!))
 
-                     (global.set $char-general-category-symbols
-                                 (array.new_fixed $Array 30
-                                                  (global.get $symbol:lu)
-                                                  (global.get $symbol:ll)
-                                                  (global.get $symbol:lt)
-                                                  (global.get $symbol:lm)
-                                                  (global.get $symbol:lo)
-                                                  (global.get $symbol:mn)
-                                                  (global.get $symbol:mc)
-                                                  (global.get $symbol:me)
-                                                  (global.get $symbol:nd)
-                                                  (global.get $symbol:nl)
-                                                  (global.get $symbol:no)
-                                                  (global.get $symbol:ps)
-                                                  (global.get $symbol:pe)
-                                                  (global.get $symbol:pi)
-                                                  (global.get $symbol:pf)
-                                                  (global.get $symbol:pd)
-                                                  (global.get $symbol:pc)
-                                                  (global.get $symbol:po)
-                                                  (global.get $symbol:sc)
-                                                  (global.get $symbol:sm)
-                                                  (global.get $symbol:sk)
-                                                  (global.get $symbol:so)
-                                                  (global.get $symbol:zs)
-                                                  (global.get $symbol:zp)
-                                                  (global.get $symbol:zl)
-                                                  (global.get $symbol:cc)
-                                                  (global.get $symbol:cf)
-                                                  (global.get $symbol:cs)
-                                                  (global.get $symbol:co)
-                                                  (global.get $symbol:cn)))
+                     ,@character-general-category-initializer-forms
 
                      ;; ;; Initialize realm symbols
                      ;; (global.set $the-racket-realm
