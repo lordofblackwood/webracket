@@ -20,6 +20,7 @@
          struct-mutator-runtime-only-helper-names
          struct-field-mutator-runtime-only-helper-names
          struct-predicate-runtime-only-helper-names
+         struct-field-accessor-runtime-only-helper-names
          struct-procedure-predicate-runtime-only-helper-names
          struct-core-runtime-helpers
          struct-runtime-only-helpers)
@@ -192,6 +193,12 @@
   '($make-struct-predicate
     $make-struct-predicate/checked
     $struct-predicate))
+
+;; struct-field-accessor-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for struct field accessor helpers.
+(define struct-field-accessor-runtime-only-helper-names
+  '($make-struct-field-accessor
+    $struct-field-accessor/specialized))
 
 ;; struct-procedure-predicate-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for struct procedure predicates.
@@ -4347,6 +4354,114 @@
            (call $make-struct-constructor/checked (local.get $std)))
      )))
 
+;; struct-field-accessor-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate struct field accessor helpers used by the monolithic runtime.
+(define struct-field-accessor-runtime-only-helpers
+  (function-forms->runtime-helpers
+   'struct-field-accessor-runtime-only-helpers
+   '(
+     (func $make-struct-field-accessor ; primitive, section 5.2, returns specialized accessor
+           ;; Parameters
+           (param $accessor-proc  (ref eq))   ;; closure produced by make-struct-accessor
+           (param $field-index-fx (ref eq))   ;; fixnum
+           (param $name           (ref eq))   ;; symbol or #f
+           (param $contract-str   (ref eq))   ;; string/symbol/#f (ignored)
+           (param $realm          (ref eq))   ;; symbol
+
+           (result (ref eq)) ;; closure: (λ (struct) field-value)
+
+           ;; Locals
+           (local $accessor             (ref $Closure))
+           (local $free                 (ref $Free))
+           (local $std                  (ref $StructType))
+           (local $struct-name          (ref eq))
+           (local $field-accessor-name  (ref eq))
+
+           ;; --- Type checks ---
+           ;; Check accessor-proc is a struct accessor procedure
+           (if (i32.eqz (ref.test (ref $StructAccessorProcedure) (local.get $accessor-proc)))
+               (then (call $raise-argument-error/internal (local.get $accessor-proc))))
+           (local.set $accessor (ref.cast (ref $Closure) (local.get $accessor-proc)))
+           ;; Check field-index is a fixnum (i31 with lsb = 0)
+           (if (i32.or (i32.eqz (ref.test (ref i31) (local.get $field-index-fx)))
+                       (i32.ne (i32.and (i31.get_u (ref.cast (ref i31) (local.get $field-index-fx)))
+                                        (i32.const 1))
+                               (i32.const 0)))
+               (then (call $raise-argument-error/internal (local.get $field-index-fx))))
+           ;; field name must be a symbol or #f
+           (if (i32.eqz (ref.eq (local.get $name) (global.get $false)))
+               (then (if (i32.eqz (ref.test (ref $Symbol) (local.get $name)))
+                         (then (call $raise-argument-error/internal (local.get $name))))))
+           ;; Build the name of the struct accessor
+           (local.set $free (struct.get $Closure $free (local.get $accessor)))
+           (local.set $std  (ref.cast (ref $StructType)
+                                      (array.get $Free (local.get $free) (i32.const 0))))
+           (local.set $struct-name (struct.get $StructType $name (local.get $std)))
+           (local.set $field-accessor-name
+                      (if (result (ref eq))
+                          (i32.or (ref.eq (local.get $struct-name) (global.get $false))
+                                  (ref.eq (local.get $name) (global.get $false)))
+                          (then (global.get $false))
+                          (else (call $string->symbol
+                                      (call $string-append/2
+                                            (call $string-append/2
+                                                  (call $symbol->string
+                                                        (ref.cast (ref $Symbol)
+                                                                  (local.get $struct-name)))
+                                                  (call $codepoint->string (i32.const 45)))
+                                            (call $symbol->string
+                                                  (ref.cast (ref $Symbol)
+                                                            (local.get $name))))))))
+           ;; --- Build Free vector ---
+           (local.set $free (array.new_fixed $Free 2
+                                             (local.get $accessor-proc)
+                                             (local.get $field-index-fx)))
+           ;; --- Return closure ---
+           (struct.new $Closure
+                       (i32.const 0)                     ; hash
+                       (local.get $field-accessor-name)  ; name:  #f or $Symbol
+                       (ref.i31 (i32.const 2))           ; arity: 1
+                       (local.get $realm)                ; realm: #f or $Symbol
+                       (ref.func $invoke-closure)        ; invoke (used by apply, map, etc.)
+                       (global.get $false)               ; debug-id
+                       (ref.func $struct-field-accessor/specialized)
+                       (local.get $free)))
+
+     (func $struct-field-accessor/specialized
+           ;; TODO: This just calls the generic accessor.
+           ;;       Making a specialized accessor ought to be more efficient.
+           (type $ClosureCode)
+           (param $clos (ref $Closure))
+           (param $args (ref $Args))
+           (result      (ref eq))
+
+           (local $free      (ref $Free))
+           (local $accessor  (ref $Closure)) ;; free[0] generic accessor
+           (local $field-idx (ref eq))       ;; free[1] field-pos as fixnum
+
+           (local $struct    (ref eq))       ;; args[0]
+
+           (local $args2     (ref $Args))    ;; new arguments used to call the generic accessor
+
+           ;; Unpack free vars
+           (local.set $free       (struct.get $Closure $free (local.get $clos)))
+           (local.set $accessor   (ref.cast (ref $Closure)
+                                            (array.get $Free (local.get $free) (i32.const 0))))
+           (local.set $field-idx            (array.get $Free (local.get $free) (i32.const 1)))
+           ;; Get struct argument
+           (local.set $struct     (array.get $Args (local.get $args) (i32.const 0)))
+           ;; Construct args array: [struct, field-idx]
+           (local.set $args2      (array.new_fixed $Args 2
+                                                   (local.get  $struct)
+                                                   (local.get  $field-idx)))
+           ;; Call the generic accessor directly
+           ; (inlined $call-closure (local.get $accessor) (local.get $args2))
+           (call_ref $ClosureCode
+                     (local.get $accessor)
+                     (local.get $args2)
+                     (struct.get $Closure $code (local.get $accessor))))
+     )))
+
 ;; struct-procedure-predicate-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate predicates for generated struct procedure wrappers.
 (define struct-procedure-predicate-runtime-only-helpers
@@ -4410,6 +4525,7 @@
    struct-mutator-runtime-only-helpers
    struct-field-mutator-runtime-only-helpers
    struct-predicate-runtime-only-helpers
+   struct-field-accessor-runtime-only-helpers
    struct-procedure-predicate-runtime-only-helpers
    (list
     ;; initialize-prefab-struct-type-registry : -> void
