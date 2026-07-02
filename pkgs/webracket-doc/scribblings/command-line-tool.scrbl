@@ -256,6 +256,13 @@ performance investigation, and staged-provider experiments. They are useful
 when reducing WebRacket bugs, but ordinary programs usually should not need
 them.
 
+Assembler environment options:
+
+@itemlist[
+  @item{@(flag "--exec-path-from-shell"): Import @tt{PATH} and @tt{MANPATH} from the login shell before finding @tt{wasm-tools} (default).}
+  @item{@(flag "--no-exec-path-from-shell"): Use the current process environment when finding @tt{wasm-tools}. This is useful for tests and CI environments that already provide the desired @tt{PATH}.}
+]
+
 Module and provider options:
 
 @itemlist[
