@@ -1,6 +1,34 @@
 #lang racket
 
-(provide entry-struct-property-initializer-forms)
+(provide entry-struct-property-global-forms
+         entry-struct-property-initializer-forms)
+
+;; entry-struct-property-global-forms : (listof datum?)
+;;   Declare runtime struct-type property and equal+hash recursion closure globals.
+(define entry-struct-property-global-forms
+  '(
+               ;; Struct-type properties provided by the runtime
+               (global $prop:sealed                   (mut (ref eq)) (global.get $void))
+               (global $prop:evt                      (mut (ref eq)) (global.get $void))
+               (global $prop:object-name              (mut (ref eq)) (global.get $void))
+               (global $prop:procedure                (mut (ref eq)) (global.get $void))
+               (global $prop:exn:srclocs              (mut (ref eq)) (global.get $void))
+               (global $prop:input-port               (mut (ref eq)) (global.get $void))
+               (global $prop:output-port              (mut (ref eq)) (global.get $void))
+               (global $impersonator-prop:application-mark (mut (ref eq)) (global.get $void))
+               (global $prop:checked-procedure        (mut (ref eq)) (global.get $void))
+               (global $prop:impersonator-of          (mut (ref eq)) (global.get $void))
+               (global $prop:method-arity-error       (mut (ref eq)) (global.get $void))
+               (global $prop:arity-string             (mut (ref eq)) (global.get $void))
+               (global $prop:incomplete-arity         (mut (ref eq)) (global.get $void))
+               (global $prop:authentic                (mut (ref eq)) (global.get $void))
+               (global $prop:custom-write             (mut (ref eq)) (global.get $void))
+               (global $prop:custom-print-quotable    (mut (ref eq)) (global.get $void))
+               (global $prop:equal+hash               (mut (ref eq)) (global.get $void))
+               (global $equal+hash-recur/equal        (mut (ref eq)) (global.get $void))
+               (global $equal+hash-recur/equal-always (mut (ref eq)) (global.get $void))
+               (global $equal+hash-recur/hash         (mut (ref eq)) (global.get $void))
+               (global $equal+hash-recur/hash-always  (mut (ref eq)) (global.get $void))))
 
 ;; entry-struct-property-initializer-forms : (listof datum?)
 ;;   Initialize runtime struct-type properties and equal+hash recursion closures.

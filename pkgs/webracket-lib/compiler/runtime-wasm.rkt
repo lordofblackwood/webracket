@@ -12,6 +12,7 @@
          "private/structs.rkt"
          "runtime-wasm/core-helper.rkt"
          (only-in "runtime-wasm/entry-initializers.rkt"
+                  entry-struct-property-global-forms
                   entry-struct-property-initializer-forms)
          (only-in "runtime-wasm/entry-support.rkt"
                   entry-support-forms)
@@ -7204,28 +7205,7 @@
                (global $always-evt               (mut (ref eq)) (global.get $false))
                (global $never-evt                (mut (ref eq)) (global.get $false))
 
-               ;; Struct-type properties provided by the runtime
-               (global $prop:sealed                   (mut (ref eq)) (global.get $void))
-               (global $prop:evt                      (mut (ref eq)) (global.get $void))
-               (global $prop:object-name              (mut (ref eq)) (global.get $void))
-               (global $prop:procedure                (mut (ref eq)) (global.get $void))
-               (global $prop:exn:srclocs              (mut (ref eq)) (global.get $void))
-               (global $prop:input-port               (mut (ref eq)) (global.get $void))
-               (global $prop:output-port              (mut (ref eq)) (global.get $void))
-               (global $impersonator-prop:application-mark (mut (ref eq)) (global.get $void))
-               (global $prop:checked-procedure        (mut (ref eq)) (global.get $void))
-               (global $prop:impersonator-of          (mut (ref eq)) (global.get $void))
-               (global $prop:method-arity-error       (mut (ref eq)) (global.get $void))
-               (global $prop:arity-string             (mut (ref eq)) (global.get $void))
-               (global $prop:incomplete-arity         (mut (ref eq)) (global.get $void))
-               (global $prop:authentic                (mut (ref eq)) (global.get $void))
-               (global $prop:custom-write             (mut (ref eq)) (global.get $void))
-               (global $prop:custom-print-quotable    (mut (ref eq)) (global.get $void))
-               (global $prop:equal+hash               (mut (ref eq)) (global.get $void))
-               (global $equal+hash-recur/equal        (mut (ref eq)) (global.get $void))
-               (global $equal+hash-recur/equal-always (mut (ref eq)) (global.get $void))
-               (global $equal+hash-recur/hash         (mut (ref eq)) (global.get $void))
-               (global $equal+hash-recur/hash-always  (mut (ref eq)) (global.get $void))
+               ,@entry-struct-property-global-forms
                (global $break-enabled-key             (mut (ref eq)) (global.get $void))
                (global $exception-handler-key         (mut (ref eq)) (global.get $void))
                (global $parameterization-key          (mut (ref eq)) (global.get $void))
