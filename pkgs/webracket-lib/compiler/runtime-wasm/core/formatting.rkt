@@ -1,6 +1,7 @@
 #lang racket
 
 (provide printer-extension-runtime-only-helper-names
+         unquoted-printing-string-runtime-only-helper-names
          formatting-runtime-only-helper-names
          numeric-display-formatting-runtime-only-helper-names
          formatting-runtime-only-helpers)
@@ -214,6 +215,60 @@
 ;;   Preserve the runtime emission order for printer-extension helpers.
 (define printer-extension-runtime-only-helper-names
   (map core-runtime-helper-name printer-extension-runtime-only-helpers))
+
+;; unquoted-printing-string-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Register unquoted printing string helpers used by the monolithic runtime.
+(define unquoted-printing-string-runtime-only-helpers
+  (function-forms->runtime-helpers
+   'unquoted-printing-string-runtime-only-helpers
+   '(
+         ;; Unquoted printing strings wrap a string but should display without
+         ;; additional quoting, matching the behavior of the underlying string.
+         (func $unquoted-printing-string? (type $Prim1)
+               (param $v (ref eq))
+               (result   (ref eq))
+               (if (result (ref eq))
+                   (ref.test (ref $UnquotedPrintingString) (local.get $v))
+                   (then (global.get $true))
+                   (else (global.get $false))))
+
+         (func $unquoted-printing-string (type $Prim1)
+               (param $s (ref eq))    ;; string?
+               (result   (ref eq))    ;; unquoted-printing-string?
+
+               (local $str (ref $String))
+
+               (if (i32.eqz (ref.test (ref $String) (local.get $s)))
+                   (then (call $raise-argument-error:string-expected (local.get $s))
+                         (unreachable)))
+
+               (local.set $str (ref.cast (ref $String) (local.get $s)))
+
+               (struct.new $UnquotedPrintingString
+                           (i32.const 0)
+                           (local.get $str)))
+
+         (func $raise-argument-error:unquoted-printing-string-expected (unreachable))
+
+         (func $unquoted-printing-string-value (type $Prim1)
+               (param $ups (ref eq))  ;; unquoted-printing-string?
+               (result     (ref eq))  ;; string?
+
+               (local $wrapped (ref $UnquotedPrintingString))
+
+               (if (i32.eqz (ref.test (ref $UnquotedPrintingString) (local.get $ups)))
+                   (then (call $raise-argument-error:unquoted-printing-string-expected
+                               (local.get $ups))
+                         (unreachable)))
+
+               (local.set $wrapped (ref.cast (ref $UnquotedPrintingString) (local.get $ups)))
+               (struct.get $UnquotedPrintingString $value (local.get $wrapped)))
+     )))
+
+;; unquoted-printing-string-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for unquoted printing string helpers.
+(define unquoted-printing-string-runtime-only-helper-names
+  (map core-runtime-helper-name unquoted-printing-string-runtime-only-helpers))
 
 ;; numeric-display-formatting-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Register numeric display helpers used by the monolithic runtime.
@@ -2147,5 +2202,6 @@
 ;;   Register printer-extension and display-formatting helpers for runtime emission.
 (define formatting-runtime-only-helpers
   (append printer-extension-runtime-only-helpers
+          unquoted-printing-string-runtime-only-helpers
           numeric-display-formatting-runtime-only-helpers
           display-formatting-runtime-only-helpers))

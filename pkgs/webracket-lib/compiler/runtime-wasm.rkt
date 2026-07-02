@@ -81,6 +81,7 @@
                   flonum-runtime-only-helpers)
          (only-in "runtime-wasm/core/formatting.rkt"
                   printer-extension-runtime-only-helper-names
+                  unquoted-printing-string-runtime-only-helper-names
                   formatting-runtime-only-helper-names
                   numeric-display-formatting-runtime-only-helper-names
                   formatting-runtime-only-helpers)
@@ -3795,41 +3796,9 @@
                (result   (ref eq))
                (local.get $v))
 
-         ;; Unquoted printing strings wrap a string but should display without
-         ;; additional quoting, matching the behavior of the underlying string.
-         (func $unquoted-printing-string? (type $Prim1)
-               ,@(make-predicate-body '$UnquotedPrintingString))
-
-        (func $unquoted-printing-string (type $Prim1)
-              (param $s (ref eq))    ;; string?
-              (result   (ref eq))    ;; unquoted-printing-string?
-
-              (local $str (ref $String))
-
-              (if (i32.eqz (ref.test (ref $String) (local.get $s)))
-                  (then (call $raise-argument-error:string-expected (local.get $s))
-                        (unreachable)))
-
-              (local.set $str (ref.cast (ref $String) (local.get $s)))
-
-              (struct.new $UnquotedPrintingString
-                          (i32.const 0)
-                          (local.get $str)))
-
-        (func $raise-argument-error:unquoted-printing-string-expected (unreachable))
-
-        (func $unquoted-printing-string-value (type $Prim1)
-              (param $ups (ref eq))  ;; unquoted-printing-string?
-              (result     (ref eq))  ;; string?
-
-              (local $wrapped (ref $UnquotedPrintingString))
-
-              (if (i32.eqz (ref.test (ref $UnquotedPrintingString) (local.get $ups)))
-                  (then (call $raise-argument-error:unquoted-printing-string-expected (local.get $ups))
-                        (unreachable)))
-
-              (local.set $wrapped (ref.cast (ref $UnquotedPrintingString) (local.get $ups)))
-              (struct.get $UnquotedPrintingString $value (local.get $wrapped)))
+         ;;   Unquoted printing string helpers are implemented in runtime-wasm/core/formatting.rkt.
+         ,@(for/list ([name (in-list unquoted-printing-string-runtime-only-helper-names)])
+             (core-runtime-helper-form runtime-helper-index name))
 
         ;;;
         ;;; Singletons
