@@ -61,6 +61,8 @@
                   exception-runtime-only-helper-names
                   exception-runtime-only-helpers)
          (only-in "runtime-wasm/core/events.rkt"
+                  event-global-forms
+                  event-initializer-forms
                   event-runtime-only-helpers)
          (only-in "runtime-wasm/core/fasl.rkt"
                   fasl-tag-runtime-only-helper-names
@@ -7176,8 +7178,7 @@
                (global $error-module-path->string-handler-value (mut (ref eq)) (global.get $false))
                (global $result-bytes             (mut (ref eq)) (ref.i31 (i32.const 0)))
                ,@thread-current-global-forms
-               (global $always-evt               (mut (ref eq)) (global.get $false))
-               (global $never-evt                (mut (ref eq)) (global.get $false))
+               ,@event-global-forms
 
                ,@entry-struct-property-global-forms
                (global $break-enabled-key             (mut (ref eq)) (global.get $void))
@@ -7249,10 +7250,7 @@
                                  (struct.new $Custodian
                                              (i32.const 0)
                                              (i32.const 0)))
-                     (global.set $always-evt
-                                 (struct.new $AlwaysEvt (i32.const 0)))
-                     (global.set $never-evt
-                                 (struct.new $NeverEvt (i32.const 0)))
+                     ,@event-initializer-forms
 
                      ,@entry-struct-property-initializer-forms
 

@@ -1,8 +1,26 @@
 #lang racket
 
-(provide event-runtime-only-helpers)
+(provide event-global-forms
+         event-initializer-forms
+         event-runtime-only-helpers)
 
 (require "../core-helper.rkt")
+
+;; event-global-forms : (listof datum?)
+;;   Declare singleton event globals for the runtime.
+(define event-global-forms
+  '(
+               (global $always-evt               (mut (ref eq)) (global.get $false))
+               (global $never-evt                (mut (ref eq)) (global.get $false))))
+
+;; event-initializer-forms : (listof datum?)
+;;   Initialize singleton always and never events.
+(define event-initializer-forms
+  '(
+                     (global.set $always-evt
+                                 (struct.new $AlwaysEvt (i32.const 0)))
+                     (global.set $never-evt
+                                 (struct.new $NeverEvt (i32.const 0)))))
 
 ;; event-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate event and channel helpers that still depend on monolithic runtime globals.
