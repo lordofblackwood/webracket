@@ -237,6 +237,7 @@
                   string-case-runtime-only-helper-names
                   string-comparison-runtime-only-helper-names
                   string-constructor-runtime-only-helper-names
+                  string-copy!-runtime-only-helper-names
                   string-copy-runtime-only-helper-names
                   string-dummy-runtime-only-helper-names
                   string-index-runtime-only-helper-names
@@ -6785,124 +6786,9 @@
          ,@(for/list ([name (in-list string-utf8-runtime-only-helper-names)])
              (core-runtime-helper-form runtime-helper-index name))
 
-         (func $raise-string-copy!:bad-destination       (unreachable))
-         (func $raise-string-copy!:bad-destination-start (unreachable))
-         (func $raise-string-copy!:bad-source            (unreachable))
-         (func $raise-string-copy!:bad-source-start      (unreachable))
-         (func $raise-string-copy!:bad-source-end        (unreachable))
-         (func $raise-string-copy!:bad-source-range      (unreachable))
-         (func $raise-string-copy!:bad-destination-range (unreachable))
-
-         (func $string-copy! (type $Prim35)
-               (param $dst-raw       (ref eq))
-               (param $dst-start-raw (ref eq))
-               (param $src-raw       (ref eq))
-               (param $src-start-raw (ref eq))   ;; fixnum or $missing
-               (param $src-end-raw   (ref eq))   ;; fixnum or $missing
-               (result (ref eq))
-
-               (local $dst        (ref $String))
-               (local $src        (ref $String))
-               (local $dst-start  i32)
-               (local $src-start  i32)
-               (local $src-end    i32)
-               (local $src-len    i32)
-               (local $dst-len    i32)
-               ;; --- Type + fixnum checks ---
-               (if (i32.eqz (ref.test (ref $String) (local.get $dst-raw)))
-                   (then (call $raise-string-copy!:bad-destination)))
-               (if (i32.eqz (ref.test (ref i31) (local.get $dst-start-raw)))
-                   (then (call $raise-string-copy!:bad-destination-start)))
-               (if (i32.ne (i32.and (i31.get_u (ref.cast (ref i31) (local.get $dst-start-raw))) (i32.const 1)) (i32.const 0))
-                   (then (call $raise-string-copy!:bad-destination-start)))
-
-               (if (i32.eqz (ref.test (ref $String) (local.get $src-raw)))
-                   (then (call $raise-string-copy!:bad-source)))
-               ;; src-start optional
-               (if (i32.eqz (ref.eq (local.get $src-start-raw) (global.get $missing)))
-                   (then
-                    (if (i32.eqz (ref.test (ref i31) (local.get $src-start-raw)))
-                        (then (call $raise-string-copy!:bad-source-start)))
-                    (if (i32.ne (i32.and (i31.get_u (ref.cast (ref i31) (local.get $src-start-raw))) (i32.const 1)) (i32.const 0))
-                        (then (call $raise-string-copy!:bad-source-start)))))
-               ;; src-end optional
-               (if (i32.eqz (ref.eq (local.get $src-end-raw) (global.get $missing)))
-                   (then
-                    (if (i32.eqz (ref.test (ref i31) (local.get $src-end-raw)))
-                        (then (call $raise-string-copy!:bad-source-end)))
-                    (if (i32.ne (i32.and (i31.get_u (ref.cast (ref i31) (local.get $src-end-raw))) (i32.const 1)) (i32.const 0))
-                        (then (call $raise-string-copy!:bad-source-end)))))
-               ;; --- Decode ---
-               (local.set $dst       (ref.cast (ref $String) (local.get $dst-raw)))
-               (local.set $src       (ref.cast (ref $String) (local.get $src-raw)))
-               (local.set $dst-start (i32.shr_u (i31.get_u (ref.cast (ref i31) (local.get $dst-start-raw))) (i32.const 1)))
-               (local.set $src-len   (call $string-length/checked/i32 (local.get $src)))
-               (if (ref.eq (local.get $src-start-raw) (global.get $missing))
-                   (then (local.set $src-start (i32.const 0)))
-                   (else (local.set $src-start (i32.shr_u (i31.get_u (ref.cast (ref i31) (local.get $src-start-raw))) (i32.const 1)))))
-               (if (ref.eq (local.get $src-end-raw) (global.get $missing))
-                   (then (local.set $src-end (local.get $src-len)))
-                   (else (local.set $src-end (i32.shr_u (i31.get_u (ref.cast (ref i31) (local.get $src-end-raw))) (i32.const 1)))))
-               ;; --- Mutability Check ---
-               (if (i32.ne (struct.get $String $immutable (local.get $dst)) (i32.const 0))
-                   (then (call $raise-immutable-string (local.get $dst))))
-               ;; --- Range Validation ---
-               (local.set $dst-len (call $string-length/checked/i32 (local.get $dst)))
-               (if (i32.gt_u (local.get $src-start) (local.get $src-end))
-                   (then (call $raise-string-copy!:bad-source-range)))
-               (if (i32.gt_u (local.get $src-end) (local.get $src-len))
-                   (then (call $raise-string-copy!:bad-source-range)))
-               (if (i32.gt_u
-                    (i32.add (local.get $dst-start)
-                             (i32.sub (local.get $src-end) (local.get $src-start)))
-                    (local.get $dst-len))
-                   (then (call $raise-string-copy!:bad-destination-range)))
-               ;; --- Delegate ---
-               (call $string-copy!/checked
-                     (local.get $dst)
-                     (local.get $dst-start)
-                     (local.get $src)
-                     (local.get $src-start)
-                     (local.get $src-end))
-               ;; --- Invalidate hash ---
-               (struct.set $String $hash (local.get $dst) (i32.const 0))
-               ;; --- Return ---
-               (global.get $void))
-
-
-         (func $raise-string-copy!/checked:out-of-bounds (unreachable))
-
-         (func $string-copy!/checked
-               (param $dst        (ref $String)) ;; Destination string
-               (param $dst-start  i32)           ;; Start index in destination
-               (param $src        (ref $String)) ;; Source string
-               (param $src-start  i32)           ;; Start index in source
-               (param $src-end    i32)           ;; End index in source (exclusive)
-
-               (local $dst-len i32)
-               (local $src-len i32)
-               (local $len     i32)
-
-               ;; --- Compute source slice length ---
-               (local.set $len (i32.sub (local.get $src-end) (local.get $src-start)))
-               ;; --- Range Checks ---
-               (if (i32.lt_u (local.get $src-end) (local.get $src-start))
-                   (then (call $raise-string-copy!/checked:out-of-bounds)))
-               (local.set $dst-len (call $string-length/checked/i32 (local.get $dst)))
-               (local.set $src-len (call $string-length/checked/i32 (local.get $src)))
-               (if (i32.gt_u (i32.add (local.get $dst-start) (local.get $len)) (local.get $dst-len))
-                   (then (call $raise-string-copy!/checked:out-of-bounds)))
-               (if (i32.gt_u (local.get $src-end) (local.get $src-len))
-                   (then (call $raise-string-copy!/checked:out-of-bounds)))
-               ;; --- Copy elements ---
-               (call $i32array-copy!
-                     (struct.get $String $codepoints (local.get $dst))
-                     (local.get $dst-start)
-                     (struct.get $String $codepoints (local.get $src))
-                     (local.get $src-start)
-                     (local.get $src-end))
-               ;; --- Invalidate destination hash ---
-               (struct.set $String $hash (local.get $dst) (i32.const 0)))
+         ;;   String-copy! helpers are implemented in runtime-wasm/core/strings.rkt.
+         ,@(for/list ([name (in-list string-copy!-runtime-only-helper-names)])
+             (core-runtime-helper-form runtime-helper-index name))
 
 
 
