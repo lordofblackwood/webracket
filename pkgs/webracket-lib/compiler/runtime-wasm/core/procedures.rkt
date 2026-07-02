@@ -10,6 +10,7 @@
          procedure-result-arity-runtime-only-helper-names
          procedure-arity-mask-runtime-only-helper-names
          primitive-reflection-runtime-only-helper-names
+         procedure-invocation-error-runtime-only-helper-names
          procedure-runtime-only-helpers)
 
 (require "../core-helper.rkt"
@@ -162,6 +163,261 @@
     $primitive?
     $primitive-result-arity
     $primitive-closure?))
+
+;; procedure-invocation-error-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for procedure invocation error helpers.
+(define procedure-invocation-error-runtime-only-helper-names
+  '($raise-arity-mismatch
+    $procedure-arity->expected-string
+    $raise-arity-mismatch/proc
+    $raise-arity-mismatch/name+given
+    $result-arity-count
+    $raise-result-arity-error/internal
+    $raise-binding-result-arity-error
+    $raise-definition-result-arity-error))
+
+;; procedure-invocation-error-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate procedure invocation error helpers used by the monolithic runtime.
+(define procedure-invocation-error-runtime-only-helpers
+  (function-forms->runtime-helpers
+   'procedure-invocation-error-runtime-only-helpers
+   '(
+        (func $raise-arity-mismatch (unreachable))
+
+        (func $procedure-arity->expected-string
+              (param $proc (ref $Procedure))
+              (result (ref $String))
+              (local $a         (ref eq))
+              (local $arity/tag i32)
+              (local $arity     i32)
+
+              (local.set $a (struct.get $Procedure $arity (local.get $proc)))
+
+              (if (ref.test (ref i31) (local.get $a))
+                  (then
+                   (local.set $arity/tag (i31.get_s (ref.cast (ref i31) (local.get $a))))
+                   (local.set $arity (i32.shr_s (local.get $arity/tag) (i32.const 1)))
+                   (return (call $arity-i32->string (local.get $arity)))))
+
+              (ref.cast (ref $String)
+                        (call $format/display (call $procedure-arity (local.get $proc)))))
+
+        (func $raise-arity-mismatch/proc
+              (param $proc (ref $Procedure))
+              (param $argc i32)
+              (local $name         (ref eq))
+              (local $debug-id     (ref eq))
+              (local $expected-str (ref $String))
+              (local $received-str (ref $String))
+              (local $out          (ref $GrowableArray))
+              (local $message      (ref $String))
+
+              (local.set $name
+                         (struct.get $Procedure $name (local.get $proc)))
+              (local.set $debug-id (global.get $false))
+              (if (ref.test (ref $Closure) (local.get $proc))
+                  (then
+                   (local.set $debug-id
+                              (struct.get $Closure $debug-id
+                                          (ref.cast (ref $Closure) (local.get $proc))))))
+
+              (local.set $expected-str
+                         (call $procedure-arity->expected-string (local.get $proc)))
+              (local.set $received-str
+                         (call $i32->string (local.get $argc)))
+
+              (if (i32.gt_u (global.get $debug-invoke-budget) (i32.const 0))
+                  (then
+                   (drop (call $js-log (global.get $symbol:procedure-arity-frontier)))
+                   (drop (call $js-log
+                               (call $cons
+                                     (call $cons (global.get $symbol:name)
+                                           (call $cons (local.get $name)
+                                                 (global.get $null)))
+                                     (global.get $null))))
+                   (drop (call $js-log
+                               (call $cons
+                                     (call $cons (global.get $symbol:debug-id)
+                                           (call $cons (local.get $debug-id)
+                                                 (global.get $null)))
+                                     (global.get $null))))
+                   (drop (call $js-log
+                               (call $cons
+                                     (call $cons (global.get $symbol:expected-count)
+                                           (call $cons (local.get $expected-str)
+                                                 (global.get $null)))
+                                     (global.get $null))))
+                   (drop (call $js-log
+                               (call $cons
+                                     (call $cons (global.get $symbol:received-count)
+                                           (call $cons (local.get $received-str)
+                                                 (global.get $null)))
+                                     (global.get $null))))))
+
+              (local.set $out
+                         (call $make-growable-array (i32.const 5)))
+              (call $growable-array-add! (local.get $out) (call $format/display (local.get $name)))
+              (call $growable-array-add! (local.get $out) (global.get $string:arity-error:start))
+              (call $growable-array-add! (local.get $out) (local.get $expected-str))
+              (call $growable-array-add! (local.get $out) (global.get $string:arity-error:given))
+              (call $growable-array-add! (local.get $out) (local.get $received-str))
+              (local.set $message
+                         (call $growable-array-of-strings->string (local.get $out)))
+
+              (call $raise
+                    (call $exn:fail:contract:arity/make
+                          (local.get $message)
+                          (call $current-continuation-marks (global.get $missing)))
+                    (global.get $true))
+              (unreachable))
+
+        (func $raise-arity-mismatch/name+given
+              (param $name (ref eq))
+              (param $argc i32)
+              (local $received-str (ref $String))
+              (local $out          (ref $GrowableArray))
+              (local $message      (ref $String))
+
+              ;; TODO: include "arguments..." block like Racket.
+              (local.set $received-str
+                         (call $i32->string (local.get $argc)))
+              (local.set $out
+                         (call $make-growable-array (i32.const 3)))
+              (call $growable-array-add! (local.get $out) (call $format/display (local.get $name)))
+              (call $growable-array-add! (local.get $out) (global.get $string:arity-error:start/no-expected))
+              (call $growable-array-add! (local.get $out) (local.get $received-str))
+              (local.set $message
+                         (call $growable-array-of-strings->string (local.get $out)))
+
+              (call $raise
+                    (call $exn:fail:contract:arity/make
+                          (local.get $message)
+                          (call $current-continuation-marks (global.get $missing)))
+                    (global.get $true))
+              (unreachable))
+
+        ;; result-arity-count : (or/c exact-integer? list? values?) -> i32
+        ;;   Compute counts for Schemify's result-arity helper primitives.
+        (func $result-arity-count
+              (param $v (ref eq))
+              (result i32)
+
+              (if (ref.test (ref i31) (local.get $v))
+                  (then (return (i32.shr_s
+                                 (i31.get_s (ref.cast (ref i31) (local.get $v)))
+                                 (i32.const 1)))))
+              (if (ref.test (ref $Values) (local.get $v))
+                  (then (return (array.len (ref.cast (ref $Values) (local.get $v))))))
+              (call $length/i32 (local.get $v)))
+
+        ;; raise-result-arity-error/internal : symbol? any/c any/c -> none
+        ;;   Raise a catchable result-arity error for internal Schemify checks.
+        (func $raise-result-arity-error/internal
+              (param $who      (ref eq))      ;; symbol
+              (param $expected (ref eq))      ;; expected count or identifier list
+              (param $args     (ref eq))      ;; received values as list or $Values
+              (result          (ref eq))
+
+              (local $out          (ref $GrowableArray))
+              (local $message      (ref $String))
+
+              (local.set $out
+                         (call $make-growable-array (i32.const 5)))
+              (call $growable-array-add! (local.get $out) (call $format/display (local.get $who)))
+              (call $growable-array-add! (local.get $out) (global.get $string:result-arity-error:start))
+              (call $growable-array-add! (local.get $out)
+                    (call $i32->string (call $result-arity-count (local.get $expected))))
+              (call $growable-array-add! (local.get $out) (global.get $string:result-arity-error:received))
+              (call $growable-array-add! (local.get $out)
+                    (call $i32->string (call $result-arity-count (local.get $args))))
+              (local.set $message
+                         (call $growable-array-of-strings->string (local.get $out)))
+
+              (call $raise
+                    (call $exn:fail:contract:arity/make
+                          (local.get $message)
+                          (call $current-continuation-marks (global.get $missing)))
+                    (global.get $true))
+              (unreachable))
+
+        ;; raise-binding-result-arity-error : any/c any/c -> none
+        ;;   Report a local-binding result-arity mismatch from Schemify output.
+        (func $raise-binding-result-arity-error
+              (type $Prim2)
+              (param $expected (ref eq))
+              (param $args     (ref eq))
+              (result          (ref eq))
+
+              (local $caller-proc     (ref eq))
+              (local $caller-name     (ref eq))
+              (local $caller-debug-id (ref eq))
+
+              (if (i32.gt_u (global.get $debug-invoke-budget) (i32.const 0))
+                  (then
+                   (local.set $caller-proc (global.get $debug-current-procedure))
+                   (local.set $caller-name (global.get $debug-current-procedure-name))
+                   (local.set $caller-debug-id (global.get $false))
+                   (if (ref.test (ref $Procedure) (local.get $caller-proc))
+                       (then
+                        (local.set $caller-name
+                                   (struct.get $Procedure $name
+                                               (ref.cast (ref $Procedure)
+                                                         (local.get $caller-proc))))))
+                   (if (ref.test (ref $Closure) (local.get $caller-proc))
+                       (then
+                        (local.set $caller-debug-id
+                                   (struct.get $Closure $debug-id
+                                               (ref.cast (ref $Closure)
+                                                         (local.get $caller-proc))))))
+                   (drop (call $js-log
+                               (global.get $symbol:binding-result-arity-frontier)))
+                   (drop (call $js-log
+                               (call $cons
+                                     (call $cons (global.get $symbol:expected-count)
+                                           (call $cons
+                                                 (call $i32->string
+                                                       (call $result-arity-count
+                                                             (local.get $expected)))
+                                                 (global.get $null)))
+                                     (global.get $null))))
+                   (drop (call $js-log
+                               (call $cons
+                                     (call $cons (global.get $symbol:received-count)
+                                           (call $cons
+                                                 (call $i32->string
+                                                       (call $result-arity-count
+                                                             (local.get $args)))
+                                                 (global.get $null)))
+                                     (global.get $null))))
+                   (drop (call $js-log
+                               (call $cons
+                                     (call $cons (global.get $symbol:caller-name)
+                                           (call $cons (local.get $caller-name)
+                                                 (global.get $null)))
+                                     (global.get $null))))
+                   (drop (call $js-log
+                               (call $cons
+                                     (call $cons (global.get $symbol:caller-debug-id)
+                                           (call $cons (local.get $caller-debug-id)
+                                                 (global.get $null)))
+                                     (global.get $null))))))
+              (call $raise-result-arity-error/internal
+                    (global.get $symbol:raise-binding-result-arity-error)
+                    (local.get $expected)
+                    (local.get $args)))
+
+        ;; raise-definition-result-arity-error : any/c any/c -> none
+        ;;   Report a define-values result-arity mismatch from Schemify output.
+        (func $raise-definition-result-arity-error
+              (type $Prim2)
+              (param $expected (ref eq))
+              (param $args     (ref eq))
+              (result          (ref eq))
+              (call $raise-result-arity-error/internal
+                    (global.get $symbol:raise-definition-result-arity-error)
+                    (local.get $expected)
+                    (local.get $args)))
+     )))
 
 ;; procedure-basic-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate basic procedure helpers used by the monolithic runtime.
@@ -1382,5 +1638,6 @@
 ;; procedure-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate all procedure helpers used by the monolithic runtime.
 (define procedure-runtime-only-helpers
-  (append procedure-basic-runtime-only-helpers
+  (append procedure-invocation-error-runtime-only-helpers
+          procedure-basic-runtime-only-helpers
           procedure-arity-and-reflection-runtime-only-helpers))
