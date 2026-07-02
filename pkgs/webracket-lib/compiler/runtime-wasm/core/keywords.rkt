@@ -1,6 +1,7 @@
 #lang racket
 
 (provide keyword-core-runtime-helpers
+         keyword-table-initializer-runtime-only-helper-names
          keyword-runtime-only-helper-names
          keyword-runtime-only-helpers)
 
@@ -20,6 +21,21 @@
              (param $v (ref eq))
              (result i32)
              (ref.test (ref $Keyword) (local.get $v)))))))
+
+;; keyword-table-initializer-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for keyword table initializer helpers.
+(define keyword-table-initializer-runtime-only-helper-names
+  '($initialize-the-keyword-table))
+
+;; keyword-table-initializer-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate keyword table initializer helpers used by the monolithic runtime.
+(define keyword-table-initializer-runtime-only-helpers
+  (function-forms->runtime-helpers
+   'keyword-table-initializer-runtime-only-helpers
+   '(
+     (func $initialize-the-keyword-table
+           (if (ref.is_null (global.get $the-keyword-table))
+               (then (global.set $the-keyword-table (call $make-symbol-table))))))))
 
 ;; keyword-runtime-only-forms : (listof datum?)
 ;;   Enumerate keyword helpers used by the monolithic runtime.
@@ -184,14 +200,20 @@
 
      ))
 
-;; keyword-runtime-only-helpers : (listof core-runtime-helper?)
-;;   Enumerate keyword helpers used by the monolithic runtime.
-(define keyword-runtime-only-helpers
+;; keyword-public-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate public keyword helpers used by the monolithic runtime.
+(define keyword-public-runtime-only-helpers
   (function-forms->runtime-helpers
-   'keyword-runtime-only-helpers
+   'keyword-public-runtime-only-helpers
    keyword-runtime-only-forms))
+
+;; keyword-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate all keyword helpers used by the monolithic runtime.
+(define keyword-runtime-only-helpers
+  (append keyword-table-initializer-runtime-only-helpers
+          keyword-public-runtime-only-helpers))
 
 ;; keyword-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for keyword helpers.
 (define keyword-runtime-only-helper-names
-  (map core-runtime-helper-name keyword-runtime-only-helpers))
+  (map core-runtime-helper-name keyword-public-runtime-only-helpers))

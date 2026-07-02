@@ -121,6 +121,7 @@
                   io-handler-reader-printer-runtime-only-helper-names
                   io-handler-runtime-only-helpers)
          (only-in "runtime-wasm/core/keywords.rkt"
+                  keyword-table-initializer-runtime-only-helper-names
                   keyword-runtime-only-helper-names
                   keyword-runtime-only-helpers)
          (only-in "runtime-wasm/core/lists.rkt"
@@ -302,6 +303,7 @@
                   symbol-gensym-runtime-only-helper-names
                   symbol-public-runtime-only-helper-names
                   symbol-table-runtime-only-helper-names
+                  symbol-table-initializer-runtime-only-helper-names
                   symbol-runtime-only-helpers)
          (only-in "runtime-wasm/core/system.rkt"
                   system-runtime-only-helper-names
@@ -4480,13 +4482,13 @@
          ;; Symbol -> primitive procedure table for generated unsafe FFI modules.
          (global $unsafe-ffi-primitive-table (mut (ref null $HashEqMutable)) (ref.null $HashEqMutable))
 
-         (func $initialize-the-symbol-table
-               (if (ref.is_null (global.get $the-symbol-table))
-                   (then (global.set $the-symbol-table (call $make-symbol-table)))))
+         ;;   Symbol table initializer is implemented in runtime-wasm/core/symbols.rkt.
+         ,@(for/list ([name (in-list symbol-table-initializer-runtime-only-helper-names)])
+             (core-runtime-helper-form runtime-helper-index name))
 
-         (func $initialize-the-keyword-table
-               (if (ref.is_null (global.get $the-keyword-table))
-                   (then (global.set $the-keyword-table (call $make-symbol-table)))))
+         ;;   Keyword table initializer is implemented in runtime-wasm/core/keywords.rkt.
+         ,@(for/list ([name (in-list keyword-table-initializer-runtime-only-helper-names)])
+             (core-runtime-helper-form runtime-helper-index name))
 
          (func $initialize-primitive-table-user-installed
                (if (ref.is_null (global.get $primitive-table-user-installed))

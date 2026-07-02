@@ -3,6 +3,7 @@
 (provide symbol-runtime-only-helpers
          symbol-public-runtime-only-helper-names
          symbol-gensym-runtime-only-helper-names
+         symbol-table-initializer-runtime-only-helper-names
          symbol-table-runtime-only-helper-names)
 
 (require "../core-helper.rkt"
@@ -17,6 +18,11 @@
     $symbol-table-insert
     $symbol-table-resize
     $maybe-resize-symbol-table))
+
+;; symbol-table-initializer-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for symbol table initializer helpers.
+(define symbol-table-initializer-runtime-only-helper-names
+  '($initialize-the-symbol-table))
 
 ;; symbol-table-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate symbol table helpers used by the monolithic runtime.
@@ -206,6 +212,16 @@
                (then (return (call $symbol-table-resize (local.get $table)))))
            ;; Otherwise return unchanged
            (local.get $table)))))
+
+;; symbol-table-initializer-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate symbol table initializer helpers used by the monolithic runtime.
+(define symbol-table-initializer-runtime-only-helpers
+  (function-forms->runtime-helpers
+   'symbol-table-initializer-runtime-only-helpers
+   '(
+     (func $initialize-the-symbol-table
+           (if (ref.is_null (global.get $the-symbol-table))
+               (then (global.set $the-symbol-table (call $make-symbol-table))))))))
 
 ;; symbol-public-runtime-only-forms : (listof datum?)
 ;;   Enumerate public symbol helpers used by the monolithic runtime.
@@ -545,6 +561,7 @@
 ;;   Register symbol table, public symbol, and gensym helpers.
 (define symbol-runtime-only-helpers
   (append symbol-table-runtime-only-helpers
+          symbol-table-initializer-runtime-only-helpers
           symbol-public-runtime-only-helpers
           symbol-gensym-runtime-only-helpers))
 
