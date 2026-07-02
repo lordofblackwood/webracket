@@ -157,6 +157,7 @@
                   struct-predicate-runtime-only-helper-names
                   struct-field-accessor-runtime-only-helper-names
                   struct-procedure-predicate-runtime-only-helper-names
+                  struct-guarded-constructor-runtime-only-helper-names
                   struct-runtime-only-helpers)
          (only-in "runtime-wasm/core/symbols.rkt"
                   symbol-gensym-runtime-only-helper-names
@@ -15994,169 +15995,10 @@
              (core-runtime-helper-form runtime-helper-index name))
 
 
-         (func $struct-constructor/with-guard
-               (type $ClosureCode)
-               (param $clos (ref $Closure))
-               (param $args (ref $Args))
-               (result (ref eq))
-
-               (local $free         (ref $Free))
-               (local $std          (ref $StructType))
-               (local $init-indices (ref eq))
-               (local $auto-indices (ref eq))
-               (local $auto-values  (ref eq))
-               (local $name         (ref eq))
-               (local $field-count  i32)
-               (local $init-count   i32)
-               (local $i            i32)
-               (local $arr          (ref $Array))
-               (local $g-args       (ref $Args))
-               (local $init-args    (ref $Args))
-               (local $guard        (ref $Procedure))
-               (local $guard-invoke (ref $ProcedureInvoker))
-               (local $result       (ref eq))
-               (local $vals         (ref $Values))
-
-               (local.set $free         (struct.get $Closure $free (local.get $clos)))
-               (local.set $std          (ref.cast (ref $StructType) (array.get $Free (local.get $free) (i32.const 0))))
-               (local.set $init-indices (array.get $Free (local.get $free) (i32.const 1)))
-               (local.set $auto-indices (array.get $Free (local.get $free) (i32.const 2)))
-               (local.set $auto-values  (array.get $Free (local.get $free) (i32.const 3)))
-               (local.set $name         (array.get $Free (local.get $free) (i32.const 4)))
-               (local.set $field-count  (struct.get $StructType $field-count (local.get $std)))
-               (local.set $init-count   (call $length/i32 (local.get $init-indices)))
-               (local.set $guard        (ref.cast (ref $Procedure) (struct.get $StructType $guard (local.get $std))))
-               (local.set $guard-invoke (struct.get $Procedure $invoke (local.get $guard)))
-
-               ;; Call guard with all constructor init arguments plus the struct name.
-               (local.set $g-args (array.new $Args (global.get $false)
-                                              (i32.add (local.get $init-count) (i32.const 1))))
-               (local.set $i (i32.const 0))
-               (block $done-copy-guard-args
-                      (loop $copy-guard-args
-                            (br_if $done-copy-guard-args (i32.ge_u (local.get $i) (local.get $init-count)))
-                            (array.set $Args (local.get $g-args) (local.get $i)
-                                       (array.get $Args (local.get $args) (local.get $i)))
-                            (local.set $i (i32.add (local.get $i) (i32.const 1)))
-                            (br $copy-guard-args)))
-               (array.set $Args (local.get $g-args) (local.get $init-count) (local.get $name))
-               (local.set $result
-                          (call_ref $ProcedureInvoker
-                                    (local.get $guard)
-                                    (local.get $g-args)
-                                    (local.get $guard-invoke)))
-
-               ;; The guard returns the replacement init arguments.
-               (local.set $init-args (array.new $Args (global.get $false) (local.get $init-count)))
-               (if (i32.eqz (local.get $init-count))
-                   (then (drop (call $expect-zero-values (local.get $result))))
-                   (else
-                    (if (i32.eq (local.get $init-count) (i32.const 1))
-                        (then
-                         (array.set $Args (local.get $init-args) (i32.const 0)
-                                    (call $expect-one-value (local.get $result))))
-                        (else
-                         (local.set $vals (call $expect-n-values
-                                                (local.get $result)
-                                                (local.get $init-count)))
-                         (local.set $i (i32.const 0))
-                         (block $done-copy-results
-                                (loop $copy-results
-                                      (br_if $done-copy-results (i32.ge_u (local.get $i) (local.get $init-count)))
-                                      (array.set $Args (local.get $init-args) (local.get $i)
-                                                 (array.get $Values (local.get $vals) (local.get $i)))
-                                      (local.set $i (i32.add (local.get $i) (i32.const 1)))
-                                      (br $copy-results)))))))
-
-               ;; Make $arr and fill it from guarded init results.
-               (local.set $arr (array.new $Array (global.get $false) (local.get $field-count)))
-               (call $fill-fields-from-args (local.get $arr) (local.get $init-indices) (local.get $init-args))
-               (call $fill-fields-from-values (local.get $arr) (local.get $auto-indices) (local.get $auto-values))
-
-               (struct.new $Struct
-                           ; $Heap
-                           (i32.const 0)             ;; hash
-                           ; $Procedure
-                           (local.get $name)         ;; $false or a $Symbol
-                           ,(Imm 0)                  ;; fixnum (i31 with lsb=0) or (arity-at-least n)
-                           ,(Imm #f)                 ;; $false or $Symbol
-                           (ref.func $invoke-struct)
-                           ; $Struct
-                           (local.get $std)
-                           (local.get $arr)))
-
-         ; (call $fill-fields-from-args   (local.get $arr) (local.get $init-indices) (local.get $args))
-
-         (func $fill-fields-from-args
-               (param $fields  (ref $Array)) ;; struct field array
-               (param $indices (ref eq))     ;; list of i31 fixnums (init field indices)
-               (param $args    (ref $Args))  ;; argument array
-
-               (local $i       i32)
-               (local $arg     (ref eq))
-               (local $index   i32)
-
-               (local.set $i (i32.const 0))
-               (block $done
-                      (loop $loop
-                            ;; If $indices is null, we’re done
-                            (br_if $done (ref.eq (local.get $indices) (global.get $null)))
-                            ;; Type check: $indices must be $Pair
-                            (if (i32.eqz (ref.test (ref $Pair) (local.get $indices)))
-                                (then (call $raise-argument-error/internal (local.get $indices))))
-                            ;; Extract current index (fixnum) and decode
-                            (local.set $index (i32.shr_u
-                                               (i31.get_u
-                                                (ref.cast (ref i31)
-                                                          (struct.get $Pair $a
-                                                                      (ref.cast (ref $Pair)
-                                                                                (local.get $indices)))))
-                                               (i32.const 1)))
-                            ;; Get arg[i]
-                            (local.set $arg (array.get $Args (local.get $args) (local.get $i)))
-                            ;; fields[index] := arg[i]
-                            (array.set $Array (local.get $fields) (local.get $index) (local.get $arg))
-                            ;; Move to next
-                            (local.set $i       (i32.add (local.get $i) (i32.const 1)))
-                            (local.set $indices (struct.get $Pair $d
-                                                            (ref.cast (ref $Pair)
-                                                                      (local.get $indices))))
-                            (br $loop))))
-
-         (func $fill-fields-from-values
-               (param $fields  (ref $Array)) ;; struct field array
-               (param $indices (ref eq))     ;; list of i31 fixnums (auto field indices)
-               (param $values  (ref eq))     ;; list of values for auto fields
-               (local $val (ref eq))
-               (local $index i32)
-
-               (block $done
-                      (loop $loop
-                            ;; Done if either list is null
-                            (br_if $done
-                                   (i32.or
-                                    (ref.eq (local.get $indices) (global.get $null))
-                                    (ref.eq (local.get $values)  (global.get $null))))
-                            ;; Type checks
-                            (if (i32.or (i32.eqz (ref.test (ref $Pair) (local.get $indices)))
-                                        (i32.eqz (ref.test (ref $Pair) (local.get $values))))
-                                (then (call $raise-argument-error/internal (local.get $indices))))
-                            ;; Decode fixnum index
-                            (local.set $index (i32.shr_u
-                                               (i31.get_u
-                                                (ref.cast (ref i31)
-                                                          (struct.get $Pair $a
-                                                                      (ref.cast (ref $Pair)
-                                                                                (local.get $indices)))))
-                                               (i32.const 1)))
-                            ;; Get value
-                            (local.set $val (struct.get $Pair $a (ref.cast (ref $Pair) (local.get $values))))
-                            ;; fields[index] := val
-                            (array.set $Array (local.get $fields) (local.get $index) (local.get $val))
-                            ;; Move to next
-                            (local.set $indices (struct.get $Pair $d (ref.cast (ref $Pair) (local.get $indices))))
-                            (local.set $values  (struct.get $Pair $d (ref.cast (ref $Pair) (local.get $values))))
-                            (br $loop))))
+         ;; Struct guarded constructor helpers
+         ;;   Implemented in runtime-wasm/core/structs.rkt.
+         ,@(for/list ([name (in-list struct-guarded-constructor-runtime-only-helper-names)])
+             (core-runtime-helper-form runtime-helper-index name))
 
          ;; -------------------------------------------------------------------
          ;; Structure Type Properties
