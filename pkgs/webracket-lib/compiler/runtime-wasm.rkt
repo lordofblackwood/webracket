@@ -152,6 +152,7 @@
                   struct-accessor-runtime-only-helper-names
                   struct-constructor-wrapper-runtime-only-helper-names
                   struct-constructor-runtime-only-helper-names
+                  struct-mutator-runtime-only-helper-names
                   struct-predicate-runtime-only-helper-names
                   struct-procedure-predicate-runtime-only-helper-names
                   struct-runtime-only-helpers)
@@ -15962,95 +15963,10 @@
         ,@(for/list ([name (in-list struct-constructor-runtime-only-helper-names)])
             (core-runtime-helper-form runtime-helper-index name))
 
-         (func $make-struct-mutator/checked
-               ; Makes a generic mutator that can mutate any field.
-               (param $std            (ref $StructType))
-               (param $super-count-fx (ref eq))              ;; fixnum: number of supertype fields to skip
-               (result                (ref eq))              ;; returns a closure
-
-               (local $free (ref $Free))
-               ;; Store the struct type and super-field count in the closure's free array
-               (local.set $free (array.new_fixed $Free 2
-                                                 (local.get $std)
-                                                 (local.get $super-count-fx)))
-               (struct.new $StructMutatorProcedure
-                           (i32.const 0)               ; hash
-                           (global.get $false)         ; name:  #f or $String
-                           (ref.i31 (i32.const 6))     ; arity: 3
-                           (global.get $false)         ; realm: #f or $Symbol
-                           (ref.func $invoke-closure)  ; invoke (used by apply, map, etc.)
-                           (global.get $false)         ; debug-id
-                           (ref.func $struct-mutator)
-                           (local.get $free)))
-
-         (func $struct-mutator  ; closure body
-               (type $ClosureCode)
-               (param $clos (ref $Closure))
-               (param $args (ref $Args))
-               (result      (ref eq)) ;; returns #<void>
-
-               (local $free           (ref $Free))
-               (local $std            (ref $StructType)) ; free[0]
-               (local $super-count-fx (ref eq))          ; free[1]
-               (local $super-count    i32)
-
-
-               (local $target    (ref eq))      ; args[0]
-               (local $struct    (ref $Struct)) ;  = (cast $Struct $target)
-               (local $index-fx  (ref eq))      ; args[1]
-               (local $index     i32)           ;  = decoded $index-fx
-               (local $val       (ref eq))      ; args[2]
-
-               (local $fields    (ref $Array))  ; fields of the received struct
-               (local $skip      i32)
-
-               ;; --- Unpack closure free vars ---
-               (local.set $free           (struct.get $Closure $free (local.get $clos)))
-               (local.set $std            (ref.cast (ref $StructType)
-                                                    (array.get $Free (local.get $free) (i32.const 0))))
-               (local.set $super-count-fx (array.get $Free (local.get $free) (i32.const 1)))
-               (local.set $super-count    (i32.shr_u (i31.get_u (ref.cast (ref i31) (local.get $super-count-fx)))
-                                                     (i32.const 1)))
-               (local.set $skip           (local.get $super-count))
-
-               ;; --- Get arguments ---
-               ;; struct
-               (local.set $target (array.get $Args (local.get $args) (i32.const 0)))
-               (if (i32.eqz (ref.test (ref $Struct) (local.get $target)))
-                   (then (call $raise-argument-error/internal (local.get $target))))
-               (local.set $struct (ref.cast (ref $Struct) (local.get $target)))
-               ;; index
-               (local.set $index-fx (array.get $Args (local.get $args) (i32.const 1)))
-               (if (i32.or (i32.eqz (ref.test (ref i31) (local.get $index-fx)))
-                           (i32.ne (i32.and (i31.get_u (ref.cast (ref i31)
-                                                                 (local.get $index-fx)))
-                                            (i32.const 1)) (i32.const 0)))
-                   (then (call $raise-argument-error/internal (local.get $index-fx))))
-               (local.set $index (i32.shr_u (i31.get_u (ref.cast (ref i31)
-                                                                 (local.get $index-fx)))
-                                            (i32.const 1)))
-               ;; value to store
-               (local.set $val (array.get $Args (local.get $args) (i32.const 2)))
-
-               ;; --- Type match ---
-               ;  Check that the structure received has the same type as the mutator.
-               ;; Type match - is $struct a subtype of $std
-               (if (i32.eqz (call $struct-type-is-a?/i32
-                                  (struct.get $Struct $type (local.get $struct))
-                                  (local.get $std)))
-                   (then (call $raise-argument-error/internal (local.get $target))))
-               ;; --- Set field ---
-               (local.set $fields (struct.get $Struct $fields (local.get $struct)))
-               (if (i32.eqz (call $prefab-struct-field-mutable?/i32
-                                  (local.get $std)
-                                  (i32.add (local.get $skip) (local.get $index))))
-                   (then (call $raise-argument-error/internal (local.get $index-fx))
-                         (unreachable)))
-               (array.set $Array (local.get $fields)
-                          (i32.add (local.get $skip) (local.get $index))
-                          (local.get $val))
-               ;; --- Return #<void> ---
-               (global.get $void))
+         ;; Struct mutator helpers
+         ;;   Implemented in runtime-wasm/core/structs.rkt.
+         ,@(for/list ([name (in-list struct-mutator-runtime-only-helper-names)])
+             (core-runtime-helper-form runtime-helper-index name))
 
 
 
