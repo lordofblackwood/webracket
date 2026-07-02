@@ -3,6 +3,7 @@
 (provide bytes-core-runtime-helpers
          bytes-basic-runtime-only-helper-names
          byte-comparison-runtime-only-helper-names
+         byte-indexing-runtime-only-helper-names
          bytes-mutability-runtime-only-helper-names
          bytes-runtime-only-helpers)
 
@@ -464,12 +465,287 @@
    'byte-comparison-runtime-only-helpers
    byte-comparison-runtime-only-forms))
 
+;; byte-indexing-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for byte indexing and copy helpers.
+(define byte-indexing-runtime-only-helper-names
+  '($byte?
+    $bytes-ref
+    $bytes-set!
+    $bytes-set!/checked
+    $subbytes
+    $bytes-copy!
+    $bytes-copy))
+
+;; byte-indexing-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate byte indexing, mutation, and copy helpers used by the runtime.
+(define byte-indexing-runtime-only-helpers
+  (function-forms->runtime-helpers
+   'byte-indexing-runtime-only-helpers
+   '(
+     (func $byte? (type $Prim1) (param $v (ref eq)) (result (ref eq))
+           (local $i i32)
+           (if (result (ref eq)) (ref.test (ref i31) (local.get $v))
+               (then (local.set $i (i31.get_u (ref.cast (ref i31) (local.get $v))))
+                     (if (result (ref eq))
+                         ;; Check: is even (fixnum) and in range 0–255
+                         (i32.and
+                          (i32.eqz (i32.and (local.get $i) (i32.const 1)))       ;; even tag bit = 0
+                          (i32.le_u (i32.shr_u (local.get $i) (i32.const 1))     ;; untagged value
+                                    (i32.const 255)))
+                         (then (global.get $true))
+                         (else (global.get $false))))
+               (else (global.get $false))))
+
+     (func $bytes-ref (type $Prim2) (param $a (ref eq)) (param $i (ref eq)) (result (ref eq))
+           (local $b   (ref null $Bytes))
+           (local $arr (ref $I8Array))
+           (local $idx i32)
+           (local $v   i32)
+           ;; 1. Check that $a is a byte string
+           (if (ref.test (ref $Bytes) (local.get $a))
+               (then (local.set $b (ref.cast (ref $Bytes) (local.get $a))))
+               (else (call $raise-check-bytes (local.get $a))))
+           ;; 2. Decode and check that $i is a fixnum
+           (if (ref.test (ref i31) (local.get $i))
+               (then (local.set $idx (i31.get_u (ref.cast (ref i31) (local.get $i))))
+                     (if (i32.eqz (i32.and (local.get $idx) (i32.const 1)))
+                         (then (local.set $idx (i32.shr_u (local.get $idx) (i32.const 1))))
+                         (else (call $raise-check-fixnum (local.get $i)) )))
+               (else (call $raise-check-fixnum (local.get $i))))
+           ;; 3. Get byte array and bounds-check
+           (local.set $arr (struct.get $Bytes $bs (local.get $b)))
+           (if (i32.lt_u (local.get $idx) (array.len (local.get $arr)))
+               (then
+                ;; 4. Read and box byte
+                (local.set $v (call $i8array-ref (local.get $arr) (local.get $idx)))
+                (return (ref.i31 (i32.shl (local.get $v) (i32.const 1)))))
+               (else
+                (call $raise-bad-bytes-ref-index (local.get $a) (local.get $i))))
+           (unreachable))
+
+     (func $bytes-set!
+           (param $a (ref eq))
+           (param $i (ref eq))
+           (param $v (ref eq))
+
+           (result (ref eq))
+
+           (local $b   (ref null $Bytes))
+           (local $arr (ref $I8Array))
+           (local $idx i32)
+           (local $bv  i32)
+           ;; 1. Check that $a is a byte string
+           (if (ref.test (ref $Bytes) (local.get $a))
+               (then (local.set $b (ref.cast (ref $Bytes) (local.get $a))))
+               (else (call $raise-check-bytes (local.get $a))))
+           ;; Byte literals and bytes->immutable-bytes results must reject mutation.
+           (if (i32.eq (struct.get $Bytes $immutable (local.get $b)) (i32.const 1))
+               (then (call $raise-expected-mutable-bytes (local.get $a)) (unreachable)))
+           ;; 2. Decode and check fixnum index $i
+           (if (ref.test (ref i31) (local.get $i))
+               (then
+                (local.set $idx (i31.get_u (ref.cast (ref i31) (local.get $i))))
+                (if (i32.eqz (i32.and (local.get $idx) (i32.const 1)))
+                    (then (local.set $idx (i32.shr_u (local.get $idx) (i32.const 1))))
+                    (else (call $raise-check-fixnum (local.get $i)))))
+               (else (call $raise-check-fixnum (local.get $i))))
+           ;; 3. Decode and check fixnum byte value $v
+           (if (ref.test (ref i31) (local.get $v))
+               (then
+                (local.set $bv (i31.get_u (ref.cast (ref i31) (local.get $v))))
+                (if (i32.eqz (i32.and (local.get $bv) (i32.const 1)))
+                    (then
+                     (local.set $bv (i32.shr_u (local.get $bv) (i32.const 1)))
+                     (if (i32.gt_u (local.get $bv) (i32.const 255))
+                         (then (call $raise-check-byte (local.get $v)))))
+                    (else (call $raise-check-byte (local.get $v)))))
+               (else (call $raise-check-byte (local.get $v))))
+           ;; 4. Bounds check and set byte
+           (local.set $arr (struct.get $Bytes $bs (local.get $b)))
+           (if (i32.lt_u (local.get $idx) (call $i8array-length (local.get $arr)))
+               (then (call $i8array-set! (local.get $arr) (local.get $idx) (local.get $bv))
+                     (return (global.get $void)))
+               (else (call $raise-bad-bytes-set-index (local.get $a) (local.get $i))))
+           (unreachable))
+
+     (func $bytes-set!/checked
+           (param $a (ref $Bytes))
+           (param $i i32)
+           (param $b i32)
+           ; unsafe
+           (local $arr (ref $I8Array))
+           (local.set $arr (struct.get $Bytes $bs (local.get $a)))
+           (call $i8array-set! (local.get $arr) (local.get $i) (local.get $b)))
+
+     (func $subbytes
+           (param $b     (ref eq))   ;; input byte string
+           (param $start (ref eq))   ;; start index
+           (param $end   (ref eq))   ;; optional end index, default = (bytes-length $b)
+           (result       (ref eq))
+
+           (local $bs   (ref null $Bytes))
+           (local $arr  (ref $I8Array))
+           (local $from i32)
+           (local $to   i32)
+           (local $len  i32)
+           ;; Check that $b is a byte string
+           (if (ref.test (ref $Bytes) (local.get $b))
+               (then (local.set $bs (ref.cast (ref $Bytes) (local.get $b))))
+               (else (call $raise-check-bytes (local.get $b)) (unreachable)))
+
+           (local.set $arr (struct.get $Bytes $bs (local.get $bs)))
+           (local.set $len (call $i8array-length (local.get $arr)))
+           ;; Decode and validate fixnum $start
+           (if (ref.test (ref i31) (local.get $start))
+               (then
+                (local.set $from (i31.get_u (ref.cast (ref i31) (local.get $start))))
+                (if (i32.eqz (i32.and (local.get $from) (i32.const 1)))
+                    (then (local.set $from (i32.shr_u (local.get $from) (i32.const 1))))
+                    (else (call $raise-check-fixnum (local.get $start)) (unreachable))))
+               (else (call $raise-check-fixnum (local.get $start)) (unreachable)))
+           ;; Decode and validate fixnum $end (optional)
+           (if (ref.eq (local.get $end) (global.get $missing))
+               (then (local.set $to (local.get $len)))
+               (else (if (ref.test (ref i31) (local.get $end))
+                         (then
+                          (local.set $to (i31.get_u (ref.cast (ref i31) (local.get $end))))
+                          (if (i32.eqz (i32.and (local.get $to) (i32.const 1)))
+                              (then (local.set $to (i32.shr_u (local.get $to) (i32.const 1))))
+                              (else (call $raise-check-fixnum (local.get $end)) (unreachable))))
+                         (else (call $raise-check-fixnum (local.get $end)) (unreachable)))))
+           ;; Bounds check: 0 <= from <= to <= len
+           (if (i32.gt_u (local.get $from) (local.get $to))
+               (then (call $raise-bad-bytes-range (local.get $b) (local.get $from) (local.get $to)) (unreachable)))
+           (if (i32.gt_u (local.get $to) (local.get $len))
+               (then (call $raise-bad-bytes-range (local.get $b) (local.get $from) (local.get $to)) (unreachable)))
+           ;; Copy the subarray
+           (struct.new $Bytes
+                       (i32.const 0)
+                       (i32.const 0)
+                       (call $i8array-copy (local.get $arr) (local.get $from) (local.get $to))))
+
+     (func $bytes-copy!
+           (param $dest       (ref eq))
+           (param $dest-start (ref eq))
+           (param $src        (ref eq))
+           (param $src-start  (ref eq))  ;; optional fixnum, default = 0
+           (param $src-end    (ref eq))  ;; optional fixnum, default = (bytes-length src)
+           (result            (ref eq))
+
+           (local $d          (ref $Bytes))
+           (local $s          (ref $Bytes))
+           (local $darr       (ref $I8Array))
+           (local $sarr       (ref $I8Array))
+
+           (local $di         i32)
+           (local $si         i32)
+           (local $ei         i32)
+           (local $src-len    i32)
+           (local $dest-len   i32)
+
+           ;; --- Validate $dest ---
+           (if (i32.eqz (ref.test (ref $Bytes) (local.get $dest)))
+               (then (call $raise-check-bytes (local.get $dest))))
+           ;; --- Validate $src ---
+           (if (i32.eqz (ref.test (ref $Bytes) (local.get $src)))
+               (then (call $raise-check-bytes (local.get $src))))
+           ;; --- Cast after validation ---
+           (local.set $d (ref.cast (ref $Bytes) (local.get $dest)))
+           (local.set $s (ref.cast (ref $Bytes) (local.get $src)))
+           ;; --- Reject immutable destination ---
+           (if (i32.eq (struct.get $Bytes $immutable (local.get $d)) (i32.const 1))
+               (then (call $raise-expected-mutable-bytes (local.get $dest)) (unreachable)))
+           ;; --- Decode $dest-start ---
+           (if (i32.eqz (ref.test (ref i31) (local.get $dest-start)))
+               (then (call $raise-check-fixnum (local.get $dest-start))))
+           (if (i32.ne (i32.and (i31.get_u (ref.cast (ref i31) (local.get $dest-start)))
+                                (i32.const 1))
+                       (i32.const 0))
+               (then (call $raise-check-fixnum (local.get $dest-start))))
+           (local.set $di
+                      (i32.shr_u (i31.get_u (ref.cast (ref i31) (local.get $dest-start)))
+                                 (i32.const 1)))
+           ;; --- Extract arrays and lengths  ---
+           (local.set $darr     (struct.get $Bytes $bs (local.get $d)))
+           (local.set $sarr     (struct.get $Bytes $bs (local.get $s)))
+           (local.set $src-len  (call $i8array-length (local.get $sarr)))
+           (local.set $dest-len (call $i8array-length (local.get $darr)))
+           ;; --- Decode optional $src-start ---
+           (if (ref.eq (local.get $src-start) (global.get $missing))
+               (then (local.set $si (i32.const 0)))
+               (else
+                (if (i32.eqz (ref.test (ref i31) (local.get $src-start)))
+                    (then (call $raise-check-fixnum (local.get $src-start))))
+                (if (i32.ne (i32.and (i31.get_u (ref.cast (ref i31) (local.get $src-start)))
+                                     (i32.const 1))
+                            (i32.const 0))
+                    (then (call $raise-check-fixnum (local.get $src-start))))
+                (local.set $si
+                           (i32.shr_u (i31.get_u (ref.cast (ref i31) (local.get $src-start)))
+                                      (i32.const 1)))))
+           ;; --- Decode optional $src-end ---
+           (if (ref.eq (local.get $src-end) (global.get $missing))
+               (then (local.set $ei (local.get $src-len)))
+               (else
+                (if (i32.eqz (ref.test (ref i31) (local.get $src-end)))
+                    (then (call $raise-check-fixnum (local.get $src-end))))
+                (if (i32.ne (i32.and (i31.get_u (ref.cast (ref i31) (local.get $src-end)))
+                                     (i32.const 1))
+                            (i32.const 0))
+                    (then (call $raise-check-fixnum (local.get $src-end))))
+                (local.set $ei
+                           (i32.shr_u (i31.get_u (ref.cast (ref i31) (local.get $src-end)))
+                                      (i32.const 1)))))
+           ;; --- Range validation ---
+           (if (i32.gt_u (local.get $si) (local.get $ei))
+               (then (call $raise-bad-bytes-range (local.get $src)
+                           (local.get $si) (local.get $ei))
+                     (unreachable)))
+           (if (i32.gt_u (local.get $ei) (local.get $src-len))
+               (then (call $raise-bad-bytes-range (local.get $src)
+                           (local.get $si) (local.get $ei))
+                     (unreachable)))
+           (if (i32.gt_u (i32.add (local.get $di)
+                                  (i32.sub (local.get $ei) (local.get $si)))
+                         (local.get $dest-len))
+               (then (call $raise-bad-bytes-range
+                           (local.get $dest) (local.get $di)
+                           (i32.add (local.get $di)
+                                    (i32.sub (local.get $ei) (local.get $si))))
+                     (unreachable)))
+           ;; --- Copy bytes ---
+           (call $i8array-copy! (local.get $darr) (local.get $di)
+                 (local.get $sarr) (local.get $si) (local.get $ei))
+           (global.get $void))
+
+
+     (func $bytes-copy (type $Prim1)
+           (param $src (ref eq))
+           (result (ref eq))
+           (local $b  (ref null $Bytes))
+           (local $a  (ref $I8Array))
+           (local $a2 (ref $I8Array))
+           ;; Check that $src is a byte string
+           (if (ref.test (ref $Bytes) (local.get $src))
+               (then (local.set $b (ref.cast (ref $Bytes) (local.get $src))))
+               (else (call $raise-check-bytes (local.get $src)) (unreachable)))
+           ;; Extract and copy the underlying I8Array
+           (local.set $a  (struct.get $Bytes $bs (local.get $b)))
+           (local.set $a2 (call $i8array-copy (local.get $a) (i32.const 0) (call $i8array-length (local.get $a))))
+           ;; Return a new mutable Bytes struct
+           (struct.new $Bytes
+                       (i32.const 0)          ;; hash
+                       (i32.const 0)          ;; immutable = false
+                       (local.get $a2)))
+     )))
+
 ;; bytes-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate bytes helpers that still depend on monolithic runtime globals.
 (define bytes-runtime-only-helpers
   (append
    bytes-basic-runtime-only-helpers
    byte-comparison-runtime-only-helpers
+   byte-indexing-runtime-only-helpers
    (function-forms->runtime-helpers
     'bytes-runtime-only-helpers
     '(
