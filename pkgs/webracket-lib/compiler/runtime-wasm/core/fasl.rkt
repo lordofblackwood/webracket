@@ -1,13 +1,329 @@
 #lang racket
 
-(provide fasl-runtime-only-helpers
+(provide fasl-encoding-runtime-only-helper-names
+         fasl-runtime-only-helpers
          fasl-runtime-only-helper-names)
 
 (require "../core-helper.rkt"
          (only-in "../../private/immediates.rkt"
+                  boolean-mask
+                  boolean-shift
+                  boolean-tag
+                  char-mask
                   char-shift
                   char-tag
-                  eof-value))
+                  empty-value
+                  eof-value
+                  void-value))
+
+;; fasl-encoding-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for FASL encoding helpers.
+(define fasl-encoding-runtime-only-helper-names
+  '($s-exp->fasl
+    $raise-s-exp->fasl:unsupported-value
+    $fasl:s-exp->fasl
+    $s-exp->fasl/immediate
+    $fasl:write-u32
+    $fasl:write-bytes
+    $fasl:write-string
+    $fasl:write-symbol
+    $fasl:write-keyword
+    $fasl:write-f64))
+
+;; fasl-encoding-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate FASL encoding helpers used by the monolithic runtime.
+(define fasl-encoding-runtime-only-helpers
+  (function-forms->runtime-helpers
+   'fasl-encoding-runtime-only-helpers
+   `(
+         (func $s-exp->fasl (type $Prim2)
+               (param $v   (ref eq))
+               ; optionals:
+               (param $out (ref eq)) ;; a StringPort or #f (or $missing)
+               (result     (ref eq))
+
+               (local $port (ref eq))
+               (local $res  (ref eq))
+
+               ; Handle optional arguments
+               (if (ref.eq (local.get $out) (global.get $missing))
+                   (then (local.set $out (global.get $false))))
+
+               (if (result (ref eq))
+                   (ref.eq (local.get $out) (global.get $false))
+                   (then
+                    (local.set $port (call $open-output-bytes (global.get $missing)))
+                    (call $fasl:s-exp->fasl (local.get $v) (local.get $port))
+                    (local.set $res
+                               (call $get-output-bytes
+                                     (local.get $port)
+                                     (global.get $missing)
+                                     (global.get $missing)
+                                     (global.get $missing)))
+                    (local.get $res))
+                   (else
+                    (if (result (ref eq))
+                        (ref.test (ref $OutputStringPort) (local.get $out))
+                        (then
+                         (call $fasl:s-exp->fasl (local.get $v) (local.get $out))
+                         (global.get $void))
+                        (else (call $raise-check-port-or-false (local.get $out))
+                              (unreachable))))))
+
+         ;; raise-s-exp->fasl:unsupported-value : any/c -> none
+         ;;   Raise a regular exception for values that cannot be FASL encoded.
+         (func $raise-s-exp->fasl:unsupported-value
+               (param $v (ref eq))
+
+               (drop (call $raise
+                           (call $make-exn:fail
+                                 (call $format/display (local.get $v))
+                                 (call $current-continuation-marks
+                                       (global.get $missing)))
+                           (global.get $true)))
+               (unreachable))
+
+         (func $fasl:s-exp->fasl
+               (param $v   (ref eq))
+               (param $out (ref eq)) ;; a StringPort
+
+               (local $i   i32)
+               (local $n   i32)
+               (local $vec (ref $Vector))
+               (local $arr (ref $Array))
+
+               ;; Dispatch by type tag.
+               (if (ref.test (ref i31) (local.get $v))
+                   (then
+                    (local.set $i (i31.get_u (ref.cast (ref i31) (local.get $v))))
+                    (if (i32.eqz (i32.and (local.get $i) (i32.const 1)))
+                        (then
+                         (drop (call $write-byte (global.get $fasl-fixnum) (local.get $out)))
+                         (call $fasl:write-u32
+                               (i32.shr_u (local.get $i) (i32.const 1))
+                               (local.get $out)))
+                        (else
+                         (call $s-exp->fasl/immediate
+                               (local.get $i)
+                               (local.get $v)
+                               (local.get $out)))))
+                   (else
+                    (if (ref.test (ref $String) (local.get $v))
+                        (then
+                         (drop (call $write-byte (global.get $fasl-string) (local.get $out)))
+                         (call $fasl:write-string
+                               (ref.cast (ref $String) (local.get $v))
+                               (local.get $out)))
+                        (else
+                         (if (ref.test (ref $Path) (local.get $v))
+                             (then
+                              ;; JS console logging uses FASL as a transport format.
+                              ;; Paths are not a real FASL datum here, so send their
+                              ;; existing display rendering as a string.
+                              (drop (call $write-byte (global.get $fasl-string) (local.get $out)))
+                              (call $fasl:write-string
+                                    (call $format/display:path
+                                          (ref.cast (ref $Path) (local.get $v)))
+                                    (local.get $out)))
+                             (else
+                              (if (ref.test (ref $Bytes) (local.get $v))
+                                  (then
+                                   (drop (call $write-byte (global.get $fasl-bytes) (local.get $out)))
+                                   (call $fasl:write-bytes
+                                         (ref.cast (ref $Bytes) (local.get $v))
+                                         (local.get $out)))
+                                  (else
+                                   (if (ref.test (ref $Symbol) (local.get $v))
+                                       (then
+                                        (drop (call $write-byte (global.get $fasl-symbol) (local.get $out)))
+                                        (call $fasl:write-symbol
+                                              (ref.cast (ref $Symbol) (local.get $v))
+                                              (local.get $out)))
+                                       (else
+                                        (if (ref.test (ref $Keyword) (local.get $v))
+                                            (then
+                                             (drop (call $write-byte (global.get $fasl-keyword) (local.get $out)))
+                                             (call $fasl:write-keyword
+                                                   (ref.cast (ref $Keyword) (local.get $v))
+                                                   (local.get $out)))
+                                            (else
+                                             (if (ref.test (ref $Flonum) (local.get $v))
+                                                 (then
+                                                  (drop (call $write-byte (global.get $fasl-flonum) (local.get $out)))
+                                                  (call $fasl:write-f64
+                                                        (struct.get $Flonum $v
+                                                                    (ref.cast (ref $Flonum) (local.get $v)))
+                                                        (local.get $out)))
+                                                 (else
+                                                  (if (ref.test (ref $Pair) (local.get $v))
+                                                      (then
+                                                       (drop (call $write-byte (global.get $fasl-pair) (local.get $out)))
+                                                       (call $fasl:s-exp->fasl
+                                                             (struct.get $Pair $a
+                                                                         (ref.cast (ref $Pair) (local.get $v)))
+                                                             (local.get $out))
+                                                       (call $fasl:s-exp->fasl
+                                                             (struct.get $Pair $d
+                                                                         (ref.cast (ref $Pair) (local.get $v)))
+                                                             (local.get $out)))
+                                                      (else
+                                                       (if (ref.test (ref $Vector) (local.get $v))
+                                                           (then
+                                                            (local.set $vec (ref.cast (ref $Vector) (local.get $v)))
+                                                            (drop (call $write-byte (global.get $fasl-vector) (local.get $out)))
+                                                            (local.set $arr (struct.get $Vector $arr (local.get $vec)))
+                                                            (local.set $n   (array.len (local.get $arr)))
+                                                            (call $fasl:write-u32 (local.get $n) (local.get $out))
+                                                            (local.set $i (i32.const 0))
+                                                            (block $break
+                                                                   (loop $loop
+                                                                         (br_if $break
+                                                                                (i32.ge_u (local.get $i) (local.get $n)))
+                                                                         (call $fasl:s-exp->fasl
+                                                                               (array.get $Array
+                                                                                          (local.get $arr)
+                                                                                          (local.get $i))
+                                                                               (local.get $out))
+                                                                         (local.set $i
+                                                                                    (i32.add (local.get $i)
+                                                                                             (i32.const 1)))
+                                                                         (br $loop))))
+                                                           (else
+                                                            (if (ref.test (ref $External) (local.get $v))
+                                                                (then
+                                                                 (drop (call $write-byte (global.get $fasl-external) (local.get $out)))
+                                                                 (call $fasl:write-u32
+                                                                       (call $js-register-external
+                                                                             (ref.as_non_null
+                                                                              (struct.get $External $v
+                                                                                          (ref.cast (ref $External)
+                                                                                                    (local.get $v)))))
+                                                                       (local.get $out)))
+                                                                (else
+                                                                 (call $raise-s-exp->fasl:unsupported-value
+                                                                       (local.get $v))
+                                                                 (unreachable))))))))))))))))))))))
+
+         (func $s-exp->fasl/immediate
+               (param $i   i32)
+               (param $v   (ref eq))
+               (param $out (ref eq))
+
+               (local $b i32)
+
+               ;; Character immediate
+               (if (i32.eq (i32.and (local.get $i) (i32.const ,char-mask)) (i32.const ,char-tag))
+                   (then
+                    (drop (call $write-byte (global.get $fasl-character) (local.get $out)))
+                    (call $fasl:write-u32 (i32.shr_u (local.get $i) (i32.const ,char-shift)) (local.get $out)))
+                   (else
+                    ;; Boolean immediate
+                    (if (i32.eq (i32.and (local.get $i) (i32.const ,boolean-mask)) (i32.const ,boolean-tag))
+                        (then
+                         (local.set $b (i32.shr_u (local.get $i) (i32.const ,boolean-shift)))
+                         (drop (call $write-byte (global.get $fasl-boolean) (local.get $out)))
+                         (drop (call $write-byte (ref.i31 (i32.shl (local.get $b) (i32.const 1))) (local.get $out))))
+                        (else
+                         ;; Null immediate
+                         (if (i32.eq (local.get $i) (i32.const ,empty-value))
+                             (then
+                              (drop (call $write-byte (global.get $fasl-null) (local.get $out))))
+                             (else
+                              ;; Void immediate
+                              (if (i32.eq (local.get $i) (i32.const ,void-value))
+                                  (then (drop (call $write-byte (global.get $fasl-void) (local.get $out))))
+                                  (else
+                                   ;; EOF immediate
+                                   (if (i32.eq (local.get $i) (i32.const ,eof-value))
+                                       (then (drop (call $write-byte (global.get $fasl-eof) (local.get $out))))
+                                       (else (unreachable))))))))))))
+
+         (func $fasl:write-u32
+              (param $v i32)
+              (param $out (ref eq))
+
+              ;; write the four bytes of $v in big-endian order
+              (drop
+               (call $write-byte
+                     (ref.i31 (i32.shl (i32.and (i32.shr_u (local.get $v) (i32.const 24)) (i32.const 255)) (i32.const 1)))
+                     (local.get $out)))
+              (drop
+               (call $write-byte
+                     (ref.i31 (i32.shl (i32.and (i32.shr_u (local.get $v) (i32.const 16)) (i32.const 255)) (i32.const 1)))
+                     (local.get $out)))
+              (drop
+               (call $write-byte
+                     (ref.i31 (i32.shl (i32.and (i32.shr_u (local.get $v) (i32.const 8)) (i32.const 255)) (i32.const 1)))
+                     (local.get $out)))
+              (drop
+               (call $write-byte
+                     (ref.i31 (i32.shl (i32.and (local.get $v) (i32.const 255)) (i32.const 1)))
+                     (local.get $out))))
+
+        (func $fasl:write-bytes
+              (param $b   (ref $Bytes))
+              (param $out (ref eq))
+
+              (local $arr (ref $I8Array))
+              (local $len i32)
+              (local $i   i32)
+              (local $val i32)
+
+              ;; write length first
+              (local.set $arr (struct.get $Bytes $bs (local.get $b)))
+              (local.set $len (array.len (local.get $arr)))
+              (call $fasl:write-u32 (local.get $len) (local.get $out))
+
+              ;; output each byte
+              (local.set $i (i32.const 0))
+              (block $done
+                     (loop $loop
+                           (br_if $done (i32.ge_u (local.get $i) (local.get $len)))
+                           (local.set $val (call $i8array-ref (local.get $arr) (local.get $i)))
+                           (drop (call $write-byte
+                                       (ref.i31 (i32.shl (local.get $val) (i32.const 1)))
+                                       (local.get $out)))
+                           (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                           (br $loop))))
+
+         (func $fasl:write-string
+               (param $s (ref $String))
+               (param $out (ref eq))
+
+               (local $bs (ref eq))
+
+               (local.set $bs (call $string->bytes/utf-8 (local.get $s) (global.get $false) (global.get $false) (global.get $false)))
+               (call $fasl:write-bytes (ref.cast (ref $Bytes) (local.get $bs)) (local.get $out)))
+
+         (func $fasl:write-symbol
+               (param $sym (ref $Symbol))
+               (param $out (ref eq))
+
+               (call $fasl:write-string (struct.get $Symbol $name (local.get $sym)) (local.get $out)))
+
+         ;; fasl:write-keyword : keyword? output-port? -> void?
+         ;;   Encode a keyword as its underlying string without the "#:" prefix.
+         (func $fasl:write-keyword
+               (param $kw  (ref $Keyword))
+               (param $out (ref eq))
+
+               (call $fasl:write-string
+                     (struct.get $Keyword $str (local.get $kw))
+                     (local.get $out)))
+
+         (func $fasl:write-f64
+               (param $v f64)
+               (param $out (ref eq))
+
+               (local $bits i64)
+               (local $hi i32)
+               (local $lo i32)
+
+               (local.set $bits (i64.reinterpret_f64 (local.get $v)))
+               (local.set $hi   (i32.wrap_i64 (i64.shr_u (local.get $bits) (i64.const 32))))
+               (local.set $lo   (i32.wrap_i64 (local.get $bits)))
+               (call $fasl:write-u32 (local.get $hi) (local.get $out))
+               (call $fasl:write-u32 (local.get $lo) (local.get $out))))))
 
 ;; fasl-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for FASL decoding helpers.
@@ -682,9 +998,15 @@
                     (unreachable)))
           (return (ref.cast (ref $String) (local.get $v))))))
 
-;; fasl-runtime-only-helpers : (listof core-runtime-helper?)
+;; fasl-decoding-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate FASL decoding helpers used by the monolithic runtime.
-(define fasl-runtime-only-helpers
+(define fasl-decoding-runtime-only-helpers
   (function-forms->runtime-helpers
-   'fasl-runtime-only-helpers
+   'fasl-decoding-runtime-only-helpers
    fasl-runtime-only-forms))
+
+;; fasl-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate all FASL helpers used by the monolithic runtime.
+(define fasl-runtime-only-helpers
+  (append fasl-encoding-runtime-only-helpers
+          fasl-decoding-runtime-only-helpers))
