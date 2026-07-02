@@ -54,7 +54,9 @@
                   filesystem-runtime-only-helper-names)
          (only-in "runtime-wasm/core/fixnums.rkt"
                   fixnum-comparison-runtime-only-helper-names
+                  fixnum-conversion-runtime-only-helper-names
                   fixnum-minmax-runtime-only-helper-names
+                  fixnum-predicate-runtime-only-helper-names
                   fixnum-runtime-only-helpers)
          (only-in "runtime-wasm/core/flonums.rkt"
                   flonum-minmax-runtime-only-helper-names
@@ -6428,37 +6430,11 @@
 
          ;; https://docs.racket-lang.org/reference/fixnums.html
 
-         (func $raise-not-fixnum (param $x (ref eq)) (unreachable))
-
-         (func $fixnum? (type $Prim1) (param $v (ref eq)) (result (ref eq))
-               (if (result (ref eq))
-                   (ref.test i31ref (local.get $v))
-                   (then (if (result (ref eq))
-                             (i32.eqz (i32.and (i31.get_s (ref.cast i31ref (local.get $v)))
-                                               (i32.const ,fixnum-mask)))
-                             (then (global.get $true))
-                             (else (global.get $false))))
-                   (else (global.get $false))))
-
-         ;; fxvector? : any/c -> boolean?
-         ;;   WebRacket does not have fxvector values yet, so this predicate
-         ;;   is always false until a concrete fxvector representation exists.
-         (func $fxvector? (type $Prim1)
-               (param $v (ref eq)) ;; any/c
-               (result (ref eq))
-               (global.get $false))
+         ;; Fixnum predicate helpers are implemented in runtime-wasm/core/fixnums.rkt.
+         ,@(for/list ([name (in-list fixnum-predicate-runtime-only-helper-names)])
+             (core-runtime-helper-form runtime-helper-index name))
 
          ,(core-runtime-helper-form core-runtime-helper-index '$fx?/i32)
-
-
-         (func $fxzero? (type $Prim1) (param $x (ref eq)) (result (ref eq))
-               (if (result (ref eq))
-                   (ref.test i31ref (local.get $x))
-                   (then (if (result (ref eq))
-                             (i32.eqz (i31.get_s (ref.cast i31ref (local.get $x))))
-                             (then (global.get $true))
-                             (else (global.get $false))))
-                   (else (global.get $false))))
 
          #;(func $fx+ (type $Prim2)
                (param $x (ref eq))
@@ -7032,35 +7008,9 @@
         ,@(for/list ([name (in-list fixnum-minmax-runtime-only-helper-names)])
             (core-runtime-helper-form runtime-helper-index name))
 
-         (func $fixnum->i32 (param $x (ref eq)) (result i32)
-               (local $val i32)
-               (if (ref.test (ref i31) (local.get $x))
-                   (then (local.set $val (i31.get_s (ref.cast (ref i31) (local.get $x))))
-                         (if (i32.eqz (i32.and (local.get $val) (i32.const 1)))
-                             (then (return (i32.shr_s (local.get $val) (i32.const 1)))) ;; return unboxed i32
-                             (else (call $raise-not-fixnum (local.get $x)))))
-                   (else (call $raise-not-fixnum (local.get $x))))
-               (unreachable))
-
-         (func $fixnum-for-every-system? (type $Prim1)
-               (param $v (ref eq))
-               (result   (ref eq))
-
-               (local $bits i32)
-               (local $value i32)
-               ;; Validate that v is a fixnum with low bit 0.
-               (if (i32.eqz (ref.test (ref i31) (local.get $v)))
-                   (then (return (global.get $false))))
-               (local.set $bits (i31.get_s (ref.cast (ref i31) (local.get $v))))
-               (if (i32.and (local.get $bits) (i32.const 1))
-                   (then (return (global.get $false))))
-               ;; Decode the fixnum payload and ensure it fits the cross-platform range.
-               (local.set $value (i32.shr_s (local.get $bits) (i32.const 1)))
-               (if (i32.lt_s (local.get $value) (i32.const -536870912))
-                   (then (return (global.get $false))))
-               (if (i32.gt_s (local.get $value) (i32.const 536870911))
-                   (then (return (global.get $false))))
-               (global.get $true))
+         ;; Fixnum conversion helpers are implemented in runtime-wasm/core/fixnums.rkt.
+         ,@(for/list ([name (in-list fixnum-conversion-runtime-only-helper-names)])
+             (core-runtime-helper-form runtime-helper-index name))
 
          ;;;
          ;;; 4.3.3 Floating Point Numbers

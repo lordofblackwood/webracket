@@ -2,7 +2,9 @@
 
 (provide fixnum-core-runtime-helpers
          fixnum-comparison-runtime-only-helper-names
+         fixnum-conversion-runtime-only-helper-names
          fixnum-minmax-runtime-only-helper-names
+         fixnum-predicate-runtime-only-helper-names
          fixnum-runtime-only-helpers)
 
 (require "../core-helper.rkt"
@@ -33,6 +35,20 @@
 ;;   Return WAT that encodes an i32 fixnum payload as tagged bits.
 (define (tag-fixnum-bits bits)
   `(i32.shl ,bits (i32.const 1)))
+
+;; fixnum-predicate-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for fixnum predicate helpers.
+(define fixnum-predicate-runtime-only-helper-names
+  '($raise-not-fixnum
+    $fixnum?
+    $fxvector?
+    $fxzero?))
+
+;; fixnum-conversion-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for fixnum conversion helpers.
+(define fixnum-conversion-runtime-only-helper-names
+  '($fixnum->i32
+    $fixnum-for-every-system?))
 
 ;; fixnum-minmax-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for fixnum min/max helpers.
@@ -147,6 +163,77 @@
               [binary-name '( $fx=/2 $fx</2 $fx>/2 $fx<=/2 $fx>=/2)])
      (fixnum-compare-runtime-helper name binary-name))))
 
+;; fixnum-predicate-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate fixnum predicate helpers used by the monolithic runtime.
+(define fixnum-predicate-runtime-only-helpers
+  (function-forms->runtime-helpers
+   'fixnum-predicate-runtime-only-helpers
+   `(
+     (func $raise-not-fixnum (param $x (ref eq)) (unreachable))
+
+     (func $fixnum? (type $Prim1) (param $v (ref eq)) (result (ref eq))
+           (if (result (ref eq))
+               (ref.test i31ref (local.get $v))
+               (then (if (result (ref eq))
+                         (i32.eqz (i32.and (i31.get_s (ref.cast i31ref (local.get $v)))
+                                           (i32.const ,fixnum-mask)))
+                         (then (global.get $true))
+                         (else (global.get $false))))
+               (else (global.get $false))))
+
+     ;; fxvector? : any/c -> boolean?
+     ;;   WebRacket does not have fxvector values yet, so this predicate
+     ;;   is always false until a concrete fxvector representation exists.
+     (func $fxvector? (type $Prim1)
+           (param $v (ref eq)) ;; any/c
+           (result (ref eq))
+           (global.get $false))
+
+     (func $fxzero? (type $Prim1) (param $x (ref eq)) (result (ref eq))
+           (if (result (ref eq))
+               (ref.test i31ref (local.get $x))
+               (then (if (result (ref eq))
+                         (i32.eqz (i31.get_s (ref.cast i31ref (local.get $x))))
+                         (then (global.get $true))
+                         (else (global.get $false))))
+               (else (global.get $false)))))))
+
+;; fixnum-conversion-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate fixnum conversion helpers used by the monolithic runtime.
+(define fixnum-conversion-runtime-only-helpers
+  (function-forms->runtime-helpers
+   'fixnum-conversion-runtime-only-helpers
+   '(
+     (func $fixnum->i32 (param $x (ref eq)) (result i32)
+           (local $val i32)
+           (if (ref.test (ref i31) (local.get $x))
+               (then (local.set $val (i31.get_s (ref.cast (ref i31) (local.get $x))))
+                     (if (i32.eqz (i32.and (local.get $val) (i32.const 1)))
+                         (then (return (i32.shr_s (local.get $val) (i32.const 1)))) ;; return unboxed i32
+                         (else (call $raise-not-fixnum (local.get $x)))))
+               (else (call $raise-not-fixnum (local.get $x))))
+           (unreachable))
+
+     (func $fixnum-for-every-system? (type $Prim1)
+           (param $v (ref eq))
+           (result   (ref eq))
+
+           (local $bits i32)
+           (local $value i32)
+           ;; Validate that v is a fixnum with low bit 0.
+           (if (i32.eqz (ref.test (ref i31) (local.get $v)))
+               (then (return (global.get $false))))
+           (local.set $bits (i31.get_s (ref.cast (ref i31) (local.get $v))))
+           (if (i32.and (local.get $bits) (i32.const 1))
+               (then (return (global.get $false))))
+           ;; Decode the fixnum payload and ensure it fits the cross-platform range.
+           (local.set $value (i32.shr_s (local.get $bits) (i32.const 1)))
+           (if (i32.lt_s (local.get $value) (i32.const -536870912))
+               (then (return (global.get $false))))
+           (if (i32.gt_s (local.get $value) (i32.const 536870911))
+               (then (return (global.get $false))))
+           (global.get $true)))))
+
 ;; fixnum-minmax2-runtime-helper : symbol? symbol? -> core-runtime-helper?
 ;;   Build a binary fixnum min/max helper with checked arguments.
 (define (fixnum-minmax2-runtime-helper name inst)
@@ -198,13 +285,15 @@
 ;;   Enumerate fixnum helpers that depend on monolithic runtime errors.
 (define fixnum-runtime-only-helpers
   (append
+   fixnum-predicate-runtime-only-helpers
    fixnum-comparison-runtime-only-helpers
    (for/list ([name '( $fxmin/2 $fxmax/2 )]
               [inst '( i32.lt_s i32.gt_s )])
      (fixnum-minmax2-runtime-helper name inst))
    (for/list ([name '( $fxmin $fxmax )]
               [cmp  '( $fxmin/2 $fxmax/2 )])
-     (fixnum-minmax-runtime-helper name cmp))))
+     (fixnum-minmax-runtime-helper name cmp))
+   fixnum-conversion-runtime-only-helpers))
 
 ;; fixnum-core-runtime-helpers : (listof core-runtime-helper?)
 ;;   Enumerate fixnum helpers that can be emitted in core runtime.
