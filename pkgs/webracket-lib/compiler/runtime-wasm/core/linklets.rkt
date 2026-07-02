@@ -2,6 +2,8 @@
 
 (provide linklet-bootstrap-runtime-only-helper-names
          linklet-bootstrap-runtime-only-helpers
+         linklet-interpreter-runtime-only-helper-names
+         linklet-interpreter-runtime-only-helpers
          linklet-primitive-table-runtime-only-helper-forms
          linklet-runtime-only-helper-names
          linklet-runtime-only-helper-forms)
@@ -36,6 +38,22 @@
     $linklet-cross-machine-type
     $write-linklet-bundle-hash
     $read-linklet-bundle-hash))
+
+;; linklet-interpreter-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for source-linklet interpreter helpers.
+(define linklet-interpreter-runtime-only-helper-names
+  '($dummy-code
+    $placeholder-linklet-code
+    $linklet-datum-body-list
+    $linklet-normalize-id
+    $linklet-import-group-contains?/i32
+    $linklet-import-instance-for-id
+    $linklet-eval-sequence
+    $linklet-eval-expr-list
+    $linklet-apply-primitive
+    $linklet-define-values!
+    $linklet-eval-expr
+    $interpreted-linklet-code))
 
 ;; linklet-bootstrap-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate source-linklet bootstrap and placeholder helpers.
@@ -254,6 +272,543 @@
                (param $cross-machine (ref eq)) ;; cross-machine type
                (result               (ref eq))
                (global.get $false)))))
+
+;; linklet-interpreter-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate source-linklet interpreter helpers used by runtime linklets.
+(define linklet-interpreter-runtime-only-helpers
+  (function-forms->runtime-helpers
+   'linklet-interpreter-runtime-only-helpers
+   '(
+         ;; Variable used by `closedapp` to hold the closure during construction.
+         (func $dummy-code (type $ClosureCode) (param $clos (ref $Closure))
+               (param $args (ref $Args)) (result (ref eq)) (ref.i31 (i32.const 0)))
+         (func $placeholder-linklet-code (type $ClosureCode)
+               (param $clos (ref $Closure))
+               (param $args (ref $Args))
+               (result     (ref eq))
+               ;; Metadata-only linklets are inspectable but not executable.
+               ;; Keep this distinct from $dummy-code so expander/eval probes
+               ;; fail at the missing execution boundary instead of returning 0.
+               (call $raise-arguments-error
+                     (global.get $symbol:instantiate-linklet)
+                     (global.get $string:metadata-only-compiled-linklet)
+                     (array.new_fixed $Args 0))
+               (unreachable))
+         ;; linklet-datum-body-list : linklet-datum? -> list?
+         ;;   Return the body forms after imports and exports in `(linklet ...)`.
+         (func $linklet-datum-body-list
+               (param $src (ref eq)) ;; linklet datum
+               (result     (ref eq))
+
+               (local $rest (ref eq))
+
+               (if (i32.eqz (ref.test (ref $Pair) (local.get $src)))
+                   (then (return (global.get $null))))
+               (local.set $rest
+                          (struct.get $Pair $d
+                                      (ref.cast (ref $Pair) (local.get $src))))
+               ;; imports
+               (if (i32.eqz (ref.test (ref $Pair) (local.get $rest)))
+                   (then (return (global.get $null))))
+               (local.set $rest
+                          (struct.get $Pair $d
+                                      (ref.cast (ref $Pair) (local.get $rest))))
+               ;; exports
+               (if (i32.eqz (ref.test (ref $Pair) (local.get $rest)))
+                   (then (return (global.get $null))))
+               (struct.get $Pair $d
+                           (ref.cast (ref $Pair) (local.get $rest))))
+
+         ;; linklet-normalize-id : any/c -> any/c
+         ;;   Convert a syntax-wrapped source-linklet identifier to its symbol.
+         (func $linklet-normalize-id
+               (param $id (ref eq)) ;; linklet variable identifier
+               (result    (ref eq))
+
+               (if (ref.eq (call $syntax? (local.get $id)) (global.get $true))
+                   (then (return (call $syntax-e (local.get $id)))))
+               (local.get $id))
+
+         ;; linklet-import-group-contains?/i32 : list? symbol? -> i32
+         ;;   Check whether a linklet import group contains a variable.
+         (func $linklet-import-group-contains?/i32
+               (param $group (ref eq)) ;; import group
+               (param $id    (ref eq)) ;; normalized variable id
+               (result       i32)
+
+               (local $node (ref eq))
+               (local $pair (ref $Pair))
+               (local $sym  (ref eq))
+
+               (local.set $node (local.get $group))
+               (block $done
+                      (loop $loop
+                            (br_if $done (ref.eq (local.get $node) (global.get $null)))
+                            (if (i32.eqz (ref.test (ref $Pair) (local.get $node)))
+                                (then (return (i32.const 0))))
+                            (local.set $pair (ref.cast (ref $Pair) (local.get $node)))
+                            (local.set $sym
+                                       (call $linklet-normalize-id
+                                             (struct.get $Pair $a (local.get $pair))))
+                            (if (ref.eq (local.get $sym) (local.get $id))
+                                (then (return (i32.const 1))))
+                            (local.set $node (struct.get $Pair $d (local.get $pair)))
+                            (br $loop)))
+               (i32.const 0))
+
+         ;; linklet-import-instance-for-id : list? args? symbol? -> (or/c instance? #f)
+         ;;   Find the import instance that supplies id, if any.
+         (func $linklet-import-instance-for-id
+               (param $importss (ref eq)) ;; linklet import groups
+               (param $insts    (ref $Args)) ;; target instance, then imports
+               (param $id       (ref eq)) ;; normalized variable id
+               (result          (ref eq))
+
+               (local $node  (ref eq))
+               (local $pair  (ref $Pair))
+               (local $group (ref eq))
+               (local $index i32)
+
+               (local.set $node (local.get $importss))
+               (local.set $index (i32.const 1))
+               (block $done
+                      (loop $loop
+                            (br_if $done (ref.eq (local.get $node) (global.get $null)))
+                            (if (i32.eqz (ref.test (ref $Pair) (local.get $node)))
+                                (then (return (global.get $false))))
+                            (local.set $pair (ref.cast (ref $Pair) (local.get $node)))
+                            (local.set $group (struct.get $Pair $a (local.get $pair)))
+                            (if (call $linklet-import-group-contains?/i32
+                                      (local.get $group)
+                                      (local.get $id))
+                                (then
+                                 (if (i32.lt_u (local.get $index)
+                                               (array.len (local.get $insts)))
+                                     (then (return (array.get $Args
+                                                          (local.get $insts)
+                                                          (local.get $index)))))))
+                            (local.set $index (i32.add (local.get $index) (i32.const 1)))
+                            (local.set $node (struct.get $Pair $d (local.get $pair)))
+                            (br $loop)))
+               (global.get $false))
+
+         ;; linklet-eval-sequence : instance? list? args? list? -> any/c
+         ;;   Evaluate body forms left-to-right for the bootstrap linklet interpreter.
+         (func $linklet-eval-sequence
+               (param $self     (ref eq)) ;; target instance
+               (param $importss (ref eq)) ;; linklet import groups
+               (param $insts    (ref $Args)) ;; target instance, then imports
+               (param $forms    (ref eq)) ;; body form list
+               (result          (ref eq))
+
+               (local $node   (ref eq))
+               (local $pair   (ref $Pair))
+               (local $result (ref eq))
+
+               (local.set $node (local.get $forms))
+               (local.set $result (global.get $void))
+               (block $done
+                      (loop $loop
+                            (br_if $done (ref.eq (local.get $node) (global.get $null)))
+                            (if (i32.eqz (ref.test (ref $Pair) (local.get $node)))
+                                (then (return (global.get $void))))
+                            (local.set $pair (ref.cast (ref $Pair) (local.get $node)))
+                            (local.set $result
+                                       (call $linklet-eval-expr
+                                             (local.get $self)
+                                             (local.get $importss)
+                                             (local.get $insts)
+                                             (struct.get $Pair $a (local.get $pair))))
+                            (local.set $node (struct.get $Pair $d (local.get $pair)))
+                            (br $loop)))
+               (local.get $result))
+
+         ;; linklet-eval-expr-list : instance? list? args? list? -> list?
+         ;;   Evaluate each expression in a source-linklet argument list.
+         (func $linklet-eval-expr-list
+               (param $self     (ref eq)) ;; target instance
+               (param $importss (ref eq)) ;; linklet import groups
+               (param $insts    (ref $Args)) ;; target instance, then imports
+               (param $forms    (ref eq)) ;; expression list
+               (result          (ref eq))
+
+               (local $node   (ref eq))
+               (local $pair   (ref $Pair))
+               (local $acc    (ref eq))
+
+               (local.set $node (local.get $forms))
+               (local.set $acc (global.get $null))
+               (block $done
+                      (loop $loop
+                            (br_if $done (ref.eq (local.get $node) (global.get $null)))
+                            (if (i32.eqz (ref.test (ref $Pair) (local.get $node)))
+                                (then (return (call $reverse (local.get $acc)))))
+                            (local.set $pair (ref.cast (ref $Pair) (local.get $node)))
+                            (local.set $acc
+                                       (call $cons
+                                             (call $linklet-eval-expr
+                                                   (local.get $self)
+                                                   (local.get $importss)
+                                                   (local.get $insts)
+                                                   (struct.get $Pair $a (local.get $pair)))
+                                             (local.get $acc)))
+                            (local.set $node (struct.get $Pair $d (local.get $pair)))
+                            (br $loop)))
+               (call $reverse (local.get $acc)))
+
+         ;; linklet-apply-primitive : instance? list? args? symbol? list? -> any/c
+         ;;   Apply the primitive subset used by source-linklet bootstrap forms.
+         (func $linklet-apply-primitive
+               (param $self     (ref eq)) ;; target instance
+               (param $importss (ref eq)) ;; linklet import groups
+               (param $insts    (ref $Args)) ;; target instance, then imports
+               (param $op       (ref eq)) ;; primitive operator symbol
+               (param $raw-args (ref eq)) ;; unevaluated argument expressions
+               (result          (ref eq))
+
+               (local $args (ref eq))
+               (local $pair (ref $Pair))
+               (local $rest (ref eq))
+
+               (local.set $args
+                          (call $linklet-eval-expr-list
+                                (local.get $self)
+                                (local.get $importss)
+                                (local.get $insts)
+                                (local.get $raw-args)))
+
+               (if (ref.eq (local.get $op) (global.get $symbol:+))
+                   (then (return (call $+ (local.get $args)))))
+               (if (ref.eq (local.get $op) (global.get $symbol:*))
+                   (then (return (call $* (local.get $args)))))
+               (if (ref.eq (local.get $op) (global.get $symbol:values))
+                   (then (return (call $values (local.get $args)))))
+               (if (ref.eq (local.get $op) (global.get $symbol:list))
+                   (then (return (local.get $args))))
+
+               (if (ref.test (ref $Pair) (local.get $args))
+                   (then
+                    (local.set $pair (ref.cast (ref $Pair) (local.get $args)))
+                    (local.set $rest (struct.get $Pair $d (local.get $pair)))
+                    (if (ref.eq (local.get $op) (global.get $symbol:-))
+                        (then
+                         (return (call $-
+                                       (struct.get $Pair $a (local.get $pair))
+                                       (local.get $rest)))))
+                    (if (ref.eq (local.get $op) (global.get $symbol:car))
+                        (then
+                         (return (call $car
+                                       (struct.get $Pair $a (local.get $pair))))))
+                    (if (ref.eq (local.get $op) (global.get $symbol:cdr))
+                        (then
+                         (return (call $cdr
+                                       (struct.get $Pair $a (local.get $pair))))))
+                    (if (ref.eq (local.get $op) (global.get $symbol:cons))
+                        (then
+                         (if (ref.test (ref $Pair) (local.get $rest))
+                             (then
+                              (return (call $cons
+                                            (struct.get $Pair $a (local.get $pair))
+                                            (struct.get $Pair $a
+                                                        (ref.cast (ref $Pair)
+                                                                  (local.get $rest)))))))))))
+
+               (global.get $void))
+
+         ;; linklet-define-values! : instance? list? any/c -> void
+         ;;   Install one or more definition results in the target instance.
+         (func $linklet-define-values!
+               (param $self (ref eq)) ;; target instance
+               (param $ids  (ref eq)) ;; identifier list
+               (param $val  (ref eq)) ;; value or packed multiple values
+               (result      (ref eq))
+
+               (local $node    (ref eq))
+               (local $pair    (ref $Pair))
+               (local $id      (ref eq))
+               (local $vals    (ref $Values))
+               (local $i       i32)
+               (local $len     i32)
+
+               (if (ref.test (ref $Values) (local.get $val))
+                   (then
+                    (local.set $vals (ref.cast (ref $Values) (local.get $val)))
+                    (local.set $len (array.len (local.get $vals)))
+                    (local.set $node (local.get $ids))
+                    (local.set $i (i32.const 0))
+                    (block $done
+                           (loop $loop
+                                 (br_if $done
+                                        (ref.eq (local.get $node) (global.get $null)))
+                                 (if (i32.eqz (ref.test (ref $Pair) (local.get $node)))
+                                     (then (return (global.get $void))))
+                                 (if (i32.ge_u (local.get $i) (local.get $len))
+                                     (then (return (global.get $void))))
+                                 (local.set $pair (ref.cast (ref $Pair) (local.get $node)))
+                                 (local.set $id
+                                            (call $linklet-normalize-id
+                                                  (struct.get $Pair $a (local.get $pair))))
+                                 (drop (call $instance-set-variable-value!
+                                             (local.get $self)
+                                             (local.get $id)
+                                             (array.get $Values
+                                                        (local.get $vals)
+                                                        (local.get $i))
+                                             (global.get $null)))
+                                 (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                                 (local.set $node (struct.get $Pair $d (local.get $pair)))
+                                 (br $loop)))
+                    (return (global.get $void))))
+
+               (if (ref.test (ref $Pair) (local.get $ids))
+                   (then
+                    (local.set $pair (ref.cast (ref $Pair) (local.get $ids)))
+                    (if (ref.eq (struct.get $Pair $d (local.get $pair))
+                                (global.get $null))
+                        (then
+                         (local.set $id
+                                    (call $linklet-normalize-id
+                                          (struct.get $Pair $a (local.get $pair))))
+                         (return (call $instance-set-variable-value!
+                                       (local.get $self)
+                                       (local.get $id)
+                                       (local.get $val)
+                                       (global.get $null)))))))
+               (global.get $void))
+
+         ;; linklet-eval-expr : instance? list? args? any/c -> any/c
+         ;;   Interpret the small source-linklet subset needed for bootstrap modules.
+         (func $linklet-eval-expr
+               (param $self     (ref eq)) ;; target instance
+               (param $importss (ref eq)) ;; linklet import groups
+               (param $insts    (ref $Args)) ;; target instance, then imports
+               (param $expr     (ref eq)) ;; expression datum
+               (result          (ref eq))
+
+               (local $pair    (ref $Pair))
+               (local $head    (ref eq))
+               (local $rest    (ref eq))
+               (local $ids     (ref eq))
+               (local $id-pair (ref $Pair))
+               (local $id      (ref eq))
+               (local $rhs     (ref eq))
+               (local $val     (ref eq))
+               (local $op      (ref eq))
+               (local $args    (ref eq))
+               (local $var-inst (ref eq))
+               (local $test    (ref eq))
+
+               (if (i32.eqz (ref.test (ref $Pair) (local.get $expr)))
+                   (then
+                    (local.set $expr (call $linklet-normalize-id (local.get $expr)))
+                    (if
+                        (ref.test (ref $Symbol) (local.get $expr))
+                        (then
+                         (local.set $var-inst
+                                    (call $linklet-import-instance-for-id
+                                          (local.get $importss)
+                                          (local.get $insts)
+                                          (local.get $expr)))
+                         (if (ref.eq (local.get $var-inst) (global.get $false))
+                             (then (local.set $var-inst (local.get $self))))
+                         (return (call $instance-variable-value
+                                       (local.get $var-inst)
+                                       (local.get $expr)
+                                       (call $cons
+                                             (global.get $false)
+                                             (global.get $null)))))
+                        (else (return (local.get $expr))))))
+
+               (local.set $pair (ref.cast (ref $Pair) (local.get $expr)))
+               (local.set $head (struct.get $Pair $a (local.get $pair)))
+               (local.set $rest (struct.get $Pair $d (local.get $pair)))
+
+               ;; (quote datum)
+               (if (ref.eq (local.get $head) (global.get $symbol:quote))
+                   (then
+                    (if (ref.test (ref $Pair) (local.get $rest))
+                        (then
+                         (return (struct.get $Pair $a
+                                             (ref.cast (ref $Pair) (local.get $rest))))))))
+
+               ;; (begin body ...)
+               (if (ref.eq (local.get $head) (global.get $symbol:begin))
+                   (then
+                    (return (call $linklet-eval-sequence
+                                  (local.get $self)
+                                  (local.get $importss)
+                                  (local.get $insts)
+                                  (local.get $rest)))))
+
+               ;; (if test then else)
+               (if (ref.eq (local.get $head) (global.get $symbol:if))
+                   (then
+                    (if (ref.test (ref $Pair) (local.get $rest))
+                        (then
+                         (local.set $pair (ref.cast (ref $Pair) (local.get $rest)))
+                         (local.set $test
+                                    (call $linklet-eval-expr
+                                          (local.get $self)
+                                          (local.get $importss)
+                                          (local.get $insts)
+                                          (struct.get $Pair $a (local.get $pair))))
+                         (local.set $rest (struct.get $Pair $d (local.get $pair)))
+                         (if (ref.test (ref $Pair) (local.get $rest))
+                             (then
+                              (local.set $pair (ref.cast (ref $Pair) (local.get $rest)))
+                              (if (ref.eq (local.get $test) (global.get $false))
+                                  (then
+                                   (local.set $rest (struct.get $Pair $d (local.get $pair)))
+                                   (if (ref.test (ref $Pair) (local.get $rest))
+                                       (then
+                                        (return
+                                         (call $linklet-eval-expr
+                                               (local.get $self)
+                                               (local.get $importss)
+                                               (local.get $insts)
+                                               (struct.get $Pair $a
+                                                           (ref.cast (ref $Pair)
+                                                                     (local.get $rest))))))))
+                                  (else
+                                   (return
+                                    (call $linklet-eval-expr
+                                          (local.get $self)
+                                          (local.get $importss)
+                                          (local.get $insts)
+                                          (struct.get $Pair $a (local.get $pair))))))))))))
+
+               ;; (void)
+               (if (ref.eq (local.get $head) (global.get $symbol:void))
+                   (then (return (global.get $void))))
+
+               ;; (#%app + arg ...)
+               (local.set $op (global.get $false))
+               (local.set $args (global.get $null))
+               (if (ref.eq (local.get $head) (global.get $symbol:#%app))
+                   (then
+                    (if (ref.test (ref $Pair) (local.get $rest))
+                        (then
+                         (local.set $pair (ref.cast (ref $Pair) (local.get $rest)))
+                         (local.set $op
+                                    (call $linklet-normalize-id
+                                          (struct.get $Pair $a (local.get $pair))))
+                         (local.set $args (struct.get $Pair $d (local.get $pair)))
+                         (return
+                          (call $linklet-apply-primitive
+                                (local.get $self)
+                                (local.get $importss)
+                                (local.get $insts)
+                                (local.get $op)
+                                (local.get $args)))))))
+
+               ;; Some runtime-produced source linklets can already have the
+               ;; operator in head position after simplification.
+               (if (i32.or (i32.or (ref.eq (local.get $head) (global.get $symbol:+))
+                                   (ref.eq (local.get $head) (global.get $symbol:-)))
+                           (i32.or (ref.eq (local.get $head) (global.get $symbol:*))
+                                   (i32.or (ref.eq (local.get $head) (global.get $symbol:car))
+                                           (i32.or (ref.eq (local.get $head) (global.get $symbol:cdr))
+                                                   (ref.eq (local.get $head) (global.get $symbol:cons))))))
+                   (then (return
+                          (call $linklet-apply-primitive
+                                (local.get $self)
+                                (local.get $importss)
+                                (local.get $insts)
+                                (local.get $head)
+                                (local.get $rest)))))
+
+               ;; (set! id rhs)
+               (if (ref.eq (local.get $head) (global.get $symbol:set!))
+                   (then
+                    (if (ref.test (ref $Pair) (local.get $rest))
+                        (then
+                         (local.set $pair (ref.cast (ref $Pair) (local.get $rest)))
+                         (local.set $id
+                                    (call $linklet-normalize-id
+                                          (struct.get $Pair $a (local.get $pair))))
+                         (local.set $rest (struct.get $Pair $d (local.get $pair)))
+                         (if (ref.test (ref $Pair) (local.get $rest))
+                             (then
+                              (local.set $rhs
+                                         (struct.get $Pair $a
+                                                     (ref.cast (ref $Pair) (local.get $rest))))
+                              (local.set $val
+                                         (call $linklet-eval-expr
+                                               (local.get $self)
+                                               (local.get $importss)
+                                               (local.get $insts)
+                                               (local.get $rhs)))
+                              (local.set $var-inst
+                                         (call $linklet-import-instance-for-id
+                                               (local.get $importss)
+                                               (local.get $insts)
+                                               (local.get $id)))
+                              (if (ref.eq (local.get $var-inst) (global.get $false))
+                                  (then (local.set $var-inst (local.get $self))))
+                              (return (call $instance-set-variable-value!
+                                            (local.get $var-inst)
+                                            (local.get $id)
+                                            (local.get $val)
+                                            (global.get $null)))))))))
+
+               ;; (define-values (id) rhs)
+               (if (ref.eq (local.get $head) (global.get $symbol:define-values))
+                   (then
+                    (if (ref.test (ref $Pair) (local.get $rest))
+                        (then
+                         (local.set $pair (ref.cast (ref $Pair) (local.get $rest)))
+                         (local.set $ids (struct.get $Pair $a (local.get $pair)))
+                         (local.set $rest (struct.get $Pair $d (local.get $pair)))
+                         (if (ref.test (ref $Pair) (local.get $rest))
+                             (then
+                              (local.set $rhs
+                                         (struct.get $Pair $a
+                                                     (ref.cast (ref $Pair) (local.get $rest))))
+                              (local.set $val
+                                         (call $linklet-eval-expr
+                                               (local.get $self)
+                                               (local.get $importss)
+                                               (local.get $insts)
+                                               (local.get $rhs)))
+                              (return (call $linklet-define-values!
+                                            (local.get $self)
+                                            (local.get $ids)
+                                            (local.get $val)))))))))
+
+               ;; Unsupported applications are left inert for now; the next
+               ;; executor milestones should add primitive and import dispatch.
+               (global.get $void))
+
+         ;; interpreted-linklet-code : closure args -> any/c
+         ;;   Execute the stored source linklet datum against the target instance.
+         (func $interpreted-linklet-code (type $ClosureCode)
+               (param $clos (ref $Closure)) ;; closure with source datum free var
+               (param $args (ref $Args))    ;; self instance, then imports
+               (result     (ref eq))
+
+               (local $src   (ref eq))
+               (local $self  (ref eq))
+               (local $importss (ref eq))
+               (local $forms (ref eq))
+
+               (if (i32.eqz (array.len (local.get $args)))
+                   (then (return (global.get $void))))
+               (local.set $src
+                          (array.get $Free
+                                     (struct.get $Closure $free (local.get $clos))
+                                     (i32.const 0)))
+               (local.set $importss
+                          (array.get $Free
+                                     (struct.get $Closure $free (local.get $clos))
+                                     (i32.const 1)))
+               (local.set $self (array.get $Args (local.get $args) (i32.const 0)))
+               (local.set $forms (call $linklet-datum-body-list (local.get $src)))
+               (call $linklet-eval-sequence
+                     (local.get $self)
+                     (local.get $importss)
+                     (local.get $args)
+                     (local.get $forms)))
+     )))
 
 ;; linklet-primitive-table-runtime-only-helper-forms : (listof symbol?) (listof symbol?) -> (listof datum?)
 ;;   Generate primitive-table bridge helpers for the active primitive set.
