@@ -9,6 +9,7 @@
          parameter-width-runtime-only-helper-names
          parameter-error-rendering-runtime-only-helper-names
          parameter-directory-runtime-only-helper-names
+         environment-parameter-global-forms
          reader-printer-policy-parameter-global-forms
          reader-printer-policy-parameter-helper-names)
 
@@ -146,6 +147,12 @@
       $symbol:error-print-source-location
       $error-print-source-location-value
       $prim:error-print-source-location)))
+
+;; environment-parameter-global-forms : (listof datum?)
+;;   Declare the global backing cell for current-environment-variables.
+(define environment-parameter-global-forms
+  '(
+               (global $current-environment-variables-value (mut (ref eq)) (ref.i31 (i32.const 0)))))
 
 ;; reader-printer-policy-parameter-global-forms : (listof datum?)
 ;;   Declare reader, printer, and error-rendering policy parameter globals.

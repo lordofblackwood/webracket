@@ -1,10 +1,20 @@
 #lang racket
 
-(provide path-runtime-only-helpers
+(provide path-current-global-forms
+         path-runtime-only-helpers
          path-runtime-only-helper-names
          path-manipulation-runtime-only-helper-names)
 
 (require "../core-helper.rkt")
+
+;; path-current-global-forms : (listof datum?)
+;;   Declare globals for path convention and current-directory path state.
+(define path-current-global-forms
+  '(
+               (global $system-path-convention   (mut (ref eq)) (ref.i31 (i32.const 0)))
+               (global $current-directory-path   (mut (ref eq)) (ref.i31 (i32.const 0)))
+               (global $current-directory-for-user-path (mut (ref eq)) (ref.i31 (i32.const 0)))
+               (global $current-load-relative-directory-path (mut (ref eq)) (global.get $false))))
 
 ;; path-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for basic path helpers.

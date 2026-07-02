@@ -71,6 +71,7 @@
                   ffi-runtime-only-helper-forms
                   unsafe-ffi-runtime-only-helper-forms)
          (only-in "runtime-wasm/core/filesystem.rkt"
+                  filesystem-temporary-global-forms
                   filesystem-runtime-only-helpers
                   filesystem-runtime-only-helper-names)
          (only-in "runtime-wasm/core/fixnums.rkt"
@@ -196,9 +197,11 @@
                   parameterization-runtime-only-helper-names
                   parameter-runtime-only-helpers
                   parameter-width-runtime-only-helper-names
+                  environment-parameter-global-forms
                   reader-printer-policy-parameter-global-forms
                   reader-printer-policy-parameter-helper-names)
          (only-in "runtime-wasm/core/paths.rkt"
+                  path-current-global-forms
                   path-runtime-only-helpers
                   path-runtime-only-helper-names
                   path-manipulation-runtime-only-helper-names)
@@ -7140,12 +7143,9 @@
                ;;  - the host calls $get-bytes which copies the result-bytes
                ;;    into the linear memory, where the host can read it.
 
-               (global $system-path-convention   (mut (ref eq)) (ref.i31 (i32.const 0)))
-               (global $current-directory-path   (mut (ref eq)) (ref.i31 (i32.const 0)))
-               (global $current-directory-for-user-path (mut (ref eq)) (ref.i31 (i32.const 0)))
-               (global $current-load-relative-directory-path (mut (ref eq)) (global.get $false))
-               (global $current-environment-variables-value (mut (ref eq)) (ref.i31 (i32.const 0)))
-               (global $temporary-file-counter   (mut i32)      (i32.const 0))
+               ,@path-current-global-forms
+               ,@environment-parameter-global-forms
+               ,@filesystem-temporary-global-forms
                ,@port-current-global-forms
                (global $current-print-value       (mut (ref eq)) (global.get $false))
                (global $current-read-interaction-value (mut (ref eq)) (global.get $false))

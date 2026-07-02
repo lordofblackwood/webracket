@@ -1,9 +1,16 @@
 #lang racket
 
-(provide filesystem-runtime-only-helpers
+(provide filesystem-temporary-global-forms
+         filesystem-runtime-only-helpers
          filesystem-runtime-only-helper-names)
 
 (require "../core-helper.rkt")
+
+;; filesystem-temporary-global-forms : (listof datum?)
+;;   Declare filesystem state used for temporary file name generation.
+(define filesystem-temporary-global-forms
+  '(
+               (global $temporary-file-counter   (mut i32)      (i32.const 0))))
 
 ;; filesystem-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for VFS and file-operation helpers.
