@@ -4,6 +4,7 @@
          generic-bitwise-runtime-only-helper-names
          generic-numeric-runtime-only-helper-names
          number-runtime-only-helpers
+         number-string-conversion-runtime-only-helper-names
          number-type-runtime-only-helper-names)
 
 (require "../core-helper.rkt"
@@ -58,6 +59,16 @@
     $nonpositive-integer?
     $nonnegative-integer?
     $natural?))
+
+;; number-string-conversion-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for number/string conversion helpers.
+(define number-string-conversion-runtime-only-helper-names
+  '($raise-number->string-bad-input
+    $raise-number->string-bad-radix
+    $number->string:check-radix
+    $number->string:max-length
+    $number->string:convert
+    $number->string))
 
 ;; number-type-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate number-type helpers that still depend on monolithic runtime globals.
@@ -2644,6 +2655,166 @@
 
      )))
 
+;; number-string-conversion-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate number/string conversion helpers used by the monolithic runtime.
+(define number-string-conversion-runtime-only-helpers
+  (function-forms->runtime-helpers
+   'number-string-conversion-runtime-only-helpers
+   '(
+     ;;; Helpers for $number->string
+
+     (func $raise-number->string-bad-input (unreachable))
+     (func $raise-number->string-bad-radix (unreachable))
+
+     (func $number->string:check-radix (param $radix i32) (result i32)
+           ; number->string accepts 2, 8, 10, or 16 as radix
+           (if (result i32) (i32.or (i32.eq (local.get $radix) (i32.const 2))
+                (i32.or (i32.eq (local.get $radix) (i32.const 8))
+                 (i32.or (i32.eq (local.get $radix) (i32.const 10))
+                         (i32.eq (local.get $radix) (i32.const 16)))))
+               (then (i32.const 1))
+               (else (i32.const 0))))
+
+     (func $number->string:max-length (param $radix i32) (result i32)
+           ;; Returns the maximum length of a fixnum when converted to a string
+           ;; in the given radix, including the sign character.
+           (if (result i32) (i32.eq (local.get $radix) (i32.const 2))
+               (then (i32.const 30)) ;; binary: 29 bits + sign
+               (else
+                (if (result i32) (i32.eq (local.get $radix) (i32.const 8))
+                    (then (i32.const 12)) ;; octal: 11 digits + sign
+                    (else
+                     (if (result i32) (i32.eq (local.get $radix) (i32.const 10))
+                         (then (i32.const 11)) ;; decimal: 10 digits + sign
+                         (else
+                          (if (result i32) (i32.eq (local.get $radix) (i32.const 16))
+                              (then (i32.const 9)) ;; hex: 8 digits + sign
+                              (else (i32.const 0)) ;; invalid radix, caller should check
+                              ))))))))
+
+     (func $number->string:convert
+           (param $n       i32)
+           (param $radix   i32)
+           (param $max-len i32)
+           (result         (ref $String))
+
+           (local $buf (ref $I32Array))
+           (local $i   i32)
+           (local $tmp i32)
+           (local $neg i32)
+           (local $abs i32)
+           (local $out (ref $I32Array))
+           (local $len i32)
+
+           ;; Special case for 0
+           (if (i32.eqz (local.get $n))
+               (then (return (call $i32->string (local.get $n)))))
+           ;; Step 1: Determine sign and absolute value
+           (local.set $neg (i32.lt_s (local.get $n) (i32.const 0)))
+           (local.set $abs (if (result i32)
+                               (i32.ge_s (local.get $n) (i32.const 0))
+                               (then (local.get $n))
+                               (else (i32.sub (i32.const 0) (local.get $n)))))
+           ;; Step 2: Create buffer of max-len, and fill from right to left
+           (local.set $buf (array.new_default $I32Array (local.get $max-len)))
+           (local.set $i   (local.get $max-len))
+           (block $done
+                  (loop $digit-loop
+                        (br_if $done (i32.eqz (local.get $abs)))
+                        (local.set $i   (i32.sub (local.get $i) (i32.const 1)))
+                        (local.set $tmp (i32.rem_u (local.get $abs) (local.get $radix)))
+                        (array.set $I32Array (local.get $buf) (local.get $i)
+                                   (select
+                                    (i32.add (local.get $tmp) (i32.const 48)) ;; '0'-'9'
+                                    (i32.add (local.get $tmp) (i32.const 87)) ;; 'a'-'f'
+                                    (i32.lt_u (local.get $tmp) (i32.const 10))))
+                        (local.set $abs (i32.div_u (local.get $abs) (local.get $radix)))
+                        (br $digit-loop)))
+           ;; Step 3: Add minus sign if negative
+           (if (local.get $neg)
+               (then
+                (local.set $i (i32.sub (local.get $i) (i32.const 1)))
+                (array.set $I32Array (local.get $buf) (local.get $i) (i32.const 45)))) ;; '-'
+           ;; Step 4: Slice from $i to $max-len using array.copy
+           (local.set $len (i32.sub (local.get $max-len) (local.get $i)))
+           (local.set $out (array.new_default $I32Array (local.get $len)))
+           (array.copy $I32Array $I32Array
+                       (local.get $out) (i32.const 0)
+                       (local.get $buf) (local.get $i)
+                       (local.get $len))
+           ;; Step 5: Wrap into a String object
+           (struct.new $String
+                       (i32.const 0)        ;; hash = 0
+                       (i32.const 1)        ;; immutable = true
+                       (local.get $out)))
+
+     (func $number->string (type $Prim12)
+           (param $z         (ref eq))
+           (param $radix-raw (ref eq)) ;; optional: 10 or #f
+           (result           (ref eq)) ;; An (ref $String)
+
+           (local $radix i32)
+           (local $n     i32)
+           (local $max   i32)
+           (local $i31   (ref i31))
+           (local $c     (ref $Complex))
+           ;; Treat missing radix as #f to reuse existing defaults.
+           (if (ref.eq (local.get $radix-raw) (global.get $missing))
+               (then (local.set $radix-raw (global.get $false))))
+           ;; Step 1: Check if $z is a fixnum or flonum
+           (if (ref.test (ref i31) (local.get $z))
+               (then (local.set $n (i32.shr_s (i31.get_s (ref.cast (ref i31) (local.get $z)))
+                                              (i32.const 1))))
+               (else
+                (if (ref.test (ref $Flonum) (local.get $z))
+                    (then
+                     ;; Handle optional radix for flonum (must be 10 or #f)
+                     (if (ref.eq (local.get $radix-raw) (global.get $false))
+                         (then (return (call $flonum->string
+                                              (ref.cast (ref $Flonum) (local.get $z)))))
+                         (else
+                          (if (ref.test (ref i31) (local.get $radix-raw))
+                              (then
+                               (local.set $radix
+                                          (i32.shr_u (i31.get_u (ref.cast (ref i31) (local.get $radix-raw)))
+                                                     (i32.const 1)))
+                               (if (i32.eq (local.get $radix) (i32.const 10))
+                                   (then (return (call $flonum->string
+                                                        (ref.cast (ref $Flonum) (local.get $z)))))
+                                   (else (call $raise-number->string-bad-radix))))
+                              (else (call $raise-number->string-bad-radix))))))
+                    (else
+                     (if (ref.test (ref $Complex) (local.get $z))
+                         (then
+                          (local.set $c (ref.cast (ref $Complex) (local.get $z)))
+                          (if (ref.eq (local.get $radix-raw) (global.get $false))
+                              (then (return (call $format/display:complex (local.get $c)))))
+                          (if (ref.test (ref i31) (local.get $radix-raw))
+                              (then
+                               (local.set $radix
+                                          (i32.shr_u (i31.get_u (ref.cast (ref i31) (local.get $radix-raw)))
+                                                     (i32.const 1)))
+                               (if (i32.eq (local.get $radix) (i32.const 10))
+                                   (then (return (call $format/display:complex (local.get $c))))
+                                   (else (call $raise-number->string-bad-radix))))
+                              (else (call $raise-number->string-bad-radix))))
+                         (else (call $raise-number->string-bad-input)))))))
+           ;; Step 2: Handle radix for fixnums
+           (if (ref.eq (local.get $radix-raw) (global.get $false))
+               (then (local.set $radix (i32.const 10))) ;; default = 10
+               (else (if (ref.test (ref i31) (local.get $radix-raw))
+                         (then (local.set $radix
+                                          (i32.shr_u (i31.get_u (ref.cast (ref i31) (local.get $radix-raw)))
+                                                     (i32.const 1))))
+                         (else (call $raise-number->string-bad-radix)))))
+           ;; Step 3: Validate the radix
+           (if (i32.eqz (call $number->string:check-radix (local.get $radix)))
+               (then (call $raise-number->string-bad-radix)))
+           ;; Step 4: Get max length for this radix
+           (local.set $max (call $number->string:max-length (local.get $radix)))
+           ;; Step 5: Convert and return
+           (call $number->string:convert (local.get $n) (local.get $radix) (local.get $max))))))
+
 
 ;; number-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate number helpers that still depend on monolithic runtime globals.
@@ -2651,4 +2822,5 @@
   (append number-type-runtime-only-helpers
           generic-numeric-runtime-only-helpers
           generic-arithmetic-runtime-only-helpers
-          generic-bitwise-runtime-only-helpers))
+          generic-bitwise-runtime-only-helpers
+          number-string-conversion-runtime-only-helpers))
