@@ -4,6 +4,7 @@
          bytes-basic-runtime-only-helper-names
          byte-comparison-runtime-only-helper-names
          byte-indexing-runtime-only-helper-names
+         byte-sequence-runtime-only-helper-names
          bytes-mutability-runtime-only-helper-names
          bytes-runtime-only-helpers)
 
@@ -739,6 +740,412 @@
                        (local.get $a2)))
      )))
 
+;; byte-sequence-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for byte fill, append, and list helpers.
+(define byte-sequence-runtime-only-helper-names
+  '($raise-expected-mutable-bytes
+    $bytes-fill!
+    $bytes-append
+    $bytes-append/2
+    $bytes-append*
+    $bytes-join
+    $bytes->list
+    $list->bytes))
+
+;; byte-sequence-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate byte fill, append, join, and list conversion helpers.
+(define byte-sequence-runtime-only-helpers
+  (function-forms->runtime-helpers
+   'byte-sequence-runtime-only-helpers
+   '(
+     (func $raise-expected-mutable-bytes (unreachable))
+
+     (func $bytes-fill! (type $Prim2)
+           (param $dest (ref eq))
+           (param $b    (ref eq))
+           (result      (ref eq))
+
+           (local $bs     (ref null $Bytes))
+           (local $arr    (ref $I8Array))
+           (local $b/tag  i32)     ;; raw i31 payload (tagged)
+           (local $val    i32)     ;; untagged byte value 0..255
+
+           ;; dest must be a (mutable) byte string
+           (if (ref.test (ref $Bytes) (local.get $dest))
+               (then (local.set $bs (ref.cast (ref $Bytes) (local.get $dest))))
+               (else (call $raise-check-bytes (local.get $dest)) (unreachable)))
+
+           ;; reject immutable byte strings
+           (if (i32.eq (struct.get $Bytes $immutable (local.get $bs)) (i32.const 1))
+               (then (call $raise-expected-mutable-bytes (local.get $dest)) (unreachable)))
+
+           ;; b must be a fixnum byte (i31 with lsb=0), then 0..255
+           (if (ref.test (ref i31) (local.get $b))
+               (then
+                (local.set $b/tag (i31.get_u (ref.cast (ref i31) (local.get $b))))
+                ;; ensure lsb=0 => fixnum (not a char etc.)
+                (if (i32.ne (i32.and (local.get $b/tag) (i32.const 1)) (i32.const 0))
+                    (then (call $raise-check-byte (local.get $b)) (unreachable)))
+                ;; untag: shift right by 1 (your fixnum convention)
+                (local.set $val (i32.shr_u (local.get $b/tag) (i32.const 1)))
+                ;; range check 0..255
+                (if (i32.ge_u (local.get $val) (i32.const 256))
+                    (then (call $raise-check-byte (local.get $b)) (unreachable))))
+               (else (call $raise-check-byte (local.get $b)) (unreachable)))
+
+           ;; Fill underlying byte array
+           (local.set $arr (struct.get $Bytes $bs (local.get $bs)))
+           (call $i8array-fill! (local.get $arr) (local.get $val))
+
+           ;; return void
+           (global.get $void))
+
+     (func $bytes-append (type $Prim>=0)
+           (param  $xs   (ref eq))        ;; list of byte strings
+           (result       (ref eq))
+
+           (local $n     i32)
+           (local $node  (ref $Pair))
+           (local $b     (ref $Bytes))
+           (local $v     (ref eq))
+           (local $orig  (ref eq))
+           (local $total i32)
+           (local $len   i32)
+           (local $arr   (ref $I8Array))
+           (local $pos   i32)
+
+           ;; === initialize non-defaultable refs ===
+           (local.set $b (ref.cast (ref $Bytes) (global.get $bytes:empty)))
+
+           ;; Preserve original list
+           (local.set $orig (local.get $xs))
+           ;; Determine number of arguments
+           (local.set $n (call $length/i32 (local.get $xs)))
+           ;; Zero arguments -> empty byte string
+           (if (i32.eqz (local.get $n))
+               (then (return (global.get $bytes:empty))))
+           ;; Extract and check first argument
+           (local.set $node (ref.cast (ref $Pair) (local.get $xs)))
+           (local.set $v    (struct.get $Pair $a (local.get $node)))
+           (if (ref.test (ref $Bytes) (local.get $v))
+               (then (local.set $b (ref.cast (ref $Bytes) (local.get $v))))
+               (else (call $raise-check-bytes (local.get $v))))
+           ;; Single argument -> copy to ensure fresh mutable bytes
+           (if (i32.eq (local.get $n) (i32.const 1))
+               (then (return (call $bytes-copy (local.get $b)))))
+           ;; Compute total length
+           (local.set $total
+                      (call $i8array-length
+                            (struct.get $Bytes $bs (local.get $b))))
+           (local.set $xs (struct.get $Pair $d (local.get $node)))
+           (block $done1
+                  (loop $loop1
+                        (br_if $done1 (ref.eq (local.get $xs) (global.get $null)))
+                        (local.set $node (ref.cast (ref $Pair) (local.get $xs)))
+                        (local.set $v    (struct.get $Pair $a (local.get $node)))
+                        (if (ref.test (ref $Bytes) (local.get $v))
+                            (then
+                             (local.set $b (ref.cast (ref $Bytes) (local.get $v)))
+                             (local.set $len
+                                        (call $i8array-length
+                                              (struct.get $Bytes $bs (local.get $b))))
+                             (local.set $total (i32.add (local.get $total) (local.get $len))))
+                            (else (call $raise-check-bytes (local.get $v))))
+                        (local.set $xs (struct.get $Pair $d (local.get $node)))
+                        (br $loop1)))
+           ;; All byte strings empty -> return empty byte string
+           (if (i32.eqz (local.get $total))
+               (then (return (global.get $bytes:empty))))
+           ;; Allocate result array
+           (local.set $arr (call $i8make-array (local.get $total) (i32.const 0)))
+           ;; Copy byte strings into result array
+           (local.set $xs (local.get $orig))
+           (local.set $pos (i32.const 0))
+           (block $done2
+                  (loop $loop2
+                        (br_if $done2 (ref.eq (local.get $xs) (global.get $null)))
+                        (local.set $node (ref.cast (ref $Pair) (local.get $xs)))
+                        (local.set $b
+                                   (ref.cast (ref $Bytes)
+                                             (struct.get $Pair $a (local.get $node))))
+                        (local.set $len
+                                   (call $i8array-length
+                                         (struct.get $Bytes $bs (local.get $b))))
+                        (call $i8array-copy!
+                              (local.get $arr) (local.get $pos)
+                              (struct.get $Bytes $bs (local.get $b))
+                              (i32.const 0) (local.get $len))
+                        (local.set $pos (i32.add (local.get $pos) (local.get $len)))
+                        (local.set $xs (struct.get $Pair $d (local.get $node)))
+                        (br $loop2)))
+
+           (struct.new $Bytes
+                       (i32.const 0)
+                       (i32.const 0)
+                       (local.get $arr)))
+
+
+     (func $bytes-append/2
+           (param $b1 (ref eq))
+           (param $b2 (ref eq))
+           (result (ref eq))
+
+           (local $bs1 (ref null $Bytes))
+           (local $bs2 (ref null $Bytes))
+           (local $a1  (ref $I8Array))
+           (local $a2  (ref $I8Array))
+           (local $new (ref $I8Array))
+           ;; Check both arguments are byte strings
+           (if (ref.test (ref $Bytes) (local.get $b1))
+               (then (local.set $bs1 (ref.cast (ref $Bytes) (local.get $b1))))
+               (else (call $raise-check-bytes (local.get $b1)) (unreachable)))
+           (if (ref.test (ref $Bytes) (local.get $b2))
+               (then (local.set $bs2 (ref.cast (ref $Bytes) (local.get $b2))))
+               (else (call $raise-check-bytes (local.get $b2)) (unreachable)))
+           ;; Extract the underlying arrays
+           (local.set $a1 (struct.get $Bytes $bs (local.get $bs1)))
+           (local.set $a2 (struct.get $Bytes $bs (local.get $bs2)))
+           ;; Call append function on the I8Arrays
+           (local.set $new (call $i8array-append (local.get $a1) (local.get $a2)))
+           ;; Wrap in new mutable Bytes struct
+           (struct.new $Bytes
+                       (i32.const 0) ;; hash
+                       (i32.const 0) ;; mutable
+                       (local.get $new)))
+
+
+     (func $bytes-append* (type $Prim>=1)
+           (param $str  (ref eq))  ;; bytes? or list of bytes
+           (param $rest (ref eq))  ;; additional bytes, last element list
+           (result      (ref eq))
+
+           (local $xs   (ref eq))
+           (local $node (ref $Pair))
+           (local $acc  (ref eq))
+           (local $last (ref eq))
+           (local $args (ref eq))
+
+           ;; initialize locals with no defaults
+           (local.set $last (global.get $false))
+           ;; no extra args: first arg supplies list of bytes
+           (if (ref.eq (local.get $rest) (global.get $null))
+               (then (return (call $bytes-append (local.get $str)))))
+
+           ;; separate last list from preceding byte arguments
+           (local.set $xs  (local.get $rest))
+           (local.set $acc (global.get $null))
+           (block $done
+                  (loop $loop
+                        (local.set $node (ref.cast (ref $Pair) (local.get $xs)))
+                        (local.set $xs   (struct.get $Pair $d (local.get $node)))
+                        (if (ref.eq (local.get $xs) (global.get $null))
+                            (then (local.set $last (struct.get $Pair $a (local.get $node)))
+                                  (br $done))
+                            (else (local.set $acc
+                                             (struct.new $Pair
+                                                         (i32.const 0)
+                                                         (struct.get $Pair $a (local.get $node))
+                                                         (local.get $acc)))
+                                  (br $loop)))))
+
+           ;; rebuild argument list in proper order
+           (local.set $args (local.get $last))
+           (block $done2
+                  (loop $loop2
+                        (br_if $done2 (ref.eq (local.get $acc) (global.get $null)))
+                        (local.set $node (ref.cast (ref $Pair) (local.get $acc)))
+                        (local.set $args (struct.new $Pair
+                                                     (i32.const 0)
+                                                     (struct.get $Pair $a (local.get $node))
+                                                     (local.get $args)))
+                        (local.set $acc (struct.get $Pair $d (local.get $node)))
+                        (br $loop2)))
+           (local.set $args (struct.new $Pair (i32.const 0)
+                                        (local.get $str)
+                                        (local.get $args)))
+           (call $bytes-append (local.get $args)))
+
+     (func $bytes-join (type $Prim2)
+          (param $strs (ref eq)) ;; listof bytes?
+          (param $sep  (ref eq)) ;; bytes?
+          (result      (ref eq))
+
+          (local $xs      (ref eq))
+          (local $node    (ref $Pair))
+          (local $v       (ref eq))
+          (local $bs      (ref $Bytes))
+          (local $sep-bs  (ref $Bytes))
+          (local $sep-len i32)
+          (local $n       i32)
+          (local $total   i32)
+          (local $len     i32)
+          (local $arr     (ref $I8Array))
+          (local $pos     i32)
+
+          ;; --- Initialize non-defaultable locals ---
+          (local.set $bs     (ref.cast (ref $Bytes) (global.get $bytes:empty)))
+          (local.set $sep-bs (ref.cast (ref $Bytes) (global.get $bytes:empty)))
+
+          ;; --- Check separator ---
+          (if (ref.test (ref $Bytes) (local.get $sep))
+              (then (local.set $sep-bs (ref.cast (ref $Bytes) (local.get $sep))))
+              (else (call $raise-check-bytes (local.get $sep)) (unreachable)))
+          ;; --- Determine separator length ---
+          (local.set $sep-len
+                     (call $i8array-length
+                           (struct.get $Bytes $bs (local.get $sep-bs))))
+          ;; --- Determine number of byte strings ---
+          (local.set $n (call $length/i32 (local.get $strs)))
+          (if (i32.eqz (local.get $n))
+              (then (return (global.get $bytes:empty))))
+          ;; --- Compute total length ---
+          (local.set $xs (local.get $strs))
+          (local.set $total
+                     (i32.mul (i32.sub (local.get $n) (i32.const 1))
+                              (local.get $sep-len)))
+          (block $done1
+                 (loop $loop1
+                       (br_if $done1 (ref.eq (local.get $xs) (global.get $null)))
+                       (local.set $node (ref.cast (ref $Pair) (local.get $xs)))
+                       (local.set $v (struct.get $Pair $a (local.get $node)))
+                       (if (ref.test (ref $Bytes) (local.get $v))
+                           (then
+                            (local.set $bs (ref.cast (ref $Bytes) (local.get $v)))
+                            (local.set $len
+                                       (call $i8array-length
+                                             (struct.get $Bytes $bs (local.get $bs))))
+                            (local.set $total (i32.add (local.get $total) (local.get $len))))
+                           (else (call $raise-check-bytes (local.get $v)) (unreachable)))
+                       (local.set $xs (struct.get $Pair $d (local.get $node)))
+                       (br $loop1)))
+          ;; --- All empty -> empty byte string ---
+          (if (i32.eqz (local.get $total))
+              (then (return (global.get $bytes:empty))))
+          ;; --- Allocate result array ---
+          (local.set $arr (call $i8make-array (local.get $total) (i32.const 0)))
+          ;; --- Copy byte strings and separators ---
+          (local.set $xs (local.get $strs))
+          (local.set $pos (i32.const 0))
+          (block $done2
+                 (loop $loop2
+                       (br_if $done2 (ref.eq (local.get $xs) (global.get $null)))
+                       (local.set $node (ref.cast (ref $Pair) (local.get $xs)))
+                       (local.set $bs
+                                  (ref.cast (ref $Bytes)
+                                            (struct.get $Pair $a (local.get $node))))
+                       (local.set $len
+                                  (call $i8array-length
+                                        (struct.get $Bytes $bs (local.get $bs))))
+                       (call $i8array-copy!
+                             (local.get $arr) (local.get $pos)
+                             (struct.get $Bytes $bs (local.get $bs))
+                             (i32.const 0) (local.get $len))
+                       (local.set $pos (i32.add (local.get $pos) (local.get $len)))
+                       (local.set $xs (struct.get $Pair $d (local.get $node)))
+                       (if (ref.eq (local.get $xs) (global.get $null))
+                           (then (nop))
+                           (else
+                            (call $i8array-copy!
+                                  (local.get $arr) (local.get $pos)
+                                  (struct.get $Bytes $bs (local.get $sep-bs))
+                                  (i32.const 0) (local.get $sep-len))
+                            (local.set $pos
+                                       (i32.add (local.get $pos) (local.get $sep-len)))))
+                       (br $loop2)))
+          ;; --- Build result byte string ---
+          (struct.new $Bytes
+                      (i32.const 0)
+                      (i32.const 0)
+                      (local.get $arr)))
+
+     (func $bytes->list (type $Prim1)
+           (param $bstr (ref eq))
+           (result (ref eq))
+           (local $bs   (ref null $Bytes))
+           (local $arr  (ref $I8Array))
+           (local $len  i32)
+           (local $i    i32)
+           (local $val  i32)
+           (local $acc  (ref eq))
+           ;; Check input is a byte string
+           (if (ref.test (ref $Bytes) (local.get $bstr))
+               (then (local.set $bs (ref.cast (ref $Bytes) (local.get $bstr))))
+               (else (call $raise-check-bytes (local.get $bstr)) (unreachable)))
+           ;; Extract underlying byte array
+           (local.set $arr (struct.get $Bytes $bs (local.get $bs)))
+           ;; Get its length
+           (local.set $len (call $i8array-length (local.get $arr)))
+           ;; Build list in reverse
+           (local.set $i (i32.sub (local.get $len) (i32.const 1)))
+           (local.set $acc (global.get $null))
+           (block $done
+                  (loop $loop
+                        (br_if $done (i32.lt_s (local.get $i) (i32.const 0)))
+                        (local.set $val (call $i8array-ref (local.get $arr) (local.get $i)))
+                        (local.set $acc
+                                   (struct.new $Pair
+                                               (i32.const 0)
+                                               (ref.i31 (i32.shl (local.get $val) (i32.const 1))) ;; encode fixnum
+                                               (local.get $acc)))
+                        (local.set $i (i32.sub (local.get $i) (i32.const 1)))
+                        (br $loop)))
+           (local.get $acc))
+
+     (func $list->bytes (type $Prim1)
+           (param $xs (ref eq))
+           (result (ref eq))
+
+           (local $bs   (ref $Bytes))
+           (local $arr  (ref $I8Array))
+           (local $i    i32)
+           (local $len  i32)
+           (local $x    (ref eq))
+           (local $v    i32)
+           ;; Step 1: Compute length of list
+           (local.set $len (call $length/i32 (local.get $xs)))
+           ;; Step 2: Allocate mutable byte array of length $len
+           (local.set $arr (call $i8make-array (local.get $len) (i32.const 0)))
+           ;; Step 3: Allocate mutable Bytes struct
+           (local.set $bs  (struct.new $Bytes
+                                       (i32.const 0)
+                                       (i32.const 0)
+                                       (local.get $arr)))
+           ;; Step 4: Iterate through list and populate byte array
+           (local.set $i (i32.const 0))
+           (block $done
+                  (loop $loop
+                        (br_if $done (ref.eq (local.get $xs) (global.get $null)))
+                        (if (ref.test (ref $Pair) (local.get $xs))
+                            (then
+                             (local.set $x (struct.get $Pair $a (ref.cast (ref $Pair) (local.get $xs))))
+                             (if (ref.test (ref i31) (local.get $x))
+                                 (then
+                                  (local.set $v (i31.get_u (ref.cast (ref i31) (local.get $x))))
+                                  (if (i32.eqz (i32.and (local.get $v) (i32.const 1)))
+                                      (then
+                                       (local.set $v (i32.shr_u (local.get $v) (i32.const 1)))
+                                       (if (i32.lt_u (local.get $v) (i32.const 256))
+                                           (then
+                                            (call $i8array-set! (local.get $arr) (local.get $i) (local.get $v))
+                                            (local.set $i (i32.add (local.get $i) (i32.const 1))))
+                                           (else
+                                            (call $raise-byte-out-of-range (local.get $x))
+                                            (unreachable))))
+                                      (else
+                                       (call $raise-check-fixnum (local.get $x))
+                                       (unreachable))))
+                                 (else
+                                  (call $raise-check-fixnum (local.get $x))
+                                  (unreachable)))
+                             (local.set $xs (struct.get $Pair $d (ref.cast (ref $Pair) (local.get $xs)))))
+                            (else
+                             (call $raise-pair-expected (local.get $xs))
+                             (unreachable)))
+                        (br $loop)))
+           ;; Step 5: Return the byte string struct
+           (local.get $bs))
+     )))
+
 ;; bytes-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate bytes helpers that still depend on monolithic runtime globals.
 (define bytes-runtime-only-helpers
@@ -746,6 +1153,7 @@
    bytes-basic-runtime-only-helpers
    byte-comparison-runtime-only-helpers
    byte-indexing-runtime-only-helpers
+   byte-sequence-runtime-only-helpers
    (function-forms->runtime-helpers
     'bytes-runtime-only-helpers
     '(
