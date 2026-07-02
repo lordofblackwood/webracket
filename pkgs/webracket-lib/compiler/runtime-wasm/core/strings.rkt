@@ -2,7 +2,11 @@
 
 (provide string-core-runtime-helpers
          string-constructor-runtime-only-helper-names
+         string-dummy-runtime-only-helper-names
+         string-index-runtime-only-helper-names
+         string-mutation-runtime-only-helper-names
          string-mutability-runtime-only-helper-names
+         string-selector-runtime-only-helper-names
          string-runtime-only-helpers)
 
 (require "../core-helper.rkt"
@@ -113,6 +117,37 @@
     $make-string/checked
     $make-immutable-string/checked
     $string->immutable-string))
+
+;; string-index-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for string index error helpers.
+(define string-index-runtime-only-helper-names
+  '($raise-bad-string-index
+    $raise-bad-string-index/i32
+    $raise-string-length:bad-argument
+    $raise-string-index-out-of-bounds/i32))
+
+;; string-dummy-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for string dummy construction helpers.
+(define string-dummy-runtime-only-helper-names
+  '($make-dummy-string))
+
+;; string-selector-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for string selector helpers.
+(define string-selector-runtime-only-helper-names
+  '($string-length
+    $string-length/checked/i32
+    $string-ref
+    $string-ref/checked
+    $string-ref/checked/i32))
+
+;; string-mutation-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for string mutation helpers.
+(define string-mutation-runtime-only-helper-names
+  '($raise-string-set!:string-expected
+    $raise-string-set!:fixnum-expected
+    $raise-string-set!:char-expected
+    $raise-string-set!:string-immutable
+    $string-set!))
 
 ;; string-mutability-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate string mutability helpers that still depend on monolithic runtime globals.
@@ -239,8 +274,184 @@
                                       (i32.const 0)
                                       (call $i32array-length (struct.get $String $codepoints (local.get $str)))))))))))
 
+;; string-index-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate string index error helpers that still depend on monolithic runtime globals.
+(define string-index-runtime-only-helpers
+  (function-forms->runtime-helpers
+   'string-index-runtime-only-helpers
+   '(
+         (func $raise-bad-string-index     (param $x (ref eq)) (param $i (ref eq))  (unreachable))
+         (func $raise-bad-string-index/i32 (param $x (ref eq)) (param $i i32)       (unreachable))
+         (func $raise-string-length:bad-argument (unreachable))
+
+         (func $raise-string-index-out-of-bounds/i32 (param $x (ref eq)) (param $i i32) (param $n i32)
+               (unreachable))
+     )))
+
+;; string-dummy-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate string dummy construction helpers that still depend on monolithic runtime globals.
+(define string-dummy-runtime-only-helpers
+  (function-forms->runtime-helpers
+   'string-dummy-runtime-only-helpers
+   '(
+         (func $make-dummy-string (result (ref $String))
+               (struct.new $String
+                           (i32.const 0)  ;; hash = 0
+                           (i32.const 0)  ;; mutable
+                           (call $i32array-make (i32.const 0) (i32.const 0))))
+     )))
+
+;; string-selector-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate string selector helpers that still depend on monolithic runtime globals.
+(define string-selector-runtime-only-helpers
+  (function-forms->runtime-helpers
+   'string-selector-runtime-only-helpers
+   `(
+         (func $string-length (type $Prim1)
+               (param $s-raw (ref eq))
+               (result (ref eq))
+
+               (local $s   (ref $String))
+               (local $len i32)
+               ;; --- Type check ---
+               (if (i32.eqz (ref.test (ref $String) (local.get $s-raw)))
+                   (then (call $raise-string-length:bad-argument)))
+               ;; --- Decode ---
+               (local.set $s (ref.cast (ref $String) (local.get $s-raw)))
+               ;; --- Compute ---
+               (local.set $len (call $i32array-length
+                                     (struct.get $String $codepoints (local.get $s))))
+               ;; --- Return fixnum ---
+               (ref.i31 (i32.shl (local.get $len) (i32.const 1))))
+
+
+         (func $string-length/checked/i32
+               (param $s (ref $String))
+               (result i32)
+               ;; Fetch the length of the codepoints array
+               (call $i32array-length (struct.get $String $codepoints (local.get $s))))
+
+
+         (func $string-ref (type $Prim2)
+               (param $s (ref eq))
+               (param $i (ref eq))
+               (result (ref eq))
+
+               (local $str     (ref $String))
+               (local $idx-i31 (ref i31))
+               (local $idx     i32)
+
+               ;; --- All tests ---
+               (if (i32.eqz (ref.test (ref $String) (local.get $s)))
+                   (then (call $raise-check-string (local.get $s))))
+
+               (if (i32.eqz (ref.test (ref i31) (local.get $i)))
+                   (then (call $raise-check-fixnum (local.get $i))))
+
+               (local.set $idx-i31 (ref.cast (ref i31) (local.get $i)))
+               (local.set $idx (i31.get_u (local.get $idx-i31)))
+               (if (i32.ne (i32.and (local.get $idx) (i32.const 1)) (i32.const 0))
+                   (then (call $raise-check-fixnum (local.get $i))))
+
+               ;; --- All decoding ---
+               (local.set $str (ref.cast (ref $String) (local.get $s)))
+               (local.set $idx (i32.shr_u (local.get $idx) (i32.const 1)))
+
+               ;; --- Bounds check and delegate ---
+               (if (result (ref eq))
+                   (i32.lt_u (local.get $idx)
+                             (call $string-length/checked/i32 (local.get $str)))
+                   (then (call $string-ref/checked (local.get $str) (local.get $idx)))
+                   (else (call $raise-bad-string-index/i32 (local.get $s) (local.get $idx))
+                         (unreachable))))
+
+         (func $string-ref/checked   ; unsafe: no bounds check
+               (param $str (ref $String))
+               (param $idx i32)
+               (result     (ref eq))
+
+               (local $arr (ref $I32Array))
+               (local $cp  i32)
+
+               (local.set $arr (struct.get $String $codepoints (local.get $str)))
+               (local.set $cp  (call $i32array-ref (local.get $arr) (local.get $idx)))
+               ;; Return (char): (cp << char-shift) | char-tag
+               (ref.i31 (i32.or (i32.shl (local.get $cp) (i32.const ,char-shift))
+                                (i32.const ,char-tag))))
+
+         (func $string-ref/checked/i32   ; unsafe: no bounds check
+               (param $str (ref $String))
+               (param $idx i32)
+               (result     i32)
+
+               (local $arr (ref $I32Array))
+               (local $cp  i32)
+
+               (local.set $arr (struct.get $String $codepoints (local.get $str)))
+               (local.set $cp  (call $i32array-ref (local.get $arr) (local.get $idx)))
+               (local.get $cp))
+     )))
+
+;; string-mutation-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate string mutation helpers that still depend on monolithic runtime globals.
+(define string-mutation-runtime-only-helpers
+  (function-forms->runtime-helpers
+   'string-mutation-runtime-only-helpers
+   `(
+         (func $raise-string-set!:string-expected  (param $x (ref eq)) (unreachable))
+         (func $raise-string-set!:fixnum-expected  (param $x (ref eq)) (unreachable))
+         (func $raise-string-set!:char-expected    (param $x (ref eq)) (unreachable))
+         (func $raise-string-set!:string-immutable (param $x (ref eq)) (unreachable))
+
+         (func $string-set!
+               (param $s   (ref eq))
+               (param $i   (ref eq))
+               (param $ch  (ref eq))
+               (result     (ref eq))
+
+               (local $str     (ref $String))
+               (local $arr     (ref $I32Array))
+               (local $idx     i32)
+               (local $cp      i32)
+               (local $tagged  i32)
+               ;; --- Type checks ---
+               (if (i32.eqz (ref.test (ref $String) (local.get $s)))
+                   (then (call $raise-string-set!:string-expected (local.get $s))))
+               (if (i32.eqz (ref.test (ref i31) (local.get $i)))
+                   (then (call $raise-string-set!:fixnum-expected (local.get $i))))
+               (if (i32.eqz (ref.test (ref i31) (local.get $ch)))
+                   (then (call $raise-string-set!:char-expected (local.get $ch))))
+               ;; --- Decode ---
+               (local.set $str (ref.cast (ref $String) (local.get $s)))
+               ;; Check for immutability
+               (if (i32.eq (struct.get $String $immutable (local.get $str)) (i32.const 1))
+                   (then (call $raise-string-set!:string-immutable (local.get $s))))
+               ;; Decode and validate fixnum index
+               (local.set $idx (i31.get_u (ref.cast (ref i31) (local.get $i))))
+               (if (i32.eqz (i32.and (local.get $idx) (i32.const 1)))
+                   (then (local.set $idx (i32.shr_u (local.get $idx) (i32.const 1))))
+                   (else (call $raise-string-set!:fixnum-expected (local.get $i))))
+               ;; Decode and validate character
+               (local.set $tagged (i31.get_u (ref.cast (ref i31) (local.get $ch))))
+               (if (i32.ne (i32.and (local.get $tagged) (i32.const ,char-mask)) (i32.const ,char-tag))
+                   (then (call $raise-string-set!:char-expected (local.get $ch))))
+               (local.set $cp (i32.shr_u (local.get $tagged) (i32.const ,char-shift)))
+               ;; --- Bounds-check and write ---
+               (local.set $arr (struct.get $String $codepoints (local.get $str)))
+               (if (i32.lt_u (local.get $idx) (call $i32array-length (local.get $arr)))
+                   (then (call $i32array-set! (local.get $arr) (local.get $idx) (local.get $cp))
+                         ;; Keep the hash. The eq-identity doesn't change.
+                         (return (global.get $void)))
+                   (else (call $raise-bad-string-index/i32 (local.get $s) (local.get $idx))))
+               (unreachable))
+     )))
+
 ;; string-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate string helpers that still depend on monolithic runtime globals.
 (define string-runtime-only-helpers
   (append string-mutability-runtime-only-helpers
-          string-constructor-runtime-only-helpers))
+          string-constructor-runtime-only-helpers
+          string-index-runtime-only-helpers
+          string-dummy-runtime-only-helpers
+          string-selector-runtime-only-helpers
+          string-mutation-runtime-only-helpers))
