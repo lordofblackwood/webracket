@@ -2,10 +2,12 @@
 
 (provide string-core-runtime-helpers
          string-append-runtime-only-helper-names
+         string-case-runtime-only-helper-names
          string-constructor-runtime-only-helper-names
          string-copy-runtime-only-helper-names
          string-dummy-runtime-only-helper-names
          string-index-runtime-only-helper-names
+         string-list-conversion-runtime-only-helper-names
          string-mutation-runtime-only-helper-names
          string-mutability-runtime-only-helper-names
          string-selector-runtime-only-helper-names
@@ -178,6 +180,56 @@
     $string-split:trim-right
     $string-split:find-match
     $string-split:skip-repeats))
+
+;; string-case-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for string case-conversion helpers.
+(define string-case-runtime-only-helper-names
+  '($string-upcase
+    $string-downcase
+    $string-foldcase
+    $string-titlecase))
+
+;; string-list-conversion-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for string/list conversion helpers.
+(define string-list-conversion-runtime-only-helper-names
+  '($string->list
+    $list->string))
+
+;; string-case-helper-form : symbol? symbol? -> datum?
+;;   Build a unary string case-conversion helper that maps codepoints through imp.
+(define (string-case-helper-form name imp)
+  `(func ,name (type $Prim1) (param $s (ref eq)) (result (ref eq))
+         (local $str (ref $String))
+         (local $arr (ref $I32Array))
+         (local $len i32)
+         (local $res (ref $I32Array))
+         (local $i   i32)
+         (local $cp  i32)
+         (local $cp2 i32)
+         ;; Type check
+         (if (i32.eqz (ref.test (ref $String) (local.get $s)))
+             (then (call $raise-check-string (local.get $s))))
+         ;; Extract codepoint array and length
+         (local.set $str (ref.cast (ref $String) (local.get $s)))
+         (local.set $arr (struct.get $String $codepoints (local.get $str)))
+         (local.set $len (array.len (local.get $arr)))
+         ;; Allocate result array
+         (local.set $res (call $i32array-make (local.get $len) (i32.const 0)))
+         ;; Loop over characters
+         (local.set $i (i32.const 0))
+         (block $done
+                (loop $loop
+                      (br_if $done (i32.ge_u (local.get $i) (local.get $len)))
+                      (local.set $cp (call $i32array-ref (local.get $arr) (local.get $i)))
+                      (local.set $cp2 (call ,imp (local.get $cp)))
+                      (call $i32array-set! (local.get $res) (local.get $i) (local.get $cp2))
+                      (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                      (br $loop)))
+         ;; Build new mutable string
+         (struct.new $String
+                     (i32.const 0)
+                     (i32.const 0)
+                     (local.get $res))))
 
 ;; string-mutability-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate string mutability helpers that still depend on monolithic runtime globals.
@@ -1208,6 +1260,166 @@
                (local.get $scan))
      )))
 
+;; string-case-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate string case-conversion helpers that still depend on monolithic runtime globals.
+(define string-case-runtime-only-helpers
+  (function-forms->runtime-helpers
+   'string-case-runtime-only-helpers
+   (append
+    (for/list ([name+imp
+                (in-list '(($string-upcase    $char-upcase/ucs)
+                           ($string-downcase  $char-downcase/ucs)
+                           ($string-foldcase  $char-foldcase/ucs)))])
+      (define name (car  name+imp))
+      (define imp  (cadr name+imp))
+      (string-case-helper-form name imp))
+    '(
+         ;; string-titlecase : string? -> string?
+         ;;   Note: Approximates Unicode Case_Ignorable via general categories
+         ;;         Mn, Me, Cf, Lm, Sk. No optional parameters.
+         (func $string-titlecase (type $Prim1)
+               (param $s (ref eq))
+               (result   (ref eq))
+
+               (local $t      (ref $String))
+               (local $len    i32)
+               (local $i      i32)
+               (local $in-run i32)
+               (local $c      (ref eq))
+               (local $cat    (ref eq))
+
+               ;; --- Type check ---
+               (if (i32.eqz (ref.test (ref $String) (local.get $s)))
+                   (then (call $raise-check-string (local.get $s))
+                         (unreachable)))
+               ;; --- Make mutable copy and get length ---
+               (local.set $t      (ref.cast (ref $String) (call $string-copy (local.get $s))))
+               (local.set $len    (call $string-length/checked/i32 (local.get $t)))
+               (local.set $i      (i32.const 0))
+               (local.set $in-run (i32.const 0))
+
+               (block $done
+                      (loop $loop
+                            (br_if $done (i32.ge_u (local.get $i) (local.get $len)))
+
+                            (local.set $c (call $string-ref/checked (local.get $t) (local.get $i)))
+
+                            (if (i32.or (ref.eq (call $char-upper-case? (local.get $c)) (global.get $true))
+                                        (ref.eq (call $char-lower-case? (local.get $c)) (global.get $true)))
+                                (then
+                                 (drop ; rememember, string-set! returns `void`
+                                  (call $string-set!
+                                        (local.get $t)
+                                        (ref.i31 (i32.shl (local.get $i) (i32.const 1)))
+                                        (if (result (ref eq)) (local.get $in-run)
+                                            (then (call $char-downcase (local.get $c)))
+                                            (else (call $char-upcase (local.get $c))))))
+                                 (local.set $in-run (i32.const 1)))
+                                (else
+                                 (local.set $cat (call $char-general-category (local.get $c)))
+                                 (if (i32.eqz (i32.or (ref.eq       (local.get $cat) (global.get $symbol:mn))
+                                                (i32.or (ref.eq     (local.get $cat) (global.get $symbol:me))
+                                                  (i32.or (ref.eq   (local.get $cat) (global.get $symbol:cf))
+                                                    (i32.or (ref.eq (local.get $cat) (global.get $symbol:lm))
+                                                            (ref.eq (local.get $cat) (global.get $symbol:sk)))))))
+                                     (then (local.set $in-run (i32.const 0))))))
+
+                            (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                            (br $loop)))
+               (local.get $t))))))
+
+;; string-list-conversion-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate string/list conversion helpers that still depend on monolithic runtime globals.
+(define string-list-conversion-runtime-only-helpers
+  (function-forms->runtime-helpers
+   'string-list-conversion-runtime-only-helpers
+   `(
+         (func $string->list (type $Prim1) (param $s (ref eq)) (result (ref eq))
+               (local $str   (ref null $String))
+               (local $arr   (ref $I32Array))
+               (local $len   i32)
+               (local $i     i32)
+               (local $res   (ref $Pair))
+               (local $cp    i32)
+               ;; check string
+               (if (ref.test (ref $String) (local.get $s))
+                   (then (local.set $str (ref.cast (ref $String) (local.get $s))))
+                   (else (call $raise-check-string (local.get $s))))
+               (local.set $arr (struct.get $String $codepoints (local.get $str)))
+               (local.set $len (call $i32array-length (local.get $arr)))
+               ;; special case len=0
+               (if (result (ref eq))
+                   (i32.eqz (local.get $len))
+                   (then (return (global.get $null)))
+                   ; ;; special case len>=1
+                   (else (local.set $i   (i32.sub (local.get $len) (i32.const 1))) ; from end
+                         (local.set $cp  (call $i32array-ref (local.get $arr) (local.get $i)))
+                         (local.set $res (struct.new $Pair (i32.const 0)
+                                                     (ref.i31 (i32.or (i32.shl (local.get $cp) (i32.const 8)) (i32.const ,char-tag)))
+                                                     (global.get $null)))
+                         (local.set $i   (i32.sub (local.get $i) (i32.const 1)))
+                         (block $done
+                                (loop $build
+                                      (br_if $done (i32.lt_s (local.get $i) (i32.const 0)))
+                                      (local.set $cp (call $i32array-ref (local.get $arr) (local.get $i)))
+                                      ;; tag cp as char
+                                      (local.set $res
+                                                 (struct.new $Pair (i32.const 0)
+                                                             (ref.i31 (i32.or (i32.shl (local.get $cp) (i32.const 8)) (i32.const ,char-tag)))
+                                                             (local.get $res)))
+                                      (local.set $i (i32.sub (local.get $i) (i32.const 1)))
+                                      (br $build)))
+                         (local.get $res))))
+
+         (func $list->string (type $Prim1) (param $xs (ref eq)) (result (ref eq))
+               (local $len   i32)
+               (local $str   (ref $String))
+               (local $arr   (ref $I32Array))
+               (local $i     i32)
+               (local $node  (ref eq))
+               (local $chimm (ref eq))
+               (local $cp    i32)
+               ;; 1. Compute list length (will raise if not proper list)
+               (local.set $len (call $length/i32 (local.get $xs)))
+               ;; 2. Create new mutable string
+               (local.set $str
+                          (struct.new $String
+                                      (i32.const 0)  ;; hash
+                                      (i32.const 0)  ;; immutable = false
+                                      (call $i32array-make (local.get $len) (i32.const 0))))
+               ;; 3. Grab codepoint array once
+               (local.set $arr (struct.get $String $codepoints (local.get $str)))
+               ;; 4. Fill from list directly
+               (local.set $i (i32.const 0))
+               (local.set $node (local.get $xs))
+               (block $done
+                      (loop $fill
+                            (br_if $done (ref.eq (local.get $node) (global.get $null)))
+                            ;; Check node is a pair
+                            (if (ref.test (ref $Pair) (local.get $node))
+                                (then
+                                 ;; extract car
+                                 (local.set $chimm (struct.get $Pair $a (ref.cast (ref $Pair) (local.get $node))))
+                                 ;; decode and validate character
+                                 (local.set $cp (i31.get_u (ref.cast (ref i31) (local.get $chimm))))
+                                 (if (i32.ne (i32.and (local.get $cp) (i32.const ,char-mask)) (i32.const ,char-tag))
+                                     (then (call $raise-check-char (local.get $chimm))
+                                           (unreachable)))
+                                 ;; extract codepoint
+                                 (local.set $cp (i32.shr_u (local.get $cp) (i32.const 8)))
+                                 ;; write codepoint
+                                 (call $i32array-set! (local.get $arr) (local.get $i) (local.get $cp))
+                                 ;; advance
+                                 (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                                 (local.set $node (struct.get $Pair $d (ref.cast (ref $Pair) (local.get $node)))))
+                                (else
+                                 (call $raise-pair-expected (local.get $node))
+                                 (unreachable)))
+                            (br $fill)))
+               ;; 5. Return string
+               (local.get $str))
+     )))
+
 ;; string-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate string helpers that still depend on monolithic runtime globals.
 (define string-runtime-only-helpers
@@ -1219,4 +1431,6 @@
           string-mutation-runtime-only-helpers
           string-copy-runtime-only-helpers
           string-append-runtime-only-helpers
-          string-split-runtime-only-helpers))
+          string-split-runtime-only-helpers
+          string-case-runtime-only-helpers
+          string-list-conversion-runtime-only-helpers))
