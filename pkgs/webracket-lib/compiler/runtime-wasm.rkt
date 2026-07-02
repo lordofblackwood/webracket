@@ -253,6 +253,7 @@
                   string-append-runtime-only-helper-names
                   string-array-conversion-runtime-only-helper-names
                   string-basic-runtime-only-helper-names
+                  string-buffer-error-runtime-only-helper-names
                   string-build-runtime-only-helper-names
                   string-case-runtime-only-helper-names
                   string-check-runtime-only-helper-names
@@ -5713,7 +5714,9 @@
          ;; The data segment can be used to embed byte sequences in the source.
          ;; However in order to access the data, one must copy them to the linear memory first.
 
-         (func $raise-string-buffer-overflow (unreachable))
+         ;;   String-buffer error helpers are implemented in runtime-wasm/core/strings.rkt.
+         ,@(for/list ([name (in-list string-buffer-error-runtime-only-helper-names)])
+             (core-runtime-helper-form runtime-helper-index name))
 
          ; Turns out that the `memory.init` instruction requires a fixed
          ; segment number. So since we can't pass the segment number as an argument,

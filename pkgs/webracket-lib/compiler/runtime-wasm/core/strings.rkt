@@ -5,6 +5,7 @@
          string-append-runtime-only-helper-names
          string-array-conversion-runtime-only-helper-names
          string-basic-runtime-only-helper-names
+         string-buffer-error-runtime-only-helper-names
          string-build-runtime-only-helper-names
          string-case-runtime-only-helper-names
          string-check-runtime-only-helper-names
@@ -165,6 +166,11 @@
   '($string?
     $non-empty-string?
     $string))
+
+;; string-buffer-error-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for string-buffer error helpers.
+(define string-buffer-error-runtime-only-helper-names
+  '($raise-string-buffer-overflow))
 
 ;; string-build-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for build-string helpers.
@@ -3356,6 +3362,15 @@
                           (local.get $res)))
      )))
 
+;; string-buffer-error-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate string-buffer error helpers used by the monolithic runtime.
+(define string-buffer-error-runtime-only-helpers
+  (function-forms->runtime-helpers
+   'string-buffer-error-runtime-only-helpers
+   '(
+         (func $raise-string-buffer-overflow (unreachable))
+     )))
+
 ;; string-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate string helpers that still depend on monolithic runtime globals.
 (define string-runtime-only-helpers
@@ -3376,6 +3391,7 @@
           string-list-conversion-runtime-only-helpers
           string-comparison-runtime-only-helpers
           string-utf8-runtime-only-helpers
+          string-buffer-error-runtime-only-helpers
           string-copy!-runtime-only-helpers
           string-array-conversion-runtime-only-helpers
           string-take-drop-runtime-only-helpers
