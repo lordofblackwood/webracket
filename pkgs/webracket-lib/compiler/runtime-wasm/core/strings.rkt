@@ -16,6 +16,7 @@
          string-selector-runtime-only-helper-names
          string-split-runtime-only-helper-names
          string-take-drop-runtime-only-helper-names
+         string-trim-runtime-only-helper-names
          string-utf8-runtime-only-helper-names
          string-runtime-only-helpers)
 
@@ -207,6 +208,13 @@
     $string-drop/checked
     $string-drop-right
     $string-drop-right/checked))
+
+;; string-trim-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for string trim helpers.
+(define string-trim-runtime-only-helper-names
+  '($string-trim-right
+    $string-trim-left
+    $string-trim))
 
 ;; string-split-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for string join and split helpers.
@@ -2445,6 +2453,273 @@
                            (local.get $n))))
      )))
 
+;; string-trim-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate string trim helpers that still depend on monolithic runtime globals.
+(define string-trim-runtime-only-helpers
+  (function-forms->runtime-helpers
+   'string-trim-runtime-only-helpers
+   `(
+         (func $string-trim-right (type $Prim2)
+               (param $s       (ref eq))   ;; any value, must be a string
+               (param $sep     (ref eq))   ;; a character (tagged i31) or #f
+               (result         (ref eq))   ;; an (ref $String)
+
+               (local $str     (ref $String))
+               (local $len     i32)
+               (local $new-len i32)
+               (local $sep/tag i32) ;; still-tagged char
+               (local $sep-ch  i32) ;; decoded code point
+               (local $use-whitespace? i32)
+               (local $ch      i32)
+
+               ;; --- Type check inputs ---
+               (if (i32.eqz (ref.test (ref $String) (local.get $s)))
+                   (then (call $raise-argument-error:string-expected (local.get $s))
+                         (unreachable)))
+
+               (if (ref.eq (local.get $sep) (global.get $false))
+                   (then (local.set $use-whitespace? (i32.const 1)))
+                   (else
+                    (if (i32.eqz (ref.test (ref i31) (local.get $sep)))
+                        (then (call $raise-argument-error:char-expected (local.get $sep))
+                              (unreachable)))
+                    (local.set $sep/tag (i31.get_u (ref.cast (ref i31) (local.get $sep))))
+                    (if (i32.ne (i32.and (local.get $sep/tag) (i32.const ,char-mask))
+                                (i32.const ,char-tag))
+                        (then (call $raise-argument-error:char-expected (local.get $sep))
+                              (unreachable)))
+                    (local.set $use-whitespace? (i32.const 0))))
+
+               ;; --- Decode after checks ---
+               (local.set $str (ref.cast (ref $String) (local.get $s)))
+               (if (i32.eq (local.get $use-whitespace?) (i32.const 0))
+                   (then (local.set $sep-ch (i32.shr_u (local.get $sep/tag) (i32.const ,char-shift)))))
+
+               ;; --- Get length ---
+               (local.set $len     (call $string-length/checked/i32 (local.get $str)))
+               (local.set $new-len (local.get $len))
+
+               ;; --- Scan backward ---
+               (block $done
+                      (loop $scan
+                            (br_if $done (i32.eqz (local.get $new-len)))
+                            (local.set $ch
+                                       (call $string-ref/checked/i32
+                                             (local.get $str)
+                                             (i32.sub (local.get $new-len) (i32.const 1))))
+
+                            (if (i32.eq (local.get $use-whitespace?) (i32.const 1))
+                                ;; --- Trim if whitespace ---
+                                (then
+                                 (if (ref.eq (call $char-whitespace?/ucs (local.get $ch))
+                                             (global.get $true))
+                                     (then
+                                      (local.set $new-len (i32.sub (local.get $new-len) (i32.const 1)))
+                                      (br $scan))))
+                                ;; --- Else trim if equals sep-ch ---
+                                (else
+                                 (if (i32.eq (local.get $ch) (local.get $sep-ch))
+                                     (then
+                                      (local.set $new-len (i32.sub (local.get $new-len) (i32.const 1)))
+                                      (br $scan))))))
+                      )
+
+               ;; --- Return result ---
+               (if (i32.eq (local.get $new-len) (local.get $len))
+                   (then (return (local.get $str)))
+                   (else (return (call $string-take/checked (local.get $str) (local.get $new-len)))))
+
+               (unreachable))
+
+         (func $string-trim-left (type $Prim2)
+               (param $s   (ref eq))   ;; any value, must be a string
+               (param $sep (ref eq))   ;; a character (i31) or #f
+               (result     (ref eq))   ;; an (ref $String)
+
+               (local $str     (ref $String))
+               (local $len     i32)
+               (local $i       i32)
+               (local $sep-ch  i32)
+               (local $use-whitespace? i32) ;; boolean flag
+               (local $sep/tag i32)
+               (local $ch      i32)
+
+               ;; --- Check inputs ---
+               (if (i32.eqz (ref.test (ref $String) (local.get $s)))
+                   (then (call $raise-argument-error:string-expected (local.get $s))
+                         (unreachable)))
+
+               (if (ref.eq (local.get $sep) (global.get $false))
+                   (then (local.set $use-whitespace? (i32.const 1)))
+                   (else
+                    ;; Check: is it a (ref i31)?
+                    (if (i32.eqz (ref.test (ref i31) (local.get $sep)))
+                        (then (call $raise-argument-error:char-expected
+                                    (local.get $sep))
+                              (unreachable)))
+                    ;; Extract raw tagged value
+                    (local.set $sep/tag
+                               (i31.get_u (ref.cast (ref i31) (local.get $sep))))
+                    ;; Check tag matches ,char-tag
+                    (if (i32.ne (i32.and (local.get $sep/tag) (i32.const ,char-mask))
+                                (i32.const ,char-tag))
+                        (then (call $raise-argument-error:char-expected
+                                    (local.get $sep))
+                              (unreachable)))
+                    ;; Passed: decode
+                    (local.set $use-whitespace? (i32.const 0))
+                    (local.set $sep-ch (i32.shr_u (local.get $sep/tag)
+                                                  (i32.const ,char-shift)))))
+               ;; --- Decode after checks ---
+               (local.set $str (ref.cast (ref $String) (local.get $s)))
+               ;; --- Get string length (as i32) ---
+               (local.set $len (call $string-length/checked/i32 (local.get $str)))
+               (local.set $i   (i32.const 0))
+               ;; --- Scan forward ---
+               (block $done
+                      (loop $scan
+                            (br_if $done (i32.eq (local.get $i) (local.get $len)))
+
+                            (local.set $ch (call $string-ref/checked/i32
+                                                 (local.get $str)
+                                                 (local.get $i)))
+
+                            (if (i32.eq (local.get $use-whitespace?) (i32.const 1))
+                                ;; --- Trim if character is whitespace ---
+                                (then (if (ref.eq (call $char-whitespace?/ucs (local.get $ch))
+                                                  (global.get $true))
+                                          (then (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                                                (br $scan))))
+                                ;; --- Else trim if char equals $sep-ch ---
+                                (else (if (i32.eq (local.get $ch) (local.get $sep-ch))
+                                          (then (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                                                (br $scan)))))))
+
+               ;; --- Return result ---
+               (if (i32.eqz (local.get $i))
+                   (then (return (local.get $str)))
+                   (else (return (call $string-drop
+                                       (local.get $str)
+                                       (ref.i31 (i32.shl (local.get $i) (i32.const 1)))))))
+               (unreachable))
+
+
+         (func $string-trim (type $Prim15)
+               (param $s       (ref eq))   ;; string?
+               (param $sep     (ref eq))   ;; optional string?, default = " "
+               (param $left?   (ref eq))   ;; optional any/c, default = #t
+               (param $right?  (ref eq))   ;; optional any/c, default = #t
+               (param $repeat? (ref eq))   ;; optional any/c, default = #f
+               (result         (ref eq))
+
+               (local $str             (ref $String))
+               (local $sep-str         (ref $String))
+               (local $result          (ref $String))
+               (local $use-whitespace? i32)
+               (local $trim-left?      i32)
+               (local $trim-right?     i32)
+               (local $repeat-flag     i32)
+               (local $sep-len         i32)
+
+               ;; NOTE: WebRacket does not yet support keyword arguments or regular-expression separators here.
+
+               ;; --- Initilize non-defaultable ---
+               (local.set $str     (ref.cast (ref $String) (global.get $string:empty)))
+               (local.set $sep-str (ref.cast (ref $String) (global.get $string:empty)))
+               ; (local.set $str (ref.cast (ref $String) (global.get $string:empty)))
+
+               ;; --- Check and decode required string argument ---
+               (if (i32.eqz (ref.test (ref $String) (local.get $s)))
+                   (then (call $raise-check-string (local.get $s))))
+               (local.set $str    (ref.cast (ref $String) (local.get $s)))
+               (local.set $result (local.get $str))
+               ;; --- Handle optional separator (defaults to whitespace trimming) ---
+               (if (ref.eq (local.get $sep) (global.get $missing))
+                   (then (local.set $use-whitespace? (i32.const 1)))
+                   (else (if (i32.eqz (ref.test (ref $String) (local.get $sep)))
+                             (then (call $raise-check-string (local.get $sep))))
+                         (local.set $sep-str (ref.cast (ref $String) (local.get $sep)))
+                         (local.set $use-whitespace? (i32.const 0))))
+               ;; --- Decode left? flag (default #t) ---
+               (if (ref.eq (local.get $left?) (global.get $missing))
+                   (then (local.set $trim-left? (i32.const 1)))
+                   (else (local.set $trim-left?
+                                    (if (result i32)
+                                        (ref.eq (local.get $left?) (global.get $false))
+                                        (then (i32.const 0))
+                                        (else (i32.const 1))))))
+               ;; --- Decode right? flag (default #t) ---
+               (if (ref.eq (local.get $right?) (global.get $missing))
+                   (then (local.set $trim-right? (i32.const 1)))
+                   (else (local.set $trim-right?
+                                    (if (result i32)
+                                        (ref.eq (local.get $right?) (global.get $false))
+                                        (then (i32.const 0))
+                                        (else (i32.const 1))))))
+               ;; --- Decode repeat? flag (default #f) ---
+               (if (ref.eq (local.get $repeat?) (global.get $missing))
+                   (then (local.set $repeat-flag (i32.const 0)))
+                   (else (local.set $repeat-flag
+                                    (if (result i32)
+                                        (ref.eq (local.get $repeat?) (global.get $false))
+                                        (then (i32.const 0))
+                                        (else (i32.const 1))))))
+               ;; --- Whitespace trimming delegates to existing helpers ---
+               (if (i32.eq (local.get $use-whitespace?) (i32.const 1))
+                   (then
+                    (if (local.get $trim-left?)
+                        (then (local.set $result
+                                         (ref.cast (ref $String)
+                                                   (call $string-trim-left
+                                                         (local.get $result)
+                                                         (global.get $false))))))
+                    (if (local.get $trim-right?)
+                        (then (local.set $result
+                                         (ref.cast (ref $String)
+                                                   (call $string-trim-right
+                                                         (local.get $result)
+                                                         (global.get $false))))))
+                    (return (local.get $result))))
+               ;; --- Literal separator trimming ---
+               (local.set $sep-len (call $string-length/checked/i32 (local.get $sep-str)))
+               (if (i32.eqz (local.get $sep-len))
+                   (then (return (local.get $result))))
+               ;; Trim left side if requested
+               (if (local.get $trim-left?)
+                   (then
+                    (block $left-done
+                           (loop $left-loop
+                                 (br_if $left-done
+                                        (i32.eqz (call $string-prefix?/i32/checked
+                                                       (local.get $result)
+                                                       (local.get $sep-str))))
+                                 (local.set $result
+                                            (call $string-drop/checked
+                                                  (local.get $result)
+                                                  (local.get $sep-len)))
+                                 (if (i32.eqz (local.get $repeat-flag))
+                                     (then (br $left-done)))
+                                 (br $left-loop)))))
+               ;; Trim right side if requested
+               (if (local.get $trim-right?)
+                   (then
+                    (block $right-done
+                           (loop $right-loop
+                                 (br_if $right-done
+                                        (i32.eqz (call $string-suffix?/i32/checked
+                                                       (local.get $result)
+                                                       (local.get $sep-str))))
+                                 (local.set $result
+                                            (call $string-drop-right/checked
+                                                  (local.get $result)
+                                                  (local.get $sep-len)))
+                                 (if (i32.eqz (local.get $repeat-flag))
+                                     (then (br $right-done)))
+                                 (br $right-loop)))))
+
+               (local.get $result))
+     )))
+
 ;; string-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate string helpers that still depend on monolithic runtime globals.
 (define string-runtime-only-helpers
@@ -2463,4 +2738,5 @@
           string-utf8-runtime-only-helpers
           string-copy!-runtime-only-helpers
           string-array-conversion-runtime-only-helpers
-          string-take-drop-runtime-only-helpers))
+          string-take-drop-runtime-only-helpers
+          string-trim-runtime-only-helpers))
