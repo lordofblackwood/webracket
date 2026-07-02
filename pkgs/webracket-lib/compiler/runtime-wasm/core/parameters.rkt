@@ -6,6 +6,8 @@
          namespace-parameter-runtime-only-helper-names
          parameterization-binding-runtime-only-helper-names
          parameterization-call-runtime-only-helper-names
+         parameterization-global-forms
+         parameterization-initializer-forms
          parameter-runtime-only-helpers
          parameter-width-runtime-only-helper-names
          parameter-error-rendering-runtime-only-helper-names
@@ -215,6 +217,22 @@
   '(
                (global $current-compile-target-machine-value (mut (ref eq)) (global.get $false))
                (global $current-compile-realm-value (mut (ref eq)) (global.get $false))))
+
+;; parameterization-global-forms : (listof datum?)
+;;   Declare the current parameterization backing global.
+(define parameterization-global-forms
+  '(
+               (global $current-parameterization-value (mut (ref eq)) (global.get $false))))
+
+;; parameterization-initializer-forms : (listof datum?)
+;;   Initialize the current parameterization backing value.
+(define parameterization-initializer-forms
+  '(
+                     (global.set $current-parameterization-value
+                                 (struct.new $Parameterization
+                                             (i32.const 0)
+                                             (global.get $false)
+                                             (global.get $null)))))
 
 ;; compile-parameter-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for compile metadata parameters.

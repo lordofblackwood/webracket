@@ -197,6 +197,8 @@
                   parameterization-call-runtime-only-helper-names
                   parameter-directory-runtime-only-helper-names
                   parameter-error-rendering-runtime-only-helper-names
+                  parameterization-global-forms
+                  parameterization-initializer-forms
                   parameterization-runtime-only-helper-names
                   parameter-runtime-only-helpers
                   parameter-width-runtime-only-helper-names
@@ -7161,7 +7163,7 @@
                ,@io-handler-default-port-global-forms
                ,@reader-printer-policy-parameter-global-forms
                ,@compile-parameter-global-forms
-               (global $current-parameterization-value (mut (ref eq)) (global.get $false))
+               ,@parameterization-global-forms
                (global $current-namespace-value (mut (ref eq)) (global.get $false))
                (global $current-pseudo-random-generator-value (mut (ref eq)) (global.get $false))
                (global $current-thread-group-value (mut (ref eq)) (global.get $false))
@@ -7233,11 +7235,7 @@
                                  (global.get $symbol:exception-handler-key))
                      (global.set $parameterization-key
                                  (global.get $symbol:parameterization-key))
-                     (global.set $current-parameterization-value
-                                 (struct.new $Parameterization
-                                             (i32.const 0)
-                                             (global.get $false)
-                                             (global.get $null)))
+                     ,@parameterization-initializer-forms
                      (global.set $current-pseudo-random-generator-value
                                  (struct.new $PseudoRandomGenerator
                                              (i32.const 0)
