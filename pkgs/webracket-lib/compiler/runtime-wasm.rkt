@@ -251,6 +251,9 @@
                   random-generator-runtime-only-helper-names
                   random-public-runtime-only-helper-names
                   random-runtime-only-helpers)
+         (only-in "runtime-wasm/core/realms.rkt"
+                  realm-global-forms
+                  realm-initializer-forms)
          (only-in "runtime-wasm/core/regexps.rkt"
                   regexp-runtime-only-helper-names
                   regexp-runtime-only-helpers)
@@ -419,6 +422,7 @@
 (define-runtime-path core-ports-path "runtime-wasm/core/ports.rkt")
 (define-runtime-path core-procedures-path "runtime-wasm/core/procedures.rkt")
 (define-runtime-path core-random-path "runtime-wasm/core/random.rkt")
+(define-runtime-path core-realms-path "runtime-wasm/core/realms.rkt")
 (define-runtime-path core-regexps-path "runtime-wasm/core/regexps.rkt")
 (define-runtime-path core-reflection-path "runtime-wasm/core/reflection.rkt")
 (define-runtime-path core-security-path "runtime-wasm/core/security.rkt")
@@ -869,6 +873,7 @@
                                           core-ports-path
                                           core-procedures-path
                                           core-random-path
+                                          core-realms-path
                                           core-regexps-path
                                           core-reflection-path
                                           core-security-path
@@ -3463,9 +3468,7 @@
 
          ,@character-general-category-global-forms
 
-         ;; Commonly used realms
-         (global $the-racket-realm           (mut (ref eq)) ,(Undefined)) ; the symbol 'racket
-         (global $the-racket/primitive-realm (mut (ref eq)) ,(Undefined)) ; the symbol 'racket/primitive
+         ,@realm-global-forms
 
          ;; Cached kernel exception struct type descriptors
          (global $exn-type                              (mut (ref null $StructType)) (ref.null $StructType))
@@ -7269,18 +7272,7 @@
 
                      ,@character-general-category-initializer-forms
 
-                     ;; ;; Initialize realm symbols
-                     ;; (global.set $the-racket-realm
-                     ;;             (call $string->symbol
-                     ;;                   (ref.cast (ref $String)
-                     ;;                             (global.get $string:racket))))
-                     ;; (global.set $the-racket/primitive-realm
-                     ;;             (call $string->symbol
-                     ;;                   (ref.cast
-                     ;;                    (ref $String)
-                     ;;                    (global.get $string:racket/primitive))))
-                     (global.set $the-racket-realm           (global.get $symbol:racket))
-                     (global.set $the-racket/primitive-realm (global.get $symbol:racket/primitive))
+                     ,@realm-initializer-forms
 
                     ;; Initialize variables holding primitives
                     ,@(initialize-primitives-as-globals)
