@@ -151,6 +151,7 @@
                   struct-type-constructor-runtime-only-helper-names
                   struct-accessor-runtime-only-helper-names
                   struct-constructor-wrapper-runtime-only-helper-names
+                  struct-constructor-runtime-only-helper-names
                   struct-predicate-runtime-only-helper-names
                   struct-procedure-predicate-runtime-only-helper-names
                   struct-runtime-only-helpers)
@@ -15956,104 +15957,10 @@
                   `(ref.func ,($ pr))))
 
 
-        (func $struct-constructor/no-guard
-               (type $ClosureCode)
-               (param $clos (ref $Closure))
-               (param $args (ref $Args))
-               (result      (ref eq))
-
-               (local $free         (ref $Free))
-               (local $std          (ref $StructType))
-               (local $init-indices (ref eq))
-               (local $auto-indices (ref eq))
-               (local $auto-values  (ref eq))
-               (local $name         (ref eq))
-               (local $field-count  i32)
-               (local $arr          (ref $Array))
-
-               (local.set $free         (struct.get $Closure $free (local.get $clos)))
-               (local.set $std          (ref.cast (ref $StructType) (array.get $Free (local.get $free) (i32.const 0))))
-               (local.set $init-indices (array.get $Free (local.get $free) (i32.const 1)))
-               (local.set $auto-indices (array.get $Free (local.get $free) (i32.const 2)))
-               (local.set $auto-values  (array.get $Free (local.get $free) (i32.const 3)))
-               (local.set $name         (array.get $Free (local.get $free) (i32.const 4)))
-               (local.set $field-count  (struct.get $StructType $field-count (local.get $std)))
-
-               (local.set $arr (array.new $Array (global.get $false) (local.get $field-count)))
-               (call $fill-fields-from-args   (local.get $arr) (local.get $init-indices) (local.get $args))
-               (call $fill-fields-from-values (local.get $arr) (local.get $auto-indices) (local.get $auto-values))
-               (call $debug-allocation-tick (i32.const 2))
-
-               (struct.new $Struct
-                           ; $Heap
-                           (i32.const 0)             ;; hash
-                           ; $Procedure
-                           (local.get $name)         ;; $false or a $Symbol
-                           ,(Imm 0)                  ;; fixnum (i31 with lsb=0) or (arity-at-least n)
-                           ,(Imm #f)                 ;; $false or $Symbol
-                           (ref.func $invoke-struct)
-                           ; $Struct
-                           (local.get $std)
-                           (local.get $arr)))
-
-         (func $make-struct-constructor/checked
-               (param $std (ref $StructType))
-               (result (ref eq)) ;; closure
-
-               (local $field-count      i32)
-               (local $guard            (ref eq))
-               (local $struct-name      (ref eq))
-               (local $constructor-name (ref eq))
-               (local $closure-name     (ref eq))
-               (local $init-indices     (ref eq))
-               (local $auto-indices     (ref eq))
-               (local $auto-values      (ref eq))
-               (local $free             (ref $Free))
-               (local $code             (ref $ClosureCode))
-               (local $arity            i32)
-
-               ;; Extract descriptor data
-               (local.set $field-count      (struct.get $StructType $field-count      (local.get $std)))
-               (local.set $guard            (struct.get $StructType $guard            (local.get $std)))
-               (local.set $struct-name      (struct.get $StructType $name             (local.get $std)))
-               (local.set $constructor-name (struct.get $StructType $constructor-name (local.get $std)))
-               (local.set $init-indices     (struct.get $StructType $init-indices     (local.get $std)))
-               (local.set $auto-indices     (struct.get $StructType $auto-indices     (local.get $std)))
-               (local.set $auto-values      (struct.get $StructType $auto-values      (local.get $std)))
-               (local.set $arity            (call $length/i32 (local.get $init-indices)))
-               (local.set $closure-name     (if (result (ref eq))
-                                                (ref.eq (local.get $constructor-name) (global.get $false))
-                                                (then (local.get $struct-name))
-                                                (else (local.get $constructor-name))))
-
-               ;; Choose code based on guard
-               (local.set $code
-                          (if (result (ref $ClosureCode))
-                              (ref.eq (local.get $guard) (global.get $false))
-                              (then (ref.func $struct-constructor/no-guard))
-                              (else (ref.func $struct-constructor/with-guard))))
-
-               ;; Build free array
-               (local.set $free
-                          (array.new_fixed $Free 5
-                                           (local.get $std)
-                                           (local.get $init-indices)
-                                           (local.get $auto-indices)
-                                           (local.get $auto-values)
-                                           local.get $struct-name))
-
-               ;; Construct closure
-               (call $debug-allocation-tick (i32.const 4))
-               (struct.new $Closure
-                           (i32.const 0)               ; hash
-                           (local.get $closure-name)   ; name:  #f or $Symbol
-                           (ref.i31 (i32.shl (local.get $arity) (i32.const 1))) ; arity
-                           (global.get $false)         ; realm: #f or $Symbol
-                           (ref.func $invoke-closure)  ; invoke (used by apply, map, etc.)
-                           (global.get $false)         ; debug-id
-                           (local.get $code)
-                           (local.get $free)))
-
+        ;; Struct constructor implementation helpers
+        ;;   Implemented in runtime-wasm/core/structs.rkt.
+        ,@(for/list ([name (in-list struct-constructor-runtime-only-helper-names)])
+            (core-runtime-helper-form runtime-helper-index name))
 
          (func $make-struct-mutator/checked
                ; Makes a generic mutator that can mutate any field.
