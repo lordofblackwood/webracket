@@ -150,6 +150,7 @@
                   struct-prefab-constructor-runtime-only-helper-names
                   struct-type-constructor-runtime-only-helper-names
                   struct-accessor-runtime-only-helper-names
+                  struct-constructor-wrapper-runtime-only-helper-names
                   struct-predicate-runtime-only-helper-names
                   struct-procedure-predicate-runtime-only-helper-names
                   struct-runtime-only-helpers)
@@ -15903,20 +15904,10 @@
          ,@(for/list ([name (in-list struct-accessor-runtime-only-helper-names)])
              (core-runtime-helper-form runtime-helper-index name))
 
-         (func $make-struct-constructor
-               ;; Parameters
-               (param $v (ref eq)) ;; Expected: (ref $StructType)
-               (result   (ref eq)) ;; Returns: closure
-
-               (local $std (ref $StructType))
-
-               ;; Type check
-               (if (i32.eqz (ref.test (ref $StructType) (local.get $v)))
-                   (then (call $raise-argument-error/internal (local.get $v))))
-               ;; Decode
-               (local.set $std (ref.cast (ref $StructType) (local.get $v)))
-               ;; Delegate
-               (call $make-struct-constructor/checked (local.get $std)))
+         ;; Struct constructor wrapper helpers
+         ;;   Implemented in runtime-wasm/core/structs.rkt.
+         ,@(for/list ([name (in-list struct-constructor-wrapper-runtime-only-helper-names)])
+             (core-runtime-helper-form runtime-helper-index name))
 
         (elem declare funcref
               (ref.func $struct-constructor/no-guard)       ; closure body

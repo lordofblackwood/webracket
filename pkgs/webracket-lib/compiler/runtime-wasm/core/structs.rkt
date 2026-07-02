@@ -15,6 +15,7 @@
          struct-prefab-constructor-runtime-only-helper-names
          struct-type-constructor-runtime-only-helper-names
          struct-accessor-runtime-only-helper-names
+         struct-constructor-wrapper-runtime-only-helper-names
          struct-predicate-runtime-only-helper-names
          struct-procedure-predicate-runtime-only-helper-names
          struct-core-runtime-helpers
@@ -156,6 +157,11 @@
   '($make-struct-accessor
     $make-struct-accessor/checked
     $struct-accessor))
+
+;; struct-constructor-wrapper-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for struct constructor wrapper helpers.
+(define struct-constructor-wrapper-runtime-only-helper-names
+  '($make-struct-constructor))
 
 ;; struct-predicate-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for generic struct predicate helpers.
@@ -3855,6 +3861,28 @@
                (else (global.get $false))))
      )))
 
+;; struct-constructor-wrapper-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate public struct constructor wrapper helpers used by the monolithic runtime.
+(define struct-constructor-wrapper-runtime-only-helpers
+  (function-forms->runtime-helpers
+   'struct-constructor-wrapper-runtime-only-helpers
+   '(
+     (func $make-struct-constructor
+           ;; Parameters
+           (param $v (ref eq)) ;; Expected: (ref $StructType)
+           (result   (ref eq)) ;; Returns: closure
+
+           (local $std (ref $StructType))
+
+           ;; Type check
+           (if (i32.eqz (ref.test (ref $StructType) (local.get $v)))
+               (then (call $raise-argument-error/internal (local.get $v))))
+           ;; Decode
+           (local.set $std (ref.cast (ref $StructType) (local.get $v)))
+           ;; Delegate
+           (call $make-struct-constructor/checked (local.get $std)))
+     )))
+
 ;; struct-procedure-predicate-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate predicates for generated struct procedure wrappers.
 (define struct-procedure-predicate-runtime-only-helpers
@@ -3913,6 +3941,7 @@
    struct-prefab-constructor-runtime-only-helpers
    struct-type-constructor-runtime-only-helpers
    struct-accessor-runtime-only-helpers
+   struct-constructor-wrapper-runtime-only-helpers
    struct-predicate-runtime-only-helpers
    struct-procedure-predicate-runtime-only-helpers
    (list
