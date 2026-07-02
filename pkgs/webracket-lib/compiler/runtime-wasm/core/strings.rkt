@@ -1,7 +1,9 @@
 #lang racket
 
 (provide string-core-runtime-helpers
+         string-append-runtime-only-helper-names
          string-constructor-runtime-only-helper-names
+         string-copy-runtime-only-helper-names
          string-dummy-runtime-only-helper-names
          string-index-runtime-only-helper-names
          string-mutation-runtime-only-helper-names
@@ -148,6 +150,22 @@
     $raise-string-set!:char-expected
     $raise-string-set!:string-immutable
     $string-set!))
+
+;; string-copy-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for string copy and fill helpers.
+(define string-copy-runtime-only-helper-names
+  '($substring
+    $string-copy
+    $raise-immutable-string
+    $string-fill!))
+
+;; string-append-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for string append helpers.
+(define string-append-runtime-only-helper-names
+  '($string-append/2
+    $string-append
+    $string-append-immutable
+    $string-append*))
 
 ;; string-mutability-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate string mutability helpers that still depend on monolithic runtime globals.
@@ -446,6 +464,295 @@
                (unreachable))
      )))
 
+;; string-copy-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate string copy and fill helpers that still depend on monolithic runtime globals.
+(define string-copy-runtime-only-helpers
+  (function-forms->runtime-helpers
+   'string-copy-runtime-only-helpers
+   `(
+         (func $substring (type $Prim23)
+              (param $s     (ref eq))
+              (param $start (ref eq))
+              (param $end   (ref eq)) ; optional, default to (string-length s)
+              (result       (ref eq))
+
+              (local $str      (ref null $String))
+              (local $arr      (ref $I32Array))
+              (local $i32start i32)
+              (local $i32end   i32)
+              (local $len      i32)
+              ;; check string
+              (if (ref.test (ref $String) (local.get $s))
+                  (then (local.set $str (ref.cast (ref $String) (local.get $s))))
+                  (else (call $raise-check-string (local.get $s))))
+              ;; decode and check start index
+              (if (ref.test (ref i31) (local.get $start))
+                  (then (local.set $i32start (i31.get_u (ref.cast (ref i31) (local.get $start))))
+                        (if (i32.ne (i32.and (local.get $i32start) (i32.const 1)) (i32.const 0))
+                            (then (call $raise-check-fixnum (local.get $start))))
+                        (local.set $i32start (i32.shr_u (local.get $i32start) (i32.const 1))))
+                  (else (call $raise-check-fixnum (local.get $start))))
+              ;; get array and length
+              (local.set $arr (struct.get $String $codepoints (local.get $str)))
+              (local.set $len (call $i32array-length (local.get $arr)))
+              ;; supply default value for the optional end index
+              (if (ref.eq (local.get $end) (global.get $missing))
+                  (then (local.set $end
+                                   (ref.i31 (i32.shl (local.get $len) (i32.const 1))))))
+              ;; decode and check end index
+              (if (ref.test (ref i31) (local.get $end))
+                  (then (local.set $i32end (i31.get_u (ref.cast (ref i31) (local.get $end))))
+                        (if (i32.ne (i32.and (local.get $i32end) (i32.const 1)) (i32.const 0))
+                            (then (call $raise-check-fixnum (local.get $end))))
+                        (local.set $i32end (i32.shr_u (local.get $i32end) (i32.const 1))))
+                  (else (call $raise-check-fixnum (local.get $end))))
+              ;; bounds check: start <= end <= len
+              (if (i32.or (i32.gt_u (local.get $i32start) (local.get $i32end))
+                          (i32.gt_u (local.get $i32end) (local.get $len)))
+                  (then (call $raise-string-index-out-of-bounds/i32 (local.get $s) (local.get $i32end) (local.get $len))))
+              ;; create new string
+              (struct.new $String
+                          (i32.const 0) ; hash
+                          (i32.const 0) ; mutable (also for immutable input)
+                          (call $i32array-copy (local.get $arr) (local.get $i32start) (local.get $i32end))))
+
+         (func $string-copy (type $Prim1)
+               (param $s (ref eq))
+               (result (ref eq))
+
+               (local $str (ref $String))
+               (local $arr (ref $I32Array))
+               (local $len i32)
+               (local $copy (ref $I32Array))
+               ;; --- Type check ---
+               (if (i32.eqz (ref.test (ref $String) (local.get $s)))
+                   (then (call $raise-check-string (local.get $s))))
+               ;; --- Cast and extract ---
+               (local.set $str (ref.cast (ref $String) (local.get $s)))
+               (local.set $arr (struct.get $String $codepoints (local.get $str)))
+               (local.set $len (array.len (local.get $arr)))
+               ;; --- Copy the codepoint array ---
+               (local.set $copy (call $i32array-copy (local.get $arr) (i32.const 0) (local.get $len)))
+               ;; --- Construct new mutable string with hash = 0 ---
+               (struct.new $String
+                           (i32.const 0)       ;; $hash
+                           (i32.const 0)       ;; mutable
+                           (local.get $copy))) ;; $codepoints
+
+         (func $raise-immutable-string (param $x (ref eq)) (unreachable))
+
+         (func $string-fill! (type $Prim2)
+               (param $s   (ref eq))
+               (param $ch  (ref eq))
+               (result     (ref eq))
+
+               (local $str (ref $String))
+               (local $arr (ref $I32Array))
+               (local $cp  i32)
+
+               ;; --- 1. Check and cast string ---
+               (if (i32.eqz (ref.test (ref $String) (local.get $s)))
+                   (then (call $raise-check-string (local.get $s))))
+               (local.set $str (ref.cast (ref $String) (local.get $s)))
+               ;; --- 2. Raise if immutable ---
+               (if (i32.ne (struct.get $String $immutable (local.get $str)) (i32.const 0))
+                   (then (call $raise-immutable-string (local.get $s))))
+               ;; --- 3. Decode and check char immediate ---
+               (if (i32.eqz (ref.test (ref i31) (local.get $ch)))
+                   (then (call $raise-check-char (local.get $ch))))
+               (local.set $cp (i31.get_u (ref.cast (ref i31) (local.get $ch))))
+               (if (i32.ne (i32.and (local.get $cp) (i32.const ,char-mask)) (i32.const ,char-tag))
+                   (then (call $raise-check-char (local.get $ch))))
+               (local.set $cp (i32.shr_u (local.get $cp) (i32.const ,char-shift)))
+               ;; --- 4. Fill (keep eq-hash-code) ---
+               (local.set $arr (struct.get $String $codepoints (local.get $str)))
+               (call $i32array-fill! (local.get $arr) (local.get $cp))
+               ;; --- 5. Return void ---
+               (global.get $void))
+     )))
+
+;; string-append-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate string append helpers that still depend on monolithic runtime globals.
+(define string-append-runtime-only-helpers
+  (function-forms->runtime-helpers
+   'string-append-runtime-only-helpers
+   '(
+         (func $string-append/2 (param $s1 (ref eq)) (param $s2 (ref eq)) (result (ref $String))
+               (local $str1 (ref null $String))
+               (local $str2 (ref null $String))
+               (if (ref.test (ref $String) (local.get $s1))
+                   (then (local.set $str1 (ref.cast (ref $String) (local.get $s1))))
+                   (else (call $raise-check-string (local.get $s1))))
+               (if (ref.test (ref $String) (local.get $s2))
+                   (then (local.set $str2 (ref.cast (ref $String) (local.get $s2))))
+                   (else (call $raise-check-string (local.get $s2))))
+               (struct.new $String
+                           (i32.const 0)
+                           (i32.const 0)
+                           (call $i32array-append
+                                 (struct.get $String $codepoints (local.get $str1))
+                                 (struct.get $String $codepoints (local.get $str2)))))
+
+
+         (func $string-append (type $Prim>=0)
+               (param  $xs   (ref eq))        ;; expects a list of strings
+               (result       (ref eq))
+
+               (local $n     i32)
+               (local $node  (ref $Pair))
+               (local $s     (ref $String))
+               (local $v     (ref eq))
+               (local $orig  (ref eq))
+               (local $total i32)
+               (local $len   i32)
+               (local $arr   (ref $I32Array))
+               (local $pos   i32)
+
+               ;; === initialize non-defaultable refs ===
+               (local.set $s (ref.cast (ref $String) (global.get $string:empty)))
+
+               ;; Preserve original list
+               (local.set $orig (local.get $xs))
+               ;; Determine number of arguments
+               (local.set $n (call $length/i32 (local.get $xs)))
+               ;; Zero arguments -> existing empty string
+               (if (i32.eqz (local.get $n))
+                   (then (return (global.get $string:empty))))
+               ;; Extract and check first argument
+               (local.set $node (ref.cast (ref $Pair) (local.get $xs)))
+               (local.set $v    (struct.get $Pair $a (local.get $node)))
+               (if (ref.test (ref $String) (local.get $v))
+                   (then (local.set $s (ref.cast (ref $String) (local.get $v))))
+                   (else (call $raise-check-string (local.get $v))))
+               ;; Single argument -> copy to ensure fresh mutable string
+               (if (i32.eq (local.get $n) (i32.const 1))
+                   (then (if (ref.eq (local.get $s) (global.get $string:empty))
+                             (then (return (global.get $string:empty)))
+                             (else (return (call $string-copy (local.get $s)))))))
+               ;; Compute total length
+               (local.set $total
+                          (call $i32array-length
+                                (struct.get $String $codepoints (local.get $s))))
+               (local.set $xs (struct.get $Pair $d (local.get $node)))
+               (block $done1
+                      (loop $loop1
+                            (br_if $done1 (ref.eq (local.get $xs) (global.get $null)))
+                            (local.set $node (ref.cast (ref $Pair) (local.get $xs)))
+                            (local.set $v    (struct.get $Pair $a (local.get $node)))
+                            (if (ref.test (ref $String) (local.get $v))
+                                (then
+                                 (local.set $s (ref.cast (ref $String) (local.get $v)))
+                                 (local.set $len
+                                            (call $i32array-length
+                                                  (struct.get $String $codepoints (local.get $s))))
+                                 (local.set $total (i32.add (local.get $total) (local.get $len))))
+                                (else (call $raise-check-string (local.get $v))))
+                            (local.set $xs (struct.get $Pair $d (local.get $node)))
+                            (br $loop1)))
+               ;; All strings empty -> return empty string
+               (if (i32.eqz (local.get $total))
+                   (then (return (global.get $string:empty))))
+               ;; Allocate result array
+               (local.set $arr (call $i32array-make (local.get $total) (i32.const 0)))
+               ;; Copy strings into result array
+               (local.set $xs (local.get $orig))
+               (local.set $pos (i32.const 0))
+               (block $done2
+                      (loop $loop2
+                            (br_if $done2 (ref.eq (local.get $xs) (global.get $null)))
+                            (local.set $node (ref.cast (ref $Pair) (local.get $xs)))
+                            (local.set $s
+                                       (ref.cast (ref $String) (struct.get $Pair $a (local.get $node))))
+                            (local.set $len
+                                       (call $i32array-length
+                                             (struct.get $String $codepoints (local.get $s))))
+                            (call $i32array-copy!
+                                  (local.get $arr) (local.get $pos)
+                                  (struct.get $String $codepoints (local.get $s))
+                                  (i32.const 0) (local.get $len))
+                            (local.set $pos (i32.add (local.get $pos) (local.get $len)))
+                            (local.set $xs (struct.get $Pair $d (local.get $node)))
+                            (br $loop2)))
+
+               (struct.new $String
+                           (i32.const 0)
+                           (i32.const 0)
+                           (local.get $arr)))
+
+
+         (func $string-append-immutable (type $Prim>=0)
+               (param  $xs (ref eq))         ;; list of strings
+               (result     (ref eq))
+
+               (local $s   (ref $String))
+               (local $arr (ref $I32Array))
+               ;; Do the append (returns a fresh $String)
+               (local.set $s (ref.cast (ref $String)
+                                       (call $string-append (local.get $xs))))
+               ;; Reuse its codepoint array
+               (local.set $arr (struct.get $String $codepoints (local.get $s)))
+               ;; Build a new $String that is immutable (=1). Hash = 0 (lazy).
+               (struct.new $String
+                           (i32.const 0)      ;; $hash
+                           (i32.const 1)      ;; $immutable
+                           (local.get $arr))) ;; $codepoints
+
+         (func $string-append* (type $Prim>=1)
+               (param $str  (ref eq))  ;; string? or list of strings
+               (param $rest (ref eq))  ;; additional strings, last element list
+               (result      (ref eq))
+
+               (local $xs   (ref eq))
+               (local $node (ref $Pair))
+               (local $acc  (ref eq))
+               (local $last (ref eq))
+               (local $args (ref eq))
+
+               ; initialize locals with no defaults
+               (local.set $last (global.get $false))
+               ;; no extra args: first arg supplies list of strings
+               (if (ref.eq (local.get $rest) (global.get $null))
+                   (then (return (call $string-append (local.get $str)))))
+
+               ;; separate last list from preceding string arguments
+               (local.set $xs  (local.get $rest))
+               (local.set $acc (global.get $null))
+               (block $done
+                      (loop $loop
+                            (local.set $node (ref.cast (ref $Pair) (local.get $xs)))
+                            (local.set $xs   (struct.get $Pair $d (local.get $node)))
+                            (if (ref.eq (local.get $xs) (global.get $null))
+                                (then
+                                 (local.set $last (struct.get $Pair $a (local.get $node)))
+                                 (br $done))
+                                (else
+                                 (local.set $acc
+                                            (struct.new $Pair
+                                                        (i32.const 0)
+                                                        (struct.get $Pair $a (local.get $node))
+                                                        (local.get $acc)))
+                                 (br $loop)))))
+
+               ;; rebuild argument list in proper order
+               (local.set $args (local.get $last))
+               (block $done2
+                      (loop $loop2
+                            (br_if $done2 (ref.eq (local.get $acc) (global.get $null)))
+                            (local.set $node (ref.cast (ref $Pair) (local.get $acc)))
+                            (local.set $args
+                                       (struct.new $Pair
+                                                   (i32.const 0)
+                                                   (struct.get $Pair $a (local.get $node))
+                                                   (local.get $args)))
+                            (local.set $acc (struct.get $Pair $d (local.get $node)))
+                            (br $loop2)))
+               (local.set $args
+                          (struct.new $Pair (i32.const 0)
+                                      (local.get $str)
+                                      (local.get $args)))
+               (call $string-append (local.get $args)))
+     )))
+
 ;; string-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate string helpers that still depend on monolithic runtime globals.
 (define string-runtime-only-helpers
@@ -454,4 +761,6 @@
           string-index-runtime-only-helpers
           string-dummy-runtime-only-helpers
           string-selector-runtime-only-helpers
-          string-mutation-runtime-only-helpers))
+          string-mutation-runtime-only-helpers
+          string-copy-runtime-only-helpers
+          string-append-runtime-only-helpers))
