@@ -2,6 +2,7 @@
 
 (provide printer-extension-runtime-only-helper-names
          formatting-runtime-only-helper-names
+         numeric-display-formatting-runtime-only-helper-names
          formatting-runtime-only-helpers)
 
 (require "../core-helper.rkt"
@@ -213,6 +214,60 @@
 ;;   Preserve the runtime emission order for printer-extension helpers.
 (define printer-extension-runtime-only-helper-names
   (map core-runtime-helper-name printer-extension-runtime-only-helpers))
+
+;; numeric-display-formatting-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Register numeric display helpers used by the monolithic runtime.
+(define numeric-display-formatting-runtime-only-helpers
+  (function-forms->runtime-helpers
+   'numeric-display-formatting-runtime-only-helpers
+   '(
+         (func $format/display:flonum
+               (param $val (ref $Flonum))
+               (result     (ref $String))
+               (call $flonum->string (local.get $val)))
+
+         (func $format/display:complex
+               (param $val (ref $Complex))
+               (result     (ref $String))
+
+               (local $real-str (ref $String))
+               (local $imag-str (ref $String))
+               (local $plus     (ref $String))
+               (local $suffix   (ref $String))
+               (local $imag-len i32)
+
+               (local.set $real-str
+                          (ref.cast (ref $String)
+                                    (call $number->string
+                                          (struct.get $Complex $real (local.get $val))
+                                          (global.get $false))))
+               (local.set $imag-str
+                          (ref.cast (ref $String)
+                                    (call $number->string
+                                          (struct.get $Complex $imag (local.get $val))
+                                          (global.get $false))))
+               (local.set $suffix (call $make-string/checked (i32.const 1) (i32.const 105))) ;; "i"
+               (local.set $imag-len (call $string-length/checked/i32 (local.get $imag-str)))
+               (if (i32.and (i32.gt_u (local.get $imag-len) (i32.const 0))
+                            (i32.eq (call $string-ref/checked/i32 (local.get $imag-str) (i32.const 0))
+                                    (i32.const 45))) ;; "-"
+                   (then (return (call $string-append/2
+                                       (call $string-append/2 (local.get $real-str)
+                                                             (local.get $imag-str))
+                                       (local.get $suffix)))))
+               (local.set $plus (call $make-string/checked (i32.const 1) (i32.const 43))) ;; "+"
+               (call $string-append/2
+                     (call $string-append/2
+                           (call $string-append/2 (local.get $real-str)
+                                                 (local.get $plus))
+                           (local.get $imag-str))
+                     (local.get $suffix)))
+     )))
+
+;; numeric-display-formatting-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for numeric display helpers.
+(define numeric-display-formatting-runtime-only-helper-names
+  (map core-runtime-helper-name numeric-display-formatting-runtime-only-helpers))
 
 ;; display-formatting-runtime-only-forms : (listof datum?)
 ;;   Enumerate formatting and display helpers used by the monolithic runtime.
@@ -2092,4 +2147,5 @@
 ;;   Register printer-extension and display-formatting helpers for runtime emission.
 (define formatting-runtime-only-helpers
   (append printer-extension-runtime-only-helpers
+          numeric-display-formatting-runtime-only-helpers
           display-formatting-runtime-only-helpers))

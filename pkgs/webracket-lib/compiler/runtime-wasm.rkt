@@ -71,6 +71,7 @@
          (only-in "runtime-wasm/core/formatting.rkt"
                   printer-extension-runtime-only-helper-names
                   formatting-runtime-only-helper-names
+                  numeric-display-formatting-runtime-only-helper-names
                   formatting-runtime-only-helpers)
          (only-in "runtime-wasm/core/hashes.rkt"
                   hash-count-list-runtime-only-helper-names
@@ -6557,47 +6558,9 @@
          ,@(for/list ([name (in-list numeric-formatting-runtime-only-helper-names)])
              (core-runtime-helper-form runtime-helper-index name))
 
-	         (func $format/display:flonum
-	               (param $val (ref $Flonum))
-	               (result     (ref $String))
-	               (call $flonum->string (local.get $val)))
-
-	         (func $format/display:complex
-	               (param $val (ref $Complex))
-	               (result     (ref $String))
-
-	               (local $real-str (ref $String))
-	               (local $imag-str (ref $String))
-	               (local $plus     (ref $String))
-	               (local $suffix   (ref $String))
-	               (local $imag-len i32)
-
-	               (local.set $real-str
-	                          (ref.cast (ref $String)
-	                                    (call $number->string
-	                                          (struct.get $Complex $real (local.get $val))
-	                                          (global.get $false))))
-	               (local.set $imag-str
-	                          (ref.cast (ref $String)
-	                                    (call $number->string
-	                                          (struct.get $Complex $imag (local.get $val))
-	                                          (global.get $false))))
-	               (local.set $suffix (call $make-string/checked (i32.const 1) (i32.const 105))) ;; "i"
-	               (local.set $imag-len (call $string-length/checked/i32 (local.get $imag-str)))
-	               (if (i32.and (i32.gt_u (local.get $imag-len) (i32.const 0))
-	                            (i32.eq (call $string-ref/checked/i32 (local.get $imag-str) (i32.const 0))
-	                                    (i32.const 45))) ;; "-"
-	                   (then (return (call $string-append/2
-	                                       (call $string-append/2 (local.get $real-str)
-	                                                             (local.get $imag-str))
-	                                       (local.get $suffix)))))
-	               (local.set $plus (call $make-string/checked (i32.const 1) (i32.const 43))) ;; "+"
-	               (call $string-append/2
-	                     (call $string-append/2
-	                           (call $string-append/2 (local.get $real-str)
-	                                                 (local.get $plus))
-	                           (local.get $imag-str))
-	                     (local.get $suffix)))
+         ;; Numeric display helpers are implemented in runtime-wasm/core/formatting.rkt.
+         ,@(for/list ([name (in-list numeric-display-formatting-runtime-only-helper-names)])
+             (core-runtime-helper-form runtime-helper-index name))
 
 
 
