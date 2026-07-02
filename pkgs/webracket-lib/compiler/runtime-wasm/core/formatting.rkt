@@ -1,6 +1,7 @@
 #lang racket
 
-(provide formatting-runtime-only-helper-names
+(provide printer-extension-runtime-only-helper-names
+         formatting-runtime-only-helper-names
          formatting-runtime-only-helpers)
 
 (require "../core-helper.rkt"
@@ -15,9 +16,207 @@
 (define (Half x)
   `(i32.shr_s ,x (i32.const 1)))
 
-;; formatting-runtime-only-forms : (listof datum?)
+;; printer-extension-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate printer-extension helpers used by the monolithic runtime.
+(define printer-extension-runtime-only-helpers
+  (function-forms->runtime-helpers
+   'printer-extension-runtime-only-helpers
+   '(
+         (func $custom-write? (type $Prim1)
+               (param $v (ref eq))
+               (result   (ref eq))
+
+               (local $type      (ref null $StructType))
+               (local $struct    (ref $Struct))
+               (local $sentinel  (ref eq))
+               (local $prop-name (ref $Symbol))
+               (local $prop-val  (ref eq))
+
+               (if (ref.test (ref $Struct) (local.get $v))
+                   (then (local.set $struct (ref.cast (ref $Struct) (local.get $v)))
+                         (local.set $type   (struct.get $Struct $type (local.get $struct))))
+                   (else (if (ref.test (ref $StructType) (local.get $v))
+                             (then (local.set $type (ref.cast (ref $StructType) (local.get $v))))
+                             (else (return (global.get $false))))))
+
+               (local.set $prop-name
+                          (ref.cast (ref $Symbol) (global.get $symbol:prop:custom-write)))
+               (local.set $sentinel (call $cons (global.get $false) (global.get $false)))
+               (local.set $prop-val
+                          (call $struct-type-property-lookup-by-name
+                                (ref.as_non_null (local.get $type))
+                                (local.get $prop-name)
+                                (local.get $sentinel)))
+
+               (if (result (ref eq))
+                   (ref.eq (local.get $prop-val) (local.get $sentinel))
+                   (then (global.get $false))
+                   (else (global.get $true))))
+
+         (func $custom-write-accessor (type $Prim12)
+               (param $v        (ref eq))
+               (param $fallback (ref eq)) ;; optional fallback result, default = contract error
+               (result          (ref eq))
+
+               (local $type      (ref null $StructType))
+               (local $struct    (ref $Struct))
+               (local $sentinel  (ref eq))
+               (local $prop-name (ref $Symbol))
+               (local $prop-val  (ref eq))
+
+               (local.set $sentinel (call $cons (global.get $false)
+                                                (global.get $false)))
+
+               (if (ref.test (ref $Struct) (local.get $v))
+                   (then (local.set $struct (ref.cast (ref $Struct)
+                                                      (local.get $v)))
+                         (local.set $type (struct.get $Struct $type
+                                                      (local.get $struct))))
+                   (else
+                    (if (ref.test (ref $StructType) (local.get $v))
+                        (then (local.set $type (ref.cast (ref $StructType)
+                                                         (local.get $v))))
+                        (else
+                         (if (ref.eq (local.get $fallback) (global.get $missing))
+                             (then (call $raise-argument-error1
+                                         (global.get
+                                          $symbol:custom-write-accessor)
+                                         (global.get $string:custom-write?)
+                                         (local.get $v))
+                                   (unreachable))
+                             (else (return (local.get $fallback))))))))
+
+               (local.set $prop-name
+                          (ref.cast (ref $Symbol)
+                                    (global.get $symbol:prop:custom-write)))
+               (local.set $prop-val
+                          (call $struct-type-property-lookup-by-name
+                                (ref.as_non_null (local.get $type))
+                                (local.get $prop-name)
+                                (local.get $sentinel)))
+
+               (if (ref.eq (local.get $prop-val) (local.get $sentinel))
+                   (then
+                    (if (ref.eq (local.get $fallback) (global.get $missing))
+                        (then (call $raise-argument-error1
+                                    (global.get $symbol:custom-write-accessor)
+                                    (global.get $string:custom-write?)
+                                    (local.get $v))
+                              (unreachable))
+                        (else (return (local.get $fallback))))))
+
+               (local.get $prop-val))
+
+         (func $custom-print-quotable? (type $Prim1)
+               (param $v (ref eq))
+               (result   (ref eq))
+
+               (local $type      (ref null $StructType))
+               (local $struct    (ref $Struct))
+               (local $sentinel  (ref eq))
+               (local $prop-name (ref $Symbol))
+               (local $prop-val  (ref eq))
+
+               (if (ref.test (ref $Struct) (local.get $v))
+                   (then (local.set $struct (ref.cast (ref $Struct) (local.get $v)))
+                         (local.set $type   (struct.get $Struct $type (local.get $struct))))
+                   (else (if (ref.test (ref $StructType) (local.get $v))
+                             (then (local.set $type (ref.cast (ref $StructType) (local.get $v))))
+                             (else (return (global.get $false))))))
+
+               (local.set $prop-name
+                          (ref.cast (ref $Symbol) (global.get $symbol:prop:custom-print-quotable)))
+               (local.set $sentinel (call $cons (global.get $false) (global.get $false)))
+               (local.set $prop-val
+                          (call $struct-type-property-lookup-by-name
+                                (ref.as_non_null (local.get $type))
+                                (local.get $prop-name)
+                                (local.get $sentinel)))
+
+               (if (result (ref eq))
+                   (ref.eq (local.get $prop-val) (local.get $sentinel))
+                   (then (global.get $false))
+                   (else (global.get $true))))
+
+         (func $custom-print-quotable-accessor (type $Prim12)
+               (param $v        (ref eq))
+               (param $fallback (ref eq)) ;; optional fallback result, default = contract error
+               (result          (ref eq))
+
+               (local $type      (ref null $StructType))
+               (local $struct    (ref $Struct))
+               (local $sentinel  (ref eq))
+               (local $prop-name (ref $Symbol))
+               (local $prop-val  (ref eq))
+
+               (local.set $sentinel (call $cons (global.get $false) (global.get $false)))
+               (if (ref.test (ref $Struct) (local.get $v))
+                   (then (local.set $struct (ref.cast (ref $Struct) (local.get $v)))
+                         (local.set $type (struct.get $Struct $type (local.get $struct))))
+                   (else (if (ref.test (ref $StructType) (local.get $v))
+                             (then (local.set $type (ref.cast (ref $StructType) (local.get $v))))
+                             (else
+                              (if (ref.eq (local.get $fallback) (global.get $missing))
+                                  (then (call $raise-argument-error1
+                                              (global.get $symbol:custom-print-quotable-accessor)
+                                              (global.get $string:custom-print-quotable?)
+                                              (local.get $v))
+                                        (unreachable))
+                                  (else (return (local.get $fallback))))))))
+
+               (local.set $prop-name
+                          (ref.cast (ref $Symbol)
+                                    (global.get $symbol:prop:custom-print-quotable)))
+               (local.set $prop-val
+                          (call $struct-type-property-lookup-by-name
+                                (ref.as_non_null (local.get $type))
+                                (local.get $prop-name)
+                                (local.get $sentinel)))
+
+               (if (ref.eq (local.get $prop-val) (local.get $sentinel))
+                   (then
+                    (if (ref.eq (local.get $fallback) (global.get $missing))
+                        (then (call $raise-argument-error1
+                                    (global.get $symbol:custom-print-quotable-accessor)
+                                    (global.get $string:custom-print-quotable?)
+                                    (local.get $v))
+                              (unreachable))
+                        (else (return (local.get $fallback))))))
+
+               (local.get $prop-val))
+
+         (func $format/display:struct/custom-write
+               (param $s    (ref $Struct))
+               (param $proc (ref $Procedure))
+               (result      (ref $String))
+
+               (local $port (ref $OutputStringPort))
+               (local $args (ref $Args))
+               (local $inv  (ref $ProcedureInvoker))
+
+               (local.set $port
+                          (ref.cast (ref $OutputStringPort)
+                                    (call $open-output-string (global.get $missing))))
+               (local.set $inv (struct.get $Procedure $invoke (local.get $proc)))
+               (local.set $args (array.new $Args (global.get $null) (i32.const 3)))
+               (array.set $Args (local.get $args) (i32.const 0) (local.get $s))
+               (array.set $Args (local.get $args) (i32.const 1) (local.get $port))
+               (array.set $Args (local.get $args) (i32.const 2) (global.get $false))
+               (drop (call_ref $ProcedureInvoker
+                               (local.get $proc)
+                               (local.get $args)
+                               (local.get $inv)))
+               (ref.cast (ref $String)
+                         (call $get-output-string (local.get $port)))))))
+
+;; printer-extension-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for printer-extension helpers.
+(define printer-extension-runtime-only-helper-names
+  (map core-runtime-helper-name printer-extension-runtime-only-helpers))
+
+;; display-formatting-runtime-only-forms : (listof datum?)
 ;;   Enumerate formatting and display helpers used by the monolithic runtime.
-(define formatting-runtime-only-forms
+(define display-formatting-runtime-only-forms
   `(
          (func $i8array->string (param $arr (ref $I8Array)) (result (ref $String))
                (call $bytes->string/utf-8/checked
@@ -1877,14 +2076,20 @@
                        (call $str-join (local.get $result)))
      ))
 
-;; formatting-runtime-only-helpers : (listof core-runtime-helper?)
-;;   Register formatting and display helpers for runtime emission.
-(define formatting-runtime-only-helpers
+;; display-formatting-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Register display-formatting helpers for runtime emission.
+(define display-formatting-runtime-only-helpers
   (function-forms->runtime-helpers
-   'formatting-runtime-only-helpers
-   formatting-runtime-only-forms))
+   'display-formatting-runtime-only-helpers
+   display-formatting-runtime-only-forms))
 
 ;; formatting-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for formatting and display helpers.
 (define formatting-runtime-only-helper-names
-  (map core-runtime-helper-name formatting-runtime-only-helpers))
+  (map core-runtime-helper-name display-formatting-runtime-only-helpers))
+
+;; formatting-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Register printer-extension and display-formatting helpers for runtime emission.
+(define formatting-runtime-only-helpers
+  (append printer-extension-runtime-only-helpers
+          display-formatting-runtime-only-helpers))
