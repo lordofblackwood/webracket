@@ -2,6 +2,7 @@
 
 (provide string-core-runtime-helpers
          string-append-runtime-only-helper-names
+         string-array-conversion-runtime-only-helper-names
          string-case-runtime-only-helper-names
          string-comparison-runtime-only-helper-names
          string-constructor-runtime-only-helper-names
@@ -187,6 +188,12 @@
     $string-append
     $string-append-immutable
     $string-append*))
+
+;; string-array-conversion-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for array-of-strings conversion helpers.
+(define string-array-conversion-runtime-only-helper-names
+  '($array-of-strings->string
+    $growable-array-of-strings->string))
 
 ;; string-split-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for string join and split helpers.
@@ -2215,6 +2222,61 @@
                (struct.set $String $hash (local.get $dst) (i32.const 0)))
      )))
 
+;; string-array-conversion-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate array-of-strings conversion helpers that still depend on monolithic runtime globals.
+(define string-array-conversion-runtime-only-helpers
+  (function-forms->runtime-helpers
+   'string-array-conversion-runtime-only-helpers
+   '(
+         (func $array-of-strings->string
+               (param $arr (ref $Array))
+               (result (ref $String))
+
+               (local $n     i32)
+               (local $i     i32)
+               (local $total i32)
+               (local $s     (ref $String))
+               (local $len   i32)
+               (local $dst   (ref $String))
+               (local $pos   i32)
+
+               ;; Pass 1: compute total length
+               (local.set $n     (array.len (local.get $arr)))
+               (local.set $i     (i32.const 0))
+               (local.set $total (i32.const 0))
+
+               (block $count-done
+                      (loop $count-loop
+                            (br_if $count-done (i32.ge_u (local.get $i) (local.get $n)))
+                            (local.set $s     (ref.cast (ref $String) (array.get $Array (local.get $arr) (local.get $i))))
+                            (local.set $len   (call $string-length/checked/i32 (local.get $s)))
+                            (local.set $total (i32.add (local.get $total) (local.get $len)))
+                            (local.set $i     (i32.add (local.get $i) (i32.const 1)))
+                            (br $count-loop)))
+               ;; Allocate destination string
+               (local.set $dst (call $make-string/checked (local.get $total) (i32.const 0)))
+               ;; Pass 2: copy individual strings into destination
+               (local.set $i   (i32.const 0))
+               (local.set $pos (i32.const 0))
+               (block $copy-done
+                      (loop $copy-loop
+                            (br_if $copy-done (i32.ge_u (local.get $i) (local.get $n)))
+                            (local.set $s   (ref.cast (ref $String) (array.get $Array (local.get $arr) (local.get $i))))
+                            (local.set $len (call $string-length/checked/i32 (local.get $s)))
+                            (call $string-copy!/checked (local.get $dst) (local.get $pos) (local.get $s) (i32.const 0) (local.get $len))
+                            (local.set $pos (i32.add (local.get $pos) (local.get $len)))
+                            (local.set $i   (i32.add (local.get $i) (i32.const 1)))
+                            (br $copy-loop)))
+               (local.get $dst))
+
+         (func $growable-array-of-strings->string
+               (param $g (ref $GrowableArray))
+               (result (ref $String))
+               ;; Convert growable array to normal array and concatenate its strings
+               (call $array-of-strings->string
+                     (call $growable-array->array (local.get $g))))
+     )))
+
 ;; string-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate string helpers that still depend on monolithic runtime globals.
 (define string-runtime-only-helpers
@@ -2231,4 +2293,5 @@
           string-list-conversion-runtime-only-helpers
           string-comparison-runtime-only-helpers
           string-utf8-runtime-only-helpers
-          string-copy!-runtime-only-helpers))
+          string-copy!-runtime-only-helpers
+          string-array-conversion-runtime-only-helpers))

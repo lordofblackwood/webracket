@@ -234,6 +234,7 @@
                   stencil-vector-runtime-only-helpers)
          (only-in "runtime-wasm/core/strings.rkt"
                   string-append-runtime-only-helper-names
+                  string-array-conversion-runtime-only-helper-names
                   string-case-runtime-only-helper-names
                   string-comparison-runtime-only-helper-names
                   string-constructor-runtime-only-helper-names
@@ -6791,54 +6792,9 @@
              (core-runtime-helper-form runtime-helper-index name))
 
 
-
-         (func $array-of-strings->string
-               (param $arr (ref $Array))
-               (result (ref $String))
-
-               (local $n     i32)
-               (local $i     i32)
-               (local $total i32)
-               (local $s     (ref $String))
-               (local $len   i32)
-               (local $dst   (ref $String))
-               (local $pos   i32)
-
-               ;; Pass 1: compute total length
-               (local.set $n     (array.len (local.get $arr)))
-               (local.set $i     (i32.const 0))
-               (local.set $total (i32.const 0))
-
-               (block $count-done
-                      (loop $count-loop
-                            (br_if $count-done (i32.ge_u (local.get $i) (local.get $n)))
-                            (local.set $s     (ref.cast (ref $String) (array.get $Array (local.get $arr) (local.get $i))))
-                            (local.set $len   (call $string-length/checked/i32 (local.get $s)))
-                            (local.set $total (i32.add (local.get $total) (local.get $len)))
-                            (local.set $i     (i32.add (local.get $i) (i32.const 1)))
-                            (br $count-loop)))
-               ;; Allocate destination string
-               (local.set $dst (call $make-string/checked (local.get $total) (i32.const 0)))
-               ;; Pass 2: copy individual strings into destination
-               (local.set $i   (i32.const 0))
-               (local.set $pos (i32.const 0))
-               (block $copy-done
-                      (loop $copy-loop
-                            (br_if $copy-done (i32.ge_u (local.get $i) (local.get $n)))
-                            (local.set $s   (ref.cast (ref $String) (array.get $Array (local.get $arr) (local.get $i))))
-                            (local.set $len (call $string-length/checked/i32 (local.get $s)))
-                            (call $string-copy!/checked (local.get $dst) (local.get $pos) (local.get $s) (i32.const 0) (local.get $len))
-                            (local.set $pos (i32.add (local.get $pos) (local.get $len)))
-                            (local.set $i   (i32.add (local.get $i) (i32.const 1)))
-                            (br $copy-loop)))
-               (local.get $dst))
-
-         (func $growable-array-of-strings->string
-               (param $g (ref $GrowableArray))
-               (result (ref $String))
-               ;; Convert growable array to normal array and concatenate its strings
-               (call $array-of-strings->string
-                     (call $growable-array->array (local.get $g))))
+         ;;   Array-of-strings conversion helpers are implemented in runtime-wasm/core/strings.rkt.
+         ,@(for/list ([name (in-list string-array-conversion-runtime-only-helper-names)])
+             (core-runtime-helper-form runtime-helper-index name))
 
 
          (func $string-take (type $Prim2)
