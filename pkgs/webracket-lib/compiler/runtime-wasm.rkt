@@ -240,6 +240,9 @@
                   symbol-public-runtime-only-helper-names
                   symbol-table-runtime-only-helper-names
                   symbol-runtime-only-helpers)
+         (only-in "runtime-wasm/core/system.rkt"
+                  system-runtime-only-helper-names
+                  system-runtime-only-helpers)
          (only-in "runtime-wasm/core/syntax.rkt"
                   correlated-syntax-runtime-only-helper-names
                   syntax-runtime-only-helpers
@@ -331,6 +334,7 @@
 (define-runtime-path core-stencil-vectors-path "runtime-wasm/core/stencil-vectors.rkt")
 (define-runtime-path core-strings-path "runtime-wasm/core/strings.rkt")
 (define-runtime-path core-symbols-path "runtime-wasm/core/symbols.rkt")
+(define-runtime-path core-system-path "runtime-wasm/core/system.rkt")
 (define-runtime-path core-syntax-path "runtime-wasm/core/syntax.rkt")
 (define-runtime-path core-threads-path "runtime-wasm/core/threads.rkt")
 (define-runtime-path core-time-path "runtime-wasm/core/time.rkt")
@@ -388,6 +392,7 @@
            string-runtime-only-helpers
            struct-runtime-only-helpers
            symbol-runtime-only-helpers
+           system-runtime-only-helpers
            syntax-runtime-only-helpers
            thread-runtime-only-helpers
            time-runtime-only-helpers
@@ -6408,86 +6413,13 @@
         ,@(for/list ([name (in-list random-public-runtime-only-helper-names)])
             (core-runtime-helper-form runtime-helper-index name))
 
-         (func $system-big-endian? (type $Prim0) (result (ref eq))
-               ;; WebAssembly's linear memory is defined as little-endian,
-               ;; so WebRacket always reports a little-endian system.
-               (global.get $false))
-
-         ;; system-type : [symbol?] -> any/c
-         ;;   Bootstrap target metadata for WebRacket. This is intentionally
-         ;;   target-oriented, not host-OS detection. Unknown modes return #f
-         ;;   for now instead of implementing Racket's full contract/error
-         ;;   surface.
-         (func $system-type (type $Prim01)
-               (param $mode (ref eq)) ;; optional symbol, defaults to 'os
-               (result      (ref eq))
-
-               (if (ref.eq (local.get $mode) (global.get $missing))
-                   (then (return (global.get $symbol:unix))))
-               (if (ref.eq (local.get $mode) (global.get $symbol:os))
-                   (then (return (global.get $symbol:unix))))
-               (if (ref.eq (local.get $mode) (global.get $symbol:os*))
-                   (then (return (global.get $symbol:unix))))
-               (if (ref.eq (local.get $mode) (global.get $symbol:arch))
-                   (then (return (global.get $symbol:wasm32))))
-               (if (ref.eq (local.get $mode) (global.get $symbol:word))
-                   (then (return ,(Imm 32))))
-               (if (ref.eq (local.get $mode) (global.get $symbol:vm))
-                   (then (return (global.get $symbol:chez-scheme))))
-               (if (ref.eq (local.get $mode) (global.get $symbol:gc))
-                   (then (return (global.get $symbol:cs))))
-               (if (ref.eq (local.get $mode) (global.get $symbol:link))
-                   (then (return (global.get $symbol:static))))
-               (if (ref.eq (local.get $mode) (global.get $symbol:machine))
-                   (then (return (global.get $string:webracket-machine))))
-               (if (ref.eq (local.get $mode) (global.get $symbol:target-machine))
-                   (then (return (global.get $symbol:webracket))))
-               (if (ref.eq (local.get $mode) (global.get $symbol:fs-change))
-                   (then
-                    (return
-                     (struct.new $Vector
-                                 (i32.const 0)
-                                 (i32.const 1)
-                                 (array.new_fixed $Array 4
-                                                  (global.get $symbol:supported)
-                                                  (global.get $false)
-                                                  (global.get $false)
-                                                  (global.get $symbol:file-level))))))
-               (if (ref.eq (local.get $mode) (global.get $symbol:cross))
-                   (then (return (global.get $false))))
-               (global.get $false))
+         ;; System/runtime information helpers are implemented in runtime-wasm/core/system.rkt.
+         ,@(for/list ([name (in-list system-runtime-only-helper-names)])
+             (core-runtime-helper-form runtime-helper-index name))
 
          ;;   Implemented in runtime-wasm/core/parameters.rkt.
          ,@(for/list ([name (in-list compile-parameter-runtime-only-helper-names)])
              (core-runtime-helper-form runtime-helper-index name))
-
-         ;; version : -> string?
-         ;;   Return the Racket version used to generate this WebRacket runtime.
-         (func $version (type $Prim0) (result (ref eq))
-               (global.get $string:racket-version))
-
-         ;; get-installation-name : [hash? = #hash()] -> string?
-         ;;   Approximate #%utils `get-installation-name` for browser module
-         ;;   loading. Racket falls back to `(version)` when the installation
-         ;;   config table has no `installation-name`; WebRacket currently uses
-         ;;   that fallback unconditionally after validating an explicit table.
-         (func $get-installation-name (type $Prim01)
-               (param $config-table (ref eq)) ;; optional configuration hash, default #hash()
-               (result              (ref eq))
-
-               (if (ref.eq (local.get $config-table) (global.get $missing))
-                   (then (return (global.get $string:racket-version))))
-               (if (i32.eqz (call $hash-leaf?/i32 (local.get $config-table)))
-                   (then
-                    (call $raise-argument-error1
-                          (global.get $symbol:get-installation-name)
-                          (global.get $string:hash?)
-                          (local.get $config-table))
-                    (unreachable)))
-               (call $hash-ref
-                     (local.get $config-table)
-                     (global.get $symbol:installation-name)
-                     (global.get $string:racket-version)))
 
          ;;;
          ;;;  4.3.4 Fixnums
