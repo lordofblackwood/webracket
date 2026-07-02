@@ -1,6 +1,8 @@
 #lang racket
 
-(provide i32-array-core-runtime-helpers)
+(provide i32-array-core-runtime-helpers
+         i32-array-runtime-only-helper-names
+         i32-array-runtime-only-helpers)
 
 (require "../core-helper.rkt")
 
@@ -212,3 +214,61 @@
              (local.set $res (call $i32array-make (local.get $new-size) (local.get $val)))
              (call $i32array-copy! (local.get $res) (i32.const 0) (local.get $arr) (i32.const 0) (local.get $old-size))
              (local.get $res))))))
+
+;; i32-array-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for i32 array conversion helpers.
+(define i32-array-runtime-only-helper-names
+  '($list->i32array))
+
+;; i32-array-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate i32 array helpers that still depend on monolithic runtime support.
+(define i32-array-runtime-only-helpers
+  (function-forms->runtime-helpers
+   'i32-array-runtime-only-helpers
+   '(
+     (func $list->i32array (param $xs (ref eq)) (result (ref $I32Array))
+           (local $len i32)
+           (local $arr  (ref $I32Array))
+           (local $idx  i32)
+           (local $x    (ref eq))
+           (local $v    i32)
+           (local $node (ref eq))
+           ;; Step 1: compute length of list
+           (local.set $len (call $length/i32 (local.get $xs)))
+           ;; Step 2: allocate array of given length
+           (local.set $arr (call $i32array-make (local.get $len) (i32.const 0)))
+           ;; Step 3: initialize traversal variables
+           (local.set $node (local.get $xs))
+           (local.set $idx  (i32.const 0))
+           ;; Step 4: fill array
+           (block $done
+                  (loop $fill
+                        ;; Stop at null
+                        (br_if $done (ref.eq (local.get $node) (global.get $null)))
+                        ;; Check that it's a pair
+                        (if (ref.test (ref $Pair) (local.get $node))
+                            (then
+                             ;; Get the car
+                             (local.set $x (struct.get $Pair $a (ref.cast (ref $Pair) (local.get $node))))
+                             ;; Check that car is a fixnum (i31 with LSB 0)
+                             (if (ref.test (ref i31) (local.get $x))
+                                 (then
+                                  (local.set $v (i31.get_u (ref.cast (ref i31) (local.get $x))))
+                                  (if (i32.eqz (i32.and (local.get $v) (i32.const 1)))
+                                      (then
+                                       ;; Decode fixnum: shift right 1 and store
+                                       (call $i32array-set! (local.get $arr)
+                                             (local.get $idx)
+                                             (i32.shr_u (local.get $v) (i32.const 1)))
+                                       ;; Advance
+                                       (local.set $idx  (i32.add (local.get $idx) (i32.const 1)))
+                                       (local.set $node (struct.get $Pair $d (ref.cast (ref $Pair) (local.get $node))))
+                                       (br $fill))
+                                      (else (call $raise-check-fixnum (local.get $x))
+                                            (unreachable))))
+                                 (else (call $raise-check-fixnum (local.get $x))
+                                       (unreachable))))
+                            (else (call $raise-pair-expected (local.get $node))
+                                  (unreachable)))))
+           ;; Return the filled array
+           (local.get $arr)))))

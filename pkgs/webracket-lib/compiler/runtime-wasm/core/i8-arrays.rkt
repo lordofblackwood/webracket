@@ -1,6 +1,9 @@
 #lang racket
 
-(provide i8-array-core-runtime-helpers)
+(provide i8-array-core-runtime-helpers
+         i8-array-error-runtime-only-helper-names
+         i8-array-conversion-runtime-only-helper-names
+         i8-array-runtime-only-helpers)
 
 (require "../core-helper.rkt")
 
@@ -174,3 +177,81 @@
              (call $i8array-copy! (local.get $res) (i32.const 0)   (local.get $a0) (i32.const 0) (local.get $n0))
              (call $i8array-copy! (local.get $res) (local.get $n0) (local.get $a1) (i32.const 0) (local.get $n1))
              (local.get $res))))))
+
+;; i8-array-error-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for i8 array error helpers.
+(define i8-array-error-runtime-only-helper-names
+  '($raise-bad-byte))
+
+;; i8-array-conversion-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for i8 array conversion helpers.
+(define i8-array-conversion-runtime-only-helper-names
+  '($list->i8array))
+
+;; i8-array-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate i8 array helpers that still depend on monolithic runtime support.
+(define i8-array-runtime-only-helpers
+  (function-forms->runtime-helpers
+   'i8-array-runtime-only-helpers
+   '(
+     (func $raise-bad-byte (param $x (ref eq))
+           (call $raise-argument-error1
+                 (global.get $symbol:byte?)
+                 (global.get $string:byte?)
+                 (local.get $x)))
+
+     (func $list->i8array (param $xs (ref eq)) (result (ref $I8Array))
+           (local $len  i32)
+           (local $arr  (ref $I8Array))
+           (local $idx  i32)
+           (local $x    (ref eq))
+           (local $v    i32)
+           (local $node (ref eq))
+           ;; Step 1: compute list length
+           (local.set $len (call $length/i32 (local.get $xs)))
+           ;; Step 2: allocate array of that length
+           (local.set $arr (array.new $I8Array (i32.const 0) (local.get $len)))
+           ;; Step 3: initialize index and node
+           (local.set $idx  (i32.const 0))
+           (local.set $node (local.get $xs))
+           ;; Step 4: fill loop
+           (block $done
+                  (loop $fill
+                        ;; If we hit null, stop
+                        (br_if $done (ref.eq (local.get $node) (global.get $null)))
+                        ;; Must be a pair
+                        (if (ref.test (ref $Pair) (local.get $node))
+                            (then
+                             ;; Extract the car
+                             (local.set $x (struct.get $Pair $a (ref.cast (ref $Pair) (local.get $node))))
+                             ;; Check that car is a fixnum
+                             (if (ref.test (ref i31) (local.get $x))
+                                 (then
+                                  (local.set $v (i31.get_u (ref.cast (ref i31) (local.get $x))))
+                                  ;; Check fixnum has LSB = 0
+                                  (if (i32.eqz (i32.and (local.get $v) (i32.const 1)))
+                                      (then
+                                       ;; Shift right to get raw i32
+                                       (local.set $v (i32.shr_u (local.get $v) (i32.const 1)))
+                                       ;; Check range 0–255
+                                       (if (i32.le_u (local.get $v) (i32.const 255))
+                                           (then
+                                            ;; Store into array
+                                            (array.set $I8Array (local.get $arr)
+                                                       (local.get $idx)
+                                                       (local.get $v))
+                                            ;; Advance
+                                            (local.set $idx  (i32.add (local.get $idx) (i32.const 1)))
+                                            (local.set $node (struct.get $Pair $d
+                                                                 (ref.cast (ref $Pair) (local.get $node))))
+                                            (br $fill))
+                                           (else (call $raise-bad-byte (local.get $x))
+                                                 (unreachable))))
+                                      (else (call $raise-check-fixnum (local.get $x))
+                                            (unreachable))))
+                                 (else (call $raise-check-fixnum (local.get $x))
+                                       (unreachable))))
+                            (else (call $raise-pair-expected (local.get $node))
+                                  (unreachable)))))
+           ;; Return array
+           (local.get $arr)))))

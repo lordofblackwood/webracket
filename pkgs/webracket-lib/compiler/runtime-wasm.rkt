@@ -11,6 +11,9 @@
          "private/timings.rkt"
          "private/structs.rkt"
          "runtime-wasm/core-helper.rkt"
+         (only-in "runtime-wasm/core/arrays.rkt"
+                  array-runtime-only-helper-names
+                  array-runtime-only-helpers)
          (only-in "runtime-wasm/core/booleans.rkt"
                   boolean-runtime-only-helpers
                   boolean-runtime-only-helper-names)
@@ -98,6 +101,13 @@
                   immutable-hash-iteration-runtime-only-helper-names
                   immutable-hash-public-runtime-only-helper-names
                   immutable-hash-runtime-only-helpers)
+         (only-in "runtime-wasm/core/i32-arrays.rkt"
+                  i32-array-runtime-only-helper-names
+                  i32-array-runtime-only-helpers)
+         (only-in "runtime-wasm/core/i8-arrays.rkt"
+                  i8-array-error-runtime-only-helper-names
+                  i8-array-conversion-runtime-only-helper-names
+                  i8-array-runtime-only-helpers)
          (only-in "runtime-wasm/core/immediates.rkt"
                   void-runtime-only-helper-names
                   immediate-runtime-only-helpers)
@@ -370,6 +380,7 @@
 (define runtime-helper-index
   (make-core-runtime-helper-index
    (append core-runtime-helpers
+           array-runtime-only-helpers
            boolean-runtime-only-helpers
            box-runtime-only-helpers
            bytes-runtime-only-helpers
@@ -388,6 +399,8 @@
            formatting-runtime-only-helpers
            hash-runtime-only-helpers
            immutable-hash-runtime-only-helpers
+           i32-array-runtime-only-helpers
+           i8-array-runtime-only-helpers
            immediate-runtime-only-helpers
            impersonator-runtime-only-helpers
            io-handler-runtime-only-helpers
@@ -5886,41 +5899,9 @@
 
          ,(core-runtime-helper-form core-runtime-helper-index '$array-extend)
 
-         (func $list->array
-               (param $xs   (ref eq))
-               (result      (ref $Array))
-
-               (local $len  i32)
-               (local $arr  (ref $Array))
-               (local $idx  i32)
-               (local $x    (ref eq))
-               (local $node (ref eq))
-
-               ;; Step 1: compute length of list
-               (local.set $len (call $length/i32 (local.get $xs)))
-               ;; Step 2: allocate array of given length
-               (local.set $arr (call $make-array (local.get $len) (global.get $null)))
-               ;; Step 3: initialize traversal variables
-               (local.set $node (local.get $xs))
-               (local.set $idx  (i32.const 0))
-               ;; Step 4: fill array
-               (block $done
-                      (loop $fill
-                            ;; Stop at null
-                            (br_if $done (ref.eq (local.get $node) (global.get $null)))
-                            ;; Check that it's a pair
-                            (if (ref.test (ref $Pair) (local.get $node))
-                                (then
-                                 (local.set $x (struct.get $Pair $a (ref.cast (ref $Pair) (local.get $node))))
-                                 (call $array-set! (local.get $arr) (local.get $idx) (local.get $x))
-                                 (local.set $idx (i32.add (local.get $idx) (i32.const 1)))
-                                 (local.set $node (struct.get $Pair $d (ref.cast (ref $Pair) (local.get $node))))
-                                 (br $fill))
-                                (else
-                                 (call $raise-pair-expected (local.get $node))
-                                 (unreachable)))))
-               ;; Return the filled array
-               (local.get $arr))
+         ;;   Generic array conversion helpers are implemented in runtime-wasm/core/arrays.rkt.
+         ,@(for/list ([name (in-list array-runtime-only-helper-names)])
+             (core-runtime-helper-form runtime-helper-index name))
 
          ;;;
          ;;; Growable Arrays
@@ -6030,52 +6011,9 @@
 
          ,(core-runtime-helper-form core-runtime-helper-index '$i32array-extend)
 
-         (func $list->i32array (param $xs (ref eq)) (result (ref $I32Array))
-               (local $len i32)
-               (local $arr  (ref $I32Array))
-               (local $idx  i32)
-               (local $x    (ref eq))
-               (local $v    i32)
-               (local $node (ref eq))
-               ;; Step 1: compute length of list
-               (local.set $len (call $length/i32 (local.get $xs)))
-               ;; Step 2: allocate array of given length
-               (local.set $arr (call $i32array-make (local.get $len) (i32.const 0)))
-               ;; Step 3: initialize traversal variables
-               (local.set $node (local.get $xs))
-               (local.set $idx  (i32.const 0))
-               ;; Step 4: fill array
-               (block $done
-                      (loop $fill
-                            ;; Stop at null
-                            (br_if $done (ref.eq (local.get $node) (global.get $null)))
-                            ;; Check that it's a pair
-                            (if (ref.test (ref $Pair) (local.get $node))
-                                (then
-                                 ;; Get the car
-                                 (local.set $x (struct.get $Pair $a (ref.cast (ref $Pair) (local.get $node))))
-                                 ;; Check that car is a fixnum (i31 with LSB 0)
-                                 (if (ref.test (ref i31) (local.get $x))
-                                     (then
-                                      (local.set $v (i31.get_u (ref.cast (ref i31) (local.get $x))))
-                                      (if (i32.eqz (i32.and (local.get $v) (i32.const 1)))
-                                          (then
-                                           ;; Decode fixnum: shift right 1 and store
-                                           (call $i32array-set! (local.get $arr)
-                                                 (local.get $idx)
-                                                 (i32.shr_u (local.get $v) (i32.const 1)))
-                                           ;; Advance
-                                           (local.set $idx  (i32.add (local.get $idx) (i32.const 1)))
-                                           (local.set $node (struct.get $Pair $d (ref.cast (ref $Pair) (local.get $node))))
-                                           (br $fill))
-                                          (else (call $raise-check-fixnum (local.get $x))
-                                                (unreachable))))
-                                     (else (call $raise-check-fixnum (local.get $x))
-                                           (unreachable))))
-                                (else (call $raise-pair-expected (local.get $node))
-                                      (unreachable)))))
-               ;; Return the filled array
-               (local.get $arr))
+         ;;   I32 array conversion helpers are implemented in runtime-wasm/core/i32-arrays.rkt.
+         ,@(for/list ([name (in-list i32-array-runtime-only-helper-names)])
+             (core-runtime-helper-form runtime-helper-index name))
 
 
          ;;;
@@ -6084,11 +6022,9 @@
 
          ; (type $I8Array (array (mut i8)))
 
-         (func $raise-bad-byte (param $x (ref eq))
-               (call $raise-argument-error1
-                     (global.get $symbol:byte?)
-                     (global.get $string:byte?)
-                     (local.get $x)))
+         ;;   I8 array error helpers are implemented in runtime-wasm/core/i8-arrays.rkt.
+         ,@(for/list ([name (in-list i8-array-error-runtime-only-helper-names)])
+             (core-runtime-helper-form runtime-helper-index name))
 
          ,(core-runtime-helper-form core-runtime-helper-index '$i8make-array)
 
@@ -6112,61 +6048,9 @@
 
          ,(core-runtime-helper-form core-runtime-helper-index '$i8array-append)
 
-         (func $list->i8array (param $xs (ref eq)) (result (ref $I8Array))
-               (local $len  i32)
-               (local $arr  (ref $I8Array))
-               (local $idx  i32)
-               (local $x    (ref eq))
-               (local $v    i32)
-               (local $node (ref eq))
-               ;; Step 1: compute list length
-               (local.set $len (call $length/i32 (local.get $xs)))
-               ;; Step 2: allocate array of that length
-               (local.set $arr (array.new $I8Array (i32.const 0) (local.get $len)))
-               ;; Step 3: initialize index and node
-               (local.set $idx  (i32.const 0))
-               (local.set $node (local.get $xs))
-               ;; Step 4: fill loop
-               (block $done
-                      (loop $fill
-                            ;; If we hit null, stop
-                            (br_if $done (ref.eq (local.get $node) (global.get $null)))
-                            ;; Must be a pair
-                            (if (ref.test (ref $Pair) (local.get $node))
-                                (then
-                                 ;; Extract the car
-                                 (local.set $x (struct.get $Pair $a (ref.cast (ref $Pair) (local.get $node))))
-                                 ;; Check that car is a fixnum
-                                 (if (ref.test (ref i31) (local.get $x))
-                                     (then
-                                      (local.set $v (i31.get_u (ref.cast (ref i31) (local.get $x))))
-                                      ;; Check fixnum has LSB = 0
-                                      (if (i32.eqz (i32.and (local.get $v) (i32.const 1)))
-                                          (then
-                                           ;; Shift right to get raw i32
-                                           (local.set $v (i32.shr_u (local.get $v) (i32.const 1)))
-                                           ;; Check range 0–255
-                                           (if (i32.le_u (local.get $v) (i32.const 255))
-                                               (then
-                                                ;; Store into array
-                                                (array.set $I8Array (local.get $arr)
-                                                           (local.get $idx)
-                                                           (local.get $v))
-                                                ;; Advance
-                                                (local.set $idx  (i32.add (local.get $idx) (i32.const 1)))
-                                                (local.set $node (struct.get $Pair $d
-                                                                     (ref.cast (ref $Pair) (local.get $node))))
-                                                (br $fill))
-                                               (else (call $raise-bad-byte (local.get $x))
-                                                     (unreachable))))
-                                          (else (call $raise-check-fixnum (local.get $x))
-                                                (unreachable))))
-                                     (else (call $raise-check-fixnum (local.get $x))
-                                           (unreachable))))
-                                (else (call $raise-pair-expected (local.get $node))
-                                      (unreachable)))))
-               ;; Return array
-               (local.get $arr))
+         ;;   I8 array conversion helpers are implemented in runtime-wasm/core/i8-arrays.rkt.
+         ,@(for/list ([name (in-list i8-array-conversion-runtime-only-helper-names)])
+             (core-runtime-helper-form runtime-helper-index name))
 
          ,(core-runtime-helper-form core-runtime-helper-index '$i8array->bytes)
 
