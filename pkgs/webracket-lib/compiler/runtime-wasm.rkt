@@ -47,6 +47,7 @@
                   fasl-runtime-only-helpers
                   fasl-runtime-only-helper-names)
          (only-in "runtime-wasm/core/ffi.rkt"
+                  external-value-runtime-only-helper-names
                   ffi-runtime-only-helpers
                   ffi-runtime-only-helper-forms)
          (only-in "runtime-wasm/core/filesystem.rkt"
@@ -6568,61 +6569,9 @@
         ;;; - External host values
         ;;;
 
-         (func $external? (type $Prim1)
-               ,@(make-predicate-body '$External))
-
-        (func $external-null? (param $v (ref eq)) (result (ref eq))
-              (if (result (ref eq))
-                  (ref.test (ref $External) (local.get $v))
-                  (then (if (result (ref eq))
-                            (ref.is_null (struct.get $External $v (ref.cast (ref $External) (local.get $v))))
-                            (then (global.get $true))
-                            (else (global.get $false))))
-                  (else (global.get $false))))
-
-        (func $external-number->flonum (type $Prim1)
-              (param $v (ref eq))
-              (result   (ref eq))
-
-              (local $e   (ref $External))
-              (local $raw externref)
-              (local $f   f64)
-              ;; Check that $v is an $External
-              (if (i32.eqz (ref.test (ref $External) (local.get $v)))
-                  (then (call $raise-argument-error/internal (local.get $v)) (unreachable)))
-              ;; Cast to $External
-              (local.set $e (ref.cast (ref $External) (local.get $v)))
-              ;; Extract underlying JS value
-              (local.set $raw (struct.get $External $v (local.get $e)))
-              ;; If null, return #f
-              (if (ref.is_null (local.get $raw))
-                  (then (return (global.get $false))))
-              ;; Non-null now: pass as (ref extern) directly
-              (local.set $f (call $js-external-number->f64
-                                  (ref.as_non_null (local.get $raw))))
-              (struct.new $Flonum (i32.const 0) (local.get $f)))
-
-        (func $external-string->string (type $Prim1)
-              (param $v (ref eq))
-              (result   (ref eq))
-
-              (local $e   (ref $External))
-              (local $raw externref)
-              (local $ptr i32)
-              ;; Check that $v is an $External
-              (if (i32.eqz (ref.test (ref $External) (local.get $v)))
-                  (then (call $raise-argument-error/internal (local.get $v)) (unreachable)))
-              ;; Cast to $External
-              (local.set $e (ref.cast (ref $External) (local.get $v)))
-              ;; Extract underlying JS value
-              (local.set $raw (struct.get $External $v (local.get $e)))
-              ;; If null, return #f
-              (if (ref.is_null (local.get $raw))
-                  (then (return (global.get $false))))
-              ;; Non-null now: pass as (ref extern) directly
-              (local.set $ptr (call $js-external-string->string
-                                     (ref.as_non_null (local.get $raw))))
-              (call $linear-memory->string (local.get $ptr)))
+         ;;   Implemented in runtime-wasm/core/ffi.rkt.
+         ,@(for/list ([name (in-list external-value-runtime-only-helper-names)])
+             (core-runtime-helper-form runtime-helper-index name))
 
 
 
