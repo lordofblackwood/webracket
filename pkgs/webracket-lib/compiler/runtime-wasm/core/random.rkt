@@ -1,7 +1,10 @@
 #lang racket
 
-(provide random-generator-runtime-only-helper-names
+(provide random-current-global-forms
+         random-current-initializer-forms
+         random-generator-runtime-only-helper-names
          random-public-runtime-only-helper-names
+         random-state-global-forms
          random-runtime-only-helpers)
 
 (require "../core-helper.rkt")
@@ -20,6 +23,30 @@
         (ref.test (ref ,ref-type) (local.get $v))
         (then (global.get $true))
         (else (global.get $false)))))
+
+;; random-state-global-forms : (listof datum?)
+;;   Declare shared fallback state for early pseudo-random generation.
+(define random-state-global-forms
+  '(
+        ;; Shared fallback state for early pseudo-random generation.
+        ;; Normal random calls use $current-pseudo-random-generator-value after
+        ;; entry initialization.
+        (global $random-state (mut i32) (i32.const 0x9E3779B9))))
+
+;; random-current-global-forms : (listof datum?)
+;;   Declare the current pseudo-random generator backing global.
+(define random-current-global-forms
+  '(
+               (global $current-pseudo-random-generator-value (mut (ref eq)) (global.get $false))))
+
+;; random-current-initializer-forms : (listof datum?)
+;;   Initialize the current pseudo-random generator backing value.
+(define random-current-initializer-forms
+  '(
+                     (global.set $current-pseudo-random-generator-value
+                                 (struct.new $PseudoRandomGenerator
+                                             (i32.const 0)
+                                             (i32.const 0x9E3779B9)))))
 
 ;; random-generator-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for random generator helpers.

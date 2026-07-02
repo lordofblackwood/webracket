@@ -251,8 +251,11 @@
                   procedure-result-arity-runtime-only-helper-names
                   procedure-runtime-only-helpers)
          (only-in "runtime-wasm/core/random.rkt"
+                  random-current-global-forms
+                  random-current-initializer-forms
                   random-generator-runtime-only-helper-names
                   random-public-runtime-only-helper-names
+                  random-state-global-forms
                   random-runtime-only-helpers)
          (only-in "runtime-wasm/core/realms.rkt"
                   realm-global-forms
@@ -4016,10 +4019,7 @@
          ,@(for/list ([name (in-list generic-bitwise-runtime-only-helper-names)])
              (core-runtime-helper-form runtime-helper-index name))
 
-        ;; Shared fallback state for early pseudo-random generation.
-        ;; Normal random calls use $current-pseudo-random-generator-value after
-        ;; entry initialization.
-        (global $random-state (mut i32) (i32.const 0x9E3779B9))
+        ,@random-state-global-forms
 
         ;;   Random generator helpers are implemented in runtime-wasm/core/random.rkt.
         ,@(for/list ([name (in-list random-generator-runtime-only-helper-names)])
@@ -7165,7 +7165,7 @@
                ,@compile-parameter-global-forms
                ,@parameterization-global-forms
                (global $current-namespace-value (mut (ref eq)) (global.get $false))
-               (global $current-pseudo-random-generator-value (mut (ref eq)) (global.get $false))
+               ,@random-current-global-forms
                (global $current-thread-group-value (mut (ref eq)) (global.get $false))
                (global $error-value->string-handler-value (mut (ref eq)) (global.get $false))
                (global $error-syntax->string-handler-value (mut (ref eq)) (global.get $false))
@@ -7236,10 +7236,7 @@
                      (global.set $parameterization-key
                                  (global.get $symbol:parameterization-key))
                      ,@parameterization-initializer-forms
-                     (global.set $current-pseudo-random-generator-value
-                                 (struct.new $PseudoRandomGenerator
-                                             (i32.const 0)
-                                             (i32.const 0x9E3779B9)))
+                     ,@random-current-initializer-forms
                      (global.set $current-thread-value
                                  (struct.new $Thread (i32.const 0)))
                      (global.set $current-thread-group-value
