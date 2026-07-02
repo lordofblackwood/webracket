@@ -3,13 +3,16 @@
 (provide external-value-runtime-only-helper-names
          ffi-runtime-only-helpers
          ffi-runtime-only-helper-names
-         ffi-runtime-only-helper-forms)
+         ffi-runtime-only-helper-forms
+         unsafe-ffi-runtime-only-helper-forms)
 
 (require "../core-helper.rkt"
          (only-in "../../private/wasm-utils.rkt"
                   $
                   Var
-                  prim:))
+                  prim:)
+         (only-in "../../private/structs.rkt"
+                  foreign-racket-name))
 
 ;; current-ffi-console-bridge-bindings : (parameter/c list?)
 ;;   Holds the program-specific console bridge binding metadata while rendering FFI helpers.
@@ -1293,6 +1296,44 @@
 (define (ffi-runtime-only-helper-forms console-bridge-bindings)
   (parameterize ([current-ffi-console-bridge-bindings console-bridge-bindings])
     (ffi-runtime-only-forms)))
+
+;; unsafe-ffi-runtime-only-helper-forms : (listof foreign?) -> (listof datum?)
+;;   Render unsafe FFI primitive lookup helpers for the active `.ffi` primitives.
+(define (unsafe-ffi-runtime-only-helper-forms active-ffi-foreigns)
+  `(
+         ;; unsafe-ffi-primitive : symbol? -> procedure?
+         ;;   Resolve generated unsafe FFI module aliases to active `.ffi` primitive closures.
+         (func $unsafe-ffi-primitive (type $Prim1)
+               (param $name (ref eq)) ;; quoted FFI primitive symbol
+               (result (ref eq))
+               (local $proc (ref eq))
+               (if (ref.is_null (global.get $unsafe-ffi-primitive-table))
+                   (then (call $initialize-unsafe-ffi-primitive-table)))
+               (local.set $proc
+                          (call $hasheq-ref/plain
+                                (ref.cast (ref $HashEqMutable)
+                                          (global.get $unsafe-ffi-primitive-table))
+                                (local.get $name)
+                                (global.get $missing)))
+               (if (ref.eq (local.get $proc) (global.get $missing))
+                   (then
+                    (call $raise-unexpected-argument (local.get $name))
+                    (unreachable)))
+               (local.get $proc))
+
+         (func $initialize-unsafe-ffi-primitive-table
+               (if (ref.is_null (global.get $unsafe-ffi-primitive-table))
+                   (then
+                    (global.set $unsafe-ffi-primitive-table
+                                (ref.cast (ref $HashEqMutable)
+                                          (call $make-empty-hasheq)))
+                    ,@(for/list ([f (in-list active-ffi-foreigns)])
+                        (define pr (foreign-racket-name f))
+                        `(call $hasheq-set!/mutable/checked
+                               (ref.cast (ref $HashEqMutable)
+                                         (global.get $unsafe-ffi-primitive-table))
+                               (global.get ,($ (string->symbol (~a "symbol:" pr))))
+                               (global.get ,($ (prim: pr))))))))))
 
 ;; ffi-runtime-only-form-ref : symbol? -> datum?
 ;;   Render the registered helper with the given Wasm function name.

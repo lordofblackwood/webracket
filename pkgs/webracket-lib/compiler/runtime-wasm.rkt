@@ -61,7 +61,8 @@
          (only-in "runtime-wasm/core/ffi.rkt"
                   external-value-runtime-only-helper-names
                   ffi-runtime-only-helpers
-                  ffi-runtime-only-helper-forms)
+                  ffi-runtime-only-helper-forms
+                  unsafe-ffi-runtime-only-helper-forms)
          (only-in "runtime-wasm/core/filesystem.rkt"
                   filesystem-runtime-only-helpers
                   filesystem-runtime-only-helper-names)
@@ -3676,25 +3677,8 @@
 
          ,@active-ffi-funcs-wat   ; generated from "driver.rkt" in "define-foreign.rkt"
 
-         ;; unsafe-ffi-primitive : symbol? -> procedure?
-         ;;   Resolve generated unsafe FFI module aliases to active `.ffi` primitive closures.
-         (func $unsafe-ffi-primitive (type $Prim1)
-               (param $name (ref eq)) ;; quoted FFI primitive symbol
-               (result (ref eq))
-               (local $proc (ref eq))
-               (if (ref.is_null (global.get $unsafe-ffi-primitive-table))
-                   (then (call $initialize-unsafe-ffi-primitive-table)))
-               (local.set $proc
-                          (call $hasheq-ref/plain
-                                (ref.cast (ref $HashEqMutable)
-                                          (global.get $unsafe-ffi-primitive-table))
-                                (local.get $name)
-                                (global.get $missing)))
-               (if (ref.eq (local.get $proc) (global.get $missing))
-                   (then
-                    (call $raise-unexpected-argument (local.get $name))
-                    (unreachable)))
-               (local.get $proc))
+         ;;   Unsafe FFI primitive helpers are implemented in runtime-wasm/core/ffi.rkt.
+         ,@(unsafe-ffi-runtime-only-helper-forms active-ffi-foreigns)
 
          ;;;
          ;;; Exceptions
@@ -3961,21 +3945,6 @@
          ;;   Primitive table initializer is implemented in runtime-wasm/core/linklets.rkt.
          ,@(for/list ([name (in-list linklet-primitive-table-initializer-runtime-only-helper-names)])
              (core-runtime-helper-form runtime-helper-index name))
-
-         (func $initialize-unsafe-ffi-primitive-table
-               (if (ref.is_null (global.get $unsafe-ffi-primitive-table))
-                   (then
-                    (global.set $unsafe-ffi-primitive-table
-                                (ref.cast (ref $HashEqMutable)
-                                          (call $make-empty-hasheq)))
-                    ,@(for/list ([f (in-list active-ffi-foreigns)])
-                        (define pr (foreign-racket-name f))
-                        `(call $hasheq-set!/mutable/checked
-                               (ref.cast (ref $HashEqMutable)
-                                         (global.get $unsafe-ffi-primitive-table))
-                               (global.get ,($ (string->symbol (~a "symbol:" pr))))
-                               (global.get ,($ (prim: pr))))))))
-
 
          ;;;
          ;;; Arrays
