@@ -19,6 +19,7 @@
                   box-runtime-only-helpers)
          (only-in "runtime-wasm/core/bytes.rkt"
                   bytes-basic-runtime-only-helper-names
+                  byte-comparison-runtime-only-helper-names
                   bytes-mutability-runtime-only-helper-names
                   bytes-runtime-only-helpers)
          (only-in "runtime-wasm/core/characters.rkt"
@@ -6588,153 +6589,9 @@
          ,@(for/list ([name (in-list bytes-basic-runtime-only-helper-names)])
              (core-runtime-helper-form runtime-helper-index name))
 
-         ,@(append*
-            (for/list ([spec (in-list '( ($bytes=? i32.eq   eq   #t)
-                                         ($bytes<? i32.lt_u ord  #f)
-                                         ($bytes>? i32.gt_u ord  #f) ))])
-               (define name           (list-ref spec 0))
-               (define cmp            (list-ref spec 1))
-               (define kind           (list-ref spec 2))
-               (define signed?        (list-ref spec 3))
-               (define name/2         (string->symbol (~a name "/2")))
-               (define name/2/checked (string->symbol (~a name "/2/checked")))
-               (define name/checked   (string->symbol (~a name "/checked")))
-               (define fast-path
-                 (if (eq? kind 'eq)
-                     '((if (ref.eq (local.get $b1) (local.get $b2))
-                           (then (return (global.get $true)))))
-                     '()))
-               (define v1-get '(array.get_u $I8Array (local.get $a1) (local.get $i)))
-               (define v2-get '(array.get_u $I8Array (local.get $a2) (local.get $i)))
-               (define diff
-                 (if (eq? kind 'eq)
-                     '(if (i32.ne (local.get $v1) (local.get $v2))
-                          (then (return (global.get $false))))
-                     `(if (i32.ne (local.get $v1) (local.get $v2))
-                          (then (if (,cmp (local.get $v1) (local.get $v2))
-                                    (then (return (global.get $true)))
-                                    (else (return (global.get $false))))))))
-               (define final
-                 (if (eq? kind 'eq)
-                     '(if (result (ref eq))
-                          (i32.eq (local.get $len1) (local.get $len2))
-                          (then (global.get $true))
-                          (else (global.get $false)))
-                     `(if (result (ref eq))
-                          (,cmp (local.get $len1) (local.get $len2))
-                          (then (global.get $true))
-                          (else (global.get $false)))))
-               (list
-                `(func ,name/2
-                       (param $v1 (ref eq)) ;; bytes?
-                       (param $v2 (ref eq)) ;; bytes?
-                       (result    (ref eq))
-                       (if (i32.eqz (ref.test (ref $Bytes) (local.get $v1)))
-                           (then (call $raise-expected-bytes (local.get $v1))
-                                 (unreachable)))
-                       (if (i32.eqz (ref.test (ref $Bytes) (local.get $v2)))
-                           (then (call $raise-expected-bytes (local.get $v2))
-                                 (unreachable)))
-                       (return_call ,name/2/checked
-                                    (ref.cast (ref $Bytes) (local.get $v1))
-                                    (ref.cast (ref $Bytes) (local.get $v2))))
-                `(func ,name/2/checked
-                       (param $b1 (ref $Bytes)) ;; bytes
-                       (param $b2 (ref $Bytes)) ;; bytes
-                       (result    (ref eq))
-                       (local $a1   (ref $I8Array))
-                       (local $a2   (ref $I8Array))
-                       (local $len1 i32)
-                       (local $len2 i32)
-                       (local $min  i32)
-                       (local $i    i32)
-                       (local $v1   i32)
-                       (local $v2   i32)
-
-                       ,@fast-path
-                       ;; Extract arrays and lengths
-                       (local.set $a1   (struct.get $Bytes $bs (local.get $b1)))
-                       (local.set $a2   (struct.get $Bytes $bs (local.get $b2)))
-                       (local.set $len1 (array.len (local.get $a1)))
-                       (local.set $len2 (array.len (local.get $a2)))
-                       ;; Determine minimum length
-                       (local.set $min (local.get $len1))
-                       (if (i32.lt_u (local.get $len2) (local.get $min))
-                           (then (local.set $min (local.get $len2))))
-                       ;; Compare bytes one-by-one
-                       (local.set $i (i32.const 0))
-                       (block $done
-                              (loop $loop
-                                    (br_if $done (i32.ge_u (local.get $i) (local.get $min)))
-                                    (local.set $v1 ,v1-get)
-                                    (local.set $v2 ,v2-get)
-                                    ,diff
-                                    (local.set $i (i32.add (local.get $i) (i32.const 1)))
-                                    (br $loop)))
-                       ;; All compared bytes equal – compare lengths
-                       ,final)
-                `(func ,name/checked
-                       (param $b0 (ref $Bytes)) ;; first bytes
-                       (param $b1 (ref $Bytes)) ;; second bytes
-                       (param $bs (ref eq))     ;; rest bytes list
-                       (result (ref eq))
-                       (local $node      (ref $Pair))
-                       (local $next/any  (ref eq))       ;; raw car from the list
-                       (local $next      (ref $Bytes))   ;; refined to (ref $Bytes)
-                       (local $curr      (ref $Bytes))
-                       ;; Compare first two
-                       (if (ref.eq (call ,name/2/checked (local.get $b0) (local.get $b1))
-                                   (global.get $false))
-                           (then (return (global.get $false))))
-                       (local.set $curr (local.get $b1))
-                       ;; Iterate remaining arguments
-                       (block $done
-                              (loop $loop
-                                    (br_if $done (ref.eq (local.get $bs) (global.get $null)))
-                                    (local.set $node (ref.cast (ref $Pair) (local.get $bs)))
-                                    (local.set $next/any (struct.get $Pair $a (local.get $node)))
-                                    (if (i32.eqz (ref.test (ref $Bytes) (local.get $next/any)))
-                                        (then (call $raise-expected-bytes (local.get $next/any))
-                                              (unreachable)))
-                                    (local.set $next
-                                               (ref.cast (ref $Bytes) (local.get $next/any)))
-                                    (if (ref.eq (call ,name/2/checked (local.get $curr) (local.get $next))
-                                                (global.get $false))
-                                        (then (return (global.get $false))))
-                                    (local.set $curr (local.get $next))
-                                    (local.set $bs   (struct.get $Pair $d (local.get $node)))
-                                    (br $loop)))
-                       (global.get $true))
-                `(func ,name (type $Prim>=1)
-                       (param $b0 (ref eq)) ; bytes?
-                       (param $bs (ref eq)) ; rest list
-                       (result    (ref eq))
-                       (local $b1   (ref $Bytes))
-                       (local $b2   (ref $Bytes))
-                       (local $node (ref $Pair))
-                       (local $v    (ref eq))
-                       ;; Initialize non-defaultable locals
-                       (local.set $b1 (ref.cast (ref $Bytes) (global.get $bytes:empty)))
-                       (local.set $b2 (ref.cast (ref $Bytes) (global.get $bytes:empty)))
-                       ;; Validate first argument
-                       (if (ref.test (ref $Bytes) (local.get $b0))
-                           (then (local.set $b1 (ref.cast (ref $Bytes) (local.get $b0))))
-                           (else (call $raise-expected-bytes (local.get $b0)) (unreachable)))
-                       ;; No more arguments → true
-                       (if (ref.eq (local.get $bs) (global.get $null))
-                           (then (return (global.get $true))))
-                       ;; Extract second argument
-                       (local.set $node (ref.cast (ref $Pair) (local.get $bs)))
-                       (local.set $v    (struct.get $Pair $a (local.get $node)))
-                       (if (ref.test (ref $Bytes) (local.get $v))
-                           (then (local.set $b2 (ref.cast (ref $Bytes) (local.get $v))))
-                           (else (call $raise-expected-bytes (local.get $v)) (unreachable)))
-                       (local.set $bs   (struct.get $Pair $d (local.get $node)))
-                       ;; Exactly two arguments?
-                       (if (ref.eq (local.get $bs) (global.get $null))
-                           (then (return_call ,name/2/checked (local.get $b1) (local.get $b2)))
-                           (else (return_call ,name/checked (local.get $b1) (local.get $b2) (local.get $bs))))
-                       (unreachable)))))
+         ;;   Byte-string comparison helpers are implemented in runtime-wasm/core/bytes.rkt.
+         ,@(for/list ([name (in-list byte-comparison-runtime-only-helper-names)])
+             (core-runtime-helper-form runtime-helper-index name))
 
 
 
