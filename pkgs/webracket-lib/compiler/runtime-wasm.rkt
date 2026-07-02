@@ -39,6 +39,7 @@
                   continuation-mark-runtime-only-helper-names
                   continuation-runtime-only-helper-names
                   multiple-value-runtime-only-helper-names
+                  value-expectation-runtime-only-helper-names
                   control-flow-runtime-only-helpers)
          (only-in "runtime-wasm/core/equality.rkt"
                   equality-runtime-only-helpers
@@ -3695,60 +3696,10 @@
 
          (func $raise-expected-string                 (unreachable))
          (func $raise-unexpected-argument             (unreachable))
-         (func $raise-wrong-number-of-values-received (unreachable))
 
-         (func $expect-zero-values
-               (param $v (ref eq))
-               (result (ref eq))
-               (if (result (ref eq))
-                   (ref.test (ref $Values) (local.get $v))
-                   (then
-                    (if (i32.eqz
-                         (i32.eq
-                          (array.len (ref.cast (ref $Values) (local.get $v)))
-                          (i32.const 0)))
-                        (then (call $raise-wrong-number-of-values-received)
-                              (unreachable)))
-                    (global.get $void))
-                   (else
-                    (call $raise-wrong-number-of-values-received)
-                    (unreachable))))
-
-         (func $expect-one-value
-               (param $v (ref eq))
-               (result (ref eq))
-               (if (result (ref eq))
-                   (ref.test (ref $Values) (local.get $v))
-                   (then
-                    (if (i32.eqz
-                         (i32.eq
-                          (array.len (ref.cast (ref $Values) (local.get $v)))
-                          (i32.const 1)))
-                        (then (call $raise-wrong-number-of-values-received)
-                              (unreachable)))
-                    (array.get $Values
-                               (ref.cast (ref $Values) (local.get $v))
-                               (i32.const 0)))
-                   (else
-                    (local.get $v))))
-
-         (func $expect-n-values
-               (param $v (ref eq))
-               (param $n i32)
-               (result (ref $Values))
-               (if (result (ref $Values))
-                   (ref.test (ref $Values) (local.get $v))
-                   (then
-                    (if (i32.eqz
-                         (i32.eq
-                          (array.len (ref.cast (ref $Values) (local.get $v)))
-                          (local.get $n)))
-                        (then (call $raise-wrong-number-of-values-received)
-                              (unreachable)))
-                    (ref.cast (ref $Values) (local.get $v)))
-                   (else
-                    (call $raise-wrong-number-of-values-received)
-                    (unreachable))))
+         ;;   Multiple-value expectation helpers are implemented in runtime-wasm/core/control-flow.rkt.
+         ,@(for/list ([name (in-list value-expectation-runtime-only-helper-names)])
+             (core-runtime-helper-form runtime-helper-index name))
 
          ;; Convert a host exception caught at an FFI boundary into a
          ;; regular WebRacket exn:fail so `with-handlers` can catch it.

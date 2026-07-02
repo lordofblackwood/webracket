@@ -1,6 +1,7 @@
 #lang racket
 
 (provide multiple-value-runtime-only-helper-names
+         value-expectation-runtime-only-helper-names
          continuation-runtime-only-helper-names
          continuation-mark-runtime-only-helper-names
          control-flow-runtime-only-helpers)
@@ -12,6 +13,14 @@
 (define multiple-value-runtime-only-helper-names
   '($values
     $call-with-values))
+
+;; value-expectation-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for multiple-value expectation helpers.
+(define value-expectation-runtime-only-helper-names
+  '($raise-wrong-number-of-values-received
+    $expect-zero-values
+    $expect-one-value
+    $expect-n-values))
 
 ;; continuation-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for continuation helpers.
@@ -37,12 +46,76 @@
     $continuation?
     $continuation-mark-set-first))
 
+;; value-expectation-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate multiple-value expectation helpers used by compiler output.
+(define value-expectation-runtime-only-helpers
+  (function-forms->runtime-helpers
+   'value-expectation-runtime-only-helpers
+   '(
+     (func $raise-wrong-number-of-values-received (unreachable))
+
+     (func $expect-zero-values
+           (param $v (ref eq))
+           (result (ref eq))
+           (if (result (ref eq))
+               (ref.test (ref $Values) (local.get $v))
+               (then
+                (if (i32.eqz
+                     (i32.eq
+                      (array.len (ref.cast (ref $Values) (local.get $v)))
+                      (i32.const 0)))
+                    (then (call $raise-wrong-number-of-values-received)
+                          (unreachable)))
+                (global.get $void))
+               (else
+                (call $raise-wrong-number-of-values-received)
+                (unreachable))))
+
+     (func $expect-one-value
+           (param $v (ref eq))
+           (result (ref eq))
+           (if (result (ref eq))
+               (ref.test (ref $Values) (local.get $v))
+               (then
+                (if (i32.eqz
+                     (i32.eq
+                      (array.len (ref.cast (ref $Values) (local.get $v)))
+                      (i32.const 1)))
+                    (then (call $raise-wrong-number-of-values-received)
+                          (unreachable)))
+                (array.get $Values
+                           (ref.cast (ref $Values) (local.get $v))
+                           (i32.const 0)))
+               (else
+                (local.get $v))))
+
+     (func $expect-n-values
+           (param $v (ref eq))
+           (param $n i32)
+           (result (ref $Values))
+           (if (result (ref $Values))
+               (ref.test (ref $Values) (local.get $v))
+               (then
+                (if (i32.eqz
+                     (i32.eq
+                      (array.len (ref.cast (ref $Values) (local.get $v)))
+                      (local.get $n)))
+                    (then (call $raise-wrong-number-of-values-received)
+                          (unreachable)))
+                (ref.cast (ref $Values) (local.get $v)))
+               (else
+                (call $raise-wrong-number-of-values-received)
+                (unreachable))))
+     )))
+
 ;; control-flow-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate control-flow helpers used by the monolithic runtime.
 (define control-flow-runtime-only-helpers
-  (function-forms->runtime-helpers
-   'control-flow-runtime-only-helpers
-   '(
+  (append
+   value-expectation-runtime-only-helpers
+   (function-forms->runtime-helpers
+    'control-flow-runtime-only-helpers
+    '(
      (func $values (type $Prim>=0)
            (param $args (ref eq))
            (result      (ref eq))
@@ -440,4 +513,4 @@
            (if (result (ref eq))
                (ref.eq (local.get $none-v) (global.get $missing))
                (then (global.get $false))
-               (else (local.get $none-v)))))))
+               (else (local.get $none-v))))))))
