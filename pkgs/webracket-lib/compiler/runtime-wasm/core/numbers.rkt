@@ -3,6 +3,7 @@
 (provide generic-arithmetic-runtime-only-helper-names
          generic-bitwise-runtime-only-helper-names
          generic-numeric-runtime-only-helper-names
+         number-error-runtime-only-helper-names
          number-runtime-only-helpers
          number-string-conversion-runtime-only-helper-names
          floating-point-byte-conversion-runtime-only-helper-names
@@ -100,6 +101,17 @@
     $i32->string
     $arity-i32->string
     $i32->codepoints))
+
+;; number-error-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for numeric error helpers.
+(define number-error-runtime-only-helper-names
+  '($raise-expected-number
+    $raise-expected-number1
+    $raise-expected-number2
+    $raise-expected-number3
+    $raise-expected-number4
+    $raise-expected-real
+    $raise-expected-keyword))
 
 ;; number-type-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate number-type helpers that still depend on monolithic runtime globals.
@@ -1824,6 +1836,95 @@
               (ref.i31 (i32.shl (local.get $m) (i32.const 1))))
 
 
+     )))
+
+;; number-error-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate numeric error helpers that still depend on monolithic runtime globals.
+(define number-error-runtime-only-helpers
+  (function-forms->runtime-helpers
+   'number-error-runtime-only-helpers
+   '(
+        (func $raise-expected-number
+              (param $x (ref eq))
+              (call $js-log (local.get $x))
+              (unreachable))
+        (func $raise-expected-number1
+              (param $x (ref eq))
+              (call $js-log (local.get $x))
+              (unreachable))
+        (func $raise-expected-number2
+              (param $x (ref eq))
+              (call $js-log (local.get $x))
+              (unreachable))
+        (func $raise-expected-number3
+              (param $x (ref eq))
+              (call $js-log (local.get $x))
+              (call $js-log (call $fixnum? (local.get $x)))
+              (call $js-log (call $flonum? (local.get $x)))
+              (call $js-log (call $string? (local.get $x)))
+              (call $js-log (call $external? (local.get $x)))
+              (call $js-log (local.get $x))
+              (unreachable))
+        (func $raise-expected-number4
+              (param $x (ref eq))
+              (call $js-log (local.get $x))
+              (unreachable))
+
+        (func $raise-expected-real
+              (param $who (ref eq))   ;; symbol
+              (param $x   (ref eq))
+              (local $out     (ref $GrowableArray))
+              (local $message (ref $String))
+
+              ;; TODO: include argument position and other arguments like Racket.
+              (local.set $out (call $make-growable-array (i32.const 5)))
+              (call $growable-array-add! (local.get $out)
+                    (call $format/display (local.get $who)))
+              (call $growable-array-add! (local.get $out)
+                    (global.get $string:contract-violation:prefix))
+              (call $growable-array-add! (local.get $out)
+                    (global.get $string:real?))
+              (call $growable-array-add! (local.get $out)
+                    (global.get $string:arity-error:given))
+              (call $growable-array-add! (local.get $out)
+                    (call $format/display (local.get $x)))
+              (local.set $message
+                         (call $growable-array-of-strings->string (local.get $out)))
+
+              (call $raise
+                    (call $exn:fail:contract/make
+                          (local.get $message)
+                          (call $current-continuation-marks (global.get $missing)))
+                    (global.get $true))
+              (unreachable))
+
+        (func $raise-expected-keyword
+              (param $who (ref eq))   ;; symbol
+              (param $x   (ref eq))
+              (local $out     (ref $GrowableArray))
+              (local $message (ref $String))
+
+              ;; TODO: include argument position and other arguments like Racket.
+              (local.set $out (call $make-growable-array (i32.const 5)))
+              (call $growable-array-add! (local.get $out)
+                    (call $format/display (local.get $who)))
+              (call $growable-array-add! (local.get $out)
+                    (global.get $string:contract-violation:prefix))
+              (call $growable-array-add! (local.get $out)
+                    (global.get $string:keyword?))
+              (call $growable-array-add! (local.get $out)
+                    (global.get $string:arity-error:given))
+              (call $growable-array-add! (local.get $out)
+                    (call $format/display (local.get $x)))
+              (local.set $message
+                         (call $growable-array-of-strings->string (local.get $out)))
+
+              (call $raise
+                    (call $exn:fail:contract/make
+                          (local.get $message)
+                          (call $current-continuation-marks (global.get $missing)))
+                    (global.get $true))
+              (unreachable))
      )))
 
 ;; generic-arithmetic-runtime-only-helper-names : (listof symbol?)
@@ -3864,6 +3965,7 @@
 (define number-runtime-only-helpers
   (append number-type-runtime-only-helpers
           generic-numeric-runtime-only-helpers
+          number-error-runtime-only-helpers
           generic-arithmetic-runtime-only-helpers
           generic-bitwise-runtime-only-helpers
           number-string-conversion-runtime-only-helpers
