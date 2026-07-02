@@ -57,10 +57,21 @@
                   formatting-runtime-only-helper-names
                   formatting-runtime-only-helpers)
          (only-in "runtime-wasm/core/hashes.rkt"
+                  hash-count-list-runtime-only-helper-names
+                  hash-equal-composite-runtime-only-helper-names
+                  hash-equal-runtime-only-helper-names
+                  hash-filter-runtime-only-helper-names
+                  hash-for-each-runtime-only-helper-names
+                  hash-key-value-runtime-only-helper-names
+                  hash-map-copy-runtime-only-helper-names
+                  hash-map-runtime-only-helper-names
                   hash-runtime-only-helpers
+                  hash-seed-runtime-only-helper-names
                   hash-table-predicate-runtime-only-helper-names
                   hash-predicate-runtime-only-helper-names)
          (only-in "runtime-wasm/core/immutable-hashes.rkt"
+                  immutable-hash-constructor-runtime-only-helper-names
+                  immutable-hash-iteration-runtime-only-helper-names
                   immutable-hash-public-runtime-only-helper-names
                   immutable-hash-runtime-only-helpers)
          (only-in "runtime-wasm/core/immediates.rkt"
@@ -99,6 +110,9 @@
          (only-in "runtime-wasm/core/loggers.rkt"
                   logger-runtime-only-helpers)
          (only-in "runtime-wasm/core/mutable-hashes.rkt"
+                  mutable-hash-association-constructor-runtime-only-helper-names
+                  mutable-hash-constructor-runtime-only-helper-names
+                  mutable-hash-pair-error-runtime-only-helper-names
                   mutable-hash-runtime-only-helpers)
          (only-in "runtime-wasm/core/namespaces.rkt"
                   namespace-runtime-only-helpers
@@ -14562,30 +14576,20 @@
          ;;; MUTABLE HASHEQ
          ;;;
 
-         ,@(for/list ([name   '($make-empty-hasheq
-                                $make-empty-hasheqv
-                                $make-empty-hash
-                                $make-empty-hashalw)])
+         ,@(for/list ([name (in-list mutable-hash-constructor-runtime-only-helper-names)])
              (core-runtime-helper-form runtime-helper-index name))
 
-         ,(core-runtime-helper-form runtime-helper-index '$raise-argument-error:pair-expected)
-         ,(core-runtime-helper-form runtime-helper-index '$raise-argument-error:pair-expected1)
-         ,(core-runtime-helper-form runtime-helper-index '$raise-argument-error:pair-expected2)
+         ,@(for/list ([name (in-list mutable-hash-pair-error-runtime-only-helper-names)])
+             (core-runtime-helper-form runtime-helper-index name))
 
-         ,@(for/list ([make-hash     '($make-hasheq
-                                       $make-hasheqv
-                                       $make-hash
-                                       $make-hashalw)])
-             (core-runtime-helper-form runtime-helper-index make-hash))
+         ,@(for/list ([name (in-list mutable-hash-association-constructor-runtime-only-helper-names)])
+             (core-runtime-helper-form runtime-helper-index name))
 
          ;;;
          ;;; IMMUTABLE HASHEQV
          ;;;
 
-         ,@(for/list ([name '($make-empty-immutable-hasheq
-                              $make-empty-immutable-hasheqv
-                              $make-empty-immutable-hash
-                              $make-empty-immutable-hashalw)])
+         ,@(for/list ([name (in-list immutable-hash-constructor-runtime-only-helper-names)])
              (core-runtime-helper-form runtime-helper-index name))
 
          ,(core-runtime-helper-form runtime-helper-index '$hash-placeholder?)
@@ -15277,111 +15281,29 @@
 
         ;; unsafe-immutable-hash-iterate-* : immutable hash iteration
         ;;   Implemented in runtime-wasm/core/immutable-hashes.rkt.
-        ,@(for/list ([name '($immutable-hash-as-hasheqv
-                              $immutable-hamt-packed-node->entries
-                              $immutable-hamt-packed-node-entry-count
-                              $immutable-hamt-packed-node-child-count
-                              $immutable-hamt-packed-node-max-depth
-                              $immutable-hamt-node->entries
-                              $immutable-hamt-node-entry-count
-                              $immutable-hamt-node-bnode-count
-                              $immutable-hamt-node-cnode-count
-                              $immutable-hamt-node-bucket-count
-                              $immutable-hamt-node-inline-count
-                              $immutable-hamt-node-slot-count
-                              $immutable-hamt-node-max-depth
-                              $immutable-hash-debug-shape
-                              $immutable-hash-root-metadata
-                              $immutable-hasheqv-iterate-first
-                              $immutable-hasheqv-iterate-entry
-                              $immutable-hasheqv-iterate-next
-                              $immutable-hash-iterate-index->entry/public
-                              $immutable-hash-iterate-first/public
-                              $immutable-hash-iterate-next/public
-                              $immutable-hash-iterate-key/public
-                              $immutable-hash-iterate-value/public
-                              $immutable-hash-iterate-pair/public
-                              $immutable-hash-iterate-key+value/public
-                              $unsafe-immutable-hash-iterate-first
-                              $unsafe-immutable-hash-iterate-next
-                              $unsafe-immutable-hash-iterate-key
-                              $unsafe-immutable-hash-iterate-value
-                              $unsafe-immutable-hash-iterate-pair
-                              $unsafe-immutable-hash-iterate-key+value)])
+        ,@(for/list ([name (in-list immutable-hash-iteration-runtime-only-helper-names)])
             (core-runtime-helper-form runtime-helper-index name))
 
         ;; General hash-count and hash->list
         ;;   Implemented in runtime-wasm/core/hashes.rkt.
-        ,@(for/list ([name '($hash-count
-                              $hasheq-count
-                              $hasheqv-count
-                              $hashequal-count
-                              $hashalw-count
-                              $hash->list
-                              $hash->list/generic
-                              $hasheq->list
-                              $hasheqv->list
-                              $hashequal->list
-                              $hashalw->list
-                              $hasheq->list/plain
-                              $hasheqv->list/plain
-                              $hashequal->list/plain
-                              $hashalw->list/plain
-                              $hasheq->list/plain/checked
-                              $hasheqv->list/plain/checked
-                              $hashequal->list/plain/checked
-                              $hashalw->list/plain/checked)])
+        ,@(for/list ([name (in-list hash-count-list-runtime-only-helper-names)])
             (core-runtime-helper-form runtime-helper-index name))
 
          ;; hash-for-each : apply proc to each key/value in a hash table.
          ;;   Implemented in runtime-wasm/core/hashes.rkt.
-        ,@(for/list ([name '($hash-for-each
-                              $hasheq-for-each
-                              $hasheqv-for-each
-                              $hashequal-for-each
-                              $hashalw-for-each
-                              $hasheq-for-each/checked
-                              $hasheqv-for-each/checked
-                              $hashequal-for-each/checked
-                              $hashalw-for-each/checked
-                              $hash-for-each/generic)])
+        ,@(for/list ([name (in-list hash-for-each-runtime-only-helper-names)])
             (core-runtime-helper-form runtime-helper-index name))
 
         ;; General hash-map
         ;;   Implemented in runtime-wasm/core/hashes.rkt.
-        ,@(for/list ([name '($hash-map
-                              $hasheq-map
-                              $hasheqv-map
-                              $hashequal-map
-                              $hashalw-map
-                              $hasheq-map/plain
-                              $hasheqv-map/plain
-                              $hashequal-map/plain
-                              $hashalw-map/plain
-                              $hasheq-map/plain/checked
-                              $hasheqv-map/plain/checked
-                              $hashequal-map/plain/checked
-                              $hashalw-map/plain/checked
-                              $hash-map/generic)])
+        ,@(for/list ([name (in-list hash-map-runtime-only-helper-names)])
             (core-runtime-helper-form runtime-helper-index name))
 
 
         ;; -------------------------------------------------------------------
         ;; hash-map/copy
         ;;   Implemented in runtime-wasm/core/hashes.rkt.
-        ,@(for/list ([name '($hash-map/copy
-                              $hasheq-map/copy
-                              $hasheqv-map/copy
-                              $hashequal-map/copy
-                              $hashalw-map/copy
-                              $hasheq-map/copy/plain
-                              $hasheqv-map/copy/plain
-                              $hashequal-map/copy/plain
-                              $hashalw-map/copy/plain
-                              $hasheq-map/copy/plain/checked
-                              $hasheqv-map/copy/plain/checked
-                              $hashequal-map/copy/plain/checked
-                              $hashalw-map/copy/plain/checked)])
+        ,@(for/list ([name (in-list hash-map-copy-runtime-only-helper-names)])
             (core-runtime-helper-form runtime-helper-index name))
 
 
@@ -15389,54 +15311,13 @@
         ;; hash-filter, hash-filter-keys, hash-filter-values
         ;; -------------------------------------------------------------------
         ;;   Implemented in runtime-wasm/core/hashes.rkt.
-        ,@(for/list ([name '($hash-filter
-                              $hash-filter-keys
-                              $hash-filter-values
-                              $hasheq-filter
-                              $hasheqv-filter
-                              $hashequal-filter
-                              $hashalw-filter
-                              $hasheq-filter/plain
-                              $hasheqv-filter/plain
-                              $hashequal-filter/plain
-                              $hashalw-filter/plain
-                              $hasheq-filter/plain/checked
-                              $hasheqv-filter/plain/checked
-                              $hashequal-filter/plain/checked
-                              $hashalw-filter/plain/checked)])
+        ,@(for/list ([name (in-list hash-filter-runtime-only-helper-names)])
             (core-runtime-helper-form runtime-helper-index name))
 
 
         ;; General hash-keys and hash-values
         ;;   Implemented in runtime-wasm/core/hashes.rkt.
-        ,@(for/list ([name '($hash-keys
-                              $hash-values
-                              $hash-keys/generic
-                              $hash-values/generic
-                              $hasheq-keys
-                              $hasheq-keys/plain
-                              $hasheq-keys/plain/checked
-                              $hasheqv-keys
-                              $hasheqv-keys/plain
-                              $hasheqv-keys/plain/checked
-                              $hashequal-keys
-                              $hashequal-keys/plain
-                              $hashequal-keys/plain/checked
-                              $hashalw-keys
-                              $hashalw-keys/plain
-                              $hashalw-keys/plain/checked
-                              $hasheq-values
-                              $hasheq-values/plain
-                              $hasheq-values/plain/checked
-                              $hasheqv-values
-                              $hasheqv-values/plain
-                              $hasheqv-values/plain/checked
-                              $hashequal-values
-                              $hashequal-values/plain
-                              $hashequal-values/plain/checked
-                              $hashalw-values
-                              $hashalw-values/plain
-                              $hashalw-values/plain/checked)])
+        ,@(for/list ([name (in-list hash-key-value-runtime-only-helper-names)])
             (core-runtime-helper-form runtime-helper-index name))
 
 
@@ -15448,41 +15329,18 @@
          (global $next-hash-state (mut i32) (i32.const 0x9e3779b9)) ;; initial seed, can be randomized or fixed
 
          ;;   Implemented in runtime-wasm/core/hashes.rkt.
-         ,@(for/list ([name '($splitmix32
-                               $eq-hash-code
-                               $eq-hash/i32
-                               $eqv-hash-code
-                               $eqv-hash/i32)])
+         ,@(for/list ([name (in-list hash-seed-runtime-only-helper-names)])
              (core-runtime-helper-form runtime-helper-index name))
 
 
          ;;; Equal Hash Code
 
          ;;   Implemented in runtime-wasm/core/hashes.rkt.
-         ,@(for/list ([name '($equal-hash-code
-                               $equal-always-hash-code
-                               $equal-always-hash/i32
-                               $equal-hash/i32)])
+         ,@(for/list ([name (in-list hash-equal-runtime-only-helper-names)])
              (core-runtime-helper-form runtime-helper-index name))
 
          ;;   Implemented in runtime-wasm/core/hashes.rkt.
-         ,@(for/list ([name '($equal-hash/pair
-                               $equal-hash/mpair
-                               $equal-hash/box
-                               $equal-hash/vector
-                               $equal-always-hash/pair
-                               $equal-always-hash/box
-                               $equal-always-hash/vector
-                               $equal-always-hash/struct
-                               $equal-hash/struct
-                               $equal-hash/hash
-                               $equal-hash/hash-generic
-                               $equal-hash/hash-core
-                               $equal-hash/hasheq-mutable
-                               $equal-hash/hasheqv-mutable
-                               $equal-hash/hashequal-mutable
-                               $equal-hash/hashalw-mutable
-                               $bytes-hash/i32)])
+         ,@(for/list ([name (in-list hash-equal-composite-runtime-only-helper-names)])
              (core-runtime-helper-form runtime-helper-index name))
 
          ;;;

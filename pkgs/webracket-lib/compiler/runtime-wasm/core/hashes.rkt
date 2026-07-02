@@ -1,6 +1,15 @@
 #lang racket
 
 (provide hash-runtime-only-helpers
+         hash-count-list-runtime-only-helper-names
+         hash-for-each-runtime-only-helper-names
+         hash-map-runtime-only-helper-names
+         hash-map-copy-runtime-only-helper-names
+         hash-filter-runtime-only-helper-names
+         hash-key-value-runtime-only-helper-names
+         hash-seed-runtime-only-helper-names
+         hash-equal-runtime-only-helper-names
+         hash-equal-composite-runtime-only-helper-names
          hash-predicate-runtime-only-helper-names
          hash-table-predicate-runtime-only-helper-names)
 
@@ -14,6 +23,167 @@
     $immutable-hash-leaf?/i32
     $mutable-hash?
     $immutable-hash?))
+
+;; hash-count-list-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for hash count and list conversion helpers.
+(define hash-count-list-runtime-only-helper-names
+  '($hash-count
+    $hasheq-count
+    $hasheqv-count
+    $hashequal-count
+    $hashalw-count
+    $hash->list
+    $hash->list/generic
+    $hasheq->list
+    $hasheqv->list
+    $hashequal->list
+    $hashalw->list
+    $hasheq->list/plain
+    $hasheqv->list/plain
+    $hashequal->list/plain
+    $hashalw->list/plain
+    $hasheq->list/plain/checked
+    $hasheqv->list/plain/checked
+    $hashequal->list/plain/checked
+    $hashalw->list/plain/checked))
+
+;; hash-for-each-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for hash for-each helpers.
+(define hash-for-each-runtime-only-helper-names
+  '($hash-for-each
+    $hasheq-for-each
+    $hasheqv-for-each
+    $hashequal-for-each
+    $hashalw-for-each
+    $hasheq-for-each/checked
+    $hasheqv-for-each/checked
+    $hashequal-for-each/checked
+    $hashalw-for-each/checked
+    $hash-for-each/generic))
+
+;; hash-map-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for hash map helpers.
+(define hash-map-runtime-only-helper-names
+  '($hash-map
+    $hasheq-map
+    $hasheqv-map
+    $hashequal-map
+    $hashalw-map
+    $hasheq-map/plain
+    $hasheqv-map/plain
+    $hashequal-map/plain
+    $hashalw-map/plain
+    $hasheq-map/plain/checked
+    $hasheqv-map/plain/checked
+    $hashequal-map/plain/checked
+    $hashalw-map/plain/checked
+    $hash-map/generic))
+
+;; hash-map-copy-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for hash map/copy helpers.
+(define hash-map-copy-runtime-only-helper-names
+  '($hash-map/copy
+    $hasheq-map/copy
+    $hasheqv-map/copy
+    $hashequal-map/copy
+    $hashalw-map/copy
+    $hasheq-map/copy/plain
+    $hasheqv-map/copy/plain
+    $hashequal-map/copy/plain
+    $hashalw-map/copy/plain
+    $hasheq-map/copy/plain/checked
+    $hasheqv-map/copy/plain/checked
+    $hashequal-map/copy/plain/checked
+    $hashalw-map/copy/plain/checked))
+
+;; hash-filter-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for hash filter helpers.
+(define hash-filter-runtime-only-helper-names
+  '($hash-filter
+    $hash-filter-keys
+    $hash-filter-values
+    $hasheq-filter
+    $hasheqv-filter
+    $hashequal-filter
+    $hashalw-filter
+    $hasheq-filter/plain
+    $hasheqv-filter/plain
+    $hashequal-filter/plain
+    $hashalw-filter/plain
+    $hasheq-filter/plain/checked
+    $hasheqv-filter/plain/checked
+    $hashequal-filter/plain/checked
+    $hashalw-filter/plain/checked))
+
+;; hash-key-value-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for hash keys and values helpers.
+(define hash-key-value-runtime-only-helper-names
+  '($hash-keys
+    $hash-values
+    $hash-keys/generic
+    $hash-values/generic
+    $hasheq-keys
+    $hasheq-keys/plain
+    $hasheq-keys/plain/checked
+    $hasheqv-keys
+    $hasheqv-keys/plain
+    $hasheqv-keys/plain/checked
+    $hashequal-keys
+    $hashequal-keys/plain
+    $hashequal-keys/plain/checked
+    $hashalw-keys
+    $hashalw-keys/plain
+    $hashalw-keys/plain/checked
+    $hasheq-values
+    $hasheq-values/plain
+    $hasheq-values/plain/checked
+    $hasheqv-values
+    $hasheqv-values/plain
+    $hasheqv-values/plain/checked
+    $hashequal-values
+    $hashequal-values/plain
+    $hashequal-values/plain/checked
+    $hashalw-values
+    $hashalw-values/plain
+    $hashalw-values/plain/checked))
+
+;; hash-seed-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for base hash-code helpers.
+(define hash-seed-runtime-only-helper-names
+  '($splitmix32
+    $eq-hash-code
+    $eq-hash/i32
+    $eqv-hash-code
+    $eqv-hash/i32))
+
+;; hash-equal-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for equal? hash-code wrappers.
+(define hash-equal-runtime-only-helper-names
+  '($equal-hash-code
+    $equal-always-hash-code
+    $equal-always-hash/i32
+    $equal-hash/i32))
+
+;; hash-equal-composite-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for composite equal? hash-code helpers.
+(define hash-equal-composite-runtime-only-helper-names
+  '($equal-hash/pair
+    $equal-hash/mpair
+    $equal-hash/box
+    $equal-hash/vector
+    $equal-always-hash/pair
+    $equal-always-hash/box
+    $equal-always-hash/vector
+    $equal-always-hash/struct
+    $equal-hash/struct
+    $equal-hash/hash
+    $equal-hash/hash-generic
+    $equal-hash/hash-core
+    $equal-hash/hasheq-mutable
+    $equal-hash/hasheqv-mutable
+    $equal-hash/hashequal-mutable
+    $equal-hash/hashalw-mutable
+    $bytes-hash/i32))
 
 ;; hash-predicate-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate concrete hash predicate helpers.

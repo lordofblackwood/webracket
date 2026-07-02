@@ -1,9 +1,54 @@
 #lang racket
 
-(provide immutable-hash-public-runtime-only-helper-names
+(provide immutable-hash-constructor-runtime-only-helper-names
+         immutable-hash-iteration-runtime-only-helper-names
+         immutable-hash-public-runtime-only-helper-names
          immutable-hash-runtime-only-helpers)
 
 (require "../core-helper.rkt")
+
+;; immutable-hash-constructor-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for empty immutable hash constructors.
+(define immutable-hash-constructor-runtime-only-helper-names
+  '($make-empty-immutable-hasheq
+    $make-empty-immutable-hasheqv
+    $make-empty-immutable-hash
+    $make-empty-immutable-hashalw))
+
+;; immutable-hash-iteration-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for immutable hash iteration and shape helpers.
+(define immutable-hash-iteration-runtime-only-helper-names
+  '($immutable-hash-as-hasheqv
+    $immutable-hamt-packed-node->entries
+    $immutable-hamt-packed-node-entry-count
+    $immutable-hamt-packed-node-child-count
+    $immutable-hamt-packed-node-max-depth
+    $immutable-hamt-node->entries
+    $immutable-hamt-node-entry-count
+    $immutable-hamt-node-bnode-count
+    $immutable-hamt-node-cnode-count
+    $immutable-hamt-node-bucket-count
+    $immutable-hamt-node-inline-count
+    $immutable-hamt-node-slot-count
+    $immutable-hamt-node-max-depth
+    $immutable-hash-debug-shape
+    $immutable-hash-root-metadata
+    $immutable-hasheqv-iterate-first
+    $immutable-hasheqv-iterate-entry
+    $immutable-hasheqv-iterate-next
+    $immutable-hash-iterate-index->entry/public
+    $immutable-hash-iterate-first/public
+    $immutable-hash-iterate-next/public
+    $immutable-hash-iterate-key/public
+    $immutable-hash-iterate-value/public
+    $immutable-hash-iterate-pair/public
+    $immutable-hash-iterate-key+value/public
+    $unsafe-immutable-hash-iterate-first
+    $unsafe-immutable-hash-iterate-next
+    $unsafe-immutable-hash-iterate-key
+    $unsafe-immutable-hash-iterate-value
+    $unsafe-immutable-hash-iterate-pair
+    $unsafe-immutable-hash-iterate-key+value))
 
 ;; immutable-hash-prelude-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate immutable hash and reader-placeholder prelude helpers.

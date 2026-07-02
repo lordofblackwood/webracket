@@ -1,8 +1,34 @@
 #lang racket
 
-(provide mutable-hash-runtime-only-helpers)
+(provide mutable-hash-constructor-runtime-only-helper-names
+         mutable-hash-pair-error-runtime-only-helper-names
+         mutable-hash-association-constructor-runtime-only-helper-names
+         mutable-hash-runtime-only-helpers)
 
 (require "../core-helper.rkt")
+
+;; mutable-hash-constructor-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for empty mutable hash constructors.
+(define mutable-hash-constructor-runtime-only-helper-names
+  '($make-empty-hasheq
+    $make-empty-hasheqv
+    $make-empty-hash
+    $make-empty-hashalw))
+
+;; mutable-hash-pair-error-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for mutable hash association-list errors.
+(define mutable-hash-pair-error-runtime-only-helper-names
+  '($raise-argument-error:pair-expected
+    $raise-argument-error:pair-expected1
+    $raise-argument-error:pair-expected2))
+
+;; mutable-hash-association-constructor-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for association-list mutable hash constructors.
+(define mutable-hash-association-constructor-runtime-only-helper-names
+  '($make-hasheq
+    $make-hasheqv
+    $make-hash
+    $make-hashalw))
 
 ;; mutable-hash-constructor-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate mutable hash constructor helpers that still depend on monolithic runtime globals.
