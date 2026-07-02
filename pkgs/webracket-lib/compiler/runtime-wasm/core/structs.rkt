@@ -13,6 +13,7 @@
          struct-prefab-metadata-runtime-only-helper-names
          struct-prefab-immutables-runtime-only-helper-names
          struct-prefab-constructor-runtime-only-helper-names
+         struct-type-constructor-runtime-only-helper-names
          struct-procedure-predicate-runtime-only-helper-names
          struct-core-runtime-helpers
          struct-runtime-only-helpers)
@@ -141,6 +142,11 @@
 ;;   Preserve the runtime emission order for prefab constructor helpers.
 (define struct-prefab-constructor-runtime-only-helper-names
   '($make-prefab-struct))
+
+;; struct-type-constructor-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for struct type construction helpers.
+(define struct-type-constructor-runtime-only-helper-names
+  '($make-struct-type))
 
 ;; struct-procedure-predicate-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for struct procedure predicates.
@@ -3287,6 +3293,375 @@
                        (local.get $arr)))
      )))
 
+;; struct-type-constructor-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate struct type construction helpers used by the monolithic runtime.
+(define struct-type-constructor-runtime-only-helpers
+  (function-forms->runtime-helpers
+   'struct-type-constructor-runtime-only-helpers
+   '(
+     (func $make-struct-type
+           ;; Parameters
+           (param $name             (ref eq))  ;; (ref $Symbol)
+           (param $super            (ref eq))  ;; (ref $StructType) or #f
+           (param $init-count       (ref eq))  ;; fixnum
+           (param $auto-count       (ref eq))  ;; fixnum
+           ; optional:
+           (param $auto-val         (ref eq))  ;; default value for auto fields
+           (param $props            (ref eq))  ;; hash table or #f
+           (param $inspector        (ref eq))  ;; inspector object or #f
+           (param $proc-spec        (ref eq))  ;; procedure, exact nonnegative integer, or #f
+           (param $immutables       (ref eq))  ;; immutable mask or #f
+           (param $guard            (ref eq))  ;; closure or #f
+           (param $constructor-name (ref eq))  ;; symbol or #f
+
+           (result (ref eq))  ;; returns 5-values packed as a pair
+           ;                  ;; values: (struct-type, constructor, predicate, accessor, mutator)
+
+           ;; Locals
+           (local $init           i32)
+           (local $auto           i32)
+           (local $super-count    i32)
+           (local $field-count    i32)
+           (local $std            (ref $StructType))
+           (local $ctor           (ref eq))
+           (local $pred           (ref eq))
+           (local $acc            (ref eq))
+           (local $mut            (ref eq))
+           (local $super-count-fx (ref eq))
+           (local $has-super      i32)
+           (local $super-typed    (ref null $StructType))
+           (local $props-final    (ref $HashEqMutable))
+           (local $props-new      (ref $HashEqMutable))
+           (local $props-spec     (ref eq))
+           (local $props-list     (ref eq))
+           (local $props-cursor   (ref eq))
+           (local $props-cell     (ref $Pair))
+           (local $entry          (ref $Pair))
+           (local $entry-raw      (ref eq))
+           (local $prop-desc      (ref $StructTypeProperty))
+           (local $prop-raw       (ref eq))
+           (local $value          (ref eq))
+           (local $sti            (ref eq))
+           (local $sentinel       (ref eq))
+           (local $new-list       (ref eq))
+           (local $struct-name    (ref eq))
+           (local $guard-checked  (ref eq))
+           (local $prefab?        i32)
+           (local $prefab-mutables (ref $Vector))
+           (local $prefab-parent-key (ref eq))
+           (local $prefab-parent-has-super i32)
+           (local $prefab-parent-registry-key (ref null $Symbol))
+           (local $prefab-parent-init i32)
+           (local $prefab-parent-auto i32)
+           (local $prefab-parent-auto-value (ref eq))
+           (local $prefab-parent-mutables (ref $Vector))
+           (local $prefab-key     (ref null $Symbol))
+           (local $prefab-existing (ref eq))
+           (local $prefab-metadata (ref eq))
+
+           ;; --- Type checks ---
+           (if (i32.eqz (ref.test (ref $Symbol) (local.get $name)))
+               (then (call $raise-argument-error/internal (local.get $name))))
+
+           (if (i32.and
+                (i32.eqz (ref.eq (local.get $super) (global.get $false)))
+                (i32.eqz (ref.test (ref $StructType) (local.get $super))))
+               (then (call $raise-argument-error/internal (local.get $super))))
+
+           (if (i32.or
+                (i32.eqz (ref.test (ref i31) (local.get $init-count)))
+                (i32.ne (i32.and (i31.get_u (ref.cast (ref i31) (local.get $init-count))) (i32.const 1)) (i32.const 0)))
+               (then (call $raise-argument-error/internal (local.get $init-count))))
+
+           (if (i32.or
+                (i32.eqz (ref.test (ref i31) (local.get $auto-count)))
+                (i32.ne (i32.and (i31.get_u (ref.cast (ref i31) (local.get $auto-count))) (i32.const 1)) (i32.const 0)))
+               (then (call $raise-argument-error/internal (local.get $auto-count))))
+
+           ;; Initialize non-defaultable prefab locals before branching.
+           (local.set $prefab-existing (global.get $false))
+           (local.set $prefab-metadata (global.get $false))
+           (local.set $prefab-parent-key (global.get $false))
+           (local.set $prefab-parent-registry-key (ref.null $Symbol))
+           (local.set $prefab-parent-auto-value (global.get $false))
+           (local.set $prefab-mutables
+                      (struct.new $Vector
+                                  (i32.const 0)
+                                  (i32.const 0)
+                                  (array.new $Array (global.get $false) (i32.const 0))))
+           (local.set $prefab-parent-mutables
+                      (struct.new $Vector
+                                  (i32.const 0)
+                                  (i32.const 0)
+                                  (array.new $Array (global.get $false) (i32.const 0))))
+
+           ;; --- Decode fixnums ---
+           (local.set $init (i32.shr_u (i31.get_u (ref.cast (ref i31) (local.get $init-count))) (i32.const 1)))
+           (local.set $auto (i32.shr_u (i31.get_u (ref.cast (ref i31) (local.get $auto-count))) (i32.const 1)))
+
+           ;; --- Super field count ---
+           (local.set $has-super (i32.eqz (ref.eq (local.get $super) (global.get $false))))
+           (if (local.get $has-super)
+               (then (local.set $super-typed (ref.cast (ref $StructType) (local.get $super))))
+               (else (local.set $super-typed (ref.null $StructType))))
+
+           (local.set $super-count
+                      (if (result i32)
+                          (local.get $has-super)
+                          (then (struct.get $StructType $field-count
+                                            (ref.as_non_null (local.get $super-typed))))
+                          (else (i32.const 0))))
+           (local.set $super-count-fx (ref.i31 (i32.shl (local.get $super-count) (i32.const 1))))
+
+           (local.set $field-count (i32.add (local.get $super-count)
+                                            (i32.add (local.get $init) (local.get $auto))))
+
+           ;; --- Guard ---
+           ;; Optional guard defaults to #f. If present, it must be a procedure.
+           (local.set $guard-checked (local.get $guard))
+           (if (ref.eq (local.get $guard-checked) (global.get $missing))
+               (then (local.set $guard-checked (global.get $false))))
+           (if (i32.and
+                (i32.eqz (ref.eq (local.get $guard-checked) (global.get $false)))
+                (i32.eqz (ref.test (ref $Procedure) (local.get $guard-checked))))
+               (then (call $raise-argument-error/internal (local.get $guard-checked))
+                     (unreachable)))
+
+           ;; --- Initialize property tables ---
+           (local.set $props-new   (call $struct-type-property-table-empty))
+           (local.set $props-final (call $struct-type-property-table-empty))
+           (if (local.get $has-super)
+               (then
+                (local.set $props-final
+                           (call $struct-type-property-table-copy
+                                 (ref.cast (ref $HashEqMutable)
+                                           (struct.get $StructType $properties
+                                                       (ref.as_non_null (local.get $super-typed))))))
+                (if (i32.eq (call $struct-type-property-table-has-name?/i32
+                                    (local.get $props-final)
+                                    (ref.cast (ref $Symbol) (global.get $symbol:prop:sealed)))
+                             (i32.const 1))
+                    (then (call $raise-sealed-struct-supertype)
+                          (unreachable)))))
+
+           ;; --- Canonicalize properties specification ---
+           (local.set $props-spec (local.get $props))
+           (if (ref.eq (local.get $props-spec) (global.get $missing))
+               (then (local.set $props-spec (global.get $null))))
+           (if (ref.eq (local.get $props-spec) (global.get $false))
+               (then (local.set $props-spec (global.get $null))))
+           (local.set $props-list (local.get $props-spec))
+           (if (ref.test (ref $HashEqMutable) (local.get $props-list))
+               (then (local.set $props-list
+                                (call $hasheq->list/plain/checked
+                                      (ref.cast (ref $HashEqMutable) (local.get $props-list))))))
+
+           ;; Racket specifies that a non-#f `proc-spec` is the same as
+           ;; appending `(cons prop:procedure proc-spec)` to the property
+           ;; list. Keyword-procedure support relies on this path via
+           ;; `make-optional-keyword-procedure`.
+           (if (i32.and
+                (i32.eqz (ref.eq (local.get $proc-spec) (global.get $false)))
+                (i32.eqz (ref.eq (local.get $proc-spec) (global.get $missing))))
+               (then
+                (local.set $props-list
+                           (call $cons
+                                 (call $cons
+                                       (global.get $prop:procedure)
+                                       (local.get $proc-spec))
+                                 (local.get $props-list)))))
+
+           ;; --- Simple prefab support ---
+           ;; WebRacket interns supported prefab types by name/init/auto shape.
+           ;; More complex prefab shapes should fail instead of becoming
+           ;; ordinary fresh structure types.
+           (local.set $prefab?
+                      (if (result i32)
+                          (ref.test (ref $Symbol) (local.get $inspector))
+                          (then
+                           (call $symbol=?/i32
+                                 (ref.cast (ref $Symbol) (local.get $inspector))
+                                 (ref.cast (ref $Symbol) (global.get $symbol:prefab))))
+                          (else (i32.const 0))))
+           (if (local.get $prefab?)
+               (then
+                (local.set $prefab-mutables
+                           (call $simple-prefab-immutables->mutables
+                                 (local.get $immutables)
+                                 (i32.add (local.get $init) (local.get $auto))))
+                (if (local.get $has-super)
+                    (then
+                     (local.set $prefab-metadata
+                                (struct.get $StructType $immutables
+                                            (ref.as_non_null (local.get $super-typed))))
+                     (if (i32.eqz (call $prefab-metadata?/i32 (local.get $prefab-metadata)))
+                         (then (call $raise-argument-error/internal (local.get $super))
+                               (unreachable)))
+                     (local.set $prefab-parent-key
+                                (struct.get $Pair $a
+                                            (ref.cast (ref $Pair) (local.get $prefab-metadata))))
+                     (local.set $prefab-parent-has-super
+                                (call $simple-prefab-key-has-super?/i32
+                                      (local.get $prefab-parent-key)))
+                     (if (local.get $prefab-parent-has-super)
+                         (then
+                          (local.set $prefab-parent-registry-key
+                                     (call $simple-prefab-super-key-registry-key/checked
+                                           (local.get $prefab-parent-key)))))
+                     (local.set $prefab-parent-auto
+                                (call $simple-prefab-key-auto-count/checked
+                                      (local.get $prefab-parent-key)))
+                     (local.set $prefab-parent-auto-value
+                                (call $simple-prefab-key-auto-value/checked
+                                      (local.get $prefab-parent-key)))
+                     (local.set $prefab-parent-mutables
+                                (call $simple-prefab-key-mutables/checked
+                                      (local.get $prefab-parent-key)))
+                     (local.set $prefab-parent-init
+                                (call $simple-prefab-key-init-count-or-minus-one/checked
+                                      (local.get $prefab-parent-key)))
+                     (if (i32.lt_s (local.get $prefab-parent-init) (i32.const 0))
+                         (then
+                          (local.set $prefab-parent-init
+                                     (i32.sub
+                                      (i32.shr_s
+                                       (i31.get_s
+                                        (ref.cast
+                                         (ref i31)
+                                         (struct.get $Pair $d
+                                                     (ref.cast (ref $Pair)
+                                                               (local.get $prefab-metadata)))))
+                                       (i32.const 1))
+                                      (local.get $prefab-parent-auto)))))))
+                (if (i32.or
+                     (i32.eqz (call $simple-prefab-auto-value-supported?/i32
+                                    (local.get $auto-val)))
+                     (i32.or
+                      (i32.eqz (ref.eq (local.get $props-list) (global.get $null)))
+                      (i32.eqz (ref.eq (local.get $guard-checked) (global.get $false)))))
+                    (then (call $raise-argument-error/internal (local.get $inspector))
+                          (unreachable)))))
+
+
+           ;; --- Create struct type descriptor ---
+           (local.set $std
+                      (if (result (ref $StructType))
+                          (local.get $prefab?)
+                          (then
+                           (if (result (ref $StructType))
+                               (local.get $has-super)
+                               (then
+                                (if (result (ref $StructType))
+                                    (local.get $prefab-parent-has-super)
+                                    (then
+                                     (call $simple-prefab-substruct-type/checked
+                                           (ref.cast (ref $Symbol) (local.get $name))
+                                           (local.get $init)
+                                           (local.get $auto)
+                                           (local.get $auto-val)
+                                           (local.get $prefab-mutables)
+                                           (ref.as_non_null (local.get $super-typed))
+                                           (ref.as_non_null
+                                            (local.get $prefab-parent-registry-key))))
+                                    (else
+                                     (call $simple-prefab-super-struct-type/checked
+                                           (ref.cast (ref $Symbol) (local.get $name))
+                                           (local.get $init)
+                                           (local.get $auto)
+                                           (local.get $auto-val)
+                                           (local.get $prefab-mutables)
+                                           (call $simple-prefab-key-name/checked
+                                                 (local.get $prefab-parent-key))
+                                           (local.get $prefab-parent-init)
+                                           (local.get $prefab-parent-auto)
+                                           (local.get $prefab-parent-auto-value)
+                                           (local.get $prefab-parent-mutables)))))
+                               (else
+                                (call $simple-prefab-struct-type/checked
+                                      (ref.cast (ref $Symbol) (local.get $name))
+                                      (local.get $init)
+                                      (local.get $auto)
+                                      (local.get $auto-val)
+                                      (local.get $prefab-mutables)))))
+                          (else
+                           (call $make-struct-type-descriptor/checked
+                                 (ref.cast (ref $Symbol) (local.get $name))
+                                 (local.get $super)
+                                 (local.get $init)
+                                 (local.get $auto)
+                                 (local.get $auto-val)
+                                 (ref.cast (ref eq) (local.get $props-final))
+                                 (local.get $inspector)
+                                 (local.get $proc-spec)
+                                 (local.get $immutables)
+                                 (local.get $guard-checked)
+                                 (local.get $constructor-name)))))
+           (local.set $struct-name (struct.get $StructType $name (local.get $std)))
+
+           ;; --- Prepare struct-type-info for property guards ---
+           (local.set $sti
+                      (call $struct-type-info-for-guard
+                            (local.get $std)
+                            (ref.cast (ref $Symbol) (local.get $name))
+                            (local.get $init)
+                            (local.get $auto)
+                            (local.get $super)
+                            (local.get $super-count-fx)
+                            (local.get $immutables)))
+
+           ;; --- Process property associations ---
+           (local.set $sentinel (call $cons (global.get $false) (global.get $false)))
+           (local.set $props-cursor (local.get $props-list))
+           (block $done
+                  (loop $walk
+                        (br_if $done (ref.eq (local.get $props-cursor) (global.get $null)))
+                        (if (i32.eqz (ref.test (ref $Pair) (local.get $props-cursor)))
+                            (then (call $raise-argument-error/internal (local.get $props-cursor))
+                                  (unreachable)))
+                        (local.set $props-cell (ref.cast (ref $Pair) (local.get $props-cursor)))
+                        (local.set $entry-raw (struct.get $Pair $a (local.get $props-cell)))
+                        (if (i32.eqz (ref.test (ref $Pair) (local.get $entry-raw)))
+                            (then (call $raise-argument-error/internal (local.get $entry-raw))
+                                  (unreachable)))
+                        (local.set $entry (ref.cast (ref $Pair) (local.get $entry-raw)))
+                        (local.set $prop-raw (struct.get $Pair $a (local.get $entry)))
+                        (if (i32.eqz (ref.test (ref $StructTypeProperty) (local.get $prop-raw)))
+                            (then (call $raise-argument-error/internal (local.get $prop-raw))
+                                  (unreachable)))
+                        (local.set $prop-desc (ref.cast (ref $StructTypeProperty) (local.get $prop-raw)))
+                        (local.set $value (struct.get $Pair $d (local.get $entry)))
+                        (drop (call $struct-type-property-attach!
+                                    (local.get $prop-desc)
+                                    (local.get $value)
+                                    (local.get $props-new)
+                                    (local.get $sti)
+                                    (local.get $sentinel)))
+                        (local.set $props-cursor (struct.get $Pair $d (local.get $props-cell)))
+                        (br $walk)))
+
+           ;; --- Merge processed properties into final table ---
+           (local.set $new-list (call $hasheq->list/plain/checked (local.get $props-new)))
+           (drop (call $struct-type-property-merge-list!
+                       (local.get $props-final)
+                       (local.get $new-list)))
+
+           ;; --- Create constructor ---
+           (local.set $ctor (call $make-struct-constructor/checked (local.get $std)))
+           (local.set $pred (call $make-struct-predicate/checked   (local.get $std)))
+           (local.set $acc  (call $make-struct-accessor/checked
+                                  (local.get $std) (local.get $super-count-fx) (local.get $struct-name)))
+           (local.set $mut  (call $make-struct-mutator/checked
+                                  (local.get $std) (local.get $super-count-fx)))
+
+           ;; --- Return values as a compound value ---
+           (array.new_fixed $Values 5
+                 (local.get $std)    ; struct type descriptor
+                 (local.get $ctor)   ; constructor procedure
+                 (local.get $pred)   ; predicate procedure
+                 (local.get $acc)    ; accessor  procedure
+                 (local.get $mut)))  ; mutator   procedure
+     )))
+
 ;; struct-procedure-predicate-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate predicates for generated struct procedure wrappers.
 (define struct-procedure-predicate-runtime-only-helpers
@@ -3343,6 +3718,7 @@
    struct-prefab-metadata-runtime-only-helpers
    struct-prefab-immutables-runtime-only-helpers
    struct-prefab-constructor-runtime-only-helpers
+   struct-type-constructor-runtime-only-helpers
    struct-procedure-predicate-runtime-only-helpers
    (list
     ;; initialize-prefab-struct-type-registry : -> void
