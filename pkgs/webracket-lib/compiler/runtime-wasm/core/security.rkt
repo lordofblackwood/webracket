@@ -2,11 +2,42 @@
 
 (provide security-pre-parameter-runtime-only-helper-names
          security-post-parameter-runtime-only-helper-names
+         custodian-current-initializer-forms
          custodian-runtime-only-helper-names
          inspector-runtime-only-helper-names
+         security-current-global-forms
+         security-guard-current-initializer-forms
          security-runtime-only-helpers)
 
 (require "../core-helper.rkt")
+
+;; security-current-global-forms : (listof datum?)
+;;   Declare current security guard and custodian globals.
+(define security-current-global-forms
+  '(
+               (global $current-security-guard-value (mut (ref eq)) (global.get $false))
+               (global $current-custodian-value   (mut (ref eq)) (global.get $false))))
+
+;; custodian-current-initializer-forms : (listof datum?)
+;;   Initialize the root custodian.
+(define custodian-current-initializer-forms
+  '(
+                     (global.set $current-custodian-value
+                                 (struct.new $Custodian
+                                             (i32.const 0)
+                                             (i32.const 0)))))
+
+;; security-guard-current-initializer-forms : (listof datum?)
+;;   Initialize the root security guard after primitive globals are ready.
+(define security-guard-current-initializer-forms
+  '(
+                    (global.set $current-security-guard-value
+                                (struct.new $SecurityGuard
+                                            (i32.const 0)
+                                            (global.get $false)
+                                            (ref.cast (ref $Procedure) (global.get $prim:void))
+                                            (ref.cast (ref $Procedure) (global.get $prim:void))
+                                            (ref.cast (ref $Procedure) (global.get $prim:void))))))
 
 ;; make-predicate-body : symbol? -> (listof datum?)
 ;;   Generate a standard WebRacket predicate body for ref-type.

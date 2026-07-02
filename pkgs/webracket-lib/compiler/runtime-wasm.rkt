@@ -271,8 +271,11 @@
                   reflection-runtime-only-helper-names
                   reflection-runtime-only-helpers)
          (only-in "runtime-wasm/core/security.rkt"
+                  custodian-current-initializer-forms
                   custodian-runtime-only-helper-names
                   inspector-runtime-only-helper-names
+                  security-current-global-forms
+                  security-guard-current-initializer-forms
                   security-post-parameter-runtime-only-helper-names
                   security-pre-parameter-runtime-only-helper-names
                   security-runtime-only-helpers)
@@ -7165,8 +7168,7 @@
                (global $current-print-value       (mut (ref eq)) (global.get $false))
                (global $current-read-interaction-value (mut (ref eq)) (global.get $false))
                ,@logger-current-global-forms
-               (global $current-security-guard-value (mut (ref eq)) (global.get $false))
-               (global $current-custodian-value   (mut (ref eq)) (global.get $false))
+               ,@security-current-global-forms
                ,@io-handler-default-port-global-forms
                ,@reader-printer-policy-parameter-global-forms
                ,@compile-parameter-global-forms
@@ -7245,10 +7247,7 @@
                      ,@random-current-initializer-forms
                      ,@thread-current-initializer-forms
                      ,@logger-current-initializer-forms
-                     (global.set $current-custodian-value
-                                 (struct.new $Custodian
-                                             (i32.const 0)
-                                             (i32.const 0)))
+                     ,@custodian-current-initializer-forms
                      ,@event-initializer-forms
 
                      ,@entry-struct-property-initializer-forms
@@ -7268,13 +7267,7 @@
                     ,@(initialize-primitives-as-globals)
                     ,@(initialize-ffi-primitives-as-globals)
                     (call $initialize-unsafe-ffi-primitive-table)
-                    (global.set $current-security-guard-value
-                                (struct.new $SecurityGuard
-                                            (i32.const 0)
-                                            (global.get $false)
-                                            (ref.cast (ref $Procedure) (global.get $prim:void))
-                                            (ref.cast (ref $Procedure) (global.get $prim:void))
-                                            (ref.cast (ref $Procedure) (global.get $prim:void))))
+                    ,@security-guard-current-initializer-forms
                     (global.set $error-value->string-handler-value
                                 (struct.new $PrimitiveProcedure
                                             (i32.const 0)
