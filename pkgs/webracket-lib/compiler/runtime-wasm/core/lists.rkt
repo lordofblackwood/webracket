@@ -1,6 +1,11 @@
 #lang racket
 
 (provide list-core-runtime-helpers
+         list-member-runtime-only-helper-names
+         list-association-runtime-only-helper-names
+         list-group-by-runtime-only-helper-names
+         list-remove-runtime-only-helper-names
+         list-remove-star-runtime-only-helper-names
          list-error-runtime-only-helper-names
          list-ordinal-accessor-runtime-only-helper-names
          pair-accessor-runtime-only-helper-names
@@ -288,6 +293,45 @@
 ;;   Preserve the runtime emission order for generated ordinal list accessors.
 (define list-ordinal-accessor-runtime-only-helper-names
   (map core-runtime-helper-name list-ordinal-accessor-runtime-only-helpers))
+
+;; list-member-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for member-family helpers.
+(define list-member-runtime-only-helper-names
+  '($memq
+    $memv
+    $member
+    $memw))
+
+;; list-association-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for assoc-family helpers.
+(define list-association-runtime-only-helper-names
+  '($assoc
+    $assw
+    $assv
+    $assq))
+
+;; list-group-by-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for group-by helpers.
+(define list-group-by-runtime-only-helper-names
+  '($group-by
+    $group-by:fix-order
+    $group-by:update-groups/equal?
+    $group-by:update-groups/general
+    $group-by:extract-groups))
+
+;; list-remove-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for single-value removal helpers.
+(define list-remove-runtime-only-helper-names
+  '($remq
+    $remv
+    $remw))
+
+;; list-remove-star-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for multi-value removal helpers.
+(define list-remove-star-runtime-only-helper-names
+  '($remq*
+    $remv*
+    $remw*))
 
 ;; member-runtime-helper : symbol? symbol? boolean? any/c -> core-runtime-helper?
 ;;   Build a member-family helper with an optional comparator procedure.

@@ -90,8 +90,13 @@
                   keyword-runtime-only-helper-names
                   keyword-runtime-only-helpers)
          (only-in "runtime-wasm/core/lists.rkt"
+                  list-association-runtime-only-helper-names
                   list-error-runtime-only-helper-names
+                  list-group-by-runtime-only-helper-names
+                  list-member-runtime-only-helper-names
                   list-ordinal-accessor-runtime-only-helper-names
+                  list-remove-runtime-only-helper-names
+                  list-remove-star-runtime-only-helper-names
                   pair-accessor-runtime-only-helper-names
                   list-runtime-only-helpers)
          (only-in "runtime-wasm/core/linklet-instances.rkt"
@@ -13613,13 +13618,13 @@
 
          ,(core-runtime-helper-form runtime-helper-index '$alt-reverse)
 
-         ,@(for/list ([name '($memq $memv $member $memw)])
+         ,@(for/list ([name (in-list list-member-runtime-only-helper-names)])
              (core-runtime-helper-form runtime-helper-index name))
 
          ,(core-runtime-helper-form runtime-helper-index '$memf)
 
 
-         ,@(for/list ([name '($assoc $assw $assv $assq)])
+         ,@(for/list ([name (in-list list-association-runtime-only-helper-names)])
              (core-runtime-helper-form runtime-helper-index name))
 
          ,(core-runtime-helper-form runtime-helper-index '$assf)
@@ -13635,11 +13640,7 @@
          ,(core-runtime-helper-form runtime-helper-index '$indexes-where)
 
 
-        ,@(for/list ([name '($group-by
-                              $group-by:fix-order
-                              $group-by:update-groups/equal?
-                              $group-by:update-groups/general
-                              $group-by:extract-groups)])
+        ,@(for/list ([name (in-list list-group-by-runtime-only-helper-names)])
             (core-runtime-helper-form runtime-helper-index name))
 
 
@@ -13769,7 +13770,7 @@
 
 
 
-        ,@(for/list ([name '($remq $remv $remw)])
+        ,@(for/list ([name (in-list list-remove-runtime-only-helper-names)])
             (core-runtime-helper-form runtime-helper-index name))
 
          ,(core-runtime-helper-form runtime-helper-index '$remove*)
@@ -13782,7 +13783,7 @@
 
 
 
-        ,@(for/list ([name '($remq* $remv* $remw*)])
+        ,@(for/list ([name (in-list list-remove-star-runtime-only-helper-names)])
             (core-runtime-helper-form runtime-helper-index name))
 
          ,(core-runtime-helper-form runtime-helper-index '$raise-take:bad-length)
