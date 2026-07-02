@@ -11,6 +11,8 @@
          "private/timings.rkt"
          "private/structs.rkt"
          "runtime-wasm/core-helper.rkt"
+         (only-in "runtime-wasm/entry-support.rkt"
+                  entry-support-forms)
          (only-in "runtime-wasm/js-imports.rkt"
                   js-host-import-forms)
          (only-in "runtime-wasm/core/arrays.rkt"
@@ -7243,34 +7245,7 @@
                (global $debug-current-procedure        (mut (ref eq)) (global.get $false))
                (global $debug-current-procedure-name   (mut (ref eq)) (global.get $false))
 
-               (func $get-bytes (export "get_bytes")
-                     (result (ref $Bytes))
-                     (ref.cast (ref $Bytes) (global.get $result-bytes)))
-
-               (func $entry-uncaught-exception2
-                     (param $e (ref eq))
-                     (local $message (ref eq))
-
-                     ;; Keep this intentionally verbose for bootstrap probes:
-                     ;; a malformed exception may have an undefined message,
-                     ;; so log both the full exception shape and its message.
-                     (drop (call $js-log (call $format/display (local.get $e))))
-                     (local.set $message (call $exn-message (local.get $e)))
-                     (drop (call $js-log (local.get $message)))
-                     (drop (call $js-log (call $format/display (local.get $message)))))
-
-               (func $entry-uncaught-exception1
-                     (param $e (ref eq))
-                     (drop (call $js-log (local.get $e))))
-
-               (func $entry-uncaught-exception
-                     (param $e (ref eq))
-                     (if (ref.eq (call $exn? (local.get $e)) (global.get $false))
-                         (then
-                         (call $entry-uncaught-exception1 (local.get $e)))
-                         (else
-                          (call $entry-uncaught-exception2 (local.get $e))))
-                     (throw $exn (local.get $e)))
+               ,@entry-support-forms
 
                (func $entry (export "entry") (result i32)
                      ; Declare local variables (bound by let-values and letrec-values)
