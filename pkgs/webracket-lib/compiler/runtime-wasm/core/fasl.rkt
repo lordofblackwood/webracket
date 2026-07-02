@@ -1,10 +1,12 @@
 #lang racket
 
-(provide fasl-encoding-runtime-only-helper-names
+(provide fasl-tag-runtime-only-helper-names
+         fasl-encoding-runtime-only-helper-names
          fasl-runtime-only-helpers
          fasl-runtime-only-helper-names)
 
 (require "../core-helper.rkt"
+         "../../private/wasm-utils.rkt"
          (only-in "../../private/immediates.rkt"
                   boolean-mask
                   boolean-shift
@@ -15,6 +17,41 @@
                   empty-value
                   eof-value
                   void-value))
+
+;; fasl-tag-runtime-only-helper-specs : (listof (list symbol? exact-integer?))
+;;   Describe the FASL tag globals and their encoded numeric tag values.
+(define fasl-tag-runtime-only-helper-specs
+  '(($fasl-fixnum    0)
+    ($fasl-character 1)
+    ($fasl-symbol    2)
+    ($fasl-string    3)
+    ($fasl-bytes     4)
+    ($fasl-boolean   5)
+    ($fasl-null      6)
+    ($fasl-pair      7)
+    ($fasl-vector    8)
+    ($fasl-flonum    9)
+    ($fasl-void      10)
+    ($fasl-eof       11)
+    ($fasl-external  12)
+    ($fasl-keyword   13)))
+
+;; fasl-tag-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for FASL tag globals.
+(define fasl-tag-runtime-only-helper-names
+  (map first fasl-tag-runtime-only-helper-specs))
+
+;; fasl-tag-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate FASL tag globals used by the monolithic runtime.
+(define fasl-tag-runtime-only-helpers
+  (for/list ([spec (in-list fasl-tag-runtime-only-helper-specs)])
+    (define name  (first spec))
+    (define value (second spec))
+    (core-runtime-helper
+     name
+     (symbol->string name)
+     (lambda ()
+       `(global ,name (ref i31) ,(Imm value))))))
 
 ;; fasl-encoding-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for FASL encoding helpers.
@@ -1008,5 +1045,6 @@
 ;; fasl-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate all FASL helpers used by the monolithic runtime.
 (define fasl-runtime-only-helpers
-  (append fasl-encoding-runtime-only-helpers
+  (append fasl-tag-runtime-only-helpers
+          fasl-encoding-runtime-only-helpers
           fasl-decoding-runtime-only-helpers))

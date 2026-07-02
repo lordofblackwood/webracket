@@ -39,6 +39,7 @@
          (only-in "runtime-wasm/core/events.rkt"
                   event-runtime-only-helpers)
          (only-in "runtime-wasm/core/fasl.rkt"
+                  fasl-tag-runtime-only-helper-names
                   fasl-encoding-runtime-only-helper-names
                   fasl-runtime-only-helpers
                   fasl-runtime-only-helper-names)
@@ -16238,20 +16239,9 @@
 
          ;; 13.10 Fast-Load Serialization
 
-         (global $fasl-fixnum     (ref i31) ,(Imm 0))
-         (global $fasl-character  (ref i31) ,(Imm 1))
-         (global $fasl-symbol     (ref i31) ,(Imm 2))
-         (global $fasl-string     (ref i31) ,(Imm 3))
-         (global $fasl-bytes      (ref i31) ,(Imm 4))
-         (global $fasl-boolean    (ref i31) ,(Imm 5))
-         (global $fasl-null       (ref i31) ,(Imm 6))
-         (global $fasl-pair       (ref i31) ,(Imm 7))
-         (global $fasl-vector     (ref i31) ,(Imm 8))
-         (global $fasl-flonum     (ref i31) ,(Imm 9))
-         (global $fasl-void       (ref i31) ,(Imm 10))
-         (global $fasl-eof        (ref i31) ,(Imm 11))
-         (global $fasl-external   (ref i31) ,(Imm 12))
-         (global $fasl-keyword    (ref i31) ,(Imm 13))
+         ;;   FASL tag globals are implemented in runtime-wasm/core/fasl.rkt.
+         ,@(for/list ([name (in-list fasl-tag-runtime-only-helper-names)])
+             (core-runtime-helper-form runtime-helper-index name))
 
          ;;   FASL encoding helpers are implemented in runtime-wasm/core/fasl.rkt.
          ,@(for/list ([name (in-list fasl-encoding-runtime-only-helper-names)])
