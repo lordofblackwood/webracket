@@ -5,6 +5,7 @@
          false-ref
          true-ref
          void-runtime-only-helper-names
+         eof-object-runtime-only-helper-names
          immediate-runtime-only-helpers)
 
 (require "../core-helper.rkt"
@@ -35,26 +36,48 @@
     $void
     $make-void))
 
-;; immediate-runtime-only-helpers : (listof core-runtime-helper?)
-;;   Enumerate immediate-value helpers used by the monolithic runtime.
-(define immediate-runtime-only-helpers
+;; eof-object-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for EOF object helpers.
+(define eof-object-runtime-only-helper-names
+  '($eof-object?))
+
+;; eof-object-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate EOF object helpers used by the monolithic runtime.
+(define eof-object-runtime-only-helpers
   (function-forms->runtime-helpers
-   'immediate-runtime-only-helpers
+   'eof-object-runtime-only-helpers
    '(
-     (func $void? (type $Prim1)
+     (func $eof-object? (type $Prim1)
            (param $v (ref eq))
            (result   (ref eq))
 
            (if (result (ref eq))
-               (ref.eq (local.get $v) (global.get $void))
+               (ref.eq (local.get $v) (global.get $eof))
                (then (global.get $true))
-               (else (global.get $false))))
+               (else (global.get $false)))))))
 
-     (func $void (type $Prim>=0)
-           (param $xs (ref eq))
-           (result    (ref eq))
+;; immediate-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate immediate-value helpers used by the monolithic runtime.
+(define immediate-runtime-only-helpers
+  (append
+   eof-object-runtime-only-helpers
+   (function-forms->runtime-helpers
+    'immediate-runtime-only-helpers
+    '(
+      (func $void? (type $Prim1)
+            (param $v (ref eq))
+            (result   (ref eq))
 
-           (global.get $void))
+            (if (result (ref eq))
+                (ref.eq (local.get $v) (global.get $void))
+                (then (global.get $true))
+                (else (global.get $false))))
 
-     (func $make-void (type $Prim0) (result (ref eq)) ; no arguments
-           (return (global.get $void))))))
+      (func $void (type $Prim>=0)
+            (param $xs (ref eq))
+            (result    (ref eq))
+
+            (global.get $void))
+
+      (func $make-void (type $Prim0) (result (ref eq)) ; no arguments
+            (return (global.get $void)))))))

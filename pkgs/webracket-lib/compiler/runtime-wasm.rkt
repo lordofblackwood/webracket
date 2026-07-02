@@ -113,6 +113,7 @@
                   i8-array-runtime-only-helpers)
          (only-in "runtime-wasm/core/immediates.rkt"
                   void-runtime-only-helper-names
+                  eof-object-runtime-only-helper-names
                   immediate-runtime-only-helpers)
          (only-in "runtime-wasm/core/impersonators.rkt"
                   chaperone-procedure-runtime-only-helper-names
@@ -6708,14 +6709,9 @@
          ,@(for/list ([name (in-list port-custom-constructor-runtime-only-helper-names)])
              (core-runtime-helper-form runtime-helper-index name))
 
-         (func $eof-object? (type $Prim1)
-               (param $v (ref eq))
-               (result   (ref eq))
-
-               (if (result (ref eq))
-                   (ref.eq (local.get $v) (global.get $eof))
-                   (then (global.get $true))
-                   (else (global.get $false))))
+         ;;   EOF object helpers are implemented in runtime-wasm/core/immediates.rkt.
+         ,@(for/list ([name (in-list eof-object-runtime-only-helper-names)])
+             (core-runtime-helper-form runtime-helper-index name))
 
          ;;   Implemented in runtime-wasm/core/ports.rkt.
          ,(core-runtime-helper-form runtime-helper-index '$call-with-output-string)
