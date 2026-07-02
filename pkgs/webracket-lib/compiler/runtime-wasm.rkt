@@ -245,6 +245,7 @@
                   string-mutability-runtime-only-helper-names
                   string-selector-runtime-only-helper-names
                   string-split-runtime-only-helper-names
+                  string-utf8-runtime-only-helper-names
                   string-runtime-only-helpers)
          (only-in "runtime-wasm/core/structs.rkt"
                   struct-basic-runtime-only-helper-names
@@ -6778,165 +6779,11 @@
              (core-runtime-helper-form runtime-helper-index name))
 
 
-
          ;;;
 
-         (func $raise-invalid-utf8-input (param $bad (ref eq)) (result (ref eq)) (unreachable))
-
-         (func $raise-invalid-utf8-start (param $bad (ref eq)) (result (ref eq)) (unreachable))
-
-         (func $raise-invalid-utf8-end (param $bad (ref eq)) (result (ref eq)) (unreachable))
-
-         (func $raise-invalid-utf8-range (param $start (ref eq)) (param $end (ref eq)) (result (ref eq))
-               (unreachable))
-
-         (func $raise-string->bytes/utf8                 (unreachable))
-         (func $raise-string->bytes/utf8:expected-string (unreachable))
-         (func $raise-string->bytes/utf8:range-error     (unreachable))
-
-         (func $string->bytes/utf-8 (export "string->bytes/utf-8")
-               (param $str       (ref eq))
-               (param $err-byte  (ref eq)) ;; Ignored
-               (param $start-raw (ref eq))
-               (param $end-raw   (ref eq))
-               (result (ref eq))
-
-               (local $s         (ref null $String))
-               (local $cp        (ref $I32Array))
-               (local $start     i32)
-               (local $end       i32)
-               (local $len       i32)
-               (local $out-bytes (ref $I8Array))
-               (local $idx       i32)
-               (local $i         i32)
-               (local $char      i32)
-               (local $bs        (ref $Bytes))
-
-               (local $raw-start i32)
-               (local $raw-end   i32)
-
-               ;; Check and cast $str
-               (if (ref.test (ref $String) (local.get $str))
-                   (then (local.set $s (ref.cast (ref $String) (local.get $str))))
-                   (else (call $raise-string->bytes/utf8:expected-string))) ;; code 1 = not a string
-               ;; Get codepoints array and length
-               (local.set $cp  (struct.get $String $codepoints (local.get $s)))
-               (local.set $len (array.len (local.get $cp)))
-               ;; Decode start
-               (if (ref.test (ref i31) (local.get $start-raw))
-                   (then (local.set $raw-start (i31.get_u (ref.cast (ref i31) (local.get $start-raw))))
-                         (if (i32.eq (local.get $raw-start) (i32.const ,(immediate-rep #f)))
-                             (then (local.set $start (i32.const 0)))  ;; #f => use 0
-                             (else (local.set $start (i32.shr_u (local.get $raw-start) (i32.const 1))))))
-                   (else (call $raise-string->bytes/utf8)))  ;; not a fixnum
-               ;; Decode end
-               (if (ref.test (ref i31) (local.get $end-raw))
-                   (then  (local.set $raw-end (i31.get_u (ref.cast (ref i31) (local.get $end-raw))))
-                          (if (i32.eq (local.get $raw-end) (i32.const ,(immediate-rep #f))) ; #f
-                              (then (local.set $end (local.get $len)))  ;; #f => use length
-                              (else (local.set $end (i32.shr_u (local.get $raw-end) (i32.const 1))))))
-                   (else (call $raise-string->bytes/utf8)))
-               ;; Bounds check
-               (if (i32.or (i32.gt_u (local.get $start) (local.get $end))
-                           (i32.gt_u (local.get $end) (local.get $len)))
-                   (then (call $raise-string->bytes/utf8:range-error)))
-               ;; First pass: compute output size
-               (local.set $i   (local.get $start))
-               (local.set $idx (i32.const 0))
-               (loop $size-loop
-                     (if (i32.lt_u (local.get $i) (local.get $end))
-                         (then
-                          (local.set $char (array.get $I32Array (local.get $cp) (local.get $i)))
-                          (local.set $idx (i32.add (local.get $idx) (call $utf8-size (local.get $char))))
-                          (local.set $i (i32.add (local.get $i) (i32.const 1)))
-                          (br $size-loop))))
-               ;; Allocate byte array
-               (local.set $out-bytes (array.new_default $I8Array (local.get $idx)))
-               (local.set $bs
-                          (struct.new $Bytes
-                                      (i32.const 0) ;; hash
-                                      (i32.const 1) ;; immutable
-                                      (local.get $out-bytes)))
-               ;; Second pass: encode into buffer
-               (local.set $i   (local.get $start))
-               (local.set $idx (i32.const 0))
-               (loop $encode-loop
-                     (if (i32.lt_u (local.get $i) (local.get $end))
-                         (then
-                          (local.set $char (array.get $I32Array (local.get $cp) (local.get $i)))
-                          (local.set $idx  (call $write-utf8 (local.get $bs) (local.get $idx) (local.get $char)))
-                          (local.set $i (i32.add (local.get $i) (i32.const 1)))
-                          (br $encode-loop))))
-               (local.get $bs))
-
-         (func $string->bytes/locale (type $Prim14)
-               ;; string->bytes/locale : string? [err-byte] [start] [end] -> bytes?
-               ;; WebRacket has no host locale layer yet, so locale encoding is
-               ;; currently UTF-8. The optional err-byte is accepted like
-               ;; string->bytes/utf-8 but not needed for Unicode-to-UTF-8.
-               (param $str       (ref eq)) ;; string?
-               (param $err-byte  (ref eq)) ;; optional #f-or-byte?, default = #f
-               (param $start-raw (ref eq)) ;; optional exact-nonnegative-integer?, default = 0
-               (param $end-raw   (ref eq)) ;; optional exact-nonnegative-integer?, default = string length
-               (result           (ref eq))
-               (call $string->bytes/utf-8
-                     (local.get $str)
-                     (local.get $err-byte)
-                     (local.get $start-raw)
-                     (local.get $end-raw)))
-
-         (func $raise-string-utf-8-length:bad-argument (unreachable))
-         (func $raise-string-utf-8-length:range-error (unreachable))
-
-         (func $string-utf-8-length (type $Prim13)
-               (param $str       (ref eq))
-               (param $start-raw (ref eq))   ;; fixnum or $missing
-               (param $end-raw   (ref eq))   ;; fixnum or $missing
-               (result (ref eq))
-
-               (local $s     (ref null $String))
-               (local $cp    (ref $I32Array))
-               (local $len   i32)
-               (local $start i32)
-               (local $end   i32)
-               (local $i     i32)
-               (local $char  i32)
-               (local $total i32)
-
-               ;; --- Type check for string ---
-               (if (ref.test (ref $String) (local.get $str))
-                   (then (local.set $s (ref.cast (ref $String) (local.get $str))))
-                   (else (call $raise-string-utf-8-length:bad-argument)))
-               ;; --- Extract codepoints and length ---
-               (local.set $cp  (struct.get $String $codepoints (local.get $s)))
-               (local.set $len (array.len (local.get $cp)))
-               ;; --- Decode start ---
-               (if (ref.eq (local.get $start-raw) (global.get $missing))
-                   (then (local.set $start (i32.const 0)))
-                   (else (if (ref.test (ref i31) (local.get $start-raw))
-                             (then (local.set $start (i32.shr_u (i31.get_u (ref.cast (ref i31) (local.get $start-raw))) (i32.const 1))))
-                             (else (call $raise-string-utf-8-length:bad-argument)))))
-               ;; --- Decode end ---
-               (if (ref.eq (local.get $end-raw) (global.get $missing))
-                   (then (local.set $end (local.get $len)))
-                   (else (if (ref.test (ref i31) (local.get $end-raw))
-                             (then (local.set $end (i32.shr_u (i31.get_u (ref.cast (ref i31) (local.get $end-raw))) (i32.const 1))))
-                             (else (call $raise-string-utf-8-length:bad-argument)))))
-               ;; --- Range check ---
-               (if (i32.or (i32.gt_u (local.get $start) (local.get $end))
-                           (i32.gt_u (local.get $end) (local.get $len)))
-                   (then (call $raise-string-utf-8-length:range-error)))
-               ;; --- Compute UTF-8 length ---
-               (local.set $i     (local.get $start))
-               (local.set $total (i32.const 0))
-               (loop $len-loop
-                     (if (i32.lt_u (local.get $i) (local.get $end))
-                         (then
-                          (local.set $char (array.get $I32Array (local.get $cp) (local.get $i)))
-                          (local.set $total (i32.add (local.get $total) (call $utf8-size (local.get $char))))
-                          (local.set $i (i32.add (local.get $i) (i32.const 1)))
-                          (br $len-loop))))
-               (ref.i31 (i32.shl (local.get $total) (i32.const 1))))
+         ;;   String UTF-8 conversion helpers are implemented in runtime-wasm/core/strings.rkt.
+         ,@(for/list ([name (in-list string-utf8-runtime-only-helper-names)])
+             (core-runtime-helper-form runtime-helper-index name))
 
          (func $raise-string-copy!:bad-destination       (unreachable))
          (func $raise-string-copy!:bad-destination-start (unreachable))
