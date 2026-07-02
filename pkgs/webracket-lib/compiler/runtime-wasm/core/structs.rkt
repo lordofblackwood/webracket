@@ -25,6 +25,7 @@
          struct-guarded-constructor-runtime-only-helper-names
          struct-type-property-lookup-runtime-only-helper-names
          struct-type-property-closure-runtime-only-helper-names
+         struct-type-property-predicate-runtime-only-helper-names
          struct-core-runtime-helpers
          struct-runtime-only-helpers)
 
@@ -72,6 +73,13 @@
     $struct-type-property-accessor
     $struct-type-property-predicate->descriptor
     $struct-type-property-accessor->descriptor))
+
+;; struct-type-property-predicate-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for struct type property predicate helpers.
+(define struct-type-property-predicate-runtime-only-helper-names
+  '($struct-type-property?
+    $struct-type-property-accessor-procedure?
+    $struct-type-property-predicate-procedure?))
 
 ;; struct-basic-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for basic struct helpers.
@@ -5031,6 +5039,87 @@
            (local.get $prop))
      )))
 
+;; struct-type-property-predicate-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Implement public struct type property predicate helpers.
+(define struct-type-property-predicate-runtime-only-helpers
+  (list
+   (core-runtime-helper
+    '$struct-type-property?
+    "$struct-type-property?"
+    (lambda ()
+      `(func $struct-type-property? (type $Prim1)
+             (param $v (ref eq))             ;; any/c
+             (result (ref eq))
+
+             (if (result (ref eq))
+                 (ref.test (ref $StructTypeProperty) (local.get $v))
+                 (then (global.get $true))
+                 (else (global.get $false))))))
+
+   (core-runtime-helper
+    '$struct-type-property-accessor-procedure?
+    "$struct-type-property-accessor-procedure?"
+    (lambda ()
+      `(func $struct-type-property-accessor-procedure? (type $Prim1)
+             (param $v (ref eq))             ;; procedure?
+             (result (ref eq))
+
+             (local $clos (ref $Closure))
+             (local $prop (ref eq))
+
+             (if (i32.eqz (ref.test (ref $Closure) (local.get $v)))
+                 (then (return (global.get $false))))
+
+             (local.set $clos (ref.cast (ref $Closure) (local.get $v)))
+             (local.set $prop (call $struct-type-property-accessor->descriptor
+                                    (local.get $clos)))
+
+             (if (result (ref eq))
+                 (ref.eq (local.get $prop) (global.get $false))
+                 (then (global.get $false))
+                 (else (global.get $true))))))
+
+   (core-runtime-helper
+    '$struct-type-property-predicate-procedure?
+    "$struct-type-property-predicate-procedure?"
+    (lambda ()
+      `(func $struct-type-property-predicate-procedure? (type $Prim02)
+             (param $v          (ref eq))  ;; procedure?
+             (param $prop-info  (ref eq))  ;; optional struct-type-property? (#f default)
+             (result            (ref eq))
+
+             (local $clos     (ref $Closure))
+             (local $prop     (ref eq))
+             (local $expected (ref eq))
+
+             (local.set $expected (global.get $false))
+             (if (ref.eq (local.get $prop-info) (global.get $false))
+                 (then)
+                 (else
+                  (if (i32.eqz (ref.test (ref $StructTypeProperty) (local.get $prop-info)))
+                      (then (call $raise-argument-error/internal (local.get $prop-info))
+                            (unreachable)))
+                  (local.set $expected (local.get $prop-info))))
+
+             (if (i32.eqz (ref.test (ref $Closure) (local.get $v)))
+                 (then (return (global.get $false))))
+
+             (local.set $clos (ref.cast (ref $Closure) (local.get $v)))
+             (local.set $prop (call $struct-type-property-predicate->descriptor
+                                    (local.get $clos)))
+
+             (if (ref.eq (local.get $prop) (global.get $false))
+                 (then (return (global.get $false))))
+
+             (if (result (ref eq))
+                 (ref.eq (local.get $expected) (global.get $false))
+                 (then (global.get $true))
+                 (else
+                  (if (result (ref eq))
+                      (ref.eq (local.get $prop) (local.get $expected))
+                      (then (global.get $true))
+                      (else (global.get $false))))))))))
+
 ;; struct-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate struct helpers that depend on monolithic runtime globals.
 (define struct-runtime-only-helpers
@@ -5060,6 +5149,7 @@
    struct-guarded-constructor-runtime-only-helpers
    struct-type-property-lookup-runtime-only-helpers
    struct-type-property-closure-runtime-only-helpers
+   struct-type-property-predicate-runtime-only-helpers
    (list
     ;; initialize-prefab-struct-type-registry : -> void
     ;;   Lazily allocate the global prefab struct type registry.
