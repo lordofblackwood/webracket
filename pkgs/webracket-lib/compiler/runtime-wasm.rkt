@@ -161,6 +161,7 @@
                   struct-type-property-lookup-runtime-only-helper-names
                   struct-type-property-closure-runtime-only-helper-names
                   struct-type-property-predicate-runtime-only-helper-names
+                  struct-type-property-descriptor-runtime-only-helper-names
                   struct-runtime-only-helpers)
          (only-in "runtime-wasm/core/symbols.rkt"
                   symbol-gensym-runtime-only-helper-names
@@ -16022,67 +16023,10 @@
          ,@(for/list ([name (in-list struct-type-property-predicate-runtime-only-helper-names)])
              (core-runtime-helper-form runtime-helper-index name))
 
-         (func $make-struct-type-property-descriptor
-               (param $name               (ref eq))
-               (param $guard-info         (ref eq))
-               (param $supers             (ref eq))
-               (param $can-impersonate    (ref eq))
-               (param $accessor-name-info (ref eq))
-
-               (result (ref $StructTypeProperty))
-
-               (if (i32.eqz (ref.test (ref $Symbol) (local.get $name)))
-                   (then (call $raise-argument-error/internal (local.get $name))
-                         (unreachable)))
-
-               (call $make-struct-type-property-descriptor/checked
-                     (ref.cast (ref $Symbol) (local.get $name))
-                     (local.get $guard-info)
-                     (local.get $supers)
-                     (local.get $can-impersonate)
-                     (local.get $accessor-name-info)))
-
-         (func $make-struct-type-property-descriptor/checked
-               (param $name               (ref $Symbol))
-               (param $guard-info         (ref eq))
-               (param $supers             (ref eq))
-               (param $can-impersonate    (ref eq))
-               (param $accessor-name-info (ref eq))
-
-               (result (ref $StructTypeProperty))
-
-               (local $guard        (ref eq))
-               (local $supers-list  (ref eq))
-               (local $impersonate  (ref eq))
-               (local $accessor-tag (ref eq))
-
-               (local.set $guard (local.get $guard-info))
-               (if (ref.eq (local.get $guard) (global.get $missing))
-                   (then (local.set $guard (global.get $false))))
-
-               (local.set $supers-list (local.get $supers))
-               (if (ref.eq (local.get $supers-list) (global.get $missing))
-                   (then (local.set $supers-list (global.get $null)))
-                   (else (if (ref.eq (local.get $supers-list) (global.get $false))
-                             (then (local.set $supers-list (global.get $null))))))
-
-               (local.set $impersonate (local.get $can-impersonate))
-               (if (ref.eq (local.get $impersonate) (global.get $missing))
-                   (then (local.set $impersonate (global.get $false))))
-
-               (local.set $accessor-tag (local.get $accessor-name-info))
-               (if (ref.eq (local.get $accessor-tag) (global.get $missing))
-                   (then (local.set $accessor-tag (global.get $false))))
-
-               (struct.new $StructTypeProperty
-                           (i32.const 0)
-                           (local.get $name)
-                           (local.get $guard)
-                           (local.get $supers-list)
-                           (local.get $impersonate)
-                           (local.get $accessor-tag)
-                           (global.get $false)
-                           (global.get $false)))
+         ;; Struct type property descriptor helpers
+         ;;   Implemented in runtime-wasm/core/structs.rkt.
+         ,@(for/list ([name (in-list struct-type-property-descriptor-runtime-only-helper-names)])
+             (core-runtime-helper-form runtime-helper-index name))
 
          (func $struct-type-property-table-empty
                (result (ref $HashEqMutable))

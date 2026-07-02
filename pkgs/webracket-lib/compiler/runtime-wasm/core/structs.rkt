@@ -26,6 +26,7 @@
          struct-type-property-lookup-runtime-only-helper-names
          struct-type-property-closure-runtime-only-helper-names
          struct-type-property-predicate-runtime-only-helper-names
+         struct-type-property-descriptor-runtime-only-helper-names
          struct-core-runtime-helpers
          struct-runtime-only-helpers)
 
@@ -80,6 +81,12 @@
   '($struct-type-property?
     $struct-type-property-accessor-procedure?
     $struct-type-property-predicate-procedure?))
+
+;; struct-type-property-descriptor-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for struct type property descriptor helpers.
+(define struct-type-property-descriptor-runtime-only-helper-names
+  '($make-struct-type-property-descriptor
+    $make-struct-type-property-descriptor/checked))
 
 ;; struct-basic-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for basic struct helpers.
@@ -5120,6 +5127,80 @@
                       (then (global.get $true))
                       (else (global.get $false))))))))))
 
+;; struct-type-property-descriptor-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Implement struct type property descriptor constructors.
+(define struct-type-property-descriptor-runtime-only-helpers
+  (list
+   (core-runtime-helper
+    '$make-struct-type-property-descriptor
+    "$make-struct-type-property-descriptor"
+    (lambda ()
+      `(func $make-struct-type-property-descriptor
+             (param $name               (ref eq))
+             (param $guard-info         (ref eq))
+             (param $supers             (ref eq))
+             (param $can-impersonate    (ref eq))
+             (param $accessor-name-info (ref eq))
+
+             (result (ref $StructTypeProperty))
+
+             (if (i32.eqz (ref.test (ref $Symbol) (local.get $name)))
+                 (then (call $raise-argument-error/internal (local.get $name))
+                       (unreachable)))
+
+             (call $make-struct-type-property-descriptor/checked
+                   (ref.cast (ref $Symbol) (local.get $name))
+                   (local.get $guard-info)
+                   (local.get $supers)
+                   (local.get $can-impersonate)
+                   (local.get $accessor-name-info)))))
+
+   (core-runtime-helper
+    '$make-struct-type-property-descriptor/checked
+    "$make-struct-type-property-descriptor/checked"
+    (lambda ()
+      `(func $make-struct-type-property-descriptor/checked
+             (param $name               (ref $Symbol))
+             (param $guard-info         (ref eq))
+             (param $supers             (ref eq))
+             (param $can-impersonate    (ref eq))
+             (param $accessor-name-info (ref eq))
+
+             (result (ref $StructTypeProperty))
+
+             (local $guard        (ref eq))
+             (local $supers-list  (ref eq))
+             (local $impersonate  (ref eq))
+             (local $accessor-tag (ref eq))
+
+             (local.set $guard (local.get $guard-info))
+             (if (ref.eq (local.get $guard) (global.get $missing))
+                 (then (local.set $guard (global.get $false))))
+
+             (local.set $supers-list (local.get $supers))
+             (if (ref.eq (local.get $supers-list) (global.get $missing))
+                 (then (local.set $supers-list (global.get $null)))
+                 (else (if (ref.eq (local.get $supers-list) (global.get $false))
+                           (then (local.set $supers-list (global.get $null))))))
+
+             (local.set $impersonate (local.get $can-impersonate))
+             (if (ref.eq (local.get $impersonate) (global.get $missing))
+                 (then (local.set $impersonate (global.get $false))))
+
+             (local.set $accessor-tag (local.get $accessor-name-info))
+             (if (ref.eq (local.get $accessor-tag) (global.get $missing))
+                 (then (local.set $accessor-tag (global.get $false))))
+
+             (struct.new $StructTypeProperty
+                         (i32.const 0)
+                         (local.get $name)
+                         (local.get $guard)
+                         (local.get $supers-list)
+                         (local.get $impersonate)
+                         (local.get $accessor-tag)
+                         (global.get $false)
+                         (global.get $false)))))))
+
 ;; struct-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate struct helpers that depend on monolithic runtime globals.
 (define struct-runtime-only-helpers
@@ -5150,6 +5231,7 @@
    struct-type-property-lookup-runtime-only-helpers
    struct-type-property-closure-runtime-only-helpers
    struct-type-property-predicate-runtime-only-helpers
+   struct-type-property-descriptor-runtime-only-helpers
    (list
     ;; initialize-prefab-struct-type-registry : -> void
     ;;   Lazily allocate the global prefab struct type registry.
