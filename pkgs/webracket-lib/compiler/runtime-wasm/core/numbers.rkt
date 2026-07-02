@@ -5,6 +5,7 @@
          generic-numeric-runtime-only-helper-names
          number-runtime-only-helpers
          number-string-conversion-runtime-only-helper-names
+         floating-point-byte-conversion-runtime-only-helper-names
          numeric-formatting-runtime-only-helper-names
          string-number-conversion-runtime-only-helper-names
          number-type-runtime-only-helper-names)
@@ -80,6 +81,13 @@
     $string->number:parse-fractional-part
     $string->number:parse-integer
     $string->number))
+
+;; floating-point-byte-conversion-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for floating-point byte conversion helpers.
+(define floating-point-byte-conversion-runtime-only-helper-names
+  '($floating-point-bytes->real
+    $real->floating-point-bytes
+    $real->floating-point-bytes/checked))
 
 ;; numeric-formatting-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for numeric formatting helpers.
@@ -3189,6 +3197,289 @@
                        (i32.const 0)
                        (local.get $res))))))
 
+;; floating-point-byte-conversion-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate floating-point byte conversion helpers used by the monolithic runtime.
+(define floating-point-byte-conversion-runtime-only-helpers
+  (function-forms->runtime-helpers
+   'floating-point-byte-conversion-runtime-only-helpers
+   '(
+     (func $floating-point-bytes->real (type $Prim4)
+           (param $bstr  (ref eq)) ; bytes?
+           (param $big?  (ref eq)) ; any, default to (system-big-endian?) which is #f
+           (param $start (ref eq)) ; exact-non-negative-integer, defaults to 0
+           (param $end   (ref eq)) ; exact-nonnegative-integer?, defaults to (bytes-length bstr)
+           (result       (ref eq))
+
+           (local $bs      (ref null $Bytes))
+           (local $arr     (ref $I8Array))
+           (local $from    i32)
+           (local $to      i32)
+           (local $len     i32)
+           (local $nbytes  i32)
+           (local $big-i32 i32)
+           (local $i       i32)
+           (local $idx     i32)
+           (local $byte    i32)
+           (local $val     i64)
+
+           ;; --- Validate byte string ---
+           (if (ref.test (ref $Bytes) (local.get $bstr))
+               (then (local.set $bs (ref.cast (ref $Bytes) (local.get $bstr))))
+               (else (call $raise-check-bytes (local.get $bstr)) (unreachable)))
+
+           (local.set $arr (struct.get $Bytes $bs (local.get $bs)))
+           (local.set $len (call $i8array-length (local.get $arr)))
+
+           ;; --- Decode start ---
+           (if (ref.eq (local.get $start) (global.get $missing))
+               (then (local.set $from (i32.const 0)))
+               (else (if (ref.test (ref i31) (local.get $start))
+                         (then (local.set $from (i31.get_u (ref.cast (ref i31) (local.get $start))))
+                               (if (i32.eqz (i32.and (local.get $from) (i32.const 1)))
+                                   (then (local.set $from (i32.shr_u (local.get $from) (i32.const 1))))
+                                   (else (call $raise-check-fixnum (local.get $start)) (unreachable))))
+                         (else (call $raise-check-fixnum (local.get $start)) (unreachable)))))
+
+           ;; --- Decode end ---
+           (if (ref.eq (local.get $end) (global.get $missing))
+               (then (local.set $to (local.get $len)))
+               (else (if (ref.test (ref i31) (local.get $end))
+                         (then (local.set $to (i31.get_u (ref.cast (ref i31) (local.get $end))))
+                               (if (i32.eqz (i32.and (local.get $to) (i32.const 1)))
+                                   (then (local.set $to (i32.shr_u (local.get $to) (i32.const 1))))
+                                   (else (call $raise-check-fixnum (local.get $end)) (unreachable))))
+                         (else (call $raise-check-fixnum (local.get $end)) (unreachable)))))
+
+           ;; --- Bounds check ---
+           (if (i32.gt_u (local.get $from) (local.get $to))
+               (then (call $raise-bad-bytes-range (local.get $bstr) (local.get $from) (local.get $to)) (unreachable)))
+           (if (i32.gt_u (local.get $to) (local.get $len))
+               (then (call $raise-bad-bytes-range (local.get $bstr) (local.get $from) (local.get $to)) (unreachable)))
+
+           (local.set $nbytes (i32.sub (local.get $to) (local.get $from)))
+           (if (i32.and (i32.ne (local.get $nbytes) (i32.const 4))
+                        (i32.ne (local.get $nbytes) (i32.const 8)))
+               (then (call $raise-argument-error/internal (local.get $bstr)) (unreachable)))
+
+           ;; --- Decode big-endian? ---
+           (if (ref.eq (local.get $big?) (global.get $missing))
+               (then (local.set $big-i32 (i32.const 0)))
+               (else (if (ref.eq (local.get $big?) (global.get $false))
+                         (then (local.set $big-i32 (i32.const 0)))
+                         (else (if (ref.eq (local.get $big?) (global.get $true))
+                                   (then (local.set $big-i32 (i32.const 1)))
+                                   (else (call $raise-argument-error/internal (local.get $big?)) (unreachable)))))))
+
+           ;; --- Accumulate bytes into i64 ---
+           (local.set $val (i64.const 0))
+           (local.set $i (i32.const 0))
+           (block $done
+                  (loop $loop
+                        (br_if $done (i32.ge_u (local.get $i) (local.get $nbytes)))
+                        (if (i32.eqz (local.get $big-i32))
+                            (then (local.set $idx (i32.add (local.get $from) (local.get $i))))
+                            (else (local.set $idx
+                                               (i32.add (local.get $from)
+                                                        (i32.sub
+                                                         (i32.add (local.get $nbytes) (i32.const -1))
+                                                         (local.get $i))))))
+                        (local.set $byte (call $i8array-ref (local.get $arr) (local.get $idx)))
+                        (local.set $val
+                                   (i64.or
+                                    (local.get $val)
+                                    (i64.shl (i64.extend_i32_u (local.get $byte))
+                                             (i64.extend_i32_u (i32.shl (local.get $i) (i32.const 3))))))
+                        (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                        (br $loop)))
+
+           ;; --- Produce result ---
+           (if (i32.eq (local.get $nbytes) (i32.const 4))
+               (then (return (struct.new $Flonum
+                                          (i32.const 0)
+                                          (f64.promote_f32
+                                           (f32.reinterpret_i32
+                                            (i32.wrap_i64 (local.get $val)))))))
+               (else (return (struct.new $Flonum
+                                          (i32.const 0)
+                                          (f64.reinterpret_i64 (local.get $val))))))
+           (unreachable))
+
+     ;; real->floating-point-bytes
+     ;; Convert a real number to its IEEE floating-point byte representation.
+     ;; Only fixnums and flonums are supported for now. The start argument
+     ;; defaults to 0 when omitted, and a provided destination must be a
+     ;; mutable byte string of sufficient length. The big-endian? argument
+     ;; defaults to #f.
+     (func $real->floating-point-bytes (type $Prim25)
+           (param $x         (ref eq))  ; real?
+           (param $size-raw  (ref eq))  ; (or/c 4 8)
+           (param $big-raw   (ref eq))  ; any/c, defaults to (system-big-endian?) = #f
+           (param $dest-raw  (ref eq))  ; (and/c bytes? (not/c immutable?))
+           (param $start-raw (ref eq))  ; exact-nonnegative-integer? = 0
+           (result           (ref eq))
+
+           (local $size   i32)
+           (local $big    i32)
+           (local $dest   (ref $Bytes))
+           (local $arr    (ref $I8Array))
+           (local $fl     (ref $Flonum))
+           (local $val    f64)
+           (local $start  i32)
+
+           ;; --- Decode and validate size ---
+           (if (i32.eqz (ref.test (ref i31) (local.get $size-raw)))
+               (then (call $raise-check-fixnum (local.get $size-raw)) (unreachable)))
+           (local.set $size (i31.get_u (ref.cast (ref i31) (local.get $size-raw))))
+           (if (i32.and (local.get $size) (i32.const 1))
+               (then (call $raise-check-fixnum (local.get $size-raw)) (unreachable)))
+           (local.set $size (i32.shr_u (local.get $size) (i32.const 1)))
+           (if (i32.and (i32.ne (local.get $size) (i32.const 4))
+                        (i32.ne (local.get $size) (i32.const 8)))
+               (then (call $raise-argument-error/internal (local.get $size-raw)) (unreachable)))
+
+           ;; --- Decode and validate start (exact-nonnegative-integer?, defaults to 0) ---
+           (local.set $start (i32.const 0))
+           (if (ref.eq (local.get $start-raw) (global.get $missing))
+               (then)
+               (else
+                (if (i32.eqz (ref.test (ref i31) (local.get $start-raw)))
+                    (then (call $raise-check-fixnum (local.get $start-raw)) (unreachable)))
+                (local.set $start (i31.get_s (ref.cast (ref i31) (local.get $start-raw))))
+                (if (i32.and (local.get $start) (i32.const 1))
+                    (then (call $raise-check-fixnum (local.get $start-raw)) (unreachable)))
+                (local.set $start (i32.shr_s (local.get $start) (i32.const 1)))
+                (if (i32.lt_s (local.get $start) (i32.const 0))
+                    (then (call $raise-argument-error/internal (local.get $start-raw)) (unreachable)))))
+
+           ;; --- Allocate or validate destination ---
+           (if (ref.eq (local.get $dest-raw) (global.get $missing))
+               (then (local.set $dest-raw
+                                (call $make-bytes (local.get $size-raw) (global.get $missing)))))
+
+           (if (i32.eqz (ref.test (ref $Bytes) (local.get $dest-raw)))
+               (then (call $raise-argument-error/internal (local.get $start-raw)) (unreachable)))
+
+           (local.set $dest (ref.cast (ref $Bytes) (local.get $dest-raw)))
+
+           (if (struct.get $Bytes $immutable (local.get $dest))
+               (then (call $raise-expected-mutable-bytes (local.get $dest-raw)) (unreachable)))
+
+
+           (local.set $arr (struct.get $Bytes $bs (local.get $dest)))
+
+           (if (i32.lt_u (call $i8array-length (local.get $arr))
+                         (i32.add (local.get $start) (local.get $size)))
+               (then (call $raise-argument-error/internal (local.get $dest-raw)) (unreachable)))
+
+
+           ;; --- Decode big-endian? flag, defaulting to (system-big-endian?) ---
+           (local.set $big (i32.const 0))
+           (if (ref.eq (local.get $big-raw) (global.get $missing))
+               (then
+                (if (ref.eq (call $system-big-endian?) (global.get $false))
+                    (then)
+                    (else (local.set $big (i32.const 1)))))
+               (else
+                (if (ref.eq (local.get $big-raw) (global.get $false))
+                    (then)
+                    (else
+                     (if (ref.eq (local.get $big-raw) (global.get $true))
+                         (then (local.set $big (i32.const 1)))
+                         (else (call $raise-argument-error/internal (local.get $big-raw)) (unreachable)))))))
+
+           ;; --- Convert x to flonum ---
+           (local.set $fl (ref.cast (ref $Flonum) (global.get $flzero)))
+           (if (ref.test (ref $Flonum) (local.get $x))
+               (then (local.set $fl (ref.cast (ref $Flonum) (local.get $x))))
+               (else
+                (if (ref.test (ref i31) (local.get $x))
+                    (then (local.set $fl (call $fx->fl/precise (local.get $x))))
+                    (else (call $raise-expected-number (local.get $x)) (unreachable)))))
+           (local.set $val (struct.get $Flonum $v (local.get $fl)))
+
+           ;; Do it!
+           (return_call $real->floating-point-bytes/checked
+                        (local.get $val)
+                        (local.get $size)
+                        (local.get $big)
+                        (local.get $dest)
+                        (local.get $start)))
+
+     (func $real->floating-point-bytes/checked
+           (param $val   f64)
+           (param $size  i32)
+           (param $big   i32)          ; big endian?
+           (param $dest  (ref $Bytes))
+           (param $start i32)
+           (result       (ref eq))
+
+           (local $arr    (ref $I8Array))
+           (local $bits64 i64)
+           (local $bits32 i32)
+
+           (local.set $arr (struct.get $Bytes $bs (local.get $dest)))
+           (if (result (ref eq))
+               (i32.eq (local.get $size) (i32.const 8))
+               (then
+                (local.set $bits64 (i64.reinterpret_f64 (local.get $val)))
+                (if (i32.eqz (local.get $big))
+                    (then
+                     (call $i8array-set! (local.get $arr) (local.get $start) (i32.wrap_i64 (local.get $bits64)))
+                     (call $i8array-set! (local.get $arr) (i32.add (local.get $start) (i32.const 1))
+                           (i32.wrap_i64 (i64.shr_u (local.get $bits64) (i64.const 8))))
+                     (call $i8array-set! (local.get $arr) (i32.add (local.get $start) (i32.const 2))
+                           (i32.wrap_i64 (i64.shr_u (local.get $bits64) (i64.const 16))))
+                     (call $i8array-set! (local.get $arr) (i32.add (local.get $start) (i32.const 3))
+                           (i32.wrap_i64 (i64.shr_u (local.get $bits64) (i64.const 24))))
+                     (call $i8array-set! (local.get $arr) (i32.add (local.get $start) (i32.const 4))
+                           (i32.wrap_i64 (i64.shr_u (local.get $bits64) (i64.const 32))))
+                     (call $i8array-set! (local.get $arr) (i32.add (local.get $start) (i32.const 5))
+                           (i32.wrap_i64 (i64.shr_u (local.get $bits64) (i64.const 40))))
+                     (call $i8array-set! (local.get $arr) (i32.add (local.get $start) (i32.const 6))
+                           (i32.wrap_i64 (i64.shr_u (local.get $bits64) (i64.const 48))))
+                     (call $i8array-set! (local.get $arr) (i32.add (local.get $start) (i32.const 7))
+                           (i32.wrap_i64 (i64.shr_u (local.get $bits64) (i64.const 56)))))
+                    (else
+                     (call $i8array-set! (local.get $arr) (local.get $start)
+                           (i32.wrap_i64 (i64.shr_u (local.get $bits64) (i64.const 56))))
+                     (call $i8array-set! (local.get $arr) (i32.add (local.get $start) (i32.const 1))
+                           (i32.wrap_i64 (i64.shr_u (local.get $bits64) (i64.const 48))))
+                     (call $i8array-set! (local.get $arr) (i32.add (local.get $start) (i32.const 2))
+                           (i32.wrap_i64 (i64.shr_u (local.get $bits64) (i64.const 40))))
+                     (call $i8array-set! (local.get $arr) (i32.add (local.get $start) (i32.const 3))
+                           (i32.wrap_i64 (i64.shr_u (local.get $bits64) (i64.const 32))))
+                     (call $i8array-set! (local.get $arr) (i32.add (local.get $start) (i32.const 4))
+                           (i32.wrap_i64 (i64.shr_u (local.get $bits64) (i64.const 24))))
+                     (call $i8array-set! (local.get $arr) (i32.add (local.get $start) (i32.const 5))
+                           (i32.wrap_i64 (i64.shr_u (local.get $bits64) (i64.const 16))))
+                     (call $i8array-set! (local.get $arr) (i32.add (local.get $start) (i32.const 6))
+                           (i32.wrap_i64 (i64.shr_u (local.get $bits64) (i64.const 8))))
+                     (call $i8array-set! (local.get $arr) (i32.add (local.get $start) (i32.const 7))
+                           (i32.wrap_i64 (local.get $bits64)))))
+                (local.get $dest))
+               (else
+                (local.set $bits32 (i32.reinterpret_f32 (f32.demote_f64 (local.get $val))))
+                (if (i32.eqz (local.get $big))
+                    (then
+                     (call $i8array-set! (local.get $arr) (local.get $start)
+                           (i32.and (local.get $bits32) (i32.const 255)))
+                     (call $i8array-set! (local.get $arr) (i32.add (local.get $start) (i32.const 1))
+                           (i32.and (i32.shr_u (local.get $bits32) (i32.const 8)) (i32.const 255)))
+                     (call $i8array-set! (local.get $arr) (i32.add (local.get $start) (i32.const 2))
+                           (i32.and (i32.shr_u (local.get $bits32) (i32.const 16)) (i32.const 255)))
+                     (call $i8array-set! (local.get $arr) (i32.add (local.get $start) (i32.const 3))
+                           (i32.and (i32.shr_u (local.get $bits32) (i32.const 24)) (i32.const 255))))
+                    (else
+                     (call $i8array-set! (local.get $arr) (local.get $start)
+                           (i32.and (i32.shr_u (local.get $bits32) (i32.const 24)) (i32.const 255)))
+                     (call $i8array-set! (local.get $arr) (i32.add (local.get $start) (i32.const 1))
+                           (i32.and (i32.shr_u (local.get $bits32) (i32.const 16)) (i32.const 255)))
+                     (call $i8array-set! (local.get $arr) (i32.add (local.get $start) (i32.const 2))
+                           (i32.and (i32.shr_u (local.get $bits32) (i32.const 8)) (i32.const 255)))
+                     (call $i8array-set! (local.get $arr) (i32.add (local.get $start) (i32.const 3))
+                           (i32.and (local.get $bits32) (i32.const 255)))))
+                (local.get $dest)))))))
+
 ;; numeric-formatting-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate numeric formatting helpers used by the monolithic runtime.
 (define numeric-formatting-runtime-only-helpers
@@ -3577,4 +3868,5 @@
           generic-bitwise-runtime-only-helpers
           number-string-conversion-runtime-only-helpers
           string-number-conversion-runtime-only-helpers
+          floating-point-byte-conversion-runtime-only-helpers
           numeric-formatting-runtime-only-helpers))
