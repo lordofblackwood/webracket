@@ -16,6 +16,7 @@
          port-peek-bytes-bang-runtime-only-helper-names
          port-peek-byte-runtime-only-helper-names
          port-peek-bytes-runtime-only-helper-names
+         port-current-global-forms
          port-write-basic-runtime-only-helper-names
          port-write-bytes-runtime-only-helper-names
          port-runtime-only-helpers)
@@ -27,6 +28,14 @@
                   char-shift
                   char-tag
                   eof-value))
+
+;; port-current-global-forms : (listof datum?)
+;;   Declare globals for current input, output, and error ports.
+(define port-current-global-forms
+  '(
+               (global $current-input-port-value  (mut (ref eq)) (ref.i31 (i32.const 0)))
+               (global $current-output-port-value (mut (ref eq)) (ref.i31 (i32.const 0)))
+               (global $current-error-port-value  (mut (ref eq)) (ref.i31 (i32.const 0)))))
 
 ;; port-predicate-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for port predicate and wrapper helpers.

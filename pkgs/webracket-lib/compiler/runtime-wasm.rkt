@@ -129,6 +129,7 @@
                   impersonator-basic-runtime-only-helper-names
                   impersonator-runtime-only-helpers)
          (only-in "runtime-wasm/core/io-handlers.rkt"
+                  io-handler-default-port-global-forms
                   io-handler-error-runtime-only-helper-names
                   io-handler-port-runtime-only-helper-names
                   io-handler-reader-printer-runtime-only-helper-names
@@ -211,6 +212,7 @@
                   port-peek-byte-runtime-only-helper-names
                   port-peek-bytes-bang-runtime-only-helper-names
                   port-peek-bytes-runtime-only-helper-names
+                  port-current-global-forms
                   port-predicate-runtime-only-helper-names
                   port-read-bytes-runtime-only-helper-names
                   port-read-line-runtime-only-helper-names
@@ -7144,18 +7146,13 @@
                (global $current-load-relative-directory-path (mut (ref eq)) (global.get $false))
                (global $current-environment-variables-value (mut (ref eq)) (ref.i31 (i32.const 0)))
                (global $temporary-file-counter   (mut i32)      (i32.const 0))
-               (global $current-input-port-value  (mut (ref eq)) (ref.i31 (i32.const 0)))
-               (global $current-output-port-value (mut (ref eq)) (ref.i31 (i32.const 0)))
-               (global $current-error-port-value  (mut (ref eq)) (ref.i31 (i32.const 0)))
+               ,@port-current-global-forms
                (global $current-print-value       (mut (ref eq)) (global.get $false))
                (global $current-read-interaction-value (mut (ref eq)) (global.get $false))
                (global $current-logger-value      (mut (ref eq)) (global.get $false))
                (global $current-security-guard-value (mut (ref eq)) (global.get $false))
                (global $current-custodian-value   (mut (ref eq)) (global.get $false))
-               (global $default-port-read-handler-value (mut (ref eq)) (global.get $false))
-               (global $default-port-write-handler-value (mut (ref eq)) (global.get $false))
-               (global $default-port-display-handler-value (mut (ref eq)) (global.get $false))
-               (global $default-port-print-handler-value (mut (ref eq)) (global.get $false))
+               ,@io-handler-default-port-global-forms
                ,@reader-printer-policy-parameter-global-forms
                (global $current-compile-target-machine-value (mut (ref eq)) (global.get $false))
                (global $current-compile-realm-value (mut (ref eq)) (global.get $false))

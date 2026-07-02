@@ -1,11 +1,21 @@
 #lang racket
 
 (provide io-handler-reader-printer-runtime-only-helper-names
+         io-handler-default-port-global-forms
          io-handler-port-runtime-only-helper-names
          io-handler-error-runtime-only-helper-names
          io-handler-runtime-only-helpers)
 
 (require "../core-helper.rkt")
+
+;; io-handler-default-port-global-forms : (listof datum?)
+;;   Declare globals for default port read, write, display, and print handlers.
+(define io-handler-default-port-global-forms
+  '(
+               (global $default-port-read-handler-value (mut (ref eq)) (global.get $false))
+               (global $default-port-write-handler-value (mut (ref eq)) (global.get $false))
+               (global $default-port-display-handler-value (mut (ref eq)) (global.get $false))
+               (global $default-port-print-handler-value (mut (ref eq)) (global.get $false))))
 
 ;; make-predicate-body : symbol? -> (listof datum?)
 ;;   Generate a standard WebRacket predicate body for ref-type.
