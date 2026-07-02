@@ -11,6 +11,7 @@
          struct-prefab-chain-runtime-only-helper-names
          struct-prefab-struct-type-runtime-only-helper-names
          struct-prefab-metadata-runtime-only-helper-names
+         struct-prefab-immutables-runtime-only-helper-names
          struct-procedure-predicate-runtime-only-helper-names
          struct-core-runtime-helpers
          struct-runtime-only-helpers)
@@ -129,6 +130,11 @@
     $prefab-struct-type-key+field-count
     $prefab-struct-key
     $prefab-struct-field-mutable?/i32))
+
+;; struct-prefab-immutables-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for prefab immutability mask helpers.
+(define struct-prefab-immutables-runtime-only-helper-names
+  '($simple-prefab-immutables->mutables))
 
 ;; struct-procedure-predicate-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for struct procedure predicates.
@@ -2698,6 +2704,128 @@
                  (local.get $index)))
      )))
 
+
+;; struct-prefab-immutables-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate prefab immutability mask helpers used by the monolithic runtime.
+(define struct-prefab-immutables-runtime-only-helpers
+  (function-forms->runtime-helpers
+   'struct-prefab-immutables-runtime-only-helpers
+   '(
+     ;; simple-prefab-immutables->mutables : any/c i32 -> vector?
+     ;;   Convert make-struct-type immutables into a prefab mutable-field mask.
+     (func $simple-prefab-immutables->mutables
+           (param $immutables  (ref eq))
+           (param $field-count i32)
+           (result             (ref $Vector))
+
+           (local $cursor       (ref eq))
+           (local $cell         (ref $Pair))
+           (local $raw          (ref eq))
+           (local $immutable-i  i32)
+           (local $i            i32)
+           (local $immutable?   i32)
+           (local $mutable-seen i32)
+           (local $arr          (ref $Array))
+
+           (if (i32.or (ref.eq (local.get $immutables) (global.get $false))
+                       (ref.eq (local.get $immutables) (global.get $missing)))
+               (then (return
+                      (struct.new $Vector
+                                  (i32.const 0)
+                                  (i32.const 0)
+                                  (array.new $Array (global.get $false) (i32.const 0))))))
+           (if (ref.eq (local.get $immutables) (global.get $null))
+               (then
+                (local.set $arr (array.new $Array (global.get $false) (local.get $field-count)))
+                (local.set $i (i32.const 0))
+                (block $done-all
+                       (loop $fill-all
+                             (br_if $done-all (i32.ge_u (local.get $i) (local.get $field-count)))
+                             (array.set $Array
+                                        (local.get $arr)
+                                        (local.get $i)
+                                        (ref.i31 (i32.shl (local.get $i) (i32.const 1))))
+                             (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                             (br $fill-all)))
+                (return
+                 (struct.new $Vector
+                             (i32.const 0)
+                             (i32.const 0)
+                             (local.get $arr)))))
+
+           (local.set $mutable-seen (i32.const 0))
+           (local.set $i            (i32.const 0))
+           (block $done-fields
+                  (loop $field
+                        (br_if $done-fields (i32.ge_u (local.get $i) (local.get $field-count)))
+                        (local.set $immutable? (i32.const 0))
+                        (local.set $cursor (local.get $immutables))
+                        (block $done-list
+                               (loop $walk
+                                     (br_if $done-list (ref.eq (local.get $cursor) (global.get $null)))
+                                     (if (i32.eqz (ref.test (ref $Pair) (local.get $cursor)))
+                                         (then (call $raise-argument-error/internal (local.get $immutables))
+                                               (unreachable)))
+                                     (local.set $cell (ref.cast (ref $Pair) (local.get $cursor)))
+                                     (local.set $raw (struct.get $Pair $a (local.get $cell)))
+                                     (if (ref.eq (call $exact-nonnegative-integer? (local.get $raw))
+                                                 (global.get $false))
+                                         (then (call $raise-argument-error/internal (local.get $raw))
+                                               (unreachable)))
+                                     (local.set $immutable-i
+                                                (i32.shr_s
+                                                 (i31.get_s (ref.cast (ref i31) (local.get $raw)))
+                                                 (i32.const 1)))
+                                     (if (i32.ge_u (local.get $immutable-i) (local.get $field-count))
+                                         (then (call $raise-argument-error/internal (local.get $raw))
+                                               (unreachable)))
+                                     (if (i32.eq (local.get $immutable-i) (local.get $i))
+                                         (then (local.set $immutable? (i32.const 1))))
+                                     (local.set $cursor (struct.get $Pair $d (local.get $cell)))
+                                     (br $walk)))
+                        (if (i32.eqz (local.get $immutable?))
+                            (then
+                             (local.set $mutable-seen
+                                        (i32.add (local.get $mutable-seen) (i32.const 1)))))
+                        (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                        (br $field)))
+           (local.set $arr (array.new $Array (global.get $false) (local.get $mutable-seen)))
+           (local.set $mutable-seen (i32.const 0))
+           (local.set $i            (i32.const 0))
+           (block $done-fill
+                  (loop $fill
+                        (br_if $done-fill (i32.ge_u (local.get $i) (local.get $field-count)))
+                        (local.set $immutable? (i32.const 0))
+                        (local.set $cursor (local.get $immutables))
+                        (block $done-list-fill
+                               (loop $walk-fill
+                                     (br_if $done-list-fill (ref.eq (local.get $cursor) (global.get $null)))
+                                     (local.set $cell (ref.cast (ref $Pair) (local.get $cursor)))
+                                     (local.set $raw (struct.get $Pair $a (local.get $cell)))
+                                     (local.set $immutable-i
+                                                (i32.shr_s
+                                                 (i31.get_s (ref.cast (ref i31) (local.get $raw)))
+                                                 (i32.const 1)))
+                                     (if (i32.eq (local.get $immutable-i) (local.get $i))
+                                         (then (local.set $immutable? (i32.const 1))))
+                                     (local.set $cursor (struct.get $Pair $d (local.get $cell)))
+                                     (br $walk-fill)))
+                        (if (i32.eqz (local.get $immutable?))
+                            (then
+                             (array.set $Array
+                                        (local.get $arr)
+                                        (local.get $mutable-seen)
+                                        (ref.i31 (i32.shl (local.get $i) (i32.const 1))))
+                             (local.set $mutable-seen
+                                        (i32.add (local.get $mutable-seen) (i32.const 1)))))
+                        (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                        (br $fill)))
+           (struct.new $Vector
+                       (i32.const 0)
+                       (i32.const 0)
+                       (local.get $arr)))
+     )))
+
 ;; struct-procedure-predicate-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate predicates for generated struct procedure wrappers.
 (define struct-procedure-predicate-runtime-only-helpers
@@ -2752,6 +2880,7 @@
    struct-prefab-chain-runtime-only-helpers
    struct-prefab-struct-type-runtime-only-helpers
    struct-prefab-metadata-runtime-only-helpers
+   struct-prefab-immutables-runtime-only-helpers
    struct-procedure-predicate-runtime-only-helpers
    (list
     ;; initialize-prefab-struct-type-registry : -> void
