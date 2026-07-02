@@ -29,6 +29,7 @@
          struct-type-property-descriptor-runtime-only-helper-names
          struct-type-property-table-runtime-only-helper-names
          struct-type-property-constructor-runtime-only-helper-names
+         struct-procedure-invoker-runtime-only-helper-names
          struct-procedure-runtime-only-helper-names
          struct-core-runtime-helpers
          struct-runtime-only-helpers)
@@ -117,6 +118,11 @@
     $struct-procedure-delegate
     $procedure-struct-type?
     $checked-procedure-check-and-extract))
+
+;; struct-procedure-invoker-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for the struct procedure invoker.
+(define struct-procedure-invoker-runtime-only-helper-names
+  '($invoke-struct))
 
 ;; struct-basic-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for basic struct helpers.
@@ -5892,6 +5898,115 @@
                  (local.get $realm-info)))
      )))
 
+;; struct-procedure-invoker-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Implement the invoker for structs that behave as procedures.
+(define struct-procedure-invoker-runtime-only-helpers
+  (function-forms->runtime-helpers
+   'struct-procedure-invoker-runtime-only-helpers
+   '(
+     (func $invoke-struct (type $ProcedureInvoker)
+           (param $proc (ref $Procedure)) ; type check: an $Struct is expected
+           (param $args (ref $Args))      ; an array of (ref eq)
+           (result      (ref eq))
+
+           (local $struct       (ref $Struct))
+           (local $type         (ref $StructType))
+           (local $prop-desc    (ref $StructTypeProperty))
+           (local $sentinel     (ref eq))
+           (local $prop-val     (ref eq))
+           (local $fields       (ref $Array))
+           (local $idx          i32)
+           (local $super        (ref eq))
+           (local $super-type   (ref null $StructType))
+           (local $super-count  i32)
+           (local $abs-index    i32)
+           (local $target       (ref eq))
+           (local $delegate     (ref $Procedure))
+           (local $delegate-inv (ref $ProcedureInvoker))
+           (local $argc         i32)
+           (local $packed-args  (ref $Args))
+           (local $i            i32)
+           (local $struct-name  (ref eq))
+
+           ;; Validate and cast the incoming procedure reference.
+           (if (i32.eqz (ref.test (ref $Struct) (local.get $proc)))
+               (then (call $raise-application-not-procedure (local.get $proc))
+                     (unreachable)))
+           (local.set $struct (ref.cast (ref $Struct) (local.get $proc)))
+           (local.set $argc (array.len (local.get $args)))
+
+           ;; Look up the prop:procedure association for the structure type.
+           (local.set $type (struct.get $Struct $type (local.get $struct)))
+           (local.set $struct-name (struct.get $StructType $name (local.get $type)))
+           (local.set $prop-desc
+                      (ref.cast (ref $StructTypeProperty)
+                                (global.get $prop:procedure)))
+           (local.set $sentinel (call $cons (global.get $false) (global.get $false)))
+           (local.set $prop-val
+                      (call $struct-type-property-lookup
+                            (local.get $type)
+                            (local.get $prop-desc)
+                            (local.get $sentinel)))
+
+           ;; Abort when the structure type is not applicable.
+           (if (ref.eq (local.get $prop-val) (local.get $sentinel))
+               (then (call $raise-application-not-procedure (ref.cast (ref eq) (local.get $struct)))
+                     (unreachable)))
+
+           ;; Case 1: property designates a structure field containing a procedure.
+           (if (ref.test (ref i31) (local.get $prop-val))
+               (then
+                (local.set $idx (i32.shr_u (i31.get_u (ref.cast (ref i31) (local.get $prop-val)))
+                                           (i32.const 1)))
+                (local.set $super (struct.get $StructType $super (local.get $type)))
+                (local.set $super-type (ref.null $StructType))
+                (local.set $super-count (i32.const 0))
+                (if (i32.eqz (ref.eq (local.get $super) (global.get $false)))
+                    (then (local.set $super-type (ref.cast (ref $StructType) (local.get $super)))
+                          (local.set $super-count
+                                     (struct.get $StructType $field-count (local.get $super-type)))))
+                (local.set $fields (struct.get $Struct $fields (local.get $struct)))
+                (local.set $abs-index (i32.add (local.get $super-count) (local.get $idx)))
+                (local.set $target (array.get $Array (local.get $fields) (local.get $abs-index)))
+                (if (i32.eqz (ref.test (ref $Procedure) (local.get $target)))
+                    (then (call $raise-arity-mismatch/name+given
+                                (local.get $struct-name)
+                                (local.get $argc))
+                          (unreachable)))
+                (local.set $delegate (ref.cast (ref $Procedure) (local.get $target)))
+                (local.set $delegate-inv (struct.get $Procedure $invoke (local.get $delegate)))
+                (return_call_ref $ProcedureInvoker
+                                 (local.get $delegate)
+                                 (local.get $args)
+                                 (local.get $delegate-inv))))
+
+           ;; Case 2: property supplies a procedure to receive the structure + arguments.
+           (if (i32.eqz (ref.test (ref $Procedure) (local.get $prop-val)))
+               (then (call $raise-arity-mismatch/name+given
+                           (local.get $struct-name)
+                           (local.get $argc))
+                     (unreachable)))
+           (local.set $delegate (ref.cast (ref $Procedure) (local.get $prop-val)))
+           (local.set $delegate-inv (struct.get $Procedure $invoke (local.get $delegate)))
+           (local.set $packed-args
+                      (array.new $Args (global.get $null)
+                                 (i32.add (local.get $argc) (i32.const 1))))
+           (array.set $Args (local.get $packed-args) (i32.const 0) (local.get $struct))
+           (local.set $i (i32.const 0))
+           (block $done
+                  (loop $copy
+                        (br_if $done (i32.ge_u (local.get $i) (local.get $argc)))
+                        (array.set $Args (local.get $packed-args)
+                                   (i32.add (local.get $i) (i32.const 1))
+                                   (array.get $Args (local.get $args) (local.get $i)))
+                        (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                        (br $copy)))
+           (return_call_ref $ProcedureInvoker
+                            (local.get $delegate)
+                            (local.get $packed-args)
+                            (local.get $delegate-inv)))
+     )))
+
 ;; struct-procedure-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Implement helpers for structs that behave as procedures.
 (define struct-procedure-runtime-only-helpers
@@ -6233,6 +6348,7 @@
    struct-type-property-descriptor-runtime-only-helpers
    struct-type-property-table-runtime-only-helpers
    struct-type-property-constructor-runtime-only-helpers
+   struct-procedure-invoker-runtime-only-helpers
    struct-procedure-runtime-only-helpers
    (list
     ;; initialize-prefab-struct-type-registry : -> void
