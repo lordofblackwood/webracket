@@ -23,6 +23,7 @@
          struct-field-accessor-runtime-only-helper-names
          struct-procedure-predicate-runtime-only-helper-names
          struct-guarded-constructor-runtime-only-helper-names
+         struct-type-property-lookup-runtime-only-helper-names
          struct-core-runtime-helpers
          struct-runtime-only-helpers)
 
@@ -56,6 +57,12 @@
   '($struct-constructor/with-guard
     $fill-fields-from-args
     $fill-fields-from-values))
+
+;; struct-type-property-lookup-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for struct type property lookup helpers.
+(define struct-type-property-lookup-runtime-only-helper-names
+  '($struct-type-property-lookup
+    $struct-type-property-lookup-by-name))
 
 ;; struct-basic-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for basic struct helpers.
@@ -4680,6 +4687,70 @@
                         (br $loop))))
      )))
 
+;; struct-type-property-lookup-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate struct type property lookup helpers used by the monolithic runtime.
+(define struct-type-property-lookup-runtime-only-helpers
+  (function-forms->runtime-helpers
+   'struct-type-property-lookup-runtime-only-helpers
+   '(
+     (func $struct-type-property-lookup
+           (param $std      (ref $StructType))
+           (param $prop     (ref $StructTypeProperty))
+           (param $sentinel (ref eq))
+           (result (ref eq))
+
+           (local $table (ref eq))
+
+           (local.set $table (struct.get $StructType $properties (local.get $std)))
+           (call $hasheq-ref/plain
+                 (local.get $table)
+                 (ref.cast (ref eq) (local.get $prop))
+                 (local.get $sentinel)))
+
+     (func $struct-type-property-lookup-by-name
+           (param $std      (ref $StructType))
+           (param $name     (ref $Symbol))
+           (param $sentinel (ref eq))
+           (result (ref eq))
+
+           (local $table     (ref $HashEqMutable))
+           (local $alist     (ref eq))
+           (local $cursor    (ref eq))
+           (local $cell      (ref $Pair))
+           (local $entry-raw (ref eq))
+           (local $entry     (ref $Pair))
+           (local $prop      (ref $StructTypeProperty))
+
+           (local.set $table
+                      (ref.cast (ref $HashEqMutable)
+                                (struct.get $StructType $properties (local.get $std))))
+           (local.set $alist (call $hasheq->list/plain/checked (local.get $table)))
+           (local.set $cursor (local.get $alist))
+           (block $done
+                  (loop $walk
+                        (br_if $done (ref.eq (local.get $cursor) (global.get $null)))
+                        (if (i32.eqz (ref.test (ref $Pair) (local.get $cursor)))
+                            (then (call $raise-argument-error/internal (local.get $cursor))
+                                  (unreachable)))
+                        (local.set $cell (ref.cast (ref $Pair) (local.get $cursor)))
+                        (local.set $entry-raw (struct.get $Pair $a (local.get $cell)))
+                        (if (i32.eqz (ref.test (ref $Pair) (local.get $entry-raw)))
+                            (then (call $raise-argument-error/internal (local.get $entry-raw))
+                                  (unreachable)))
+                        (local.set $entry (ref.cast (ref $Pair) (local.get $entry-raw)))
+                        (local.set $prop
+                                   (ref.cast (ref $StructTypeProperty)
+                                             (struct.get $Pair $a (local.get $entry))))
+                        (if (i32.eq (call $symbol=?/i32
+                                           (struct.get $StructTypeProperty $name (local.get $prop))
+                                           (local.get $name))
+                                     (i32.const 1))
+                            (then (return (struct.get $Pair $d (local.get $entry)))))
+                        (local.set $cursor (struct.get $Pair $d (local.get $cell)))
+                        (br $walk)))
+           (local.get $sentinel))
+     )))
+
 ;; struct-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate struct helpers that depend on monolithic runtime globals.
 (define struct-runtime-only-helpers
@@ -4707,6 +4778,7 @@
    struct-field-accessor-runtime-only-helpers
    struct-procedure-predicate-runtime-only-helpers
    struct-guarded-constructor-runtime-only-helpers
+   struct-type-property-lookup-runtime-only-helpers
    (list
     ;; initialize-prefab-struct-type-registry : -> void
     ;;   Lazily allocate the global prefab struct type registry.

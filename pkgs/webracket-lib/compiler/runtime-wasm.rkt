@@ -158,6 +158,7 @@
                   struct-field-accessor-runtime-only-helper-names
                   struct-procedure-predicate-runtime-only-helper-names
                   struct-guarded-constructor-runtime-only-helper-names
+                  struct-type-property-lookup-runtime-only-helper-names
                   struct-runtime-only-helpers)
          (only-in "runtime-wasm/core/symbols.rkt"
                   symbol-gensym-runtime-only-helper-names
@@ -16004,62 +16005,10 @@
          ;; Structure Type Properties
          ;; -------------------------------------------------------------------
 
-         (func $struct-type-property-lookup
-               (param $std      (ref $StructType))
-               (param $prop     (ref $StructTypeProperty))
-               (param $sentinel (ref eq))
-               (result (ref eq))
-
-               (local $table (ref eq))
-
-               (local.set $table (struct.get $StructType $properties (local.get $std)))
-               (call $hasheq-ref/plain
-                     (local.get $table)
-                     (ref.cast (ref eq) (local.get $prop))
-                     (local.get $sentinel)))
-
-         (func $struct-type-property-lookup-by-name
-               (param $std      (ref $StructType))
-               (param $name     (ref $Symbol))
-               (param $sentinel (ref eq))
-               (result (ref eq))
-
-               (local $table     (ref $HashEqMutable))
-               (local $alist     (ref eq))
-               (local $cursor    (ref eq))
-               (local $cell      (ref $Pair))
-               (local $entry-raw (ref eq))
-               (local $entry     (ref $Pair))
-               (local $prop      (ref $StructTypeProperty))
-
-               (local.set $table
-                          (ref.cast (ref $HashEqMutable)
-                                    (struct.get $StructType $properties (local.get $std))))
-               (local.set $alist (call $hasheq->list/plain/checked (local.get $table)))
-               (local.set $cursor (local.get $alist))
-               (block $done
-                      (loop $walk
-                            (br_if $done (ref.eq (local.get $cursor) (global.get $null)))
-                            (if (i32.eqz (ref.test (ref $Pair) (local.get $cursor)))
-                                (then (call $raise-argument-error/internal (local.get $cursor))
-                                      (unreachable)))
-                            (local.set $cell (ref.cast (ref $Pair) (local.get $cursor)))
-                            (local.set $entry-raw (struct.get $Pair $a (local.get $cell)))
-                            (if (i32.eqz (ref.test (ref $Pair) (local.get $entry-raw)))
-                                (then (call $raise-argument-error/internal (local.get $entry-raw))
-                                      (unreachable)))
-                            (local.set $entry (ref.cast (ref $Pair) (local.get $entry-raw)))
-                            (local.set $prop
-                                       (ref.cast (ref $StructTypeProperty)
-                                                 (struct.get $Pair $a (local.get $entry))))
-                            (if (i32.eq (call $symbol=?/i32
-                                               (struct.get $StructTypeProperty $name (local.get $prop))
-                                               (local.get $name))
-                                         (i32.const 1))
-                                (then (return (struct.get $Pair $d (local.get $entry)))))
-                            (local.set $cursor (struct.get $Pair $d (local.get $cell)))
-                            (br $walk)))
-               (local.get $sentinel))
+         ;; Struct type property lookup helpers
+         ;;   Implemented in runtime-wasm/core/structs.rkt.
+         ,@(for/list ([name (in-list struct-type-property-lookup-runtime-only-helper-names)])
+             (core-runtime-helper-form runtime-helper-index name))
 
          (func $struct-type-property-predicate (type $ClosureCode)
                (param $clos           (ref $Closure))
