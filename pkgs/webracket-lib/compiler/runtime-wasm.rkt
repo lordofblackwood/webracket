@@ -141,6 +141,24 @@
                   path-runtime-only-helper-names
                   path-manipulation-runtime-only-helper-names)
          (only-in "runtime-wasm/core/ports.rkt"
+                  port-byte-char-runtime-only-helper-names
+                  port-byte-char-special-runtime-only-helper-names
+                  port-custom-byte-runtime-only-helper-names
+                  port-custom-constructor-runtime-only-helper-names
+                  port-event-runtime-only-helper-names
+                  port-location-runtime-only-helper-names
+                  port-peek-byte-runtime-only-helper-names
+                  port-peek-bytes-bang-runtime-only-helper-names
+                  port-peek-bytes-runtime-only-helper-names
+                  port-predicate-runtime-only-helper-names
+                  port-read-bytes-runtime-only-helper-names
+                  port-read-line-runtime-only-helper-names
+                  port-read-string-runtime-only-helper-names
+                  port-ready-runtime-only-helper-names
+                  port-state-runtime-only-helper-names
+                  port-string-constructor-runtime-only-helper-names
+                  port-write-basic-runtime-only-helper-names
+                  port-write-bytes-runtime-only-helper-names
                   port-runtime-only-helpers)
          (only-in "runtime-wasm/core/procedures.rkt"
                   primitive-reflection-runtime-only-helper-names
@@ -15438,18 +15456,7 @@
         ;;   written.
 
         ;;   Implemented in runtime-wasm/core/ports.rkt.
-        ,@(for/list ([name '($raise-check-string-port
-                              $raise-check-port-or-false
-                              $string-port?
-                              $struct-has-property?/i32
-                              $input-port-like?/i32
-                              $output-port-like?/i32
-                              $prop-output-port-target
-                              $port-like?/i32
-                              $port?
-                              $input-port?
-                              $file-stream-port?
-                              $terminal-port?)])
+        ,@(for/list ([name (in-list port-predicate-runtime-only-helper-names)])
             (core-runtime-helper-form runtime-helper-index name))
 
         ;;   Implemented in runtime-wasm/core/impersonators.rkt.
@@ -15460,39 +15467,22 @@
         ,(core-runtime-helper-form runtime-helper-index '$output-port?)
 
         ;;   Implemented in runtime-wasm/core/ports.rkt.
-        ,@(for/list ([name '($port-closed?
-                              $close-input-port
-                              $current-input-port
-                              $current-output-port
-                              $current-error-port
-                              $reset-current-input-port!
-                              $reset-current-output-port!
-                              $reset-current-error-port!
-                              $flush-output
-                              $close-output-port)])
+        ,@(for/list ([name (in-list port-state-runtime-only-helper-names)])
             (core-runtime-helper-form runtime-helper-index name))
 
         ;;   Implemented in runtime-wasm/core/ports.rkt.
-        ,@(for/list ([name '($port-count-lines!
-                              $port-counts-lines?
-                              $file-position*
-                              $port-next-location)])
+        ,@(for/list ([name (in-list port-location-runtime-only-helper-names)])
             (core-runtime-helper-form runtime-helper-index name))
 
          ;;   Implemented in runtime-wasm/core/ports.rkt.
-         ,@(for/list ([name '($open-input-bytes
-                               $open-input-string
-                               $open-output-bytes
-                               $open-output-string
-                               $get-output-bytes)])
+         ,@(for/list ([name (in-list port-string-constructor-runtime-only-helper-names)])
              (core-runtime-helper-form runtime-helper-index name))
 
          ;;   Implemented in runtime-wasm/core/ports.rkt.
          ,(core-runtime-helper-form runtime-helper-index '$get-output-string)
 
          ;;   Implemented in runtime-wasm/core/ports.rkt.
-         ,@(for/list ([name '($make-input-port
-                               $make-output-port)])
+         ,@(for/list ([name (in-list port-custom-constructor-runtime-only-helper-names)])
              (core-runtime-helper-form runtime-helper-index name))
 
          (func $eof-object? (type $Prim1)
@@ -15512,56 +15502,39 @@
          ;;;
 
          ;;   Implemented in runtime-wasm/core/ports.rkt.
-         ,@(for/list ([name '($progress-evt?
-                               $port-provides-progress-evts?
-                               $port-writes-atomic?
-                               $port-writes-special?)])
+         ,@(for/list ([name (in-list port-event-runtime-only-helper-names)])
              (core-runtime-helper-form runtime-helper-index name))
 
          ;;   Implemented in runtime-wasm/core/ports.rkt.
-         ,@(for/list ([name '($read-byte/custom
-                               $peek-byte/custom)])
+         ,@(for/list ([name (in-list port-custom-byte-runtime-only-helper-names)])
              (core-runtime-helper-form runtime-helper-index name))
 
          ;;   Implemented in runtime-wasm/core/ports.rkt.
-         ,@(for/list ([name '($read-byte
-                               $read-char)])
+         ,@(for/list ([name (in-list port-byte-char-runtime-only-helper-names)])
              (core-runtime-helper-form runtime-helper-index name))
 
          ;;   Implemented in runtime-wasm/core/ports.rkt.
-         ,@(for/list ([name '($read-byte-or-special
-                               $read-char-or-special)])
+         ,@(for/list ([name (in-list port-byte-char-special-runtime-only-helper-names)])
              (core-runtime-helper-form runtime-helper-index name))
 
          ;;   Implemented in runtime-wasm/core/ports.rkt.
-         ,@(for/list ([name '($read-bytes!
-                               $read-bytes-avail!
-                               $read-bytes-avail!*)])
+         ,@(for/list ([name (in-list port-read-bytes-runtime-only-helper-names)])
              (core-runtime-helper-form runtime-helper-index name))
 
          ;;   Implemented in runtime-wasm/core/ports.rkt.
-         ,@(for/list ([name '($read-string!
-                               $read-bytes
-                               $read-string)])
+         ,@(for/list ([name (in-list port-read-string-runtime-only-helper-names)])
              (core-runtime-helper-form runtime-helper-index name))
 
          ;;   Implemented in runtime-wasm/core/ports.rkt.
-         ,@(for/list ([name '($byte-ready?
-                               $char-ready?)])
+         ,@(for/list ([name (in-list port-ready-runtime-only-helper-names)])
              (core-runtime-helper-form runtime-helper-index name))
 
          ;;   Implemented in runtime-wasm/core/ports.rkt.
-         ,@(for/list ([name '($raise-read-line:bad-mode
-                               $read-line/custom
-                               $read-line
-                               $read-bytes-line)])
+         ,@(for/list ([name (in-list port-read-line-runtime-only-helper-names)])
              (core-runtime-helper-form runtime-helper-index name))
 
          ;;   Implemented in runtime-wasm/core/ports.rkt.
-         ,@(for/list ([name '($peek-bytes!
-                               $peek-bytes-avail!:progress-not-supported
-                               $peek-bytes-avail!
-                               $peek-bytes-avail!*)])
+         ,@(for/list ([name (in-list port-peek-bytes-bang-runtime-only-helper-names)])
              (core-runtime-helper-form runtime-helper-index name))
 
          ;;   Implemented in runtime-wasm/core/ports.rkt.
@@ -15569,16 +15542,12 @@
 
 
          ;;   Implemented in runtime-wasm/core/ports.rkt.
-         ,@(for/list ([name '($peek-byte
-                               $peek-char
-                               $peek-byte-or-special
-                               $peek-char-or-special)])
+         ,@(for/list ([name (in-list port-peek-byte-runtime-only-helper-names)])
              (core-runtime-helper-form runtime-helper-index name))
 
 
          ;;   Implemented in runtime-wasm/core/ports.rkt.
-         ,@(for/list ([name '($peek-bytes
-                               $peek-string)])
+         ,@(for/list ([name (in-list port-peek-bytes-runtime-only-helper-names)])
              (core-runtime-helper-form runtime-helper-index name))
 
          ;;;
@@ -15595,18 +15564,11 @@
          ;;         (field $loc   (ref $Location)))) ; the current location
 
          ;;   Implemented in runtime-wasm/core/ports.rkt.
-         ,@(for/list ([name '($write-byte
-                               $write-char
-                               $newline
-                               $display
-                               $displayln)])
+         ,@(for/list ([name (in-list port-write-basic-runtime-only-helper-names)])
              (core-runtime-helper-form runtime-helper-index name))
 
          ;;   Implemented in runtime-wasm/core/ports.rkt.
-         ,@(for/list ([name '($write-bytes/custom
-                               $write-bytes
-                               $raise-bad-string-range
-                               $write-string)])
+         ,@(for/list ([name (in-list port-write-bytes-runtime-only-helper-names)])
              (core-runtime-helper-form runtime-helper-index name))
 
 

@@ -1,6 +1,24 @@
 #lang racket
 
-(provide port-runtime-only-helpers)
+(provide port-predicate-runtime-only-helper-names
+         port-state-runtime-only-helper-names
+         port-location-runtime-only-helper-names
+         port-string-constructor-runtime-only-helper-names
+         port-custom-constructor-runtime-only-helper-names
+         port-event-runtime-only-helper-names
+         port-custom-byte-runtime-only-helper-names
+         port-byte-char-runtime-only-helper-names
+         port-byte-char-special-runtime-only-helper-names
+         port-read-bytes-runtime-only-helper-names
+         port-read-string-runtime-only-helper-names
+         port-ready-runtime-only-helper-names
+         port-read-line-runtime-only-helper-names
+         port-peek-bytes-bang-runtime-only-helper-names
+         port-peek-byte-runtime-only-helper-names
+         port-peek-bytes-runtime-only-helper-names
+         port-write-basic-runtime-only-helper-names
+         port-write-bytes-runtime-only-helper-names
+         port-runtime-only-helpers)
 
 (require "../core-helper.rkt"
          "../../private/wasm-utils.rkt"
@@ -9,6 +27,152 @@
                   char-shift
                   char-tag
                   eof-value))
+
+;; port-predicate-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for port predicate and wrapper helpers.
+(define port-predicate-runtime-only-helper-names
+  '($raise-check-string-port
+    $raise-check-port-or-false
+    $string-port?
+    $struct-has-property?/i32
+    $input-port-like?/i32
+    $output-port-like?/i32
+    $prop-output-port-target
+    $port-like?/i32
+    $port?
+    $input-port?
+    $file-stream-port?
+    $terminal-port?))
+
+;; port-state-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for current, close, and flush port helpers.
+(define port-state-runtime-only-helper-names
+  '($port-closed?
+    $close-input-port
+    $current-input-port
+    $current-output-port
+    $current-error-port
+    $reset-current-input-port!
+    $reset-current-output-port!
+    $reset-current-error-port!
+    $flush-output
+    $close-output-port))
+
+;; port-location-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for port location helpers.
+(define port-location-runtime-only-helper-names
+  '($port-count-lines!
+    $port-counts-lines?
+    $file-position*
+    $port-next-location))
+
+;; port-string-constructor-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for string and byte string port constructors.
+(define port-string-constructor-runtime-only-helper-names
+  '($open-input-bytes
+    $open-input-string
+    $open-output-bytes
+    $open-output-string
+    $get-output-bytes))
+
+;; port-custom-constructor-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for custom input/output port constructors.
+(define port-custom-constructor-runtime-only-helper-names
+  '($make-input-port
+    $make-output-port))
+
+;; port-event-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for port event capability predicates.
+(define port-event-runtime-only-helper-names
+  '($progress-evt?
+    $port-provides-progress-evts?
+    $port-writes-atomic?
+    $port-writes-special?))
+
+;; port-custom-byte-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for custom byte peek/read helpers.
+(define port-custom-byte-runtime-only-helper-names
+  '($read-byte/custom
+    $peek-byte/custom))
+
+;; port-byte-char-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for byte and character input helpers.
+(define port-byte-char-runtime-only-helper-names
+  '($read-byte
+    $read-char))
+
+;; port-byte-char-special-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for byte and character special input helpers.
+(define port-byte-char-special-runtime-only-helper-names
+  '($read-byte-or-special
+    $read-char-or-special))
+
+;; port-read-bytes-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for byte-vector read helpers.
+(define port-read-bytes-runtime-only-helper-names
+  '($read-bytes!
+    $read-bytes-avail!
+    $read-bytes-avail!*))
+
+;; port-read-string-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for string and bytes read helpers.
+(define port-read-string-runtime-only-helper-names
+  '($read-string!
+    $read-bytes
+    $read-string))
+
+;; port-ready-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for ready predicates.
+(define port-ready-runtime-only-helper-names
+  '($byte-ready?
+    $char-ready?))
+
+;; port-read-line-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for line-reading helpers.
+(define port-read-line-runtime-only-helper-names
+  '($raise-read-line:bad-mode
+    $read-line/custom
+    $read-line
+    $read-bytes-line))
+
+;; port-peek-bytes-bang-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for mutating byte peek helpers.
+(define port-peek-bytes-bang-runtime-only-helper-names
+  '($peek-bytes!
+    $peek-bytes-avail!:progress-not-supported
+    $peek-bytes-avail!
+    $peek-bytes-avail!*))
+
+;; port-peek-byte-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for byte and character peek helpers.
+(define port-peek-byte-runtime-only-helper-names
+  '($peek-byte
+    $peek-char
+    $peek-byte-or-special
+    $peek-char-or-special))
+
+;; port-peek-bytes-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for byte and string peek helpers.
+(define port-peek-bytes-runtime-only-helper-names
+  '($peek-bytes
+    $peek-string))
+
+;; port-write-basic-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for basic byte/string output helpers.
+(define port-write-basic-runtime-only-helper-names
+  '($write-byte
+    $write-char
+    $newline
+    $display
+    $displayln))
+
+;; port-write-bytes-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for byte/string output range helpers.
+(define port-write-bytes-runtime-only-helper-names
+  '($write-bytes/custom
+    $write-bytes
+    $raise-bad-string-range
+    $write-string))
 
 ;; port-predicate-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate port predicate and wrapper-recognition helpers.
