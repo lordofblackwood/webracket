@@ -171,6 +171,8 @@
          (only-in "runtime-wasm/core/locks.rkt"
                   lock-runtime-only-helpers)
          (only-in "runtime-wasm/core/loggers.rkt"
+                  logger-current-global-forms
+                  logger-current-initializer-forms
                   logger-runtime-only-helpers)
          (only-in "runtime-wasm/core/mutable-hashes.rkt"
                   mutable-hash-association-constructor-runtime-only-helper-names
@@ -7162,7 +7164,7 @@
                ,@port-current-global-forms
                (global $current-print-value       (mut (ref eq)) (global.get $false))
                (global $current-read-interaction-value (mut (ref eq)) (global.get $false))
-               (global $current-logger-value      (mut (ref eq)) (global.get $false))
+               ,@logger-current-global-forms
                (global $current-security-guard-value (mut (ref eq)) (global.get $false))
                (global $current-custodian-value   (mut (ref eq)) (global.get $false))
                ,@io-handler-default-port-global-forms
@@ -7242,10 +7244,7 @@
                      ,@parameterization-initializer-forms
                      ,@random-current-initializer-forms
                      ,@thread-current-initializer-forms
-                     (global.set $current-logger-value
-                                 (struct.new $Logger
-                                             (i32.const 0)
-                                             (global.get $false)))
+                     ,@logger-current-initializer-forms
                      (global.set $current-custodian-value
                                  (struct.new $Custodian
                                              (i32.const 0)

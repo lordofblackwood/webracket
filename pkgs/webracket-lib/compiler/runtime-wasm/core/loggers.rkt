@@ -1,8 +1,25 @@
 #lang racket
 
-(provide logger-runtime-only-helpers)
+(provide logger-current-global-forms
+         logger-current-initializer-forms
+         logger-runtime-only-helpers)
 
 (require "../core-helper.rkt")
+
+;; logger-current-global-forms : (listof datum?)
+;;   Declare the current logger global.
+(define logger-current-global-forms
+  '(
+               (global $current-logger-value      (mut (ref eq)) (global.get $false))))
+
+;; logger-current-initializer-forms : (listof datum?)
+;;   Initialize the root logger.
+(define logger-current-initializer-forms
+  '(
+                     (global.set $current-logger-value
+                                 (struct.new $Logger
+                                             (i32.const 0)
+                                             (global.get $false)))))
 
 ;; logger-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate logger helpers that still depend on monolithic runtime globals.
