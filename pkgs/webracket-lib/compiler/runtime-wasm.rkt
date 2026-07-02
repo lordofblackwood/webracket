@@ -52,6 +52,12 @@
          (only-in "runtime-wasm/core/filesystem.rkt"
                   filesystem-runtime-only-helpers
                   filesystem-runtime-only-helper-names)
+         (only-in "runtime-wasm/core/fixnums.rkt"
+                  fixnum-minmax-runtime-only-helper-names
+                  fixnum-runtime-only-helpers)
+         (only-in "runtime-wasm/core/flonums.rkt"
+                  flonum-minmax-runtime-only-helper-names
+                  flonum-runtime-only-helpers)
          (only-in "runtime-wasm/core/formatting.rkt"
                   printer-extension-runtime-only-helper-names
                   formatting-runtime-only-helper-names
@@ -348,6 +354,8 @@
            fasl-runtime-only-helpers
            ffi-runtime-only-helpers
            filesystem-runtime-only-helpers
+           fixnum-runtime-only-helpers
+           flonum-runtime-only-helpers
            formatting-runtime-only-helpers
            hash-runtime-only-helpers
            immutable-hash-runtime-only-helpers
@@ -7135,42 +7143,8 @@
                                  (br $loop)))
                     (global.get $true)))
 
-        ,@(for/list ([name '( $fxmin/2 $fxmax/2 )]
-                     [inst '( i32.lt_s i32.gt_s )])
-            `(func ,name (type $Prim2)
-                   (param $x (ref eq))
-                   (param $y (ref eq))
-                   (result (ref eq))
-                   (if (i32.eqz (ref.test (ref i31) (local.get $x)))
-                       (then (call $raise-check-fixnum (local.get $x)) (unreachable)))
-                   (if (i32.eqz (ref.test (ref i31) (local.get $y)))
-                       (then (call $raise-check-fixnum (local.get $y)) (unreachable)))
-                   (if (result (ref eq))
-                       (,inst (i31.get_s (ref.cast (ref i31) (local.get $x)))
-                              (i31.get_s (ref.cast (ref i31) (local.get $y))))
-                       (then (local.get $x))
-                       (else (local.get $y)))))
-
-        ,@(for/list ([name '( $fxmin $fxmax )]
-                     [cmp  '( $fxmin/2 $fxmax/2 )])
-            `(func ,name (param $x0 (ref eq)) (param $xs (ref eq)) (result (ref eq))
-                   (local $node (ref $Pair))
-                   (local $fx   (ref eq))
-                   (local $best (ref eq))
-                   (if (i32.eqz (ref.test (ref i31) (local.get $x0)))
-                       (then (call $raise-check-fixnum (local.get $x0)) (unreachable)))
-                   (local.set $best (local.get $x0))
-                   (block $done
-                          (loop $loop
-                                (br_if $done (ref.eq (local.get $xs) (global.get $null)))
-                                (local.set $node (ref.cast (ref $Pair) (local.get $xs)))
-                                (local.set $fx   (struct.get $Pair $a (local.get $node)))
-                                (if (i32.eqz (ref.test (ref i31) (local.get $fx)))
-                                    (then (call $raise-check-fixnum (local.get $fx)) (unreachable)))
-                                (local.set $best (call ,cmp (local.get $best) (local.get $fx)))
-                                (local.set $xs (struct.get $Pair $d (local.get $node)))
-                                (br $loop)))
-                   (local.get $best)))
+        ,@(for/list ([name (in-list fixnum-minmax-runtime-only-helper-names)])
+            (core-runtime-helper-form runtime-helper-index name))
 
          (func $fixnum->i32 (param $x (ref eq)) (result i32)
                (local $val i32)
@@ -7491,9 +7465,7 @@
                                    ,expr)))))
 
         ;; flonum flonum -> flonum
-        ,@(let ([ops '((flmin/2  (f64.min (local.get $a/f64) (local.get $b/f64)))
-                       (flmax/2  (f64.max (local.get $a/f64) (local.get $b/f64)))
-                       (flexpt   (call $pow-special (local.get $a/f64) (local.get $b/f64))))])
+        ,@(let ([ops '((flexpt   (call $pow-special (local.get $a/f64) (local.get $b/f64))))])
              (append
               (for/list ([p ops])
                 (define name (car p))
@@ -7541,38 +7513,8 @@
                                    ,expr)))))
 
         ;; variadic flonum min/max built on binary helpers
-        ,@(let ()
-             (define (fl-min/max name cmp unsafe?)
-               `(func ,name (param $x0 (ref eq)) (param $xs (ref eq)) (result (ref eq))
-                      (local $node (ref $Pair))
-                      (local $fx   (ref eq))
-                      (local $best (ref eq))
-                      ,@(if unsafe?
-                            '()
-                            `((if (i32.eqz (ref.test (ref $Flonum) (local.get $x0)))
-                                  (then (call $raise-argument-error:flonum-expected (local.get $x0))
-                                        (unreachable)))))
-                      (local.set $best (local.get $x0))
-                      (block $done
-                             (loop $loop
-                                   (br_if $done (ref.eq (local.get $xs) (global.get $null)))
-                                   (local.set $node (ref.cast (ref $Pair) (local.get $xs)))
-                                   (local.set $fx   (struct.get $Pair $a (local.get $node)))
-                                   ,@(if unsafe?
-                                         '()
-                                         `((if (i32.eqz (ref.test (ref $Flonum) (local.get $fx)))
-                                               (then (call $raise-argument-error:flonum-expected (local.get $fx))
-                                                     (unreachable)))))
-                                   (local.set $best (call ,cmp (local.get $best) (local.get $fx)))
-                                   (local.set $xs (struct.get $Pair $d (local.get $node)))
-                                   (br $loop)))
-                      (local.get $best)))
-             (append (for/list ([name '( $flmin $flmax )]
-                                [cmp  '( $flmin/2 $flmax/2)])
-                       (fl-min/max name cmp #f))
-                     (for/list ([name '( $unsafe-flmin $unsafe-flmax )]
-                                [cmp  '( $unsafe-flmin/2 $unsafe-flmax/2)])
-                       (fl-min/max name cmp #t))))
+        ,@(for/list ([name (in-list flonum-minmax-runtime-only-helper-names)])
+            (core-runtime-helper-form runtime-helper-index name))
 
         ,@(let ()
              (define (fl-cmp flname flcmp)

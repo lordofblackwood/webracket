@@ -1,6 +1,8 @@
 #lang racket
 
-(provide fixnum-core-runtime-helpers)
+(provide fixnum-core-runtime-helpers
+         fixnum-minmax-runtime-only-helper-names
+         fixnum-runtime-only-helpers)
 
 (require "../core-helper.rkt")
 
@@ -28,6 +30,72 @@
 ;;   Return WAT that encodes an i32 fixnum payload as tagged bits.
 (define (tag-fixnum-bits bits)
   `(i32.shl ,bits (i32.const 1)))
+
+;; fixnum-minmax-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for fixnum min/max helpers.
+(define fixnum-minmax-runtime-only-helper-names
+  '($fxmin/2
+    $fxmax/2
+    $fxmin
+    $fxmax))
+
+;; fixnum-minmax2-runtime-helper : symbol? symbol? -> core-runtime-helper?
+;;   Build a binary fixnum min/max helper with checked arguments.
+(define (fixnum-minmax2-runtime-helper name inst)
+  (core-runtime-helper
+   name
+   (symbol->string name)
+   (lambda ()
+     `(func ,name (type $Prim2)
+            (param $x (ref eq))
+            (param $y (ref eq))
+            (result (ref eq))
+            (if (i32.eqz (ref.test (ref i31) (local.get $x)))
+                (then (call $raise-check-fixnum (local.get $x)) (unreachable)))
+            (if (i32.eqz (ref.test (ref i31) (local.get $y)))
+                (then (call $raise-check-fixnum (local.get $y)) (unreachable)))
+            (if (result (ref eq))
+                (,inst (i31.get_s (ref.cast (ref i31) (local.get $x)))
+                       (i31.get_s (ref.cast (ref i31) (local.get $y))))
+                (then (local.get $x))
+                (else (local.get $y)))))))
+
+;; fixnum-minmax-runtime-helper : symbol? symbol? -> core-runtime-helper?
+;;   Build a variadic fixnum min/max helper with checked arguments.
+(define (fixnum-minmax-runtime-helper name cmp)
+  (core-runtime-helper
+   name
+   (symbol->string name)
+   (lambda ()
+     `(func ,name (param $x0 (ref eq)) (param $xs (ref eq)) (result (ref eq))
+            (local $node (ref $Pair))
+            (local $fx   (ref eq))
+            (local $best (ref eq))
+            (if (i32.eqz (ref.test (ref i31) (local.get $x0)))
+                (then (call $raise-check-fixnum (local.get $x0)) (unreachable)))
+            (local.set $best (local.get $x0))
+            (block $done
+                   (loop $loop
+                         (br_if $done (ref.eq (local.get $xs) (global.get $null)))
+                         (local.set $node (ref.cast (ref $Pair) (local.get $xs)))
+                         (local.set $fx   (struct.get $Pair $a (local.get $node)))
+                         (if (i32.eqz (ref.test (ref i31) (local.get $fx)))
+                             (then (call $raise-check-fixnum (local.get $fx)) (unreachable)))
+                         (local.set $best (call ,cmp (local.get $best) (local.get $fx)))
+                         (local.set $xs (struct.get $Pair $d (local.get $node)))
+                         (br $loop)))
+            (local.get $best)))))
+
+;; fixnum-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate fixnum helpers that depend on monolithic runtime errors.
+(define fixnum-runtime-only-helpers
+  (append
+   (for/list ([name '( $fxmin/2 $fxmax/2 )]
+              [inst '( i32.lt_s i32.gt_s )])
+     (fixnum-minmax2-runtime-helper name inst))
+   (for/list ([name '( $fxmin $fxmax )]
+              [cmp  '( $fxmin/2 $fxmax/2 )])
+     (fixnum-minmax-runtime-helper name cmp))))
 
 ;; fixnum-core-runtime-helpers : (listof core-runtime-helper?)
 ;;   Enumerate fixnum helpers that can be emitted in core runtime.
