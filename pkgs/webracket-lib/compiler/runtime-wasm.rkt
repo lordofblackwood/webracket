@@ -6482,10 +6482,6 @@
                ,@event-global-forms
 
                ,@entry-struct-property-global-forms
-               (global $break-enabled-key             (mut (ref eq)) (global.get $void))
-               (global $exception-handler-key         (mut (ref eq)) (global.get $void))
-               (global $parameterization-key          (mut (ref eq)) (global.get $void))
-               (global $cache-configuration-values    (mut (ref eq)) (global.get $void))
                ,@ffi-entry-global-forms
 
                ,@entry-support-forms
@@ -6519,12 +6515,6 @@
                      ,@(initialize-runtime-bytes-constants)
                      ;; Initialize symbol constants used in the runtime
                      ,@(initialize-runtime-symbol-constants)
-                     (global.set $break-enabled-key
-                                 (global.get $symbol:break-enabled-key))
-                     (global.set $exception-handler-key
-                                 (global.get $symbol:exception-handler-key))
-                     (global.set $parameterization-key
-                                 (global.get $symbol:parameterization-key))
                      ,@parameterization-initializer-forms
                      ,@random-current-initializer-forms
                      ,@thread-current-initializer-forms

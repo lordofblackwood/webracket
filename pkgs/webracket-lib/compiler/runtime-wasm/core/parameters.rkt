@@ -300,15 +300,25 @@
                (global $current-compile-realm-value (mut (ref eq)) (global.get $false))))
 
 ;; parameterization-global-forms : (listof datum?)
-;;   Declare the current parameterization backing global.
+;;   Declare the current parameterization backing global and #%paramz support state.
 (define parameterization-global-forms
   '(
-               (global $current-parameterization-value (mut (ref eq)) (global.get $false))))
+               (global $current-parameterization-value (mut (ref eq)) (global.get $false))
+               (global $break-enabled-key             (mut (ref eq)) (global.get $void))
+               (global $exception-handler-key         (mut (ref eq)) (global.get $void))
+               (global $parameterization-key          (mut (ref eq)) (global.get $void))
+               (global $cache-configuration-values    (mut (ref eq)) (global.get $void))))
 
 ;; parameterization-initializer-forms : (listof datum?)
-;;   Initialize the current parameterization backing value.
+;;   Initialize #%paramz keys and the current parameterization backing value.
 (define parameterization-initializer-forms
   '(
+                     (global.set $break-enabled-key
+                                 (global.get $symbol:break-enabled-key))
+                     (global.set $exception-handler-key
+                                 (global.get $symbol:exception-handler-key))
+                     (global.set $parameterization-key
+                                 (global.get $symbol:parameterization-key))
                      (global.set $current-parameterization-value
                                  (struct.new $Parameterization
                                              (i32.const 0)
