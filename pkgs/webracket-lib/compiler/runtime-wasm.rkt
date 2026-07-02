@@ -6868,81 +6868,15 @@
 
          ,(core-runtime-helper-form core-runtime-helper-index '$fxand/2)
 
-         (func $fxand (type $Prim>=0)
-               (param $xs0 (ref eq)) (result (ref eq))
-               (local $xs   (ref eq))
-               (local $node (ref $Pair))
-               (local $v    (ref eq))
-               (local $r    (ref eq))
-               (local.set $xs
-                          (if (result (ref eq))
-                              (ref.test (ref $Args) (local.get $xs0))
-                              (then (call $rest-arguments->list
-                                          (ref.cast (ref $Args) (local.get $xs0))
-                                          (i32.const 0)))
-                              (else (local.get $xs0))))
-               (local.set $r ,(Imm -1))
-               (block $done
-                      (loop $loop
-                            (br_if $done (ref.eq (local.get $xs) (global.get $null)))
-                            (local.set $node (ref.cast (ref $Pair) (local.get $xs)))
-                            (local.set $v    (struct.get $Pair $a (local.get $node)))
-                            (local.set $r    (call $fxand/2 (local.get $r) (local.get $v)))
-                            (local.set $xs   (struct.get $Pair $d (local.get $node)))
-                            (br $loop)))
-               (local.get $r))
+         ,(core-runtime-helper-form runtime-helper-index '$fxand)
 
          ,(core-runtime-helper-form core-runtime-helper-index '$fxior/2)
 
-         (func $fxior (type $Prim>=0)
-               (param $xs0 (ref eq)) (result (ref eq))
-               (local $xs   (ref eq))
-               (local $node (ref $Pair))
-               (local $v    (ref eq))
-               (local $r    (ref eq))
-               (local.set $xs
-                          (if (result (ref eq))
-                              (ref.test (ref $Args) (local.get $xs0))
-                              (then (call $rest-arguments->list
-                                          (ref.cast (ref $Args) (local.get $xs0))
-                                          (i32.const 0)))
-                              (else (local.get $xs0))))
-               (local.set $r (global.get $zero))
-               (block $done
-                      (loop $loop
-                            (br_if $done (ref.eq (local.get $xs) (global.get $null)))
-                            (local.set $node (ref.cast (ref $Pair) (local.get $xs)))
-                            (local.set $v    (struct.get $Pair $a (local.get $node)))
-                            (local.set $r    (call $fxior/2 (local.get $r) (local.get $v)))
-                            (local.set $xs   (struct.get $Pair $d (local.get $node)))
-                            (br $loop)))
-               (local.get $r))
+         ,(core-runtime-helper-form runtime-helper-index '$fxior)
 
          ,(core-runtime-helper-form core-runtime-helper-index '$fxxor/2)
 
-         (func $fxxor (type $Prim>=0)
-               (param $xs0 (ref eq)) (result (ref eq))
-               (local $xs   (ref eq))
-               (local $node (ref $Pair))
-               (local $v    (ref eq))
-               (local $r    (ref eq))
-               (local.set $xs
-                          (if (result (ref eq))
-                              (ref.test (ref $Args) (local.get $xs0))
-                              (then (call $rest-arguments->list
-                                          (ref.cast (ref $Args) (local.get $xs0))
-                                          (i32.const 0)))
-                              (else (local.get $xs0))))
-               (local.set $r (global.get $zero))
-               (block $done
-                      (loop $loop
-                            (br_if $done (ref.eq (local.get $xs) (global.get $null)))
-                            (local.set $node (ref.cast (ref $Pair) (local.get $xs)))
-                            (local.set $v    (struct.get $Pair $a (local.get $node)))
-                            (local.set $r    (call $fxxor/2 (local.get $r) (local.get $v)))
-                            (local.set $xs   (struct.get $Pair $d (local.get $node)))
-                            (br $loop)))
-               (local.get $r))
+         ,(core-runtime-helper-form runtime-helper-index '$fxxor)
 
          ,(core-runtime-helper-form core-runtime-helper-index '$fxnot)
 
@@ -6958,42 +6892,7 @@
 
          ,(core-runtime-helper-form core-runtime-helper-index '$fx+/wraparound)
 
-         (func $fx-/wraparound (type $Prim>=1)
-               (param $a1   (ref eq))
-               (param $rest (ref eq))
-               (result      (ref eq))
-
-               (local $a    (ref eq))
-               (local $b    (ref eq))
-               (local $node (ref $Pair))
-
-               ;; Eager init so locals are definitely assigned before any possible get.
-               (local.set $a (ref.i31 (i32.const 0)))
-               (local.set $b (local.get $a1))
-               ;; Determine arguments based on rest list
-               (if (ref.eq (local.get $rest) (global.get $null))
-                   (then
-                    ;; (0 - a1)
-                    (local.set $a (ref.i31 (i32.const 0)))
-                    (local.set $b (local.get $a1)))
-                   (else
-                    (if (ref.test (ref $Pair) (local.get $rest))
-                        (then
-                         (local.set $node (ref.cast (ref $Pair) (local.get $rest)))
-                         (local.set $a    (local.get $a1))
-                         (local.set $b    (struct.get $Pair $a (local.get $node)))
-                         ;; Ensure no extra arguments
-                         (if (ref.eq (struct.get $Pair $d (local.get $node))
-                                     (global.get $null))
-                             (then (nop))
-                             (else (call $raise-arity-error:exactly) (unreachable))))
-                        (else (call $raise-arity-error:exactly) (unreachable)))))
-               (ref.i31
-                (i32.sub
-                 (i31.get_s (ref.cast (ref i31) (local.get $a)))
-                 (i31.get_s (ref.cast (ref i31) (local.get $b))))))
-
-
+         ,(core-runtime-helper-form runtime-helper-index '$fx-/wraparound)
 
          ,(core-runtime-helper-form core-runtime-helper-index '$fx*/wraparound)
 

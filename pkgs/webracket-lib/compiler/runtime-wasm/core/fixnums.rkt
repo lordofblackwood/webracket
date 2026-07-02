@@ -50,6 +50,18 @@
   '($fixnum->i32
     $fixnum-for-every-system?))
 
+;; fixnum-bitwise-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for variadic fixnum bitwise helpers.
+(define fixnum-bitwise-runtime-only-helper-names
+  '($fxand
+    $fxior
+    $fxxor))
+
+;; fixnum-wraparound-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for fixnum wraparound helpers.
+(define fixnum-wraparound-runtime-only-helper-names
+  '($fx-/wraparound))
+
 ;; fixnum-minmax-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for fixnum min/max helpers.
 (define fixnum-minmax-runtime-only-helper-names
@@ -234,6 +246,125 @@
                (then (return (global.get $false))))
            (global.get $true)))))
 
+;; fixnum-bitwise-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate variadic fixnum bitwise helpers used by the monolithic runtime.
+(define fixnum-bitwise-runtime-only-helpers
+  (function-forms->runtime-helpers
+   'fixnum-bitwise-runtime-only-helpers
+   `(
+     (func $fxand (type $Prim>=0)
+           (param $xs0 (ref eq)) (result (ref eq))
+           (local $xs   (ref eq))
+           (local $node (ref $Pair))
+           (local $v    (ref eq))
+           (local $r    (ref eq))
+           (local.set $xs
+                      (if (result (ref eq))
+                          (ref.test (ref $Args) (local.get $xs0))
+                          (then (call $rest-arguments->list
+                                      (ref.cast (ref $Args) (local.get $xs0))
+                                      (i32.const 0)))
+                          (else (local.get $xs0))))
+           (local.set $r ,(Imm -1))
+           (block $done
+                  (loop $loop
+                        (br_if $done (ref.eq (local.get $xs) (global.get $null)))
+                        (local.set $node (ref.cast (ref $Pair) (local.get $xs)))
+                        (local.set $v    (struct.get $Pair $a (local.get $node)))
+                        (local.set $r    (call $fxand/2 (local.get $r) (local.get $v)))
+                        (local.set $xs   (struct.get $Pair $d (local.get $node)))
+                        (br $loop)))
+           (local.get $r))
+
+     (func $fxior (type $Prim>=0)
+           (param $xs0 (ref eq)) (result (ref eq))
+           (local $xs   (ref eq))
+           (local $node (ref $Pair))
+           (local $v    (ref eq))
+           (local $r    (ref eq))
+           (local.set $xs
+                      (if (result (ref eq))
+                          (ref.test (ref $Args) (local.get $xs0))
+                          (then (call $rest-arguments->list
+                                      (ref.cast (ref $Args) (local.get $xs0))
+                                      (i32.const 0)))
+                          (else (local.get $xs0))))
+           (local.set $r (global.get $zero))
+           (block $done
+                  (loop $loop
+                        (br_if $done (ref.eq (local.get $xs) (global.get $null)))
+                        (local.set $node (ref.cast (ref $Pair) (local.get $xs)))
+                        (local.set $v    (struct.get $Pair $a (local.get $node)))
+                        (local.set $r    (call $fxior/2 (local.get $r) (local.get $v)))
+                        (local.set $xs   (struct.get $Pair $d (local.get $node)))
+                        (br $loop)))
+           (local.get $r))
+
+     (func $fxxor (type $Prim>=0)
+           (param $xs0 (ref eq)) (result (ref eq))
+           (local $xs   (ref eq))
+           (local $node (ref $Pair))
+           (local $v    (ref eq))
+           (local $r    (ref eq))
+           (local.set $xs
+                      (if (result (ref eq))
+                          (ref.test (ref $Args) (local.get $xs0))
+                          (then (call $rest-arguments->list
+                                      (ref.cast (ref $Args) (local.get $xs0))
+                                      (i32.const 0)))
+                          (else (local.get $xs0))))
+           (local.set $r (global.get $zero))
+           (block $done
+                  (loop $loop
+                        (br_if $done (ref.eq (local.get $xs) (global.get $null)))
+                        (local.set $node (ref.cast (ref $Pair) (local.get $xs)))
+                        (local.set $v    (struct.get $Pair $a (local.get $node)))
+                        (local.set $r    (call $fxxor/2 (local.get $r) (local.get $v)))
+                        (local.set $xs   (struct.get $Pair $d (local.get $node)))
+                        (br $loop)))
+           (local.get $r)))))
+
+;; fixnum-wraparound-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate variadic fixnum wraparound helpers used by the monolithic runtime.
+(define fixnum-wraparound-runtime-only-helpers
+  (function-forms->runtime-helpers
+   'fixnum-wraparound-runtime-only-helpers
+   '(
+     (func $fx-/wraparound (type $Prim>=1)
+           (param $a1   (ref eq))
+           (param $rest (ref eq))
+           (result      (ref eq))
+
+           (local $a    (ref eq))
+           (local $b    (ref eq))
+           (local $node (ref $Pair))
+
+           ;; Eager init so locals are definitely assigned before any possible get.
+           (local.set $a (ref.i31 (i32.const 0)))
+           (local.set $b (local.get $a1))
+           ;; Determine arguments based on rest list
+           (if (ref.eq (local.get $rest) (global.get $null))
+               (then
+                ;; (0 - a1)
+                (local.set $a (ref.i31 (i32.const 0)))
+                (local.set $b (local.get $a1)))
+               (else
+                (if (ref.test (ref $Pair) (local.get $rest))
+                    (then
+                     (local.set $node (ref.cast (ref $Pair) (local.get $rest)))
+                     (local.set $a    (local.get $a1))
+                     (local.set $b    (struct.get $Pair $a (local.get $node)))
+                     ;; Ensure no extra arguments
+                     (if (ref.eq (struct.get $Pair $d (local.get $node))
+                                 (global.get $null))
+                         (then (nop))
+                         (else (call $raise-arity-error:exactly) (unreachable))))
+                    (else (call $raise-arity-error:exactly) (unreachable)))))
+           (ref.i31
+            (i32.sub
+             (i31.get_s (ref.cast (ref i31) (local.get $a)))
+             (i31.get_s (ref.cast (ref i31) (local.get $b)))))))))
+
 ;; fixnum-minmax2-runtime-helper : symbol? symbol? -> core-runtime-helper?
 ;;   Build a binary fixnum min/max helper with checked arguments.
 (define (fixnum-minmax2-runtime-helper name inst)
@@ -287,6 +418,8 @@
   (append
    fixnum-predicate-runtime-only-helpers
    fixnum-comparison-runtime-only-helpers
+   fixnum-bitwise-runtime-only-helpers
+   fixnum-wraparound-runtime-only-helpers
    (for/list ([name '( $fxmin/2 $fxmax/2 )]
               [inst '( i32.lt_s i32.gt_s )])
      (fixnum-minmax2-runtime-helper name inst))
