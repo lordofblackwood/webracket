@@ -139,8 +139,11 @@
                   namespace-parameter-runtime-only-helper-names
                   parameterization-binding-runtime-only-helper-names
                   parameterization-call-runtime-only-helper-names
+                  parameter-directory-runtime-only-helper-names
+                  parameter-error-rendering-runtime-only-helper-names
                   parameterization-runtime-only-helper-names
                   parameter-runtime-only-helpers
+                  parameter-width-runtime-only-helper-names
                   reader-printer-policy-parameter-helper-names)
          (only-in "runtime-wasm/core/paths.rkt"
                   path-runtime-only-helpers
@@ -16181,8 +16184,7 @@
                    (core-runtime-helper-form runtime-helper-index name))
 
                ;;   Implemented in runtime-wasm/core/parameters.rkt.
-               ,@(for/list ([name '($print-syntax-width
-                                    $error-print-width)])
+               ,@(for/list ([name (in-list parameter-width-runtime-only-helper-names)])
                    (core-runtime-helper-form runtime-helper-index name))
 
                ;;   Error rendering defaults are implemented in runtime-wasm/core/io-handlers.rkt.
@@ -16190,15 +16192,11 @@
                    (core-runtime-helper-form runtime-helper-index name))
 
                ;;   Implemented in runtime-wasm/core/parameters.rkt.
-               ,@(for/list ([name '($error-syntax->name-handler
-                                    $error-value->string-handler
-                                    $error-syntax->string-handler
-                                    $error-module-path->string-handler)])
+               ,@(for/list ([name (in-list parameter-error-rendering-runtime-only-helper-names)])
                    (core-runtime-helper-form runtime-helper-index name))
 
                ;;   Implemented in runtime-wasm/core/parameters.rkt.
-               ,@(for/list ([name '($current-directory
-                                    $current-directory-for-user)])
+               ,@(for/list ([name (in-list parameter-directory-runtime-only-helper-names)])
                    (core-runtime-helper-form runtime-helper-index name))
 
                ;;   Implemented in runtime-wasm/core/parameters.rkt.

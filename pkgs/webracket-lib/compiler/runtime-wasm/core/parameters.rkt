@@ -6,6 +6,9 @@
          parameterization-binding-runtime-only-helper-names
          parameterization-call-runtime-only-helper-names
          parameter-runtime-only-helpers
+         parameter-width-runtime-only-helper-names
+         parameter-error-rendering-runtime-only-helper-names
+         parameter-directory-runtime-only-helper-names
          reader-printer-policy-parameter-helper-names)
 
 (require "../core-helper.rkt")
@@ -188,6 +191,26 @@
 (define parameterization-call-runtime-only-helper-names
   '($call-with-parameterization
     $cache-configuration))
+
+;; parameter-width-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for printer width parameters.
+(define parameter-width-runtime-only-helper-names
+  '($print-syntax-width
+    $error-print-width))
+
+;; parameter-error-rendering-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for error rendering parameters.
+(define parameter-error-rendering-runtime-only-helper-names
+  '($error-syntax->name-handler
+    $error-value->string-handler
+    $error-syntax->string-handler
+    $error-module-path->string-handler))
+
+;; parameter-directory-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for current directory parameters.
+(define parameter-directory-runtime-only-helper-names
+  '($current-directory
+    $current-directory-for-user))
 
 ;; reader-printer-policy-parameter-form : symbol? symbol? symbol? symbol? -> datum?
 ;;   Generate one boolean reader/printing policy parameter function.
