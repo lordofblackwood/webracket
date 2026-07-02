@@ -1,6 +1,8 @@
 #lang racket
 
 (provide flonum-core-runtime-helpers
+         flonum-global-forms
+         flonum-initializer-forms
          flonum-arithmetic-runtime-only-helper-names
          flonum-constructor-runtime-only-helper-names
          flonum-conversion-runtime-only-helper-names
@@ -10,7 +12,29 @@
          flonum-utility-runtime-only-helper-names
          flonum-runtime-only-helpers)
 
-(require "../core-helper.rkt")
+(require "../core-helper.rkt"
+         (only-in "../../private/wasm-utils.rkt"
+                  Undefined))
+
+;; flonum-global-forms : (listof datum?)
+;;   Declare globals for commonly used flonum constants.
+(define flonum-global-forms
+  `(
+         ;; Commonly used flonums
+         ;; - initialized in $entry
+         (global $flzero  (mut (ref eq)) ,(Undefined))
+         (global $flone   (mut (ref eq)) ,(Undefined))
+         (global $fltwo   (mut (ref eq)) ,(Undefined))
+         (global $flthree (mut (ref eq)) ,(Undefined))))
+
+;; flonum-initializer-forms : (listof datum?)
+;;   Initialize globals for commonly used flonum constants.
+(define flonum-initializer-forms
+  '(
+                     (global.set $flzero  (call $i32->flonum (i32.const 0)))
+                     (global.set $flone   (call $i32->flonum (i32.const 1)))
+                     (global.set $fltwo   (call $i32->flonum (i32.const 2)))
+                     (global.set $flthree (call $i32->flonum (i32.const 3)))))
 
 ;; flonum-constructor-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for flonum construction helpers.

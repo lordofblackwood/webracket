@@ -95,6 +95,8 @@
                   flonum-arithmetic-runtime-only-helper-names
                   flonum-constructor-runtime-only-helper-names
                   flonum-conversion-runtime-only-helper-names
+                  flonum-global-forms
+                  flonum-initializer-forms
                   flonum-math-runtime-only-helper-names
                   flonum-minmax-runtime-only-helper-names
                   flonum-predicate-runtime-only-helper-names
@@ -3453,12 +3455,7 @@
          (global $two   (ref eq) ,(Imm 2))
          (global $three (ref eq) ,(Imm 3))
 
-         ;; Commonly used flonums
-         ;; - initialized in $entry
-         (global $flzero  (mut (ref eq)) ,(Undefined))
-         (global $flone   (mut (ref eq)) ,(Undefined))
-         (global $fltwo   (mut (ref eq)) ,(Undefined))
-         (global $flthree (mut (ref eq)) ,(Undefined))
+         ,@flonum-global-forms
 
          ;; String constants used in the runtime
          ,@(declare-runtime-string-constants)
@@ -6429,10 +6426,7 @@
                          (Local* (reverse entry-locals)))
 
                      ;; Initialize global constants
-                     (global.set $flzero  (call $i32->flonum (i32.const 0)))
-                     (global.set $flone   (call $i32->flonum (i32.const 1)))
-                     (global.set $fltwo   (call $i32->flonum (i32.const 2)))
-                     (global.set $flthree (call $i32->flonum (i32.const 3)))
+                     ,@flonum-initializer-forms
 
                      ;; Initialize global state
                      (call $initialize-the-symbol-table)  ; for interning
