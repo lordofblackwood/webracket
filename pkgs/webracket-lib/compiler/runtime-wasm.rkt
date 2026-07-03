@@ -25,6 +25,7 @@
                   boolean-runtime-only-helpers
                   boolean-runtime-only-helper-names)
          (only-in "runtime-wasm/core/boxes.rkt"
+                  box-runtime-string-constants
                   box-mutability-runtime-only-helper-names
                   box-runtime-only-helpers)
          (only-in "runtime-wasm/core/bytes.rkt"
@@ -70,6 +71,7 @@
                   exception-runtime-only-helpers)
          (only-in "runtime-wasm/core/events.rkt"
                   event-global-forms
+                  event-runtime-string-constants
                   event-initializer-forms
                   event-runtime-only-helpers)
          (only-in "runtime-wasm/core/fasl.rkt"
@@ -98,6 +100,7 @@
                   fixnum-global-forms
                   fixnum-minmax-runtime-only-helper-names
                   fixnum-predicate-runtime-only-helper-names
+                  fixnum-runtime-string-constants
                   fixnum-runtime-only-helpers)
          (only-in "runtime-wasm/core/flonums.rkt"
                   flonum-arithmetic-runtime-only-helper-names
@@ -158,6 +161,7 @@
          (only-in "runtime-wasm/core/impersonators.rkt"
                   chaperone-procedure-runtime-only-helper-names
                   impersonator-basic-runtime-only-helper-names
+                  impersonator-runtime-string-constants
                   impersonator-runtime-only-helpers)
          (only-in "runtime-wasm/core/io-handlers.rkt"
                   io-handler-default-port-global-forms
@@ -166,6 +170,7 @@
                   io-handler-reader-printer-runtime-only-helper-names
                   io-handler-runtime-only-helpers)
          (only-in "runtime-wasm/core/keywords.rkt"
+                  keyword-runtime-string-constants
                   keyword-table-global-forms
                   keyword-table-initializer-runtime-only-helper-names
                   keyword-runtime-only-helper-names
@@ -225,6 +230,7 @@
                   generic-arithmetic-runtime-only-helper-names
                   generic-bitwise-runtime-only-helper-names
                   generic-numeric-runtime-only-helper-names
+                  number-runtime-string-constants
                   number-error-runtime-only-helper-names
                   number-runtime-only-helpers
                   number-string-conversion-runtime-only-helper-names
@@ -234,6 +240,7 @@
                   number-type-runtime-only-helper-names)
          (only-in "runtime-wasm/core/parameters.rkt"
                   compile-parameter-global-forms
+                  parameter-runtime-string-constants
                   compile-parameter-runtime-only-helper-names
                   namespace-parameter-runtime-only-helper-names
                   parameterization-binding-runtime-only-helper-names
@@ -289,6 +296,7 @@
                   primitive-invocation-error-runtime-only-helper-names
                   primitive-reflection-runtime-only-helper-names
                   procedure-global-forms
+                  procedure-runtime-string-constants
                   procedure-arity-at-least-runtime-only-helper-names
                   procedure-arity-field-runtime-only-helper-names
                   procedure-arity-mask-runtime-only-helper-names
@@ -308,6 +316,7 @@
                   random-current-initializer-forms
                   random-generator-runtime-only-helper-names
                   random-public-runtime-only-helper-names
+                  random-runtime-string-constants
                   random-state-global-forms
                   random-runtime-only-helpers)
          (only-in "runtime-wasm/core/realms.rkt"
@@ -327,8 +336,10 @@
                   security-guard-current-initializer-forms
                   security-post-parameter-runtime-only-helper-names
                   security-pre-parameter-runtime-only-helper-names
+                  security-runtime-string-constants
                   security-runtime-only-helpers)
          (only-in "runtime-wasm/core/semaphores.rkt"
+                  semaphore-runtime-string-constants
                   semaphore-runtime-only-helpers)
          (only-in "runtime-wasm/core/stencil-vectors.rkt"
                   stencil-vector-runtime-only-helpers)
@@ -413,6 +424,7 @@
                   thread-current-global-forms
                   thread-current-initializer-forms
                   thread-group-current-global-forms
+                  thread-runtime-string-constants
                   thread-runtime-only-helpers)
          (only-in "runtime-wasm/core/time.rkt"
                   time-runtime-only-helpers
@@ -446,6 +458,7 @@
                   vector-sort-runtime-only-helper-names
                   vector-runtime-only-helpers)
          (only-in "runtime-wasm/core/wills.rkt"
+                  will-runtime-string-constants
                   will-runtime-only-helpers)
          "runtime-wasm/core-runtime.rkt"
          "runtime-wasm/constants.rkt"
@@ -2856,48 +2869,36 @@
 
     (add-runtime-string-constants hash-less-formatting-runtime-string-constants)
     (add-runtime-string-constants struct-type-property-formatting-runtime-string-constants)
-    (add-runtime-string-constant 'procedure-realm           "procedure-realm")
-    (add-runtime-string-constant 'procedure-struct-type?    "procedure-struct-type?")
+    (add-runtime-string-constants procedure-runtime-string-constants)
     (add-runtime-string-constant 'string?                    "string?")
     (add-runtime-string-constant 'string-or-symbol?          "(or/c string? symbol?)")
     (add-runtime-string-constant 'symbol?                    "symbol?")
     (add-runtime-string-constant 'ephemeron?                 "ephemeron?")
-    (add-runtime-string-constant 'keyword?                   "keyword?")
-    (add-runtime-string-constant 'keyword:key                "key")
-    (add-runtime-string-constant 'keyword:cache-keys?        "cache-keys?")
+    (add-runtime-string-constants keyword-runtime-string-constants)
     (add-runtime-string-constants list-runtime-string-constants)
     (add-runtime-string-constant 'placeholder?               "placeholder?")
-    (add-runtime-string-constant 'fixnum?                    "fixnum?")
+    (add-runtime-string-constants fixnum-runtime-string-constants)
     (add-runtime-string-constants bytes-runtime-string-constants)
     (add-runtime-string-constants vector-runtime-string-constants)
-    (add-runtime-string-constant 'box?                       "box?")
+    (add-runtime-string-constants box-runtime-string-constants)
     (add-runtime-string-constants port-predicate-runtime-string-constants)
     (add-runtime-string-constant 'file-stream-port?          "file-stream-port?")
     (add-runtime-string-constant 'terminal-port?             "terminal-port?")
     (add-runtime-string-constant 'port-writes-atomic?        "port-writes-atomic?")
     (add-runtime-string-constant 'port-writes-special?       "port-writes-special?")
     (add-runtime-string-constant 'port-provides-progress-evts? "port-provides-progress-evts?")
-    (add-runtime-string-constant 'parameter?                 "parameter?")
-    (add-runtime-string-constant 'parameterization?          "parameterization?")
-    (add-runtime-string-constant 'pseudo-random-generator?   "pseudo-random-generator?")
-    (add-runtime-string-constant 'impersonator-property?     "impersonator-property?")
-    (add-runtime-string-constant 'procedure-or-false?       "(or/c procedure? #f)")
-    (add-runtime-string-constant 'security-guard?            "security-guard?")
-    (add-runtime-string-constant 'custodian?                 "custodian?")
-    (add-runtime-string-constant 'custodian-box?             "custodian-box?")
+    (add-runtime-string-constants parameter-runtime-string-constants)
+    (add-runtime-string-constants random-runtime-string-constants)
+    (add-runtime-string-constants impersonator-runtime-string-constants)
+    (add-runtime-string-constants security-runtime-string-constants)
     (add-runtime-string-constants mlist-runtime-string-constants)
     (add-runtime-string-constant 'catch*-matching-lengths    "same number of handlers as predicates")
-    (add-runtime-string-constant 'real?                      "real?")
-    (add-runtime-string-constant 'exact-nonnegative-integer? "exact-nonnegative-integer?")
-    (add-runtime-string-constant 'exact-integer?             "exact-integer?")
+    (add-runtime-string-constants number-runtime-string-constants)
     (add-runtime-string-constant 'filesystem-errno           "(cons/c exact-integer? (or/c 'posix 'windows 'gai))")
-    (add-runtime-string-constant 'semaphore?                 "semaphore?")
-    (add-runtime-string-constant 'evt?                       "evt?")
-    (add-runtime-string-constant 'handle-evt?                "handle-evt?")
-    (add-runtime-string-constant 'will-executor?             "will-executor?")
-    (add-runtime-string-constant 'thread?                    "thread?")
-    (add-runtime-string-constant 'thread-group?              "thread-group?")
-    (add-runtime-string-constant 'procedure-arity?           "procedure-arity?")
+    (add-runtime-string-constants semaphore-runtime-string-constants)
+    (add-runtime-string-constants event-runtime-string-constants)
+    (add-runtime-string-constants will-runtime-string-constants)
+    (add-runtime-string-constants thread-runtime-string-constants)
     (add-runtime-string-constant 'exn:srclocs?              "exn:srclocs?")
     (add-runtime-string-constant 'valid-argument             "valid argument")
     (add-runtime-string-constants port-closed-error-runtime-string-constants)

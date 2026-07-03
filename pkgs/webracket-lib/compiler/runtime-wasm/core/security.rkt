@@ -1,6 +1,7 @@
 #lang racket
 
 (provide security-pre-parameter-runtime-only-helper-names
+         security-runtime-string-constants
          security-post-parameter-runtime-only-helper-names
          custodian-current-initializer-forms
          custodian-runtime-only-helper-names
@@ -10,6 +11,13 @@
          security-runtime-only-helpers)
 
 (require "../core-helper.rkt")
+
+;; security-runtime-string-constants : (listof (list/c symbol? string?))
+;;   Declare string constants used by security guard and custodian helpers.
+(define security-runtime-string-constants
+  '((security-guard? "security-guard?")
+    (custodian?      "custodian?")
+    (custodian-box?  "custodian-box?")))
 
 ;; security-current-global-forms : (listof datum?)
 ;;   Declare current security guard and custodian globals.

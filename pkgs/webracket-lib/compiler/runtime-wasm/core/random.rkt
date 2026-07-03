@@ -1,6 +1,7 @@
 #lang racket
 
 (provide random-current-global-forms
+         random-runtime-string-constants
          random-current-initializer-forms
          random-generator-runtime-only-helper-names
          random-public-runtime-only-helper-names
@@ -8,6 +9,11 @@
          random-runtime-only-helpers)
 
 (require "../core-helper.rkt")
+
+;; random-runtime-string-constants : (listof (list/c symbol? string?))
+;;   Declare string constants used by pseudo-random-generator helpers.
+(define random-runtime-string-constants
+  '((pseudo-random-generator? "pseudo-random-generator?")))
 
 ;; Half : datum? -> datum?
 ;;   Decode a tagged fixnum expression to an i32 payload.

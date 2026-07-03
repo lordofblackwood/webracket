@@ -1,8 +1,14 @@
 #lang racket
 
-(provide semaphore-runtime-only-helpers)
+(provide semaphore-runtime-string-constants
+         semaphore-runtime-only-helpers)
 
 (require "../core-helper.rkt")
+
+;; semaphore-runtime-string-constants : (listof (list/c symbol? string?))
+;;   Declare string constants used by semaphore helpers and semaphore errors.
+(define semaphore-runtime-string-constants
+  '((semaphore? "semaphore?")))
 
 ;; semaphore-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate semaphore helpers that still depend on monolithic runtime globals.

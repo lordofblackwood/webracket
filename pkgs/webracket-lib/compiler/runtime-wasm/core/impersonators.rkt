@@ -1,10 +1,16 @@
 #lang racket
 
-(provide impersonator-basic-runtime-only-helper-names
+(provide impersonator-runtime-string-constants
+         impersonator-basic-runtime-only-helper-names
          chaperone-procedure-runtime-only-helper-names
          impersonator-runtime-only-helpers)
 
 (require "../core-helper.rkt")
+
+;; impersonator-runtime-string-constants : (listof (list/c symbol? string?))
+;;   Declare string constants used by impersonator and chaperone helpers.
+(define impersonator-runtime-string-constants
+  '((impersonator-property? "impersonator-property?")))
 
 ;; impersonator-basic-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for basic impersonator helpers.

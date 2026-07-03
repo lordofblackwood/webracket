@@ -1,12 +1,20 @@
 #lang racket
 
 (provide keyword-core-runtime-helpers
+         keyword-runtime-string-constants
          keyword-table-global-forms
          keyword-table-initializer-runtime-only-helper-names
          keyword-runtime-only-helper-names
          keyword-runtime-only-helpers)
 
 (require "../core-helper.rkt")
+
+;; keyword-runtime-string-constants : (listof (list/c symbol? string?))
+;;   Declare string constants used by keyword helpers and keyword arguments.
+(define keyword-runtime-string-constants
+  '((keyword?            "keyword?")
+    (keyword:key         "key")
+    (keyword:cache-keys? "cache-keys?")))
 
 ;; keyword-table-global-forms : (listof datum?)
 ;;   Declare the global keyword interning table.

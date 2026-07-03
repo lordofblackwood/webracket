@@ -1,6 +1,7 @@
 #lang racket
 
 (provide generic-arithmetic-runtime-only-helper-names
+         number-runtime-string-constants
          generic-bitwise-runtime-only-helper-names
          generic-numeric-runtime-only-helper-names
          number-error-runtime-only-helper-names
@@ -14,6 +15,13 @@
 (require "../core-helper.rkt"
          "../../private/wasm-utils.rkt"
          "../../private/immediates.rkt")
+
+;; number-runtime-string-constants : (listof (list/c symbol? string?))
+;;   Declare string constants used by generic number predicates and errors.
+(define number-runtime-string-constants
+  '((real?                      "real?")
+    (exact-nonnegative-integer? "exact-nonnegative-integer?")
+    (exact-integer?             "exact-integer?")))
 
 ;; Half : datum? -> datum?
 ;;   Decode a tagged fixnum expression to an i32 payload.

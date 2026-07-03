@@ -1,6 +1,7 @@
 #lang racket
 
 (provide compile-parameter-global-forms
+         parameter-runtime-string-constants
          compile-parameter-runtime-only-helper-names
          parameterization-runtime-only-helper-names
          namespace-parameter-runtime-only-helper-names
@@ -23,6 +24,12 @@
          reader-printer-policy-parameter-helper-names)
 
 (require "../core-helper.rkt")
+
+;; parameter-runtime-string-constants : (listof (list/c symbol? string?))
+;;   Declare string constants used by parameter and parameterization helpers.
+(define parameter-runtime-string-constants
+  '((parameter?        "parameter?")
+    (parameterization? "parameterization?")))
 
 ;; reader-printer-policy-parameter-specs : (listof (list symbol? symbol? symbol? symbol?))
 ;;   Describe the boolean reader/printing policy parameters with their

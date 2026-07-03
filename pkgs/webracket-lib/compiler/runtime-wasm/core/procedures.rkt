@@ -1,6 +1,7 @@
 #lang racket
 
 (provide procedure-core-runtime-helpers
+         procedure-runtime-string-constants
          procedure-global-forms
          procedure-basic-runtime-only-helper-names
          procedure-arity-at-least-runtime-only-helper-names
@@ -21,6 +22,13 @@
 
 (require "../core-helper.rkt"
          "../../private/wasm-utils.rkt")
+
+;; procedure-runtime-string-constants : (listof (list/c symbol? string?))
+;;   Declare string constants used by procedure helpers and procedure errors.
+(define procedure-runtime-string-constants
+  '((procedure-realm     "procedure-realm")
+    (procedure-or-false? "(or/c procedure? #f)")
+    (procedure-arity?    "procedure-arity?")))
 
 ;; procedure-global-forms : (listof datum?)
 ;;   Declare cached procedure-related struct type descriptors.

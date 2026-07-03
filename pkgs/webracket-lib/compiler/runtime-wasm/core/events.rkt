@@ -1,10 +1,17 @@
 #lang racket
 
 (provide event-global-forms
+         event-runtime-string-constants
          event-initializer-forms
          event-runtime-only-helpers)
 
 (require "../core-helper.rkt")
+
+;; event-runtime-string-constants : (listof (list/c symbol? string?))
+;;   Declare string constants used by event helpers and event errors.
+(define event-runtime-string-constants
+  '((evt?        "evt?")
+    (handle-evt? "handle-evt?")))
 
 ;; event-global-forms : (listof datum?)
 ;;   Declare singleton event globals for the runtime.

@@ -1,11 +1,18 @@
 #lang racket
 
 (provide thread-current-global-forms
+         thread-runtime-string-constants
          thread-current-initializer-forms
          thread-group-current-global-forms
          thread-runtime-only-helpers)
 
 (require "../core-helper.rkt")
+
+;; thread-runtime-string-constants : (listof (list/c symbol? string?))
+;;   Declare string constants used by thread and thread-group helpers.
+(define thread-runtime-string-constants
+  '((thread?       "thread?")
+    (thread-group? "thread-group?")))
 
 ;; thread-group-current-global-forms : (listof datum?)
 ;;   Declare the current thread group global at its monolithic runtime position.

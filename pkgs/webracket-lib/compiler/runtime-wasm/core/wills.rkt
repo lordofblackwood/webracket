@@ -1,8 +1,14 @@
 #lang racket
 
-(provide will-runtime-only-helpers)
+(provide will-runtime-string-constants
+         will-runtime-only-helpers)
 
 (require "../core-helper.rkt")
+
+;; will-runtime-string-constants : (listof (list/c symbol? string?))
+;;   Declare string constants used by will-executor helpers.
+(define will-runtime-string-constants
+  '((will-executor? "will-executor?")))
 
 ;; will-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate will-executor helpers that still depend on monolithic runtime globals.

@@ -1,6 +1,7 @@
 #lang racket
 
 (provide fixnum-core-runtime-helpers
+         fixnum-runtime-string-constants
          fixnum-global-forms
          fixnum-arithmetic-runtime-only-helper-names
          fixnum-comparison-runtime-only-helper-names
@@ -12,6 +13,11 @@
 (require "../core-helper.rkt"
          "../../private/immediates.rkt"
          "../../private/wasm-utils.rkt")
+
+;; fixnum-runtime-string-constants : (listof (list/c symbol? string?))
+;;   Declare string constants used by fixnum helpers and fixnum errors.
+(define fixnum-runtime-string-constants
+  '((fixnum? "fixnum?")))
 
 ;; fixnum-global-forms : (listof datum?)
 ;;   Declare globals for commonly used fixnums.
