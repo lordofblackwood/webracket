@@ -44,6 +44,9 @@
          (only-in "runtime-wasm/core/checkers.rkt"
                   checker-runtime-only-helpers
                   checker-runtime-only-helper-names)
+         (only-in "runtime-wasm/core/closures.rkt"
+                  closure-empty-free-global-forms
+                  closure-runtime-global-forms)
          (only-in "runtime-wasm/core/control-flow.rkt"
                   continuation-mark-runtime-only-helper-names
                   continuation-runtime-only-helper-names
@@ -436,6 +439,7 @@
 (define-runtime-path core-bytes-path "runtime-wasm/core/bytes.rkt")
 (define-runtime-path core-characters-path "runtime-wasm/core/characters.rkt")
 (define-runtime-path core-checkers-path "runtime-wasm/core/checkers.rkt")
+(define-runtime-path core-closures-path "runtime-wasm/core/closures.rkt")
 (define-runtime-path core-control-flow-path "runtime-wasm/core/control-flow.rkt")
 (define-runtime-path core-equality-path "runtime-wasm/core/equality.rkt")
 (define-runtime-path core-exceptions-path "runtime-wasm/core/exceptions.rkt")
@@ -868,6 +872,7 @@
                                           core-bytes-path
                                           core-characters-path
                                           core-checkers-path
+                                          core-closures-path
                                           core-control-flow-path
                                           core-equality-path
                                           core-exceptions-path
@@ -3484,17 +3489,7 @@
          ,@(declare-primitives-as-globals)
          ,@(declare-ffi-primitives-as-globals)
 
-         ;; Closures
-
-         ; Closures with no free variables can share an empty array
-         (global $empty-free (ref $Free)
-                 (array.new $Free (global.get $null) (i32.const 0)))
-
-         ;; Closure invocation - invoke
-         #;(type $ProcedureInvoker
-                 (func (param $proc (ref $Procedure))
-                       (param $args (ref $Args))      ; an array of (ref eq)
-                       (result (ref eq))))
+         ,@closure-empty-free-global-forms
 
          ;;   Procedure invocation error helpers are implemented in runtime-wasm/core/procedures.rkt.
          ,@(for/list ([name (in-list procedure-invocation-error-runtime-only-helper-names)])
@@ -3535,50 +3530,7 @@
          ,@(for/list ([name (in-list linklet-interpreter-runtime-only-helper-names)])
              (core-runtime-helper-form runtime-helper-index name))
 
-         (global $dummy-closure (ref $Closure)
-                 (struct.new $Closure
-                             (i32.const 0)               ; hash
-                             (global.get $false)         ; name:  #f or $String
-                             (global.get $zero)          ; arity: todo
-                             (global.get $false)         ; realm: #f or $Symbol
-                             (ref.func $invoke-closure) ; invoke (used by apply, map, etc.)
-                             (global.get $false)         ; debug-id
-                             (ref.func $placeholder-linklet-code)
-                             (array.new_fixed $Free 0)))
-         (global $placeholder-linklet-closure (ref $Closure)
-                 (struct.new $Closure
-                             (i32.const 0)               ; hash
-                             (global.get $false)         ; name:  #f or $String
-                             (ref.i31 (i32.const -1))    ; arity-at-least 0
-                             (global.get $false)         ; realm: #f or $Symbol
-                             (ref.func $invoke-closure) ; invoke (used by apply, map, etc.)
-                             (global.get $false)         ; debug-id
-                             (ref.func $dummy-code)
-                             (array.new_fixed $Free 0)))
-         (global $interpreted-linklet-retainer (ref $Closure)
-                 (struct.new $Closure
-                             (i32.const 0)
-                             (global.get $false)
-                             (ref.i31 (i32.const -1))
-                             (global.get $false)
-                             (ref.func $invoke-closure)
-                             (global.get $false)
-                             (ref.func $interpreted-linklet-code)
-                             (array.new_fixed $Free 2
-                                              (global.get $false)
-                                              (global.get $null))))
-         (global $escape-continuation-closure (ref $Closure)
-                 (struct.new $Closure
-                             (i32.const 0)
-                             (global.get $false)
-                             (ref.i31 (i32.const -1)) ; arity-at-least 0
-                             (global.get $false)
-                             (ref.func $invoke-escape-continuation)
-                             (global.get $false)
-                             (ref.func $dummy-code)
-                             (array.new_fixed $Free 0)))
-         (global $closedapp-clos (mut (ref $Closure)) (global.get $dummy-closure))
-
+         ,@closure-runtime-global-forms
 
          ;; Predefined exception struct type descriptors (as boxed top-level bindings)
          ;;   struct:exn, struct:exn:fail, etc.
