@@ -1,6 +1,7 @@
 #lang racket
 
 (provide semaphore-runtime-string-constants
+         semaphore-runtime-helper-forms
          semaphore-runtime-only-helpers)
 
 (require "../core-helper.rkt")
@@ -256,3 +257,35 @@
                          (i32.const 0)
                          (ref.cast (ref $Semaphore) (local.get $sema-raw))))))
 ))
+
+;; semaphore-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for semaphore helpers.
+(define semaphore-runtime-only-helper-names
+  '($make-semaphore
+    $semaphore?
+    $semaphore-peek-evt?
+    $semaphore-post
+    $semaphore-try-wait?
+    $call-with-semaphore
+    $semaphore-peek-evt))
+
+;; semaphore-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render semaphore helpers in runtime assembly order.
+(define (semaphore-runtime-helper-forms helper-index)
+  (for/list ([name (in-list semaphore-runtime-only-helper-names)])
+    (core-runtime-helper-form helper-index name)))
+
+(module+ test
+  (require rackunit)
+
+  ;; form-name : datum? -> symbol?
+  ;;   Return the function name from a rendered helper form.
+  (define (form-name form)
+    (second form))
+
+  (define semaphore-helper-index
+    (make-core-runtime-helper-index semaphore-runtime-only-helpers))
+
+  (check-equal?
+   (map form-name (semaphore-runtime-helper-forms semaphore-helper-index))
+   semaphore-runtime-only-helper-names))

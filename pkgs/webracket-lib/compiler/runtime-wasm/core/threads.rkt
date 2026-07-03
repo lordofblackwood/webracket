@@ -5,6 +5,7 @@
          thread-runtime-symbol-constants
          thread-current-initializer-forms
          thread-group-current-global-forms
+         thread-runtime-helper-forms
          thread-runtime-only-helpers)
 
 (require "../core-helper.rkt")
@@ -257,3 +258,39 @@
                          (i32.const 0)
                          (local.get $parent-raw)))))
 ))
+
+;; thread-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for thread and thread-cell helpers.
+(define thread-runtime-only-helper-names
+  '($make-thread-cell
+    $thread-cell?
+    $thread-cell-ref
+    $thread-cell-set!
+    $current-thread
+    $thread?
+    $thread-dead?
+    $thread-running?
+    $thread-group?
+    $current-thread-group
+    $make-thread-group))
+
+;; thread-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render thread and thread-cell helpers in runtime assembly order.
+(define (thread-runtime-helper-forms helper-index)
+  (for/list ([name (in-list thread-runtime-only-helper-names)])
+    (core-runtime-helper-form helper-index name)))
+
+(module+ test
+  (require rackunit)
+
+  ;; form-name : datum? -> symbol?
+  ;;   Return the function name from a rendered helper form.
+  (define (form-name form)
+    (second form))
+
+  (define thread-helper-index
+    (make-core-runtime-helper-index thread-runtime-only-helpers))
+
+  (check-equal?
+   (map form-name (thread-runtime-helper-forms thread-helper-index))
+   thread-runtime-only-helper-names))

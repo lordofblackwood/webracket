@@ -4,6 +4,8 @@
          event-runtime-string-constants
          event-runtime-symbol-constants
          event-initializer-forms
+         event-channel-runtime-helper-forms
+         event-sync-runtime-helper-forms
          event-runtime-only-helpers)
 
 (require "../core-helper.rkt")
@@ -426,3 +428,59 @@
                     (br $again))))
              (global.get $false))))
 ))
+
+;; event-channel-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for channel and event helpers.
+(define event-channel-runtime-only-helper-names
+  '($make-channel
+    $channel?
+    $channel-put-evt?
+    $handle-evt?
+    $evt?
+    $channel-put
+    $channel-try-get
+    $channel-get
+    $channel-put-evt
+    $handle-evt))
+
+;; event-sync-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for synchronization helpers.
+(define event-sync-runtime-only-helper-names
+  '($sync-one
+    $sync
+    $sync/timeout))
+
+;; event-helper-forms : hasheq? (listof symbol?) -> (listof datum?)
+;;   Render the given event helper names from the runtime helper index.
+(define (event-helper-forms helper-index names)
+  (for/list ([name (in-list names)])
+    (core-runtime-helper-form helper-index name)))
+
+;; event-channel-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render channel and event helpers in runtime assembly order.
+(define (event-channel-runtime-helper-forms helper-index)
+  (event-helper-forms helper-index event-channel-runtime-only-helper-names))
+
+;; event-sync-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render event synchronization helpers in runtime assembly order.
+(define (event-sync-runtime-helper-forms helper-index)
+  (event-helper-forms helper-index event-sync-runtime-only-helper-names))
+
+(module+ test
+  (require rackunit)
+
+  ;; form-name : datum? -> symbol?
+  ;;   Return the function name from a rendered helper form.
+  (define (form-name form)
+    (second form))
+
+  (define event-helper-index
+    (make-core-runtime-helper-index event-runtime-only-helpers))
+
+  (check-equal?
+   (map form-name (event-channel-runtime-helper-forms event-helper-index))
+   event-channel-runtime-only-helper-names)
+
+  (check-equal?
+   (map form-name (event-sync-runtime-helper-forms event-helper-index))
+   event-sync-runtime-only-helper-names))

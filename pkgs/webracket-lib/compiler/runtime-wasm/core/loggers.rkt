@@ -4,6 +4,7 @@
          logger-runtime-string-constants
          logger-runtime-symbol-constants
          logger-current-initializer-forms
+         logger-runtime-helper-forms
          logger-runtime-only-helpers)
 
 (require "../core-helper.rkt")
@@ -237,3 +238,37 @@
                        (unreachable)))
              (global.get $void))))
 ))
+
+;; logger-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for logger helpers.
+(define logger-runtime-only-helper-names
+  '($logger?
+    $log-receiver?
+    $make-logger
+    $make-log-receiver
+    $logger-name
+    $current-logger
+    $log-level?
+    $log-max-level
+    $log-message))
+
+;; logger-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render logger helpers in runtime assembly order.
+(define (logger-runtime-helper-forms helper-index)
+  (for/list ([name (in-list logger-runtime-only-helper-names)])
+    (core-runtime-helper-form helper-index name)))
+
+(module+ test
+  (require rackunit)
+
+  ;; form-name : datum? -> symbol?
+  ;;   Return the function name from a rendered helper form.
+  (define (form-name form)
+    (second form))
+
+  (define logger-helper-index
+    (make-core-runtime-helper-index logger-runtime-only-helpers))
+
+  (check-equal?
+   (map form-name (logger-runtime-helper-forms logger-helper-index))
+   logger-runtime-only-helper-names))

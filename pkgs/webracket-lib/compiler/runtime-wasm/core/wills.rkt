@@ -2,6 +2,7 @@
 
 (provide will-runtime-string-constants
          will-runtime-symbol-constants
+         will-runtime-helper-forms
          will-runtime-only-helpers)
 
 (require "../core-helper.rkt")
@@ -138,3 +139,33 @@
                    (local.get $executor-raw)
                    (global.get $false)))))
 ))
+
+;; will-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for will-executor helpers.
+(define will-runtime-only-helper-names
+  '($make-will-executor
+    $will-executor?
+    $will-register
+    $will-try-execute
+    $will-execute))
+
+;; will-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render will-executor helpers in runtime assembly order.
+(define (will-runtime-helper-forms helper-index)
+  (for/list ([name (in-list will-runtime-only-helper-names)])
+    (core-runtime-helper-form helper-index name)))
+
+(module+ test
+  (require rackunit)
+
+  ;; form-name : datum? -> symbol?
+  ;;   Return the function name from a rendered helper form.
+  (define (form-name form)
+    (second form))
+
+  (define will-helper-index
+    (make-core-runtime-helper-index will-runtime-only-helpers))
+
+  (check-equal?
+   (map form-name (will-runtime-helper-forms will-helper-index))
+   will-runtime-only-helper-names))

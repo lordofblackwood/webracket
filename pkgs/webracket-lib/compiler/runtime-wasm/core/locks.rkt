@@ -1,6 +1,7 @@
 #lang racket
 
-(provide lock-runtime-only-helpers)
+(provide lock-runtime-helper-forms
+         lock-runtime-only-helpers)
 
 (require "../core-helper.rkt")
 
@@ -46,3 +47,31 @@
                  (then (unreachable)))
              (global.get $void))))
 ))
+
+;; lock-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for uninterruptible-lock helpers.
+(define lock-runtime-only-helper-names
+  '($unsafe-make-uninterruptible-lock
+    $unsafe-uninterruptible-lock-acquire
+    $unsafe-uninterruptible-lock-release))
+
+;; lock-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render uninterruptible-lock helpers in runtime assembly order.
+(define (lock-runtime-helper-forms helper-index)
+  (for/list ([name (in-list lock-runtime-only-helper-names)])
+    (core-runtime-helper-form helper-index name)))
+
+(module+ test
+  (require rackunit)
+
+  ;; form-name : datum? -> symbol?
+  ;;   Return the function name from a rendered helper form.
+  (define (form-name form)
+    (second form))
+
+  (define lock-helper-index
+    (make-core-runtime-helper-index lock-runtime-only-helpers))
+
+  (check-equal?
+   (map form-name (lock-runtime-helper-forms lock-helper-index))
+   lock-runtime-only-helper-names))

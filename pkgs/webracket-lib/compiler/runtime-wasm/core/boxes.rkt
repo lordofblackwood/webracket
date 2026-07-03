@@ -1,6 +1,7 @@
 #lang racket
 
 (provide box-runtime-string-constants
+         box-runtime-helper-forms
          box-mutability-runtime-only-helper-names
          box-runtime-only-helpers)
 
@@ -309,6 +310,37 @@
                            (return (global.get $error)))))))
 ))
 
+;; box-base-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for compiler-box and box helpers.
+;;   We use `boxed`, `set-boxed!`, and `unboxed` for assignable variables.
+;;   These boxes are not the same as the Racket datatype `box`.
+(define box-base-runtime-only-helper-names
+  '($raise-letrec-placeholder-access
+    $boxed
+    $unboxed
+    $set-boxed!
+    $initialize-boxed!
+    $boxed?
+    $box?
+    $box
+    $box-immutable
+    $unbox
+    $unbox*
+    $raise-immutable-box
+    $set-box!
+    $set-box*!
+    $box-cas!
+    $unsafe-box*-cas!
+    $make-weak-box
+    $weak-box?
+    $weak-box-value))
+
+;; box-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render compiler-box and box helpers in runtime assembly order.
+(define (box-runtime-helper-forms helper-index)
+  (for/list ([name (in-list box-base-runtime-only-helper-names)])
+    (core-runtime-helper-form helper-index name)))
+
 ;; box-mutability-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for box mutability predicates.
 (define box-mutability-runtime-only-helper-names
@@ -351,3 +383,18 @@
 (define box-runtime-only-helpers
   (append box-base-runtime-only-helpers
           box-mutability-runtime-only-helpers))
+
+(module+ test
+  (require rackunit)
+
+  ;; form-name : datum? -> symbol?
+  ;;   Return the function name from a rendered helper form.
+  (define (form-name form)
+    (second form))
+
+  (define box-helper-index
+    (make-core-runtime-helper-index box-runtime-only-helpers))
+
+  (check-equal?
+   (map form-name (box-runtime-helper-forms box-helper-index))
+   box-base-runtime-only-helper-names))
