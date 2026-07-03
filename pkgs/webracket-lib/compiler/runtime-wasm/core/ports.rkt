@@ -2,6 +2,8 @@
 
 (provide port-predicate-runtime-only-helper-names
          port-predicate-runtime-string-constants
+         port-event-runtime-string-constants
+         port-event-runtime-symbol-constants
          port-closed-error-runtime-string-constants
          port-state-runtime-only-helper-names
          port-location-runtime-only-helper-names
@@ -37,6 +39,20 @@
   '((port?                      "port?")
     (input-port?                "input-port?")
     (output-port?               "output-port?")))
+
+;; port-event-runtime-string-constants : (listof (list/c symbol? string?))
+;;   Declare strings used by port event capability predicates.
+(define port-event-runtime-string-constants
+  '((port-writes-atomic?         "port-writes-atomic?")
+    (port-writes-special?        "port-writes-special?")
+    (port-provides-progress-evts? "port-provides-progress-evts?")))
+
+;; port-event-runtime-symbol-constants : (listof symbol?)
+;;   Declare symbols used by port event capability predicates.
+(define port-event-runtime-symbol-constants
+  '(port-writes-atomic?
+    port-writes-special?
+    port-provides-progress-evts?))
 
 ;; port-closed-error-runtime-string-constants : (listof (list/c symbol? string?))
 ;;   Declare string constants used by closed-port error messages.

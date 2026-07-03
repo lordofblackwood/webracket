@@ -2,6 +2,7 @@
 
 (provide compile-parameter-global-forms
          parameter-runtime-string-constants
+         parameter-runtime-symbol-constants
          compile-parameter-runtime-only-helper-names
          parameterization-runtime-only-helper-names
          namespace-parameter-runtime-only-helper-names
@@ -30,6 +31,34 @@
 (define parameter-runtime-string-constants
   '((parameter?        "parameter?")
     (parameterization? "parameterization?")))
+
+;; parameter-runtime-symbol-constants : (listof symbol?)
+;;   Declare symbols used by reader, printer, and compile parameters.
+(define parameter-runtime-symbol-constants
+  '(load-on-demand-enabled
+    read-square-bracket-as-paren
+    read-curly-brace-as-paren
+    read-square-bracket-with-tag
+    read-curly-brace-with-tag
+    read-accept-reader
+    read-accept-lang
+    read-accept-compiled
+    read-accept-box
+    read-accept-bar-quote
+    read-accept-graph
+    read-syntax-accept-graph
+    read-accept-dot
+    read-accept-infix-dot
+    read-accept-quasiquote
+    read-cdot
+    read-single-flonum
+    read-decimal-as-inexact
+    read-case-sensitive
+    print-syntax-width
+    error-print-width
+    error-print-source-location
+    current-compile-target-machine
+    current-compile-realm))
 
 ;; reader-printer-policy-parameter-specs : (listof (list symbol? symbol? symbol? symbol?))
 ;;   Describe the boolean reader/printing policy parameters with their

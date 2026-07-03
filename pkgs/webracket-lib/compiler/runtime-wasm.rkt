@@ -173,6 +173,7 @@
                   impersonator-runtime-only-helpers)
          (only-in "runtime-wasm/core/io-handlers.rkt"
                   io-handler-default-port-global-forms
+                  io-handler-runtime-symbol-constants
                   io-handler-error-runtime-only-helper-names
                   io-handler-port-runtime-only-helper-names
                   io-handler-reader-printer-runtime-only-helper-names
@@ -250,6 +251,7 @@
          (only-in "runtime-wasm/core/parameters.rkt"
                   compile-parameter-global-forms
                   parameter-runtime-string-constants
+                  parameter-runtime-symbol-constants
                   compile-parameter-runtime-only-helper-names
                   namespace-parameter-runtime-only-helper-names
                   parameterization-binding-runtime-only-helper-names
@@ -282,6 +284,8 @@
                   port-byte-char-runtime-only-helper-names
                   port-byte-char-special-runtime-only-helper-names
                   port-predicate-runtime-string-constants
+                  port-event-runtime-string-constants
+                  port-event-runtime-symbol-constants
                   port-closed-error-runtime-string-constants
                   port-custom-byte-runtime-only-helper-names
                   port-custom-constructor-runtime-only-helper-names
@@ -2907,9 +2911,7 @@
     (add-runtime-string-constants port-predicate-runtime-string-constants)
     (add-runtime-string-constant 'file-stream-port?          "file-stream-port?")
     (add-runtime-string-constant 'terminal-port?             "terminal-port?")
-    (add-runtime-string-constant 'port-writes-atomic?        "port-writes-atomic?")
-    (add-runtime-string-constant 'port-writes-special?       "port-writes-special?")
-    (add-runtime-string-constant 'port-provides-progress-evts? "port-provides-progress-evts?")
+    (add-runtime-string-constants port-event-runtime-string-constants)
     (add-runtime-string-constants parameter-runtime-string-constants)
     (add-runtime-string-constants random-runtime-string-constants)
     (add-runtime-string-constants impersonator-runtime-string-constants)
@@ -2952,37 +2954,9 @@
     (add-runtime-symbol-constants exception-fail-runtime-symbol-constants)
     (add-runtime-symbol-constants time-clock-runtime-symbol-constants)
     (add-runtime-symbol-constants exception-break-runtime-symbol-constants)
-    (add-runtime-symbol-constant 'port-read-handler)
-    (add-runtime-symbol-constant 'port-write-handler)
-    (add-runtime-symbol-constant 'port-display-handler)
-    (add-runtime-symbol-constant 'port-print-handler)
-    (add-runtime-symbol-constant 'port-writes-atomic?)
-    (add-runtime-symbol-constant 'port-writes-special?)
-    (add-runtime-symbol-constant 'port-provides-progress-evts?)
-    (add-runtime-symbol-constant 'load-on-demand-enabled)
-    (add-runtime-symbol-constant 'read-square-bracket-as-paren)
-    (add-runtime-symbol-constant 'read-curly-brace-as-paren)
-    (add-runtime-symbol-constant 'read-square-bracket-with-tag)
-    (add-runtime-symbol-constant 'read-curly-brace-with-tag)
-    (add-runtime-symbol-constant 'read-accept-reader)
-    (add-runtime-symbol-constant 'read-accept-lang)
-    (add-runtime-symbol-constant 'read-accept-compiled)
-    (add-runtime-symbol-constant 'read-accept-box)
-    (add-runtime-symbol-constant 'read-accept-bar-quote)
-    (add-runtime-symbol-constant 'read-accept-graph)
-    (add-runtime-symbol-constant 'read-syntax-accept-graph)
-    (add-runtime-symbol-constant 'read-accept-dot)
-    (add-runtime-symbol-constant 'read-accept-infix-dot)
-    (add-runtime-symbol-constant 'read-accept-quasiquote)
-    (add-runtime-symbol-constant 'read-cdot)
-    (add-runtime-symbol-constant 'read-single-flonum)
-    (add-runtime-symbol-constant 'read-decimal-as-inexact)
-    (add-runtime-symbol-constant 'read-case-sensitive)
-    (add-runtime-symbol-constant 'print-syntax-width)
-    (add-runtime-symbol-constant 'error-print-width)
-    (add-runtime-symbol-constant 'error-print-source-location)
-    (add-runtime-symbol-constant 'current-compile-target-machine)
-    (add-runtime-symbol-constant 'current-compile-realm)
+    (add-runtime-symbol-constants io-handler-runtime-symbol-constants)
+    (add-runtime-symbol-constants port-event-runtime-symbol-constants)
+    (add-runtime-symbol-constants parameter-runtime-symbol-constants)
     (add-runtime-symbol-constant 'installation-name)
     (add-runtime-symbol-constant 'submod)
     (add-runtime-symbol-constant 'top-level)

@@ -2,6 +2,7 @@
 
 (provide io-handler-reader-printer-runtime-only-helper-names
          io-handler-default-port-global-forms
+         io-handler-runtime-symbol-constants
          io-handler-port-runtime-only-helper-names
          io-handler-error-runtime-only-helper-names
          io-handler-runtime-only-helpers)
@@ -16,6 +17,14 @@
                (global $default-port-write-handler-value (mut (ref eq)) (global.get $false))
                (global $default-port-display-handler-value (mut (ref eq)) (global.get $false))
                (global $default-port-print-handler-value (mut (ref eq)) (global.get $false))))
+
+;; io-handler-runtime-symbol-constants : (listof symbol?)
+;;   Declare symbols used by port handler accessors.
+(define io-handler-runtime-symbol-constants
+  '(port-read-handler
+    port-write-handler
+    port-display-handler
+    port-print-handler))
 
 ;; make-predicate-body : symbol? -> (listof datum?)
 ;;   Generate a standard WebRacket predicate body for ref-type.
