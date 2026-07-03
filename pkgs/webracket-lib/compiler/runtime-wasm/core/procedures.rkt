@@ -29,12 +29,22 @@
 (define procedure-runtime-string-constants
   '((procedure-realm     "procedure-realm")
     (procedure-or-false? "(or/c procedure? #f)")
-    (procedure-arity?    "procedure-arity?")))
+    (procedure-arity?    "procedure-arity?")
+    (arity-at-least?     "arity-at-least?")))
 
 ;; procedure-runtime-symbol-constants : (listof symbol?)
 ;;   Declare symbols used by procedure helpers and procedure errors.
 (define procedure-runtime-symbol-constants
-  '(procedure-realm))
+  '(procedure-realm
+    application-not-procedure-frontier
+    binding-result-arity-frontier
+    procedure-arity-frontier
+    expected-count
+    received-count
+    got-struct-type
+    got-procedure?
+    caller-name
+    caller-debug-id))
 
 ;; procedure-global-forms : (listof datum?)
 ;;   Declare cached procedure-related struct type descriptors.
