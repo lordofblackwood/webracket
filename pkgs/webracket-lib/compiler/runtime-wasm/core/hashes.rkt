@@ -1,6 +1,7 @@
 #lang racket
 
 (provide hash-runtime-only-helpers
+         hash-seed-global-forms
          hash-count-list-runtime-only-helper-names
          hash-for-each-runtime-only-helper-names
          hash-map-runtime-only-helper-names
@@ -14,6 +15,12 @@
          hash-table-predicate-runtime-only-helper-names)
 
 (require "../core-helper.rkt")
+
+;; hash-seed-global-forms : (listof datum?)
+;;   Declare global state for hash-code seed generation.
+(define hash-seed-global-forms
+  '(
+         (global $next-hash-state (mut i32) (i32.const 0x9e3779b9)))) ;; initial seed, can be randomized or fixed
 
 ;; hash-predicate-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for hash predicate helpers.

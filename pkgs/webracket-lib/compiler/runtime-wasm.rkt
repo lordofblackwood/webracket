@@ -123,6 +123,7 @@
                   hash-map-copy-runtime-only-helper-names
                   hash-map-runtime-only-helper-names
                   hash-runtime-only-helpers
+                  hash-seed-global-forms
                   hash-seed-runtime-only-helper-names
                   hash-table-predicate-runtime-only-helper-names
                   hash-predicate-runtime-only-helper-names)
@@ -166,6 +167,7 @@
                   list-ordinal-accessor-runtime-only-helper-names
                   list-remove-runtime-only-helper-names
                   list-remove-star-runtime-only-helper-names
+                  pair-global-forms
                   pair-accessor-runtime-only-helper-names
                   list-runtime-only-helpers)
          (only-in "runtime-wasm/core/linklet-instances.rkt"
@@ -373,6 +375,7 @@
                   struct-prefab-registry-global-forms
                   struct-runtime-only-helpers)
          (only-in "runtime-wasm/core/symbols.rkt"
+                  symbol-gensym-global-forms
                   symbol-gensym-runtime-only-helper-names
                   symbol-public-runtime-only-helper-names
                   symbol-table-global-forms
@@ -397,6 +400,8 @@
                   time-runtime-only-helper-names)
          (only-in "runtime-wasm/core/treelists.rkt"
                   treelist-error-runtime-only-helper-names
+                  treelist-constant-global-forms
+                  treelist-empty-global-forms
                   treelist-runtime-only-helpers)
          (only-in "runtime-wasm/core/unsafe.rkt"
                   unsafe-runtime-only-helpers
@@ -407,6 +412,8 @@
                   vector-build-runtime-only-helper-names
                   vector-constructor-runtime-only-helper-names
                   vector-copy-runtime-only-helper-names
+                  vector-dummy-array-global-forms
+                  vector-dummy-global-forms
                   vector-error-runtime-only-helper-names
                   vector-extend-runtime-only-helper-names
                   vector-filter-search-runtime-only-helper-names
@@ -4156,7 +4163,7 @@
          ,@(for/list ([name (in-list symbol-public-runtime-only-helper-names)])
              (core-runtime-helper-form runtime-helper-index name))
 
-         (global $gensym-counter (mut i32) (i32.const 0))
+         ,@symbol-gensym-global-forms
 
          ;;   Gensym helpers are implemented in runtime-wasm/core/symbols.rkt.
          ,@(for/list ([name (in-list symbol-gensym-runtime-only-helper-names)])
@@ -4185,11 +4192,7 @@
 
          ;; https://docs.racket-lang.org/reference/pairs.html
 
-         (global $dummy-pair (ref $Pair)
-                 (struct.new $Pair
-                             (i32.const 0)            ;; hash = 0
-                             (global.get $false)      ;; a = null
-                             (global.get $false)))    ;; d = null
+         ,@pair-global-forms
 
          ;; Pair/list related exceptions
          ;;   Implemented in runtime-wasm/core/lists.rkt.
@@ -4420,30 +4423,10 @@
          ;;                        (field $hash (mut i32))
          ;;                        (field (ref $Array))))))
 
-         ;; Treelists use a 32-way radix tree.
-         (global $treelist:BITS      i32 (i32.const 5))
-         (global $treelist:MAX_WIDTH i32 (i32.const 32))
-         (global $treelist:MASK      i32 (i32.const 31))
-
-         ; The global $dummy-vector is needed when a non-nullable local variable needs
-         ; initialization to a default.
-         (global $dummy-array (ref $Array) (array.new $Array (global.get $false) (i32.const 0)))
-         (global $dummy-treelist-node (ref $TreelistNode)
-                 (struct.new $TreelistNode
-                             (i32.const 0)           ;; hash
-                             (global.get $dummy-array)
-                             (ref.null $I32Array)))
-         (global $empty-treelist (ref $Treelist)
-                 (struct.new $Treelist
-                             (i32.const 0)                    ;; hash
-                             (global.get $dummy-treelist-node)
-                             (i32.const 0)                    ;; size
-                             (i32.const 0)))                  ;; height
-        (global $dummy-vector (ref $Vector)
-                (struct.new $Vector
-                            (i32.const 0)          ;; hash
-                            (i32.const 0)          ;; mutable
-                            (global.get $dummy-array)))
+         ,@treelist-constant-global-forms
+         ,@vector-dummy-array-global-forms
+         ,@treelist-empty-global-forms
+         ,@vector-dummy-global-forms
 
         ;; Vector related exceptions
         ;;   Implemented in runtime-wasm/core/vectors.rkt.
@@ -5359,7 +5342,7 @@
          ;;; HASH CODES
          ;;;
 
-         (global $next-hash-state (mut i32) (i32.const 0x9e3779b9)) ;; initial seed, can be randomized or fixed
+         ,@hash-seed-global-forms
 
          ;;   Implemented in runtime-wasm/core/hashes.rkt.
          ,@(for/list ([name (in-list hash-seed-runtime-only-helper-names)])

@@ -1,9 +1,36 @@
 #lang racket
 
 (provide treelist-error-runtime-only-helper-names
+         treelist-constant-global-forms
+         treelist-empty-global-forms
          treelist-runtime-only-helpers)
 
 (require "../core-helper.rkt")
+
+;; treelist-constant-global-forms : (listof datum?)
+;;   Declare treelist radix constants.
+(define treelist-constant-global-forms
+  '(
+         ;; Treelists use a 32-way radix tree.
+         (global $treelist:BITS      i32 (i32.const 5))
+         (global $treelist:MAX_WIDTH i32 (i32.const 32))
+         (global $treelist:MASK      i32 (i32.const 31))))
+
+;; treelist-empty-global-forms : (listof datum?)
+;;   Declare shared empty treelist values.
+(define treelist-empty-global-forms
+  '(
+         (global $dummy-treelist-node (ref $TreelistNode)
+                 (struct.new $TreelistNode
+                             (i32.const 0)           ;; hash
+                             (global.get $dummy-array)
+                             (ref.null $I32Array)))
+         (global $empty-treelist (ref $Treelist)
+                 (struct.new $Treelist
+                             (i32.const 0)                    ;; hash
+                             (global.get $dummy-treelist-node)
+                             (i32.const 0)                    ;; size
+                             (i32.const 0)))))                ;; height
 
 ;; treelist-error-runtime-only-forms : (listof datum?)
 ;;   Enumerate treelist error helpers used by the monolithic runtime.

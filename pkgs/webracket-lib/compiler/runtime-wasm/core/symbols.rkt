@@ -3,6 +3,7 @@
 (provide symbol-runtime-only-helpers
          symbol-public-runtime-only-helper-names
          symbol-gensym-runtime-only-helper-names
+         symbol-gensym-global-forms
          symbol-table-global-forms
          symbol-table-initializer-runtime-only-helper-names
          symbol-table-runtime-only-helper-names)
@@ -17,6 +18,12 @@
          ;; The symbol table from strings to symbols.
          ;; Used to intern symbols.
          (global $the-symbol-table (mut (ref null $SymbolTable)) (ref.null $SymbolTable))))
+
+;; symbol-gensym-global-forms : (listof datum?)
+;;   Declare global state for generated uninterned symbols.
+(define symbol-gensym-global-forms
+  '(
+         (global $gensym-counter (mut i32) (i32.const 0))))
 
 ;; symbol-table-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for symbol table helpers.

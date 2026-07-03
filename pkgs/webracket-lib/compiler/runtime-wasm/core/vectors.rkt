@@ -6,6 +6,8 @@
          vector-constructor-runtime-only-helper-names
          vector-copy-runtime-only-helper-names
          vector-core-runtime-helpers
+         vector-dummy-array-global-forms
+         vector-dummy-global-forms
          vector-error-runtime-only-helper-names
          vector-extend-runtime-only-helper-names
          vector-filter-search-runtime-only-helper-names
@@ -19,6 +21,24 @@
          vector-runtime-only-helpers)
 
 (require "../core-helper.rkt")
+
+;; vector-dummy-array-global-forms : (listof datum?)
+;;   Declare the shared empty internal array used by vector-like structures.
+(define vector-dummy-array-global-forms
+  '(
+         ; The global $dummy-vector is needed when a non-nullable local variable needs
+         ; initialization to a default.
+         (global $dummy-array (ref $Array) (array.new $Array (global.get $false) (i32.const 0)))))
+
+;; vector-dummy-global-forms : (listof datum?)
+;;   Declare the shared dummy vector used for default local initialization.
+(define vector-dummy-global-forms
+  '(
+        (global $dummy-vector (ref $Vector)
+                (struct.new $Vector
+                            (i32.const 0)          ;; hash
+                            (i32.const 0)          ;; mutable
+                            (global.get $dummy-array)))))
 
 ;; vector-core-runtime-helpers : (listof core-runtime-helper?)
 ;;   Enumerate vector helpers that can be emitted in core runtime.

@@ -1,6 +1,7 @@
 #lang racket
 
 (provide list-core-runtime-helpers
+         pair-global-forms
          list-member-runtime-only-helper-names
          list-association-runtime-only-helper-names
          list-group-by-runtime-only-helper-names
@@ -13,6 +14,16 @@
 
 (require "../core-helper.rkt"
          "../../private/wasm-utils.rkt")
+
+;; pair-global-forms : (listof datum?)
+;;   Declare shared pair values used for default local initialization.
+(define pair-global-forms
+  '(
+         (global $dummy-pair (ref $Pair)
+                 (struct.new $Pair
+                             (i32.const 0)            ;; hash = 0
+                             (global.get $false)      ;; a = null
+                             (global.get $false)))))  ;; d = null
 
 ;; list-core-runtime-helpers : (listof core-runtime-helper?)
 ;;   Enumerate list helpers that can be emitted in core runtime.
