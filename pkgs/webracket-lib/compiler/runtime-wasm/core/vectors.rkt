@@ -6,6 +6,7 @@
          vector-constructor-runtime-only-helper-names
          vector-copy-runtime-only-helper-names
          vector-core-runtime-helpers
+         vector-runtime-string-constants
          vector-dummy-array-global-forms
          vector-dummy-global-forms
          vector-error-runtime-only-helper-names
@@ -21,6 +22,14 @@
          vector-runtime-only-helpers)
 
 (require "../core-helper.rkt")
+
+;; vector-runtime-string-constants : (listof (list/c symbol? string?))
+;;   Declare string constants used by vector helpers and vector errors.
+(define vector-runtime-string-constants
+  '((vector?                    "vector?")
+    (mutable-vector?            "(and/c vector? (not/c immutable?))")
+    (valid-vector-index         "valid vector index")
+    (valid-vector-length        "valid vector length")))
 
 ;; vector-dummy-array-global-forms : (listof datum?)
 ;;   Declare the shared empty internal array used by vector-like structures.

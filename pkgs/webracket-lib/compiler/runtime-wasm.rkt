@@ -427,6 +427,7 @@
                   vector-build-runtime-only-helper-names
                   vector-constructor-runtime-only-helper-names
                   vector-copy-runtime-only-helper-names
+                  vector-runtime-string-constants
                   vector-dummy-array-global-forms
                   vector-dummy-global-forms
                   vector-error-runtime-only-helper-names
@@ -2867,10 +2868,7 @@
     (add-runtime-string-constant 'fixnum?                    "fixnum?")
     (add-runtime-string-constant 'byte?                      "byte?")
     (add-runtime-string-constant 'bytes?                     "bytes?")
-    (add-runtime-string-constant 'vector?                    "vector?")
-    (add-runtime-string-constant 'mutable-vector?            "(and/c vector? (not/c immutable?))")
-    (add-runtime-string-constant 'valid-vector-index          "valid vector index")
-    (add-runtime-string-constant 'valid-vector-length         "valid vector length")
+    (add-runtime-string-constants vector-runtime-string-constants)
     (add-runtime-string-constant 'box?                       "box?")
     (add-runtime-string-constants port-predicate-runtime-string-constants)
     (add-runtime-string-constant 'file-stream-port?          "file-stream-port?")
