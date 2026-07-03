@@ -161,6 +161,7 @@
                   impersonator-runtime-only-helpers)
          (only-in "runtime-wasm/core/io-handlers.rkt"
                   io-handler-default-port-global-forms
+                  io-handler-default-port-late-initializer-forms
                   io-handler-error-runtime-only-helper-names
                   io-handler-port-runtime-only-helper-names
                   io-handler-reader-printer-runtime-only-helper-names
@@ -5056,42 +5057,7 @@
                     ,@security-guard-current-initializer-forms
                     ,@error-value-handler-late-initializer-forms
                     ,@print-read-parameter-late-initializer-forms
-                    (global.set $default-port-read-handler-value
-                                (struct.new $PrimitiveProcedure
-                                            (i32.const 0)
-                                            (global.get $symbol:port-read-handler)
-                                            (ref.i31 (i32.const 2))
-                                            (global.get $the-racket/primitive-realm)
-                                            (ref.func $primitive-invoke:shape-1)
-                                            (ref.func $default-port-read-handler/1)
-                                            (global.get $false)))
-                    (global.set $default-port-write-handler-value
-                                (struct.new $PrimitiveProcedure
-                                            (i32.const 0)
-                                            (global.get $symbol:port-write-handler)
-                                            (ref.i31 (i32.const 4))
-                                            (global.get $the-racket/primitive-realm)
-                                            (ref.func $primitive-invoke:shape-2)
-                                            (ref.func $default-port-write-handler)
-                                            (global.get $false)))
-                    (global.set $default-port-display-handler-value
-                                (struct.new $PrimitiveProcedure
-                                            (i32.const 0)
-                                            (global.get $symbol:port-display-handler)
-                                            (ref.i31 (i32.const 4))
-                                            (global.get $the-racket/primitive-realm)
-                                            (ref.func $primitive-invoke:shape-2)
-                                            (ref.func $default-port-display-handler)
-                                            (global.get $false)))
-                    (global.set $default-port-print-handler-value
-                                (struct.new $PrimitiveProcedure
-                                            (i32.const 0)
-                                            (global.get $symbol:port-print-handler)
-                                            (ref.i31 (i32.const 12))
-                                            (global.get $the-racket/primitive-realm)
-                                            (ref.func $primitive-invoke:shape-14)
-                                            (ref.func $default-port-print-handler)
-                                            (global.get $false)))
+                    ,@io-handler-default-port-late-initializer-forms
                     ,@error-syntax-handler-late-initializer-forms
 
                      ;; Initialize top-level variables.

@@ -2,6 +2,7 @@
 
 (provide io-handler-reader-printer-runtime-only-helper-names
          io-handler-default-port-global-forms
+         io-handler-default-port-late-initializer-forms
          io-handler-runtime-string-constants
          io-handler-runtime-symbol-constants
          io-handler-port-runtime-only-helper-names
@@ -23,6 +24,47 @@
                (global $default-port-write-handler-value (mut (ref eq)) (global.get $false))
                (global $default-port-display-handler-value (mut (ref eq)) (global.get $false))
                (global $default-port-print-handler-value (mut (ref eq)) (global.get $false))))
+
+;; io-handler-default-port-late-initializer-forms : (listof datum?)
+;;   Initialize default port handler globals after primitive support is ready.
+(define io-handler-default-port-late-initializer-forms
+  '(
+                    (global.set $default-port-read-handler-value
+                                (struct.new $PrimitiveProcedure
+                                            (i32.const 0)
+                                            (global.get $symbol:port-read-handler)
+                                            (ref.i31 (i32.const 2))
+                                            (global.get $the-racket/primitive-realm)
+                                            (ref.func $primitive-invoke:shape-1)
+                                            (ref.func $default-port-read-handler/1)
+                                            (global.get $false)))
+                    (global.set $default-port-write-handler-value
+                                (struct.new $PrimitiveProcedure
+                                            (i32.const 0)
+                                            (global.get $symbol:port-write-handler)
+                                            (ref.i31 (i32.const 4))
+                                            (global.get $the-racket/primitive-realm)
+                                            (ref.func $primitive-invoke:shape-2)
+                                            (ref.func $default-port-write-handler)
+                                            (global.get $false)))
+                    (global.set $default-port-display-handler-value
+                                (struct.new $PrimitiveProcedure
+                                            (i32.const 0)
+                                            (global.get $symbol:port-display-handler)
+                                            (ref.i31 (i32.const 4))
+                                            (global.get $the-racket/primitive-realm)
+                                            (ref.func $primitive-invoke:shape-2)
+                                            (ref.func $default-port-display-handler)
+                                            (global.get $false)))
+                    (global.set $default-port-print-handler-value
+                                (struct.new $PrimitiveProcedure
+                                            (i32.const 0)
+                                            (global.get $symbol:port-print-handler)
+                                            (ref.i31 (i32.const 12))
+                                            (global.get $the-racket/primitive-realm)
+                                            (ref.func $primitive-invoke:shape-14)
+                                            (ref.func $default-port-print-handler)
+                                            (global.get $false)))))
 
 ;; io-handler-runtime-symbol-constants : (listof symbol?)
 ;;   Declare symbols used by port handler accessors.
@@ -401,3 +443,30 @@
   (function-forms->runtime-helpers
    'io-handler-runtime-only-helpers
    io-handler-runtime-only-forms))
+
+(module+ test
+  (require rackunit)
+
+  ;; tree-member? : any/c any/c -> boolean?
+  ;;   Check whether a datum appears anywhere in a tree.
+  (define (tree-member? needle tree)
+    (cond
+      [(equal? needle tree) #t]
+      [(pair? tree)
+       (or (tree-member? needle (car tree))
+           (tree-member? needle (cdr tree)))]
+      [else #f]))
+
+  (check-equal? (map second io-handler-default-port-late-initializer-forms)
+                '($default-port-read-handler-value
+                  $default-port-write-handler-value
+                  $default-port-display-handler-value
+                  $default-port-print-handler-value))
+  (check-true (tree-member? '(global.get $symbol:port-read-handler)
+                            io-handler-default-port-late-initializer-forms))
+  (check-true (tree-member? '(global.get $symbol:port-write-handler)
+                            io-handler-default-port-late-initializer-forms))
+  (check-true (tree-member? '(global.get $symbol:port-display-handler)
+                            io-handler-default-port-late-initializer-forms))
+  (check-true (tree-member? '(global.get $symbol:port-print-handler)
+                            io-handler-default-port-late-initializer-forms)))
