@@ -1,6 +1,6 @@
 #lang racket
 
-(provide bootstrap-error-runtime-only-helper-names
+(provide bootstrap-error-runtime-helper-forms
          exception-struct-type-bindings
          exception-struct-type-cache-global-forms
          exception-struct-type-global-forms
@@ -9,9 +9,9 @@
          exception-runtime-symbol-constants
          exception-fail-runtime-symbol-constants
          exception-break-runtime-symbol-constants
-         exception-contract-runtime-only-helper-names
+         exception-contract-runtime-helper-forms
          exception-contract-runtime-only-helpers
-         exception-runtime-only-helper-names
+         exception-runtime-helper-forms
          exception-runtime-only-helpers)
 
 (require "../core-helper.rkt")
@@ -4430,3 +4430,49 @@
 ;;   Preserve the runtime emission order for exception helpers.
 (define exception-runtime-only-helper-names
   (map core-runtime-helper-name exception-main-runtime-only-helpers))
+
+;; exception-helper-forms : hasheq? (listof symbol?) -> (listof datum?)
+;;   Render the given exception helper names from a helper index.
+(define (exception-helper-forms helper-index names)
+  (for/list ([name (in-list names)])
+    (core-runtime-helper-form helper-index name)))
+
+;; exception-contract-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render generic contract-error helpers in runtime assembly order.
+(define (exception-contract-runtime-helper-forms helper-index)
+  (exception-helper-forms helper-index exception-contract-runtime-only-helper-names))
+
+;; bootstrap-error-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render early bootstrap error helpers in runtime assembly order.
+(define (bootstrap-error-runtime-helper-forms helper-index)
+  (exception-helper-forms helper-index bootstrap-error-runtime-only-helper-names))
+
+;; exception-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render exception, exception-structure, and reader-error helpers in runtime assembly order.
+(define (exception-runtime-helper-forms helper-index)
+  (exception-helper-forms helper-index exception-runtime-only-helper-names))
+
+(module+ test
+  (require rackunit)
+
+  ;; form-name : datum? -> symbol?
+  ;;   Return the function name from a rendered helper form.
+  (define (form-name form)
+    (second form))
+
+  (define exception-helper-index
+    (make-core-runtime-helper-index
+     (append exception-contract-runtime-only-helpers
+             exception-runtime-only-helpers)))
+
+  (check-equal?
+   (map form-name (exception-contract-runtime-helper-forms exception-helper-index))
+   exception-contract-runtime-only-helper-names)
+
+  (check-equal?
+   (map form-name (bootstrap-error-runtime-helper-forms exception-helper-index))
+   bootstrap-error-runtime-only-helper-names)
+
+  (check-equal?
+   (map form-name (exception-runtime-helper-forms exception-helper-index))
+   exception-runtime-only-helper-names))

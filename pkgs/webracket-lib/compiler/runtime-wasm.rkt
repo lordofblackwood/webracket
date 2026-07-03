@@ -70,14 +70,14 @@
                   immutable-predicate-runtime-only-helper-names
                   equality-runtime-only-helper-names)
          (only-in "runtime-wasm/core/exceptions.rkt"
-                  bootstrap-error-runtime-only-helper-names
+                  bootstrap-error-runtime-helper-forms
                   exception-struct-type-bindings
                   exception-struct-type-cache-global-forms
                   exception-struct-type-global-forms
                   exception-struct-type-initializer-forms
-                  exception-contract-runtime-only-helper-names
+                  exception-contract-runtime-helper-forms
                   exception-contract-runtime-only-helpers
-                  exception-runtime-only-helper-names
+                  exception-runtime-helper-forms
                   exception-runtime-only-helpers)
          (only-in "runtime-wasm/core/events.rkt"
                   event-global-forms
@@ -112,10 +112,10 @@
                   flonum-runtime-helper-forms
                   flonum-runtime-only-helpers)
          (only-in "runtime-wasm/core/formatting.rkt"
-                  printer-extension-runtime-only-helper-names
-                  unquoted-printing-string-runtime-only-helper-names
-                  formatting-runtime-only-helper-names
-                  numeric-display-formatting-runtime-only-helper-names
+                  printer-extension-runtime-helper-forms
+                  unquoted-printing-string-runtime-helper-forms
+                  formatting-runtime-helper-forms
+                  numeric-display-formatting-runtime-helper-forms
                   formatting-runtime-only-helpers)
          (only-in "runtime-wasm/core/growable-arrays.rkt"
                   growable-array-core-runtime-helper-forms)
@@ -1346,15 +1346,13 @@
          ;;;
 
          ;;   Bootstrap error helpers are implemented in runtime-wasm/core/exceptions.rkt.
-         ,@(for/list ([name (in-list bootstrap-error-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
+         ,@(bootstrap-error-runtime-helper-forms runtime-helper-index)
 
          ;;   Multiple-value expectation helpers are implemented in runtime-wasm/core/control-flow.rkt.
          ,@(value-expectation-runtime-helper-forms runtime-helper-index)
 
          ;;   Unquoted printing string helpers are implemented in runtime-wasm/core/formatting.rkt.
-         ,@(for/list ([name (in-list unquoted-printing-string-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
+         ,@(unquoted-printing-string-runtime-helper-forms runtime-helper-index)
 
          ,@singleton-global-forms
 
@@ -1519,8 +1517,7 @@
          (tag $exn (param (ref eq)))  ; an exception that that carries an value
 
          ;;   Exception helpers are implemented in runtime-wasm/core/exceptions.rkt.
-         ,@(for/list ([name (in-list exception-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
+         ,@(exception-runtime-helper-forms runtime-helper-index)
 
          ;;;
          ;;; RUNTIME SUPPORT FOR MATCH AND CHECKERS
@@ -1704,8 +1701,7 @@
              (core-runtime-helper-form runtime-helper-index name))
 
          ;; Numeric display helpers are implemented in runtime-wasm/core/formatting.rkt.
-         ,@(for/list ([name (in-list numeric-display-formatting-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
+         ,@(numeric-display-formatting-runtime-helper-forms runtime-helper-index)
 
 
 
@@ -1791,8 +1787,7 @@
 
          ;; Generic contract-error helpers
          ;;   Implemented in runtime-wasm/core/exceptions.rkt.
-         ,@(for/list ([name (in-list exception-contract-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
+         ,@(exception-contract-runtime-helper-forms runtime-helper-index)
 
          ,@(list-post-contract-runtime-helper-forms runtime-helper-index)
 
@@ -2505,8 +2500,7 @@
          ;; 13.8 Printer Extension
 
          ;;   Implemented in runtime-wasm/core/formatting.rkt.
-         ,@(for/list ([name (in-list printer-extension-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
+         ,@(printer-extension-runtime-helper-forms runtime-helper-index)
 
 
          ;; 13.10 Fast-Load Serialization
@@ -2604,8 +2598,7 @@
          ;;;
 
          ;;   Implemented in runtime-wasm/core/formatting.rkt.
-         ,@(for/list ([name (in-list formatting-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
+         ,@(formatting-runtime-helper-forms runtime-helper-index)
 
                ;;;
                ;;; Support for the for-family: for, for/list, for/vector

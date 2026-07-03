@@ -1,6 +1,6 @@
 #lang racket
 
-(provide printer-extension-runtime-only-helper-names
+(provide printer-extension-runtime-helper-forms
          printer-prefix-formatting-runtime-string-constants
          immediate-value-formatting-runtime-string-constants
          opaque-value-formatting-runtime-string-constants
@@ -9,9 +9,9 @@
          hash-less-formatting-runtime-string-constants
          formatting-runtime-string-constants
          struct-type-property-formatting-runtime-string-constants
-         unquoted-printing-string-runtime-only-helper-names
-         formatting-runtime-only-helper-names
-         numeric-display-formatting-runtime-only-helper-names
+         unquoted-printing-string-runtime-helper-forms
+         formatting-runtime-helper-forms
+         numeric-display-formatting-runtime-helper-forms
          formatting-runtime-only-helpers)
 
 (require "../core-helper.rkt"
@@ -322,6 +322,17 @@
 (define printer-extension-runtime-only-helper-names
   (map core-runtime-helper-name printer-extension-runtime-only-helpers))
 
+;; formatting-helper-forms : hasheq? (listof symbol?) -> (listof datum?)
+;;   Render the given formatting helper names from a helper index.
+(define (formatting-helper-forms helper-index names)
+  (for/list ([name (in-list names)])
+    (core-runtime-helper-form helper-index name)))
+
+;; printer-extension-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render printer-extension helpers in runtime assembly order.
+(define (printer-extension-runtime-helper-forms helper-index)
+  (formatting-helper-forms helper-index printer-extension-runtime-only-helper-names))
+
 ;; unquoted-printing-string-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Register unquoted printing string helpers used by the monolithic runtime.
 (define unquoted-printing-string-runtime-only-helpers
@@ -376,6 +387,11 @@
 (define unquoted-printing-string-runtime-only-helper-names
   (map core-runtime-helper-name unquoted-printing-string-runtime-only-helpers))
 
+;; unquoted-printing-string-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render unquoted printing string helpers in runtime assembly order.
+(define (unquoted-printing-string-runtime-helper-forms helper-index)
+  (formatting-helper-forms helper-index unquoted-printing-string-runtime-only-helper-names))
+
 ;; numeric-display-formatting-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Register numeric display helpers used by the monolithic runtime.
 (define numeric-display-formatting-runtime-only-helpers
@@ -429,6 +445,11 @@
 ;;   Preserve the runtime emission order for numeric display helpers.
 (define numeric-display-formatting-runtime-only-helper-names
   (map core-runtime-helper-name numeric-display-formatting-runtime-only-helpers))
+
+;; numeric-display-formatting-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render numeric display formatting helpers in runtime assembly order.
+(define (numeric-display-formatting-runtime-helper-forms helper-index)
+  (formatting-helper-forms helper-index numeric-display-formatting-runtime-only-helper-names))
 
 ;; display-formatting-runtime-only-forms : (listof datum?)
 ;;   Enumerate formatting and display helpers used by the monolithic runtime.
@@ -2304,6 +2325,11 @@
 (define formatting-runtime-only-helper-names
   (map core-runtime-helper-name display-formatting-runtime-only-helpers))
 
+;; formatting-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render formatting and display helpers in runtime assembly order.
+(define (formatting-runtime-helper-forms helper-index)
+  (formatting-helper-forms helper-index formatting-runtime-only-helper-names))
+
 ;; formatting-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Register printer-extension and display-formatting helpers for runtime emission.
 (define formatting-runtime-only-helpers
@@ -2311,3 +2337,30 @@
           unquoted-printing-string-runtime-only-helpers
           numeric-display-formatting-runtime-only-helpers
           display-formatting-runtime-only-helpers))
+
+(module+ test
+  (require rackunit)
+
+  ;; form-name : datum? -> symbol?
+  ;;   Return the function name from a rendered helper form.
+  (define (form-name form)
+    (second form))
+
+  (define formatting-helper-index
+    (make-core-runtime-helper-index formatting-runtime-only-helpers))
+
+  (check-equal?
+   (map form-name (printer-extension-runtime-helper-forms formatting-helper-index))
+   printer-extension-runtime-only-helper-names)
+
+  (check-equal?
+   (map form-name (unquoted-printing-string-runtime-helper-forms formatting-helper-index))
+   unquoted-printing-string-runtime-only-helper-names)
+
+  (check-equal?
+   (map form-name (numeric-display-formatting-runtime-helper-forms formatting-helper-index))
+   numeric-display-formatting-runtime-only-helper-names)
+
+  (check-equal?
+   (map form-name (formatting-runtime-helper-forms formatting-helper-index))
+   formatting-runtime-only-helper-names))
