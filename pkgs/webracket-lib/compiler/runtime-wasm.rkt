@@ -401,23 +401,12 @@
                   unsafe-runtime-only-helpers
                   unsafe-runtime-helper-names)
          (only-in "runtime-wasm/core/vectors.rkt"
-                  vector-append-runtime-only-helper-names
-                  vector-argminmax-runtime-only-helper-names
-                  vector-build-runtime-only-helper-names
-                  vector-constructor-runtime-only-helper-names
-                  vector-copy-runtime-only-helper-names
                   vector-dummy-array-global-forms
                   vector-dummy-global-forms
-                  vector-error-runtime-only-helper-names
-                  vector-extend-runtime-only-helper-names
-                  vector-filter-search-runtime-only-helper-names
-                  vector-list-conversion-runtime-only-helper-names
-                  vector-map-count-runtime-only-helper-names
-                  vector-make-runtime-only-helper-names
-                  vector-mutability-runtime-only-helper-names
-                  vector-operation-runtime-only-helper-names
-                  vector-slice-runtime-only-helper-names
-                  vector-sort-runtime-only-helper-names
+                  vector-error-runtime-helper-forms
+                  vector-main-runtime-helper-forms
+                  vector-mutability-runtime-helper-forms
+                  vector-post-stencil-runtime-helper-forms
                   vector-runtime-only-helpers)
          (only-in "runtime-wasm/core/wills.rkt"
                   will-runtime-only-helpers)
@@ -1689,8 +1678,7 @@
          ,@(bytes-mutability-runtime-helper-forms runtime-helper-index)
 
          ;;   Vector mutability predicates are implemented in runtime-wasm/core/vectors.rkt.
-         ,@(for/list ([name (in-list vector-mutability-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
+         ,@(vector-mutability-runtime-helper-forms runtime-helper-index)
 
          ;;   Box mutability predicates are implemented in runtime-wasm/core/boxes.rkt.
          ,@(for/list ([name (in-list box-mutability-runtime-only-helper-names)])
@@ -2220,10 +2208,9 @@
          ,@treelist-empty-global-forms
          ,@vector-dummy-global-forms
 
-        ;; Vector related exceptions
-        ;;   Implemented in runtime-wasm/core/vectors.rkt.
-        ,@(for/list ([name (in-list vector-error-runtime-only-helper-names)])
-            (core-runtime-helper-form runtime-helper-index name))
+         ;; Vector related exceptions
+         ;;   Implemented in runtime-wasm/core/vectors.rkt.
+         ,@(vector-error-runtime-helper-forms runtime-helper-index)
 
          ,(core-runtime-helper-form runtime-helper-index '$treelist-node-children)
          ,(core-runtime-helper-form runtime-helper-index '$treelist-node-sizes)
@@ -2343,26 +2330,9 @@
          ,(core-runtime-helper-form runtime-helper-index '$treelist->list)
 
 
-         ;; make-vector helpers
+         ;; Vector helpers
          ;;   Implemented in runtime-wasm/core/vectors.rkt.
-         ,@(for/list ([name (in-list vector-make-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
-
-         ;; vector constructors
-         ;;   Implemented in runtime-wasm/core/vectors.rkt.
-         ,@(for/list ([name (in-list vector-constructor-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
-
-         ;; build-vector helpers
-         ;;   Implemented in runtime-wasm/core/vectors.rkt.
-         ,@(for/list ([name (in-list vector-build-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
-
-         ;; vector operation helpers
-         ;;   Implemented in runtime-wasm/core/vectors.rkt.
-         ,(core-runtime-helper-form core-runtime-helper-index '$vector?/i32)
-         ,@(for/list ([name (in-list vector-operation-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
+         ,@(vector-main-runtime-helper-forms runtime-helper-index core-runtime-helper-index)
 
          ;;;
          ;;; Stencil Vectors
@@ -2390,51 +2360,9 @@
          ,(core-runtime-helper-form runtime-helper-index '$$system-stencil-vector-update)
          ,(core-runtime-helper-form runtime-helper-index '$$system-stencil-vector-truncate!)
 
-         ;; vector copy and conversion helpers
+         ;; Vector copy, conversion, slicing, search, and sorting helpers
          ;;   Implemented in runtime-wasm/core/vectors.rkt.
-         ,@(for/list ([name (in-list vector-copy-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
-
-         ;; vector extend helpers
-         ;;   Implemented in runtime-wasm/core/vectors.rkt.
-         ,@(for/list ([name (in-list vector-extend-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
-
-         ;; vector append helpers
-         ;;   Implemented in runtime-wasm/core/vectors.rkt.
-         ,@(for/list ([name (in-list vector-append-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
-
-         ;; vector slice helpers
-         ;;   Implemented in runtime-wasm/core/vectors.rkt.
-         ,@(for/list ([name (in-list vector-slice-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
-
-         ;; vector/list conversion helpers
-         ;;   Implemented in runtime-wasm/core/vectors.rkt.
-         ,@(for/list ([name (in-list vector-list-conversion-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
-
-         ;; vector map/count helpers
-         ;;   Implemented in runtime-wasm/core/vectors.rkt.
-         ,@(for/list ([name (in-list vector-map-count-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
-
-         ;; vector argmin/argmax helpers
-         ;;   Implemented in runtime-wasm/core/vectors.rkt.
-         ,@(for/list ([name (in-list vector-argminmax-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
-
-         ;; vector filter/search helpers
-         ;;   Implemented in runtime-wasm/core/vectors.rkt.
-         ,@(for/list ([name (in-list vector-filter-search-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
-
-         ;; vector sorting helpers
-         ;;   Implemented in runtime-wasm/core/vectors.rkt.
-         ,@(for/list ([name (in-list vector-sort-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
-
+         ,@(vector-post-stencil-runtime-helper-forms runtime-helper-index)
 
         ;;;
         ;;; Boxed (for assignable variables)

@@ -17,9 +17,13 @@
          vector-map-count-runtime-only-helper-names
          vector-make-runtime-only-helper-names
          vector-mutability-runtime-only-helper-names
+         vector-mutability-runtime-helper-forms
          vector-operation-runtime-only-helper-names
          vector-slice-runtime-only-helper-names
          vector-sort-runtime-only-helper-names
+         vector-error-runtime-helper-forms
+         vector-main-runtime-helper-forms
+         vector-post-stencil-runtime-helper-forms
          vector-runtime-only-helpers)
 
 (require "../core-helper.rkt")
@@ -2780,6 +2784,51 @@
 (define vector-sort-runtime-only-helper-names
   (map core-runtime-helper-name vector-sort-runtime-only-helpers))
 
+;; vector-core-operation-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for core vector operation helpers.
+(define vector-core-operation-runtime-only-helper-names
+  '($vector?/i32))
+
+;; vector-helper-forms : hasheq? (listof symbol?) -> (listof datum?)
+;;   Render the given vector helper names from the runtime helper index.
+(define (vector-helper-forms helper-index names)
+  (for/list ([name (in-list names)])
+    (core-runtime-helper-form helper-index name)))
+
+;; vector-mutability-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render vector mutability predicates in runtime assembly order.
+(define (vector-mutability-runtime-helper-forms helper-index)
+  (vector-helper-forms helper-index vector-mutability-runtime-only-helper-names))
+
+;; vector-error-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render vector error helpers in runtime assembly order.
+(define (vector-error-runtime-helper-forms helper-index)
+  (vector-helper-forms helper-index vector-error-runtime-only-helper-names))
+
+;; vector-main-runtime-helper-forms : hasheq? hasheq? -> (listof datum?)
+;;   Render the vector helper block before stencil vectors in runtime assembly order.
+(define (vector-main-runtime-helper-forms runtime-helper-index core-runtime-helper-index)
+  (append
+   (vector-helper-forms runtime-helper-index vector-make-runtime-only-helper-names)
+   (vector-helper-forms runtime-helper-index vector-constructor-runtime-only-helper-names)
+   (vector-helper-forms runtime-helper-index vector-build-runtime-only-helper-names)
+   (vector-helper-forms core-runtime-helper-index vector-core-operation-runtime-only-helper-names)
+   (vector-helper-forms runtime-helper-index vector-operation-runtime-only-helper-names)))
+
+;; vector-post-stencil-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render the vector helper block after stencil vectors in runtime assembly order.
+(define (vector-post-stencil-runtime-helper-forms runtime-helper-index)
+  (append
+   (vector-helper-forms runtime-helper-index vector-copy-runtime-only-helper-names)
+   (vector-helper-forms runtime-helper-index vector-extend-runtime-only-helper-names)
+   (vector-helper-forms runtime-helper-index vector-append-runtime-only-helper-names)
+   (vector-helper-forms runtime-helper-index vector-slice-runtime-only-helper-names)
+   (vector-helper-forms runtime-helper-index vector-list-conversion-runtime-only-helper-names)
+   (vector-helper-forms runtime-helper-index vector-map-count-runtime-only-helper-names)
+   (vector-helper-forms runtime-helper-index vector-argminmax-runtime-only-helper-names)
+   (vector-helper-forms runtime-helper-index vector-filter-search-runtime-only-helper-names)
+   (vector-helper-forms runtime-helper-index vector-sort-runtime-only-helper-names)))
+
 ;; vector-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate vector helpers that still depend on monolithic runtime globals.
 (define vector-runtime-only-helpers
@@ -2825,3 +2874,47 @@
 
 
      ))))
+
+(module+ test
+  (require rackunit)
+
+  ;; form-name : datum? -> symbol?
+  ;;   Return the function name from a rendered helper form.
+  (define (form-name form)
+    (second form))
+
+  (define vector-helper-index
+    (make-core-runtime-helper-index vector-runtime-only-helpers))
+
+  (define vector-core-helper-index
+    (make-core-runtime-helper-index vector-core-runtime-helpers))
+
+  (check-equal?
+   (map form-name (vector-mutability-runtime-helper-forms vector-helper-index))
+   vector-mutability-runtime-only-helper-names)
+
+  (check-equal?
+   (map form-name (vector-error-runtime-helper-forms vector-helper-index))
+   vector-error-runtime-only-helper-names)
+
+  (check-equal?
+   (map form-name
+        (vector-main-runtime-helper-forms vector-helper-index vector-core-helper-index))
+   (append vector-make-runtime-only-helper-names
+           vector-constructor-runtime-only-helper-names
+           vector-build-runtime-only-helper-names
+           vector-core-operation-runtime-only-helper-names
+           vector-operation-runtime-only-helper-names))
+
+  (check-equal?
+   (map form-name
+        (vector-post-stencil-runtime-helper-forms vector-helper-index))
+   (append vector-copy-runtime-only-helper-names
+           vector-extend-runtime-only-helper-names
+           vector-append-runtime-only-helper-names
+           vector-slice-runtime-only-helper-names
+           vector-list-conversion-runtime-only-helper-names
+           vector-map-count-runtime-only-helper-names
+           vector-argminmax-runtime-only-helper-names
+           vector-filter-search-runtime-only-helper-names
+           vector-sort-runtime-only-helper-names)))
