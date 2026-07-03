@@ -2,6 +2,8 @@
 
 (provide linklet-bootstrap-runtime-only-helper-names
          linklet-runtime-string-constants
+         linklet-runtime-symbol-constants
+         linklet-runtime-bytes-constants
          linklet-bootstrap-runtime-only-helpers
          linklet-interpreter-runtime-only-helper-names
          linklet-interpreter-runtime-only-helpers
@@ -34,6 +36,26 @@
      "metadata-only compiled linklet has no executable body")
     (instantiate-linklet:import-count
      "the number of import instances does not match the expected number of imports")))
+
+;; linklet-runtime-symbol-constants : (listof symbol?)
+;;   Declare symbols used by the source-linklet interpreter.
+(define linklet-runtime-symbol-constants
+  '(linklet
+    #%app
+    +
+    -
+    *
+    define-values
+    quote
+    begin
+    if
+    set!
+    void))
+
+;; linklet-runtime-bytes-constants : (listof (list/c symbol? bytes?))
+;;   Declare byte-string constants used by linklet machine metadata.
+(define linklet-runtime-bytes-constants
+  '((exp #"exp")))
 
 ;; linklet-primitive-table-global-forms : (listof datum?)
 ;;   Declare the primitive-table bridge registry.

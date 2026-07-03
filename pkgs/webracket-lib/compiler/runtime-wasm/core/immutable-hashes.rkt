@@ -12,7 +12,12 @@
 ;; immutable-hash-runtime-string-constants : (listof (list/c symbol? string?))
 ;;   Declare strings used by immutable hash reader-graph placeholder helpers.
 (define immutable-hash-runtime-string-constants
-  '((reader-graph-unsupported
+  '((ephemeron? "ephemeron?")
+    (placeholder? "placeholder?")
+    (hash-set-non-hash "hash-set expected hash table, got:")
+    (hash-set-exn-message "hash-set received exception message:")
+    (hash-set-unsupported "hash-set unsupported hash table:")
+    (reader-graph-unsupported
      "cyclic reader graphs and hash placeholders are not supported by WebRacket yet")))
 
 ;; immutable-hash-constructor-runtime-only-helper-names : (listof symbol?)

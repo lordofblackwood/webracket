@@ -1,6 +1,7 @@
 #lang racket
 
 (provide string-core-runtime-helpers
+         string-runtime-string-constants
          string-additional-runtime-only-helper-names
          string-append-runtime-only-helper-names
          string-array-conversion-runtime-only-helper-names
@@ -33,6 +34,14 @@
                   char-shift
                   char-tag
                   immediate-rep))
+
+;; string-runtime-string-constants : (listof (list/c symbol? string?))
+;;   Declare string constants used by string helpers and string contract checks.
+(define string-runtime-string-constants
+  '((empty           "")
+    (space           " ")
+    (string?         "string?")
+    (string-or-bytes "(or/c string? bytes?)")))
 
 ;; string-core-runtime-helpers : (listof core-runtime-helper?)
 ;;   Enumerate string helpers that can be emitted in core runtime.

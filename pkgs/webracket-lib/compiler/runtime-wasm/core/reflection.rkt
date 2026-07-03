@@ -2,6 +2,7 @@
 
 (provide reflection-runtime-only-helper-names
          reflection-runtime-string-constants
+         reflection-runtime-symbol-constants
          reflection-runtime-only-helpers)
 
 (require "../core-helper.rkt")
@@ -16,6 +17,11 @@
     (module-path-index-base        "(or/c #f resolved-module-path? module-path-index?)")
     (variable-reference->module-source "variable-reference->module-source")
     (variable-reference->resolved-module-path "variable-reference->resolved-module-path")))
+
+;; reflection-runtime-symbol-constants : (listof symbol?)
+;;   Declare symbols used by reflection and module-path helpers.
+(define reflection-runtime-symbol-constants
+  '(namespace))
 
 ;; make-predicate-body : symbol? -> (listof datum?)
 ;;   Generate a standard WebRacket predicate body for ref-type.

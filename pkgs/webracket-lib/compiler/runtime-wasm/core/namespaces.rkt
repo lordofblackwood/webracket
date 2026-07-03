@@ -3,11 +3,17 @@
 (provide namespace-current-global-forms
          namespace-initializer-forms
          namespace-module-registry-global-forms
+         namespace-runtime-string-constants
          namespace-runtime-only-helpers
          namespace-runtime-only-helper-names
          namespace-top-level-global-forms)
 
 (require "../core-helper.rkt")
+
+;; namespace-runtime-string-constants : (listof (list/c symbol? string?))
+;;   Declare strings used by namespace helpers and namespace contract checks.
+(define namespace-runtime-string-constants
+  '((namespace? "namespace?")))
 
 ;; namespace-current-global-forms : (listof datum?)
 ;;   Declare the current namespace backing global.

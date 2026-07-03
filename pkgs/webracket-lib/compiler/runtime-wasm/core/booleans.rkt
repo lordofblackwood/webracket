@@ -1,10 +1,16 @@
 #lang racket
 
-(provide boolean-runtime-only-helpers
+(provide boolean-runtime-string-constants
+         boolean-runtime-only-helpers
          boolean-runtime-only-helper-names)
 
 (require "../core-helper.rkt"
          "../../private/immediates.rkt")
+
+;; boolean-runtime-string-constants : (listof (list/c symbol? string?))
+;;   Declare string constants used by boolean predicates and contract checks.
+(define boolean-runtime-string-constants
+  '((boolean? "boolean?")))
 
 ;; boolean-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for boolean helpers.

@@ -43,6 +43,7 @@
   '((null                       "()")
     (eof                        "#<eof>")
     (void                       "#<void>")
+    (unspecified                "#<unspecified>")
     (undefined                  "#<undefined>")
     (unsafe-undefined           "#<unsafe-undefined>")))
 
@@ -51,7 +52,11 @@
 (define opaque-value-formatting-runtime-string-constants
   '((closure                    "#<closure>")
     (external                   "#<external>")
-    (external-null              "#<external-null>")))
+    (external-null              "#<external-null>")
+    (linklet                    "#<linklet>")
+    (instance                   "#<instance>")
+    (namespace                  "#<namespace>")
+    (continuation-mark-set      "#<continuation-mark-set>")))
 
 ;; character-notation-formatting-runtime-string-constants : (listof (list/c symbol? string?))
 ;;   Declare string constants used by character and keyword notation printers.
@@ -80,6 +85,7 @@
   '((syntax-open                "#<syntax ")
     (syntax-close               ">")
     (hash-less-boxed-colon      "#<boxed:")
+    (hash-less-namespace-colon  "#<namespace:")
     (hash-less-procedure-colon  "#<procedure:")
     (hash-less-primitive-colon  "#<primitive:")
     (hash-less-path-colon       "#<path:")
@@ -94,7 +100,19 @@
 ;;   Declare string constants used by formatting and printer-extension helpers.
 (define formatting-runtime-string-constants
   '((custom-write?              "custom-write?")
-    (custom-print-quotable?     "custom-print-quotable?")))
+    (custom-print-quotable?     "custom-print-quotable?")
+    (missing                    "#<missing>")
+    (open-paren                 "(")
+    (close-paren                ")")
+    (dot-space                  ". ")
+    (space-dot-space            " . ")
+    (vector-prefix              "#(")
+    (values-prefix              "(values")
+    (colon                      ":")
+    (dash                       "-")
+    (bang                       "!")
+    (backslash-x                "\\x")
+    (set                        "set")))
 
 ;; struct-type-property-formatting-runtime-string-constants : (listof (list/c symbol? string?))
 ;;   Declare string constants used by struct type property formatting.

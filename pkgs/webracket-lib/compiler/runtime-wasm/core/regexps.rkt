@@ -1,9 +1,36 @@
 #lang racket
 
-(provide regexp-runtime-only-helper-names
+(provide regexp-runtime-string-constants
+         regexp-runtime-bytes-constants
+         regexp-runtime-only-helper-names
          regexp-runtime-only-helpers)
 
 (require "../core-helper.rkt")
+
+;; regexp-runtime-string-constants : (listof (list/c symbol? string?))
+;;   Declare string constants used by regexp helpers and regexp bootstrap patterns.
+(define regexp-runtime-string-constants
+  '((rx-dot-class       "[.]")
+    (rx-dot-zo-end      "[.]zo$")
+    (rx-id-colon-or-end "^id(:|$)")
+    (dot                ".")
+    (dot-zo             ".zo")
+    (id                 "id")
+    (regexp?            "regexp?")
+    (regexp-replace     "regexp-replace")
+    (regexp-replace*    "regexp-replace*")))
+
+;; regexp-runtime-bytes-constants : (listof (list/c symbol? bytes?))
+;;   Declare byte-string constants used by byte-regexp bootstrap patterns.
+(define regexp-runtime-bytes-constants
+  '((dot-zo             #".zo")
+    (id                 #"id")
+    (rx-dot-class       #"[.]")
+    (rx-dot-zo-end      #"[.]zo$")
+    (rx-id-colon-or-end #"^id(:|$)")
+    (rx-envvar-name     #"^[^\0=]*$")
+    (rx-unix-path-list  #"([^:]*):(.*)")
+    (rx-windows-path-list #"([^;]*);(.*)")))
 
 ;; regexp-runtime-only-forms : (listof datum?)
 ;;   Enumerate regular expression helpers used by the monolithic runtime.

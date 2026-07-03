@@ -52,6 +52,8 @@
 ;;   Declare symbols used by procedure helpers and procedure errors.
 (define procedure-runtime-symbol-constants
   '(procedure-realm
+    name
+    debug-id
     application-not-procedure-frontier
     binding-result-arity-frontier
     procedure-arity-frontier

@@ -1,10 +1,23 @@
 #lang racket
 
-(provide system-runtime-only-helper-names
+(provide system-runtime-string-constants
+         system-runtime-symbol-constants
+         system-runtime-only-helper-names
          system-runtime-only-helpers)
 
 (require "../core-helper.rkt"
          "../../private/wasm-utils.rkt")
+
+;; system-runtime-string-constants : (listof (list/c symbol? string?))
+;;   Declare strings used by system/runtime information helpers.
+(define system-runtime-string-constants
+  `((racket-version    ,(version))
+    (webracket-machine "WebRacket")))
+
+;; system-runtime-symbol-constants : (listof symbol?)
+;;   Declare symbols used by system/runtime information helpers.
+(define system-runtime-symbol-constants
+  '(installation-name))
 
 ;; system-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for system/runtime information helpers.

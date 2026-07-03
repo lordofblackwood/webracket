@@ -33,6 +33,7 @@
 ;;   Declare symbols used by FFI debug probes and callback/bridge diagnostics.
 (define ffi-runtime-symbol-constants
   '(webracket-debug-allocation-budget!
+    wr-ref
     webracket-debug-allocation-counters
     webracket-debug-invoke-budget!
     allocation-budget-exhausted
@@ -59,6 +60,7 @@
 (define ffi-runtime-string-constants
   '((callback:no-js-equivalent
      "The callback attempted to return a WebRacket value with no JavaScript equivalent (i.e. without a FASL encoding): ")
+    (string-or-symbol?         "(or/c string? symbol?)")
     (wr-kind:value              "value")
     (wr-kind:missing-binding    "missing-binding")
     (wr-kind:not-procedure      "not-procedure")

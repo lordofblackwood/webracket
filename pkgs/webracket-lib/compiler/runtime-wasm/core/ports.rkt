@@ -38,7 +38,9 @@
 (define port-predicate-runtime-string-constants
   '((port?                      "port?")
     (input-port?                "input-port?")
-    (output-port?               "output-port?")))
+    (output-port?               "output-port?")
+    (file-stream-port?          "file-stream-port?")
+    (terminal-port?             "terminal-port?")))
 
 ;; port-event-runtime-string-constants : (listof (list/c symbol? string?))
 ;;   Declare strings used by port event capability predicates.

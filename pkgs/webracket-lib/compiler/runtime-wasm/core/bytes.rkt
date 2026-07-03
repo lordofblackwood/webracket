@@ -2,6 +2,7 @@
 
 (provide bytes-core-runtime-helpers
          bytes-runtime-string-constants
+         bytes-runtime-bytes-constants
          byte-predicate-runtime-symbol-constants
          bytes-runtime-symbol-constants
          bytes-basic-runtime-only-helper-names
@@ -21,6 +22,11 @@
   '((byte?                      "byte?")
     (bytes?                     "bytes?")
     (bytes-converter?           "bytes-converter?")))
+
+;; bytes-runtime-bytes-constants : (listof (list/c symbol? bytes?))
+;;   Declare byte-string constants used by byte-string helpers.
+(define bytes-runtime-bytes-constants
+  '((empty #"")))
 
 ;; byte-predicate-runtime-symbol-constants : (listof symbol?)
 ;;   Declare symbols used by byte predicate helpers.

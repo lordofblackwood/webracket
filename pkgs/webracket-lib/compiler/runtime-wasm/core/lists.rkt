@@ -38,6 +38,7 @@
     list-tail
     list-set
     list-update
+    count
     rest
     take
     take-right

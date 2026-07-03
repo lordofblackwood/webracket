@@ -1,6 +1,7 @@
 #lang racket
 
-(provide symbol-runtime-only-helpers
+(provide symbol-runtime-string-constants
+         symbol-runtime-only-helpers
          symbol-public-runtime-only-helper-names
          symbol-gensym-runtime-only-helper-names
          symbol-gensym-global-forms
@@ -10,6 +11,12 @@
 
 (require "../core-helper.rkt"
          "../../private/wasm-utils.rkt")
+
+;; symbol-runtime-string-constants : (listof (list/c symbol? string?))
+;;   Declare string constants used by symbol helpers and symbol contract checks.
+(define symbol-runtime-string-constants
+  '((symbol? "symbol?")
+    (g       "g")))
 
 ;; symbol-table-global-forms : (listof datum?)
 ;;   Declare the global symbol interning table.

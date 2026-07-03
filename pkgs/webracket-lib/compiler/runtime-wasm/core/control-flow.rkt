@@ -66,7 +66,8 @@
     continuation-prompt-available?
     continuation-prompt-tag?
     continuation?
-    root-continuation-prompt-tag))
+    root-continuation-prompt-tag
+    call-with-escape-continuation))
 
 ;; value-expectation-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate multiple-value expectation helpers used by compiler output.

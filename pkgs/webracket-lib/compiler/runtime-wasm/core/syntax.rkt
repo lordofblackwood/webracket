@@ -41,7 +41,13 @@
   '(correlated->datum
     datum->correlated
     correlated-property
-    correlated-property-symbol-keys))
+    correlated-property-symbol-keys
+    submod
+    top-level
+    add
+    remove
+    flip
+    syntax-introducer))
 
 ;; syntax-global-forms : (listof datum?)
 ;;   Declare cached syntax and correlated syntax descriptors and property tables.

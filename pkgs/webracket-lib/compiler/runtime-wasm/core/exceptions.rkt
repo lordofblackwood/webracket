@@ -20,7 +20,11 @@
 (define exception-runtime-string-constants
   '((exn:srclocs?   "exn:srclocs?")
     (listof-srcloc? "(listof srcloc?)")
-    (listof-syntax? "(listof syntax?)")))
+    (listof-syntax? "(listof syntax?)")
+    (catch*-matching-lengths "same number of handlers as predicates")
+    (filesystem-errno "(cons/c exact-integer? (or/c 'posix 'windows 'gai))")
+    (valid-argument "valid argument")
+    (uncaught-exception "uncaught exception: ")))
 
 ;; exception-fail-runtime-symbol-constants : (listof symbol?)
 ;;   Declare fail-exception symbols referenced directly by runtime helpers.

@@ -9,7 +9,8 @@
 ;; box-runtime-string-constants : (listof (list/c symbol? string?))
 ;;   Declare string constants used by box helpers and box errors.
 (define box-runtime-string-constants
-  '((box? "box?")))
+  '((box?                      "box?")
+    (use-before-initialization "undefined; cannot use before initialization")))
 
 ;; box-base-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate box helpers that still depend on monolithic runtime globals.

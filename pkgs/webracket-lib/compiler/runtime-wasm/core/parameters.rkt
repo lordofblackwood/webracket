@@ -37,6 +37,9 @@
 ;;   Declare symbols used by reader, printer, and compile parameters.
 (define parameter-runtime-symbol-constants
   '(load-on-demand-enabled
+    call-with-parameterization-primitive-entry
+    arg1-name
+    arg1-debug-id
     read-square-bracket-as-paren
     read-curly-brace-as-paren
     read-square-bracket-with-tag

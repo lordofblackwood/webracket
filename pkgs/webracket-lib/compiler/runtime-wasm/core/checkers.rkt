@@ -1,9 +1,15 @@
 #lang racket
 
-(provide checker-runtime-only-helpers
+(provide checker-runtime-string-constants
+         checker-runtime-only-helpers
          checker-runtime-only-helper-names)
 
 (require "../core-helper.rkt")
+
+;; checker-runtime-string-constants : (listof (list/c symbol? string?))
+;;   Declare strings used by match and sequence checker helpers.
+(define checker-runtime-string-constants
+  '((match-error:prefix ": no matching clause for ")))
 
 ;; checker-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for match and sequence checker helpers.
