@@ -3,6 +3,8 @@
 (provide external-value-runtime-only-helper-names
          ffi-callback-global-forms
          ffi-entry-global-forms
+         ffi-runtime-string-constants
+         ffi-runtime-symbol-constants
          ffi-runtime-only-helpers
          ffi-runtime-only-helper-names
          ffi-runtime-only-helper-forms
@@ -26,6 +28,48 @@
 ;;   Return the Wasm global name for a console bridge binding symbol.
 (define (console-bridge-symbol-global const-name)
   ($ (string->symbol (~a "symbol:" const-name))))
+
+;; ffi-runtime-symbol-constants : (listof symbol?)
+;;   Declare symbols used by FFI debug probes and callback/bridge diagnostics.
+(define ffi-runtime-symbol-constants
+  '(webracket-debug-allocation-budget!
+    webracket-debug-allocation-counters
+    webracket-debug-invoke-budget!
+    allocation-budget-exhausted
+    invoke-budget-exhausted
+    pairs
+    vectors
+    structs
+    hash-sets
+    closures
+    arg-arrays
+    strings
+    bytes
+    value-arrays
+    free-arrays
+    invocations
+    current-procedure
+    call-with-parameterization-wrapper-entry
+    argc
+    arg0-parameterization?
+    arg1-procedure?))
+
+;; ffi-runtime-string-constants : (listof (list/c symbol? string?))
+;;   Declare strings used by callback return diagnostics and the console bridge.
+(define ffi-runtime-string-constants
+  '((callback:no-js-equivalent
+     "The callback attempted to return a WebRacket value with no JavaScript equivalent (i.e. without a FASL encoding): ")
+    (wr-kind:value              "value")
+    (wr-kind:missing-binding    "missing-binding")
+    (wr-kind:not-procedure      "not-procedure")
+    (wr-kind:procedure          "procedure")
+    (wr-kind:exception          "exception")
+    (wr-kind:non-fasl-result    "non-fasl-result")
+    (wr-kind:bad-request        "bad-request")
+    (wr:bad-request             "invalid WebRacket console bridge request")
+    (wr:not-procedure           "top-level binding is not a procedure: ")
+    (wr:undefined-exception     "bridge call raised #<undefined>")
+    (wr:unsafe-undefined-exception "bridge call raised #<unsafe-undefined>")))
 
 ;; ffi-callback-global-forms : (listof datum?)
 ;;   Declare callback bridge globals used by FFI helpers.
