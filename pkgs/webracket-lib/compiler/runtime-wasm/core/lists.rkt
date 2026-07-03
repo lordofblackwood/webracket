@@ -2,6 +2,7 @@
 
 (provide list-core-runtime-helpers
          pair-global-forms
+         list-runtime-string-constants
          list-member-runtime-only-helper-names
          list-association-runtime-only-helper-names
          list-group-by-runtime-only-helper-names
@@ -14,6 +15,13 @@
 
 (require "../core-helper.rkt"
          "../../private/wasm-utils.rkt")
+
+;; list-runtime-string-constants : (listof (list/c symbol? string?))
+;;   Declare string constants used by pair/list predicates and list errors.
+(define list-runtime-string-constants
+  '((pair?           "pair?")
+    (list?           "list?")
+    (non-empty-list? "(and/c list? (not/c empty?))")))
 
 ;; pair-global-forms : (listof datum?)
 ;;   Declare shared pair values used for default local initialization.

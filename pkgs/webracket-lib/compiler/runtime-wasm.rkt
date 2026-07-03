@@ -178,6 +178,7 @@
                   list-ordinal-accessor-runtime-only-helper-names
                   list-remove-runtime-only-helper-names
                   list-remove-star-runtime-only-helper-names
+                  list-runtime-string-constants
                   pair-global-forms
                   pair-accessor-runtime-only-helper-names
                   list-runtime-only-helpers)
@@ -2862,10 +2863,8 @@
     (add-runtime-string-constant 'keyword?                   "keyword?")
     (add-runtime-string-constant 'keyword:key                "key")
     (add-runtime-string-constant 'keyword:cache-keys?        "cache-keys?")
-    (add-runtime-string-constant 'pair?                      "pair?")
+    (add-runtime-string-constants list-runtime-string-constants)
     (add-runtime-string-constant 'placeholder?               "placeholder?")
-    (add-runtime-string-constant 'list?                      "list?")
-    (add-runtime-string-constant 'non-empty-list?            "(and/c list? (not/c empty?))")
     (add-runtime-string-constant 'fixnum?                    "fixnum?")
     (add-runtime-string-constants bytes-runtime-string-constants)
     (add-runtime-string-constants vector-runtime-string-constants)
