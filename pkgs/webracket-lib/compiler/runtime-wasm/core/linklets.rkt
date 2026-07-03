@@ -1,6 +1,7 @@
 #lang racket
 
 (provide linklet-bootstrap-runtime-only-helper-names
+         linklet-bootstrap-runtime-helper-forms
          linklet-body-core-reserved-symbols
          primitive-table-module-symbols
          linklet-runtime-string-constants
@@ -8,9 +9,11 @@
          linklet-runtime-bytes-constants
          linklet-bootstrap-runtime-only-helpers
          linklet-interpreter-runtime-only-helper-names
+         linklet-interpreter-runtime-helper-forms
          linklet-interpreter-runtime-only-helpers
          linklet-primitive-table-global-forms
          linklet-primitive-table-initializer-runtime-only-helper-names
+         linklet-primitive-table-initializer-runtime-helper-forms
          linklet-primitive-table-initializer-runtime-only-helpers
          linklet-primitive-table-runtime-only-helper-forms
          linklet-runtime-only-helper-names
@@ -932,6 +935,29 @@
                                           (call $make-empty-hasheq))))))
      )))
 
+;; linklet-registered-helper-forms : hasheq? (listof symbol?) -> (listof datum?)
+;;   Render the given registered linklet helper names from the runtime helper index.
+(define (linklet-registered-helper-forms helper-index names)
+  (for/list ([name (in-list names)])
+    (core-runtime-helper-form helper-index name)))
+
+;; linklet-interpreter-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render source-linklet interpreter helpers in runtime assembly order.
+(define (linklet-interpreter-runtime-helper-forms helper-index)
+  (linklet-registered-helper-forms helper-index linklet-interpreter-runtime-only-helper-names))
+
+;; linklet-primitive-table-initializer-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render primitive-table initializer helpers in runtime assembly order.
+(define (linklet-primitive-table-initializer-runtime-helper-forms helper-index)
+  (linklet-registered-helper-forms
+   helper-index
+   linklet-primitive-table-initializer-runtime-only-helper-names))
+
+;; linklet-bootstrap-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render source-linklet bootstrap helpers in runtime assembly order.
+(define (linklet-bootstrap-runtime-helper-forms helper-index)
+  (linklet-registered-helper-forms helper-index linklet-bootstrap-runtime-only-helper-names))
+
 ;; linklet-primitive-table-runtime-only-helper-forms : (listof symbol?) (listof symbol?) -> (listof datum?)
 ;;   Generate primitive-table bridge helpers for the active primitive set.
 (define (linklet-primitive-table-runtime-only-helper-forms active-primitives
@@ -1782,3 +1808,32 @@
                    (else (local.get $result))))
 
      ))
+
+(module+ test
+  (require rackunit)
+
+  ;; form-name : datum? -> symbol?
+  ;;   Return the function name from a rendered helper form.
+  (define (form-name form)
+    (second form))
+
+  (define linklet-helper-index
+    (make-core-runtime-helper-index
+     (append linklet-bootstrap-runtime-only-helpers
+             linklet-interpreter-runtime-only-helpers
+             linklet-primitive-table-initializer-runtime-only-helpers)))
+
+  (check-equal?
+   (map form-name
+        (linklet-interpreter-runtime-helper-forms linklet-helper-index))
+   linklet-interpreter-runtime-only-helper-names)
+
+  (check-equal?
+   (map form-name
+        (linklet-primitive-table-initializer-runtime-helper-forms linklet-helper-index))
+   linklet-primitive-table-initializer-runtime-only-helper-names)
+
+  (check-equal?
+   (map form-name
+        (linklet-bootstrap-runtime-helper-forms linklet-helper-index))
+   linklet-bootstrap-runtime-only-helper-names))

@@ -177,14 +177,14 @@
                   linklet-instance-runtime-helper-forms
                   linklet-instance-runtime-only-helpers)
          (only-in "runtime-wasm/core/linklets.rkt"
-                  linklet-bootstrap-runtime-only-helper-names
+                  linklet-bootstrap-runtime-helper-forms
                   linklet-body-core-reserved-symbols
                   linklet-bootstrap-runtime-only-helpers
-                  linklet-interpreter-runtime-only-helper-names
+                  linklet-interpreter-runtime-helper-forms
                   linklet-interpreter-runtime-only-helpers
                   primitive-table-module-symbols
                   linklet-primitive-table-global-forms
-                  linklet-primitive-table-initializer-runtime-only-helper-names
+                  linklet-primitive-table-initializer-runtime-helper-forms
                   linklet-primitive-table-initializer-runtime-only-helpers
                   linklet-primitive-table-runtime-only-helper-forms
                   linklet-runtime-only-helper-forms)
@@ -1405,8 +1405,7 @@
          ,@(procedure-rest-argument-core-runtime-helper-forms core-runtime-helper-index)
 
          ;;   Source-linklet interpreter helpers are implemented in runtime-wasm/core/linklets.rkt.
-         ,@(for/list ([name (in-list linklet-interpreter-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
+         ,@(linklet-interpreter-runtime-helper-forms runtime-helper-index)
 
          ,@closure-runtime-global-forms
 
@@ -1437,8 +1436,7 @@
          ,@(keyword-table-initializer-runtime-helper-forms runtime-helper-index)
 
          ;;   Primitive table initializer is implemented in runtime-wasm/core/linklets.rkt.
-         ,@(for/list ([name (in-list linklet-primitive-table-initializer-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
+         ,@(linklet-primitive-table-initializer-runtime-helper-forms runtime-helper-index)
 
          ;;;
          ;;; Arrays
@@ -1981,8 +1979,7 @@
 
          ;; Source-linklet bootstrap helpers
          ;;   Implemented in runtime-wasm/core/linklets.rkt.
-         ,@(for/list ([name (in-list linklet-bootstrap-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
+         ,@(linklet-bootstrap-runtime-helper-forms runtime-helper-index)
 
          ;; Primitive-table bridge helpers
          ;;   Implemented in runtime-wasm/core/linklets.rkt.
