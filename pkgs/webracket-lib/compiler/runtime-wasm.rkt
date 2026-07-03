@@ -51,6 +51,8 @@
                   write-stable-runtime-analysis-cache!)
          (only-in "runtime-wasm/runtime-helper-index.rkt"
                   runtime-helper-index)
+         (only-in "runtime-wasm/runtime-source.rkt"
+                  runtime-source-fingerprint)
          (only-in "runtime-wasm/core/arrays.rkt"
                   array-core-runtime-helper-forms
                   array-runtime-helper-forms)
@@ -356,74 +358,7 @@
                   will-runtime-helper-forms)
          "runtime-wasm/core-runtime.rkt"
          "runtime-wasm/constants.rkt"
-         "runtime-wasm/shared-types.rkt"
-         racket/runtime-path)
-
-(define-runtime-path runtime-wasm-path "runtime-wasm.rkt")
-(define-runtime-path priminfo-path "private/priminfo.rkt")
-(define-runtime-path parameters-path "private/parameters.rkt")
-(define-runtime-path structs-path "private/structs.rkt")
-(define-runtime-path wasm-data-path "private/wasm-data.rkt")
-(define-runtime-path wasm-utils-path "private/wasm-utils.rkt")
-(define-runtime-path immediates-path "private/immediates.rkt")
-(define-runtime-path constants-path "runtime-wasm/constants.rkt")
-(define-runtime-path function-declarations-path "runtime-wasm/function-declarations.rkt")
-(define-runtime-path module-forms-path "runtime-wasm/module-forms.rkt")
-(define-runtime-path runtime-analysis-path "runtime-wasm/runtime-analysis.rkt")
-(define-runtime-path runtime-helper-index-path "runtime-wasm/runtime-helper-index.rkt")
-(define-runtime-path core-booleans-path "runtime-wasm/core/booleans.rkt")
-(define-runtime-path core-boxes-path "runtime-wasm/core/boxes.rkt")
-(define-runtime-path core-bytes-path "runtime-wasm/core/bytes.rkt")
-(define-runtime-path core-characters-path "runtime-wasm/core/characters.rkt")
-(define-runtime-path core-checkers-path "runtime-wasm/core/checkers.rkt")
-(define-runtime-path core-closures-path "runtime-wasm/core/closures.rkt")
-(define-runtime-path core-control-flow-path "runtime-wasm/core/control-flow.rkt")
-(define-runtime-path core-equality-path "runtime-wasm/core/equality.rkt")
-(define-runtime-path core-exceptions-path "runtime-wasm/core/exceptions.rkt")
-(define-runtime-path core-events-path "runtime-wasm/core/events.rkt")
-(define-runtime-path core-fasl-path "runtime-wasm/core/fasl.rkt")
-(define-runtime-path core-ffi-path "runtime-wasm/core/ffi.rkt")
-(define-runtime-path core-filesystem-path "runtime-wasm/core/filesystem.rkt")
-(define-runtime-path core-formatting-path "runtime-wasm/core/formatting.rkt")
-(define-runtime-path core-hashes-path "runtime-wasm/core/hashes.rkt")
-(define-runtime-path core-immutable-hashes-path "runtime-wasm/core/immutable-hashes.rkt")
-(define-runtime-path core-immediates-path "runtime-wasm/core/immediates.rkt")
-(define-runtime-path core-impersonators-path "runtime-wasm/core/impersonators.rkt")
-(define-runtime-path core-io-handlers-path "runtime-wasm/core/io-handlers.rkt")
-(define-runtime-path core-keywords-path "runtime-wasm/core/keywords.rkt")
-(define-runtime-path core-lists-path "runtime-wasm/core/lists.rkt")
-(define-runtime-path core-linklet-instances-path "runtime-wasm/core/linklet-instances.rkt")
-(define-runtime-path core-linklets-path "runtime-wasm/core/linklets.rkt")
-(define-runtime-path core-locations-path "runtime-wasm/core/locations.rkt")
-(define-runtime-path core-locks-path "runtime-wasm/core/locks.rkt")
-(define-runtime-path core-loggers-path "runtime-wasm/core/loggers.rkt")
-(define-runtime-path core-memory-map-path "runtime-wasm/core/memory-map.rkt")
-(define-runtime-path core-mlists-path "runtime-wasm/core/mlists.rkt")
-(define-runtime-path core-mutable-hashes-path "runtime-wasm/core/mutable-hashes.rkt")
-(define-runtime-path core-namespaces-path "runtime-wasm/core/namespaces.rkt")
-(define-runtime-path core-numbers-path "runtime-wasm/core/numbers.rkt")
-(define-runtime-path core-parameters-path "runtime-wasm/core/parameters.rkt")
-(define-runtime-path core-paths-path "runtime-wasm/core/paths.rkt")
-(define-runtime-path core-ports-path "runtime-wasm/core/ports.rkt")
-(define-runtime-path core-procedures-path "runtime-wasm/core/procedures.rkt")
-(define-runtime-path core-random-path "runtime-wasm/core/random.rkt")
-(define-runtime-path core-realms-path "runtime-wasm/core/realms.rkt")
-(define-runtime-path core-regexps-path "runtime-wasm/core/regexps.rkt")
-(define-runtime-path core-runtime-constants-path "runtime-wasm/core/runtime-constants.rkt")
-(define-runtime-path core-reflection-path "runtime-wasm/core/reflection.rkt")
-(define-runtime-path core-security-path "runtime-wasm/core/security.rkt")
-(define-runtime-path core-semaphores-path "runtime-wasm/core/semaphores.rkt")
-(define-runtime-path core-stencil-vectors-path "runtime-wasm/core/stencil-vectors.rkt")
-(define-runtime-path core-strings-path "runtime-wasm/core/strings.rkt")
-(define-runtime-path core-symbols-path "runtime-wasm/core/symbols.rkt")
-(define-runtime-path core-system-path "runtime-wasm/core/system.rkt")
-(define-runtime-path core-syntax-path "runtime-wasm/core/syntax.rkt")
-(define-runtime-path core-threads-path "runtime-wasm/core/threads.rkt")
-(define-runtime-path core-time-path "runtime-wasm/core/time.rkt")
-(define-runtime-path core-treelists-path "runtime-wasm/core/treelists.rkt")
-(define-runtime-path core-unsafe-path "runtime-wasm/core/unsafe.rkt")
-(define-runtime-path core-vectors-path "runtime-wasm/core/vectors.rkt")
-(define-runtime-path core-wills-path "runtime-wasm/core/wills.rkt")
+         "runtime-wasm/shared-types.rkt")
 
 (module+ test
   (require (submod "runtime-wasm/core-runtime.rkt" test)))
@@ -604,77 +539,6 @@
     (define (runtime-metric-add/computed! label thunk)
       (when (current-runtime-metric-rows)
         (runtime-metric-add! label (thunk))))
-
-    (define (runtime-source-fingerprint)
-      `(runtime-source
-        1
-        ,@(for/list ([path (in-list (list runtime-wasm-path
-                                          priminfo-path
-                                          parameters-path
-                                          structs-path
-                                          wasm-data-path
-                                          wasm-utils-path
-                                          immediates-path
-                                          constants-path
-                                          function-declarations-path
-                                          module-forms-path
-                                          runtime-analysis-path
-                                          runtime-helper-index-path
-                                          core-booleans-path
-                                          core-boxes-path
-                                          core-bytes-path
-                                          core-characters-path
-                                          core-checkers-path
-                                          core-closures-path
-                                          core-control-flow-path
-                                          core-equality-path
-                                          core-exceptions-path
-                                          core-events-path
-                                          core-fasl-path
-                                          core-ffi-path
-                                          core-filesystem-path
-                                          core-formatting-path
-                                          core-hashes-path
-                                          core-immutable-hashes-path
-                                          core-immediates-path
-                                          core-impersonators-path
-                                          core-io-handlers-path
-                                          core-keywords-path
-                                          core-lists-path
-                                          core-linklet-instances-path
-                                          core-linklets-path
-                                          core-locations-path
-                                          core-locks-path
-                                          core-loggers-path
-                                          core-memory-map-path
-                                          core-mlists-path
-                                          core-mutable-hashes-path
-                                          core-namespaces-path
-                                          core-numbers-path
-                                          core-parameters-path
-                                          core-paths-path
-                                          core-ports-path
-                                          core-procedures-path
-                                          core-random-path
-                                          core-realms-path
-                                          core-regexps-path
-                                          core-runtime-constants-path
-                                          core-reflection-path
-                                          core-security-path
-                                          core-semaphores-path
-                                          core-stencil-vectors-path
-                                          core-strings-path
-                                          core-symbols-path
-                                          core-syntax-path
-                                          core-threads-path
-                                          core-time-path
-                                          core-treelists-path
-                                          core-unsafe-path
-                                          core-vectors-path
-                                          core-wills-path))])
-            (list (path->string path)
-                  (file-size path)
-                  (file-or-directory-modify-seconds path)))))
 
     (define (declare-primitives-as-globals)
       (procedure-primitive-global-forms (active-described-primitives-sorted)))
