@@ -4,6 +4,7 @@
          immutable-hash-constructor-runtime-only-helper-names
          immutable-hash-iteration-runtime-only-helper-names
          immutable-hash-public-runtime-only-helper-names
+         immutable-hash-prelude-runtime-helper-forms
          immutable-hash-runtime-symbol-constants
          immutable-hash-runtime-only-helpers)
 
@@ -27,6 +28,141 @@
     $make-empty-immutable-hasheqv
     $make-empty-immutable-hash
     $make-empty-immutable-hashalw))
+
+;; immutable-hash-prelude-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the monolithic runtime emission order for immutable hash prelude helpers.
+(define immutable-hash-prelude-runtime-only-helper-names
+  '($hash-placeholder?
+    $placeholder?
+    $make-placeholder
+    $placeholder-set!
+    $placeholder-get
+    $reader-graph-resolve
+    $make-reader-graph
+    $hash-weak?
+    $make-hash-placeholder/kind
+    $make-hash-placeholder
+    $make-hasheq-placeholder
+    $make-hasheqv-placeholder
+    $make-hashalw-placeholder
+    $immutable-hasheqv-bucket-index
+    $immutable-hamt-packed-group-index
+    $immutable-hamt-packed-child-bit
+    $immutable-hamt-packed-key-bit
+    $immutable-hamt-packed-value-bit
+    $immutable-hamt-packed-bits
+    $immutable-hamt-slot-kind
+    $immutable-hamt-bnode-packed-metadata
+    $immutable-hamt-store-bnode-metadata
+    $immutable-hamt-bnode-metadata
+    $immutable-hamt-packed-bnode?
+    $immutable-hamt-packed-index
+    $immutable-hamt-packed-slot
+    $immutable-hamt-packed-child-slot
+    $immutable-hamt-packed-key-slot
+    $immutable-hamt-packed-value-slot
+    $immutable-hamt-empty-packed-node
+    $immutable-hamt-store-packed-bnode-metadata
+    $immutable-hamt-key-hash/kind
+    $immutable-hamt-wrap-inline-key/kind
+    $immutable-hamt-inline-key-unwrap
+    $immutable-hamt-inline-key-cached-hash
+    $immutable-hamt-entry-for-key/kind
+    $immutable-hamt-packed-metadata-present?/i32
+    $immutable-hasheqv-bucket-has-key?
+    $immutable-hasheqv-bucket-ref
+    $immutable-hasheqv-bucket-ref-key
+    $immutable-hasheq-bucket-has-key?
+    $immutable-hasheq-bucket-ref
+    $immutable-hasheq-bucket-ref-key
+    $immutable-hamt-bit
+    $immutable-hamt-bucket-ref/kind
+    $immutable-hamt-bucket-ref-key/kind
+    $immutable-hamt-bucket-has-key?/kind
+    $immutable-hamt-key-matches?/kind
+    $immutable-hamt-packed-node-ref/kind
+    $immutable-hamt-packed-node-ref-key/kind
+    $immutable-hamt-packed-node-has-key?/kind
+    $immutable-hamt-packed-node-set/kind
+    $immutable-hamt-packed-bnode-collapse-if-single/kind
+    $immutable-hamt-packed-node-remove/kind
+    $immutable-hamt-node-ref/kind
+    $immutable-hamt-node-ref-key/kind
+    $immutable-hamt-node-has-key?/kind
+    $immutable-hamt-empty-node
+    $immutable-hamt-bnode-collapse-if-single
+    $immutable-hamt-bucket-length
+    $immutable-hamt-bucket-first-entry
+    $immutable-hamt-collapse-small-bucket
+    $immutable-hamt-entry-matches?/kind
+    $immutable-hamt-bucket-remove/kind
+    $immutable-hamt-cnode-ref/kind
+    $immutable-hamt-cnode-ref-key/kind
+    $immutable-hamt-cnode-has-key?/kind
+    $immutable-hamt-cnode-set/kind
+    $immutable-hamt-cnode-remove/kind
+    $immutable-hamt-bucket->cnode
+    $immutable-hamt-bucket->node/kind
+    $immutable-hamt-node-set/kind
+    $immutable-hamt-node-remove/kind
+    $immutable-hasheqv-ref
+    $immutable-hasheq-ref
+    $immutable-hasheqv-ref-key
+    $immutable-hasheq-ref-key
+    $immutable-hasheqv-has-key?
+    $immutable-hasheq-has-key?
+    $immutable-hash-bucket-has-key?
+    $immutable-hash-bucket-ref
+    $immutable-hash-bucket-ref-key
+    $immutable-hashalw-bucket-has-key?
+    $immutable-hashalw-bucket-ref
+    $immutable-hashalw-bucket-ref-key
+    $immutable-hash-ref
+    $immutable-hash-ref-key
+    $immutable-hash-has-key?
+    $immutable-hashalw-ref
+    $immutable-hashalw-ref-key
+    $immutable-hashalw-has-key?
+    $immutable-hasheqv-set
+    $raise-hasheqv-odd-arguments
+    $immutable-hasheq-set
+    $immutable-hash-set
+    $immutable-hashalw-set
+    $immutable-hasheqv-remove
+    $immutable-hasheq-remove
+    $immutable-hash-remove
+    $immutable-hashalw-remove
+    $hash
+    $hasheq
+    $hashalw
+    $hasheqv
+    $make-immutable-hash
+    $make-immutable-hashalw
+    $make-immutable-hasheq
+    $make-immutable-hasheqv
+    $make-weak-hash
+    $make-weak-hasheq
+    $make-ephemeron-hasheq
+    $make-ephemeron
+    $ephemeron?
+    $ephemeron-value
+    $make-weak-hasheqv
+    $make-weak-hashalw))
+
+;; immutable-hash-helper-forms : hasheq? (listof symbol?) -> (listof datum?)
+;;   Render the given immutable hash helper names from the runtime helper index.
+(define (immutable-hash-helper-forms helper-index names)
+  (for/list ([name (in-list names)])
+    (core-runtime-helper-form helper-index name)))
+
+;; immutable-hash-prelude-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render immutable hash prelude helpers in monolithic runtime assembly order.
+(define (immutable-hash-prelude-runtime-helper-forms helper-index)
+  (append
+   (immutable-hash-helper-forms helper-index
+                                immutable-hash-constructor-runtime-only-helper-names)
+   (immutable-hash-helper-forms helper-index
+                                immutable-hash-prelude-runtime-only-helper-names)))
 
 ;; immutable-hash-iteration-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for immutable hash iteration and shape helpers.
@@ -5596,3 +5732,20 @@
           immutable-hash-alist-constructor-runtime-only-helpers
           immutable-hash-iteration-runtime-only-helpers
           weak-ephemeron-hash-runtime-only-helpers))
+
+(module+ test
+  (require rackunit)
+
+  ;; form-name : datum? -> symbol?
+  ;;   Return the function name from a rendered helper form.
+  (define (form-name form)
+    (second form))
+
+  (define immutable-hash-helper-index
+    (make-core-runtime-helper-index immutable-hash-runtime-only-helpers))
+
+  (check-equal?
+   (map form-name
+        (immutable-hash-prelude-runtime-helper-forms immutable-hash-helper-index))
+   (append immutable-hash-constructor-runtime-only-helper-names
+           immutable-hash-prelude-runtime-only-helper-names)))
