@@ -4,6 +4,7 @@
          value-expectation-runtime-only-helper-names
          continuation-runtime-only-helper-names
          continuation-mark-runtime-only-helper-names
+         continuation-runtime-symbol-constants
          control-flow-runtime-only-helpers)
 
 (require "../core-helper.rkt")
@@ -45,6 +46,14 @@
     $continuation-prompt-tag?
     $continuation?
     $continuation-mark-set-first))
+
+;; continuation-runtime-symbol-constants : (listof symbol?)
+;;   Declare symbols used by continuation and continuation-mark helpers.
+(define continuation-runtime-symbol-constants
+  '(continuation-mark-set?
+    continuation-prompt-available?
+    continuation-prompt-tag?
+    continuation?))
 
 ;; value-expectation-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate multiple-value expectation helpers used by compiler output.

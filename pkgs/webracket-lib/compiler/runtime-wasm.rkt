@@ -53,6 +53,7 @@
          (only-in "runtime-wasm/core/control-flow.rkt"
                   continuation-mark-runtime-only-helper-names
                   continuation-runtime-only-helper-names
+                  continuation-runtime-symbol-constants
                   multiple-value-runtime-only-helper-names
                   value-expectation-runtime-only-helper-names
                   control-flow-runtime-only-helpers)
@@ -2941,10 +2942,7 @@
     (add-runtime-symbol-constants will-runtime-symbol-constants)
     (add-runtime-symbol-constants immutable-hash-runtime-symbol-constants)
     (add-runtime-symbol-constants impersonator-runtime-symbol-constants)
-    (add-runtime-symbol-constant 'continuation-mark-set?)
-    (add-runtime-symbol-constant 'continuation-prompt-available?)
-    (add-runtime-symbol-constant 'continuation-prompt-tag?)
-    (add-runtime-symbol-constant 'continuation?)
+    (add-runtime-symbol-constants continuation-runtime-symbol-constants)
     (add-runtime-symbol-constants thread-runtime-symbol-constants)
     (add-runtime-symbol-constants security-runtime-symbol-constants)
     (add-runtime-symbol-constant 'date?)
