@@ -152,8 +152,8 @@
                   eof-object-runtime-helper-forms
                   immediate-runtime-only-helpers)
          (only-in "runtime-wasm/core/impersonators.rkt"
-                  chaperone-procedure-runtime-only-helper-names
-                  impersonator-basic-runtime-only-helper-names
+                  chaperone-procedure-runtime-helper-forms
+                  impersonator-basic-runtime-helper-forms
                   impersonator-runtime-only-helpers)
          (only-in "runtime-wasm/core/io-handlers.rkt"
                   io-handler-default-port-global-forms
@@ -2207,8 +2207,7 @@
         ,@(port-predicate-runtime-helper-forms runtime-helper-index)
 
         ;;   Implemented in runtime-wasm/core/impersonators.rkt.
-        ,@(for/list ([name (in-list impersonator-basic-runtime-only-helper-names)])
-            (core-runtime-helper-form runtime-helper-index name))
+        ,@(impersonator-basic-runtime-helper-forms runtime-helper-index)
 
         ;; Output-port predicate helper is implemented in runtime-wasm/core/ports.rkt.
         ,@(port-output-predicate-runtime-helper-forms runtime-helper-index)
@@ -2400,8 +2399,7 @@
          ,@(procedure-main-runtime-helper-forms runtime-helper-index)
 
          ;;   Implemented in runtime-wasm/core/impersonators.rkt.
-         ,@(for/list ([name (in-list chaperone-procedure-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
+         ,@(chaperone-procedure-runtime-helper-forms runtime-helper-index)
 
          ;; Procedure arity mask helpers
          ;;   Implemented in runtime-wasm/core/procedures.rkt.

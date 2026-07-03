@@ -3,7 +3,9 @@
 (provide impersonator-runtime-string-constants
          impersonator-runtime-symbol-constants
          impersonator-basic-runtime-only-helper-names
+         impersonator-basic-runtime-helper-forms
          chaperone-procedure-runtime-only-helper-names
+         chaperone-procedure-runtime-helper-forms
          impersonator-runtime-only-helpers)
 
 (require "../core-helper.rkt")
@@ -273,3 +275,40 @@
                         (local.get $proc)
                         (local.get $wrapper)
                         (local.get $props))))))
+
+;; impersonator-helper-forms : hasheq? (listof symbol?) -> (listof datum?)
+;;   Render the given impersonator helper names from the runtime helper index.
+(define (impersonator-helper-forms helper-index names)
+  (for/list ([name (in-list names)])
+    (core-runtime-helper-form helper-index name)))
+
+;; impersonator-basic-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render basic impersonator helpers in runtime assembly order.
+(define (impersonator-basic-runtime-helper-forms helper-index)
+  (impersonator-helper-forms helper-index impersonator-basic-runtime-only-helper-names))
+
+;; chaperone-procedure-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render chaperone procedure helpers in runtime assembly order.
+(define (chaperone-procedure-runtime-helper-forms helper-index)
+  (impersonator-helper-forms helper-index chaperone-procedure-runtime-only-helper-names))
+
+(module+ test
+  (require rackunit)
+
+  ;; form-name : datum? -> symbol?
+  ;;   Return the function name from a rendered helper form.
+  (define (form-name form)
+    (second form))
+
+  (define impersonator-helper-index
+    (make-core-runtime-helper-index impersonator-runtime-only-helpers))
+
+  (check-equal?
+   (map form-name
+        (impersonator-basic-runtime-helper-forms impersonator-helper-index))
+   impersonator-basic-runtime-only-helper-names)
+
+  (check-equal?
+   (map form-name
+        (chaperone-procedure-runtime-helper-forms impersonator-helper-index))
+   chaperone-procedure-runtime-only-helper-names))
