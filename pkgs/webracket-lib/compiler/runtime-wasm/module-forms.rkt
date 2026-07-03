@@ -1,0 +1,113 @@
+#lang racket
+
+(provide module-func-name
+         module-global-name
+         module-data-name
+         module-write-bytes
+         module-form-count
+         module-func-count
+         module-global-count
+         module-export-count
+         module-byte-size
+         symbol-prefix-count
+         forms->module)
+
+;; module-func-name : any/c -> (or/c symbol? #f)
+;;   Return the name of a WAT function form, if the form has one.
+(define (module-func-name form)
+  (and (pair? form)
+       (eq? (car form) 'func)
+       (pair? (cdr form))
+       (symbol? (cadr form))
+       (cadr form)))
+
+;; module-global-name : any/c -> (or/c symbol? #f)
+;;   Return the name of a WAT global form, if the form has one.
+(define (module-global-name form)
+  (and (pair? form)
+       (eq? (car form) 'global)
+       (pair? (cdr form))
+       (symbol? (cadr form))
+       (cadr form)))
+
+;; module-data-name : any/c -> (or/c symbol? #f)
+;;   Return the name of a WAT data form, if the form has one.
+(define (module-data-name form)
+  (and (pair? form)
+       (eq? (car form) 'data)
+       (pair? (cdr form))
+       (symbol? (cadr form))
+       (cadr form)))
+
+;; module-write-bytes : list? -> bytes?
+;;   Serialize a WAT module with `write` for hashing and size metrics.
+(define (module-write-bytes module)
+  (call-with-output-bytes
+   (lambda (out)
+     (write module out))))
+
+;; module-form-count : list? procedure? -> exact-nonnegative-integer?
+;;   Count module body forms accepted by predicate.
+(define (module-form-count module predicate)
+  (for/sum ([form (in-list (cdr module))]
+            #:when (predicate form))
+    1))
+
+;; module-func-count : list? -> exact-nonnegative-integer?
+;;   Count named function forms in module.
+(define (module-func-count module)
+  (module-form-count module module-func-name))
+
+;; module-global-count : list? -> exact-nonnegative-integer?
+;;   Count named global forms in module.
+(define (module-global-count module)
+  (module-form-count module module-global-name))
+
+;; module-export-count : list? -> exact-nonnegative-integer?
+;;   Count export forms in module.
+(define (module-export-count module)
+  (module-form-count
+   module
+   (lambda (form)
+     (and (pair? form)
+          (eq? (car form) 'export)))))
+
+;; module-byte-size : list? -> exact-nonnegative-integer?
+;;   Return the byte size of the module's serialized s-expression.
+(define (module-byte-size module)
+  (bytes-length (module-write-bytes module)))
+
+;; symbol-prefix-count : (listof symbol?) string? -> exact-nonnegative-integer?
+;;   Count symbols whose printed names start with prefix.
+(define (symbol-prefix-count syms prefix)
+  (for/sum ([sym (in-list syms)]
+            #:when (string-prefix? (symbol->string sym) prefix))
+    1))
+
+;; forms->module : (listof any/c) -> list?
+;;   Wrap WAT module body forms in a module form.
+(define (forms->module forms)
+  `(module ,@forms))
+
+(module+ test
+  (require rackunit)
+
+  (define sample-module
+    '(module
+      (type $T (func))
+      (func $f (result i32) (i32.const 0))
+      (func (export "anon"))
+      (global $g (mut i32) (i32.const 0))
+      (data $d "abc")
+      (export "f" (func $f))))
+
+  (check-equal? (module-func-name '(func $f)) '$f)
+  (check-false (module-func-name '(func (export "anon"))))
+  (check-equal? (module-global-name '(global $g i32 (i32.const 0))) '$g)
+  (check-equal? (module-data-name '(data $d "abc")) '$d)
+  (check-equal? (module-func-count sample-module) 1)
+  (check-equal? (module-global-count sample-module) 1)
+  (check-equal? (module-export-count sample-module) 1)
+  (check-equal? (symbol-prefix-count '($string:a $bytes:a $string:b) "$string:") 2)
+  (check-equal? (forms->module '((func $f))) '(module (func $f)))
+  (check-true (positive? (module-byte-size sample-module))))

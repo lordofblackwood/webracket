@@ -18,6 +18,17 @@
                   entry-support-forms)
          (only-in "runtime-wasm/js-imports.rkt"
                   js-host-import-forms)
+         (only-in "runtime-wasm/module-forms.rkt"
+                  module-func-name
+                  module-global-name
+                  module-data-name
+                  module-write-bytes
+                  module-func-count
+                  module-global-count
+                  module-export-count
+                  module-byte-size
+                  symbol-prefix-count
+                  forms->module)
          (only-in "runtime-wasm/core/arrays.rkt"
                   array-runtime-only-helper-names
                   array-runtime-only-helpers)
@@ -449,6 +460,7 @@
 (define-runtime-path wasm-utils-path "private/wasm-utils.rkt")
 (define-runtime-path immediates-path "private/immediates.rkt")
 (define-runtime-path constants-path "runtime-wasm/constants.rkt")
+(define-runtime-path module-forms-path "runtime-wasm/module-forms.rkt")
 (define-runtime-path core-booleans-path "runtime-wasm/core/booleans.rkt")
 (define-runtime-path core-boxes-path "runtime-wasm/core/boxes.rkt")
 (define-runtime-path core-bytes-path "runtime-wasm/core/bytes.rkt")
@@ -665,31 +677,10 @@
         (define pr (foreign-racket-name f))
         (values ($ (prim: pr)) pr)))
 
-    (define (module-func-name form)
-      (and (pair? form)
-           (eq? (car form) 'func)
-           (pair? (cdr form))
-           (symbol? (cadr form))
-           (cadr form)))
-
     (set! active-ffi-imports-wat
           (remove-duplicates active-ffi-imports-wat eq? #:key module-func-name))
     (set! active-ffi-funcs-wat
           (remove-duplicates active-ffi-funcs-wat eq? #:key module-func-name))
-
-    (define (module-global-name form)
-      (and (pair? form)
-           (eq? (car form) 'global)
-           (pair? (cdr form))
-           (symbol? (cadr form))
-           (cadr form)))
-
-    (define (module-data-name form)
-      (and (pair? form)
-           (eq? (car form) 'data)
-           (pair? (cdr form))
-           (symbol? (cadr form))
-           (cadr form)))
 
     (define (primitive-global-init-form? x)
       (and (pair? x)
@@ -806,13 +797,6 @@
       (when (current-runtime-metric-rows)
         (runtime-metric-add! label (thunk))))
 
-    ;; module-write-bytes : list? -> bytes?
-    ;;   Serialize a WAT module with `write` for hashing and size metrics.
-    (define (module-write-bytes module)
-      (call-with-output-bytes
-       (lambda (out)
-         (write module out))))
-
     (define (runtime-source-fingerprint)
       `(runtime-source
         1
@@ -824,6 +808,7 @@
                                           wasm-utils-path
                                           immediates-path
                                           constants-path
+                                          module-forms-path
                                           core-booleans-path
                                           core-boxes-path
                                           core-bytes-path
@@ -924,32 +909,6 @@
              out))
           #:exists 'truncate/replace)))
 
-    (define (module-form-count module predicate)
-      (for/sum ([form (in-list (cdr module))]
-                #:when (predicate form))
-        1))
-
-    (define (module-func-count module)
-      (module-form-count module module-func-name))
-
-    (define (module-global-count module)
-      (module-form-count module module-global-name))
-
-    (define (module-export-count module)
-      (module-form-count
-       module
-       (lambda (form)
-         (and (pair? form)
-              (eq? (car form) 'export)))))
-
-    (define (module-byte-size module)
-      (bytes-length (module-write-bytes module)))
-
-    (define (symbol-prefix-count syms prefix)
-      (for/sum ([sym (in-list syms)]
-                #:when (string-prefix? (symbol->string sym) prefix))
-        1))
-
     (define (constant-global-name? name)
       (and (symbol? name)
            (let ([s (symbol->string name)])
@@ -977,9 +936,6 @@
        (for/list ([form (in-list (cdr module))]
                   #:when (stable-runtime-analysis-form? form))
          form)))
-
-    (define (forms->module forms)
-      `(module ,@forms))
 
     (define (walk-symbol-refs x symbol->value)
       (define refs (make-hasheq))
