@@ -19,6 +19,11 @@
          procedure-case-lambda-runtime-only-helper-names
          primitive-dispatch-runtime-only-helper-names
          primitive-invocation-error-runtime-only-helper-names
+         arity->procedure-field-expr
+         arity->shape
+         primitive-shapes
+         primitive-arity->shape
+         shape->invoker
          procedure-runtime-only-helpers)
 
 (require "../core-helper.rkt"
@@ -74,6 +79,229 @@
   '(
          ;; Cached arity-at-least struct type descriptor
          (global $arity-at-least-type (mut (ref null $StructType)) (ref.null $StructType))))
+
+;; arity-range? : any/c exact-nonnegative-integer? exact-nonnegative-integer? -> boolean?
+;;   Check whether a list arity contains exactly the closed integer range.
+(define (arity-range? a min-arity max-arity)
+  (and (list? a)
+       (for/and ([n (in-list a)])
+         (and (integer? n)
+              (<= min-arity n)
+              (<= n max-arity)))
+       (let ([uniq (remove-duplicates a)])
+         (and (= (length uniq) (+ 1 (- max-arity min-arity)))
+              (for/and ([n (in-range min-arity (add1 max-arity))])
+                (memq n uniq))))))
+
+;; arity-2-3? : any/c -> boolean?
+;;   Check whether a list arity accepts exactly two or three arguments.
+(define (arity-2-3? a)
+  (and (list? a)
+       (let ([uniq (remove-duplicates a)])
+         (and (= (length uniq) 2)
+              (memq 2 uniq)
+              (memq 3 uniq)))))
+
+;; arity-3-4? : any/c -> boolean?
+;;   Check whether a list arity accepts exactly three or four arguments.
+(define (arity-3-4? a)
+  (and (list? a)
+       (let ([uniq (remove-duplicates a)])
+         (and (= (length uniq) 2)
+              (memq 3 uniq)
+              (memq 4 uniq)))))
+
+;; arity->internal-representation : any/c -> (or/c exact-integer? #f)
+;;   Encode simple arities for the legacy primitive result-arity field.
+(define (arity->internal-representation a)
+  (match a
+    [(arity-at-least n) (- (- n) 1)]
+    [(? number? a)      a]
+    [(? arity-2-3?)     2]
+    [(? arity-3-4?)     3]
+    [#f                 #f]
+    [_                  #f]
+    [_                  (error
+                         'arity->internal-representation "got: ~a" a)]))
+
+;; arity-entry->marker : any/c -> (or/c exact-integer? #f)
+;;   Convert a single arity entry to the runtime arity marker encoding.
+(define (arity-entry->marker a)
+  (match a
+    [(? exact-nonnegative-integer? n) n]
+    [(arity-at-least n)               (- (- n) 1)]
+    [_                                #f]))
+
+;; canonicalize-arity-markers : (listof exact-integer?) -> (listof exact-integer?)
+;;   Normalize exact and at-least arity markers for runtime procedure records.
+(define (canonicalize-arity-markers markers)
+  (define (dedup xs)
+    (reverse
+     (for/fold ([acc '()]) ([x (in-list xs)])
+       (if (member x acc) acc (cons x acc)))))
+  (define exacts
+    (for/list ([m (in-list markers)]
+               #:when (>= m 0))
+      m))
+  (define at-least-starts
+    (for/list ([m (in-list markers)]
+               #:when (< m 0))
+      (- (- m) 1)))
+  (define min-at-least
+    (and (pair? at-least-starts)
+         (apply min at-least-starts)))
+  (define exacts-dedup (dedup exacts))
+  (define exacts-usable
+    (if min-at-least
+        (filter (lambda (n) (< n min-at-least)) exacts-dedup)
+        exacts-dedup))
+  (define exacts-sorted (sort exacts-usable <))
+  (cond
+    [min-at-least
+     (define m (- (- min-at-least) 1))
+     (if (null? exacts-sorted)
+         (list m)
+         (append exacts-sorted (list m)))]
+    [else exacts-sorted]))
+
+;; arity->markers : any/c -> (or/c (listof exact-integer?) #f)
+;;   Encode a Racket procedure arity into runtime arity markers.
+(define (arity->markers a)
+  (match a
+    [(? exact-nonnegative-integer? n)
+     (list n)]
+    [(arity-at-least n)
+     (list (- (- n) 1))]
+    [(? list? as)
+     (define ms (for/list ([x (in-list as)]) (arity-entry->marker x)))
+     (and (andmap integer? ms)
+          (canonicalize-arity-markers ms))]
+    [#f #f]
+    [_ #f]))
+
+;; arity->procedure-field-expr : any/c -> datum?
+;;   Build the runtime $Procedure arity field expression for a reflected arity.
+(define (arity->procedure-field-expr a)
+  (define ms (arity->markers a))
+  (cond
+    [(not ms)         (Imm #f)]
+    [(null? ms)       `(ref.cast (ref eq) (array.new_fixed $I32Array 0))]
+    [(null? (cdr ms)) (Imm (car ms))]
+    [else
+     `(ref.cast (ref eq)
+                (array.new_fixed $I32Array
+                                 ,(length ms)
+                                 ,@(for/list ([m (in-list ms)])
+                                     `(i32.const ,m))))]))
+
+;; See $primitive-invoke for an explanation of shapes.
+
+;; arity->shape : any/c -> (or/c exact-nonnegative-integer? #f)
+;;   Select the primitive invoker shape for a reflected procedure arity.
+(define (arity->shape a)
+  (match a
+    [(arity-at-least n) (if (>= n 4) 30 (+ 6 n))]
+    [(? number? n)      (if (= n 6) 26 (min n 5))]
+    [(? (lambda (a) (arity-range? a 0 1)))  16]
+    [(? (lambda (a) (arity-range? a 0 2)))  17]
+    [(? (lambda (a) (arity-range? a 0 3)))  27]
+    [(? (lambda (a) (arity-range? a 0 4)))  28]
+    [(? (lambda (a) (arity-range? a 0 5)))  29]
+    [(? (lambda (a) (arity-range? a 1 2)))  18]
+    [(? (lambda (a) (arity-range? a 1 3)))  19]
+    [(? (lambda (a) (arity-range? a 1 4)))  20]
+    [(? (lambda (a) (arity-range? a 1 5)))  21]
+    [(? (lambda (a) (arity-range? a 2 3)))  14]
+    [(? (lambda (a) (arity-range? a 2 4)))  22]
+    [(? (lambda (a) (arity-range? a 2 5)))  23]
+    [(? (lambda (a) (arity-range? a 3 4)))  15]
+    [(? (lambda (a) (arity-range? a 3 5)))  24]
+    [(? (lambda (a) (arity-range? a 6 7)))  25]
+    [_ #f]))
+
+; These functions are variadic functions that can handle the
+; rest arguments both as an $Args array and as a list.
+; The $Args convention is used by inlining.
+; The list  convention by `apply`, `map` and others.
+(define primitive-variadic-args
+  '(bytes
+    date
+    date*
+    make-date
+    make-date*
+    string
+    vector
+    treelist
+    treelist-append
+    module-call-with-prompt
+    chaperone-procedure
+    chaperone-struct
+    chaperone-vector
+    chaperone-box
+    chaperone-hash
+    unsafe-chaperone-procedure
+    unsafe-impersonate-procedure
+    raise-argument-error
+    raise-argument-error*
+    raise-arguments-error
+    vector-immutable
+    values
+    void))
+
+;; primitive-shapes : (listof exact-nonnegative-integer?)
+;;   Enumerate primitive invoker shapes emitted by the runtime.
+(define primitive-shapes
+  '(0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31))
+
+;; primitive-arity->shape : symbol? any/c -> (or/c exact-nonnegative-integer? #f)
+;;   Select the primitive invoker shape for a primitive name and arity.
+(define (primitive-arity->shape pr arity)
+  (let ([base (arity->shape arity)])
+    (and base
+         (cond
+           [(= base 30)
+            (if (memq pr primitive-variadic-args) 31 base)]
+           [(>= base 6)
+            (if (memq pr primitive-variadic-args) (+ base 4) base)]
+           [else base]))))
+
+;; shape->invoker : exact-nonnegative-integer? -> symbol?
+;;   Return the primitive invoker function name for shape.
+(define (shape->invoker shape)
+  (match shape
+    [0  'primitive-invoke:shape-0]
+    [1  'primitive-invoke:shape-1]
+    [2  'primitive-invoke:shape-2]
+    [3  'primitive-invoke:shape-3]
+    [4  'primitive-invoke:shape-4]
+    [5  'primitive-invoke:shape-5]
+    [6  'primitive-invoke:shape-6]
+    [7  'primitive-invoke:shape-7]
+    [8  'primitive-invoke:shape-8]
+    [9  'primitive-invoke:shape-9]
+    [10 'primitive-invoke:shape-10]
+    [11 'primitive-invoke:shape-11]
+    [12 'primitive-invoke:shape-12]
+    [13 'primitive-invoke:shape-13]
+    [14 'primitive-invoke:shape-14]
+    [15 'primitive-invoke:shape-15]
+    [16 'primitive-invoke:shape-16]
+    [17 'primitive-invoke:shape-17]
+    [18 'primitive-invoke:shape-18]
+    [19 'primitive-invoke:shape-19]
+    [20 'primitive-invoke:shape-20]
+    [21 'primitive-invoke:shape-21]
+    [22 'primitive-invoke:shape-22]
+    [23 'primitive-invoke:shape-23]
+    [24 'primitive-invoke:shape-24]
+    [25 'primitive-invoke:shape-25]
+    [26 'primitive-invoke:shape-26]
+    [27 'primitive-invoke:shape-27]
+    [28 'primitive-invoke:shape-28]
+    [29 'primitive-invoke:shape-29]
+    [30 'primitive-invoke:shape-30]
+    [31 'primitive-invoke:shape-31]
+    [_  'primitive-invoke]))
 
 ;; procedure-core-runtime-helpers : (listof core-runtime-helper?)
 ;;   Enumerate procedure-call helpers that can be emitted in core runtime.
@@ -2688,3 +2916,23 @@
           procedure-case-lambda-runtime-only-helpers
           procedure-basic-runtime-only-helpers
           procedure-arity-and-reflection-runtime-only-helpers))
+
+(module+ test
+  (require rackunit)
+
+  (check-equal? (arity->shape 0) 0)
+  (check-equal? (arity->shape 6) 26)
+  (check-equal? (arity->shape '(2 3)) 14)
+  (check-equal? (arity->shape '(0 1 2 3 4 5)) 29)
+  (check-equal? (arity->shape (arity-at-least 4)) 30)
+  (check-equal? (primitive-arity->shape 'values (arity-at-least 0)) 10)
+  (check-equal? (primitive-arity->shape 'apply (arity-at-least 0)) 6)
+  (check-equal? (primitive-arity->shape 'void (arity-at-least 4)) 31)
+  (check-equal? (shape->invoker 31) 'primitive-invoke:shape-31)
+  (check-equal? (arity->procedure-field-expr 2) (Imm 2))
+  (check-equal? (arity->procedure-field-expr '(0 2))
+                '(ref.cast (ref eq)
+                           (array.new_fixed $I32Array
+                                            2
+                                            (i32.const 0)
+                                            (i32.const 2)))))
