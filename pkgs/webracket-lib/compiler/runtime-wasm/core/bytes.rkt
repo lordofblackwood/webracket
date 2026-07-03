@@ -2,6 +2,7 @@
 
 (provide bytes-core-runtime-helpers
          bytes-runtime-string-constants
+         bytes-runtime-symbol-constants
          bytes-basic-runtime-only-helper-names
          byte-comparison-runtime-only-helper-names
          byte-indexing-runtime-only-helper-names
@@ -19,6 +20,17 @@
   '((byte?                      "byte?")
     (bytes?                     "bytes?")
     (bytes-converter?           "bytes-converter?")))
+
+;; bytes-runtime-symbol-constants : (listof symbol?)
+;;   Declare symbols used by byte converter helpers.
+(define bytes-runtime-symbol-constants
+  '(bytes-converter?
+    bytes-open-converter
+    bytes-close-converter
+    bytes-convert
+    bytes-convert-end
+    complete
+    continues))
 
 ;; make-predicate-body : symbol? -> (listof datum?)
 ;;   Generate the shared body for a single-argument Wasm predicate.

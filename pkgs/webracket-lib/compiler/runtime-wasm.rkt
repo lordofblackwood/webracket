@@ -30,6 +30,7 @@
                   box-runtime-only-helpers)
          (only-in "runtime-wasm/core/bytes.rkt"
                   bytes-runtime-string-constants
+                  bytes-runtime-symbol-constants
                   bytes-basic-runtime-only-helper-names
                   byte-comparison-runtime-only-helper-names
                   byte-indexing-runtime-only-helper-names
@@ -2934,13 +2935,7 @@
     (add-runtime-symbol-constants logger-runtime-symbol-constants)
     (add-runtime-symbol-constants procedure-runtime-symbol-constants)
     (add-runtime-symbol-constants struct-runtime-symbol-constants)
-    (add-runtime-symbol-constant 'bytes-converter?)
-    (add-runtime-symbol-constant 'bytes-open-converter)
-    (add-runtime-symbol-constant 'bytes-close-converter)
-    (add-runtime-symbol-constant 'bytes-convert)
-    (add-runtime-symbol-constant 'bytes-convert-end)
-    (add-runtime-symbol-constant 'complete)
-    (add-runtime-symbol-constant 'continues)
+    (add-runtime-symbol-constants bytes-runtime-symbol-constants)
     (add-runtime-symbol-constants event-runtime-symbol-constants)
     (add-runtime-symbol-constants will-runtime-symbol-constants)
     (add-runtime-symbol-constant 'hash-placeholder?)
