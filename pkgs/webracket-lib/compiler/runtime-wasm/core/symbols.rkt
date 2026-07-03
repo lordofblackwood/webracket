@@ -3,10 +3,14 @@
 (provide symbol-runtime-string-constants
          symbol-runtime-only-helpers
          symbol-public-runtime-only-helper-names
+         symbol-public-runtime-helper-forms
          symbol-gensym-runtime-only-helper-names
+         symbol-gensym-runtime-helper-forms
          symbol-gensym-global-forms
          symbol-table-global-forms
          symbol-table-initializer-runtime-only-helper-names
+         symbol-table-initializer-runtime-helper-forms
+         symbol-table-runtime-helper-forms
          symbol-table-runtime-only-helper-names)
 
 (require "../core-helper.rkt"
@@ -597,3 +601,57 @@
 ;;   Preserve the runtime emission order for gensym helpers.
 (define symbol-gensym-runtime-only-helper-names
   (map core-runtime-helper-name symbol-gensym-runtime-only-helpers))
+
+;; symbol-helper-forms : hasheq? (listof symbol?) -> (listof datum?)
+;;   Render the given symbol helper names from the runtime helper index.
+(define (symbol-helper-forms helper-index names)
+  (for/list ([name (in-list names)])
+    (core-runtime-helper-form helper-index name)))
+
+;; symbol-table-initializer-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render symbol table initializer helpers in runtime assembly order.
+(define (symbol-table-initializer-runtime-helper-forms helper-index)
+  (symbol-helper-forms helper-index symbol-table-initializer-runtime-only-helper-names))
+
+;; symbol-table-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render symbol table helpers in runtime assembly order.
+(define (symbol-table-runtime-helper-forms helper-index)
+  (symbol-helper-forms helper-index symbol-table-runtime-only-helper-names))
+
+;; symbol-public-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render public symbol helpers in runtime assembly order.
+(define (symbol-public-runtime-helper-forms helper-index)
+  (symbol-helper-forms helper-index symbol-public-runtime-only-helper-names))
+
+;; symbol-gensym-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render gensym helpers in runtime assembly order.
+(define (symbol-gensym-runtime-helper-forms helper-index)
+  (symbol-helper-forms helper-index symbol-gensym-runtime-only-helper-names))
+
+(module+ test
+  (require rackunit)
+
+  ;; form-name : datum? -> symbol?
+  ;;   Return the function name from a rendered helper form.
+  (define (form-name form)
+    (second form))
+
+  (define symbol-helper-index
+    (make-core-runtime-helper-index symbol-runtime-only-helpers))
+
+  (check-equal?
+   (map form-name
+        (symbol-table-initializer-runtime-helper-forms symbol-helper-index))
+   symbol-table-initializer-runtime-only-helper-names)
+
+  (check-equal?
+   (map form-name (symbol-table-runtime-helper-forms symbol-helper-index))
+   symbol-table-runtime-only-helper-names)
+
+  (check-equal?
+   (map form-name (symbol-public-runtime-helper-forms symbol-helper-index))
+   symbol-public-runtime-only-helper-names)
+
+  (check-equal?
+   (map form-name (symbol-gensym-runtime-helper-forms symbol-helper-index))
+   symbol-gensym-runtime-only-helper-names))

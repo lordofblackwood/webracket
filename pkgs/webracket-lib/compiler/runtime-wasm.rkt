@@ -335,30 +335,9 @@
          (only-in "runtime-wasm/core/stencil-vectors.rkt"
                   stencil-vector-runtime-only-helpers)
          (only-in "runtime-wasm/core/strings.rkt"
-                  string-additional-runtime-only-helper-names
-                  string-append-runtime-only-helper-names
-                  string-array-conversion-runtime-only-helper-names
-                  string-basic-runtime-only-helper-names
-                  string-buffer-error-runtime-only-helper-names
-                  string-build-runtime-only-helper-names
-                  string-case-runtime-only-helper-names
-                  string-check-runtime-only-helper-names
-                  string-comparison-runtime-only-helper-names
-                  string-constructor-runtime-only-helper-names
-                  string-codepoint-runtime-only-helper-names
-                  string-copy!-runtime-only-helper-names
-                  string-copy-runtime-only-helper-names
-                  string-dummy-runtime-only-helper-names
-                  string-error-runtime-only-helper-names
-                  string-index-runtime-only-helper-names
-                  string-list-conversion-runtime-only-helper-names
-                  string-mutation-runtime-only-helper-names
-                  string-mutability-runtime-only-helper-names
-                  string-selector-runtime-only-helper-names
-                  string-split-runtime-only-helper-names
-                  string-take-drop-runtime-only-helper-names
-                  string-trim-runtime-only-helper-names
-                  string-utf8-runtime-only-helper-names
+                  string-buffer-runtime-helper-forms
+                  string-main-runtime-helper-forms
+                  string-mutability-runtime-helper-forms
                   string-runtime-only-helpers)
          (only-in "runtime-wasm/core/structs.rkt"
                   struct-basic-runtime-only-helper-names
@@ -396,11 +375,11 @@
                   struct-runtime-only-helpers)
          (only-in "runtime-wasm/core/symbols.rkt"
                   symbol-gensym-global-forms
-                  symbol-gensym-runtime-only-helper-names
-                  symbol-public-runtime-only-helper-names
+                  symbol-gensym-runtime-helper-forms
+                  symbol-public-runtime-helper-forms
                   symbol-table-global-forms
-                  symbol-table-runtime-only-helper-names
-                  symbol-table-initializer-runtime-only-helper-names
+                  symbol-table-runtime-helper-forms
+                  symbol-table-initializer-runtime-helper-forms
                   symbol-runtime-only-helpers)
          (only-in "runtime-wasm/core/system.rkt"
                   system-runtime-only-helper-names
@@ -1521,8 +1500,7 @@
          ,@unsafe-ffi-primitive-table-global-forms
 
          ;;   Symbol table initializer is implemented in runtime-wasm/core/symbols.rkt.
-         ,@(for/list ([name (in-list symbol-table-initializer-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
+         ,@(symbol-table-initializer-runtime-helper-forms runtime-helper-index)
 
          ;;   Keyword table initializer is implemented in runtime-wasm/core/keywords.rkt.
          ,@(for/list ([name (in-list keyword-table-initializer-runtime-only-helper-names)])
@@ -1710,8 +1688,7 @@
          ;; https://docs.racket-lang.org/reference/booleans.html
 
          ;;   String mutability predicates are implemented in runtime-wasm/core/strings.rkt.
-         ,@(for/list ([name (in-list string-mutability-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
+         ,@(string-mutability-runtime-helper-forms runtime-helper-index)
 
          ;;   Bytes mutability predicates are implemented in runtime-wasm/core/bytes.rkt.
          ,@(for/list ([name (in-list bytes-mutability-runtime-only-helper-names)])
@@ -1990,118 +1967,8 @@
 
         ;; https://docs.racket-lang.org/reference/strings.html
 
-         ;;   String check helpers are implemented in runtime-wasm/core/strings.rkt.
-         ,@(for/list ([name (in-list string-check-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
-
-         ;;   String index error helpers are implemented in runtime-wasm/core/strings.rkt.
-         ,@(for/list ([name (in-list string-index-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
-
-         ;;   Single-codepoint string helpers are implemented in runtime-wasm/core/strings.rkt.
-         ,@(for/list ([name (in-list string-codepoint-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
-
-         ,(core-runtime-helper-form core-runtime-helper-index '$i32array->string)
-         ,(core-runtime-helper-form core-runtime-helper-index '$i32array->immutable-string)
-         ,(core-runtime-helper-form core-runtime-helper-index '$i32growable-array->string)
-         ,(core-runtime-helper-form core-runtime-helper-index '$i32growable-array->immutable-string)
-
-         ;;   String dummy construction helpers are implemented in runtime-wasm/core/strings.rkt.
-         ,@(for/list ([name (in-list string-dummy-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
-
-
-         ;; 4.4.1 String Constructors, Selectors, and Mutators
-
-         ;;   Basic string predicates and constructors are implemented in runtime-wasm/core/strings.rkt.
-         ,@(for/list ([name (in-list string-basic-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
-
-
-         ;;   String construction helpers are implemented in runtime-wasm/core/strings.rkt.
-         ,@(for/list ([name (in-list string-constructor-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
-
-         ;;   Build-string helpers are implemented in runtime-wasm/core/strings.rkt.
-         ,@(for/list ([name (in-list string-build-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
-
-
-         ;;   String selector helpers are implemented in runtime-wasm/core/strings.rkt.
-         ,@(for/list ([name (in-list string-selector-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
-
-         ;;   String mutation helpers are implemented in runtime-wasm/core/strings.rkt.
-         ,@(for/list ([name (in-list string-mutation-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
-
-         ;;   String copy and fill helpers are implemented in runtime-wasm/core/strings.rkt.
-         ,@(for/list ([name (in-list string-copy-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
-
-         ;;   String append helpers are implemented in runtime-wasm/core/strings.rkt.
-         ,@(for/list ([name (in-list string-append-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
-
-         ;;   String join and split helpers are implemented in runtime-wasm/core/strings.rkt.
-         ,@(for/list ([name (in-list string-split-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
-
-
-
-
-         ;; 4.4.3 String Conversions
-         ;;   String case-conversion helpers are implemented in runtime-wasm/core/strings.rkt.
-         ,@(for/list ([name (in-list string-case-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
-
-         ;;   String/list conversion helpers are implemented in runtime-wasm/core/strings.rkt.
-         ,@(for/list ([name (in-list string-list-conversion-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
-
-
-         ;; 4.4.2 String Comparisons
-
-         ;;   String comparison helpers are implemented in runtime-wasm/core/strings.rkt.
-         ,@(for/list ([name (in-list string-comparison-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
-
-
-         ;;;
-
-         ;;   String UTF-8 conversion helpers are implemented in runtime-wasm/core/strings.rkt.
-         ,@(for/list ([name (in-list string-utf8-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
-
-         ;;   String-copy! helpers are implemented in runtime-wasm/core/strings.rkt.
-         ,@(for/list ([name (in-list string-copy!-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
-
-
-         ;;   Array-of-strings conversion helpers are implemented in runtime-wasm/core/strings.rkt.
-         ,@(for/list ([name (in-list string-array-conversion-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
-
-         ;;   String take/drop helpers are implemented in runtime-wasm/core/strings.rkt.
-         ,@(for/list ([name (in-list string-take-drop-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
-
-         ;;   String-section error stubs are implemented in runtime-wasm/core/strings.rkt.
-         ,@(for/list ([name (in-list string-error-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
-
-         ;;   String trim helpers are implemented in runtime-wasm/core/strings.rkt.
-         ,@(for/list ([name (in-list string-trim-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
-
-
-
-         ;; 4.4.6 Additional String Functions  (racket/string)
-
-         ;;   Additional string helpers are implemented in runtime-wasm/core/strings.rkt.
-         ,@(for/list ([name (in-list string-additional-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
+         ;;   String helpers are implemented in runtime-wasm/core/strings.rkt.
+         ,@(string-main-runtime-helper-forms runtime-helper-index core-runtime-helper-index)
 
 
          ;;;
@@ -2117,14 +1984,12 @@
          ;;;
 
          ;;   Symbol helpers are implemented in runtime-wasm/core/symbols.rkt.
-         ,@(for/list ([name (in-list symbol-public-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
+         ,@(symbol-public-runtime-helper-forms runtime-helper-index)
 
          ,@symbol-gensym-global-forms
 
          ;;   Gensym helpers are implemented in runtime-wasm/core/symbols.rkt.
-         ,@(for/list ([name (in-list symbol-gensym-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
+         ,@(symbol-gensym-runtime-helper-forms runtime-helper-index)
 
          ;;;
          ;;; 4.8 REGULAR EXPRESSIONS
@@ -2734,8 +2599,7 @@
          ;; However in order to access the data, one must copy them to the linear memory first.
 
          ;;   String-buffer error helpers are implemented in runtime-wasm/core/strings.rkt.
-         ,@(for/list ([name (in-list string-buffer-error-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
+         ,@(string-buffer-runtime-helper-forms runtime-helper-index)
 
          ; Turns out that the `memory.init` instruction requires a fixed
          ; segment number. So since we can't pass the segment number as an argument,
@@ -3102,8 +2966,7 @@
          ; Count is number of active entries (not tombstones).
 
          ;;   Implemented in runtime-wasm/core/symbols.rkt.
-         ,@(for/list ([name (in-list symbol-table-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
+         ,@(symbol-table-runtime-helper-forms runtime-helper-index)
 
 
          ;  Fowler–Noll–Vo hash function

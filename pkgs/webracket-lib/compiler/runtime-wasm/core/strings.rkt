@@ -26,6 +26,9 @@
          string-take-drop-runtime-only-helper-names
          string-trim-runtime-only-helper-names
          string-utf8-runtime-only-helper-names
+         string-mutability-runtime-helper-forms
+         string-main-runtime-helper-forms
+         string-buffer-runtime-helper-forms
          string-runtime-only-helpers)
 
 (require "../core-helper.rkt"
@@ -3371,6 +3374,58 @@
                           (local.get $res)))
      )))
 
+;; string-core-conversion-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for core string conversion helpers.
+(define string-core-conversion-runtime-only-helper-names
+  '($i32array->string
+    $i32array->immutable-string
+    $i32growable-array->string
+    $i32growable-array->immutable-string))
+
+;; string-helper-forms : hasheq? (listof symbol?) -> (listof datum?)
+;;   Render the given string helper names from the runtime helper index.
+(define (string-helper-forms helper-index names)
+  (for/list ([name (in-list names)])
+    (core-runtime-helper-form helper-index name)))
+
+;; string-mutability-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render string mutability predicates in runtime assembly order.
+(define (string-mutability-runtime-helper-forms helper-index)
+  (string-helper-forms helper-index string-mutability-runtime-only-helper-names))
+
+;; string-main-runtime-helper-forms : hasheq? hasheq? -> (listof datum?)
+;;   Render the main 4.4 string helper block in runtime assembly order.
+(define (string-main-runtime-helper-forms runtime-helper-index core-runtime-helper-index)
+  (append
+   (string-helper-forms runtime-helper-index string-check-runtime-only-helper-names)
+   (string-helper-forms runtime-helper-index string-index-runtime-only-helper-names)
+   (string-helper-forms runtime-helper-index string-codepoint-runtime-only-helper-names)
+   (string-helper-forms core-runtime-helper-index string-core-conversion-runtime-only-helper-names)
+   (string-helper-forms runtime-helper-index string-dummy-runtime-only-helper-names)
+   (string-helper-forms runtime-helper-index string-basic-runtime-only-helper-names)
+   (string-helper-forms runtime-helper-index string-constructor-runtime-only-helper-names)
+   (string-helper-forms runtime-helper-index string-build-runtime-only-helper-names)
+   (string-helper-forms runtime-helper-index string-selector-runtime-only-helper-names)
+   (string-helper-forms runtime-helper-index string-mutation-runtime-only-helper-names)
+   (string-helper-forms runtime-helper-index string-copy-runtime-only-helper-names)
+   (string-helper-forms runtime-helper-index string-append-runtime-only-helper-names)
+   (string-helper-forms runtime-helper-index string-split-runtime-only-helper-names)
+   (string-helper-forms runtime-helper-index string-case-runtime-only-helper-names)
+   (string-helper-forms runtime-helper-index string-list-conversion-runtime-only-helper-names)
+   (string-helper-forms runtime-helper-index string-comparison-runtime-only-helper-names)
+   (string-helper-forms runtime-helper-index string-utf8-runtime-only-helper-names)
+   (string-helper-forms runtime-helper-index string-copy!-runtime-only-helper-names)
+   (string-helper-forms runtime-helper-index string-array-conversion-runtime-only-helper-names)
+   (string-helper-forms runtime-helper-index string-take-drop-runtime-only-helper-names)
+   (string-helper-forms runtime-helper-index string-error-runtime-only-helper-names)
+   (string-helper-forms runtime-helper-index string-trim-runtime-only-helper-names)
+   (string-helper-forms runtime-helper-index string-additional-runtime-only-helper-names)))
+
+;; string-buffer-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render string-buffer error helpers in runtime assembly order.
+(define (string-buffer-runtime-helper-forms helper-index)
+  (string-helper-forms helper-index string-buffer-error-runtime-only-helper-names))
+
 ;; string-buffer-error-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate string-buffer error helpers used by the monolithic runtime.
 (define string-buffer-error-runtime-only-helpers
@@ -3407,3 +3462,52 @@
           string-error-runtime-only-helpers
           string-trim-runtime-only-helpers
           string-additional-runtime-only-helpers))
+
+(module+ test
+  (require rackunit)
+
+  ;; form-name : datum? -> symbol?
+  ;;   Return the function name from a rendered helper form.
+  (define (form-name form)
+    (second form))
+
+  (define string-helper-index
+    (make-core-runtime-helper-index string-runtime-only-helpers))
+
+  (define string-core-helper-index
+    (make-core-runtime-helper-index string-core-runtime-helpers))
+
+  (check-equal?
+   (map form-name (string-mutability-runtime-helper-forms string-helper-index))
+   string-mutability-runtime-only-helper-names)
+
+  (check-equal?
+   (map form-name
+        (string-main-runtime-helper-forms string-helper-index string-core-helper-index))
+   (append string-check-runtime-only-helper-names
+           string-index-runtime-only-helper-names
+           string-codepoint-runtime-only-helper-names
+           string-core-conversion-runtime-only-helper-names
+           string-dummy-runtime-only-helper-names
+           string-basic-runtime-only-helper-names
+           string-constructor-runtime-only-helper-names
+           string-build-runtime-only-helper-names
+           string-selector-runtime-only-helper-names
+           string-mutation-runtime-only-helper-names
+           string-copy-runtime-only-helper-names
+           string-append-runtime-only-helper-names
+           string-split-runtime-only-helper-names
+           string-case-runtime-only-helper-names
+           string-list-conversion-runtime-only-helper-names
+           string-comparison-runtime-only-helper-names
+           string-utf8-runtime-only-helper-names
+           string-copy!-runtime-only-helper-names
+           string-array-conversion-runtime-only-helper-names
+           string-take-drop-runtime-only-helper-names
+           string-error-runtime-only-helper-names
+           string-trim-runtime-only-helper-names
+           string-additional-runtime-only-helper-names))
+
+  (check-equal?
+   (map form-name (string-buffer-runtime-helper-forms string-helper-index))
+   string-buffer-error-runtime-only-helper-names))
