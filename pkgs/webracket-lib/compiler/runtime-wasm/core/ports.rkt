@@ -1,6 +1,8 @@
 #lang racket
 
 (provide port-predicate-runtime-only-helper-names
+         port-predicate-runtime-string-constants
+         port-closed-error-runtime-string-constants
          port-state-runtime-only-helper-names
          port-location-runtime-only-helper-names
          port-string-constructor-runtime-only-helper-names
@@ -28,6 +30,21 @@
                   char-shift
                   char-tag
                   eof-value))
+
+;; port-predicate-runtime-string-constants : (listof (list/c symbol? string?))
+;;   Declare string constants used by port predicate and contract checks.
+(define port-predicate-runtime-string-constants
+  '((port?                      "port?")
+    (input-port?                "input-port?")
+    (output-port?               "output-port?")))
+
+;; port-closed-error-runtime-string-constants : (listof (list/c symbol? string?))
+;;   Declare string constants used by closed-port error messages.
+(define port-closed-error-runtime-string-constants
+  '((read-byte:input-port-closed "read-byte: input port is closed")
+    (peek-byte:input-port-closed "peek-byte: input port is closed")
+    (write-byte:output-port-closed "write-byte: output port is closed")
+    (flush-output:output-port-closed "flush-output: output port is closed")))
 
 ;; port-current-global-forms : (listof datum?)
 ;;   Declare globals for current input, output, and error ports.

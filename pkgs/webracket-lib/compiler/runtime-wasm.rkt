@@ -261,6 +261,8 @@
          (only-in "runtime-wasm/core/ports.rkt"
                   port-byte-char-runtime-only-helper-names
                   port-byte-char-special-runtime-only-helper-names
+                  port-predicate-runtime-string-constants
+                  port-closed-error-runtime-string-constants
                   port-custom-byte-runtime-only-helper-names
                   port-custom-constructor-runtime-only-helper-names
                   port-event-runtime-only-helper-names
@@ -2870,11 +2872,9 @@
     (add-runtime-string-constant 'valid-vector-index          "valid vector index")
     (add-runtime-string-constant 'valid-vector-length         "valid vector length")
     (add-runtime-string-constant 'box?                       "box?")
-    (add-runtime-string-constant 'port?                      "port?")
-    (add-runtime-string-constant 'input-port?                "input-port?")
+    (add-runtime-string-constants port-predicate-runtime-string-constants)
     (add-runtime-string-constant 'file-stream-port?          "file-stream-port?")
     (add-runtime-string-constant 'terminal-port?             "terminal-port?")
-    (add-runtime-string-constant 'output-port?               "output-port?")
     (add-runtime-string-constant 'port-writes-atomic?        "port-writes-atomic?")
     (add-runtime-string-constant 'port-writes-special?       "port-writes-special?")
     (add-runtime-string-constant 'port-provides-progress-evts? "port-provides-progress-evts?")
@@ -2902,10 +2902,7 @@
     (add-runtime-string-constant 'procedure-arity?           "procedure-arity?")
     (add-runtime-string-constant 'exn:srclocs?              "exn:srclocs?")
     (add-runtime-string-constant 'valid-argument             "valid argument")
-    (add-runtime-string-constant 'read-byte:input-port-closed "read-byte: input port is closed")
-    (add-runtime-string-constant 'peek-byte:input-port-closed "peek-byte: input port is closed")
-    (add-runtime-string-constant 'write-byte:output-port-closed "write-byte: output port is closed")
-    (add-runtime-string-constant 'flush-output:output-port-closed "flush-output: output port is closed")
+    (add-runtime-string-constants port-closed-error-runtime-string-constants)
     (add-runtime-string-constants filesystem-runtime-string-constants)
     (add-runtime-string-constants path-runtime-string-constants)
     (add-runtime-string-constant 'string-or-bytes            "(or/c string? bytes?)")
