@@ -2,6 +2,7 @@
 
 (provide checker-runtime-string-constants
          checker-runtime-symbol-constants
+         checker-runtime-helper-forms
          checker-runtime-only-helpers
          checker-runtime-only-helper-names)
 
@@ -34,6 +35,17 @@
     $check-range
     $check-range-generic
     $check-naturals))
+
+;; checker-helper-forms : hasheq? (listof symbol?) -> (listof datum?)
+;;   Render the given checker helper names from a helper index.
+(define (checker-helper-forms helper-index names)
+  (for/list ([name (in-list names)])
+    (core-runtime-helper-form helper-index name)))
+
+;; checker-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render checker helpers in runtime assembly order.
+(define (checker-runtime-helper-forms helper-index)
+  (checker-helper-forms helper-index checker-runtime-only-helper-names))
 
 ;; checker-runtime-only-forms : (listof datum?)
 ;;   Enumerate match and sequence checker helpers used by the monolithic runtime.
@@ -223,3 +235,18 @@
   (function-forms->runtime-helpers
    'checker-runtime-only-helpers
    checker-runtime-only-forms))
+
+(module+ test
+  (require rackunit)
+
+  ;; form-name : datum? -> symbol?
+  ;;   Return the function name from a rendered helper form.
+  (define (form-name form)
+    (second form))
+
+  (define checker-helper-index
+    (make-core-runtime-helper-index checker-runtime-only-helpers))
+
+  (check-equal?
+   (map form-name (checker-runtime-helper-forms checker-helper-index))
+   checker-runtime-only-helper-names))

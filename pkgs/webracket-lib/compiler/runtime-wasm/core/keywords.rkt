@@ -4,7 +4,9 @@
          keyword-core-runtime-helper-forms
          keyword-runtime-string-constants
          keyword-table-global-forms
+         keyword-table-initializer-runtime-helper-forms
          keyword-table-initializer-runtime-only-helper-names
+         keyword-runtime-helper-forms
          keyword-runtime-only-helper-names
          keyword-runtime-only-helpers)
 
@@ -60,6 +62,11 @@
 ;;   Preserve the runtime emission order for keyword table initializer helpers.
 (define keyword-table-initializer-runtime-only-helper-names
   '($initialize-the-keyword-table))
+
+;; keyword-table-initializer-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render keyword table initializer helpers in runtime assembly order.
+(define (keyword-table-initializer-runtime-helper-forms helper-index)
+  (keyword-helper-forms helper-index keyword-table-initializer-runtime-only-helper-names))
 
 ;; keyword-table-initializer-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate keyword table initializer helpers used by the monolithic runtime.
@@ -252,6 +259,11 @@
 (define keyword-runtime-only-helper-names
   (map core-runtime-helper-name keyword-public-runtime-only-helpers))
 
+;; keyword-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render keyword helpers in runtime assembly order.
+(define (keyword-runtime-helper-forms helper-index)
+  (keyword-helper-forms helper-index keyword-runtime-only-helper-names))
+
 (module+ test
   (require rackunit)
 
@@ -263,6 +275,17 @@
   (define keyword-core-helper-index
     (make-core-runtime-helper-index keyword-core-runtime-helpers))
 
+  (define keyword-helper-index
+    (make-core-runtime-helper-index keyword-runtime-only-helpers))
+
   (check-equal?
    (map form-name (keyword-core-runtime-helper-forms keyword-core-helper-index))
-   keyword-core-runtime-helper-names))
+   keyword-core-runtime-helper-names)
+
+  (check-equal?
+   (map form-name (keyword-table-initializer-runtime-helper-forms keyword-helper-index))
+   keyword-table-initializer-runtime-only-helper-names)
+
+  (check-equal?
+   (map form-name (keyword-runtime-helper-forms keyword-helper-index))
+   keyword-runtime-only-helper-names))

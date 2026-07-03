@@ -1,6 +1,7 @@
 #lang racket
 
 (provide boolean-runtime-string-constants
+         boolean-runtime-helper-forms
          boolean-runtime-only-helpers
          boolean-runtime-only-helper-names)
 
@@ -20,6 +21,17 @@
     $false?
     $not
     $xor))
+
+;; boolean-helper-forms : hasheq? (listof symbol?) -> (listof datum?)
+;;   Render the given boolean helper names from a helper index.
+(define (boolean-helper-forms helper-index names)
+  (for/list ([name (in-list names)])
+    (core-runtime-helper-form helper-index name)))
+
+;; boolean-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render boolean helpers in runtime assembly order.
+(define (boolean-runtime-helper-forms helper-index)
+  (boolean-helper-forms helper-index boolean-runtime-only-helper-names))
 
 ;; boolean-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate concrete boolean helpers.
@@ -91,3 +103,18 @@
 
 
      )))
+
+(module+ test
+  (require rackunit)
+
+  ;; form-name : datum? -> symbol?
+  ;;   Return the function name from a rendered helper form.
+  (define (form-name form)
+    (second form))
+
+  (define boolean-helper-index
+    (make-core-runtime-helper-index boolean-runtime-only-helpers))
+
+  (check-equal?
+   (map form-name (boolean-runtime-helper-forms boolean-helper-index))
+   boolean-runtime-only-helper-names))

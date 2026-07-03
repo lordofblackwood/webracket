@@ -2,6 +2,7 @@
 
 (provide regexp-runtime-string-constants
          regexp-runtime-bytes-constants
+         regexp-runtime-helper-forms
          regexp-runtime-only-helper-names
          regexp-runtime-only-helpers)
 
@@ -625,3 +626,29 @@
 ;;   Preserve the runtime emission order for regular expression helpers.
 (define regexp-runtime-only-helper-names
   (map core-runtime-helper-name regexp-runtime-only-helpers))
+
+;; regexp-helper-forms : hasheq? (listof symbol?) -> (listof datum?)
+;;   Render the given regexp helper names from a helper index.
+(define (regexp-helper-forms helper-index names)
+  (for/list ([name (in-list names)])
+    (core-runtime-helper-form helper-index name)))
+
+;; regexp-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render regexp helpers in runtime assembly order.
+(define (regexp-runtime-helper-forms helper-index)
+  (regexp-helper-forms helper-index regexp-runtime-only-helper-names))
+
+(module+ test
+  (require rackunit)
+
+  ;; form-name : datum? -> symbol?
+  ;;   Return the function name from a rendered helper form.
+  (define (form-name form)
+    (second form))
+
+  (define regexp-helper-index
+    (make-core-runtime-helper-index regexp-runtime-only-helpers))
+
+  (check-equal?
+   (map form-name (regexp-runtime-helper-forms regexp-helper-index))
+   regexp-runtime-only-helper-names))

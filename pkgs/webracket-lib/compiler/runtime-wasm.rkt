@@ -37,8 +37,8 @@
                   array-runtime-only-helper-names
                   array-runtime-only-helpers)
          (only-in "runtime-wasm/core/booleans.rkt"
-                  boolean-runtime-only-helpers
-                  boolean-runtime-only-helper-names)
+                  boolean-runtime-helper-forms
+                  boolean-runtime-only-helpers)
          (only-in "runtime-wasm/core/boxes.rkt"
                   box-runtime-helper-forms
                   box-mutability-runtime-only-helper-names
@@ -54,8 +54,8 @@
                   character-runtime-only-helper-names
                   character-runtime-only-helpers)
          (only-in "runtime-wasm/core/checkers.rkt"
-                  checker-runtime-only-helpers
-                  checker-runtime-only-helper-names)
+                  checker-runtime-helper-forms
+                  checker-runtime-only-helpers)
          (only-in "runtime-wasm/core/closures.rkt"
                   closure-empty-free-global-forms
                   closure-runtime-global-forms)
@@ -165,8 +165,8 @@
          (only-in "runtime-wasm/core/keywords.rkt"
                   keyword-core-runtime-helper-forms
                   keyword-table-global-forms
-                  keyword-table-initializer-runtime-only-helper-names
-                  keyword-runtime-only-helper-names
+                  keyword-table-initializer-runtime-helper-forms
+                  keyword-runtime-helper-forms
                   keyword-runtime-only-helpers)
          (only-in "runtime-wasm/core/lists.rkt"
                   list-pre-contract-runtime-helper-forms
@@ -297,7 +297,7 @@
                   realm-global-forms
                   realm-initializer-forms)
          (only-in "runtime-wasm/core/regexps.rkt"
-                  regexp-runtime-only-helper-names
+                  regexp-runtime-helper-forms
                   regexp-runtime-only-helpers)
          (only-in "runtime-wasm/core/runtime-constants.rkt"
                   make-core-populated-runtime-constant-registry)
@@ -1436,8 +1436,7 @@
          ,@(symbol-table-initializer-runtime-helper-forms runtime-helper-index)
 
          ;;   Keyword table initializer is implemented in runtime-wasm/core/keywords.rkt.
-         ,@(for/list ([name (in-list keyword-table-initializer-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
+         ,@(keyword-table-initializer-runtime-helper-forms runtime-helper-index)
 
          ;;   Primitive table initializer is implemented in runtime-wasm/core/linklets.rkt.
          ,@(for/list ([name (in-list linklet-primitive-table-initializer-runtime-only-helper-names)])
@@ -1529,8 +1528,7 @@
          ;;;
 
          ;;   Implemented in runtime-wasm/core/checkers.rkt.
-         ,@(for/list ([name (in-list checker-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
+         ,@(checker-runtime-helper-forms runtime-helper-index)
 
          ;;;
          ;;; DATATYPES
@@ -1570,8 +1568,7 @@
              (core-runtime-helper-form runtime-helper-index name))
 
          ;;   Boolean helpers are implemented in runtime-wasm/core/booleans.rkt.
-         ,@(for/list ([name (in-list boolean-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
+         ,@(boolean-runtime-helper-forms runtime-helper-index)
 
          ;;   Generic immutability predicates are implemented in runtime-wasm/core/equality.rkt.
          ,@(for/list ([name (in-list immutable-predicate-runtime-only-helper-names)])
@@ -1771,8 +1768,7 @@
          ;;;
 
          ;;   Regular expression helpers are implemented in runtime-wasm/core/regexps.rkt.
-         ,@(for/list ([name (in-list regexp-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
+         ,@(regexp-runtime-helper-forms runtime-helper-index)
 
          ;;;
          ;;; 4.9 KEYWORDS
@@ -1780,8 +1776,7 @@
 
          ;;   Keyword helpers are implemented in runtime-wasm/core/keywords.rkt.
          ,@(keyword-core-runtime-helper-forms core-runtime-helper-index)
-         ,@(for/list ([name (in-list keyword-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
+         ,@(keyword-runtime-helper-forms runtime-helper-index)
 
          ;;;
          ;;; 4.10 Pairs and lists
