@@ -1,6 +1,8 @@
 #lang racket
 
 (provide linklet-bootstrap-runtime-only-helper-names
+         linklet-body-core-reserved-symbols
+         primitive-table-module-symbols
          linklet-runtime-string-constants
          linklet-runtime-symbol-constants
          linklet-runtime-bytes-constants
@@ -37,20 +39,58 @@
     (instantiate-linklet:import-count
      "the number of import instances does not match the expected number of imports")))
 
+;; primitive-table-module-symbols : (listof symbol?)
+;;   Declare primitive-table module keys used by the source-linklet bridge.
+(define primitive-table-module-symbols
+  '(#%bootstrap-linklet
+    #%kernel
+    #%read
+    #%paramz
+    #%unsafe
+    #%foreign
+    #%futures
+    #%place
+    #%flfxnum
+    #%extfl
+    #%network
+    #%terminal
+    #%linklet
+    internal
+    schemify))
+
+;; linklet-body-core-reserved-symbols : (listof symbol?)
+;;   Declare reserved source-linklet body forms recognized by the interpreter.
+(define linklet-body-core-reserved-symbols
+  '(lambda
+    case-lambda
+    let-values
+    letrec-values
+    if
+    begin
+    begin0
+    begin-unsafe
+    set!
+    quote
+    with-continuation-mark
+    #%variable-reference))
+
 ;; linklet-runtime-symbol-constants : (listof symbol?)
 ;;   Declare symbols used by the source-linklet interpreter.
 (define linklet-runtime-symbol-constants
-  '(linklet
-    #%app
-    +
-    -
-    *
-    define-values
-    quote
-    begin
-    if
-    set!
-    void))
+  (append
+   '(linklet
+     #%app
+     +
+     -
+     *
+     define-values
+     quote
+     begin
+     if
+     set!
+     void)
+   primitive-table-module-symbols
+   linklet-body-core-reserved-symbols))
 
 ;; linklet-runtime-bytes-constants : (listof (list/c symbol? bytes?))
 ;;   Declare byte-string constants used by linklet machine metadata.

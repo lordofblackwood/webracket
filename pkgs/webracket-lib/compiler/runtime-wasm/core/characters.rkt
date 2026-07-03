@@ -2,11 +2,17 @@
 
 (provide character-general-category-global-forms
          character-general-category-initializer-forms
+         character-general-category-runtime-symbol-constants
          character-runtime-only-helper-names
          character-runtime-only-helpers)
 
 (require "../core-helper.rkt"
          "../../private/immediates.rkt")
+
+;; character-general-category-runtime-symbol-constants : (listof symbol?)
+;;   Declare symbols returned by char-general-category.
+(define character-general-category-runtime-symbol-constants
+  '(lu ll lt lm lo mn mc me nd nl no ps pe pi pf pd pc po sc sm sk so zs zp zl cc cf cs co cn))
 
 ;; character-general-category-global-forms : (listof datum?)
 ;;   Declare the symbol table used by char-general-category.

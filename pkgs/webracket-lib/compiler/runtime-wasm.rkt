@@ -45,6 +45,7 @@
          (only-in "runtime-wasm/core/characters.rkt"
                   character-general-category-global-forms
                   character-general-category-initializer-forms
+                  character-general-category-runtime-symbol-constants
                   character-runtime-only-helper-names
                   character-runtime-only-helpers)
          (only-in "runtime-wasm/core/checkers.rkt"
@@ -216,9 +217,11 @@
                   linklet-instance-runtime-only-helpers)
          (only-in "runtime-wasm/core/linklets.rkt"
                   linklet-bootstrap-runtime-only-helper-names
+                  linklet-body-core-reserved-symbols
                   linklet-bootstrap-runtime-only-helpers
                   linklet-interpreter-runtime-only-helper-names
                   linklet-interpreter-runtime-only-helpers
+                  primitive-table-module-symbols
                   linklet-primitive-table-global-forms
                   linklet-primitive-table-initializer-runtime-only-helper-names
                   linklet-primitive-table-initializer-runtime-only-helpers
@@ -747,23 +750,6 @@
       (map first bytes-constants))
     (define initial-program-symbol-constant-names
       (map first symbol-constants))
-
-    (define primitive-table-module-symbols
-      '(#%bootstrap-linklet
-        #%kernel
-        #%read
-        #%paramz
-        #%unsafe
-        #%foreign
-        #%futures
-        #%place
-        #%flfxnum
-        #%extfl
-        #%network
-        #%terminal
-        #%linklet
-        internal
-        schemify))
 
     (define (console-bridge-symbol-global const-name)
       ($ (string->symbol (~a "symbol:" const-name))))
@@ -2538,22 +2524,6 @@
 
     (add-ffi-symbol-constants)
 
-    (for-each add-runtime-symbol-constant primitive-table-module-symbols)
-
-    (define linklet-body-core-reserved-symbols
-      '(lambda
-        case-lambda
-        let-values
-        letrec-values
-        if
-        begin
-        begin0
-        begin-unsafe
-        set!
-        quote
-        with-continuation-mark
-        #%variable-reference))
-
     (for-each add-runtime-symbol-constant
               (remove-duplicates (append linklet-body-core-reserved-symbols all-primitives)
                                  eq?))
@@ -2876,8 +2846,7 @@
           ...))
       (for-each add-runtime-symbol-constant symbols))
 
-    (for ([sym '(lu ll lt lm lo mn mc me nd nl no ps pe pi pf pd pc po sc sm sk so zs zp zl cc cf cs co cn)])
-      (add-runtime-symbol-constant sym))
+    (add-runtime-symbol-constants character-general-category-runtime-symbol-constants)
 
     ; struct:exn, struct:exn:fail, etc.
     (for-each (λ (binding) (add-runtime-symbol-constant (car binding)))
