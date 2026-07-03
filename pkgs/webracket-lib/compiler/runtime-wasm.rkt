@@ -1359,13 +1359,6 @@
 
 
 
-    (define (min-arity a)
-      (match a
-        [(arity-at-least n) n]
-        [(? number? n)      n]
-        [(? list? l)        (apply min (map min-arity l))]
-        [_                  (error 'min-arity "got: ~a" a)]))
-
     ; If a primitive is handled in the inliner, but hasn't been
     ; implemented here in `runtime-wasm.rkt` then put the symbol here.
     (define todo-handle-later '())
