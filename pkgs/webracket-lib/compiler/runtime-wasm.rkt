@@ -191,6 +191,8 @@
                   logger-current-global-forms
                   logger-current-initializer-forms
                   logger-runtime-only-helpers)
+         (only-in "runtime-wasm/core/memory-map.rkt"
+                  memory-map-global-forms)
          (only-in "runtime-wasm/core/mutable-hashes.rkt"
                   mutable-hash-association-constructor-runtime-only-helper-names
                   mutable-hash-constructor-runtime-only-helper-names
@@ -460,6 +462,7 @@
 (define-runtime-path core-locations-path "runtime-wasm/core/locations.rkt")
 (define-runtime-path core-locks-path "runtime-wasm/core/locks.rkt")
 (define-runtime-path core-loggers-path "runtime-wasm/core/loggers.rkt")
+(define-runtime-path core-memory-map-path "runtime-wasm/core/memory-map.rkt")
 (define-runtime-path core-mlists-path "runtime-wasm/core/mlists.rkt")
 (define-runtime-path core-mutable-hashes-path "runtime-wasm/core/mutable-hashes.rkt")
 (define-runtime-path core-namespaces-path "runtime-wasm/core/namespaces.rkt")
@@ -893,6 +896,7 @@
                                           core-locations-path
                                           core-locks-path
                                           core-loggers-path
+                                          core-memory-map-path
                                           core-mlists-path
                                           core-mutable-hashes-path
                                           core-namespaces-path
@@ -4778,27 +4782,7 @@
          ,(core-runtime-helper-form runtime-helper-index '$unsafe-uninterruptible-lock-acquire)
          ,(core-runtime-helper-form runtime-helper-index '$unsafe-uninterruptible-lock-release)
 
-         ;;;
-         ;;; Memory Map
-         ;;;
-
-         ;; Currently (June 2005) the proposal for multiple memories aren't supported
-         ;; by Safari (WebKit). Therefore, we are forced to using a single memory only.
-
-         ;; The following memory map is used to segment the linear memory.
-
-         ;; Static host bridge scratch map:
-         ;;   0..1MiB        VFS file transfer buffer
-         ;;   +4KiB          VFS path buffer
-         ;;   +64KiB         callback/FASL/string scratch buffer
-         (global $memory-map:vfs-file-buffer-base   (mut i32) (i32.const 0))
-         (global $memory-map:vfs-file-buffer-length (mut i32) (i32.const 1048576))
-         (global $memory-map:vfs-path-buffer-base   (mut i32) (i32.const 1048576))
-         (global $memory-map:vfs-path-buffer-length (mut i32) (i32.const 4096))
-         (global $memory-map:callback-buffer-base   (mut i32) (i32.const 1052672))
-         (global $memory-map:callback-buffer-length (mut i32) (i32.const 65536))
-         (global $memory-map:string-buffer-base     (mut i32) (i32.const 1052672))
-         (global $memory-map:string-buffer-length   (mut i32) (i32.const 4096))
+         ,@memory-map-global-forms
 
 
          ;;;
