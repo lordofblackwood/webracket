@@ -1,10 +1,45 @@
 #lang racket
 
 (provide filesystem-temporary-global-forms
+         filesystem-runtime-string-constants
+         filesystem-runtime-bytes-constants
          filesystem-runtime-only-helpers
          filesystem-runtime-only-helper-names)
 
 (require "../core-helper.rkt")
+
+;; filesystem-runtime-string-constants : (listof (list/c symbol? string?))
+;;   Declare string constants used by VFS helpers and file-operation errors.
+(define filesystem-runtime-string-constants
+  '((vfs:file-size-failed       "file-size: VFS path does not refer to a file")
+    (vfs:read-file-failed       "VFS file read failed")
+    (vfs:write-file-failed      "VFS file write failed")
+    (vfs:delete-file-failed     "delete-file: VFS path does not refer to a file")
+    (vfs:delete-directory-failed "delete-directory: VFS path does not refer to an empty directory")
+    (vfs:delete-directory/files-failed "delete-directory/files: VFS recursive delete failed")
+    (vfs:make-directory-failed  "make-directory: VFS directory creation failed")
+    (vfs:make-directory*-failed "make-directory*: VFS directory creation failed")
+    (vfs:make-parent-directory*-failed "make-parent-directory*: VFS directory creation failed")
+    (vfs:directory-list-failed  "directory-list: VFS path does not refer to a directory")
+    (vfs:root-list-failed       "filesystem-root-list: VFS root list failed")
+    (vfs:rename-failed          "rename-file-or-directory: VFS rename failed")
+    (vfs:copy-file-failed       "copy-file: VFS copy failed")
+    (vfs:copy-directory/files-failed "copy-directory/files: VFS recursive copy failed")
+    (vfs:temporary-template     "format string containing ~a")
+    (vfs:modify-seconds-failed  "file-or-directory-modify-seconds: VFS path does not exist")
+    (vfs:permissions-failed     "file-or-directory-permissions: VFS path does not exist")
+    (vfs:stat-failed            "file-or-directory-stat: VFS path does not exist")
+    (vfs:type-failed            "file-or-directory-type: VFS path does not exist")
+    (vfs:identity-failed        "file-or-directory-identity: VFS path does not exist")
+    (permissions-mode           "(or/c #f 'bits (integer-in 0 65535))")
+    (input-file-mode-flag       "(or/c 'binary 'text)")
+    (output-file-mode-flag      "(or/c 'binary 'text)")
+    (output-file-exists-flag    "(or/c 'error 'append 'replace 'truncate 'must-truncate 'truncate/replace)")))
+
+;; filesystem-runtime-bytes-constants : (listof (list/c symbol? bytes?))
+;;   Declare byte-string constants used by filesystem helpers.
+(define filesystem-runtime-bytes-constants
+  '((rkttmp-template           #"rkttmp~a")))
 
 ;; filesystem-temporary-global-forms : (listof datum?)
 ;;   Declare filesystem state used for temporary file name generation.

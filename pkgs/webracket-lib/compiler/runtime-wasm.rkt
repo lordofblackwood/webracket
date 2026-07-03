@@ -86,6 +86,8 @@
                   unsafe-ffi-runtime-only-helper-forms)
          (only-in "runtime-wasm/core/filesystem.rkt"
                   filesystem-temporary-global-forms
+                  filesystem-runtime-string-constants
+                  filesystem-runtime-bytes-constants
                   filesystem-runtime-only-helpers
                   filesystem-runtime-only-helper-names)
          (only-in "runtime-wasm/core/fixnums.rkt"
@@ -2942,30 +2944,7 @@
     (add-runtime-string-constant 'peek-byte:input-port-closed "peek-byte: input port is closed")
     (add-runtime-string-constant 'write-byte:output-port-closed "write-byte: output port is closed")
     (add-runtime-string-constant 'flush-output:output-port-closed "flush-output: output port is closed")
-    (add-runtime-string-constant 'vfs:file-size-failed       "file-size: VFS path does not refer to a file")
-    (add-runtime-string-constant 'vfs:read-file-failed       "VFS file read failed")
-    (add-runtime-string-constant 'vfs:write-file-failed      "VFS file write failed")
-    (add-runtime-string-constant 'vfs:delete-file-failed     "delete-file: VFS path does not refer to a file")
-    (add-runtime-string-constant 'vfs:delete-directory-failed "delete-directory: VFS path does not refer to an empty directory")
-    (add-runtime-string-constant 'vfs:delete-directory/files-failed "delete-directory/files: VFS recursive delete failed")
-    (add-runtime-string-constant 'vfs:make-directory-failed  "make-directory: VFS directory creation failed")
-    (add-runtime-string-constant 'vfs:make-directory*-failed "make-directory*: VFS directory creation failed")
-    (add-runtime-string-constant 'vfs:make-parent-directory*-failed "make-parent-directory*: VFS directory creation failed")
-    (add-runtime-string-constant 'vfs:directory-list-failed  "directory-list: VFS path does not refer to a directory")
-    (add-runtime-string-constant 'vfs:root-list-failed       "filesystem-root-list: VFS root list failed")
-    (add-runtime-string-constant 'vfs:rename-failed          "rename-file-or-directory: VFS rename failed")
-    (add-runtime-string-constant 'vfs:copy-file-failed       "copy-file: VFS copy failed")
-    (add-runtime-string-constant 'vfs:copy-directory/files-failed "copy-directory/files: VFS recursive copy failed")
-    (add-runtime-string-constant 'vfs:temporary-template     "format string containing ~a")
-    (add-runtime-string-constant 'vfs:modify-seconds-failed  "file-or-directory-modify-seconds: VFS path does not exist")
-    (add-runtime-string-constant 'vfs:permissions-failed     "file-or-directory-permissions: VFS path does not exist")
-    (add-runtime-string-constant 'vfs:stat-failed            "file-or-directory-stat: VFS path does not exist")
-    (add-runtime-string-constant 'vfs:type-failed            "file-or-directory-type: VFS path does not exist")
-    (add-runtime-string-constant 'vfs:identity-failed        "file-or-directory-identity: VFS path does not exist")
-    (add-runtime-string-constant 'permissions-mode           "(or/c #f 'bits (integer-in 0 65535))")
-    (add-runtime-string-constant 'input-file-mode-flag       "(or/c 'binary 'text)")
-    (add-runtime-string-constant 'output-file-mode-flag      "(or/c 'binary 'text)")
-    (add-runtime-string-constant 'output-file-exists-flag    "(or/c 'error 'append 'replace 'truncate 'must-truncate 'truncate/replace)")
+    (add-runtime-string-constants filesystem-runtime-string-constants)
     (add-runtime-string-constants path-runtime-string-constants)
     (add-runtime-string-constant 'string-or-bytes            "(or/c string? bytes?)")
     (add-runtime-string-constant 'boolean?                   "boolean?")
@@ -3386,7 +3365,7 @@
     (add-runtime-bytes-constant  'rx-envvar-name            #"^[^\0=]*$")
     (add-runtime-bytes-constant  'rx-unix-path-list         #"([^:]*):(.*)")
     (add-runtime-bytes-constant  'rx-windows-path-list      #"([^;]*);(.*)")
-    (add-runtime-bytes-constant  'rkttmp-template           #"rkttmp~a")
+    (add-runtime-bytes-constants filesystem-runtime-bytes-constants)
 
     ;;;
     ;;; Predicate Generator
