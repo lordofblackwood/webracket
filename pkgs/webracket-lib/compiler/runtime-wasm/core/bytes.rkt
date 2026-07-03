@@ -12,6 +12,8 @@
          byte-sequence-runtime-only-helper-names
          byte-text-decoding-runtime-only-helper-names
          bytes-mutability-runtime-only-helper-names
+         bytes-mutability-runtime-helper-forms
+         bytes-main-runtime-helper-forms
          bytes-runtime-only-helpers)
 
 (require "../core-helper.rkt")
@@ -1798,6 +1800,28 @@
            (return (i32.const -1) (i32.const -1)))
      )))
 
+;; bytes-helper-forms : hasheq? (listof symbol?) -> (listof datum?)
+;;   Render the given byte-string helper names from the runtime helper index.
+(define (bytes-helper-forms helper-index names)
+  (for/list ([name (in-list names)])
+    (core-runtime-helper-form helper-index name)))
+
+;; bytes-mutability-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render bytes mutability predicates in runtime assembly order.
+(define (bytes-mutability-runtime-helper-forms helper-index)
+  (bytes-helper-forms helper-index bytes-mutability-runtime-only-helper-names))
+
+;; bytes-main-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render the main 4.3 byte-string helper block in runtime assembly order.
+(define (bytes-main-runtime-helper-forms helper-index)
+  (append
+   (bytes-helper-forms helper-index bytes-basic-runtime-only-helper-names)
+   (bytes-helper-forms helper-index byte-comparison-runtime-only-helper-names)
+   (bytes-helper-forms helper-index byte-indexing-runtime-only-helper-names)
+   (bytes-helper-forms helper-index byte-converter-runtime-only-helper-names)
+   (bytes-helper-forms helper-index byte-sequence-runtime-only-helper-names)
+   (bytes-helper-forms helper-index byte-text-decoding-runtime-only-helper-names)))
+
 ;; bytes-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate bytes helpers that still depend on monolithic runtime globals.
 (define bytes-runtime-only-helpers
@@ -1835,3 +1859,27 @@
 
 
      ))))
+
+(module+ test
+  (require rackunit)
+
+  ;; form-name : datum? -> symbol?
+  ;;   Return the function name from a rendered helper form.
+  (define (form-name form)
+    (second form))
+
+  (define bytes-helper-index
+    (make-core-runtime-helper-index bytes-runtime-only-helpers))
+
+  (check-equal?
+   (map form-name (bytes-mutability-runtime-helper-forms bytes-helper-index))
+   bytes-mutability-runtime-only-helper-names)
+
+  (check-equal?
+   (map form-name (bytes-main-runtime-helper-forms bytes-helper-index))
+   (append bytes-basic-runtime-only-helper-names
+           byte-comparison-runtime-only-helper-names
+           byte-indexing-runtime-only-helper-names
+           byte-converter-runtime-only-helper-names
+           byte-sequence-runtime-only-helper-names
+           byte-text-decoding-runtime-only-helper-names)))

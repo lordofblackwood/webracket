@@ -41,13 +41,8 @@
                   box-mutability-runtime-only-helper-names
                   box-runtime-only-helpers)
          (only-in "runtime-wasm/core/bytes.rkt"
-                  bytes-basic-runtime-only-helper-names
-                  byte-comparison-runtime-only-helper-names
-                  byte-indexing-runtime-only-helper-names
-                  byte-converter-runtime-only-helper-names
-                  byte-sequence-runtime-only-helper-names
-                  byte-text-decoding-runtime-only-helper-names
-                  bytes-mutability-runtime-only-helper-names
+                  bytes-main-runtime-helper-forms
+                  bytes-mutability-runtime-helper-forms
                   bytes-runtime-only-helpers)
          (only-in "runtime-wasm/core/characters.rkt"
                   character-general-category-global-forms
@@ -1691,8 +1686,7 @@
          ,@(string-mutability-runtime-helper-forms runtime-helper-index)
 
          ;;   Bytes mutability predicates are implemented in runtime-wasm/core/bytes.rkt.
-         ,@(for/list ([name (in-list bytes-mutability-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
+         ,@(bytes-mutability-runtime-helper-forms runtime-helper-index)
 
          ;;   Vector mutability predicates are implemented in runtime-wasm/core/vectors.rkt.
          ,@(for/list ([name (in-list vector-mutability-runtime-only-helper-names)])
@@ -1933,32 +1927,8 @@
 
         ;; https://docs.racket-lang.org/reference/bytestrings.html
 
-         ;;   Basic byte-string helpers are implemented in runtime-wasm/core/bytes.rkt.
-         ,@(for/list ([name (in-list bytes-basic-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
-
-         ;;   Byte-string comparison helpers are implemented in runtime-wasm/core/bytes.rkt.
-         ,@(for/list ([name (in-list byte-comparison-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
-
-
-
-         ;;   Byte indexing, mutation, and copy helpers are implemented in runtime-wasm/core/bytes.rkt.
-         ,@(for/list ([name (in-list byte-indexing-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
-
-         ;;   Byte converter helpers are implemented in runtime-wasm/core/bytes.rkt.
-         ,@(for/list ([name (in-list byte-converter-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
-
-         ;;   Byte fill, append, join, and list conversion helpers are implemented in runtime-wasm/core/bytes.rkt.
-         ,@(for/list ([name (in-list byte-sequence-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
-
-
-         ;;   Byte text-decoding helpers are implemented in runtime-wasm/core/bytes.rkt.
-         ,@(for/list ([name (in-list byte-text-decoding-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
+         ;;   Byte-string helpers are implemented in runtime-wasm/core/bytes.rkt.
+         ,@(bytes-main-runtime-helper-forms runtime-helper-index)
 
 
         ;;;
