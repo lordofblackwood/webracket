@@ -1,6 +1,12 @@
 #lang racket
 
 (provide printer-extension-runtime-only-helper-names
+         printer-prefix-formatting-runtime-string-constants
+         immediate-value-formatting-runtime-string-constants
+         opaque-value-formatting-runtime-string-constants
+         character-notation-formatting-runtime-string-constants
+         arrow-formatting-runtime-string-constants
+         hash-less-formatting-runtime-string-constants
          formatting-runtime-string-constants
          struct-type-property-formatting-runtime-string-constants
          unquoted-printing-string-runtime-only-helper-names
@@ -14,6 +20,75 @@
                   char-mask
                   char-shift
                   char-tag))
+
+;; printer-prefix-formatting-runtime-string-constants : (listof (list/c symbol? string?))
+;;   Declare string constants used as prefixes or literal markers by printers.
+(define printer-prefix-formatting-runtime-string-constants
+  '((hash-variable-reference    "#<variable-reference>")
+    (box-prefix                 "#&")
+    (bytes-prefix               "#\"")
+    (backslash                  "\\")
+    (double-quote               "\"")
+    (single-quote               "'")
+    (hash-t                     "#t")
+    (hash-f                     "#f")
+    (hash-hash                  "#hash")
+    (hash-hasheq                "#hasheq")
+    (hash-hasheqv               "#hasheqv")
+    (hash-hashalw               "#hashalw")))
+
+;; immediate-value-formatting-runtime-string-constants : (listof (list/c symbol? string?))
+;;   Declare string constants used to format immediate singleton values.
+(define immediate-value-formatting-runtime-string-constants
+  '((null                       "()")
+    (eof                        "#<eof>")
+    (void                       "#<void>")
+    (undefined                  "#<undefined>")
+    (unsafe-undefined           "#<unsafe-undefined>")))
+
+;; opaque-value-formatting-runtime-string-constants : (listof (list/c symbol? string?))
+;;   Declare string constants used to format opaque runtime values.
+(define opaque-value-formatting-runtime-string-constants
+  '((closure                    "#<closure>")
+    (external                   "#<external>")
+    (external-null              "#<external-null>")))
+
+;; character-notation-formatting-runtime-string-constants : (listof (list/c symbol? string?))
+;;   Declare string constants used by character and keyword notation printers.
+(define character-notation-formatting-runtime-string-constants
+  '((hash-colon                 "#:")
+    (hash-backslash             "#\\")
+    (hash-backslash-u           "#\\u")
+    (hash-backslash-U           "#\\U")
+    (word-newline               "newline")
+    (word-tab                   "tab")
+    (word-return                "return")
+    (word-backspace             "backspace")
+    (word-space                 "space")
+    (word-rubout                "rubout")
+    (word-nul                   "nul")
+    (unknown                    "unknown")))
+
+;; arrow-formatting-runtime-string-constants : (listof (list/c symbol? string?))
+;;   Declare the arrow marker used by formatting helpers.
+(define arrow-formatting-runtime-string-constants
+  '((->                         ">")))
+
+;; hash-less-formatting-runtime-string-constants : (listof (list/c symbol? string?))
+;;   Declare string constants used to format unreadable values.
+(define hash-less-formatting-runtime-string-constants
+  '((syntax-open                "#<syntax ")
+    (syntax-close               ">")
+    (hash-less-boxed-colon      "#<boxed:")
+    (hash-less-procedure-colon  "#<procedure:")
+    (hash-less-primitive-colon  "#<primitive:")
+    (hash-less-path-colon       "#<path:")
+    (hash-less-input-port       "#<input-port>")
+    (hash-less-output-port      "#<output-port>")
+    (hash-less-treelist         "#<treelist>")
+    (hash-less-treelist-colon-space "#<treelist: ")
+    (hash-less-unix-path-colon  "#<unix-path:")
+    (hash-less-windows-path-colon "#<windows-path:")))
 
 ;; formatting-runtime-string-constants : (listof (list/c symbol? string?))
 ;;   Declare string constants used by formatting and printer-extension helpers.

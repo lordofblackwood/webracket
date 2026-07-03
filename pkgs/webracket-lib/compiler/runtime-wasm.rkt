@@ -111,6 +111,12 @@
                   flonum-runtime-only-helpers)
          (only-in "runtime-wasm/core/formatting.rkt"
                   printer-extension-runtime-only-helper-names
+                  printer-prefix-formatting-runtime-string-constants
+                  immediate-value-formatting-runtime-string-constants
+                  opaque-value-formatting-runtime-string-constants
+                  character-notation-formatting-runtime-string-constants
+                  arrow-formatting-runtime-string-constants
+                  hash-less-formatting-runtime-string-constants
                   formatting-runtime-string-constants
                   struct-type-property-formatting-runtime-string-constants
                   unquoted-printing-string-runtime-only-helper-names
@@ -2798,33 +2804,16 @@
 
     (add-runtime-string-constant 'dash                       "-")
     (add-runtime-string-constant 'bang                       "!")
-    (add-runtime-string-constant 'hash-variable-reference    "#<variable-reference>")
-    (add-runtime-string-constant 'box-prefix                 "#&")
-    (add-runtime-string-constant 'bytes-prefix               "#\"")
-    (add-runtime-string-constant 'backslash                  "\\")
+    (add-runtime-string-constants printer-prefix-formatting-runtime-string-constants)
     (add-runtime-string-constant 'backslash-x                "\\x")
-    (add-runtime-string-constant 'double-quote               "\"")
-    (add-runtime-string-constant 'single-quote               "'")
-    (add-runtime-string-constant 'hash-t                     "#t")
-    (add-runtime-string-constant 'hash-f                     "#f")
-    (add-runtime-string-constant 'hash-hash                  "#hash")
-    (add-runtime-string-constant 'hash-hasheq                "#hasheq")
-    (add-runtime-string-constant 'hash-hasheqv               "#hasheqv")
-    (add-runtime-string-constant 'hash-hashalw               "#hashalw")
     (add-runtime-string-constant 'hash-set-non-hash          "hash-set expected hash table, got:")
     (add-runtime-string-constant 'hash-set-exn-message       "hash-set received exception message:")
     (add-runtime-string-constant 'hash-set-unsupported       "hash-set unsupported hash table:")
-    (add-runtime-string-constant 'null                       "()")
-    (add-runtime-string-constant 'eof                        "#<eof>")
-    (add-runtime-string-constant 'void                       "#<void>")
-    (add-runtime-string-constant 'undefined                  "#<undefined>")
-    (add-runtime-string-constant 'unsafe-undefined           "#<unsafe-undefined>")
+    (add-runtime-string-constants immediate-value-formatting-runtime-string-constants)
     (add-runtime-string-constant 'use-before-initialization  "undefined; cannot use before initialization")
     (add-runtime-string-constant 'unspecified                "#<unspecified>")
     (add-runtime-string-constant 'missing                    "#<missing>")
-    (add-runtime-string-constant 'closure                    "#<closure>")
-    (add-runtime-string-constant 'external                   "#<external>")
-    (add-runtime-string-constant 'external-null              "#<external-null>")
+    (add-runtime-string-constants opaque-value-formatting-runtime-string-constants)
     (add-runtime-string-constant 'linklet                    "#<linklet>")
     (add-runtime-string-constant 'instance                   "#<instance>")
     (add-runtime-string-constant 'namespace                  "#<namespace>")
@@ -2853,34 +2842,12 @@
     (add-runtime-string-constants struct-runtime-string-constants)
     (add-runtime-string-constants formatting-runtime-string-constants)
 
-    (add-runtime-string-constant 'hash-colon                 "#:")
-    (add-runtime-string-constant 'hash-backslash             "#\\")
-    (add-runtime-string-constant 'hash-backslash-u           "#\\u")
-    (add-runtime-string-constant 'hash-backslash-U           "#\\U")
-    (add-runtime-string-constant 'word-newline               "newline")
-    (add-runtime-string-constant 'word-tab                   "tab")
-    (add-runtime-string-constant 'word-return                "return")
-    (add-runtime-string-constant 'word-backspace             "backspace")
-    (add-runtime-string-constant 'word-space                 "space")
-    (add-runtime-string-constant 'word-rubout                "rubout")
-    (add-runtime-string-constant 'word-nul                   "nul")
-    (add-runtime-string-constant 'unknown                    "unknown")
+    (add-runtime-string-constants character-notation-formatting-runtime-string-constants)
     (add-runtime-string-constant 'colon                      ":")
-    (add-runtime-string-constant '->                         ">")
+    (add-runtime-string-constants arrow-formatting-runtime-string-constants)
     (add-runtime-string-constant 'set                        "set")
 
-    (add-runtime-string-constant 'syntax-open                          "#<syntax ")
-    (add-runtime-string-constant 'syntax-close                         ">")
-    (add-runtime-string-constant 'hash-less-boxed-colon                "#<boxed:")
-    (add-runtime-string-constant 'hash-less-procedure-colon            "#<procedure:")
-    (add-runtime-string-constant 'hash-less-primitive-colon            "#<primitive:")
-    (add-runtime-string-constant 'hash-less-path-colon                 "#<path:")
-    (add-runtime-string-constant 'hash-less-input-port                 "#<input-port>")
-    (add-runtime-string-constant 'hash-less-output-port                "#<output-port>")
-    (add-runtime-string-constant 'hash-less-treelist                   "#<treelist>")
-    (add-runtime-string-constant 'hash-less-treelist-colon-space       "#<treelist: ")
-    (add-runtime-string-constant 'hash-less-unix-path-colon            "#<unix-path:")
-    (add-runtime-string-constant 'hash-less-windows-path-colon         "#<windows-path:")
+    (add-runtime-string-constants hash-less-formatting-runtime-string-constants)
     (add-runtime-string-constants struct-type-property-formatting-runtime-string-constants)
     (add-runtime-string-constant 'procedure-realm           "procedure-realm")
     (add-runtime-string-constant 'procedure-struct-type?    "procedure-struct-type?")
