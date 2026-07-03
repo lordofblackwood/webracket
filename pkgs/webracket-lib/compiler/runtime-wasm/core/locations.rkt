@@ -1,10 +1,18 @@
 #lang racket
 
 (provide location-global-forms
+         location-runtime-string-constants
          location-runtime-only-helpers
          source-location-runtime-only-helper-names)
 
 (require "../core-helper.rkt")
+
+;; location-runtime-string-constants : (listof (list/c symbol? string?))
+;;   Declare string constants used by source-location helpers.
+(define location-runtime-string-constants
+  '((srcloc?                    "srcloc?")
+    (srcloc-positive-or-false   "(or/c exact-positive-integer? #f)")
+    (srcloc-nonnegative-or-false "(or/c exact-nonnegative-integer? #f)")))
 
 ;; location-global-forms : (listof datum?)
 ;;   Declare cached source-location struct type descriptors.

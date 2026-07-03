@@ -4,11 +4,17 @@
          value-expectation-runtime-only-helper-names
          continuation-runtime-only-helper-names
          continuation-mark-runtime-only-helper-names
+         control-flow-runtime-string-constants
          multiple-value-runtime-symbol-constants
          continuation-runtime-symbol-constants
          control-flow-runtime-only-helpers)
 
 (require "../core-helper.rkt")
+
+;; control-flow-runtime-string-constants : (listof (list/c symbol? string?))
+;;   Declare strings used by control-flow helpers.
+(define control-flow-runtime-string-constants
+  '((dynamic-require-unsupported "dynamic module loading is not supported")))
 
 ;; multiple-value-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for multiple-value helpers.

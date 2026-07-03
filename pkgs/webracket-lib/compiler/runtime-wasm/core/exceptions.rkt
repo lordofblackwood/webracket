@@ -18,7 +18,9 @@
 ;; exception-runtime-string-constants : (listof (list/c symbol? string?))
 ;;   Declare strings used by exception helpers.
 (define exception-runtime-string-constants
-  '((exn:srclocs? "exn:srclocs?")))
+  '((exn:srclocs?   "exn:srclocs?")
+    (listof-srcloc? "(listof srcloc?)")
+    (listof-syntax? "(listof syntax?)")))
 
 ;; exception-fail-runtime-symbol-constants : (listof symbol?)
 ;;   Declare fail-exception symbols referenced directly by runtime helpers.

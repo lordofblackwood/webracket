@@ -55,6 +55,7 @@
                   continuation-mark-runtime-only-helper-names
                   continuation-runtime-only-helper-names
                   continuation-runtime-symbol-constants
+                  control-flow-runtime-string-constants
                   multiple-value-runtime-symbol-constants
                   multiple-value-runtime-only-helper-names
                   value-expectation-runtime-only-helper-names
@@ -147,6 +148,7 @@
                   hash-key-value-runtime-only-helper-names
                   hash-map-copy-runtime-only-helper-names
                   hash-map-runtime-only-helper-names
+                  hash-runtime-string-constants
                   hash-runtime-only-helpers
                   hash-seed-global-forms
                   hash-seed-runtime-only-helper-names
@@ -217,6 +219,7 @@
                   linklet-runtime-only-helper-forms)
          (only-in "runtime-wasm/core/locations.rkt"
                   location-global-forms
+                  location-runtime-string-constants
                   location-runtime-only-helpers
                   source-location-runtime-only-helper-names)
          (only-in "runtime-wasm/core/locks.rkt"
@@ -282,6 +285,7 @@
                   path-current-global-forms
                   path-current-initializer-forms
                   path-runtime-string-constants
+                  path-runtime-symbol-constants
                   path-runtime-bytes-constants
                   path-runtime-only-helpers
                   path-runtime-only-helper-names
@@ -440,6 +444,8 @@
          (only-in "runtime-wasm/core/syntax.rkt"
                   correlated-syntax-runtime-only-helper-names
                   syntax-global-forms
+                  syntax-runtime-string-constants
+                  syntax-runtime-symbol-constants
                   syntax-runtime-only-helpers
                   syntax-runtime-only-helper-names)
          (only-in "runtime-wasm/core/threads.rkt"
@@ -459,6 +465,7 @@
                   treelist-error-runtime-only-helper-names
                   treelist-constant-global-forms
                   treelist-empty-global-forms
+                  treelist-runtime-string-constants
                   treelist-runtime-only-helpers)
          (only-in "runtime-wasm/core/unsafe.rkt"
                   unsafe-runtime-only-helpers
@@ -2998,38 +3005,15 @@
     (add-runtime-symbol-constant 'parameterization-key)
     (add-runtime-symbol-constant 'namespace)
 
-    (add-runtime-string-constant 'srcloc?                    "srcloc?")
-    (add-runtime-string-constant 'srcloc-positive-or-false   "(or/c exact-positive-integer? #f)")
-    (add-runtime-string-constant 'srcloc-nonnegative-or-false "(or/c exact-nonnegative-integer? #f)")
-    (add-runtime-string-constant 'treelist?                  "treelist?")
-    (add-runtime-string-constant 'treelist-empty             ": treelist is empty")
-    (add-runtime-string-constant 'listof-srcloc?             "(listof srcloc?)")
-    (add-runtime-string-constant 'listof-syntax?             "(listof syntax?)")
+    (add-runtime-string-constants location-runtime-string-constants)
+    (add-runtime-string-constants treelist-runtime-string-constants)
     (add-runtime-string-constant 'match-error:prefix         ": no matching clause for ")
 
-    (add-runtime-string-constant 'syntax-or-false            "(or/c syntax? #f)")
-    (add-runtime-string-constant 'datum->syntax-srcloc       "(or/c #f syntax? srcloc?)")
-
-    (add-runtime-string-constant 'hash?                      "hash?")
-
-    (add-runtime-string-constant 'syntax?                    "syntax?")
-    (add-runtime-string-constant 'identifier?                "identifier?")
-    (add-runtime-string-constant 'listof-identifier?         "(listof identifier?)")
-    (add-runtime-string-constant 'stx-list?                  "stx-list?")
-    (add-runtime-string-constant 'syntax-introducer-mode?    "(or/c 'add 'remove 'flip)")
-    (add-runtime-string-constant 'syntax-local-value-failure  "(or/c (-> any/c) #f)")
-    (add-runtime-string-constant 'syntax-local-value-binding  "identifier with transformer binding")
-    (add-runtime-string-constant 'set!-transformer?          "set!-transformer?")
-    (add-runtime-string-constant 'dynamic-require-unsupported "dynamic module loading is not supported")
-    (add-runtime-string-constant 'correlated?                "correlated?")
-    (add-runtime-string-constant 'correlated-or-false        "(or/c correlated? #f)")
-    (add-runtime-symbol-constant 'correlated->datum)
-    (add-runtime-symbol-constant 'datum->correlated)
-    (add-runtime-symbol-constant 'correlated-property)
-    (add-runtime-symbol-constant 'correlated-property-symbol-keys)
-    (add-runtime-symbol-constant 'relative)
-    (add-runtime-symbol-constant 'up)
-    (add-runtime-symbol-constant 'same)
+    (add-runtime-string-constants syntax-runtime-string-constants)
+    (add-runtime-string-constants hash-runtime-string-constants)
+    (add-runtime-string-constants control-flow-runtime-string-constants)
+    (add-runtime-symbol-constants syntax-runtime-symbol-constants)
+    (add-runtime-symbol-constants path-runtime-symbol-constants)
 
     (add-runtime-string-constant 'instance?                     "instance?")
     (add-runtime-string-constant 'missing-variable-value        "missing variable value")

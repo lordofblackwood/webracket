@@ -2,6 +2,7 @@
 
 (provide hash-runtime-only-helpers
          hash-seed-global-forms
+         hash-runtime-string-constants
          hash-count-list-runtime-only-helper-names
          hash-for-each-runtime-only-helper-names
          hash-map-runtime-only-helper-names
@@ -15,6 +16,11 @@
          hash-table-predicate-runtime-only-helper-names)
 
 (require "../core-helper.rkt")
+
+;; hash-runtime-string-constants : (listof (list/c symbol? string?))
+;;   Declare strings used by hash predicates and hash-like checks.
+(define hash-runtime-string-constants
+  '((hash? "hash?")))
 
 ;; hash-seed-global-forms : (listof datum?)
 ;;   Declare global state for hash-code seed generation.

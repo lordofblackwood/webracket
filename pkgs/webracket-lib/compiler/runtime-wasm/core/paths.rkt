@@ -3,6 +3,7 @@
 (provide path-current-global-forms
          path-current-initializer-forms
          path-runtime-string-constants
+         path-runtime-symbol-constants
          path-runtime-bytes-constants
          path-runtime-only-helpers
          path-runtime-only-helper-names
@@ -20,6 +21,13 @@
     (path-for-some-system?     "path-for-some-system?")
     (path-element?             "path-element?")
     (listof-path?              "(listof path?)")))
+
+;; path-runtime-symbol-constants : (listof symbol?)
+;;   Declare symbols used by path decomposition and path-kind helpers.
+(define path-runtime-symbol-constants
+  '(relative
+    up
+    same))
 
 ;; path-runtime-bytes-constants : (listof (list/c symbol? bytes?))
 ;;   Declare byte-string constants used by path manipulation and system paths.

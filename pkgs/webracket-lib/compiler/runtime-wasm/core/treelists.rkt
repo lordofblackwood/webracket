@@ -3,9 +3,16 @@
 (provide treelist-error-runtime-only-helper-names
          treelist-constant-global-forms
          treelist-empty-global-forms
+         treelist-runtime-string-constants
          treelist-runtime-only-helpers)
 
 (require "../core-helper.rkt")
+
+;; treelist-runtime-string-constants : (listof (list/c symbol? string?))
+;;   Declare strings used by treelist checks and errors.
+(define treelist-runtime-string-constants
+  '((treelist?      "treelist?")
+    (treelist-empty ": treelist is empty")))
 
 ;; treelist-constant-global-forms : (listof datum?)
 ;;   Declare treelist radix constants.

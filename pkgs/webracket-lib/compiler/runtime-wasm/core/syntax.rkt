@@ -1,6 +1,8 @@
 #lang racket
 
 (provide syntax-global-forms
+         syntax-runtime-string-constants
+         syntax-runtime-symbol-constants
          syntax-runtime-only-helpers
          syntax-runtime-only-helper-names
          correlated-syntax-runtime-only-helper-names)
@@ -8,6 +10,30 @@
 (require "../core-helper.rkt"
          (only-in "../../private/wasm-utils.rkt"
                   Undefined))
+
+;; syntax-runtime-string-constants : (listof (list/c symbol? string?))
+;;   Declare strings used by syntax and correlated syntax helpers.
+(define syntax-runtime-string-constants
+  '((syntax-or-false            "(or/c syntax? #f)")
+    (datum->syntax-srcloc       "(or/c #f syntax? srcloc?)")
+    (syntax?                    "syntax?")
+    (identifier?                "identifier?")
+    (listof-identifier?         "(listof identifier?)")
+    (stx-list?                  "stx-list?")
+    (syntax-introducer-mode?    "(or/c 'add 'remove 'flip)")
+    (syntax-local-value-failure "(or/c (-> any/c) #f)")
+    (syntax-local-value-binding "identifier with transformer binding")
+    (set!-transformer?          "set!-transformer?")
+    (correlated?                "correlated?")
+    (correlated-or-false        "(or/c correlated? #f)")))
+
+;; syntax-runtime-symbol-constants : (listof symbol?)
+;;   Declare symbols used by syntax and correlated syntax helpers.
+(define syntax-runtime-symbol-constants
+  '(correlated->datum
+    datum->correlated
+    correlated-property
+    correlated-property-symbol-keys))
 
 ;; syntax-global-forms : (listof datum?)
 ;;   Declare cached syntax and correlated syntax descriptors and property tables.
