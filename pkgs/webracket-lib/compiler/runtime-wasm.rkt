@@ -38,12 +38,13 @@
                   analyze-program-fragment
                   analyze-stable-runtime
                   list->eq-set
-                  primitive-graph-ref
                   primitive-refs-for-functions
                   primitive-retained-set
+                  program-driver-function-names
                   prune-runtime-module
                   read-stable-runtime-analysis-cache
                   retained-function-set
+                  split-module-forms
                   stable-runtime-analysis-cache-fingerprint
                   stable-runtime-analysis-cache-path
                   stable-runtime-analysis-module
@@ -462,61 +463,6 @@
                  #:do [(define name (module-func-name form))]
                  #:when name)
         name))
-
-    (define program-driver-function-names
-      '($entry
-        $entry-uncaught-exception
-        $entry-uncaught-exception1
-        $entry-uncaught-exception2))
-
-    ;; Tree-shake currently analyzes one combined module s-expression.
-    ;; The boundary is already implicit in pruning, though:
-    ;;   - `dls` contributes generated program helper functions
-    ;;   - `$entry` runs the user program and top-level initialization
-    ;;   - `top-level-variable-declarations` contributes program globals
-    ;; Everything else in `build-runtime-module` is intended to be stable
-    ;; runtime/target/FFI support. This classifier exists to document that
-    ;; seam and to support a future split cache without changing behavior yet.
-    (define program-function-name-set
-      (list->eq-set
-       (append program-function-names
-               program-driver-function-names)))
-
-    (define program-global-name-set
-      (list->eq-set
-       (append
-        (list result)
-        (for/list ([form (in-list top-level-variable-declarations)]
-                   #:do [(define name (module-global-name form))]
-                   #:when name)
-          name)
-        (program-constant-global-names string-constants
-                                       bytes-constants
-                                       symbol-constants))))
-
-    (define program-data-name-set
-      (list->eq-set (program-constant-data-names string-constants
-                                                 bytes-constants
-                                                 symbol-constants)))
-
-    (define (program-module-form? form)
-      (define func-name (module-func-name form))
-      (define global-name (module-global-name form))
-      (define data-name (module-data-name form))
-      (or (and func-name
-               (hash-ref program-function-name-set func-name #f))
-          (and global-name
-               (hash-ref program-global-name-set global-name #f))
-          (and data-name
-               (hash-ref program-data-name-set data-name #f))))
-
-    (define (split-module-forms module)
-      (for/fold ([runtime-forms '()]
-                 [program-forms '()])
-                ([form (in-list (cdr module))])
-        (if (program-module-form? form)
-            (values runtime-forms (cons form program-forms))
-            (values (cons form runtime-forms) program-forms))))
 
     (define (time-runtime-step label thunk)
       (if (current-runtime-timing-rows)
@@ -2176,7 +2122,14 @@
     (runtime-metric-add! "runtime:export-count-before-prune"
                          (module-export-count full-module))
     (define-values (runtime-forms-before-prune program-forms-before-prune)
-      (split-module-forms full-module))
+      (split-module-forms
+       full-module
+       #:program-function-names program-function-names
+       #:result-global result
+       #:top-level-variable-declarations top-level-variable-declarations
+       #:string-constants string-constants
+       #:bytes-constants bytes-constants
+       #:symbol-constants symbol-constants))
     (runtime-metric-add! "runtime:runtime-form-count-before-prune"
                          (length runtime-forms-before-prune))
     (runtime-metric-add! "runtime:program-form-count-before-prune"
