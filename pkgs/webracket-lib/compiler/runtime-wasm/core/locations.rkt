@@ -2,6 +2,7 @@
 
 (provide location-global-forms
          location-runtime-string-constants
+         location-runtime-symbol-constants
          location-runtime-only-helpers
          source-location-runtime-only-helper-names)
 
@@ -13,6 +14,19 @@
   '((srcloc?                    "srcloc?")
     (srcloc-positive-or-false   "(or/c exact-positive-integer? #f)")
     (srcloc-nonnegative-or-false "(or/c exact-nonnegative-integer? #f)")))
+
+;; location-runtime-symbol-constants : (listof symbol?)
+;;   Declare symbols used by source-location helpers.
+(define location-runtime-symbol-constants
+  '(srcloc
+    make-srcloc
+    srcloc?
+    srcloc-source
+    srcloc-line
+    srcloc-column
+    srcloc-position
+    srcloc-span
+    srcloc->string))
 
 ;; location-global-forms : (listof datum?)
 ;;   Declare cached source-location struct type descriptors.

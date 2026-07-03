@@ -27,7 +27,16 @@
 ;;   Declare symbols used by linklet instance mutation modes.
 (define linklet-instance-runtime-symbol-constants
   '(constant
-    consistent))
+    consistent
+    instance
+    instance-name
+    instance-data
+    instance-variable-box
+    instance-variable-names
+    instance-variable-value
+    instance-set-variable-value!
+    instance-unset-variable!
+    make-instance))
 
 ;; make-predicate-body : symbol? -> (listof datum?)
 ;;   Generate a standard WebRacket predicate body for ref-type.

@@ -88,7 +88,15 @@
      begin
      if
      set!
-     void)
+     void
+     link
+     linklet-body-reserved-symbol?
+     linklet-bundle?
+     hash->linklet-bundle
+     linklet-bundle->hash
+     linklet-directory?
+     hash->linklet-directory
+     linklet-directory->hash)
    primitive-table-module-symbols
    linklet-body-core-reserved-symbols))
 

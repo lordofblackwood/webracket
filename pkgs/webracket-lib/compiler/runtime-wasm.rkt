@@ -46,10 +46,12 @@
                   character-general-category-global-forms
                   character-general-category-initializer-forms
                   character-general-category-runtime-symbol-constants
+                  character-runtime-symbol-constants
                   character-runtime-only-helper-names
                   character-runtime-only-helpers)
          (only-in "runtime-wasm/core/checkers.rkt"
                   checker-runtime-string-constants
+                  checker-runtime-symbol-constants
                   checker-runtime-only-helpers
                   checker-runtime-only-helper-names)
          (only-in "runtime-wasm/core/closures.rkt"
@@ -75,6 +77,7 @@
                   exception-struct-type-global-forms
                   exception-struct-type-initializer-forms
                   exception-runtime-string-constants
+                  exception-runtime-symbol-constants
                   exception-fail-runtime-symbol-constants
                   exception-break-runtime-symbol-constants
                   exception-contract-runtime-only-helper-names
@@ -105,6 +108,7 @@
          (only-in "runtime-wasm/core/filesystem.rkt"
                   filesystem-temporary-global-forms
                   filesystem-runtime-string-constants
+                  filesystem-runtime-symbol-constants
                   filesystem-runtime-bytes-constants
                   filesystem-runtime-only-helpers
                   filesystem-runtime-only-helper-names)
@@ -233,6 +237,7 @@
          (only-in "runtime-wasm/core/locations.rkt"
                   location-global-forms
                   location-runtime-string-constants
+                  location-runtime-symbol-constants
                   location-runtime-only-helpers
                   source-location-runtime-only-helper-names)
          (only-in "runtime-wasm/core/locks.rkt"
@@ -309,6 +314,7 @@
                   port-byte-char-runtime-only-helper-names
                   port-byte-char-special-runtime-only-helper-names
                   port-predicate-runtime-string-constants
+                  port-runtime-symbol-constants
                   port-event-runtime-string-constants
                   port-event-runtime-symbol-constants
                   port-closed-error-runtime-string-constants
@@ -2534,318 +2540,11 @@
              eq?)
             symbol<?))
 
-    (let ()
-      ; TODO: remove primitives from this list
-      (define symbols
-        '(racket
-          racket/primitive
+    (add-runtime-symbol-constants
+     '(racket
+       racket/primitive))
 
-          Other
-          CR
-          LF
-          Control
-          Extend
-          ZWJ
-          Regional_Indicator
-          Prepend
-          SpacingMark
-          L
-          V
-          T
-          LV
-          LVT
-
-          in-list
-          in-vector
-          in-mlist
-          in-range
-          in-naturals
-          in-string
-
-          can-impersonate
-
-          prop:sealed
-          sealed
-          prop:evt
-          evt
-          prefab
-          prop:object-name
-          object-name
-          prop:procedure
-          procedure
-          prop:exn:srclocs
-          exn:srclocs
-          exn:srclocs?
-          exn:srclocs-accessor
-          prop:input-port
-          input-port
-          prop:output-port
-          output-port
-          pair
-          impersonator-prop:application-mark
-          prop:checked-procedure
-          checked-procedure
-          prop:impersonator-of
-          impersonator-of
-          prop:method-arity-error
-          method-arity-error
-          prop:arity-string
-          arity-string
-          prop:incomplete-arity
-          incomplete-arity
-          prop:authentic
-          authentic
-          prop:custom-write
-          custom-write
-          custom-write?
-          custom-write-accessor
-          prop:custom-print-quotable
-          custom-print-quotable
-          custom-print-quotable?
-          custom-print-quotable-accessor
-          prop:equal+hash
-          equal+hash
-
-          string
-          unix
-          windows
-          posix
-          gai
-          macosx
-          os
-          os*
-          arch
-          wasm32
-          word
-          vm
-          chez-scheme
-          gc
-          link
-          static
-          machine
-          target-machine
-          webracket
-          fs-change
-          supported
-          file-level
-          cross
-
-          linefeed
-          return
-          return-linefeed
-          any
-          any-one
-          read
-          write
-          execute
-          bits
-          binary
-          text
-          append
-          home-dir
-          pref-dir
-          pref-file
-          temp-dir
-          init-dir
-          init-file
-          config-dir
-          host-config-dir
-          addon-dir
-          host-addon-dir
-          cache-dir
-          doc-dir
-          desk-dir
-          sys-dir
-          exec-file
-          run-file
-          collects-dir
-          host-collects-dir
-          orig-dir
-          update
-          can-update
-          replace
-          truncate
-          must-truncate
-          truncate/replace
-          file
-          directory
-
-          srcloc
-          make-srcloc
-          srcloc?
-          srcloc-source
-          srcloc-line
-          srcloc-column
-          srcloc-position
-          srcloc-span
-          srcloc->string
-
-          arity-at-least
-          make-arity-at-least
-          arity-at-least?
-          arity-at-least-value
-
-          correlated
-          make-correlated
-          correlated?
-          correlated-source
-          correlated-line
-          correlated-column
-          correlated-position
-          correlated-span
-          correlated-e
-          correlated-props         ; remove?
-          datum->correlated
-          correlated-property
-          correlated-property-symbol-keys
-
-          instance
-          instance-name
-          instance-data
-          instance-variable-box
-          instance-variable-names
-          instance-variable-value
-          instance-set-variable-value!
-          instance-unset-variable!
-          make-instance
-          link
-          linklet-body-reserved-symbol?
-          linklet-bundle?
-          hash->linklet-bundle
-          linklet-bundle->hash
-          linklet-directory?
-          hash->linklet-directory
-          linklet-directory->hash
-
-          syntax
-          make-syntax
-          syntax?
-          syntax-e
-          syntax-scopes
-          syntax-shifted-multi-scopes
-          syntax-srcloc
-          syntax-props
-          empty-props
-
-          syntax-source
-          syntax-line
-          syntax-column
-          syntax-position
-          syntax-span
-          syntax-property
-          syntax-property-symbol-keys
-          datum->syntax
-          syntax->datum
-          syntax->list
-          identifier?
-
-          struct->list
-          struct->vector
-
-          exn
-          exn?
-          exn-message
-          exn-continuation-marks
-          exn:fail
-          exn:fail?
-          make-exn
-          make-exn:fail
-          exn:fail:contract
-          exn:fail:contract?
-          make-exn:fail:contract
-          exn:fail:contract:arity
-          exn:fail:contract:arity?
-          make-exn:fail:contract:arity
-          exn:fail:contract:continuation
-          exn:fail:contract:continuation?
-          make-exn:fail:contract:continuation
-          exn:fail:contract:divide-by-zero
-          exn:fail:contract:divide-by-zero?
-          make-exn:fail:contract:divide-by-zero
-          exn:fail:contract:non-fixnum-result
-          exn:fail:contract:non-fixnum-result?
-          make-exn:fail:contract:non-fixnum-result
-          exn:fail:contract:variable
-          exn:fail:contract:variable?
-          make-exn:fail:contract:variable
-          exn:fail:contract:variable-id
-          exn:fail:read
-          exn:fail:read?
-          make-exn:fail:read
-          exn:fail:read-srclocs
-          exn:fail:read:eof
-          exn:fail:read:eof?
-          make-exn:fail:read:eof
-          exn:fail:read:non-char
-          exn:fail:read:non-char?
-          make-exn:fail:read:non-char
-          exn:fail:filesystem
-          exn:fail:filesystem?
-          make-exn:fail:filesystem
-          exn:fail:filesystem:exists
-          exn:fail:filesystem:exists?
-          make-exn:fail:filesystem:exists
-          exn:fail:filesystem:version
-          exn:fail:filesystem:version?
-          make-exn:fail:filesystem:version
-          exn:fail:filesystem:errno
-          exn:fail:filesystem:errno?
-          make-exn:fail:filesystem:errno
-          exn:fail:filesystem:errno-errno
-          exn:fail:filesystem:missing-module
-          exn:fail:filesystem:missing-module?
-          make-exn:fail:filesystem:missing-module
-          exn:fail:filesystem:missing-module-path
-          exn:fail:network
-          exn:fail:network?
-          make-exn:fail:network
-          exn:fail:network:errno
-          exn:fail:network:errno?
-          make-exn:fail:network:errno
-          exn:fail:network:errno-errno
-          exn:fail:out-of-memory
-          exn:fail:out-of-memory?
-          make-exn:fail:out-of-memory
-          exn:fail:unsupported
-          exn:fail:unsupported?
-          make-exn:fail:unsupported
-          exn:fail:user
-          exn:fail:user?
-          make-exn:fail:user
-          exn:break
-          exn:break?
-          make-exn:break
-          exn:break-continuation
-          exn:break:hang-up
-          exn:break:hang-up?
-          make-exn:break:hang-up
-          exn:break:terminate
-          exn:break:terminate?
-          make-exn:break:terminate
-          exn:fail:syntax
-          exn:fail:syntax?
-          make-exn:fail:syntax
-          exn:fail:syntax-exprs
-          exn:fail:syntax:missing-module
-          exn:fail:syntax:missing-module?
-          make-exn:fail:syntax:missing-module
-          exn:fail:syntax:missing-module-path
-          exn:fail:syntax:unbound
-          exn:fail:syntax:unbound?
-          make-exn:fail:syntax:unbound
-
-          mutator
-
-          fixnum
-          fx/
-
-          match
-          error
-          return-false
-          skip
-          ...))
-      (for-each add-runtime-symbol-constant symbols))
-
+    (add-runtime-symbol-constants character-runtime-symbol-constants)
     (add-runtime-symbol-constants character-general-category-runtime-symbol-constants)
 
     ; struct:exn, struct:exn:fail, etc.
@@ -2909,10 +2608,12 @@
     (add-runtime-symbol-constants thread-runtime-symbol-constants)
     (add-runtime-symbol-constants security-runtime-symbol-constants)
     (add-runtime-symbol-constants time-date-runtime-symbol-constants)
+    (add-runtime-symbol-constants exception-runtime-symbol-constants)
     (add-runtime-symbol-constants exception-fail-runtime-symbol-constants)
     (add-runtime-symbol-constants time-clock-runtime-symbol-constants)
     (add-runtime-symbol-constants exception-break-runtime-symbol-constants)
     (add-runtime-symbol-constants io-handler-runtime-symbol-constants)
+    (add-runtime-symbol-constants port-runtime-symbol-constants)
     (add-runtime-symbol-constants port-event-runtime-symbol-constants)
     (add-runtime-symbol-constants parameter-runtime-symbol-constants)
     (add-runtime-symbol-constants system-runtime-symbol-constants)
@@ -2927,12 +2628,15 @@
     (add-runtime-string-constants location-runtime-string-constants)
     (add-runtime-string-constants treelist-runtime-string-constants)
     (add-runtime-string-constants checker-runtime-string-constants)
+    (add-runtime-symbol-constants location-runtime-symbol-constants)
+    (add-runtime-symbol-constants checker-runtime-symbol-constants)
 
     (add-runtime-string-constants syntax-runtime-string-constants)
     (add-runtime-string-constants hash-runtime-string-constants)
     (add-runtime-string-constants control-flow-runtime-string-constants)
     (add-runtime-symbol-constants syntax-runtime-symbol-constants)
     (add-runtime-symbol-constants path-runtime-symbol-constants)
+    (add-runtime-symbol-constants filesystem-runtime-symbol-constants)
 
     (add-runtime-string-constants linklet-instance-runtime-string-constants)
     (add-runtime-string-constants linklet-runtime-string-constants)

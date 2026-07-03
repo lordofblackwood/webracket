@@ -1,6 +1,7 @@
 #lang racket
 
 (provide checker-runtime-string-constants
+         checker-runtime-symbol-constants
          checker-runtime-only-helpers
          checker-runtime-only-helper-names)
 
@@ -10,6 +11,17 @@
 ;;   Declare strings used by match and sequence checker helpers.
 (define checker-runtime-string-constants
   '((match-error:prefix ": no matching clause for ")))
+
+;; checker-runtime-symbol-constants : (listof symbol?)
+;;   Declare symbols used by sequence and match checker helpers.
+(define checker-runtime-symbol-constants
+  '(in-list
+    in-vector
+    in-mlist
+    in-range
+    in-naturals
+    in-string
+    match))
 
 ;; checker-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for match and sequence checker helpers.

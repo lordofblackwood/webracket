@@ -6,6 +6,7 @@
          exception-struct-type-global-forms
          exception-struct-type-initializer-forms
          exception-runtime-string-constants
+         exception-runtime-symbol-constants
          exception-fail-runtime-symbol-constants
          exception-break-runtime-symbol-constants
          exception-contract-runtime-only-helper-names
@@ -25,6 +26,58 @@
     (filesystem-errno "(cons/c exact-integer? (or/c 'posix 'windows 'gai))")
     (valid-argument "valid argument")
     (uncaught-exception "uncaught exception: ")))
+
+;; exception-runtime-symbol-constants : (listof symbol?)
+;;   Declare base and syntax-exception symbols referenced directly by runtime helpers.
+(define exception-runtime-symbol-constants
+  '(exn
+    exn?
+    exn-message
+    exn-continuation-marks
+    exn:fail
+    exn:fail?
+    make-exn
+    make-exn:fail
+    exn:fail:contract
+    exn:fail:contract?
+    make-exn:fail:contract
+    exn:fail:contract:arity
+    exn:fail:contract:arity?
+    make-exn:fail:contract:arity
+    exn:fail:contract:divide-by-zero
+    exn:fail:contract:divide-by-zero?
+    make-exn:fail:contract:divide-by-zero
+    exn:fail:contract:non-fixnum-result
+    exn:fail:contract:non-fixnum-result?
+    make-exn:fail:contract:non-fixnum-result
+    exn:fail:contract:variable
+    exn:fail:contract:variable?
+    make-exn:fail:contract:variable
+    exn:fail:contract:variable-id
+    exn:fail:read
+    exn:fail:read?
+    make-exn:fail:read
+    exn:fail:read-srclocs
+    exn:fail:read:eof
+    exn:fail:read:eof?
+    make-exn:fail:read:eof
+    exn:fail:read:non-char
+    exn:fail:read:non-char?
+    make-exn:fail:read:non-char
+    exn:fail:filesystem
+    exn:fail:filesystem?
+    make-exn:fail:filesystem
+    exn:fail:syntax
+    exn:fail:syntax?
+    make-exn:fail:syntax
+    exn:fail:syntax-exprs
+    exn:fail:syntax:missing-module
+    exn:fail:syntax:missing-module?
+    make-exn:fail:syntax:missing-module
+    exn:fail:syntax:missing-module-path
+    exn:fail:syntax:unbound
+    exn:fail:syntax:unbound?
+    make-exn:fail:syntax:unbound))
 
 ;; exception-fail-runtime-symbol-constants : (listof symbol?)
 ;;   Declare fail-exception symbols referenced directly by runtime helpers.

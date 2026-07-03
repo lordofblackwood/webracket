@@ -17,7 +17,24 @@
 ;; system-runtime-symbol-constants : (listof symbol?)
 ;;   Declare symbols used by system/runtime information helpers.
 (define system-runtime-symbol-constants
-  '(installation-name))
+  '(os
+    os*
+    arch
+    wasm32
+    word
+    vm
+    chez-scheme
+    gc
+    link
+    static
+    machine
+    target-machine
+    webracket
+    fs-change
+    supported
+    file-level
+    cross
+    installation-name))
 
 ;; system-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for system/runtime information helpers.

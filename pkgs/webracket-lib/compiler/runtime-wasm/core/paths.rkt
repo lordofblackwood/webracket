@@ -27,7 +27,29 @@
 (define path-runtime-symbol-constants
   '(relative
     up
-    same))
+    same
+    unix
+    windows
+    macosx
+    home-dir
+    pref-dir
+    pref-file
+    temp-dir
+    init-dir
+    init-file
+    config-dir
+    host-config-dir
+    addon-dir
+    host-addon-dir
+    cache-dir
+    doc-dir
+    desk-dir
+    sys-dir
+    exec-file
+    run-file
+    collects-dir
+    host-collects-dir
+    orig-dir))
 
 ;; path-runtime-bytes-constants : (listof (list/c symbol? bytes?))
 ;;   Declare byte-string constants used by path manipulation and system paths.

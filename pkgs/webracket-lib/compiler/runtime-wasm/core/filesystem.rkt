@@ -2,6 +2,7 @@
 
 (provide filesystem-temporary-global-forms
          filesystem-runtime-string-constants
+         filesystem-runtime-symbol-constants
          filesystem-runtime-bytes-constants
          filesystem-runtime-only-helpers
          filesystem-runtime-only-helper-names)
@@ -35,6 +36,28 @@
     (input-file-mode-flag       "(or/c 'binary 'text)")
     (output-file-mode-flag      "(or/c 'binary 'text)")
     (output-file-exists-flag    "(or/c 'error 'append 'replace 'truncate 'must-truncate 'truncate/replace)")))
+
+;; filesystem-runtime-symbol-constants : (listof symbol?)
+;;   Declare file mode and file-operation symbols used by filesystem helpers.
+(define filesystem-runtime-symbol-constants
+  '(posix
+    gai
+    read
+    write
+    execute
+    bits
+    binary
+    text
+    append
+    update
+    can-update
+    replace
+    truncate
+    must-truncate
+    truncate/replace
+    file
+    directory
+    error))
 
 ;; filesystem-runtime-bytes-constants : (listof (list/c symbol? bytes?))
 ;;   Declare byte-string constants used by filesystem helpers.

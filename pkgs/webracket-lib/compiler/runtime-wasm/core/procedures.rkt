@@ -54,6 +54,10 @@
   '(procedure-realm
     name
     debug-id
+    arity-at-least
+    make-arity-at-least
+    arity-at-least?
+    arity-at-least-value
     application-not-procedure-frontier
     binding-result-arity-frontier
     procedure-arity-frontier

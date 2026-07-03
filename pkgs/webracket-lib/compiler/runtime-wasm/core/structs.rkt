@@ -56,7 +56,56 @@
 ;; struct-runtime-symbol-constants : (listof symbol?)
 ;;   Declare symbols used by struct helpers and struct errors.
 (define struct-runtime-symbol-constants
-  '(procedure-struct-type?))
+  '(can-impersonate
+    prop:sealed
+    sealed
+    prop:evt
+    evt
+    prefab
+    prop:object-name
+    object-name
+    prop:procedure
+    procedure
+    prop:exn:srclocs
+    exn:srclocs
+    exn:srclocs?
+    exn:srclocs-accessor
+    prop:input-port
+    input-port
+    prop:output-port
+    output-port
+    pair
+    impersonator-prop:application-mark
+    prop:checked-procedure
+    checked-procedure
+    prop:impersonator-of
+    impersonator-of
+    prop:method-arity-error
+    method-arity-error
+    prop:arity-string
+    arity-string
+    prop:incomplete-arity
+    incomplete-arity
+    prop:authentic
+    authentic
+    prop:custom-write
+    custom-write
+    custom-write?
+    custom-write-accessor
+    prop:custom-print-quotable
+    custom-print-quotable
+    custom-print-quotable?
+    custom-print-quotable-accessor
+    prop:equal+hash
+    equal+hash
+    struct->list
+    struct->vector
+    mutator
+    error
+    return-false
+    skip
+    ...
+    procedure-struct-type?))
 
 ;; struct-prefab-registry-global-forms : (listof datum?)
 ;;   Declare the prefab struct type registry.

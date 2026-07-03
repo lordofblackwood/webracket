@@ -42,6 +42,36 @@
     datum->correlated
     correlated-property
     correlated-property-symbol-keys
+    correlated
+    make-correlated
+    correlated?
+    correlated-source
+    correlated-line
+    correlated-column
+    correlated-position
+    correlated-span
+    correlated-e
+    correlated-props
+    syntax
+    make-syntax
+    syntax?
+    syntax-e
+    syntax-scopes
+    syntax-shifted-multi-scopes
+    syntax-srcloc
+    syntax-props
+    empty-props
+    syntax-source
+    syntax-line
+    syntax-column
+    syntax-position
+    syntax-span
+    syntax-property
+    syntax-property-symbol-keys
+    datum->syntax
+    syntax->datum
+    syntax->list
+    identifier?
     submod
     top-level
     add

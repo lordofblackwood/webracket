@@ -26,7 +26,9 @@
 ;; fixnum-runtime-symbol-constants : (listof symbol?)
 ;;   Declare symbols used by fixnum helpers and errors.
 (define fixnum-runtime-symbol-constants
-  '(fixnum?))
+  '(fixnum?
+    fixnum
+    fx/))
 
 ;; fixnum-global-forms : (listof datum?)
 ;;   Declare globals for commonly used fixnums.

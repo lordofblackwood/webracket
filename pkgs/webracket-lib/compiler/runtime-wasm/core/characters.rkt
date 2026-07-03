@@ -3,6 +3,7 @@
 (provide character-general-category-global-forms
          character-general-category-initializer-forms
          character-general-category-runtime-symbol-constants
+         character-runtime-symbol-constants
          character-runtime-only-helper-names
          character-runtime-only-helpers)
 
@@ -13,6 +14,24 @@
 ;;   Declare symbols returned by char-general-category.
 (define character-general-category-runtime-symbol-constants
   '(lu ll lt lm lo mn mc me nd nl no ps pe pi pf pd pc po sc sm sk so zs zp zl cc cf cs co cn))
+
+;; character-runtime-symbol-constants : (listof symbol?)
+;;   Declare symbols used by character and grapheme-break helpers.
+(define character-runtime-symbol-constants
+  '(Other
+    CR
+    LF
+    Control
+    Extend
+    ZWJ
+    Regional_Indicator
+    Prepend
+    SpacingMark
+    L
+    V
+    T
+    LV
+    LVT))
 
 ;; character-general-category-global-forms : (listof datum?)
 ;;   Declare the symbol table used by char-general-category.

@@ -2,6 +2,7 @@
 
 (provide port-predicate-runtime-only-helper-names
          port-predicate-runtime-string-constants
+         port-runtime-symbol-constants
          port-event-runtime-string-constants
          port-event-runtime-symbol-constants
          port-closed-error-runtime-string-constants
@@ -41,6 +42,16 @@
     (output-port?               "output-port?")
     (file-stream-port?          "file-stream-port?")
     (terminal-port?             "terminal-port?")))
+
+;; port-runtime-symbol-constants : (listof symbol?)
+;;   Declare symbols used by string-port modes and line-ending modes.
+(define port-runtime-symbol-constants
+  '(string
+    linefeed
+    return
+    return-linefeed
+    any
+    any-one))
 
 ;; port-event-runtime-string-constants : (listof (list/c symbol? string?))
 ;;   Declare strings used by port event capability predicates.
