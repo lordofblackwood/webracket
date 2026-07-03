@@ -23,13 +23,27 @@
                   module-func-name
                   module-global-name
                   module-data-name
-                  module-write-bytes
                   module-func-count
                   module-global-count
                   module-export-count
                   module-byte-size
                   symbol-prefix-count
                   forms->module)
+         (only-in "runtime-wasm/runtime-analysis.rkt"
+                  analyze-program-fragment
+                  analyze-stable-runtime
+                  list->eq-set
+                  primitive-graph-ref
+                  primitive-refs-for-functions
+                  primitive-retained-set
+                  prune-runtime-module
+                  read-stable-runtime-analysis-cache
+                  retained-function-set
+                  stable-runtime-analysis-cache-fingerprint
+                  stable-runtime-analysis-cache-path
+                  stable-runtime-analysis-module
+                  write-runtime-primitive-report!
+                  write-stable-runtime-analysis-cache!)
          (only-in "runtime-wasm/runtime-helper-index.rkt"
                   runtime-helper-index)
          (only-in "runtime-wasm/core/arrays.rkt"
@@ -338,9 +352,6 @@
          "runtime-wasm/core-runtime.rkt"
          "runtime-wasm/constants.rkt"
          "runtime-wasm/shared-types.rkt"
-         file/sha1
-         racket/fasl
-         racket/file
          racket/runtime-path)
 
 (define-runtime-path runtime-wasm-path "runtime-wasm.rkt")
@@ -353,6 +364,7 @@
 (define-runtime-path constants-path "runtime-wasm/constants.rkt")
 (define-runtime-path function-declarations-path "runtime-wasm/function-declarations.rkt")
 (define-runtime-path module-forms-path "runtime-wasm/module-forms.rkt")
+(define-runtime-path runtime-analysis-path "runtime-wasm/runtime-analysis.rkt")
 (define-runtime-path runtime-helper-index-path "runtime-wasm/runtime-helper-index.rkt")
 (define-runtime-path core-booleans-path "runtime-wasm/core/booleans.rkt")
 (define-runtime-path core-boxes-path "runtime-wasm/core/boxes.rkt")
@@ -505,14 +517,6 @@
     (set! active-ffi-funcs-wat
           (remove-duplicates active-ffi-funcs-wat eq? #:key module-func-name))
 
-    (define (primitive-global-init-form? x)
-      (and (pair? x)
-           (eq? (car x) 'global.set)
-           (pair? (cdr x))
-           (symbol? (cadr x))
-           (or (hash-ref primitive-global->symbol (cadr x) #f)
-               (hash-ref ffi-global->symbol (cadr x) #f))))
-
     (define program-function-names
       (for/list ([form (in-list dls)]
                  #:do [(define name (module-func-name form))]
@@ -524,21 +528,6 @@
         $entry-uncaught-exception
         $entry-uncaught-exception1
         $entry-uncaught-exception2))
-
-    (define (list->eq-set xs)
-      (define ht (make-hasheq))
-      (eq-set-add-all! ht xs)
-      ht)
-
-    (define (eq-set-add-all! ht xs)
-      (for ([x (in-list xs)])
-        (hash-set! ht x #t)))
-
-    (define (eq-set-keys ht)
-      (hash-keys ht))
-
-    (define (eq-set-keys/sorted ht)
-      (sort (hash-keys ht) symbol<?))
 
     ;; Tree-shake currently analyzes one combined module s-expression.
     ;; The boundary is already implicit in pruning, though:
@@ -624,6 +613,7 @@
                                           constants-path
                                           function-declarations-path
                                           module-forms-path
+                                          runtime-analysis-path
                                           runtime-helper-index-path
                                           core-booleans-path
                                           core-boxes-path
@@ -680,484 +670,6 @@
             (list (path->string path)
                   (file-size path)
                   (file-or-directory-modify-seconds path)))))
-
-    (define (module-fingerprint module)
-      (bytes->hex-string
-       (sha1-bytes
-        (module-write-bytes module))))
-
-    (define (stable-runtime-analysis-cache-fingerprint runtime-module)
-      `(stable-runtime-analysis-cache
-        1
-        ,(if (current-browser?) 'browser 'node)
-        ,(runtime-source-fingerprint)
-        ,(module-fingerprint runtime-module)
-        ,(sort (map foreign-racket-name active-ffi-foreigns) symbol<?)
-        ,(equal-hash-code active-ffi-imports-wat)
-        ,(equal-hash-code active-ffi-funcs-wat)))
-
-    (define (stable-runtime-analysis-cache-path fingerprint)
-      (define cache-root (current-runtime-cache-dir))
-      (and cache-root
-           (build-path cache-root
-                       "runtime-analysis-v2"
-                       (format "~x.fasl"
-                               (abs (equal-hash-code fingerprint))))))
-
-    (define (read-stable-runtime-analysis-cache cache-path fingerprint)
-      (and cache-path
-           (file-exists? cache-path)
-           (with-handlers ([exn:fail? (lambda (_exn) #f)])
-             (match (call-with-input-file cache-path
-                      (lambda (in)
-                        (fasl->s-exp (port->bytes in))))
-               [`(,cached-fingerprint ,analysis)
-                (and (equal? cached-fingerprint fingerprint) analysis)]
-               [_ #f]))))
-
-    (define (write-stable-runtime-analysis-cache! cache-path fingerprint analysis)
-      (when cache-path
-        (make-directory* (path-only cache-path))
-        (call-with-output-file cache-path
-          (lambda (out)
-            (write-bytes
-             (s-exp->fasl (list fingerprint analysis))
-             out))
-          #:exists 'truncate/replace)))
-
-    (define (stable-runtime-analysis-form? form)
-      (define global-name (module-global-name form))
-      (define data-name (module-data-name form))
-      (and (not (and global-name
-                     (constant-global-name? global-name)))
-           (not (and data-name
-                     (constant-data-name? data-name)))))
-
-    (define (stable-runtime-analysis-module module)
-      (forms->module
-       (for/list ([form (in-list (cdr module))]
-                  #:when (stable-runtime-analysis-form? form))
-         form)))
-
-    (define (walk-symbol-refs x symbol->value)
-      (define refs (make-hasheq))
-      (define (walk x)
-        (cond
-          [(primitive-global-init-form? x) (void)]
-          [(symbol? x)
-           (define v (hash-ref symbol->value x #f))
-           (when v
-             (hash-set! refs (if (eq? v #t) x v) #t))]
-          [(pair? x)
-           (walk (car x))
-           (walk (cdr x))]
-          [else (void)]))
-      (walk x)
-      (eq-set-keys refs))
-
-    (define (analyze-stable-runtime module)
-      (define primitive-ref->symbol
-        (time-runtime-step
-         "tree-shake:build-primitive-ref-map"
-         (lambda ()
-           (let ([ht (make-hasheq)])
-             (for ([(k v) (in-hash primitive-func->symbol)])
-               (hash-set! ht k v))
-             (for ([(k v) (in-hash primitive-global->symbol)])
-               (hash-set! ht k v))
-             ht))))
-      (define named-funcs
-        (time-runtime-step
-         "tree-shake:collect-named-functions"
-         (lambda ()
-           (for/list ([form (in-list (cdr module))]
-                      #:do [(define name (module-func-name form))]
-                      #:when name)
-             name))))
-      (define (func-export-names form)
-        (and (pair? form)
-             (eq? (car form) 'func)
-             (pair? (cdr form))
-             (symbol? (cadr form))
-             (for/list ([part (in-list (cddr form))]
-                        #:when (and (pair? part)
-                                    (eq? (car part) 'export)
-                                    (pair? (cdr part))
-                                    (string? (cadr part))))
-               (cadr part))))
-      (define named-funcs-ht
-        (for/hasheq ([name (in-list named-funcs)])
-          (values name #t)))
-      (define func->func-refs (make-hasheq))
-      (define func->primitive-refs (make-hasheq))
-      (time-runtime-step
-       "tree-shake:build-call-graph"
-       (lambda ()
-         (for ([form (in-list (cdr module))])
-           (define name (module-func-name form))
-           (when name
-             (define refs
-               (for/list ([sym (in-list (walk-symbol-refs (cddr form) primitive-ref->symbol))]
-                          #:when (not (eq? sym name)))
-                 sym))
-             (hash-set! func->primitive-refs name refs)
-             (hash-set! func->func-refs
-                        name
-                        (walk-symbol-refs (cddr form) named-funcs-ht))))))
-      (define primitive-func-name?
-        (λ (name) (and (symbol? name) (hash-ref primitive-func->symbol name #f))))
-      (define exported-runtime-functions
-        (for/list ([form (in-list (cdr module))]
-                   #:do [(define name (module-func-name form))]
-                   #:when (and name
-                               (pair? (func-export-names form))
-                               (not (primitive-func-name? name))))
-          name))
-      (define (collect-nonprimitive-function-refs x)
-        (define refs (make-hasheq))
-        (define (walk x)
-          (cond
-            [(symbol? x)
-             (when (and (hash-ref named-funcs-ht x #f)
-                        (not (primitive-func-name? x)))
-               (hash-set! refs x #t))]
-            [(pair? x)
-             (walk (car x))
-             (walk (cdr x))]
-            [else (void)]))
-        (walk x)
-        (eq-set-keys refs))
-      (define module-root-funcs
-        (time-runtime-step
-         "tree-shake:seed-module-roots"
-         (lambda ()
-           (let ([roots (list->eq-set exported-runtime-functions)])
-             (for ([form (in-list (cdr module))]
-                   #:unless (or (module-func-name form)
-                                (and (pair? form)
-                                     (eq? (car form) 'elem)
-                                     (pair? (cdr form))
-                                     (eq? (cadr form) 'declare)
-                                     (pair? (cddr form))
-                                     (eq? (caddr form) 'funcref))))
-               (eq-set-add-all! roots (collect-nonprimitive-function-refs form)))
-             (eq-set-keys roots)))))
-      (define elem-root-functions
-        (time-runtime-step
-         "tree-shake:seed-elem-roots"
-         (lambda ()
-           (let ([roots (make-hasheq)])
-             (for ([form (in-list (cdr module))]
-                   #:when (and (pair? form)
-                               (eq? (car form) 'elem)
-                               (pair? (cdr form))
-                               (eq? (cadr form) 'declare)
-                               (pair? (cddr form))
-                               (eq? (caddr form) 'funcref)))
-               (eq-set-add-all! roots
-                                (filter (lambda (name) (not (primitive-func-name? name)))
-                                        (walk-symbol-refs form named-funcs-ht))))
-             (eq-set-keys roots)))))
-      (define (reachable-runtime-funcs roots)
-        (let loop ([pending roots] [seen (make-hasheq)])
-          (match pending
-            ['() (eq-set-keys seen)]
-            [(cons name rest)
-             (cond
-               [(hash-ref seen name #f)
-                (loop rest seen)]
-               [(primitive-func-name? name)
-                (loop rest seen)]
-               [else
-                (hash-set! seen name #t)
-                (loop (append (hash-ref func->func-refs name '()) rest)
-                      seen)])])))
-      (define runtime-funcs
-        (time-runtime-step
-         "tree-shake:reach-runtime-roots"
-         (lambda ()
-           (reachable-runtime-funcs module-root-funcs))))
-      (define runtime-root-primitives
-        (time-runtime-step
-         "tree-shake:collect-runtime-root-primitives"
-         (lambda ()
-           (let ([roots (make-hasheq)])
-             (for ([name (in-list runtime-funcs)])
-               (eq-set-add-all! roots (hash-ref func->primitive-refs name '())))
-             (eq-set-keys/sorted roots)))))
-      (define primitive-graph
-        (time-runtime-step
-         "tree-shake:build-primitive-graph"
-         (lambda ()
-           (for/list ([pr (in-list (sort described-primitives symbol<?))])
-             (define start ($ pr))
-             (define reachable
-               (let loop ([pending (hash-ref func->func-refs start '())]
-                          [seen (let ([ht (make-hasheq)])
-                                  (hash-set! ht start #t)
-                                  ht)])
-                 (match pending
-                   ['() (eq-set-keys seen)]
-                   [(cons name rest)
-                    (cond
-                      [(hash-ref seen name #f)
-                       (loop rest seen)]
-                      [(primitive-func-name? name)
-                       (loop rest seen)]
-                      [else
-                       (hash-set! seen name #t)
-                       (loop (append (hash-ref func->func-refs name '()) rest)
-                             seen)])])))
-             (cons pr
-                   (let ([deps (make-hasheq)])
-                     (for ([name (in-list reachable)])
-                       (for ([dep (in-list (hash-ref func->primitive-refs name '()))]
-                             #:unless (eq? dep pr))
-                         (hash-set! deps dep #t)))
-                     (eq-set-keys/sorted deps)))))))
-      (define incoming-primitives
-        (time-runtime-step
-         "tree-shake:collect-incoming-primitives"
-         (lambda ()
-           (let ([incoming (make-hasheq)])
-             (for ([entry (in-list primitive-graph)])
-               (eq-set-add-all! incoming (cdr entry)))
-            (eq-set-keys incoming)))))
-      (define incoming-primitives-ht
-        (list->eq-set incoming-primitives))
-      (define runtime-root-primitives-ht
-        (list->eq-set runtime-root-primitives))
-      (define isolated-primitives
-        (time-runtime-step
-         "tree-shake:classify-isolated-primitives"
-         (lambda ()
-           (sort
-            (for/list ([pr (in-list described-primitives)]
-                       #:unless (or (hash-ref incoming-primitives-ht pr #f)
-                                    (hash-ref runtime-root-primitives-ht pr #f)))
-              pr)
-            symbol<?))))
-      (list (cons 'primitive-graph primitive-graph)
-            (cons 'function-graph
-                  (for/list ([name (in-list (sort named-funcs symbol<?))])
-                    (cons name (sort (hash-ref func->func-refs name '()) symbol<?))))
-            (cons 'function-primitive-refs
-                  (for/list ([name (in-list (sort named-funcs symbol<?))])
-                    (cons name (sort (hash-ref func->primitive-refs name '()) symbol<?))))
-            (cons 'exported-runtime-functions (sort exported-runtime-functions symbol<?))
-            (cons 'module-root-functions (sort module-root-funcs symbol<?))
-            (cons 'elem-root-functions (sort elem-root-functions symbol<?))
-            (cons 'reachable-runtime-functions (sort runtime-funcs symbol<?))
-            (cons 'reachable-runtime-function-primitive-refs
-                  (for/list ([name (in-list (sort runtime-funcs symbol<?))]
-                             #:when (pair? (hash-ref func->primitive-refs name '())))
-                    (cons name (sort (hash-ref func->primitive-refs name '()) symbol<?))))
-            (cons 'runtime-root-primitives runtime-root-primitives)
-            (cons 'isolated-primitives isolated-primitives)))
-
-    (define (analyze-program-fragment program-forms runtime-analysis)
-      (define runtime-function-names
-        (for/list ([entry (in-list (primitive-graph-ref runtime-analysis 'function-graph))])
-          (car entry)))
-      (define runtime-function-name-set
-        (list->eq-set runtime-function-names))
-      (define primitive-ref->symbol
-        (let ([ht (make-hasheq)])
-          (for ([(k v) (in-hash primitive-func->symbol)])
-            (hash-set! ht k v))
-          (for ([(k v) (in-hash primitive-global->symbol)])
-            (hash-set! ht k v))
-          ht))
-      (define runtime-root-functions
-        (sort
-         (remove-duplicates
-          (for/fold ([roots '()]) ([form (in-list program-forms)])
-            (append (walk-symbol-refs form runtime-function-name-set)
-                    roots)))
-         symbol<?))
-      (define program-root-primitives
-        (sort
-         (remove-duplicates
-          (append
-           (filter primitive->description
-                   (remove-duplicates
-                    (append used-primitives
-                            console-bridge-primitive-names)))
-           (for/fold ([roots '()]) ([form (in-list program-forms)])
-             (append (walk-symbol-refs form primitive-ref->symbol)
-                     roots))))
-         symbol<?))
-      (list (cons 'program-root-functions runtime-root-functions)
-            (cons 'program-root-primitives program-root-primitives)))
-
-    (define (primitive-graph-ref analysis key)
-      (cdr (assq key analysis)))
-
-    (define (primitive-transitive-closure roots graph)
-      (define graph-ht
-        (for/hasheq ([entry (in-list graph)])
-          (values (car entry) (cdr entry))))
-      (let loop ([pending roots]
-                 [seen (make-hasheq)])
-        (match pending
-          ['() (eq-set-keys/sorted seen)]
-          [(cons pr rest)
-           (if (hash-ref seen pr #f)
-               (loop rest seen)
-               (begin
-                 (hash-set! seen pr #t)
-                 (loop (append (hash-ref graph-ht pr '())
-                             rest)
-                      seen)))])))
-
-    (define (primitive-retained-set analysis)
-      (define graph          (primitive-graph-ref analysis 'primitive-graph))
-      (define runtime-roots  (primitive-graph-ref analysis 'runtime-root-primitives))
-      (define program-roots
-        (primitive-graph-ref analysis 'program-root-primitives))
-      (primitive-transitive-closure (append runtime-roots program-roots) graph))
-
-    (define (primitive-refs-for-functions analysis function-names)
-      (define function-primitive-refs
-        (primitive-graph-ref analysis 'function-primitive-refs))
-      (define function-primitive-refs-ht
-        (for/hasheq ([entry (in-list function-primitive-refs)])
-          (values (car entry) (cdr entry))))
-      (define refs (make-hasheq))
-      (for ([name (in-list function-names)])
-        (eq-set-add-all! refs (hash-ref function-primitive-refs-ht name '())))
-      (eq-set-keys/sorted refs))
-
-    (define (retained-function-set analysis retained-primitives)
-      (define function-graph (primitive-graph-ref analysis 'function-graph))
-      (define module-roots   (primitive-graph-ref analysis 'module-root-functions))
-      (define elem-roots     (primitive-graph-ref analysis 'elem-root-functions))
-      (define program-roots  (primitive-graph-ref analysis 'program-root-functions))
-      (define retained-primitive-ht (make-hasheq))
-      (for ([pr (in-list retained-primitives)])
-        (hash-set! retained-primitive-ht pr #t))
-      (define retained-primitive-funcs
-        (for/list ([pr (in-list retained-primitives)])
-          ($ pr)))
-      (define function-graph-ht
-        (for/hasheq ([entry (in-list function-graph)])
-          (values (car entry) (cdr entry))))
-      (let loop ([pending (append module-roots elem-roots program-roots retained-primitive-funcs)]
-                 [seen (make-hasheq)])
-        (match pending
-          ['() (eq-set-keys/sorted seen)]
-          [(cons name rest)
-           (cond
-             [(hash-ref seen name #f)
-              (loop rest seen)]
-             [(and (hash-ref primitive-func->symbol name #f)
-                   (not (hash-ref retained-primitive-ht
-                                  (hash-ref primitive-func->symbol name)
-                                  #f)))
-              (loop rest seen)]
-             [else
-              (hash-set! seen name #t)
-              (loop (append (hash-ref function-graph-ht name '())
-                            rest)
-                    seen)])])))
-
-    (define (prune-runtime-module module retained-primitives retained-functions)
-      (define retained-ht
-        (for/hasheq ([name (in-list (append program-function-names
-                                            program-driver-function-names
-                                            retained-functions))])
-          (values name #t)))
-      (define retained-primitive-ht (make-hasheq))
-      (for ([pr (in-list retained-primitives)])
-        (hash-set! retained-primitive-ht pr #t))
-      (for ([f (in-list active-ffi-foreigns)])
-        (hash-set! retained-primitive-ht (foreign-racket-name f) #t))
-      (define (retained-primitive-global-name? name)
-        (define pr
-          (or (hash-ref primitive-global->symbol name #f)
-              (hash-ref ffi-global->symbol name #f)))
-        (or (not pr)
-            (hash-ref retained-primitive-ht pr #f)))
-      (define (prune-elem-form form)
-        (match form
-          [`(elem declare funcref ,refs ...)
-           `(elem declare funcref
-                  ,@(for/list ([ref (in-list refs)]
-                               #:when (match ref
-                                        [`(ref.func ,name)
-                                         (hash-ref retained-ht name #f)]
-                                        [_ #t]))
-                      ref))]
-          [_ form]))
-      (define (prune-entry-form form)
-        (match form
-          [`(func $entry ,parts ...)
-           `(func $entry
-                  ,@(for/list ([part (in-list parts)]
-                               #:unless (and (primitive-global-init-form? part)
-                                             (not (retained-primitive-global-name?
-                                                   (cadr part)))))
-                      part))]
-          [_ form]))
-      `(module
-         ,@(for/list ([form (in-list (cdr module))]
-                      #:unless (let ([name (module-func-name form)])
-                                 (and name
-                                      (not (hash-ref retained-ht name #f))))
-                      #:unless (let ([name (module-global-name form)])
-                                 (and name
-                                      (not (retained-primitive-global-name? name)))))
-             (cond
-               [(eq? (module-func-name form) '$entry)
-                (prune-entry-form form)]
-               [(and (pair? form)
-                     (eq? (car form) 'elem))
-                (prune-elem-form form)]
-               [else form]))))
-
-    (define (write-runtime-primitive-report! analysis retained-primitives)
-      (define report-path (current-runtime-primitive-report-path))
-      (when report-path
-        (define program-root-primitives
-          (primitive-graph-ref analysis 'program-root-primitives))
-        (define program-root-functions
-          (primitive-graph-ref analysis 'program-root-functions))
-        (define isolated-primitives
-          (primitive-graph-ref analysis 'isolated-primitives))
-        (define runtime-root-primitives
-          (primitive-graph-ref analysis 'runtime-root-primitives))
-        (define total-primitives
-          (length described-primitives))
-        (define retained-count
-          (length retained-primitives))
-        (with-output-to-file report-path
-          (λ ()
-            (pretty-write
-             (list (list 'summary
-                         (list 'total-primitives total-primitives)
-                         (list 'program-root-count (length program-root-primitives))
-                         (list 'program-root-function-count (length program-root-functions))
-                         (list 'retained-count retained-count)
-                         (list 'isolated-count (length isolated-primitives))
-                         (list 'runtime-root-count (length runtime-root-primitives))
-                         (list 'omitted-count (- total-primitives retained-count)))
-                   (cons 'program-root-primitives
-                         program-root-primitives)
-                   (cons 'program-root-functions
-                         program-root-functions)
-                   (cons 'retained-primitives retained-primitives)
-                   (cons 'isolated-primitives isolated-primitives)
-                   (cons 'module-root-functions
-                         (primitive-graph-ref analysis 'module-root-functions))
-                   (cons 'reachable-runtime-functions
-                         (primitive-graph-ref analysis 'reachable-runtime-functions))
-                   (cons 'reachable-runtime-function-primitive-refs
-                         (primitive-graph-ref analysis
-                                             'reachable-runtime-function-primitive-refs))
-                   (cons 'runtime-root-primitives runtime-root-primitives)
-                   (cons 'primitive-graph
-                         (primitive-graph-ref analysis 'primitive-graph)))))
-          #:exists 'replace)))
 
     (define (declare-primitives-as-globals)
       (procedure-primitive-global-forms (active-described-primitives-sorted)))
@@ -2873,13 +2385,21 @@
     (define program-only-forms
       program-forms-before-prune)
     (define stable-runtime-cache-fingerprint
-      (stable-runtime-analysis-cache-fingerprint stable-runtime-module))
+      (stable-runtime-analysis-cache-fingerprint
+       stable-runtime-module
+       #:browser? (current-browser?)
+       #:runtime-source-fingerprint (runtime-source-fingerprint)
+       #:active-ffi-foreigns active-ffi-foreigns
+       #:active-ffi-imports-wat active-ffi-imports-wat
+       #:active-ffi-funcs-wat active-ffi-funcs-wat))
     (runtime-metric-add! "runtime:stable-runtime-fingerprint"
                          (format "~x"
                                  (abs (equal-hash-code
                                        stable-runtime-cache-fingerprint))))
     (define stable-runtime-cache-path
-      (stable-runtime-analysis-cache-path stable-runtime-cache-fingerprint))
+      (stable-runtime-analysis-cache-path
+       stable-runtime-cache-fingerprint
+       #:cache-root (current-runtime-cache-dir)))
     (runtime-metric-add! "tree-shake:runtime-analysis-v2-cache-enabled?"
                          (if stable-runtime-cache-path "yes" "no"))
     (define cached-stable-runtime-analysis
@@ -2902,7 +2422,12 @@
            (time-runtime-step
             "tree-shake:analyze-stable-runtime"
             (lambda ()
-              (analyze-stable-runtime stable-runtime-module))))
+              (analyze-stable-runtime
+               stable-runtime-module
+               #:primitive-func->symbol primitive-func->symbol
+               #:primitive-global->symbol primitive-global->symbol
+               #:described-primitives described-primitives
+               #:time-runtime-step time-runtime-step))))
          (time-runtime-step
           "tree-shake:runtime-analysis-v2-cache-write"
           (lambda ()
@@ -2914,8 +2439,14 @@
       (time-runtime-step
        "tree-shake:analyze-program-fragment"
        (lambda ()
-         (analyze-program-fragment program-only-forms
-                                   stable-runtime-analysis))))
+         (analyze-program-fragment
+          program-only-forms
+          stable-runtime-analysis
+          #:primitive-func->symbol primitive-func->symbol
+          #:primitive-global->symbol primitive-global->symbol
+          #:used-primitives used-primitives
+          #:console-bridge-primitive-names console-bridge-primitive-names
+          #:primitive-description? primitive->description))))
     (define analysis
       (time-runtime-step
        "tree-shake:combine-analysis"
@@ -2929,7 +2460,10 @@
          (if (current-tree-shake?)
              (let loop ([retained-primitives (primitive-retained-set analysis)])
                (define retained-functions
-                 (retained-function-set analysis retained-primitives))
+                 (retained-function-set
+                  analysis
+                  retained-primitives
+                  #:primitive-func->symbol primitive-func->symbol))
                (define next-primitives
                  (sort (remove-duplicates
                         (append retained-primitives
@@ -2947,14 +2481,26 @@
     (time-runtime-step
      "tree-shake:write-report"
      (λ ()
-       (write-runtime-primitive-report! analysis retained-primitives)))
+       (write-runtime-primitive-report!
+        (current-runtime-primitive-report-path)
+        analysis
+        retained-primitives
+        described-primitives)))
     (set! active-primitives retained-primitives)
     (define final-module
       (if (current-tree-shake?)
           (time-runtime-step
            "tree-shake:prune-runtime-module"
            (λ ()
-             (prune-runtime-module full-module retained-primitives retained-functions)))
+             (prune-runtime-module
+              full-module
+              retained-primitives
+              retained-functions
+              #:program-function-names program-function-names
+              #:program-driver-function-names program-driver-function-names
+              #:primitive-global->symbol primitive-global->symbol
+              #:ffi-global->symbol ffi-global->symbol
+              #:active-ffi-foreigns active-ffi-foreigns)))
           full-module))
     (runtime-metric-add! "tree-shake:enabled?"
                          (if (current-tree-shake?) "yes" "no"))
