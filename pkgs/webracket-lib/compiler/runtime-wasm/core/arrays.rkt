@@ -3,6 +3,8 @@
 (provide make-array
          array-copy!
          array-extend
+         array-core-runtime-helper-forms
+         array-runtime-helper-forms
          array-core-runtime-helpers
          array-runtime-only-helper-names
          array-runtime-only-helpers)
@@ -369,3 +371,79 @@
                              (unreachable)))))
            ;; Return the filled array
            (local.get $arr)))))
+
+;; array-core-runtime-helper-specs : (listof (list/c symbol? (or/c string? #f)))
+;;   Preserve the core runtime emission order and public exports for generic array helpers.
+(define array-core-runtime-helper-specs
+  '(($make-array #f)
+    ($array-length "array-length")
+    ($array-ref "array-ref")
+    ($array-set! "array-set!")
+    ($array-fill! "array-fill!")
+    ($array-copy! "array-copy!")
+    ($array-copy!/error "array-copy!/error")
+    ($array-append #f)
+    ($array-append-all #f)
+    ($array-take #f)
+    ($array-take-right #f)
+    ($array-drop #f)
+    ($array-drop-right #f)
+    ($array-split-at #f)
+    ($array-copy #f)
+    ($array-set/copy #f)
+    ($array-extend #f)))
+
+;; array-core-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render generic array core helpers in runtime assembly order.
+(define (array-core-runtime-helper-forms helper-index)
+  (for/list ([spec (in-list array-core-runtime-helper-specs)])
+    (match-define (list name export-name) spec)
+    (if export-name
+        (core-runtime-helper-form helper-index name
+                                  #:export? #t
+                                  #:export-name export-name)
+        (core-runtime-helper-form helper-index name))))
+
+;; array-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render generic array runtime-only helpers in runtime assembly order.
+(define (array-runtime-helper-forms helper-index)
+  (for/list ([name (in-list array-runtime-only-helper-names)])
+    (core-runtime-helper-form helper-index name)))
+
+(module+ test
+  (require rackunit)
+
+  ;; form-name : datum? -> symbol?
+  ;;   Return the function name from a rendered helper form.
+  (define (form-name form)
+    (second form))
+
+  ;; form-export-names : datum? -> (listof string?)
+  ;;   Return export names attached directly to a rendered helper form.
+  (define (form-export-names form)
+    (for/list ([part (in-list (cddr form))]
+               #:when (and (pair? part)
+                           (eq? 'export (car part))))
+      (second part)))
+
+  (define array-core-helper-index
+    (make-core-runtime-helper-index array-core-runtime-helpers))
+
+  (define array-helper-index
+    (make-core-runtime-helper-index array-runtime-only-helpers))
+
+  (check-equal?
+   (map form-name (array-core-runtime-helper-forms array-core-helper-index))
+   (map first array-core-runtime-helper-specs))
+
+  (check-equal?
+   (map form-export-names (array-core-runtime-helper-forms array-core-helper-index))
+   (for/list ([spec (in-list array-core-runtime-helper-specs)])
+     (match-define (list _ export-name) spec)
+     (if export-name
+         (list export-name)
+         '())))
+
+  (check-equal?
+   (map form-name (array-runtime-helper-forms array-helper-index))
+   array-runtime-only-helper-names))

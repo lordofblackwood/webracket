@@ -32,6 +32,8 @@
                   symbol-prefix-count
                   forms->module)
          (only-in "runtime-wasm/core/arrays.rkt"
+                  array-core-runtime-helper-forms
+                  array-runtime-helper-forms
                   array-runtime-only-helper-names
                   array-runtime-only-helpers)
          (only-in "runtime-wasm/core/booleans.rkt"
@@ -1476,27 +1478,10 @@
          ;; Define a mutable array type of (ref eq)
          ; (type $Array (array (mut (ref eq))))
 
-         ,(core-runtime-helper-form core-runtime-helper-index '$make-array)
-         ,(core-runtime-helper-form core-runtime-helper-index '$array-length #:export? #t #:export-name "array-length")
-         ,(core-runtime-helper-form core-runtime-helper-index '$array-ref #:export? #t #:export-name "array-ref")
-         ,(core-runtime-helper-form core-runtime-helper-index '$array-set! #:export? #t #:export-name "array-set!")
-         ,(core-runtime-helper-form core-runtime-helper-index '$array-fill! #:export? #t #:export-name "array-fill!")
-         ,(core-runtime-helper-form core-runtime-helper-index '$array-copy! #:export? #t #:export-name "array-copy!")
-         ,(core-runtime-helper-form core-runtime-helper-index '$array-copy!/error #:export? #t #:export-name "array-copy!/error")
-         ,(core-runtime-helper-form core-runtime-helper-index '$array-append)
-         ,(core-runtime-helper-form core-runtime-helper-index '$array-append-all)
-         ,(core-runtime-helper-form core-runtime-helper-index '$array-take)
-         ,(core-runtime-helper-form core-runtime-helper-index '$array-take-right)
-         ,(core-runtime-helper-form core-runtime-helper-index '$array-drop)
-         ,(core-runtime-helper-form core-runtime-helper-index '$array-drop-right)
-         ,(core-runtime-helper-form core-runtime-helper-index '$array-split-at)
-         ,(core-runtime-helper-form core-runtime-helper-index '$array-copy)
-         ,(core-runtime-helper-form core-runtime-helper-index '$array-set/copy)
-         ,(core-runtime-helper-form core-runtime-helper-index '$array-extend)
+         ,@(array-core-runtime-helper-forms core-runtime-helper-index)
 
          ;;   Generic array conversion helpers are implemented in runtime-wasm/core/arrays.rkt.
-         ,@(for/list ([name (in-list array-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
+         ,@(array-runtime-helper-forms runtime-helper-index)
 
          ;;;
          ;;; Growable Arrays
