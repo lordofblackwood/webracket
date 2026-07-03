@@ -3,6 +3,10 @@
 (provide mutable-hash-constructor-runtime-only-helper-names
          mutable-hash-pair-error-runtime-only-helper-names
          mutable-hash-association-constructor-runtime-only-helper-names
+         mutable-hash-constructor-runtime-helper-forms
+         mutable-hash-read-runtime-helper-forms
+         mutable-hash-write-runtime-helper-forms
+         mutable-hash-update-runtime-helper-forms
          mutable-hash-runtime-only-helpers)
 
 (require "../core-helper.rkt")
@@ -29,6 +33,50 @@
     $make-hasheqv
     $make-hash
     $make-hashalw))
+
+;; mutable-hash-helper-forms : hasheq? (listof symbol?) -> (listof datum?)
+;;   Render the given mutable hash helper names from the runtime helper index.
+(define (mutable-hash-helper-forms helper-index names)
+  (for/list ([name (in-list names)])
+    (core-runtime-helper-form helper-index name)))
+
+;; runtime-helper-names : (listof core-runtime-helper?) -> (listof symbol?)
+;;   Return helper names in their registered emission order.
+(define (runtime-helper-names helpers)
+  (for/list ([helper (in-list helpers)])
+    (core-runtime-helper-name helper)))
+
+;; mutable-hash-constructor-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render mutable hash constructor helpers in runtime assembly order.
+(define (mutable-hash-constructor-runtime-helper-forms helper-index)
+  (mutable-hash-helper-forms
+   helper-index
+   (append mutable-hash-constructor-runtime-only-helper-names
+           mutable-hash-pair-error-runtime-only-helper-names
+           mutable-hash-association-constructor-runtime-only-helper-names)))
+
+;; mutable-hash-read-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render mutable hash value and stored-key lookup helpers in runtime assembly order.
+(define (mutable-hash-read-runtime-helper-forms helper-index)
+  (mutable-hash-helper-forms
+   helper-index
+   (append (runtime-helper-names mutable-hash-read-runtime-only-helpers)
+           (runtime-helper-names mutable-hash-ref-key-runtime-only-helpers))))
+
+;; mutable-hash-write-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render mutable hash insertion and lookup-or-insert helpers in runtime assembly order.
+(define (mutable-hash-write-runtime-helper-forms helper-index)
+  (mutable-hash-helper-forms
+   helper-index
+   (append (runtime-helper-names mutable-hash-write-runtime-only-helpers)
+           (runtime-helper-names mutable-hash-ref-bang-runtime-only-helpers))))
+
+;; mutable-hash-update-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render mutable hash update! helpers in runtime assembly order.
+(define (mutable-hash-update-runtime-helper-forms helper-index)
+  (mutable-hash-helper-forms
+   helper-index
+   (runtime-helper-names mutable-hash-update-bang-runtime-only-helpers)))
 
 ;; mutable-hash-constructor-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate mutable hash constructor helpers that still depend on monolithic runtime globals.
@@ -2916,3 +2964,38 @@
           mutable-hash-iteration-position-runtime-only-helpers
           mutable-hash-iteration-accessor-dispatch-runtime-only-helpers
           mutable-hash-iteration-accessor-runtime-only-helpers))
+
+(module+ test
+  (require rackunit)
+
+  ;; form-name : datum? -> symbol?
+  ;;   Return the function name from a rendered helper form.
+  (define (form-name form)
+    (second form))
+
+  (define mutable-hash-helper-index
+    (make-core-runtime-helper-index mutable-hash-runtime-only-helpers))
+
+  (check-equal?
+   (map form-name
+        (mutable-hash-constructor-runtime-helper-forms mutable-hash-helper-index))
+   (append mutable-hash-constructor-runtime-only-helper-names
+           mutable-hash-pair-error-runtime-only-helper-names
+           mutable-hash-association-constructor-runtime-only-helper-names))
+
+  (check-equal?
+   (map form-name
+        (mutable-hash-read-runtime-helper-forms mutable-hash-helper-index))
+   (append (runtime-helper-names mutable-hash-read-runtime-only-helpers)
+           (runtime-helper-names mutable-hash-ref-key-runtime-only-helpers)))
+
+  (check-equal?
+   (map form-name
+        (mutable-hash-write-runtime-helper-forms mutable-hash-helper-index))
+   (append (runtime-helper-names mutable-hash-write-runtime-only-helpers)
+           (runtime-helper-names mutable-hash-ref-bang-runtime-only-helpers)))
+
+  (check-equal?
+   (map form-name
+        (mutable-hash-update-runtime-helper-forms mutable-hash-helper-index))
+   (runtime-helper-names mutable-hash-update-bang-runtime-only-helpers)))

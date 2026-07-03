@@ -205,10 +205,11 @@
          (only-in "runtime-wasm/core/memory-map.rkt"
                   memory-map-global-forms)
          (only-in "runtime-wasm/core/mutable-hashes.rkt"
-                  mutable-hash-association-constructor-runtime-only-helper-names
-                  mutable-hash-constructor-runtime-only-helper-names
-                  mutable-hash-pair-error-runtime-only-helper-names
-                  mutable-hash-runtime-only-helpers)
+                  mutable-hash-constructor-runtime-helper-forms
+                  mutable-hash-read-runtime-helper-forms
+                  mutable-hash-runtime-only-helpers
+                  mutable-hash-update-runtime-helper-forms
+                  mutable-hash-write-runtime-helper-forms)
          (only-in "runtime-wasm/core/namespaces.rkt"
                   namespace-current-global-forms
                   namespace-initializer-forms
@@ -2844,14 +2845,7 @@
          ;;; MUTABLE HASHEQ
          ;;;
 
-         ,@(for/list ([name (in-list mutable-hash-constructor-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
-
-         ,@(for/list ([name (in-list mutable-hash-pair-error-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
-
-         ,@(for/list ([name (in-list mutable-hash-association-constructor-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
+         ,@(mutable-hash-constructor-runtime-helper-forms runtime-helper-index)
 
          ;;;
          ;;; IMMUTABLE HASHEQV
@@ -2873,37 +2867,10 @@
          ;; Prefab struct registry helpers
          ;;   Implemented in runtime-wasm/core/structs.rkt.
          ,(core-runtime-helper-form runtime-helper-index '$initialize-prefab-struct-type-registry)
-         ,(core-runtime-helper-form runtime-helper-index '$raise-hash-ref-key-not-found)
-         ,(core-runtime-helper-form runtime-helper-index '$hash-ref)
-         ,(core-runtime-helper-form runtime-helper-index '$hasheq-ref)
-         ,(core-runtime-helper-form runtime-helper-index '$hasheqv-ref)
-         ,(core-runtime-helper-form runtime-helper-index '$hashequal-ref)
-         ,(core-runtime-helper-form runtime-helper-index '$hashalw-ref)
-         ,(core-runtime-helper-form runtime-helper-index '$raise-argument-error:hasheq-expected)
-         ,(core-runtime-helper-form runtime-helper-index '$raise-argument-error:hasheqv-expected)
-         ,(core-runtime-helper-form runtime-helper-index '$raise-argument-error:hash-expected)
-         ,(core-runtime-helper-form runtime-helper-index '$raise-argument-error:hashalw-expected)
-         ,(core-runtime-helper-form runtime-helper-index '$hasheq-ref/plain)
-         ,(core-runtime-helper-form runtime-helper-index '$hasheqv-ref/plain)
-         ,(core-runtime-helper-form runtime-helper-index '$hashequal-ref/plain)
-         ,(core-runtime-helper-form runtime-helper-index '$hashalw-ref/plain)
-         ,(core-runtime-helper-form runtime-helper-index '$hasheq-ref/plain/checked)
-         ,(core-runtime-helper-form runtime-helper-index '$hasheqv-ref/plain/checked)
-         ,(core-runtime-helper-form runtime-helper-index '$hashequal-ref/plain/checked)
-         ,(core-runtime-helper-form runtime-helper-index '$hashalw-ref/plain/checked)
-         ,(core-runtime-helper-form runtime-helper-index '$hash-ref-key)
-         ,(core-runtime-helper-form runtime-helper-index '$hasheq-ref-key)
-         ,(core-runtime-helper-form runtime-helper-index '$hasheqv-ref-key)
-         ,(core-runtime-helper-form runtime-helper-index '$hashequal-ref-key)
-         ,(core-runtime-helper-form runtime-helper-index '$hashalw-ref-key)
-         ,(core-runtime-helper-form runtime-helper-index '$hasheq-ref-key/plain)
-         ,(core-runtime-helper-form runtime-helper-index '$hasheqv-ref-key/plain)
-         ,(core-runtime-helper-form runtime-helper-index '$hashequal-ref-key/plain)
-         ,(core-runtime-helper-form runtime-helper-index '$hashalw-ref-key/plain)
-         ,(core-runtime-helper-form runtime-helper-index '$hasheq-ref-key/plain/checked)
-         ,(core-runtime-helper-form runtime-helper-index '$hasheqv-ref-key/plain/checked)
-         ,(core-runtime-helper-form runtime-helper-index '$hashequal-ref-key/plain/checked)
-         ,(core-runtime-helper-form runtime-helper-index '$hashalw-ref-key/plain/checked)
+
+         ;; Mutable hash lookup helpers
+         ;;   Implemented in runtime-wasm/core/mutable-hashes.rkt.
+         ,@(mutable-hash-read-runtime-helper-forms runtime-helper-index)
 
          ;; Public immutable hash functional update wrappers
          ;;   Implemented in runtime-wasm/core/immutable-hashes.rkt.
@@ -2911,56 +2878,17 @@
                       #:when (memq name '($hash-set $hash-remove)))
              (core-runtime-helper-form runtime-helper-index name))
 
-         ,(core-runtime-helper-form runtime-helper-index '$hash-set!)
-         ,(core-runtime-helper-form runtime-helper-index '$hash-copy)
-         ,(core-runtime-helper-form runtime-helper-index '$hasheq-set!)
-         ,(core-runtime-helper-form runtime-helper-index '$hasheqv-set!)
-         ,(core-runtime-helper-form runtime-helper-index '$hashequal-set!)
-         ,(core-runtime-helper-form runtime-helper-index '$hashalw-set!)
-         ,(core-runtime-helper-form runtime-helper-index '$raise-argument-error:mutable-hasheq-expected)
-         ,(core-runtime-helper-form runtime-helper-index '$raise-argument-error:mutable-hasheqv-expected)
-         ,(core-runtime-helper-form runtime-helper-index '$raise-argument-error:mutable-hash-expected)
-         ,(core-runtime-helper-form runtime-helper-index '$raise-argument-error:mutable-hashalw-expected)
-         ,(core-runtime-helper-form runtime-helper-index '$raise-hash-insert:table-full)
-         ,(core-runtime-helper-form runtime-helper-index '$hash-kind/i32)
-         ,(core-runtime-helper-form runtime-helper-index '$hash-mutable?/i32)
-         ,(core-runtime-helper-form runtime-helper-index '$hash-key-hash/kind)
-         ,(core-runtime-helper-form runtime-helper-index '$hash-key-matches?/kind)
-         ,(core-runtime-helper-form runtime-helper-index '$hasheq-set!/mutable/checked)
-         ,(core-runtime-helper-form runtime-helper-index '$hasheqv-set!/mutable/checked)
-         ,(core-runtime-helper-form runtime-helper-index '$hash-set!/mutable/checked)
-         ,(core-runtime-helper-form runtime-helper-index '$hashalw-set!/mutable/checked)
-         ,(core-runtime-helper-form runtime-helper-index '$hash-ref!)
-         ,(core-runtime-helper-form runtime-helper-index '$hasheq-ref!)
-         ,(core-runtime-helper-form runtime-helper-index '$hasheqv-ref!)
-         ,(core-runtime-helper-form runtime-helper-index '$hashequal-ref!)
-         ,(core-runtime-helper-form runtime-helper-index '$hashalw-ref!)
-         ,(core-runtime-helper-form runtime-helper-index '$hasheq-ref!/plain)
-         ,(core-runtime-helper-form runtime-helper-index '$hasheqv-ref!/plain)
-         ,(core-runtime-helper-form runtime-helper-index '$hashequal-ref!/plain)
-         ,(core-runtime-helper-form runtime-helper-index '$hashalw-ref!/plain)
-         ,(core-runtime-helper-form runtime-helper-index '$hasheq-ref!/plain/checked)
-         ,(core-runtime-helper-form runtime-helper-index '$hasheqv-ref!/plain/checked)
-         ,(core-runtime-helper-form runtime-helper-index '$hashequal-ref!/plain/checked)
-         ,(core-runtime-helper-form runtime-helper-index '$hashalw-ref!/plain/checked)
+         ;; Mutable hash write and ref! helpers
+         ;;   Implemented in runtime-wasm/core/mutable-hashes.rkt.
+         ,@(mutable-hash-write-runtime-helper-forms runtime-helper-index)
 
          ;; hash-update : immutable-hash? any/c (any/c -> any/c) [any/c or (-> any/c)] -> immutable-hash?
          ;;   Implemented in runtime-wasm/core/immutable-hashes.rkt.
          ,(core-runtime-helper-form runtime-helper-index '$hash-update)
-         ,(core-runtime-helper-form runtime-helper-index '$hash-update!)
-         ,(core-runtime-helper-form runtime-helper-index '$hasheq-update!)
-         ,(core-runtime-helper-form runtime-helper-index '$hasheqv-update!)
-         ,(core-runtime-helper-form runtime-helper-index '$hashequal-update!)
-         ,(core-runtime-helper-form runtime-helper-index '$hashalw-update!)
-         ,(core-runtime-helper-form runtime-helper-index '$hasheq-update!/plain)
-         ,(core-runtime-helper-form runtime-helper-index '$hasheqv-update!/plain)
-         ,(core-runtime-helper-form runtime-helper-index '$hashequal-update!/plain)
-         ,(core-runtime-helper-form runtime-helper-index '$hashalw-update!/plain)
-         ,(core-runtime-helper-form runtime-helper-index '$hasheq-update!/plain/checked)
-         ,(core-runtime-helper-form runtime-helper-index '$hasheqv-update!/plain/checked)
-         ,(core-runtime-helper-form runtime-helper-index '$hashequal-update!/plain/checked)
-         ,(core-runtime-helper-form runtime-helper-index '$hashalw-update!/plain/checked)
-         ,(core-runtime-helper-form runtime-helper-index '$raise-argument-error:hasheq-mutable-expected)
+
+         ;; Mutable hash update! helpers
+         ;;   Implemented in runtime-wasm/core/mutable-hashes.rkt.
+         ,@(mutable-hash-update-runtime-helper-forms runtime-helper-index)
 
          ;; (func $hash-remove! (type $Prim2)
          ;;       (param $ht  (ref eq))
