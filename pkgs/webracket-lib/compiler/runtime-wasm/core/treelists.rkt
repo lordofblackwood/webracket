@@ -1,9 +1,9 @@
 #lang racket
 
-(provide treelist-error-runtime-only-helper-names
-         treelist-constant-global-forms
+(provide treelist-constant-global-forms
          treelist-empty-global-forms
          treelist-runtime-string-constants
+         treelist-runtime-helper-forms
          treelist-runtime-only-helpers)
 
 (require "../core-helper.rkt")
@@ -117,6 +117,131 @@
 ;;   Preserve the runtime emission order for treelist error helpers.
 (define treelist-error-runtime-only-helper-names
   (map core-runtime-helper-name treelist-error-runtime-only-helpers))
+
+;; treelist-internal-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for internal treelist helpers.
+(define treelist-internal-runtime-only-helper-names
+  '($treelist-node-children
+    $treelist-node-sizes
+    $treelist-node-leftwise-dense?/i32
+    $treelist-node-child-count
+    $treelist-node-find-child-index/relaxed
+    $treelist-node-child-start
+    $treelist-node-child-size
+    $treelist-make-parent-root/checked
+    $treelist-rebalance-node-count
+    $treelist-rebalance-pack-sizes
+    $treelist-pack-children-range/checked
+    $treelist-rebalance-same-height/checked
+    $treelist-pack-same-height/checked
+    $treelist-short-node
+    $treelist-concat-plan/distribute
+    $treelist-concat-plan
+    $treelist-merge-boundary-slots/checked
+    $treelist-exec-concat-plan/checked
+    $treelist-rebalance-boundary/checked
+    $treelist-concat-subtree/checked
+    $treelist-append2/checked
+    $treelist-leaf
+    $treelist-radix
+    $treelist-node-capacity
+    $treelist-height-for-size
+    $treelist-build-dense-node
+    $array->treelist/checked
+    $treelist-node-build/checked
+    $treelist-from-node/checked
+    $treelist-singleton-branch
+    $treelist-node-child-sizes/exact
+    $treelist-node-copy-into!
+    $treelist->array/checked
+    $treelist-node-split/checked))
+
+;; treelist-public-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for public treelist helpers.
+(define treelist-public-runtime-only-helper-names
+  '($treelist?
+    $treelist
+    $treelist-empty?
+    $treelist-length
+    $treelist-length/checked/i32
+    $treelist-ref-node/checked
+    $treelist-ref/checked
+    $treelist-node-set/checked
+    $treelist-node-can-add-right-fast?/i32
+    $treelist-node-can-add-left-fast?/i32
+    $treelist-node-add-right/checked
+    $treelist-node-add-left/checked
+    $treelist-set/checked
+    $treelist-add/checked
+    $treelist-ref
+    $treelist-first
+    $treelist-last
+    $treelist-add
+    $treelist-set
+    $treelist-slice/checked
+    $treelist-sublist/checked
+    $treelist-split-at/checked
+    $treelist-take
+    $treelist-drop
+    $treelist-split-at
+    $treelist-take-right
+    $treelist-drop-right
+    $treelist-sublist
+    $treelist-node-reverse/checked
+    $treelist-reverse/checked
+    $treelist-reverse
+    $treelist-node-size/check
+    $treelist-node-valid?/i32
+    $treelist-valid?/i32
+    $treelist-node-count/checked
+    $treelist-node-relaxed-count/checked
+    $treelist-node-max-child-count/checked
+    $treelist-node-unary-start-depth/checked
+    $treelist-node-max-unary-depth/checked
+    $treelist-debug-shape
+    $treelist-rest
+    $treelist-node-append*-collect-into!
+    $treelist-append*
+    $treelist-node-flatten-into!
+    $treelist-flatten-into!
+    $treelist-flatten
+    $treelist-sort/checked
+    $treelist-sort
+    $treelist-node-map-into!
+    $treelist-node-for-each
+    $treelist-node-filter-into!
+    $treelist-node-find/checked
+    $treelist-same?/i32
+    $treelist-node-member?/checked
+    $treelist-node-index-of/checked
+    $treelist-map
+    $treelist-for-each
+    $treelist-filter
+    $treelist-find
+    $treelist-member?
+    $treelist-index-of
+    $treelist-append/checked
+    $treelist-append
+    $treelist-cons/checked
+    $treelist-cons
+    $treelist-insert/checked
+    $treelist-insert
+    $treelist-delete/checked
+    $treelist-delete
+    $make-treelist
+    $make-treelist/checked
+    $vector->treelist
+    $treelist->vector
+    $treelist->vector/checked
+    $list->treelist
+    $treelist->list))
+
+;; treelist-runtime-helper-names : (listof symbol?)
+;;   Preserve the full treelist helper emission order.
+(define treelist-runtime-helper-names
+  (append treelist-internal-runtime-only-helper-names
+          treelist-error-runtime-only-helper-names
+          treelist-public-runtime-only-helper-names))
 
 ;; treelist-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate treelist helpers that still depend on monolithic runtime globals.
@@ -5505,3 +5630,24 @@
                  (then (global.get $true))
                  (else (global.get $false))))))
 )))
+
+;; treelist-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render treelist helpers in runtime assembly order.
+(define (treelist-runtime-helper-forms helper-index)
+  (for/list ([name (in-list treelist-runtime-helper-names)])
+    (core-runtime-helper-form helper-index name)))
+
+(module+ test
+  (require rackunit)
+
+  ;; form-name : datum? -> symbol?
+  ;;   Return the function name from a rendered helper form.
+  (define (form-name form)
+    (second form))
+
+  (define treelist-helper-index
+    (make-core-runtime-helper-index treelist-runtime-only-helpers))
+
+  (check-equal?
+   (map form-name (treelist-runtime-helper-forms treelist-helper-index))
+   treelist-runtime-helper-names))
