@@ -16,6 +16,8 @@
                   entry-struct-property-initializer-forms)
          (only-in "runtime-wasm/entry-support.rkt"
                   entry-support-forms)
+         (only-in "runtime-wasm/function-declarations.rkt"
+                  runtime-function-declaration-forms)
          (only-in "runtime-wasm/js-imports.rkt"
                   js-host-import-forms)
          (only-in "runtime-wasm/module-forms.rkt"
@@ -299,7 +301,6 @@
                   procedure-reduction-runtime-only-helper-names
                   procedure-result-arity-runtime-only-helper-names
                   primitive-shapes
-                  shape->invoker
                   procedure-primitive-global-forms
                   procedure-ffi-primitive-global-forms
                   procedure-primitive-initializer-forms
@@ -468,6 +469,7 @@
 (define-runtime-path wasm-utils-path "private/wasm-utils.rkt")
 (define-runtime-path immediates-path "private/immediates.rkt")
 (define-runtime-path constants-path "runtime-wasm/constants.rkt")
+(define-runtime-path function-declarations-path "runtime-wasm/function-declarations.rkt")
 (define-runtime-path module-forms-path "runtime-wasm/module-forms.rkt")
 (define-runtime-path core-booleans-path "runtime-wasm/core/booleans.rkt")
 (define-runtime-path core-boxes-path "runtime-wasm/core/boxes.rkt")
@@ -816,6 +818,7 @@
                                           wasm-utils-path
                                           immediates-path
                                           constants-path
+                                          function-declarations-path
                                           module-forms-path
                                           core-booleans-path
                                           core-boxes-path
@@ -3737,51 +3740,9 @@
          ,@(for/list ([name (in-list struct-constructor-wrapper-runtime-only-helper-names)])
              (core-runtime-helper-form runtime-helper-index name))
 
-        (elem declare funcref
-              (ref.func $struct-constructor/no-guard)       ; closure body
-              (ref.func $struct-constructor/with-guard)     ; closure body
-              (ref.func $struct-accessor)                   ; closure body
-              (ref.func $struct-mutator)                    ; closure body
-              (ref.func $struct-predicate)                  ; closure body
-              (ref.func $struct-field-accessor/specialized) ; closure body
-              (ref.func $struct-mutator/specialized)
-              (ref.func $struct-type-property-predicate)    ; closure body
-              (ref.func $struct-type-property-accessor)     ; closure body
-              (ref.func $equal+hash-recur/equal)            ; closure body
-              (ref.func $equal+hash-recur/equal-always)     ; closure body
-              (ref.func $equal+hash-recur/hash)             ; closure body
-              (ref.func $equal+hash-recur/hash-always)      ; closure body
-              (ref.func $invoke-struct)
-              (ref.func $primitive-invoke)
-              (ref.func $invoke-reduced-procedure)
-              (ref.func $invoke-composed-procedure)
-              (ref.func $sort/keyword-apply)
-              (ref.func $vector-sort/keyword-apply)
-              (ref.func $vector-sort!/keyword-apply)
-              (ref.func $code:case-lambda-dispatch)
-              (ref.func $invoke-case-closure)
-              (ref.func $default-error-syntax->name-handler)
-              (ref.func $default-error-value->string-handler)
-              (ref.func $default-error-syntax->string-handler)
-              (ref.func $default-error-module-path->string-handler)
-              (ref.func $default-current-read-interaction)
-              (ref.func $default-port-read-handler)
-              (ref.func $default-port-read-handler/1)
-              (ref.func $default-port-write-handler)
-              (ref.func $default-port-display-handler)
-              (ref.func $default-port-print-handler)
-              (ref.func $syntax-introducer)
-              (ref.func $syntax-delta-introducer)
-
-              ;; Primitive invokers for the different shapes
-              ,@(for/list ([shape (in-list primitive-shapes)])
-                  `(ref.func ,($ (shape->invoker shape))))
-              ;; Declare all primitives
-              ,@(for/list ([pr (in-list (active-described-primitives-sorted))])
-                  `(ref.func ,($ pr)))
-              ;; Declare FFI-backed primitive wrappers.
-              ,@(for/list ([pr (in-list (active-ffi-primitive-names))])
-                  `(ref.func ,($ pr))))
+        ,@(runtime-function-declaration-forms primitive-shapes
+                                             (active-described-primitives-sorted)
+                                             (active-ffi-primitive-names))
 
 
         ;; Struct constructor implementation helpers
