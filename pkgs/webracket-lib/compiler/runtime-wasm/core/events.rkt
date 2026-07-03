@@ -2,6 +2,7 @@
 
 (provide event-global-forms
          event-runtime-string-constants
+         event-runtime-symbol-constants
          event-initializer-forms
          event-runtime-only-helpers)
 
@@ -12,6 +13,20 @@
 (define event-runtime-string-constants
   '((evt?        "evt?")
     (handle-evt? "handle-evt?")))
+
+;; event-runtime-symbol-constants : (listof symbol?)
+;;   Declare symbols used by event and channel helpers.
+(define event-runtime-symbol-constants
+  '(make-channel
+    channel?
+    channel-get
+    channel-try-get
+    channel-put
+    channel-put-evt
+    channel-put-evt?
+    evt?
+    handle-evt
+    handle-evt?))
 
 ;; event-global-forms : (listof datum?)
 ;;   Declare singleton event globals for the runtime.

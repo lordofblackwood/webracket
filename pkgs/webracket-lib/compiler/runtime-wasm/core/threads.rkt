@@ -2,6 +2,7 @@
 
 (provide thread-current-global-forms
          thread-runtime-string-constants
+         thread-runtime-symbol-constants
          thread-current-initializer-forms
          thread-group-current-global-forms
          thread-runtime-only-helpers)
@@ -13,6 +14,16 @@
 (define thread-runtime-string-constants
   '((thread?       "thread?")
     (thread-group? "thread-group?")))
+
+;; thread-runtime-symbol-constants : (listof symbol?)
+;;   Declare symbols used by thread and thread-group helpers.
+(define thread-runtime-symbol-constants
+  '(thread?
+    thread-dead?
+    thread-running?
+    thread-group?
+    make-thread-group
+    current-thread-group))
 
 ;; thread-group-current-global-forms : (listof datum?)
 ;;   Declare the current thread group global at its monolithic runtime position.

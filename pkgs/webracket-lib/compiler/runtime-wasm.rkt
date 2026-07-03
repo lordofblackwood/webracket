@@ -72,6 +72,7 @@
          (only-in "runtime-wasm/core/events.rkt"
                   event-global-forms
                   event-runtime-string-constants
+                  event-runtime-symbol-constants
                   event-initializer-forms
                   event-runtime-only-helpers)
          (only-in "runtime-wasm/core/fasl.rkt"
@@ -162,6 +163,7 @@
                   chaperone-procedure-runtime-only-helper-names
                   impersonator-basic-runtime-only-helper-names
                   impersonator-runtime-string-constants
+                  impersonator-runtime-symbol-constants
                   impersonator-runtime-only-helpers)
          (only-in "runtime-wasm/core/io-handlers.rkt"
                   io-handler-default-port-global-forms
@@ -209,6 +211,7 @@
          (only-in "runtime-wasm/core/loggers.rkt"
                   logger-current-global-forms
                   logger-current-initializer-forms
+                  logger-runtime-symbol-constants
                   logger-runtime-only-helpers)
          (only-in "runtime-wasm/core/memory-map.rkt"
                   memory-map-global-forms)
@@ -297,6 +300,7 @@
                   primitive-reflection-runtime-only-helper-names
                   procedure-global-forms
                   procedure-runtime-string-constants
+                  procedure-runtime-symbol-constants
                   procedure-arity-at-least-runtime-only-helper-names
                   procedure-arity-field-runtime-only-helper-names
                   procedure-arity-mask-runtime-only-helper-names
@@ -337,6 +341,7 @@
                   security-post-parameter-runtime-only-helper-names
                   security-pre-parameter-runtime-only-helper-names
                   security-runtime-string-constants
+                  security-runtime-symbol-constants
                   security-runtime-only-helpers)
          (only-in "runtime-wasm/core/semaphores.rkt"
                   semaphore-runtime-string-constants
@@ -371,6 +376,7 @@
                   string-runtime-only-helpers)
          (only-in "runtime-wasm/core/structs.rkt"
                   struct-runtime-string-constants
+                  struct-runtime-symbol-constants
                   struct-basic-runtime-only-helper-names
                   struct-conversion-runtime-only-helper-names
                   struct-descriptor-runtime-only-helper-names
@@ -425,6 +431,7 @@
                   thread-current-initializer-forms
                   thread-group-current-global-forms
                   thread-runtime-string-constants
+                  thread-runtime-symbol-constants
                   thread-runtime-only-helpers)
          (only-in "runtime-wasm/core/time.rkt"
                   time-runtime-only-helpers
@@ -459,6 +466,7 @@
                   vector-runtime-only-helpers)
          (only-in "runtime-wasm/core/wills.rkt"
                   will-runtime-string-constants
+                  will-runtime-symbol-constants
                   will-runtime-only-helpers)
          "runtime-wasm/core-runtime.rkt"
          "runtime-wasm/constants.rkt"
@@ -2459,6 +2467,12 @@
     (define (add-runtime-symbol-constant symbol)
       (runtime-constant-registry-add-symbol! runtime-constant-registry symbol))
 
+    ;; add-runtime-symbol-constants : (listof symbol?) -> void?
+    ;;   Add a sequence of symbol constants to the runtime registry.
+    (define (add-runtime-symbol-constants symbols)
+      (for ([symbol (in-list symbols)])
+        (add-runtime-symbol-constant symbol)))
+
     (define (declare-runtime-symbol-constants)
       (runtime-constant-registry-declare-symbols! runtime-constant-registry))
 
@@ -2917,17 +2931,9 @@
                                  "The callback attempted to return a WebRacket value with no JavaScript equivalent (i.e. without a FASL encoding): ")
     (add-runtime-symbol-constant 'wr-ref)
     (add-runtime-symbol-constant 'call-with-escape-continuation)
-    (add-runtime-symbol-constant 'current-logger)
-    (add-runtime-symbol-constant 'logger?)
-    (add-runtime-symbol-constant 'procedure-realm)
-    (add-runtime-symbol-constant 'procedure-struct-type?)
-    (add-runtime-symbol-constant 'log-receiver?)
-    (add-runtime-symbol-constant 'make-log-receiver)
-    (add-runtime-symbol-constant 'make-logger)
-    (add-runtime-symbol-constant 'logger-name)
-    (add-runtime-symbol-constant 'log-level?)
-    (add-runtime-symbol-constant 'log-max-level)
-    (add-runtime-symbol-constant 'log-message)
+    (add-runtime-symbol-constants logger-runtime-symbol-constants)
+    (add-runtime-symbol-constants procedure-runtime-symbol-constants)
+    (add-runtime-symbol-constants struct-runtime-symbol-constants)
     (add-runtime-symbol-constant 'bytes-converter?)
     (add-runtime-symbol-constant 'bytes-open-converter)
     (add-runtime-symbol-constant 'bytes-close-converter)
@@ -2935,21 +2941,8 @@
     (add-runtime-symbol-constant 'bytes-convert-end)
     (add-runtime-symbol-constant 'complete)
     (add-runtime-symbol-constant 'continues)
-    (add-runtime-symbol-constant 'make-channel)
-    (add-runtime-symbol-constant 'channel?)
-    (add-runtime-symbol-constant 'channel-get)
-    (add-runtime-symbol-constant 'channel-try-get)
-    (add-runtime-symbol-constant 'channel-put)
-    (add-runtime-symbol-constant 'channel-put-evt)
-    (add-runtime-symbol-constant 'channel-put-evt?)
-    (add-runtime-symbol-constant 'evt?)
-    (add-runtime-symbol-constant 'handle-evt)
-    (add-runtime-symbol-constant 'handle-evt?)
-    (add-runtime-symbol-constant 'make-will-executor)
-    (add-runtime-symbol-constant 'will-executor?)
-    (add-runtime-symbol-constant 'will-register)
-    (add-runtime-symbol-constant 'will-execute)
-    (add-runtime-symbol-constant 'will-try-execute)
+    (add-runtime-symbol-constants event-runtime-symbol-constants)
+    (add-runtime-symbol-constants will-runtime-symbol-constants)
     (add-runtime-symbol-constant 'hash-placeholder?)
     (add-runtime-symbol-constant 'hash-weak?)
     (add-runtime-symbol-constant 'make-reader-graph)
@@ -2960,28 +2953,13 @@
     (add-runtime-symbol-constant 'make-hasheq-placeholder)
     (add-runtime-symbol-constant 'make-hasheqv-placeholder)
     (add-runtime-symbol-constant 'make-hashalw-placeholder)
-    (add-runtime-symbol-constant 'chaperone?)
+    (add-runtime-symbol-constants impersonator-runtime-symbol-constants)
     (add-runtime-symbol-constant 'continuation-mark-set?)
     (add-runtime-symbol-constant 'continuation-prompt-available?)
     (add-runtime-symbol-constant 'continuation-prompt-tag?)
     (add-runtime-symbol-constant 'continuation?)
-    (add-runtime-symbol-constant 'thread?)
-    (add-runtime-symbol-constant 'thread-dead?)
-    (add-runtime-symbol-constant 'thread-running?)
-    (add-runtime-symbol-constant 'thread-group?)
-    (add-runtime-symbol-constant 'make-thread-group)
-    (add-runtime-symbol-constant 'current-thread-group)
-    (add-runtime-symbol-constant 'current-security-guard)
-    (add-runtime-symbol-constant 'security-guard?)
-    (add-runtime-symbol-constant 'make-security-guard)
-    (add-runtime-symbol-constant 'current-custodian)
-    (add-runtime-symbol-constant 'custodian?)
-    (add-runtime-symbol-constant 'make-custodian)
-    (add-runtime-symbol-constant 'custodian-shutdown-all)
-    (add-runtime-symbol-constant 'custodian-shut-down?)
-    (add-runtime-symbol-constant 'make-custodian-box)
-    (add-runtime-symbol-constant 'custodian-box?)
-    (add-runtime-symbol-constant 'custodian-box-value)
+    (add-runtime-symbol-constants thread-runtime-symbol-constants)
+    (add-runtime-symbol-constants security-runtime-symbol-constants)
     (add-runtime-symbol-constant 'date?)
     (add-runtime-symbol-constant 'date)
     (add-runtime-symbol-constant 'make-date)

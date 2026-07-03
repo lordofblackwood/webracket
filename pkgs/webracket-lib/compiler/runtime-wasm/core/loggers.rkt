@@ -1,10 +1,24 @@
 #lang racket
 
 (provide logger-current-global-forms
+         logger-runtime-symbol-constants
          logger-current-initializer-forms
          logger-runtime-only-helpers)
 
 (require "../core-helper.rkt")
+
+;; logger-runtime-symbol-constants : (listof symbol?)
+;;   Declare symbols used by logger and log-receiver helpers.
+(define logger-runtime-symbol-constants
+  '(current-logger
+    logger?
+    log-receiver?
+    make-log-receiver
+    make-logger
+    logger-name
+    log-level?
+    log-max-level
+    log-message))
 
 ;; logger-current-global-forms : (listof datum?)
 ;;   Declare the current logger global.

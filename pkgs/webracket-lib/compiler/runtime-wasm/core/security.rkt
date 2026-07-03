@@ -2,6 +2,7 @@
 
 (provide security-pre-parameter-runtime-only-helper-names
          security-runtime-string-constants
+         security-runtime-symbol-constants
          security-post-parameter-runtime-only-helper-names
          custodian-current-initializer-forms
          custodian-runtime-only-helper-names
@@ -18,6 +19,21 @@
   '((security-guard? "security-guard?")
     (custodian?      "custodian?")
     (custodian-box?  "custodian-box?")))
+
+;; security-runtime-symbol-constants : (listof symbol?)
+;;   Declare symbols used by security guard and custodian helpers.
+(define security-runtime-symbol-constants
+  '(current-security-guard
+    security-guard?
+    make-security-guard
+    current-custodian
+    custodian?
+    make-custodian
+    custodian-shutdown-all
+    custodian-shut-down?
+    make-custodian-box
+    custodian-box?
+    custodian-box-value))
 
 ;; security-current-global-forms : (listof datum?)
 ;;   Declare current security guard and custodian globals.

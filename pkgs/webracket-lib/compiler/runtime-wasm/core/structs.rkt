@@ -2,6 +2,7 @@
 
 (provide struct-basic-runtime-only-helper-names
          struct-runtime-string-constants
+         struct-runtime-symbol-constants
          struct-conversion-runtime-only-helper-names
          struct-descriptor-runtime-only-helper-names
          struct-format-runtime-only-helper-names
@@ -50,6 +51,11 @@
     (sealed-struct-supertype    "sealed structure type cannot be used as a supertype")
     (struct->list:on-opaque     "one of 'error, 'return-false, or 'skip")
     (struct:prefix              "struct:")))
+
+;; struct-runtime-symbol-constants : (listof symbol?)
+;;   Declare symbols used by struct helpers and struct errors.
+(define struct-runtime-symbol-constants
+  '(procedure-struct-type?))
 
 ;; struct-prefab-registry-global-forms : (listof datum?)
 ;;   Declare the prefab struct type registry.

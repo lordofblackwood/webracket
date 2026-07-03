@@ -2,6 +2,7 @@
 
 (provide procedure-core-runtime-helpers
          procedure-runtime-string-constants
+         procedure-runtime-symbol-constants
          procedure-global-forms
          procedure-basic-runtime-only-helper-names
          procedure-arity-at-least-runtime-only-helper-names
@@ -29,6 +30,11 @@
   '((procedure-realm     "procedure-realm")
     (procedure-or-false? "(or/c procedure? #f)")
     (procedure-arity?    "procedure-arity?")))
+
+;; procedure-runtime-symbol-constants : (listof symbol?)
+;;   Declare symbols used by procedure helpers and procedure errors.
+(define procedure-runtime-symbol-constants
+  '(procedure-realm))
 
 ;; procedure-global-forms : (listof datum?)
 ;;   Declare cached procedure-related struct type descriptors.
