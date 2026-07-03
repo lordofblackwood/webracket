@@ -147,6 +147,7 @@
                   immutable-hash-constructor-runtime-only-helper-names
                   immutable-hash-iteration-runtime-only-helper-names
                   immutable-hash-public-runtime-only-helper-names
+                  immutable-hash-runtime-symbol-constants
                   immutable-hash-runtime-only-helpers)
          (only-in "runtime-wasm/core/i32-arrays.rkt"
                   i32-array-runtime-only-helper-names
@@ -2938,16 +2939,7 @@
     (add-runtime-symbol-constants bytes-runtime-symbol-constants)
     (add-runtime-symbol-constants event-runtime-symbol-constants)
     (add-runtime-symbol-constants will-runtime-symbol-constants)
-    (add-runtime-symbol-constant 'hash-placeholder?)
-    (add-runtime-symbol-constant 'hash-weak?)
-    (add-runtime-symbol-constant 'make-reader-graph)
-    (add-runtime-symbol-constant 'make-placeholder)
-    (add-runtime-symbol-constant 'placeholder-set!)
-    (add-runtime-symbol-constant 'placeholder-get)
-    (add-runtime-symbol-constant 'make-hash-placeholder)
-    (add-runtime-symbol-constant 'make-hasheq-placeholder)
-    (add-runtime-symbol-constant 'make-hasheqv-placeholder)
-    (add-runtime-symbol-constant 'make-hashalw-placeholder)
+    (add-runtime-symbol-constants immutable-hash-runtime-symbol-constants)
     (add-runtime-symbol-constants impersonator-runtime-symbol-constants)
     (add-runtime-symbol-constant 'continuation-mark-set?)
     (add-runtime-symbol-constant 'continuation-prompt-available?)

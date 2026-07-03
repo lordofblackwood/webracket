@@ -3,6 +3,7 @@
 (provide immutable-hash-constructor-runtime-only-helper-names
          immutable-hash-iteration-runtime-only-helper-names
          immutable-hash-public-runtime-only-helper-names
+         immutable-hash-runtime-symbol-constants
          immutable-hash-runtime-only-helpers)
 
 (require "../core-helper.rkt")
@@ -49,6 +50,20 @@
     $unsafe-immutable-hash-iterate-value
     $unsafe-immutable-hash-iterate-pair
     $unsafe-immutable-hash-iterate-key+value))
+
+;; immutable-hash-runtime-symbol-constants : (listof symbol?)
+;;   Declare symbols used by immutable hash and reader-graph placeholder helpers.
+(define immutable-hash-runtime-symbol-constants
+  '(hash-placeholder?
+    hash-weak?
+    make-reader-graph
+    make-placeholder
+    placeholder-set!
+    placeholder-get
+    make-hash-placeholder
+    make-hasheq-placeholder
+    make-hasheqv-placeholder
+    make-hashalw-placeholder))
 
 ;; immutable-hash-prelude-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate immutable hash and reader-placeholder prelude helpers.
