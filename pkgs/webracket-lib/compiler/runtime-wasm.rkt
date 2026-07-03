@@ -326,38 +326,15 @@
                   string-mutability-runtime-helper-forms
                   string-runtime-only-helpers)
          (only-in "runtime-wasm/core/structs.rkt"
-                  struct-basic-runtime-only-helper-names
-                  struct-conversion-runtime-only-helper-names
-                  struct-descriptor-runtime-only-helper-names
-                  struct-format-runtime-only-helper-names
-                  struct-prefab-basic-runtime-only-helper-names
-                  struct-prefab-key-runtime-only-helper-names
-                  struct-prefab-key-validation-runtime-only-helper-names
-                  struct-prefab-key-accessor-runtime-only-helper-names
-                  struct-prefab-chain-runtime-only-helper-names
-                  struct-prefab-struct-type-runtime-only-helper-names
-                  struct-prefab-metadata-runtime-only-helper-names
-                  struct-prefab-immutables-runtime-only-helper-names
-                  struct-prefab-constructor-runtime-only-helper-names
-                  struct-type-constructor-runtime-only-helper-names
-                  struct-accessor-runtime-only-helper-names
-                  struct-constructor-wrapper-runtime-only-helper-names
-                  struct-constructor-runtime-only-helper-names
-                  struct-mutator-runtime-only-helper-names
-                  struct-field-mutator-runtime-only-helper-names
-                  struct-predicate-runtime-only-helper-names
-                  struct-field-accessor-runtime-only-helper-names
-                  struct-procedure-predicate-runtime-only-helper-names
-                  struct-guarded-constructor-runtime-only-helper-names
-                  struct-type-property-lookup-runtime-only-helper-names
-                  struct-type-property-closure-runtime-only-helper-names
-                  struct-type-property-predicate-runtime-only-helper-names
-                  struct-type-property-descriptor-runtime-only-helper-names
-                  struct-type-property-table-runtime-only-helper-names
-                  struct-type-property-constructor-runtime-only-helper-names
-                  struct-procedure-invoker-runtime-only-helper-names
-                  struct-procedure-runtime-only-helper-names
+                  struct-basic-runtime-helper-forms
+                  struct-construction-runtime-helper-forms
+                  struct-constructor-access-runtime-helper-forms
                   struct-core-predicate-runtime-helper-forms
+                  struct-prefab-registry-runtime-helper-forms
+                  struct-prefab-runtime-helper-forms
+                  struct-procedure-invoker-runtime-helper-forms
+                  struct-procedure-runtime-helper-forms
+                  struct-type-property-runtime-helper-forms
                   struct-prefab-registry-global-forms
                   struct-runtime-only-helpers)
          (only-in "runtime-wasm/core/symbols.rkt"
@@ -1424,8 +1401,7 @@
          ,@(procedure-post-primitive-invoker-runtime-helper-forms runtime-helper-index)
 
          ;;   Struct procedure invoker is implemented in runtime-wasm/core/structs.rkt.
-         ,@(for/list ([name (in-list struct-procedure-invoker-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
+         ,@(struct-procedure-invoker-runtime-helper-forms runtime-helper-index)
 
          ;;   Procedure rest-argument helpers are implemented in runtime-wasm/core/procedures.rkt.
          ,@(procedure-rest-argument-core-runtime-helper-forms core-runtime-helper-index)
@@ -2045,7 +2021,7 @@
 
          ;; Prefab struct registry helpers
          ;;   Implemented in runtime-wasm/core/structs.rkt.
-         ,(core-runtime-helper-form runtime-helper-index '$initialize-prefab-struct-type-registry)
+         ,@(struct-prefab-registry-runtime-helper-forms runtime-helper-index)
 
          ;; Mutable hash lookup helpers
          ;;   Implemented in runtime-wasm/core/mutable-hashes.rkt.
@@ -2382,23 +2358,7 @@
 
          ;; Basic struct predicates and checkers
          ;;   Implemented in runtime-wasm/core/structs.rkt.
-         ,@(for/list ([name (in-list struct-basic-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
-
-         ;; Struct conversion helpers
-         ;;   Implemented in runtime-wasm/core/structs.rkt.
-         ,@(for/list ([name (in-list struct-conversion-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
-
-         ;; Struct formatting helpers
-         ;;   Implemented in runtime-wasm/core/structs.rkt.
-         ,@(for/list ([name (in-list struct-format-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
-
-         ;; Struct type descriptor helpers
-         ;;   Implemented in runtime-wasm/core/structs.rkt.
-         ,@(for/list ([name (in-list struct-descriptor-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
+         ,@(struct-basic-runtime-helper-forms runtime-helper-index)
 
          ;; > (topexpand  #`(let () (struct foo (bar)) (foo 11)))
          ;; #<syntax:racket-mode-repl::15
@@ -2436,63 +2396,11 @@
 
          ;; Initial prefab helpers
          ;;   Implemented in runtime-wasm/core/structs.rkt.
-         ,@(for/list ([name (in-list struct-prefab-basic-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
-
-         ;; Prefab key encoding helpers
-         ;;   Implemented in runtime-wasm/core/structs.rkt.
-         ,@(for/list ([name (in-list struct-prefab-key-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
-
-         ;; Prefab key validation helpers
-         ;;   Implemented in runtime-wasm/core/structs.rkt.
-         ,@(for/list ([name (in-list struct-prefab-key-validation-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
-
-         ;; Prefab key accessor helpers
-         ;;   Implemented in runtime-wasm/core/structs.rkt.
-         ,@(for/list ([name (in-list struct-prefab-key-accessor-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
-
-         ;; Prefab chain and alias helpers
-         ;;   Implemented in runtime-wasm/core/structs.rkt.
-         ,@(for/list ([name (in-list struct-prefab-chain-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
-
-         ;; Prefab struct-type interning helpers
-         ;;   Implemented in runtime-wasm/core/structs.rkt.
-         ,@(for/list ([name (in-list struct-prefab-struct-type-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
-
-         ;; Prefab metadata helpers
-         ;;   Implemented in runtime-wasm/core/structs.rkt.
-         ,@(for/list ([name (in-list struct-prefab-metadata-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
-
-         ;; Prefab immutability mask helpers
-         ;;   Implemented in runtime-wasm/core/structs.rkt.
-         ,@(for/list ([name (in-list struct-prefab-immutables-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
-
-         ;; Prefab constructor helpers
-         ;;   Implemented in runtime-wasm/core/structs.rkt.
-         ,@(for/list ([name (in-list struct-prefab-constructor-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
+         ,@(struct-prefab-runtime-helper-forms runtime-helper-index)
 
          ;; Struct type construction helpers
          ;;   Implemented in runtime-wasm/core/structs.rkt.
-         ,@(for/list ([name (in-list struct-type-constructor-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
-
-         ;; Struct accessor helpers
-         ;;   Implemented in runtime-wasm/core/structs.rkt.
-         ,@(for/list ([name (in-list struct-accessor-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
-
-         ;; Struct constructor wrapper helpers
-         ;;   Implemented in runtime-wasm/core/structs.rkt.
-         ,@(for/list ([name (in-list struct-constructor-wrapper-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
+         ,@(struct-construction-runtime-helper-forms runtime-helper-index)
 
         ,@(runtime-function-declaration-forms primitive-shapes
                                              (active-described-primitives-sorted)
@@ -2501,42 +2409,7 @@
 
         ;; Struct constructor implementation helpers
         ;;   Implemented in runtime-wasm/core/structs.rkt.
-        ,@(for/list ([name (in-list struct-constructor-runtime-only-helper-names)])
-            (core-runtime-helper-form runtime-helper-index name))
-
-         ;; Struct mutator helpers
-         ;;   Implemented in runtime-wasm/core/structs.rkt.
-         ,@(for/list ([name (in-list struct-mutator-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
-
-
-
-         ;; Struct field mutator helpers
-         ;;   Implemented in runtime-wasm/core/structs.rkt.
-         ,@(for/list ([name (in-list struct-field-mutator-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
-
-         ;; Struct predicate helpers
-         ;;   Implemented in runtime-wasm/core/structs.rkt.
-         ,@(for/list ([name (in-list struct-predicate-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
-
-         ;; Struct field accessor helpers
-         ;;   Implemented in runtime-wasm/core/structs.rkt.
-         ,@(for/list ([name (in-list struct-field-accessor-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
-
-
-         ;; Struct procedure predicates
-         ;;   Implemented in runtime-wasm/core/structs.rkt.
-         ,@(for/list ([name (in-list struct-procedure-predicate-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
-
-
-         ;; Struct guarded constructor helpers
-         ;;   Implemented in runtime-wasm/core/structs.rkt.
-         ,@(for/list ([name (in-list struct-guarded-constructor-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
+        ,@(struct-constructor-access-runtime-helper-forms runtime-helper-index)
 
          ;; -------------------------------------------------------------------
          ;; Structure Type Properties
@@ -2544,33 +2417,7 @@
 
          ;; Struct type property lookup helpers
          ;;   Implemented in runtime-wasm/core/structs.rkt.
-         ,@(for/list ([name (in-list struct-type-property-lookup-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
-
-         ;; Struct type property closure helpers
-         ;;   Implemented in runtime-wasm/core/structs.rkt.
-         ,@(for/list ([name (in-list struct-type-property-closure-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
-
-         ;; Struct type property predicate helpers
-         ;;   Implemented in runtime-wasm/core/structs.rkt.
-         ,@(for/list ([name (in-list struct-type-property-predicate-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
-
-         ;; Struct type property descriptor helpers
-         ;;   Implemented in runtime-wasm/core/structs.rkt.
-         ,@(for/list ([name (in-list struct-type-property-descriptor-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
-
-         ;; Struct type property table and attachment helpers
-         ;;   Implemented in runtime-wasm/core/structs.rkt.
-         ,@(for/list ([name (in-list struct-type-property-table-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
-
-         ;; Struct type property construction helpers
-         ;;   Implemented in runtime-wasm/core/structs.rkt.
-         ,@(for/list ([name (in-list struct-type-property-constructor-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
+         ,@(struct-type-property-runtime-helper-forms runtime-helper-index)
 
 
          ;;;
@@ -2579,8 +2426,7 @@
 
          ;; Struct procedure helpers
          ;;   Implemented in runtime-wasm/core/structs.rkt.
-         ,@(for/list ([name (in-list struct-procedure-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
+         ,@(struct-procedure-runtime-helper-forms runtime-helper-index)
 
          ;; Procedure helpers
          ;;   Implemented in runtime-wasm/core/procedures.rkt.

@@ -1,39 +1,16 @@
 #lang racket
 
-(provide struct-basic-runtime-only-helper-names
-         struct-runtime-string-constants
+(provide struct-runtime-string-constants
          struct-runtime-symbol-constants
-         struct-conversion-runtime-only-helper-names
-         struct-descriptor-runtime-only-helper-names
-         struct-format-runtime-only-helper-names
-         struct-prefab-basic-runtime-only-helper-names
-         struct-prefab-key-runtime-only-helper-names
-         struct-prefab-key-validation-runtime-only-helper-names
-         struct-prefab-key-accessor-runtime-only-helper-names
-         struct-prefab-chain-runtime-only-helper-names
-         struct-prefab-struct-type-runtime-only-helper-names
-         struct-prefab-metadata-runtime-only-helper-names
-         struct-prefab-immutables-runtime-only-helper-names
-         struct-prefab-constructor-runtime-only-helper-names
-         struct-type-constructor-runtime-only-helper-names
-         struct-accessor-runtime-only-helper-names
-         struct-constructor-wrapper-runtime-only-helper-names
-         struct-constructor-runtime-only-helper-names
-         struct-mutator-runtime-only-helper-names
-         struct-field-mutator-runtime-only-helper-names
-         struct-predicate-runtime-only-helper-names
-         struct-field-accessor-runtime-only-helper-names
-         struct-procedure-predicate-runtime-only-helper-names
-         struct-guarded-constructor-runtime-only-helper-names
-         struct-type-property-lookup-runtime-only-helper-names
-         struct-type-property-closure-runtime-only-helper-names
-         struct-type-property-predicate-runtime-only-helper-names
-         struct-type-property-descriptor-runtime-only-helper-names
-         struct-type-property-table-runtime-only-helper-names
-         struct-type-property-constructor-runtime-only-helper-names
-         struct-procedure-invoker-runtime-only-helper-names
-         struct-procedure-runtime-only-helper-names
+         struct-procedure-invoker-runtime-helper-forms
          struct-core-predicate-runtime-helper-forms
+         struct-prefab-registry-runtime-helper-forms
+         struct-basic-runtime-helper-forms
+         struct-prefab-runtime-helper-forms
+         struct-construction-runtime-helper-forms
+         struct-constructor-access-runtime-helper-forms
+         struct-type-property-runtime-helper-forms
+         struct-procedure-runtime-helper-forms
          struct-prefab-registry-global-forms
          struct-core-runtime-helpers
          struct-runtime-only-helpers)
@@ -152,6 +129,11 @@
 ;;   Render struct core predicate helpers in runtime assembly order.
 (define (struct-core-predicate-runtime-helper-forms helper-index)
   (struct-helper-forms helper-index struct-core-predicate-runtime-helper-names))
+
+;; struct-prefab-registry-runtime-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for prefab registry initialization.
+(define struct-prefab-registry-runtime-helper-names
+  '($initialize-prefab-struct-type-registry))
 
 ;; struct-guarded-constructor-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for guarded constructor helpers.
@@ -377,6 +359,95 @@
     $struct-predicate-procedure?
     $struct-accessor-procedure?
     $struct-mutator-procedure?))
+
+;; struct-basic-runtime-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for basic struct helpers before prefab support.
+(define struct-basic-runtime-helper-names
+  (append struct-basic-runtime-only-helper-names
+          struct-conversion-runtime-only-helper-names
+          struct-format-runtime-only-helper-names
+          struct-descriptor-runtime-only-helper-names))
+
+;; struct-prefab-runtime-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for prefab struct helpers.
+(define struct-prefab-runtime-helper-names
+  (append struct-prefab-basic-runtime-only-helper-names
+          struct-prefab-key-runtime-only-helper-names
+          struct-prefab-key-validation-runtime-only-helper-names
+          struct-prefab-key-accessor-runtime-only-helper-names
+          struct-prefab-chain-runtime-only-helper-names
+          struct-prefab-struct-type-runtime-only-helper-names
+          struct-prefab-metadata-runtime-only-helper-names
+          struct-prefab-immutables-runtime-only-helper-names
+          struct-prefab-constructor-runtime-only-helper-names))
+
+;; struct-construction-runtime-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order before primitive function declarations.
+(define struct-construction-runtime-helper-names
+  (append struct-type-constructor-runtime-only-helper-names
+          struct-accessor-runtime-only-helper-names
+          struct-constructor-wrapper-runtime-only-helper-names))
+
+;; struct-constructor-access-runtime-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order after primitive function declarations.
+(define struct-constructor-access-runtime-helper-names
+  (append struct-constructor-runtime-only-helper-names
+          struct-mutator-runtime-only-helper-names
+          struct-field-mutator-runtime-only-helper-names
+          struct-predicate-runtime-only-helper-names
+          struct-field-accessor-runtime-only-helper-names
+          struct-procedure-predicate-runtime-only-helper-names
+          struct-guarded-constructor-runtime-only-helper-names))
+
+;; struct-type-property-runtime-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for structure type property helpers.
+(define struct-type-property-runtime-helper-names
+  (append struct-type-property-lookup-runtime-only-helper-names
+          struct-type-property-closure-runtime-only-helper-names
+          struct-type-property-predicate-runtime-only-helper-names
+          struct-type-property-descriptor-runtime-only-helper-names
+          struct-type-property-table-runtime-only-helper-names
+          struct-type-property-constructor-runtime-only-helper-names))
+
+;; struct-procedure-invoker-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render the struct procedure invoker in runtime assembly order.
+(define (struct-procedure-invoker-runtime-helper-forms helper-index)
+  (struct-helper-forms helper-index struct-procedure-invoker-runtime-only-helper-names))
+
+;; struct-prefab-registry-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render prefab registry initialization helpers in runtime assembly order.
+(define (struct-prefab-registry-runtime-helper-forms helper-index)
+  (struct-helper-forms helper-index struct-prefab-registry-runtime-helper-names))
+
+;; struct-basic-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render basic struct helpers in runtime assembly order.
+(define (struct-basic-runtime-helper-forms helper-index)
+  (struct-helper-forms helper-index struct-basic-runtime-helper-names))
+
+;; struct-prefab-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render prefab struct helpers in runtime assembly order.
+(define (struct-prefab-runtime-helper-forms helper-index)
+  (struct-helper-forms helper-index struct-prefab-runtime-helper-names))
+
+;; struct-construction-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render struct construction helpers placed before primitive function declarations.
+(define (struct-construction-runtime-helper-forms helper-index)
+  (struct-helper-forms helper-index struct-construction-runtime-helper-names))
+
+;; struct-constructor-access-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render struct constructor, predicate, accessor, and mutator helpers.
+(define (struct-constructor-access-runtime-helper-forms helper-index)
+  (struct-helper-forms helper-index struct-constructor-access-runtime-helper-names))
+
+;; struct-type-property-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render structure type property helpers in runtime assembly order.
+(define (struct-type-property-runtime-helper-forms helper-index)
+  (struct-helper-forms helper-index struct-type-property-runtime-helper-names))
+
+;; struct-procedure-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render procedural struct helpers in runtime assembly order.
+(define (struct-procedure-runtime-helper-forms helper-index)
+  (struct-helper-forms helper-index struct-procedure-runtime-only-helper-names))
 
 ;; struct-basic-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate basic struct predicates and checkers used by the monolithic runtime.
@@ -6470,6 +6541,41 @@
   (define struct-core-helper-index
     (make-core-runtime-helper-index struct-core-runtime-helpers))
 
+  (define struct-helper-index
+    (make-core-runtime-helper-index struct-runtime-only-helpers))
+
   (check-equal?
    (map form-name (struct-core-predicate-runtime-helper-forms struct-core-helper-index))
-   struct-core-predicate-runtime-helper-names))
+   struct-core-predicate-runtime-helper-names)
+
+  (check-equal?
+   (map form-name (struct-procedure-invoker-runtime-helper-forms struct-helper-index))
+   struct-procedure-invoker-runtime-only-helper-names)
+
+  (check-equal?
+   (map form-name (struct-prefab-registry-runtime-helper-forms struct-helper-index))
+   struct-prefab-registry-runtime-helper-names)
+
+  (check-equal?
+   (map form-name (struct-basic-runtime-helper-forms struct-helper-index))
+   struct-basic-runtime-helper-names)
+
+  (check-equal?
+   (map form-name (struct-prefab-runtime-helper-forms struct-helper-index))
+   struct-prefab-runtime-helper-names)
+
+  (check-equal?
+   (map form-name (struct-construction-runtime-helper-forms struct-helper-index))
+   struct-construction-runtime-helper-names)
+
+  (check-equal?
+   (map form-name (struct-constructor-access-runtime-helper-forms struct-helper-index))
+   struct-constructor-access-runtime-helper-names)
+
+  (check-equal?
+   (map form-name (struct-type-property-runtime-helper-forms struct-helper-index))
+   struct-type-property-runtime-helper-names)
+
+  (check-equal?
+   (map form-name (struct-procedure-runtime-helper-forms struct-helper-index))
+   struct-procedure-runtime-only-helper-names))
