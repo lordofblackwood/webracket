@@ -2,16 +2,10 @@
 
 (provide list-core-runtime-helpers
          pair-global-forms
+         list-pre-contract-runtime-helper-forms
+         list-post-contract-runtime-helper-forms
          list-runtime-string-constants
          list-runtime-symbol-constants
-         list-member-runtime-only-helper-names
-         list-association-runtime-only-helper-names
-         list-group-by-runtime-only-helper-names
-         list-remove-runtime-only-helper-names
-         list-remove-star-runtime-only-helper-names
-         list-error-runtime-only-helper-names
-         list-ordinal-accessor-runtime-only-helper-names
-         pair-accessor-runtime-only-helper-names
          list-runtime-only-helpers)
 
 (require "../core-helper.rkt"
@@ -7410,3 +7404,200 @@
                           (local.set $i (i32.sub (local.get $i) (i32.const 1)))
                           (br $rev)))
              (local.get $res)))))))
+
+;; list-helper-forms : hasheq? (listof symbol?) -> (listof datum?)
+;;   Render list helpers from the monolithic runtime helper index.
+(define (list-helper-forms runtime-helper-index names)
+  (for/list ([name (in-list names)])
+    (core-runtime-helper-form runtime-helper-index name)))
+
+;; list-pre-contract-runtime-helper-specs : (listof (list/c symbol? symbol?))
+;;   Preserve list helper emission order before generic contract helpers.
+(define list-pre-contract-runtime-helper-specs
+  (append
+   (for/list ([name (in-list list-error-runtime-only-helper-names)])
+     (list 'runtime name))
+   '((core    $pair?)
+     (core    $cons?)
+     (core    $null?)
+     (core    $empty?)
+     (core    $cons)
+     (core    $list*)
+     (runtime $car)
+     (runtime $cdr))
+   (for/list ([name (in-list pair-accessor-runtime-only-helper-names)])
+     (list 'runtime name))
+   '((core    $list?)
+     (core    $list)
+     (runtime $length/i32)
+     (runtime $length)
+     (runtime $list-ref/checked)
+     (runtime $list-ref))
+   (for/list ([name (in-list list-ordinal-accessor-runtime-only-helper-names)])
+     (list 'runtime name))
+   '((runtime $rest)
+     (core    $last-pair/checked)
+     (runtime $last)
+     (runtime $last-pair)
+     (runtime $list-tail/checked/who)
+     (runtime $list-tail/checked)
+     (runtime $list-tail)
+     (runtime $list-set/checked)
+     (runtime $list-set)
+     (runtime $drop/who)
+     (runtime $drop)
+     (runtime $drop-right/who)
+     (runtime $drop-right)
+     (runtime $dropf)
+     (runtime $dropf-right)
+     (runtime $split-at)
+     (runtime $split-at-right)
+     (runtime $splitf-at)
+     (runtime $splitf-at-right)
+     (runtime $append)
+     (runtime $append/2)
+     (runtime $qq-append)
+     (runtime $append*)
+     (runtime $flatten)
+     (runtime $reverse)
+     (runtime $alt-reverse))
+   (for/list ([name (in-list list-member-runtime-only-helper-names)])
+     (list 'runtime name))
+   '((runtime $memf))
+   (for/list ([name (in-list list-association-runtime-only-helper-names)])
+     (list 'runtime name))
+   '((runtime $assf)
+     (runtime $findf)
+     (runtime $index-of)
+     (runtime $index-where)
+     (runtime $indexes-of)
+     (runtime $indexes-where))
+   (for/list ([name (in-list list-group-by-runtime-only-helper-names)])
+     (list 'runtime name))
+   '((runtime $cartesian-product)
+     (runtime $permutations)
+     (runtime $make-list)
+     (core    $make-list/checked)
+     (runtime $build-list)
+     (runtime $build-list/checked)
+     (runtime $range-proc)
+     (runtime $range)
+     (runtime $range/fixnum)
+     (runtime $range/flonum)
+     (runtime $inclusive-range-proc)
+     (runtime $inclusive-range)
+     (runtime $inclusive-range/fixnum)
+     (runtime $inclusive-range/flonum)
+     (runtime $list-update/checked/who)
+     (runtime $list-update/checked)
+     (runtime $list-update)
+     (runtime $argmax)
+     (runtime $argmin))))
+
+;; list-post-contract-runtime-helper-names : (listof symbol?)
+;;   Preserve list helper emission order after generic contract helpers.
+(define list-post-contract-runtime-helper-names
+  (append
+   '($list-from-range
+     $list-from-range/checked
+     $map
+     $andmap
+     $ormap
+     $validate-list-args
+     $seed-list-args
+     $append-map
+     $count
+     $for-each
+     $foldl
+     $foldl/1
+     $foldl/2
+     $foldl/n
+     $foldr
+     $foldr/1-loop
+     $foldr/1
+     $foldr/2-loop
+     $foldr/2
+     $foldr/n-loop
+     $foldr/n
+     $filter
+     $filter-map
+     $filter-not
+     $shuffle
+     $partition
+     $remove
+     $remf
+     $remf*
+     $remf/impl)
+   list-remove-runtime-only-helper-names
+   '($remove*
+     $remove*/checked
+     $remove*/checked/1)
+   list-remove-star-runtime-only-helper-names
+   '($raise-take:bad-length
+     $raise-take:bad-length/who
+     $raise-take-right:bad-length
+     $raise-take-right:bad-length/who
+     $take/who
+     $take
+     $take-right/who
+     $take-right
+     $takef
+     $takef-right
+     $list-prefix?
+     $take-common-prefix
+     $drop-common-prefix
+     $split-common-prefix
+     $add-between
+     $sort
+     $sort/expanded-keywords
+     $sort/keyword-apply
+     $sort:merge
+     $sort:merge/key
+     $sort:split
+     $sort:merge-sort
+     $sort:merge-sort/key
+     $sort:cache-key-pairs
+     $sort:extract-cached-values
+     $sort:merge/cached-key
+     $sort:merge-sort/cached-key)))
+
+;; list-pre-contract-runtime-helper-forms : hasheq? hasheq? -> (listof datum?)
+;;   Render list helpers that appear before generic contract helpers.
+(define (list-pre-contract-runtime-helper-forms runtime-helper-index
+                                                core-runtime-helper-index)
+  (for/list ([spec (in-list list-pre-contract-runtime-helper-specs)])
+    (match-define (list source name) spec)
+    (case source
+      [(core)    (core-runtime-helper-form core-runtime-helper-index name)]
+      [(runtime) (core-runtime-helper-form runtime-helper-index name)]
+      [else      (error 'list-pre-contract-runtime-helper-forms
+                        "unknown helper source: ~a" source)])))
+
+;; list-post-contract-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render list helpers that appear after generic contract helpers.
+(define (list-post-contract-runtime-helper-forms runtime-helper-index)
+  (list-helper-forms runtime-helper-index list-post-contract-runtime-helper-names))
+
+(module+ test
+  (require rackunit)
+
+  ;; form-name : datum? -> symbol?
+  ;;   Return the function name from a rendered helper form.
+  (define (form-name form)
+    (second form))
+
+  (define list-core-helper-index
+    (make-core-runtime-helper-index list-core-runtime-helpers))
+
+  (define list-helper-index
+    (make-core-runtime-helper-index list-runtime-only-helpers))
+
+  (check-equal?
+   (map form-name
+        (list-pre-contract-runtime-helper-forms list-helper-index
+                                                list-core-helper-index))
+   (map second list-pre-contract-runtime-helper-specs))
+
+  (check-equal?
+   (map form-name (list-post-contract-runtime-helper-forms list-helper-index))
+   list-post-contract-runtime-helper-names))

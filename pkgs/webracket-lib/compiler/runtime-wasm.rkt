@@ -162,15 +162,9 @@
                   keyword-runtime-only-helper-names
                   keyword-runtime-only-helpers)
          (only-in "runtime-wasm/core/lists.rkt"
-                  list-association-runtime-only-helper-names
-                  list-error-runtime-only-helper-names
-                  list-group-by-runtime-only-helper-names
-                  list-member-runtime-only-helper-names
-                  list-ordinal-accessor-runtime-only-helper-names
-                  list-remove-runtime-only-helper-names
-                  list-remove-star-runtime-only-helper-names
+                  list-pre-contract-runtime-helper-forms
+                  list-post-contract-runtime-helper-forms
                   pair-global-forms
-                  pair-accessor-runtime-only-helper-names
                   list-runtime-only-helpers)
          (only-in "runtime-wasm/core/linklet-instances.rkt"
                   linklet-instance-runtime-only-helper-names
@@ -1809,191 +1803,17 @@
 
          ,@pair-global-forms
 
-         ;; Pair/list related exceptions
+         ;; Pair/list helpers
          ;;   Implemented in runtime-wasm/core/lists.rkt.
-         ,@(for/list ([name (in-list list-error-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
-
-         ,(core-runtime-helper-form core-runtime-helper-index '$pair?)
-         ,(core-runtime-helper-form core-runtime-helper-index '$cons?)
-         ,(core-runtime-helper-form core-runtime-helper-index '$null?)
-         ,(core-runtime-helper-form core-runtime-helper-index '$empty?)
-         ,(core-runtime-helper-form core-runtime-helper-index '$cons)
-         ,(core-runtime-helper-form core-runtime-helper-index '$list*)
-         ,(core-runtime-helper-form runtime-helper-index '$car)
-         ,(core-runtime-helper-form runtime-helper-index '$cdr)
-
-         ,@(for/list ([name (in-list pair-accessor-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
-
-         ,(core-runtime-helper-form core-runtime-helper-index '$list?)
-         ,(core-runtime-helper-form core-runtime-helper-index '$list)
-         ,(core-runtime-helper-form runtime-helper-index '$length/i32)
-         ,(core-runtime-helper-form runtime-helper-index '$length)
-         ,(core-runtime-helper-form runtime-helper-index '$list-ref/checked)
-         ,(core-runtime-helper-form runtime-helper-index '$list-ref)
-
-         ;; first through fifteenth
-         ;;   Implemented in runtime-wasm/core/lists.rkt.
-         ,@(for/list ([name (in-list list-ordinal-accessor-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
-
-        ,(core-runtime-helper-form runtime-helper-index '$rest)
-        ,(core-runtime-helper-form core-runtime-helper-index '$last-pair/checked)
-        ,(core-runtime-helper-form runtime-helper-index '$last)
-        ,(core-runtime-helper-form runtime-helper-index '$last-pair)
-        ,(core-runtime-helper-form runtime-helper-index '$list-tail/checked/who)
-        ,(core-runtime-helper-form runtime-helper-index '$list-tail/checked)
-        ,(core-runtime-helper-form runtime-helper-index '$list-tail)
-        ,(core-runtime-helper-form runtime-helper-index '$list-set/checked)
-        ,(core-runtime-helper-form runtime-helper-index '$list-set)
-        ,(core-runtime-helper-form runtime-helper-index '$drop/who)
-        ,(core-runtime-helper-form runtime-helper-index '$drop)
-        ,(core-runtime-helper-form runtime-helper-index '$drop-right/who)
-        ,(core-runtime-helper-form runtime-helper-index '$drop-right)
-        ,(core-runtime-helper-form runtime-helper-index '$dropf)
-        ,(core-runtime-helper-form runtime-helper-index '$dropf-right)
-        ,(core-runtime-helper-form runtime-helper-index '$split-at)
-        ,(core-runtime-helper-form runtime-helper-index '$split-at-right)
-        ,(core-runtime-helper-form runtime-helper-index '$splitf-at)
-        ,(core-runtime-helper-form runtime-helper-index '$splitf-at-right)
-         ,(core-runtime-helper-form runtime-helper-index '$append)
-         ,(core-runtime-helper-form runtime-helper-index '$append/2)
-         ,(core-runtime-helper-form runtime-helper-index '$qq-append)
-         ,(core-runtime-helper-form runtime-helper-index '$append*)
-         ,(core-runtime-helper-form runtime-helper-index '$flatten)
-         ,(core-runtime-helper-form runtime-helper-index '$reverse)
-         ,(core-runtime-helper-form runtime-helper-index '$alt-reverse)
-
-         ,@(for/list ([name (in-list list-member-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
-
-         ,(core-runtime-helper-form runtime-helper-index '$memf)
-
-
-         ,@(for/list ([name (in-list list-association-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
-
-         ,(core-runtime-helper-form runtime-helper-index '$assf)
-         ,(core-runtime-helper-form runtime-helper-index '$findf)
-         ,(core-runtime-helper-form runtime-helper-index '$index-of)
-         ,(core-runtime-helper-form runtime-helper-index '$index-where)
-         ,(core-runtime-helper-form runtime-helper-index '$indexes-of)
-         ,(core-runtime-helper-form runtime-helper-index '$indexes-where)
-
-
-        ,@(for/list ([name (in-list list-group-by-runtime-only-helper-names)])
-            (core-runtime-helper-form runtime-helper-index name))
-
-
-
-         ,(core-runtime-helper-form runtime-helper-index '$cartesian-product)
-         ,(core-runtime-helper-form runtime-helper-index '$permutations)
-         ,(core-runtime-helper-form runtime-helper-index '$make-list)
-         ,(core-runtime-helper-form core-runtime-helper-index '$make-list/checked)
-         ,(core-runtime-helper-form runtime-helper-index '$build-list)
-         ,(core-runtime-helper-form runtime-helper-index '$build-list/checked)
-         ,(core-runtime-helper-form runtime-helper-index '$range-proc)
-         ,(core-runtime-helper-form runtime-helper-index '$range)
-         ,(core-runtime-helper-form runtime-helper-index '$range/fixnum)
-         ,(core-runtime-helper-form runtime-helper-index '$range/flonum)
-         ,(core-runtime-helper-form runtime-helper-index '$inclusive-range-proc)
-         ,(core-runtime-helper-form runtime-helper-index '$inclusive-range)
-         ,(core-runtime-helper-form runtime-helper-index '$inclusive-range/fixnum)
-         ,(core-runtime-helper-form runtime-helper-index '$inclusive-range/flonum)
-         ,(core-runtime-helper-form runtime-helper-index '$list-update/checked/who)
-         ,(core-runtime-helper-form runtime-helper-index '$list-update/checked)
-         ,(core-runtime-helper-form runtime-helper-index '$list-update)
-         ,(core-runtime-helper-form runtime-helper-index '$argmax)
-         ,(core-runtime-helper-form runtime-helper-index '$argmin)
+         ,@(list-pre-contract-runtime-helper-forms runtime-helper-index
+                                                   core-runtime-helper-index)
 
          ;; Generic contract-error helpers
          ;;   Implemented in runtime-wasm/core/exceptions.rkt.
          ,@(for/list ([name (in-list exception-contract-runtime-only-helper-names)])
              (core-runtime-helper-form runtime-helper-index name))
 
-         ,(core-runtime-helper-form runtime-helper-index '$list-from-range)
-         ,(core-runtime-helper-form runtime-helper-index '$list-from-range/checked)
-         ,(core-runtime-helper-form runtime-helper-index '$map)
-         ,(core-runtime-helper-form runtime-helper-index '$andmap)
-         ,(core-runtime-helper-form runtime-helper-index '$ormap)
-         ,(core-runtime-helper-form runtime-helper-index '$validate-list-args)
-         ,(core-runtime-helper-form runtime-helper-index '$seed-list-args)
-         ,(core-runtime-helper-form runtime-helper-index '$append-map)
-         ,(core-runtime-helper-form runtime-helper-index '$count)
-         ,(core-runtime-helper-form runtime-helper-index '$for-each)
-         ,(core-runtime-helper-form runtime-helper-index '$foldl)
-         ,(core-runtime-helper-form runtime-helper-index '$foldl/1)
-         ,(core-runtime-helper-form runtime-helper-index '$foldl/2)
-         ,(core-runtime-helper-form runtime-helper-index '$foldl/n)
-         ,(core-runtime-helper-form runtime-helper-index '$foldr)
-         ,(core-runtime-helper-form runtime-helper-index '$foldr/1-loop)
-         ,(core-runtime-helper-form runtime-helper-index '$foldr/1)
-         ,(core-runtime-helper-form runtime-helper-index '$foldr/2-loop)
-         ,(core-runtime-helper-form runtime-helper-index '$foldr/2)
-         ,(core-runtime-helper-form runtime-helper-index '$foldr/n-loop)
-         ,(core-runtime-helper-form runtime-helper-index '$foldr/n)
-         ,(core-runtime-helper-form runtime-helper-index '$filter)
-         ,(core-runtime-helper-form runtime-helper-index '$filter-map)
-
-         ;; Like filter, but keeps elements for which the predicate returns false
-         ,(core-runtime-helper-form runtime-helper-index '$filter-not)
-         ,(core-runtime-helper-form runtime-helper-index '$shuffle)
-         ,(core-runtime-helper-form runtime-helper-index '$partition)
-         ,(core-runtime-helper-form runtime-helper-index '$remove)
-         ,(core-runtime-helper-form runtime-helper-index '$remf)
-         ,(core-runtime-helper-form runtime-helper-index '$remf*)
-
-        ;; Remove list elements using predicate
-         ,(core-runtime-helper-form runtime-helper-index '$remf/impl)
-
-
-
-
-
-        ,@(for/list ([name (in-list list-remove-runtime-only-helper-names)])
-            (core-runtime-helper-form runtime-helper-index name))
-
-         ,(core-runtime-helper-form runtime-helper-index '$remove*)
-
-        ;; Iterate through the value list, removing each one in turn
-         ,(core-runtime-helper-form runtime-helper-index '$remove*/checked)
-
-        ;; Remove all occurrences of a single value from a list using the comparator
-         ,(core-runtime-helper-form runtime-helper-index '$remove*/checked/1)
-
-
-
-        ,@(for/list ([name (in-list list-remove-star-runtime-only-helper-names)])
-            (core-runtime-helper-form runtime-helper-index name))
-
-         ,(core-runtime-helper-form runtime-helper-index '$raise-take:bad-length)
-         ,(core-runtime-helper-form runtime-helper-index '$raise-take:bad-length/who)
-         ,(core-runtime-helper-form runtime-helper-index '$raise-take-right:bad-length)
-         ,(core-runtime-helper-form runtime-helper-index '$raise-take-right:bad-length/who)
-         ,(core-runtime-helper-form runtime-helper-index '$take/who)
-         ,(core-runtime-helper-form runtime-helper-index '$take)
-         ,(core-runtime-helper-form runtime-helper-index '$take-right/who)
-         ,(core-runtime-helper-form runtime-helper-index '$take-right)
-         ,(core-runtime-helper-form runtime-helper-index '$takef)
-         ,(core-runtime-helper-form runtime-helper-index '$takef-right)
-         ,(core-runtime-helper-form runtime-helper-index '$list-prefix?)
-         ,(core-runtime-helper-form runtime-helper-index '$take-common-prefix)
-         ,(core-runtime-helper-form runtime-helper-index '$drop-common-prefix)
-         ,(core-runtime-helper-form runtime-helper-index '$split-common-prefix)
-         ,(core-runtime-helper-form runtime-helper-index '$add-between)
-         ,(core-runtime-helper-form runtime-helper-index '$sort)
-         ,(core-runtime-helper-form runtime-helper-index '$sort/expanded-keywords)
-         ,(core-runtime-helper-form runtime-helper-index '$sort/keyword-apply)
-         ,(core-runtime-helper-form runtime-helper-index '$sort:merge)
-         ,(core-runtime-helper-form runtime-helper-index '$sort:merge/key)
-         ,(core-runtime-helper-form runtime-helper-index '$sort:split)
-         ,(core-runtime-helper-form runtime-helper-index '$sort:merge-sort)
-         ,(core-runtime-helper-form runtime-helper-index '$sort:merge-sort/key)
-         ,(core-runtime-helper-form runtime-helper-index '$sort:cache-key-pairs)
-         ,(core-runtime-helper-form runtime-helper-index '$sort:extract-cached-values)
-         ,(core-runtime-helper-form runtime-helper-index '$sort:merge/cached-key)
-         ,(core-runtime-helper-form runtime-helper-index '$sort:merge-sort/cached-key)
+         ,@(list-post-contract-runtime-helper-forms runtime-helper-index)
 
 
          ;;;
