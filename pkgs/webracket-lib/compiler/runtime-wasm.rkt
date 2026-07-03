@@ -22,18 +22,12 @@
                   array-runtime-only-helper-names
                   array-runtime-only-helpers)
          (only-in "runtime-wasm/core/booleans.rkt"
-                  boolean-runtime-string-constants
                   boolean-runtime-only-helpers
                   boolean-runtime-only-helper-names)
          (only-in "runtime-wasm/core/boxes.rkt"
-                  box-runtime-string-constants
                   box-mutability-runtime-only-helper-names
                   box-runtime-only-helpers)
          (only-in "runtime-wasm/core/bytes.rkt"
-                  bytes-runtime-string-constants
-                  bytes-runtime-bytes-constants
-                  byte-predicate-runtime-symbol-constants
-                  bytes-runtime-symbol-constants
                   bytes-basic-runtime-only-helper-names
                   byte-comparison-runtime-only-helper-names
                   byte-indexing-runtime-only-helper-names
@@ -45,13 +39,9 @@
          (only-in "runtime-wasm/core/characters.rkt"
                   character-general-category-global-forms
                   character-general-category-initializer-forms
-                  character-general-category-runtime-symbol-constants
-                  character-runtime-symbol-constants
                   character-runtime-only-helper-names
                   character-runtime-only-helpers)
          (only-in "runtime-wasm/core/checkers.rkt"
-                  checker-runtime-string-constants
-                  checker-runtime-symbol-constants
                   checker-runtime-only-helpers
                   checker-runtime-only-helper-names)
          (only-in "runtime-wasm/core/closures.rkt"
@@ -60,9 +50,6 @@
          (only-in "runtime-wasm/core/control-flow.rkt"
                   continuation-mark-runtime-only-helper-names
                   continuation-runtime-only-helper-names
-                  continuation-runtime-symbol-constants
-                  control-flow-runtime-string-constants
-                  multiple-value-runtime-symbol-constants
                   multiple-value-runtime-only-helper-names
                   value-expectation-runtime-only-helper-names
                   control-flow-runtime-only-helpers)
@@ -76,18 +63,12 @@
                   exception-struct-type-cache-global-forms
                   exception-struct-type-global-forms
                   exception-struct-type-initializer-forms
-                  exception-runtime-string-constants
-                  exception-runtime-symbol-constants
-                  exception-fail-runtime-symbol-constants
-                  exception-break-runtime-symbol-constants
                   exception-contract-runtime-only-helper-names
                   exception-contract-runtime-only-helpers
                   exception-runtime-only-helper-names
                   exception-runtime-only-helpers)
          (only-in "runtime-wasm/core/events.rkt"
                   event-global-forms
-                  event-runtime-string-constants
-                  event-runtime-symbol-constants
                   event-initializer-forms
                   event-runtime-only-helpers)
          (only-in "runtime-wasm/core/fasl.rkt"
@@ -99,17 +80,12 @@
                   external-value-runtime-only-helper-names
                   ffi-callback-global-forms
                   ffi-entry-global-forms
-                  ffi-runtime-string-constants
-                  ffi-runtime-symbol-constants
                   ffi-runtime-only-helpers
                   ffi-runtime-only-helper-forms
                   unsafe-ffi-primitive-table-global-forms
                   unsafe-ffi-runtime-only-helper-forms)
          (only-in "runtime-wasm/core/filesystem.rkt"
                   filesystem-temporary-global-forms
-                  filesystem-runtime-string-constants
-                  filesystem-runtime-symbol-constants
-                  filesystem-runtime-bytes-constants
                   filesystem-runtime-only-helpers
                   filesystem-runtime-only-helper-names)
          (only-in "runtime-wasm/core/fixnums.rkt"
@@ -119,8 +95,6 @@
                   fixnum-global-forms
                   fixnum-minmax-runtime-only-helper-names
                   fixnum-predicate-runtime-only-helper-names
-                  fixnum-runtime-symbol-constants
-                  fixnum-runtime-string-constants
                   fixnum-runtime-only-helpers)
          (only-in "runtime-wasm/core/flonums.rkt"
                   flonum-arithmetic-runtime-only-helper-names
@@ -135,14 +109,6 @@
                   flonum-runtime-only-helpers)
          (only-in "runtime-wasm/core/formatting.rkt"
                   printer-extension-runtime-only-helper-names
-                  printer-prefix-formatting-runtime-string-constants
-                  immediate-value-formatting-runtime-string-constants
-                  opaque-value-formatting-runtime-string-constants
-                  character-notation-formatting-runtime-string-constants
-                  arrow-formatting-runtime-string-constants
-                  hash-less-formatting-runtime-string-constants
-                  formatting-runtime-string-constants
-                  struct-type-property-formatting-runtime-string-constants
                   unquoted-printing-string-runtime-only-helper-names
                   formatting-runtime-only-helper-names
                   numeric-display-formatting-runtime-only-helper-names
@@ -156,7 +122,6 @@
                   hash-key-value-runtime-only-helper-names
                   hash-map-copy-runtime-only-helper-names
                   hash-map-runtime-only-helper-names
-                  hash-runtime-string-constants
                   hash-runtime-only-helpers
                   hash-seed-global-forms
                   hash-seed-runtime-only-helper-names
@@ -166,8 +131,6 @@
                   immutable-hash-constructor-runtime-only-helper-names
                   immutable-hash-iteration-runtime-only-helper-names
                   immutable-hash-public-runtime-only-helper-names
-                  immutable-hash-runtime-string-constants
-                  immutable-hash-runtime-symbol-constants
                   immutable-hash-runtime-only-helpers)
          (only-in "runtime-wasm/core/i32-arrays.rkt"
                   i32-array-runtime-only-helper-names
@@ -184,19 +147,14 @@
          (only-in "runtime-wasm/core/impersonators.rkt"
                   chaperone-procedure-runtime-only-helper-names
                   impersonator-basic-runtime-only-helper-names
-                  impersonator-runtime-string-constants
-                  impersonator-runtime-symbol-constants
                   impersonator-runtime-only-helpers)
          (only-in "runtime-wasm/core/io-handlers.rkt"
                   io-handler-default-port-global-forms
-                  io-handler-runtime-string-constants
-                  io-handler-runtime-symbol-constants
                   io-handler-error-runtime-only-helper-names
                   io-handler-port-runtime-only-helper-names
                   io-handler-reader-printer-runtime-only-helper-names
                   io-handler-runtime-only-helpers)
          (only-in "runtime-wasm/core/keywords.rkt"
-                  keyword-runtime-string-constants
                   keyword-table-global-forms
                   keyword-table-initializer-runtime-only-helper-names
                   keyword-runtime-only-helper-names
@@ -209,14 +167,10 @@
                   list-ordinal-accessor-runtime-only-helper-names
                   list-remove-runtime-only-helper-names
                   list-remove-star-runtime-only-helper-names
-                  list-runtime-string-constants
-                  list-runtime-symbol-constants
                   pair-global-forms
                   pair-accessor-runtime-only-helper-names
                   list-runtime-only-helpers)
          (only-in "runtime-wasm/core/linklet-instances.rkt"
-                  linklet-instance-runtime-string-constants
-                  linklet-instance-runtime-symbol-constants
                   linklet-instance-runtime-only-helper-names
                   linklet-instance-runtime-only-helpers)
          (only-in "runtime-wasm/core/linklets.rkt"
@@ -230,14 +184,9 @@
                   linklet-primitive-table-initializer-runtime-only-helper-names
                   linklet-primitive-table-initializer-runtime-only-helpers
                   linklet-primitive-table-runtime-only-helper-forms
-                  linklet-runtime-string-constants
-                  linklet-runtime-symbol-constants
-                  linklet-runtime-bytes-constants
                   linklet-runtime-only-helper-forms)
          (only-in "runtime-wasm/core/locations.rkt"
                   location-global-forms
-                  location-runtime-string-constants
-                  location-runtime-symbol-constants
                   location-runtime-only-helpers
                   source-location-runtime-only-helper-names)
          (only-in "runtime-wasm/core/locks.rkt"
@@ -245,13 +194,9 @@
          (only-in "runtime-wasm/core/loggers.rkt"
                   logger-current-global-forms
                   logger-current-initializer-forms
-                  logger-runtime-string-constants
-                  logger-runtime-symbol-constants
                   logger-runtime-only-helpers)
          (only-in "runtime-wasm/core/memory-map.rkt"
                   memory-map-global-forms)
-         (only-in "runtime-wasm/core/mlists.rkt"
-                  mlist-runtime-string-constants)
          (only-in "runtime-wasm/core/mutable-hashes.rkt"
                   mutable-hash-association-constructor-runtime-only-helper-names
                   mutable-hash-constructor-runtime-only-helper-names
@@ -261,7 +206,6 @@
                   namespace-current-global-forms
                   namespace-initializer-forms
                   namespace-module-registry-global-forms
-                  namespace-runtime-string-constants
                   namespace-runtime-only-helpers
                   namespace-runtime-only-helper-names
                   namespace-top-level-global-forms)
@@ -269,7 +213,6 @@
                   generic-arithmetic-runtime-only-helper-names
                   generic-bitwise-runtime-only-helper-names
                   generic-numeric-runtime-only-helper-names
-                  number-runtime-string-constants
                   number-error-runtime-only-helper-names
                   number-runtime-only-helpers
                   number-string-conversion-runtime-only-helper-names
@@ -279,8 +222,6 @@
                   number-type-runtime-only-helper-names)
          (only-in "runtime-wasm/core/parameters.rkt"
                   compile-parameter-global-forms
-                  parameter-runtime-string-constants
-                  parameter-runtime-symbol-constants
                   compile-parameter-runtime-only-helper-names
                   namespace-parameter-runtime-only-helper-names
                   parameterization-binding-runtime-only-helper-names
@@ -304,20 +245,12 @@
          (only-in "runtime-wasm/core/paths.rkt"
                   path-current-global-forms
                   path-current-initializer-forms
-                  path-runtime-string-constants
-                  path-runtime-symbol-constants
-                  path-runtime-bytes-constants
                   path-runtime-only-helpers
                   path-runtime-only-helper-names
                   path-manipulation-runtime-only-helper-names)
          (only-in "runtime-wasm/core/ports.rkt"
                   port-byte-char-runtime-only-helper-names
                   port-byte-char-special-runtime-only-helper-names
-                  port-predicate-runtime-string-constants
-                  port-runtime-symbol-constants
-                  port-event-runtime-string-constants
-                  port-event-runtime-symbol-constants
-                  port-closed-error-runtime-string-constants
                   port-custom-byte-runtime-only-helper-names
                   port-custom-constructor-runtime-only-helper-names
                   port-event-runtime-only-helper-names
@@ -340,8 +273,6 @@
                   primitive-invocation-error-runtime-only-helper-names
                   primitive-reflection-runtime-only-helper-names
                   procedure-global-forms
-                  procedure-runtime-string-constants
-                  procedure-runtime-symbol-constants
                   procedure-arity-at-least-runtime-only-helper-names
                   procedure-arity-field-runtime-only-helper-names
                   procedure-arity-mask-runtime-only-helper-names
@@ -361,22 +292,20 @@
                   random-current-initializer-forms
                   random-generator-runtime-only-helper-names
                   random-public-runtime-only-helper-names
-                  random-runtime-string-constants
                   random-state-global-forms
                   random-runtime-only-helpers)
          (only-in "runtime-wasm/core/realms.rkt"
-                  realm-runtime-symbol-constants
                   realm-global-forms
                   realm-initializer-forms)
          (only-in "runtime-wasm/core/regexps.rkt"
-                  regexp-runtime-string-constants
-                  regexp-runtime-bytes-constants
                   regexp-runtime-only-helper-names
                   regexp-runtime-only-helpers)
+         (only-in "runtime-wasm/core/runtime-constants.rkt"
+                  core-runtime-string-constants
+                  core-runtime-bytes-constants
+                  core-runtime-symbol-constants)
          (only-in "runtime-wasm/core/reflection.rkt"
                   reflection-runtime-only-helper-names
-                  reflection-runtime-string-constants
-                  reflection-runtime-symbol-constants
                   reflection-runtime-only-helpers)
          (only-in "runtime-wasm/core/security.rkt"
                   custodian-current-initializer-forms
@@ -386,16 +315,12 @@
                   security-guard-current-initializer-forms
                   security-post-parameter-runtime-only-helper-names
                   security-pre-parameter-runtime-only-helper-names
-                  security-runtime-string-constants
-                  security-runtime-symbol-constants
                   security-runtime-only-helpers)
          (only-in "runtime-wasm/core/semaphores.rkt"
-                  semaphore-runtime-string-constants
                   semaphore-runtime-only-helpers)
          (only-in "runtime-wasm/core/stencil-vectors.rkt"
                   stencil-vector-runtime-only-helpers)
          (only-in "runtime-wasm/core/strings.rkt"
-                  string-runtime-string-constants
                   string-additional-runtime-only-helper-names
                   string-append-runtime-only-helper-names
                   string-array-conversion-runtime-only-helper-names
@@ -422,8 +347,6 @@
                   string-utf8-runtime-only-helper-names
                   string-runtime-only-helpers)
          (only-in "runtime-wasm/core/structs.rkt"
-                  struct-runtime-string-constants
-                  struct-runtime-symbol-constants
                   struct-basic-runtime-only-helper-names
                   struct-conversion-runtime-only-helper-names
                   struct-descriptor-runtime-only-helper-names
@@ -458,7 +381,6 @@
                   struct-prefab-registry-global-forms
                   struct-runtime-only-helpers)
          (only-in "runtime-wasm/core/symbols.rkt"
-                  symbol-runtime-string-constants
                   symbol-gensym-global-forms
                   symbol-gensym-runtime-only-helper-names
                   symbol-public-runtime-only-helper-names
@@ -467,35 +389,25 @@
                   symbol-table-initializer-runtime-only-helper-names
                   symbol-runtime-only-helpers)
          (only-in "runtime-wasm/core/system.rkt"
-                  system-runtime-string-constants
-                  system-runtime-symbol-constants
                   system-runtime-only-helper-names
                   system-runtime-only-helpers)
          (only-in "runtime-wasm/core/syntax.rkt"
                   correlated-syntax-runtime-only-helper-names
                   syntax-global-forms
-                  syntax-runtime-string-constants
-                  syntax-runtime-symbol-constants
                   syntax-runtime-only-helpers
                   syntax-runtime-only-helper-names)
          (only-in "runtime-wasm/core/threads.rkt"
                   thread-current-global-forms
                   thread-current-initializer-forms
                   thread-group-current-global-forms
-                  thread-runtime-string-constants
-                  thread-runtime-symbol-constants
                   thread-runtime-only-helpers)
          (only-in "runtime-wasm/core/time.rkt"
                   time-runtime-only-helpers
-                  time-runtime-string-constants
-                  time-date-runtime-symbol-constants
-                  time-clock-runtime-symbol-constants
                   time-runtime-only-helper-names)
          (only-in "runtime-wasm/core/treelists.rkt"
                   treelist-error-runtime-only-helper-names
                   treelist-constant-global-forms
                   treelist-empty-global-forms
-                  treelist-runtime-string-constants
                   treelist-runtime-only-helpers)
          (only-in "runtime-wasm/core/unsafe.rkt"
                   unsafe-runtime-only-helpers
@@ -506,8 +418,6 @@
                   vector-build-runtime-only-helper-names
                   vector-constructor-runtime-only-helper-names
                   vector-copy-runtime-only-helper-names
-                  vector-runtime-string-constants
-                  vector-runtime-symbol-constants
                   vector-dummy-array-global-forms
                   vector-dummy-global-forms
                   vector-error-runtime-only-helper-names
@@ -522,8 +432,6 @@
                   vector-sort-runtime-only-helper-names
                   vector-runtime-only-helpers)
          (only-in "runtime-wasm/core/wills.rkt"
-                  will-runtime-string-constants
-                  will-runtime-symbol-constants
                   will-runtime-only-helpers)
          "runtime-wasm/core-runtime.rkt"
          "runtime-wasm/constants.rkt"
@@ -579,6 +487,7 @@
 (define-runtime-path core-random-path "runtime-wasm/core/random.rkt")
 (define-runtime-path core-realms-path "runtime-wasm/core/realms.rkt")
 (define-runtime-path core-regexps-path "runtime-wasm/core/regexps.rkt")
+(define-runtime-path core-runtime-constants-path "runtime-wasm/core/runtime-constants.rkt")
 (define-runtime-path core-reflection-path "runtime-wasm/core/reflection.rkt")
 (define-runtime-path core-security-path "runtime-wasm/core/security.rkt")
 (define-runtime-path core-semaphores-path "runtime-wasm/core/semaphores.rkt")
@@ -953,6 +862,7 @@
                                           core-random-path
                                           core-realms-path
                                           core-regexps-path
+                                          core-runtime-constants-path
                                           core-reflection-path
                                           core-security-path
                                           core-semaphores-path
@@ -2498,114 +2408,9 @@
              eq?)
             symbol<?))
 
-    (add-runtime-symbol-constants realm-runtime-symbol-constants)
-    (add-runtime-symbol-constants character-runtime-symbol-constants)
-    (add-runtime-symbol-constants character-general-category-runtime-symbol-constants)
-
-    ; struct:exn, struct:exn:fail, etc.
-    (for-each (λ (binding) (add-runtime-symbol-constant (car binding)))
-              exception-struct-type-bindings)
-
-    (add-runtime-string-constants printer-prefix-formatting-runtime-string-constants)
-    (add-runtime-string-constants immediate-value-formatting-runtime-string-constants)
-    (add-runtime-string-constants opaque-value-formatting-runtime-string-constants)
-    (add-runtime-string-constants string-runtime-string-constants)
-    (add-runtime-string-constants symbol-runtime-string-constants)
-    (add-runtime-string-constants boolean-runtime-string-constants)
-    (add-runtime-string-constants namespace-runtime-string-constants)
-    (add-runtime-string-constants regexp-runtime-string-constants)
-
-    (add-runtime-string-constants struct-runtime-string-constants)
-    (add-runtime-string-constants formatting-runtime-string-constants)
-
-    (add-runtime-string-constants character-notation-formatting-runtime-string-constants)
-    (add-runtime-string-constants arrow-formatting-runtime-string-constants)
-
-    (add-runtime-string-constants hash-less-formatting-runtime-string-constants)
-    (add-runtime-string-constants struct-type-property-formatting-runtime-string-constants)
-    (add-runtime-string-constants procedure-runtime-string-constants)
-    (add-runtime-string-constants keyword-runtime-string-constants)
-    (add-runtime-string-constants list-runtime-string-constants)
-    (add-runtime-string-constants fixnum-runtime-string-constants)
-    (add-runtime-string-constants bytes-runtime-string-constants)
-    (add-runtime-string-constants vector-runtime-string-constants)
-    (add-runtime-string-constants box-runtime-string-constants)
-    (add-runtime-string-constants immutable-hash-runtime-string-constants)
-    (add-runtime-string-constants port-predicate-runtime-string-constants)
-    (add-runtime-string-constants io-handler-runtime-string-constants)
-    (add-runtime-string-constants port-event-runtime-string-constants)
-    (add-runtime-string-constants parameter-runtime-string-constants)
-    (add-runtime-string-constants random-runtime-string-constants)
-    (add-runtime-string-constants impersonator-runtime-string-constants)
-    (add-runtime-string-constants security-runtime-string-constants)
-    (add-runtime-string-constants mlist-runtime-string-constants)
-    (add-runtime-string-constants number-runtime-string-constants)
-    (add-runtime-string-constants semaphore-runtime-string-constants)
-    (add-runtime-string-constants event-runtime-string-constants)
-    (add-runtime-string-constants will-runtime-string-constants)
-    (add-runtime-string-constants thread-runtime-string-constants)
-    (add-runtime-string-constants exception-runtime-string-constants)
-    (add-runtime-string-constants port-closed-error-runtime-string-constants)
-    (add-runtime-string-constants filesystem-runtime-string-constants)
-    (add-runtime-string-constants path-runtime-string-constants)
-    (add-runtime-string-constants time-runtime-string-constants)
-    (add-runtime-string-constants system-runtime-string-constants)
-    (add-runtime-string-constants ffi-runtime-string-constants)
-    (add-runtime-symbol-constants logger-runtime-symbol-constants)
-    (add-runtime-symbol-constants procedure-runtime-symbol-constants)
-    (add-runtime-symbol-constants struct-runtime-symbol-constants)
-    (add-runtime-symbol-constants bytes-runtime-symbol-constants)
-    (add-runtime-symbol-constants event-runtime-symbol-constants)
-    (add-runtime-symbol-constants will-runtime-symbol-constants)
-    (add-runtime-symbol-constants immutable-hash-runtime-symbol-constants)
-    (add-runtime-symbol-constants impersonator-runtime-symbol-constants)
-    (add-runtime-symbol-constants continuation-runtime-symbol-constants)
-    (add-runtime-symbol-constants thread-runtime-symbol-constants)
-    (add-runtime-symbol-constants security-runtime-symbol-constants)
-    (add-runtime-symbol-constants time-date-runtime-symbol-constants)
-    (add-runtime-symbol-constants exception-runtime-symbol-constants)
-    (add-runtime-symbol-constants exception-fail-runtime-symbol-constants)
-    (add-runtime-symbol-constants time-clock-runtime-symbol-constants)
-    (add-runtime-symbol-constants exception-break-runtime-symbol-constants)
-    (add-runtime-symbol-constants io-handler-runtime-symbol-constants)
-    (add-runtime-symbol-constants port-runtime-symbol-constants)
-    (add-runtime-symbol-constants port-event-runtime-symbol-constants)
-    (add-runtime-symbol-constants parameter-runtime-symbol-constants)
-    (add-runtime-symbol-constants system-runtime-symbol-constants)
-    (add-runtime-symbol-constants linklet-runtime-symbol-constants)
-    (add-runtime-symbol-constants multiple-value-runtime-symbol-constants)
-    (add-runtime-symbol-constants list-runtime-symbol-constants)
-    (add-runtime-symbol-constants fixnum-runtime-symbol-constants)
-    (add-runtime-symbol-constants byte-predicate-runtime-symbol-constants)
-    (add-runtime-symbol-constants vector-runtime-symbol-constants)
-    (add-runtime-symbol-constants ffi-runtime-symbol-constants)
-
-    (add-runtime-string-constants location-runtime-string-constants)
-    (add-runtime-string-constants treelist-runtime-string-constants)
-    (add-runtime-string-constants checker-runtime-string-constants)
-    (add-runtime-symbol-constants location-runtime-symbol-constants)
-    (add-runtime-symbol-constants checker-runtime-symbol-constants)
-
-    (add-runtime-string-constants syntax-runtime-string-constants)
-    (add-runtime-string-constants hash-runtime-string-constants)
-    (add-runtime-string-constants control-flow-runtime-string-constants)
-    (add-runtime-symbol-constants syntax-runtime-symbol-constants)
-    (add-runtime-symbol-constants path-runtime-symbol-constants)
-    (add-runtime-symbol-constants filesystem-runtime-symbol-constants)
-
-    (add-runtime-string-constants linklet-instance-runtime-string-constants)
-    (add-runtime-string-constants linklet-runtime-string-constants)
-    (add-runtime-string-constants logger-runtime-string-constants)
-    (add-runtime-string-constants reflection-runtime-string-constants)
-    (add-runtime-symbol-constants reflection-runtime-symbol-constants)
-    (add-runtime-symbol-constants linklet-instance-runtime-symbol-constants)
-
-    ;; Byte Strings
-    (add-runtime-bytes-constants bytes-runtime-bytes-constants)
-    (add-runtime-bytes-constants path-runtime-bytes-constants)
-    (add-runtime-bytes-constants regexp-runtime-bytes-constants)
-    (add-runtime-bytes-constants linklet-runtime-bytes-constants)
-    (add-runtime-bytes-constants filesystem-runtime-bytes-constants)
+    (add-runtime-string-constants core-runtime-string-constants)
+    (add-runtime-bytes-constants core-runtime-bytes-constants)
+    (add-runtime-symbol-constants core-runtime-symbol-constants)
 
     ;;;
     ;;; WEB-ASSEMBLY
