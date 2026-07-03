@@ -4,6 +4,7 @@
          value-expectation-runtime-only-helper-names
          continuation-runtime-only-helper-names
          continuation-mark-runtime-only-helper-names
+         multiple-value-runtime-symbol-constants
          continuation-runtime-symbol-constants
          control-flow-runtime-only-helpers)
 
@@ -22,6 +23,11 @@
     $expect-zero-values
     $expect-one-value
     $expect-n-values))
+
+;; multiple-value-runtime-symbol-constants : (listof symbol?)
+;;   Declare symbols used by multiple-value helpers.
+(define multiple-value-runtime-symbol-constants
+  '(values))
 
 ;; continuation-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for continuation helpers.

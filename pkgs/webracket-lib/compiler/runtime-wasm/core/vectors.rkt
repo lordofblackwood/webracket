@@ -7,6 +7,7 @@
          vector-copy-runtime-only-helper-names
          vector-core-runtime-helpers
          vector-runtime-string-constants
+         vector-runtime-symbol-constants
          vector-dummy-array-global-forms
          vector-dummy-global-forms
          vector-error-runtime-only-helper-names
@@ -30,6 +31,35 @@
     (mutable-vector?            "(and/c vector? (not/c immutable?))")
     (valid-vector-index         "valid vector index")
     (valid-vector-length        "valid vector length")))
+
+;; vector-runtime-symbol-constants : (listof symbol?)
+;;   Declare symbols used by vector helpers and vector errors.
+(define vector-runtime-symbol-constants
+  '(vector?
+    make-vector
+    vector-length
+    vector-ref
+    vector-set!
+    vector*-length
+    vector*-ref
+    vector*-set!
+    vector-fill!
+    vector-copy
+    vector-copy!
+    vector-take
+    vector-drop
+    vector-take-right
+    vector-drop-right
+    vector-split-at
+    vector-split-at-right
+    vector->values
+    vector->immutable-vector
+    vector-set/copy
+    vector-extend
+    vector-empty?
+    vector-append
+    vector-sort
+    vector-sort!))
 
 ;; vector-dummy-array-global-forms : (listof datum?)
 ;;   Declare the shared empty internal array used by vector-like structures.

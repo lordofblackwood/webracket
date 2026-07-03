@@ -30,6 +30,7 @@
                   box-runtime-only-helpers)
          (only-in "runtime-wasm/core/bytes.rkt"
                   bytes-runtime-string-constants
+                  byte-predicate-runtime-symbol-constants
                   bytes-runtime-symbol-constants
                   bytes-basic-runtime-only-helper-names
                   byte-comparison-runtime-only-helper-names
@@ -54,6 +55,7 @@
                   continuation-mark-runtime-only-helper-names
                   continuation-runtime-only-helper-names
                   continuation-runtime-symbol-constants
+                  multiple-value-runtime-symbol-constants
                   multiple-value-runtime-only-helper-names
                   value-expectation-runtime-only-helper-names
                   control-flow-runtime-only-helpers)
@@ -106,6 +108,7 @@
                   fixnum-global-forms
                   fixnum-minmax-runtime-only-helper-names
                   fixnum-predicate-runtime-only-helper-names
+                  fixnum-runtime-symbol-constants
                   fixnum-runtime-string-constants
                   fixnum-runtime-only-helpers)
          (only-in "runtime-wasm/core/flonums.rkt"
@@ -193,6 +196,7 @@
                   list-remove-runtime-only-helper-names
                   list-remove-star-runtime-only-helper-names
                   list-runtime-string-constants
+                  list-runtime-symbol-constants
                   pair-global-forms
                   pair-accessor-runtime-only-helper-names
                   list-runtime-only-helpers)
@@ -464,6 +468,7 @@
                   vector-constructor-runtime-only-helper-names
                   vector-copy-runtime-only-helper-names
                   vector-runtime-string-constants
+                  vector-runtime-symbol-constants
                   vector-dummy-array-global-forms
                   vector-dummy-global-forms
                   vector-error-runtime-only-helper-names
@@ -2969,51 +2974,11 @@
     (add-runtime-symbol-constant 'syntax-introducer)
     (add-runtime-symbol-constant '-)
     (add-runtime-symbol-constant '*)
-    (add-runtime-symbol-constant 'values)
-    (add-runtime-symbol-constant 'list)
-    (add-runtime-symbol-constant 'cons)
-    (add-runtime-symbol-constant 'car)
-    (add-runtime-symbol-constant 'cdr)
-    (add-runtime-symbol-constant 'pair?)
-    (add-runtime-symbol-constant 'length)
-    (add-runtime-symbol-constant 'list-ref)
-    (add-runtime-symbol-constant 'list-tail)
-    (add-runtime-symbol-constant 'list-set)
-    (add-runtime-symbol-constant 'list-update)
-    (add-runtime-symbol-constant 'rest)
-    (add-runtime-symbol-constant 'take)
-    (add-runtime-symbol-constant 'take-right)
-    (add-runtime-symbol-constant 'drop)
-    (add-runtime-symbol-constant 'drop-right)
-    (add-runtime-symbol-constant 'split-at)
-    (add-runtime-symbol-constant 'split-at-right)
-    (add-runtime-symbol-constant 'fixnum?)
-    (add-runtime-symbol-constant 'byte?)
-    (add-runtime-symbol-constant 'vector?)
-    (add-runtime-symbol-constant 'make-vector)
-    (add-runtime-symbol-constant 'vector-length)
-    (add-runtime-symbol-constant 'vector-ref)
-    (add-runtime-symbol-constant 'vector-set!)
-    (add-runtime-symbol-constant 'vector*-length)
-    (add-runtime-symbol-constant 'vector*-ref)
-    (add-runtime-symbol-constant 'vector*-set!)
-    (add-runtime-symbol-constant 'vector-fill!)
-    (add-runtime-symbol-constant 'vector-copy)
-    (add-runtime-symbol-constant 'vector-copy!)
-    (add-runtime-symbol-constant 'vector-take)
-    (add-runtime-symbol-constant 'vector-drop)
-    (add-runtime-symbol-constant 'vector-take-right)
-    (add-runtime-symbol-constant 'vector-drop-right)
-    (add-runtime-symbol-constant 'vector-split-at)
-    (add-runtime-symbol-constant 'vector-split-at-right)
-    (add-runtime-symbol-constant 'vector->values)
-    (add-runtime-symbol-constant 'vector->immutable-vector)
-    (add-runtime-symbol-constant 'vector-set/copy)
-    (add-runtime-symbol-constant 'vector-extend)
-    (add-runtime-symbol-constant 'vector-empty?)
-    (add-runtime-symbol-constant 'vector-append)
-    (add-runtime-symbol-constant 'vector-sort)
-    (add-runtime-symbol-constant 'vector-sort!)
+    (add-runtime-symbol-constants multiple-value-runtime-symbol-constants)
+    (add-runtime-symbol-constants list-runtime-symbol-constants)
+    (add-runtime-symbol-constants fixnum-runtime-symbol-constants)
+    (add-runtime-symbol-constants byte-predicate-runtime-symbol-constants)
+    (add-runtime-symbol-constants vector-runtime-symbol-constants)
     (add-runtime-symbol-constant 'define-values)
     (add-runtime-symbol-constant 'quote)
     (add-runtime-symbol-constant 'begin)

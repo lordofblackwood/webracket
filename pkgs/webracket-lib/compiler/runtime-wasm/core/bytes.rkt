@@ -2,6 +2,7 @@
 
 (provide bytes-core-runtime-helpers
          bytes-runtime-string-constants
+         byte-predicate-runtime-symbol-constants
          bytes-runtime-symbol-constants
          bytes-basic-runtime-only-helper-names
          byte-comparison-runtime-only-helper-names
@@ -20,6 +21,11 @@
   '((byte?                      "byte?")
     (bytes?                     "bytes?")
     (bytes-converter?           "bytes-converter?")))
+
+;; byte-predicate-runtime-symbol-constants : (listof symbol?)
+;;   Declare symbols used by byte predicate helpers.
+(define byte-predicate-runtime-symbol-constants
+  '(byte?))
 
 ;; bytes-runtime-symbol-constants : (listof symbol?)
 ;;   Declare symbols used by byte converter helpers.

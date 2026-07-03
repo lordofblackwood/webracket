@@ -3,6 +3,7 @@
 (provide list-core-runtime-helpers
          pair-global-forms
          list-runtime-string-constants
+         list-runtime-symbol-constants
          list-member-runtime-only-helper-names
          list-association-runtime-only-helper-names
          list-group-by-runtime-only-helper-names
@@ -23,6 +24,27 @@
     (list?           "list?")
     (non-empty-list? "(and/c list? (not/c empty?))")
     (listof-pair?    "(listof pair?)")))
+
+;; list-runtime-symbol-constants : (listof symbol?)
+;;   Declare symbols used by pair and list helpers.
+(define list-runtime-symbol-constants
+  '(list
+    cons
+    car
+    cdr
+    pair?
+    length
+    list-ref
+    list-tail
+    list-set
+    list-update
+    rest
+    take
+    take-right
+    drop
+    drop-right
+    split-at
+    split-at-right))
 
 ;; pair-global-forms : (listof datum?)
 ;;   Declare shared pair values used for default local initialization.

@@ -2,6 +2,7 @@
 
 (provide fixnum-core-runtime-helpers
          fixnum-runtime-string-constants
+         fixnum-runtime-symbol-constants
          fixnum-global-forms
          fixnum-arithmetic-runtime-only-helper-names
          fixnum-comparison-runtime-only-helper-names
@@ -18,6 +19,11 @@
 ;;   Declare string constants used by fixnum helpers and fixnum errors.
 (define fixnum-runtime-string-constants
   '((fixnum? "fixnum?")))
+
+;; fixnum-runtime-symbol-constants : (listof symbol?)
+;;   Declare symbols used by fixnum helpers and errors.
+(define fixnum-runtime-symbol-constants
+  '(fixnum?))
 
 ;; fixnum-global-forms : (listof datum?)
 ;;   Declare globals for commonly used fixnums.
