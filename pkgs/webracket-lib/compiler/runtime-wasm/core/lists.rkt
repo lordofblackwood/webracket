@@ -21,7 +21,8 @@
 (define list-runtime-string-constants
   '((pair?           "pair?")
     (list?           "list?")
-    (non-empty-list? "(and/c list? (not/c empty?))")))
+    (non-empty-list? "(and/c list? (not/c empty?))")
+    (listof-pair?    "(listof pair?)")))
 
 ;; pair-global-forms : (listof datum?)
 ;;   Declare shared pair values used for default local initialization.

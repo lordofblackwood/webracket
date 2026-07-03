@@ -207,6 +207,8 @@
                   logger-runtime-only-helpers)
          (only-in "runtime-wasm/core/memory-map.rkt"
                   memory-map-global-forms)
+         (only-in "runtime-wasm/core/mlists.rkt"
+                  mlist-runtime-string-constants)
          (only-in "runtime-wasm/core/mutable-hashes.rkt"
                   mutable-hash-association-constructor-runtime-only-helper-names
                   mutable-hash-constructor-runtime-only-helper-names
@@ -2883,13 +2885,12 @@
     (add-runtime-string-constant 'security-guard?            "security-guard?")
     (add-runtime-string-constant 'custodian?                 "custodian?")
     (add-runtime-string-constant 'custodian-box?             "custodian-box?")
-    (add-runtime-string-constant 'mpair-or-null              "(or/c mpair? null?)")
+    (add-runtime-string-constants mlist-runtime-string-constants)
     (add-runtime-string-constant 'catch*-matching-lengths    "same number of handlers as predicates")
     (add-runtime-string-constant 'real?                      "real?")
     (add-runtime-string-constant 'exact-nonnegative-integer? "exact-nonnegative-integer?")
     (add-runtime-string-constant 'exact-integer?             "exact-integer?")
     (add-runtime-string-constant 'filesystem-errno           "(cons/c exact-integer? (or/c 'posix 'windows 'gai))")
-    (add-runtime-string-constant 'listof-pair?               "(listof pair?)")
     (add-runtime-string-constant 'semaphore?                 "semaphore?")
     (add-runtime-string-constant 'evt?                       "evt?")
     (add-runtime-string-constant 'handle-evt?                "handle-evt?")

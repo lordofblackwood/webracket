@@ -1,9 +1,15 @@
 #lang racket
 
-(provide mlist-core-runtime-helpers)
+(provide mlist-runtime-string-constants
+         mlist-core-runtime-helpers)
 
 (require "../core-helper.rkt"
          "../../private/wasm-utils.rkt")
+
+;; mlist-runtime-string-constants : (listof (list/c symbol? string?))
+;;   Declare string constants used by mutable-list contract errors.
+(define mlist-runtime-string-constants
+  '((mpair-or-null "(or/c mpair? null?)")))
 
 ;; mlist-core-runtime-helpers : (listof core-runtime-helper?)
 ;;   Enumerate mutable-pair helpers that can be emitted in core runtime.
