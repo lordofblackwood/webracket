@@ -8,6 +8,14 @@
          runtime-constant-registry-add-bytes-constants!
          runtime-constant-registry-add-symbols!
          make-populated-runtime-constant-registry
+         string-data-name
+         string-global-name
+         bytes-data-name
+         bytes-global-name
+         symbol-data-name
+         symbol-global-name
+         constant-global-name?
+         constant-data-name?
          runtime-constant-registry-declare-strings
          runtime-constant-registry-declare-bytes
          runtime-constant-registry-declare-symbols!
@@ -137,6 +145,24 @@
 (define (symbol-global-name name)
   (string->symbol (~a "$symbol:" name)))
 
+;; constant-global-name? : any/c -> boolean?
+;;   Check whether name is a generated constant global name.
+(define (constant-global-name? name)
+  (and (symbol? name)
+       (let ([s (symbol->string name)])
+         (or (string-prefix? s "$string:")
+             (string-prefix? s "$bytes:")
+             (string-prefix? s "$symbol:")))))
+
+;; constant-data-name? : any/c -> boolean?
+;;   Check whether name is a generated constant data-segment name.
+(define (constant-data-name? name)
+  (and (symbol? name)
+       (let ([s (symbol->string name)])
+         (or (string-prefix? s "$string-data:")
+             (string-prefix? s "$bytes-data:")
+             (string-prefix? s "$symbol-data:")))))
+
 ;; remove-duplicates/string : list? procedure? -> list?
 ;;   Remove duplicates using a string key in linear time.
 (define (remove-duplicates/string xs key)
@@ -257,6 +283,21 @@
   (define (form-names forms)
     (for/list ([form (in-list forms)])
       (second form)))
+
+  (check-equal? (string-global-name 'hello) '$string:hello)
+  (check-equal? (bytes-global-name 'hello) '$bytes:hello)
+  (check-equal? (symbol-global-name 'hello) '$symbol:hello)
+  (check-equal? (string-data-name 'hello) '$string-data:hello)
+  (check-equal? (bytes-data-name 'hello) '$bytes-data:hello)
+  (check-equal? (symbol-data-name 'hello) '$symbol-data:hello)
+  (check-true (constant-global-name? '$string:hello))
+  (check-true (constant-global-name? '$bytes:hello))
+  (check-true (constant-global-name? '$symbol:hello))
+  (check-false (constant-global-name? '$not-a-constant))
+  (check-true (constant-data-name? '$string-data:hello))
+  (check-true (constant-data-name? '$bytes-data:hello))
+  (check-true (constant-data-name? '$symbol-data:hello))
+  (check-false (constant-data-name? '$string:hello))
 
   (let ([registry (make-runtime-constant-registry
                    '((program-string "program"))

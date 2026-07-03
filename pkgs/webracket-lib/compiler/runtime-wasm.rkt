@@ -747,21 +747,21 @@
           name)
         (append*
          (for/list ([name (in-list initial-program-string-constant-names)])
-           (list (string->symbol (~a "$string:" name))))
+           (list (string-global-name name)))
          (for/list ([name (in-list initial-program-bytes-constant-names)])
-           (list (string->symbol (~a "$bytes:" name))))
+           (list (bytes-global-name name)))
          (for/list ([name (in-list initial-program-symbol-constant-names)])
-           (list (string->symbol (~a "$symbol:" name))))))))
+           (list (symbol-global-name name)))))))
 
     (define program-data-name-set
       (list->eq-set
        (append
         (for/list ([name (in-list initial-program-string-constant-names)])
-          (string->symbol (~a "$string-data:" name)))
+          (string-data-name name))
         (for/list ([name (in-list initial-program-bytes-constant-names)])
-          (string->symbol (~a "$bytes-data:" name)))
+          (bytes-data-name name))
         (for/list ([name (in-list initial-program-symbol-constant-names)])
-          (string->symbol (~a "$symbol-data:" name))))))
+          (symbol-data-name name)))))
 
     (define (program-module-form? form)
       (define func-name (module-func-name form))
@@ -915,20 +915,6 @@
              (s-exp->fasl (list fingerprint analysis))
              out))
           #:exists 'truncate/replace)))
-
-    (define (constant-global-name? name)
-      (and (symbol? name)
-           (let ([s (symbol->string name)])
-             (or (string-prefix? s "$string:")
-                 (string-prefix? s "$bytes:")
-                 (string-prefix? s "$symbol:")))))
-
-    (define (constant-data-name? name)
-      (and (symbol? name)
-           (let ([s (symbol->string name)])
-             (or (string-prefix? s "$string-data:")
-                 (string-prefix? s "$bytes-data:")
-                 (string-prefix? s "$symbol-data:")))))
 
     (define (stable-runtime-analysis-form? form)
       (define global-name (module-global-name form))
