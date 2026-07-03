@@ -1,8 +1,8 @@
 #lang racket
 
 (provide equality-runtime-only-helpers
-         immutable-predicate-runtime-only-helper-names
-         equality-runtime-only-helper-names)
+         immutable-predicate-runtime-helper-forms
+         equality-runtime-helper-forms)
 
 (require "../core-helper.rkt")
 
@@ -780,6 +780,22 @@
 (define immutable-predicate-runtime-only-helper-names
   '($immutable?))
 
+;; equality-helper-forms : hasheq? (listof symbol?) -> (listof datum?)
+;;   Render the given equality helper names from a helper index.
+(define (equality-helper-forms helper-index names)
+  (for/list ([name (in-list names)])
+    (core-runtime-helper-form helper-index name)))
+
+;; equality-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render equality helpers in runtime assembly order.
+(define (equality-runtime-helper-forms helper-index)
+  (equality-helper-forms helper-index equality-runtime-only-helper-names))
+
+;; immutable-predicate-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render generic immutability predicates in runtime assembly order.
+(define (immutable-predicate-runtime-helper-forms helper-index)
+  (equality-helper-forms helper-index immutable-predicate-runtime-only-helper-names))
+
 ;; immutable-predicate-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate generic immutability predicates used by the monolithic runtime.
 (define immutable-predicate-runtime-only-helpers
@@ -830,3 +846,22 @@
            'equality-runtime-only-helpers
            equality-runtime-only-forms)
           immutable-predicate-runtime-only-helpers))
+
+(module+ test
+  (require rackunit)
+
+  ;; form-name : datum? -> symbol?
+  ;;   Return the function name from a rendered helper form.
+  (define (form-name form)
+    (second form))
+
+  (define equality-helper-index
+    (make-core-runtime-helper-index equality-runtime-only-helpers))
+
+  (check-equal?
+   (map form-name (equality-runtime-helper-forms equality-helper-index))
+   equality-runtime-only-helper-names)
+
+  (check-equal?
+   (map form-name (immutable-predicate-runtime-helper-forms equality-helper-index))
+   immutable-predicate-runtime-only-helper-names))

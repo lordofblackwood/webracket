@@ -2,7 +2,7 @@
 
 (provide box-runtime-string-constants
          box-runtime-helper-forms
-         box-mutability-runtime-only-helper-names
+         box-mutability-runtime-helper-forms
          box-runtime-only-helpers)
 
 (require "../core-helper.rkt")
@@ -341,11 +341,22 @@
   (for/list ([name (in-list box-base-runtime-only-helper-names)])
     (core-runtime-helper-form helper-index name)))
 
+;; box-helper-forms : hasheq? (listof symbol?) -> (listof datum?)
+;;   Render the given box helper names from a helper index.
+(define (box-helper-forms helper-index names)
+  (for/list ([name (in-list names)])
+    (core-runtime-helper-form helper-index name)))
+
 ;; box-mutability-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for box mutability predicates.
 (define box-mutability-runtime-only-helper-names
   '($mutable-box?
     $immutable-box?))
+
+;; box-mutability-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render box mutability predicates in runtime assembly order.
+(define (box-mutability-runtime-helper-forms helper-index)
+  (box-helper-forms helper-index box-mutability-runtime-only-helper-names))
 
 ;; box-mutability-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate box mutability predicates.
@@ -397,4 +408,8 @@
 
   (check-equal?
    (map form-name (box-runtime-helper-forms box-helper-index))
-   box-base-runtime-only-helper-names))
+   box-base-runtime-only-helper-names)
+
+  (check-equal?
+   (map form-name (box-mutability-runtime-helper-forms box-helper-index))
+   box-mutability-runtime-only-helper-names))

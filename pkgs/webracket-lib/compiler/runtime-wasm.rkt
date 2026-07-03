@@ -41,7 +41,7 @@
                   boolean-runtime-only-helpers)
          (only-in "runtime-wasm/core/boxes.rkt"
                   box-runtime-helper-forms
-                  box-mutability-runtime-only-helper-names
+                  box-mutability-runtime-helper-forms
                   box-runtime-only-helpers)
          (only-in "runtime-wasm/core/bytes.rkt"
                   bytes-core-runtime-helper-forms
@@ -67,8 +67,8 @@
                   control-flow-runtime-only-helpers)
          (only-in "runtime-wasm/core/equality.rkt"
                   equality-runtime-only-helpers
-                  immutable-predicate-runtime-only-helper-names
-                  equality-runtime-only-helper-names)
+                  immutable-predicate-runtime-helper-forms
+                  equality-runtime-helper-forms)
          (only-in "runtime-wasm/core/exceptions.rkt"
                   bootstrap-error-runtime-helper-forms
                   exception-struct-type-bindings
@@ -127,9 +127,9 @@
                   hash-code-runtime-helper-forms
                   hash-runtime-only-helpers
                   hash-seed-global-forms
+                  hash-predicate-runtime-helper-forms
                   hash-table-predicate-runtime-helper-forms
-                  hash-table-operation-runtime-helper-forms
-                  hash-predicate-runtime-only-helper-names)
+                  hash-table-operation-runtime-helper-forms)
          (only-in "runtime-wasm/core/immutable-hashes.rkt"
                   immutable-hash-prelude-runtime-helper-forms
                   immutable-hash-public-set/remove-runtime-helper-forms
@@ -148,8 +148,8 @@
                   i8-array-runtime-only-helpers)
          (only-in "runtime-wasm/core/immediates.rkt"
                   singleton-global-forms
-                  void-runtime-only-helper-names
-                  eof-object-runtime-only-helper-names
+                  void-runtime-helper-forms
+                  eof-object-runtime-helper-forms
                   immediate-runtime-only-helpers)
          (only-in "runtime-wasm/core/impersonators.rkt"
                   chaperone-procedure-runtime-only-helper-names
@@ -1537,8 +1537,7 @@
          ;;;
 
          ;;   Implemented in runtime-wasm/core/equality.rkt.
-         ,@(for/list ([name (in-list equality-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
+         ,@(equality-runtime-helper-forms runtime-helper-index)
 
          ;;;
          ;;; 4.2 Booleans
@@ -1556,19 +1555,16 @@
          ,@(vector-mutability-runtime-helper-forms runtime-helper-index)
 
          ;;   Box mutability predicates are implemented in runtime-wasm/core/boxes.rkt.
-         ,@(for/list ([name (in-list box-mutability-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
+         ,@(box-mutability-runtime-helper-forms runtime-helper-index)
 
          ;;   Hash predicates are implemented in runtime-wasm/core/hashes.rkt.
-         ,@(for/list ([name (in-list hash-predicate-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
+         ,@(hash-predicate-runtime-helper-forms runtime-helper-index)
 
          ;;   Boolean helpers are implemented in runtime-wasm/core/booleans.rkt.
          ,@(boolean-runtime-helper-forms runtime-helper-index)
 
          ;;   Generic immutability predicates are implemented in runtime-wasm/core/equality.rkt.
-         ,@(for/list ([name (in-list immutable-predicate-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
+         ,@(immutable-predicate-runtime-helper-forms runtime-helper-index)
 
          ;;;
          ;;; 4.3 Numbers
@@ -2237,8 +2233,7 @@
          ,@(port-custom-constructor-runtime-helper-forms runtime-helper-index)
 
          ;;   EOF object helpers are implemented in runtime-wasm/core/immediates.rkt.
-         ,@(for/list ([name (in-list eof-object-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
+         ,@(eof-object-runtime-helper-forms runtime-helper-index)
 
          ;; call-with-output-string is implemented in runtime-wasm/core/ports.rkt.
          ,@(port-call-with-output-string-runtime-helper-forms runtime-helper-index)
@@ -2436,8 +2431,7 @@
          ;; https://docs.racket-lang.org/reference/void.html
 
          ;;   Implemented in runtime-wasm/core/immediates.rkt.
-         ,@(for/list ([name (in-list void-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
+         ,@(void-runtime-helper-forms runtime-helper-index)
 
 
          ;;;

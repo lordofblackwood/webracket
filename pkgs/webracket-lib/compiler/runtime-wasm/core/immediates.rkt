@@ -5,8 +5,8 @@
          false-ref
          true-ref
          singleton-global-forms
-         void-runtime-only-helper-names
-         eof-object-runtime-only-helper-names
+         void-runtime-helper-forms
+         eof-object-runtime-helper-forms
          immediate-runtime-only-helpers)
 
 (require "../core-helper.rkt"
@@ -61,6 +61,22 @@
 (define eof-object-runtime-only-helper-names
   '($eof-object?))
 
+;; immediate-helper-forms : hasheq? (listof symbol?) -> (listof datum?)
+;;   Render the given immediate helper names from a helper index.
+(define (immediate-helper-forms helper-index names)
+  (for/list ([name (in-list names)])
+    (core-runtime-helper-form helper-index name)))
+
+;; void-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render void helpers in runtime assembly order.
+(define (void-runtime-helper-forms helper-index)
+  (immediate-helper-forms helper-index void-runtime-only-helper-names))
+
+;; eof-object-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render EOF object helpers in runtime assembly order.
+(define (eof-object-runtime-helper-forms helper-index)
+  (immediate-helper-forms helper-index eof-object-runtime-only-helper-names))
+
 ;; eof-object-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate EOF object helpers used by the monolithic runtime.
 (define eof-object-runtime-only-helpers
@@ -101,3 +117,22 @@
 
       (func $make-void (type $Prim0) (result (ref eq)) ; no arguments
             (return (global.get $void)))))))
+
+(module+ test
+  (require rackunit)
+
+  ;; form-name : datum? -> symbol?
+  ;;   Return the function name from a rendered helper form.
+  (define (form-name form)
+    (second form))
+
+  (define immediate-helper-index
+    (make-core-runtime-helper-index immediate-runtime-only-helpers))
+
+  (check-equal?
+   (map form-name (void-runtime-helper-forms immediate-helper-index))
+   void-runtime-only-helper-names)
+
+  (check-equal?
+   (map form-name (eof-object-runtime-helper-forms immediate-helper-index))
+   eof-object-runtime-only-helper-names))

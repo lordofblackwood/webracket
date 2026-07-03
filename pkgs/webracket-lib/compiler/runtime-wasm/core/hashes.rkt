@@ -3,6 +3,7 @@
 (provide hash-runtime-only-helpers
          hash-seed-global-forms
          hash-runtime-string-constants
+         hash-predicate-runtime-helper-forms
          hash-table-predicate-runtime-helper-forms
          hash-table-operation-runtime-helper-forms
          hash-code-runtime-helper-forms
@@ -15,7 +16,6 @@
          hash-seed-runtime-only-helper-names
          hash-equal-runtime-only-helper-names
          hash-equal-composite-runtime-only-helper-names
-         hash-predicate-runtime-only-helper-names
          hash-table-predicate-runtime-only-helper-names)
 
 (require "../core-helper.rkt")
@@ -206,6 +206,11 @@
 (define (hash-helper-forms helper-index names)
   (for/list ([name (in-list names)])
     (core-runtime-helper-form helper-index name)))
+
+;; hash-predicate-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render hash predicate helpers in runtime assembly order.
+(define (hash-predicate-runtime-helper-forms helper-index)
+  (hash-helper-forms helper-index hash-predicate-runtime-only-helper-names))
 
 ;; hash-table-predicate-runtime-helper-forms : hasheq? -> (listof datum?)
 ;;   Render hash table predicate helpers in runtime assembly order.
@@ -2586,6 +2591,10 @@
 
   (define hash-helper-index
     (make-core-runtime-helper-index hash-runtime-only-helpers))
+
+  (check-equal?
+   (map form-name (hash-predicate-runtime-helper-forms hash-helper-index))
+   hash-predicate-runtime-only-helper-names)
 
   (check-equal?
    (map form-name (hash-table-predicate-runtime-helper-forms hash-helper-index))
