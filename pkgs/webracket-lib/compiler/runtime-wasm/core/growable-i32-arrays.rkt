@@ -1,6 +1,8 @@
 #lang racket
 
-(provide growable-i32-array-core-runtime-helpers)
+(provide growable-i32-array-core-runtime-helper-forms
+         growable-i32-array-core-runtime-helper-names
+         growable-i32-array-core-runtime-helpers)
 
 (require "../core-helper.rkt")
 
@@ -118,3 +120,40 @@
              (local $n i32)
              (local.set $n (array.len (local.get $a)))
              (struct.new $I32GrowableArray (local.get $a) (local.get $n) (local.get $n)))))))
+
+;; growable-i32-array-core-runtime-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for I32GrowableArray helpers.
+(define growable-i32-array-core-runtime-helper-names
+  '($make-i32growable-array
+    $i32growable-array-add!
+    $i32growable-array-add-string!
+    $i32growable-array-ref
+    $i32growable-array-count
+    $i32growable-array->array
+    $i32array->growable-array))
+
+;; growable-i32-array-core-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render I32GrowableArray core helpers in runtime assembly order.
+(define (growable-i32-array-core-runtime-helper-forms helper-index)
+  (for/list ([name (in-list growable-i32-array-core-runtime-helper-names)])
+    (core-runtime-helper-form helper-index name)))
+
+(module+ test
+  (require rackunit)
+
+  ;; form-name : datum? -> symbol?
+  ;;   Return the function name from a rendered helper form.
+  (define (form-name form)
+    (second form))
+
+  (define growable-i32-array-helper-index
+    (make-core-runtime-helper-index growable-i32-array-core-runtime-helpers))
+
+  (check-equal?
+   (map core-runtime-helper-name growable-i32-array-core-runtime-helpers)
+   growable-i32-array-core-runtime-helper-names)
+
+  (check-equal?
+   (map form-name
+        (growable-i32-array-core-runtime-helper-forms growable-i32-array-helper-index))
+   growable-i32-array-core-runtime-helper-names))

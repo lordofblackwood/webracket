@@ -123,6 +123,12 @@
                   formatting-runtime-only-helper-names
                   numeric-display-formatting-runtime-only-helper-names
                   formatting-runtime-only-helpers)
+         (only-in "runtime-wasm/core/growable-arrays.rkt"
+                  growable-array-core-runtime-helper-forms)
+         (only-in "runtime-wasm/core/growable-bytes.rkt"
+                  growable-bytes-core-runtime-helper-forms)
+         (only-in "runtime-wasm/core/growable-i32-arrays.rkt"
+                  growable-i32-array-core-runtime-helper-forms)
          (only-in "runtime-wasm/core/hashes.rkt"
                   hash-code-runtime-helper-forms
                   hash-runtime-only-helpers
@@ -1482,30 +1488,13 @@
          ;;; Growable Arrays
          ;;;
 
-         ,(core-runtime-helper-form core-runtime-helper-index '$make-growable-array)
-         ,(core-runtime-helper-form core-runtime-helper-index '$growable-array??)
-         ,(core-runtime-helper-form core-runtime-helper-index '$growable-array?)
-         ,(core-runtime-helper-form core-runtime-helper-index '$growable-array-ref)
-         ,(core-runtime-helper-form core-runtime-helper-index '$growable-array-ref/default)
-         ,(core-runtime-helper-form core-runtime-helper-index '$growable-array-add!)
-         ,(core-runtime-helper-form core-runtime-helper-index '$growable-array-insert!)
-         ,(core-runtime-helper-form core-runtime-helper-index '$growable-array-set!)
-         ,(core-runtime-helper-form core-runtime-helper-index '$growable-array-remove!)
-         ,(core-runtime-helper-form core-runtime-helper-index '$growable-array-remove-last!)
-         ,(core-runtime-helper-form core-runtime-helper-index '$growable-array-count)
-         ,(core-runtime-helper-form core-runtime-helper-index '$growable-array->array)
-         ,(core-runtime-helper-form core-runtime-helper-index '$array->growable-array)
-
-
-
+         ,@(growable-array-core-runtime-helper-forms core-runtime-helper-index)
 
          ;;;
          ;;; Growable Arrays of Bytes
          ;;;
 
-         ,(core-runtime-helper-form core-runtime-helper-index '$make-growable-bytes)
-         ,(core-runtime-helper-form core-runtime-helper-index '$growable-bytes-add!)
-         ,(core-runtime-helper-form core-runtime-helper-index '$growable-bytes->bytes)
+         ,@(growable-bytes-core-runtime-helper-forms core-runtime-helper-index)
 
          ;;;
          ;;; Growable Arrays of I32
@@ -1519,13 +1508,7 @@
                  (field $cap (mut i32))             ;; capacity
                  (field $i   (mut i32))))           ;; current size
 
-         ,(core-runtime-helper-form core-runtime-helper-index '$make-i32growable-array)
-         ,(core-runtime-helper-form core-runtime-helper-index '$i32growable-array-add!)
-         ,(core-runtime-helper-form core-runtime-helper-index '$i32growable-array-add-string!)
-         ,(core-runtime-helper-form core-runtime-helper-index '$i32growable-array-ref)
-         ,(core-runtime-helper-form core-runtime-helper-index '$i32growable-array-count)
-         ,(core-runtime-helper-form core-runtime-helper-index '$i32growable-array->array)
-         ,(core-runtime-helper-form core-runtime-helper-index '$i32array->growable-array)
+         ,@(growable-i32-array-core-runtime-helper-forms core-runtime-helper-index)
 
 
          ;;;

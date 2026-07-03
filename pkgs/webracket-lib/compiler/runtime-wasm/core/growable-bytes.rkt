@@ -1,6 +1,8 @@
 #lang racket
 
-(provide growable-bytes-core-runtime-helpers)
+(provide growable-bytes-core-runtime-helper-forms
+         growable-bytes-core-runtime-helper-names
+         growable-bytes-core-runtime-helpers)
 
 (require "../core-helper.rkt")
 
@@ -73,3 +75,36 @@
                          (i32.const 0)       ;; hash = 0
                          (local.get $n)      ;; length
                          (local.get $dst)))))))  ;; copied byte array
+
+;; growable-bytes-core-runtime-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for GrowableBytes helpers.
+(define growable-bytes-core-runtime-helper-names
+  '($make-growable-bytes
+    $growable-bytes-add!
+    $growable-bytes->bytes))
+
+;; growable-bytes-core-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render GrowableBytes core helpers in runtime assembly order.
+(define (growable-bytes-core-runtime-helper-forms helper-index)
+  (for/list ([name (in-list growable-bytes-core-runtime-helper-names)])
+    (core-runtime-helper-form helper-index name)))
+
+(module+ test
+  (require rackunit)
+
+  ;; form-name : datum? -> symbol?
+  ;;   Return the function name from a rendered helper form.
+  (define (form-name form)
+    (second form))
+
+  (define growable-bytes-helper-index
+    (make-core-runtime-helper-index growable-bytes-core-runtime-helpers))
+
+  (check-equal?
+   (map core-runtime-helper-name growable-bytes-core-runtime-helpers)
+   growable-bytes-core-runtime-helper-names)
+
+  (check-equal?
+   (map form-name
+        (growable-bytes-core-runtime-helper-forms growable-bytes-helper-index))
+   growable-bytes-core-runtime-helper-names))

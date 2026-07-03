@@ -1,6 +1,8 @@
 #lang racket
 
-(provide growable-array-core-runtime-helpers)
+(provide growable-array-core-runtime-helper-forms
+         growable-array-core-runtime-helper-names
+         growable-array-core-runtime-helpers)
 
 (require "arrays.rkt"
          "immediates.rkt"
@@ -184,3 +186,46 @@
              (local $n i32)
              (local.set $n (array.len (local.get $a)))
              (struct.new $GrowableArray (local.get $a) (local.get $n) (local.get $n)))))))
+
+;; growable-array-core-runtime-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for generic growable array helpers.
+(define growable-array-core-runtime-helper-names
+  '($make-growable-array
+    $growable-array??
+    $growable-array?
+    $growable-array-ref
+    $growable-array-ref/default
+    $growable-array-add!
+    $growable-array-insert!
+    $growable-array-set!
+    $growable-array-remove!
+    $growable-array-remove-last!
+    $growable-array-count
+    $growable-array->array
+    $array->growable-array))
+
+;; growable-array-core-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render generic growable array core helpers in runtime assembly order.
+(define (growable-array-core-runtime-helper-forms helper-index)
+  (for/list ([name (in-list growable-array-core-runtime-helper-names)])
+    (core-runtime-helper-form helper-index name)))
+
+(module+ test
+  (require rackunit)
+
+  ;; form-name : datum? -> symbol?
+  ;;   Return the function name from a rendered helper form.
+  (define (form-name form)
+    (second form))
+
+  (define growable-array-helper-index
+    (make-core-runtime-helper-index growable-array-core-runtime-helpers))
+
+  (check-equal?
+   (map core-runtime-helper-name growable-array-core-runtime-helpers)
+   growable-array-core-runtime-helper-names)
+
+  (check-equal?
+   (map form-name
+        (growable-array-core-runtime-helper-forms growable-array-helper-index))
+   growable-array-core-runtime-helper-names))
