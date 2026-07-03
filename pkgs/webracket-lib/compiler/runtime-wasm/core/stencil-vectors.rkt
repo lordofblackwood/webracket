@@ -1,8 +1,34 @@
 #lang racket
 
-(provide stencil-vector-runtime-only-helpers)
+(provide stencil-vector-runtime-helper-forms
+         stencil-vector-runtime-only-helpers)
 
 (require "../core-helper.rkt")
+
+;; stencil-vector-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for stencil-vector helpers.
+(define stencil-vector-runtime-only-helper-names
+  '($stencil-vector-mask-width
+    $$stencil-vector-mask-valid?/i32
+    $$stencil-vector-popcount/i32
+    $$make-stencil-vector/checked
+    $stencil-vector
+    $$system-stencil-vector
+    $stencil-vector?
+    $$stencil-vector?
+    $$system-stencil-vector?
+    $stencil-vector-length
+    $$stencil-vector-length
+    $stencil-vector-mask
+    $$stencil-vector-mask
+    $stencil-vector-ref
+    $$stencil-vector-ref
+    $stencil-vector-set!
+    $$stencil-vector-set!
+    $$stencil-vector-update/core
+    $stencil-vector-update
+    $$system-stencil-vector-update
+    $$system-stencil-vector-truncate!))
 
 ;; stencil-vector-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate stencil-vector helpers that still depend on monolithic runtime globals.
@@ -548,3 +574,25 @@
              (struct.set $StencilVector $mask (local.get $sv) (local.get $new-mask))
              (global.get $void))))
 ))
+
+;; stencil-vector-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render stencil-vector helpers in runtime assembly order.
+(define (stencil-vector-runtime-helper-forms helper-index)
+  (for/list ([name (in-list stencil-vector-runtime-only-helper-names)])
+    (core-runtime-helper-form helper-index name)))
+
+(module+ test
+  (require rackunit)
+
+  ;; form-name : datum? -> symbol?
+  ;;   Return the function name from a rendered helper form.
+  (define (form-name form)
+    (second form))
+
+  (define stencil-vector-helper-index
+    (make-core-runtime-helper-index stencil-vector-runtime-only-helpers))
+
+  (check-equal?
+   (map form-name
+        (stencil-vector-runtime-helper-forms stencil-vector-helper-index))
+   stencil-vector-runtime-only-helper-names))

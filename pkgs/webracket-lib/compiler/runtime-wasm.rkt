@@ -315,6 +315,7 @@
          (only-in "runtime-wasm/core/semaphores.rkt"
                   semaphore-runtime-only-helpers)
          (only-in "runtime-wasm/core/stencil-vectors.rkt"
+                  stencil-vector-runtime-helper-forms
                   stencil-vector-runtime-only-helpers)
          (only-in "runtime-wasm/core/strings.rkt"
                   string-buffer-runtime-helper-forms
@@ -1866,27 +1867,8 @@
          ;;; Stencil Vectors
          ;;;
 
-         ,(core-runtime-helper-form runtime-helper-index '$stencil-vector-mask-width)
-         ,(core-runtime-helper-form runtime-helper-index '$$stencil-vector-mask-valid?/i32)
-         ,(core-runtime-helper-form runtime-helper-index '$$stencil-vector-popcount/i32)
-         ,(core-runtime-helper-form runtime-helper-index '$$make-stencil-vector/checked)
-         ,(core-runtime-helper-form runtime-helper-index '$stencil-vector)
-         ,(core-runtime-helper-form runtime-helper-index '$$system-stencil-vector)
-         ,(core-runtime-helper-form runtime-helper-index '$stencil-vector?)
-         ,(core-runtime-helper-form runtime-helper-index '$$stencil-vector?)
-         ,(core-runtime-helper-form runtime-helper-index '$$system-stencil-vector?)
-         ,(core-runtime-helper-form runtime-helper-index '$stencil-vector-length)
-         ,(core-runtime-helper-form runtime-helper-index '$$stencil-vector-length)
-         ,(core-runtime-helper-form runtime-helper-index '$stencil-vector-mask)
-         ,(core-runtime-helper-form runtime-helper-index '$$stencil-vector-mask)
-         ,(core-runtime-helper-form runtime-helper-index '$stencil-vector-ref)
-         ,(core-runtime-helper-form runtime-helper-index '$$stencil-vector-ref)
-         ,(core-runtime-helper-form runtime-helper-index '$stencil-vector-set!)
-         ,(core-runtime-helper-form runtime-helper-index '$$stencil-vector-set!)
-         ,(core-runtime-helper-form runtime-helper-index '$$stencil-vector-update/core)
-         ,(core-runtime-helper-form runtime-helper-index '$stencil-vector-update)
-         ,(core-runtime-helper-form runtime-helper-index '$$system-stencil-vector-update)
-         ,(core-runtime-helper-form runtime-helper-index '$$system-stencil-vector-truncate!)
+         ;; Stencil-vector helpers are implemented in runtime-wasm/core/stencil-vectors.rkt.
+         ,@(stencil-vector-runtime-helper-forms runtime-helper-index)
 
          ;; Vector copy, conversion, slicing, search, and sorting helpers
          ;;   Implemented in runtime-wasm/core/vectors.rkt.
