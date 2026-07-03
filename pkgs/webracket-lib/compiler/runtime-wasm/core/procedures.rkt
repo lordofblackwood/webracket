@@ -24,9 +24,14 @@
          primitive-shapes
          primitive-arity->shape
          shape->invoker
+         procedure-primitive-global-forms
+         procedure-ffi-primitive-global-forms
+         procedure-primitive-initializer-forms
+         procedure-ffi-primitive-initializer-forms
          procedure-runtime-only-helpers)
 
 (require "../core-helper.rkt"
+         "../../private/immediates.rkt"
          "../../private/wasm-utils.rkt")
 
 ;; procedure-runtime-string-constants : (listof (list/c symbol? string?))
@@ -302,6 +307,63 @@
     [30 'primitive-invoke:shape-30]
     [31 'primitive-invoke:shape-31]
     [_  'primitive-invoke]))
+
+;; procedure-primitive-global-forms : (listof symbol?) -> (listof datum?)
+;;   Declare globals that hold primitive procedure values.
+(define (procedure-primitive-global-forms primitive-names)
+  (for/list ([pr (in-list primitive-names)])
+    `(global ,($ (prim: pr)) (mut (ref eq)) ,(Imm (undefined)))))
+
+;; procedure-ffi-primitive-global-forms : (listof symbol?) -> (listof datum?)
+;;   Declare globals that hold FFI primitive procedure values.
+(define (procedure-ffi-primitive-global-forms primitive-names)
+  (for/list ([pr (in-list primitive-names)])
+    `(global ,($ (prim: pr)) (mut (ref eq)) ,(Imm (undefined)))))
+
+;; procedure-primitive-initializer-forms : (listof (list/c symbol? any/c any/c)) -> (listof datum?)
+;;   Initialize primitive globals as $PrimitiveProcedure values.
+(define (procedure-primitive-initializer-forms primitive-arities)
+  (for/list ([entry (in-list primitive-arities)])
+    (define pr           (first entry))
+    (define ar           (second entry))
+    (define result-arity (third entry))
+    (define shape        (primitive-arity->shape pr ar))
+    (define $name ($ (string->symbol (~a "symbol:" pr))))
+    `(global.set ,($ (prim: pr))
+                 (struct.new $PrimitiveProcedure
+                  ; for $Procedure
+                  (i32.const 0)                               ; hash
+                  (global.get ,$name)                         ; name  (used by object-name)
+                  ,(arity->procedure-field-expr ar)           ; arity
+                  (global.get $the-racket/primitive-realm)    ; realm
+                  #;(ref.func $primitive-invoke)
+                  (ref.func ,($ (shape->invoker shape)))
+                  (ref.func ,($ pr))
+                  ,(Imm #f
+                        #;(arity->internal-representation result-arity))))))
+
+;; procedure-ffi-primitive-initializer-forms : (listof (list/c symbol? exact-nonnegative-integer?)) -> (listof datum?)
+;;   Initialize FFI primitive globals as $PrimitiveProcedure values.
+(define (procedure-ffi-primitive-initializer-forms primitive-arities)
+  (for/list ([entry (in-list primitive-arities)])
+    (define pr    (first entry))
+    (define ar    (second entry))
+    ;; FFI wrappers with more than six arguments use the normal variadic
+    ;; rest-list function type. The procedure object still records the
+    ;; exact source arity, and the generated wrapper checks it after
+    ;; receiving the rest list.
+    (define shape (if (> ar 6) 6 (arity->shape ar)))
+    (define $name ($ (string->symbol (~a "symbol:" pr))))
+    `(global.set ,($ (prim: pr))
+                 (struct.new $PrimitiveProcedure
+                  ; for $Procedure
+                  (i32.const 0)                               ; hash
+                  (global.get ,$name)                         ; name  (used by object-name)
+                  ,(arity->procedure-field-expr ar)           ; arity
+                  (global.get $the-racket/primitive-realm)    ; realm
+                  (ref.func ,($ (shape->invoker shape)))
+                  (ref.func ,($ pr))
+                  ,(Imm #f)))))
 
 ;; procedure-core-runtime-helpers : (listof core-runtime-helper?)
 ;;   Enumerate procedure-call helpers that can be emitted in core runtime.
@@ -2920,6 +2982,14 @@
 (module+ test
   (require rackunit)
 
+  (define (tree-member? needle tree)
+    (cond
+      [(equal? needle tree) #t]
+      [(pair? tree)
+       (or (tree-member? needle (car tree))
+           (tree-member? needle (cdr tree)))]
+      [else #f]))
+
   (check-equal? (arity->shape 0) 0)
   (check-equal? (arity->shape 6) 26)
   (check-equal? (arity->shape '(2 3)) 14)
@@ -2935,4 +3005,24 @@
                            (array.new_fixed $I32Array
                                             2
                                             (i32.const 0)
-                                            (i32.const 2)))))
+                                            (i32.const 2))))
+  (check-equal? (procedure-primitive-global-forms '(foo))
+                `((global $prim:foo (mut (ref eq)) ,(Imm (undefined)))))
+  (check-equal? (procedure-ffi-primitive-global-forms '(js-alert))
+                `((global $prim:js-alert (mut (ref eq)) ,(Imm (undefined)))))
+
+  (define primitive-init
+    (first (procedure-primitive-initializer-forms
+            (list (list 'foo 2 1)))))
+  (check-equal? (first primitive-init) 'global.set)
+  (check-equal? (second primitive-init) '$prim:foo)
+  (check-true (tree-member? '(ref.func $primitive-invoke:shape-2) primitive-init))
+  (check-true (tree-member? '(ref.func $foo) primitive-init))
+
+  (define ffi-init
+    (first (procedure-ffi-primitive-initializer-forms
+            (list (list 'js-many 7)))))
+  (check-equal? (first ffi-init) 'global.set)
+  (check-equal? (second ffi-init) '$prim:js-many)
+  (check-true (tree-member? '(ref.func $primitive-invoke:shape-6) ffi-init))
+  (check-true (tree-member? '(ref.func $js-many) ffi-init)))

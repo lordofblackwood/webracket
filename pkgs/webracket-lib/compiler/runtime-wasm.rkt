@@ -297,11 +297,12 @@
                   primitive-dispatch-runtime-only-helper-names
                   procedure-reduction-runtime-only-helper-names
                   procedure-result-arity-runtime-only-helper-names
-                  arity->procedure-field-expr
-                  arity->shape
                   primitive-shapes
-                  primitive-arity->shape
                   shape->invoker
+                  procedure-primitive-global-forms
+                  procedure-ffi-primitive-global-forms
+                  procedure-primitive-initializer-forms
+                  procedure-ffi-primitive-initializer-forms
                   procedure-runtime-only-helpers)
          (only-in "runtime-wasm/core/random.rkt"
                   random-current-global-forms
@@ -1363,13 +1364,10 @@
           #:exists 'replace)))
 
     (define (declare-primitives-as-globals)
-      (for/list ([pr (in-list (active-described-primitives-sorted))])
-        `(global ,($ (prim: pr)) (mut (ref eq)) ,(Imm (undefined)))))
+      (procedure-primitive-global-forms (active-described-primitives-sorted)))
 
     (define (declare-ffi-primitives-as-globals)
-      (for/list ([f (in-list active-ffi-foreigns)])
-        (define pr (foreign-racket-name f))
-        `(global ,($ (prim: pr)) (mut (ref eq)) ,(Imm (undefined)))))
+      (procedure-ffi-primitive-global-forms (active-ffi-primitive-names)))
 
     (define (primitive-invoker-tail shape)
       (match shape
@@ -2049,45 +2047,18 @@
     (define todo-handle-later '())
 
     (define (initialize-primitives-as-globals)
-      (for/list ([pr (in-list (active-described-primitives-sorted))]
-                 #:do [(define desc (primitive->description pr))])
-        (define ar    (primitive-description-arity desc))
-        (define shape (primitive-arity->shape pr ar))
-        (define $name ($ (string->symbol (~a "symbol:" pr))))
-        `(global.set ,($ (prim: pr))
-                     (struct.new $PrimitiveProcedure
-                      ; for $Procedure
-                      (i32.const 0)                               ; hash
-                      (global.get ,$name)                         ; name  (used by object-name)
-                      ,(arity->procedure-field-expr ar)           ; arity
-                      (global.get $the-racket/primitive-realm)    ; realm
-                      #;(ref.func $primitive-invoke)
-                      (ref.func ,($ (shape->invoker shape)))
-                      (ref.func ,($ pr))
-                      ,(Imm #f
-                            #;(arity->internal-representation
-                               (primitive-description-result-arity desc)))))))
+      (procedure-primitive-initializer-forms
+       (for/list ([pr (in-list (active-described-primitives-sorted))]
+                  #:do [(define desc (primitive->description pr))])
+         (list pr
+               (primitive-description-arity desc)
+               (primitive-description-result-arity desc)))))
 
     (define (initialize-ffi-primitives-as-globals)
-      (for/list ([f (in-list active-ffi-foreigns)])
-        (define pr    (foreign-racket-name f))
-        (define ar    (length (foreign-argument-types f)))
-        ;; FFI wrappers with more than six arguments use the normal variadic
-        ;; rest-list function type. The procedure object still records the
-        ;; exact source arity, and the generated wrapper checks it after
-        ;; receiving the rest list.
-        (define shape (if (> ar 6) 6 (arity->shape ar)))
-        (define $name ($ (string->symbol (~a "symbol:" pr))))
-        `(global.set ,($ (prim: pr))
-                     (struct.new $PrimitiveProcedure
-                      ; for $Procedure
-                      (i32.const 0)                               ; hash
-                      (global.get ,$name)                         ; name  (used by object-name)
-                      ,(arity->procedure-field-expr ar)           ; arity
-                      (global.get $the-racket/primitive-realm)    ; realm
-                      (ref.func ,($ (shape->invoker shape)))
-                      (ref.func ,($ pr))
-                      ,(Imm #f)))))
+      (procedure-ffi-primitive-initializer-forms
+       (for/list ([f (in-list active-ffi-foreigns)])
+         (list (foreign-racket-name f)
+               (length (foreign-argument-types f))))))
 
     ;; String constants used in the runtime
     ;;  `string-constants holds the constants passed by `generate-code` in `compiler.rkt`
