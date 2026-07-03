@@ -365,6 +365,7 @@
                   random-state-global-forms
                   random-runtime-only-helpers)
          (only-in "runtime-wasm/core/realms.rkt"
+                  realm-runtime-symbol-constants
                   realm-global-forms
                   realm-initializer-forms)
          (only-in "runtime-wasm/core/regexps.rkt"
@@ -684,32 +685,6 @@
     ;; Variable definitions on the top-level ought to go in a namespace,
     ;; but for now we use a global WebAssembly variable.
 
-
-    ; R = Make reference
-    (define (R x [type #f])
-      (case type
-        [(#f)  (match x
-                 [(? integer?) `(ref.i31 (i32.const ,x))]
-                 [_            `(ref.cast (ref eq) ,x)])]
-        [else  `(ref.cast ,type ,x)]))
-
-    ; D = Dereference
-    (define (D x type)
-      ; type is one of:
-      ;   'i32           cast to signed i32
-      ;   '(ref <type>)  cast to (ref <type>)
-
-      ; x evaluates to an (ref eq), cast x to type
-      (match type
-        ['i32 `(i31.get_s (ref.cast i31ref ,x))]
-        ['u32 `(i31.get_u (ref.cast i31ref ,x))]
-        [type `(ref.cast (ref ,type) ,x)]))
-
-    (define (I32 x) (D x 'i32))
-    (define (U32 x) (D x 'u32))
-    (define (Half x)   `(i32.shr_s ,x (i32.const 1)))
-    (define (Double x) `(i32.shl   ,x (i32.const 1)))
-
     ;;;
     ;;; Primitives
     ;;;
@@ -780,23 +755,6 @@
       (for/hasheq ([f (in-list all-ffi-foreigns)])
         (define pr (foreign-racket-name f))
         (values ($ (prim: pr)) pr)))
-
-    (define (sexpr-primitive-refs x)
-      (define refs '())
-      (define (walk x)
-        (cond
-          [(symbol? x)
-           (define pr
-             (or (hash-ref primitive-func->symbol x #f)
-                 (hash-ref primitive-global->symbol x #f)))
-           (when pr
-             (set! refs (cons pr refs)))]
-          [(pair? x)
-           (walk (car x))
-           (walk (cdr x))]
-          [else (void)]))
-      (walk x)
-      (remove-duplicates refs))
 
     (define (module-func-name form)
       (and (pair? form)
@@ -2540,10 +2498,7 @@
              eq?)
             symbol<?))
 
-    (add-runtime-symbol-constants
-     '(racket
-       racket/primitive))
-
+    (add-runtime-symbol-constants realm-runtime-symbol-constants)
     (add-runtime-symbol-constants character-runtime-symbol-constants)
     (add-runtime-symbol-constants character-general-category-runtime-symbol-constants)
 
@@ -2651,23 +2606,6 @@
     (add-runtime-bytes-constants regexp-runtime-bytes-constants)
     (add-runtime-bytes-constants linklet-runtime-bytes-constants)
     (add-runtime-bytes-constants filesystem-runtime-bytes-constants)
-
-    ;;;
-    ;;; Predicate Generator
-    ;;;
-
-    ; Note: We could generate
-    ;          (func $predicate-name? (type $Prim1) ...)
-    ;;      too, but it is convenient to grep for function definitions
-    ;       using "func $name".
-
-    (define (make-predicate-body ref-type)
-      `((param $v (ref eq))
-        (result   (ref eq))
-        (if (result (ref eq))
-            (ref.test (ref ,ref-type) (local.get $v))
-            (then (global.get $true))
-            (else (global.get $false)))))
 
     ;;;
     ;;; WEB-ASSEMBLY

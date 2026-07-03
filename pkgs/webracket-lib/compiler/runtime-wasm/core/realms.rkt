@@ -1,9 +1,16 @@
 #lang racket
 
-(provide realm-global-forms
+(provide realm-runtime-symbol-constants
+         realm-global-forms
          realm-initializer-forms)
 
 (require "../../private/wasm-utils.rkt")
+
+;; realm-runtime-symbol-constants : (listof symbol?)
+;;   Declare commonly used runtime realm symbols.
+(define realm-runtime-symbol-constants
+  '(racket
+    racket/primitive))
 
 ;; realm-global-forms : (listof datum?)
 ;;   Declare globals for commonly used runtime realm symbols.
