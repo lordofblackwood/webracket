@@ -7,6 +7,8 @@
          mutable-hash-read-runtime-helper-forms
          mutable-hash-write-runtime-helper-forms
          mutable-hash-update-runtime-helper-forms
+         mutable-hash-remove-membership-clear-runtime-helper-forms
+         mutable-hash-empty-iteration-runtime-helper-forms
          mutable-hash-runtime-only-helpers)
 
 (require "../core-helper.rkt")
@@ -77,6 +79,114 @@
   (mutable-hash-helper-forms
    helper-index
    (runtime-helper-names mutable-hash-update-bang-runtime-only-helpers)))
+
+;; mutable-hash-remove-membership-clear-runtime-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for remove, resize, membership, and clear! helpers.
+(define mutable-hash-remove-membership-clear-runtime-helper-names
+  '($hash-remove!
+    $hasheq-remove!
+    $hasheqv-remove!
+    $hashequal-remove!
+    $hashalw-remove!
+    $hasheq-remove!/mutable/checked
+    $hasheqv-remove!/mutable/checked
+    $hash-remove!/mutable/checked
+    $hashalw-remove!/mutable/checked
+    $hasheq-resize
+    $hasheqv-resize
+    $hashequal-resize
+    $hashalw-resize
+    $maybe-resize-hasheq
+    $maybe-resize-hasheqv
+    $maybe-resize-hashequal
+    $maybe-resize-hashalw
+    $hash-has-key?
+    $hash-keys-subset?
+    $hasheq-has-key?
+    $hasheqv-has-key?
+    $hashequal-has-key?
+    $hashalw-has-key?
+    $hasheq-has-key?/plain
+    $hasheqv-has-key?/plain
+    $hashequal-has-key?/plain
+    $hashalw-has-key?/plain
+    $hasheq-has-key?/plain/checked
+    $hasheqv-has-key?/plain/checked
+    $hashequal-has-key?/plain/checked
+    $hashalw-has-key?/plain/checked
+    $hash-clear!
+    $hasheq-clear!
+    $hasheqv-clear!
+    $hashequal-clear!
+    $hashalw-clear!
+    $hasheq-clear!/mutable/checked
+    $hasheqv-clear!/mutable/checked
+    $hash-clear!/mutable/checked
+    $hashalw-clear!/mutable/checked))
+
+;; mutable-hash-empty-iteration-runtime-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for hash emptiness and iteration helpers.
+(define mutable-hash-empty-iteration-runtime-helper-names
+  '($hash-empty?
+    $hasheq-empty?
+    $hasheqv-empty?
+    $hashequal-empty?
+    $hashalw-empty?
+    $hasheq-empty?/mutable/checked
+    $hasheqv-empty?/mutable/checked
+    $hash-empty?/mutable/checked
+    $hashalw-empty?/mutable/checked
+    $raise-mutable-hash-iterate-bad-index
+    $hash-iterate-first
+    $hash-iterate-next
+    $hash-iterate-key
+    $hash-iterate-value
+    $hash-iterate-pair
+    $hash-iterate-key+value
+    $mutable-hash-iterate-first
+    $hasheq-iterate-first
+    $hasheqv-iterate-first
+    $hashequal-iterate-first
+    $hashalw-iterate-first
+    $mutable-hash-iterate-next
+    $hasheq-iterate-next
+    $hasheqv-iterate-next
+    $hashequal-iterate-next
+    $hashalw-iterate-next
+    $mutable-hash-iterate-key
+    $mutable-hash-iterate-value
+    $mutable-hash-iterate-pair
+    $mutable-hash-iterate-key+value
+    $hasheq-iterate-key
+    $hasheqv-iterate-key
+    $hashequal-iterate-key
+    $hashalw-iterate-key
+    $hasheq-iterate-value
+    $hasheqv-iterate-value
+    $hashequal-iterate-value
+    $hashalw-iterate-value
+    $hasheq-iterate-pair
+    $hasheqv-iterate-pair
+    $hashequal-iterate-pair
+    $hashalw-iterate-pair
+    $hasheq-iterate-key+value
+    $hasheqv-iterate-key+value
+    $hashequal-iterate-key+value
+    $hashalw-iterate-key+value))
+
+;; mutable-hash-remove-membership-clear-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render remove, resize, membership, and clear! helpers in runtime assembly order.
+(define (mutable-hash-remove-membership-clear-runtime-helper-forms helper-index)
+  (mutable-hash-helper-forms
+   helper-index
+   mutable-hash-remove-membership-clear-runtime-helper-names))
+
+;; mutable-hash-empty-iteration-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render hash emptiness and iteration helpers in runtime assembly order.
+(define (mutable-hash-empty-iteration-runtime-helper-forms helper-index)
+  (mutable-hash-helper-forms
+   helper-index
+   mutable-hash-empty-iteration-runtime-helper-names))
 
 ;; mutable-hash-constructor-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate mutable hash constructor helpers that still depend on monolithic runtime globals.
@@ -2998,4 +3108,14 @@
   (check-equal?
    (map form-name
         (mutable-hash-update-runtime-helper-forms mutable-hash-helper-index))
-   (runtime-helper-names mutable-hash-update-bang-runtime-only-helpers)))
+   (runtime-helper-names mutable-hash-update-bang-runtime-only-helpers))
+
+  (check-equal?
+   (map form-name
+        (mutable-hash-remove-membership-clear-runtime-helper-forms mutable-hash-helper-index))
+   mutable-hash-remove-membership-clear-runtime-helper-names)
+
+  (check-equal?
+   (map form-name
+        (mutable-hash-empty-iteration-runtime-helper-forms mutable-hash-helper-index))
+   mutable-hash-empty-iteration-runtime-helper-names))

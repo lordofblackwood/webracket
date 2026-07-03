@@ -5,6 +5,10 @@
          immutable-hash-iteration-runtime-only-helper-names
          immutable-hash-public-runtime-only-helper-names
          immutable-hash-prelude-runtime-helper-forms
+         immutable-hash-public-set/remove-runtime-helper-forms
+         immutable-hash-public-update-runtime-helper-forms
+         immutable-hash-public-clear-runtime-helper-forms
+         immutable-hash-iteration-runtime-helper-forms
          immutable-hash-runtime-symbol-constants
          immutable-hash-runtime-only-helpers)
 
@@ -164,6 +168,43 @@
    (immutable-hash-helper-forms helper-index
                                 immutable-hash-prelude-runtime-only-helper-names)))
 
+;; immutable-hash-public-set/remove-runtime-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for public immutable hash set/remove wrappers.
+(define immutable-hash-public-set/remove-runtime-helper-names
+  '($hash-set
+    $hash-remove))
+
+;; immutable-hash-public-update-runtime-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for public immutable hash update.
+(define immutable-hash-public-update-runtime-helper-names
+  '($hash-update))
+
+;; immutable-hash-public-clear-runtime-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for public immutable hash clear.
+(define immutable-hash-public-clear-runtime-helper-names
+  '($hash-clear))
+
+;; immutable-hash-public-set/remove-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render public immutable hash set/remove wrappers in runtime assembly order.
+(define (immutable-hash-public-set/remove-runtime-helper-forms helper-index)
+  (immutable-hash-helper-forms
+   helper-index
+   immutable-hash-public-set/remove-runtime-helper-names))
+
+;; immutable-hash-public-update-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render public immutable hash update in runtime assembly order.
+(define (immutable-hash-public-update-runtime-helper-forms helper-index)
+  (immutable-hash-helper-forms
+   helper-index
+   immutable-hash-public-update-runtime-helper-names))
+
+;; immutable-hash-public-clear-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render public immutable hash clear in runtime assembly order.
+(define (immutable-hash-public-clear-runtime-helper-forms helper-index)
+  (immutable-hash-helper-forms
+   helper-index
+   immutable-hash-public-clear-runtime-helper-names))
+
 ;; immutable-hash-iteration-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for immutable hash iteration and shape helpers.
 (define immutable-hash-iteration-runtime-only-helper-names
@@ -198,6 +239,13 @@
     $unsafe-immutable-hash-iterate-value
     $unsafe-immutable-hash-iterate-pair
     $unsafe-immutable-hash-iterate-key+value))
+
+;; immutable-hash-iteration-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render immutable hash iteration and shape helpers in runtime assembly order.
+(define (immutable-hash-iteration-runtime-helper-forms helper-index)
+  (immutable-hash-helper-forms
+   helper-index
+   immutable-hash-iteration-runtime-only-helper-names))
 
 ;; immutable-hash-runtime-symbol-constants : (listof symbol?)
 ;;   Declare symbols used by immutable hash and reader-graph placeholder helpers.
@@ -5748,4 +5796,24 @@
    (map form-name
         (immutable-hash-prelude-runtime-helper-forms immutable-hash-helper-index))
    (append immutable-hash-constructor-runtime-only-helper-names
-           immutable-hash-prelude-runtime-only-helper-names)))
+           immutable-hash-prelude-runtime-only-helper-names))
+
+  (check-equal?
+   (map form-name
+        (immutable-hash-public-set/remove-runtime-helper-forms immutable-hash-helper-index))
+   immutable-hash-public-set/remove-runtime-helper-names)
+
+  (check-equal?
+   (map form-name
+        (immutable-hash-public-update-runtime-helper-forms immutable-hash-helper-index))
+   immutable-hash-public-update-runtime-helper-names)
+
+  (check-equal?
+   (map form-name
+        (immutable-hash-public-clear-runtime-helper-forms immutable-hash-helper-index))
+   immutable-hash-public-clear-runtime-helper-names)
+
+  (check-equal?
+   (map form-name
+        (immutable-hash-iteration-runtime-helper-forms immutable-hash-helper-index))
+   immutable-hash-iteration-runtime-only-helper-names))
