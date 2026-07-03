@@ -302,9 +302,7 @@
                   regexp-runtime-only-helper-names
                   regexp-runtime-only-helpers)
          (only-in "runtime-wasm/core/runtime-constants.rkt"
-                  core-runtime-string-constants
-                  core-runtime-bytes-constants
-                  core-runtime-symbol-constants)
+                  make-core-populated-runtime-constant-registry)
          (only-in "runtime-wasm/core/reflection.rkt"
                   reflection-runtime-only-helper-names
                   reflection-runtime-only-helpers)
@@ -1323,16 +1321,13 @@
     ;; Runtime constants include program constants passed by `generate-code`
     ;; plus constants required by runtime support.
     (define runtime-constant-registry
-      (make-populated-runtime-constant-registry
+      (make-core-populated-runtime-constant-registry
        string-constants
        bytes-constants
        symbol-constants
        (active-described-primitives-sorted)
        (active-ffi-primitive-names)
-       linklet-body-reserved-symbols/registration
-       core-runtime-string-constants
-       core-runtime-bytes-constants
-       core-runtime-symbol-constants))
+       linklet-body-reserved-symbols/registration))
 
     ;;;
     ;;; WEB-ASSEMBLY

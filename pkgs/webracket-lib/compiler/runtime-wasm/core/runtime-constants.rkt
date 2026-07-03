@@ -2,9 +2,12 @@
 
 (provide core-runtime-string-constants
          core-runtime-bytes-constants
-         core-runtime-symbol-constants)
+         core-runtime-symbol-constants
+         make-core-populated-runtime-constant-registry)
 
-(require (only-in "booleans.rkt"
+(require (only-in "../constants.rkt"
+                  make-populated-runtime-constant-registry)
+         (only-in "booleans.rkt"
                   boolean-runtime-string-constants)
          (only-in "boxes.rkt"
                   box-runtime-string-constants)
@@ -253,3 +256,63 @@
           filesystem-runtime-symbol-constants
           reflection-runtime-symbol-constants
           linklet-instance-runtime-symbol-constants))
+
+;; make-core-populated-runtime-constant-registry : list? list? list? list? list? list? -> runtime-constant-registry?
+;;   Create and populate the registry with program, active, reserved, and core constants.
+(define (make-core-populated-runtime-constant-registry string-constants
+                                                       bytes-constants
+                                                       symbol-constants
+                                                       primitive-symbols
+                                                       ffi-primitive-symbols
+                                                       reserved-symbols)
+  (make-populated-runtime-constant-registry
+   string-constants
+   bytes-constants
+   symbol-constants
+   primitive-symbols
+   ffi-primitive-symbols
+   reserved-symbols
+   core-runtime-string-constants
+   core-runtime-bytes-constants
+   core-runtime-symbol-constants))
+
+(module+ test
+  (require rackunit
+           (only-in "../constants.rkt"
+                    runtime-constant-registry-declare-strings
+                    runtime-constant-registry-declare-bytes
+                    runtime-constant-registry-declare-symbols!))
+
+  ;; form-names : (listof datum?) -> (listof symbol?)
+  ;;   Extract data/global names from declaration forms.
+  (define (form-names forms)
+    (for/list ([form (in-list forms)])
+      (second form)))
+
+  (define registry
+    (make-core-populated-runtime-constant-registry
+     '((program-string "program"))
+     '((program-bytes #"program"))
+     '((program-symbol program-symbol))
+     '(primitive)
+     '(ffi)
+     '(reserved primitive)))
+
+  (define string-declaration-names
+    (form-names (runtime-constant-registry-declare-strings registry)))
+
+  (define bytes-declaration-names
+    (form-names (runtime-constant-registry-declare-bytes registry)))
+
+  (define symbol-declaration-names
+    (form-names (runtime-constant-registry-declare-symbols! registry)))
+
+  (check-not-false (memq '$string:program-string string-declaration-names))
+  (check-not-false (memq '$string:empty string-declaration-names))
+  (check-not-false (memq '$bytes:program-bytes bytes-declaration-names))
+  (check-not-false (memq '$bytes:empty bytes-declaration-names))
+  (check-not-false (memq '$symbol:program-symbol symbol-declaration-names))
+  (check-not-false (memq '$symbol:primitive symbol-declaration-names))
+  (check-not-false (memq '$symbol:ffi symbol-declaration-names))
+  (check-not-false (memq '$symbol:reserved symbol-declaration-names))
+  (check-not-false (memq '$symbol:racket symbol-declaration-names)))
