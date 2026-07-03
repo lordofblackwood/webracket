@@ -2,11 +2,46 @@
 
 (provide path-current-global-forms
          path-current-initializer-forms
+         path-runtime-string-constants
+         path-runtime-bytes-constants
          path-runtime-only-helpers
          path-runtime-only-helper-names
          path-manipulation-runtime-only-helper-names)
 
 (require "../core-helper.rkt")
+
+;; path-runtime-string-constants : (listof (list/c symbol? string?))
+;;   Declare string constants used by path predicates and path errors.
+(define path-runtime-string-constants
+  '((system-path-kind           "(or/c 'home-dir 'pref-dir 'pref-file 'temp-dir 'init-dir 'init-file 'config-dir 'host-config-dir 'addon-dir 'host-addon-dir 'cache-dir 'doc-dir 'desk-dir 'sys-dir 'exec-file 'run-file 'collects-dir 'host-collects-dir 'orig-dir)")
+    (relative-path-string-or-false "(or/c #f (and/c path-string? relative-path?))")
+    (path?                     "path?")
+    (path-string?              "path-string?")
+    (path-for-some-system?     "path-for-some-system?")
+    (path-element?             "path-element?")
+    (listof-path?              "(listof path?)")))
+
+;; path-runtime-bytes-constants : (listof (list/c symbol? bytes?))
+;;   Declare byte-string constants used by path manipulation and system paths.
+(define path-runtime-bytes-constants
+  '((non-empty                 #"_")
+    (slash                     #"/")
+    (backslash                 #"\\")
+    (dot                       #".")
+    (dot-dot                   #"..")
+    (app-dir                   #"/app/")
+    (vfs-root                  #"/")
+    (vfs-home-dir              #"/home/")
+    (vfs-pref-dir              #"/home/.config/racket/")
+    (vfs-pref-file             #"/home/.config/racket/racket-prefs.rktd")
+    (vfs-temp-dir              #"/tmp/")
+    (vfs-init-file             #"/home/.racketrc")
+    (vfs-config-dir            #"/app/etc/")
+    (vfs-addon-dir             #"/home/.local/share/racket/")
+    (vfs-cache-dir             #"/home/.cache/racket/")
+    (vfs-exec-file             #"/app/webracket")
+    (vfs-run-file              #"/app/main.rkt")
+    (vfs-collects-dir          #"/app/collects/")))
 
 ;; path-current-global-forms : (listof datum?)
 ;;   Declare globals for path convention and current-directory path state.

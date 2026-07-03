@@ -243,6 +243,8 @@
          (only-in "runtime-wasm/core/paths.rkt"
                   path-current-global-forms
                   path-current-initializer-forms
+                  path-runtime-string-constants
+                  path-runtime-bytes-constants
                   path-runtime-only-helpers
                   path-runtime-only-helper-names
                   path-manipulation-runtime-only-helper-names)
@@ -2391,6 +2393,12 @@
     (define (add-runtime-string-constant name string)
       (runtime-constant-registry-add-string! runtime-constant-registry name string))
 
+    ;; add-runtime-string-constants : (listof (list/c symbol? string?)) -> void?
+    ;;   Add a sequence of string constants to the runtime registry.
+    (define (add-runtime-string-constants constants)
+      (for ([constant (in-list constants)])
+        (add-runtime-string-constant (first constant) (second constant))))
+
     (define (declare-runtime-string-constants)
       (runtime-constant-registry-declare-strings runtime-constant-registry))
 
@@ -2401,6 +2409,12 @@
     ;;  `bytes-constants holds the constants passed by `generate-code` in `compiler.rkt`
     (define (add-runtime-bytes-constant name bytes)
       (runtime-constant-registry-add-bytes! runtime-constant-registry name bytes))
+
+    ;; add-runtime-bytes-constants : (listof (list/c symbol? bytes?)) -> void?
+    ;;   Add a sequence of byte-string constants to the runtime registry.
+    (define (add-runtime-bytes-constants constants)
+      (for ([constant (in-list constants)])
+        (add-runtime-bytes-constant (first constant) (second constant))))
 
     (define (declare-runtime-bytes-constants)
       (runtime-constant-registry-declare-bytes runtime-constant-registry))
@@ -2952,7 +2966,7 @@
     (add-runtime-string-constant 'input-file-mode-flag       "(or/c 'binary 'text)")
     (add-runtime-string-constant 'output-file-mode-flag      "(or/c 'binary 'text)")
     (add-runtime-string-constant 'output-file-exists-flag    "(or/c 'error 'append 'replace 'truncate 'must-truncate 'truncate/replace)")
-    (add-runtime-string-constant 'system-path-kind           "(or/c 'home-dir 'pref-dir 'pref-file 'temp-dir 'init-dir 'init-file 'config-dir 'host-config-dir 'addon-dir 'host-addon-dir 'cache-dir 'doc-dir 'desk-dir 'sys-dir 'exec-file 'run-file 'collects-dir 'host-collects-dir 'orig-dir)")
+    (add-runtime-string-constants path-runtime-string-constants)
     (add-runtime-string-constant 'string-or-bytes            "(or/c string? bytes?)")
     (add-runtime-string-constant 'boolean?                   "boolean?")
     (add-runtime-string-constant 'date?                      "date?")
@@ -3271,9 +3285,6 @@
     (add-runtime-string-constant 'syntax-local-value-binding  "identifier with transformer binding")
     (add-runtime-string-constant 'set!-transformer?          "set!-transformer?")
     (add-runtime-string-constant 'dynamic-require-unsupported "dynamic module loading is not supported")
-    (add-runtime-string-constant 'path-string?               "path-string?")
-    (add-runtime-string-constant 'relative-path-string-or-false
-                                 "(or/c #f (and/c path-string? relative-path?))")
     (add-runtime-string-constant 'correlated?                "correlated?")
     (add-runtime-string-constant 'correlated-or-false        "(or/c correlated? #f)")
     (add-runtime-symbol-constant 'correlated->datum)
@@ -3363,18 +3374,9 @@
     (add-runtime-string-constant  'fx-overflow:and           " and ")
 
     (add-runtime-string-constant  'expected-fixnum:got       "expected fixnum, got: ")
-    (add-runtime-string-constant  'path?                     "path?")
-    (add-runtime-string-constant  'path-for-some-system?     "path-for-some-system?")
-    (add-runtime-string-constant  'path-element?             "path-element?")
-    (add-runtime-string-constant  'listof-path?              "(listof path?)")
-
     ;; Byte Strings
     (add-runtime-bytes-constant  'empty                     #"")
-    (add-runtime-bytes-constant  'non-empty                 #"_")
-    (add-runtime-bytes-constant  'slash                     #"/")
-    (add-runtime-bytes-constant  'backslash                 #"\\")
-    (add-runtime-bytes-constant  'dot                       #".")
-    (add-runtime-bytes-constant  'dot-dot                   #"..")
+    (add-runtime-bytes-constants path-runtime-bytes-constants)
     (add-runtime-bytes-constant  'dot-zo                    #".zo")
     (add-runtime-bytes-constant  'exp                       #"exp")
     (add-runtime-bytes-constant  'id                        #"id")
@@ -3385,20 +3387,6 @@
     (add-runtime-bytes-constant  'rx-unix-path-list         #"([^:]*):(.*)")
     (add-runtime-bytes-constant  'rx-windows-path-list      #"([^;]*);(.*)")
     (add-runtime-bytes-constant  'rkttmp-template           #"rkttmp~a")
-    (add-runtime-bytes-constant  'app-dir                   #"/app/")
-    (add-runtime-bytes-constant  'vfs-root                  #"/")
-    (add-runtime-bytes-constant  'vfs-home-dir              #"/home/")
-    (add-runtime-bytes-constant  'vfs-pref-dir              #"/home/.config/racket/")
-    (add-runtime-bytes-constant  'vfs-pref-file             #"/home/.config/racket/racket-prefs.rktd")
-    (add-runtime-bytes-constant  'vfs-temp-dir              #"/tmp/")
-    (add-runtime-bytes-constant  'vfs-init-file             #"/home/.racketrc")
-    (add-runtime-bytes-constant  'vfs-config-dir            #"/app/etc/")
-    (add-runtime-bytes-constant  'vfs-addon-dir             #"/home/.local/share/racket/")
-    (add-runtime-bytes-constant  'vfs-cache-dir             #"/home/.cache/racket/")
-    (add-runtime-bytes-constant  'vfs-exec-file             #"/app/webracket")
-    (add-runtime-bytes-constant  'vfs-run-file              #"/app/main.rkt")
-    (add-runtime-bytes-constant  'vfs-collects-dir          #"/app/collects/")
-
 
     ;;;
     ;;; Predicate Generator
