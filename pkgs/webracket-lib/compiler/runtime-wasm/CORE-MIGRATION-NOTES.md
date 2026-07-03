@@ -103,6 +103,9 @@ Follow-up:
 
 - Prefer computing hashes and byte counts from the same serialized bytes/text
   that are already needed for output.
+- The tempting cleanup is: serialize once when writing the `.wat` file, compute
+  the SHA1 from those bytes, and then write those same bytes. That is the right
+  shape for fingerprints or metrics about the final emitted module.
 - The stable-runtime analysis cache key is needed before the final `.wat` file
   is written, so it cannot simply be delayed until driver output time without
   changing the cache lookup order. If that fingerprint remains necessary,
@@ -113,6 +116,10 @@ Follow-up:
   runtime-only analysis module before tree shaking finishes; the driver later
   writes the final program module after pruning and program forms have been
   composed.
+- If stable-runtime analysis still needs a module-content fingerprint, compute
+  it from a single serialized representation produced at the analysis boundary.
+  Do not serialize the same runtime module once for the hash and again for a
+  later write/debug path.
 - Output-time reuse is still a good target for final-module diagnostics. Any
   metric or fingerprint that describes the final emitted module should be
   computed while `driver.rkt` serializes the `.wat` file, rather than by
