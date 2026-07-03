@@ -111,6 +111,8 @@
                   flonum-runtime-only-helpers)
          (only-in "runtime-wasm/core/formatting.rkt"
                   printer-extension-runtime-only-helper-names
+                  formatting-runtime-string-constants
+                  struct-type-property-formatting-runtime-string-constants
                   unquoted-printing-string-runtime-only-helper-names
                   formatting-runtime-only-helper-names
                   numeric-display-formatting-runtime-only-helper-names
@@ -345,6 +347,7 @@
                   string-utf8-runtime-only-helper-names
                   string-runtime-only-helpers)
          (only-in "runtime-wasm/core/structs.rkt"
+                  struct-runtime-string-constants
                   struct-basic-runtime-only-helper-names
                   struct-conversion-runtime-only-helper-names
                   struct-descriptor-runtime-only-helper-names
@@ -2847,15 +2850,8 @@
     (add-runtime-string-constant 'regexp-replace*            "regexp-replace*")
     (add-runtime-string-constant 'g                          "g")
 
-    (add-runtime-string-constant 'struct-type-descriptor     "#<struct-type-descriptor>")
-    (add-runtime-string-constant 'struct-open                "#(struct ")
-    (add-runtime-string-constant 'struct?                    "struct?")
-    (add-runtime-string-constant 'struct-type?               "struct-type?")
-    (add-runtime-string-constant 'sealed-struct-supertype     "sealed structure type cannot be used as a supertype")
-    (add-runtime-string-constant 'custom-write?              "custom-write?")
-    (add-runtime-string-constant 'custom-print-quotable?     "custom-print-quotable?")
-    (add-runtime-string-constant 'struct->list:on-opaque     "one of 'error, 'return-false, or 'skip")
-    (add-runtime-string-constant 'struct:prefix              "struct:")
+    (add-runtime-string-constants struct-runtime-string-constants)
+    (add-runtime-string-constants formatting-runtime-string-constants)
 
     (add-runtime-string-constant 'hash-colon                 "#:")
     (add-runtime-string-constant 'hash-backslash             "#\\")
@@ -2885,8 +2881,7 @@
     (add-runtime-string-constant 'hash-less-treelist-colon-space       "#<treelist: ")
     (add-runtime-string-constant 'hash-less-unix-path-colon            "#<unix-path:")
     (add-runtime-string-constant 'hash-less-windows-path-colon         "#<windows-path:")
-    (add-runtime-string-constant 'hash-less-struct-type-property-colon "#<struct-type-property:")
-
+    (add-runtime-string-constants struct-type-property-formatting-runtime-string-constants)
     (add-runtime-string-constant 'procedure-realm           "procedure-realm")
     (add-runtime-string-constant 'procedure-struct-type?    "procedure-struct-type?")
     (add-runtime-string-constant 'string?                    "string?")

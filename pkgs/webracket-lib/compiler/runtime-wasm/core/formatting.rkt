@@ -1,6 +1,8 @@
 #lang racket
 
 (provide printer-extension-runtime-only-helper-names
+         formatting-runtime-string-constants
+         struct-type-property-formatting-runtime-string-constants
          unquoted-printing-string-runtime-only-helper-names
          formatting-runtime-only-helper-names
          numeric-display-formatting-runtime-only-helper-names
@@ -12,6 +14,17 @@
                   char-mask
                   char-shift
                   char-tag))
+
+;; formatting-runtime-string-constants : (listof (list/c symbol? string?))
+;;   Declare string constants used by formatting and printer-extension helpers.
+(define formatting-runtime-string-constants
+  '((custom-write?              "custom-write?")
+    (custom-print-quotable?     "custom-print-quotable?")))
+
+;; struct-type-property-formatting-runtime-string-constants : (listof (list/c symbol? string?))
+;;   Declare string constants used by struct type property formatting.
+(define struct-type-property-formatting-runtime-string-constants
+  '((hash-less-struct-type-property-colon "#<struct-type-property:")))
 
 ;; Half : datum? -> datum?
 ;;   Decode a tagged fixnum expression to an i32 payload.

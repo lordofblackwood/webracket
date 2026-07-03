@@ -1,6 +1,7 @@
 #lang racket
 
 (provide struct-basic-runtime-only-helper-names
+         struct-runtime-string-constants
          struct-conversion-runtime-only-helper-names
          struct-descriptor-runtime-only-helper-names
          struct-format-runtime-only-helper-names
@@ -37,6 +38,17 @@
 
 (require "../core-helper.rkt"
          "../../private/immediates.rkt")
+
+;; struct-runtime-string-constants : (listof (list/c symbol? string?))
+;;   Declare string constants used by struct helpers and struct errors.
+(define struct-runtime-string-constants
+  '((struct-type-descriptor     "#<struct-type-descriptor>")
+    (struct-open                "#(struct ")
+    (struct?                    "struct?")
+    (struct-type?               "struct-type?")
+    (sealed-struct-supertype    "sealed structure type cannot be used as a supertype")
+    (struct->list:on-opaque     "one of 'error, 'return-false, or 'skip")
+    (struct:prefix              "struct:")))
 
 ;; struct-prefab-registry-global-forms : (listof datum?)
 ;;   Declare the prefab struct type registry.
