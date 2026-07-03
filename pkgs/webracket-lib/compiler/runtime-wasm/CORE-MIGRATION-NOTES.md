@@ -98,6 +98,9 @@ Concern:
   runtime analysis where the module can be large.
 - The same general serialization work also happens when the driver writes the
   final `.wat` file.
+- Treat the `with-output-to-string` shape above as a regression if it reappears:
+  writing a large module to a string, converting it to bytes, and then throwing
+  the string away adds avoidable allocation pressure.
 
 Follow-up:
 
@@ -106,6 +109,9 @@ Follow-up:
 - The tempting cleanup is: serialize once when writing the `.wat` file, compute
   the SHA1 from those bytes, and then write those same bytes. That is the right
   shape for fingerprints or metrics about the final emitted module.
+- For the final program module, yes: if the driver needs a fingerprint,
+  byte count, or other output metric, compute it in `write-wat-to-file` from
+  the same serialized WAT text/bytes that are written to disk.
 - The stable-runtime analysis cache key is needed before the final `.wat` file
   is written, so it cannot simply be delayed until driver output time without
   changing the cache lookup order. If that fingerprint remains necessary,
