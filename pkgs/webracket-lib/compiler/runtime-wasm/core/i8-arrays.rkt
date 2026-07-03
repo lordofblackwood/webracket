@@ -1,6 +1,8 @@
 #lang racket
 
-(provide i8-array-core-runtime-helpers
+(provide i8-array-core-runtime-helper-forms
+         i8-array-core-runtime-helper-names
+         i8-array-core-runtime-helpers
          i8-array-error-runtime-only-helper-names
          i8-array-conversion-runtime-only-helper-names
          i8-array-error-runtime-helper-forms
@@ -264,6 +266,37 @@
   (for/list ([name (in-list names)])
     (core-runtime-helper-form helper-index name)))
 
+;; i8-array-core-runtime-helper-specs : (listof (list/c symbol? (or/c string? #f)))
+;;   Preserve the core runtime emission order and public exports for I8Array helpers.
+(define i8-array-core-runtime-helper-specs
+  '(($i8make-array #f)
+    ($i8array-length "i8array-length")
+    ($i8array-ref "i8array-ref")
+    ($i8array-set! "i8array-set!")
+    ($i8array-fill! "i8array-fill!")
+    ($i8array-copy! "i8array-copy!")
+    ($i8array-copy!/error "i8array-copy!/error")
+    ($i8array-copy #f)
+    ($i8array-set/copy #f)
+    ($i8array-extend #f)
+    ($i8array-append #f)))
+
+;; i8-array-core-runtime-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for I8Array core helpers.
+(define i8-array-core-runtime-helper-names
+  (map first i8-array-core-runtime-helper-specs))
+
+;; i8-array-core-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render I8Array core helpers in runtime assembly order.
+(define (i8-array-core-runtime-helper-forms helper-index)
+  (for/list ([spec (in-list i8-array-core-runtime-helper-specs)])
+    (match-define (list name export-name) spec)
+    (if export-name
+        (core-runtime-helper-form helper-index name
+                                  #:export? #t
+                                  #:export-name export-name)
+        (core-runtime-helper-form helper-index name))))
+
 ;; i8-array-error-runtime-helper-forms : hasheq? -> (listof datum?)
 ;;   Render i8 array error helpers in runtime assembly order.
 (define (i8-array-error-runtime-helper-forms helper-index)
@@ -282,8 +315,35 @@
   (define (form-name form)
     (second form))
 
+  ;; form-export-names : datum? -> (listof string?)
+  ;;   Return export names attached directly to a rendered helper form.
+  (define (form-export-names form)
+    (for/list ([part (in-list (cddr form))]
+               #:when (and (pair? part)
+                           (eq? 'export (car part))))
+      (second part)))
+
   (define i8-array-helper-index
     (make-core-runtime-helper-index i8-array-runtime-only-helpers))
+
+  (define i8-array-core-helper-index
+    (make-core-runtime-helper-index i8-array-core-runtime-helpers))
+
+  (check-equal?
+   (map core-runtime-helper-name i8-array-core-runtime-helpers)
+   i8-array-core-runtime-helper-names)
+
+  (check-equal?
+   (map form-name (i8-array-core-runtime-helper-forms i8-array-core-helper-index))
+   i8-array-core-runtime-helper-names)
+
+  (check-equal?
+   (map form-export-names (i8-array-core-runtime-helper-forms i8-array-core-helper-index))
+   (for/list ([spec (in-list i8-array-core-runtime-helper-specs)])
+     (match-define (list _ export-name) spec)
+     (if export-name
+         (list export-name)
+         '())))
 
   (check-equal?
    (map form-name (i8-array-error-runtime-helper-forms i8-array-helper-index))

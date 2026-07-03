@@ -1,6 +1,8 @@
 #lang racket
 
-(provide i32-array-core-runtime-helpers
+(provide i32-array-core-runtime-helper-forms
+         i32-array-core-runtime-helper-names
+         i32-array-core-runtime-helpers
          i32-array-runtime-only-helper-names
          i32-array-runtime-helper-forms
          i32-array-runtime-only-helpers)
@@ -280,6 +282,32 @@
   (for/list ([name (in-list i32-array-runtime-only-helper-names)])
     (core-runtime-helper-form helper-index name)))
 
+;; i32-array-core-runtime-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for I32Array core helpers.
+(define i32-array-core-runtime-helper-names
+  '($i32array-make
+    $i32array-length
+    $i32array-ref
+    $i32array-set!
+    $i32array-equal?
+    $i32array-fill!
+    $i32array-copy!
+    $i32array-copy!/error
+    $i32array-copy
+    $i32array-append
+    $i32array-take
+    $i32array-take-right
+    $i32array-drop
+    $i32array-drop-right
+    $i32array-set/copy
+    $i32array-extend))
+
+;; i32-array-core-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render I32Array core helpers in runtime assembly order.
+(define (i32-array-core-runtime-helper-forms helper-index)
+  (for/list ([name (in-list i32-array-core-runtime-helper-names)])
+    (core-runtime-helper-form helper-index name)))
+
 (module+ test
   (require rackunit)
 
@@ -290,6 +318,18 @@
 
   (define i32-array-helper-index
     (make-core-runtime-helper-index i32-array-runtime-only-helpers))
+
+  (define i32-array-core-helper-index
+    (make-core-runtime-helper-index i32-array-core-runtime-helpers))
+
+  (check-equal?
+   (map core-runtime-helper-name i32-array-core-runtime-helpers)
+   i32-array-core-runtime-helper-names)
+
+  (check-equal?
+   (map form-name
+        (i32-array-core-runtime-helper-forms i32-array-core-helper-index))
+   i32-array-core-runtime-helper-names)
 
   (check-equal?
    (map form-name (i32-array-runtime-helper-forms i32-array-helper-index))

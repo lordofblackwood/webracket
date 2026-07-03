@@ -142,9 +142,11 @@
                   immutable-hash-public-runtime-only-helper-names
                   immutable-hash-runtime-only-helpers)
          (only-in "runtime-wasm/core/i32-arrays.rkt"
+                  i32-array-core-runtime-helper-forms
                   i32-array-runtime-helper-forms
                   i32-array-runtime-only-helpers)
          (only-in "runtime-wasm/core/i8-arrays.rkt"
+                  i8-array-core-runtime-helper-forms
                   i8-array-error-runtime-helper-forms
                   i8-array-conversion-runtime-helper-forms
                   i8-array-runtime-only-helpers)
@@ -1517,22 +1519,7 @@
 
          ; (type $I32Array (array (mut i32)))
 
-         ,(core-runtime-helper-form core-runtime-helper-index '$i32array-make)
-         ,(core-runtime-helper-form core-runtime-helper-index '$i32array-length)
-         ,(core-runtime-helper-form core-runtime-helper-index '$i32array-ref)
-         ,(core-runtime-helper-form core-runtime-helper-index '$i32array-set!)
-         ,(core-runtime-helper-form core-runtime-helper-index '$i32array-equal?)
-         ,(core-runtime-helper-form core-runtime-helper-index '$i32array-fill!)
-         ,(core-runtime-helper-form core-runtime-helper-index '$i32array-copy!)
-         ,(core-runtime-helper-form core-runtime-helper-index '$i32array-copy!/error)
-         ,(core-runtime-helper-form core-runtime-helper-index '$i32array-copy)
-         ,(core-runtime-helper-form core-runtime-helper-index '$i32array-append)
-         ,(core-runtime-helper-form core-runtime-helper-index '$i32array-take)
-         ,(core-runtime-helper-form core-runtime-helper-index '$i32array-take-right)
-         ,(core-runtime-helper-form core-runtime-helper-index '$i32array-drop)
-         ,(core-runtime-helper-form core-runtime-helper-index '$i32array-drop-right)
-         ,(core-runtime-helper-form core-runtime-helper-index '$i32array-set/copy)
-         ,(core-runtime-helper-form core-runtime-helper-index '$i32array-extend)
+         ,@(i32-array-core-runtime-helper-forms core-runtime-helper-index)
 
          ;;   I32 array conversion helpers are implemented in runtime-wasm/core/i32-arrays.rkt.
          ,@(i32-array-runtime-helper-forms runtime-helper-index)
@@ -1547,17 +1534,7 @@
          ;;   I8 array error helpers are implemented in runtime-wasm/core/i8-arrays.rkt.
          ,@(i8-array-error-runtime-helper-forms runtime-helper-index)
 
-         ,(core-runtime-helper-form core-runtime-helper-index '$i8make-array)
-         ,(core-runtime-helper-form core-runtime-helper-index '$i8array-length #:export? #t #:export-name "i8array-length")
-         ,(core-runtime-helper-form core-runtime-helper-index '$i8array-ref #:export? #t #:export-name "i8array-ref")
-         ,(core-runtime-helper-form core-runtime-helper-index '$i8array-set! #:export? #t #:export-name "i8array-set!")
-         ,(core-runtime-helper-form core-runtime-helper-index '$i8array-fill! #:export? #t #:export-name "i8array-fill!")
-         ,(core-runtime-helper-form core-runtime-helper-index '$i8array-copy! #:export? #t #:export-name "i8array-copy!")
-         ,(core-runtime-helper-form core-runtime-helper-index '$i8array-copy!/error #:export? #t #:export-name "i8array-copy!/error")
-         ,(core-runtime-helper-form core-runtime-helper-index '$i8array-copy)
-         ,(core-runtime-helper-form core-runtime-helper-index '$i8array-set/copy)
-         ,(core-runtime-helper-form core-runtime-helper-index '$i8array-extend)
-         ,(core-runtime-helper-form core-runtime-helper-index '$i8array-append)
+         ,@(i8-array-core-runtime-helper-forms core-runtime-helper-index)
 
          ;;   I8 array conversion helpers are implemented in runtime-wasm/core/i8-arrays.rkt.
          ,@(i8-array-conversion-runtime-helper-forms runtime-helper-index)
