@@ -1,29 +1,21 @@
 #lang racket
 
-(provide port-predicate-runtime-only-helper-names
+(provide port-predicate-runtime-helper-forms
          port-predicate-runtime-string-constants
          port-runtime-symbol-constants
          port-event-runtime-string-constants
          port-event-runtime-symbol-constants
          port-closed-error-runtime-string-constants
-         port-state-runtime-only-helper-names
-         port-location-runtime-only-helper-names
-         port-string-constructor-runtime-only-helper-names
-         port-custom-constructor-runtime-only-helper-names
-         port-event-runtime-only-helper-names
-         port-custom-byte-runtime-only-helper-names
-         port-byte-char-runtime-only-helper-names
-         port-byte-char-special-runtime-only-helper-names
-         port-read-bytes-runtime-only-helper-names
-         port-read-string-runtime-only-helper-names
-         port-ready-runtime-only-helper-names
-         port-read-line-runtime-only-helper-names
-         port-peek-bytes-bang-runtime-only-helper-names
-         port-peek-byte-runtime-only-helper-names
-         port-peek-bytes-runtime-only-helper-names
+         port-output-predicate-runtime-helper-forms
+         port-state-runtime-helper-forms
+         port-location-runtime-helper-forms
+         port-string-constructor-runtime-helper-forms
+         port-output-string-runtime-helper-forms
+         port-custom-constructor-runtime-helper-forms
+         port-call-with-output-string-runtime-helper-forms
+         port-input-runtime-helper-forms
          port-current-global-forms
-         port-write-basic-runtime-only-helper-names
-         port-write-bytes-runtime-only-helper-names
+         port-output-runtime-helper-forms
          port-runtime-only-helpers)
 
 (require "../core-helper.rkt"
@@ -228,6 +220,99 @@
     $write-bytes
     $raise-bad-string-range
     $write-string))
+
+;; port-output-predicate-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for the output-port? predicate.
+(define port-output-predicate-runtime-only-helper-names
+  '($output-port?))
+
+;; port-output-string-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for output string extraction helpers.
+(define port-output-string-runtime-only-helper-names
+  '($get-output-string))
+
+;; port-call-with-output-string-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for call-with-output-string.
+(define port-call-with-output-string-runtime-only-helper-names
+  '($call-with-output-string))
+
+;; port-input-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for byte/string input helpers.
+(define port-input-runtime-only-helper-names
+  (append port-event-runtime-only-helper-names
+          port-custom-byte-runtime-only-helper-names
+          port-byte-char-runtime-only-helper-names
+          port-byte-char-special-runtime-only-helper-names
+          port-read-bytes-runtime-only-helper-names
+          port-read-string-runtime-only-helper-names
+          port-ready-runtime-only-helper-names
+          port-read-line-runtime-only-helper-names
+          port-peek-bytes-bang-runtime-only-helper-names
+          '($peek-string!)
+          port-peek-byte-runtime-only-helper-names
+          port-peek-bytes-runtime-only-helper-names))
+
+;; port-output-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for byte/string output helpers.
+(define port-output-runtime-only-helper-names
+  (append port-write-basic-runtime-only-helper-names
+          port-write-bytes-runtime-only-helper-names))
+
+;; port-helper-forms : hasheq? (listof symbol?) -> (listof datum?)
+;;   Render the given port helper names from the runtime helper index.
+(define (port-helper-forms helper-index names)
+  (for/list ([name (in-list names)])
+    (core-runtime-helper-form helper-index name)))
+
+;; port-predicate-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render port predicate and wrapper-recognition helpers in runtime assembly order.
+(define (port-predicate-runtime-helper-forms helper-index)
+  (port-helper-forms helper-index port-predicate-runtime-only-helper-names))
+
+;; port-output-predicate-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render output-port? in runtime assembly order.
+(define (port-output-predicate-runtime-helper-forms helper-index)
+  (port-helper-forms helper-index port-output-predicate-runtime-only-helper-names))
+
+;; port-state-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render current, close, and flush port helpers in runtime assembly order.
+(define (port-state-runtime-helper-forms helper-index)
+  (port-helper-forms helper-index port-state-runtime-only-helper-names))
+
+;; port-location-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render port location helpers in runtime assembly order.
+(define (port-location-runtime-helper-forms helper-index)
+  (port-helper-forms helper-index port-location-runtime-only-helper-names))
+
+;; port-string-constructor-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render string and byte string port constructors in runtime assembly order.
+(define (port-string-constructor-runtime-helper-forms helper-index)
+  (port-helper-forms helper-index port-string-constructor-runtime-only-helper-names))
+
+;; port-output-string-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render output string extraction helpers in runtime assembly order.
+(define (port-output-string-runtime-helper-forms helper-index)
+  (port-helper-forms helper-index port-output-string-runtime-only-helper-names))
+
+;; port-custom-constructor-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render custom input/output port constructors in runtime assembly order.
+(define (port-custom-constructor-runtime-helper-forms helper-index)
+  (port-helper-forms helper-index port-custom-constructor-runtime-only-helper-names))
+
+;; port-call-with-output-string-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render call-with-output-string in runtime assembly order.
+(define (port-call-with-output-string-runtime-helper-forms helper-index)
+  (port-helper-forms helper-index port-call-with-output-string-runtime-only-helper-names))
+
+;; port-input-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render byte/string input helpers in runtime assembly order.
+(define (port-input-runtime-helper-forms helper-index)
+  (port-helper-forms helper-index port-input-runtime-only-helper-names))
+
+;; port-output-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render byte/string output helpers in runtime assembly order.
+(define (port-output-runtime-helper-forms helper-index)
+  (port-helper-forms helper-index port-output-runtime-only-helper-names))
 
 ;; port-predicate-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate port predicate and wrapper-recognition helpers.
@@ -4034,3 +4119,54 @@
           port-peek-wrapper-runtime-only-helpers
           port-byte-char-output-runtime-only-helpers
           port-byte-string-output-runtime-only-helpers))
+
+(module+ test
+  (require rackunit)
+
+  ;; form-name : datum? -> symbol?
+  ;;   Return the function name from a rendered helper form.
+  (define (form-name form)
+    (second form))
+
+  (define port-helper-index
+    (make-core-runtime-helper-index port-runtime-only-helpers))
+
+  (check-equal?
+   (map form-name (port-predicate-runtime-helper-forms port-helper-index))
+   port-predicate-runtime-only-helper-names)
+
+  (check-equal?
+   (map form-name (port-output-predicate-runtime-helper-forms port-helper-index))
+   port-output-predicate-runtime-only-helper-names)
+
+  (check-equal?
+   (map form-name (port-state-runtime-helper-forms port-helper-index))
+   port-state-runtime-only-helper-names)
+
+  (check-equal?
+   (map form-name (port-location-runtime-helper-forms port-helper-index))
+   port-location-runtime-only-helper-names)
+
+  (check-equal?
+   (map form-name (port-string-constructor-runtime-helper-forms port-helper-index))
+   port-string-constructor-runtime-only-helper-names)
+
+  (check-equal?
+   (map form-name (port-output-string-runtime-helper-forms port-helper-index))
+   port-output-string-runtime-only-helper-names)
+
+  (check-equal?
+   (map form-name (port-custom-constructor-runtime-helper-forms port-helper-index))
+   port-custom-constructor-runtime-only-helper-names)
+
+  (check-equal?
+   (map form-name (port-call-with-output-string-runtime-helper-forms port-helper-index))
+   port-call-with-output-string-runtime-only-helper-names)
+
+  (check-equal?
+   (map form-name (port-input-runtime-helper-forms port-helper-index))
+   port-input-runtime-only-helper-names)
+
+  (check-equal?
+   (map form-name (port-output-runtime-helper-forms port-helper-index))
+   port-output-runtime-only-helper-names))

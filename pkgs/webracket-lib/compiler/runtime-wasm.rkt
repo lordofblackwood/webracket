@@ -259,25 +259,17 @@
                   path-runtime-only-helper-names
                   path-manipulation-runtime-only-helper-names)
          (only-in "runtime-wasm/core/ports.rkt"
-                  port-byte-char-runtime-only-helper-names
-                  port-byte-char-special-runtime-only-helper-names
-                  port-custom-byte-runtime-only-helper-names
-                  port-custom-constructor-runtime-only-helper-names
-                  port-event-runtime-only-helper-names
-                  port-location-runtime-only-helper-names
-                  port-peek-byte-runtime-only-helper-names
-                  port-peek-bytes-bang-runtime-only-helper-names
-                  port-peek-bytes-runtime-only-helper-names
+                  port-call-with-output-string-runtime-helper-forms
                   port-current-global-forms
-                  port-predicate-runtime-only-helper-names
-                  port-read-bytes-runtime-only-helper-names
-                  port-read-line-runtime-only-helper-names
-                  port-read-string-runtime-only-helper-names
-                  port-ready-runtime-only-helper-names
-                  port-state-runtime-only-helper-names
-                  port-string-constructor-runtime-only-helper-names
-                  port-write-basic-runtime-only-helper-names
-                  port-write-bytes-runtime-only-helper-names
+                  port-custom-constructor-runtime-helper-forms
+                  port-input-runtime-helper-forms
+                  port-location-runtime-helper-forms
+                  port-output-predicate-runtime-helper-forms
+                  port-output-runtime-helper-forms
+                  port-output-string-runtime-helper-forms
+                  port-predicate-runtime-helper-forms
+                  port-state-runtime-helper-forms
+                  port-string-constructor-runtime-helper-forms
                   port-runtime-only-helpers)
          (only-in "runtime-wasm/core/procedures.rkt"
                   procedure-global-forms
@@ -2267,95 +2259,44 @@
         ;;   output ports keep a mutable byte buffer that grows as data is
         ;;   written.
 
-        ;;   Implemented in runtime-wasm/core/ports.rkt.
-        ,@(for/list ([name (in-list port-predicate-runtime-only-helper-names)])
-            (core-runtime-helper-form runtime-helper-index name))
+        ;; Port predicate helpers are implemented in runtime-wasm/core/ports.rkt.
+        ,@(port-predicate-runtime-helper-forms runtime-helper-index)
 
         ;;   Implemented in runtime-wasm/core/impersonators.rkt.
         ,@(for/list ([name (in-list impersonator-basic-runtime-only-helper-names)])
             (core-runtime-helper-form runtime-helper-index name))
 
-        ;;   Implemented in runtime-wasm/core/ports.rkt.
-        ,(core-runtime-helper-form runtime-helper-index '$output-port?)
+        ;; Output-port predicate helper is implemented in runtime-wasm/core/ports.rkt.
+        ,@(port-output-predicate-runtime-helper-forms runtime-helper-index)
 
-        ;;   Implemented in runtime-wasm/core/ports.rkt.
-        ,@(for/list ([name (in-list port-state-runtime-only-helper-names)])
-            (core-runtime-helper-form runtime-helper-index name))
+        ;; Port state helpers are implemented in runtime-wasm/core/ports.rkt.
+        ,@(port-state-runtime-helper-forms runtime-helper-index)
 
-        ;;   Implemented in runtime-wasm/core/ports.rkt.
-        ,@(for/list ([name (in-list port-location-runtime-only-helper-names)])
-            (core-runtime-helper-form runtime-helper-index name))
+        ;; Port location helpers are implemented in runtime-wasm/core/ports.rkt.
+        ,@(port-location-runtime-helper-forms runtime-helper-index)
 
-         ;;   Implemented in runtime-wasm/core/ports.rkt.
-         ,@(for/list ([name (in-list port-string-constructor-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
+         ;; String/byte string port constructors are implemented in runtime-wasm/core/ports.rkt.
+         ,@(port-string-constructor-runtime-helper-forms runtime-helper-index)
 
-         ;;   Implemented in runtime-wasm/core/ports.rkt.
-         ,(core-runtime-helper-form runtime-helper-index '$get-output-string)
+         ;; Output string extraction helpers are implemented in runtime-wasm/core/ports.rkt.
+         ,@(port-output-string-runtime-helper-forms runtime-helper-index)
 
-         ;;   Implemented in runtime-wasm/core/ports.rkt.
-         ,@(for/list ([name (in-list port-custom-constructor-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
+         ;; Custom port constructors are implemented in runtime-wasm/core/ports.rkt.
+         ,@(port-custom-constructor-runtime-helper-forms runtime-helper-index)
 
          ;;   EOF object helpers are implemented in runtime-wasm/core/immediates.rkt.
          ,@(for/list ([name (in-list eof-object-runtime-only-helper-names)])
              (core-runtime-helper-form runtime-helper-index name))
 
-         ;;   Implemented in runtime-wasm/core/ports.rkt.
-         ,(core-runtime-helper-form runtime-helper-index '$call-with-output-string)
+         ;; call-with-output-string is implemented in runtime-wasm/core/ports.rkt.
+         ,@(port-call-with-output-string-runtime-helper-forms runtime-helper-index)
 
          ;;;
          ;;;  13.2  Byte and String Input
          ;;;
 
-         ;;   Implemented in runtime-wasm/core/ports.rkt.
-         ,@(for/list ([name (in-list port-event-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
-
-         ;;   Implemented in runtime-wasm/core/ports.rkt.
-         ,@(for/list ([name (in-list port-custom-byte-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
-
-         ;;   Implemented in runtime-wasm/core/ports.rkt.
-         ,@(for/list ([name (in-list port-byte-char-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
-
-         ;;   Implemented in runtime-wasm/core/ports.rkt.
-         ,@(for/list ([name (in-list port-byte-char-special-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
-
-         ;;   Implemented in runtime-wasm/core/ports.rkt.
-         ,@(for/list ([name (in-list port-read-bytes-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
-
-         ;;   Implemented in runtime-wasm/core/ports.rkt.
-         ,@(for/list ([name (in-list port-read-string-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
-
-         ;;   Implemented in runtime-wasm/core/ports.rkt.
-         ,@(for/list ([name (in-list port-ready-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
-
-         ;;   Implemented in runtime-wasm/core/ports.rkt.
-         ,@(for/list ([name (in-list port-read-line-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
-
-         ;;   Implemented in runtime-wasm/core/ports.rkt.
-         ,@(for/list ([name (in-list port-peek-bytes-bang-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
-
-         ;;   Implemented in runtime-wasm/core/ports.rkt.
-         ,(core-runtime-helper-form runtime-helper-index '$peek-string!)
-
-
-         ;;   Implemented in runtime-wasm/core/ports.rkt.
-         ,@(for/list ([name (in-list port-peek-byte-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
-
-
-         ;;   Implemented in runtime-wasm/core/ports.rkt.
-         ,@(for/list ([name (in-list port-peek-bytes-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
+         ;; Byte/string input helpers are implemented in runtime-wasm/core/ports.rkt.
+         ,@(port-input-runtime-helper-forms runtime-helper-index)
 
          ;;;
          ;;;  13.3  Byte and String Output
@@ -2370,13 +2311,8 @@
          ;;         (field $idx   i32)          ; the current index into the string
          ;;         (field $loc   (ref $Location)))) ; the current location
 
-         ;;   Implemented in runtime-wasm/core/ports.rkt.
-         ,@(for/list ([name (in-list port-write-basic-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
-
-         ;;   Implemented in runtime-wasm/core/ports.rkt.
-         ,@(for/list ([name (in-list port-write-bytes-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
+         ;; Byte/string output helpers are implemented in runtime-wasm/core/ports.rkt.
+         ,@(port-output-runtime-helper-forms runtime-helper-index)
 
 
          ;;;
