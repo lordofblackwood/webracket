@@ -134,11 +134,11 @@
                   immutable-hash-public-runtime-only-helper-names
                   immutable-hash-runtime-only-helpers)
          (only-in "runtime-wasm/core/i32-arrays.rkt"
-                  i32-array-runtime-only-helper-names
+                  i32-array-runtime-helper-forms
                   i32-array-runtime-only-helpers)
          (only-in "runtime-wasm/core/i8-arrays.rkt"
-                  i8-array-error-runtime-only-helper-names
-                  i8-array-conversion-runtime-only-helper-names
+                  i8-array-error-runtime-helper-forms
+                  i8-array-conversion-runtime-helper-forms
                   i8-array-runtime-only-helpers)
          (only-in "runtime-wasm/core/immediates.rkt"
                   singleton-global-forms
@@ -1572,8 +1572,7 @@
          ,(core-runtime-helper-form core-runtime-helper-index '$i32array-extend)
 
          ;;   I32 array conversion helpers are implemented in runtime-wasm/core/i32-arrays.rkt.
-         ,@(for/list ([name (in-list i32-array-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
+         ,@(i32-array-runtime-helper-forms runtime-helper-index)
 
 
          ;;;
@@ -1583,8 +1582,7 @@
          ; (type $I8Array (array (mut i8)))
 
          ;;   I8 array error helpers are implemented in runtime-wasm/core/i8-arrays.rkt.
-         ,@(for/list ([name (in-list i8-array-error-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
+         ,@(i8-array-error-runtime-helper-forms runtime-helper-index)
 
          ,(core-runtime-helper-form core-runtime-helper-index '$i8make-array)
          ,(core-runtime-helper-form core-runtime-helper-index '$i8array-length #:export? #t #:export-name "i8array-length")
@@ -1599,8 +1597,7 @@
          ,(core-runtime-helper-form core-runtime-helper-index '$i8array-append)
 
          ;;   I8 array conversion helpers are implemented in runtime-wasm/core/i8-arrays.rkt.
-         ,@(for/list ([name (in-list i8-array-conversion-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
+         ,@(i8-array-conversion-runtime-helper-forms runtime-helper-index)
 
          ,(core-runtime-helper-form core-runtime-helper-index '$i8array->bytes)
          ,(core-runtime-helper-form core-runtime-helper-index '$i8array->immutable-bytes)

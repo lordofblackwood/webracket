@@ -2,6 +2,7 @@
 
 (provide i32-array-core-runtime-helpers
          i32-array-runtime-only-helper-names
+         i32-array-runtime-helper-forms
          i32-array-runtime-only-helpers)
 
 (require "../core-helper.rkt")
@@ -272,3 +273,24 @@
                                   (unreachable)))))
            ;; Return the filled array
            (local.get $arr)))))
+
+;; i32-array-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render i32 array runtime-only helpers in runtime assembly order.
+(define (i32-array-runtime-helper-forms helper-index)
+  (for/list ([name (in-list i32-array-runtime-only-helper-names)])
+    (core-runtime-helper-form helper-index name)))
+
+(module+ test
+  (require rackunit)
+
+  ;; form-name : datum? -> symbol?
+  ;;   Return the function name from a rendered helper form.
+  (define (form-name form)
+    (second form))
+
+  (define i32-array-helper-index
+    (make-core-runtime-helper-index i32-array-runtime-only-helpers))
+
+  (check-equal?
+   (map form-name (i32-array-runtime-helper-forms i32-array-helper-index))
+   i32-array-runtime-only-helper-names))

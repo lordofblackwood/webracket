@@ -3,6 +3,8 @@
 (provide i8-array-core-runtime-helpers
          i8-array-error-runtime-only-helper-names
          i8-array-conversion-runtime-only-helper-names
+         i8-array-error-runtime-helper-forms
+         i8-array-conversion-runtime-helper-forms
          i8-array-runtime-only-helpers)
 
 (require "../core-helper.rkt")
@@ -255,3 +257,38 @@
                                   (unreachable)))))
            ;; Return array
            (local.get $arr)))))
+
+;; i8-array-helper-forms : hasheq? (listof symbol?) -> (listof datum?)
+;;   Render the given i8 array helper names from the runtime helper index.
+(define (i8-array-helper-forms helper-index names)
+  (for/list ([name (in-list names)])
+    (core-runtime-helper-form helper-index name)))
+
+;; i8-array-error-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render i8 array error helpers in runtime assembly order.
+(define (i8-array-error-runtime-helper-forms helper-index)
+  (i8-array-helper-forms helper-index i8-array-error-runtime-only-helper-names))
+
+;; i8-array-conversion-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render i8 array conversion helpers in runtime assembly order.
+(define (i8-array-conversion-runtime-helper-forms helper-index)
+  (i8-array-helper-forms helper-index i8-array-conversion-runtime-only-helper-names))
+
+(module+ test
+  (require rackunit)
+
+  ;; form-name : datum? -> symbol?
+  ;;   Return the function name from a rendered helper form.
+  (define (form-name form)
+    (second form))
+
+  (define i8-array-helper-index
+    (make-core-runtime-helper-index i8-array-runtime-only-helpers))
+
+  (check-equal?
+   (map form-name (i8-array-error-runtime-helper-forms i8-array-helper-index))
+   i8-array-error-runtime-only-helper-names)
+
+  (check-equal?
+   (map form-name (i8-array-conversion-runtime-helper-forms i8-array-helper-index))
+   i8-array-conversion-runtime-only-helper-names))
