@@ -1,6 +1,7 @@
 #lang racket
 
 (provide mlist-runtime-string-constants
+         mlist-core-runtime-helper-forms
          mlist-core-runtime-helpers)
 
 (require "../core-helper.rkt"
@@ -123,3 +124,35 @@
                        ,(Imm (void)))
                  (else (call $raise-mpair-expected (local.get $p))
                        (unreachable))))))))
+
+;; mlist-core-runtime-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for mutable-list core helpers.
+(define mlist-core-runtime-helper-names
+  '($raise-mpair-expected
+    $mpair?
+    $mcons
+    $mcar
+    $mcdr
+    $set-mcar!
+    $set-mcdr!))
+
+;; mlist-core-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render mutable-list core helpers in runtime assembly order.
+(define (mlist-core-runtime-helper-forms helper-index)
+  (for/list ([name (in-list mlist-core-runtime-helper-names)])
+    (core-runtime-helper-form helper-index name)))
+
+(module+ test
+  (require rackunit)
+
+  ;; form-name : datum? -> symbol?
+  ;;   Return the function name from a rendered helper form.
+  (define (form-name form)
+    (second form))
+
+  (define mlist-core-helper-index
+    (make-core-runtime-helper-index mlist-core-runtime-helpers))
+
+  (check-equal?
+   (map form-name (mlist-core-runtime-helper-forms mlist-core-helper-index))
+   mlist-core-runtime-helper-names))

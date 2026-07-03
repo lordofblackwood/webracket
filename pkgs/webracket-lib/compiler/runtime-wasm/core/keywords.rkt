@@ -1,6 +1,7 @@
 #lang racket
 
 (provide keyword-core-runtime-helpers
+         keyword-core-runtime-helper-forms
          keyword-runtime-string-constants
          keyword-table-global-forms
          keyword-table-initializer-runtime-only-helper-names
@@ -38,6 +39,22 @@
              (param $v (ref eq))
              (result i32)
              (ref.test (ref $Keyword) (local.get $v)))))))
+
+;; keyword-core-runtime-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for keyword core helpers.
+(define keyword-core-runtime-helper-names
+  '($keyword?/i32))
+
+;; keyword-helper-forms : hasheq? (listof symbol?) -> (listof datum?)
+;;   Render the given keyword helper names from a helper index.
+(define (keyword-helper-forms helper-index names)
+  (for/list ([name (in-list names)])
+    (core-runtime-helper-form helper-index name)))
+
+;; keyword-core-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render keyword core helpers in runtime assembly order.
+(define (keyword-core-runtime-helper-forms helper-index)
+  (keyword-helper-forms helper-index keyword-core-runtime-helper-names))
 
 ;; keyword-table-initializer-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for keyword table initializer helpers.
@@ -234,3 +251,18 @@
 ;;   Preserve the runtime emission order for keyword helpers.
 (define keyword-runtime-only-helper-names
   (map core-runtime-helper-name keyword-public-runtime-only-helpers))
+
+(module+ test
+  (require rackunit)
+
+  ;; form-name : datum? -> symbol?
+  ;;   Return the function name from a rendered helper form.
+  (define (form-name form)
+    (second form))
+
+  (define keyword-core-helper-index
+    (make-core-runtime-helper-index keyword-core-runtime-helpers))
+
+  (check-equal?
+   (map form-name (keyword-core-runtime-helper-forms keyword-core-helper-index))
+   keyword-core-runtime-helper-names))

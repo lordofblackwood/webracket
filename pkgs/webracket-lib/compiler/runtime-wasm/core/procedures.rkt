@@ -29,6 +29,7 @@
          procedure-primitive-initializer-forms
          procedure-ffi-primitive-initializer-forms
          procedure-primitive-invoker-forms
+         procedure-rest-argument-core-runtime-helper-forms
          procedure-bootstrap-runtime-helper-forms
          procedure-post-primitive-invoker-runtime-helper-forms
          procedure-main-runtime-helper-forms
@@ -1118,6 +1119,12 @@
                          (local.get $n)
                          (local.get $count))
              (local.get $res))))))
+
+;; procedure-rest-argument-core-runtime-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for rest-argument core helpers.
+(define procedure-rest-argument-core-runtime-helper-names
+  '($rest-arguments->list
+    $rest-arguments->args))
 
 ;; procedure-basic-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for basic procedure helpers.
@@ -3654,6 +3661,11 @@
   (for/list ([name (in-list names)])
     (core-runtime-helper-form helper-index name)))
 
+;; procedure-rest-argument-core-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render procedure rest-argument core helpers in runtime assembly order.
+(define (procedure-rest-argument-core-runtime-helper-forms helper-index)
+  (procedure-helper-forms helper-index procedure-rest-argument-core-runtime-helper-names))
+
 ;; procedure-bootstrap-runtime-helper-forms : hasheq? -> (listof datum?)
 ;;   Render procedure bootstrap helpers before generated primitive invokers.
 (define (procedure-bootstrap-runtime-helper-forms helper-index)
@@ -3713,6 +3725,9 @@
 
   (define procedure-helper-index
     (make-core-runtime-helper-index procedure-runtime-only-helpers))
+
+  (define procedure-core-helper-index
+    (make-core-runtime-helper-index procedure-core-runtime-helpers))
 
   (define (tree-member? needle tree)
     (cond
@@ -3778,6 +3793,11 @@
   (check-exn exn:fail?
              (lambda ()
                (primitive-invoker-tail 99)))
+
+  (check-equal?
+   (map form-name
+        (procedure-rest-argument-core-runtime-helper-forms procedure-core-helper-index))
+   procedure-rest-argument-core-runtime-helper-names)
 
   (check-equal?
    (map form-name

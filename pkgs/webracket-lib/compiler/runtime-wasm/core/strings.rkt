@@ -27,6 +27,7 @@
          string-trim-runtime-only-helper-names
          string-utf8-runtime-only-helper-names
          string-mutability-runtime-helper-forms
+         string-hash-core-runtime-helper-forms
          string-main-runtime-helper-forms
          string-buffer-runtime-helper-forms
          string-runtime-only-helpers)
@@ -3382,6 +3383,11 @@
     $i32growable-array->string
     $i32growable-array->immutable-string))
 
+;; string-hash-core-runtime-helper-names : (listof symbol?)
+;;   Preserve the FNV hash helper emission point; hash 0 means "not computed".
+(define string-hash-core-runtime-helper-names
+  '($string-hash/i32))
+
 ;; string-helper-forms : hasheq? (listof symbol?) -> (listof datum?)
 ;;   Render the given string helper names from the runtime helper index.
 (define (string-helper-forms helper-index names)
@@ -3392,6 +3398,11 @@
 ;;   Render string mutability predicates in runtime assembly order.
 (define (string-mutability-runtime-helper-forms helper-index)
   (string-helper-forms helper-index string-mutability-runtime-only-helper-names))
+
+;; string-hash-core-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render the string hash core helper in runtime assembly order.
+(define (string-hash-core-runtime-helper-forms helper-index)
+  (string-helper-forms helper-index string-hash-core-runtime-helper-names))
 
 ;; string-main-runtime-helper-forms : hasheq? hasheq? -> (listof datum?)
 ;;   Render the main 4.4 string helper block in runtime assembly order.
@@ -3476,6 +3487,10 @@
 
   (define string-core-helper-index
     (make-core-runtime-helper-index string-core-runtime-helpers))
+
+  (check-equal?
+   (map form-name (string-hash-core-runtime-helper-forms string-core-helper-index))
+   string-hash-core-runtime-helper-names)
 
   (check-equal?
    (map form-name (string-mutability-runtime-helper-forms string-helper-index))

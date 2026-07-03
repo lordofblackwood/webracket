@@ -33,6 +33,7 @@
          struct-type-property-constructor-runtime-only-helper-names
          struct-procedure-invoker-runtime-only-helper-names
          struct-procedure-runtime-only-helper-names
+         struct-core-predicate-runtime-helper-forms
          struct-prefab-registry-global-forms
          struct-core-runtime-helpers
          struct-runtime-only-helpers)
@@ -134,6 +135,23 @@
     (lambda ()
       `(func $struct-type?/i32 (param $v (ref eq)) (result i32)
              (ref.test (ref $StructType) (local.get $v)))))))
+
+;; struct-core-predicate-runtime-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for struct core predicate helpers.
+(define struct-core-predicate-runtime-helper-names
+  '($struct?/i32
+    $struct-type?/i32))
+
+;; struct-helper-forms : hasheq? (listof symbol?) -> (listof datum?)
+;;   Render the given struct helper names from a helper index.
+(define (struct-helper-forms helper-index names)
+  (for/list ([name (in-list names)])
+    (core-runtime-helper-form helper-index name)))
+
+;; struct-core-predicate-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render struct core predicate helpers in runtime assembly order.
+(define (struct-core-predicate-runtime-helper-forms helper-index)
+  (struct-helper-forms helper-index struct-core-predicate-runtime-helper-names))
 
 ;; struct-guarded-constructor-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for guarded constructor helpers.
@@ -6440,3 +6458,18 @@
                    (global.set $prefab-struct-type-registry
                                (ref.cast (ref $HashEqMutable)
                                          (call $make-empty-hasheq)))))))))))
+
+(module+ test
+  (require rackunit)
+
+  ;; form-name : datum? -> symbol?
+  ;;   Return the function name from a rendered helper form.
+  (define (form-name form)
+    (second form))
+
+  (define struct-core-helper-index
+    (make-core-runtime-helper-index struct-core-runtime-helpers))
+
+  (check-equal?
+   (map form-name (struct-core-predicate-runtime-helper-forms struct-core-helper-index))
+   struct-core-predicate-runtime-helper-names))

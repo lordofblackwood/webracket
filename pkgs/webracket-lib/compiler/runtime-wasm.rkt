@@ -43,6 +43,7 @@
                   box-mutability-runtime-only-helper-names
                   box-runtime-only-helpers)
          (only-in "runtime-wasm/core/bytes.rkt"
+                  bytes-core-runtime-helper-forms
                   bytes-main-runtime-helper-forms
                   bytes-mutability-runtime-helper-forms
                   bytes-runtime-only-helpers)
@@ -157,6 +158,7 @@
                   io-handler-reader-printer-runtime-only-helper-names
                   io-handler-runtime-only-helpers)
          (only-in "runtime-wasm/core/keywords.rkt"
+                  keyword-core-runtime-helper-forms
                   keyword-table-global-forms
                   keyword-table-initializer-runtime-only-helper-names
                   keyword-runtime-only-helper-names
@@ -193,6 +195,8 @@
                   logger-runtime-only-helpers)
          (only-in "runtime-wasm/core/memory-map.rkt"
                   memory-map-global-forms)
+         (only-in "runtime-wasm/core/mlists.rkt"
+                  mlist-core-runtime-helper-forms)
          (only-in "runtime-wasm/core/mutable-hashes.rkt"
                   mutable-hash-constructor-runtime-helper-forms
                   mutable-hash-read-runtime-helper-forms
@@ -273,6 +277,7 @@
                   procedure-bootstrap-runtime-helper-forms
                   procedure-main-runtime-helper-forms
                   procedure-post-primitive-invoker-runtime-helper-forms
+                  procedure-rest-argument-core-runtime-helper-forms
                   primitive-shapes
                   procedure-primitive-global-forms
                   procedure-ffi-primitive-global-forms
@@ -313,6 +318,7 @@
                   stencil-vector-runtime-only-helpers)
          (only-in "runtime-wasm/core/strings.rkt"
                   string-buffer-runtime-helper-forms
+                  string-hash-core-runtime-helper-forms
                   string-main-runtime-helper-forms
                   string-mutability-runtime-helper-forms
                   string-runtime-only-helpers)
@@ -348,6 +354,7 @@
                   struct-type-property-constructor-runtime-only-helper-names
                   struct-procedure-invoker-runtime-only-helper-names
                   struct-procedure-runtime-only-helper-names
+                  struct-core-predicate-runtime-helper-forms
                   struct-prefab-registry-global-forms
                   struct-runtime-only-helpers)
          (only-in "runtime-wasm/core/symbols.rkt"
@@ -1415,8 +1422,8 @@
          ,@(for/list ([name (in-list struct-procedure-invoker-runtime-only-helper-names)])
              (core-runtime-helper-form runtime-helper-index name))
 
-         ,(core-runtime-helper-form core-runtime-helper-index '$rest-arguments->list)
-         ,(core-runtime-helper-form core-runtime-helper-index '$rest-arguments->args)
+         ;;   Procedure rest-argument helpers are implemented in runtime-wasm/core/procedures.rkt.
+         ,@(procedure-rest-argument-core-runtime-helper-forms core-runtime-helper-index)
 
          ;;   Source-linklet interpreter helpers are implemented in runtime-wasm/core/linklets.rkt.
          ,@(for/list ([name (in-list linklet-interpreter-runtime-only-helper-names)])
@@ -1523,8 +1530,8 @@
          ;;   I8 array conversion helpers are implemented in runtime-wasm/core/i8-arrays.rkt.
          ,@(i8-array-conversion-runtime-helper-forms runtime-helper-index)
 
-         ,(core-runtime-helper-form core-runtime-helper-index '$i8array->bytes)
-         ,(core-runtime-helper-form core-runtime-helper-index '$i8array->immutable-bytes)
+         ;;   Byte wrapper core helpers are implemented in runtime-wasm/core/bytes.rkt.
+         ,@(bytes-core-runtime-helper-forms core-runtime-helper-index)
 
          ;;;
          ;;; Exceptions
@@ -1791,7 +1798,7 @@
          ;;;
 
          ;;   Keyword helpers are implemented in runtime-wasm/core/keywords.rkt.
-         ,(core-runtime-helper-form core-runtime-helper-index '$keyword?/i32)
+         ,@(keyword-core-runtime-helper-forms core-runtime-helper-index)
          ,@(for/list ([name (in-list keyword-runtime-only-helper-names)])
              (core-runtime-helper-form runtime-helper-index name))
 
@@ -1815,37 +1822,18 @@
 
          ,@(list-post-contract-runtime-helper-forms runtime-helper-index)
 
-
          ;;;
          ;;; 4.11 Mutable Pairs and lists
          ;;;
 
          ;; https://docs.racket-lang.org/reference/mpairs.html
 
-        ;; Mutable pairs are similar to pairs but allow their fields
-        ;; to be updated. These operations parallel their immutable
-        ;; counterparts above but use the `$MPair` type.
+         ;; Mutable pairs are similar to pairs but allow their fields
+         ;; to be updated. These operations parallel their immutable
+         ;; counterparts above but use the `$MPair` type.
 
-        ;; Mutable pair error helper
-        ,(core-runtime-helper-form core-runtime-helper-index '$raise-mpair-expected)
-
-        ;; mpair? : any/c -> boolean?
-        ,(core-runtime-helper-form core-runtime-helper-index '$mpair?)
-
-        ;; mcons : any/c any/c -> mpair?
-        ,(core-runtime-helper-form core-runtime-helper-index '$mcons)
-
-        ;; mcar : mpair? -> any/c
-        ,(core-runtime-helper-form core-runtime-helper-index '$mcar)
-
-        ;; mcdr : mpair? -> any/c
-        ,(core-runtime-helper-form core-runtime-helper-index '$mcdr)
-
-        ;; set-mcar! : mpair? any/c -> void?
-        ,(core-runtime-helper-form core-runtime-helper-index '$set-mcar!)
-
-        ;; set-mcdr! : mpair? any/c -> void?
-        ,(core-runtime-helper-form core-runtime-helper-index '$set-mcdr!)
+         ;; Mutable-pair helpers are implemented in runtime-wasm/core/mlists.rkt.
+         ,@(mlist-core-runtime-helper-forms core-runtime-helper-index)
 
          ;;;
          ;;; 4.12 Vectors
@@ -2521,12 +2509,8 @@
          ;;   Implemented in runtime-wasm/core/symbols.rkt.
          ,@(symbol-table-runtime-helper-forms runtime-helper-index)
 
-
-         ;  Fowler–Noll–Vo hash function
-         ;    Note: Since 0 means "hash not computed yet", $string-hash/i32 must
-         ;          return a non-zero value.
-         ,(core-runtime-helper-form core-runtime-helper-index '$string-hash/i32)
-
+         ;; String hash helper is implemented in runtime-wasm/core/strings.rkt.
+         ,@(string-hash-core-runtime-helper-forms core-runtime-helper-index)
 
          ;;;
          ;;; LOCATION
@@ -2758,8 +2742,7 @@
          ;; [ ] make-constructor-style-printer
          ;; [x] struct->list
 
-         ,(core-runtime-helper-form core-runtime-helper-index '$struct?/i32)
-         ,(core-runtime-helper-form core-runtime-helper-index '$struct-type?/i32)
+         ,@(struct-core-predicate-runtime-helper-forms core-runtime-helper-index)
 
          ;; Basic struct predicates and checkers
          ;;   Implemented in runtime-wasm/core/structs.rkt.
