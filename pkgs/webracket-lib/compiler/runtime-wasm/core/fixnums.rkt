@@ -18,7 +18,10 @@
 ;; fixnum-runtime-string-constants : (listof (list/c symbol? string?))
 ;;   Declare string constants used by fixnum helpers and fixnum errors.
 (define fixnum-runtime-string-constants
-  '((fixnum? "fixnum?")))
+  '((fixnum?             "fixnum?")
+    (fx-overflow:middle  ": fixnum overflow with arguments ")
+    (fx-overflow:and     " and ")
+    (expected-fixnum:got "expected fixnum, got: ")))
 
 ;; fixnum-runtime-symbol-constants : (listof symbol?)
 ;;   Declare symbols used by fixnum helpers and errors.

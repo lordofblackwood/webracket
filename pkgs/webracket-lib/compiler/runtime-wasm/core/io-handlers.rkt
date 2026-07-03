@@ -2,12 +2,18 @@
 
 (provide io-handler-reader-printer-runtime-only-helper-names
          io-handler-default-port-global-forms
+         io-handler-runtime-string-constants
          io-handler-runtime-symbol-constants
          io-handler-port-runtime-only-helper-names
          io-handler-error-runtime-only-helper-names
          io-handler-runtime-only-helpers)
 
 (require "../core-helper.rkt")
+
+;; io-handler-runtime-string-constants : (listof (list/c symbol? string?))
+;;   Declare strings used by bootstrap reader and printer handlers.
+(define io-handler-runtime-string-constants
+  '((reader-unsupported "the Racket reader is not supported by WebRacket yet")))
 
 ;; io-handler-default-port-global-forms : (listof datum?)
 ;;   Declare globals for default port read, write, display, and print handlers.

@@ -20,7 +20,8 @@
     (module-variable?              "module-variable?")
     (module-variable-reference?    "module-variable-reference?")
     (module-variable-same-length-vectors
-     "value vector with the same length as the cell vector")))
+     "value vector with the same length as the cell vector")
+    (module-prompts-unsupported    "module prompts are not supported by WebRacket yet")))
 
 ;; linklet-instance-runtime-symbol-constants : (listof symbol?)
 ;;   Declare symbols used by linklet instance mutation modes.

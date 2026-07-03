@@ -158,6 +158,7 @@
                   immutable-hash-constructor-runtime-only-helper-names
                   immutable-hash-iteration-runtime-only-helper-names
                   immutable-hash-public-runtime-only-helper-names
+                  immutable-hash-runtime-string-constants
                   immutable-hash-runtime-symbol-constants
                   immutable-hash-runtime-only-helpers)
          (only-in "runtime-wasm/core/i32-arrays.rkt"
@@ -180,6 +181,7 @@
                   impersonator-runtime-only-helpers)
          (only-in "runtime-wasm/core/io-handlers.rkt"
                   io-handler-default-port-global-forms
+                  io-handler-runtime-string-constants
                   io-handler-runtime-symbol-constants
                   io-handler-error-runtime-only-helper-names
                   io-handler-port-runtime-only-helper-names
@@ -2927,7 +2929,9 @@
     (add-runtime-string-constants bytes-runtime-string-constants)
     (add-runtime-string-constants vector-runtime-string-constants)
     (add-runtime-string-constants box-runtime-string-constants)
+    (add-runtime-string-constants immutable-hash-runtime-string-constants)
     (add-runtime-string-constants port-predicate-runtime-string-constants)
+    (add-runtime-string-constants io-handler-runtime-string-constants)
     (add-runtime-string-constant 'file-stream-port?          "file-stream-port?")
     (add-runtime-string-constant 'terminal-port?             "terminal-port?")
     (add-runtime-string-constants port-event-runtime-string-constants)
@@ -3021,42 +3025,8 @@
     (add-runtime-string-constants linklet-runtime-string-constants)
     (add-runtime-string-constants logger-runtime-string-constants)
     (add-runtime-string-constants reflection-runtime-string-constants)
-    (add-runtime-string-constant 'module-prompts-unsupported    "module prompts are not supported by WebRacket yet")
-    (add-runtime-string-constant 'reader-unsupported            "the Racket reader is not supported by WebRacket yet")
-    (add-runtime-string-constant 'reader-graph-unsupported
-                                 "cyclic reader graphs and hash placeholders are not supported by WebRacket yet")
     (add-runtime-symbol-constants linklet-instance-runtime-symbol-constants)
 
-    (add-runtime-string-constant 'datum->correlated-srcloc
-                                 (string-append "(or/c correlated? #f (list/c any/c (or/c exact-positive-integer? #f) "
-                                                "(or/c exact-nonnegative-integer? #f) (or/c exact-positive-integer? #f) "
-                                                "(or/c exact-nonnegative-integer? #f)) "
-                                                "(vector/c any/c (or/c exact-positive-integer? #f) "
-                                                "(or/c exact-nonnegative-integer? #f) "
-                                                "(or/c exact-positive-integer? #f) "
-                                                "(or/c exact-nonnegative-integer? #f)))"))
-    (add-runtime-string-constant  'procedure? "procedure?")
-
-    (add-runtime-string-constant  'arity-error:start
-                                  ": arity mismatch;\n the expected number of arguments does not match the given number\n  expected: ")
-    (add-runtime-string-constant  'arity-error:start/no-expected
-                                  ": arity mismatch;\n the expected number of arguments does not match the given number\n  given: ")
-    (add-runtime-string-constant  'arity-error:given         "\n  given: ")
-    (add-runtime-string-constant  'arity-error:at-least      "at least ")
-    (add-runtime-string-constant  'arity-error:or            " or ")
-    (add-runtime-string-constant  'result-arity-error:start
-                                  ": result arity mismatch;\n expected number of values not received\n  expected: ")
-    (add-runtime-string-constant  'result-arity-error:received "\n  received: ")
-    (add-runtime-string-constant  'contract-violation:prefix
-                                  ": contract violation\n  expected: ")
-    (add-runtime-string-constant  'application:not-procedure
-                                  "application: not a procedure;\n expected a procedure that can be applied to arguments\n  given: ")
-    (add-runtime-string-constant  'question           "?")
-    (add-runtime-string-constant  'accessor-suffix    "-accessor")
-    (add-runtime-string-constant  'fx-overflow:middle        ": fixnum overflow with arguments ")
-    (add-runtime-string-constant  'fx-overflow:and           " and ")
-
-    (add-runtime-string-constant  'expected-fixnum:got       "expected fixnum, got: ")
     ;; Byte Strings
     (add-runtime-bytes-constant  'empty                     #"")
     (add-runtime-bytes-constants path-runtime-bytes-constants)

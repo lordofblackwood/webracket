@@ -1,12 +1,19 @@
 #lang racket
 
-(provide immutable-hash-constructor-runtime-only-helper-names
+(provide immutable-hash-runtime-string-constants
+         immutable-hash-constructor-runtime-only-helper-names
          immutable-hash-iteration-runtime-only-helper-names
          immutable-hash-public-runtime-only-helper-names
          immutable-hash-runtime-symbol-constants
          immutable-hash-runtime-only-helpers)
 
 (require "../core-helper.rkt")
+
+;; immutable-hash-runtime-string-constants : (listof (list/c symbol? string?))
+;;   Declare strings used by immutable hash reader-graph placeholder helpers.
+(define immutable-hash-runtime-string-constants
+  '((reader-graph-unsupported
+     "cyclic reader graphs and hash placeholders are not supported by WebRacket yet")))
 
 ;; immutable-hash-constructor-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for empty immutable hash constructors.

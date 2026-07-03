@@ -50,7 +50,8 @@
     (procedure-struct-type?     "procedure-struct-type?")
     (sealed-struct-supertype    "sealed structure type cannot be used as a supertype")
     (struct->list:on-opaque     "one of 'error, 'return-false, or 'skip")
-    (struct:prefix              "struct:")))
+    (struct:prefix              "struct:")
+    (accessor-suffix            "-accessor")))
 
 ;; struct-runtime-symbol-constants : (listof symbol?)
 ;;   Declare symbols used by struct helpers and struct errors.

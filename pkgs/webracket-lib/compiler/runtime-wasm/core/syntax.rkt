@@ -14,7 +14,7 @@
 ;; syntax-runtime-string-constants : (listof (list/c symbol? string?))
 ;;   Declare strings used by syntax and correlated syntax helpers.
 (define syntax-runtime-string-constants
-  '((syntax-or-false            "(or/c syntax? #f)")
+  `((syntax-or-false            "(or/c syntax? #f)")
     (datum->syntax-srcloc       "(or/c #f syntax? srcloc?)")
     (syntax?                    "syntax?")
     (identifier?                "identifier?")
@@ -25,7 +25,15 @@
     (syntax-local-value-binding "identifier with transformer binding")
     (set!-transformer?          "set!-transformer?")
     (correlated?                "correlated?")
-    (correlated-or-false        "(or/c correlated? #f)")))
+    (correlated-or-false        "(or/c correlated? #f)")
+    (datum->correlated-srcloc
+     ,(string-append "(or/c correlated? #f (list/c any/c (or/c exact-positive-integer? #f) "
+                     "(or/c exact-nonnegative-integer? #f) (or/c exact-positive-integer? #f) "
+                     "(or/c exact-nonnegative-integer? #f)) "
+                     "(vector/c any/c (or/c exact-positive-integer? #f) "
+                     "(or/c exact-nonnegative-integer? #f) "
+                     "(or/c exact-positive-integer? #f) "
+                     "(or/c exact-nonnegative-integer? #f)))"))))
 
 ;; syntax-runtime-symbol-constants : (listof symbol?)
 ;;   Declare symbols used by syntax and correlated syntax helpers.

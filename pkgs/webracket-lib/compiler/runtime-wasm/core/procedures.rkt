@@ -30,7 +30,23 @@
   '((procedure-realm     "procedure-realm")
     (procedure-or-false? "(or/c procedure? #f)")
     (procedure-arity?    "procedure-arity?")
-    (arity-at-least?     "arity-at-least?")))
+    (arity-at-least?     "arity-at-least?")
+    (procedure?          "procedure?")
+    (arity-error:start
+     ": arity mismatch;\n the expected number of arguments does not match the given number\n  expected: ")
+    (arity-error:start/no-expected
+     ": arity mismatch;\n the expected number of arguments does not match the given number\n  given: ")
+    (arity-error:given   "\n  given: ")
+    (arity-error:at-least "at least ")
+    (arity-error:or      " or ")
+    (result-arity-error:start
+     ": result arity mismatch;\n expected number of values not received\n  expected: ")
+    (result-arity-error:received "\n  received: ")
+    (contract-violation:prefix
+     ": contract violation\n  expected: ")
+    (application:not-procedure
+     "application: not a procedure;\n expected a procedure that can be applied to arguments\n  given: ")
+    (question            "?")))
 
 ;; procedure-runtime-symbol-constants : (listof symbol?)
 ;;   Declare symbols used by procedure helpers and procedure errors.
