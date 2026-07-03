@@ -28,6 +28,7 @@
                   box-mutability-runtime-only-helper-names
                   box-runtime-only-helpers)
          (only-in "runtime-wasm/core/bytes.rkt"
+                  bytes-runtime-string-constants
                   bytes-basic-runtime-only-helper-names
                   byte-comparison-runtime-only-helper-names
                   byte-indexing-runtime-only-helper-names
@@ -2866,8 +2867,7 @@
     (add-runtime-string-constant 'list?                      "list?")
     (add-runtime-string-constant 'non-empty-list?            "(and/c list? (not/c empty?))")
     (add-runtime-string-constant 'fixnum?                    "fixnum?")
-    (add-runtime-string-constant 'byte?                      "byte?")
-    (add-runtime-string-constant 'bytes?                     "bytes?")
+    (add-runtime-string-constants bytes-runtime-string-constants)
     (add-runtime-string-constants vector-runtime-string-constants)
     (add-runtime-string-constant 'box?                       "box?")
     (add-runtime-string-constants port-predicate-runtime-string-constants)
@@ -3252,7 +3252,6 @@
     (add-runtime-string-constant 'symbol-or-false               "(or/c symbol? #f)")
     (add-runtime-string-constant 'logger?                       "logger?")
     (add-runtime-string-constant 'log-receiver?                 "log-receiver?")
-    (add-runtime-string-constant 'bytes-converter?              "bytes-converter?")
     (add-runtime-string-constant 'channel?                      "channel?")
     (add-runtime-string-constant 'instance-mode?                "(or/c #f 'constant 'consistent)")
     (add-runtime-string-constant 'instance-or-false             "(or/c instance? #f)")

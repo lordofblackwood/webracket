@@ -1,6 +1,7 @@
 #lang racket
 
 (provide bytes-core-runtime-helpers
+         bytes-runtime-string-constants
          bytes-basic-runtime-only-helper-names
          byte-comparison-runtime-only-helper-names
          byte-indexing-runtime-only-helper-names
@@ -11,6 +12,13 @@
          bytes-runtime-only-helpers)
 
 (require "../core-helper.rkt")
+
+;; bytes-runtime-string-constants : (listof (list/c symbol? string?))
+;;   Declare string constants used by byte-string helpers and byte-string errors.
+(define bytes-runtime-string-constants
+  '((byte?                      "byte?")
+    (bytes?                     "bytes?")
+    (bytes-converter?           "bytes-converter?")))
 
 ;; make-predicate-body : symbol? -> (listof datum?)
 ;;   Generate the shared body for a single-argument Wasm predicate.
