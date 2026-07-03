@@ -158,6 +158,8 @@
          (only-in "runtime-wasm/core/io-handlers.rkt"
                   io-handler-default-port-global-forms
                   io-handler-default-port-late-initializer-forms
+                  io-handler-environment-predicate-runtime-helper-forms
+                  io-handler-environment-ref-runtime-helper-forms
                   io-handler-error-runtime-helper-forms
                   io-handler-port-runtime-helper-forms
                   io-handler-reader-printer-runtime-helper-forms
@@ -234,6 +236,14 @@
          (only-in "runtime-wasm/core/parameters.rkt"
                   compile-parameter-global-forms
                   compile-parameter-runtime-helper-forms
+                  current-security-guard-runtime-helper-forms
+                  current-custodian-runtime-helper-forms
+                  current-pseudo-random-generator-runtime-helper-forms
+                  current-environment-variables-runtime-helper-forms
+                  current-print-runtime-helper-forms
+                  current-readtable-runtime-helper-forms
+                  current-read-interaction-runtime-helper-forms
+                  current-load-relative-directory-runtime-helper-forms
                   namespace-parameter-runtime-helper-forms
                   parameterization-binding-runtime-helper-forms
                   parameterization-call-runtime-helper-forms
@@ -370,7 +380,7 @@
                   treelist-runtime-only-helpers)
          (only-in "runtime-wasm/core/unsafe.rkt"
                   unsafe-runtime-only-helpers
-                  unsafe-runtime-helper-names)
+                  unsafe-runtime-helper-forms)
          (only-in "runtime-wasm/core/vectors.rkt"
                   vector-dummy-array-global-forms
                   vector-dummy-global-forms
@@ -1635,7 +1645,7 @@
         ,@(random-generator-runtime-helper-forms runtime-helper-index)
 
         ;;   Implemented in runtime-wasm/core/parameters.rkt.
-        ,(core-runtime-helper-form runtime-helper-index '$current-pseudo-random-generator)
+        ,@(current-pseudo-random-generator-runtime-helper-forms runtime-helper-index)
 
         ;;   Public random helpers are implemented in runtime-wasm/core/random.rkt.
         ,@(random-public-runtime-helper-forms runtime-helper-index)
@@ -2511,13 +2521,13 @@
          ,@(security-pre-parameter-runtime-helper-forms runtime-helper-index)
 
          ;;   Implemented in runtime-wasm/core/parameters.rkt.
-         ,(core-runtime-helper-form runtime-helper-index '$current-security-guard)
+         ,@(current-security-guard-runtime-helper-forms runtime-helper-index)
 
          ;;   Security guard and custodian predicate helpers are implemented in runtime-wasm/core/security.rkt.
          ,@(security-post-parameter-runtime-helper-forms runtime-helper-index)
 
          ;;   Implemented in runtime-wasm/core/parameters.rkt.
-         ,(core-runtime-helper-form runtime-helper-index '$current-custodian)
+         ,@(current-custodian-runtime-helper-forms runtime-helper-index)
 
          ;;   Custodian helpers are implemented in runtime-wasm/core/security.rkt.
          ,@(custodian-runtime-helper-forms runtime-helper-index)
@@ -2555,8 +2565,7 @@
          ;;;
 
          ;;   Implemented in runtime-wasm/core/unsafe.rkt.
-         ,@(for/list ([name (in-list unsafe-runtime-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
+         ,@(unsafe-runtime-helper-forms runtime-helper-index)
 
          ;;;
          ;;; FORMATTING - DISPLAY MODE
@@ -2657,28 +2666,28 @@
                ,@(path-runtime-helper-forms runtime-helper-index)
 
                ;;   Environment variable helpers are implemented in runtime-wasm/core/io-handlers.rkt.
-               ,(core-runtime-helper-form runtime-helper-index '$environment-variables?)
+               ,@(io-handler-environment-predicate-runtime-helper-forms runtime-helper-index)
 
                ;;   Implemented in runtime-wasm/core/parameters.rkt.
-               ,(core-runtime-helper-form runtime-helper-index '$current-environment-variables)
+               ,@(current-environment-variables-runtime-helper-forms runtime-helper-index)
 
                ;;   Environment variable helpers are implemented in runtime-wasm/core/io-handlers.rkt.
-               ,(core-runtime-helper-form runtime-helper-index '$environment-variables-ref)
+               ,@(io-handler-environment-ref-runtime-helper-forms runtime-helper-index)
 
                ;;   Implemented in runtime-wasm/core/parameters.rkt.
-               ,(core-runtime-helper-form runtime-helper-index '$current-print)
+               ,@(current-print-runtime-helper-forms runtime-helper-index)
 
                ;;   Bootstrap reader and printer helpers are implemented in runtime-wasm/core/io-handlers.rkt.
                ,@(io-handler-reader-printer-runtime-helper-forms runtime-helper-index)
 
                ;;   Implemented in runtime-wasm/core/parameters.rkt.
-               ,(core-runtime-helper-form runtime-helper-index '$current-readtable)
+               ,@(current-readtable-runtime-helper-forms runtime-helper-index)
 
                ;;   Port handler helpers are implemented in runtime-wasm/core/io-handlers.rkt.
                ,@(io-handler-port-runtime-helper-forms runtime-helper-index)
 
                ;;   Implemented in runtime-wasm/core/parameters.rkt.
-               ,(core-runtime-helper-form runtime-helper-index '$current-read-interaction)
+               ,@(current-read-interaction-runtime-helper-forms runtime-helper-index)
 
                ;; load-on-demand-enabled/use-user-specific-search-paths/read-accept-* : [boolean?] -> boolean? or void?
                ;;   Bootstrap reader policy parameters. The Reference gives
@@ -2700,7 +2709,7 @@
                ,@(parameter-directory-runtime-helper-forms runtime-helper-index)
 
                ;;   Implemented in runtime-wasm/core/parameters.rkt.
-               ,(core-runtime-helper-form runtime-helper-index '$current-load-relative-directory)
+               ,@(current-load-relative-directory-runtime-helper-forms runtime-helper-index)
 
                ;;   Path manipulation helpers are implemented in runtime-wasm/core/paths.rkt.
                ,@(path-manipulation-runtime-helper-forms runtime-helper-index)

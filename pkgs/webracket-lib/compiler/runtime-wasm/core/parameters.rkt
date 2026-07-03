@@ -4,6 +4,14 @@
          parameter-runtime-string-constants
          parameter-runtime-symbol-constants
          compile-parameter-runtime-helper-forms
+         current-security-guard-runtime-helper-forms
+         current-custodian-runtime-helper-forms
+         current-pseudo-random-generator-runtime-helper-forms
+         current-environment-variables-runtime-helper-forms
+         current-print-runtime-helper-forms
+         current-readtable-runtime-helper-forms
+         current-read-interaction-runtime-helper-forms
+         current-load-relative-directory-runtime-helper-forms
          parameterization-runtime-helper-forms
          namespace-parameter-runtime-helper-forms
          parameterization-binding-runtime-helper-forms
@@ -429,6 +437,46 @@
   '($current-directory
     $current-directory-for-user))
 
+;; current-security-guard-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for current-security-guard.
+(define current-security-guard-runtime-only-helper-names
+  '($current-security-guard))
+
+;; current-custodian-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for current-custodian.
+(define current-custodian-runtime-only-helper-names
+  '($current-custodian))
+
+;; current-pseudo-random-generator-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for current-pseudo-random-generator.
+(define current-pseudo-random-generator-runtime-only-helper-names
+  '($current-pseudo-random-generator))
+
+;; current-environment-variables-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for current-environment-variables.
+(define current-environment-variables-runtime-only-helper-names
+  '($current-environment-variables))
+
+;; current-print-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for current-print.
+(define current-print-runtime-only-helper-names
+  '($current-print))
+
+;; current-readtable-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for current-readtable.
+(define current-readtable-runtime-only-helper-names
+  '($current-readtable))
+
+;; current-read-interaction-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for current-read-interaction.
+(define current-read-interaction-runtime-only-helper-names
+  '($current-read-interaction))
+
+;; current-load-relative-directory-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for current-load-relative-directory.
+(define current-load-relative-directory-runtime-only-helper-names
+  '($current-load-relative-directory))
+
 ;; parameter-helper-forms : hasheq? (listof symbol?) -> (listof datum?)
 ;;   Render the given parameter helper names from a helper index.
 (define (parameter-helper-forms helper-index names)
@@ -439,6 +487,46 @@
 ;;   Render compile metadata parameter helpers in runtime assembly order.
 (define (compile-parameter-runtime-helper-forms helper-index)
   (parameter-helper-forms helper-index compile-parameter-runtime-only-helper-names))
+
+;; current-security-guard-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render current-security-guard in runtime assembly order.
+(define (current-security-guard-runtime-helper-forms helper-index)
+  (parameter-helper-forms helper-index current-security-guard-runtime-only-helper-names))
+
+;; current-custodian-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render current-custodian in runtime assembly order.
+(define (current-custodian-runtime-helper-forms helper-index)
+  (parameter-helper-forms helper-index current-custodian-runtime-only-helper-names))
+
+;; current-pseudo-random-generator-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render current-pseudo-random-generator in runtime assembly order.
+(define (current-pseudo-random-generator-runtime-helper-forms helper-index)
+  (parameter-helper-forms helper-index current-pseudo-random-generator-runtime-only-helper-names))
+
+;; current-environment-variables-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render current-environment-variables in runtime assembly order.
+(define (current-environment-variables-runtime-helper-forms helper-index)
+  (parameter-helper-forms helper-index current-environment-variables-runtime-only-helper-names))
+
+;; current-print-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render current-print in runtime assembly order.
+(define (current-print-runtime-helper-forms helper-index)
+  (parameter-helper-forms helper-index current-print-runtime-only-helper-names))
+
+;; current-readtable-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render current-readtable in runtime assembly order.
+(define (current-readtable-runtime-helper-forms helper-index)
+  (parameter-helper-forms helper-index current-readtable-runtime-only-helper-names))
+
+;; current-read-interaction-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render current-read-interaction in runtime assembly order.
+(define (current-read-interaction-runtime-helper-forms helper-index)
+  (parameter-helper-forms helper-index current-read-interaction-runtime-only-helper-names))
+
+;; current-load-relative-directory-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render current-load-relative-directory in runtime assembly order.
+(define (current-load-relative-directory-runtime-helper-forms helper-index)
+  (parameter-helper-forms helper-index current-load-relative-directory-runtime-only-helper-names))
 
 ;; parameterization-runtime-helper-forms : hasheq? -> (listof datum?)
 ;;   Render parameterization predicate and accessor helpers in runtime assembly order.
@@ -1465,6 +1553,38 @@
   (check-equal?
    (map form-name (compile-parameter-runtime-helper-forms parameter-helper-index))
    compile-parameter-runtime-only-helper-names)
+
+  (check-equal?
+   (map form-name (current-security-guard-runtime-helper-forms parameter-helper-index))
+   current-security-guard-runtime-only-helper-names)
+
+  (check-equal?
+   (map form-name (current-custodian-runtime-helper-forms parameter-helper-index))
+   current-custodian-runtime-only-helper-names)
+
+  (check-equal?
+   (map form-name (current-pseudo-random-generator-runtime-helper-forms parameter-helper-index))
+   current-pseudo-random-generator-runtime-only-helper-names)
+
+  (check-equal?
+   (map form-name (current-environment-variables-runtime-helper-forms parameter-helper-index))
+   current-environment-variables-runtime-only-helper-names)
+
+  (check-equal?
+   (map form-name (current-print-runtime-helper-forms parameter-helper-index))
+   current-print-runtime-only-helper-names)
+
+  (check-equal?
+   (map form-name (current-readtable-runtime-helper-forms parameter-helper-index))
+   current-readtable-runtime-only-helper-names)
+
+  (check-equal?
+   (map form-name (current-read-interaction-runtime-helper-forms parameter-helper-index))
+   current-read-interaction-runtime-only-helper-names)
+
+  (check-equal?
+   (map form-name (current-load-relative-directory-runtime-helper-forms parameter-helper-index))
+   current-load-relative-directory-runtime-only-helper-names)
 
   (check-equal?
    (map form-name (parameterization-runtime-helper-forms parameter-helper-index))

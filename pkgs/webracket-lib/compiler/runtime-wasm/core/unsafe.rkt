@@ -1,7 +1,8 @@
 #lang racket
 
 (provide unsafe-runtime-only-helpers
-         unsafe-runtime-helper-names)
+         unsafe-runtime-helper-names
+         unsafe-runtime-helper-forms)
 
 (require "../core-helper.rkt")
 
@@ -752,3 +753,9 @@
   (function-forms->runtime-helpers
    'unsafe-runtime-only-helpers
    unsafe-runtime-only-forms))
+
+;; unsafe-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render unsafe operation helpers in runtime assembly order.
+(define (unsafe-runtime-helper-forms helper-index)
+  (for/list ([name (in-list unsafe-runtime-helper-names)])
+    (core-runtime-helper-form helper-index name)))

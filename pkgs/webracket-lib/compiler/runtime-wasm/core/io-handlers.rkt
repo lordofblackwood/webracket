@@ -2,6 +2,8 @@
 
 (provide io-handler-reader-printer-runtime-only-helper-names
          io-handler-reader-printer-runtime-helper-forms
+         io-handler-environment-predicate-runtime-helper-forms
+         io-handler-environment-ref-runtime-helper-forms
          io-handler-default-port-global-forms
          io-handler-default-port-late-initializer-forms
          io-handler-runtime-string-constants
@@ -115,6 +117,16 @@
     $default-error-value->string-handler
     $default-error-syntax->string-handler
     $default-error-module-path->string-handler))
+
+;; io-handler-environment-predicate-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for environment-variables?.
+(define io-handler-environment-predicate-runtime-only-helper-names
+  '($environment-variables?))
+
+;; io-handler-environment-ref-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for environment-variables-ref.
+(define io-handler-environment-ref-runtime-only-helper-names
+  '($environment-variables-ref))
 
 ;; io-handler-runtime-only-forms : (listof datum?)
 ;;   Enumerate bootstrap environment, reader, port, and error handler helpers.
@@ -458,6 +470,16 @@
 (define (io-handler-reader-printer-runtime-helper-forms helper-index)
   (io-handler-helper-forms helper-index io-handler-reader-printer-runtime-only-helper-names))
 
+;; io-handler-environment-predicate-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render environment-variables? in runtime assembly order.
+(define (io-handler-environment-predicate-runtime-helper-forms helper-index)
+  (io-handler-helper-forms helper-index io-handler-environment-predicate-runtime-only-helper-names))
+
+;; io-handler-environment-ref-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render environment-variables-ref in runtime assembly order.
+(define (io-handler-environment-ref-runtime-helper-forms helper-index)
+  (io-handler-helper-forms helper-index io-handler-environment-ref-runtime-only-helper-names))
+
 ;; io-handler-port-runtime-helper-forms : hasheq? -> (listof datum?)
 ;;   Render port handler helpers in runtime assembly order.
 (define (io-handler-port-runtime-helper-forms helper-index)
@@ -507,6 +529,16 @@
    (map form-name
         (io-handler-reader-printer-runtime-helper-forms io-handler-helper-index))
    io-handler-reader-printer-runtime-only-helper-names)
+
+  (check-equal?
+   (map form-name
+        (io-handler-environment-predicate-runtime-helper-forms io-handler-helper-index))
+   io-handler-environment-predicate-runtime-only-helper-names)
+
+  (check-equal?
+   (map form-name
+        (io-handler-environment-ref-runtime-helper-forms io-handler-helper-index))
+   io-handler-environment-ref-runtime-only-helper-names)
 
   (check-equal?
    (map form-name (io-handler-port-runtime-helper-forms io-handler-helper-index))
