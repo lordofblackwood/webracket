@@ -10,7 +10,6 @@
          "private/parameters.rkt"
          "private/timings.rkt"
          "private/structs.rkt"
-         "runtime-wasm/core-helper.rkt"
          (only-in "runtime-wasm/entry-initializers.rkt"
                   entry-struct-property-global-forms
                   entry-struct-property-initializer-forms)
@@ -31,31 +30,26 @@
                   module-byte-size
                   symbol-prefix-count
                   forms->module)
+         (only-in "runtime-wasm/runtime-helper-index.rkt"
+                  runtime-helper-index)
          (only-in "runtime-wasm/core/arrays.rkt"
                   array-core-runtime-helper-forms
-                  array-runtime-helper-forms
-                  array-runtime-only-helper-names
-                  array-runtime-only-helpers)
+                  array-runtime-helper-forms)
          (only-in "runtime-wasm/core/booleans.rkt"
-                  boolean-runtime-helper-forms
-                  boolean-runtime-only-helpers)
+                  boolean-runtime-helper-forms)
          (only-in "runtime-wasm/core/boxes.rkt"
                   box-runtime-helper-forms
-                  box-mutability-runtime-helper-forms
-                  box-runtime-only-helpers)
+                  box-mutability-runtime-helper-forms)
          (only-in "runtime-wasm/core/bytes.rkt"
                   bytes-core-runtime-helper-forms
                   bytes-main-runtime-helper-forms
-                  bytes-mutability-runtime-helper-forms
-                  bytes-runtime-only-helpers)
+                  bytes-mutability-runtime-helper-forms)
          (only-in "runtime-wasm/core/characters.rkt"
                   character-general-category-global-forms
                   character-general-category-initializer-forms
-                  character-runtime-helper-forms
-                  character-runtime-only-helpers)
+                  character-runtime-helper-forms)
          (only-in "runtime-wasm/core/checkers.rkt"
-                  checker-runtime-helper-forms
-                  checker-runtime-only-helpers)
+                  checker-runtime-helper-forms)
          (only-in "runtime-wasm/core/closures.rkt"
                   closure-empty-free-global-forms
                   closure-runtime-global-forms)
@@ -63,10 +57,8 @@
                   continuation-mark-runtime-helper-forms
                   continuation-runtime-helper-forms
                   multiple-value-runtime-helper-forms
-                  value-expectation-runtime-helper-forms
-                  control-flow-runtime-only-helpers)
+                  value-expectation-runtime-helper-forms)
          (only-in "runtime-wasm/core/equality.rkt"
-                  equality-runtime-only-helpers
                   immutable-predicate-runtime-helper-forms
                   equality-runtime-helper-forms)
          (only-in "runtime-wasm/core/exceptions.rkt"
@@ -76,47 +68,38 @@
                   exception-struct-type-global-forms
                   exception-struct-type-initializer-forms
                   exception-contract-runtime-helper-forms
-                  exception-contract-runtime-only-helpers
-                  exception-runtime-helper-forms
-                  exception-runtime-only-helpers)
+                  exception-runtime-helper-forms)
          (only-in "runtime-wasm/core/events.rkt"
                   event-global-forms
                   event-initializer-forms
                   event-channel-runtime-helper-forms
-                  event-sync-runtime-helper-forms
-                  event-runtime-only-helpers)
+                  event-sync-runtime-helper-forms)
          (only-in "runtime-wasm/core/fasl.rkt"
                   fasl-tag-runtime-helper-forms
                   fasl-encoding-runtime-helper-forms
-                  fasl-decoding-runtime-helper-forms
-                  fasl-runtime-only-helpers)
+                  fasl-decoding-runtime-helper-forms)
          (only-in "runtime-wasm/core/ffi.rkt"
                   external-value-runtime-helper-forms
                   ffi-callback-global-forms
                   ffi-entry-global-forms
-                  ffi-runtime-only-helpers
                   ffi-runtime-only-helper-forms
                   unsafe-ffi-primitive-table-global-forms
                   unsafe-ffi-runtime-only-helper-forms)
          (only-in "runtime-wasm/core/filesystem.rkt"
                   filesystem-temporary-global-forms
-                  filesystem-runtime-only-helpers
                   filesystem-runtime-helper-forms)
          (only-in "runtime-wasm/core/fixnums.rkt"
                   fixnum-global-forms
-                  fixnum-runtime-helper-forms
-                  fixnum-runtime-only-helpers)
+                  fixnum-runtime-helper-forms)
          (only-in "runtime-wasm/core/flonums.rkt"
                   flonum-global-forms
                   flonum-initializer-forms
-                  flonum-runtime-helper-forms
-                  flonum-runtime-only-helpers)
+                  flonum-runtime-helper-forms)
          (only-in "runtime-wasm/core/formatting.rkt"
                   printer-extension-runtime-helper-forms
                   unquoted-printing-string-runtime-helper-forms
                   formatting-runtime-helper-forms
-                  numeric-display-formatting-runtime-helper-forms
-                  formatting-runtime-only-helpers)
+                  numeric-display-formatting-runtime-helper-forms)
          (only-in "runtime-wasm/core/growable-arrays.rkt"
                   growable-array-core-runtime-helper-forms)
          (only-in "runtime-wasm/core/growable-bytes.rkt"
@@ -125,7 +108,6 @@
                   growable-i32-array-core-runtime-helper-forms)
          (only-in "runtime-wasm/core/hashes.rkt"
                   hash-code-runtime-helper-forms
-                  hash-runtime-only-helpers
                   hash-seed-global-forms
                   hash-predicate-runtime-helper-forms
                   hash-table-predicate-runtime-helper-forms
@@ -135,26 +117,21 @@
                   immutable-hash-public-set/remove-runtime-helper-forms
                   immutable-hash-public-update-runtime-helper-forms
                   immutable-hash-public-clear-runtime-helper-forms
-                  immutable-hash-iteration-runtime-helper-forms
-                  immutable-hash-runtime-only-helpers)
+                  immutable-hash-iteration-runtime-helper-forms)
          (only-in "runtime-wasm/core/i32-arrays.rkt"
                   i32-array-core-runtime-helper-forms
-                  i32-array-runtime-helper-forms
-                  i32-array-runtime-only-helpers)
+                  i32-array-runtime-helper-forms)
          (only-in "runtime-wasm/core/i8-arrays.rkt"
                   i8-array-core-runtime-helper-forms
                   i8-array-error-runtime-helper-forms
-                  i8-array-conversion-runtime-helper-forms
-                  i8-array-runtime-only-helpers)
+                  i8-array-conversion-runtime-helper-forms)
          (only-in "runtime-wasm/core/immediates.rkt"
                   singleton-global-forms
                   void-runtime-helper-forms
-                  eof-object-runtime-helper-forms
-                  immediate-runtime-only-helpers)
+                  eof-object-runtime-helper-forms)
          (only-in "runtime-wasm/core/impersonators.rkt"
                   chaperone-procedure-runtime-helper-forms
-                  impersonator-basic-runtime-helper-forms
-                  impersonator-runtime-only-helpers)
+                  impersonator-basic-runtime-helper-forms)
          (only-in "runtime-wasm/core/io-handlers.rkt"
                   io-handler-default-port-global-forms
                   io-handler-default-port-late-initializer-forms
@@ -162,47 +139,37 @@
                   io-handler-environment-ref-runtime-helper-forms
                   io-handler-error-runtime-helper-forms
                   io-handler-port-runtime-helper-forms
-                  io-handler-reader-printer-runtime-helper-forms
-                  io-handler-runtime-only-helpers)
+                  io-handler-reader-printer-runtime-helper-forms)
          (only-in "runtime-wasm/core/keywords.rkt"
                   keyword-core-runtime-helper-forms
                   keyword-table-global-forms
                   keyword-table-initializer-runtime-helper-forms
-                  keyword-runtime-helper-forms
-                  keyword-runtime-only-helpers)
+                  keyword-runtime-helper-forms)
          (only-in "runtime-wasm/core/lists.rkt"
                   list-pre-contract-runtime-helper-forms
                   list-post-contract-runtime-helper-forms
-                  pair-global-forms
-                  list-runtime-only-helpers)
+                  pair-global-forms)
          (only-in "runtime-wasm/core/linklet-instances.rkt"
-                  linklet-instance-runtime-helper-forms
-                  linklet-instance-runtime-only-helpers)
+                  linklet-instance-runtime-helper-forms)
          (only-in "runtime-wasm/core/linklets.rkt"
                   linklet-bootstrap-runtime-helper-forms
                   linklet-body-core-reserved-symbols
-                  linklet-bootstrap-runtime-only-helpers
                   linklet-interpreter-runtime-helper-forms
-                  linklet-interpreter-runtime-only-helpers
                   primitive-table-module-symbols
                   linklet-primitive-table-global-forms
                   linklet-primitive-table-initializer-runtime-helper-forms
-                  linklet-primitive-table-initializer-runtime-only-helpers
                   linklet-primitive-table-runtime-only-helper-forms
                   linklet-runtime-only-helper-forms)
          (only-in "runtime-wasm/core/locations.rkt"
                   location-global-forms
                   location-initial-runtime-helper-forms
-                  location-runtime-only-helpers
                   source-location-runtime-helper-forms)
          (only-in "runtime-wasm/core/locks.rkt"
-                  lock-runtime-helper-forms
-                  lock-runtime-only-helpers)
+                  lock-runtime-helper-forms)
          (only-in "runtime-wasm/core/loggers.rkt"
                   logger-current-global-forms
                   logger-current-initializer-forms
-                  logger-runtime-helper-forms
-                  logger-runtime-only-helpers)
+                  logger-runtime-helper-forms)
          (only-in "runtime-wasm/core/memory-map.rkt"
                   memory-map-global-forms)
          (only-in "runtime-wasm/core/mlists.rkt"
@@ -212,14 +179,12 @@
                   mutable-hash-empty-iteration-runtime-helper-forms
                   mutable-hash-read-runtime-helper-forms
                   mutable-hash-remove-membership-clear-runtime-helper-forms
-                  mutable-hash-runtime-only-helpers
                   mutable-hash-update-runtime-helper-forms
                   mutable-hash-write-runtime-helper-forms)
          (only-in "runtime-wasm/core/namespaces.rkt"
                   namespace-current-global-forms
                   namespace-initializer-forms
                   namespace-module-registry-global-forms
-                  namespace-runtime-only-helpers
                   namespace-runtime-helper-forms
                   namespace-top-level-global-forms)
          (only-in "runtime-wasm/core/numbers.rkt"
@@ -227,7 +192,6 @@
                   generic-bitwise-runtime-helper-forms
                   generic-numeric-runtime-helper-forms
                   number-error-runtime-helper-forms
-                  number-runtime-only-helpers
                   number-string-conversion-runtime-helper-forms
                   floating-point-byte-conversion-runtime-helper-forms
                   numeric-formatting-runtime-helper-forms
@@ -252,7 +216,6 @@
                   parameterization-global-forms
                   parameterization-initializer-forms
                   parameterization-runtime-helper-forms
-                  parameter-runtime-only-helpers
                   parameter-width-runtime-helper-forms
                   error-rendering-handler-global-forms
                   error-value-handler-late-initializer-forms
@@ -266,7 +229,6 @@
          (only-in "runtime-wasm/core/paths.rkt"
                   path-current-global-forms
                   path-current-initializer-forms
-                  path-runtime-only-helpers
                   path-runtime-helper-forms
                   path-manipulation-runtime-helper-forms)
          (only-in "runtime-wasm/core/ports.rkt"
@@ -280,8 +242,7 @@
                   port-output-string-runtime-helper-forms
                   port-predicate-runtime-helper-forms
                   port-state-runtime-helper-forms
-                  port-string-constructor-runtime-helper-forms
-                  port-runtime-only-helpers)
+                  port-string-constructor-runtime-helper-forms)
          (only-in "runtime-wasm/core/procedures.rkt"
                   procedure-global-forms
                   primitive-reflection-runtime-helper-forms
@@ -295,26 +256,22 @@
                   procedure-ffi-primitive-global-forms
                   procedure-primitive-initializer-forms
                   procedure-ffi-primitive-initializer-forms
-                  procedure-primitive-invoker-forms
-                  procedure-runtime-only-helpers)
+                  procedure-primitive-invoker-forms)
          (only-in "runtime-wasm/core/random.rkt"
                   random-current-global-forms
                   random-current-initializer-forms
                   random-generator-runtime-helper-forms
                   random-public-runtime-helper-forms
-                  random-state-global-forms
-                  random-runtime-only-helpers)
+                  random-state-global-forms)
          (only-in "runtime-wasm/core/realms.rkt"
                   realm-global-forms
                   realm-initializer-forms)
          (only-in "runtime-wasm/core/regexps.rkt"
-                  regexp-runtime-helper-forms
-                  regexp-runtime-only-helpers)
+                  regexp-runtime-helper-forms)
          (only-in "runtime-wasm/core/runtime-constants.rkt"
                   make-core-populated-runtime-constant-registry)
          (only-in "runtime-wasm/core/reflection.rkt"
-                  reflection-runtime-helper-forms
-                  reflection-runtime-only-helpers)
+                  reflection-runtime-helper-forms)
          (only-in "runtime-wasm/core/security.rkt"
                   custodian-current-initializer-forms
                   custodian-runtime-helper-forms
@@ -322,20 +279,16 @@
                   security-current-global-forms
                   security-guard-current-initializer-forms
                   security-post-parameter-runtime-helper-forms
-                  security-pre-parameter-runtime-helper-forms
-                  security-runtime-only-helpers)
+                  security-pre-parameter-runtime-helper-forms)
          (only-in "runtime-wasm/core/semaphores.rkt"
-                  semaphore-runtime-helper-forms
-                  semaphore-runtime-only-helpers)
+                  semaphore-runtime-helper-forms)
          (only-in "runtime-wasm/core/stencil-vectors.rkt"
-                  stencil-vector-runtime-helper-forms
-                  stencil-vector-runtime-only-helpers)
+                  stencil-vector-runtime-helper-forms)
          (only-in "runtime-wasm/core/strings.rkt"
                   string-buffer-runtime-helper-forms
                   string-hash-core-runtime-helper-forms
                   string-main-runtime-helper-forms
-                  string-mutability-runtime-helper-forms
-                  string-runtime-only-helpers)
+                  string-mutability-runtime-helper-forms)
          (only-in "runtime-wasm/core/structs.rkt"
                   struct-basic-runtime-helper-forms
                   struct-construction-runtime-helper-forms
@@ -346,40 +299,32 @@
                   struct-procedure-invoker-runtime-helper-forms
                   struct-procedure-runtime-helper-forms
                   struct-type-property-runtime-helper-forms
-                  struct-prefab-registry-global-forms
-                  struct-runtime-only-helpers)
+                  struct-prefab-registry-global-forms)
          (only-in "runtime-wasm/core/symbols.rkt"
                   symbol-gensym-global-forms
                   symbol-gensym-runtime-helper-forms
                   symbol-public-runtime-helper-forms
                   symbol-table-global-forms
                   symbol-table-runtime-helper-forms
-                  symbol-table-initializer-runtime-helper-forms
-                  symbol-runtime-only-helpers)
+                  symbol-table-initializer-runtime-helper-forms)
          (only-in "runtime-wasm/core/system.rkt"
-                  system-runtime-helper-forms
-                  system-runtime-only-helpers)
+                  system-runtime-helper-forms)
          (only-in "runtime-wasm/core/syntax.rkt"
                   correlated-syntax-runtime-helper-forms
                   syntax-global-forms
-                  syntax-runtime-only-helpers
                   syntax-runtime-helper-forms)
          (only-in "runtime-wasm/core/threads.rkt"
                   thread-current-global-forms
                   thread-current-initializer-forms
                   thread-group-current-global-forms
-                  thread-runtime-helper-forms
-                  thread-runtime-only-helpers)
+                  thread-runtime-helper-forms)
          (only-in "runtime-wasm/core/time.rkt"
-                  time-runtime-only-helpers
                   time-runtime-helper-forms)
          (only-in "runtime-wasm/core/treelists.rkt"
                   treelist-constant-global-forms
                   treelist-empty-global-forms
-                  treelist-runtime-helper-forms
-                  treelist-runtime-only-helpers)
+                  treelist-runtime-helper-forms)
          (only-in "runtime-wasm/core/unsafe.rkt"
-                  unsafe-runtime-only-helpers
                   unsafe-runtime-helper-forms)
          (only-in "runtime-wasm/core/vectors.rkt"
                   vector-dummy-array-global-forms
@@ -387,11 +332,9 @@
                   vector-error-runtime-helper-forms
                   vector-main-runtime-helper-forms
                   vector-mutability-runtime-helper-forms
-                  vector-post-stencil-runtime-helper-forms
-                  vector-runtime-only-helpers)
+                  vector-post-stencil-runtime-helper-forms)
          (only-in "runtime-wasm/core/wills.rkt"
-                  will-runtime-helper-forms
-                  will-runtime-only-helpers)
+                  will-runtime-helper-forms)
          "runtime-wasm/core-runtime.rkt"
          "runtime-wasm/constants.rkt"
          "runtime-wasm/shared-types.rkt"
@@ -410,6 +353,7 @@
 (define-runtime-path constants-path "runtime-wasm/constants.rkt")
 (define-runtime-path function-declarations-path "runtime-wasm/function-declarations.rkt")
 (define-runtime-path module-forms-path "runtime-wasm/module-forms.rkt")
+(define-runtime-path runtime-helper-index-path "runtime-wasm/runtime-helper-index.rkt")
 (define-runtime-path core-booleans-path "runtime-wasm/core/booleans.rkt")
 (define-runtime-path core-boxes-path "runtime-wasm/core/boxes.rkt")
 (define-runtime-path core-bytes-path "runtime-wasm/core/bytes.rkt")
@@ -463,69 +407,6 @@
 (define-runtime-path core-unsafe-path "runtime-wasm/core/unsafe.rkt")
 (define-runtime-path core-vectors-path "runtime-wasm/core/vectors.rkt")
 (define-runtime-path core-wills-path "runtime-wasm/core/wills.rkt")
-
-;; runtime-helper-index : hasheq?
-;;   Index helpers available to the monolithic runtime generator.
-(define runtime-helper-index
-  (make-core-runtime-helper-index
-   (append core-runtime-helpers
-           array-runtime-only-helpers
-           boolean-runtime-only-helpers
-           box-runtime-only-helpers
-           bytes-runtime-only-helpers
-           character-runtime-only-helpers
-           checker-runtime-only-helpers
-           control-flow-runtime-only-helpers
-           equality-runtime-only-helpers
-           exception-contract-runtime-only-helpers
-           exception-runtime-only-helpers
-           event-runtime-only-helpers
-           fasl-runtime-only-helpers
-           ffi-runtime-only-helpers
-           filesystem-runtime-only-helpers
-           fixnum-runtime-only-helpers
-           flonum-runtime-only-helpers
-           formatting-runtime-only-helpers
-           hash-runtime-only-helpers
-           immutable-hash-runtime-only-helpers
-           i32-array-runtime-only-helpers
-           i8-array-runtime-only-helpers
-           immediate-runtime-only-helpers
-           impersonator-runtime-only-helpers
-           io-handler-runtime-only-helpers
-           keyword-runtime-only-helpers
-           list-runtime-only-helpers
-           linklet-bootstrap-runtime-only-helpers
-           linklet-interpreter-runtime-only-helpers
-           linklet-primitive-table-initializer-runtime-only-helpers
-           linklet-instance-runtime-only-helpers
-           location-runtime-only-helpers
-           lock-runtime-only-helpers
-           logger-runtime-only-helpers
-           mutable-hash-runtime-only-helpers
-           namespace-runtime-only-helpers
-           number-runtime-only-helpers
-           parameter-runtime-only-helpers
-           path-runtime-only-helpers
-           port-runtime-only-helpers
-           procedure-runtime-only-helpers
-           random-runtime-only-helpers
-           regexp-runtime-only-helpers
-           reflection-runtime-only-helpers
-           security-runtime-only-helpers
-           semaphore-runtime-only-helpers
-           stencil-vector-runtime-only-helpers
-           string-runtime-only-helpers
-           struct-runtime-only-helpers
-           symbol-runtime-only-helpers
-           system-runtime-only-helpers
-           syntax-runtime-only-helpers
-           thread-runtime-only-helpers
-           time-runtime-only-helpers
-           treelist-runtime-only-helpers
-           unsafe-runtime-only-helpers
-           vector-runtime-only-helpers
-           will-runtime-only-helpers)))
 
 (module+ test
   (require (submod "runtime-wasm/core-runtime.rkt" test)))
@@ -743,6 +624,7 @@
                                           constants-path
                                           function-declarations-path
                                           module-forms-path
+                                          runtime-helper-index-path
                                           core-booleans-path
                                           core-boxes-path
                                           core-bytes-path
