@@ -4,11 +4,7 @@
          fixnum-runtime-string-constants
          fixnum-runtime-symbol-constants
          fixnum-global-forms
-         fixnum-arithmetic-runtime-only-helper-names
-         fixnum-comparison-runtime-only-helper-names
-         fixnum-conversion-runtime-only-helper-names
-         fixnum-minmax-runtime-only-helper-names
-         fixnum-predicate-runtime-only-helper-names
+         fixnum-runtime-helper-forms
          fixnum-runtime-only-helpers)
 
 (require "../core-helper.rkt"
@@ -1211,3 +1207,115 @@
              (ref.i31 ,(tag-fixnum-bits
                         `(i32.shr_u ,(local-fixnum-payload-u '$x)
                                     ,(local-fixnum-payload-u '$k)))))))))
+
+;; fixnum-helper-forms : hasheq? (listof symbol?) -> (listof datum?)
+;;   Render the given fixnum helper names from the runtime helper index.
+(define (fixnum-helper-forms helper-index names)
+  (for/list ([name (in-list names)])
+    (core-runtime-helper-form helper-index name)))
+
+;; fixnum-core-helper-form : hasheq? symbol? -> datum?
+;;   Render one fixnum core helper.
+(define (fixnum-core-helper-form helper-index name)
+  (core-runtime-helper-form helper-index name))
+
+;; fixnum-bitwise-and-wraparound-helper-forms : hasheq? hasheq? -> (listof datum?)
+;;   Render the mixed core/runtime fixnum bitwise and wraparound block.
+(define (fixnum-bitwise-and-wraparound-helper-forms runtime-helper-index core-runtime-helper-index)
+  (list
+   (fixnum-core-helper-form core-runtime-helper-index '$fixnum?/i32)
+   (fixnum-core-helper-form core-runtime-helper-index '$fxand/2)
+   (core-runtime-helper-form runtime-helper-index '$fxand)
+   (fixnum-core-helper-form core-runtime-helper-index '$fxior/2)
+   (core-runtime-helper-form runtime-helper-index '$fxior)
+   (fixnum-core-helper-form core-runtime-helper-index '$fxxor/2)
+   (core-runtime-helper-form runtime-helper-index '$fxxor)
+   (fixnum-core-helper-form core-runtime-helper-index '$fxnot)
+   (fixnum-core-helper-form core-runtime-helper-index '$fxlshift)
+   (fixnum-core-helper-form core-runtime-helper-index '$fxrshift)
+   (fixnum-core-helper-form core-runtime-helper-index '$fxpopcount)
+   (fixnum-core-helper-form core-runtime-helper-index '$fxpopcount32)
+   (fixnum-core-helper-form core-runtime-helper-index '$fxpopcount16)
+   (fixnum-core-helper-form core-runtime-helper-index '$fx+/wraparound)
+   (core-runtime-helper-form runtime-helper-index '$fx-/wraparound)
+   (fixnum-core-helper-form core-runtime-helper-index '$fx*/wraparound)
+   (fixnum-core-helper-form core-runtime-helper-index '$fxlshift/wraparound)
+   (fixnum-core-helper-form core-runtime-helper-index '$fxrshift/logical)))
+
+;; fixnum-runtime-helper-forms : hasheq? hasheq? -> (listof datum?)
+;;   Render the full fixnum helper block in runtime assembly order.
+(define (fixnum-runtime-helper-forms runtime-helper-index core-runtime-helper-index)
+  (append
+   (fixnum-helper-forms runtime-helper-index fixnum-predicate-runtime-only-helper-names)
+   (list (fixnum-core-helper-form core-runtime-helper-index '$fx?/i32))
+   (fixnum-helper-forms runtime-helper-index fixnum-arithmetic-runtime-only-helper-names)
+   (fixnum-bitwise-and-wraparound-helper-forms runtime-helper-index core-runtime-helper-index)
+   (fixnum-helper-forms runtime-helper-index fixnum-comparison-runtime-only-helper-names)
+   (fixnum-helper-forms runtime-helper-index fixnum-minmax-runtime-only-helper-names)
+   (fixnum-helper-forms runtime-helper-index fixnum-conversion-runtime-only-helper-names)))
+
+(module+ test
+  (require rackunit)
+
+  ;; form-name : datum? -> symbol?
+  ;;   Return the function name from a rendered helper form.
+  (define (form-name form)
+    (second form))
+
+  (define fixnum-helper-index
+    (make-core-runtime-helper-index fixnum-runtime-only-helpers))
+
+  (define fixnum-core-helper-index
+    (make-core-runtime-helper-index fixnum-core-runtime-helpers))
+
+  (check-equal?
+   (map form-name
+        (fixnum-bitwise-and-wraparound-helper-forms fixnum-helper-index
+                                                    fixnum-core-helper-index))
+   '($fixnum?/i32
+     $fxand/2
+     $fxand
+     $fxior/2
+     $fxior
+     $fxxor/2
+     $fxxor
+     $fxnot
+     $fxlshift
+     $fxrshift
+     $fxpopcount
+     $fxpopcount32
+     $fxpopcount16
+     $fx+/wraparound
+     $fx-/wraparound
+     $fx*/wraparound
+     $fxlshift/wraparound
+     $fxrshift/logical))
+
+  (check-equal?
+   (map form-name
+        (fixnum-runtime-helper-forms fixnum-helper-index
+                                     fixnum-core-helper-index))
+   (append fixnum-predicate-runtime-only-helper-names
+           '($fx?/i32)
+           fixnum-arithmetic-runtime-only-helper-names
+           '($fixnum?/i32
+             $fxand/2
+             $fxand
+             $fxior/2
+             $fxior
+             $fxxor/2
+             $fxxor
+             $fxnot
+             $fxlshift
+             $fxrshift
+             $fxpopcount
+             $fxpopcount32
+             $fxpopcount16
+             $fx+/wraparound
+             $fx-/wraparound
+             $fx*/wraparound
+             $fxlshift/wraparound
+             $fxrshift/logical)
+           fixnum-comparison-runtime-only-helper-names
+           fixnum-minmax-runtime-only-helper-names
+           fixnum-conversion-runtime-only-helper-names)))

@@ -3,13 +3,7 @@
 (provide flonum-core-runtime-helpers
          flonum-global-forms
          flonum-initializer-forms
-         flonum-arithmetic-runtime-only-helper-names
-         flonum-constructor-runtime-only-helper-names
-         flonum-conversion-runtime-only-helper-names
-         flonum-math-runtime-only-helper-names
-         flonum-minmax-runtime-only-helper-names
-         flonum-predicate-runtime-only-helper-names
-         flonum-utility-runtime-only-helper-names
+         flonum-runtime-helper-forms
          flonum-runtime-only-helpers)
 
 (require "../core-helper.rkt"
@@ -728,3 +722,50 @@
     (lambda ()
       `(func $fl?/i32 (param $a (ref eq)) (result i32)
              (ref.test (ref $Flonum) (local.get $a)))))))
+
+;; flonum-helper-forms : hasheq? (listof symbol?) -> (listof datum?)
+;;   Render the given flonum helper names from the runtime helper index.
+(define (flonum-helper-forms helper-index names)
+  (for/list ([name (in-list names)])
+    (core-runtime-helper-form helper-index name)))
+
+;; flonum-runtime-helper-forms : hasheq? hasheq? -> (listof datum?)
+;;   Render the full flonum helper block in runtime assembly order.
+(define (flonum-runtime-helper-forms runtime-helper-index core-runtime-helper-index)
+  (append
+   (flonum-helper-forms runtime-helper-index flonum-constructor-runtime-only-helper-names)
+   (list (core-runtime-helper-form core-runtime-helper-index '$fl?/i32))
+   (flonum-helper-forms runtime-helper-index flonum-predicate-runtime-only-helper-names)
+   (flonum-helper-forms runtime-helper-index flonum-conversion-runtime-only-helper-names)
+   (flonum-helper-forms runtime-helper-index flonum-arithmetic-runtime-only-helper-names)
+   (flonum-helper-forms runtime-helper-index flonum-math-runtime-only-helper-names)
+   ;; Variadic flonum min/max helpers are built on binary helpers.
+   (flonum-helper-forms runtime-helper-index flonum-minmax-runtime-only-helper-names)
+   (flonum-helper-forms runtime-helper-index flonum-utility-runtime-only-helper-names)))
+
+(module+ test
+  (require rackunit)
+
+  ;; form-name : datum? -> symbol?
+  ;;   Return the function name from a rendered helper form.
+  (define (form-name form)
+    (second form))
+
+  (define flonum-helper-index
+    (make-core-runtime-helper-index flonum-runtime-only-helpers))
+
+  (define flonum-core-helper-index
+    (make-core-runtime-helper-index flonum-core-runtime-helpers))
+
+  (check-equal?
+   (map form-name
+        (flonum-runtime-helper-forms flonum-helper-index
+                                     flonum-core-helper-index))
+   (append flonum-constructor-runtime-only-helper-names
+           '($fl?/i32)
+           flonum-predicate-runtime-only-helper-names
+           flonum-conversion-runtime-only-helper-names
+           flonum-arithmetic-runtime-only-helper-names
+           flonum-math-runtime-only-helper-names
+           flonum-minmax-runtime-only-helper-names
+           flonum-utility-runtime-only-helper-names)))

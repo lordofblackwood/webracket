@@ -99,23 +99,13 @@
                   filesystem-runtime-only-helpers
                   filesystem-runtime-only-helper-names)
          (only-in "runtime-wasm/core/fixnums.rkt"
-                  fixnum-arithmetic-runtime-only-helper-names
-                  fixnum-comparison-runtime-only-helper-names
-                  fixnum-conversion-runtime-only-helper-names
                   fixnum-global-forms
-                  fixnum-minmax-runtime-only-helper-names
-                  fixnum-predicate-runtime-only-helper-names
+                  fixnum-runtime-helper-forms
                   fixnum-runtime-only-helpers)
          (only-in "runtime-wasm/core/flonums.rkt"
-                  flonum-arithmetic-runtime-only-helper-names
-                  flonum-constructor-runtime-only-helper-names
-                  flonum-conversion-runtime-only-helper-names
                   flonum-global-forms
                   flonum-initializer-forms
-                  flonum-math-runtime-only-helper-names
-                  flonum-minmax-runtime-only-helper-names
-                  flonum-predicate-runtime-only-helper-names
-                  flonum-utility-runtime-only-helper-names
+                  flonum-runtime-helper-forms
                   flonum-runtime-only-helpers)
          (only-in "runtime-wasm/core/formatting.rkt"
                   printer-extension-runtime-only-helper-names
@@ -1701,45 +1691,8 @@
 
          ;; https://docs.racket-lang.org/reference/fixnums.html
 
-         ;; Fixnum predicate helpers are implemented in runtime-wasm/core/fixnums.rkt.
-         ,@(for/list ([name (in-list fixnum-predicate-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
-
-         ,(core-runtime-helper-form core-runtime-helper-index '$fx?/i32)
-
-         ;; Fixnum arithmetic helpers are implemented in runtime-wasm/core/fixnums.rkt.
-         ,@(for/list ([name (in-list fixnum-arithmetic-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
-
-         ,(core-runtime-helper-form core-runtime-helper-index '$fixnum?/i32)
-         ,(core-runtime-helper-form core-runtime-helper-index '$fxand/2)
-         ,(core-runtime-helper-form runtime-helper-index '$fxand)
-         ,(core-runtime-helper-form core-runtime-helper-index '$fxior/2)
-         ,(core-runtime-helper-form runtime-helper-index '$fxior)
-         ,(core-runtime-helper-form core-runtime-helper-index '$fxxor/2)
-         ,(core-runtime-helper-form runtime-helper-index '$fxxor)
-         ,(core-runtime-helper-form core-runtime-helper-index '$fxnot)
-         ,(core-runtime-helper-form core-runtime-helper-index '$fxlshift)
-         ,(core-runtime-helper-form core-runtime-helper-index '$fxrshift)
-         ,(core-runtime-helper-form core-runtime-helper-index '$fxpopcount)
-         ,(core-runtime-helper-form core-runtime-helper-index '$fxpopcount32)
-         ,(core-runtime-helper-form core-runtime-helper-index '$fxpopcount16)
-         ,(core-runtime-helper-form core-runtime-helper-index '$fx+/wraparound)
-         ,(core-runtime-helper-form runtime-helper-index '$fx-/wraparound)
-         ,(core-runtime-helper-form core-runtime-helper-index '$fx*/wraparound)
-         ,(core-runtime-helper-form core-runtime-helper-index '$fxlshift/wraparound)
-         ,(core-runtime-helper-form core-runtime-helper-index '$fxrshift/logical)
-
-         ;; Fixnum comparison helpers are implemented in runtime-wasm/core/fixnums.rkt.
-         ,@(for/list ([name (in-list fixnum-comparison-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
-
-        ,@(for/list ([name (in-list fixnum-minmax-runtime-only-helper-names)])
-            (core-runtime-helper-form runtime-helper-index name))
-
-         ;; Fixnum conversion helpers are implemented in runtime-wasm/core/fixnums.rkt.
-         ,@(for/list ([name (in-list fixnum-conversion-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
+         ;; Fixnum helpers are implemented in runtime-wasm/core/fixnums.rkt.
+         ,@(fixnum-runtime-helper-forms runtime-helper-index core-runtime-helper-index)
 
          ;;;
          ;;; 4.3.3 Floating Point Numbers
@@ -1747,35 +1700,8 @@
 
          ;; https://docs.racket-lang.org/reference/flonums.html
 
-         ;; Flonum construction helpers are implemented in runtime-wasm/core/flonums.rkt.
-         ,@(for/list ([name (in-list flonum-constructor-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
-
-         ,(core-runtime-helper-form core-runtime-helper-index '$fl?/i32)
-
-         ;; Flonum predicate helpers are implemented in runtime-wasm/core/flonums.rkt.
-         ,@(for/list ([name (in-list flonum-predicate-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
-
-         ;; Flonum conversion helpers are implemented in runtime-wasm/core/flonums.rkt.
-         ,@(for/list ([name (in-list flonum-conversion-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
-
-         ;; Flonum arithmetic helpers are implemented in runtime-wasm/core/flonums.rkt.
-         ,@(for/list ([name (in-list flonum-arithmetic-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
-
-         ;; Flonum math helpers are implemented in runtime-wasm/core/flonums.rkt.
-         ,@(for/list ([name (in-list flonum-math-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
-
-        ;; variadic flonum min/max built on binary helpers
-        ,@(for/list ([name (in-list flonum-minmax-runtime-only-helper-names)])
-            (core-runtime-helper-form runtime-helper-index name))
-
-         ;; Flonum utility helpers are implemented in runtime-wasm/core/flonums.rkt.
-         ,@(for/list ([name (in-list flonum-utility-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
+         ;; Flonum helpers are implemented in runtime-wasm/core/flonums.rkt.
+         ,@(flonum-runtime-helper-forms runtime-helper-index core-runtime-helper-index)
 
 
 
