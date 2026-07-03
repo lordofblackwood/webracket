@@ -3,6 +3,9 @@
 (provide hash-runtime-only-helpers
          hash-seed-global-forms
          hash-runtime-string-constants
+         hash-table-predicate-runtime-helper-forms
+         hash-table-operation-runtime-helper-forms
+         hash-code-runtime-helper-forms
          hash-count-list-runtime-only-helper-names
          hash-for-each-runtime-only-helper-names
          hash-map-runtime-only-helper-names
@@ -197,6 +200,42 @@
     $equal-hash/hashequal-mutable
     $equal-hash/hashalw-mutable
     $bytes-hash/i32))
+
+;; hash-helper-forms : hasheq? (listof symbol?) -> (listof datum?)
+;;   Render the given hash helper names from the runtime helper index.
+(define (hash-helper-forms helper-index names)
+  (for/list ([name (in-list names)])
+    (core-runtime-helper-form helper-index name)))
+
+;; hash-table-predicate-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render hash table predicate helpers in runtime assembly order.
+(define (hash-table-predicate-runtime-helper-forms helper-index)
+  (hash-helper-forms helper-index hash-table-predicate-runtime-only-helper-names))
+
+;; hash-table-operation-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render generic hash table operation helpers in runtime assembly order.
+(define (hash-table-operation-runtime-helper-forms helper-index)
+  (append
+   ;; General hash-count and hash->list
+   (hash-helper-forms helper-index hash-count-list-runtime-only-helper-names)
+   ;; hash-for-each : apply proc to each key/value in a hash table.
+   (hash-helper-forms helper-index hash-for-each-runtime-only-helper-names)
+   ;; General hash-map
+   (hash-helper-forms helper-index hash-map-runtime-only-helper-names)
+   ;; hash-map/copy
+   (hash-helper-forms helper-index hash-map-copy-runtime-only-helper-names)
+   ;; hash-filter, hash-filter-keys, hash-filter-values
+   (hash-helper-forms helper-index hash-filter-runtime-only-helper-names)
+   ;; General hash-keys and hash-values
+   (hash-helper-forms helper-index hash-key-value-runtime-only-helper-names)))
+
+;; hash-code-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render hash-code helpers in runtime assembly order.
+(define (hash-code-runtime-helper-forms helper-index)
+  (append
+   (hash-helper-forms helper-index hash-seed-runtime-only-helper-names)
+   (hash-helper-forms helper-index hash-equal-runtime-only-helper-names)
+   (hash-helper-forms helper-index hash-equal-composite-runtime-only-helper-names)))
 
 ;; hash-predicate-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate concrete hash predicate helpers.
@@ -2536,3 +2575,33 @@
           hash-code-runtime-only-helpers
           hash-equal-code-runtime-only-helpers
           hash-equal-worker-runtime-only-helpers))
+
+(module+ test
+  (require rackunit)
+
+  ;; form-name : datum? -> symbol?
+  ;;   Return the function name from a rendered helper form.
+  (define (form-name form)
+    (second form))
+
+  (define hash-helper-index
+    (make-core-runtime-helper-index hash-runtime-only-helpers))
+
+  (check-equal?
+   (map form-name (hash-table-predicate-runtime-helper-forms hash-helper-index))
+   hash-table-predicate-runtime-only-helper-names)
+
+  (check-equal?
+   (map form-name (hash-table-operation-runtime-helper-forms hash-helper-index))
+   (append hash-count-list-runtime-only-helper-names
+           hash-for-each-runtime-only-helper-names
+           hash-map-runtime-only-helper-names
+           hash-map-copy-runtime-only-helper-names
+           hash-filter-runtime-only-helper-names
+           hash-key-value-runtime-only-helper-names))
+
+  (check-equal?
+   (map form-name (hash-code-runtime-helper-forms hash-helper-index))
+   (append hash-seed-runtime-only-helper-names
+           hash-equal-runtime-only-helper-names
+           hash-equal-composite-runtime-only-helper-names)))

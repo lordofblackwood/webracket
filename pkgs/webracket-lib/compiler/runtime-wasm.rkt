@@ -127,18 +127,11 @@
                   numeric-display-formatting-runtime-only-helper-names
                   formatting-runtime-only-helpers)
          (only-in "runtime-wasm/core/hashes.rkt"
-                  hash-count-list-runtime-only-helper-names
-                  hash-equal-composite-runtime-only-helper-names
-                  hash-equal-runtime-only-helper-names
-                  hash-filter-runtime-only-helper-names
-                  hash-for-each-runtime-only-helper-names
-                  hash-key-value-runtime-only-helper-names
-                  hash-map-copy-runtime-only-helper-names
-                  hash-map-runtime-only-helper-names
+                  hash-code-runtime-helper-forms
                   hash-runtime-only-helpers
                   hash-seed-global-forms
-                  hash-seed-runtime-only-helper-names
-                  hash-table-predicate-runtime-only-helper-names
+                  hash-table-predicate-runtime-helper-forms
+                  hash-table-operation-runtime-helper-forms
                   hash-predicate-runtime-only-helper-names)
          (only-in "runtime-wasm/core/immutable-hashes.rkt"
                   immutable-hash-constructor-runtime-only-helper-names
@@ -2844,8 +2837,7 @@
 
          ;; Hash table predicates
          ;;   Implemented in runtime-wasm/core/hashes.rkt.
-         ,@(for/list ([name (in-list hash-table-predicate-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
+         ,@(hash-table-predicate-runtime-helper-forms runtime-helper-index)
 
 
          ;;;
@@ -3263,43 +3255,9 @@
         ,@(for/list ([name (in-list immutable-hash-iteration-runtime-only-helper-names)])
             (core-runtime-helper-form runtime-helper-index name))
 
-        ;; General hash-count and hash->list
-        ;;   Implemented in runtime-wasm/core/hashes.rkt.
-        ,@(for/list ([name (in-list hash-count-list-runtime-only-helper-names)])
-            (core-runtime-helper-form runtime-helper-index name))
-
-         ;; hash-for-each : apply proc to each key/value in a hash table.
+         ;; Generic hash table operations
          ;;   Implemented in runtime-wasm/core/hashes.rkt.
-        ,@(for/list ([name (in-list hash-for-each-runtime-only-helper-names)])
-            (core-runtime-helper-form runtime-helper-index name))
-
-        ;; General hash-map
-        ;;   Implemented in runtime-wasm/core/hashes.rkt.
-        ,@(for/list ([name (in-list hash-map-runtime-only-helper-names)])
-            (core-runtime-helper-form runtime-helper-index name))
-
-
-        ;; -------------------------------------------------------------------
-        ;; hash-map/copy
-        ;;   Implemented in runtime-wasm/core/hashes.rkt.
-        ,@(for/list ([name (in-list hash-map-copy-runtime-only-helper-names)])
-            (core-runtime-helper-form runtime-helper-index name))
-
-
-        ;; -------------------------------------------------------------------
-        ;; hash-filter, hash-filter-keys, hash-filter-values
-        ;; -------------------------------------------------------------------
-        ;;   Implemented in runtime-wasm/core/hashes.rkt.
-        ,@(for/list ([name (in-list hash-filter-runtime-only-helper-names)])
-            (core-runtime-helper-form runtime-helper-index name))
-
-
-        ;; General hash-keys and hash-values
-        ;;   Implemented in runtime-wasm/core/hashes.rkt.
-        ,@(for/list ([name (in-list hash-key-value-runtime-only-helper-names)])
-            (core-runtime-helper-form runtime-helper-index name))
-
-
+         ,@(hash-table-operation-runtime-helper-forms runtime-helper-index)
 
          ;;;
          ;;; HASH CODES
@@ -3307,20 +3265,9 @@
 
          ,@hash-seed-global-forms
 
+         ;; Hash code helpers
          ;;   Implemented in runtime-wasm/core/hashes.rkt.
-         ,@(for/list ([name (in-list hash-seed-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
-
-
-         ;;; Equal Hash Code
-
-         ;;   Implemented in runtime-wasm/core/hashes.rkt.
-         ,@(for/list ([name (in-list hash-equal-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
-
-         ;;   Implemented in runtime-wasm/core/hashes.rkt.
-         ,@(for/list ([name (in-list hash-equal-composite-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
+         ,@(hash-code-runtime-helper-forms runtime-helper-index)
 
          ;;;
          ;;; SYMBOL TABLE
