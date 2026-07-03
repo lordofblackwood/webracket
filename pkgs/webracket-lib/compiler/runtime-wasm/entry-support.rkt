@@ -1,6 +1,13 @@
 #lang racket
 
-(provide entry-support-forms)
+(provide entry-local-declaration-forms
+         entry-local-initializer-forms
+         entry-result-copy-forms
+         entry-run-body-form
+         entry-support-forms
+         entry-top-level-variable-initializer-forms)
+
+(require "../private/wasm-utils.rkt")
 
 ;; entry-support-forms : (listof datum?)
 ;;   Declare static exported entry support helpers.
@@ -34,3 +41,109 @@
                          (else
                           (call $entry-uncaught-exception2 (local.get $e))))
                      (throw $exn (local.get $e)))))
+
+;; entry-local-name : (or/c symbol? variable?) -> symbol?
+;;   Return the Wasm local name for an entry-local binding.
+(define (entry-local-name v)
+  (if (symbol? v) v (Var v)))
+
+;; entry-local-declaration-forms : (listof list?) -> (listof datum?)
+;;   Declare entry-local variables for let-values and letrec-values bindings.
+(define (entry-local-declaration-forms entry-locals)
+  (for/list ([x (in-list (reverse entry-locals))])
+    (match x
+      [(list v t)      `(local ,(entry-local-name v) ,t)]
+      [(list v t init) `(local ,(entry-local-name v) ,t)])))
+
+;; entry-top-level-variable-initializer-forms : (listof variable?) -> (listof datum?)
+;;   Initialize boxed top-level variables to undefined.
+(define (entry-top-level-variable-initializer-forms top-vars)
+  (for/list ([v (in-list top-vars)])
+    `(global.set ,(TopVar v)
+                 (struct.new $Boxed
+                             (global.get $undefined)))
+    #;`(global.set ,(TopVar v)
+                   (struct.new $Boxed
+                               (global.get ,(TopVar v))))))
+
+;; entry-local-initializer-forms : (listof list?) -> (listof datum?)
+;;   Initialize entry locals before running the compiled program body.
+(define (entry-local-initializer-forms entry-locals)
+  (for/list ([x (in-list entry-locals)])
+    (match x
+      [(list v t)
+       (if (equal? t '(ref eq))
+           `(local.set ,(entry-local-name v)
+                       ,(Undefined))
+           `(nop))]
+      [(list v t init)
+       `(local.set ,(entry-local-name v) ,init)])))
+
+;; entry-run-body-form : datum? -> datum?
+;;   Run the compiled entry body under the top-level exception handler.
+(define (entry-run-body-form entry-body)
+  `(block $entry-done
+          (local.set $entry-exn
+                     (block $entry-handler (result (ref eq))
+                            (try_table (result (ref eq))
+                                       (catch $exn $entry-handler)
+                                       ,entry-body
+                                       (br $entry-done))))
+          (call $entry-uncaught-exception (local.get $entry-exn))
+          (unreachable)))
+
+;; entry-result-copy-forms : symbol? -> (listof datum?)
+;;   Format the result value as bytes and copy it to linear memory.
+(define (entry-result-copy-forms result)
+  `((global.set $result-bytes
+                (call $string->bytes/utf-8
+                      (call $format/display (global.get ,result))
+                      (global.get $false)   ; ignored
+                      (global.get $zero)    ; start = 0
+                      (global.get $false))) ; end
+    (call $copy-bytes-to-memory ; copy and return length as i32
+          (global.get $result-bytes) (i32.const 0))))
+
+(module+ test
+  (require rackunit
+           "../private/structs.rkt")
+
+  (define top-var (variable #'top))
+
+  (check-equal? (entry-local-declaration-forms '((x (ref eq))
+                                                 (y i32 (i32.const 0))))
+                '((local y i32)
+                  (local x (ref eq))))
+
+  (check-equal? (entry-local-initializer-forms '((x (ref eq))
+                                                 (y i32)
+                                                 (z i32 (i32.const 7))))
+                `((local.set x ,(Undefined))
+                  (nop)
+                  (local.set z (i32.const 7))))
+
+  (check-equal? (entry-top-level-variable-initializer-forms (list top-var))
+                '((global.set $$top
+                              (struct.new $Boxed
+                                          (global.get $undefined)))))
+
+  (check-equal? (entry-run-body-form '(call $program))
+                '(block $entry-done
+                        (local.set $entry-exn
+                                   (block $entry-handler (result (ref eq))
+                                          (try_table (result (ref eq))
+                                                     (catch $exn $entry-handler)
+                                                     (call $program)
+                                                     (br $entry-done))))
+                        (call $entry-uncaught-exception (local.get $entry-exn))
+                        (unreachable)))
+
+  (check-equal? (entry-result-copy-forms '$result)
+                '((global.set $result-bytes
+                              (call $string->bytes/utf-8
+                                    (call $format/display (global.get $result))
+                                    (global.get $false)
+                                    (global.get $zero)
+                                    (global.get $false)))
+                  (call $copy-bytes-to-memory
+                        (global.get $result-bytes) (i32.const 0)))))

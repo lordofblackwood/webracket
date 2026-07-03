@@ -14,7 +14,12 @@
                   entry-struct-property-global-forms
                   entry-struct-property-initializer-forms)
          (only-in "runtime-wasm/entry-support.rkt"
-                  entry-support-forms)
+                  entry-local-declaration-forms
+                  entry-local-initializer-forms
+                  entry-result-copy-forms
+                  entry-run-body-form
+                  entry-support-forms
+                  entry-top-level-variable-initializer-forms)
          (only-in "runtime-wasm/function-declarations.rkt"
                   runtime-function-declaration-forms)
          (only-in "runtime-wasm/js-imports.rkt"
@@ -2179,13 +2184,7 @@
                (func $entry (export "entry") (result i32)
                      ; Declare local variables (bound by let-values and letrec-values)
                      (local $entry-exn (ref eq))
-                     ,@(let ()
-                         (define (Local  x)
-                           (match x
-                             [(list v t)      `(local ,(if (symbol? v) v (Var v)) ,t)]
-                             [(list v t init) `(local ,(if (symbol? v) v (Var v)) ,t)]))
-                         (define (Local* xs) (map Local xs))
-                         (Local* (reverse entry-locals)))
+                     ,@(entry-local-declaration-forms entry-locals)
 
                      ;; Initialize global constants
                      ,@flonum-initializer-forms
@@ -2230,14 +2229,7 @@
 
                      ;; Initialize top-level variables.
                      ;; These are all "boxed".
-                     ,@(let ()
-                         (for/list ([v top-vars])
-                           `(global.set ,(TopVar v)
-                                        (struct.new $Boxed
-                                                    (global.get $undefined)))
-                           #;`(global.set ,(TopVar v)
-                                        (struct.new $Boxed
-                                                    (global.get ,(TopVar v))))))
+                     ,@(entry-top-level-variable-initializer-forms top-vars)
 
                      ;; Populate exception struct type descriptor bindings.
                      ;;   struct:exn, struct:exn:fail, etc
@@ -2248,42 +2240,15 @@
 
 
                      ; Initialize local variables
-                     ,@(let ()
-                         (define (Init  x)
-                           (match x
-                             [(list v t)
-                              (if (equal? t '(ref eq))
-                                  `(local.set ,(if (symbol? v) v (Var v))
-                                              ,(Undefined))
-                                  `(nop))]
-                             [(list v t init)
-                              `(local.set ,(if (symbol? v) v (Var v)) ,init)]))
-                         (define (Init* xs) (map Init xs))
-                         (Init* entry-locals))
+                     ,@(entry-local-initializer-forms entry-locals)
 
                      ; This runs `entry-body`. An exception handler is
                      ; installed to catch exceptions not handled by the
                      ; user program.
-                     (block $entry-done
-                            (local.set $entry-exn
-                                       (block $entry-handler (result (ref eq))
-                                              (try_table (result (ref eq))
-                                                         (catch $exn $entry-handler)
-                                                         ,entry-body
-                                                         (br $entry-done))))
-                            (call $entry-uncaught-exception (local.get $entry-exn))
-                            (unreachable))
+                     ,(entry-run-body-form entry-body)
 
                      ; Return the result
-                     (global.set $result-bytes
-                                 (call $string->bytes/utf-8
-                                       (call $format/display (global.get ,result))
-                                       (global.get $false)   ; ignored
-                                       (global.get $zero)    ; start = 0
-                                       (global.get $false))) ; end
-
-                     (call $copy-bytes-to-memory ; copy and return length as i32
-                           (global.get $result-bytes) (i32.const 0)))
+                     ,@(entry-result-copy-forms result))
 
                ))
 
