@@ -1,9 +1,53 @@
 #lang racket
 
 (provide time-runtime-only-helpers
+         time-runtime-string-constants
+         time-date-runtime-symbol-constants
+         time-clock-runtime-symbol-constants
          time-runtime-only-helper-names)
 
 (require "../core-helper.rkt")
+
+;; time-runtime-string-constants : (listof (list/c symbol? string?))
+;;   Declare strings used by date and time helpers.
+(define time-runtime-string-constants
+  '((date?  "date?")
+    (date*? "date*?")
+    (UTC    "UTC")
+    (local  "local")))
+
+;; time-date-runtime-symbol-constants : (listof symbol?)
+;;   Declare symbols used by date predicates, constructors, and accessors.
+(define time-date-runtime-symbol-constants
+  '(date?
+    date
+    make-date
+    date*?
+    date*
+    make-date*
+    date-second
+    date-minute
+    date-hour
+    date-day
+    date-month
+    date-year
+    date-week-day
+    date-year-day
+    date-dst?
+    date-time-zone-offset
+    date*-nanosecond
+    date*-time-zone-name))
+
+;; time-clock-runtime-symbol-constants : (listof symbol?)
+;;   Declare symbols used by current-time and seconds->date helpers.
+(define time-clock-runtime-symbol-constants
+  '(current-seconds
+    current-inexact-milliseconds
+    current-milliseconds
+    current-process-milliseconds
+    current-gc-milliseconds
+    seconds->date
+    current-date))
 
 ;; time-runtime-only-forms : (listof datum?)
 ;;   Enumerate date and time helpers used by the monolithic runtime.
