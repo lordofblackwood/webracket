@@ -5,12 +5,73 @@
          exception-struct-type-cache-global-forms
          exception-struct-type-global-forms
          exception-struct-type-initializer-forms
+         exception-runtime-string-constants
+         exception-fail-runtime-symbol-constants
+         exception-break-runtime-symbol-constants
          exception-contract-runtime-only-helper-names
          exception-contract-runtime-only-helpers
          exception-runtime-only-helper-names
          exception-runtime-only-helpers)
 
 (require "../core-helper.rkt")
+
+;; exception-runtime-string-constants : (listof (list/c symbol? string?))
+;;   Declare strings used by exception helpers.
+(define exception-runtime-string-constants
+  '((exn:srclocs? "exn:srclocs?")))
+
+;; exception-fail-runtime-symbol-constants : (listof symbol?)
+;;   Declare fail-exception symbols referenced directly by runtime helpers.
+(define exception-fail-runtime-symbol-constants
+  '(exn:fail:contract:continuation
+    exn:fail:contract:continuation?
+    make-exn:fail:contract:continuation
+    exn:fail:filesystem:exists
+    exn:fail:filesystem:exists?
+    make-exn:fail:filesystem:exists
+    exn:fail:filesystem:version
+    exn:fail:filesystem:version?
+    make-exn:fail:filesystem:version
+    exn:fail:filesystem:errno
+    exn:fail:filesystem:errno?
+    make-exn:fail:filesystem:errno
+    exn:fail:filesystem:errno-errno
+    exn:fail:filesystem:missing-module
+    exn:fail:filesystem:missing-module?
+    make-exn:fail:filesystem:missing-module
+    exn:fail:filesystem:missing-module-path
+    exn:fail:network
+    exn:fail:network?
+    make-exn:fail:network
+    exn:fail:network:errno
+    exn:fail:network:errno?
+    make-exn:fail:network:errno
+    exn:fail:network:errno-errno
+    exn:fail:out-of-memory
+    exn:fail:out-of-memory?
+    make-exn:fail:out-of-memory
+    exn:fail:unsupported
+    exn:fail:unsupported?
+    make-exn:fail:unsupported
+    exn:fail:user
+    exn:fail:user?
+    make-exn:fail:user))
+
+;; exception-break-runtime-symbol-constants : (listof symbol?)
+;;   Declare break-exception and exn:srclocs symbols referenced by runtime helpers.
+(define exception-break-runtime-symbol-constants
+  '(exn:break
+    exn:break?
+    make-exn:break
+    exn:break-continuation
+    exn:break:hang-up
+    exn:break:hang-up?
+    make-exn:break:hang-up
+    exn:break:terminate
+    exn:break:terminate?
+    make-exn:break:terminate
+    exn:srclocs?
+    exn:srclocs-accessor))
 
 ;; exception-struct-type-bindings : (listof (list symbol? symbol?))
 ;;   Map exported exception structure type names to their ensure helpers.
