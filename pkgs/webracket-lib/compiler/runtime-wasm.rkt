@@ -656,13 +656,6 @@
                  #:when (eq? kind 'primitive))
         (second binding)))
 
-    (define initial-program-string-constant-names
-      (map first string-constants))
-    (define initial-program-bytes-constant-names
-      (map first bytes-constants))
-    (define initial-program-symbol-constant-names
-      (map first symbol-constants))
-
     (define (console-bridge-symbol-global const-name)
       ($ (string->symbol (~a "symbol:" const-name))))
 
@@ -748,23 +741,14 @@
                    #:do [(define name (module-global-name form))]
                    #:when name)
           name)
-        (append*
-         (for/list ([name (in-list initial-program-string-constant-names)])
-           (list (string-global-name name)))
-         (for/list ([name (in-list initial-program-bytes-constant-names)])
-           (list (bytes-global-name name)))
-         (for/list ([name (in-list initial-program-symbol-constant-names)])
-           (list (symbol-global-name name)))))))
+        (program-constant-global-names string-constants
+                                       bytes-constants
+                                       symbol-constants))))
 
     (define program-data-name-set
-      (list->eq-set
-       (append
-        (for/list ([name (in-list initial-program-string-constant-names)])
-          (string-data-name name))
-        (for/list ([name (in-list initial-program-bytes-constant-names)])
-          (bytes-data-name name))
-        (for/list ([name (in-list initial-program-symbol-constant-names)])
-          (symbol-data-name name)))))
+      (list->eq-set (program-constant-data-names string-constants
+                                                 bytes-constants
+                                                 symbol-constants)))
 
     (define (program-module-form? form)
       (define func-name (module-func-name form))
@@ -1401,24 +1385,6 @@
        core-runtime-bytes-constants
        core-runtime-symbol-constants))
 
-    (define (declare-runtime-string-constants)
-      (runtime-constant-registry-declare-strings runtime-constant-registry))
-
-    (define (initialize-runtime-string-constants)
-      (runtime-constant-registry-initialize-strings runtime-constant-registry))
-
-    (define (declare-runtime-bytes-constants)
-      (runtime-constant-registry-declare-bytes runtime-constant-registry))
-
-    (define (initialize-runtime-bytes-constants)
-      (runtime-constant-registry-initialize-bytes runtime-constant-registry))
-
-    (define (declare-runtime-symbol-constants)
-      (runtime-constant-registry-declare-symbols! runtime-constant-registry))
-
-    (define (initialize-runtime-symbol-constants)
-      (runtime-constant-registry-initialize-symbols! runtime-constant-registry))
-
     ;;;
     ;;; WEB-ASSEMBLY
     ;;;
@@ -1472,12 +1438,8 @@
 
          ,@flonum-global-forms
 
-         ;; String constants used in the runtime
-         ,@(declare-runtime-string-constants)
-         ;; Bytes constants used in the runtime
-         ,@(declare-runtime-bytes-constants)
-         ;; Symbol constants used in the runtime
-         ,@(declare-runtime-symbol-constants)
+         ;; Constants used by the program and runtime.
+         ,@(runtime-constant-declaration-forms runtime-constant-registry)
 
          ,@character-general-category-global-forms
 
@@ -4300,12 +4262,8 @@
                      (call $initialize-primitive-table-user-installed)
                      (call $initialize-prefab-struct-type-registry)
 
-                     ;; Initialize string constants used in the runtime
-                     ,@(initialize-runtime-string-constants)
-                     ;; Initialize bytes constants used in the runtime
-                     ,@(initialize-runtime-bytes-constants)
-                     ;; Initialize symbol constants used in the runtime
-                     ,@(initialize-runtime-symbol-constants)
+                     ;; Initialize constants used by the program and runtime.
+                     ,@(runtime-constant-initializer-forms runtime-constant-registry)
                      ,@parameterization-initializer-forms
                      ,@random-current-initializer-forms
                      ,@thread-current-initializer-forms

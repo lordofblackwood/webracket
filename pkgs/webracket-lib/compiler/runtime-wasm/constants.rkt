@@ -14,6 +14,8 @@
          bytes-global-name
          symbol-data-name
          symbol-global-name
+         program-constant-global-names
+         program-constant-data-names
          constant-global-name?
          constant-data-name?
          runtime-constant-registry-declare-strings
@@ -21,7 +23,9 @@
          runtime-constant-registry-declare-symbols!
          runtime-constant-registry-initialize-strings
          runtime-constant-registry-initialize-bytes
-         runtime-constant-registry-initialize-symbols!)
+         runtime-constant-registry-initialize-symbols!
+         runtime-constant-declaration-forms
+         runtime-constant-initializer-forms)
 
 (require "../private/wasm-data.rkt"
          "../private/wasm-utils.rkt")
@@ -144,6 +148,30 @@
 ;;   Return the WAT global name for a symbol constant.
 (define (symbol-global-name name)
   (string->symbol (~a "$symbol:" name)))
+
+;; program-constant-global-names : list? list? list? -> (listof symbol?)
+;;   Return the global names owned by user-program constants.
+(define (program-constant-global-names string-constants
+                                       bytes-constants
+                                       symbol-constants)
+  (append (for/list ([constant (in-list string-constants)])
+            (string-global-name (first constant)))
+          (for/list ([constant (in-list bytes-constants)])
+            (bytes-global-name (first constant)))
+          (for/list ([constant (in-list symbol-constants)])
+            (symbol-global-name (first constant)))))
+
+;; program-constant-data-names : list? list? list? -> (listof symbol?)
+;;   Return the data-segment names owned by user-program constants.
+(define (program-constant-data-names string-constants
+                                     bytes-constants
+                                     symbol-constants)
+  (append (for/list ([constant (in-list string-constants)])
+            (string-data-name (first constant)))
+          (for/list ([constant (in-list bytes-constants)])
+            (bytes-data-name (first constant)))
+          (for/list ([constant (in-list symbol-constants)])
+            (symbol-data-name (first constant)))))
 
 ;; constant-global-name? : any/c -> boolean?
 ;;   Check whether name is a generated constant global name.
@@ -275,6 +303,20 @@
                              (array.new_data $I8Array ,$symbol-data:name
                                              (i32.const 0) (i32.const ,n)))))))
 
+;; runtime-constant-declaration-forms : runtime-constant-registry? -> (listof datum?)
+;;   Emit all runtime constant data/global declaration forms in assembly order.
+(define (runtime-constant-declaration-forms registry)
+  (append (runtime-constant-registry-declare-strings registry)
+          (runtime-constant-registry-declare-bytes registry)
+          (runtime-constant-registry-declare-symbols! registry)))
+
+;; runtime-constant-initializer-forms : runtime-constant-registry? -> (listof datum?)
+;;   Emit all runtime constant initialization forms in assembly order.
+(define (runtime-constant-initializer-forms registry)
+  (append (runtime-constant-registry-initialize-strings registry)
+          (runtime-constant-registry-initialize-bytes registry)
+          (runtime-constant-registry-initialize-symbols! registry)))
+
 (module+ test
   (require rackunit)
 
@@ -298,6 +340,21 @@
   (check-true (constant-data-name? '$bytes-data:hello))
   (check-true (constant-data-name? '$symbol-data:hello))
   (check-false (constant-data-name? '$string:hello))
+
+  (check-equal?
+   (program-constant-global-names '((program-string "program"))
+                                  '((program-bytes #"program"))
+                                  '((program-symbol program-symbol)))
+   '($string:program-string
+     $bytes:program-bytes
+     $symbol:program-symbol))
+  (check-equal?
+   (program-constant-data-names '((program-string "program"))
+                                '((program-bytes #"program"))
+                                '((program-symbol program-symbol)))
+   '($string-data:program-string
+     $bytes-data:program-bytes
+     $symbol-data:program-symbol))
 
   (let ([registry (make-runtime-constant-registry
                    '((program-string "program"))
@@ -332,16 +389,19 @@
        $symbol-data:bar
        $symbol:bar)))
 
-  (let ([registry (make-populated-runtime-constant-registry
-                   '((program-string "program"))
-                   '((program-bytes #"program"))
-                   '((program-symbol program-symbol))
-                   '(primitive)
-                   '(ffi)
-                   '(reserved primitive)
-                   '((core-string "core"))
-                   '((core-bytes #"core"))
-                   '(core-symbol reserved))])
+  (define (sample-populated-runtime-constant-registry)
+    (make-populated-runtime-constant-registry
+     '((program-string "program"))
+     '((program-bytes #"program"))
+     '((program-symbol program-symbol))
+     '(primitive)
+     '(ffi)
+     '(reserved primitive)
+     '((core-string "core"))
+     '((core-bytes #"core"))
+     '(core-symbol reserved)))
+
+  (let ([registry (sample-populated-runtime-constant-registry)])
     (check-equal?
      (form-names (runtime-constant-registry-declare-strings registry))
      '($string-data:program-string
@@ -365,4 +425,39 @@
        $symbol-data:reserved
        $symbol:reserved
        $symbol-data:core-symbol
-       $symbol:core-symbol))))
+       $symbol:core-symbol)))
+
+  (let ([registry (sample-populated-runtime-constant-registry)])
+    (check-equal?
+     (form-names (runtime-constant-declaration-forms registry))
+     '($string-data:program-string
+       $string:program-string
+       $string-data:core-string
+       $string:core-string
+       $bytes-data:program-bytes
+       $bytes:program-bytes
+       $bytes-data:core-bytes
+       $bytes:core-bytes
+       $symbol-data:program-symbol
+       $symbol:program-symbol
+       $symbol-data:primitive
+       $symbol:primitive
+       $symbol-data:ffi
+       $symbol:ffi
+       $symbol-data:reserved
+       $symbol:reserved
+       $symbol-data:core-symbol
+       $symbol:core-symbol)))
+
+  (let ([registry (sample-populated-runtime-constant-registry)])
+    (check-equal?
+     (map car (runtime-constant-initializer-forms registry))
+     '(global.set
+       global.set
+       global.set
+       global.set
+       global.set
+       global.set
+       global.set
+       global.set
+       global.set))))
