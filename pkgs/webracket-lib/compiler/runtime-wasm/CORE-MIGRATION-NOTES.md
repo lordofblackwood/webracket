@@ -108,6 +108,15 @@ Follow-up:
   changing the cache lookup order. If that fingerprint remains necessary,
   keep the serialization explicit and avoid extra string-to-bytes copies or
   repeated full-module writes.
+- In particular, do not assume the stable-runtime module and the emitted WAT
+  file are the same serialization point. The stable-runtime cache hashes a
+  runtime-only analysis module before tree shaking finishes; the driver later
+  writes the final program module after pruning and program forms have been
+  composed.
+- Output-time reuse is still a good target for final-module diagnostics. Any
+  metric or fingerprint that describes the final emitted module should be
+  computed while `driver.rkt` serializes the `.wat` file, rather than by
+  serializing the final module once for measurement and then again for output.
 - A good shape for a later cleanup is to serialize each relevant module once,
   keep the serialized bytes/text together with its hash and byte count, and
   write that already-computed serialization when the `.wat` file is emitted.
