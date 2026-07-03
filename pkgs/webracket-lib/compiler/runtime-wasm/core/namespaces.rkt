@@ -6,6 +6,7 @@
          namespace-runtime-string-constants
          namespace-runtime-only-helpers
          namespace-runtime-only-helper-names
+         namespace-runtime-helper-forms
          namespace-top-level-global-forms)
 
 (require "../core-helper.rkt")
@@ -268,3 +269,24 @@
   (function-forms->runtime-helpers
    'namespace-runtime-only-helpers
    namespace-runtime-only-forms))
+
+;; namespace-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render namespace helpers in runtime assembly order.
+(define (namespace-runtime-helper-forms helper-index)
+  (for/list ([name (in-list namespace-runtime-only-helper-names)])
+    (core-runtime-helper-form helper-index name)))
+
+(module+ test
+  (require rackunit)
+
+  ;; form-name : datum? -> symbol?
+  ;;   Return the function name from a rendered helper form.
+  (define (form-name form)
+    (second form))
+
+  (define namespace-helper-index
+    (make-core-runtime-helper-index namespace-runtime-only-helpers))
+
+  (check-equal?
+   (map form-name (namespace-runtime-helper-forms namespace-helper-index))
+   namespace-runtime-only-helper-names))

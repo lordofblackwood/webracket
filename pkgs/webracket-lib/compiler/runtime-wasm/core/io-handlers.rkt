@@ -1,12 +1,15 @@
 #lang racket
 
 (provide io-handler-reader-printer-runtime-only-helper-names
+         io-handler-reader-printer-runtime-helper-forms
          io-handler-default-port-global-forms
          io-handler-default-port-late-initializer-forms
          io-handler-runtime-string-constants
          io-handler-runtime-symbol-constants
          io-handler-port-runtime-only-helper-names
+         io-handler-port-runtime-helper-forms
          io-handler-error-runtime-only-helper-names
+         io-handler-error-runtime-helper-forms
          io-handler-runtime-only-helpers)
 
 (require "../core-helper.rkt")
@@ -444,8 +447,37 @@
    'io-handler-runtime-only-helpers
    io-handler-runtime-only-forms))
 
+;; io-handler-helper-forms : hasheq? (listof symbol?) -> (listof datum?)
+;;   Render the given I/O handler names from the runtime helper index.
+(define (io-handler-helper-forms helper-index names)
+  (for/list ([name (in-list names)])
+    (core-runtime-helper-form helper-index name)))
+
+;; io-handler-reader-printer-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render bootstrap reader and printer helpers in runtime assembly order.
+(define (io-handler-reader-printer-runtime-helper-forms helper-index)
+  (io-handler-helper-forms helper-index io-handler-reader-printer-runtime-only-helper-names))
+
+;; io-handler-port-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render port handler helpers in runtime assembly order.
+(define (io-handler-port-runtime-helper-forms helper-index)
+  (io-handler-helper-forms helper-index io-handler-port-runtime-only-helper-names))
+
+;; io-handler-error-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render default error rendering helpers in runtime assembly order.
+(define (io-handler-error-runtime-helper-forms helper-index)
+  (io-handler-helper-forms helper-index io-handler-error-runtime-only-helper-names))
+
 (module+ test
   (require rackunit)
+
+  ;; form-name : datum? -> symbol?
+  ;;   Return the function name from a rendered helper form.
+  (define (form-name form)
+    (second form))
+
+  (define io-handler-helper-index
+    (make-core-runtime-helper-index io-handler-runtime-only-helpers))
 
   ;; tree-member? : any/c any/c -> boolean?
   ;;   Check whether a datum appears anywhere in a tree.
@@ -469,4 +501,17 @@
   (check-true (tree-member? '(global.get $symbol:port-display-handler)
                             io-handler-default-port-late-initializer-forms))
   (check-true (tree-member? '(global.get $symbol:port-print-handler)
-                            io-handler-default-port-late-initializer-forms)))
+                            io-handler-default-port-late-initializer-forms))
+
+  (check-equal?
+   (map form-name
+        (io-handler-reader-printer-runtime-helper-forms io-handler-helper-index))
+   io-handler-reader-printer-runtime-only-helper-names)
+
+  (check-equal?
+   (map form-name (io-handler-port-runtime-helper-forms io-handler-helper-index))
+   io-handler-port-runtime-only-helper-names)
+
+  (check-equal?
+   (map form-name (io-handler-error-runtime-helper-forms io-handler-helper-index))
+   io-handler-error-runtime-only-helper-names))

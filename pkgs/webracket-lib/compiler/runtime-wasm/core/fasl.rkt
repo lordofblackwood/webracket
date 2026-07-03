@@ -1,7 +1,10 @@
 #lang racket
 
 (provide fasl-tag-runtime-only-helper-names
+         fasl-tag-runtime-helper-forms
          fasl-encoding-runtime-only-helper-names
+         fasl-encoding-runtime-helper-forms
+         fasl-decoding-runtime-helper-forms
          fasl-runtime-only-helpers
          fasl-runtime-only-helper-names)
 
@@ -1048,3 +1051,47 @@
   (append fasl-tag-runtime-only-helpers
           fasl-encoding-runtime-only-helpers
           fasl-decoding-runtime-only-helpers))
+
+;; fasl-helper-forms : hasheq? (listof symbol?) -> (listof datum?)
+;;   Render the given FASL helper names from the runtime helper index.
+(define (fasl-helper-forms helper-index names)
+  (for/list ([name (in-list names)])
+    (core-runtime-helper-form helper-index name)))
+
+;; fasl-tag-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render FASL tag globals in runtime assembly order.
+(define (fasl-tag-runtime-helper-forms helper-index)
+  (fasl-helper-forms helper-index fasl-tag-runtime-only-helper-names))
+
+;; fasl-encoding-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render FASL encoding helpers in runtime assembly order.
+(define (fasl-encoding-runtime-helper-forms helper-index)
+  (fasl-helper-forms helper-index fasl-encoding-runtime-only-helper-names))
+
+;; fasl-decoding-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render FASL decoding helpers in runtime assembly order.
+(define (fasl-decoding-runtime-helper-forms helper-index)
+  (fasl-helper-forms helper-index fasl-runtime-only-helper-names))
+
+(module+ test
+  (require rackunit)
+
+  ;; form-name : datum? -> symbol?
+  ;;   Return the global or function name from a rendered helper form.
+  (define (form-name form)
+    (second form))
+
+  (define fasl-helper-index
+    (make-core-runtime-helper-index fasl-runtime-only-helpers))
+
+  (check-equal?
+   (map form-name (fasl-tag-runtime-helper-forms fasl-helper-index))
+   fasl-tag-runtime-only-helper-names)
+
+  (check-equal?
+   (map form-name (fasl-encoding-runtime-helper-forms fasl-helper-index))
+   fasl-encoding-runtime-only-helper-names)
+
+  (check-equal?
+   (map form-name (fasl-decoding-runtime-helper-forms fasl-helper-index))
+   fasl-runtime-only-helper-names))

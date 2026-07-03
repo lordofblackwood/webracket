@@ -1,6 +1,7 @@
 #lang racket
 
 (provide external-value-runtime-only-helper-names
+         external-value-runtime-helper-forms
          ffi-callback-global-forms
          ffi-entry-global-forms
          ffi-runtime-string-constants
@@ -1386,6 +1387,12 @@
   (parameterize ([current-ffi-console-bridge-bindings console-bridge-bindings])
     (ffi-runtime-only-forms)))
 
+;; external-value-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render external host value helpers in runtime assembly order.
+(define (external-value-runtime-helper-forms helper-index)
+  (for/list ([name (in-list external-value-runtime-only-helper-names)])
+    (core-runtime-helper-form helper-index name)))
+
 ;; unsafe-ffi-runtime-only-helper-forms : (listof foreign?) -> (listof datum?)
 ;;   Render unsafe FFI primitive lookup helpers for the active `.ffi` primitives.
 (define (unsafe-ffi-runtime-only-helper-forms active-ffi-foreigns)
@@ -1443,3 +1450,18 @@
                                  (symbol->string name)
                                  (lambda ()
                                    (ffi-runtime-only-form-ref name))))))
+
+(module+ test
+  (require rackunit)
+
+  ;; form-name : datum? -> symbol?
+  ;;   Return the function name from a rendered helper form.
+  (define (form-name form)
+    (second form))
+
+  (define ffi-helper-index
+    (make-core-runtime-helper-index ffi-runtime-only-helpers))
+
+  (check-equal?
+   (map form-name (external-value-runtime-helper-forms ffi-helper-index))
+   external-value-runtime-only-helper-names))

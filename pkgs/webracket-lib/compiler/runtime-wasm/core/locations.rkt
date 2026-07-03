@@ -1,10 +1,12 @@
 #lang racket
 
 (provide location-global-forms
+         location-initial-runtime-helper-forms
          location-runtime-string-constants
          location-runtime-symbol-constants
          location-runtime-only-helpers
-         source-location-runtime-only-helper-names)
+         source-location-runtime-only-helper-names
+         source-location-runtime-helper-forms)
 
 (require "../core-helper.rkt")
 
@@ -54,6 +56,11 @@
     $srcloc-position
     $srcloc-span
     $srcloc->string))
+
+;; location-initial-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for reader location bootstrap helpers.
+(define location-initial-runtime-only-helper-names
+  '($make-initial-location))
 
 ;; location-runtime-only-forms : (listof datum?)
 ;;   Enumerate reader and source-location helpers used by the monolithic runtime.
@@ -431,3 +438,38 @@
   (function-forms->runtime-helpers
    'location-runtime-only-helpers
    location-runtime-only-forms))
+
+;; location-helper-forms : hasheq? (listof symbol?) -> (listof datum?)
+;;   Render the given location helper names from the runtime helper index.
+(define (location-helper-forms helper-index names)
+  (for/list ([name (in-list names)])
+    (core-runtime-helper-form helper-index name)))
+
+;; location-initial-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render reader location bootstrap helpers in runtime assembly order.
+(define (location-initial-runtime-helper-forms helper-index)
+  (location-helper-forms helper-index location-initial-runtime-only-helper-names))
+
+;; source-location-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render source-location helpers in runtime assembly order.
+(define (source-location-runtime-helper-forms helper-index)
+  (location-helper-forms helper-index source-location-runtime-only-helper-names))
+
+(module+ test
+  (require rackunit)
+
+  ;; form-name : datum? -> symbol?
+  ;;   Return the function name from a rendered helper form.
+  (define (form-name form)
+    (second form))
+
+  (define location-helper-index
+    (make-core-runtime-helper-index location-runtime-only-helpers))
+
+  (check-equal?
+   (map form-name (location-initial-runtime-helper-forms location-helper-index))
+   location-initial-runtime-only-helper-names)
+
+  (check-equal?
+   (map form-name (source-location-runtime-helper-forms location-helper-index))
+   source-location-runtime-only-helper-names))

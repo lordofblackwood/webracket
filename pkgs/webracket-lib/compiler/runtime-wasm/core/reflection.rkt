@@ -1,6 +1,7 @@
 #lang racket
 
 (provide reflection-runtime-only-helper-names
+         reflection-runtime-helper-forms
          reflection-runtime-string-constants
          reflection-runtime-symbol-constants
          reflection-runtime-only-helpers)
@@ -531,3 +532,24 @@
 ;;   Preserve the runtime emission order for reflection helpers.
 (define reflection-runtime-only-helper-names
   (map core-runtime-helper-name reflection-runtime-only-helpers))
+
+;; reflection-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render reflection helpers in runtime assembly order.
+(define (reflection-runtime-helper-forms helper-index)
+  (for/list ([name (in-list reflection-runtime-only-helper-names)])
+    (core-runtime-helper-form helper-index name)))
+
+(module+ test
+  (require rackunit)
+
+  ;; form-name : datum? -> symbol?
+  ;;   Return the function name from a rendered helper form.
+  (define (form-name form)
+    (second form))
+
+  (define reflection-helper-index
+    (make-core-runtime-helper-index reflection-runtime-only-helpers))
+
+  (check-equal?
+   (map form-name (reflection-runtime-helper-forms reflection-helper-index))
+   reflection-runtime-only-helper-names))

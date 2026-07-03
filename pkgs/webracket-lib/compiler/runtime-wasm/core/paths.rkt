@@ -7,7 +7,9 @@
          path-runtime-bytes-constants
          path-runtime-only-helpers
          path-runtime-only-helper-names
-         path-manipulation-runtime-only-helper-names)
+         path-runtime-helper-forms
+         path-manipulation-runtime-only-helper-names
+         path-manipulation-runtime-helper-forms)
 
 (require "../core-helper.rkt")
 
@@ -2840,3 +2842,38 @@
   (function-forms->runtime-helpers
    'path-runtime-only-helpers
    path-runtime-only-forms))
+
+;; path-helper-forms : hasheq? (listof symbol?) -> (listof datum?)
+;;   Render the given path helper names from the runtime helper index.
+(define (path-helper-forms helper-index names)
+  (for/list ([name (in-list names)])
+    (core-runtime-helper-form helper-index name)))
+
+;; path-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render basic path helpers in runtime assembly order.
+(define (path-runtime-helper-forms helper-index)
+  (path-helper-forms helper-index path-runtime-only-helper-names))
+
+;; path-manipulation-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render path manipulation helpers in runtime assembly order.
+(define (path-manipulation-runtime-helper-forms helper-index)
+  (path-helper-forms helper-index path-manipulation-runtime-only-helper-names))
+
+(module+ test
+  (require rackunit)
+
+  ;; form-name : datum? -> symbol?
+  ;;   Return the function name from a rendered helper form.
+  (define (form-name form)
+    (second form))
+
+  (define path-helper-index
+    (make-core-runtime-helper-index path-runtime-only-helpers))
+
+  (check-equal?
+   (map form-name (path-runtime-helper-forms path-helper-index))
+   path-runtime-only-helper-names)
+
+  (check-equal?
+   (map form-name (path-manipulation-runtime-helper-forms path-helper-index))
+   path-manipulation-runtime-only-helper-names))

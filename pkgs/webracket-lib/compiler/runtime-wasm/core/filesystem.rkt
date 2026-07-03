@@ -5,7 +5,8 @@
          filesystem-runtime-symbol-constants
          filesystem-runtime-bytes-constants
          filesystem-runtime-only-helpers
-         filesystem-runtime-only-helper-names)
+         filesystem-runtime-only-helper-names
+         filesystem-runtime-helper-forms)
 
 (require "../core-helper.rkt")
 
@@ -2668,3 +2669,24 @@
   (function-forms->runtime-helpers
    'filesystem-runtime-only-helpers
    filesystem-runtime-only-forms))
+
+;; filesystem-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render VFS and file-operation helpers in runtime assembly order.
+(define (filesystem-runtime-helper-forms helper-index)
+  (for/list ([name (in-list filesystem-runtime-only-helper-names)])
+    (core-runtime-helper-form helper-index name)))
+
+(module+ test
+  (require rackunit)
+
+  ;; form-name : datum? -> symbol?
+  ;;   Return the function name from a rendered helper form.
+  (define (form-name form)
+    (second form))
+
+  (define filesystem-helper-index
+    (make-core-runtime-helper-index filesystem-runtime-only-helpers))
+
+  (check-equal?
+   (map form-name (filesystem-runtime-helper-forms filesystem-helper-index))
+   filesystem-runtime-only-helper-names))

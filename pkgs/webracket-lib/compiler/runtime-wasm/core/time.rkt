@@ -4,7 +4,8 @@
          time-runtime-string-constants
          time-date-runtime-symbol-constants
          time-clock-runtime-symbol-constants
-         time-runtime-only-helper-names)
+         time-runtime-only-helper-names
+         time-runtime-helper-forms)
 
 (require "../core-helper.rkt")
 
@@ -455,3 +456,24 @@
   (function-forms->runtime-helpers
    'time-runtime-only-helpers
    time-runtime-only-forms))
+
+;; time-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render date and time helpers in runtime assembly order.
+(define (time-runtime-helper-forms helper-index)
+  (for/list ([name (in-list time-runtime-only-helper-names)])
+    (core-runtime-helper-form helper-index name)))
+
+(module+ test
+  (require rackunit)
+
+  ;; form-name : datum? -> symbol?
+  ;;   Return the function name from a rendered helper form.
+  (define (form-name form)
+    (second form))
+
+  (define time-helper-index
+    (make-core-runtime-helper-index time-runtime-only-helpers))
+
+  (check-equal?
+   (map form-name (time-runtime-helper-forms time-helper-index))
+   time-runtime-only-helper-names))

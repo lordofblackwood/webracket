@@ -5,7 +5,9 @@
          syntax-runtime-symbol-constants
          syntax-runtime-only-helpers
          syntax-runtime-only-helper-names
-         correlated-syntax-runtime-only-helper-names)
+         syntax-runtime-helper-forms
+         correlated-syntax-runtime-only-helper-names
+         correlated-syntax-runtime-helper-forms)
 
 (require "../core-helper.rkt"
          (only-in "../../private/wasm-utils.rkt"
@@ -2464,3 +2466,39 @@
    'syntax-runtime-only-helpers
    (append correlated-syntax-runtime-only-forms
            syntax-runtime-only-forms)))
+
+;; syntax-helper-forms : hasheq? (listof symbol?) -> (listof datum?)
+;;   Render the given syntax helper names from the runtime helper index.
+(define (syntax-helper-forms helper-index names)
+  (for/list ([name (in-list names)])
+    (core-runtime-helper-form helper-index name)))
+
+;; correlated-syntax-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render correlated syntax helpers in runtime assembly order.
+(define (correlated-syntax-runtime-helper-forms helper-index)
+  (syntax-helper-forms helper-index correlated-syntax-runtime-only-helper-names))
+
+;; syntax-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render syntax-object helpers in runtime assembly order.
+(define (syntax-runtime-helper-forms helper-index)
+  (syntax-helper-forms helper-index syntax-runtime-only-helper-names))
+
+(module+ test
+  (require rackunit)
+
+  ;; form-name : datum? -> symbol?
+  ;;   Return the function name from a rendered helper form.
+  (define (form-name form)
+    (second form))
+
+  (define syntax-helper-index
+    (make-core-runtime-helper-index syntax-runtime-only-helpers))
+
+  (check-equal?
+   (map form-name
+        (correlated-syntax-runtime-helper-forms syntax-helper-index))
+   correlated-syntax-runtime-only-helper-names)
+
+  (check-equal?
+   (map form-name (syntax-runtime-helper-forms syntax-helper-index))
+   syntax-runtime-only-helper-names))

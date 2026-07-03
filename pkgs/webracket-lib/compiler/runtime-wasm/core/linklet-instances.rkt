@@ -1,6 +1,7 @@
 #lang racket
 
 (provide linklet-instance-runtime-only-helper-names
+         linklet-instance-runtime-helper-forms
          linklet-instance-runtime-string-constants
          linklet-instance-runtime-symbol-constants
          linklet-instance-runtime-only-helpers)
@@ -847,3 +848,25 @@
 ;;   Preserve the runtime emission order for linklet instance helpers.
 (define linklet-instance-runtime-only-helper-names
   (map core-runtime-helper-name linklet-instance-runtime-only-helpers))
+
+;; linklet-instance-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render linklet instance and module-variable helpers in runtime assembly order.
+(define (linklet-instance-runtime-helper-forms helper-index)
+  (for/list ([name (in-list linklet-instance-runtime-only-helper-names)])
+    (core-runtime-helper-form helper-index name)))
+
+(module+ test
+  (require rackunit)
+
+  ;; form-name : datum? -> symbol?
+  ;;   Return the function name from a rendered helper form.
+  (define (form-name form)
+    (second form))
+
+  (define linklet-instance-helper-index
+    (make-core-runtime-helper-index linklet-instance-runtime-only-helpers))
+
+  (check-equal?
+   (map form-name
+        (linklet-instance-runtime-helper-forms linklet-instance-helper-index))
+   linklet-instance-runtime-only-helper-names))

@@ -1,12 +1,16 @@
 #lang racket
 
 (provide security-pre-parameter-runtime-only-helper-names
+         security-pre-parameter-runtime-helper-forms
          security-runtime-string-constants
          security-runtime-symbol-constants
          security-post-parameter-runtime-only-helper-names
+         security-post-parameter-runtime-helper-forms
          custodian-current-initializer-forms
          custodian-runtime-only-helper-names
+         custodian-runtime-helper-forms
          inspector-runtime-only-helper-names
+         inspector-runtime-helper-forms
          security-current-global-forms
          security-guard-current-initializer-forms
          security-runtime-only-helpers)
@@ -456,3 +460,58 @@
   (function-forms->runtime-helpers
    'security-runtime-only-helpers
    security-runtime-only-forms))
+
+;; security-helper-forms : hasheq? (listof symbol?) -> (listof datum?)
+;;   Render the given security helper names from the runtime helper index.
+(define (security-helper-forms helper-index names)
+  (for/list ([name (in-list names)])
+    (core-runtime-helper-form helper-index name)))
+
+;; security-pre-parameter-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render helpers emitted before current-security-guard.
+(define (security-pre-parameter-runtime-helper-forms helper-index)
+  (security-helper-forms helper-index security-pre-parameter-runtime-only-helper-names))
+
+;; security-post-parameter-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render helpers emitted between current-security-guard and current-custodian.
+(define (security-post-parameter-runtime-helper-forms helper-index)
+  (security-helper-forms helper-index security-post-parameter-runtime-only-helper-names))
+
+;; custodian-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render custodian helpers in runtime assembly order.
+(define (custodian-runtime-helper-forms helper-index)
+  (security-helper-forms helper-index custodian-runtime-only-helper-names))
+
+;; inspector-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render inspector and object-name helpers in runtime assembly order.
+(define (inspector-runtime-helper-forms helper-index)
+  (security-helper-forms helper-index inspector-runtime-only-helper-names))
+
+(module+ test
+  (require rackunit)
+
+  ;; form-name : datum? -> symbol?
+  ;;   Return the function name from a rendered helper form.
+  (define (form-name form)
+    (second form))
+
+  (define security-helper-index
+    (make-core-runtime-helper-index security-runtime-only-helpers))
+
+  (check-equal?
+   (map form-name
+        (security-pre-parameter-runtime-helper-forms security-helper-index))
+   security-pre-parameter-runtime-only-helper-names)
+
+  (check-equal?
+   (map form-name
+        (security-post-parameter-runtime-helper-forms security-helper-index))
+   security-post-parameter-runtime-only-helper-names)
+
+  (check-equal?
+   (map form-name (custodian-runtime-helper-forms security-helper-index))
+   custodian-runtime-only-helper-names)
+
+  (check-equal?
+   (map form-name (inspector-runtime-helper-forms security-helper-index))
+   inspector-runtime-only-helper-names))

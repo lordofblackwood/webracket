@@ -4,6 +4,7 @@
          character-general-category-initializer-forms
          character-general-category-runtime-symbol-constants
          character-runtime-symbol-constants
+         character-runtime-helper-forms
          character-runtime-only-helper-names
          character-runtime-only-helpers)
 
@@ -846,3 +847,24 @@
 ;;   Preserve the runtime emission order for character helpers.
 (define character-runtime-only-helper-names
   (map core-runtime-helper-name character-runtime-only-helpers))
+
+;; character-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render character helpers in runtime assembly order.
+(define (character-runtime-helper-forms helper-index)
+  (for/list ([name (in-list character-runtime-only-helper-names)])
+    (core-runtime-helper-form helper-index name)))
+
+(module+ test
+  (require rackunit)
+
+  ;; form-name : datum? -> symbol?
+  ;;   Return the function name from a rendered helper form.
+  (define (form-name form)
+    (second form))
+
+  (define character-helper-index
+    (make-core-runtime-helper-index character-runtime-only-helpers))
+
+  (check-equal?
+   (map form-name (character-runtime-helper-forms character-helper-index))
+   character-runtime-only-helper-names))

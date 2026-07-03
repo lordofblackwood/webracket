@@ -51,7 +51,7 @@
          (only-in "runtime-wasm/core/characters.rkt"
                   character-general-category-global-forms
                   character-general-category-initializer-forms
-                  character-runtime-only-helper-names
+                  character-runtime-helper-forms
                   character-runtime-only-helpers)
          (only-in "runtime-wasm/core/checkers.rkt"
                   checker-runtime-helper-forms
@@ -86,12 +86,12 @@
                   event-sync-runtime-helper-forms
                   event-runtime-only-helpers)
          (only-in "runtime-wasm/core/fasl.rkt"
-                  fasl-tag-runtime-only-helper-names
-                  fasl-encoding-runtime-only-helper-names
-                  fasl-runtime-only-helpers
-                  fasl-runtime-only-helper-names)
+                  fasl-tag-runtime-helper-forms
+                  fasl-encoding-runtime-helper-forms
+                  fasl-decoding-runtime-helper-forms
+                  fasl-runtime-only-helpers)
          (only-in "runtime-wasm/core/ffi.rkt"
-                  external-value-runtime-only-helper-names
+                  external-value-runtime-helper-forms
                   ffi-callback-global-forms
                   ffi-entry-global-forms
                   ffi-runtime-only-helpers
@@ -101,7 +101,7 @@
          (only-in "runtime-wasm/core/filesystem.rkt"
                   filesystem-temporary-global-forms
                   filesystem-runtime-only-helpers
-                  filesystem-runtime-only-helper-names)
+                  filesystem-runtime-helper-forms)
          (only-in "runtime-wasm/core/fixnums.rkt"
                   fixnum-global-forms
                   fixnum-runtime-helper-forms
@@ -158,9 +158,9 @@
          (only-in "runtime-wasm/core/io-handlers.rkt"
                   io-handler-default-port-global-forms
                   io-handler-default-port-late-initializer-forms
-                  io-handler-error-runtime-only-helper-names
-                  io-handler-port-runtime-only-helper-names
-                  io-handler-reader-printer-runtime-only-helper-names
+                  io-handler-error-runtime-helper-forms
+                  io-handler-port-runtime-helper-forms
+                  io-handler-reader-printer-runtime-helper-forms
                   io-handler-runtime-only-helpers)
          (only-in "runtime-wasm/core/keywords.rkt"
                   keyword-core-runtime-helper-forms
@@ -174,7 +174,7 @@
                   pair-global-forms
                   list-runtime-only-helpers)
          (only-in "runtime-wasm/core/linklet-instances.rkt"
-                  linklet-instance-runtime-only-helper-names
+                  linklet-instance-runtime-helper-forms
                   linklet-instance-runtime-only-helpers)
          (only-in "runtime-wasm/core/linklets.rkt"
                   linklet-bootstrap-runtime-only-helper-names
@@ -190,8 +190,9 @@
                   linklet-runtime-only-helper-forms)
          (only-in "runtime-wasm/core/locations.rkt"
                   location-global-forms
+                  location-initial-runtime-helper-forms
                   location-runtime-only-helpers
-                  source-location-runtime-only-helper-names)
+                  source-location-runtime-helper-forms)
          (only-in "runtime-wasm/core/locks.rkt"
                   lock-runtime-helper-forms
                   lock-runtime-only-helpers)
@@ -217,7 +218,7 @@
                   namespace-initializer-forms
                   namespace-module-registry-global-forms
                   namespace-runtime-only-helpers
-                  namespace-runtime-only-helper-names
+                  namespace-runtime-helper-forms
                   namespace-top-level-global-forms)
          (only-in "runtime-wasm/core/numbers.rkt"
                   generic-arithmetic-runtime-helper-forms
@@ -256,8 +257,8 @@
                   path-current-global-forms
                   path-current-initializer-forms
                   path-runtime-only-helpers
-                  path-runtime-only-helper-names
-                  path-manipulation-runtime-only-helper-names)
+                  path-runtime-helper-forms
+                  path-manipulation-runtime-helper-forms)
          (only-in "runtime-wasm/core/ports.rkt"
                   port-call-with-output-string-runtime-helper-forms
                   port-current-global-forms
@@ -302,16 +303,16 @@
          (only-in "runtime-wasm/core/runtime-constants.rkt"
                   make-core-populated-runtime-constant-registry)
          (only-in "runtime-wasm/core/reflection.rkt"
-                  reflection-runtime-only-helper-names
+                  reflection-runtime-helper-forms
                   reflection-runtime-only-helpers)
          (only-in "runtime-wasm/core/security.rkt"
                   custodian-current-initializer-forms
-                  custodian-runtime-only-helper-names
-                  inspector-runtime-only-helper-names
+                  custodian-runtime-helper-forms
+                  inspector-runtime-helper-forms
                   security-current-global-forms
                   security-guard-current-initializer-forms
-                  security-post-parameter-runtime-only-helper-names
-                  security-pre-parameter-runtime-only-helper-names
+                  security-post-parameter-runtime-helper-forms
+                  security-pre-parameter-runtime-helper-forms
                   security-runtime-only-helpers)
          (only-in "runtime-wasm/core/semaphores.rkt"
                   semaphore-runtime-helper-forms
@@ -349,10 +350,10 @@
                   system-runtime-helper-forms
                   system-runtime-only-helpers)
          (only-in "runtime-wasm/core/syntax.rkt"
-                  correlated-syntax-runtime-only-helper-names
+                  correlated-syntax-runtime-helper-forms
                   syntax-global-forms
                   syntax-runtime-only-helpers
-                  syntax-runtime-only-helper-names)
+                  syntax-runtime-helper-forms)
          (only-in "runtime-wasm/core/threads.rkt"
                   thread-current-global-forms
                   thread-current-initializer-forms
@@ -361,7 +362,7 @@
                   thread-runtime-only-helpers)
          (only-in "runtime-wasm/core/time.rkt"
                   time-runtime-only-helpers
-                  time-runtime-only-helper-names)
+                  time-runtime-helper-forms)
          (only-in "runtime-wasm/core/treelists.rkt"
                   treelist-constant-global-forms
                   treelist-empty-global-forms
@@ -1694,8 +1695,7 @@
         ;;;
 
          ;;   Implemented in runtime-wasm/core/ffi.rkt.
-         ,@(for/list ([name (in-list external-value-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
+         ,@(external-value-runtime-helper-forms runtime-helper-index)
 
 
 
@@ -1726,8 +1726,7 @@
          ;;;
 
          ;;   Character helpers are implemented in runtime-wasm/core/characters.rkt.
-         ,@(for/list ([name (in-list character-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
+         ,@(character-runtime-helper-forms runtime-helper-index)
 
          ;;;
          ;;; 4.7 SYMBOLS
@@ -2171,7 +2170,7 @@
          ;;   column       counts from 0
 
          ;;   Implemented in runtime-wasm/core/locations.rkt.
-         ,(core-runtime-helper-form runtime-helper-index '$make-initial-location)
+         ,@(location-initial-runtime-helper-forms runtime-helper-index)
 
          ;;;
          ;;; 13.1.6  STRING PORT
@@ -2488,18 +2487,15 @@
          ;; 13.10 Fast-Load Serialization
 
          ;;   FASL tag globals are implemented in runtime-wasm/core/fasl.rkt.
-         ,@(for/list ([name (in-list fasl-tag-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
+         ,@(fasl-tag-runtime-helper-forms runtime-helper-index)
 
          ;;   FASL encoding helpers are implemented in runtime-wasm/core/fasl.rkt.
-         ,@(for/list ([name (in-list fasl-encoding-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
+         ,@(fasl-encoding-runtime-helper-forms runtime-helper-index)
 
          ;;; Fasl decoding (from byte string)
 
          ;;   FASL decoding helpers are implemented in runtime-wasm/core/fasl.rkt.
-         ,@(for/list ([name (in-list fasl-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
+         ,@(fasl-decoding-runtime-helper-forms runtime-helper-index)
 
         ;;;
         ;;; 14. REFLECTION AND SECURITY
@@ -2508,8 +2504,7 @@
         ;; 14.1 Namespaces
 
         ;;   Reflection helpers are implemented in runtime-wasm/core/reflection.rkt.
-        ,@(for/list ([name (in-list reflection-runtime-only-helper-names)])
-            (core-runtime-helper-form runtime-helper-index name))
+        ,@(reflection-runtime-helper-forms runtime-helper-index)
          ;; 14.2 Evaluation and compilation
          ;; 14.3 The racket/load language
          ;; 14.4 Module names and loading
@@ -2518,33 +2513,28 @@
          ;; 14.7 Custodians
 
          ;;   Security guard helpers are implemented in runtime-wasm/core/security.rkt.
-         ,@(for/list ([name (in-list security-pre-parameter-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
+         ,@(security-pre-parameter-runtime-helper-forms runtime-helper-index)
 
          ;;   Implemented in runtime-wasm/core/parameters.rkt.
          ,(core-runtime-helper-form runtime-helper-index '$current-security-guard)
 
          ;;   Security guard and custodian predicate helpers are implemented in runtime-wasm/core/security.rkt.
-         ,@(for/list ([name (in-list security-post-parameter-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
+         ,@(security-post-parameter-runtime-helper-forms runtime-helper-index)
 
          ;;   Implemented in runtime-wasm/core/parameters.rkt.
          ,(core-runtime-helper-form runtime-helper-index '$current-custodian)
 
          ;;   Custodian helpers are implemented in runtime-wasm/core/security.rkt.
-         ,@(for/list ([name (in-list custodian-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
+         ,@(custodian-runtime-helper-forms runtime-helper-index)
 
          ;; 14.8 Thread Groups
          ;; 14.9 Structure Inspectors
 
          ;;   Implemented in runtime-wasm/core/time.rkt.
-         ,@(for/list ([name (in-list time-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
+         ,@(time-runtime-helper-forms runtime-helper-index)
 
          ;;   Inspector and object-name helpers are implemented in runtime-wasm/core/security.rkt.
-         ,@(for/list ([name (in-list inspector-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
+         ,@(inspector-runtime-helper-forms runtime-helper-index)
 
          ;; 14.10 Code Inspectors
          ;; 14.11 Plumbers
@@ -2557,15 +2547,13 @@
 
 
          ;;   Linklet instance helpers are implemented in runtime-wasm/core/linklet-instances.rkt.
-         ,@(for/list ([name (in-list linklet-instance-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
+         ,@(linklet-instance-runtime-helper-forms runtime-helper-index)
 
          ;;   Linklet helpers are implemented in runtime-wasm/core/linklets.rkt.
          ,@(linklet-runtime-only-helper-forms linklet-body-reserved-symbols)
 
          ;;   Correlated syntax helpers are implemented in runtime-wasm/core/syntax.rkt.
-         ,@(for/list ([name (in-list correlated-syntax-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
+         ,@(correlated-syntax-runtime-helper-forms runtime-helper-index)
 
          ;;;
          ;;; 17. UNSAFE OPERATIONS
@@ -2646,16 +2634,14 @@
                ;; 14.1 Namespaces
 
                ;;   Implemented in runtime-wasm/core/namespaces.rkt.
-               ,@(for/list ([name (in-list namespace-runtime-only-helper-names)])
-                   (core-runtime-helper-form runtime-helper-index name))
+               ,@(namespace-runtime-helper-forms runtime-helper-index)
 
                ;;;
                ;;; 14.2 Source Locations
                ;;;
 
                ;;   Implemented in runtime-wasm/core/locations.rkt.
-               ,@(for/list ([name (in-list source-location-runtime-only-helper-names)])
-                   (core-runtime-helper-form runtime-helper-index name))
+               ,@(source-location-runtime-helper-forms runtime-helper-index)
 
                ;;;
                ;;; 12. Macros
@@ -2664,8 +2650,7 @@
                ;;; 12.2 Syntax Object COntent
 
                ;;   Implemented in runtime-wasm/core/syntax.rkt.
-               ,@(for/list ([name (in-list syntax-runtime-only-helper-names)])
-                   (core-runtime-helper-form runtime-helper-index name))
+               ,@(syntax-runtime-helper-forms runtime-helper-index)
 
                ;;;
                ;;; 15. OPERATING SYSTEM
@@ -2674,8 +2659,7 @@
                ;;; 15.1 Paths
 
                ;;   Basic path helpers are implemented in runtime-wasm/core/paths.rkt.
-               ,@(for/list ([name (in-list path-runtime-only-helper-names)])
-                   (core-runtime-helper-form runtime-helper-index name))
+               ,@(path-runtime-helper-forms runtime-helper-index)
 
                ;;   Environment variable helpers are implemented in runtime-wasm/core/io-handlers.rkt.
                ,(core-runtime-helper-form runtime-helper-index '$environment-variables?)
@@ -2690,15 +2674,13 @@
                ,(core-runtime-helper-form runtime-helper-index '$current-print)
 
                ;;   Bootstrap reader and printer helpers are implemented in runtime-wasm/core/io-handlers.rkt.
-               ,@(for/list ([name (in-list io-handler-reader-printer-runtime-only-helper-names)])
-                   (core-runtime-helper-form runtime-helper-index name))
+               ,@(io-handler-reader-printer-runtime-helper-forms runtime-helper-index)
 
                ;;   Implemented in runtime-wasm/core/parameters.rkt.
                ,(core-runtime-helper-form runtime-helper-index '$current-readtable)
 
                ;;   Port handler helpers are implemented in runtime-wasm/core/io-handlers.rkt.
-               ,@(for/list ([name (in-list io-handler-port-runtime-only-helper-names)])
-                   (core-runtime-helper-form runtime-helper-index name))
+               ,@(io-handler-port-runtime-helper-forms runtime-helper-index)
 
                ;;   Implemented in runtime-wasm/core/parameters.rkt.
                ,(core-runtime-helper-form runtime-helper-index '$current-read-interaction)
@@ -2714,8 +2696,7 @@
                ,@(parameter-width-runtime-helper-forms runtime-helper-index)
 
                ;;   Error rendering defaults are implemented in runtime-wasm/core/io-handlers.rkt.
-               ,@(for/list ([name (in-list io-handler-error-runtime-only-helper-names)])
-                   (core-runtime-helper-form runtime-helper-index name))
+               ,@(io-handler-error-runtime-helper-forms runtime-helper-index)
 
                ;;   Implemented in runtime-wasm/core/parameters.rkt.
                ,@(parameter-error-rendering-runtime-helper-forms runtime-helper-index)
@@ -2727,12 +2708,10 @@
                ,(core-runtime-helper-form runtime-helper-index '$current-load-relative-directory)
 
                ;;   Path manipulation helpers are implemented in runtime-wasm/core/paths.rkt.
-               ,@(for/list ([name (in-list path-manipulation-runtime-only-helper-names)])
-                   (core-runtime-helper-form runtime-helper-index name))
+               ,@(path-manipulation-runtime-helper-forms runtime-helper-index)
 
                ;;   VFS and file-operation helpers are implemented in runtime-wasm/core/filesystem.rkt.
-               ,@(for/list ([name (in-list filesystem-runtime-only-helper-names)])
-                   (core-runtime-helper-form runtime-helper-index name))
+               ,@(filesystem-runtime-helper-forms runtime-helper-index)
 
                ;;;
                ;;; FFI
