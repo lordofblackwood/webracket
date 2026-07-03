@@ -2,7 +2,7 @@
 
 (provide system-runtime-string-constants
          system-runtime-symbol-constants
-         system-runtime-only-helper-names
+         system-runtime-helper-forms
          system-runtime-only-helpers)
 
 (require "../core-helper.rkt"
@@ -43,6 +43,17 @@
     $system-type
     $version
     $get-installation-name))
+
+;; system-helper-forms : hasheq? (listof symbol?) -> (listof datum?)
+;;   Render the given system helper names from a helper index.
+(define (system-helper-forms helper-index names)
+  (for/list ([name (in-list names)])
+    (core-runtime-helper-form helper-index name)))
+
+;; system-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render system/runtime information helpers in runtime assembly order.
+(define (system-runtime-helper-forms helper-index)
+  (system-helper-forms helper-index system-runtime-only-helper-names))
 
 ;; system-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate system/runtime information helpers used by the monolithic runtime.
@@ -126,3 +137,18 @@
                  (local.get $config-table)
                  (global.get $symbol:installation-name)
                  (global.get $string:racket-version))))))
+
+(module+ test
+  (require rackunit)
+
+  ;; form-name : datum? -> symbol?
+  ;;   Return the function name from a rendered helper form.
+  (define (form-name form)
+    (second form))
+
+  (define system-helper-index
+    (make-core-runtime-helper-index system-runtime-only-helpers))
+
+  (check-equal?
+   (map form-name (system-runtime-helper-forms system-helper-index))
+   system-runtime-only-helper-names))

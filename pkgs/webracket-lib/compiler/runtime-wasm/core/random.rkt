@@ -3,8 +3,8 @@
 (provide random-current-global-forms
          random-runtime-string-constants
          random-current-initializer-forms
-         random-generator-runtime-only-helper-names
-         random-public-runtime-only-helper-names
+         random-generator-runtime-helper-forms
+         random-public-runtime-helper-forms
          random-state-global-forms
          random-runtime-only-helpers)
 
@@ -68,6 +68,22 @@
 (define random-public-runtime-only-helper-names
   '($random-seed
     $random))
+
+;; random-helper-forms : hasheq? (listof symbol?) -> (listof datum?)
+;;   Render the given random helper names from a helper index.
+(define (random-helper-forms helper-index names)
+  (for/list ([name (in-list names)])
+    (core-runtime-helper-form helper-index name)))
+
+;; random-generator-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render random generator helpers in runtime assembly order.
+(define (random-generator-runtime-helper-forms helper-index)
+  (random-helper-forms helper-index random-generator-runtime-only-helper-names))
+
+;; random-public-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render public random helpers in runtime assembly order.
+(define (random-public-runtime-helper-forms helper-index)
+  (random-helper-forms helper-index random-public-runtime-only-helper-names))
 
 ;; random-generator-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate random generator helpers that still depend on monolithic runtime globals.
@@ -246,3 +262,22 @@
 (define random-runtime-only-helpers
   (append random-generator-runtime-only-helpers
           random-public-runtime-only-helpers))
+
+(module+ test
+  (require rackunit)
+
+  ;; form-name : datum? -> symbol?
+  ;;   Return the function name from a rendered helper form.
+  (define (form-name form)
+    (second form))
+
+  (define random-helper-index
+    (make-core-runtime-helper-index random-runtime-only-helpers))
+
+  (check-equal?
+   (map form-name (random-generator-runtime-helper-forms random-helper-index))
+   random-generator-runtime-only-helper-names)
+
+  (check-equal?
+   (map form-name (random-public-runtime-helper-forms random-helper-index))
+   random-public-runtime-only-helper-names))

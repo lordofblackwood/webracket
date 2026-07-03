@@ -220,16 +220,16 @@
                   namespace-runtime-only-helper-names
                   namespace-top-level-global-forms)
          (only-in "runtime-wasm/core/numbers.rkt"
-                  generic-arithmetic-runtime-only-helper-names
-                  generic-bitwise-runtime-only-helper-names
-                  generic-numeric-runtime-only-helper-names
-                  number-error-runtime-only-helper-names
+                  generic-arithmetic-runtime-helper-forms
+                  generic-bitwise-runtime-helper-forms
+                  generic-numeric-runtime-helper-forms
+                  number-error-runtime-helper-forms
                   number-runtime-only-helpers
-                  number-string-conversion-runtime-only-helper-names
-                  floating-point-byte-conversion-runtime-only-helper-names
-                  numeric-formatting-runtime-only-helper-names
-                  string-number-conversion-runtime-only-helper-names
-                  number-type-runtime-only-helper-names)
+                  number-string-conversion-runtime-helper-forms
+                  floating-point-byte-conversion-runtime-helper-forms
+                  numeric-formatting-runtime-helper-forms
+                  string-number-conversion-runtime-helper-forms
+                  number-type-runtime-helper-forms)
          (only-in "runtime-wasm/core/parameters.rkt"
                   compile-parameter-global-forms
                   compile-parameter-runtime-helper-forms
@@ -289,8 +289,8 @@
          (only-in "runtime-wasm/core/random.rkt"
                   random-current-global-forms
                   random-current-initializer-forms
-                  random-generator-runtime-only-helper-names
-                  random-public-runtime-only-helper-names
+                  random-generator-runtime-helper-forms
+                  random-public-runtime-helper-forms
                   random-state-global-forms
                   random-runtime-only-helpers)
          (only-in "runtime-wasm/core/realms.rkt"
@@ -346,7 +346,7 @@
                   symbol-table-initializer-runtime-helper-forms
                   symbol-runtime-only-helpers)
          (only-in "runtime-wasm/core/system.rkt"
-                  system-runtime-only-helper-names
+                  system-runtime-helper-forms
                   system-runtime-only-helpers)
          (only-in "runtime-wasm/core/syntax.rkt"
                   correlated-syntax-runtime-only-helper-names
@@ -1614,8 +1614,7 @@
          ;; [x] real->double-flonum
 
          ;;   Number-type helpers are implemented in runtime-wasm/core/numbers.rkt.
-         ,@(for/list ([name (in-list number-type-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
+         ,@(number-type-runtime-helper-forms runtime-helper-index)
 
          ;; 4.3.2 Generic Numerics
          ;;     https://docs.racket-lang.org/reference/generic-numbers.html
@@ -1624,37 +1623,30 @@
          ;;   https://docs.racket-lang.org/reference/generic-numbers.html#%28part._.Arithmetic%29
 
          ;;   Generic numeric helpers are implemented in runtime-wasm/core/numbers.rkt.
-         ,@(for/list ([name (in-list generic-numeric-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
+         ,@(generic-numeric-runtime-helper-forms runtime-helper-index)
 
          ;;   Numeric error helpers are implemented in runtime-wasm/core/numbers.rkt.
-         ,@(for/list ([name (in-list number-error-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
+         ,@(number-error-runtime-helper-forms runtime-helper-index)
 
          ;;   Arithmetic and comparison helpers are implemented in runtime-wasm/core/numbers.rkt.
-         ,@(for/list ([name (in-list generic-arithmetic-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
+         ,@(generic-arithmetic-runtime-helper-forms runtime-helper-index)
 
          ;;   Bitwise numeric helpers are implemented in runtime-wasm/core/numbers.rkt.
-         ,@(for/list ([name (in-list generic-bitwise-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
+         ,@(generic-bitwise-runtime-helper-forms runtime-helper-index)
 
         ,@random-state-global-forms
 
         ;;   Random generator helpers are implemented in runtime-wasm/core/random.rkt.
-        ,@(for/list ([name (in-list random-generator-runtime-only-helper-names)])
-            (core-runtime-helper-form runtime-helper-index name))
+        ,@(random-generator-runtime-helper-forms runtime-helper-index)
 
         ;;   Implemented in runtime-wasm/core/parameters.rkt.
         ,(core-runtime-helper-form runtime-helper-index '$current-pseudo-random-generator)
 
         ;;   Public random helpers are implemented in runtime-wasm/core/random.rkt.
-        ,@(for/list ([name (in-list random-public-runtime-only-helper-names)])
-            (core-runtime-helper-form runtime-helper-index name))
+        ,@(random-public-runtime-helper-forms runtime-helper-index)
 
          ;; System/runtime information helpers are implemented in runtime-wasm/core/system.rkt.
-         ,@(for/list ([name (in-list system-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
+         ,@(system-runtime-helper-forms runtime-helper-index)
 
          ;;   Implemented in runtime-wasm/core/parameters.rkt.
          ,@(compile-parameter-runtime-helper-forms runtime-helper-index)
@@ -1684,21 +1676,17 @@
          ;;;
 
          ;; Number/string conversion helpers are implemented in runtime-wasm/core/numbers.rkt.
-         ,@(for/list ([name (in-list number-string-conversion-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
+         ,@(number-string-conversion-runtime-helper-forms runtime-helper-index)
 
          ;; String/number conversion helpers are implemented in runtime-wasm/core/numbers.rkt.
-         ,@(for/list ([name (in-list string-number-conversion-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
+         ,@(string-number-conversion-runtime-helper-forms runtime-helper-index)
 
          ;; Floating-point byte conversion helpers are implemented in runtime-wasm/core/numbers.rkt.
-         ,@(for/list ([name (in-list floating-point-byte-conversion-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
+         ,@(floating-point-byte-conversion-runtime-helper-forms runtime-helper-index)
 
 
          ;; Numeric formatting helpers are implemented in runtime-wasm/core/numbers.rkt.
-         ,@(for/list ([name (in-list numeric-formatting-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
+         ,@(numeric-formatting-runtime-helper-forms runtime-helper-index)
 
          ;; Numeric display helpers are implemented in runtime-wasm/core/formatting.rkt.
          ,@(numeric-display-formatting-runtime-helper-forms runtime-helper-index)

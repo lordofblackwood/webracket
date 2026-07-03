@@ -1,16 +1,16 @@
 #lang racket
 
-(provide generic-arithmetic-runtime-only-helper-names
+(provide generic-arithmetic-runtime-helper-forms
          number-runtime-string-constants
-         generic-bitwise-runtime-only-helper-names
-         generic-numeric-runtime-only-helper-names
-         number-error-runtime-only-helper-names
+         generic-bitwise-runtime-helper-forms
+         generic-numeric-runtime-helper-forms
+         number-error-runtime-helper-forms
          number-runtime-only-helpers
-         number-string-conversion-runtime-only-helper-names
-         floating-point-byte-conversion-runtime-only-helper-names
-         numeric-formatting-runtime-only-helper-names
-         string-number-conversion-runtime-only-helper-names
-         number-type-runtime-only-helper-names)
+         number-string-conversion-runtime-helper-forms
+         floating-point-byte-conversion-runtime-helper-forms
+         numeric-formatting-runtime-helper-forms
+         string-number-conversion-runtime-helper-forms
+         number-type-runtime-helper-forms)
 
 (require "../core-helper.rkt"
          "../../private/wasm-utils.rkt"
@@ -120,6 +120,57 @@
     $raise-expected-number4
     $raise-expected-real
     $raise-expected-keyword))
+
+;; number-helper-forms : hasheq? (listof symbol?) -> (listof datum?)
+;;   Render the given number helper names from a helper index.
+(define (number-helper-forms helper-index names)
+  (for/list ([name (in-list names)])
+    (core-runtime-helper-form helper-index name)))
+
+;; number-type-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render number-type helpers in runtime assembly order.
+(define (number-type-runtime-helper-forms helper-index)
+  (number-helper-forms helper-index number-type-runtime-only-helper-names))
+
+;; generic-numeric-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render generic numeric helpers in runtime assembly order.
+(define (generic-numeric-runtime-helper-forms helper-index)
+  (number-helper-forms helper-index generic-numeric-runtime-only-helper-names))
+
+;; number-error-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render numeric error helpers in runtime assembly order.
+(define (number-error-runtime-helper-forms helper-index)
+  (number-helper-forms helper-index number-error-runtime-only-helper-names))
+
+;; generic-arithmetic-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render arithmetic and comparison helpers in runtime assembly order.
+(define (generic-arithmetic-runtime-helper-forms helper-index)
+  (number-helper-forms helper-index generic-arithmetic-runtime-only-helper-names))
+
+;; generic-bitwise-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render bitwise numeric helpers in runtime assembly order.
+(define (generic-bitwise-runtime-helper-forms helper-index)
+  (number-helper-forms helper-index generic-bitwise-runtime-only-helper-names))
+
+;; number-string-conversion-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render number/string conversion helpers in runtime assembly order.
+(define (number-string-conversion-runtime-helper-forms helper-index)
+  (number-helper-forms helper-index number-string-conversion-runtime-only-helper-names))
+
+;; string-number-conversion-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render string/number conversion helpers in runtime assembly order.
+(define (string-number-conversion-runtime-helper-forms helper-index)
+  (number-helper-forms helper-index string-number-conversion-runtime-only-helper-names))
+
+;; floating-point-byte-conversion-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render floating-point byte conversion helpers in runtime assembly order.
+(define (floating-point-byte-conversion-runtime-helper-forms helper-index)
+  (number-helper-forms helper-index floating-point-byte-conversion-runtime-only-helper-names))
+
+;; numeric-formatting-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render numeric formatting helpers in runtime assembly order.
+(define (numeric-formatting-runtime-helper-forms helper-index)
+  (number-helper-forms helper-index numeric-formatting-runtime-only-helper-names))
 
 ;; number-type-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate number-type helpers that still depend on monolithic runtime globals.
@@ -3980,3 +4031,50 @@
           string-number-conversion-runtime-only-helpers
           floating-point-byte-conversion-runtime-only-helpers
           numeric-formatting-runtime-only-helpers))
+
+(module+ test
+  (require rackunit)
+
+  ;; form-name : datum? -> symbol?
+  ;;   Return the function name from a rendered helper form.
+  (define (form-name form)
+    (second form))
+
+  (define number-helper-index
+    (make-core-runtime-helper-index number-runtime-only-helpers))
+
+  (check-equal?
+   (map form-name (number-type-runtime-helper-forms number-helper-index))
+   number-type-runtime-only-helper-names)
+
+  (check-equal?
+   (map form-name (generic-numeric-runtime-helper-forms number-helper-index))
+   generic-numeric-runtime-only-helper-names)
+
+  (check-equal?
+   (map form-name (number-error-runtime-helper-forms number-helper-index))
+   number-error-runtime-only-helper-names)
+
+  (check-equal?
+   (map form-name (generic-arithmetic-runtime-helper-forms number-helper-index))
+   generic-arithmetic-runtime-only-helper-names)
+
+  (check-equal?
+   (map form-name (generic-bitwise-runtime-helper-forms number-helper-index))
+   generic-bitwise-runtime-only-helper-names)
+
+  (check-equal?
+   (map form-name (number-string-conversion-runtime-helper-forms number-helper-index))
+   number-string-conversion-runtime-only-helper-names)
+
+  (check-equal?
+   (map form-name (string-number-conversion-runtime-helper-forms number-helper-index))
+   string-number-conversion-runtime-only-helper-names)
+
+  (check-equal?
+   (map form-name (floating-point-byte-conversion-runtime-helper-forms number-helper-index))
+   floating-point-byte-conversion-runtime-only-helper-names)
+
+  (check-equal?
+   (map form-name (numeric-formatting-runtime-helper-forms number-helper-index))
+   numeric-formatting-runtime-only-helper-names))
