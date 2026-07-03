@@ -4,6 +4,10 @@
          runtime-constant-registry-add-string!
          runtime-constant-registry-add-bytes!
          runtime-constant-registry-add-symbol!
+         runtime-constant-registry-add-string-constants!
+         runtime-constant-registry-add-bytes-constants!
+         runtime-constant-registry-add-symbols!
+         make-populated-runtime-constant-registry
          runtime-constant-registry-declare-strings
          runtime-constant-registry-declare-bytes
          runtime-constant-registry-declare-symbols!
@@ -57,6 +61,51 @@
      registry
      (cons (list symbol symbol)
            (runtime-constant-registry-symbols registry)))))
+
+;; runtime-constant-registry-add-string-constants! : runtime-constant-registry? list? -> void?
+;;   Add a sequence of named string constants to the registry.
+(define (runtime-constant-registry-add-string-constants! registry constants)
+  (for ([constant (in-list constants)])
+    (runtime-constant-registry-add-string! registry
+                                           (first constant)
+                                           (second constant))))
+
+;; runtime-constant-registry-add-bytes-constants! : runtime-constant-registry? list? -> void?
+;;   Add a sequence of named byte-string constants to the registry.
+(define (runtime-constant-registry-add-bytes-constants! registry constants)
+  (for ([constant (in-list constants)])
+    (runtime-constant-registry-add-bytes! registry
+                                          (first constant)
+                                          (second constant))))
+
+;; runtime-constant-registry-add-symbols! : runtime-constant-registry? (listof symbol?) -> void?
+;;   Add a sequence of interned-symbol constants to the registry.
+(define (runtime-constant-registry-add-symbols! registry symbols)
+  (for ([symbol (in-list symbols)])
+    (runtime-constant-registry-add-symbol! registry symbol)))
+
+;; make-populated-runtime-constant-registry : list? list? list? list? list? list? list? list? list? -> runtime-constant-registry?
+;;   Create and populate the registry with program, primitive, reserved, and core constants.
+(define (make-populated-runtime-constant-registry string-constants
+                                                  bytes-constants
+                                                  symbol-constants
+                                                  primitive-symbols
+                                                  ffi-primitive-symbols
+                                                  reserved-symbols
+                                                  core-string-constants
+                                                  core-bytes-constants
+                                                  core-symbol-constants)
+  (define registry
+    (make-runtime-constant-registry string-constants
+                                    bytes-constants
+                                    symbol-constants))
+  (runtime-constant-registry-add-symbols! registry primitive-symbols)
+  (runtime-constant-registry-add-symbols! registry ffi-primitive-symbols)
+  (runtime-constant-registry-add-symbols! registry reserved-symbols)
+  (runtime-constant-registry-add-string-constants! registry core-string-constants)
+  (runtime-constant-registry-add-bytes-constants! registry core-bytes-constants)
+  (runtime-constant-registry-add-symbols! registry core-symbol-constants)
+  registry)
 
 ;; string-data-name : symbol? -> symbol?
 ;;   Return the WAT data segment name for a string constant.
@@ -240,4 +289,39 @@
      '($symbol-data:foo
        $symbol:foo
        $symbol-data:bar
-       $symbol:bar))))
+       $symbol:bar)))
+
+  (let ([registry (make-populated-runtime-constant-registry
+                   '((program-string "program"))
+                   '((program-bytes #"program"))
+                   '((program-symbol program-symbol))
+                   '(primitive)
+                   '(ffi)
+                   '(reserved primitive)
+                   '((core-string "core"))
+                   '((core-bytes #"core"))
+                   '(core-symbol reserved))])
+    (check-equal?
+     (form-names (runtime-constant-registry-declare-strings registry))
+     '($string-data:program-string
+       $string:program-string
+       $string-data:core-string
+       $string:core-string))
+    (check-equal?
+     (form-names (runtime-constant-registry-declare-bytes registry))
+     '($bytes-data:program-bytes
+       $bytes:program-bytes
+       $bytes-data:core-bytes
+       $bytes:core-bytes))
+    (check-equal?
+     (form-names (runtime-constant-registry-declare-symbols! registry))
+     '($symbol-data:program-symbol
+       $symbol:program-symbol
+       $symbol-data:primitive
+       $symbol:primitive
+       $symbol-data:ffi
+       $symbol:ffi
+       $symbol-data:reserved
+       $symbol:reserved
+       $symbol-data:core-symbol
+       $symbol:core-symbol))))

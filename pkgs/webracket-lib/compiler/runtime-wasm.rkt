@@ -2060,21 +2060,26 @@
          (list (foreign-racket-name f)
                (length (foreign-argument-types f))))))
 
-    ;; String constants used in the runtime
-    ;;  `string-constants holds the constants passed by `generate-code` in `compiler.rkt`
+    (define linklet-body-reserved-symbols/registration
+      (remove-duplicates (append linklet-body-core-reserved-symbols all-primitives)
+                         eq?))
+
+    (define linklet-body-reserved-symbols
+      (sort linklet-body-reserved-symbols/registration symbol<?))
+
+    ;; Runtime constants include program constants passed by `generate-code`
+    ;; plus constants required by runtime support.
     (define runtime-constant-registry
-      (make-runtime-constant-registry string-constants
-                                      bytes-constants
-                                      symbol-constants))
-
-    (define (add-runtime-string-constant name string)
-      (runtime-constant-registry-add-string! runtime-constant-registry name string))
-
-    ;; add-runtime-string-constants : (listof (list/c symbol? string?)) -> void?
-    ;;   Add a sequence of string constants to the runtime registry.
-    (define (add-runtime-string-constants constants)
-      (for ([constant (in-list constants)])
-        (add-runtime-string-constant (first constant) (second constant))))
+      (make-populated-runtime-constant-registry
+       string-constants
+       bytes-constants
+       symbol-constants
+       (active-described-primitives-sorted)
+       (active-ffi-primitive-names)
+       linklet-body-reserved-symbols/registration
+       core-runtime-string-constants
+       core-runtime-bytes-constants
+       core-runtime-symbol-constants))
 
     (define (declare-runtime-string-constants)
       (runtime-constant-registry-declare-strings runtime-constant-registry))
@@ -2082,66 +2087,17 @@
     (define (initialize-runtime-string-constants)
       (runtime-constant-registry-initialize-strings runtime-constant-registry))
 
-    ;; Bytes constants used in the runtime
-    ;;  `bytes-constants holds the constants passed by `generate-code` in `compiler.rkt`
-    (define (add-runtime-bytes-constant name bytes)
-      (runtime-constant-registry-add-bytes! runtime-constant-registry name bytes))
-
-    ;; add-runtime-bytes-constants : (listof (list/c symbol? bytes?)) -> void?
-    ;;   Add a sequence of byte-string constants to the runtime registry.
-    (define (add-runtime-bytes-constants constants)
-      (for ([constant (in-list constants)])
-        (add-runtime-bytes-constant (first constant) (second constant))))
-
     (define (declare-runtime-bytes-constants)
       (runtime-constant-registry-declare-bytes runtime-constant-registry))
 
     (define (initialize-runtime-bytes-constants)
       (runtime-constant-registry-initialize-bytes runtime-constant-registry))
 
-    ;; Symbol constants used in the runtime
-    ;;  `runtime-symbol-constants` holds the constants passed by `generate-code`
-    ;; in `compiler.rkt`
-    (define (add-runtime-symbol-constant symbol)
-      (runtime-constant-registry-add-symbol! runtime-constant-registry symbol))
-
-    ;; add-runtime-symbol-constants : (listof symbol?) -> void?
-    ;;   Add a sequence of symbol constants to the runtime registry.
-    (define (add-runtime-symbol-constants symbols)
-      (for ([symbol (in-list symbols)])
-        (add-runtime-symbol-constant symbol)))
-
     (define (declare-runtime-symbol-constants)
       (runtime-constant-registry-declare-symbols! runtime-constant-registry))
 
     (define (initialize-runtime-symbol-constants)
       (runtime-constant-registry-initialize-symbols! runtime-constant-registry))
-
-    ;; String and symbol constants used in the runtime
-
-    ; Names of each primitive
-    (for ([pr (in-list (active-described-primitives-sorted))])
-      (add-runtime-symbol-constant pr))
-
-    (define (add-ffi-symbol-constants)
-      (for ([pr (in-list (active-ffi-primitive-names))])
-        (add-runtime-symbol-constant pr)))
-
-    (add-ffi-symbol-constants)
-
-    (for-each add-runtime-symbol-constant
-              (remove-duplicates (append linklet-body-core-reserved-symbols all-primitives)
-                                 eq?))
-
-    (define linklet-body-reserved-symbols
-      (sort (remove-duplicates
-             (append linklet-body-core-reserved-symbols all-primitives)
-             eq?)
-            symbol<?))
-
-    (add-runtime-string-constants core-runtime-string-constants)
-    (add-runtime-bytes-constants core-runtime-bytes-constants)
-    (add-runtime-symbol-constants core-runtime-symbol-constants)
 
     ;;;
     ;;; WEB-ASSEMBLY
