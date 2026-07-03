@@ -29,6 +29,11 @@
          procedure-primitive-initializer-forms
          procedure-ffi-primitive-initializer-forms
          procedure-primitive-invoker-forms
+         procedure-bootstrap-runtime-helper-forms
+         procedure-post-primitive-invoker-runtime-helper-forms
+         procedure-main-runtime-helper-forms
+         procedure-arity-mask-runtime-helper-forms
+         primitive-reflection-runtime-helper-forms
          procedure-runtime-only-helpers)
 
 (require "../core-helper.rkt"
@@ -3643,6 +3648,49 @@
                (then (global.get $true))
                (else (global.get $false)))))))
 
+;; procedure-helper-forms : hasheq? (listof symbol?) -> (listof datum?)
+;;   Render the given procedure helper names from the runtime helper index.
+(define (procedure-helper-forms helper-index names)
+  (for/list ([name (in-list names)])
+    (core-runtime-helper-form helper-index name)))
+
+;; procedure-bootstrap-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render procedure bootstrap helpers before generated primitive invokers.
+(define (procedure-bootstrap-runtime-helper-forms helper-index)
+  (append
+   (procedure-helper-forms helper-index procedure-invocation-error-runtime-only-helper-names)
+   (procedure-helper-forms helper-index procedure-application-error-runtime-only-helper-names)
+   (procedure-helper-forms helper-index procedure-invoker-runtime-only-helper-names)
+   (procedure-helper-forms helper-index primitive-invocation-error-runtime-only-helper-names)
+   (procedure-helper-forms helper-index primitive-dispatch-runtime-only-helper-names)))
+
+;; procedure-post-primitive-invoker-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render procedure bootstrap helpers after generated primitive invokers.
+(define (procedure-post-primitive-invoker-runtime-helper-forms helper-index)
+  (procedure-helper-forms helper-index procedure-case-lambda-runtime-only-helper-names))
+
+;; procedure-main-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render the main procedure helper block before chaperone-procedure helpers.
+(define (procedure-main-runtime-helper-forms helper-index)
+  (append
+   (procedure-helper-forms helper-index procedure-basic-runtime-only-helper-names)
+   (procedure-helper-forms helper-index procedure-arity-at-least-runtime-only-helper-names)
+   (procedure-helper-forms helper-index procedure-arity-field-runtime-only-helper-names)
+   (procedure-helper-forms helper-index procedure-composition-runtime-only-helper-names)
+   (procedure-helper-forms helper-index procedure-reduction-runtime-only-helper-names)
+   (procedure-helper-forms helper-index procedure-arity-runtime-only-helper-names)
+   (procedure-helper-forms helper-index procedure-result-arity-runtime-only-helper-names)))
+
+;; procedure-arity-mask-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render procedure arity-mask helpers in runtime assembly order.
+(define (procedure-arity-mask-runtime-helper-forms helper-index)
+  (procedure-helper-forms helper-index procedure-arity-mask-runtime-only-helper-names))
+
+;; primitive-reflection-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render primitive reflection helpers in runtime assembly order.
+(define (primitive-reflection-runtime-helper-forms helper-index)
+  (procedure-helper-forms helper-index primitive-reflection-runtime-only-helper-names))
+
 ;; procedure-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate all procedure helpers used by the monolithic runtime.
 (define procedure-runtime-only-helpers
@@ -3657,6 +3705,14 @@
 
 (module+ test
   (require rackunit)
+
+  ;; form-name : datum? -> symbol?
+  ;;   Return the function name from a rendered helper form.
+  (define (form-name form)
+    (second form))
+
+  (define procedure-helper-index
+    (make-core-runtime-helper-index procedure-runtime-only-helpers))
 
   (define (tree-member? needle tree)
     (cond
@@ -3721,4 +3777,39 @@
     (second invoker-forms)))
   (check-exn exn:fail?
              (lambda ()
-               (primitive-invoker-tail 99))))
+               (primitive-invoker-tail 99)))
+
+  (check-equal?
+   (map form-name
+        (procedure-bootstrap-runtime-helper-forms procedure-helper-index))
+   (append procedure-invocation-error-runtime-only-helper-names
+           procedure-application-error-runtime-only-helper-names
+           procedure-invoker-runtime-only-helper-names
+           primitive-invocation-error-runtime-only-helper-names
+           primitive-dispatch-runtime-only-helper-names))
+
+  (check-equal?
+   (map form-name
+        (procedure-post-primitive-invoker-runtime-helper-forms procedure-helper-index))
+   procedure-case-lambda-runtime-only-helper-names)
+
+  (check-equal?
+   (map form-name
+        (procedure-main-runtime-helper-forms procedure-helper-index))
+   (append procedure-basic-runtime-only-helper-names
+           procedure-arity-at-least-runtime-only-helper-names
+           procedure-arity-field-runtime-only-helper-names
+           procedure-composition-runtime-only-helper-names
+           procedure-reduction-runtime-only-helper-names
+           procedure-arity-runtime-only-helper-names
+           procedure-result-arity-runtime-only-helper-names))
+
+  (check-equal?
+   (map form-name
+        (procedure-arity-mask-runtime-helper-forms procedure-helper-index))
+   procedure-arity-mask-runtime-only-helper-names)
+
+  (check-equal?
+   (map form-name
+        (primitive-reflection-runtime-helper-forms procedure-helper-index))
+   primitive-reflection-runtime-only-helper-names))

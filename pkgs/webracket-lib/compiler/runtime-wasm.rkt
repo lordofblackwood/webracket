@@ -273,22 +273,12 @@
                   port-write-bytes-runtime-only-helper-names
                   port-runtime-only-helpers)
          (only-in "runtime-wasm/core/procedures.rkt"
-                  primitive-invocation-error-runtime-only-helper-names
-                  primitive-reflection-runtime-only-helper-names
                   procedure-global-forms
-                  procedure-arity-at-least-runtime-only-helper-names
-                  procedure-arity-field-runtime-only-helper-names
-                  procedure-arity-mask-runtime-only-helper-names
-                  procedure-arity-runtime-only-helper-names
-                  procedure-application-error-runtime-only-helper-names
-                  procedure-basic-runtime-only-helper-names
-                  procedure-case-lambda-runtime-only-helper-names
-                  procedure-composition-runtime-only-helper-names
-                  procedure-invocation-error-runtime-only-helper-names
-                  procedure-invoker-runtime-only-helper-names
-                  primitive-dispatch-runtime-only-helper-names
-                  procedure-reduction-runtime-only-helper-names
-                  procedure-result-arity-runtime-only-helper-names
+                  primitive-reflection-runtime-helper-forms
+                  procedure-arity-mask-runtime-helper-forms
+                  procedure-bootstrap-runtime-helper-forms
+                  procedure-main-runtime-helper-forms
+                  procedure-post-primitive-invoker-runtime-helper-forms
                   primitive-shapes
                   procedure-primitive-global-forms
                   procedure-ffi-primitive-global-forms
@@ -1423,32 +1413,14 @@
 
          ,@closure-empty-free-global-forms
 
-         ;;   Procedure invocation error helpers are implemented in runtime-wasm/core/procedures.rkt.
-         ,@(for/list ([name (in-list procedure-invocation-error-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
+         ;; Procedure and primitive invocation helpers
+         ;;   Implemented in runtime-wasm/core/procedures.rkt.
+         ,@(procedure-bootstrap-runtime-helper-forms runtime-helper-index)
 
-         ;;   Procedure application error helpers are implemented in runtime-wasm/core/procedures.rkt.
-         ,@(for/list ([name (in-list procedure-application-error-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
+         ,@(procedure-primitive-invoker-forms primitive-shapes)
 
-         ;;   Procedure invoker helpers are implemented in runtime-wasm/core/procedures.rkt.
-         ,@(for/list ([name (in-list procedure-invoker-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
-
-        ;; Primitive procedure invocation helpers
-        ;;   Primitive invocation error helpers are implemented in runtime-wasm/core/procedures.rkt.
-        ,@(for/list ([name (in-list primitive-invocation-error-runtime-only-helper-names)])
-            (core-runtime-helper-form runtime-helper-index name))
-
-        ;;   Primitive dispatch helpers are implemented in runtime-wasm/core/procedures.rkt.
-        ,@(for/list ([name (in-list primitive-dispatch-runtime-only-helper-names)])
-            (core-runtime-helper-form runtime-helper-index name))
-
-        ,@(procedure-primitive-invoker-forms primitive-shapes)
-
-        ;;   Procedure case-lambda helpers are implemented in runtime-wasm/core/procedures.rkt.
-        ,@(for/list ([name (in-list procedure-case-lambda-runtime-only-helper-names)])
-            (core-runtime-helper-form runtime-helper-index name))
+         ;;   Procedure case-lambda helpers are implemented in runtime-wasm/core/procedures.rkt.
+         ,@(procedure-post-primitive-invoker-runtime-helper-forms runtime-helper-index)
 
          ;;   Struct procedure invoker is implemented in runtime-wasm/core/structs.rkt.
          ,@(for/list ([name (in-list struct-procedure-invoker-runtime-only-helper-names)])
@@ -3308,54 +3280,17 @@
          ,@(for/list ([name (in-list struct-procedure-runtime-only-helper-names)])
              (core-runtime-helper-form runtime-helper-index name))
 
-         ;; Basic procedure helpers
+         ;; Procedure helpers
          ;;   Implemented in runtime-wasm/core/procedures.rkt.
-         ,@(for/list ([name (in-list procedure-basic-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
-
-         ;; Procedure arity-at-least helpers
-         ;;   Implemented in runtime-wasm/core/procedures.rkt.
-         ,@(for/list ([name (in-list procedure-arity-at-least-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
-
-         ;; Procedure arity field helpers
-         ;;   Implemented in runtime-wasm/core/procedures.rkt.
-         ,@(for/list ([name (in-list procedure-arity-field-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
-
-         ;; Procedure composition helpers
-         ;;   Implemented in runtime-wasm/core/procedures.rkt.
-         ,@(for/list ([name (in-list procedure-composition-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
-
-         ;; Procedure arity reduction helpers
-         ;;   Implemented in runtime-wasm/core/procedures.rkt.
-         ,@(for/list ([name (in-list procedure-reduction-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
-
-         ;; Procedure arity accessors
-         ;;   Implemented in runtime-wasm/core/procedures.rkt.
-         ,@(for/list ([name (in-list procedure-arity-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
-
-
-         ;; Procedure result arity helpers
-         ;;   Implemented in runtime-wasm/core/procedures.rkt.
-         ,@(for/list ([name (in-list procedure-result-arity-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
+         ,@(procedure-main-runtime-helper-forms runtime-helper-index)
 
          ;;   Implemented in runtime-wasm/core/impersonators.rkt.
          ,@(for/list ([name (in-list chaperone-procedure-runtime-only-helper-names)])
              (core-runtime-helper-form runtime-helper-index name))
 
-
-
-
-
          ;; Procedure arity mask helpers
          ;;   Implemented in runtime-wasm/core/procedures.rkt.
-         ,@(for/list ([name (in-list procedure-arity-mask-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
+         ,@(procedure-arity-mask-runtime-helper-forms runtime-helper-index)
 
 
          ;;;
@@ -3368,8 +3303,7 @@
 
          ;; Primitive reflection helpers
          ;;   Implemented in runtime-wasm/core/procedures.rkt.
-         ,@(for/list ([name (in-list primitive-reflection-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
+         ,@(primitive-reflection-runtime-helper-forms runtime-helper-index)
 
          ;;;
          ;;;  4.21 Void
