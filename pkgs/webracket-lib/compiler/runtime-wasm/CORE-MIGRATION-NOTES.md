@@ -78,9 +78,22 @@ Location:
 
 Concern:
 
-- `module-fingerprint` used to compute a SHA1 by writing a module to a
+- `module-fingerprint` originally computed a SHA1 by writing a module to a
   string, converting that string to UTF-8 bytes, hashing the bytes, and then
-  discarding the serialized module.
+  discarding the serialized module:
+
+  ```racket
+  (define (module-fingerprint module)
+    (bytes->hex-string
+     (sha1-bytes
+      (string->bytes/utf-8
+       (with-output-to-string
+         (lambda ()
+           (write module)))))))
+  ```
+
+- The current implementation avoids the intermediate string by writing to
+  bytes, but it still serializes the module only to hash it.
 - Full module serialization is expensive, especially during tree-shake and
   runtime analysis where the module can be large.
 - The same general serialization work also happens when the driver writes the
@@ -95,3 +108,6 @@ Follow-up:
   changing the cache lookup order. If that fingerprint remains necessary,
   keep the serialization explicit and avoid extra string-to-bytes copies or
   repeated full-module writes.
+- A good shape for a later cleanup is to serialize each relevant module once,
+  keep the serialized bytes/text together with its hash and byte count, and
+  write that already-computed serialization when the `.wat` file is emitted.
