@@ -1,6 +1,7 @@
 #lang racket
 
 (provide linklet-bootstrap-runtime-only-helper-names
+         linklet-runtime-string-constants
          linklet-bootstrap-runtime-only-helpers
          linklet-interpreter-runtime-only-helper-names
          linklet-interpreter-runtime-only-helpers
@@ -13,6 +14,26 @@
 
 (require "../core-helper.rkt"
          "../../private/wasm-utils.rkt")
+
+;; linklet-runtime-string-constants : (listof (list/c symbol? string?))
+;;   Declare strings used by source-linklet and compiled-linklet helpers.
+(define linklet-runtime-string-constants
+  '((linklet?                      "linklet?")
+    (compiled-linklet?             "compiled-linklet?")
+    (linklet-bundle?               "linklet-bundle?")
+    (linklet-directory?            "linklet-directory?")
+    (mutable-hasheq?               "mutable hasheq?")
+    (linklet-bundle-key?           "(or/c symbol? fixnum?)")
+    (linklet-directory-key?        "(or/c symbol? #f)")
+    (listof-symbol?                "(listof symbol?)")
+    (listof-listof-symbol?         "(listof (listof symbol?))")
+    (listof-instance?              "(listof instance?)")
+    (distinct-listof-symbol?       "(and/c (listof symbol?) distinct?)")
+    (instance-or-false             "(or/c instance? #f)")
+    (metadata-only-compiled-linklet
+     "metadata-only compiled linklet has no executable body")
+    (instantiate-linklet:import-count
+     "the number of import instances does not match the expected number of imports")))
 
 ;; linklet-primitive-table-global-forms : (listof datum?)
 ;;   Declare the primitive-table bridge registry.

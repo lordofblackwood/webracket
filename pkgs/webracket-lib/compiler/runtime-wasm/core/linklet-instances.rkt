@@ -1,9 +1,32 @@
 #lang racket
 
 (provide linklet-instance-runtime-only-helper-names
+         linklet-instance-runtime-string-constants
+         linklet-instance-runtime-symbol-constants
          linklet-instance-runtime-only-helpers)
 
 (require "../core-helper.rkt")
+
+;; linklet-instance-runtime-string-constants : (listof (list/c symbol? string?))
+;;   Declare strings used by linklet instance and module-variable helpers.
+(define linklet-instance-runtime-string-constants
+  '((instance?                     "instance?")
+    (missing-variable-value        "missing variable value")
+    (missing-binding               "missing binding:")
+    (instance-variable-not-found   "instance variable not found:")
+    (cannot-modify-constant        "cannot modify a constant")
+    (at-most-one-optional-argument "expected at most one optional argument")
+    (instance-mode?                "(or/c #f 'constant 'consistent)")
+    (module-variable?              "module-variable?")
+    (module-variable-reference?    "module-variable-reference?")
+    (module-variable-same-length-vectors
+     "value vector with the same length as the cell vector")))
+
+;; linklet-instance-runtime-symbol-constants : (listof symbol?)
+;;   Declare symbols used by linklet instance mutation modes.
+(define linklet-instance-runtime-symbol-constants
+  '(constant
+    consistent))
 
 ;; make-predicate-body : symbol? -> (listof datum?)
 ;;   Generate a standard WebRacket predicate body for ref-type.

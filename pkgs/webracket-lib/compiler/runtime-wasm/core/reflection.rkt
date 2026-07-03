@@ -1,9 +1,21 @@
 #lang racket
 
 (provide reflection-runtime-only-helper-names
+         reflection-runtime-string-constants
          reflection-runtime-only-helpers)
 
 (require "../core-helper.rkt")
+
+;; reflection-runtime-string-constants : (listof (list/c symbol? string?))
+;;   Declare strings used by reflection and module-path helpers.
+(define reflection-runtime-string-constants
+  '((variable-reference?           "variable-reference?")
+    (module-path?                  "module-path?")
+    (module-path-index?            "module-path-index?")
+    (resolved-module-path?         "resolved-module-path?")
+    (module-path-index-base        "(or/c #f resolved-module-path? module-path-index?)")
+    (variable-reference->module-source "variable-reference->module-source")
+    (variable-reference->resolved-module-path "variable-reference->resolved-module-path")))
 
 ;; make-predicate-body : symbol? -> (listof datum?)
 ;;   Generate a standard WebRacket predicate body for ref-type.

@@ -30,7 +30,8 @@
 ;;   Declare string constants used by parameter and parameterization helpers.
 (define parameter-runtime-string-constants
   '((parameter?        "parameter?")
-    (parameterization? "parameterization?")))
+    (parameterization? "parameterization?")
+    (readtable-or-false "(or/c readtable? #f)")))
 
 ;; parameter-runtime-symbol-constants : (listof symbol?)
 ;;   Declare symbols used by reader, printer, and compile parameters.
@@ -57,6 +58,9 @@
     print-syntax-width
     error-print-width
     error-print-source-location
+    break-enabled-key
+    exception-handler-key
+    parameterization-key
     current-compile-target-machine
     current-compile-realm))
 

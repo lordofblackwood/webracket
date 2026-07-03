@@ -1,11 +1,19 @@
 #lang racket
 
 (provide logger-current-global-forms
+         logger-runtime-string-constants
          logger-runtime-symbol-constants
          logger-current-initializer-forms
          logger-runtime-only-helpers)
 
 (require "../core-helper.rkt")
+
+;; logger-runtime-string-constants : (listof (list/c symbol? string?))
+;;   Declare strings used by logger and log-receiver helpers.
+(define logger-runtime-string-constants
+  '((logger?         "logger?")
+    (log-receiver?   "log-receiver?")
+    (symbol-or-false "(or/c symbol? #f)")))
 
 ;; logger-runtime-symbol-constants : (listof symbol?)
 ;;   Declare symbols used by logger and log-receiver helpers.

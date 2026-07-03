@@ -205,6 +205,8 @@
                   pair-accessor-runtime-only-helper-names
                   list-runtime-only-helpers)
          (only-in "runtime-wasm/core/linklet-instances.rkt"
+                  linklet-instance-runtime-string-constants
+                  linklet-instance-runtime-symbol-constants
                   linklet-instance-runtime-only-helper-names
                   linklet-instance-runtime-only-helpers)
          (only-in "runtime-wasm/core/linklets.rkt"
@@ -216,6 +218,7 @@
                   linklet-primitive-table-initializer-runtime-only-helper-names
                   linklet-primitive-table-initializer-runtime-only-helpers
                   linklet-primitive-table-runtime-only-helper-forms
+                  linklet-runtime-string-constants
                   linklet-runtime-only-helper-forms)
          (only-in "runtime-wasm/core/locations.rkt"
                   location-global-forms
@@ -227,6 +230,7 @@
          (only-in "runtime-wasm/core/loggers.rkt"
                   logger-current-global-forms
                   logger-current-initializer-forms
+                  logger-runtime-string-constants
                   logger-runtime-symbol-constants
                   logger-runtime-only-helpers)
          (only-in "runtime-wasm/core/memory-map.rkt"
@@ -351,6 +355,7 @@
                   regexp-runtime-only-helpers)
          (only-in "runtime-wasm/core/reflection.rkt"
                   reflection-runtime-only-helper-names
+                  reflection-runtime-string-constants
                   reflection-runtime-only-helpers)
          (only-in "runtime-wasm/core/security.rkt"
                   custodian-current-initializer-forms
@@ -3000,9 +3005,6 @@
     (add-runtime-symbol-constant 'count)
     (add-runtime-symbol-constant 'arg1-name)
     (add-runtime-symbol-constant 'arg1-debug-id)
-    (add-runtime-symbol-constant 'break-enabled-key)
-    (add-runtime-symbol-constant 'exception-handler-key)
-    (add-runtime-symbol-constant 'parameterization-key)
     (add-runtime-symbol-constant 'namespace)
 
     (add-runtime-string-constants location-runtime-string-constants)
@@ -3015,53 +3017,15 @@
     (add-runtime-symbol-constants syntax-runtime-symbol-constants)
     (add-runtime-symbol-constants path-runtime-symbol-constants)
 
-    (add-runtime-string-constant 'instance?                     "instance?")
-    (add-runtime-string-constant 'missing-variable-value        "missing variable value")
-    (add-runtime-string-constant 'missing-binding               "missing binding:")
-    (add-runtime-string-constant 'instance-variable-not-found   "instance variable not found:")
-    (add-runtime-string-constant 'cannot-modify-constant        "cannot modify a constant")
-    (add-runtime-string-constant 'at-most-one-optional-argument "expected at most one optional argument")
-
-    (add-runtime-string-constant 'linklet?                      "linklet?")
-    (add-runtime-string-constant 'compiled-linklet?             "compiled-linklet?")
-    (add-runtime-string-constant 'linklet-bundle?               "linklet-bundle?")
-    (add-runtime-string-constant 'linklet-directory?            "linklet-directory?")
-    (add-runtime-string-constant 'mutable-hasheq?               "mutable hasheq?")
-    (add-runtime-string-constant 'linklet-bundle-key?           "(or/c symbol? fixnum?)")
-    (add-runtime-string-constant 'linklet-directory-key?        "(or/c symbol? #f)")
-    (add-runtime-string-constant 'listof-symbol?                "(listof symbol?)")
-    (add-runtime-string-constant 'listof-listof-symbol?         "(listof (listof symbol?))")
-    (add-runtime-string-constant 'listof-instance?              "(listof instance?)")
-    (add-runtime-string-constant 'distinct-listof-symbol?       "(and/c (listof symbol?) distinct?)")
-    (add-runtime-string-constant 'symbol-or-false               "(or/c symbol? #f)")
-    (add-runtime-string-constant 'logger?                       "logger?")
-    (add-runtime-string-constant 'log-receiver?                 "log-receiver?")
-    (add-runtime-string-constant 'channel?                      "channel?")
-    (add-runtime-string-constant 'instance-mode?                "(or/c #f 'constant 'consistent)")
-    (add-runtime-string-constant 'instance-or-false             "(or/c instance? #f)")
-    (add-runtime-string-constant 'variable-reference?           "variable-reference?")
-    (add-runtime-string-constant 'module-path?                  "module-path?")
-    (add-runtime-string-constant 'module-path-index?            "module-path-index?")
-    (add-runtime-string-constant 'resolved-module-path?         "resolved-module-path?")
-    (add-runtime-string-constant 'module-path-index-base        "(or/c #f resolved-module-path? module-path-index?)")
-    (add-runtime-string-constant 'readtable-or-false            "(or/c readtable? #f)")
-    (add-runtime-string-constant 'variable-reference->module-source "variable-reference->module-source")
-    (add-runtime-string-constant 'variable-reference->resolved-module-path "variable-reference->resolved-module-path")
-    (add-runtime-string-constant 'module-variable?              "module-variable?")
-    (add-runtime-string-constant 'module-variable-reference?    "module-variable-reference?")
-    (add-runtime-string-constant 'module-variable-same-length-vectors
-                                 "value vector with the same length as the cell vector")
+    (add-runtime-string-constants linklet-instance-runtime-string-constants)
+    (add-runtime-string-constants linklet-runtime-string-constants)
+    (add-runtime-string-constants logger-runtime-string-constants)
+    (add-runtime-string-constants reflection-runtime-string-constants)
     (add-runtime-string-constant 'module-prompts-unsupported    "module prompts are not supported by WebRacket yet")
     (add-runtime-string-constant 'reader-unsupported            "the Racket reader is not supported by WebRacket yet")
     (add-runtime-string-constant 'reader-graph-unsupported
                                  "cyclic reader graphs and hash placeholders are not supported by WebRacket yet")
-    (add-runtime-string-constant 'metadata-only-compiled-linklet
-                                 "metadata-only compiled linklet has no executable body")
-    (add-runtime-symbol-constant 'constant)
-    (add-runtime-symbol-constant 'consistent)
-    (add-runtime-symbol-constant 'root-continuation-prompt-tag)
-    (add-runtime-string-constant 'instantiate-linklet:import-count
-                                 "the number of import instances does not match the expected number of imports")
+    (add-runtime-symbol-constants linklet-instance-runtime-symbol-constants)
 
     (add-runtime-string-constant 'datum->correlated-srcloc
                                  (string-append "(or/c correlated? #f (list/c any/c (or/c exact-positive-integer? #f) "

@@ -12,7 +12,8 @@
 ;;   Declare string constants used by event helpers and event errors.
 (define event-runtime-string-constants
   '((evt?        "evt?")
-    (handle-evt? "handle-evt?")))
+    (handle-evt? "handle-evt?")
+    (channel?    "channel?")))
 
 ;; event-runtime-symbol-constants : (listof symbol?)
 ;;   Declare symbols used by event and channel helpers.
