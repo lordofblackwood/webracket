@@ -1,9 +1,9 @@
 #lang racket
 
-(provide multiple-value-runtime-only-helper-names
-         value-expectation-runtime-only-helper-names
-         continuation-runtime-only-helper-names
-         continuation-mark-runtime-only-helper-names
+(provide multiple-value-runtime-helper-forms
+         value-expectation-runtime-helper-forms
+         continuation-runtime-helper-forms
+         continuation-mark-runtime-helper-forms
          control-flow-runtime-string-constants
          multiple-value-runtime-symbol-constants
          continuation-runtime-symbol-constants
@@ -68,6 +68,32 @@
     continuation?
     root-continuation-prompt-tag
     call-with-escape-continuation))
+
+;; control-flow-helper-forms : hasheq? (listof symbol?) -> (listof datum?)
+;;   Render the given control-flow helper names from a helper index.
+(define (control-flow-helper-forms helper-index names)
+  (for/list ([name (in-list names)])
+    (core-runtime-helper-form helper-index name)))
+
+;; value-expectation-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render multiple-value expectation helpers in runtime assembly order.
+(define (value-expectation-runtime-helper-forms helper-index)
+  (control-flow-helper-forms helper-index value-expectation-runtime-only-helper-names))
+
+;; multiple-value-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render multiple-value helpers in runtime assembly order.
+(define (multiple-value-runtime-helper-forms helper-index)
+  (control-flow-helper-forms helper-index multiple-value-runtime-only-helper-names))
+
+;; continuation-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render continuation helpers in runtime assembly order.
+(define (continuation-runtime-helper-forms helper-index)
+  (control-flow-helper-forms helper-index continuation-runtime-only-helper-names))
+
+;; continuation-mark-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render continuation-mark helpers in runtime assembly order.
+(define (continuation-mark-runtime-helper-forms helper-index)
+  (control-flow-helper-forms helper-index continuation-mark-runtime-only-helper-names))
 
 ;; value-expectation-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate multiple-value expectation helpers used by compiler output.
@@ -536,4 +562,31 @@
            (if (result (ref eq))
                (ref.eq (local.get $none-v) (global.get $missing))
                (then (global.get $false))
-               (else (local.get $none-v))))))))
+           (else (local.get $none-v))))))))
+
+(module+ test
+  (require rackunit)
+
+  ;; form-name : datum? -> symbol?
+  ;;   Return the function name from a rendered helper form.
+  (define (form-name form)
+    (second form))
+
+  (define control-flow-helper-index
+    (make-core-runtime-helper-index control-flow-runtime-only-helpers))
+
+  (check-equal?
+   (map form-name (value-expectation-runtime-helper-forms control-flow-helper-index))
+   value-expectation-runtime-only-helper-names)
+
+  (check-equal?
+   (map form-name (multiple-value-runtime-helper-forms control-flow-helper-index))
+   multiple-value-runtime-only-helper-names)
+
+  (check-equal?
+   (map form-name (continuation-runtime-helper-forms control-flow-helper-index))
+   continuation-runtime-only-helper-names)
+
+  (check-equal?
+   (map form-name (continuation-mark-runtime-helper-forms control-flow-helper-index))
+   continuation-mark-runtime-only-helper-names))

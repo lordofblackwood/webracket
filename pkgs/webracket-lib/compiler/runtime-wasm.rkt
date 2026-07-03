@@ -60,10 +60,10 @@
                   closure-empty-free-global-forms
                   closure-runtime-global-forms)
          (only-in "runtime-wasm/core/control-flow.rkt"
-                  continuation-mark-runtime-only-helper-names
-                  continuation-runtime-only-helper-names
-                  multiple-value-runtime-only-helper-names
-                  value-expectation-runtime-only-helper-names
+                  continuation-mark-runtime-helper-forms
+                  continuation-runtime-helper-forms
+                  multiple-value-runtime-helper-forms
+                  value-expectation-runtime-helper-forms
                   control-flow-runtime-only-helpers)
          (only-in "runtime-wasm/core/equality.rkt"
                   equality-runtime-only-helpers
@@ -232,17 +232,17 @@
                   number-type-runtime-only-helper-names)
          (only-in "runtime-wasm/core/parameters.rkt"
                   compile-parameter-global-forms
-                  compile-parameter-runtime-only-helper-names
-                  namespace-parameter-runtime-only-helper-names
-                  parameterization-binding-runtime-only-helper-names
-                  parameterization-call-runtime-only-helper-names
-                  parameter-directory-runtime-only-helper-names
-                  parameter-error-rendering-runtime-only-helper-names
+                  compile-parameter-runtime-helper-forms
+                  namespace-parameter-runtime-helper-forms
+                  parameterization-binding-runtime-helper-forms
+                  parameterization-call-runtime-helper-forms
+                  parameter-directory-runtime-helper-forms
+                  parameter-error-rendering-runtime-helper-forms
                   parameterization-global-forms
                   parameterization-initializer-forms
-                  parameterization-runtime-only-helper-names
+                  parameterization-runtime-helper-forms
                   parameter-runtime-only-helpers
-                  parameter-width-runtime-only-helper-names
+                  parameter-width-runtime-helper-forms
                   error-rendering-handler-global-forms
                   error-value-handler-late-initializer-forms
                   error-syntax-handler-late-initializer-forms
@@ -251,7 +251,7 @@
                   environment-parameter-global-forms
                   environment-parameter-initializer-forms
                   reader-printer-policy-parameter-global-forms
-                  reader-printer-policy-parameter-helper-names)
+                  reader-printer-policy-parameter-helper-forms)
          (only-in "runtime-wasm/core/paths.rkt"
                   path-current-global-forms
                   path-current-initializer-forms
@@ -1350,8 +1350,7 @@
              (core-runtime-helper-form runtime-helper-index name))
 
          ;;   Multiple-value expectation helpers are implemented in runtime-wasm/core/control-flow.rkt.
-         ,@(for/list ([name (in-list value-expectation-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
+         ,@(value-expectation-runtime-helper-forms runtime-helper-index)
 
          ;;   Unquoted printing string helpers are implemented in runtime-wasm/core/formatting.rkt.
          ,@(for/list ([name (in-list unquoted-printing-string-runtime-only-helper-names)])
@@ -1661,8 +1660,7 @@
              (core-runtime-helper-form runtime-helper-index name))
 
          ;;   Implemented in runtime-wasm/core/parameters.rkt.
-         ,@(for/list ([name (in-list compile-parameter-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
+         ,@(compile-parameter-runtime-helper-forms runtime-helper-index)
 
          ;;;
          ;;;  4.3.4 Fixnums
@@ -2466,8 +2464,7 @@
          ;; 10.1 Multiple Values
 
          ;;   Implemented in runtime-wasm/core/control-flow.rkt.
-         ,@(for/list ([name (in-list multiple-value-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
+         ,@(multiple-value-runtime-helper-forms runtime-helper-index)
 
 
 
@@ -2477,30 +2474,24 @@
          ;; 10.4 Continuations
 
          ;;   Implemented in runtime-wasm/core/control-flow.rkt.
-         ,@(for/list ([name (in-list continuation-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
+         ,@(continuation-runtime-helper-forms runtime-helper-index)
 
          ;; 10.5 Continuation Marks
 
          ;;   Implemented in runtime-wasm/core/control-flow.rkt.
-         ,@(for/list ([name (in-list continuation-mark-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
+         ,@(continuation-mark-runtime-helper-forms runtime-helper-index)
 
          ;;   Implemented in runtime-wasm/core/parameters.rkt.
-         ,@(for/list ([name (in-list parameterization-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
+         ,@(parameterization-runtime-helper-forms runtime-helper-index)
 
          ;;   Implemented in runtime-wasm/core/parameters.rkt.
-         ,@(for/list ([name (in-list namespace-parameter-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
+         ,@(namespace-parameter-runtime-helper-forms runtime-helper-index)
 
          ;;   Implemented in runtime-wasm/core/parameters.rkt.
-         ,@(for/list ([name (in-list parameterization-binding-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
+         ,@(parameterization-binding-runtime-helper-forms runtime-helper-index)
 
          ;;   Implemented in runtime-wasm/core/parameters.rkt.
-         ,@(for/list ([name (in-list parameterization-call-runtime-only-helper-names)])
-             (core-runtime-helper-form runtime-helper-index name))
+         ,@(parameterization-call-runtime-helper-forms runtime-helper-index)
 
          ;; 10.6 Breaks
          ;; 10.7 Exiting
@@ -2742,24 +2733,20 @@
                ;;   load-on-demand-enabled a default of #t; WebRacket exposes
                ;;   the parameter now, while delayed source loading is deferred
                ;;   until the reader/load layer is richer.
-               ,@(for/list ([name (in-list reader-printer-policy-parameter-helper-names)])
-                   (core-runtime-helper-form runtime-helper-index name))
+               ,@(reader-printer-policy-parameter-helper-forms runtime-helper-index)
 
                ;;   Implemented in runtime-wasm/core/parameters.rkt.
-               ,@(for/list ([name (in-list parameter-width-runtime-only-helper-names)])
-                   (core-runtime-helper-form runtime-helper-index name))
+               ,@(parameter-width-runtime-helper-forms runtime-helper-index)
 
                ;;   Error rendering defaults are implemented in runtime-wasm/core/io-handlers.rkt.
                ,@(for/list ([name (in-list io-handler-error-runtime-only-helper-names)])
                    (core-runtime-helper-form runtime-helper-index name))
 
                ;;   Implemented in runtime-wasm/core/parameters.rkt.
-               ,@(for/list ([name (in-list parameter-error-rendering-runtime-only-helper-names)])
-                   (core-runtime-helper-form runtime-helper-index name))
+               ,@(parameter-error-rendering-runtime-helper-forms runtime-helper-index)
 
                ;;   Implemented in runtime-wasm/core/parameters.rkt.
-               ,@(for/list ([name (in-list parameter-directory-runtime-only-helper-names)])
-                   (core-runtime-helper-form runtime-helper-index name))
+               ,@(parameter-directory-runtime-helper-forms runtime-helper-index)
 
                ;;   Implemented in runtime-wasm/core/parameters.rkt.
                ,(core-runtime-helper-form runtime-helper-index '$current-load-relative-directory)

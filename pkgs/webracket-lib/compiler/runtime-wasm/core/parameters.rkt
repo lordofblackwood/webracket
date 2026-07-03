@@ -3,17 +3,17 @@
 (provide compile-parameter-global-forms
          parameter-runtime-string-constants
          parameter-runtime-symbol-constants
-         compile-parameter-runtime-only-helper-names
-         parameterization-runtime-only-helper-names
-         namespace-parameter-runtime-only-helper-names
-         parameterization-binding-runtime-only-helper-names
-         parameterization-call-runtime-only-helper-names
+         compile-parameter-runtime-helper-forms
+         parameterization-runtime-helper-forms
+         namespace-parameter-runtime-helper-forms
+         parameterization-binding-runtime-helper-forms
+         parameterization-call-runtime-helper-forms
          parameterization-global-forms
          parameterization-initializer-forms
          parameter-runtime-only-helpers
-         parameter-width-runtime-only-helper-names
-         parameter-error-rendering-runtime-only-helper-names
-         parameter-directory-runtime-only-helper-names
+         parameter-width-runtime-helper-forms
+         parameter-error-rendering-runtime-helper-forms
+         parameter-directory-runtime-helper-forms
          environment-parameter-global-forms
          environment-parameter-initializer-forms
          error-rendering-handler-global-forms
@@ -22,7 +22,7 @@
          print-read-parameter-global-forms
          print-read-parameter-late-initializer-forms
          reader-printer-policy-parameter-global-forms
-         reader-printer-policy-parameter-helper-names)
+         reader-printer-policy-parameter-helper-forms)
 
 (require "../core-helper.rkt")
 
@@ -428,6 +428,57 @@
 (define parameter-directory-runtime-only-helper-names
   '($current-directory
     $current-directory-for-user))
+
+;; parameter-helper-forms : hasheq? (listof symbol?) -> (listof datum?)
+;;   Render the given parameter helper names from a helper index.
+(define (parameter-helper-forms helper-index names)
+  (for/list ([name (in-list names)])
+    (core-runtime-helper-form helper-index name)))
+
+;; compile-parameter-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render compile metadata parameter helpers in runtime assembly order.
+(define (compile-parameter-runtime-helper-forms helper-index)
+  (parameter-helper-forms helper-index compile-parameter-runtime-only-helper-names))
+
+;; parameterization-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render parameterization predicate and accessor helpers in runtime assembly order.
+(define (parameterization-runtime-helper-forms helper-index)
+  (parameter-helper-forms helper-index parameterization-runtime-only-helper-names))
+
+;; namespace-parameter-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render current-namespace parameter helpers in runtime assembly order.
+(define (namespace-parameter-runtime-helper-forms helper-index)
+  (parameter-helper-forms helper-index namespace-parameter-runtime-only-helper-names))
+
+;; parameterization-binding-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render parameterization binding helpers in runtime assembly order.
+(define (parameterization-binding-runtime-helper-forms helper-index)
+  (parameter-helper-forms helper-index parameterization-binding-runtime-only-helper-names))
+
+;; parameterization-call-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render parameterization call and configuration helpers in runtime assembly order.
+(define (parameterization-call-runtime-helper-forms helper-index)
+  (parameter-helper-forms helper-index parameterization-call-runtime-only-helper-names))
+
+;; parameter-width-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render printer width parameter helpers in runtime assembly order.
+(define (parameter-width-runtime-helper-forms helper-index)
+  (parameter-helper-forms helper-index parameter-width-runtime-only-helper-names))
+
+;; parameter-error-rendering-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render error rendering parameter helpers in runtime assembly order.
+(define (parameter-error-rendering-runtime-helper-forms helper-index)
+  (parameter-helper-forms helper-index parameter-error-rendering-runtime-only-helper-names))
+
+;; parameter-directory-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render current directory parameter helpers in runtime assembly order.
+(define (parameter-directory-runtime-helper-forms helper-index)
+  (parameter-helper-forms helper-index parameter-directory-runtime-only-helper-names))
+
+;; reader-printer-policy-parameter-helper-forms : hasheq? -> (listof datum?)
+;;   Render generated reader and printer policy parameter helpers in runtime assembly order.
+(define (reader-printer-policy-parameter-helper-forms helper-index)
+  (parameter-helper-forms helper-index reader-printer-policy-parameter-helper-names))
 
 ;; reader-printer-policy-parameter-form : symbol? symbol? symbol? symbol? -> datum?
 ;;   Generate one boolean reader/printing policy parameter function.
@@ -1399,3 +1450,50 @@
    (function-forms->runtime-helpers
     'reader-printer-policy-parameter-forms
     reader-printer-policy-parameter-forms)))
+
+(module+ test
+  (require rackunit)
+
+  ;; form-name : datum? -> symbol?
+  ;;   Return the function name from a rendered helper form.
+  (define (form-name form)
+    (second form))
+
+  (define parameter-helper-index
+    (make-core-runtime-helper-index parameter-runtime-only-helpers))
+
+  (check-equal?
+   (map form-name (compile-parameter-runtime-helper-forms parameter-helper-index))
+   compile-parameter-runtime-only-helper-names)
+
+  (check-equal?
+   (map form-name (parameterization-runtime-helper-forms parameter-helper-index))
+   parameterization-runtime-only-helper-names)
+
+  (check-equal?
+   (map form-name (namespace-parameter-runtime-helper-forms parameter-helper-index))
+   namespace-parameter-runtime-only-helper-names)
+
+  (check-equal?
+   (map form-name (parameterization-binding-runtime-helper-forms parameter-helper-index))
+   parameterization-binding-runtime-only-helper-names)
+
+  (check-equal?
+   (map form-name (parameterization-call-runtime-helper-forms parameter-helper-index))
+   parameterization-call-runtime-only-helper-names)
+
+  (check-equal?
+   (map form-name (reader-printer-policy-parameter-helper-forms parameter-helper-index))
+   reader-printer-policy-parameter-helper-names)
+
+  (check-equal?
+   (map form-name (parameter-width-runtime-helper-forms parameter-helper-index))
+   parameter-width-runtime-only-helper-names)
+
+  (check-equal?
+   (map form-name (parameter-error-rendering-runtime-helper-forms parameter-helper-index))
+   parameter-error-rendering-runtime-only-helper-names)
+
+  (check-equal?
+   (map form-name (parameter-directory-runtime-helper-forms parameter-helper-index))
+   parameter-directory-runtime-only-helper-names))
