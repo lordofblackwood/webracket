@@ -2216,9 +2216,6 @@
                            (local.get $bstr))
                      (unreachable)))
            (local.set $bs (ref.cast (ref $Bytes) (local.get $bstr)))
-           ;; Reject immutable byte strings
-           (if (i32.eq (struct.get $Bytes $immutable (local.get $bs)) (i32.const 1))
-               (then (call $raise-expected-mutable-bytes (local.get $bstr)) (unreachable)))
            (local.set $arr (struct.get $Bytes $bs (local.get $bs)))
            (local.set $len (call $i8array-length (local.get $arr)))
            ;; --- Determine input port ---
@@ -2394,9 +2391,6 @@
                            (local.get $str))
                      (unreachable)))
            (local.set $s (ref.cast (ref $String) (local.get $str)))
-           ;; Reject immutable strings
-           (if (i32.ne (struct.get $String $immutable (local.get $s)) (i32.const 0))
-               (then (call $raise-immutable-string (local.get $str)) (unreachable)))
            (local.set $arr (struct.get $String $codepoints (local.get $s)))
            (local.set $len (call $i32array-length (local.get $arr)))
            ;; --- Determine input port ---
@@ -3137,9 +3131,6 @@
                            (local.get $bstr))
                      (unreachable)))
            (local.set $bs (ref.cast (ref $Bytes) (local.get $bstr)))
-           ;; Reject immutable byte strings
-           (if (i32.eq (struct.get $Bytes $immutable (local.get $bs)) (i32.const 1))
-               (then (call $raise-expected-mutable-bytes (local.get $bstr)) (unreachable)))
            (local.set $arr (struct.get $Bytes $bs (local.get $bs)))
            (local.set $len (call $i8array-length (local.get $arr)))
 
@@ -3433,9 +3424,6 @@
                            (local.get $str))
                      (unreachable)))
            (local.set $s (ref.cast (ref $String) (local.get $str)))
-           ;; Reject immutable strings
-           (if (i32.ne (struct.get $String $immutable (local.get $s)) (i32.const 0))
-               (then (call $raise-immutable-string (local.get $str)) (unreachable)))
            (local.set $arr (struct.get $String $codepoints (local.get $s)))
            (local.set $len (call $i32array-length (local.get $arr)))
 

@@ -7876,6 +7876,36 @@
                            (equal? count 3)
                            (equal? buffer (bytes 1 2 3 0)))))
 
+              (list "read buffer wrappers accept immutable destinations"
+                    (let* ([b1 (bytes->immutable-bytes (bytes 95 95 95))]
+                           [p1 (open-input-bytes (bytes 65 66 67))]
+                           [c1 (read-bytes! b1 p1 0 3)]
+                           [e1 (read-byte p1)]
+                           [b2 (bytes->immutable-bytes (bytes 95 95 95))]
+                           [p2 (open-input-bytes (bytes 68 69 70))]
+                           [c2 (read-bytes-avail! b2 p2 0 3)]
+                           [e2 (read-byte p2)]
+                           [b3 (bytes->immutable-bytes (bytes 95 95 95))]
+                           [p3 (open-input-bytes (bytes 71 72 73))]
+                           [c3 (read-bytes-avail!* b3 p3 0 3)]
+                           [e3 (read-byte p3)]
+                           [s  (string->immutable-string (string #\_ #\_ #\_))]
+                           [ps (open-input-string "abc")]
+                           [cs (read-string! s ps 0 3)]
+                           [es (read-char ps)])
+                      (and (equal? c1 3)
+                           (equal? b1 (bytes 65 66 67))
+                           (eof-object? e1)
+                           (equal? c2 3)
+                           (equal? b2 (bytes 68 69 70))
+                           (eof-object? e2)
+                           (equal? c3 3)
+                           (equal? b3 (bytes 71 72 73))
+                           (eof-object? e3)
+                           (equal? cs 3)
+                           (equal? s "abc")
+                           (eof-object? es))))
+
               (list "read-string!/basic"
                     (let* ([buffer (make-string 6 #\_)]
                            [port   (open-input-string "ABCD")]
@@ -8713,6 +8743,36 @@
                       (and (equal? count 0)
                            (equal? buffer (bytes 111))
                            (equal? peeked 5))))
+
+              (list "peek buffer wrappers accept immutable destinations"
+                    (let* ([b1 (bytes->immutable-bytes (bytes 95 95 95))]
+                           [p1 (open-input-bytes (bytes 65 66 67))]
+                           [c1 (peek-bytes! b1 0 p1 0 3)]
+                           [r1 (read-bytes 3 p1)]
+                           [b2 (bytes->immutable-bytes (bytes 95 95 95))]
+                           [p2 (open-input-bytes (bytes 68 69 70))]
+                           [c2 (peek-bytes-avail! b2 0 #f p2 0 3)]
+                           [r2 (read-bytes 3 p2)]
+                           [b3 (bytes->immutable-bytes (bytes 95 95 95))]
+                           [p3 (open-input-bytes (bytes 71 72 73))]
+                           [c3 (peek-bytes-avail!* b3 0 #f p3 0 3)]
+                           [r3 (read-bytes 3 p3)]
+                           [s  (string->immutable-string (string #\_ #\_ #\_))]
+                           [ps (open-input-string "abc")]
+                           [cs (peek-string! s 0 ps 0 3)]
+                           [rs (read-string 3 ps)])
+                      (and (equal? c1 3)
+                           (equal? b1 (bytes 65 66 67))
+                           (equal? r1 (bytes 65 66 67))
+                           (equal? c2 3)
+                           (equal? b2 (bytes 68 69 70))
+                           (equal? r2 (bytes 68 69 70))
+                           (equal? c3 3)
+                           (equal? b3 (bytes 71 72 73))
+                           (equal? r3 (bytes 71 72 73))
+                           (equal? cs 3)
+                           (equal? s "abc")
+                           (equal? rs "abc"))))
 
               (list "peek-string/basic"
                     (let* ([port  (open-input-string "webRacket")]
