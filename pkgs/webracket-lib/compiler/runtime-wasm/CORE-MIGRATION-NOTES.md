@@ -88,6 +88,10 @@ decoding support in core:
 - `$list->i32array`
 - `$list->i8array`
 - `$i8array->string`
+- `$mcar`
+- `$mcdr`
+- `$set-mcar!`
+- `$set-mcdr!`
 
 Current owners:
 
@@ -95,6 +99,10 @@ Current owners:
 - `core/i32-arrays.rkt` owns `$list->i32array`.
 - `core/i8-arrays.rkt` owns `$list->i8array`, `$i8array->string`,
   `$i8array->bytes`, and `$i8array->immutable-bytes`.
+- `core/mlists.rkt` keeps the pure `$mpair?` and `$mcons` helpers in
+  standalone core, while mutable-pair accessors and mutators remain
+  runtime-only so they can raise Racket contract errors with caller-specific
+  `who`.
 
 Before moving the list conversions into standalone core emission, add or move
 enough error support for proper Racket exceptions. Do not make the new core

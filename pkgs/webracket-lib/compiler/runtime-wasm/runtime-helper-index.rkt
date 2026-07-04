@@ -70,6 +70,8 @@
                   logger-runtime-only-helpers)
          (only-in "core/mutable-hashes.rkt"
                   mutable-hash-runtime-only-helpers)
+         (only-in "core/mlists.rkt"
+                  mlist-runtime-only-helpers)
          (only-in "core/namespaces.rkt"
                   namespace-runtime-only-helpers)
          (only-in "core/numbers.rkt"
@@ -155,6 +157,7 @@
           lock-runtime-only-helpers
           logger-runtime-only-helpers
           mutable-hash-runtime-only-helpers
+          mlist-runtime-only-helpers
           namespace-runtime-only-helpers
           number-runtime-only-helpers
           parameter-runtime-only-helpers

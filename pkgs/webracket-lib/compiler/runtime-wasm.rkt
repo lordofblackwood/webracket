@@ -187,7 +187,8 @@
                   memory-import-forms
                   memory-map-global-forms)
          (only-in "runtime-wasm/core/mlists.rkt"
-                  mlist-core-runtime-helper-forms)
+                  mlist-core-runtime-helper-forms
+                  mlist-runtime-helper-forms)
          (only-in "runtime-wasm/core/mutable-hashes.rkt"
                   mutable-hash-constructor-runtime-helper-forms
                   mutable-hash-empty-iteration-runtime-helper-forms
@@ -889,6 +890,7 @@
 
          ;; Mutable-pair helpers are implemented in runtime-wasm/core/mlists.rkt.
          ,@(mlist-core-runtime-helper-forms core-runtime-helper-index)
+         ,@(mlist-runtime-helper-forms runtime-helper-index)
 
          ;;;
          ;;; 4.12 Vectors

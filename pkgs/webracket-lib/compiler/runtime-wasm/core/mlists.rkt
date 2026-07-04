@@ -2,7 +2,10 @@
 
 (provide mlist-runtime-string-constants
          mlist-core-runtime-helper-forms
-         mlist-core-runtime-helpers)
+         mlist-core-runtime-helpers
+         mlist-runtime-helper-forms
+         mlist-runtime-only-helpers
+         mlist-runtime-only-helper-names)
 
 (require "../core-helper.rkt"
          "../../private/wasm-utils.rkt")
@@ -10,22 +13,13 @@
 ;; mlist-runtime-string-constants : (listof (list/c symbol? string?))
 ;;   Declare string constants used by mutable-list contract errors.
 (define mlist-runtime-string-constants
-  '((mpair-or-null "(or/c mpair? null?)")))
+  '((mpair? "mpair?")
+    (mpair-or-null "(or/c mpair? null?)")))
 
 ;; mlist-core-runtime-helpers : (listof core-runtime-helper?)
 ;;   Enumerate mutable-pair helpers that can be emitted in core runtime.
 (define mlist-core-runtime-helpers
   (list
-   ;; raise-mpair-expected : any/c -> none
-   ;;   Placeholder mutable-pair contract error.
-   (core-runtime-helper
-    '$raise-mpair-expected
-    "$raise-mpair-expected"
-    (lambda ()
-      `(func $raise-mpair-expected
-             (param $x (ref eq))
-             (unreachable))))
-
    ;; mpair? : any/c -> boolean?
    ;;   Return #t if the value is a mutable pair, #f otherwise.
    (core-runtime-helper
@@ -53,93 +47,112 @@
              (struct.new $MPair
                          (i32.const 0)
                          (local.get $a)
-                         (local.get $d)))))
+                         (local.get $d)))))))
 
-   ;; mcar : mpair? -> any/c
-   ;;   Return the car field of a mutable pair.
-   (core-runtime-helper
-    '$mcar
-    "$mcar"
-    (lambda ()
-      `(func $mcar (type $Prim1)
-             (param $v (ref eq))
-             (result (ref eq))
-             (if (result (ref eq))
-                 (ref.test (ref $MPair) (local.get $v))
-                 (then (struct.get $MPair $a
-                                   (ref.cast (ref $MPair) (local.get $v))))
-                 (else (call $raise-mpair-expected (local.get $v))
-                       (unreachable))))))
+;; mlist-runtime-only-forms : (listof datum?)
+;;   Enumerate mutable-pair helpers that depend on full runtime error support.
+(define mlist-runtime-only-forms
+  `(
+    ;; raise-mpair-expected/who : symbol? any/c -> none
+    ;;   Raise a mutable-pair contract error for who.
+    (func $raise-mpair-expected/who
+          (param $who (ref eq))
+          (param $x   (ref eq))
+          (call $raise-argument-error1
+                (local.get $who)
+                (global.get $string:mpair?)
+                (local.get $x)))
 
-   ;; mcdr : mpair? -> any/c
-   ;;   Return the cdr field of a mutable pair.
-   (core-runtime-helper
-    '$mcdr
-    "$mcdr"
-    (lambda ()
-      `(func $mcdr (type $Prim1)
-             (param $v (ref eq))
-             (result (ref eq))
-             (if (result (ref eq))
-                 (ref.test (ref $MPair) (local.get $v))
-                 (then (struct.get $MPair $d
-                                   (ref.cast (ref $MPair) (local.get $v))))
-                 (else (call $raise-mpair-expected (local.get $v))
-                       (unreachable))))))
+    ;; mcar : mpair? -> any/c
+    ;;   Return the car field of a mutable pair.
+    (func $mcar (type $Prim1)
+          (param $v (ref eq))
+          (result (ref eq))
+          (if (result (ref eq))
+              (ref.test (ref $MPair) (local.get $v))
+              (then (struct.get $MPair $a
+                                (ref.cast (ref $MPair) (local.get $v))))
+              (else (call $raise-mpair-expected/who
+                          (global.get $symbol:mcar)
+                          (local.get $v))
+                    (unreachable))))
 
-   ;; set-mcar! : mpair? any/c -> void?
-   ;;   Mutate the car field of a mutable pair.
-   (core-runtime-helper
-    '$set-mcar!
-    "$set-mcar!"
-    (lambda ()
-      `(func $set-mcar! (type $Prim2)
-             (param $p (ref eq))   ;; mpair to mutate
-             (param $v (ref eq))   ;; new car value
-             (result (ref eq))
-             (if (result (ref eq))
-                 (ref.test (ref $MPair) (local.get $p))
-                 (then (struct.set $MPair $a
-                                   (ref.cast (ref $MPair) (local.get $p))
-                                   (local.get $v))
-                       ,(Imm (void)))
-                 (else (call $raise-mpair-expected (local.get $p))
-                       (unreachable))))))
+    ;; mcdr : mpair? -> any/c
+    ;;   Return the cdr field of a mutable pair.
+    (func $mcdr (type $Prim1)
+          (param $v (ref eq))
+          (result (ref eq))
+          (if (result (ref eq))
+              (ref.test (ref $MPair) (local.get $v))
+              (then (struct.get $MPair $d
+                                (ref.cast (ref $MPair) (local.get $v))))
+              (else (call $raise-mpair-expected/who
+                          (global.get $symbol:mcdr)
+                          (local.get $v))
+                    (unreachable))))
 
-   ;; set-mcdr! : mpair? any/c -> void?
-   ;;   Mutate the cdr field of a mutable pair.
-   (core-runtime-helper
-    '$set-mcdr!
-    "$set-mcdr!"
-    (lambda ()
-      `(func $set-mcdr! (type $Prim2)
-             (param $p (ref eq))   ;; mpair to mutate
-             (param $v (ref eq))   ;; new cdr value
-             (result (ref eq))
-             (if (result (ref eq))
-                 (ref.test (ref $MPair) (local.get $p))
-                 (then (struct.set $MPair $d
-                                   (ref.cast (ref $MPair) (local.get $p))
-                                   (local.get $v))
-                       ,(Imm (void)))
-                 (else (call $raise-mpair-expected (local.get $p))
-                       (unreachable))))))))
+    ;; set-mcar! : mpair? any/c -> void?
+    ;;   Mutate the car field of a mutable pair.
+    (func $set-mcar! (type $Prim2)
+          (param $p (ref eq))   ;; mpair to mutate
+          (param $v (ref eq))   ;; new car value
+          (result (ref eq))
+          (if (result (ref eq))
+              (ref.test (ref $MPair) (local.get $p))
+              (then (struct.set $MPair $a
+                                (ref.cast (ref $MPair) (local.get $p))
+                                (local.get $v))
+                    ,(Imm (void)))
+              (else (call $raise-mpair-expected/who
+                          (global.get $symbol:set-mcar!)
+                          (local.get $p))
+                    (unreachable))))
+
+    ;; set-mcdr! : mpair? any/c -> void?
+    ;;   Mutate the cdr field of a mutable pair.
+    (func $set-mcdr! (type $Prim2)
+          (param $p (ref eq))   ;; mpair to mutate
+          (param $v (ref eq))   ;; new cdr value
+          (result (ref eq))
+          (if (result (ref eq))
+              (ref.test (ref $MPair) (local.get $p))
+              (then (struct.set $MPair $d
+                                (ref.cast (ref $MPair) (local.get $p))
+                                (local.get $v))
+                    ,(Imm (void)))
+              (else (call $raise-mpair-expected/who
+                          (global.get $symbol:set-mcdr!)
+                          (local.get $p))
+                    (unreachable))))))
+
+;; mlist-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Register mutable-pair helpers that need monolithic runtime support.
+(define mlist-runtime-only-helpers
+  (function-forms->runtime-helpers
+   'mlist-runtime-only-helpers
+   mlist-runtime-only-forms))
+
+;; mlist-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for mutable-pair runtime helpers.
+(define mlist-runtime-only-helper-names
+  (map core-runtime-helper-name mlist-runtime-only-helpers))
 
 ;; mlist-core-runtime-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for mutable-list core helpers.
 (define mlist-core-runtime-helper-names
-  '($raise-mpair-expected
-    $mpair?
-    $mcons
-    $mcar
-    $mcdr
-    $set-mcar!
-    $set-mcdr!))
+  '($mpair?
+    $mcons))
 
 ;; mlist-core-runtime-helper-forms : hasheq? -> (listof datum?)
 ;;   Render mutable-list core helpers in runtime assembly order.
 (define (mlist-core-runtime-helper-forms helper-index)
   (for/list ([name (in-list mlist-core-runtime-helper-names)])
+    (core-runtime-helper-form helper-index name)))
+
+;; mlist-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render mutable-pair runtime helpers in runtime assembly order.
+(define (mlist-runtime-helper-forms helper-index)
+  (for/list ([name (in-list mlist-runtime-only-helper-names)])
     (core-runtime-helper-form helper-index name)))
 
 (module+ test
@@ -155,4 +168,11 @@
 
   (check-equal?
    (map form-name (mlist-core-runtime-helper-forms mlist-core-helper-index))
-   mlist-core-runtime-helper-names))
+   mlist-core-runtime-helper-names)
+
+  (define mlist-runtime-helper-index
+    (make-core-runtime-helper-index mlist-runtime-only-helpers))
+
+  (check-equal?
+   (map form-name (mlist-runtime-helper-forms mlist-runtime-helper-index))
+   mlist-runtime-only-helper-names))

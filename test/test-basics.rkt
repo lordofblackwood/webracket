@@ -3599,6 +3599,31 @@
                       (set-mcdr! p 3)
                       (and (equal? (mcdr p) 3)
                            (equal? (procedure-arity set-mcdr!) 2))))
+              (list "mutable-pair argument errors are catchable with who"
+                    (let ([catch-contract/who+expected+given?
+                           (lambda (who thunk)
+                             (let ([message
+                                    (with-handlers ([exn:fail:contract?
+                                                     (lambda (exn)
+                                                       (exn-message exn))])
+                                      (thunk)
+                                      #f)])
+                               (and (string? message)
+                                    (string-contains? message who)
+                                    (string-contains? message "mpair?")
+                                    (string-contains? message "42"))))])
+                      (and (catch-contract/who+expected+given?
+                            "mcar"
+                            (lambda () (mcar 42)))
+                           (catch-contract/who+expected+given?
+                            "mcdr"
+                            (lambda () (mcdr 42)))
+                           (catch-contract/who+expected+given?
+                            "set-mcar!"
+                            (lambda () (set-mcar! 42 'x)))
+                           (catch-contract/who+expected+given?
+                            "set-mcdr!"
+                            (lambda () (set-mcdr! 42 'x))))))
               (list "equal-hash-code mpair"
                     (let ([p1 (mcons (mcons 'a '()) (mcons 'b '()))]
                           [p2 (mcons (mcons 'a '()) (mcons 'b '()))])
