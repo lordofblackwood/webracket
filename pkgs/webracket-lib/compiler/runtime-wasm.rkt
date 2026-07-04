@@ -32,6 +32,8 @@
                   runtime-ffi-state-all-foreigns
                   runtime-ffi-state-filter-current-bindings!
                   runtime-ffi-state-import-wrapper-helper-forms
+                  runtime-ffi-state-primitive-global-forms
+                  runtime-ffi-state-primitive-initializer-forms
                   runtime-ffi-state-record-metrics!)
          (only-in "runtime-wasm/runtime-metrics.rkt"
                   runtime-metric-add!
@@ -45,9 +47,7 @@
                   runtime-primitive-state-global-forms
                   runtime-primitive-state-initializer-forms
                   runtime-primitive-state-primitive-func->symbol
-                  runtime-primitive-state-primitive-global->symbol
-                  runtime-ffi-primitive-global-forms
-                  runtime-ffi-primitive-initializer-forms)
+                  runtime-primitive-state-primitive-global->symbol)
          (only-in "runtime-wasm/core/arrays.rkt"
                   array-core-runtime-helper-forms
                   array-runtime-helper-forms)
@@ -400,9 +400,6 @@
       (runtime-primitive-state-active-described-primitives-sorted
        primitive-state))
 
-    (define (active-ffi-primitive-names)
-      (runtime-ffi-state-active-primitive-names ffi-state))
-
     (define described-primitives
       (runtime-primitive-state-described-primitives primitive-state))
 
@@ -422,19 +419,6 @@
     (define program-function-names
       (module-func-names dls))
 
-    (define (declare-primitives-as-globals)
-      (runtime-primitive-state-global-forms primitive-state))
-
-    (define (declare-ffi-primitives-as-globals)
-      (runtime-ffi-primitive-global-forms (active-ffi-primitive-names)))
-
-    (define (initialize-primitives-as-globals)
-      (runtime-primitive-state-initializer-forms primitive-state))
-
-    (define (initialize-ffi-primitives-as-globals)
-      (runtime-ffi-primitive-initializer-forms
-       (runtime-ffi-state-active-foreigns ffi-state)))
-
     (define linklet-body-reserved-symbols
       (runtime-linklet-body-reserved-symbols all-primitives))
 
@@ -446,7 +430,7 @@
        bytes-constants
        symbol-constants
        active-described-primitives-sorted
-       (active-ffi-primitive-names)
+       (runtime-ffi-state-active-primitive-names ffi-state)
        all-primitives))
 
     ;;;
@@ -516,8 +500,8 @@
          ,@ffi-callback-global-forms
 
          ;; Primitives (as values)
-         ,@(declare-primitives-as-globals)
-         ,@(declare-ffi-primitives-as-globals)
+         ,@(runtime-primitive-state-global-forms primitive-state)
+         ,@(runtime-ffi-state-primitive-global-forms ffi-state)
 
          ,@closure-empty-free-global-forms
 
@@ -1306,8 +1290,8 @@
          ,@(struct-construction-runtime-helper-forms runtime-helper-index)
 
         ,@(runtime-function-declaration-forms primitive-shapes
-                                             active-described-primitives-sorted
-                                             (active-ffi-primitive-names))
+                                              active-described-primitives-sorted
+                                              (runtime-ffi-state-active-primitive-names ffi-state))
 
 
         ;; Struct constructor implementation helpers
@@ -1645,8 +1629,10 @@
                  #:character-general-category-initializer-forms
                  character-general-category-initializer-forms
                  #:realm-initializer-forms realm-initializer-forms
-                 #:primitive-initializer-forms (initialize-primitives-as-globals)
-                 #:ffi-primitive-initializer-forms (initialize-ffi-primitives-as-globals)
+                 #:primitive-initializer-forms
+                 (runtime-primitive-state-initializer-forms primitive-state)
+                 #:ffi-primitive-initializer-forms
+                 (runtime-ffi-state-primitive-initializer-forms ffi-state)
                  #:security-guard-current-initializer-forms
                  security-guard-current-initializer-forms
                  #:error-value-handler-late-initializer-forms

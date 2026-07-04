@@ -6,6 +6,8 @@
          runtime-ffi-state-active-primitive-names
          runtime-ffi-state-filter-current-bindings!
          runtime-ffi-state-import-wrapper-helper-forms
+         runtime-ffi-state-primitive-global-forms
+         runtime-ffi-state-primitive-initializer-forms
          runtime-ffi-state-record-metrics!
          select-active-ffi-runtime-bindings
          select-current-ffi-runtime-bindings
@@ -19,6 +21,9 @@
                   module-func-name)
          (only-in "core/ffi.rkt"
                   unsafe-ffi-runtime-only-helper-forms)
+         (only-in "runtime-primitives.rkt"
+                  runtime-ffi-primitive-global-forms
+                  runtime-ffi-primitive-initializer-forms)
          (only-in "runtime-analysis.rkt"
                   list->eq-set)
          (only-in "runtime-metrics.rkt"
@@ -62,6 +67,18 @@
           (runtime-ffi-state-active-funcs-wat state)
           (unsafe-ffi-runtime-only-helper-forms
            (runtime-ffi-state-active-foreigns state))))
+
+;; runtime-ffi-state-primitive-global-forms : runtime-ffi-state? -> (listof datum?)
+;;   Declare globals that hold active FFI primitive procedure values.
+(define (runtime-ffi-state-primitive-global-forms state)
+  (runtime-ffi-primitive-global-forms
+   (runtime-ffi-state-active-primitive-names state)))
+
+;; runtime-ffi-state-primitive-initializer-forms : runtime-ffi-state? -> (listof datum?)
+;;   Initialize active FFI primitive globals as procedure values.
+(define (runtime-ffi-state-primitive-initializer-forms state)
+  (runtime-ffi-primitive-initializer-forms
+   (runtime-ffi-state-active-foreigns state)))
 
 ;; active-ffi-primitive-names : (listof foreign?) (listof symbol?) boolean? -> (listof symbol?)
 ;;   Select the foreign primitive names needed by the current program.
@@ -254,6 +271,18 @@
        (and (pair? form)
             (eq? (first form) 'func)
             (eq? (second form) '$unsafe-ffi-primitive))))
+    (check-equal? (runtime-ffi-state-primitive-global-forms state)
+                  '((global $prim:a (mut (ref eq)) (ref.i31 (i32.const 79)))))
+    (check-match (runtime-ffi-state-primitive-initializer-forms state)
+      (list `(global.set $prim:a
+                         (struct.new $PrimitiveProcedure
+                          (i32.const 0)
+                          (global.get $symbol:a)
+                          ,_
+                          (global.get $the-racket/primitive-realm)
+                          (ref.func ,_)
+                          (ref.func $a)
+                          ,_))))
     (parameterize ([current-runtime-metric-rows '()])
       (runtime-ffi-state-record-metrics! state)
       (define rows (current-runtime-metric-rows))
