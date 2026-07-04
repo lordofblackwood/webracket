@@ -2213,8 +2213,12 @@
            (if (ref.eq (local.get $in) (global.get $missing))
                (then (local.set $in (call $current-input-port
                                           (global.get $missing)))))
-           (if (i32.eqz (ref.test (ref $InputPort) (local.get $in)))
-               (then (call $raise-check-string-port (local.get $in)) (unreachable)))
+           (if (i32.eqz (call $input-port-like?/i32 (local.get $in)))
+               (then (call $raise-argument-error1
+                           (local.get $who)
+                           (global.get $string:input-port?)
+                           (local.get $in))
+                     (unreachable)))
            ;; --- Decode optional start index ---
            (if (ref.eq (local.get $start) (global.get $missing))
                (then (local.set $from (i32.const 0)))
@@ -2383,8 +2387,12 @@
            (if (ref.eq (local.get $in) (global.get $missing))
                (then (local.set $in (call $current-input-port
                                           (global.get $missing)))))
-           (if (i32.eqz (ref.test (ref $InputPort) (local.get $in)))
-               (then (call $raise-check-string-port (local.get $in)) (unreachable)))
+           (if (i32.eqz (call $input-port-like?/i32 (local.get $in)))
+               (then (call $raise-argument-error1
+                           (global.get $symbol:read-string!)
+                           (global.get $string:input-port?)
+                           (local.get $in))
+                     (unreachable)))
            ;; --- Decode optional start index ---
            (if (ref.eq (local.get $start) (global.get $missing))
                (then (local.set $from (i32.const 0)))
@@ -2946,8 +2954,14 @@
                          (then (return (call $read-line/custom
                                              (ref.cast (ref $CustomInputPort) (local.get $in))
                                              (local.get $mode-code))))
-                         (else (call $raise-check-string-port (local.get $in))
-                               (unreachable)))))
+                         (else (if (i32.eqz (call $input-port-like?/i32 (local.get $in)))
+                                   (then (call $raise-argument-error1
+                                               (global.get $symbol:read-line)
+                                               (global.get $string:input-port?)
+                                               (local.get $in))
+                                         (unreachable))
+                                   (else (call $raise-check-string-port (local.get $in))
+                                         (unreachable)))))))
 
            (local.set $buf   (call $make-i32growable-array (i32.const 32)))
            (local.set $count (i32.const 0))
@@ -3129,6 +3143,12 @@
            (if (ref.eq (local.get $in) (global.get $missing))
                (then (local.set $in (call $current-input-port
                                           (global.get $missing)))))
+           (if (i32.eqz (call $input-port-like?/i32 (local.get $in)))
+               (then (call $raise-argument-error1
+                           (local.get $who)
+                           (global.get $string:input-port?)
+                           (local.get $in))
+                     (unreachable)))
            (if (i32.eqz (ref.test (ref $InputStringPort) (local.get $in)))
                (then (call $raise-check-string-port (local.get $in)) (unreachable)))
            (local.set $sp (ref.cast (ref $InputStringPort) (local.get $in)))
@@ -3415,6 +3435,12 @@
            (if (ref.eq (local.get $in) (global.get $missing))
                (then (local.set $in (call $current-input-port
                                           (global.get $missing)))))
+           (if (i32.eqz (call $input-port-like?/i32 (local.get $in)))
+               (then (call $raise-argument-error1
+                           (global.get $symbol:peek-string!)
+                           (global.get $string:input-port?)
+                           (local.get $in))
+                     (unreachable)))
            (if (i32.eqz (ref.test (ref $InputStringPort) (local.get $in)))
                (then (call $raise-check-string-port (local.get $in)) (unreachable)))
            (local.set $sp (ref.cast (ref $InputStringPort) (local.get $in)))

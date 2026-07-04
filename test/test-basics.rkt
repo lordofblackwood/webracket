@@ -7965,7 +7965,37 @@
                           "expected: input-port?"
                           "given: 42")
                         (lambda ()
-                          (read-string 1 42))))))
+                          (read-string 1 42)))
+                       (catch-contract/message-contains?
+                        '("read-bytes!: contract violation"
+                          "expected: input-port?"
+                          "given: 42")
+                        (lambda ()
+                          (read-bytes! (make-bytes 3 0) 42)))
+                       (catch-contract/message-contains?
+                        '("read-bytes-avail!: contract violation"
+                          "expected: input-port?"
+                          "given: 42")
+                        (lambda ()
+                          (read-bytes-avail! (make-bytes 3 0) 42)))
+                       (catch-contract/message-contains?
+                        '("read-bytes-avail!*: contract violation"
+                          "expected: input-port?"
+                          "given: 42")
+                        (lambda ()
+                          (read-bytes-avail!* (make-bytes 3 0) 42)))
+                       (catch-contract/message-contains?
+                        '("read-string!: contract violation"
+                          "expected: input-port?"
+                          "given: 42")
+                        (lambda ()
+                          (read-string! (make-string 3 #\x) 42)))
+                       (catch-contract/message-contains?
+                        '("read-line: contract violation"
+                          "expected: input-port?"
+                          "given: 42")
+                        (lambda ()
+                          (read-line 42))))))
 
               (list "byte-ready?/basic"
                     (let ([port (open-input-bytes (bytes 65 66))])
@@ -8715,7 +8745,31 @@
                           "expected: input-port?"
                           "given: 42")
                         (lambda ()
-                          (peek-string 1 0 42))))))
+                          (peek-string 1 0 42)))
+                       (catch-contract/message-contains?
+                        '("peek-bytes!: contract violation"
+                          "expected: input-port?"
+                          "given: 42")
+                        (lambda ()
+                          (peek-bytes! (make-bytes 3 0) 0 42)))
+                       (catch-contract/message-contains?
+                        '("peek-bytes-avail!: contract violation"
+                          "expected: input-port?"
+                          "given: 42")
+                        (lambda ()
+                          (peek-bytes-avail! (make-bytes 3 0) 0 #f 42)))
+                       (catch-contract/message-contains?
+                        '("peek-bytes-avail!*: contract violation"
+                          "expected: input-port?"
+                          "given: 42")
+                        (lambda ()
+                          (peek-bytes-avail!* (make-bytes 3 0) 0 #f 42)))
+                       (catch-contract/message-contains?
+                        '("peek-string!: contract violation"
+                          "expected: input-port?"
+                          "given: 42")
+                        (lambda ()
+                          (peek-string! (make-string 3 #\x) 0 42))))))
               
               (list "read-byte/custom-port"
                     (let* ([base (open-input-bytes (bytes 70 71))]
