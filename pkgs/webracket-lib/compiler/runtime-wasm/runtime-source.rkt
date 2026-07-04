@@ -11,6 +11,7 @@
 (define-runtime-path wasm-data-path "../private/wasm-data.rkt")
 (define-runtime-path wasm-utils-path "../private/wasm-utils.rkt")
 (define-runtime-path immediates-path "../private/immediates.rkt")
+(define-runtime-path constant-bytes-path "constant-bytes.rkt")
 (define-runtime-path constant-registry-path "constant-registry.rkt")
 (define-runtime-path constant-strings-path "constant-strings.rkt")
 (define-runtime-path constant-symbols-path "constant-symbols.rkt")
@@ -98,6 +99,7 @@
         wasm-data-path
         wasm-utils-path
         immediates-path
+        constant-bytes-path
         constant-registry-path
         constant-strings-path
         constant-symbols-path
@@ -214,6 +216,7 @@
   (check-true (contains-path-suffix? fingerprint "runtime-primitives.rkt"))
   (check-true (contains-path-suffix? fingerprint "runtime-source.rkt"))
   (check-true (contains-path-suffix? fingerprint "shared-types.rkt"))
+  (check-true (contains-path-suffix? fingerprint "constant-bytes.rkt"))
   (check-true (contains-path-suffix? fingerprint "constant-registry.rkt"))
   (check-true (contains-path-suffix? fingerprint "constant-strings.rkt"))
   (check-true (contains-path-suffix? fingerprint "constant-symbols.rkt"))
