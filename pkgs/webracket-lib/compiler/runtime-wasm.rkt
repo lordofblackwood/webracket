@@ -29,17 +29,13 @@
                   forms->module)
          (only-in "runtime-wasm/runtime-analysis.rkt"
                   analyze-program-fragment
-                  analyze-stable-runtime
+                  analyze-stable-runtime/cached
                   program-driver-function-names
                   prune-runtime-module
-                  read-stable-runtime-analysis-cache
                   retained-runtime-sets
                   split-module-forms
-                  stable-runtime-analysis-cache-fingerprint
-                  stable-runtime-analysis-cache-path
                   stable-runtime-analysis-module
-                  write-runtime-primitive-report!
-                  write-stable-runtime-analysis-cache!)
+                  write-runtime-primitive-report!)
          (only-in "runtime-wasm/runtime-helper-index.rkt"
                   runtime-helper-index)
          (only-in "runtime-wasm/runtime-ffi.rkt"
@@ -1845,57 +1841,19 @@
       (stable-runtime-analysis-module runtime-only-module))
     (define program-only-forms
       program-forms-before-prune)
-    (define stable-runtime-cache-fingerprint
-      (stable-runtime-analysis-cache-fingerprint
+    (define stable-runtime-analysis
+      (analyze-stable-runtime/cached
        stable-runtime-module
        #:browser? (current-browser?)
        #:runtime-source-fingerprint (runtime-source-fingerprint)
        #:active-ffi-foreigns active-ffi-foreigns
        #:active-ffi-imports-wat active-ffi-imports-wat
-       #:active-ffi-funcs-wat active-ffi-funcs-wat))
-    (runtime-metric-add! "runtime:stable-runtime-fingerprint"
-                         (format "~x"
-                                 (abs (equal-hash-code
-                                       stable-runtime-cache-fingerprint))))
-    (define stable-runtime-cache-path
-      (stable-runtime-analysis-cache-path
-       stable-runtime-cache-fingerprint
-       #:cache-root (current-runtime-cache-dir)))
-    (runtime-metric-add! "tree-shake:runtime-analysis-v2-cache-enabled?"
-                         (if stable-runtime-cache-path "yes" "no"))
-    (define cached-stable-runtime-analysis
-      (time-runtime-step
-       "tree-shake:runtime-analysis-v2-cache-lookup"
-       (lambda ()
-         (read-stable-runtime-analysis-cache stable-runtime-cache-path
-                                             stable-runtime-cache-fingerprint))))
-    (define stable-runtime-analysis
-      (cond
-        [cached-stable-runtime-analysis
-         (runtime-metric-add! "tree-shake:runtime-analysis-v2-cache-hit?" "yes")
-         (time-runtime-step
-          "tree-shake:runtime-analysis-v2-cache-hit"
-          (lambda ()
-            cached-stable-runtime-analysis))]
-        [else
-         (runtime-metric-add! "tree-shake:runtime-analysis-v2-cache-hit?" "no")
-         (define computed-stable-runtime-analysis
-           (time-runtime-step
-            "tree-shake:analyze-stable-runtime"
-            (lambda ()
-              (analyze-stable-runtime
-               stable-runtime-module
-               #:primitive-func->symbol primitive-func->symbol
-               #:primitive-global->symbol primitive-global->symbol
-               #:described-primitives described-primitives
-               #:time-runtime-step time-runtime-step))))
-         (time-runtime-step
-          "tree-shake:runtime-analysis-v2-cache-write"
-          (lambda ()
-            (write-stable-runtime-analysis-cache! stable-runtime-cache-path
-                                                  stable-runtime-cache-fingerprint
-                                                  computed-stable-runtime-analysis)))
-         computed-stable-runtime-analysis]))
+       #:active-ffi-funcs-wat active-ffi-funcs-wat
+       #:cache-root (current-runtime-cache-dir)
+       #:primitive-func->symbol primitive-func->symbol
+       #:primitive-global->symbol primitive-global->symbol
+       #:described-primitives described-primitives
+       #:time-runtime-step time-runtime-step))
     (define program-analysis
       (time-runtime-step
        "tree-shake:analyze-program-fragment"

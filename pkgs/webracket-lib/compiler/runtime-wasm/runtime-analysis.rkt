@@ -1,6 +1,7 @@
 #lang racket
 
 (provide analyze-program-fragment
+         analyze-stable-runtime/cached
          analyze-stable-runtime
          list->eq-set
          primitive-graph-ref
@@ -22,6 +23,8 @@
          "../private/wasm-utils.rkt"
          "constants.rkt"
          "module-forms.rkt"
+         (only-in "runtime-metrics.rkt"
+                  runtime-metric-add!)
          file/sha1
          racket/fasl
          racket/file)
@@ -211,6 +214,77 @@
    (for/list ([form (in-list (cdr module))]
               #:when (stable-runtime-analysis-form? form))
      form)))
+
+;; analyze-stable-runtime/cached :
+;;   list? #:browser? boolean? #:runtime-source-fingerprint any/c
+;;         #:active-ffi-foreigns list? #:active-ffi-imports-wat list?
+;;         #:active-ffi-funcs-wat list? #:cache-root (or/c path-string? #f)
+;;         #:primitive-func->symbol hasheq? #:primitive-global->symbol hasheq?
+;;         #:described-primitives (listof symbol?)
+;;         [#:time-runtime-step (string? (-> any/c) -> any/c)] -> list?
+;;   Return stable runtime analysis, using the runtime-analysis cache when available.
+(define (analyze-stable-runtime/cached
+         stable-runtime-module
+         #:browser? browser?
+         #:runtime-source-fingerprint runtime-source-fingerprint
+         #:active-ffi-foreigns active-ffi-foreigns
+         #:active-ffi-imports-wat active-ffi-imports-wat
+         #:active-ffi-funcs-wat active-ffi-funcs-wat
+         #:cache-root cache-root
+         #:primitive-func->symbol primitive-func->symbol
+         #:primitive-global->symbol primitive-global->symbol
+         #:described-primitives described-primitives
+         #:time-runtime-step [time-runtime-step default-time-runtime-step])
+  (define stable-runtime-cache-fingerprint
+    (stable-runtime-analysis-cache-fingerprint
+     stable-runtime-module
+     #:browser? browser?
+     #:runtime-source-fingerprint runtime-source-fingerprint
+     #:active-ffi-foreigns active-ffi-foreigns
+     #:active-ffi-imports-wat active-ffi-imports-wat
+     #:active-ffi-funcs-wat active-ffi-funcs-wat))
+  (runtime-metric-add! "runtime:stable-runtime-fingerprint"
+                       (format "~x"
+                               (abs (equal-hash-code
+                                     stable-runtime-cache-fingerprint))))
+  (define stable-runtime-cache-path
+    (stable-runtime-analysis-cache-path
+     stable-runtime-cache-fingerprint
+     #:cache-root cache-root))
+  (runtime-metric-add! "tree-shake:runtime-analysis-v2-cache-enabled?"
+                       (if stable-runtime-cache-path "yes" "no"))
+  (define cached-stable-runtime-analysis
+    (time-runtime-step
+     "tree-shake:runtime-analysis-v2-cache-lookup"
+     (lambda ()
+       (read-stable-runtime-analysis-cache stable-runtime-cache-path
+                                           stable-runtime-cache-fingerprint))))
+  (cond
+    [cached-stable-runtime-analysis
+     (runtime-metric-add! "tree-shake:runtime-analysis-v2-cache-hit?" "yes")
+     (time-runtime-step
+      "tree-shake:runtime-analysis-v2-cache-hit"
+      (lambda ()
+        cached-stable-runtime-analysis))]
+    [else
+     (runtime-metric-add! "tree-shake:runtime-analysis-v2-cache-hit?" "no")
+     (define computed-stable-runtime-analysis
+       (time-runtime-step
+        "tree-shake:analyze-stable-runtime"
+        (lambda ()
+          (analyze-stable-runtime
+           stable-runtime-module
+           #:primitive-func->symbol primitive-func->symbol
+           #:primitive-global->symbol primitive-global->symbol
+           #:described-primitives described-primitives
+           #:time-runtime-step time-runtime-step))))
+     (time-runtime-step
+      "tree-shake:runtime-analysis-v2-cache-write"
+      (lambda ()
+        (write-stable-runtime-analysis-cache! stable-runtime-cache-path
+                                              stable-runtime-cache-fingerprint
+                                              computed-stable-runtime-analysis)))
+     computed-stable-runtime-analysis]))
 
 ;; walk-symbol-refs : any/c hasheq? -> (listof symbol?)
 ;;   Find symbolic references represented by keys in `symbol->value`.
@@ -716,7 +790,9 @@
       #:exists 'replace)))
 
 (module+ test
-  (require rackunit)
+  (require rackunit
+           (only-in "../private/parameters.rkt"
+                    current-runtime-metric-rows))
 
   (define split-sample-module
     '(module
@@ -785,6 +861,46 @@
 
   (check-equal? (primitive-graph-ref analysis 'runtime-root-primitives) '(p))
   (check-equal? (primitive-graph-ref analysis 'isolated-primitives) '(q))
+
+  (define cache-root
+    (make-temporary-file "runtime-analysis-cache-~a" 'directory))
+  (dynamic-wind
+    void
+    (lambda ()
+      (parameterize ([current-runtime-metric-rows '()])
+        (define first-analysis
+          (analyze-stable-runtime/cached
+           analysis-module
+           #:browser? #f
+           #:runtime-source-fingerprint '(test-runtime-source)
+           #:active-ffi-foreigns '()
+           #:active-ffi-imports-wat '()
+           #:active-ffi-funcs-wat '()
+           #:cache-root cache-root
+           #:primitive-func->symbol primitive-func->symbol
+           #:primitive-global->symbol primitive-global->symbol
+           #:described-primitives '(p q)))
+        (check-equal? (primitive-graph-ref first-analysis 'runtime-root-primitives)
+                      '(p))
+        (define second-analysis
+          (analyze-stable-runtime/cached
+           analysis-module
+           #:browser? #f
+           #:runtime-source-fingerprint '(test-runtime-source)
+           #:active-ffi-foreigns '()
+           #:active-ffi-imports-wat '()
+           #:active-ffi-funcs-wat '()
+           #:cache-root cache-root
+           #:primitive-func->symbol primitive-func->symbol
+           #:primitive-global->symbol primitive-global->symbol
+           #:described-primitives '(p q)))
+        (check-equal? second-analysis first-analysis)
+        (check-true
+         (for/or ([row (in-list (current-runtime-metric-rows))])
+           (equal? row
+                   '("tree-shake:runtime-analysis-v2-cache-hit?" "yes"))))))
+    (lambda ()
+      (delete-directory/files cache-root)))
 
   (define combined-analysis
     (append analysis
