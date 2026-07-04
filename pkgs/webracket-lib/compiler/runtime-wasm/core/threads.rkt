@@ -11,17 +11,20 @@
 (require "../core-helper.rkt")
 
 ;; thread-runtime-string-constants : (listof (list/c symbol? string?))
-;;   Declare string constants used by thread and thread-group helpers.
+;;   Declare string constants used by thread, thread-cell, and thread-group helpers.
 (define thread-runtime-string-constants
   '((thread?       "thread?")
+    (thread-cell?  "thread-cell?")
     (thread-group? "thread-group?")))
 
 ;; thread-runtime-symbol-constants : (listof symbol?)
-;;   Declare symbols used by thread and thread-group helpers.
+;;   Declare symbols used by thread, thread-cell, and thread-group helpers.
 (define thread-runtime-symbol-constants
   '(thread?
     thread-dead?
     thread-running?
+    thread-cell-ref
+    thread-cell-set!
     thread-group?
     make-thread-group
     current-thread-group))
@@ -93,6 +96,25 @@
                  (else (global.get $false))))))
 
 
+   ;; ensure-thread-cell : symbol? any/c -> thread-cell?
+   ;;   Check a thread-cell argument using the caller's `who` name.
+   (core-runtime-helper
+    '$ensure-thread-cell
+    "$ensure-thread-cell"
+    (lambda ()
+      `(func $ensure-thread-cell
+             (param $who (ref eq))
+             (param $v   (ref eq))
+             (result     (ref $ThreadCell))
+             (if (i32.eqz (ref.test (ref $ThreadCell) (local.get $v)))
+                 (then (call $raise-argument-error1
+                             (local.get $who)
+                             (global.get $string:thread-cell?)
+                             (local.get $v))
+                       (unreachable)))
+             (ref.cast (ref $ThreadCell) (local.get $v)))))
+
+
    ;; thread-cell-ref : thread-cell? -> any/c
    ;;   Return the current value for the single WebRacket thread.
    (core-runtime-helper
@@ -103,9 +125,9 @@
              (param $cell (ref eq))
              (result (ref eq))
              (struct.get $ThreadCell $current
-                         (block $ok (result (ref $ThreadCell))
-                           (br_on_cast $ok (ref eq) (ref $ThreadCell) (local.get $cell))
-                           (return (global.get $error)))))))
+                         (call $ensure-thread-cell
+                               (global.get $symbol:thread-cell-ref)
+                               (local.get $cell))))))
 
 
    ;; thread-cell-set! : thread-cell? any/c -> void?
@@ -120,9 +142,9 @@
              (result (ref eq))
              (local $tc (ref $ThreadCell))
              (local.set $tc
-                        (block $ok (result (ref $ThreadCell))
-                          (br_on_cast $ok (ref eq) (ref $ThreadCell) (local.get $cell))
-                          (return (global.get $error))))
+                        (call $ensure-thread-cell
+                              (global.get $symbol:thread-cell-set!)
+                              (local.get $cell)))
              (struct.set $ThreadCell $current (local.get $tc) (local.get $v))
              (global.get $void))))
 
@@ -264,6 +286,7 @@
 (define thread-runtime-only-helper-names
   '($make-thread-cell
     $thread-cell?
+    $ensure-thread-cell
     $thread-cell-ref
     $thread-cell-set!
     $current-thread

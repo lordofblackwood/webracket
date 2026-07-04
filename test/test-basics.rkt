@@ -9052,6 +9052,30 @@
                     (let ([cell (make-thread-cell 10 #t)])
                       (and (equal? (thread-cell? cell) #t)
                            (equal? (thread-cell-ref cell) 10))))
+              (list "thread-cell argument errors are catchable with who"
+                    (let ([catch-contract/who+expected+given?
+                           (lambda (who expected given thunk)
+                             (let ([message
+                                    (with-handlers ([exn:fail:contract?
+                                                     (lambda (exn)
+                                                       (exn-message exn))])
+                                      (thunk)
+                                      #f)])
+                               (and message
+                                    (string-contains? message who)
+                                    (string-contains? message expected)
+                                    (string-contains? message given))))])
+                      (and
+                       (catch-contract/who+expected+given?
+                        "thread-cell-ref"
+                        "thread-cell?"
+                        "#f"
+                        (lambda () (thread-cell-ref #f)))
+                       (catch-contract/who+expected+given?
+                        "thread-cell-set!"
+                        "thread-cell?"
+                        "#f"
+                        (lambda () (thread-cell-set! #f 'value))))))
               (list "uninterruptible lock basics"
                     (let ([lock (unsafe-make-uninterruptible-lock)])
                       (and (void? (unsafe-uninterruptible-lock-acquire lock))
