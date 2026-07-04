@@ -7405,6 +7405,31 @@
                             (equal? (port? out) #t)
                             (equal? (port? 42) #f))))
 
+              (list "input port constructor argument errors are catchable with who"
+                    (let ([catch-contract/message-contains?
+                           (lambda (parts thunk)
+                             (let ([message
+                                    (with-handlers ([exn:fail:contract?
+                                                     (lambda (exn)
+                                                       (exn-message exn))])
+                                      (thunk)
+                                      #f)])
+                               (and message
+                                    (andmap (lambda (part)
+                                              (string-contains? message part))
+                                            parts))))])
+                      (and
+                       (catch-contract/message-contains?
+                        '("open-input-bytes: contract violation"
+                          "expected: bytes?"
+                          "given: 42")
+                        (lambda () (open-input-bytes 42)))
+                       (catch-contract/message-contains?
+                        '("open-input-string: contract violation"
+                          "expected: string?"
+                          "given: 42")
+                        (lambda () (open-input-string 42))))))
+
               (list "file-position*/string-ports"
                     (let ([in  (open-input-string "λx")]
                           [out (open-output-string)])

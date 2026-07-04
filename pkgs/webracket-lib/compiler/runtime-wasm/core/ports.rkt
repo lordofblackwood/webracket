@@ -883,7 +883,11 @@
            (local.set $port-bs (ref.cast (ref $Bytes) (global.get $bytes:empty)))
            ;; --- Validate byte string argument ---
            (if (i32.eqz (ref.test (ref $Bytes) (local.get $bstr-raw)))
-               (then (call $raise-check-bytes (local.get $bstr-raw))))
+               (then (call $raise-argument-error1
+                           (global.get $symbol:open-input-bytes)
+                           (global.get $string:bytes?)
+                           (local.get $bstr-raw))
+                     (unreachable)))
            (local.set $bstr (ref.cast (ref $Bytes) (local.get $bstr-raw)))
            ;; --- Determine port name, honoring optional argument ---
            (local.set $name-val
@@ -937,7 +941,11 @@
 
            ;; --- Validate string argument ---
            (if (i32.eqz (ref.test (ref $String) (local.get $str-raw)))
-               (then (call $raise-check-string (local.get $str-raw))))
+               (then (call $raise-argument-error1
+                           (global.get $symbol:open-input-string)
+                           (global.get $string:string?)
+                           (local.get $str-raw))
+                     (unreachable)))
            (local.set $str (ref.cast (ref $String) (local.get $str-raw)))
            ;; --- Determine port name, honoring optional argument ---
            (local.set $name-val
