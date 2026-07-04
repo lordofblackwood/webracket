@@ -11,6 +11,11 @@
 ;;   Declare string constants used by box helpers and box errors.
 (define box-runtime-string-constants
   '((box?                      "box?")
+    (mutable-box?              "(and/c box? (not/c immutable?))")
+    (box-not-impersonator?     "(and/c box? (not impersonator?))")
+    (mutable-box-not-impersonator?
+     "(and/c box? (not immutable?) (not impersonator?))")
+    (weak-box?                 "weak-box?")
     (use-before-initialization "undefined; cannot use before initialization")))
 
 ;; box-base-runtime-only-helpers : (listof core-runtime-helper?)
@@ -123,6 +128,69 @@
    ;; https://docs.racket-lang.org/reference/boxes.html
 
    (core-runtime-helper
+    '$raise-box-expected/who
+    "$raise-box-expected/who"
+    (lambda ()
+      `(func $raise-box-expected/who
+             (param $who (ref eq))
+             (param $x   (ref eq))
+             (call $raise-argument-error1
+                   (local.get $who)
+                   (global.get $string:box?)
+                   (local.get $x)))))
+
+
+   (core-runtime-helper
+    '$raise-unbox*:box-expected
+    "$raise-unbox*:box-expected"
+    (lambda ()
+      `(func $raise-unbox*:box-expected
+             (param $x (ref eq))
+             (call $raise-argument-error1
+                   (global.get $symbol:unbox*)
+                   (global.get $string:box-not-impersonator?)
+                   (local.get $x)))))
+
+
+   (core-runtime-helper
+    '$raise-mutable-box-expected/who
+    "$raise-mutable-box-expected/who"
+    (lambda ()
+      `(func $raise-mutable-box-expected/who
+             (param $who (ref eq))
+             (param $x   (ref eq))
+             (call $raise-argument-error1
+                   (local.get $who)
+                   (global.get $string:mutable-box?)
+                   (local.get $x)))))
+
+
+   (core-runtime-helper
+    '$raise-set-box*!:mutable-box-expected
+    "$raise-set-box*!:mutable-box-expected"
+    (lambda ()
+      `(func $raise-set-box*!:mutable-box-expected
+             (param $x (ref eq))
+             (call $raise-argument-error1
+                   (global.get $symbol:set-box*!)
+                   (global.get $string:mutable-box-not-impersonator?)
+                   (local.get $x)))))
+
+
+   (core-runtime-helper
+    '$raise-weak-box-expected/who
+    "$raise-weak-box-expected/who"
+    (lambda ()
+      `(func $raise-weak-box-expected/who
+             (param $who (ref eq))
+             (param $x   (ref eq))
+             (call $raise-argument-error1
+                   (local.get $who)
+                   (global.get $string:weak-box?)
+                   (local.get $x)))))
+
+
+   (core-runtime-helper
     '$box?
     "$box?"
     (lambda ()
@@ -165,7 +233,10 @@
              (struct.get $Box $v
                          (block $ok (result (ref $Box))
                            (br_on_cast $ok (ref eq) (ref $Box) (local.get $b))
-                           (return (global.get $error)))))))
+                           (call $raise-box-expected/who
+                                 (global.get $symbol:unbox)
+                                 (local.get $b))
+                           (unreachable))))))
 
 
    ;; unbox* : (and/c box? (not/c impersonator?)) -> any/c
@@ -178,14 +249,11 @@
       `(func $unbox* (type $Prim1)
              (param $b (ref eq)) ;; non-impersonator box
              (result (ref eq))
-             (call $unbox (local.get $b)))))
-
-
-   (core-runtime-helper
-    '$raise-immutable-box
-    "$raise-immutable-box"
-    (lambda ()
-      `(func $raise-immutable-box (param $x (ref eq)) (unreachable))))
+             (struct.get $Box $v
+                         (block $ok (result (ref $Box))
+                           (br_on_cast $ok (ref eq) (ref $Box) (local.get $b))
+                           (call $raise-unbox*:box-expected (local.get $b))
+                           (unreachable))))))
 
 
    (core-runtime-helper
@@ -200,10 +268,16 @@
              (local.set $B
                         (block $ok (result (ref $Box))
                                (br_on_cast $ok (ref eq) (ref $Box) (local.get $b))
-                               (return (global.get $error))))
+                               (call $raise-mutable-box-expected/who
+                                     (global.get $symbol:set-box!)
+                                     (local.get $b))
+                               (unreachable)))
              ; 2. Check mutability
              (if (i32.ne (struct.get $Box $immutable (local.get $B)) (i32.const 0))
-                 (then (call $raise-immutable-box (local.get $B)) (unreachable)))
+                 (then (call $raise-mutable-box-expected/who
+                             (global.get $symbol:set-box!)
+                             (local.get $B))
+                       (unreachable)))
              ; 3. Set the contents
              (struct.set $Box $v (local.get $B) (local.get $v))
              ; 4. Return `void`
@@ -211,7 +285,8 @@
 
 
    ;; set-box*! : (and/c box? (not/c immutable?) (not/c impersonator?)) any/c -> void?
-   ;;   WebRacket has no box impersonators yet, so this follows set-box!.
+   ;;   WebRacket has no box impersonators yet, so this follows set-box!
+   ;;   behavior while preserving set-box*! in contract errors.
    (core-runtime-helper
     '$set-box*!
     "$set-box*!"
@@ -220,7 +295,19 @@
              (param $b (ref eq)) ;; mutable non-impersonator box
              (param $v (ref eq)) ;; replacement value
              (result (ref eq))
-             (call $set-box! (local.get $b) (local.get $v)))))
+             (local $B (ref $Box))
+             (local.set $B
+                        (block $ok (result (ref $Box))
+                               (br_on_cast $ok (ref eq) (ref $Box) (local.get $b))
+                               (call $raise-set-box*!:mutable-box-expected
+                                     (local.get $b))
+                               (unreachable)))
+             (if (i32.ne (struct.get $Box $immutable (local.get $B)) (i32.const 0))
+                 (then (call $raise-set-box*!:mutable-box-expected
+                             (local.get $B))
+                       (unreachable)))
+             (struct.set $Box $v (local.get $B) (local.get $v))
+             (global.get $void))))
 
 
    ;; box-cas! : (and/c box? mutable?) any/c any/c -> boolean?
@@ -238,9 +325,15 @@
              (local.set $B
                         (block $ok (result (ref $Box))
                                (br_on_cast $ok (ref eq) (ref $Box) (local.get $b))
-                               (return (global.get $error))))
+                               (call $raise-mutable-box-expected/who
+                                     (global.get $symbol:box-cas!)
+                                     (local.get $b))
+                               (unreachable)))
              (if (i32.ne (struct.get $Box $immutable (local.get $B)) (i32.const 0))
-                 (then (call $raise-immutable-box (local.get $B)) (unreachable)))
+                 (then (call $raise-mutable-box-expected/who
+                             (global.get $symbol:box-cas!)
+                             (local.get $B))
+                       (unreachable)))
              (if (result (ref eq))
                  (ref.eq (call $eq? (struct.get $Box $v (local.get $B)) (local.get $old))
                          (global.get $true))
@@ -307,7 +400,10 @@
              (struct.get $WeakBox $v
                          (block $ok (result (ref $WeakBox))
                            (br_on_cast $ok (ref eq) (ref $WeakBox) (local.get $wb))
-                           (return (global.get $error)))))))
+                           (call $raise-weak-box-expected/who
+                                 (global.get $symbol:weak-box-value)
+                                 (local.get $wb))
+                           (unreachable))))))
 ))
 
 ;; box-base-runtime-only-helper-names : (listof symbol?)
@@ -321,12 +417,16 @@
     $set-boxed!
     $initialize-boxed!
     $boxed?
+    $raise-box-expected/who
+    $raise-unbox*:box-expected
+    $raise-mutable-box-expected/who
+    $raise-set-box*!:mutable-box-expected
+    $raise-weak-box-expected/who
     $box?
     $box
     $box-immutable
     $unbox
     $unbox*
-    $raise-immutable-box
     $set-box!
     $set-box*!
     $box-cas!

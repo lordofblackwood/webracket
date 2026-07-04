@@ -478,6 +478,45 @@
                     (let ([b (box 1)])
                       (and (unsafe-box*-cas! b 1 2)
                            (equal? (unbox b) 2))))
+              (list "box operation argument errors are catchable with who"
+                    (let ([catch-contract/who+expected?
+                           (lambda (who expected thunk)
+                             (let ([message
+                                    (with-handlers ([exn:fail:contract?
+                                                     (lambda (exn)
+                                                       (exn-message exn))])
+                                      (thunk)
+                                      #f)])
+                               (and (string? message)
+                                    (string-contains? message who)
+                                    (string-contains? message expected))))])
+                      (and (catch-contract/who+expected? "unbox"
+                                                         "box?"
+                                                         (lambda () (unbox 42)))
+                           (catch-contract/who+expected? "unbox*"
+                                                         "(and/c box? (not impersonator?))"
+                                                         (lambda () (unbox* 42)))
+                           (catch-contract/who+expected? "set-box!"
+                                                         "(and/c box? (not/c immutable?))"
+                                                         (lambda () (set-box! 42 'x)))
+                           (catch-contract/who+expected? "set-box!"
+                                                         "(and/c box? (not/c immutable?))"
+                                                         (lambda () (set-box! (box-immutable 'x) 'y)))
+                           (catch-contract/who+expected? "set-box*!"
+                                                         "(and/c box? (not immutable?) (not impersonator?))"
+                                                         (lambda () (set-box*! 42 'x)))
+                           (catch-contract/who+expected? "set-box*!"
+                                                         "(and/c box? (not immutable?) (not impersonator?))"
+                                                         (lambda () (set-box*! (box-immutable 'x) 'y)))
+                           (catch-contract/who+expected? "box-cas!"
+                                                         "(and/c box? (not/c immutable?))"
+                                                         (lambda () (box-cas! 42 'old 'new)))
+                           (catch-contract/who+expected? "box-cas!"
+                                                         "(and/c box? (not/c immutable?))"
+                                                         (lambda () (box-cas! (box-immutable 'old) 'old 'new)))
+                           (catch-contract/who+expected? "weak-box-value"
+                                                         "weak-box?"
+                                                         (lambda () (weak-box-value 42))))))
               (list "unsafe-root-continuation-prompt-tag placeholder"
                     (eq? (unsafe-root-continuation-prompt-tag)
                          (unsafe-root-continuation-prompt-tag)))
