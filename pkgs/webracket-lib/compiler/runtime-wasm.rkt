@@ -30,12 +30,10 @@
          (only-in "runtime-wasm/runtime-analysis.rkt"
                   analyze-program-fragment
                   analyze-stable-runtime
-                  primitive-refs-for-functions
-                  primitive-retained-set
                   program-driver-function-names
                   prune-runtime-module
                   read-stable-runtime-analysis-cache
-                  retained-function-set
+                  retained-runtime-sets
                   split-module-forms
                   stable-runtime-analysis-cache-fingerprint
                   stable-runtime-analysis-cache-path
@@ -1920,23 +1918,10 @@
       (time-runtime-step
        "tree-shake:retain-closure"
        (λ ()
-         (if (current-tree-shake?)
-             (let loop ([retained-primitives (primitive-retained-set analysis)])
-               (define retained-functions
-                 (retained-function-set
-                  analysis
-                  retained-primitives
-                  #:primitive-func->symbol primitive-func->symbol))
-               (define next-primitives
-                 (sort (remove-duplicates
-                        (append retained-primitives
-                                (primitive-refs-for-functions analysis retained-functions)))
-                       symbol<?))
-               (if (equal? next-primitives retained-primitives)
-                   (values retained-primitives retained-functions)
-                   (loop next-primitives)))
-             (values (sort described-primitives symbol<?)
-                     '())))))
+         (retained-runtime-sets analysis
+                                described-primitives
+                                (current-tree-shake?)
+                                primitive-func->symbol))))
     (runtime-record-tree-shake-retention-metrics! retained-primitives
                                                   retained-functions)
     (time-runtime-step

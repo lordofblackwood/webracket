@@ -10,6 +10,7 @@
          prune-runtime-module
          read-stable-runtime-analysis-cache
          retained-function-set
+         retained-runtime-sets
          split-module-forms
          stable-runtime-analysis-cache-fingerprint
          stable-runtime-analysis-cache-path
@@ -567,6 +568,30 @@
                         rest)
                 seen)])])))
 
+;; retained-runtime-sets : list? (listof symbol?) boolean? hasheq? -> (values list? list?)
+;;   Return retained primitive and runtime function sets for tree-shaking.
+(define (retained-runtime-sets analysis
+                               described-primitives
+                               tree-shake?
+                               primitive-func->symbol)
+  (if tree-shake?
+      (let loop ([retained-primitives (primitive-retained-set analysis)])
+        (define retained-functions
+          (retained-function-set
+           analysis
+           retained-primitives
+           #:primitive-func->symbol primitive-func->symbol))
+        (define next-primitives
+          (sort (remove-duplicates
+                 (append retained-primitives
+                         (primitive-refs-for-functions analysis retained-functions)))
+                symbol<?))
+        (if (equal? next-primitives retained-primitives)
+            (values retained-primitives retained-functions)
+            (loop next-primitives)))
+      (values (sort described-primitives symbol<?)
+              '())))
+
 ;; prune-runtime-module :
 ;;   list? (listof symbol?) (listof symbol?) #:program-function-names list?
 ;;         #:program-driver-function-names list? #:primitive-global->symbol hasheq?
@@ -767,6 +792,24 @@
                   (cons 'program-root-functions '()))))
 
   (check-equal? (primitive-retained-set combined-analysis) '(p q))
+
+  (define-values (retained-primitives retained-functions)
+    (retained-runtime-sets combined-analysis
+                           '(q p)
+                           #t
+                           primitive-func->symbol))
+  (check-equal? retained-primitives '(p q))
+  (check-not-false (member '$root retained-functions))
+  (check-not-false (member '$helper retained-functions))
+  (check-not-false (member '$p retained-functions))
+
+  (define-values (unshaken-primitives unshaken-functions)
+    (retained-runtime-sets combined-analysis
+                           '(q p)
+                           #f
+                           primitive-func->symbol))
+  (check-equal? unshaken-primitives '(p q))
+  (check-equal? unshaken-functions '())
 
   (define pruned-module
     (prune-runtime-module
