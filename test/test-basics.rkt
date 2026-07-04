@@ -8644,6 +8644,87 @@
                            (equal? (get-output-bytes port)
                                    (subbytes data 1 3)))))
 
+              (list "byte port range errors are catchable with who"
+                    (let ([catch-range/who+reason+index?
+                           (lambda (who reason index-line value-line thunk)
+                             (let ([message
+                                    (with-handlers ([exn:fail:contract?
+                                                     (lambda (exn)
+                                                       (exn-message exn))])
+                                      (thunk)
+                                      #f)])
+                               (and message
+                                    (string-contains? message who)
+                                    (string-contains? message reason)
+                                    (string-contains? message index-line)
+                                    (string-contains? message "valid range: [0, 3]")
+                                    (string-contains? message value-line))))]
+                          [catch-contract/who+expected+given?
+                           (lambda (who expected given thunk)
+                             (let ([message
+                                    (with-handlers ([exn:fail:contract?
+                                                     (lambda (exn)
+                                                       (exn-message exn))])
+                                      (thunk)
+                                      #f)])
+                               (and message
+                                    (string-contains? message who)
+                                    (string-contains? message expected)
+                                    (string-contains? message given))))])
+                      (and
+                       (catch-range/who+reason+index?
+                        "write-bytes"
+                        "starting index is out of range"
+                        "starting index: 4"
+                        "byte string: #\"abc\""
+                        (lambda () (write-bytes #"abc" (open-output-bytes) 4)))
+                       (catch-range/who+reason+index?
+                        "read-bytes-avail!"
+                        "ending index is out of range"
+                        "ending index: 4"
+                        "byte string:"
+                        (lambda ()
+                          (read-bytes-avail! (make-bytes 3 0)
+                                             (open-input-bytes #"abc")
+                                             1
+                                             4)))
+                       (catch-range/who+reason+index?
+                        "peek-bytes-avail!"
+                        "ending index is out of range"
+                        "ending index: 4"
+                        "byte string:"
+                        (lambda ()
+                          (peek-bytes-avail! (make-bytes 3 0)
+                                             0
+                                             #f
+                                             (open-input-bytes #"abc")
+                                             1
+                                             4)))
+                       (catch-contract/who+expected+given?
+                        "write-bytes"
+                        "exact-nonnegative-integer?"
+                        "given: -1"
+                        (lambda () (write-bytes #"abc" (open-output-bytes) -1)))
+                       (catch-contract/who+expected+given?
+                        "read-bytes-avail!*"
+                        "exact-nonnegative-integer?"
+                        "given: -1"
+                        (lambda ()
+                          (read-bytes-avail!* (make-bytes 3 0)
+                                              (open-input-bytes #"abc")
+                                              -1)))
+                       (catch-contract/who+expected+given?
+                        "peek-bytes-avail!*"
+                        "exact-nonnegative-integer?"
+                        "given: -1"
+                        (lambda ()
+                          (peek-bytes-avail!* (make-bytes 3 0)
+                                              -1
+                                              #f
+                                              (open-input-bytes #"abc")
+                                              0
+                                              3))))))
+
               (list "write-string/basic"
                     (let* ([port (open-output-string)]
                            [count (write-string "hello" port)])

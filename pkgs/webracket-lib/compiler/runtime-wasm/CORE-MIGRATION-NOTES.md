@@ -90,8 +90,14 @@ Current behavior:
 - The string-buffer paths for `read-string!`, `peek-string!`, and
   `write-string` now use signed fixnum decoding and raise caller-specific
   `exact-nonnegative-integer?` contract errors for negative indexes.
-- Byte-oriented paths such as `read-bytes!`, `peek-bytes!`, `write-bytes`,
-  and `get-output-bytes` still need the same treatment.
+- The byte-buffer paths for `read-bytes!`, `read-bytes-avail!`,
+  `read-bytes-avail!*`, `peek-bytes!`, `peek-bytes-avail!`,
+  `peek-bytes-avail!*`, and `write-bytes` now use signed fixnum decoding and
+  raise caller-specific index/range errors.
+- `get-output-bytes` still has special port-content range messages and needs
+  a focused follow-up. Higher-level peek wrappers such as `peek-bytes` and
+  `peek-string` also still use older unsigned/fixnum checks for their count
+  and skip arguments.
 
 Follow-up:
 
