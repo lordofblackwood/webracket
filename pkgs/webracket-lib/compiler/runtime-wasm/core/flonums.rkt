@@ -4,11 +4,64 @@
          flonum-global-forms
          flonum-initializer-forms
          flonum-runtime-helper-forms
+         flonum-runtime-string-constants
+         flonum-runtime-symbol-constants
          flonum-runtime-only-helpers)
 
 (require "../core-helper.rkt"
          (only-in "../../private/wasm-utils.rkt"
                   Undefined))
+
+;; flonum-runtime-string-constants : (listof (list/c symbol? string?))
+;;   Declare string constants used by flonum helpers and flonum errors.
+(define flonum-runtime-string-constants
+  '((flonum?                      "flonum?")
+    (flonum-integer?              "(and/c flonum? integer?)")
+    (flonum-error:colon-space     ": ")
+    (fl->fx-error:result-for      "result for ")
+    (fl->fx-error:outside-fixnum  " would be outside of fixnum range")))
+
+;; flonum-runtime-symbol-constants : (listof symbol?)
+;;   Declare symbols used by flonum helpers and errors.
+(define flonum-runtime-symbol-constants
+  '(fx->fl
+    ->fl
+    fl->fx
+    fl->exact-integer
+    fl+
+    fl-
+    fl*
+    fl/
+    fl=
+    fl<
+    fl>
+    fl<=
+    fl>=
+    flabs
+    flround
+    flfloor
+    flceiling
+    fltruncate
+    flsingle
+    flsin
+    flcos
+    fltan
+    flasin
+    flacos
+    flatan
+    flsinh
+    flcosh
+    fltanh
+    flasinh
+    flacosh
+    flatanh
+    fllog
+    flexp
+    flsqrt
+    flexpt
+    flbit-field
+    flmin
+    flmax))
 
 ;; flonum-global-forms : (listof datum?)
 ;;   Declare globals for commonly used flonum constants.
@@ -104,6 +157,28 @@
 (define (flonum-unsafe-name name)
   (string->symbol (format "$unsafe-~a" name)))
 
+;; wasm-name->runtime-symbol : symbol? -> symbol?
+;;   Convert a Wasm helper name such as `$fl+` to the public `fl+` symbol.
+(define (wasm-name->runtime-symbol name)
+  (define s (symbol->string name))
+  (if (string-prefix? s "$")
+      (string->symbol (substring s 1))
+      name))
+
+;; wasm-name->symbol-global : symbol? -> symbol?
+;;   Convert a Wasm helper name to the matching `$symbol:...` global.
+(define (wasm-name->symbol-global name)
+  (string->symbol
+   (format "$symbol:~a" (wasm-name->runtime-symbol name))))
+
+;; flonum-helper-who-symbol-global : symbol? -> symbol?
+;;   Return the user-facing `who` symbol global for a flonum helper.
+(define (flonum-helper-who-symbol-global name)
+  (case name
+    [($flmin/2) '$symbol:flmin]
+    [($flmax/2) '$symbol:flmax]
+    [else       (wasm-name->symbol-global name)]))
+
 ;; flonum-math-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for flonum math helpers.
 (define flonum-math-runtime-only-helper-names
@@ -153,10 +228,14 @@
             (result (ref eq))
             ;; Type checks
             (if (i32.eqz (ref.test (ref $Flonum) (local.get $x)))
-                (then (call $raise-argument-error:flonum-expected (local.get $x))
+                (then (call $raise-argument-error:flonum-expected
+                            (global.get ,(flonum-helper-who-symbol-global name))
+                            (local.get $x))
                       (unreachable)))
             (if (i32.eqz (ref.test (ref $Flonum) (local.get $y)))
-                (then (call $raise-argument-error:flonum-expected (local.get $y))
+                (then (call $raise-argument-error:flonum-expected
+                            (global.get ,(flonum-helper-who-symbol-global name))
+                            (local.get $y))
                       (unreachable)))
             ;; Compute and box result
             (struct.new $Flonum
@@ -184,7 +263,9 @@
             ,@(if unsafe?
                   '()
                   `((if (i32.eqz (ref.test (ref $Flonum) (local.get $a)))
-                        (then (call $raise-argument-error:flonum-expected (local.get $a))
+                        (then (call $raise-argument-error:flonum-expected
+                                    (global.get ,(flonum-helper-who-symbol-global wasm-name))
+                                    (local.get $a))
                               (unreachable)))))
             (local.set $a/fl (ref.cast (ref $Flonum) (local.get $a)))
             (local.set $a/f64 (struct.get $Flonum $v (local.get $a/fl)))
@@ -212,10 +293,14 @@
             ,@(if unsafe?
                   '()
                   `((if (i32.eqz (ref.test (ref $Flonum) (local.get $a)))
-                        (then (call $raise-argument-error:flonum-expected (local.get $a))
+                        (then (call $raise-argument-error:flonum-expected
+                                    (global.get ,(flonum-helper-who-symbol-global wasm-name))
+                                    (local.get $a))
                               (unreachable)))
                     (if (i32.eqz (ref.test (ref $Flonum) (local.get $b)))
-                        (then (call $raise-argument-error:flonum-expected (local.get $b))
+                        (then (call $raise-argument-error:flonum-expected
+                                    (global.get ,(flonum-helper-who-symbol-global wasm-name))
+                                    (local.get $b))
                               (unreachable)))))
             (local.set $a/fl (ref.cast (ref $Flonum) (local.get $a)))
             (local.set $b/fl (ref.cast (ref $Flonum) (local.get $b)))
@@ -237,10 +322,14 @@
             (result (ref eq))
             ;; Type checks
             (if (i32.eqz (ref.test (ref $Flonum) (local.get $x)))
-                (then (call $raise-argument-error:flonum-expected (local.get $x))
+                (then (call $raise-argument-error:flonum-expected
+                            (global.get ,(flonum-helper-who-symbol-global flname))
+                            (local.get $x))
                       (unreachable)))
             (if (i32.eqz (ref.test (ref $Flonum) (local.get $y)))
-                (then (call $raise-argument-error:flonum-expected (local.get $y))
+                (then (call $raise-argument-error:flonum-expected
+                            (global.get ,(flonum-helper-who-symbol-global flname))
+                            (local.get $y))
                       (unreachable)))
             ;; Compute and box result
             (if (result (ref eq))
@@ -271,10 +360,14 @@
             ,@(if unsafe?
                   '()
                   `((if (i32.eqz (ref.test (ref $Flonum) (local.get $a)))
-                        (then (call $raise-argument-error:flonum-expected (local.get $a))
+                        (then (call $raise-argument-error:flonum-expected
+                                    (global.get ,(flonum-helper-who-symbol-global name))
+                                    (local.get $a))
                               (unreachable)))
                     (if (i32.eqz (ref.test (ref $Flonum) (local.get $b)))
-                        (then (call $raise-argument-error:flonum-expected (local.get $b))
+                        (then (call $raise-argument-error:flonum-expected
+                                    (global.get ,(flonum-helper-who-symbol-global name))
+                                    (local.get $b))
                               (unreachable)))))
             (local.set $a/fl (ref.cast (ref $Flonum) (local.get $a)))
             (local.set $b/fl (ref.cast (ref $Flonum) (local.get $b)))
@@ -298,7 +391,9 @@
             ,@(if unsafe?
                   '()
                   `((if (i32.eqz (ref.test (ref $Flonum) (local.get $x0)))
-                        (then (call $raise-argument-error:flonum-expected (local.get $x0))
+                        (then (call $raise-argument-error:flonum-expected
+                                    (global.get ,(flonum-helper-who-symbol-global name))
+                                    (local.get $x0))
                               (unreachable)))))
             (local.set $best (local.get $x0))
             (block $done
@@ -309,7 +404,9 @@
                          ,@(if unsafe?
                                '()
                                `((if (i32.eqz (ref.test (ref $Flonum) (local.get $fx)))
-                                     (then (call $raise-argument-error:flonum-expected (local.get $fx))
+                                     (then (call $raise-argument-error:flonum-expected
+                                                 (global.get ,(flonum-helper-who-symbol-global name))
+                                                 (local.get $fx))
                                            (unreachable)))))
                          (local.set $best (call ,cmp (local.get $best) (local.get $fx)))
                          (local.set $xs (struct.get $Pair $d (local.get $node)))
@@ -372,14 +469,14 @@
            (result   (ref eq))  ; a $Flonum
 
            (local $v/i32 i32)
-           ;; Check that v is a fixnum (ref i31) and has low bit 0
-           (if (i32.eqz (ref.test (ref i31) (local.get $v)))
-               (then (call $raise-check-fixnum (local.get $v))
+           ;; Check that v is a fixnum (ref i31) and has low bit 0.
+           (if (i32.eqz (call $fixnum?/i32 (local.get $v)))
+               (then (call $raise-argument-error1
+                           (global.get $symbol:fx->fl)
+                           (global.get $string:fixnum?)
+                           (local.get $v))
                      (unreachable)))
            (local.set $v/i32 (i31.get_s (ref.cast (ref i31) (local.get $v))))
-           (if (i32.and (local.get $v/i32) (i32.const 1))
-               (then (call $raise-check-fixnum (local.get $v))
-                     (unreachable)))
            ;; Convert fixnum to flonum
            (struct.new $Flonum
                        (i32.const 0)                             ;; hash = 0
@@ -388,9 +485,42 @@
      (func $->fl (type $Prim1)
            (param $v (ref eq))
            (result (ref eq))
-           (call $fx->fl (local.get $v)))
 
-     (func $raise-fl->fx (param $x (ref eq)) (unreachable))
+           (if (ref.eq (call $exact-integer? (local.get $v)) (global.get $false))
+               (then (call $raise-argument-error1
+                           (global.get $symbol:->fl)
+                           (global.get $string:exact-integer?)
+                           (local.get $v))
+                     (unreachable)))
+           (call $fx->fl/precise (local.get $v)))
+
+     (func $raise-fl->fx
+           (param $x (ref eq))
+
+           (local $out     (ref $GrowableArray))
+           (local $message (ref $String))
+
+           (local.set $out
+                      (call $make-growable-array (i32.const 5)))
+           (call $growable-array-add! (local.get $out)
+                 (call $format/display (global.get $symbol:fl->fx)))
+           (call $growable-array-add! (local.get $out)
+                 (global.get $string:flonum-error:colon-space))
+           (call $growable-array-add! (local.get $out)
+                 (global.get $string:fl->fx-error:result-for))
+           (call $growable-array-add! (local.get $out)
+                 (call $format/display (local.get $x)))
+           (call $growable-array-add! (local.get $out)
+                 (global.get $string:fl->fx-error:outside-fixnum))
+           (local.set $message
+                      (call $growable-array-of-strings->string (local.get $out)))
+
+           (call $raise
+                 (call $exn:fail:contract/make
+                       (local.get $message)
+                       (call $current-continuation-marks (global.get $missing)))
+                 (global.get $true))
+           (unreachable))
 
      (func $fl->fx (type $Prim1)
            (param $v (ref eq))
@@ -403,7 +533,9 @@
 
            ;; Check that v is a flonum
            (if (i32.eqz (ref.test (ref $Flonum) (local.get $v)))
-               (then (call $raise-check-flonum (local.get $v))
+               (then (call $raise-check-flonum
+                           (global.get $symbol:fl->fx)
+                           (local.get $v))
                      (unreachable)))
            (local.set $v/fl  (ref.cast (ref $Flonum) (local.get $v)))
            (local.set $x/f64 (struct.get $Flonum $v (local.get $v/fl)))
@@ -422,7 +554,13 @@
            (local.set $i32 (i32.trunc_f64_s (local.get $t/f64)))
            (ref.i31 (i32.shl (local.get $i32) (i32.const 1))))
 
-     (func $raise-fl->exact-integer (param $x (ref eq)) (unreachable))
+     (func $raise-fl->exact-integer
+           (param $x (ref eq))
+           (call $raise-argument-error1
+                 (global.get $symbol:fl->exact-integer)
+                 (global.get $string:flonum-integer?)
+                 (local.get $x))
+           (unreachable))
 
      (func $fl->exact-integer (type $Prim1)
            (param $v (ref eq))
@@ -435,7 +573,7 @@
 
            ;; Check that v is a flonum
            (if (i32.eqz (ref.test (ref $Flonum) (local.get $v)))
-               (then (call $raise-check-flonum (local.get $v))
+               (then (call $raise-fl->exact-integer (local.get $v))
                      (unreachable)))
            (local.set $v/fl  (ref.cast (ref $Flonum) (local.get $v)))
            (local.set $x/f64 (struct.get $Flonum $v (local.get $v/fl)))
@@ -478,7 +616,14 @@
                            (struct.get $Flonum $v
                                        (ref.cast (ref $Flonum) (local.get $y))))))
 
-      (func $raise-argument-error:flonum-expected (unreachable))))
+      (func $raise-argument-error:flonum-expected
+            (param $who (ref eq))
+            (param $x   (ref eq))
+            (call $raise-argument-error1
+                  (local.get $who)
+                  (global.get $string:flonum?)
+                  (local.get $x))
+            (unreachable))))
    (for/list ([name    '($fl+    $fl-    $fl*)]
               [flbinop '(f64.add f64.sub f64.mul)])
      (flonum-binary-arithmetic-runtime-helper name flbinop))
@@ -518,7 +663,14 @@
                          (struct.get $Flonum $v (local.get $y)))))
 
 
-      (func $raise-check-flonum (unreachable))
+      (func $raise-check-flonum
+            (param $who (ref eq))
+            (param $x   (ref eq))
+            (call $raise-argument-error1
+                  (local.get $who)
+                  (global.get $string:flonum?)
+                  (local.get $x))
+            (unreachable))
 
       (func $fl/ (type $Prim2)
             (param $x (ref eq))
@@ -531,10 +683,14 @@
             (local $y/f64 f64)
             ;; Type checks
             (if (i32.eqz (ref.test (ref $Flonum) (local.get $x)))
-                (then (call $raise-check-flonum (local.get $x))
+                (then (call $raise-check-flonum
+                            (global.get $symbol:fl/)
+                            (local.get $x))
                       (unreachable)))
             (if (i32.eqz (ref.test (ref $Flonum) (local.get $y)))
-                (then (call $raise-check-flonum (local.get $y))
+                (then (call $raise-check-flonum
+                            (global.get $symbol:fl/)
+                            (local.get $y))
                       (unreachable)))
             ;; Cast and extract
             (local.set $x/fl  (ref.cast (ref $Flonum) (local.get $x)))
@@ -627,7 +783,9 @@
 
             ;; Validate flonum argument
             (if (i32.eqz (ref.test (ref $Flonum) (local.get $a)))
-                (then (call $raise-argument-error:flonum-expected (local.get $a))
+                (then (call $raise-argument-error:flonum-expected
+                            (global.get $symbol:flbit-field)
+                            (local.get $a))
                       (unreachable)))
             (local.set $fl (ref.cast (ref $Flonum) (local.get $a)))
             (local.set $bits (i64.reinterpret_f64 (struct.get $Flonum $v (local.get $fl))))

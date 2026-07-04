@@ -1322,7 +1322,46 @@
                           (fl= (flexpt 2.0 3.0) 8.0))
                     (list "flrandom"
                           (let ([v (flrandom)])
-                            (and (flonum? v) (> v 0.0) (< v 1.0)))))
+                            (and (flonum? v) (> v 0.0) (< v 1.0))))
+                    (list "flonum operator errors are catchable with who"
+                          (let ([catch-contract/who+expected+given?
+                                 (lambda (who expected given thunk)
+                                   (let ([message
+                                          (with-handlers ([exn:fail:contract?
+                                                           (lambda (exn)
+                                                             (exn-message exn))])
+                                            (thunk)
+                                            #f)])
+                                     (and message
+                                          (string-contains? message who)
+                                          (string-contains? message expected)
+                                          (string-contains? message given))))])
+                            (and
+                             (catch-contract/who+expected+given?
+                              "fl+"
+                              "flonum?"
+                              "given: 1"
+                              (lambda () (fl+ 1.0 1)))
+                             (catch-contract/who+expected+given?
+                              "fl/"
+                              "flonum?"
+                              "given: 1"
+                              (lambda () (fl/ 1.0 1)))
+                             (catch-contract/who+expected+given?
+                              "flabs"
+                              "flonum?"
+                              "given: 1"
+                              (lambda () (flabs 1)))
+                             (catch-contract/who+expected+given?
+                              "fl="
+                              "flonum?"
+                              "given: 1"
+                              (lambda () (fl= 1.0 1)))
+                             (catch-contract/who+expected+given?
+                              "flmin"
+                              "flonum?"
+                              "given: 1"
+                              (lambda () (flmin 1.0 1)))))))
                    )
              
              (list "4.3.4 Fixnums"
@@ -1441,6 +1480,52 @@
                           (equal? (fl->fx -0.1) 0))
                     (list "fl->exact-integer"
                           (equal? (fl->exact-integer 3.0) 3))
+                    (list "flonum conversion errors are catchable with who"
+                          (let ([catch-contract/who+expected+given?
+                                 (lambda (who expected given thunk)
+                                   (let ([message
+                                          (with-handlers ([exn:fail:contract?
+                                                           (lambda (exn)
+                                                             (exn-message exn))])
+                                            (thunk)
+                                            #f)])
+                                     (and message
+                                          (string-contains? message who)
+                                          (string-contains? message expected)
+                                          (string-contains? message given))))])
+                            (and
+                             (catch-contract/who+expected+given?
+                              "fx->fl"
+                              "fixnum?"
+                              "given: 1.0"
+                              (lambda () (fx->fl 1.0)))
+                             (catch-contract/who+expected+given?
+                              "->fl"
+                              "exact-integer?"
+                              "given: 1.0"
+                              (lambda () (->fl 1.0)))
+                             (catch-contract/who+expected+given?
+                              "fl->fx"
+                              "flonum?"
+                              "given: 1"
+                              (lambda () (fl->fx 1)))
+                             (catch-contract/who+expected+given?
+                              "fl->exact-integer"
+                              "(and/c flonum? integer?)"
+                              "given: 1.2"
+                              (lambda () (fl->exact-integer 1.2)))
+                             (let ([message
+                                    (with-handlers ([exn:fail:contract?
+                                                     (lambda (exn)
+                                                       (exn-message exn))])
+                                      (fl->fx +nan.0)
+                                      #f)])
+                               (and message
+                                    (string-contains? message "fl->fx")
+                                    (string-contains? message "result for")
+                                    (string-contains?
+                                     message
+                                     "would be outside of fixnum range"))))))
 
                     (list "fixnum-for-every-system?"
                           (and (equal? (fixnum-for-every-system? 0)          #t)

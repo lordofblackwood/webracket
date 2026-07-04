@@ -22,6 +22,8 @@
                   filesystem-runtime-string-constants)
          (only-in "fixnums.rkt"
                   fixnum-runtime-string-constants)
+         (only-in "flonums.rkt"
+                  flonum-runtime-string-constants)
          (only-in "formatting.rkt"
                   printer-prefix-formatting-runtime-string-constants
                   immediate-value-formatting-runtime-string-constants
@@ -119,6 +121,7 @@
           keyword-runtime-string-constants
           list-runtime-string-constants
           fixnum-runtime-string-constants
+          flonum-runtime-string-constants
           bytes-runtime-string-constants
           vector-runtime-string-constants
           box-runtime-string-constants

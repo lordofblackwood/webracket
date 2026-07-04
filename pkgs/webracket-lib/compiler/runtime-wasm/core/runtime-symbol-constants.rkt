@@ -28,6 +28,8 @@
                   filesystem-runtime-symbol-constants)
          (only-in "fixnums.rkt"
                   fixnum-runtime-symbol-constants)
+         (only-in "flonums.rkt"
+                  flonum-runtime-symbol-constants)
          (only-in "immutable-hashes.rkt"
                   immutable-hash-runtime-symbol-constants)
          (only-in "impersonators.rkt"
@@ -108,6 +110,7 @@
           multiple-value-runtime-symbol-constants
           list-runtime-symbol-constants
           fixnum-runtime-symbol-constants
+          flonum-runtime-symbol-constants
           byte-predicate-runtime-symbol-constants
           vector-runtime-symbol-constants
           ffi-runtime-symbol-constants
