@@ -1139,6 +1139,37 @@
                             (and (eq? res dest)
                                  (bytes=? dest
                                           #"\x00\x00\x00\x00\x00\x00\xf0\x3f"))))
+                    (list "real->floating-point-bytes destination errors are catchable with who"
+                          (let ([catch-contract/message-contains?
+                                 (lambda (parts thunk)
+                                   (let ([message
+                                          (with-handlers ([exn:fail:contract?
+                                                           (lambda (exn)
+                                                             (exn-message exn))])
+                                            (thunk)
+                                            #f)])
+                                     (and message
+                                          (andmap (lambda (part)
+                                                    (string-contains? message part))
+                                                  parts))))])
+                            (and
+                             (catch-contract/message-contains?
+                              '("real->floating-point-bytes: contract violation"
+                                "(and/c bytes? (not/c immutable?))"
+                                "given: 42")
+                              (lambda ()
+                                (real->floating-point-bytes 1.0 8 #f 42)))
+                             (catch-contract/message-contains?
+                              '("real->floating-point-bytes: contract violation"
+                                "(and/c bytes? (not/c immutable?))"
+                                "given:")
+                              (lambda ()
+                                (real->floating-point-bytes
+                                 1.0
+                                 8
+                                 #f
+                                 (bytes->immutable-bytes
+                                  (bytes 0 0 0 0 0 0 0 0))))))))
                     (list "floating-point-bytes->real"
                           (and (= (floating-point-bytes->real (bytes 0 0 128 63)) 1.0)
                                (= (floating-point-bytes->real (bytes 63 240 0 0 0 0 0 0) #t 0 8) 1.0)))

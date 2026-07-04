@@ -148,7 +148,7 @@ Follow-up:
 - Keep generated-output tests for the byte/string read and peek wrappers so
   later mutability cleanups do not accidentally reintroduce this trap path.
 
-### `real->floating-point-bytes` Still Uses Mutable-Bytes Trap Stub
+### `real->floating-point-bytes` Still Has Generic Size/Range Errors
 
 Location:
 
@@ -156,20 +156,21 @@ Location:
 
 Current behavior:
 
-- The destination argument is documented in the WAT comment as
-  `(and/c bytes? (not/c immutable?))`.
-- If the destination is immutable, the helper still calls
-  `$raise-expected-mutable-bytes`, which is a raw trap stub.
-- If the destination is not bytes, the current branch calls
-  `$raise-argument-error/internal` with `start-raw`, which looks like the wrong
-  offending value.
+- Destination type and mutability validation now raises a caller-specific
+  mutable-bytes contract error with `who` set to
+  `real->floating-point-bytes`.
+- Other validation branches in the helper still use
+  `$raise-argument-error/internal`.
+- Racket reports a `(or/c 4 8)` contract for bad sizes, an
+  `exact-nonnegative-integer?` contract for bad starts, and a custom
+  "byte string length is shorter than starting position plus size" message for
+  short destinations.
 
 Follow-up:
 
-- Compare Racket's oracle for `real->floating-point-bytes` destination
-  validation.
-- Replace both destination-validation paths with caller-specific Racket
-  exceptions whose `who` is `real->floating-point-bytes`.
+- Replace the remaining size, start, and destination-length branches with
+  caller-specific Racket exceptions whose `who` is
+  `real->floating-point-bytes`.
 
 ## Runtime-Only Core Boundaries
 

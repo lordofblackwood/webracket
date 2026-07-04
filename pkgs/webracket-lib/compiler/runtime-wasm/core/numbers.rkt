@@ -3517,12 +3517,18 @@
                                 (call $make-bytes (local.get $size-raw) (global.get $missing)))))
 
            (if (i32.eqz (ref.test (ref $Bytes) (local.get $dest-raw)))
-               (then (call $raise-argument-error/internal (local.get $start-raw)) (unreachable)))
+               (then (call $raise-check-mutable-bytes/who
+                           (global.get $symbol:real->floating-point-bytes)
+                           (local.get $dest-raw))
+                     (unreachable)))
 
            (local.set $dest (ref.cast (ref $Bytes) (local.get $dest-raw)))
 
            (if (struct.get $Bytes $immutable (local.get $dest))
-               (then (call $raise-expected-mutable-bytes (local.get $dest-raw)) (unreachable)))
+               (then (call $raise-check-mutable-bytes/who
+                           (global.get $symbol:real->floating-point-bytes)
+                           (local.get $dest-raw))
+                     (unreachable)))
 
 
            (local.set $arr (struct.get $Bytes $bs (local.get $dest)))
