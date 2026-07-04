@@ -26,13 +26,9 @@
                   js-host-import-forms)
          (only-in "runtime-wasm/module-forms.rkt"
                   module-func-name
-                  module-global-name
-                  module-data-name
                   module-func-count
                   module-global-count
-                  module-export-count
                   module-byte-size
-                  symbol-prefix-count
                   forms->module)
          (only-in "runtime-wasm/runtime-analysis.rkt"
                   analyze-program-fragment
@@ -56,6 +52,8 @@
          (only-in "runtime-wasm/runtime-metrics.rkt"
                   runtime-metric-add!
                   runtime-metric-add/computed!
+                  runtime-record-built-module-metrics!
+                  runtime-record-split-module-metrics!
                   time-runtime-step)
          (only-in "runtime-wasm/runtime-primitives.rkt"
                   runtime-active-described-primitives-sorted
@@ -1848,15 +1846,7 @@
                          (length used-primitives))
     (define full-module
       (time-runtime-step "runtime:build-runtime-module" build-runtime-module))
-    (runtime-metric-add/computed! "runtime:module-bytes-before-prune"
-                                  (lambda ()
-                                    (module-byte-size full-module)))
-    (runtime-metric-add! "runtime:function-count-before-prune"
-                         (module-func-count full-module))
-    (runtime-metric-add! "runtime:global-count-before-prune"
-                         (module-global-count full-module))
-    (runtime-metric-add! "runtime:export-count-before-prune"
-                         (module-export-count full-module))
+    (runtime-record-built-module-metrics! full-module)
     (define-values (runtime-forms-before-prune program-forms-before-prune)
       (split-module-forms
        full-module
@@ -1866,36 +1856,10 @@
        #:string-constants string-constants
        #:bytes-constants bytes-constants
        #:symbol-constants symbol-constants))
-    (runtime-metric-add! "runtime:runtime-form-count-before-prune"
-                         (length runtime-forms-before-prune))
-    (runtime-metric-add! "runtime:program-form-count-before-prune"
-                         (length program-forms-before-prune))
-    (define runtime-only-global-names
-      (for/list ([form (in-list runtime-forms-before-prune)]
-                 #:do [(define name (module-global-name form))]
-                 #:when name)
-        name))
-    (define runtime-only-data-names
-      (for/list ([form (in-list runtime-forms-before-prune)]
-                 #:do [(define name (module-data-name form))]
-                 #:when name)
-        name))
-    (runtime-metric-add! "runtime:runtime-string-global-count"
-                         (symbol-prefix-count runtime-only-global-names "$string:"))
-    (runtime-metric-add! "runtime:runtime-bytes-global-count"
-                         (symbol-prefix-count runtime-only-global-names "$bytes:"))
-    (runtime-metric-add! "runtime:runtime-symbol-global-count"
-                         (symbol-prefix-count runtime-only-global-names "$symbol:"))
-    (runtime-metric-add! "runtime:runtime-string-data-count"
-                         (symbol-prefix-count runtime-only-data-names "$string-data:"))
-    (runtime-metric-add! "runtime:runtime-bytes-data-count"
-                         (symbol-prefix-count runtime-only-data-names "$bytes-data:"))
-    (runtime-metric-add! "runtime:runtime-symbol-data-count"
-                         (symbol-prefix-count runtime-only-data-names "$symbol-data:"))
-    (runtime-metric-add! "runtime:program-function-count-before-prune"
-                         (length program-function-names))
-    (runtime-metric-add! "runtime:program-global-count-before-prune"
-                         (length top-level-variable-declarations))
+    (runtime-record-split-module-metrics! runtime-forms-before-prune
+                                          program-forms-before-prune
+                                          program-function-names
+                                          top-level-variable-declarations)
     (define runtime-only-module
       (forms->module runtime-forms-before-prune))
     (define stable-runtime-module

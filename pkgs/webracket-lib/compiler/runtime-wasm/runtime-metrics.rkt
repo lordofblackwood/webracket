@@ -2,10 +2,20 @@
 
 (provide time-runtime-step
          runtime-metric-add!
-         runtime-metric-add/computed!)
+         runtime-metric-add/computed!
+         runtime-record-built-module-metrics!
+         runtime-record-split-module-metrics!)
 
 (require "../private/parameters.rkt"
-         "../private/timings.rkt")
+         "../private/timings.rkt"
+         (only-in "module-forms.rkt"
+                  module-byte-size
+                  module-data-name
+                  module-export-count
+                  module-func-count
+                  module-global-count
+                  module-global-name
+                  symbol-prefix-count))
 
 ;; time-runtime-step : string? (-> any/c) -> any/c
 ;;   Run thunk, preserving multiple values and recording elapsed time when enabled.
@@ -33,8 +43,73 @@
   (when (current-runtime-metric-rows)
     (runtime-metric-add! label (thunk))))
 
+;; runtime-record-built-module-metrics! : list? -> void?
+;;   Record whole-module size and declaration counts before pruning.
+(define (runtime-record-built-module-metrics! full-module)
+  (runtime-metric-add/computed! "runtime:module-bytes-before-prune"
+                                (lambda ()
+                                  (module-byte-size full-module)))
+  (runtime-metric-add! "runtime:function-count-before-prune"
+                       (module-func-count full-module))
+  (runtime-metric-add! "runtime:global-count-before-prune"
+                       (module-global-count full-module))
+  (runtime-metric-add! "runtime:export-count-before-prune"
+                       (module-export-count full-module)))
+
+;; module-form-global-names : (listof datum?) -> (listof symbol?)
+;;   Return named globals from module body forms.
+(define (module-form-global-names forms)
+  (for/list ([form (in-list forms)]
+             #:do [(define name (module-global-name form))]
+             #:when name)
+    name))
+
+;; module-form-data-names : (listof datum?) -> (listof symbol?)
+;;   Return named data segments from module body forms.
+(define (module-form-data-names forms)
+  (for/list ([form (in-list forms)]
+             #:do [(define name (module-data-name form))]
+             #:when name)
+    name))
+
+;; runtime-record-split-module-metrics! : list? list? (listof symbol?) list? -> void?
+;;   Record runtime/program split counts and runtime constant prefix counts.
+(define (runtime-record-split-module-metrics! runtime-forms
+                                              program-forms
+                                              program-function-names
+                                              top-level-variable-declarations)
+  (runtime-metric-add! "runtime:runtime-form-count-before-prune"
+                       (length runtime-forms))
+  (runtime-metric-add! "runtime:program-form-count-before-prune"
+                       (length program-forms))
+  (define runtime-only-global-names
+    (module-form-global-names runtime-forms))
+  (define runtime-only-data-names
+    (module-form-data-names runtime-forms))
+  (runtime-metric-add! "runtime:runtime-string-global-count"
+                       (symbol-prefix-count runtime-only-global-names "$string:"))
+  (runtime-metric-add! "runtime:runtime-bytes-global-count"
+                       (symbol-prefix-count runtime-only-global-names "$bytes:"))
+  (runtime-metric-add! "runtime:runtime-symbol-global-count"
+                       (symbol-prefix-count runtime-only-global-names "$symbol:"))
+  (runtime-metric-add! "runtime:runtime-string-data-count"
+                       (symbol-prefix-count runtime-only-data-names "$string-data:"))
+  (runtime-metric-add! "runtime:runtime-bytes-data-count"
+                       (symbol-prefix-count runtime-only-data-names "$bytes-data:"))
+  (runtime-metric-add! "runtime:runtime-symbol-data-count"
+                       (symbol-prefix-count runtime-only-data-names "$symbol-data:"))
+  (runtime-metric-add! "runtime:program-function-count-before-prune"
+                       (length program-function-names))
+  (runtime-metric-add! "runtime:program-global-count-before-prune"
+                       (length top-level-variable-declarations)))
+
 (module+ test
   (require rackunit)
+
+  ;; metric-ref : (listof list?) string? -> string?
+  ;;   Look up a recorded metric by label.
+  (define (metric-ref rows label)
+    (second (assoc label rows)))
 
   (parameterize ([current-runtime-timing-rows '()])
     (define-values (a b)
@@ -60,4 +135,43 @@
                                   (lambda ()
                                     (set! computed? #t)
                                     'ignored)))
-  (check-false computed?))
+  (check-false computed?)
+
+  (define sample-module
+    '(module
+      (func $f)
+      (global $g i32 (i32.const 0))
+      (data $d "abc")
+      (export "f" (func $f))))
+
+  (parameterize ([current-runtime-metric-rows '()])
+    (runtime-record-built-module-metrics! sample-module)
+    (define rows (current-runtime-metric-rows))
+    (check-equal? (metric-ref rows "runtime:function-count-before-prune") "1")
+    (check-equal? (metric-ref rows "runtime:global-count-before-prune") "1")
+    (check-equal? (metric-ref rows "runtime:export-count-before-prune") "1")
+    (check-true (positive? (string->number
+                            (metric-ref rows "runtime:module-bytes-before-prune")))))
+
+  (parameterize ([current-runtime-metric-rows '()])
+    (runtime-record-split-module-metrics!
+     '((global $string:a (mut (ref eq)) (ref.i31 (i32.const 0)))
+       (global $bytes:a (mut (ref eq)) (ref.i31 (i32.const 0)))
+       (global $symbol:a (mut (ref eq)) (ref.i31 (i32.const 0)))
+       (data $string-data:a "a")
+       (data $bytes-data:a "a")
+       (data $symbol-data:a "a"))
+     '((func $program))
+     '($program)
+     '((global $top (mut (ref eq)) (ref.i31 (i32.const 0)))))
+    (define rows (current-runtime-metric-rows))
+    (check-equal? (metric-ref rows "runtime:runtime-form-count-before-prune") "6")
+    (check-equal? (metric-ref rows "runtime:program-form-count-before-prune") "1")
+    (check-equal? (metric-ref rows "runtime:runtime-string-global-count") "1")
+    (check-equal? (metric-ref rows "runtime:runtime-bytes-global-count") "1")
+    (check-equal? (metric-ref rows "runtime:runtime-symbol-global-count") "1")
+    (check-equal? (metric-ref rows "runtime:runtime-string-data-count") "1")
+    (check-equal? (metric-ref rows "runtime:runtime-bytes-data-count") "1")
+    (check-equal? (metric-ref rows "runtime:runtime-symbol-data-count") "1")
+    (check-equal? (metric-ref rows "runtime:program-function-count-before-prune") "1")
+    (check-equal? (metric-ref rows "runtime:program-global-count-before-prune") "1")))
