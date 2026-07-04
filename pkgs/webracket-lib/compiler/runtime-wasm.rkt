@@ -37,7 +37,6 @@
          (only-in "runtime-wasm/runtime-analysis.rkt"
                   analyze-program-fragment
                   analyze-stable-runtime
-                  list->eq-set
                   primitive-refs-for-functions
                   primitive-retained-set
                   program-driver-function-names
@@ -52,6 +51,8 @@
                   write-stable-runtime-analysis-cache!)
          (only-in "runtime-wasm/runtime-helper-index.rkt"
                   runtime-helper-index)
+         (only-in "runtime-wasm/runtime-ffi.rkt"
+                  select-active-ffi-runtime-bindings)
          (only-in "runtime-wasm/runtime-source.rkt"
                   runtime-source-fingerprint)
          (only-in "runtime-wasm/core/arrays.rkt"
@@ -418,10 +419,6 @@
     (define described-primitives
       (filter primitive->description all-primitives))
 
-    (define ffi-primitive-name-set
-      (for/hasheq ([f (in-list all-ffi-foreigns)])
-        (values (foreign-racket-name f) #t)))
-
     (define console-bridge-enabled? (pair? console-bridge-bindings))
     (define console-bridge-primitive-names
       (for/list ([binding (in-list console-bridge-bindings)]
@@ -431,9 +428,6 @@
 
     (define (console-bridge-symbol-global const-name)
       ($ (string->symbol (~a "symbol:" const-name))))
-
-    (define (ffi-import-name f)
-      (string->symbol (~a "$" (foreign-racket-name f) "/imported")))
 
     (define primitive-func->symbol
       (for/hasheq ([pr (in-list described-primitives)])
@@ -452,11 +446,6 @@
       (for/hasheq ([f (in-list all-ffi-foreigns)])
         (define pr (foreign-racket-name f))
         (values ($ (prim: pr)) pr)))
-
-    (set! active-ffi-imports-wat
-          (remove-duplicates active-ffi-imports-wat eq? #:key module-func-name))
-    (set! active-ffi-funcs-wat
-          (remove-duplicates active-ffi-funcs-wat eq? #:key module-func-name))
 
     (define program-function-names
       (for/list ([form (in-list dls)]
@@ -2065,40 +2054,18 @@
     (time-runtime-step
      "runtime:ffi-wrapper-filter"
      (λ ()
-       (define active-ffi-primitive-names
-         (if (and (current-tree-shake?)
-                  (not (memq 'unsafe-ffi-primitive used-primitives)))
-             (sort
-              (filter (λ (pr) (hash-ref ffi-primitive-name-set pr #f))
-                      (remove-duplicates used-primitives))
-             symbol<?)
-             (sort (hash-keys ffi-primitive-name-set) symbol<?)))
-       (set! active-ffi-foreigns
-             (for/list ([f (in-list all-ffi-foreigns)]
-                        #:when (memq (foreign-racket-name f) active-ffi-primitive-names))
-               f))
-       (define active-ffi-import-name-set
-         (list->eq-set (map ffi-import-name active-ffi-foreigns)))
-       (define active-ffi-func-name-set
-         (list->eq-set (map (λ (f) ($ (foreign-racket-name f))) active-ffi-foreigns)))
-       (set! active-ffi-imports-wat
-             (remove-duplicates
-              (for/list ([form (in-list (current-ffi-imports-wat))]
-                         #:do [(define name (module-func-name form))]
-                         #:when (and name
-                                     (hash-ref active-ffi-import-name-set name #f)))
-                form)
-              eq?
-              #:key module-func-name))
-       (set! active-ffi-funcs-wat
-             (remove-duplicates
-              (for/list ([form (in-list (current-ffi-funcs-wat))]
-                         #:do [(define name (module-func-name form))]
-                         #:when (and name
-                                     (hash-ref active-ffi-func-name-set name #f)))
-                form)
-              eq?
-              #:key module-func-name))))
+       (define-values (selected-ffi-foreigns
+                       selected-ffi-imports-wat
+                       selected-ffi-funcs-wat)
+         (select-active-ffi-runtime-bindings
+          all-ffi-foreigns
+          (current-ffi-imports-wat)
+          (current-ffi-funcs-wat)
+          used-primitives
+          (current-tree-shake?)))
+       (set! active-ffi-foreigns selected-ffi-foreigns)
+       (set! active-ffi-imports-wat selected-ffi-imports-wat)
+       (set! active-ffi-funcs-wat selected-ffi-funcs-wat)))
     (runtime-metric-add! "runtime:target"
                          (if (current-browser?) "browser" "node"))
     (runtime-metric-add! "runtime:ffi-foreign-count"

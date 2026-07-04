@@ -20,6 +20,7 @@
 (define-runtime-path js-imports-path "js-imports.rkt")
 (define-runtime-path module-forms-path "module-forms.rkt")
 (define-runtime-path runtime-analysis-path "runtime-analysis.rkt")
+(define-runtime-path runtime-ffi-path "runtime-ffi.rkt")
 (define-runtime-path runtime-helper-index-path "runtime-helper-index.rkt")
 (define-runtime-path runtime-source-path "runtime-source.rkt")
 (define-runtime-path shared-types-path "shared-types.rkt")
@@ -98,6 +99,7 @@
         js-imports-path
         module-forms-path
         runtime-analysis-path
+        runtime-ffi-path
         runtime-helper-index-path
         runtime-source-path
         shared-types-path
@@ -191,6 +193,7 @@
   (check-true (contains-path-suffix? fingerprint "runtime-wasm.rkt"))
   (check-true (contains-path-suffix? fingerprint "entry-support.rkt"))
   (check-true (contains-path-suffix? fingerprint "js-imports.rkt"))
+  (check-true (contains-path-suffix? fingerprint "runtime-ffi.rkt"))
   (check-true (contains-path-suffix? fingerprint "runtime-source.rkt"))
   (check-true (contains-path-suffix? fingerprint "shared-types.rkt"))
   (check-true (contains-path-suffix? fingerprint "core/strings.rkt")))
