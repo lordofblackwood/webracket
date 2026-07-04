@@ -1339,6 +1339,17 @@
                          (equal? (string-length "") 0)
                          (equal? (procedure-arity string-length) 1)))
 
+              (list "string-length argument errors are catchable with who"
+                    (let ([message
+                           (with-handlers ([exn:fail:contract?
+                                            (lambda (exn)
+                                              (exn-message exn))])
+                             (string-length 42)
+                             #f)])
+                      (and (string? message)
+                           (string-contains? message "string-length")
+                           (string-contains? message "string?"))))
+
               (list "string-ref"
                     (and (equal? (string-ref "abc" 0) #\a)
                          (equal? (string-ref "abc" 2) #\c)

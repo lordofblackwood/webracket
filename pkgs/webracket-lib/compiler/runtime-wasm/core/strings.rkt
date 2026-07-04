@@ -597,7 +597,12 @@
    '(
          (func $raise-bad-string-index     (param $x (ref eq)) (param $i (ref eq))  (unreachable))
          (func $raise-bad-string-index/i32 (param $x (ref eq)) (param $i i32)       (unreachable))
-         (func $raise-string-length:bad-argument (unreachable))
+         (func $raise-string-length:bad-argument
+               (param $x (ref eq))
+               (call $raise-argument-error1
+                     (global.get $symbol:string-length)
+                     (global.get $string:string?)
+                     (local.get $x)))
 
          (func $raise-string-index-out-of-bounds/i32 (param $x (ref eq)) (param $i i32) (param $n i32)
                (unreachable))
@@ -827,7 +832,7 @@
                (local $len i32)
                ;; --- Type check ---
                (if (i32.eqz (ref.test (ref $String) (local.get $s-raw)))
-                   (then (call $raise-string-length:bad-argument)))
+                   (then (call $raise-string-length:bad-argument (local.get $s-raw))))
                ;; --- Decode ---
                (local.set $s (ref.cast (ref $String) (local.get $s-raw)))
                ;; --- Compute ---
