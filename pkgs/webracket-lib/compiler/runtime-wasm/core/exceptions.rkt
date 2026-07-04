@@ -1,6 +1,7 @@
 #lang racket
 
 (provide bootstrap-error-runtime-helper-forms
+         exception-tag-forms
          exception-struct-type-bindings
          exception-struct-type-cache-global-forms
          exception-struct-type-global-forms
@@ -15,6 +16,13 @@
          exception-runtime-only-helpers)
 
 (require "../core-helper.rkt")
+
+;; exception-tag-forms : (listof datum?)
+;;   Declare the exception tag used to throw Racket values.
+(define exception-tag-forms
+  '(
+         (tag $exn (param (ref eq)))  ; an exception that that carries an value
+         ))
 
 ;; exception-runtime-string-constants : (listof (list/c symbol? string?))
 ;;   Declare strings used by exception helpers.
@@ -4464,6 +4472,9 @@
     (make-core-runtime-helper-index
      (append exception-contract-runtime-only-helpers
              exception-runtime-only-helpers)))
+
+  (check-equal? exception-tag-forms
+                '((tag $exn (param (ref eq)))))
 
   (check-equal?
    (map form-name (exception-contract-runtime-helper-forms exception-helper-index))

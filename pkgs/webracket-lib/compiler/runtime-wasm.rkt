@@ -16,6 +16,7 @@
          (only-in "runtime-wasm/entry-support.rkt"
                   entry-local-declaration-forms
                   entry-local-initializer-forms
+                  entry-result-global-forms
                   entry-result-copy-forms
                   entry-run-body-form
                   entry-support-forms
@@ -86,6 +87,7 @@
                   equality-runtime-helper-forms)
          (only-in "runtime-wasm/core/exceptions.rkt"
                   bootstrap-error-runtime-helper-forms
+                  exception-tag-forms
                   exception-struct-type-bindings
                   exception-struct-type-cache-global-forms
                   exception-struct-type-global-forms
@@ -193,6 +195,7 @@
                   logger-current-initializer-forms
                   logger-runtime-helper-forms)
          (only-in "runtime-wasm/core/memory-map.rkt"
+                  memory-import-forms
                   memory-map-global-forms)
          (only-in "runtime-wasm/core/mlists.rkt"
                   mlist-core-runtime-helper-forms)
@@ -527,7 +530,7 @@
          ;;; MEMORY
          ;;;
 
-         (import "env" "memory" (memory $memory 1024))
+         ,@memory-import-forms
 
          ;;;
          ;;; IMPORTS
@@ -619,7 +622,7 @@
          ,@exception-struct-type-global-forms
 
          ;; Return value (for a module)
-         (global ,result (mut (ref eq)) (global.get $void))
+         ,@(entry-result-global-forms result)
 
          ;; Variables defined at the top-level
          ,@top-level-variable-declarations
@@ -718,7 +721,7 @@
          ;;; Exceptions
          ;;;
 
-         (tag $exn (param (ref eq)))  ; an exception that that carries an value
+         ,@exception-tag-forms
 
          ;;   Exception helpers are implemented in runtime-wasm/core/exceptions.rkt.
          ,@(exception-runtime-helper-forms runtime-helper-index)

@@ -3,6 +3,7 @@
 (provide entry-local-declaration-forms
          entry-local-initializer-forms
          entry-result-copy-forms
+         entry-result-global-forms
          entry-run-body-form
          entry-support-forms
          entry-top-level-variable-initializer-forms)
@@ -66,6 +67,11 @@
                    (struct.new $Boxed
                                (global.get ,(TopVar v))))))
 
+;; entry-result-global-forms : symbol? -> (listof datum?)
+;;   Declare the program result global initialized to void.
+(define (entry-result-global-forms result)
+  `((global ,result (mut (ref eq)) (global.get $void))))
+
 ;; entry-local-initializer-forms : (listof list?) -> (listof datum?)
 ;;   Initialize entry locals before running the compiled program body.
 (define (entry-local-initializer-forms entry-locals)
@@ -126,6 +132,9 @@
                 '((global.set $$top
                               (struct.new $Boxed
                                           (global.get $undefined)))))
+
+  (check-equal? (entry-result-global-forms '$result)
+                '((global $result (mut (ref eq)) (global.get $void))))
 
   (check-equal? (entry-run-body-form '(call $program))
                 '(block $entry-done
