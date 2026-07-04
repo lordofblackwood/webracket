@@ -21,7 +21,12 @@
 (define number-runtime-string-constants
   '((real?                      "real?")
     (exact-nonnegative-integer? "exact-nonnegative-integer?")
-    (exact-integer?             "exact-integer?")))
+    (exact-integer?             "exact-integer?")
+    (real->floating-point-bytes:size "(or/c 4 8)")
+    (real->floating-point-bytes:short-dest ": byte string length is shorter than starting position plus size")
+    (real->floating-point-bytes:byte-string-length "\n  byte string length: ")
+    (real->floating-point-bytes:starting-position "\n  starting position: ")
+    (real->floating-point-bytes:size-line "\n  size: ")))
 
 ;; Half : datum? -> datum?
 ;;   Decode a tagged fixnum expression to an i32 payload.
@@ -94,7 +99,10 @@
 ;; floating-point-byte-conversion-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for floating-point byte conversion helpers.
 (define floating-point-byte-conversion-runtime-only-helper-names
-  '($floating-point-bytes->real
+  '($raise-real->floating-point-bytes:bad-size
+    $raise-real->floating-point-bytes:bad-start
+    $raise-real->floating-point-bytes:short-dest
+    $floating-point-bytes->real
     $real->floating-point-bytes
     $real->floating-point-bytes/checked))
 
@@ -3363,6 +3371,59 @@
   (function-forms->runtime-helpers
    'floating-point-byte-conversion-runtime-only-helpers
    '(
+     (func $raise-real->floating-point-bytes:bad-size
+           (param $x (ref eq))
+           (call $raise-argument-error1
+                 (global.get $symbol:real->floating-point-bytes)
+                 (global.get $string:real->floating-point-bytes:size)
+                 (local.get $x)))
+
+     (func $raise-real->floating-point-bytes:bad-start
+           (param $x (ref eq))
+           (call $raise-argument-error1
+                 (global.get $symbol:real->floating-point-bytes)
+                 (global.get $string:exact-nonnegative-integer?)
+                 (local.get $x)))
+
+     (func $raise-real->floating-point-bytes:short-dest
+           (param $len   i32)
+           (param $start i32)
+           (param $size  i32)
+
+           (local $out     (ref $GrowableArray))
+           (local $message (ref $String))
+
+           (local.set $out (call $make-growable-array (i32.const 8)))
+           (call $growable-array-add! (local.get $out)
+                 (call $format/display
+                       (global.get $symbol:real->floating-point-bytes)))
+           (call $growable-array-add! (local.get $out)
+                 (global.get $string:real->floating-point-bytes:short-dest))
+           (call $growable-array-add! (local.get $out)
+                 (global.get $string:real->floating-point-bytes:byte-string-length))
+           (call $growable-array-add! (local.get $out)
+                 (call $format/display
+                       (ref.i31 (i32.shl (local.get $len) (i32.const 1)))))
+           (call $growable-array-add! (local.get $out)
+                 (global.get $string:real->floating-point-bytes:starting-position))
+           (call $growable-array-add! (local.get $out)
+                 (call $format/display
+                       (ref.i31 (i32.shl (local.get $start) (i32.const 1)))))
+           (call $growable-array-add! (local.get $out)
+                 (global.get $string:real->floating-point-bytes:size-line))
+           (call $growable-array-add! (local.get $out)
+                 (call $format/display
+                       (ref.i31 (i32.shl (local.get $size) (i32.const 1)))))
+           (local.set $message
+                      (call $growable-array-of-strings->string (local.get $out)))
+
+           (call $raise
+                 (call $exn:fail:contract/make
+                       (local.get $message)
+                       (call $current-continuation-marks (global.get $missing)))
+                 (global.get $true))
+           (unreachable))
+
      (func $floating-point-bytes->real (type $Prim4)
            (param $bstr  (ref eq)) ; bytes?
            (param $big?  (ref eq)) ; any, default to (system-big-endian?) which is #f
@@ -3485,17 +3546,24 @@
            (local $fl     (ref $Flonum))
            (local $val    f64)
            (local $start  i32)
+           (local $dest-len i32)
 
            ;; --- Decode and validate size ---
            (if (i32.eqz (ref.test (ref i31) (local.get $size-raw)))
-               (then (call $raise-check-fixnum (local.get $size-raw)) (unreachable)))
+               (then (call $raise-real->floating-point-bytes:bad-size
+                           (local.get $size-raw))
+                     (unreachable)))
            (local.set $size (i31.get_u (ref.cast (ref i31) (local.get $size-raw))))
            (if (i32.and (local.get $size) (i32.const 1))
-               (then (call $raise-check-fixnum (local.get $size-raw)) (unreachable)))
+               (then (call $raise-real->floating-point-bytes:bad-size
+                           (local.get $size-raw))
+                     (unreachable)))
            (local.set $size (i32.shr_u (local.get $size) (i32.const 1)))
            (if (i32.and (i32.ne (local.get $size) (i32.const 4))
                         (i32.ne (local.get $size) (i32.const 8)))
-               (then (call $raise-argument-error/internal (local.get $size-raw)) (unreachable)))
+               (then (call $raise-real->floating-point-bytes:bad-size
+                           (local.get $size-raw))
+                     (unreachable)))
 
            ;; --- Decode and validate start (exact-nonnegative-integer?, defaults to 0) ---
            (local.set $start (i32.const 0))
@@ -3503,13 +3571,19 @@
                (then)
                (else
                 (if (i32.eqz (ref.test (ref i31) (local.get $start-raw)))
-                    (then (call $raise-check-fixnum (local.get $start-raw)) (unreachable)))
+                    (then (call $raise-real->floating-point-bytes:bad-start
+                                (local.get $start-raw))
+                          (unreachable)))
                 (local.set $start (i31.get_s (ref.cast (ref i31) (local.get $start-raw))))
                 (if (i32.and (local.get $start) (i32.const 1))
-                    (then (call $raise-check-fixnum (local.get $start-raw)) (unreachable)))
+                    (then (call $raise-real->floating-point-bytes:bad-start
+                                (local.get $start-raw))
+                          (unreachable)))
                 (local.set $start (i32.shr_s (local.get $start) (i32.const 1)))
                 (if (i32.lt_s (local.get $start) (i32.const 0))
-                    (then (call $raise-argument-error/internal (local.get $start-raw)) (unreachable)))))
+                    (then (call $raise-real->floating-point-bytes:bad-start
+                                (local.get $start-raw))
+                          (unreachable)))))
 
            ;; --- Allocate or validate destination ---
            (if (ref.eq (local.get $dest-raw) (global.get $missing))
@@ -3532,10 +3606,15 @@
 
 
            (local.set $arr (struct.get $Bytes $bs (local.get $dest)))
+           (local.set $dest-len (call $i8array-length (local.get $arr)))
 
-           (if (i32.lt_u (call $i8array-length (local.get $arr))
+           (if (i32.lt_u (local.get $dest-len)
                          (i32.add (local.get $start) (local.get $size)))
-               (then (call $raise-argument-error/internal (local.get $dest-raw)) (unreachable)))
+               (then (call $raise-real->floating-point-bytes:short-dest
+                           (local.get $dest-len)
+                           (local.get $start)
+                           (local.get $size))
+                     (unreachable)))
 
 
            ;; --- Decode big-endian? flag, defaulting to (system-big-endian?) ---

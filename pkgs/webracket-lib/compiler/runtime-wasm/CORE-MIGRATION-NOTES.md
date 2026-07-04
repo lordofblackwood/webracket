@@ -148,7 +148,7 @@ Follow-up:
 - Keep generated-output tests for the byte/string read and peek wrappers so
   later mutability cleanups do not accidentally reintroduce this trap path.
 
-### `real->floating-point-bytes` Still Has Generic Size/Range Errors
+### `real->floating-point-bytes` Big-Endian Argument Is Too Strict
 
 Location:
 
@@ -156,21 +156,18 @@ Location:
 
 Current behavior:
 
-- Destination type and mutability validation now raises a caller-specific
-  mutable-bytes contract error with `who` set to
+- Destination, size, start, and destination-length validation now raise
+  caller-specific Racket exceptions with `who` set to
   `real->floating-point-bytes`.
-- Other validation branches in the helper still use
-  `$raise-argument-error/internal`.
-- Racket reports a `(or/c 4 8)` contract for bad sizes, an
-  `exact-nonnegative-integer?` contract for bad starts, and a custom
-  "byte string length is shorter than starting position plus size" message for
-  short destinations.
+- Racket treats the `big-endian?` argument as `any/c`: any value other than
+  `#f` means big-endian.
+- WebRacket still accepts only `#f`, `#t`, or the omitted argument. Other
+  truthy values go through `$raise-argument-error/internal`.
 
 Follow-up:
 
-- Replace the remaining size, start, and destination-length branches with
-  caller-specific Racket exceptions whose `who` is
-  `real->floating-point-bytes`.
+- Match Racket by treating non-`#f` `big-endian?` values as true instead of
+  raising an error.
 
 ## Runtime-Only Core Boundaries
 
