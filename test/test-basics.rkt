@@ -1544,6 +1544,37 @@
                          (equal? (string-append* "A" (list "B" "C"))      "ABC")
                          (equal? (string-append* "A" "B" (list "C" "D"))  "ABCD")))
 
+              (list "string-append argument errors are catchable with who"
+                    (let ([catch-contract/who+expected?
+                           (lambda (who expected thunk)
+                             (let ([message
+                                    (with-handlers ([exn:fail:contract?
+                                                     (lambda (exn)
+                                                       (exn-message exn))])
+                                      (thunk)
+                                      #f)])
+                               (and (string? message)
+                                    (string-contains? message who)
+                                    (string-contains? message expected))))])
+                      (and (catch-contract/who+expected? "string-append"
+                                                         "string?"
+                                                         (lambda () (string-append 42 "x")))
+                           (catch-contract/who+expected? "string-append"
+                                                         "string?"
+                                                         (lambda () (string-append "x" 42)))
+                           (catch-contract/who+expected? "string-append-immutable"
+                                                         "string?"
+                                                         (lambda () (string-append-immutable "x" 42)))
+                           (catch-contract/who+expected? "apply"
+                                                         "list?"
+                                                         (lambda () (string-append* 42)))
+                           (catch-contract/who+expected? "apply"
+                                                         "list?"
+                                                         (lambda () (string-append* "x" 42)))
+                           (catch-contract/who+expected? "string-append"
+                                                         "string?"
+                                                         (lambda () (string-append* "x" (list 42)))))))
+
               (list "string-join"
                     (and (equal? (string-join '("one" "two" "three" "four"))
                                  "one two three four")

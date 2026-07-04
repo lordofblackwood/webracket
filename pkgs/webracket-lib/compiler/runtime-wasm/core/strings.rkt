@@ -260,7 +260,10 @@
 ;; string-append-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for string append helpers.
 (define string-append-runtime-only-helper-names
-  '($string-append/2
+  '($raise-string-append:string-expected
+    $raise-string-append*:list-expected
+    $string-append/2
+    $string-append/who
     $string-append
     $string-append-immutable
     $string-append*))
@@ -1270,15 +1273,34 @@
   (function-forms->runtime-helpers
    'string-append-runtime-only-helpers
    '(
+         (func $raise-string-append:string-expected
+               (param $who (ref eq))
+               (param $x   (ref eq))
+               (call $raise-argument-error1
+                     (local.get $who)
+                     (global.get $string:string?)
+                     (local.get $x)))
+
+         (func $raise-string-append*:list-expected
+               (param $x (ref eq))
+               (call $raise-argument-error1
+                     (global.get $symbol:apply)
+                     (global.get $string:list?)
+                     (local.get $x)))
+
          (func $string-append/2 (param $s1 (ref eq)) (param $s2 (ref eq)) (result (ref $String))
                (local $str1 (ref null $String))
                (local $str2 (ref null $String))
                (if (ref.test (ref $String) (local.get $s1))
                    (then (local.set $str1 (ref.cast (ref $String) (local.get $s1))))
-                   (else (call $raise-check-string (local.get $s1))))
+                   (else (call $raise-string-append:string-expected
+                               (global.get $symbol:string-append)
+                               (local.get $s1))))
                (if (ref.test (ref $String) (local.get $s2))
                    (then (local.set $str2 (ref.cast (ref $String) (local.get $s2))))
-                   (else (call $raise-check-string (local.get $s2))))
+                   (else (call $raise-string-append:string-expected
+                               (global.get $symbol:string-append)
+                               (local.get $s2))))
                (struct.new $String
                            (i32.const 0)
                            (i32.const 0)
@@ -1287,7 +1309,8 @@
                                  (struct.get $String $codepoints (local.get $str2)))))
 
 
-         (func $string-append (type $Prim>=0)
+         (func $string-append/who
+               (param  $who  (ref eq))
                (param  $xs   (ref eq))        ;; expects a list of strings
                (result       (ref eq))
 
@@ -1316,7 +1339,9 @@
                (local.set $v    (struct.get $Pair $a (local.get $node)))
                (if (ref.test (ref $String) (local.get $v))
                    (then (local.set $s (ref.cast (ref $String) (local.get $v))))
-                   (else (call $raise-check-string (local.get $v))))
+                   (else (call $raise-string-append:string-expected
+                               (local.get $who)
+                               (local.get $v))))
                ;; Single argument -> copy to ensure fresh mutable string
                (if (i32.eq (local.get $n) (i32.const 1))
                    (then (if (ref.eq (local.get $s) (global.get $string:empty))
@@ -1339,7 +1364,9 @@
                                             (call $i32array-length
                                                   (struct.get $String $codepoints (local.get $s))))
                                  (local.set $total (i32.add (local.get $total) (local.get $len))))
-                                (else (call $raise-check-string (local.get $v))))
+                                (else (call $raise-string-append:string-expected
+                                            (local.get $who)
+                                            (local.get $v))))
                             (local.set $xs (struct.get $Pair $d (local.get $node)))
                             (br $loop1)))
                ;; All strings empty -> return empty string
@@ -1372,6 +1399,13 @@
                            (i32.const 0)
                            (local.get $arr)))
 
+         (func $string-append (type $Prim>=0)
+               (param  $xs   (ref eq))        ;; expects a list of strings
+               (result       (ref eq))
+               (call $string-append/who
+                     (global.get $symbol:string-append)
+                     (local.get $xs)))
+
 
          (func $string-append-immutable (type $Prim>=0)
                (param  $xs (ref eq))         ;; list of strings
@@ -1381,7 +1415,9 @@
                (local $arr (ref $I32Array))
                ;; Do the append (returns a fresh $String)
                (local.set $s (ref.cast (ref $String)
-                                       (call $string-append (local.get $xs))))
+                                       (call $string-append/who
+                                             (global.get $symbol:string-append-immutable)
+                                             (local.get $xs))))
                ;; Reuse its codepoint array
                (local.set $arr (struct.get $String $codepoints (local.get $s)))
                ;; Build a new $String that is immutable (=1). Hash = 0 (lazy).
@@ -1405,7 +1441,10 @@
                (local.set $last (global.get $false))
                ;; no extra args: first arg supplies list of strings
                (if (ref.eq (local.get $rest) (global.get $null))
-                   (then (return (call $string-append (local.get $str)))))
+                   (then
+                    (if (ref.eq (call $list? (local.get $str)) (global.get $false))
+                        (then (call $raise-string-append*:list-expected (local.get $str))))
+                    (return (call $string-append (local.get $str)))))
 
                ;; separate last list from preceding string arguments
                (local.set $xs  (local.get $rest))
@@ -1427,6 +1466,8 @@
                                  (br $loop)))))
 
                ;; rebuild argument list in proper order
+               (if (ref.eq (call $list? (local.get $last)) (global.get $false))
+                   (then (call $raise-string-append*:list-expected (local.get $last))))
                (local.set $args (local.get $last))
                (block $done2
                       (loop $loop2
