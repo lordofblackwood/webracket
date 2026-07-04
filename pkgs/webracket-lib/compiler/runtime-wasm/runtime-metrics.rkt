@@ -4,7 +4,9 @@
          runtime-metric-add!
          runtime-metric-add/computed!
          runtime-record-built-module-metrics!
-         runtime-record-split-module-metrics!)
+         runtime-record-split-module-metrics!
+         runtime-record-tree-shake-retention-metrics!
+         runtime-record-tree-shake-final-metrics!)
 
 (require "../private/parameters.rkt"
          "../private/timings.rkt"
@@ -103,6 +105,36 @@
   (runtime-metric-add! "runtime:program-global-count-before-prune"
                        (length top-level-variable-declarations)))
 
+;; runtime-record-tree-shake-retention-metrics! : list? list? -> void?
+;;   Record retained primitive and function counts after the retention closure.
+(define (runtime-record-tree-shake-retention-metrics! retained-primitives
+                                                      retained-functions)
+  (runtime-metric-add! "tree-shake:root-primitive-count"
+                       (length retained-primitives))
+  (runtime-metric-add! "tree-shake:retained-function-count"
+                       (length retained-functions)))
+
+;; runtime-record-tree-shake-final-metrics! : list? list? list? boolean? -> void?
+;;   Record final tree-shake status and post-prune module size metrics.
+(define (runtime-record-tree-shake-final-metrics! final-module
+                                                  described-primitives
+                                                  retained-primitives
+                                                  tree-shake?)
+  (runtime-metric-add! "tree-shake:enabled?"
+                       (if tree-shake? "yes" "no"))
+  (runtime-metric-add! "tree-shake:retained-primitive-count"
+                       (length retained-primitives))
+  (runtime-metric-add! "tree-shake:removed-primitive-count"
+                       (- (length described-primitives)
+                          (length retained-primitives)))
+  (runtime-metric-add! "tree-shake:function-count-after-prune"
+                       (module-func-count final-module))
+  (runtime-metric-add! "tree-shake:global-count-after-prune"
+                       (module-global-count final-module))
+  (runtime-metric-add/computed! "tree-shake:module-bytes-after-prune"
+                                (lambda ()
+                                  (module-byte-size final-module))))
+
 (module+ test
   (require rackunit)
 
@@ -174,4 +206,24 @@
     (check-equal? (metric-ref rows "runtime:runtime-bytes-data-count") "1")
     (check-equal? (metric-ref rows "runtime:runtime-symbol-data-count") "1")
     (check-equal? (metric-ref rows "runtime:program-function-count-before-prune") "1")
-    (check-equal? (metric-ref rows "runtime:program-global-count-before-prune") "1")))
+    (check-equal? (metric-ref rows "runtime:program-global-count-before-prune") "1"))
+
+  (parameterize ([current-runtime-metric-rows '()])
+    (runtime-record-tree-shake-retention-metrics! '(car cons) '($car $cons $cdr))
+    (define rows (current-runtime-metric-rows))
+    (check-equal? (metric-ref rows "tree-shake:root-primitive-count") "2")
+    (check-equal? (metric-ref rows "tree-shake:retained-function-count") "3"))
+
+  (parameterize ([current-runtime-metric-rows '()])
+    (runtime-record-tree-shake-final-metrics! sample-module
+                                              '(car cdr cons)
+                                              '(car cons)
+                                              #t)
+    (define rows (current-runtime-metric-rows))
+    (check-equal? (metric-ref rows "tree-shake:enabled?") "yes")
+    (check-equal? (metric-ref rows "tree-shake:retained-primitive-count") "2")
+    (check-equal? (metric-ref rows "tree-shake:removed-primitive-count") "1")
+    (check-equal? (metric-ref rows "tree-shake:function-count-after-prune") "1")
+    (check-equal? (metric-ref rows "tree-shake:global-count-after-prune") "1")
+    (check-true (positive? (string->number
+                            (metric-ref rows "tree-shake:module-bytes-after-prune"))))))

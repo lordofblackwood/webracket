@@ -26,9 +26,6 @@
                   js-host-import-forms)
          (only-in "runtime-wasm/module-forms.rkt"
                   module-func-name
-                  module-func-count
-                  module-global-count
-                  module-byte-size
                   forms->module)
          (only-in "runtime-wasm/runtime-analysis.rkt"
                   analyze-program-fragment
@@ -52,9 +49,10 @@
                   select-current-ffi-runtime-bindings)
          (only-in "runtime-wasm/runtime-metrics.rkt"
                   runtime-metric-add!
-                  runtime-metric-add/computed!
                   runtime-record-built-module-metrics!
                   runtime-record-split-module-metrics!
+                  runtime-record-tree-shake-final-metrics!
+                  runtime-record-tree-shake-retention-metrics!
                   time-runtime-step)
          (only-in "runtime-wasm/runtime-primitives.rkt"
                   runtime-active-described-primitives-sorted
@@ -1944,10 +1942,8 @@
                    (loop next-primitives)))
              (values (sort described-primitives symbol<?)
                      '())))))
-    (runtime-metric-add! "tree-shake:root-primitive-count"
-                         (length retained-primitives))
-    (runtime-metric-add! "tree-shake:retained-function-count"
-                         (length retained-functions))
+    (runtime-record-tree-shake-retention-metrics! retained-primitives
+                                                  retained-functions)
     (time-runtime-step
      "tree-shake:write-report"
      (λ ()
@@ -1972,19 +1968,9 @@
               #:ffi-global->symbol ffi-global->symbol
               #:active-ffi-foreigns active-ffi-foreigns)))
           full-module))
-    (runtime-metric-add! "tree-shake:enabled?"
-                         (if (current-tree-shake?) "yes" "no"))
-    (runtime-metric-add! "tree-shake:retained-primitive-count"
-                         (length retained-primitives))
-    (runtime-metric-add! "tree-shake:removed-primitive-count"
-                         (- (length described-primitives)
-                            (length retained-primitives)))
-    (runtime-metric-add! "tree-shake:function-count-after-prune"
-                         (module-func-count final-module))
-    (runtime-metric-add! "tree-shake:global-count-after-prune"
-                         (module-global-count final-module))
-    (runtime-metric-add/computed! "tree-shake:module-bytes-after-prune"
-                                  (lambda ()
-                                    (module-byte-size final-module)))
+    (runtime-record-tree-shake-final-metrics! final-module
+                                              described-primitives
+                                              retained-primitives
+                                              (current-tree-shake?))
     final-module
     )))
