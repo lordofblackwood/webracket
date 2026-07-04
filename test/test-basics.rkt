@@ -1466,6 +1466,65 @@
                          (equal? (substring "ab" 2)   "")
                          (equal? (procedure-arity substring) '(2 3)))) ; todo - improve arities
 
+              (list "substring argument errors are catchable with who"
+                    (let ([catch-contract/who+expected?
+                           (lambda (who expected thunk)
+                             (let ([message
+                                    (with-handlers ([exn:fail:contract?
+                                                     (lambda (exn)
+                                                       (exn-message exn))])
+                                      (thunk)
+                                      #f)])
+                               (and (string? message)
+                                    (string-contains? message who)
+                                    (string-contains? message expected))))]
+                          [catch-contract/message-contains?
+                           (lambda (thunk . parts)
+                             (let ([message
+                                    (with-handlers ([exn:fail:contract?
+                                                     (lambda (exn)
+                                                       (exn-message exn))])
+                                      (thunk)
+                                      #f)])
+                               (and (string? message)
+                                    (andmap (lambda (part)
+                                              (string-contains? message part))
+                                            parts))))])
+                      (and (catch-contract/who+expected? "substring"
+                                                         "string?"
+                                                         (lambda () (substring 42 0)))
+                           (catch-contract/who+expected? "substring"
+                                                         "exact-nonnegative-integer?"
+                                                         (lambda () (substring "abc" #f)))
+                           (catch-contract/who+expected? "substring"
+                                                         "exact-nonnegative-integer?"
+                                                         (lambda () (substring "abc" 0 #f)))
+                           (catch-contract/who+expected? "substring"
+                                                         "exact-nonnegative-integer?"
+                                                         (lambda () (substring "abc" -1)))
+                           (catch-contract/who+expected? "substring"
+                                                         "exact-nonnegative-integer?"
+                                                         (lambda () (substring "abc" 0 -1)))
+                           (catch-contract/message-contains? (lambda () (substring "abc" 4))
+                                                             "substring"
+                                                             "starting index is out of range"
+                                                             "starting index: 4"
+                                                             "valid range: [0, 3]"
+                                                             "string: \"abc\"")
+                           (catch-contract/message-contains? (lambda () (substring "abc" 1 4))
+                                                             "substring"
+                                                             "ending index is out of range"
+                                                             "ending index: 4"
+                                                             "valid range: [0, 3]"
+                                                             "string: \"abc\"")
+                           (catch-contract/message-contains? (lambda () (substring "abc" 2 1))
+                                                             "substring"
+                                                             "ending index is smaller than starting index"
+                                                             "ending index: 1"
+                                                             "starting index: 2"
+                                                             "valid range: [0, 3]"
+                                                             "string: \"abc\""))))
+
               (list "string-append"
                     (and (equal? (string-append) "")
                          (equal? (string-append "A") "A")

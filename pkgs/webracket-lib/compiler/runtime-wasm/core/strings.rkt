@@ -54,6 +54,11 @@
     (string-ref:valid-range "\n  valid range: [0, ")
     (string-ref:valid-range-close "]")
     (string-ref:string "\n  string: ")
+    (substring:starting-index-out-of-range ": starting index is out of range")
+    (substring:ending-index-out-of-range ": ending index is out of range")
+    (substring:ending-index-before-start ": ending index is smaller than starting index")
+    (substring:starting-index "\n  starting index: ")
+    (substring:ending-index "\n  ending index: ")
     (string-or-bytes "(or/c string? bytes?)")))
 
 ;; string-core-runtime-helpers : (listof core-runtime-helper?)
@@ -225,7 +230,11 @@
 ;; string-copy-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for string copy and fill helpers.
 (define string-copy-runtime-only-helper-names
-  '($substring
+  '($raise-substring:string-expected
+    $raise-substring:index-expected
+    $raise-substring-index-out-of-range
+    $raise-substring-end-before-start
+    $substring
     $string-copy
     $raise-immutable-string
     $raise-string-fill!:string-expected
@@ -1000,6 +1009,106 @@
   (function-forms->runtime-helpers
    'string-copy-runtime-only-helpers
    `(
+         (func $raise-substring:string-expected
+               (param $x (ref eq))
+               (call $raise-argument-error1
+                     (global.get $symbol:substring)
+                     (global.get $string:string?)
+                     (local.get $x)))
+
+         (func $raise-substring:index-expected
+               (param $x (ref eq))
+               (call $raise-argument-error1
+                     (global.get $symbol:substring)
+                     (global.get $string:exact-nonnegative-integer?)
+                     (local.get $x)))
+
+         (func $raise-substring-index-out-of-range
+               (param $reason      (ref eq))
+               (param $index-label (ref eq))
+               (param $s           (ref $String))
+               (param $idx         i32)
+               (param $len         i32)
+
+               (local $out     (ref $GrowableArray))
+               (local $message (ref $String))
+
+               (local.set $out
+                          (call $make-growable-array (i32.const 9)))
+               (call $growable-array-add! (local.get $out)
+                     (call $format/display (global.get $symbol:substring)))
+               (call $growable-array-add! (local.get $out)
+                     (local.get $reason))
+               (call $growable-array-add! (local.get $out)
+                     (local.get $index-label))
+               (call $growable-array-add! (local.get $out)
+                     (call $format/display
+                           (ref.i31 (i32.shl (local.get $idx) (i32.const 1)))))
+               (call $growable-array-add! (local.get $out)
+                     (global.get $string:string-ref:valid-range))
+               (call $growable-array-add! (local.get $out)
+                     (call $format/display
+                           (ref.i31 (i32.shl (local.get $len) (i32.const 1)))))
+               (call $growable-array-add! (local.get $out)
+                     (global.get $string:string-ref:valid-range-close))
+               (call $growable-array-add! (local.get $out)
+                     (global.get $string:string-ref:string))
+               (call $growable-array-add! (local.get $out)
+                     (call $format/write (local.get $s)))
+               (local.set $message
+                          (call $growable-array-of-strings->string (local.get $out)))
+               (call $raise
+                     (call $exn:fail:contract/make
+                           (local.get $message)
+                           (call $current-continuation-marks (global.get $missing)))
+                     (global.get $true))
+               (unreachable))
+
+         (func $raise-substring-end-before-start
+               (param $s     (ref $String))
+               (param $start i32)
+               (param $end   i32)
+               (param $len   i32)
+
+               (local $out     (ref $GrowableArray))
+               (local $message (ref $String))
+
+               (local.set $out
+                          (call $make-growable-array (i32.const 11)))
+               (call $growable-array-add! (local.get $out)
+                     (call $format/display (global.get $symbol:substring)))
+               (call $growable-array-add! (local.get $out)
+                     (global.get $string:substring:ending-index-before-start))
+               (call $growable-array-add! (local.get $out)
+                     (global.get $string:substring:ending-index))
+               (call $growable-array-add! (local.get $out)
+                     (call $format/display
+                           (ref.i31 (i32.shl (local.get $end) (i32.const 1)))))
+               (call $growable-array-add! (local.get $out)
+                     (global.get $string:substring:starting-index))
+               (call $growable-array-add! (local.get $out)
+                     (call $format/display
+                           (ref.i31 (i32.shl (local.get $start) (i32.const 1)))))
+               (call $growable-array-add! (local.get $out)
+                     (global.get $string:string-ref:valid-range))
+               (call $growable-array-add! (local.get $out)
+                     (call $format/display
+                           (ref.i31 (i32.shl (local.get $len) (i32.const 1)))))
+               (call $growable-array-add! (local.get $out)
+                     (global.get $string:string-ref:valid-range-close))
+               (call $growable-array-add! (local.get $out)
+                     (global.get $string:string-ref:string))
+               (call $growable-array-add! (local.get $out)
+                     (call $format/write (local.get $s)))
+               (local.set $message
+                          (call $growable-array-of-strings->string (local.get $out)))
+               (call $raise
+                     (call $exn:fail:contract/make
+                           (local.get $message)
+                           (call $current-continuation-marks (global.get $missing)))
+                     (global.get $true))
+               (unreachable))
+
          (func $substring (type $Prim23)
               (param $s     (ref eq))
               (param $start (ref eq))
@@ -1014,14 +1123,19 @@
               ;; check string
               (if (ref.test (ref $String) (local.get $s))
                   (then (local.set $str (ref.cast (ref $String) (local.get $s))))
-                  (else (call $raise-check-string (local.get $s))))
+                  (else (call $raise-substring:string-expected (local.get $s))))
               ;; decode and check start index
               (if (ref.test (ref i31) (local.get $start))
                   (then (local.set $i32start (i31.get_u (ref.cast (ref i31) (local.get $start))))
                         (if (i32.ne (i32.and (local.get $i32start) (i32.const 1)) (i32.const 0))
-                            (then (call $raise-check-fixnum (local.get $start))))
-                        (local.set $i32start (i32.shr_u (local.get $i32start) (i32.const 1))))
-                  (else (call $raise-check-fixnum (local.get $start))))
+                            (then (call $raise-substring:index-expected (local.get $start))))
+                        (local.set $i32start
+                                   (i32.shr_s
+                                    (i31.get_s (ref.cast (ref i31) (local.get $start)))
+                                    (i32.const 1))))
+                  (else (call $raise-substring:index-expected (local.get $start))))
+              (if (i32.lt_s (local.get $i32start) (i32.const 0))
+                  (then (call $raise-substring:index-expected (local.get $start))))
               ;; get array and length
               (local.set $arr (struct.get $String $codepoints (local.get $str)))
               (local.set $len (call $i32array-length (local.get $arr)))
@@ -1033,13 +1147,35 @@
               (if (ref.test (ref i31) (local.get $end))
                   (then (local.set $i32end (i31.get_u (ref.cast (ref i31) (local.get $end))))
                         (if (i32.ne (i32.and (local.get $i32end) (i32.const 1)) (i32.const 0))
-                            (then (call $raise-check-fixnum (local.get $end))))
-                        (local.set $i32end (i32.shr_u (local.get $i32end) (i32.const 1))))
-                  (else (call $raise-check-fixnum (local.get $end))))
+                            (then (call $raise-substring:index-expected (local.get $end))))
+                        (local.set $i32end
+                                   (i32.shr_s
+                                    (i31.get_s (ref.cast (ref i31) (local.get $end)))
+                                    (i32.const 1))))
+                  (else (call $raise-substring:index-expected (local.get $end))))
+              (if (i32.lt_s (local.get $i32end) (i32.const 0))
+                  (then (call $raise-substring:index-expected (local.get $end))))
               ;; bounds check: start <= end <= len
-              (if (i32.or (i32.gt_u (local.get $i32start) (local.get $i32end))
-                          (i32.gt_u (local.get $i32end) (local.get $len)))
-                  (then (call $raise-string-index-out-of-bounds/i32 (local.get $s) (local.get $i32end) (local.get $len))))
+              (if (i32.gt_u (local.get $i32start) (local.get $len))
+                  (then (call $raise-substring-index-out-of-range
+                              (global.get $string:substring:starting-index-out-of-range)
+                              (global.get $string:substring:starting-index)
+                              (ref.cast (ref $String) (local.get $str))
+                              (local.get $i32start)
+                              (local.get $len))))
+              (if (i32.gt_u (local.get $i32end) (local.get $len))
+                  (then (call $raise-substring-index-out-of-range
+                              (global.get $string:substring:ending-index-out-of-range)
+                              (global.get $string:substring:ending-index)
+                              (ref.cast (ref $String) (local.get $str))
+                              (local.get $i32end)
+                              (local.get $len))))
+              (if (i32.gt_u (local.get $i32start) (local.get $i32end))
+                  (then (call $raise-substring-end-before-start
+                              (ref.cast (ref $String) (local.get $str))
+                              (local.get $i32start)
+                              (local.get $i32end)
+                              (local.get $len))))
               ;; create new string
               (struct.new $String
                           (i32.const 0) ; hash
