@@ -3437,6 +3437,101 @@
 (define (string-buffer-runtime-helper-forms helper-index)
   (string-helper-forms helper-index string-buffer-error-runtime-only-helper-names))
 
+;;;
+;;; Data segment strings
+;;;
+
+;; The current (June 2005) support for strings in WebAssembly is *very* limited.
+;; The data segment can be used to embed byte sequences in the source.
+;; However in order to access the data, one must copy them to the linear memory first.
+
+; Turns out that the `memory.init` instruction requires a fixed
+; segment number. So since we can't pass the segment number as an argument,
+; we can't use these functions. Sigh.
+
+#;(func $data:codepoints->string
+        (param $segment   i32)  ;; index of the passive data segment
+        (param $count     i32)  ;; number of UTF-32 codepoints
+        (result           (ref $String))
+
+        (local $base      i32)
+        (local $i         i32)
+        (local $arr       (ref $I32Array))
+        (local $str       (ref $String))
+        (local $byte-size i32)
+
+        ;; 1. Get base address for string buffer
+        (local.set $base (global.get $memory-map:string-buffer-base))
+        ;; 2. Compute byte size = count * 4
+        (local.set $byte-size (i32.mul (local.get $count) (i32.const 4)))
+        ;; 3. Bounds check (optional but recommended)
+        (if (i32.gt_u (local.get $byte-size)
+                      (global.get $memory-map:string-buffer-length))
+            (then (call $raise-string-buffer-overflow)))
+        ;; 4. Copy data segment to string buffer
+        (memory.init (local.get $segment)
+                     (local.get $base)
+                     (i32.const 0)
+                     (local.get $byte-size))
+        ;; 5. Allocate I32Array
+        (local.set $arr (array.new_default $I32Array (local.get $count)))
+        ;; 6. Copy from memory buffer into array
+        (local.set $i (i32.const 0))
+        (loop $copy (array.set $I32Array
+                               (local.get $arr)
+                               (local.get $i)
+                               (i32.load
+                                (i32.add
+                                 (local.get $base)
+                                 (i32.mul (local.get $i) (i32.const 4)))))
+              (local.set $i (i32.add (local.get $i) (i32.const 1)))
+              (br_if $copy (i32.lt_u (local.get $i) (local.get $count))))
+
+        ;; 7. Convert to string
+        (local.set $str (call $i32array->string (local.get $arr)))
+        (local.get $str))
+
+#;(func $data:bytes->string
+        (param $segment    i32) ;; passive data segment index
+        (param $byte-count i32) ;; number of UTF-8 bytes
+        (result            (ref $String))
+
+        (local $base  i32)
+        (local $i     i32)
+        (local $arr   (ref $I8Array))
+        (local $bs    (ref $Bytes))
+        (local $str   (ref $String))
+        ;; 1. Get base address for string buffer
+        (local.set $base (global.get $memory-map:string-buffer-base))
+        ;; 2. Bounds check
+        (if (i32.gt_u (local.get $byte-count)
+                      (global.get $memory-map:string-buffer-length))
+            (then (call $raise-string-buffer-overflow)))
+        ;; 3. Copy from data segment into memory buffer
+        (memory.init (local.get $segment)
+                     (local.get $base)
+                     (i32.const 0)
+                     (local.get $byte-count))
+        ;; 4. Allocate and fill I8Array
+        (local.set $arr (array.new_default $I8Array (local.get $byte-count)))
+        (local.set $i (i32.const 0))
+        (loop $copy
+              (array.set $I8Array (local.get $arr) (local.get $i)
+                         (i32.load8_u
+                          (i32.add (local.get $base)
+                                   (local.get $i))))
+              (local.set $i (i32.add (local.get $i) (i32.const 1)))
+              (br_if $copy (i32.lt_u (local.get $i) (local.get $byte-count))))
+        ;; 5. Wrap I8Array in Bytes struct
+        (local.set $bs (struct.new $Bytes
+                                   (i32.const 0)         ;; hash = 0 (unset)
+                                   (local.get $byte-count)
+                                   (local.get $arr)))
+        ;; 6. Decode UTF-8
+        (local.set $str (call $bytes->string/utf-8/checked
+                              (local.get $bs)))
+        (local.get $str))
+
 ;; string-buffer-error-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate string-buffer error helpers used by the monolithic runtime.
 (define string-buffer-error-runtime-only-helpers
