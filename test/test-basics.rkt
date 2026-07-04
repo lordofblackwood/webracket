@@ -1225,6 +1225,23 @@
                     (list "floating-point-bytes->real"
                           (and (= (floating-point-bytes->real (bytes 0 0 128 63)) 1.0)
                                (= (floating-point-bytes->real (bytes 63 240 0 0 0 0 0 0) #t 0 8) 1.0)))
+                    (list "floating-point byte conversions accept truthy big-endian values"
+                          (and (bytes=? (real->floating-point-bytes 1.0 8 'big)
+                                        #"\x3f\xf0\x00\x00\x00\x00\x00\x00")
+                               (bytes=? (real->floating-point-bytes 1.0 8 0)
+                                        #"\x3f\xf0\x00\x00\x00\x00\x00\x00")
+                               (= (floating-point-bytes->real
+                                   #"\x3f\xf0\x00\x00\x00\x00\x00\x00"
+                                   'big
+                                   0
+                                   8)
+                                  1.0)
+                               (= (floating-point-bytes->real
+                                   #"\x3f\xf0\x00\x00\x00\x00\x00\x00"
+                                   0
+                                   0
+                                   8)
+                                  1.0)))
                     (list "system-big-endian?"
                           (and (equal? (system-big-endian?) #f)
                                (equal? (procedure-arity system-big-endian?) 0)))

@@ -148,27 +148,6 @@ Follow-up:
 - Keep generated-output tests for the byte/string read and peek wrappers so
   later mutability cleanups do not accidentally reintroduce this trap path.
 
-### `real->floating-point-bytes` Big-Endian Argument Is Too Strict
-
-Location:
-
-- `pkgs/webracket-lib/compiler/runtime-wasm/core/numbers.rkt`
-
-Current behavior:
-
-- Destination, size, start, and destination-length validation now raise
-  caller-specific Racket exceptions with `who` set to
-  `real->floating-point-bytes`.
-- Racket treats the `big-endian?` argument as `any/c`: any value other than
-  `#f` means big-endian.
-- WebRacket still accepts only `#f`, `#t`, or the omitted argument. Other
-  truthy values go through `$raise-argument-error/internal`.
-
-Follow-up:
-
-- Match Racket by treating non-`#f` `big-endian?` values as true instead of
-  raising an error.
-
 ## Runtime-Only Core Boundaries
 
 These helpers have moved out of `runtime-wasm.rkt` into themed core modules,

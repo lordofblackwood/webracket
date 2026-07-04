@@ -3487,9 +3487,7 @@
                (then (local.set $big-i32 (i32.const 0)))
                (else (if (ref.eq (local.get $big?) (global.get $false))
                          (then (local.set $big-i32 (i32.const 0)))
-                         (else (if (ref.eq (local.get $big?) (global.get $true))
-                                   (then (local.set $big-i32 (i32.const 1)))
-                                   (else (call $raise-argument-error/internal (local.get $big?)) (unreachable)))))))
+                         (else (local.set $big-i32 (i32.const 1))))))
 
            ;; --- Accumulate bytes into i64 ---
            (local.set $val (i64.const 0))
@@ -3627,10 +3625,7 @@
                (else
                 (if (ref.eq (local.get $big-raw) (global.get $false))
                     (then)
-                    (else
-                     (if (ref.eq (local.get $big-raw) (global.get $true))
-                         (then (local.set $big (i32.const 1)))
-                         (else (call $raise-argument-error/internal (local.get $big-raw)) (unreachable)))))))
+                    (else (local.set $big (i32.const 1))))))
 
            ;; --- Convert x to flonum ---
            (local.set $fl (ref.cast (ref $Flonum) (global.get $flzero)))
