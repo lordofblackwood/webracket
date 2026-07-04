@@ -22,6 +22,29 @@ paths should report Racket errors.
 
 ## Preserved Behavior To Revisit
 
+### `$raise-check-symbol` Still Needs Caller-Specific `who`
+
+Location:
+
+- `pkgs/webracket-lib/compiler/runtime-wasm/core/symbols.rkt`
+- callers in `core/paths.rkt`, `core/namespaces.rkt`, and `core/linklets.rkt`
+
+Current behavior:
+
+- Public symbol primitives now route their argument checks through helpers that
+  take an explicit `who`.
+- The shared `$raise-check-symbol` helper remains a trap-style placeholder
+  because it is used by several other domains whose correct end-user `who`
+  differs by caller.
+
+Follow-up:
+
+- Replace each remaining `$raise-check-symbol` caller with a caller-specific
+  symbol contract error.
+- Avoid giving `$raise-check-symbol` a single generic `who`; that would make
+  the error catchable, but would report misleading messages for paths,
+  namespaces, and linklets.
+
 ### `$growable-bytes->bytes` Sets `$Bytes` Immutable Field To Byte Count
 
 Location:

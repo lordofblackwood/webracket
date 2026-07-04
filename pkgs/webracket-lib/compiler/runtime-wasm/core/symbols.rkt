@@ -21,6 +21,7 @@
 ;;   Declare string constants used by symbol helpers and symbol contract checks.
 (define symbol-runtime-string-constants
   '((symbol? "symbol?")
+    (symbol-or-string? "(or/c symbol? string?)")
     (g       "g")))
 
 ;; symbol-table-type-forms : (listof datum?)
@@ -298,9 +299,35 @@
                    (then (global.get $true))
                    (else (global.get $false))))
 
+         (func $raise-symbol-expected/who
+               (param $who (ref eq))
+               (param $x   (ref eq))
+               (call $raise-argument-error1
+                     (local.get $who)
+                     (global.get $string:symbol?)
+                     (local.get $x)))
+
+         (func $raise-string-expected/who
+               (param $who (ref eq))
+               (param $x   (ref eq))
+               (call $raise-argument-error1
+                     (local.get $who)
+                     (global.get $string:string?)
+                     (local.get $x)))
+
          (func $symbol=? (type $Prim2)
                (param $a (ref eq)) (param $b (ref eq))
                (result (ref eq))
+               (if (i32.eqz (ref.test (ref $Symbol) (local.get $a)))
+                   (then (call $raise-symbol-expected/who
+                               (global.get $symbol:symbol=?)
+                               (local.get $a))
+                         (unreachable)))
+               (if (i32.eqz (ref.test (ref $Symbol) (local.get $b)))
+                   (then (call $raise-symbol-expected/who
+                               (global.get $symbol:symbol=?)
+                               (local.get $b))
+                         (unreachable)))
                (if (result (ref eq))
                    (ref.eq (local.get $a) (local.get $b))
                    (then (global.get $true))
@@ -311,8 +338,9 @@
 
 
          (func $raise-symbol->string:bad-argument (param $v (ref eq))
-               (call $js-log (local.get $v))
-               (unreachable))
+               (call $raise-symbol-expected/who
+                     (global.get $symbol:symbol->string)
+                     (local.get $v)))
 
          (func $symbol->string (type $Prim1)
                (param $v (ref eq))
@@ -363,12 +391,18 @@
                          (return
                           (struct.new $String (i32.const 0) (i32.const 1) (local.get $dst))))))
                    (else
-                    (call $raise-symbol->string:bad-argument (local.get $v))
+                    (call $raise-symbol-expected/who
+                          (global.get $symbol:symbol->immutable-string)
+                          (local.get $v))
                     (unreachable)))
                (unreachable))
 
 
-         (func $raise-string->symbol:bad-argument (param $v (ref eq)) (unreachable))
+         (func $raise-string->symbol:bad-argument
+               (param $v (ref eq))
+               (call $raise-string-expected/who
+                     (global.get $symbol:string->symbol)
+                     (local.get $v)))
 
          (func $string->symbol (type $Prim1)
                (param $v (ref eq))
@@ -408,7 +442,11 @@
                ;; Return the new symbol
                (local.get $sym))
 
-         (func $raise-string->uninterned-symbol:bad-argument (param $v (ref eq)) (unreachable))
+         (func $raise-string->uninterned-symbol:bad-argument
+               (param $v (ref eq))
+               (call $raise-string-expected/who
+                     (global.get $symbol:string->uninterned-symbol)
+                     (local.get $v)))
 
          (func $string->uninterned-symbol (type $Prim1)
                (param $v (ref eq))
@@ -443,7 +481,9 @@
                                       (ref.cast (ref $String) (local.get $v))
                                       (i32.const 1)
                                       (global.get $null)))))
-               (call $raise-string->uninterned-symbol:bad-argument (local.get $v))
+               (call $raise-string-expected/who
+                     (global.get $symbol:string->unreadable-symbol)
+                     (local.get $v))
                (unreachable))
 
          (func $symbol-interned? (type $Prim1)
@@ -455,7 +495,9 @@
 
                ;; Check that it's a symbol
                (if (i32.eqz (ref.test (ref $Symbol) (local.get $sym)))
-                   (then (call $raise-check-symbol (local.get $sym))))
+                   (then (call $raise-symbol-expected/who
+                               (global.get $symbol:symbol-interned?)
+                               (local.get $sym))))
                (local.set $str   (struct.get $Symbol $name (ref.cast (ref $Symbol)   (local.get $sym))))
                (local.set $found (call $symbol-table-find
                                        (ref.as_non_null (global.get $the-symbol-table)) (local.get $str)))
@@ -469,7 +511,9 @@
                (result     (ref eq))
 
                (if (i32.eqz (ref.test (ref $Symbol) (local.get $sym)))
-                   (then (call $raise-check-symbol (local.get $sym))))
+                   (then (call $raise-symbol-expected/who
+                               (global.get $symbol:symbol-unreadable?)
+                               (local.get $sym))))
                (if (result (ref eq))
                    (struct.get $Symbol $unreadable?
                                (ref.cast (ref $Symbol) (local.get $sym)))
@@ -491,7 +535,9 @@
 
                ;; Type check: the first argument must be a symbol
                (if (i32.eqz (ref.test (ref $Symbol) (local.get $a)))
-                   (then (call $raise-check-symbol (local.get $a))))
+                   (then (call $raise-symbol-expected/who
+                               (global.get $symbol:symbol<?)
+                               (local.get $a))))
 
                ;; Extract the name of the first symbol and prepare to iterate over the rest
                (local.set $prev-str (struct.get $Symbol $name (ref.cast (ref $Symbol) (local.get $a))))
@@ -511,7 +557,9 @@
                      (local.set $next (struct.get $Pair $a (local.get $pair)))
                      ;; Ensure each remaining argument is a symbol
                      (if (i32.eqz (ref.test (ref $Symbol) (local.get $next)))
-                         (then (call $raise-check-symbol (local.get $next))))
+                         (then (call $raise-symbol-expected/who
+                                     (global.get $symbol:symbol<?)
+                                     (local.get $next))))
                      (local.set $curr-str
                                 (struct.get $Symbol $name
                                             (ref.cast (ref $Symbol) (local.get $next))))
@@ -565,7 +613,12 @@
                ;; Use "g" as default prefix
                (call $gensym:1 (ref.cast (ref $String) (global.get $string:g))))
 
-         (func $raise-gensym:bad-base (param $x (ref eq)) (unreachable))
+         (func $raise-gensym:bad-base
+               (param $x (ref eq))
+               (call $raise-argument-error1
+                     (global.get $symbol:gensym)
+                     (global.get $string:symbol-or-string?)
+                     (local.get $x)))
 
          (func $gensym:1 (param $base (ref eq)) (result (ref $Symbol))
                (local $prefix (ref null $String))

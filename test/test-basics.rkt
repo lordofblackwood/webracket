@@ -2499,7 +2499,57 @@
                            (equal? (string-prefix? (symbol->string s1) "apple" ) #t)
                            (equal? (symbol-interned? s1)                         #f)
                            (equal? (string-prefix? (symbol->string s2) "apple" ) #t)
-                           (equal? (eq? s1 s3)                                   #f))))))
+                           (equal? (eq? s1 s3)                                   #f))))
+
+              (list "symbol argument errors are catchable with who"
+                    (let ([catch-contract/who+expected+given?
+                           (lambda (who expected thunk)
+                             (let ([message
+                                    (with-handlers ([exn:fail:contract?
+                                                     (lambda (exn)
+                                                       (exn-message exn))])
+                                      (thunk)
+                                      #f)])
+                               (and (string? message)
+                                    (string-contains? message who)
+                                    (string-contains? message expected)
+                                    (string-contains? message "42"))))])
+                      (and (catch-contract/who+expected+given? "symbol=?"
+                                                               "symbol?"
+                                                               (lambda () (symbol=? 42 'a)))
+                           (catch-contract/who+expected+given? "symbol=?"
+                                                               "symbol?"
+                                                               (lambda () (symbol=? 'a 42)))
+                           (catch-contract/who+expected+given? "symbol->string"
+                                                               "symbol?"
+                                                               (lambda () (symbol->string 42)))
+                           (catch-contract/who+expected+given? "symbol->immutable-string"
+                                                               "symbol?"
+                                                               (lambda () (symbol->immutable-string 42)))
+                           (catch-contract/who+expected+given? "string->symbol"
+                                                               "string?"
+                                                               (lambda () (string->symbol 42)))
+                           (catch-contract/who+expected+given? "string->uninterned-symbol"
+                                                               "string?"
+                                                               (lambda () (string->uninterned-symbol 42)))
+                           (catch-contract/who+expected+given? "string->unreadable-symbol"
+                                                               "string?"
+                                                               (lambda () (string->unreadable-symbol 42)))
+                           (catch-contract/who+expected+given? "symbol-interned?"
+                                                               "symbol?"
+                                                               (lambda () (symbol-interned? 42)))
+                           (catch-contract/who+expected+given? "symbol-unreadable?"
+                                                               "symbol?"
+                                                               (lambda () (symbol-unreadable? 42)))
+                           (catch-contract/who+expected+given? "symbol<?"
+                                                               "symbol?"
+                                                               (lambda () (symbol<? 42 'a)))
+                           (catch-contract/who+expected+given? "symbol<?"
+                                                               "symbol?"
+                                                               (lambda () (symbol<? 'a 42)))
+                           (catch-contract/who+expected+given? "gensym"
+                                                               "(or/c symbol? string?)"
+                                                               (lambda () (gensym 42))))))))
 
        (list "4.8 Regular Expressions"
              (list
