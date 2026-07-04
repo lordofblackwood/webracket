@@ -59,11 +59,13 @@
                   runtime-active-described-primitives-sorted
                   runtime-described-primitives
                   runtime-ffi-global->symbol
-                  runtime-ffi-primitive-initializer-bindings
+                  runtime-ffi-primitive-global-forms
+                  runtime-ffi-primitive-initializer-forms
                   runtime-ffi-primitive-names
+                  runtime-primitive-global-forms
                   runtime-primitive-func->symbol
                   runtime-primitive-global->symbol
-                  runtime-primitive-initializer-bindings)
+                  runtime-primitive-initializer-forms)
          (only-in "runtime-wasm/runtime-source.rkt"
                   runtime-source-fingerprint)
          (only-in "runtime-wasm/core/arrays.rkt"
@@ -287,10 +289,6 @@
                   procedure-post-primitive-invoker-runtime-helper-forms
                   procedure-rest-argument-core-runtime-helper-forms
                   primitive-shapes
-                  procedure-primitive-global-forms
-                  procedure-ffi-primitive-global-forms
-                  procedure-primitive-initializer-forms
-                  procedure-ffi-primitive-initializer-forms
                   procedure-primitive-invoker-forms)
          (only-in "runtime-wasm/core/random.rkt"
                   random-current-global-forms
@@ -451,10 +449,10 @@
         name))
 
     (define (declare-primitives-as-globals)
-      (procedure-primitive-global-forms (active-described-primitives-sorted)))
+      (runtime-primitive-global-forms (active-described-primitives-sorted)))
 
     (define (declare-ffi-primitives-as-globals)
-      (procedure-ffi-primitive-global-forms (active-ffi-primitive-names)))
+      (runtime-ffi-primitive-global-forms (active-ffi-primitive-names)))
 
 
 
@@ -463,14 +461,11 @@
     (define todo-handle-later '())
 
     (define (initialize-primitives-as-globals)
-      (procedure-primitive-initializer-forms
-       (runtime-primitive-initializer-bindings
-        (active-described-primitives-sorted))))
+      (runtime-primitive-initializer-forms
+       (active-described-primitives-sorted)))
 
     (define (initialize-ffi-primitives-as-globals)
-      (procedure-ffi-primitive-initializer-forms
-       (runtime-ffi-primitive-initializer-bindings
-        active-ffi-foreigns)))
+      (runtime-ffi-primitive-initializer-forms active-ffi-foreigns))
 
     (define linklet-body-reserved-symbols
       (runtime-linklet-body-reserved-symbols all-primitives))

@@ -8,11 +8,20 @@
          runtime-primitive-global->symbol
          runtime-ffi-global->symbol
          runtime-primitive-initializer-bindings
-         runtime-ffi-primitive-initializer-bindings)
+         runtime-ffi-primitive-initializer-bindings
+         runtime-primitive-global-forms
+         runtime-ffi-primitive-global-forms
+         runtime-primitive-initializer-forms
+         runtime-ffi-primitive-initializer-forms)
 
 (require "../private/priminfo.rkt"
          "../private/structs.rkt"
-         "../private/wasm-utils.rkt")
+         "../private/wasm-utils.rkt"
+         (only-in "core/procedures.rkt"
+                  procedure-primitive-global-forms
+                  procedure-ffi-primitive-global-forms
+                  procedure-primitive-initializer-forms
+                  procedure-ffi-primitive-initializer-forms))
 
 ;; runtime-described-primitives : (listof symbol?) -> (listof symbol?)
 ;;   Keep primitives with compiler-visible primitive descriptions.
@@ -73,6 +82,28 @@
     (list (foreign-racket-name f)
           (length (foreign-argument-types f)))))
 
+;; runtime-primitive-global-forms : (listof symbol?) -> (listof datum?)
+;;   Declare globals that hold runtime primitive procedure values.
+(define (runtime-primitive-global-forms active-described-primitives)
+  (procedure-primitive-global-forms active-described-primitives))
+
+;; runtime-ffi-primitive-global-forms : (listof symbol?) -> (listof datum?)
+;;   Declare globals that hold runtime FFI primitive procedure values.
+(define (runtime-ffi-primitive-global-forms active-ffi-primitive-names)
+  (procedure-ffi-primitive-global-forms active-ffi-primitive-names))
+
+;; runtime-primitive-initializer-forms : (listof symbol?) -> (listof datum?)
+;;   Initialize runtime primitive globals as procedure values.
+(define (runtime-primitive-initializer-forms active-described-primitives)
+  (procedure-primitive-initializer-forms
+   (runtime-primitive-initializer-bindings active-described-primitives)))
+
+;; runtime-ffi-primitive-initializer-forms : (listof foreign?) -> (listof datum?)
+;;   Initialize runtime FFI primitive globals as procedure values.
+(define (runtime-ffi-primitive-initializer-forms active-ffi-foreigns)
+  (procedure-ffi-primitive-initializer-forms
+   (runtime-ffi-primitive-initializer-bindings active-ffi-foreigns)))
+
 (module+ test
   (require rackunit)
 
@@ -99,4 +130,28 @@
                             (primitive-description-result-arity (primitive->description 'cons)))))
   (check-equal? (runtime-ffi-primitive-initializer-bindings sample-foreigns)
                 '((ffi-a 1)
-                  (ffi-b 2))))
+                  (ffi-b 2)))
+  (check-equal? (runtime-primitive-global-forms '(cons))
+                '((global $prim:cons (mut (ref eq)) (ref.i31 (i32.const 79)))))
+  (check-equal? (runtime-ffi-primitive-global-forms '(ffi-a))
+                '((global $prim:ffi-a (mut (ref eq)) (ref.i31 (i32.const 79)))))
+  (check-match (runtime-primitive-initializer-forms '(cons))
+    (list `(global.set $prim:cons
+                       (struct.new $PrimitiveProcedure
+                        (i32.const 0)
+                        (global.get $symbol:cons)
+                        ,_
+                        (global.get $the-racket/primitive-realm)
+                        (ref.func ,_)
+                        (ref.func $cons)
+                        ,_))))
+  (check-match (runtime-ffi-primitive-initializer-forms (list (first sample-foreigns)))
+    (list `(global.set $prim:ffi-a
+                       (struct.new $PrimitiveProcedure
+                        (i32.const 0)
+                        (global.get $symbol:ffi-a)
+                        ,_
+                        (global.get $the-racket/primitive-realm)
+                        (ref.func ,_)
+                        (ref.func $ffi-a)
+                        ,_)))))
