@@ -3,12 +3,8 @@
          generate-core-runtime
          generate-shared-types)
 
-(require "private/wasm-data.rkt"
-         "private/wasm-utils.rkt"
-         "private/immediates.rkt"
-         "private/priminfo.rkt"
+(require "private/priminfo.rkt"
          "private/parameters.rkt"
-         "private/structs.rkt"
          (only-in "runtime-wasm/entry-support.rkt"
                   entry-function-form
                   entry-result-global-forms
