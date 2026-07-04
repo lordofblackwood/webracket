@@ -1052,7 +1052,68 @@
                             (and (void? (current-pseudo-random-generator g))
                                  (eq? (current-pseudo-random-generator) g)
                                  (void? (random-seed 17))
-                                 (void? (current-pseudo-random-generator original)))))))
+                                 (void? (current-pseudo-random-generator original)))))
+                    (list "random argument errors are catchable with who"
+                          (let ([catch-contract/who+expected+given?
+                                 (lambda (who expected given thunk)
+                                   (let ([message
+                                          (with-handlers ([exn:fail:contract?
+                                                           (lambda (exn)
+                                                             (exn-message exn))])
+                                            (thunk)
+                                            #f)])
+                                     (and message
+                                          (string-contains? message who)
+                                          (string-contains? message expected)
+                                          (string-contains? message given))))])
+                            (and
+                             (catch-contract/who+expected+given?
+                              "random-seed"
+                              "(integer-in 0 (sub1 (expt 2 31)))"
+                              "#f"
+                              (lambda () (random-seed #f)))
+                             (catch-contract/who+expected+given?
+                              "random-seed"
+                              "(integer-in 0 (sub1 (expt 2 31)))"
+                              "-1"
+                              (lambda () (random-seed -1)))
+                             (catch-contract/who+expected+given?
+                              "random"
+                              "(or/c (integer-in 1 4294967087) pseudo-random-generator?)"
+                              "#f"
+                              (lambda () (random #f)))
+                             (catch-contract/who+expected+given?
+                              "random"
+                              "(or/c (integer-in 1 4294967087) pseudo-random-generator?)"
+                              "0"
+                              (lambda () (random 0)))
+                             (catch-contract/who+expected+given?
+                              "random"
+                              "exact-integer?"
+                              "#f"
+                              (lambda () (random #f 10)))
+                             (catch-contract/who+expected+given?
+                              "random"
+                              "(or/c exact-integer? pseudo-random-generator?)"
+                              "#f"
+                              (lambda () (random 1 #f)))
+                             (catch-contract/who+expected+given?
+                              "random"
+                              "(integer-in 1 4294967087)"
+                              "#f"
+                              (lambda ()
+                                (random #f (make-pseudo-random-generator))))
+                             (catch-contract/who+expected+given?
+                              "random"
+                              "(integer-in 1 4294967087)"
+                              "0"
+                              (lambda ()
+                                (random 0 (make-pseudo-random-generator))))
+                             (catch-contract/who+expected+given?
+                              "random"
+                              "(>/c 10)"
+                              "1"
+                              (lambda () (random 10 1))))))))
 
              (list "4.3.2.8 Other Randomness Utilities")
 
