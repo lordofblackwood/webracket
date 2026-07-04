@@ -8,7 +8,6 @@
          "private/immediates.rkt"
          "private/priminfo.rkt"
          "private/parameters.rkt"
-         "private/timings.rkt"
          "private/structs.rkt"
          (only-in "runtime-wasm/entry-initializers.rkt"
                   entry-struct-property-global-forms
@@ -54,6 +53,10 @@
                   runtime-helper-index)
          (only-in "runtime-wasm/runtime-ffi.rkt"
                   select-active-ffi-runtime-bindings)
+         (only-in "runtime-wasm/runtime-metrics.rkt"
+                  runtime-metric-add!
+                  runtime-metric-add/computed!
+                  time-runtime-step)
          (only-in "runtime-wasm/runtime-primitives.rkt"
                   runtime-active-described-primitives-sorted
                   runtime-described-primitives
@@ -447,28 +450,6 @@
                  #:do [(define name (module-func-name form))]
                  #:when name)
         name))
-
-    (define (time-runtime-step label thunk)
-      (if (current-runtime-timing-rows)
-          (let-values ([(vals ms)
-                        (with-timing
-                          (λ ()
-                            (call-with-values thunk list)))])
-            (current-runtime-timing-rows
-             (cons (list label ms) (current-runtime-timing-rows)))
-            (apply values vals))
-          (thunk)))
-
-    (define (runtime-metric-add! label value)
-      (when (current-runtime-metric-rows)
-        (current-runtime-metric-rows
-         (cons (list label (~a value)) (current-runtime-metric-rows)))))
-
-    ;; runtime-metric-add/computed! : string? (-> any/c) -> void?
-    ;;   Compute and record a runtime metric only when metric rows are active.
-    (define (runtime-metric-add/computed! label thunk)
-      (when (current-runtime-metric-rows)
-        (runtime-metric-add! label (thunk))))
 
     (define (declare-primitives-as-globals)
       (procedure-primitive-global-forms (active-described-primitives-sorted)))
