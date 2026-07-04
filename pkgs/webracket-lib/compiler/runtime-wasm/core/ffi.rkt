@@ -232,6 +232,33 @@
            (call $linear-memory->string (local.get $ptr)))
      )))
 
+;;;
+;;; Browser external-value sketch
+;;;
+
+#;(type $External
+        (sub $Heap
+             (struct
+               (field $hash (mut i32))
+               (field $v    (ref null extern)))))
+
+;; Moved up to import section
+#;(func $js_document_body
+        (import "ffi" "js_document_body")
+        (result externref))
+
+#;(func $js-document-body
+        (result (ref eq))
+        (struct.new $External
+                    (i32.const 0)
+                    (call $js-document-body/imported)))
+
+#;(func $js-make-text-node
+        (result (ref eq))
+        (struct.new $External
+                    (i32.const 0)
+                    (call $js_make_text_node)))
+
 ;; ffi-runtime-only-forms : -> (listof datum?)
 ;;   Enumerate FFI, callback, and browser bridge helpers used by the monolithic runtime.
 (define (ffi-runtime-only-forms)

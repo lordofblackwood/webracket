@@ -2829,6 +2829,63 @@
    (vector-helper-forms runtime-helper-index vector-filter-search-runtime-only-helper-names)
    (vector-helper-forms runtime-helper-index vector-sort-runtime-only-helper-names)))
 
+;;;
+;;; Support for the for-family: for, for/list, for/vector
+;;;
+
+#;(func $grow-vector
+        (param $vec (ref $Vector))
+        (result     (ref $Vector))
+
+        (local $arr     (ref $Array))
+        (local $len     i32)
+        (local $new-len i32)
+        (local $new-vec (ref $Vector))
+        (local $new-arr (ref $Array))
+        ;; Extract underlying array and its length
+        (local.set $arr     (struct.get $Vector $arr (local.get $vec)))
+        (local.set $len     (array.len (local.get $arr)))
+        (local.set $new-len (i32.mul (local.get $len) (i32.const 2)))
+        ;; Allocate new array and vector wrapper
+        (local.set $new-arr (array.new_default $Array (local.get $new-len) (global.get $null)))
+        (local.set $new-vec (struct.new $Vector (i32.const 0) (i32.const 0) (local.get $new-arr)))
+        ;; Copy elements
+        (call $vector-copy!
+              (local.get $new-vec)
+              (ref.i31 (i32.const 0))
+              (local.get $vec)
+              (ref.i31 (i32.const 0))
+              (ref.i31 (local.get $len)))
+        (return (local.get $new-vec)))
+
+
+#;(func $shrink-vector
+        (param $vec (ref $Vector))
+        (param $i   (ref eq))   ;; fixnum
+        (result (ref $Vector))
+
+        (local $i/u i32)
+        (local $new-vec (ref $Vector))
+        ;; Validate fixnum index
+        (if (i32.eqz (ref.test (ref i31) (local.get $i)))
+            (then (call $raise-check-fixnum (local.get $i)) (unreachable)))
+        (local.set $i/u
+                   (i32.shr_u
+                    (i31.get_u (ref.cast (ref i31) (local.get $i)))
+                    (i32.const 1)))
+        ;; Allocate new vector and copy
+        (local.set $new-vec (struct.new $Vector
+                                        (i32.const 0)
+                                        (i32.const 0)
+                                        (array.new_default $Array (local.get $i/u) (global.get $null))))
+        (call $vector-copy!
+              (local.get $new-vec)
+              (ref.i31 (i32.const 0))
+              (local.get $vec)
+              (ref.i31 (i32.const 0))
+              (ref.i31 (i32.shl (local.get $i/u) (i32.const 1)))) ;; convert i32 to fixnum
+        (return (local.get $new-vec)))
+
 ;; vector-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate vector helpers that still depend on monolithic runtime globals.
 (define vector-runtime-only-helpers
