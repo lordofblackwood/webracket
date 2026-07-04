@@ -4594,7 +4594,11 @@
 
            ;; --- Validate byte string argument ---
            (if (i32.eqz (ref.test (ref $Bytes) (local.get $bstr)))
-               (then (call $raise-check-bytes (local.get $bstr)) (unreachable)))
+               (then (call $raise-argument-error1
+                           (global.get $symbol:write-bytes)
+                           (global.get $string:bytes?)
+                           (local.get $bstr))
+                     (unreachable)))
            (local.set $bs  (ref.cast (ref $Bytes) (local.get $bstr)))
            (local.set $arr (struct.get $Bytes $bs (local.get $bs)))
            (local.set $len (call $i8array-length (local.get $arr)))
@@ -4602,6 +4606,12 @@
            (if (ref.eq (local.get $out) (global.get $missing))
                (then (local.set $out (call $current-output-port
                                            (global.get $missing)))))
+           (if (i32.eqz (call $output-port-like?/i32 (local.get $out)))
+               (then (call $raise-argument-error1
+                           (global.get $symbol:write-bytes)
+                           (global.get $string:output-port?)
+                           (local.get $out))
+                     (unreachable)))
            (if (i32.eqz (ref.test (ref $OutputPort) (local.get $out)))
                (then (local.set $out (call $prop-output-port-target
                                            (local.get $out)))))
@@ -4826,7 +4836,11 @@
 
            ;; --- Validate string argument ---
            (if (i32.eqz (ref.test (ref $String) (local.get $str)))
-               (then (call $raise-check-string (local.get $str)) (unreachable)))
+               (then (call $raise-argument-error1
+                           (global.get $symbol:write-string)
+                           (global.get $string:string?)
+                           (local.get $str))
+                     (unreachable)))
            (local.set $s   (ref.cast (ref $String) (local.get $str)))
            (local.set $arr (struct.get $String $codepoints (local.get $s)))
            (local.set $len (call $i32array-length (local.get $arr)))
@@ -4835,7 +4849,11 @@
                (then (local.set $out (call $current-output-port
                                            (global.get $missing)))))
            (if (i32.eqz (call $output-port-like?/i32 (local.get $out)))
-               (then (call $raise-check-string-port (local.get $out)) (unreachable)))
+               (then (call $raise-argument-error1
+                           (global.get $symbol:write-string)
+                           (global.get $string:output-port?)
+                           (local.get $out))
+                     (unreachable)))
            ;; --- Decode optional start index ---
            (if (ref.eq (local.get $start) (global.get $missing))
                (then (local.set $from (i32.const 0)))

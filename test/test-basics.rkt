@@ -9060,6 +9060,16 @@
                         "given: -1"
                         (lambda () (write-bytes #"abc" (open-output-bytes) -1)))
                        (catch-contract/who+expected+given?
+                        "write-bytes"
+                        "bytes?"
+                        "given: 'bad"
+                        (lambda () (write-bytes 'bad (open-output-bytes))))
+                       (catch-contract/who+expected+given?
+                        "write-bytes"
+                        "output-port?"
+                        "given: 42"
+                        (lambda () (write-bytes #"abc" 42)))
+                       (catch-contract/who+expected+given?
                         "read-bytes-avail!*"
                         "exact-nonnegative-integer?"
                         "given: -1"
@@ -9151,6 +9161,16 @@
                         "exact-nonnegative-integer?"
                         "given: -1"
                         (lambda () (write-string "abc" (open-output-string) -1)))
+                       (catch-contract/who+expected+given?
+                        "write-string"
+                        "string?"
+                        "given: 'bad"
+                        (lambda () (write-string 'bad (open-output-string))))
+                       (catch-contract/who+expected+given?
+                        "write-string"
+                        "output-port?"
+                        "given: 42"
+                        (lambda () (write-string "abc" 42)))
                        (catch-contract/who+expected+given?
                         "read-string!"
                         "exact-nonnegative-integer?"
