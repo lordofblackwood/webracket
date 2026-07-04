@@ -2585,6 +2585,70 @@
                            (equal? (bytes-utf-8-length invalid) #f)
                            (equal? (bytes-utf-8-length invalid #\uFFFD) 3))))
 
+              (list "bytes-utf-8-length errors are catchable with who"
+                    (let ([catch-contract/who+expected+given?
+                           (lambda (who expected given thunk)
+                             (let ([message
+                                    (with-handlers ([exn:fail:contract?
+                                                     (lambda (exn)
+                                                       (exn-message exn))])
+                                      (thunk)
+                                      #f)])
+                               (and message
+                                    (string-contains? message who)
+                                    (string-contains? message expected)
+                                    (string-contains? message given))))]
+                          [catch-range/who+reason+index?
+                           (lambda (who reason index-line thunk)
+                             (let ([message
+                                    (with-handlers ([exn:fail:contract?
+                                                     (lambda (exn)
+                                                       (exn-message exn))])
+                                      (thunk)
+                                      #f)])
+                               (and message
+                                    (string-contains? message who)
+                                    (string-contains? message reason)
+                                    (string-contains? message index-line)
+                                    (string-contains? message "valid range: [0, 3]")
+                                    (string-contains? message "byte string:"))))])
+                      (and
+                       (catch-contract/who+expected+given?
+                        "bytes-utf-8-length"
+                        "bytes?"
+                        "given: 42"
+                        (lambda () (bytes-utf-8-length 42)))
+                       (catch-contract/who+expected+given?
+                        "bytes-utf-8-length"
+                        "(or/c char? #f)"
+                        "given: 42"
+                        (lambda () (bytes-utf-8-length #"abc" 42)))
+                       (catch-contract/who+expected+given?
+                        "bytes-utf-8-length"
+                        "exact-nonnegative-integer?"
+                        "given: 'bad"
+                        (lambda () (bytes-utf-8-length #"abc" #f 'bad)))
+                       (catch-contract/who+expected+given?
+                        "bytes-utf-8-length"
+                        "exact-nonnegative-integer?"
+                        "given: -1"
+                        (lambda () (bytes-utf-8-length #"abc" #f -1)))
+                       (catch-range/who+reason+index?
+                        "bytes-utf-8-length"
+                        "starting index is out of range"
+                        "starting index: 4"
+                        (lambda () (bytes-utf-8-length #"abc" #f 4)))
+                       (catch-range/who+reason+index?
+                        "bytes-utf-8-length"
+                        "ending index is out of range"
+                        "ending index: 4"
+                        (lambda () (bytes-utf-8-length #"abc" #f 1 4)))
+                       (catch-range/who+reason+index?
+                        "bytes-utf-8-length"
+                        "ending index is smaller than starting index"
+                        "ending index: 1"
+                        (lambda () (bytes-utf-8-length #"abc" #f 2 1))))))
+
               (list "bytes->string/latin-1/basic"
                     (let* ([bstr (bytes #xfe #xd3 #xd1 #xa5)]
                            [result (bytes->string/latin-1 bstr)]
