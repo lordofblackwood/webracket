@@ -59,6 +59,7 @@
     (substring:ending-index-before-start ": ending index is smaller than starting index")
     (substring:starting-index "\n  starting index: ")
     (substring:ending-index "\n  ending index: ")
+    (listof-string? "(listof string?)")
     (string-or-bytes "(or/c string? bytes?)")))
 
 ;; string-core-runtime-helpers : (listof core-runtime-helper?)
@@ -315,7 +316,9 @@
 ;; string-split-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for string join and split helpers.
 (define string-split-runtime-only-helper-names
-  '($string-join
+  '($raise-string-join:listof-string-expected
+    $raise-string-join:separator-expected
+    $string-join
     $string-split
     $string-split:matches?
     $string-split:trim-left
@@ -1493,6 +1496,20 @@
   (function-forms->runtime-helpers
    'string-split-runtime-only-helpers
    '(
+         (func $raise-string-join:listof-string-expected
+               (param $x (ref eq))
+               (call $raise-argument-error1
+                     (global.get $symbol:string-join)
+                     (global.get $string:listof-string?)
+                     (local.get $x)))
+
+         (func $raise-string-join:separator-expected
+               (param $x (ref eq))
+               (call $raise-argument-error1
+                     (global.get $symbol:string-join)
+                     (global.get $string:string?)
+                     (local.get $x)))
+
          ;; Note: Simplified version: accepts list of strings and optional separator only.
          (func $string-join (type $Prim12)
                (param $strs (ref eq)) ;; listof string?
@@ -1511,29 +1528,12 @@
                (local $arr     (ref $I32Array))
                (local $pos     i32)
 
-               ;; --- Handle optional separator ---
-               (local.set $sep-str
-                          (if (result (ref $String))
-                              (ref.eq (local.get $sep) (global.get $missing))
-                              (then (ref.cast (ref $String) (global.get $string:space)))
-                              (else (if (result (ref $String))
-                                        (ref.test (ref $String) (local.get $sep))
-                                        (then (ref.cast (ref $String) (local.get $sep)))
-                                        (else (call $raise-check-string (local.get $sep))
-                                              (unreachable))))))
-               ;; --- Determine separator length ---
-               (local.set $sep-len
-                          (call $i32array-length
-                                (struct.get $String $codepoints (local.get $sep-str))))
-               ;; --- Determine number of strings ---
-               (local.set $n (call $length/i32 (local.get $strs)))
-               (if (i32.eqz (local.get $n))
-                   (then (return (global.get $string:empty))))
-               ;; --- Compute total length ---
-               (local.set $xs (local.get $strs))
-               (local.set $total
-                          (i32.mul (i32.sub (local.get $n) (i32.const 1))
-                                   (local.get $sep-len)))
+               ;; --- Validate and measure strings before checking separator ---
+               (if (ref.eq (call $list? (local.get $strs)) (global.get $false))
+                   (then (call $raise-string-join:listof-string-expected (local.get $strs))))
+               (local.set $xs    (local.get $strs))
+               (local.set $n     (i32.const 0))
+               (local.set $total (i32.const 0))
                (block $done1
                       (loop $loop1
                             (br_if $done1 (ref.eq (local.get $xs) (global.get $null)))
@@ -1545,10 +1545,36 @@
                                  (local.set $len
                                             (call $i32array-length
                                                   (struct.get $String $codepoints (local.get $str))))
-                                 (local.set $total (i32.add (local.get $total) (local.get $len))))
-                                (else (call $raise-check-string (local.get $v)) (unreachable)))
+                                 (local.set $total (i32.add (local.get $total) (local.get $len)))
+                                 (local.set $n (i32.add (local.get $n) (i32.const 1))))
+                                (else (call $raise-string-join:listof-string-expected
+                                            (local.get $strs))))
                             (local.set $xs (struct.get $Pair $d (local.get $node)))
                             (br $loop1)))
+
+               ;; --- Handle optional separator ---
+               (local.set $sep-str
+                          (if (result (ref $String))
+                              (ref.eq (local.get $sep) (global.get $missing))
+                              (then (ref.cast (ref $String) (global.get $string:space)))
+                              (else (if (result (ref $String))
+                                        (ref.test (ref $String) (local.get $sep))
+                                        (then (ref.cast (ref $String) (local.get $sep)))
+                                        (else (call $raise-string-join:separator-expected
+                                                    (local.get $sep))
+                                              (unreachable))))))
+               ;; --- Determine separator length ---
+               (local.set $sep-len
+                          (call $i32array-length
+                                (struct.get $String $codepoints (local.get $sep-str))))
+               (if (i32.eqz (local.get $n))
+                   (then (return (global.get $string:empty))))
+               ;; --- Add separator lengths ---
+               (local.set $total
+                          (i32.add
+                           (local.get $total)
+                           (i32.mul (i32.sub (local.get $n) (i32.const 1))
+                                    (local.get $sep-len))))
                ;; --- All empty -> empty string ---
                (if (i32.eqz (local.get $total))
                    (then (return (global.get $string:empty))))

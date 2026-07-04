@@ -1583,6 +1583,37 @@
                          (equal? (string-join '("one" "two" "three" "four") " potato ")
                                  "one potato two potato three potato four")))
 
+              (list "string-join argument errors are catchable with who"
+                    (let ([catch-contract/who+expected?
+                           (lambda (who expected thunk)
+                             (let ([message
+                                    (with-handlers ([exn:fail:contract?
+                                                     (lambda (exn)
+                                                       (exn-message exn))])
+                                      (thunk)
+                                      #f)])
+                               (and (string? message)
+                                    (string-contains? message who)
+                                    (string-contains? message expected))))])
+                      (and (catch-contract/who+expected? "string-join"
+                                                         "(listof string?)"
+                                                         (lambda () (string-join 42)))
+                           (catch-contract/who+expected? "string-join"
+                                                         "(listof string?)"
+                                                         (lambda () (string-join (cons "a" 42))))
+                           (catch-contract/who+expected? "string-join"
+                                                         "(listof string?)"
+                                                         (lambda () (string-join (list "a" 42))))
+                           (catch-contract/who+expected? "string-join"
+                                                         "(listof string?)"
+                                                         (lambda () (string-join 42 99)))
+                           (catch-contract/who+expected? "string-join"
+                                                         "string?"
+                                                         (lambda () (string-join (list) 42)))
+                           (catch-contract/who+expected? "string-join"
+                                                         "string?"
+                                                         (lambda () (string-join (list "a") 42))))))
+
               (list "string-split"
                     (and (equal? (string-split "foo bar baz")
                                  '("foo" "bar" "baz"))
