@@ -27,8 +27,14 @@
          (only-in "runtime-wasm/runtime-helper-index.rkt"
                   runtime-helper-index)
          (only-in "runtime-wasm/runtime-ffi.rkt"
-                  runtime-record-ffi-metrics!
-                  select-current-ffi-runtime-bindings)
+                  make-current-runtime-ffi-state
+                  runtime-ffi-state-active-foreigns
+                  runtime-ffi-state-active-funcs-wat
+                  runtime-ffi-state-active-imports-wat
+                  runtime-ffi-state-active-primitive-names
+                  runtime-ffi-state-all-foreigns
+                  runtime-ffi-state-filter-current-bindings!
+                  runtime-ffi-state-record-metrics!)
          (only-in "runtime-wasm/runtime-metrics.rkt"
                   runtime-metric-add!
                   time-runtime-step)
@@ -43,8 +49,7 @@
                   runtime-primitive-state-primitive-func->symbol
                   runtime-primitive-state-primitive-global->symbol
                   runtime-ffi-primitive-global-forms
-                  runtime-ffi-primitive-initializer-forms
-                  runtime-ffi-primitive-names)
+                  runtime-ffi-primitive-initializer-forms)
          (only-in "runtime-wasm/core/arrays.rkt"
                   array-core-runtime-helper-forms
                   array-runtime-helper-forms)
@@ -385,10 +390,8 @@
     ;;;
 
     (define all-primitives primitives)
-    (define all-ffi-foreigns (current-ffi-foreigns))
-    (define active-ffi-foreigns all-ffi-foreigns)
-    (define active-ffi-imports-wat (current-ffi-imports-wat))
-    (define active-ffi-funcs-wat   (current-ffi-funcs-wat))
+    (define ffi-state (make-current-runtime-ffi-state))
+    (define all-ffi-foreigns (runtime-ffi-state-all-foreigns ffi-state))
     (define primitive-state
       (make-runtime-primitive-state all-primitives
                                     console-bridge-bindings
@@ -398,9 +401,8 @@
       (runtime-primitive-state-active-described-primitives-sorted
        primitive-state))
 
-    (define active-ffi-primitive-names
-      (λ ()
-        (runtime-ffi-primitive-names active-ffi-foreigns)))
+    (define (active-ffi-primitive-names)
+      (runtime-ffi-state-active-primitive-names ffi-state))
 
     (define described-primitives
       (runtime-primitive-state-described-primitives primitive-state))
@@ -431,7 +433,8 @@
       (runtime-primitive-state-initializer-forms primitive-state))
 
     (define (initialize-ffi-primitives-as-globals)
-      (runtime-ffi-primitive-initializer-forms active-ffi-foreigns))
+      (runtime-ffi-primitive-initializer-forms
+       (runtime-ffi-state-active-foreigns ffi-state)))
 
     (define linklet-body-reserved-symbols
       (runtime-linklet-body-reserved-symbols all-primitives))
@@ -469,14 +472,13 @@
 
          ,@js-host-import-forms
 
-        ;; FFI related imports
-        ,@active-ffi-imports-wat ; generated from "driver.rkt" in "define-foreign.rkt"
-
-
-         ,@active-ffi-funcs-wat   ; generated from "driver.rkt" in "define-foreign.rkt"
+         ;; FFI related imports
+         ,@(runtime-ffi-state-active-imports-wat ffi-state) ; generated from "driver.rkt" in "define-foreign.rkt"
+         ,@(runtime-ffi-state-active-funcs-wat ffi-state)   ; generated from "driver.rkt" in "define-foreign.rkt"
 
          ;;   Unsafe FFI primitive helpers are implemented in runtime-wasm/core/ffi.rkt.
-         ,@(unsafe-ffi-runtime-only-helper-forms active-ffi-foreigns)
+         ,@(unsafe-ffi-runtime-only-helper-forms
+            (runtime-ffi-state-active-foreigns ffi-state))
 
          ;;;
          ;;; Exceptions
@@ -1671,18 +1673,10 @@
     (time-runtime-step
      "runtime:ffi-wrapper-filter"
      (λ ()
-       (define-values (selected-ffi-foreigns
-                       selected-ffi-imports-wat
-                       selected-ffi-funcs-wat)
-         (select-current-ffi-runtime-bindings
-          all-ffi-foreigns
-          used-primitives))
-       (set! active-ffi-foreigns selected-ffi-foreigns)
-       (set! active-ffi-imports-wat selected-ffi-imports-wat)
-       (set! active-ffi-funcs-wat selected-ffi-funcs-wat)))
+       (runtime-ffi-state-filter-current-bindings! ffi-state used-primitives)))
     (runtime-metric-add! "runtime:target"
                          (if (current-browser?) "browser" "node"))
-    (runtime-record-ffi-metrics! active-ffi-foreigns)
+    (runtime-ffi-state-record-metrics! ffi-state)
     (runtime-metric-add! "runtime:program-primitive-count"
                          (length used-primitives))
     (define full-module
@@ -1698,9 +1692,9 @@
      #:primitive-func->symbol primitive-func->symbol
      #:primitive-global->symbol primitive-global->symbol
      #:ffi-global->symbol ffi-global->symbol
-     #:active-ffi-foreigns active-ffi-foreigns
-     #:active-ffi-imports-wat active-ffi-imports-wat
-     #:active-ffi-funcs-wat active-ffi-funcs-wat
+     #:active-ffi-foreigns (runtime-ffi-state-active-foreigns ffi-state)
+     #:active-ffi-imports-wat (runtime-ffi-state-active-imports-wat ffi-state)
+     #:active-ffi-funcs-wat (runtime-ffi-state-active-funcs-wat ffi-state)
      #:described-primitives described-primitives
      #:used-primitives used-primitives
      #:console-bridge-primitive-names console-bridge-primitive-names
