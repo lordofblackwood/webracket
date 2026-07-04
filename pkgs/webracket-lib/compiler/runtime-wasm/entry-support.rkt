@@ -3,6 +3,7 @@
 (provide entry-local-declaration-forms
          entry-local-initializer-forms
          entry-result-copy-forms
+         entry-function-form
          entry-result-global-forms
          entry-run-body-form
          entry-support-forms
@@ -110,9 +111,127 @@
     (call $copy-bytes-to-memory ; copy and return length as i32
           (global.get $result-bytes) (i32.const 0))))
 
+;; entry-function-form :
+;;   (listof list?) datum? symbol? #:flonum-initializer-forms list?
+;;   #:runtime-constant-initializer-forms list? #:parameterization-initializer-forms list?
+;;   #:random-current-initializer-forms list? #:thread-current-initializer-forms list?
+;;   #:logger-current-initializer-forms list? #:custodian-current-initializer-forms list?
+;;   #:event-initializer-forms list? #:entry-struct-property-initializer-forms list?
+;;   #:path-current-initializer-forms list? #:environment-parameter-initializer-forms list?
+;;   #:character-general-category-initializer-forms list? #:realm-initializer-forms list?
+;;   #:primitive-initializer-forms list? #:ffi-primitive-initializer-forms list?
+;;   #:security-guard-current-initializer-forms list? #:error-value-handler-late-initializer-forms list?
+;;   #:print-read-parameter-late-initializer-forms list?
+;;   #:io-handler-default-port-late-initializer-forms list?
+;;   #:error-syntax-handler-late-initializer-forms list? #:top-vars (listof variable?)
+;;   #:exception-struct-type-initializer-forms list? #:namespace-initializer-forms list? -> datum?
+;;   Build the exported WebRacket entry function.
+(define (entry-function-form
+         entry-locals
+         entry-body
+         result
+         #:flonum-initializer-forms flonum-initializer-forms
+         #:runtime-constant-initializer-forms runtime-constant-initializer-forms
+         #:parameterization-initializer-forms parameterization-initializer-forms
+         #:random-current-initializer-forms random-current-initializer-forms
+         #:thread-current-initializer-forms thread-current-initializer-forms
+         #:logger-current-initializer-forms logger-current-initializer-forms
+         #:custodian-current-initializer-forms custodian-current-initializer-forms
+         #:event-initializer-forms event-initializer-forms
+         #:entry-struct-property-initializer-forms entry-struct-property-initializer-forms
+         #:path-current-initializer-forms path-current-initializer-forms
+         #:environment-parameter-initializer-forms environment-parameter-initializer-forms
+         #:character-general-category-initializer-forms character-general-category-initializer-forms
+         #:realm-initializer-forms realm-initializer-forms
+         #:primitive-initializer-forms primitive-initializer-forms
+         #:ffi-primitive-initializer-forms ffi-primitive-initializer-forms
+         #:security-guard-current-initializer-forms security-guard-current-initializer-forms
+         #:error-value-handler-late-initializer-forms error-value-handler-late-initializer-forms
+         #:print-read-parameter-late-initializer-forms print-read-parameter-late-initializer-forms
+         #:io-handler-default-port-late-initializer-forms io-handler-default-port-late-initializer-forms
+         #:error-syntax-handler-late-initializer-forms error-syntax-handler-late-initializer-forms
+         #:top-vars top-vars
+         #:exception-struct-type-initializer-forms exception-struct-type-initializer-forms
+         #:namespace-initializer-forms namespace-initializer-forms)
+  `(func $entry (export "entry") (result i32)
+         ; Declare local variables (bound by let-values and letrec-values)
+         (local $entry-exn (ref eq))
+         ,@(entry-local-declaration-forms entry-locals)
+
+         ;; Initialize global constants
+         ,@flonum-initializer-forms
+
+         ;; Initialize global state
+         (call $initialize-the-symbol-table)  ; for interning
+         (call $initialize-the-keyword-table) ; for interning
+         (call $initialize-primitive-table-user-installed)
+         (call $initialize-prefab-struct-type-registry)
+
+         ;; Initialize constants used by the program and runtime.
+         ,@runtime-constant-initializer-forms
+         ,@parameterization-initializer-forms
+         ,@random-current-initializer-forms
+         ,@thread-current-initializer-forms
+         ,@logger-current-initializer-forms
+         ,@custodian-current-initializer-forms
+         ,@event-initializer-forms
+
+         ,@entry-struct-property-initializer-forms
+
+         ,@path-current-initializer-forms
+         ,@environment-parameter-initializer-forms
+         (drop (call $reset-current-input-port!))
+         (drop (call $reset-current-output-port!))
+         (drop (call $reset-current-error-port!))
+
+         ,@character-general-category-initializer-forms
+
+         ,@realm-initializer-forms
+
+         ;; Initialize variables holding primitives
+         ,@primitive-initializer-forms
+         ,@ffi-primitive-initializer-forms
+         (call $initialize-unsafe-ffi-primitive-table)
+         ,@security-guard-current-initializer-forms
+         ,@error-value-handler-late-initializer-forms
+         ,@print-read-parameter-late-initializer-forms
+         ,@io-handler-default-port-late-initializer-forms
+         ,@error-syntax-handler-late-initializer-forms
+
+         ;; Initialize top-level variables.
+         ;; These are all "boxed".
+         ,@(entry-top-level-variable-initializer-forms top-vars)
+
+         ;; Populate exception struct type descriptor bindings.
+         ;;   struct:exn, struct:exn:fail, etc
+         ,@exception-struct-type-initializer-forms
+
+         ;; Initialize the top-level namespace
+         ,@namespace-initializer-forms
+
+         ; Initialize local variables
+         ,@(entry-local-initializer-forms entry-locals)
+
+         ; This runs `entry-body`. An exception handler is
+         ; installed to catch exceptions not handled by the
+         ; user program.
+         ,(entry-run-body-form entry-body)
+
+         ; Return the result
+         ,@(entry-result-copy-forms result)))
+
 (module+ test
   (require rackunit
+           racket/list
            "../private/structs.rkt")
+
+  ;; form-index : list? any/c -> exact-nonnegative-integer?
+  ;;   Return the position of a top-level form inside a generated form.
+  (define (form-index forms target)
+    (for/first ([form (in-list forms)]
+                [i (in-naturals)]
+                #:when (equal? form target))
+      i))
 
   (define top-var (variable #'top))
 
@@ -155,4 +274,56 @@
                                     (global.get $zero)
                                     (global.get $false)))
                   (call $copy-bytes-to-memory
-                        (global.get $result-bytes) (i32.const 0)))))
+                        (global.get $result-bytes) (i32.const 0))))
+
+  (define sample-entry-form
+    (entry-function-form
+     '((x (ref eq)))
+     '(call $program)
+     '$result
+     #:flonum-initializer-forms '((call $init-flonum))
+     #:runtime-constant-initializer-forms '((call $init-runtime-constants))
+     #:parameterization-initializer-forms '((call $init-parameterization))
+     #:random-current-initializer-forms '((call $init-random))
+     #:thread-current-initializer-forms '((call $init-thread))
+     #:logger-current-initializer-forms '((call $init-logger))
+     #:custodian-current-initializer-forms '((call $init-custodian))
+     #:event-initializer-forms '((call $init-event))
+     #:entry-struct-property-initializer-forms '((call $init-entry-struct-property))
+     #:path-current-initializer-forms '((call $init-path))
+     #:environment-parameter-initializer-forms '((call $init-environment))
+     #:character-general-category-initializer-forms '((call $init-char-category))
+     #:realm-initializer-forms '((call $init-realm))
+     #:primitive-initializer-forms '((call $init-primitives))
+     #:ffi-primitive-initializer-forms '((call $init-ffi-primitives))
+     #:security-guard-current-initializer-forms '((call $init-security-guard))
+     #:error-value-handler-late-initializer-forms '((call $init-error-value-handler))
+     #:print-read-parameter-late-initializer-forms '((call $init-print-read))
+     #:io-handler-default-port-late-initializer-forms '((call $init-default-ports))
+     #:error-syntax-handler-late-initializer-forms '((call $init-error-syntax-handler))
+     #:top-vars (list top-var)
+     #:exception-struct-type-initializer-forms '((call $init-exception-structs))
+     #:namespace-initializer-forms '((call $init-namespace))))
+
+  (check-equal? (take sample-entry-form 6)
+                '(func $entry
+                       (export "entry")
+                       (result i32)
+                       (local $entry-exn (ref eq))
+                       (local x (ref eq))))
+  (check-not-false (member '(call $initialize-the-symbol-table) sample-entry-form))
+  (check-true (< (form-index sample-entry-form '(call $init-runtime-constants))
+                 (form-index sample-entry-form '(call $init-parameterization))))
+  (check-true (< (form-index sample-entry-form '(call $init-primitives))
+                 (form-index sample-entry-form '(call $initialize-unsafe-ffi-primitive-table))))
+  (check-true (< (form-index sample-entry-form
+                             '(global.set $$top
+                                          (struct.new $Boxed
+                                                      (global.get $undefined))))
+                 (form-index sample-entry-form '(call $init-exception-structs))))
+  (check-not-false (member (entry-run-body-form '(call $program))
+                           sample-entry-form))
+  (check-not-false (member '(call $copy-bytes-to-memory
+                                  (global.get $result-bytes)
+                                  (i32.const 0))
+                           sample-entry-form)))

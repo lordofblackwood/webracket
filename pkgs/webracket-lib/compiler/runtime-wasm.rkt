@@ -13,13 +13,9 @@
                   entry-struct-property-global-forms
                   entry-struct-property-initializer-forms)
          (only-in "runtime-wasm/entry-support.rkt"
-                  entry-local-declaration-forms
-                  entry-local-initializer-forms
+                  entry-function-form
                   entry-result-global-forms
-                  entry-result-copy-forms
-                  entry-run-body-form
-                  entry-support-forms
-                  entry-top-level-variable-initializer-forms)
+                  entry-support-forms)
          (only-in "runtime-wasm/function-declarations.rkt"
                   runtime-function-declaration-forms)
          (only-in "runtime-wasm/js-imports.rkt"
@@ -1652,74 +1648,41 @@
 
                ,@entry-support-forms
 
-               (func $entry (export "entry") (result i32)
-                     ; Declare local variables (bound by let-values and letrec-values)
-                     (local $entry-exn (ref eq))
-                     ,@(entry-local-declaration-forms entry-locals)
-
-                     ;; Initialize global constants
-                     ,@flonum-initializer-forms
-
-                     ;; Initialize global state
-                     (call $initialize-the-symbol-table)  ; for interning
-                     (call $initialize-the-keyword-table) ; for interning
-                     (call $initialize-primitive-table-user-installed)
-                     (call $initialize-prefab-struct-type-registry)
-
-                     ;; Initialize constants used by the program and runtime.
-                     ,@(runtime-constant-initializer-forms runtime-constant-registry)
-                     ,@parameterization-initializer-forms
-                     ,@random-current-initializer-forms
-                     ,@thread-current-initializer-forms
-                     ,@logger-current-initializer-forms
-                     ,@custodian-current-initializer-forms
-                     ,@event-initializer-forms
-
-                     ,@entry-struct-property-initializer-forms
-
-
-                     ,@path-current-initializer-forms
-                     ,@environment-parameter-initializer-forms
-                     (drop (call $reset-current-input-port!))
-                     (drop (call $reset-current-output-port!))
-                     (drop (call $reset-current-error-port!))
-
-                     ,@character-general-category-initializer-forms
-
-                     ,@realm-initializer-forms
-
-                    ;; Initialize variables holding primitives
-                    ,@(initialize-primitives-as-globals)
-                    ,@(initialize-ffi-primitives-as-globals)
-                    (call $initialize-unsafe-ffi-primitive-table)
-                    ,@security-guard-current-initializer-forms
-                    ,@error-value-handler-late-initializer-forms
-                    ,@print-read-parameter-late-initializer-forms
-                    ,@io-handler-default-port-late-initializer-forms
-                    ,@error-syntax-handler-late-initializer-forms
-
-                     ;; Initialize top-level variables.
-                     ;; These are all "boxed".
-                     ,@(entry-top-level-variable-initializer-forms top-vars)
-
-                     ;; Populate exception struct type descriptor bindings.
-                     ;;   struct:exn, struct:exn:fail, etc
-                     ,@exception-struct-type-initializer-forms
-
-                     ;; Initialize the top-level namespace
-                     ,@namespace-initializer-forms
-
-
-                     ; Initialize local variables
-                     ,@(entry-local-initializer-forms entry-locals)
-
-                     ; This runs `entry-body`. An exception handler is
-                     ; installed to catch exceptions not handled by the
-                     ; user program.
-                     ,(entry-run-body-form entry-body)
-
-                     ; Return the result
-                     ,@(entry-result-copy-forms result))
+               ,(entry-function-form
+                 entry-locals
+                 entry-body
+                 result
+                 #:flonum-initializer-forms flonum-initializer-forms
+                 #:runtime-constant-initializer-forms
+                 (runtime-constant-initializer-forms runtime-constant-registry)
+                 #:parameterization-initializer-forms parameterization-initializer-forms
+                 #:random-current-initializer-forms random-current-initializer-forms
+                 #:thread-current-initializer-forms thread-current-initializer-forms
+                 #:logger-current-initializer-forms logger-current-initializer-forms
+                 #:custodian-current-initializer-forms custodian-current-initializer-forms
+                 #:event-initializer-forms event-initializer-forms
+                 #:entry-struct-property-initializer-forms entry-struct-property-initializer-forms
+                 #:path-current-initializer-forms path-current-initializer-forms
+                 #:environment-parameter-initializer-forms environment-parameter-initializer-forms
+                 #:character-general-category-initializer-forms
+                 character-general-category-initializer-forms
+                 #:realm-initializer-forms realm-initializer-forms
+                 #:primitive-initializer-forms (initialize-primitives-as-globals)
+                 #:ffi-primitive-initializer-forms (initialize-ffi-primitives-as-globals)
+                 #:security-guard-current-initializer-forms
+                 security-guard-current-initializer-forms
+                 #:error-value-handler-late-initializer-forms
+                 error-value-handler-late-initializer-forms
+                 #:print-read-parameter-late-initializer-forms
+                 print-read-parameter-late-initializer-forms
+                 #:io-handler-default-port-late-initializer-forms
+                 io-handler-default-port-late-initializer-forms
+                 #:error-syntax-handler-late-initializer-forms
+                 error-syntax-handler-late-initializer-forms
+                 #:top-vars top-vars
+                 #:exception-struct-type-initializer-forms
+                 exception-struct-type-initializer-forms
+                 #:namespace-initializer-forms namespace-initializer-forms)
 
                ))
 
