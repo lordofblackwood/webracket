@@ -8563,6 +8563,57 @@
                       (and (eof-object? result)
                            (equal? first  #\h)
                            (equal? second #\i))))
+
+              (list "peek wrapper argument errors are catchable with who"
+                    (let ([catch-contract/message-contains?
+                           (lambda (parts thunk)
+                             (let ([message
+                                    (with-handlers ([exn:fail:contract?
+                                                     (lambda (exn)
+                                                       (exn-message exn))])
+                                      (thunk)
+                                      #f)])
+                               (and message
+                                    (andmap (lambda (part)
+                                              (string-contains? message part))
+                                            parts))))])
+                      (and
+                       (catch-contract/message-contains?
+                        '("peek-bytes: contract violation"
+                          "expected: exact-nonnegative-integer?"
+                          "given: #f")
+                        (lambda ()
+                          (peek-bytes #f 0 (open-input-bytes #"abc"))))
+                       (catch-contract/message-contains?
+                        '("peek-bytes: contract violation"
+                          "expected: exact-nonnegative-integer?"
+                          "given: -1")
+                        (lambda ()
+                          (peek-bytes 1 -1 (open-input-bytes #"abc"))))
+                       (catch-contract/message-contains?
+                        '("peek-bytes: contract violation"
+                          "expected: input-port?"
+                          "given: 42")
+                        (lambda ()
+                          (peek-bytes 1 0 42)))
+                       (catch-contract/message-contains?
+                        '("peek-string: contract violation"
+                          "expected: exact-nonnegative-integer?"
+                          "given: -1")
+                        (lambda ()
+                          (peek-string -1 0 (open-input-string "abc"))))
+                       (catch-contract/message-contains?
+                        '("peek-string: contract violation"
+                          "expected: exact-nonnegative-integer?"
+                          "given: #f")
+                        (lambda ()
+                          (peek-string 1 #f (open-input-string "abc"))))
+                       (catch-contract/message-contains?
+                        '("peek-string: contract violation"
+                          "expected: input-port?"
+                          "given: 42")
+                        (lambda ()
+                          (peek-string 1 0 42))))))
               
               (list "read-byte/custom-port"
                     (let* ([base (open-input-bytes (bytes 70 71))]

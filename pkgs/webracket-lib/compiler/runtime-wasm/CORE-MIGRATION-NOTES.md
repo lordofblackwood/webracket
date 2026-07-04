@@ -95,9 +95,12 @@ Current behavior:
   `peek-bytes-avail!*`, and `write-bytes` now use signed fixnum decoding and
   raise caller-specific index/range errors.
 - `get-output-bytes` now handles its special port-content range messages and
-  accepts `#f` as the optional end index. Higher-level peek wrappers such as
-  `peek-bytes` and `peek-string` still use older unsigned/fixnum checks for
-  their count and skip arguments.
+  accepts `#f` as the optional end index.
+- The allocation wrappers `peek-bytes` and `peek-string` now use signed
+  fixnum decoding and raise caller-specific count/skip errors.
+- Single-value peek wrappers such as `peek-byte` and `peek-char`, plus
+  allocation wrappers such as `read-bytes` and `read-string`, still have older
+  unsigned/fixnum checks for their count or skip arguments.
 
 Follow-up:
 
