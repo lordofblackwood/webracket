@@ -8611,8 +8611,71 @@
                     (let ([port (open-output-bytes)])
                       (and (equal? (write-bytes (bytes 65 66 67 68) port) 4)
                            (equal? (get-output-bytes port #f 1 3) (bytes 66 67))
+                           (equal? (get-output-bytes port #f 1 #f) (bytes 66 67 68))
                            (equal? (get-output-bytes port #t) (bytes 65 66 67 68))
                            (equal? (get-output-bytes port) (bytes)))))
+
+              (list "get-output-bytes errors are catchable with who"
+                    (let ([catch-message-contains?
+                           (lambda (parts thunk)
+                             (let ([message
+                                    (with-handlers ([exn:fail:contract?
+                                                     (lambda (exn)
+                                                       (exn-message exn))])
+                                      (thunk)
+                                      #f)])
+                               (and message
+                                    (andmap (lambda (part)
+                                              (string-contains? message part))
+                                            parts))))])
+                      (and
+                       (catch-message-contains?
+                        '("get-output-bytes"
+                          "(and/c output-port? string-port?)"
+                          "given: 42")
+                        (lambda () (get-output-bytes 42)))
+                       (catch-message-contains?
+                        '("get-output-bytes"
+                          "exact-nonnegative-integer?"
+                          "given: -1")
+                        (lambda ()
+                          (get-output-bytes (open-output-bytes) #f -1)))
+                       (catch-message-contains?
+                        '("get-output-bytes"
+                          "(or/c exact-nonnegative-integer? #f)"
+                          "given: -1")
+                        (lambda ()
+                          (get-output-bytes (open-output-bytes) #f 0 -1)))
+                       (catch-message-contains?
+                        '("get-output-bytes"
+                          "starting index is out of range"
+                          "starting index: 4"
+                          "valid range: [0, 3]"
+                          "port content: #<output-port:sink>")
+                        (lambda ()
+                          (let ([port (open-output-bytes 'sink)])
+                            (write-bytes #"abc" port)
+                            (get-output-bytes port #f 4))))
+                       (catch-message-contains?
+                        '("get-output-bytes"
+                          "ending index is out of range"
+                          "ending index: 4"
+                          "valid range: [1, 3]"
+                          "port content: #<output-port:string>")
+                        (lambda ()
+                          (let ([port (open-output-bytes)])
+                            (write-bytes #"abc" port)
+                            (get-output-bytes port #f 1 4))))
+                       (catch-message-contains?
+                        '("get-output-bytes"
+                          "ending index is out of range"
+                          "ending index: 1"
+                          "valid range: [2, 3]"
+                          "port content: #<output-port:string>")
+                        (lambda ()
+                          (let ([port (open-output-bytes)])
+                            (write-bytes #"abc" port)
+                            (get-output-bytes port #f 2 1)))))))
 
               (list "newline"
                     (let ([port (open-output-string)])

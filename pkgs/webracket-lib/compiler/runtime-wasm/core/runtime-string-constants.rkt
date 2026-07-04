@@ -66,6 +66,7 @@
          (only-in "ports.rkt"
                   port-predicate-runtime-string-constants
                   port-event-runtime-string-constants
+                  port-output-runtime-string-constants
                   port-closed-error-runtime-string-constants)
          (only-in "procedures.rkt"
                   procedure-runtime-string-constants)
@@ -127,6 +128,7 @@
           box-runtime-string-constants
           immutable-hash-runtime-string-constants
           port-predicate-runtime-string-constants
+          port-output-runtime-string-constants
           io-handler-runtime-string-constants
           port-event-runtime-string-constants
           parameter-runtime-string-constants

@@ -5,6 +5,7 @@
          port-runtime-symbol-constants
          port-event-runtime-string-constants
          port-event-runtime-symbol-constants
+         port-output-runtime-string-constants
          port-closed-error-runtime-string-constants
          port-output-predicate-runtime-helper-forms
          port-state-runtime-helper-forms
@@ -50,6 +51,7 @@
     read-string!
     peek-string!
     write-string
+    get-output-bytes
     read-line
     read-bytes-line
     linefeed
@@ -71,6 +73,17 @@
   '(port-writes-atomic?
     port-writes-special?
     port-provides-progress-evts?))
+
+;; port-output-runtime-string-constants : (listof (list/c symbol? string?))
+;;   Declare strings used by byte/string output port error messages.
+(define port-output-runtime-string-constants
+  '((get-output-bytes:output-string-port-contract "(and/c output-port? string-port?)")
+    (get-output-bytes:end-index-contract         "(or/c exact-nonnegative-integer? #f)")
+    (get-output-bytes:valid-range-open           "\n  valid range: [")
+    (get-output-bytes:valid-range-separator      ", ")
+    (get-output-bytes:port-content               "\n  port content: ")
+    (get-output-bytes:output-port-prefix         "#<output-port:")
+    (get-output-bytes:output-port-suffix         ">")))
 
 ;; port-closed-error-runtime-string-constants : (listof (list/c symbol? string?))
 ;;   Declare string constants used by closed-port error messages.
@@ -133,6 +146,11 @@
     $open-input-string
     $open-output-bytes
     $open-output-string
+    $format-get-output-bytes:port-content
+    $raise-get-output-bytes:port-expected
+    $raise-get-output-bytes:start-expected
+    $raise-get-output-bytes:end-expected
+    $raise-get-output-bytes:range
     $get-output-bytes))
 
 ;; port-custom-constructor-runtime-only-helper-names : (listof symbol?)
@@ -997,6 +1015,91 @@
            (struct.set $OutputStringPort $name (local.get $port) (local.get $name-val))
            (local.get $port))
 
+     (func $format-get-output-bytes:port-content
+           (param $port (ref null $OutputStringPort))
+           (result      (ref $String))
+
+           (call $string-append/2
+                 (call $string-append/2
+                       (global.get $string:get-output-bytes:output-port-prefix)
+                       (call $format/display
+                             (struct.get $OutputStringPort $name (local.get $port))))
+                 (global.get $string:get-output-bytes:output-port-suffix)))
+
+     (func $raise-get-output-bytes:port-expected
+           (param $x (ref eq))
+
+           (call $raise-argument-error1
+                 (global.get $symbol:get-output-bytes)
+                 (global.get $string:get-output-bytes:output-string-port-contract)
+                 (local.get $x))
+           (unreachable))
+
+     (func $raise-get-output-bytes:start-expected
+           (param $x (ref eq))
+
+           (call $raise-argument-error1
+                 (global.get $symbol:get-output-bytes)
+                 (global.get $string:exact-nonnegative-integer?)
+                 (local.get $x))
+           (unreachable))
+
+     (func $raise-get-output-bytes:end-expected
+           (param $x (ref eq))
+
+           (call $raise-argument-error1
+                 (global.get $symbol:get-output-bytes)
+                 (global.get $string:get-output-bytes:end-index-contract)
+                 (local.get $x))
+           (unreachable))
+
+     (func $raise-get-output-bytes:range
+           (param $reason      (ref eq))
+           (param $index-label (ref eq))
+           (param $port        (ref null $OutputStringPort))
+           (param $idx         i32)
+           (param $range-start i32)
+           (param $range-end   i32)
+
+           (local $out     (ref $GrowableArray))
+           (local $message (ref $String))
+
+           (local.set $out
+                      (call $make-growable-array (i32.const 11)))
+           (call $growable-array-add! (local.get $out)
+                 (call $format/display (global.get $symbol:get-output-bytes)))
+           (call $growable-array-add! (local.get $out)
+                 (local.get $reason))
+           (call $growable-array-add! (local.get $out)
+                 (local.get $index-label))
+           (call $growable-array-add! (local.get $out)
+                 (call $format/display
+                       (ref.i31 (i32.shl (local.get $idx) (i32.const 1)))))
+           (call $growable-array-add! (local.get $out)
+                 (global.get $string:get-output-bytes:valid-range-open))
+           (call $growable-array-add! (local.get $out)
+                 (call $format/display
+                       (ref.i31 (i32.shl (local.get $range-start) (i32.const 1)))))
+           (call $growable-array-add! (local.get $out)
+                 (global.get $string:get-output-bytes:valid-range-separator))
+           (call $growable-array-add! (local.get $out)
+                 (call $format/display
+                       (ref.i31 (i32.shl (local.get $range-end) (i32.const 1)))))
+           (call $growable-array-add! (local.get $out)
+                 (global.get $string:string-ref:valid-range-close))
+           (call $growable-array-add! (local.get $out)
+                 (global.get $string:get-output-bytes:port-content))
+           (call $growable-array-add! (local.get $out)
+                 (call $format-get-output-bytes:port-content (local.get $port)))
+           (local.set $message
+                      (call $growable-array-of-strings->string (local.get $out)))
+           (call $raise
+                 (call $exn:fail:contract/make
+                       (local.get $message)
+                       (call $current-continuation-marks (global.get $missing)))
+                 (global.get $true))
+           (unreachable))
+
      (func $get-output-bytes (type $Prim14)
            (param $out    (ref eq))
            (param $reset? (ref eq)) ;; optional any/c, default = #f
@@ -1009,13 +1112,14 @@
            (local $idx  i32)
            (local $from i32)
            (local $to   i32)
+           (local $raw  i32)
            (local $src  (ref $I8Array))
            (local $dest (ref $I8Array))
            (local $res  (ref $Bytes))
            ;; 1. Check that $out is a StringPort
            (if (ref.test (ref $OutputStringPort) (local.get $out))
                (then (local.set $sp (ref.cast (ref $OutputStringPort) (local.get $out))))
-               (else (call $raise-check-string-port (local.get $out)) (unreachable)))
+               (else (call $raise-get-output-bytes:port-expected (local.get $out))))
            ;; 2. Get internal byte string and index
            (local.set $bs  (struct.get $OutputStringPort $bytes (local.get $sp)))
            (local.set $idx (struct.get $OutputStringPort $idx   (local.get $sp)))
@@ -1027,24 +1131,50 @@
                (then (local.set $from (i32.const 0)))
                (else (if (ref.test (ref i31) (local.get $start))
                          (then
-                          (local.set $from (i31.get_u (ref.cast (ref i31) (local.get $start))))
-                          (if (i32.eqz (i32.and (local.get $from) (i32.const 1)))
-                              (then (local.set $from (i32.shr_u (local.get $from) (i32.const 1))))
-                              (else (call $raise-check-fixnum (local.get $start)) (unreachable))))
-                         (else (call $raise-check-fixnum (local.get $start)) (unreachable)))))
-           (if (ref.eq (local.get $end) (global.get $missing))
+                          (local.set $raw (i31.get_s (ref.cast (ref i31) (local.get $start))))
+                          (if (i32.eqz (i32.and (local.get $raw) (i32.const 1)))
+                              (then
+                               (local.set $from (i32.shr_s (local.get $raw) (i32.const 1)))
+                               (if (i32.lt_s (local.get $from) (i32.const 0))
+                                   (then (call $raise-get-output-bytes:start-expected
+                                               (local.get $start)))))
+                              (else (call $raise-get-output-bytes:start-expected
+                                          (local.get $start)))))
+                         (else (call $raise-get-output-bytes:start-expected
+                                     (local.get $start))))))
+           (if (i32.or (ref.eq (local.get $end) (global.get $missing))
+                       (ref.eq (local.get $end) (global.get $false)))
                (then (local.set $to (local.get $idx)))
                (else (if (ref.test (ref i31) (local.get $end))
                          (then
-                          (local.set $to (i31.get_u (ref.cast (ref i31) (local.get $end))))
-                          (if (i32.eqz (i32.and (local.get $to) (i32.const 1)))
-                              (then (local.set $to (i32.shr_u (local.get $to) (i32.const 1))))
-                              (else (call $raise-check-fixnum (local.get $end)) (unreachable))))
-                         (else (call $raise-check-fixnum (local.get $end)) (unreachable)))))
-           (if (i32.gt_u (local.get $from) (local.get $to))
-               (then (call $raise-bad-bytes-range (local.get $out) (local.get $from) (local.get $to)) (unreachable)))
-           (if (i32.gt_u (local.get $to) (local.get $idx))
-               (then (call $raise-bad-bytes-range (local.get $out) (local.get $from) (local.get $to)) (unreachable)))
+                          (local.set $raw (i31.get_s (ref.cast (ref i31) (local.get $end))))
+                          (if (i32.eqz (i32.and (local.get $raw) (i32.const 1)))
+                              (then
+                               (local.set $to (i32.shr_s (local.get $raw) (i32.const 1)))
+                               (if (i32.lt_s (local.get $to) (i32.const 0))
+                                   (then (call $raise-get-output-bytes:end-expected
+                                               (local.get $end)))))
+                              (else (call $raise-get-output-bytes:end-expected
+                                          (local.get $end)))))
+                         (else (call $raise-get-output-bytes:end-expected
+                                     (local.get $end))))))
+           (if (i32.gt_u (local.get $from) (local.get $idx))
+               (then (call $raise-get-output-bytes:range
+                           (global.get $string:substring:starting-index-out-of-range)
+                           (global.get $string:substring:starting-index)
+                           (local.get $sp)
+                           (local.get $from)
+                           (i32.const 0)
+                           (local.get $idx))))
+           (if (i32.or (i32.gt_u (local.get $to) (local.get $idx))
+                       (i32.lt_u (local.get $to) (local.get $from)))
+               (then (call $raise-get-output-bytes:range
+                           (global.get $string:substring:ending-index-out-of-range)
+                           (global.get $string:substring:ending-index)
+                           (local.get $sp)
+                           (local.get $to)
+                           (local.get $from)
+                           (local.get $idx))))
            ;; 5. Allocate a new array for the requested slice.
            (local.set $dest (call $i8make-array
                                   (i32.sub (local.get $to) (local.get $from))
