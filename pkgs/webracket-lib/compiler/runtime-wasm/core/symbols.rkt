@@ -7,6 +7,7 @@
          symbol-gensym-runtime-only-helper-names
          symbol-gensym-runtime-helper-forms
          symbol-gensym-global-forms
+         symbol-table-type-forms
          symbol-table-global-forms
          symbol-table-initializer-runtime-only-helper-names
          symbol-table-initializer-runtime-helper-forms
@@ -21,6 +22,29 @@
 (define symbol-runtime-string-constants
   '((symbol? "symbol?")
     (g       "g")))
+
+;; symbol-table-type-forms : (listof datum?)
+;;   Declare the open-addressing table type used for symbol interning.
+(define symbol-table-type-forms
+  '(
+         ; We'll use an open-addressing hash table with linear probing for simplicity.
+         ; A load of 50% leads to fast lookup - but uses some more memory.
+
+         ; Theory: https://thenumb.at/Hashtables/
+
+         ; We do not support deleting symbols from the symbol table, so we do not
+         ; need to handle tombstones.
+
+         (type $SymbolTable
+               (struct
+                 (field $entries (mut (ref $Array))) ;; flat array: key0, val0, key1, val1, ...
+                 (field $count   (mut i32))))        ;; number of symbols currently stored
+
+         ; The $Array is a flat array: [key0 val0 key1 val1 ...].
+         ; Capacity is half the array length (since entries are key-value pairs).
+         ; Keys are (ref $String), values are (ref $Symbol).
+         ; Count is number of active entries (not tombstones).
+         ))
 
 ;; symbol-table-global-forms : (listof datum?)
 ;;   Declare the global symbol interning table.
@@ -638,6 +662,9 @@
 
   (define symbol-helper-index
     (make-core-runtime-helper-index symbol-runtime-only-helpers))
+
+  (check-equal? (map first symbol-table-type-forms) '(type))
+  (check-equal? (second (first symbol-table-type-forms)) '$SymbolTable)
 
   (check-equal?
    (map form-name

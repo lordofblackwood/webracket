@@ -327,6 +327,7 @@
                   symbol-gensym-global-forms
                   symbol-gensym-runtime-helper-forms
                   symbol-public-runtime-helper-forms
+                  symbol-table-type-forms
                   symbol-table-global-forms
                   symbol-table-runtime-helper-forms
                   symbol-table-initializer-runtime-helper-forms)
@@ -1328,23 +1329,7 @@
          ;;; SYMBOL TABLE
          ;;;
 
-         ; We'll use an open-addressing hash table with linear probing for simplicity.
-         ; A load of 50% leads to fast lookup - but uses some more memory.
-
-         ; Theory: https://thenumb.at/Hashtables/
-
-         ; We do not support deleting symbols from the symbol table, so we do not
-         ; need to handle tombstones.
-
-         (type $SymbolTable
-               (struct
-                 (field $entries (mut (ref $Array))) ;; flat array: key0, val0, key1, val1, ...
-                 (field $count   (mut i32))))        ;; number of symbols currently stored
-
-         ; The $Array is a flat array: [key0 val0 key1 val1 ...].
-         ; Capacity is half the array length (since entries are key-value pairs).
-         ; Keys are (ref $String), values are (ref $Symbol).
-         ; Count is number of active entries (not tombstones).
+         ,@symbol-table-type-forms
 
          ;;   Implemented in runtime-wasm/core/symbols.rkt.
          ,@(symbol-table-runtime-helper-forms runtime-helper-index)
