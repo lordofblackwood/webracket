@@ -9,9 +9,6 @@
          "private/priminfo.rkt"
          "private/parameters.rkt"
          "private/structs.rkt"
-         (only-in "runtime-wasm/entry-initializers.rkt"
-                  entry-struct-property-global-forms
-                  entry-struct-property-initializer-forms)
          (only-in "runtime-wasm/entry-support.rkt"
                   entry-function-form
                   entry-result-global-forms
@@ -317,6 +314,8 @@
                   struct-procedure-invoker-runtime-helper-forms
                   struct-procedure-runtime-helper-forms
                   struct-type-property-runtime-helper-forms
+                  struct-property-global-forms
+                  struct-property-initializer-forms
                   struct-prefab-registry-global-forms)
          (only-in "runtime-wasm/core/symbols.rkt"
                   symbol-gensym-global-forms
@@ -1622,7 +1621,7 @@
                ,@thread-current-global-forms
                ,@event-global-forms
 
-               ,@entry-struct-property-global-forms
+               ,@struct-property-global-forms
                ,@ffi-entry-global-forms
 
                ,@entry-support-forms
@@ -1640,7 +1639,7 @@
                  #:logger-current-initializer-forms logger-current-initializer-forms
                  #:custodian-current-initializer-forms custodian-current-initializer-forms
                  #:event-initializer-forms event-initializer-forms
-                 #:entry-struct-property-initializer-forms entry-struct-property-initializer-forms
+                 #:entry-struct-property-initializer-forms struct-property-initializer-forms
                  #:path-current-initializer-forms path-current-initializer-forms
                  #:environment-parameter-initializer-forms environment-parameter-initializer-forms
                  #:character-general-category-initializer-forms

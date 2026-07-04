@@ -18,7 +18,6 @@
 (define-runtime-path constants-path "constants.rkt")
 (define-runtime-path core-helper-path "core-helper.rkt")
 (define-runtime-path core-runtime-path "core-runtime.rkt")
-(define-runtime-path entry-initializers-path "entry-initializers.rkt")
 (define-runtime-path entry-support-path "entry-support.rkt")
 (define-runtime-path function-declarations-path "function-declarations.rkt")
 (define-runtime-path js-imports-path "js-imports.rkt")
@@ -106,7 +105,6 @@
         constants-path
         core-helper-path
         core-runtime-path
-        entry-initializers-path
         entry-support-path
         function-declarations-path
         js-imports-path
