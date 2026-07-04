@@ -1617,15 +1617,48 @@
 ;;   Enumerate vector/list conversion helpers used by the monolithic runtime.
 (define vector-list-conversion-runtime-only-forms
   '(
-         (func $raise-expected-vector (unreachable))
-
          (func $list->vector (type $Prim1)
                (param $xs (ref eq))
                (result    (ref eq))
 
                (local $arr (ref $Array))
+               (local $len i32)
+               (local $idx i32)
+               (local $node (ref eq))
+               (local $pair (ref $Pair))
+               (local $x (ref eq))
 
-               (local.set $arr (call $list->array (local.get $xs)))
+               ;; Count and validate the proper-list shape.
+               (local.set $len (i32.const 0))
+               (local.set $node (local.get $xs))
+               (block $length-done
+                      (loop $length-loop
+                            (br_if $length-done
+                                   (ref.eq (local.get $node) (global.get $null)))
+                            (if (i32.eqz (ref.test (ref $Pair) (local.get $node)))
+                                (then (call $raise-list-expected/who
+                                            (global.get $symbol:list->vector)
+                                            (local.get $xs))
+                                      (unreachable)))
+                            (local.set $len (i32.add (local.get $len) (i32.const 1)))
+                            (local.set $node
+                                       (struct.get $Pair $d
+                                                   (ref.cast (ref $Pair) (local.get $node))))
+                            (br $length-loop)))
+
+               (local.set $arr (call $make-array (local.get $len) (global.get $null)))
+               (local.set $idx (i32.const 0))
+               (local.set $node (local.get $xs))
+               (block $fill-done
+                      (loop $fill-loop
+                            (br_if $fill-done
+                                   (ref.eq (local.get $node) (global.get $null)))
+                            (local.set $pair (ref.cast (ref $Pair) (local.get $node)))
+                            (local.set $x (struct.get $Pair $a (local.get $pair)))
+                            (call $array-set! (local.get $arr) (local.get $idx) (local.get $x))
+                            (local.set $idx (i32.add (local.get $idx) (i32.const 1)))
+                            (local.set $node (struct.get $Pair $d (local.get $pair)))
+                            (br $fill-loop)))
                (struct.new $Vector
                            (i32.const 0)     ; hash
                            (i32.const 0)     ; immutable
@@ -1635,7 +1668,10 @@
                (param $v (ref eq))
                (result (ref eq))
                (if (i32.eqz (ref.test (ref $Vector) (local.get $v)))
-                   (then (call $raise-expected-vector (local.get $v)) (unreachable)))
+                   (then (call $raise-check-vector/who
+                               (global.get $symbol:vector->list)
+                               (local.get $v))
+                         (unreachable)))
                (call $vector->list/checked (ref.cast (ref $Vector) (local.get $v))))
 
          (func $vector->list/checked

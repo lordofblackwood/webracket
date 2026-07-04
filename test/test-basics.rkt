@@ -3511,6 +3511,28 @@
                                  '#(foo bar baz))
                          (equal? (list->vector '()) '#())))
 
+              (list "vector/list conversion argument errors are catchable with who"
+                    (let ([catch-contract/who+expected?
+                           (lambda (who expected thunk)
+                             (let ([message
+                                    (with-handlers ([exn:fail:contract?
+                                                     (lambda (exn)
+                                                       (exn-message exn))])
+                                      (thunk)
+                                      #f)])
+                               (and (string? message)
+                                    (string-contains? message who)
+                                    (string-contains? message expected))))])
+                      (and (catch-contract/who+expected? "vector->list"
+                                                         "vector?"
+                                                         (lambda () (vector->list 42)))
+                           (catch-contract/who+expected? "list->vector"
+                                                         "list?"
+                                                         (lambda () (list->vector 42)))
+                           (catch-contract/who+expected? "list->vector"
+                                                         "list?"
+                                                         (lambda () (list->vector (cons 'a 42)))))))
+
               (list "vector->values"
                     (and (let-values ([() (vector->values '#())]) #t)
                          (let-values ([(a b c) (vector->values '#(a b c))])
