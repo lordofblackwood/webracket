@@ -2585,7 +2585,7 @@
                            (equal? (bytes-utf-8-length invalid) #f)
                            (equal? (bytes-utf-8-length invalid #\uFFFD) 3))))
 
-              (list "bytes-utf-8-length errors are catchable with who"
+              (list "byte text decoding errors are catchable with who"
                     (let ([catch-contract/who+expected+given?
                            (lambda (who expected given thunk)
                              (let ([message
@@ -2647,7 +2647,27 @@
                         "bytes-utf-8-length"
                         "ending index is smaller than starting index"
                         "ending index: 1"
-                        (lambda () (bytes-utf-8-length #"abc" #f 2 1))))))
+                        (lambda () (bytes-utf-8-length #"abc" #f 2 1)))
+                       (catch-contract/who+expected+given?
+                        "bytes->string/latin-1"
+                        "bytes?"
+                        "given: 42"
+                        (lambda () (bytes->string/latin-1 42)))
+                       (catch-contract/who+expected+given?
+                        "bytes->string/latin-1"
+                        "(or/c char? #f)"
+                        "given: 42"
+                        (lambda () (bytes->string/latin-1 #"abc" 42)))
+                       (catch-contract/who+expected+given?
+                        "bytes->string/latin-1"
+                        "exact-nonnegative-integer?"
+                        "given: -1"
+                        (lambda () (bytes->string/latin-1 #"abc" #f -1)))
+                       (catch-range/who+reason+index?
+                        "bytes->string/latin-1"
+                        "starting index is out of range"
+                        "starting index: 4"
+                        (lambda () (bytes->string/latin-1 #"abc" #f 4))))))
 
               (list "bytes->string/latin-1/basic"
                     (let* ([bstr (bytes #xfe #xd3 #xd1 #xa5)]
@@ -2672,7 +2692,6 @@
                            (= (char->integer (string-ref default 0)) 255)
                            (= (char->integer (string-ref default 1)) 0)
                            (= (char->integer (string-ref default 2)) 128))))
-
 
               (list "bytes=?"
                     (and (equal? (bytes=? #"a" #"a" #"a") #t)

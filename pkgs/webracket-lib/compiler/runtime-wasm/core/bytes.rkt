@@ -1371,12 +1371,16 @@
 ;; byte-text-decoding-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for byte text-decoding helpers.
 (define byte-text-decoding-runtime-only-helper-names
-  '($raise-bytes-utf-8-length:bad-argument
+  '($raise-byte-string-index-out-of-range
+    $raise-byte-string-end-before-start
+    $raise-byte-string-range-error
+    $raise-bytes-utf-8-length:bad-argument
     $raise-bytes-utf-8-length:invalid-err-char
     $raise-bytes-utf-8-length:range-error
     $bytes-utf-8-length
     $raise-bytes->string/latin-1
     $raise-bytes->string/latin-1:invalid-err-char
+    $raise-bytes->string/latin-1:range-error
     $bytes->string/latin-1
     $raise-bytes->string/utf-8
     $raise-bytes->string/utf-8:invalid-err-char
@@ -1392,23 +1396,49 @@
   (function-forms->runtime-helpers
    'byte-text-decoding-runtime-only-helpers
    `(
-     (func $raise-bytes-utf-8-length:bad-argument
-           (param $expected (ref eq))
-           (param $bad      (ref eq))
-           (call $raise-argument-error1
-                 (global.get $symbol:bytes-utf-8-length)
-                 (local.get $expected)
-                 (local.get $bad))
+     (func $raise-byte-string-index-out-of-range
+           (param $who         (ref eq))
+           (param $reason      (ref eq))
+           (param $index-label (ref eq))
+           (param $bstr        (ref eq))
+           (param $idx         i32)
+           (param $len         i32)
+
+           (local $out     (ref $GrowableArray))
+           (local $message (ref $String))
+
+           (local.set $out (call $make-growable-array (i32.const 9)))
+           (call $growable-array-add! (local.get $out)
+                 (call $format/display (local.get $who)))
+           (call $growable-array-add! (local.get $out)
+                 (local.get $reason))
+           (call $growable-array-add! (local.get $out)
+                 (local.get $index-label))
+           (call $growable-array-add! (local.get $out)
+                 (call $format/display
+                       (ref.i31 (i32.shl (local.get $idx) (i32.const 1)))))
+           (call $growable-array-add! (local.get $out)
+                 (global.get $string:string-ref:valid-range))
+           (call $growable-array-add! (local.get $out)
+                 (call $format/display
+                       (ref.i31 (i32.shl (local.get $len) (i32.const 1)))))
+           (call $growable-array-add! (local.get $out)
+                 (global.get $string:string-ref:valid-range-close))
+           (call $growable-array-add! (local.get $out)
+                 (global.get $string:string-utf8:byte-string))
+           (call $growable-array-add! (local.get $out)
+                 (call $format/write (local.get $bstr)))
+           (local.set $message
+                      (call $growable-array-of-strings->string (local.get $out)))
+           (call $raise
+                 (call $exn:fail:contract/make
+                       (local.get $message)
+                       (call $current-continuation-marks (global.get $missing)))
+                 (global.get $true))
            (unreachable))
 
-     (func $raise-bytes-utf-8-length:invalid-err-char
-           (param $bad (ref eq))
-           (call $raise-bytes-utf-8-length:bad-argument
-                 (global.get $string:char-or-false?)
-                 (local.get $bad))
-           (unreachable))
-
-     (func $raise-bytes-utf-8-length:range-error
+     (func $raise-byte-string-end-before-start
+           (param $who   (ref eq))
            (param $bstr  (ref eq))
            (param $start i32)
            (param $end   i32)
@@ -1417,76 +1447,9 @@
            (local $out     (ref $GrowableArray))
            (local $message (ref $String))
 
-           (if (i32.gt_u (local.get $start) (local.get $len))
-               (then
-                (local.set $out (call $make-growable-array (i32.const 9)))
-                (call $growable-array-add! (local.get $out)
-                      (call $format/display
-                            (global.get $symbol:bytes-utf-8-length)))
-                (call $growable-array-add! (local.get $out)
-                      (global.get $string:substring:starting-index-out-of-range))
-                (call $growable-array-add! (local.get $out)
-                      (global.get $string:substring:starting-index))
-                (call $growable-array-add! (local.get $out)
-                      (call $format/display
-                            (ref.i31 (i32.shl (local.get $start) (i32.const 1)))))
-                (call $growable-array-add! (local.get $out)
-                      (global.get $string:string-ref:valid-range))
-                (call $growable-array-add! (local.get $out)
-                      (call $format/display
-                            (ref.i31 (i32.shl (local.get $len) (i32.const 1)))))
-                (call $growable-array-add! (local.get $out)
-                      (global.get $string:string-ref:valid-range-close))
-                (call $growable-array-add! (local.get $out)
-                      (global.get $string:string-utf8:byte-string))
-                (call $growable-array-add! (local.get $out)
-                      (call $format/write (local.get $bstr)))
-                (local.set $message
-                           (call $growable-array-of-strings->string (local.get $out)))
-                (call $raise
-                      (call $exn:fail:contract/make
-                            (local.get $message)
-                            (call $current-continuation-marks (global.get $missing)))
-                      (global.get $true))
-                (unreachable)))
-
-           (if (i32.gt_u (local.get $end) (local.get $len))
-               (then
-                (local.set $out (call $make-growable-array (i32.const 9)))
-                (call $growable-array-add! (local.get $out)
-                      (call $format/display
-                            (global.get $symbol:bytes-utf-8-length)))
-                (call $growable-array-add! (local.get $out)
-                      (global.get $string:substring:ending-index-out-of-range))
-                (call $growable-array-add! (local.get $out)
-                      (global.get $string:substring:ending-index))
-                (call $growable-array-add! (local.get $out)
-                      (call $format/display
-                            (ref.i31 (i32.shl (local.get $end) (i32.const 1)))))
-                (call $growable-array-add! (local.get $out)
-                      (global.get $string:string-ref:valid-range))
-                (call $growable-array-add! (local.get $out)
-                      (call $format/display
-                            (ref.i31 (i32.shl (local.get $len) (i32.const 1)))))
-                (call $growable-array-add! (local.get $out)
-                      (global.get $string:string-ref:valid-range-close))
-                (call $growable-array-add! (local.get $out)
-                      (global.get $string:string-utf8:byte-string))
-                (call $growable-array-add! (local.get $out)
-                      (call $format/write (local.get $bstr)))
-                (local.set $message
-                           (call $growable-array-of-strings->string (local.get $out)))
-                (call $raise
-                      (call $exn:fail:contract/make
-                            (local.get $message)
-                            (call $current-continuation-marks (global.get $missing)))
-                      (global.get $true))
-                (unreachable)))
-
            (local.set $out (call $make-growable-array (i32.const 11)))
            (call $growable-array-add! (local.get $out)
-                 (call $format/display
-                       (global.get $symbol:bytes-utf-8-length)))
+                 (call $format/display (local.get $who)))
            (call $growable-array-add! (local.get $out)
                  (global.get $string:substring:ending-index-before-start))
            (call $growable-array-add! (local.get $out)
@@ -1517,6 +1480,68 @@
                        (local.get $message)
                        (call $current-continuation-marks (global.get $missing)))
                  (global.get $true))
+           (unreachable))
+
+     (func $raise-byte-string-range-error
+           (param $who   (ref eq))
+           (param $bstr  (ref eq))
+           (param $start i32)
+           (param $end   i32)
+           (param $len   i32)
+
+           (if (i32.gt_u (local.get $start) (local.get $len))
+               (then (call $raise-byte-string-index-out-of-range
+                           (local.get $who)
+                           (global.get $string:substring:starting-index-out-of-range)
+                           (global.get $string:substring:starting-index)
+                           (local.get $bstr)
+                           (local.get $start)
+                           (local.get $len))
+                     (unreachable)))
+           (if (i32.gt_u (local.get $end) (local.get $len))
+               (then (call $raise-byte-string-index-out-of-range
+                           (local.get $who)
+                           (global.get $string:substring:ending-index-out-of-range)
+                           (global.get $string:substring:ending-index)
+                           (local.get $bstr)
+                           (local.get $end)
+                           (local.get $len))
+                     (unreachable)))
+           (call $raise-byte-string-end-before-start
+                 (local.get $who)
+                 (local.get $bstr)
+                 (local.get $start)
+                 (local.get $end)
+                 (local.get $len))
+           (unreachable))
+
+     (func $raise-bytes-utf-8-length:bad-argument
+           (param $expected (ref eq))
+           (param $bad      (ref eq))
+           (call $raise-argument-error1
+                 (global.get $symbol:bytes-utf-8-length)
+                 (local.get $expected)
+                 (local.get $bad))
+           (unreachable))
+
+     (func $raise-bytes-utf-8-length:invalid-err-char
+           (param $bad (ref eq))
+           (call $raise-bytes-utf-8-length:bad-argument
+                 (global.get $string:char-or-false?)
+                 (local.get $bad))
+           (unreachable))
+
+     (func $raise-bytes-utf-8-length:range-error
+           (param $bstr  (ref eq))
+           (param $start i32)
+           (param $end   i32)
+           (param $len   i32)
+           (call $raise-byte-string-range-error
+                 (global.get $symbol:bytes-utf-8-length)
+                 (local.get $bstr)
+                 (local.get $start)
+                 (local.get $end)
+                 (local.get $len))
            (unreachable))
 
      (func $bytes-utf-8-length (type $Prim14)
@@ -1687,8 +1712,34 @@
 
            (ref.i31 (i32.shl (local.get $count) (i32.const 1))))
 
-     (func $raise-bytes->string/latin-1                  (unreachable))
-     (func $raise-bytes->string/latin-1:invalid-err-char (unreachable))
+     (func $raise-bytes->string/latin-1
+           (param $expected (ref eq))
+           (param $bad      (ref eq))
+           (call $raise-argument-error1
+                 (global.get $symbol:bytes->string/latin-1)
+                 (local.get $expected)
+                 (local.get $bad))
+           (unreachable))
+
+     (func $raise-bytes->string/latin-1:invalid-err-char
+           (param $bad (ref eq))
+           (call $raise-bytes->string/latin-1
+                 (global.get $string:char-or-false?)
+                 (local.get $bad))
+           (unreachable))
+
+     (func $raise-bytes->string/latin-1:range-error
+           (param $bstr  (ref eq))
+           (param $start i32)
+           (param $end   i32)
+           (param $len   i32)
+           (call $raise-byte-string-range-error
+                 (global.get $symbol:bytes->string/latin-1)
+                 (local.get $bstr)
+                 (local.get $start)
+                 (local.get $end)
+                 (local.get $len))
+           (unreachable))
 
      (func $bytes->string/latin-1 (type $Prim14)
            (param $bstr      (ref eq)) ; bytes?
@@ -1707,11 +1758,16 @@
            (local $i           i32)
            (local $idx         i32)
            (local $byte        i32)
+           (local $raw-start   i32)
+           (local $raw-end     i32)
+           (local $raw-err     i32)
 
            ;; --- Validate byte string argument ---
            (if (ref.test (ref $Bytes) (local.get $bstr))
                (then (local.set $bs (ref.cast (ref $Bytes) (local.get $bstr))))
-               (else (call $raise-bytes->string/latin-1)))
+               (else (call $raise-bytes->string/latin-1
+                           (global.get $string:bytes?)
+                           (local.get $bstr))))
            (local.set $arr (struct.get $Bytes $bs (local.get $bs)))
            (local.set $len (array.len (local.get $arr)))
 
@@ -1719,21 +1775,45 @@
            (if (ref.eq (local.get $start-raw) (global.get $missing))
                (then (local.set $start (i32.const 0)))
                (else (if (ref.test (ref i31) (local.get $start-raw))
-                         (then (local.set $start
-                                          (i32.shr_u
-                                           (i31.get_u (ref.cast (ref i31) (local.get $start-raw)))
-                                           (i32.const 1))))
-                         (else (call $raise-bytes->string/latin-1)))))
+                         (then (local.set $raw-start
+                                          (i31.get_s
+                                           (ref.cast (ref i31) (local.get $start-raw))))
+                               (if (i32.ne (i32.and (local.get $raw-start) (i32.const 1))
+                                           (i32.const 0))
+                                   (then (call $raise-bytes->string/latin-1
+                                               (global.get $string:exact-nonnegative-integer?)
+                                               (local.get $start-raw))))
+                               (local.set $start
+                                          (i32.shr_s (local.get $raw-start) (i32.const 1)))
+                               (if (i32.lt_s (local.get $start) (i32.const 0))
+                                   (then (call $raise-bytes->string/latin-1
+                                               (global.get $string:exact-nonnegative-integer?)
+                                               (local.get $start-raw)))))
+                         (else (call $raise-bytes->string/latin-1
+                                     (global.get $string:exact-nonnegative-integer?)
+                                     (local.get $start-raw))))))
 
            ;; --- Decode optional end ---
            (if (ref.eq (local.get $end-raw) (global.get $missing))
                (then (local.set $end (local.get $len)))
                (else (if (ref.test (ref i31) (local.get $end-raw))
-                         (then (local.set $end
-                                          (i32.shr_u
-                                           (i31.get_u (ref.cast (ref i31) (local.get $end-raw)))
-                                           (i32.const 1))))
-                         (else (call $raise-bytes->string/latin-1)))))
+                         (then (local.set $raw-end
+                                          (i31.get_s
+                                           (ref.cast (ref i31) (local.get $end-raw))))
+                               (if (i32.ne (i32.and (local.get $raw-end) (i32.const 1))
+                                           (i32.const 0))
+                                   (then (call $raise-bytes->string/latin-1
+                                               (global.get $string:exact-nonnegative-integer?)
+                                               (local.get $end-raw))))
+                               (local.set $end
+                                          (i32.shr_s (local.get $raw-end) (i32.const 1)))
+                               (if (i32.lt_s (local.get $end) (i32.const 0))
+                                   (then (call $raise-bytes->string/latin-1
+                                               (global.get $string:exact-nonnegative-integer?)
+                                               (local.get $end-raw)))))
+                         (else (call $raise-bytes->string/latin-1
+                                     (global.get $string:exact-nonnegative-integer?)
+                                     (local.get $end-raw))))))
 
            ;; --- Validate optional err-char (ignored value) ---
            (if (ref.eq (local.get $err-char) (global.get $missing))
@@ -1741,16 +1821,25 @@
                (else (if (ref.eq (local.get $err-char) (global.get $false))
                          (then (nop))
                          (else (if (ref.test (ref i31) (local.get $err-char))
-                                   (then (nop))
-                                   (else (call $raise-bytes->string/latin-1:invalid-err-char)))))))
+                                   (then (local.set $raw-err
+                                                    (i31.get_s
+                                                     (ref.cast (ref i31) (local.get $err-char))))
+                                         (if (i32.ne (i32.and (local.get $raw-err)
+                                                             (i32.const ,char-mask))
+                                                     (i32.const ,char-tag))
+                                             (then (call $raise-bytes->string/latin-1:invalid-err-char
+                                                         (local.get $err-char)))))
+                                   (else (call $raise-bytes->string/latin-1:invalid-err-char
+                                               (local.get $err-char))))))))
 
            ;; --- Range checks ---
-           (if (i32.gt_u (local.get $start) (local.get $end))
-               (then (call $raise-bad-bytes-range (local.get $bstr) (local.get $start) (local.get $end))
-                     (unreachable)))
-           (if (i32.gt_u (local.get $end) (local.get $len))
-               (then (call $raise-bad-bytes-range (local.get $bstr) (local.get $start) (local.get $end))
-                     (unreachable)))
+           (if (i32.or (i32.gt_u (local.get $start) (local.get $end))
+                       (i32.gt_u (local.get $end) (local.get $len)))
+               (then (call $raise-bytes->string/latin-1:range-error
+                           (local.get $bstr)
+                           (local.get $start)
+                           (local.get $end)
+                           (local.get $len))))
 
            ;; --- Allocate codepoint array and copy bytes ---
            (local.set $count (i32.sub (local.get $end) (local.get $start)))
