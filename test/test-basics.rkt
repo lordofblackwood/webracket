@@ -1572,6 +1572,17 @@
                       (and (equal? s2 "hello")
                            (equal? (procedure-arity string-copy) 1))))
 
+              (list "string-copy argument errors are catchable with who"
+                    (let ([message
+                           (with-handlers ([exn:fail:contract?
+                                            (lambda (exn)
+                                              (exn-message exn))])
+                             (string-copy 42)
+                             #f)])
+                      (and (string? message)
+                           (string-contains? message "string-copy")
+                           (string-contains? message "string?"))))
+
               (list "string-fill!"
                     (let ([s (string-copy "hello")])
                       (string-fill! s #\x)

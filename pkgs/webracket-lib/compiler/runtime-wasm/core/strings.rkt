@@ -235,6 +235,7 @@
     $raise-substring-index-out-of-range
     $raise-substring-end-before-start
     $substring
+    $raise-string-copy:string-expected
     $string-copy
     $raise-immutable-string
     $raise-string-fill!:string-expected
@@ -1182,6 +1183,13 @@
                           (i32.const 0) ; mutable (also for immutable input)
                           (call $i32array-copy (local.get $arr) (local.get $i32start) (local.get $i32end))))
 
+         (func $raise-string-copy:string-expected
+               (param $x (ref eq))
+               (call $raise-argument-error1
+                     (global.get $symbol:string-copy)
+                     (global.get $string:string?)
+                     (local.get $x)))
+
          (func $string-copy (type $Prim1)
                (param $s (ref eq))
                (result (ref eq))
@@ -1192,7 +1200,7 @@
                (local $copy (ref $I32Array))
                ;; --- Type check ---
                (if (i32.eqz (ref.test (ref $String) (local.get $s)))
-                   (then (call $raise-check-string (local.get $s))))
+                   (then (call $raise-string-copy:string-expected (local.get $s))))
                ;; --- Cast and extract ---
                (local.set $str (ref.cast (ref $String) (local.get $s)))
                (local.set $arr (struct.get $String $codepoints (local.get $str)))
