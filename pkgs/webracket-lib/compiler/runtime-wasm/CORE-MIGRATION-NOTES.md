@@ -54,19 +54,29 @@ Follow-up:
 - If the current behavior is wrong, fix the constructor and update the
   pinned split-link expectation in `core-runtime.rkt`.
 
-## Deferred Migration Boundaries
+## Runtime-Only Core Boundaries
 
-These helpers remain in `runtime-wasm.rkt` because moving them cleanly
-requires broader list, error, or decoding support in core:
+These helpers have moved out of `runtime-wasm.rkt` into themed core modules,
+but they still live in runtime-only helper groups because moving them into the
+standalone core runtime cleanly requires broader list, error, bytes/string, or
+decoding support in core:
 
 - `$list->array`
 - `$list->i32array`
 - `$list->i8array`
 - `$i8array->string`
 
-Before moving the list conversions, add or move enough error support for
-proper Racket exceptions. Do not make the new core list conversion paths
-trusted unchecked helpers just to make the migration easy.
+Current owners:
+
+- `core/arrays.rkt` owns `$list->array`.
+- `core/i32-arrays.rkt` owns `$list->i32array`.
+- `core/i8-arrays.rkt` owns `$list->i8array` and `$i8array->string`.
+
+Before moving the list conversions into standalone core emission, add or move
+enough error support for proper Racket exceptions. Do not make the new core
+list conversion paths trusted unchecked helpers just to make the migration
+easy. Before moving `$i8array->string` into standalone core emission, account
+for its dependency on byte/string UTF-8 decoding support.
 
 ## Performance Notes
 

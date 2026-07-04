@@ -331,7 +331,7 @@
   '($list->array))
 
 ;; array-runtime-only-helpers : (listof core-runtime-helper?)
-;;   Enumerate generic array helpers that still depend on monolithic runtime support.
+;;   Enumerate generic array helpers that depend on full runtime support.
 (define array-runtime-only-helpers
   (function-forms->runtime-helpers
    'array-runtime-only-helpers

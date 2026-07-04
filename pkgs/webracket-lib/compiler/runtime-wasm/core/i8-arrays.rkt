@@ -5,8 +5,10 @@
          i8-array-core-runtime-helpers
          i8-array-error-runtime-only-helper-names
          i8-array-conversion-runtime-only-helper-names
+         i8-array-string-conversion-runtime-only-helper-names
          i8-array-error-runtime-helper-forms
          i8-array-conversion-runtime-helper-forms
+         i8-array-string-conversion-runtime-helper-forms
          i8-array-runtime-only-helpers)
 
 (require "../core-helper.rkt")
@@ -192,8 +194,13 @@
 (define i8-array-conversion-runtime-only-helper-names
   '($list->i8array))
 
+;; i8-array-string-conversion-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for i8 array/string conversion helpers.
+(define i8-array-string-conversion-runtime-only-helper-names
+  '($i8array->string))
+
 ;; i8-array-runtime-only-helpers : (listof core-runtime-helper?)
-;;   Enumerate i8 array helpers that still depend on monolithic runtime support.
+;;   Enumerate i8 array helpers that depend on full runtime support.
 (define i8-array-runtime-only-helpers
   (function-forms->runtime-helpers
    'i8-array-runtime-only-helpers
@@ -258,7 +265,12 @@
                             (else (call $raise-pair-expected (local.get $node))
                                   (unreachable)))))
            ;; Return array
-           (local.get $arr)))))
+           (local.get $arr))
+
+     (func $i8array->string (param $arr (ref $I8Array)) (result (ref $String))
+           (call $bytes->string/utf-8/checked
+                 (call $i8array->immutable-bytes
+                       (local.get $arr)))))))
 
 ;; i8-array-helper-forms : hasheq? (listof symbol?) -> (listof datum?)
 ;;   Render the given i8 array helper names from the runtime helper index.
@@ -307,6 +319,11 @@
 (define (i8-array-conversion-runtime-helper-forms helper-index)
   (i8-array-helper-forms helper-index i8-array-conversion-runtime-only-helper-names))
 
+;; i8-array-string-conversion-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render i8 array/string conversion helpers in runtime assembly order.
+(define (i8-array-string-conversion-runtime-helper-forms helper-index)
+  (i8-array-helper-forms helper-index i8-array-string-conversion-runtime-only-helper-names))
+
 (module+ test
   (require rackunit)
 
@@ -351,4 +368,9 @@
 
   (check-equal?
    (map form-name (i8-array-conversion-runtime-helper-forms i8-array-helper-index))
-   i8-array-conversion-runtime-only-helper-names))
+   i8-array-conversion-runtime-only-helper-names)
+
+  (check-equal?
+   (map form-name
+        (i8-array-string-conversion-runtime-helper-forms i8-array-helper-index))
+   i8-array-string-conversion-runtime-only-helper-names))

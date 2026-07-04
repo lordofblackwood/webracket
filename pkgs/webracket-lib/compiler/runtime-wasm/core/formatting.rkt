@@ -455,11 +455,6 @@
 ;;   Enumerate formatting and display helpers used by the monolithic runtime.
 (define display-formatting-runtime-only-forms
   `(
-         (func $i8array->string (param $arr (ref $I8Array)) (result (ref $String))
-               (call $bytes->string/utf-8/checked
-                     (call $i8array->immutable-bytes
-                            (local.get $arr))))
-
          (func $raise-format/display:unknown-datatype (unreachable))
 
          (func $raise-format/display:got-boxed  (unreachable))

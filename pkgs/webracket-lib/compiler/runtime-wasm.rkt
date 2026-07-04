@@ -137,7 +137,8 @@
          (only-in "runtime-wasm/core/i8-arrays.rkt"
                   i8-array-core-runtime-helper-forms
                   i8-array-error-runtime-helper-forms
-                  i8-array-conversion-runtime-helper-forms)
+                  i8-array-conversion-runtime-helper-forms
+                  i8-array-string-conversion-runtime-helper-forms)
          (only-in "runtime-wasm/core/immediates.rkt"
                   singleton-global-forms
                   void-runtime-helper-forms
@@ -1476,6 +1477,9 @@
          ;;;
          ;;; FORMATTING - DISPLAY MODE
          ;;;
+
+         ;;   I8 array/string conversion helper is implemented in runtime-wasm/core/i8-arrays.rkt.
+         ,@(i8-array-string-conversion-runtime-helper-forms runtime-helper-index)
 
          ;;   Implemented in runtime-wasm/core/formatting.rkt.
          ,@(formatting-runtime-helper-forms runtime-helper-index)

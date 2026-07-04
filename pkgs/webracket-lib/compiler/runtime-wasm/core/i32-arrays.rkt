@@ -224,7 +224,7 @@
   '($list->i32array))
 
 ;; i32-array-runtime-only-helpers : (listof core-runtime-helper?)
-;;   Enumerate i32 array helpers that still depend on monolithic runtime support.
+;;   Enumerate i32 array helpers that depend on full runtime support.
 (define i32-array-runtime-only-helpers
   (function-forms->runtime-helpers
    'i32-array-runtime-only-helpers
