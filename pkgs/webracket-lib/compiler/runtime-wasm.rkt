@@ -21,17 +21,9 @@
          (only-in "runtime-wasm/js-imports.rkt"
                   js-host-import-forms)
          (only-in "runtime-wasm/module-forms.rkt"
-                  module-func-names
-                  forms->module)
+                  module-func-names)
          (only-in "runtime-wasm/runtime-analysis.rkt"
-                  analyze-program-fragment
-                  analyze-stable-runtime/cached
-                  program-driver-function-names
-                  prune-runtime-module
-                  retained-runtime-sets
-                  split-module-forms
-                  stable-runtime-analysis-module
-                  write-runtime-primitive-report!)
+                  analyze-and-prune-runtime-module)
          (only-in "runtime-wasm/runtime-helper-index.rkt"
                   runtime-helper-index)
          (only-in "runtime-wasm/runtime-ffi.rkt"
@@ -39,10 +31,6 @@
                   select-current-ffi-runtime-bindings)
          (only-in "runtime-wasm/runtime-metrics.rkt"
                   runtime-metric-add!
-                  runtime-record-built-module-metrics!
-                  runtime-record-split-module-metrics!
-                  runtime-record-tree-shake-final-metrics!
-                  runtime-record-tree-shake-retention-metrics!
                   time-runtime-step)
          (only-in "runtime-wasm/runtime-primitives.rkt"
                   runtime-active-described-primitives-sorted
@@ -56,8 +44,6 @@
                   runtime-primitive-func->symbol
                   runtime-primitive-global->symbol
                   runtime-primitive-initializer-forms)
-         (only-in "runtime-wasm/runtime-source.rkt"
-                  runtime-source-fingerprint)
          (only-in "runtime-wasm/core/arrays.rkt"
                   array-core-runtime-helper-forms
                   array-runtime-helper-forms)
@@ -398,7 +384,6 @@
     ;;;
 
     (define all-primitives primitives)
-    (define active-primitives primitives)
     (define all-ffi-foreigns (current-ffi-foreigns))
     (define active-ffi-foreigns all-ffi-foreigns)
     (define active-ffi-imports-wat (current-ffi-imports-wat))
@@ -406,7 +391,7 @@
 
     (define active-described-primitives-sorted
       (λ ()
-        (runtime-active-described-primitives-sorted active-primitives
+        (runtime-active-described-primitives-sorted all-primitives
                                                     todo-handle-later)))
 
     (define active-ffi-primitive-names
@@ -1705,94 +1690,23 @@
                          (length used-primitives))
     (define full-module
       (time-runtime-step "runtime:build-runtime-module" build-runtime-module))
-    (runtime-record-built-module-metrics! full-module)
-    (define-values (runtime-forms-before-prune program-forms-before-prune)
-      (split-module-forms
-       full-module
-       #:program-function-names program-function-names
-       #:result-global result
-       #:top-level-variable-declarations top-level-variable-declarations
-       #:string-constants string-constants
-       #:bytes-constants bytes-constants
-       #:symbol-constants symbol-constants))
-    (runtime-record-split-module-metrics! runtime-forms-before-prune
-                                          program-forms-before-prune
-                                          program-function-names
-                                          top-level-variable-declarations)
-    (define runtime-only-module
-      (forms->module runtime-forms-before-prune))
-    (define stable-runtime-module
-      (stable-runtime-analysis-module runtime-only-module))
-    (define program-only-forms
-      program-forms-before-prune)
-    (define stable-runtime-analysis
-      (analyze-stable-runtime/cached
-       stable-runtime-module
-       #:browser? (current-browser?)
-       #:runtime-source-fingerprint (runtime-source-fingerprint)
-       #:active-ffi-foreigns active-ffi-foreigns
-       #:active-ffi-imports-wat active-ffi-imports-wat
-       #:active-ffi-funcs-wat active-ffi-funcs-wat
-       #:cache-root (current-runtime-cache-dir)
-       #:primitive-func->symbol primitive-func->symbol
-       #:primitive-global->symbol primitive-global->symbol
-       #:described-primitives described-primitives
-       #:time-runtime-step time-runtime-step))
-    (define program-analysis
-      (time-runtime-step
-       "tree-shake:analyze-program-fragment"
-       (lambda ()
-         (analyze-program-fragment
-          program-only-forms
-          stable-runtime-analysis
-          #:primitive-func->symbol primitive-func->symbol
-          #:primitive-global->symbol primitive-global->symbol
-          #:used-primitives used-primitives
-          #:console-bridge-primitive-names console-bridge-primitive-names
-          #:primitive-description? primitive->description))))
-    (define analysis
-      (time-runtime-step
-       "tree-shake:combine-analysis"
-       (lambda ()
-         (append stable-runtime-analysis
-                 program-analysis))))
-    (define-values (retained-primitives retained-functions)
-      (time-runtime-step
-       "tree-shake:retain-closure"
-       (λ ()
-         (retained-runtime-sets analysis
-                                described-primitives
-                                (current-tree-shake?)
-                                primitive-func->symbol))))
-    (runtime-record-tree-shake-retention-metrics! retained-primitives
-                                                  retained-functions)
-    (time-runtime-step
-     "tree-shake:write-report"
-     (λ ()
-       (write-runtime-primitive-report!
-        (current-runtime-primitive-report-path)
-        analysis
-        retained-primitives
-        described-primitives)))
-    (set! active-primitives retained-primitives)
-    (define final-module
-      (if (current-tree-shake?)
-          (time-runtime-step
-           "tree-shake:prune-runtime-module"
-           (λ ()
-             (prune-runtime-module
-              full-module
-              retained-primitives
-              retained-functions
-              #:program-function-names program-function-names
-              #:program-driver-function-names program-driver-function-names
-              #:primitive-global->symbol primitive-global->symbol
-              #:ffi-global->symbol ffi-global->symbol
-              #:active-ffi-foreigns active-ffi-foreigns)))
-          full-module))
-    (runtime-record-tree-shake-final-metrics! final-module
-                                              described-primitives
-                                              retained-primitives
-                                              (current-tree-shake?))
-    final-module
+    (analyze-and-prune-runtime-module
+     full-module
+     #:program-function-names program-function-names
+     #:result-global result
+     #:top-level-variable-declarations top-level-variable-declarations
+     #:string-constants string-constants
+     #:bytes-constants bytes-constants
+     #:symbol-constants symbol-constants
+     #:primitive-func->symbol primitive-func->symbol
+     #:primitive-global->symbol primitive-global->symbol
+     #:ffi-global->symbol ffi-global->symbol
+     #:active-ffi-foreigns active-ffi-foreigns
+     #:active-ffi-imports-wat active-ffi-imports-wat
+     #:active-ffi-funcs-wat active-ffi-funcs-wat
+     #:described-primitives described-primitives
+     #:used-primitives used-primitives
+     #:console-bridge-primitive-names console-bridge-primitive-names
+     #:primitive-description? primitive->description
+     #:time-runtime-step time-runtime-step)
     )))

@@ -1,6 +1,7 @@
 #lang racket
 
 (provide analyze-program-fragment
+         analyze-and-prune-runtime-module
          analyze-stable-runtime/cached
          analyze-stable-runtime
          list->eq-set
@@ -19,12 +20,23 @@
          write-runtime-primitive-report!
          write-stable-runtime-analysis-cache!)
 
-(require "../private/structs.rkt"
+(require (only-in "../private/parameters.rkt"
+                  current-browser?
+                  current-runtime-cache-dir
+                  current-runtime-primitive-report-path
+                  current-tree-shake?)
+         "../private/structs.rkt"
          "../private/wasm-utils.rkt"
          "constants.rkt"
          "module-forms.rkt"
          (only-in "runtime-metrics.rkt"
-                  runtime-metric-add!)
+                  runtime-metric-add!
+                  runtime-record-built-module-metrics!
+                  runtime-record-split-module-metrics!
+                  runtime-record-tree-shake-final-metrics!
+                  runtime-record-tree-shake-retention-metrics!)
+         (only-in "runtime-source.rkt"
+                  runtime-source-fingerprint)
          file/sha1
          racket/fasl
          racket/file)
@@ -285,6 +297,125 @@
                                               stable-runtime-cache-fingerprint
                                               computed-stable-runtime-analysis)))
      computed-stable-runtime-analysis]))
+
+;; analyze-and-prune-runtime-module :
+;;   list? #:program-function-names (listof symbol?) #:result-global symbol?
+;;         #:top-level-variable-declarations list? #:string-constants list?
+;;         #:bytes-constants list? #:symbol-constants list?
+;;         #:primitive-func->symbol hasheq? #:primitive-global->symbol hasheq?
+;;         #:ffi-global->symbol hasheq? #:active-ffi-foreigns list?
+;;         #:active-ffi-imports-wat list? #:active-ffi-funcs-wat list?
+;;         #:described-primitives (listof symbol?) #:used-primitives (listof symbol?)
+;;         #:console-bridge-primitive-names (listof symbol?)
+;;         #:primitive-description? procedure?
+;;         [#:time-runtime-step (string? (-> any/c) -> any/c)] -> list?
+;;   Split, analyze, report, and optionally prune a generated runtime module.
+(define (analyze-and-prune-runtime-module
+         full-module
+         #:program-function-names program-function-names
+         #:result-global result
+         #:top-level-variable-declarations top-level-variable-declarations
+         #:string-constants string-constants
+         #:bytes-constants bytes-constants
+         #:symbol-constants symbol-constants
+         #:primitive-func->symbol primitive-func->symbol
+         #:primitive-global->symbol primitive-global->symbol
+         #:ffi-global->symbol ffi-global->symbol
+         #:active-ffi-foreigns active-ffi-foreigns
+         #:active-ffi-imports-wat active-ffi-imports-wat
+         #:active-ffi-funcs-wat active-ffi-funcs-wat
+         #:described-primitives described-primitives
+         #:used-primitives used-primitives
+         #:console-bridge-primitive-names console-bridge-primitive-names
+         #:primitive-description? primitive-description?
+         #:time-runtime-step [time-runtime-step default-time-runtime-step])
+  (runtime-record-built-module-metrics! full-module)
+  (define-values (runtime-forms-before-prune program-forms-before-prune)
+    (split-module-forms
+     full-module
+     #:program-function-names program-function-names
+     #:result-global result
+     #:top-level-variable-declarations top-level-variable-declarations
+     #:string-constants string-constants
+     #:bytes-constants bytes-constants
+     #:symbol-constants symbol-constants))
+  (runtime-record-split-module-metrics! runtime-forms-before-prune
+                                        program-forms-before-prune
+                                        program-function-names
+                                        top-level-variable-declarations)
+  (define runtime-only-module
+    (forms->module runtime-forms-before-prune))
+  (define stable-runtime-module
+    (stable-runtime-analysis-module runtime-only-module))
+  (define stable-runtime-analysis
+    (analyze-stable-runtime/cached
+     stable-runtime-module
+     #:browser? (current-browser?)
+     #:runtime-source-fingerprint (runtime-source-fingerprint)
+     #:active-ffi-foreigns active-ffi-foreigns
+     #:active-ffi-imports-wat active-ffi-imports-wat
+     #:active-ffi-funcs-wat active-ffi-funcs-wat
+     #:cache-root (current-runtime-cache-dir)
+     #:primitive-func->symbol primitive-func->symbol
+     #:primitive-global->symbol primitive-global->symbol
+     #:described-primitives described-primitives
+     #:time-runtime-step time-runtime-step))
+  (define program-analysis
+    (time-runtime-step
+     "tree-shake:analyze-program-fragment"
+     (lambda ()
+       (analyze-program-fragment
+        program-forms-before-prune
+        stable-runtime-analysis
+        #:primitive-func->symbol primitive-func->symbol
+        #:primitive-global->symbol primitive-global->symbol
+        #:used-primitives used-primitives
+        #:console-bridge-primitive-names console-bridge-primitive-names
+        #:primitive-description? primitive-description?))))
+  (define analysis
+    (time-runtime-step
+     "tree-shake:combine-analysis"
+     (lambda ()
+       (append stable-runtime-analysis
+               program-analysis))))
+  (define-values (retained-primitives retained-functions)
+    (time-runtime-step
+     "tree-shake:retain-closure"
+     (λ ()
+       (retained-runtime-sets analysis
+                              described-primitives
+                              (current-tree-shake?)
+                              primitive-func->symbol))))
+  (runtime-record-tree-shake-retention-metrics! retained-primitives
+                                                retained-functions)
+  (time-runtime-step
+   "tree-shake:write-report"
+   (λ ()
+     (write-runtime-primitive-report!
+      (current-runtime-primitive-report-path)
+      analysis
+      retained-primitives
+      described-primitives)))
+  (define final-module
+    (if (current-tree-shake?)
+        (time-runtime-step
+         "tree-shake:prune-runtime-module"
+         (λ ()
+           (prune-runtime-module
+            full-module
+            retained-primitives
+            retained-functions
+            #:program-function-names program-function-names
+            #:program-driver-function-names program-driver-function-names
+            #:primitive-global->symbol primitive-global->symbol
+            #:ffi-global->symbol ffi-global->symbol
+            #:active-ffi-foreigns active-ffi-foreigns)))
+        full-module))
+  (runtime-record-tree-shake-final-metrics! final-module
+                                            described-primitives
+                                            retained-primitives
+                                            (current-tree-shake?))
+  final-module)
 
 ;; walk-symbol-refs : any/c hasheq? -> (listof symbol?)
 ;;   Find symbolic references represented by keys in `symbol->value`.
@@ -943,4 +1074,52 @@
                        (cdr pruned-module)))
   (check-not-false (member '(func $p) (cdr pruned-module)))
   (check-not-false (member '(global $prim:p (mut (ref eq)) (ref.null eq))
-                           (cdr pruned-module))))
+                           (cdr pruned-module)))
+
+  (define pipeline-module
+    '(module
+      (func $p)
+      (func $q)
+      (func $helper (call $p))
+      (func $root (export "root") (call $helper))
+      (func $program)
+      (func $entry (call $program))
+      (global $prim:p (mut (ref eq)) (ref.null eq))
+      (global $prim:q (mut (ref eq)) (ref.null eq))
+      (global $program-global (mut (ref eq)) (ref.null eq))
+      (data $string-data:program-string "program")))
+
+  (define pipeline-final-module
+    (parameterize ([current-tree-shake? #t]
+                   [current-runtime-cache-dir #f]
+                   [current-runtime-primitive-report-path #f]
+                   [current-runtime-metric-rows '()])
+      (analyze-and-prune-runtime-module
+       pipeline-module
+       #:program-function-names '($program)
+       #:result-global '$program-global
+       #:top-level-variable-declarations
+       '((global $program-global (mut (ref eq)) (ref.null eq)))
+       #:string-constants '((program-string "program"))
+       #:bytes-constants '()
+       #:symbol-constants '()
+       #:primitive-func->symbol primitive-func->symbol
+       #:primitive-global->symbol primitive-global->symbol
+       #:ffi-global->symbol (hasheq)
+       #:active-ffi-foreigns '()
+       #:active-ffi-imports-wat '()
+       #:active-ffi-funcs-wat '()
+       #:described-primitives '(p q)
+       #:used-primitives '()
+       #:console-bridge-primitive-names '()
+       #:primitive-description? (lambda (name) (memq name '(p q))))))
+
+  (check-not-false (member '(func $p) (cdr pipeline-final-module)))
+  (check-false (member '(func $q) (cdr pipeline-final-module)))
+  (check-not-false (member '(func $program) (cdr pipeline-final-module)))
+  (check-not-false (member '(func $entry (call $program))
+                           (cdr pipeline-final-module)))
+  (check-not-false (member '(global $prim:p (mut (ref eq)) (ref.null eq))
+                           (cdr pipeline-final-module)))
+  (check-false (member '(global $prim:q (mut (ref eq)) (ref.null eq))
+                       (cdr pipeline-final-module))))
