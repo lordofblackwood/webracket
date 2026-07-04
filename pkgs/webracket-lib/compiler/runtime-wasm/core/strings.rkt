@@ -2047,7 +2047,9 @@
                ;; check string
                (if (ref.test (ref $String) (local.get $s))
                    (then (local.set $str (ref.cast (ref $String) (local.get $s))))
-                   (else (call $raise-check-string (local.get $s))))
+                   (else (call $raise-racket-string:string-expected
+                               (global.get $symbol:string->list)
+                               (local.get $s))))
                (local.set $arr (struct.get $String $codepoints (local.get $str)))
                (local.set $len (call $i32array-length (local.get $arr)))
                ;; special case len=0
@@ -2082,8 +2084,22 @@
                (local $node  (ref eq))
                (local $chimm (ref eq))
                (local $cp    i32)
-               ;; 1. Compute list length (will raise if not proper list)
-               (local.set $len (call $length/i32 (local.get $xs)))
+               ;; 1. Compute list length and validate proper-list shape.
+               (local.set $len  (i32.const 0))
+               (local.set $node (local.get $xs))
+               (block $length-done
+                      (loop $length-loop
+                            (br_if $length-done
+                                   (ref.eq (local.get $node) (global.get $null)))
+                            (if (i32.eqz (ref.test (ref $Pair) (local.get $node)))
+                                (then (call $raise-list-expected/who
+                                            (global.get $symbol:list->string)
+                                            (local.get $xs))))
+                            (local.set $len (i32.add (local.get $len) (i32.const 1)))
+                            (local.set $node
+                                       (struct.get $Pair $d
+                                                   (ref.cast (ref $Pair) (local.get $node))))
+                            (br $length-loop)))
                ;; 2. Create new mutable string
                (local.set $str
                           (struct.new $String
@@ -2104,10 +2120,17 @@
                                  ;; extract car
                                  (local.set $chimm (struct.get $Pair $a (ref.cast (ref $Pair) (local.get $node))))
                                  ;; decode and validate character
+                                 (if (i32.eqz (ref.test (ref i31) (local.get $chimm)))
+                                     (then (call $raise-argument-error1
+                                                 (global.get $symbol:list->string)
+                                                 (global.get $string:char?)
+                                                 (local.get $chimm))))
                                  (local.set $cp (i31.get_u (ref.cast (ref i31) (local.get $chimm))))
                                  (if (i32.ne (i32.and (local.get $cp) (i32.const ,char-mask)) (i32.const ,char-tag))
-                                     (then (call $raise-check-char (local.get $chimm))
-                                           (unreachable)))
+                                     (then (call $raise-argument-error1
+                                                 (global.get $symbol:list->string)
+                                                 (global.get $string:char?)
+                                                 (local.get $chimm))))
                                  ;; extract codepoint
                                  (local.set $cp (i32.shr_u (local.get $cp) (i32.const 8)))
                                  ;; write codepoint
@@ -2116,8 +2139,9 @@
                                  (local.set $i (i32.add (local.get $i) (i32.const 1)))
                                  (local.set $node (struct.get $Pair $d (ref.cast (ref $Pair) (local.get $node)))))
                                 (else
-                                 (call $raise-pair-expected (local.get $node))
-                                 (unreachable)))
+                                 (call $raise-list-expected/who
+                                       (global.get $symbol:list->string)
+                                       (local.get $xs))))
                             (br $fill)))
                ;; 5. Return string
                (local.get $str))

@@ -1813,6 +1813,31 @@
                     (and (equal? (list->string '(#\1 #\\ #\")) "1\\\"")
                          (equal? (list->string '()) "")))
 
+              (list "string/list conversion argument errors are catchable with who"
+                    (let ([catch-contract/who+expected?
+                           (lambda (who expected thunk)
+                             (let ([message
+                                    (with-handlers ([exn:fail:contract?
+                                                     (lambda (exn)
+                                                       (exn-message exn))])
+                                      (thunk)
+                                      #f)])
+                               (and (string? message)
+                                    (string-contains? message who)
+                                    (string-contains? message expected))))])
+                      (and (catch-contract/who+expected? "string->list"
+                                                         "string?"
+                                                         (lambda () (string->list 42)))
+                           (catch-contract/who+expected? "list->string"
+                                                         "list?"
+                                                         (lambda () (list->string 42)))
+                           (catch-contract/who+expected? "list->string"
+                                                         "list?"
+                                                         (lambda () (list->string (cons #\a 42))))
+                           (catch-contract/who+expected? "list->string"
+                                                         "char?"
+                                                         (lambda () (list->string (list #\a 42)))))))
+
               (list "string-find"
                     (and (equal? (string-find "Racket" "ack") 1)
                          (equal? (string-find "Racket" "Rac") 0)
