@@ -33,17 +33,18 @@
                   runtime-metric-add!
                   time-runtime-step)
          (only-in "runtime-wasm/runtime-primitives.rkt"
-                  runtime-active-described-primitives-sorted
-                  runtime-console-bridge-primitive-names
-                  runtime-described-primitives
-                  runtime-ffi-global->symbol
+                  make-runtime-primitive-state
+                  runtime-primitive-state-active-described-primitives-sorted
+                  runtime-primitive-state-console-bridge-primitive-names
+                  runtime-primitive-state-described-primitives
+                  runtime-primitive-state-ffi-global->symbol
+                  runtime-primitive-state-global-forms
+                  runtime-primitive-state-initializer-forms
+                  runtime-primitive-state-primitive-func->symbol
+                  runtime-primitive-state-primitive-global->symbol
                   runtime-ffi-primitive-global-forms
                   runtime-ffi-primitive-initializer-forms
-                  runtime-ffi-primitive-names
-                  runtime-primitive-global-forms
-                  runtime-primitive-func->symbol
-                  runtime-primitive-global->symbol
-                  runtime-primitive-initializer-forms)
+                  runtime-ffi-primitive-names)
          (only-in "runtime-wasm/core/arrays.rkt"
                   array-core-runtime-helper-forms
                   array-runtime-helper-forms)
@@ -388,50 +389,46 @@
     (define active-ffi-foreigns all-ffi-foreigns)
     (define active-ffi-imports-wat (current-ffi-imports-wat))
     (define active-ffi-funcs-wat   (current-ffi-funcs-wat))
+    (define primitive-state
+      (make-runtime-primitive-state all-primitives
+                                    console-bridge-bindings
+                                    all-ffi-foreigns))
 
     (define active-described-primitives-sorted
-      (λ ()
-        (runtime-active-described-primitives-sorted all-primitives
-                                                    todo-handle-later)))
+      (runtime-primitive-state-active-described-primitives-sorted
+       primitive-state))
 
     (define active-ffi-primitive-names
       (λ ()
         (runtime-ffi-primitive-names active-ffi-foreigns)))
 
     (define described-primitives
-      (runtime-described-primitives all-primitives))
+      (runtime-primitive-state-described-primitives primitive-state))
 
     (define console-bridge-enabled? (pair? console-bridge-bindings))
     (define console-bridge-primitive-names
-      (runtime-console-bridge-primitive-names console-bridge-bindings))
+      (runtime-primitive-state-console-bridge-primitive-names primitive-state))
 
     (define primitive-func->symbol
-      (runtime-primitive-func->symbol described-primitives))
+      (runtime-primitive-state-primitive-func->symbol primitive-state))
 
     (define primitive-global->symbol
-      (runtime-primitive-global->symbol described-primitives))
+      (runtime-primitive-state-primitive-global->symbol primitive-state))
 
     (define ffi-global->symbol
-      (runtime-ffi-global->symbol all-ffi-foreigns))
+      (runtime-primitive-state-ffi-global->symbol primitive-state))
 
     (define program-function-names
       (module-func-names dls))
 
     (define (declare-primitives-as-globals)
-      (runtime-primitive-global-forms (active-described-primitives-sorted)))
+      (runtime-primitive-state-global-forms primitive-state))
 
     (define (declare-ffi-primitives-as-globals)
       (runtime-ffi-primitive-global-forms (active-ffi-primitive-names)))
 
-
-
-    ; If a primitive is handled in the inliner, but hasn't been
-    ; implemented here in `runtime-wasm.rkt` then put the symbol here.
-    (define todo-handle-later '())
-
     (define (initialize-primitives-as-globals)
-      (runtime-primitive-initializer-forms
-       (active-described-primitives-sorted)))
+      (runtime-primitive-state-initializer-forms primitive-state))
 
     (define (initialize-ffi-primitives-as-globals)
       (runtime-ffi-primitive-initializer-forms active-ffi-foreigns))
@@ -446,7 +443,7 @@
        string-constants
        bytes-constants
        symbol-constants
-       (active-described-primitives-sorted)
+       active-described-primitives-sorted
        (active-ffi-primitive-names)
        all-primitives))
 
@@ -1023,7 +1020,7 @@
          ;; Primitive-table bridge helpers
          ;;   Implemented in runtime-wasm/core/linklets.rkt.
          ,@(linklet-primitive-table-runtime-only-helper-forms
-            (active-described-primitives-sorted)
+            active-described-primitives-sorted
             primitive-table-module-symbols)
 
          ;; Prefab struct registry helpers
@@ -1313,7 +1310,7 @@
          ,@(struct-construction-runtime-helper-forms runtime-helper-index)
 
         ,@(runtime-function-declaration-forms primitive-shapes
-                                             (active-described-primitives-sorted)
+                                             active-described-primitives-sorted
                                              (active-ffi-primitive-names))
 
 

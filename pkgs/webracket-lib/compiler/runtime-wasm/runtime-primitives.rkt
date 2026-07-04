@@ -1,8 +1,13 @@
 #lang racket
 
 (provide runtime-described-primitives
+         (struct-out runtime-primitive-state)
+         make-runtime-primitive-state
          runtime-active-primitives-sorted
          runtime-active-described-primitives-sorted
+         runtime-primitive-state-active-described-primitives-sorted
+         runtime-primitive-state-global-forms
+         runtime-primitive-state-initializer-forms
          runtime-console-bridge-primitive-names
          runtime-ffi-primitive-names
          runtime-primitive-func->symbol
@@ -24,6 +29,39 @@
                   procedure-primitive-initializer-forms
                   procedure-ffi-primitive-initializer-forms))
 
+;; runtime-primitive-state :
+;;   (listof symbol?) (listof symbol?) (listof symbol?) (listof symbol?)
+;;   hasheq? hasheq? hasheq? -> runtime-primitive-state?
+;;   Store derived primitive metadata used while assembling the runtime module.
+(struct runtime-primitive-state
+  (all-primitives
+   todo-handle-later
+   described-primitives
+   console-bridge-primitive-names
+   primitive-func->symbol
+   primitive-global->symbol
+   ffi-global->symbol)
+  #:transparent)
+
+;; make-runtime-primitive-state :
+;;   (listof symbol?) list? (listof foreign?) [#:todo-handle-later (listof symbol?)]
+;;   -> runtime-primitive-state?
+;;   Derive primitive metadata shared by declaration, initialization, and analysis.
+(define (make-runtime-primitive-state primitives
+                                      console-bridge-bindings
+                                      all-ffi-foreigns
+                                      #:todo-handle-later [todo-handle-later '()])
+  (define described-primitives
+    (runtime-described-primitives primitives))
+  (runtime-primitive-state
+   primitives
+   todo-handle-later
+   described-primitives
+   (runtime-console-bridge-primitive-names console-bridge-bindings)
+   (runtime-primitive-func->symbol described-primitives)
+   (runtime-primitive-global->symbol described-primitives)
+   (runtime-ffi-global->symbol all-ffi-foreigns)))
+
 ;; runtime-described-primitives : (listof symbol?) -> (listof symbol?)
 ;;   Keep primitives with compiler-visible primitive descriptions.
 (define (runtime-described-primitives primitives)
@@ -41,6 +79,14 @@
              #:unless (memq pr todo-handle-later)
              #:when (primitive->description pr))
     pr))
+
+;; runtime-primitive-state-active-described-primitives-sorted :
+;;   runtime-primitive-state? -> (listof symbol?)
+;;   Return active described primitives for a primitive state in emission order.
+(define (runtime-primitive-state-active-described-primitives-sorted state)
+  (runtime-active-described-primitives-sorted
+   (runtime-primitive-state-all-primitives state)
+   (runtime-primitive-state-todo-handle-later state)))
 
 ;; runtime-ffi-primitive-names : (listof foreign?) -> (listof symbol?)
 ;;   Return active FFI primitive names in foreign declaration order.
@@ -96,6 +142,12 @@
 (define (runtime-primitive-global-forms active-described-primitives)
   (procedure-primitive-global-forms active-described-primitives))
 
+;; runtime-primitive-state-global-forms : runtime-primitive-state? -> (listof datum?)
+;;   Declare primitive globals for the primitive state.
+(define (runtime-primitive-state-global-forms state)
+  (runtime-primitive-global-forms
+   (runtime-primitive-state-active-described-primitives-sorted state)))
+
 ;; runtime-ffi-primitive-global-forms : (listof symbol?) -> (listof datum?)
 ;;   Declare globals that hold runtime FFI primitive procedure values.
 (define (runtime-ffi-primitive-global-forms active-ffi-primitive-names)
@@ -106,6 +158,12 @@
 (define (runtime-primitive-initializer-forms active-described-primitives)
   (procedure-primitive-initializer-forms
    (runtime-primitive-initializer-bindings active-described-primitives)))
+
+;; runtime-primitive-state-initializer-forms : runtime-primitive-state? -> (listof datum?)
+;;   Initialize primitive globals for the primitive state.
+(define (runtime-primitive-state-initializer-forms state)
+  (runtime-primitive-initializer-forms
+   (runtime-primitive-state-active-described-primitives-sorted state)))
 
 ;; runtime-ffi-primitive-initializer-forms : (listof foreign?) -> (listof datum?)
 ;;   Initialize runtime FFI primitive globals as procedure values.
@@ -126,6 +184,31 @@
                 '(car cons))
   (check-equal? (runtime-described-primitives '(car cons))
                 '(car cons))
+  (define primitive-state
+    (make-runtime-primitive-state '(cdr car cons)
+                                  '((primitive display))
+                                  sample-foreigns
+                                  #:todo-handle-later '(cdr)))
+  (check-equal? (runtime-primitive-state-described-primitives primitive-state)
+                '(cdr car cons))
+  (check-equal? (runtime-primitive-state-active-described-primitives-sorted
+                 primitive-state)
+                '(car cons))
+  (check-equal? (runtime-primitive-state-console-bridge-primitive-names
+                 primitive-state)
+                '(display))
+  (check-equal? (hash-ref (runtime-primitive-state-primitive-func->symbol
+                           primitive-state)
+                          '$cons)
+                'cons)
+  (check-equal? (hash-ref (runtime-primitive-state-primitive-global->symbol
+                           primitive-state)
+                          '$prim:cons)
+                'cons)
+  (check-equal? (hash-ref (runtime-primitive-state-ffi-global->symbol
+                           primitive-state)
+                          '$prim:ffi-a)
+                'ffi-a)
   (check-equal? (runtime-ffi-primitive-names sample-foreigns) '(ffi-a ffi-b))
   (check-equal? (runtime-console-bridge-primitive-names
                  '((primitive cons)
@@ -147,6 +230,9 @@
                   (ffi-b 2)))
   (check-equal? (runtime-primitive-global-forms '(cons))
                 '((global $prim:cons (mut (ref eq)) (ref.i31 (i32.const 79)))))
+  (check-equal? (runtime-primitive-state-global-forms primitive-state)
+                '((global $prim:car (mut (ref eq)) (ref.i31 (i32.const 79)))
+                  (global $prim:cons (mut (ref eq)) (ref.i31 (i32.const 79)))))
   (check-equal? (runtime-ffi-primitive-global-forms '(ffi-a))
                 '((global $prim:ffi-a (mut (ref eq)) (ref.i31 (i32.const 79)))))
   (check-match (runtime-primitive-initializer-forms '(cons))
