@@ -2210,7 +2210,11 @@
 
            ;; --- Validate byte string argument ---
            (if (i32.eqz (ref.test (ref $Bytes) (local.get $bstr)))
-               (then (call $raise-check-bytes (local.get $bstr)) (unreachable)))
+               (then (call $raise-argument-error1
+                           (local.get $who)
+                           (global.get $string:bytes?)
+                           (local.get $bstr))
+                     (unreachable)))
            (local.set $bs (ref.cast (ref $Bytes) (local.get $bstr)))
            ;; Reject immutable byte strings
            (if (i32.eq (struct.get $Bytes $immutable (local.get $bs)) (i32.const 1))
@@ -3123,7 +3127,11 @@
 
            ;; --- Validate byte string argument ---
            (if (i32.eqz (ref.test (ref $Bytes) (local.get $bstr)))
-               (then (call $raise-check-bytes (local.get $bstr)) (unreachable)))
+               (then (call $raise-argument-error1
+                           (local.get $who)
+                           (global.get $string:bytes?)
+                           (local.get $bstr))
+                     (unreachable)))
            (local.set $bs (ref.cast (ref $Bytes) (local.get $bstr)))
            ;; Reject immutable byte strings
            (if (i32.eq (struct.get $Bytes $immutable (local.get $bs)) (i32.const 1))

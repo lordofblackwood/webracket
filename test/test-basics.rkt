@@ -7998,17 +7998,35 @@
                         (lambda ()
                           (read-bytes! (make-bytes 3 0) 42)))
                        (catch-contract/message-contains?
+                        '("read-bytes!: contract violation"
+                          "expected: bytes?"
+                          "given: 42")
+                        (lambda ()
+                          (read-bytes! 42 (open-input-bytes #"abc"))))
+                       (catch-contract/message-contains?
                         '("read-bytes-avail!: contract violation"
                           "expected: input-port?"
                           "given: 42")
                         (lambda ()
                           (read-bytes-avail! (make-bytes 3 0) 42)))
                        (catch-contract/message-contains?
+                        '("read-bytes-avail!: contract violation"
+                          "expected: bytes?"
+                          "given: 42")
+                        (lambda ()
+                          (read-bytes-avail! 42 (open-input-bytes #"abc"))))
+                       (catch-contract/message-contains?
                         '("read-bytes-avail!*: contract violation"
                           "expected: input-port?"
                           "given: 42")
                         (lambda ()
                           (read-bytes-avail!* (make-bytes 3 0) 42)))
+                       (catch-contract/message-contains?
+                        '("read-bytes-avail!*: contract violation"
+                          "expected: bytes?"
+                          "given: 42")
+                        (lambda ()
+                          (read-bytes-avail!* 42 (open-input-bytes #"abc"))))
                        (catch-contract/message-contains?
                         '("read-string!: contract violation"
                           "expected: input-port?"
@@ -8778,17 +8796,35 @@
                         (lambda ()
                           (peek-bytes! (make-bytes 3 0) 0 42)))
                        (catch-contract/message-contains?
+                        '("peek-bytes!: contract violation"
+                          "expected: bytes?"
+                          "given: 42")
+                        (lambda ()
+                          (peek-bytes! 42 0 (open-input-bytes #"abc"))))
+                       (catch-contract/message-contains?
                         '("peek-bytes-avail!: contract violation"
                           "expected: input-port?"
                           "given: 42")
                         (lambda ()
                           (peek-bytes-avail! (make-bytes 3 0) 0 #f 42)))
                        (catch-contract/message-contains?
+                        '("peek-bytes-avail!: contract violation"
+                          "expected: bytes?"
+                          "given: 42")
+                        (lambda ()
+                          (peek-bytes-avail! 42 0 #f (open-input-bytes #"abc"))))
+                       (catch-contract/message-contains?
                         '("peek-bytes-avail!*: contract violation"
                           "expected: input-port?"
                           "given: 42")
                         (lambda ()
                           (peek-bytes-avail!* (make-bytes 3 0) 0 #f 42)))
+                       (catch-contract/message-contains?
+                        '("peek-bytes-avail!*: contract violation"
+                          "expected: bytes?"
+                          "given: 42")
+                        (lambda ()
+                          (peek-bytes-avail!* 42 0 #f (open-input-bytes #"abc"))))
                        (catch-contract/message-contains?
                         '("peek-string!: contract violation"
                           "expected: input-port?"
