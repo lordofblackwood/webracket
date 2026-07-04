@@ -2261,6 +2261,80 @@
                            (equal? (string-utf-8-length "hello") 5)
                            (equal? (string-utf-8-length s2 1 4) 4))))
 
+              (list "string UTF-8 range errors are catchable with who"
+                    (let ([catch-contract/who+expected+given?
+                           (lambda (who expected given thunk)
+                             (let ([message
+                                    (with-handlers ([exn:fail:contract?
+                                                     (lambda (exn)
+                                                       (exn-message exn))])
+                                      (thunk)
+                                      #f)])
+                               (and message
+                                    (string-contains? message who)
+                                    (string-contains? message expected)
+                                    (string-contains? message given))))]
+                          [catch-range/who+reason+index?
+                           (lambda (who reason index-line thunk)
+                             (let ([message
+                                    (with-handlers ([exn:fail:contract?
+                                                     (lambda (exn)
+                                                       (exn-message exn))])
+                                      (thunk)
+                                      #f)])
+                               (and message
+                                    (string-contains? message who)
+                                    (string-contains? message reason)
+                                    (string-contains? message index-line)
+                                    (string-contains? message "valid range: [0, 3]")
+                                    (string-contains? message "byte string: \"abc\""))))])
+                      (and
+                       (catch-contract/who+expected+given?
+                        "string->bytes/utf-8"
+                        "string?"
+                        "given: 42"
+                        (lambda () (string->bytes/utf-8 42)))
+                       (catch-contract/who+expected+given?
+                        "string->bytes/utf-8"
+                        "exact-nonnegative-integer?"
+                        "given: 'bad"
+                        (lambda () (string->bytes/utf-8 "abc" #f 'bad)))
+                       (catch-contract/who+expected+given?
+                        "string->bytes/utf-8"
+                        "exact-nonnegative-integer?"
+                        "given: -1"
+                        (lambda () (string->bytes/utf-8 "abc" #f -1)))
+                       (catch-range/who+reason+index?
+                        "string->bytes/utf-8"
+                        "starting index is out of range"
+                        "starting index: 4"
+                        (lambda () (string->bytes/utf-8 "abc" #f 4)))
+                       (catch-range/who+reason+index?
+                        "string->bytes/utf-8"
+                        "ending index is smaller than starting index"
+                        "ending index: 1"
+                        (lambda () (string->bytes/utf-8 "abc" #f 2 1)))
+                       (catch-contract/who+expected+given?
+                        "string-utf-8-length"
+                        "string?"
+                        "given: 42"
+                        (lambda () (string-utf-8-length 42)))
+                       (catch-contract/who+expected+given?
+                        "string-utf-8-length"
+                        "exact-nonnegative-integer?"
+                        "given: 'bad"
+                        (lambda () (string-utf-8-length "abc" 'bad)))
+                       (catch-contract/who+expected+given?
+                        "string-utf-8-length"
+                        "exact-nonnegative-integer?"
+                        "given: -1"
+                        (lambda () (string-utf-8-length "abc" -1)))
+                       (catch-range/who+reason+index?
+                        "string-utf-8-length"
+                        "ending index is out of range"
+                        "ending index: 4"
+                        (lambda () (string-utf-8-length "abc" 1 4))))))
+
               (list "string->bytes/locale"
                     (and (bytes=? (string->bytes/locale "abc") #"abc")
                          (bytes=? (string->bytes/locale "aλ") #"a\xce\xbb")
