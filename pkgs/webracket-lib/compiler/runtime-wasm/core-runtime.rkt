@@ -6,7 +6,6 @@
 
 (require "core-helper.rkt"
          "core/arrays.rkt"
-         "core/bytes.rkt"
          "core/fixnums.rkt"
          "core/flonums.rkt"
          "core/growable-arrays.rkt"
@@ -28,7 +27,6 @@
 (define core-runtime-helpers
   (append
    array-core-runtime-helpers
-   bytes-core-runtime-helpers
    fixnum-core-runtime-helpers
    flonum-core-runtime-helpers
    growable-array-core-runtime-helpers
@@ -36,6 +34,7 @@
    i32-array-core-runtime-helpers
    growable-i32-array-core-runtime-helpers
    i8-array-core-runtime-helpers
+   i8-array-byte-core-runtime-helpers
    keyword-core-runtime-helpers
    list-core-runtime-helpers
    mlist-core-runtime-helpers
@@ -469,9 +468,9 @@
             (param (ref $GrowableBytes))
             (result (ref $Bytes)))))
 
-  ;; core-bytes-imports : -> (listof datum?)
-  ;;   Build imported core helper declarations for byte constructors.
-  (define (core-bytes-imports)
+  ;; core-i8-array-byte-imports : -> (listof datum?)
+  ;;   Build imported core helper declarations for I8Array-to-bytes wrappers.
+  (define (core-i8-array-byte-imports)
     `((func $i8array->bytes
             (import "core" "$i8array->bytes")
             (param (ref $I8Array))
@@ -677,7 +676,7 @@
          ,@(core-growable-array-imports)
          ,@(core-i32-array-imports)
          ,@(core-i8-array-imports)
-         ,@(core-bytes-imports)
+         ,@(core-i8-array-byte-imports)
          ,@(core-growable-i32-array-imports)
          ,@(core-growable-bytes-imports)
          ,@(core-string-imports)

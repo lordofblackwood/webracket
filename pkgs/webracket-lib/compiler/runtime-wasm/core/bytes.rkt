@@ -1,8 +1,6 @@
 #lang racket
 
-(provide bytes-core-runtime-helpers
-         bytes-core-runtime-helper-forms
-         bytes-runtime-string-constants
+(provide bytes-runtime-string-constants
          bytes-runtime-bytes-constants
          byte-predicate-runtime-symbol-constants
          bytes-runtime-symbol-constants
@@ -56,39 +54,6 @@
         (ref.test (ref ,ref-type) (local.get $v))
         (then (global.get $true))
         (else (global.get $false)))))
-
-;; bytes-core-runtime-helpers : (listof core-runtime-helper?)
-;;   Enumerate byte helpers that can be emitted in core runtime.
-(define bytes-core-runtime-helpers
-  (list
-   (core-runtime-helper
-    '$i8array->bytes
-    "$i8array->bytes"
-    (lambda ()
-      `(func $i8array->bytes (param $arr (ref $I8Array)) (result (ref $Bytes))
-             ;; Constructs a mutable $Bytes object (immutable = 0, hash = 0).
-             (struct.new $Bytes
-                         (i32.const 0)      ;; hash = 0
-                         (i32.const 0)      ;; immutable = false
-                         (local.get $arr))))) ;; the backing I8Array
-
-   (core-runtime-helper
-    '$i8array->immutable-bytes
-    "$i8array->immutable-bytes"
-    (lambda ()
-      `(func $i8array->immutable-bytes (param $arr (ref $I8Array))
-             (result (ref $Bytes))
-             ;; Constructs an immutable $Bytes object (immutable = 1, hash = 0).
-             (struct.new $Bytes
-                         (i32.const 0)      ;; hash = 0
-                         (i32.const 1)      ;; immutable = true
-                         (local.get $arr))))))) ;; the backing I8Array
-
-;; bytes-core-runtime-helper-names : (listof symbol?)
-;;   Preserve the runtime emission order for byte-string core helpers.
-(define bytes-core-runtime-helper-names
-  '($i8array->bytes
-    $i8array->immutable-bytes))
 
 ;; bytes-mutability-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for bytes mutability predicates.
@@ -1813,11 +1778,6 @@
   (for/list ([name (in-list names)])
     (core-runtime-helper-form helper-index name)))
 
-;; bytes-core-runtime-helper-forms : hasheq? -> (listof datum?)
-;;   Render byte-string core helpers in runtime assembly order.
-(define (bytes-core-runtime-helper-forms helper-index)
-  (bytes-helper-forms helper-index bytes-core-runtime-helper-names))
-
 ;; bytes-mutability-runtime-helper-forms : hasheq? -> (listof datum?)
 ;;   Render bytes mutability predicates in runtime assembly order.
 (define (bytes-mutability-runtime-helper-forms helper-index)
@@ -1882,13 +1842,6 @@
 
   (define bytes-helper-index
     (make-core-runtime-helper-index bytes-runtime-only-helpers))
-
-  (define bytes-core-helper-index
-    (make-core-runtime-helper-index bytes-core-runtime-helpers))
-
-  (check-equal?
-   (map form-name (bytes-core-runtime-helper-forms bytes-core-helper-index))
-   bytes-core-runtime-helper-names)
 
   (check-equal?
    (map form-name (bytes-mutability-runtime-helper-forms bytes-helper-index))

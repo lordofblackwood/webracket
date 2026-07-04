@@ -60,7 +60,6 @@
                   box-runtime-helper-forms
                   box-mutability-runtime-helper-forms)
          (only-in "runtime-wasm/core/bytes.rkt"
-                  bytes-core-runtime-helper-forms
                   bytes-main-runtime-helper-forms
                   bytes-mutability-runtime-helper-forms)
          (only-in "runtime-wasm/core/characters.rkt"
@@ -135,6 +134,7 @@
                   i32-array-core-runtime-helper-forms
                   i32-array-runtime-helper-forms)
          (only-in "runtime-wasm/core/i8-arrays.rkt"
+                  i8-array-byte-core-runtime-helper-forms
                   i8-array-core-runtime-helper-forms
                   i8-array-error-runtime-helper-forms
                   i8-array-conversion-runtime-helper-forms
@@ -611,8 +611,8 @@
          ;;   I8 array conversion helpers are implemented in runtime-wasm/core/i8-arrays.rkt.
          ,@(i8-array-conversion-runtime-helper-forms runtime-helper-index)
 
-         ;;   Byte wrapper core helpers are implemented in runtime-wasm/core/bytes.rkt.
-         ,@(bytes-core-runtime-helper-forms core-runtime-helper-index)
+         ;;   I8 array byte-wrapper core helpers are implemented in runtime-wasm/core/i8-arrays.rkt.
+         ,@(i8-array-byte-core-runtime-helper-forms core-runtime-helper-index)
 
          ;;;
          ;;; Exceptions

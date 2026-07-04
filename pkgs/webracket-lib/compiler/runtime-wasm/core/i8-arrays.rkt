@@ -3,6 +3,9 @@
 (provide i8-array-core-runtime-helper-forms
          i8-array-core-runtime-helper-names
          i8-array-core-runtime-helpers
+         i8-array-byte-core-runtime-helper-forms
+         i8-array-byte-core-runtime-helper-names
+         i8-array-byte-core-runtime-helpers
          i8-array-error-runtime-only-helper-names
          i8-array-conversion-runtime-only-helper-names
          i8-array-string-conversion-runtime-only-helper-names
@@ -298,6 +301,38 @@
 (define i8-array-core-runtime-helper-names
   (map first i8-array-core-runtime-helper-specs))
 
+;; i8-array-byte-core-runtime-helpers : (listof core-runtime-helper?)
+;;   Enumerate I8Array-to-bytes wrappers that can be emitted in core runtime.
+(define i8-array-byte-core-runtime-helpers
+  (list
+   (core-runtime-helper
+    '$i8array->bytes
+    "$i8array->bytes"
+    (lambda ()
+      `(func $i8array->bytes (param $arr (ref $I8Array)) (result (ref $Bytes))
+             ;; Constructs a mutable $Bytes object (immutable = 0, hash = 0).
+             (struct.new $Bytes
+                         (i32.const 0)      ;; hash = 0
+                         (i32.const 0)      ;; immutable = false
+                         (local.get $arr))))) ;; the backing I8Array
+
+   (core-runtime-helper
+    '$i8array->immutable-bytes
+    "$i8array->immutable-bytes"
+    (lambda ()
+      `(func $i8array->immutable-bytes (param $arr (ref $I8Array))
+             (result (ref $Bytes))
+             ;; Constructs an immutable $Bytes object (immutable = 1, hash = 0).
+             (struct.new $Bytes
+                         (i32.const 0)      ;; hash = 0
+                         (i32.const 1)      ;; immutable = true
+                         (local.get $arr))))))) ;; the backing I8Array
+
+;; i8-array-byte-core-runtime-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for I8Array-to-bytes wrappers.
+(define i8-array-byte-core-runtime-helper-names
+  (map core-runtime-helper-name i8-array-byte-core-runtime-helpers))
+
 ;; i8-array-core-runtime-helper-forms : hasheq? -> (listof datum?)
 ;;   Render I8Array core helpers in runtime assembly order.
 (define (i8-array-core-runtime-helper-forms helper-index)
@@ -308,6 +343,12 @@
                                   #:export? #t
                                   #:export-name export-name)
         (core-runtime-helper-form helper-index name))))
+
+;; i8-array-byte-core-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render I8Array-to-bytes wrappers in runtime assembly order.
+(define (i8-array-byte-core-runtime-helper-forms helper-index)
+  (for/list ([name (in-list i8-array-byte-core-runtime-helper-names)])
+    (core-runtime-helper-form helper-index name)))
 
 ;; i8-array-error-runtime-helper-forms : hasheq? -> (listof datum?)
 ;;   Render i8 array error helpers in runtime assembly order.
@@ -346,13 +387,25 @@
   (define i8-array-core-helper-index
     (make-core-runtime-helper-index i8-array-core-runtime-helpers))
 
+  (define i8-array-byte-core-helper-index
+    (make-core-runtime-helper-index i8-array-byte-core-runtime-helpers))
+
   (check-equal?
    (map core-runtime-helper-name i8-array-core-runtime-helpers)
    i8-array-core-runtime-helper-names)
 
   (check-equal?
+   (map core-runtime-helper-name i8-array-byte-core-runtime-helpers)
+   i8-array-byte-core-runtime-helper-names)
+
+  (check-equal?
    (map form-name (i8-array-core-runtime-helper-forms i8-array-core-helper-index))
    i8-array-core-runtime-helper-names)
+
+  (check-equal?
+   (map form-name
+        (i8-array-byte-core-runtime-helper-forms i8-array-byte-core-helper-index))
+   i8-array-byte-core-runtime-helper-names)
 
   (check-equal?
    (map form-export-names (i8-array-core-runtime-helper-forms i8-array-core-helper-index))

@@ -70,7 +70,8 @@ Current owners:
 
 - `core/arrays.rkt` owns `$list->array`.
 - `core/i32-arrays.rkt` owns `$list->i32array`.
-- `core/i8-arrays.rkt` owns `$list->i8array` and `$i8array->string`.
+- `core/i8-arrays.rkt` owns `$list->i8array`, `$i8array->string`,
+  `$i8array->bytes`, and `$i8array->immutable-bytes`.
 
 Before moving the list conversions into standalone core emission, add or move
 enough error support for proper Racket exceptions. Do not make the new core
