@@ -54,6 +54,15 @@
                   runtime-helper-index)
          (only-in "runtime-wasm/runtime-ffi.rkt"
                   select-active-ffi-runtime-bindings)
+         (only-in "runtime-wasm/runtime-primitives.rkt"
+                  runtime-active-described-primitives-sorted
+                  runtime-described-primitives
+                  runtime-ffi-global->symbol
+                  runtime-ffi-primitive-initializer-bindings
+                  runtime-ffi-primitive-names
+                  runtime-primitive-func->symbol
+                  runtime-primitive-global->symbol
+                  runtime-primitive-initializer-bindings)
          (only-in "runtime-wasm/runtime-source.rkt"
                   runtime-source-fingerprint)
          (only-in "runtime-wasm/core/arrays.rkt"
@@ -404,24 +413,18 @@
     (define active-ffi-foreigns all-ffi-foreigns)
     (define active-ffi-imports-wat (current-ffi-imports-wat))
     (define active-ffi-funcs-wat   (current-ffi-funcs-wat))
-    (define active-primitives-sorted
-      (λ ()
-        (sort active-primitives symbol<?)))
 
     (define active-described-primitives-sorted
       (λ ()
-        (for/list ([pr (in-list (active-primitives-sorted))]
-                   #:unless (memq pr todo-handle-later)
-                   #:when (primitive->description pr))
-          pr)))
+        (runtime-active-described-primitives-sorted active-primitives
+                                                    todo-handle-later)))
 
     (define active-ffi-primitive-names
       (λ ()
-        (for/list ([f (in-list active-ffi-foreigns)])
-          (foreign-racket-name f))))
+        (runtime-ffi-primitive-names active-ffi-foreigns)))
 
     (define described-primitives
-      (filter primitive->description all-primitives))
+      (runtime-described-primitives all-primitives))
 
     (define console-bridge-enabled? (pair? console-bridge-bindings))
     (define console-bridge-primitive-names
@@ -430,26 +433,14 @@
                  #:when (eq? kind 'primitive))
         (second binding)))
 
-    (define (console-bridge-symbol-global const-name)
-      ($ (string->symbol (~a "symbol:" const-name))))
-
     (define primitive-func->symbol
-      (for/hasheq ([pr (in-list described-primitives)])
-        (values ($ pr) pr)))
+      (runtime-primitive-func->symbol described-primitives))
 
     (define primitive-global->symbol
-      (for/hasheq ([pr (in-list described-primitives)])
-        (values ($ (prim: pr)) pr)))
-
-    (define ffi-func->symbol
-      (for/hasheq ([f (in-list all-ffi-foreigns)])
-        (values ($ (foreign-racket-name f))
-                (foreign-racket-name f))))
+      (runtime-primitive-global->symbol described-primitives))
 
     (define ffi-global->symbol
-      (for/hasheq ([f (in-list all-ffi-foreigns)])
-        (define pr (foreign-racket-name f))
-        (values ($ (prim: pr)) pr)))
+      (runtime-ffi-global->symbol all-ffi-foreigns))
 
     (define program-function-names
       (for/list ([form (in-list dls)]
@@ -493,17 +484,13 @@
 
     (define (initialize-primitives-as-globals)
       (procedure-primitive-initializer-forms
-       (for/list ([pr (in-list (active-described-primitives-sorted))]
-                  #:do [(define desc (primitive->description pr))])
-         (list pr
-               (primitive-description-arity desc)
-               (primitive-description-result-arity desc)))))
+       (runtime-primitive-initializer-bindings
+        (active-described-primitives-sorted))))
 
     (define (initialize-ffi-primitives-as-globals)
       (procedure-ffi-primitive-initializer-forms
-       (for/list ([f (in-list active-ffi-foreigns)])
-         (list (foreign-racket-name f)
-               (length (foreign-argument-types f))))))
+       (runtime-ffi-primitive-initializer-bindings
+        active-ffi-foreigns)))
 
     (define linklet-body-reserved-symbols
       (runtime-linklet-body-reserved-symbols all-primitives))
