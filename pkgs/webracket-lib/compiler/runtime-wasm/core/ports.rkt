@@ -49,6 +49,8 @@
     peek-bytes-avail!
     peek-bytes-avail!*
     peek-bytes
+    peek-byte
+    peek-char
     write-bytes
     read-string
     read-string!
@@ -3606,6 +3608,7 @@
            (local $peek-idx   i32)
            (local $byte       i32)
            (local $skip-arg   (ref eq))
+           (local $raw        i32)
 
            (if (ref.eq (local.get $in) (global.get $missing))
                (then (local.set $in (call $current-input-port
@@ -3618,13 +3621,26 @@
                (then)
                (else
                 (if (i32.eqz (ref.test (ref i31) (local.get $skip)))
-                    (then (call $raise-check-fixnum (local.get $skip)) (unreachable)))
-                (local.set $skip-count (i31.get_u (ref.cast (ref i31) (local.get $skip))))
-                (if (i32.eqz (i32.and (local.get $skip-count) (i32.const 1)))
-                    (then (local.set $skip-count (i32.shr_u (local.get $skip-count) (i32.const 1)))
-                          (local.set $skip-arg   (ref.i31 (i32.shl (local.get $skip-count)
-                                                                   (i32.const 1)))))
-                    (else (call $raise-check-fixnum (local.get $skip)) (unreachable)))))
+                    (then (call $raise-port-bytes-index-expected
+                                (global.get $symbol:peek-byte)
+                                (local.get $skip))))
+                (local.set $raw (i31.get_s (ref.cast (ref i31) (local.get $skip))))
+                (if (i32.eqz (i32.and (local.get $raw) (i32.const 1)))
+                    (then (local.set $skip-count (i32.shr_s (local.get $raw) (i32.const 1)))
+                          (if (i32.lt_s (local.get $skip-count) (i32.const 0))
+                              (then (call $raise-port-bytes-index-expected
+                                          (global.get $symbol:peek-byte)
+                                          (local.get $skip))))
+                          (local.set $skip-arg (local.get $skip)))
+                    (else (call $raise-port-bytes-index-expected
+                                (global.get $symbol:peek-byte)
+                                (local.get $skip))))))
+
+           (if (i32.eqz (call $input-port-like?/i32 (local.get $in)))
+               (then (call $raise-argument-error1
+                           (global.get $symbol:peek-byte)
+                           (global.get $string:input-port?)
+                           (local.get $in))))
 
            ;; Ensure the input is a supported port and dispatch accordingly.
            (if (ref.test (ref $InputStringPort) (local.get $in))
@@ -3672,10 +3688,16 @@
            (local $acc          i32)
            (local $cp           i32)
            (local $cont         i32)
+           (local $raw          i32)
 
            (if (ref.eq (local.get $in) (global.get $missing))
                (then (local.set $in (call $current-input-port
                                           (global.get $missing)))))
+           (if (i32.eqz (call $input-port-like?/i32 (local.get $in)))
+               (then (call $raise-argument-error1
+                           (global.get $symbol:peek-char)
+                           (global.get $string:input-port?)
+                           (local.get $in))))
            ;; Ensure the input is a string port.
            (if (i32.eqz (ref.test (ref $InputStringPort) (local.get $in)))
                (then (return (global.get $false))))
@@ -3687,11 +3709,19 @@
                (then)
                (else
                 (if (i32.eqz (ref.test (ref i31) (local.get $skip)))
-                    (then (call $raise-check-fixnum (local.get $skip)) (unreachable)))
-                (local.set $skip-count (i31.get_u (ref.cast (ref i31) (local.get $skip))))
-                (if (i32.eqz (i32.and (local.get $skip-count) (i32.const 1)))
-                    (then (local.set $skip-count (i32.shr_u (local.get $skip-count) (i32.const 1))))
-                    (else (call $raise-check-fixnum (local.get $skip)) (unreachable)))))
+                    (then (call $raise-port-range-index-expected
+                                (global.get $symbol:peek-char)
+                                (local.get $skip))))
+                (local.set $raw (i31.get_s (ref.cast (ref i31) (local.get $skip))))
+                (if (i32.eqz (i32.and (local.get $raw) (i32.const 1)))
+                    (then (local.set $skip-count (i32.shr_s (local.get $raw) (i32.const 1)))
+                          (if (i32.lt_s (local.get $skip-count) (i32.const 0))
+                              (then (call $raise-port-range-index-expected
+                                          (global.get $symbol:peek-char)
+                                          (local.get $skip)))))
+                    (else (call $raise-port-range-index-expected
+                                (global.get $symbol:peek-char)
+                                (local.get $skip))))))
 
            (local.set $idx        (struct.get $InputStringPort $idx   (local.get $sp)))
            (local.set $limit      (struct.get $InputStringPort $len   (local.get $sp)))

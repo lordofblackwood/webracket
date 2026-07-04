@@ -100,13 +100,13 @@ Current behavior:
   fixnum decoding and raise caller-specific count/skip errors.
 - The allocation wrappers `read-bytes` and `read-string` now use signed fixnum
   decoding and raise caller-specific count errors.
-- Single-value peek wrappers such as `peek-byte` and `peek-char` still have
-  older unsigned/fixnum checks for their skip arguments.
+- Single-value peek wrappers `peek-byte` and `peek-char` now use signed fixnum
+  decoding and raise caller-specific skip errors.
 
 Follow-up:
 
-- Replace the unsigned decode pattern in remaining port range primitives with
-  signed fixnum decoding.
+- Continue replacing unsigned decode patterns in remaining primitive-facing
+  port range paths with signed fixnum decoding.
 - Raise caller-specific `exact-nonnegative-integer?` contract errors for
   negative indexes, preserving the primitive `who`.
 
