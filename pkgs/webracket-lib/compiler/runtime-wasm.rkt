@@ -378,8 +378,7 @@
 
   #;(pretty-print entry-body (current-error-port))
 
-  (let* ()
-    (let* ()
+  (let ()
 
     ;; Variable definitions on the top-level ought to go in a namespace,
     ;; but for now we use a global WebAssembly variable.
@@ -1289,14 +1288,13 @@
          ;;   Implemented in runtime-wasm/core/structs.rkt.
          ,@(struct-construction-runtime-helper-forms runtime-helper-index)
 
-        ,@(runtime-function-declaration-forms primitive-shapes
-                                              active-described-primitives-sorted
-                                              (runtime-ffi-state-active-primitive-names ffi-state))
+         ,@(runtime-function-declaration-forms primitive-shapes
+                                               active-described-primitives-sorted
+                                               (runtime-ffi-state-active-primitive-names ffi-state))
 
-
-        ;; Struct constructor implementation helpers
-        ;;   Implemented in runtime-wasm/core/structs.rkt.
-        ,@(struct-constructor-access-runtime-helper-forms runtime-helper-index)
+         ;; Struct constructor implementation helpers
+         ;;   Implemented in runtime-wasm/core/structs.rkt.
+         ,@(struct-constructor-access-runtime-helper-forms runtime-helper-index)
 
          ;; -------------------------------------------------------------------
          ;; Structure Type Properties
@@ -1680,4 +1678,4 @@
      #:console-bridge-primitive-names console-bridge-primitive-names
      #:primitive-description? primitive->description
      #:time-runtime-step time-runtime-step)
-    )))
+    ))
