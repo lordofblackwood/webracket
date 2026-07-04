@@ -104,7 +104,10 @@
                (result (ref eq)) ; an (ref $Keyword)
                ;; Type check: must be a string
                (if (i32.eqz (ref.test (ref $String) (local.get $str)))
-                   (then (call $raise-argument-error:string-expected (local.get $str))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:string->keyword)
+                               (global.get $string:string?)
+                               (local.get $str))
                          (unreachable)))
                ;; Cast and delegate
                (call $string->keyword/checked (ref.cast (ref $String) (local.get $str))))
@@ -136,14 +139,15 @@
                     (ref.cast (ref $Keyword)
                               (local.get $existing)))))
 
-         (func $raise-argument-error:keyword-expected (unreachable))
-
          (func $keyword->string (type $Prim1) ; the result does not contain #:
                (param $kw (ref eq))
                (result    (ref eq)) ; an (ref $String)
                ;; Type check: must be a keyword
                (if (i32.eqz (ref.test (ref $Keyword) (local.get $kw)))
-                   (then (call $raise-argument-error:keyword-expected (local.get $kw))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:keyword->string)
+                               (global.get $string:keyword?)
+                               (local.get $kw))
                          (unreachable)))
                ;; Cast and delegate
                (call $keyword->string/checked (ref.cast (ref $Keyword) (local.get $kw))))
@@ -162,7 +166,10 @@
                (result    (ref eq)) ; an (ref $String)
                ;; Type check: must be a keyword
                (if (i32.eqz (ref.test (ref $Keyword) (local.get $kw)))
-                   (then (call $raise-argument-error:keyword-expected (local.get $kw))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:keyword->immutable-string)
+                               (global.get $string:keyword?)
+                               (local.get $kw))
                          (unreachable)))
                ;; Cast and delegate
                (call $keyword->immutable-string/checked (ref.cast (ref $Keyword) (local.get $kw))))
@@ -188,7 +195,12 @@
                                               (local.get $src) (i32.const 0) (local.get $len)))
                     (struct.new $String (i32.const 0) (i32.const 1) (local.get $dst)))))
 
-        (func $raise-keyword-expected (unreachable))
+         (func $raise-keyword-expected
+               (param $v (ref eq))
+               (call $raise-argument-error1
+                     (global.get $symbol:keyword->string)
+                     (global.get $string:keyword?)
+                     (local.get $v)))
 
          ;; keyword<? : (ref eq) (ref eq) ... -> (ref eq)  ;; returns #t/#f
          (func $keyword<? (type $Prim>=1)

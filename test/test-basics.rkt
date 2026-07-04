@@ -2587,7 +2587,34 @@
                          (equal? (keyword<? (string->keyword "\uA0")
                                             (string->keyword "\uA0")) #f)
 
-                         #;(equal? (procedure-arity keyword<?) 2)))))
+                         #;(equal? (procedure-arity keyword<?) 2)))
+              (list "keyword argument errors are catchable with who"
+                    (let ([catch-contract/who+expected?
+                           (lambda (who expected thunk)
+                             (let ([message
+                                    (with-handlers ([exn:fail:contract?
+                                                     (lambda (exn)
+                                                       (exn-message exn))])
+                                      (thunk)
+                                      #f)])
+                               (and (string? message)
+                                    (string-contains? message who)
+                                    (string-contains? message expected))))])
+                      (and (catch-contract/who+expected? "string->keyword"
+                                                         "string?"
+                                                         (lambda () (string->keyword 42)))
+                           (catch-contract/who+expected? "keyword->string"
+                                                         "keyword?"
+                                                         (lambda () (keyword->string 42)))
+                           (catch-contract/who+expected? "keyword->immutable-string"
+                                                         "keyword?"
+                                                         (lambda () (keyword->immutable-string 42)))
+                           (catch-contract/who+expected? "keyword<?"
+                                                         "keyword?"
+                                                         (lambda () (keyword<? 42 '#:a)))
+                           (catch-contract/who+expected? "keyword<?"
+                                                         "keyword?"
+                                                         (lambda () (keyword<? '#:a 42))))))))
 
        (list "4.10 Pairs and Lists"
              (list
