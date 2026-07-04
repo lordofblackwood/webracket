@@ -303,13 +303,15 @@
 ;; string-additional-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for additional racket/string helpers.
 (define string-additional-runtime-only-helper-names
-  '($string-suffix?
+  '($raise-racket-string:string-expected
+    $string-suffix?
     $string-suffix?/i32
     $string-suffix?/i32/checked
     $string-prefix?
     $string-prefix?/i32
     $string-prefix?/i32/checked
     $string-contains?
+    $string-find/who
     $string-find
     $string-replace))
 
@@ -3387,6 +3389,15 @@
   (function-forms->runtime-helpers
    'string-additional-runtime-only-helpers
    '(
+         (func $raise-racket-string:string-expected
+               (param $who (ref eq))
+               (param $x   (ref eq))
+
+               (call $raise-argument-error1
+                     (local.get $who)
+                     (global.get $string:string?)
+                     (local.get $x)))
+
          (func $string-suffix? (type $Prim2)
                (param $s (ref eq)) (param $suffix (ref eq))
                (result (ref eq))
@@ -3404,9 +3415,13 @@
 
                ;; Type checks
                (if (i32.eqz (ref.test (ref $String) (local.get $s-raw)))
-                   (then (return (i32.const 0))))
+                   (then (call $raise-racket-string:string-expected
+                               (global.get $symbol:string-suffix?)
+                               (local.get $s-raw))))
                (if (i32.eqz (ref.test (ref $String) (local.get $suffix-raw)))
-                   (then (return (i32.const 0))))
+                   (then (call $raise-racket-string:string-expected
+                               (global.get $symbol:string-suffix?)
+                               (local.get $suffix-raw))))
 
                ;; Cast and delegate
                (local.set $s   (ref.cast (ref $String) (local.get $s-raw)))
@@ -3462,9 +3477,13 @@
                (local $p (ref $String))
 
                (if (i32.eqz (ref.test (ref $String) (local.get $s-raw)))
-                   (then (call $raise-check-string (local.get $s-raw))))
+                   (then (call $raise-racket-string:string-expected
+                               (global.get $symbol:string-prefix?)
+                               (local.get $s-raw))))
                (if (i32.eqz (ref.test (ref $String) (local.get $prefix-raw)))
-                   (then (call $raise-check-string (local.get $prefix-raw))))
+                   (then (call $raise-racket-string:string-expected
+                               (global.get $symbol:string-prefix?)
+                               (local.get $prefix-raw))))
 
                (local.set $s (ref.cast (ref $String) (local.get $s-raw)))
                (local.set $p (ref.cast (ref $String) (local.get $prefix-raw)))
@@ -3508,12 +3527,16 @@
 
                ;; Delegate to string-find and report only presence.
                (if (result (ref eq))
-                   (ref.eq (call $string-find (local.get $s) (local.get $contained))
+                   (ref.eq (call $string-find/who
+                                 (global.get $symbol:string-contains?)
+                                 (local.get $s)
+                                 (local.get $contained))
                            (global.get $false))
                    (then (global.get $false))
                    (else (global.get $true))))
 
-         (func $string-find (type $Prim2)
+         (func $string-find/who
+               (param $who       (ref eq))
                (param $s (ref eq))
                (param $contained (ref eq))
                (result (ref eq))
@@ -3532,11 +3555,13 @@
 
                ;; --- Check inputs ---
                (if (i32.eqz (ref.test (ref $String) (local.get $s)))
-                   (then (call $raise-argument-error:string-expected (local.get $s))
-                         (unreachable)))
+                   (then (call $raise-racket-string:string-expected
+                               (local.get $who)
+                               (local.get $s))))
                (if (i32.eqz (ref.test (ref $String) (local.get $contained)))
-                   (then (call $raise-argument-error:string-expected (local.get $contained))
-                         (unreachable)))
+                   (then (call $raise-racket-string:string-expected
+                               (local.get $who)
+                               (local.get $contained))))
 
                ;; --- Decode after checks ---
                (local.set $str   (ref.cast (ref $String) (local.get $s)))
@@ -3580,6 +3605,16 @@
                             (local.set $i (i32.add (local.get $i) (i32.const 1)))
                             (br $outer)))
                (global.get $false))
+
+         (func $string-find (type $Prim2)
+               (param $s         (ref eq))
+               (param $contained (ref eq))
+               (result           (ref eq))
+
+               (call $string-find/who
+                     (global.get $symbol:string-find)
+                     (local.get $s)
+                     (local.get $contained)))
 
 
         (func $string-replace (type $Prim34)

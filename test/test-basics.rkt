@@ -1798,6 +1798,49 @@
                     (and (equal? (string-contains? "Racket" "ack") #t)
                          (equal? (string-contains? "Racket" "cat") #f)))
 
+              (list "string prefix/suffix predicates"
+                    (and (equal? (string-prefix? "Racket" "Rac") #t)
+                         (equal? (string-prefix? "Racket" "ack") #f)
+                         (equal? (string-suffix? "Racket" "ket") #t)
+                         (equal? (string-suffix? "Racket" "ack") #f)))
+
+              (list "string search argument errors are catchable with who"
+                    (let ([catch-contract/who+expected?
+                           (lambda (who expected thunk)
+                             (let ([message
+                                    (with-handlers ([exn:fail:contract?
+                                                     (lambda (exn)
+                                                       (exn-message exn))])
+                                      (thunk)
+                                      #f)])
+                               (and (string? message)
+                                    (string-contains? message who)
+                                    (string-contains? message expected))))])
+                      (and (catch-contract/who+expected? "string-find"
+                                                         "string?"
+                                                         (lambda () (string-find 42 "x")))
+                           (catch-contract/who+expected? "string-find"
+                                                         "string?"
+                                                         (lambda () (string-find "x" 42)))
+                           (catch-contract/who+expected? "string-contains?"
+                                                         "string?"
+                                                         (lambda () (string-contains? 42 "x")))
+                           (catch-contract/who+expected? "string-contains?"
+                                                         "string?"
+                                                         (lambda () (string-contains? "x" 42)))
+                           (catch-contract/who+expected? "string-prefix?"
+                                                         "string?"
+                                                         (lambda () (string-prefix? 42 "x")))
+                           (catch-contract/who+expected? "string-prefix?"
+                                                         "string?"
+                                                         (lambda () (string-prefix? "x" 42)))
+                           (catch-contract/who+expected? "string-suffix?"
+                                                         "string?"
+                                                         (lambda () (string-suffix? 42 "x")))
+                           (catch-contract/who+expected? "string-suffix?"
+                                                         "string?"
+                                                         (lambda () (string-suffix? "x" 42))))))
+
               (list "string-replace"
                     (and (equal? (string-replace "banana" "an" "oo")    "booooa")
                          (equal? (string-replace "banana" "an" "oo" #f) "booana")
