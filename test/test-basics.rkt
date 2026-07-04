@@ -8746,6 +8746,57 @@
                       (and (void? (write-char #\λ port))
                            (equal? (get-output-string port) "λ"))))
 
+              (list "write-byte and write-char argument errors are catchable with who"
+                    (let ([catch-contract/message-contains?
+                           (lambda (parts thunk)
+                             (let ([message
+                                    (with-handlers ([exn:fail:contract?
+                                                     (lambda (exn)
+                                                       (exn-message exn))])
+                                      (thunk)
+                                      #f)])
+                               (and message
+                                    (andmap (lambda (part)
+                                              (string-contains? message part))
+                                            parts))))])
+                      (and
+                       (catch-contract/message-contains?
+                        '("write-byte: contract violation"
+                          "expected: byte?"
+                          "given: 'bad")
+                        (lambda ()
+                          (write-byte 'bad (open-output-bytes))))
+                       (catch-contract/message-contains?
+                        '("write-byte: contract violation"
+                          "expected: byte?"
+                          "given: -1")
+                        (lambda ()
+                          (write-byte -1 (open-output-bytes))))
+                       (catch-contract/message-contains?
+                        '("write-byte: contract violation"
+                          "expected: byte?"
+                          "given: 256")
+                        (lambda ()
+                          (write-byte 256 (open-output-bytes))))
+                       (catch-contract/message-contains?
+                        '("write-byte: contract violation"
+                          "expected: output-port?"
+                          "given: 42")
+                        (lambda ()
+                          (write-byte 65 42)))
+                       (catch-contract/message-contains?
+                        '("write-char: contract violation"
+                          "expected: char?"
+                          "given: 65")
+                        (lambda ()
+                          (write-char 65 (open-output-string))))
+                       (catch-contract/message-contains?
+                        '("write-char: contract violation"
+                          "expected: output-port?"
+                          "given: 42")
+                        (lambda ()
+                          (write-char #\A 42))))))
+
               (list "open-output-string/write-byte"
                     (let ([port (open-output-string)])
                       (and (void? (write-byte 65 port))

@@ -56,6 +56,8 @@
     read-string!
     peek-string!
     peek-string
+    write-byte
+    write-char
     write-string
     get-output-bytes
     read-line
@@ -4123,14 +4125,22 @@
            (local $left      i32)
            (local $seen      i32)
            ;; 1. Cast byte to i31 and extract i32
-           (if (ref.test (ref i31) (local.get $byte))
-               (then (local.set $b (i32.shr_u (i31.get_u (ref.cast (ref i31) (local.get $byte)))
-                                              (i32.const 1))))
-               (else (return (global.get $false))))
+           (if (ref.eq (call $byte? (local.get $byte)) (global.get $false))
+               (then (call $raise-argument-error1
+                           (global.get $symbol:write-byte)
+                           (global.get $string:byte?)
+                           (local.get $byte))))
+           (local.set $b (i32.shr_u (i31.get_u (ref.cast (ref i31) (local.get $byte)))
+                                     (i32.const 1)))
            ;; 2. Cast output to $OutputStringPort
            (if (ref.eq (local.get $out) (global.get $missing))
                (then (local.set $out (call $current-output-port
                                            (global.get $missing)))))
+           (if (i32.eqz (call $output-port-like?/i32 (local.get $out)))
+               (then (call $raise-argument-error1
+                           (global.get $symbol:write-byte)
+                           (global.get $string:output-port?)
+                           (local.get $out))))
            (if (i32.eqz (ref.test (ref $OutputPort) (local.get $out)))
                (then (local.set $out (call $prop-output-port-target
                                            (local.get $out)))))
@@ -4271,6 +4281,16 @@
                (then (local.set $out (call $current-output-port
                                            (global.get $missing)))))
            ;; Decode the character argument to a Unicode scalar value.
+           (if (ref.eq (call $char? (local.get $char)) (global.get $false))
+               (then (call $raise-argument-error1
+                           (global.get $symbol:write-char)
+                           (global.get $string:char?)
+                           (local.get $char))))
+           (if (i32.eqz (call $output-port-like?/i32 (local.get $out)))
+               (then (call $raise-argument-error1
+                           (global.get $symbol:write-char)
+                           (global.get $string:output-port?)
+                           (local.get $out))))
            (local.set $cp (call $char->integer/i32 (local.get $char)))
 
            ;; Fast path for ASCII characters (1-byte UTF-8 sequence).
