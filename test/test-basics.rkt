@@ -8034,6 +8034,12 @@
                         (lambda ()
                           (read-string! (make-string 3 #\x) 42)))
                        (catch-contract/message-contains?
+                        '("read-string!: contract violation"
+                          "expected: string?"
+                          "given: 42")
+                        (lambda ()
+                          (read-string! 42 (open-input-string "abc"))))
+                       (catch-contract/message-contains?
                         '("read-line: contract violation"
                           "expected: input-port?"
                           "given: 42")
@@ -8830,7 +8836,13 @@
                           "expected: input-port?"
                           "given: 42")
                         (lambda ()
-                          (peek-string! (make-string 3 #\x) 0 42))))))
+                          (peek-string! (make-string 3 #\x) 0 42)))
+                       (catch-contract/message-contains?
+                        '("peek-string!: contract violation"
+                          "expected: string?"
+                          "given: 42")
+                        (lambda ()
+                          (peek-string! 42 0 (open-input-string "abc")))))))
               
               (list "read-byte/custom-port"
                     (let* ([base (open-input-bytes (bytes 70 71))]

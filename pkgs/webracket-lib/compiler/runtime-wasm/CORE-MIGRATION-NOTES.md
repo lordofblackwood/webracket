@@ -110,7 +110,7 @@ Follow-up:
 - Raise caller-specific `exact-nonnegative-integer?` contract errors for
   negative indexes, preserving the primitive `who`.
 
-### Immutable Byte Strings As Byte-Input Destinations Need An Oracle Pass
+### Immutable Byte/String Input Destinations Need An Oracle Pass
 
 Location:
 
@@ -125,6 +125,10 @@ Current behavior:
 - The public wrappers affected by this shared behavior include
   `read-bytes!`, `read-bytes-avail!`, `read-bytes-avail!*`, `peek-bytes!`,
   `peek-bytes-avail!`, and `peek-bytes-avail!*`.
+- `read-string!` and `peek-string!` reject destination strings whose `$String`
+  immutable field is set.
+- That rejection currently goes through `$raise-immutable-string`, which is
+  still shared behavior whose public-port semantics need a focused oracle pass.
 
 Oracle observation:
 
@@ -133,19 +137,23 @@ Oracle observation:
 - In the oracle runs performed during the port error work, `read-bytes!` and
   `peek-bytes!` accepted immutable byte strings created with
   `bytes->immutable-bytes` as destinations.
+- In Racket, `string-set!` rejects immutable strings with a `mutable-string?`
+  contract, but the oracle runs showed `read-string!` and `peek-string!`
+  mutating immutable strings created with `string->immutable-string`.
 - Since this differs from WebRacket's current explicit immutable rejection,
-  do not blindly convert `$raise-expected-mutable-bytes` into a mutable-bytes
-  contract error for these port helpers.
+  do not blindly convert `$raise-expected-mutable-bytes` or
+  `$raise-immutable-string` into mutable-destination contract errors for these
+  port helpers.
 
 Follow-up:
 
 - Build a focused repro that compares Racket and WebRacket for immutable
-  destination byte strings across the affected read/peek wrappers.
-- Decide whether WebRacket should allow this behavior for port reads/peeks or
-  intentionally differ with a documented contract error.
+  destination byte strings and strings across the affected read/peek wrappers.
+- Decide whether WebRacket should allow this behavior for port reads/peeks,
+  matching Racket, or intentionally differ with a documented contract error.
 - If WebRacket keeps rejecting immutable destinations, replace
-  `$raise-expected-mutable-bytes` in these wrappers with caller-specific
-  Racket exceptions instead of a Wasm trap.
+  `$raise-expected-mutable-bytes` and `$raise-immutable-string` in these
+  wrappers with caller-specific Racket exceptions instead of Wasm traps.
 
 ## Runtime-Only Core Boundaries
 

@@ -2388,7 +2388,11 @@
 
            ;; --- Validate string argument ---
            (if (i32.eqz (ref.test (ref $String) (local.get $str)))
-               (then (call $raise-check-string (local.get $str)) (unreachable)))
+               (then (call $raise-argument-error1
+                           (global.get $symbol:read-string!)
+                           (global.get $string:string?)
+                           (local.get $str))
+                     (unreachable)))
            (local.set $s (ref.cast (ref $String) (local.get $str)))
            ;; Reject immutable strings
            (if (i32.ne (struct.get $String $immutable (local.get $s)) (i32.const 0))
@@ -3423,7 +3427,11 @@
 
            ;; --- Validate string argument ---
            (if (i32.eqz (ref.test (ref $String) (local.get $str)))
-               (then (call $raise-check-string (local.get $str)) (unreachable)))
+               (then (call $raise-argument-error1
+                           (global.get $symbol:peek-string!)
+                           (global.get $string:string?)
+                           (local.get $str))
+                     (unreachable)))
            (local.set $s (ref.cast (ref $String) (local.get $str)))
            ;; Reject immutable strings
            (if (i32.ne (struct.get $String $immutable (local.get $s)) (i32.const 0))
