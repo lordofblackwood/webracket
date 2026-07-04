@@ -59,6 +59,9 @@
     write-byte
     write-char
     write-string
+    newline
+    display
+    displayln
     get-output-bytes
     read-line
     read-bytes-line
@@ -4414,6 +4417,11 @@
            (if (ref.eq (local.get $out) (global.get $missing))
                (then (local.set $out (call $current-output-port
                                            (global.get $missing)))))
+           (if (i32.eqz (call $output-port-like?/i32 (local.get $out)))
+               (then (call $raise-argument-error1
+                           (global.get $symbol:newline)
+                           (global.get $string:output-port?)
+                           (local.get $out))))
 
            ;; Delegate to write-char with the newline character.
            (call $write-char ,(Imm #\newline) (local.get $out)))
@@ -4429,6 +4437,11 @@
            (if (ref.eq (local.get $out) (global.get $missing))
                (then (local.set $out (call $current-output-port
                                            (global.get $missing)))))
+           (if (i32.eqz (call $output-port-like?/i32 (local.get $out)))
+               (then (call $raise-argument-error1
+                           (global.get $symbol:display)
+                           (global.get $string:output-port?)
+                           (local.get $out))))
            (drop (call $write-string
                        (call $format/display (local.get $v))
                        (local.get $out)
@@ -4447,6 +4460,11 @@
            (if (ref.eq (local.get $out) (global.get $missing))
                (then (local.set $out (call $current-output-port
                                            (global.get $missing)))))
+           (if (i32.eqz (call $output-port-like?/i32 (local.get $out)))
+               (then (call $raise-argument-error1
+                           (global.get $symbol:displayln)
+                           (global.get $string:output-port?)
+                           (local.get $out))))
            (drop (call $display (local.get $v) (local.get $out)))
            (drop (call $newline (local.get $out)))
            (global.get $void)))))

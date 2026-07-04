@@ -8797,6 +8797,39 @@
                         (lambda ()
                           (write-char #\A 42))))))
 
+              (list "output helper argument errors are catchable with who"
+                    (let ([catch-contract/message-contains?
+                           (lambda (parts thunk)
+                             (let ([message
+                                    (with-handlers ([exn:fail:contract?
+                                                     (lambda (exn)
+                                                       (exn-message exn))])
+                                      (thunk)
+                                      #f)])
+                               (and message
+                                    (andmap (lambda (part)
+                                              (string-contains? message part))
+                                            parts))))])
+                      (and
+                       (catch-contract/message-contains?
+                        '("newline: contract violation"
+                          "expected: output-port?"
+                          "given: 42")
+                        (lambda ()
+                          (newline 42)))
+                       (catch-contract/message-contains?
+                        '("display: contract violation"
+                          "expected: output-port?"
+                          "given: 42")
+                        (lambda ()
+                          (display "x" 42)))
+                       (catch-contract/message-contains?
+                        '("displayln: contract violation"
+                          "expected: output-port?"
+                          "given: 42")
+                        (lambda ()
+                          (displayln "x" 42))))))
+
               (list "open-output-string/write-byte"
                     (let ([port (open-output-string)])
                       (and (void? (write-byte 65 port))
