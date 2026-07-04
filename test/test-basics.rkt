@@ -1780,6 +1780,31 @@
                     (and (equal? (string-foldcase "ABC!") "abc!")
                          (equal? (procedure-arity string-foldcase) 1)))
 
+              (list "string case conversion argument errors are catchable with who"
+                    (let ([catch-contract/who+expected?
+                           (lambda (who expected thunk)
+                             (let ([message
+                                    (with-handlers ([exn:fail:contract?
+                                                     (lambda (exn)
+                                                       (exn-message exn))])
+                                      (thunk)
+                                      #f)])
+                               (and (string? message)
+                                    (string-contains? message who)
+                                    (string-contains? message expected))))])
+                      (and (catch-contract/who+expected? "string-upcase"
+                                                         "string?"
+                                                         (lambda () (string-upcase 42)))
+                           (catch-contract/who+expected? "string-downcase"
+                                                         "string?"
+                                                         (lambda () (string-downcase 42)))
+                           (catch-contract/who+expected? "string-titlecase"
+                                                         "string?"
+                                                         (lambda () (string-titlecase 42)))
+                           (catch-contract/who+expected? "string-foldcase"
+                                                         "string?"
+                                                         (lambda () (string-foldcase 42))))))
+
               (list "string->list"
                     (and (equal? (string->list "P l") '(#\P #\space #\l))
                          (equal? (string->list "") '())))

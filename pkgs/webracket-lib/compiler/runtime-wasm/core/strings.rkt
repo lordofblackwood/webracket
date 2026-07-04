@@ -345,6 +345,8 @@
 ;; string-case-helper-form : symbol? symbol? -> datum?
 ;;   Build a unary string case-conversion helper that maps codepoints through imp.
 (define (string-case-helper-form name imp)
+  (define who (string->symbol
+               (format "$symbol:~a" (substring (symbol->string name) 1))))
   `(func ,name (type $Prim1) (param $s (ref eq)) (result (ref eq))
          (local $str (ref $String))
          (local $arr (ref $I32Array))
@@ -355,7 +357,9 @@
          (local $cp2 i32)
          ;; Type check
          (if (i32.eqz (ref.test (ref $String) (local.get $s)))
-             (then (call $raise-check-string (local.get $s))))
+             (then (call $raise-racket-string:string-expected
+                         (global.get ,who)
+                         (local.get $s))))
          ;; Extract codepoint array and length
          (local.set $str (ref.cast (ref $String) (local.get $s)))
          (local.set $arr (struct.get $String $codepoints (local.get $str)))
@@ -1988,8 +1992,9 @@
 
                ;; --- Type check ---
                (if (i32.eqz (ref.test (ref $String) (local.get $s)))
-                   (then (call $raise-check-string (local.get $s))
-                         (unreachable)))
+                   (then (call $raise-racket-string:string-expected
+                               (global.get $symbol:string-titlecase)
+                               (local.get $s))))
                ;; --- Make mutable copy and get length ---
                (local.set $t      (ref.cast (ref $String) (call $string-copy (local.get $s))))
                (local.set $len    (call $string-length/checked/i32 (local.get $t)))
