@@ -1344,6 +1344,43 @@
                          (equal? (string-ref "abc" 2) #\c)
                          (equal? (procedure-arity string-ref) 2)))
 
+              (list "make-string and string-set! argument errors are catchable with who"
+                    (let ([catch-contract/who+expected?
+                           (lambda (who expected thunk)
+                             (let ([message
+                                    (with-handlers ([exn:fail:contract?
+                                                     (lambda (exn)
+                                                       (exn-message exn))])
+                                      (thunk)
+                                      #f)])
+                               (and (string? message)
+                                    (string-contains? message who)
+                                    (string-contains? message expected))))])
+                      (and (catch-contract/who+expected? "make-string"
+                                                         "valid-string-length?"
+                                                         (lambda () (make-string -1)))
+                           (catch-contract/who+expected? "make-string"
+                                                         "valid-string-length?"
+                                                         (lambda () (make-string #\a)))
+                           (catch-contract/who+expected? "make-string"
+                                                         "char?"
+                                                         (lambda () (make-string 1 42)))
+                           (catch-contract/who+expected? "string-set!"
+                                                         "mutable-string?"
+                                                         (lambda () (string-set! 42 0 #\a)))
+                           (catch-contract/who+expected? "string-set!"
+                                                         "mutable-string?"
+                                                         (lambda () (string-set! "abc" 0 #\x)))
+                           (catch-contract/who+expected? "string-set!"
+                                                         "exact-nonnegative-integer?"
+                                                         (lambda () (string-set! (string #\a) #f #\x)))
+                           (catch-contract/who+expected? "string-set!"
+                                                         "exact-nonnegative-integer?"
+                                                         (lambda () (string-set! (string #\a) -1 #\x)))
+                           (catch-contract/who+expected? "string-set!"
+                                                         "char?"
+                                                         (lambda () (string-set! (string #\a) 0 42))))))
+
               (list "substring"
                     (and (equal? (substring "ab" 0 1) "a")
                          (equal? (substring "ab" 1 2) "b")

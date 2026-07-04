@@ -44,7 +44,10 @@
 (define string-runtime-string-constants
   '((empty           "")
     (space           " ")
+    (char?           "char?")
+    (valid-string-length? "valid-string-length?")
     (string?         "string?")
+    (mutable-string? "mutable-string?")
     (string-or-bytes "(or/c string? bytes?)")))
 
 ;; string-core-runtime-helpers : (listof core-runtime-helper?)
@@ -391,8 +394,18 @@
   (function-forms->runtime-helpers
    'string-constructor-runtime-only-helpers
    `(
-         (func $raise-make-string:bad-length       (unreachable))
-         (func $raise-make-string:bad-char         (unreachable))
+         (func $raise-make-string:bad-length
+               (param $x (ref eq))
+               (call $raise-argument-error1
+                     (global.get $symbol:make-string)
+                     (global.get $string:valid-string-length?)
+                     (local.get $x)))
+         (func $raise-make-string:bad-char
+               (param $x (ref eq))
+               (call $raise-argument-error1
+                     (global.get $symbol:make-string)
+                     (global.get $string:char?)
+                     (local.get $x)))
          (func $raise-argument-error:char-expected (unreachable))
 
          (func $make-string (type $Prim12)
@@ -405,19 +418,25 @@
                (local $ch         i32)
                ;; --- Type check for length ---
                (if (i32.eqz (ref.test (ref i31) (local.get $n-raw)))
-                   (then (call $raise-make-string:bad-length)))
+                   (then (call $raise-make-string:bad-length (local.get $n-raw))))
+               (if (i32.ne (i32.and (i31.get_u (ref.cast (ref i31) (local.get $n-raw)))
+                                    (i32.const 1))
+                           (i32.const 0))
+                   (then (call $raise-make-string:bad-length (local.get $n-raw))))
                ;; --- Decode length ---
-               (local.set $n (i32.shr_u (i31.get_u (ref.cast (ref i31) (local.get $n-raw))) (i32.const 1)))
+               (local.set $n (i32.shr_s (i31.get_s (ref.cast (ref i31) (local.get $n-raw))) (i32.const 1)))
+               (if (i32.lt_s (local.get $n) (i32.const 0))
+                   (then (call $raise-make-string:bad-length (local.get $n-raw))))
                ;; --- Handle optional character ---
                (if (ref.eq (local.get $ch-raw) (global.get $missing))
                    (then (local.set $ch (i32.const 0)))
                    (else
                     ;; --- Validate character ---
                     (if (i32.eqz (ref.test (ref i31) (local.get $ch-raw)))
-                        (then (call $raise-make-string:bad-char)))
+                        (then (call $raise-make-string:bad-char (local.get $ch-raw))))
                     (local.set $ch-tagged (i31.get_u (ref.cast (ref i31) (local.get $ch-raw))))
                     (if (i32.ne (i32.and (local.get $ch-tagged) (i32.const ,char-mask)) (i32.const ,char-tag))
-                        (then (call $raise-make-string:bad-char)))
+                        (then (call $raise-make-string:bad-char (local.get $ch-raw))))
                     ;; --- Extract code point from character ---
                     (local.set $ch (i32.shr_u (local.get $ch-tagged) (i32.const ,char-shift)))))
                ;; --- Delegate ---
@@ -817,10 +836,30 @@
   (function-forms->runtime-helpers
    'string-mutation-runtime-only-helpers
    `(
-         (func $raise-string-set!:string-expected  (param $x (ref eq)) (unreachable))
-         (func $raise-string-set!:fixnum-expected  (param $x (ref eq)) (unreachable))
-         (func $raise-string-set!:char-expected    (param $x (ref eq)) (unreachable))
-         (func $raise-string-set!:string-immutable (param $x (ref eq)) (unreachable))
+         (func $raise-string-set!:string-expected
+               (param $x (ref eq))
+               (call $raise-argument-error1
+                     (global.get $symbol:string-set!)
+                     (global.get $string:mutable-string?)
+                     (local.get $x)))
+         (func $raise-string-set!:fixnum-expected
+               (param $x (ref eq))
+               (call $raise-argument-error1
+                     (global.get $symbol:string-set!)
+                     (global.get $string:exact-nonnegative-integer?)
+                     (local.get $x)))
+         (func $raise-string-set!:char-expected
+               (param $x (ref eq))
+               (call $raise-argument-error1
+                     (global.get $symbol:string-set!)
+                     (global.get $string:char?)
+                     (local.get $x)))
+         (func $raise-string-set!:string-immutable
+               (param $x (ref eq))
+               (call $raise-argument-error1
+                     (global.get $symbol:string-set!)
+                     (global.get $string:mutable-string?)
+                     (local.get $x)))
 
          (func $string-set!
                (param $s   (ref eq))
@@ -848,8 +887,13 @@
                ;; Decode and validate fixnum index
                (local.set $idx (i31.get_u (ref.cast (ref i31) (local.get $i))))
                (if (i32.eqz (i32.and (local.get $idx) (i32.const 1)))
-                   (then (local.set $idx (i32.shr_u (local.get $idx) (i32.const 1))))
+                   (then (local.set $idx
+                                    (i32.shr_s
+                                     (i31.get_s (ref.cast (ref i31) (local.get $i)))
+                                     (i32.const 1))))
                    (else (call $raise-string-set!:fixnum-expected (local.get $i))))
+               (if (i32.lt_s (local.get $idx) (i32.const 0))
+                   (then (call $raise-string-set!:fixnum-expected (local.get $i))))
                ;; Decode and validate character
                (local.set $tagged (i31.get_u (ref.cast (ref i31) (local.get $ch))))
                (if (i32.ne (i32.and (local.get $tagged) (i32.const ,char-mask)) (i32.const ,char-tag))
