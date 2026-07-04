@@ -3,8 +3,10 @@
          generate-core-runtime
          generate-shared-types)
 
-(require "private/priminfo.rkt"
-         "private/parameters.rkt"
+(require (only-in "private/priminfo.rkt"
+                  primitive->description)
+         (only-in "private/parameters.rkt"
+                  current-browser?)
          (only-in "runtime-wasm/entry-support.rkt"
                   entry-function-form
                   entry-result-global-forms
