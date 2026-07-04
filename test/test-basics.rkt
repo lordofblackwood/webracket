@@ -2177,6 +2177,25 @@
                          (equal? (char-utf-8-length (integer->char #x10000)) 4)
                          (equal? (procedure-arity char-utf-8-length) 1)))
 
+              (list "character scalar conversion argument errors are catchable with who"
+                    (let ([catch-contract/who+expected?
+                           (lambda (who expected thunk)
+                             (let ([message
+                                    (with-handlers ([exn:fail:contract?
+                                                     (lambda (exn)
+                                                       (exn-message exn))])
+                                      (thunk)
+                                      #f)])
+                               (and (string? message)
+                                    (string-contains? message who)
+                                    (string-contains? message expected))))])
+                      (and (catch-contract/who+expected? "char->integer"
+                                                         "char?"
+                                                         (lambda () (char->integer 42)))
+                           (catch-contract/who+expected? "char-utf-8-length"
+                                                         "char?"
+                                                         (lambda () (char-utf-8-length 42))))))
+
               (list "char=?"
                     (and (equal? (char=? #\A #\A) #t)
                          (equal? (char=? #\A #\B) #f)

@@ -120,13 +120,17 @@
                (local $cp    i32)
                ;; Check if $c is an i31
                (if (i32.eqz (ref.test (ref i31) (local.get $c)))
-                   (then (call $raise-check-char (local.get $c))))
+                   (then (call $raise-char-expected/who
+                               (global.get $symbol:char->integer)
+                               (local.get $c))))
                (local.set $i31   (ref.cast (ref i31) (local.get $c)))
                (local.set $c/tag (i31.get_u (local.get $i31)))
                ;; Check character tag
                (if (i32.ne (i32.and (local.get $c/tag) (i32.const ,char-mask))
                            (i32.const ,char-tag))
-                   (then (call $raise-check-char (local.get $c))))
+                   (then (call $raise-char-expected/who
+                               (global.get $symbol:char->integer)
+                               (local.get $c))))
 
                ;; Extract codepoint and return as fixnum
                (local.set $cp (i32.shr_u (local.get $c/tag) (i32.const ,char-shift)))
@@ -177,10 +181,25 @@
                                (i32.const ,char-tag))))
 
          (func $char-utf-8-length (type $Prim1) (param $c (ref eq)) (result (ref eq))
+               (local $i31 (ref i31))
+               (local $raw i32)
                (local $cp  i32)
                (local $len i32)
                ;; Returns bytes needed to encode $c in UTF-8.
                ;; Characters are limited to U+10FFFF so result is in [1,4].
+               (if (i32.eqz (ref.test (ref i31) (local.get $c)))
+                   (then (call $raise-char-expected/who
+                               (global.get $symbol:char-utf-8-length)
+                               (local.get $c))
+                         (unreachable)))
+               (local.set $i31 (ref.cast (ref i31) (local.get $c)))
+               (local.set $raw (i31.get_u (local.get $i31)))
+               (if (i32.ne (i32.and (local.get $raw) (i32.const ,char-mask))
+                           (i32.const ,char-tag))
+                   (then (call $raise-char-expected/who
+                               (global.get $symbol:char-utf-8-length)
+                               (local.get $c))
+                         (unreachable)))
                (local.set $cp (call $char->integer/i32 (local.get $c)))
                (local.set $len
                      (if (result i32)
