@@ -77,7 +77,7 @@ Follow-up:
 - If the current behavior is wrong, fix the constructor and update the
   pinned split-link expectation in `core-runtime.rkt`.
 
-### Port Range Decoders Still Treat Negative Fixnums As Unsigned
+### Some Byte-Oriented Port Range Decoders Still Treat Negative Fixnums As Unsigned
 
 Location:
 
@@ -87,14 +87,16 @@ Current behavior:
 
 - Several port range paths decode start/end/skip indexes with unsigned
   `i31.get_u` and `i32.shr_u`.
-- Positive out-of-range string indexes now raise catchable Racket-style range
-  errors with the right `who`, but negative fixnums can still arrive at range
-  validation as large unsigned indexes.
+- The string-buffer paths for `read-string!`, `peek-string!`, and
+  `write-string` now use signed fixnum decoding and raise caller-specific
+  `exact-nonnegative-integer?` contract errors for negative indexes.
+- Byte-oriented paths such as `read-bytes!`, `peek-bytes!`, `write-bytes`,
+  and `get-output-bytes` still need the same treatment.
 
 Follow-up:
 
-- Replace the unsigned decode pattern in port range primitives with signed
-  fixnum decoding.
+- Replace the unsigned decode pattern in remaining port range primitives with
+  signed fixnum decoding.
 - Raise caller-specific `exact-nonnegative-integer?` contract errors for
   negative indexes, preserving the primitive `who`.
 

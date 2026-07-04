@@ -8670,7 +8670,19 @@
                                     (string-contains? message reason)
                                     (string-contains? message index-line)
                                     (string-contains? message "valid range: [0, 3]")
-                                    (string-contains? message value-line))))])
+                                    (string-contains? message value-line))))]
+                          [catch-contract/who+expected+given?
+                           (lambda (who expected given thunk)
+                             (let ([message
+                                    (with-handlers ([exn:fail:contract?
+                                                     (lambda (exn)
+                                                       (exn-message exn))])
+                                      (thunk)
+                                      #f)])
+                               (and message
+                                    (string-contains? message who)
+                                    (string-contains? message expected)
+                                    (string-contains? message given))))])
                       (and
                        (catch-range/who+reason+index?
                         "write-string"
@@ -8698,7 +8710,31 @@
                                         0
                                         (open-input-string "abc")
                                         1
-                                        4))))))
+                                        4)))
+                       (catch-contract/who+expected+given?
+                        "write-string"
+                        "exact-nonnegative-integer?"
+                        "given: -1"
+                        (lambda () (write-string "abc" (open-output-string) -1)))
+                       (catch-contract/who+expected+given?
+                        "read-string!"
+                        "exact-nonnegative-integer?"
+                        "given: -1"
+                        (lambda ()
+                          (read-string! (make-string 3 #\x)
+                                        (open-input-string "abc")
+                                        0
+                                        -1)))
+                       (catch-contract/who+expected+given?
+                        "peek-string!"
+                        "exact-nonnegative-integer?"
+                        "given: -1"
+                        (lambda ()
+                          (peek-string! (make-string 3 #\x)
+                                        -1
+                                        (open-input-string "abc")
+                                        0
+                                        3))))))
 
               (list "fprintf/bootstrap"
                     (let ([port (open-output-string)])
