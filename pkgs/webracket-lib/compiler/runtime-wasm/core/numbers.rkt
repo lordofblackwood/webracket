@@ -26,7 +26,10 @@
     (real->floating-point-bytes:short-dest ": byte string length is shorter than starting position plus size")
     (real->floating-point-bytes:byte-string-length "\n  byte string length: ")
     (real->floating-point-bytes:starting-position "\n  starting position: ")
-    (real->floating-point-bytes:size-line "\n  size: ")))
+    (real->floating-point-bytes:size-line "\n  size: ")
+    (floating-point-bytes->real:length-not-4-or-8 ": length is not 4 or 8 bytes")
+    (floating-point-bytes->real:length-line "\n  length: ")
+    (floating-point-bytes->real:index-line "\n  index: ")))
 
 ;; Half : datum? -> datum?
 ;;   Decode a tagged fixnum expression to an i32 payload.
@@ -102,6 +105,10 @@
   '($raise-real->floating-point-bytes:bad-size
     $raise-real->floating-point-bytes:bad-start
     $raise-real->floating-point-bytes:short-dest
+    $raise-floating-point-bytes->real:bad-bytes
+    $raise-floating-point-bytes->real:bad-index
+    $raise-floating-point-bytes->real:bad-range
+    $raise-floating-point-bytes->real:bad-length
     $floating-point-bytes->real
     $real->floating-point-bytes
     $real->floating-point-bytes/checked))
@@ -3424,6 +3431,162 @@
                  (global.get $true))
            (unreachable))
 
+     (func $raise-floating-point-bytes->real:bad-bytes
+           (param $x (ref eq))
+           (call $raise-argument-error1
+                 (global.get $symbol:floating-point-bytes->real)
+                 (global.get $string:bytes?)
+                 (local.get $x)))
+
+     (func $raise-floating-point-bytes->real:bad-index
+           (param $x (ref eq))
+           (call $raise-argument-error1
+                 (global.get $symbol:floating-point-bytes->real)
+                 (global.get $string:exact-nonnegative-integer?)
+                 (local.get $x)))
+
+     (func $raise-floating-point-bytes->real:bad-range
+           (param $bstr (ref eq))
+           (param $from i32)
+           (param $to   i32)
+
+           (local $bs      (ref $Bytes))
+           (local $len     i32)
+           (local $out     (ref $GrowableArray))
+           (local $message (ref $String))
+
+           (local.set $bs  (ref.cast (ref $Bytes) (local.get $bstr)))
+           (local.set $len (call $i8array-length
+                                 (struct.get $Bytes $bs (local.get $bs))))
+
+           (if (i32.gt_u (local.get $from) (local.get $len))
+               (then
+                (local.set $out (call $make-growable-array (i32.const 9)))
+                (call $growable-array-add! (local.get $out)
+                      (call $format/display
+                            (global.get $symbol:floating-point-bytes->real)))
+                (call $growable-array-add! (local.get $out)
+                      (global.get $string:substring:starting-index-out-of-range))
+                (call $growable-array-add! (local.get $out)
+                      (global.get $string:substring:starting-index))
+                (call $growable-array-add! (local.get $out)
+                      (call $format/display
+                            (ref.i31 (i32.shl (local.get $from) (i32.const 1)))))
+                (call $growable-array-add! (local.get $out)
+                      (global.get $string:string-ref:valid-range))
+                (call $growable-array-add! (local.get $out)
+                      (call $format/display
+                            (ref.i31 (i32.shl (local.get $len) (i32.const 1)))))
+                (call $growable-array-add! (local.get $out)
+                      (global.get $string:string-ref:valid-range-close))
+                (call $growable-array-add! (local.get $out)
+                      (global.get $string:floating-point-bytes->real:index-line))
+                (call $growable-array-add! (local.get $out)
+                      (call $format/write (local.get $bstr)))
+                (local.set $message
+                           (call $growable-array-of-strings->string (local.get $out)))
+                (call $raise
+                      (call $exn:fail:contract/make
+                            (local.get $message)
+                            (call $current-continuation-marks (global.get $missing)))
+                      (global.get $true))
+                (unreachable)))
+
+           (if (i32.gt_u (local.get $to) (local.get $len))
+               (then
+                (local.set $out (call $make-growable-array (i32.const 9)))
+                (call $growable-array-add! (local.get $out)
+                      (call $format/display
+                            (global.get $symbol:floating-point-bytes->real)))
+                (call $growable-array-add! (local.get $out)
+                      (global.get $string:substring:ending-index-out-of-range))
+                (call $growable-array-add! (local.get $out)
+                      (global.get $string:substring:ending-index))
+                (call $growable-array-add! (local.get $out)
+                      (call $format/display
+                            (ref.i31 (i32.shl (local.get $to) (i32.const 1)))))
+                (call $growable-array-add! (local.get $out)
+                      (global.get $string:string-ref:valid-range))
+                (call $growable-array-add! (local.get $out)
+                      (call $format/display
+                            (ref.i31 (i32.shl (local.get $len) (i32.const 1)))))
+                (call $growable-array-add! (local.get $out)
+                      (global.get $string:string-ref:valid-range-close))
+                (call $growable-array-add! (local.get $out)
+                      (global.get $string:floating-point-bytes->real:index-line))
+                (call $growable-array-add! (local.get $out)
+                      (call $format/write (local.get $bstr)))
+                (local.set $message
+                           (call $growable-array-of-strings->string (local.get $out)))
+                (call $raise
+                      (call $exn:fail:contract/make
+                            (local.get $message)
+                            (call $current-continuation-marks (global.get $missing)))
+                      (global.get $true))
+                (unreachable)))
+
+           (local.set $out (call $make-growable-array (i32.const 11)))
+           (call $growable-array-add! (local.get $out)
+                 (call $format/display
+                       (global.get $symbol:floating-point-bytes->real)))
+           (call $growable-array-add! (local.get $out)
+                 (global.get $string:substring:ending-index-before-start))
+           (call $growable-array-add! (local.get $out)
+                 (global.get $string:substring:ending-index))
+           (call $growable-array-add! (local.get $out)
+                 (call $format/display
+                       (ref.i31 (i32.shl (local.get $to) (i32.const 1)))))
+           (call $growable-array-add! (local.get $out)
+                 (global.get $string:substring:starting-index))
+           (call $growable-array-add! (local.get $out)
+                 (call $format/display
+                       (ref.i31 (i32.shl (local.get $from) (i32.const 1)))))
+           (call $growable-array-add! (local.get $out)
+                 (global.get $string:string-ref:valid-range))
+           (call $growable-array-add! (local.get $out)
+                 (call $format/display
+                       (ref.i31 (i32.shl (local.get $len) (i32.const 1)))))
+           (call $growable-array-add! (local.get $out)
+                 (global.get $string:string-ref:valid-range-close))
+           (call $growable-array-add! (local.get $out)
+                 (global.get $string:floating-point-bytes->real:index-line))
+           (call $growable-array-add! (local.get $out)
+                 (call $format/write (local.get $bstr)))
+           (local.set $message
+                      (call $growable-array-of-strings->string (local.get $out)))
+           (call $raise
+                 (call $exn:fail:contract/make
+                       (local.get $message)
+                       (call $current-continuation-marks (global.get $missing)))
+                 (global.get $true))
+           (unreachable))
+
+     (func $raise-floating-point-bytes->real:bad-length
+           (param $len i32)
+
+           (local $out     (ref $GrowableArray))
+           (local $message (ref $String))
+
+           (local.set $out (call $make-growable-array (i32.const 4)))
+           (call $growable-array-add! (local.get $out)
+                 (call $format/display
+                       (global.get $symbol:floating-point-bytes->real)))
+           (call $growable-array-add! (local.get $out)
+                 (global.get $string:floating-point-bytes->real:length-not-4-or-8))
+           (call $growable-array-add! (local.get $out)
+                 (global.get $string:floating-point-bytes->real:length-line))
+           (call $growable-array-add! (local.get $out)
+                 (call $format/display
+                       (ref.i31 (i32.shl (local.get $len) (i32.const 1)))))
+           (local.set $message
+                      (call $growable-array-of-strings->string (local.get $out)))
+           (call $raise
+                 (call $exn:fail:contract/make
+                       (local.get $message)
+                       (call $current-continuation-marks (global.get $missing)))
+                 (global.get $true))
+           (unreachable))
+
      (func $floating-point-bytes->real (type $Prim4)
            (param $bstr  (ref eq)) ; bytes?
            (param $big?  (ref eq)) ; any, default to (system-big-endian?) which is #f
@@ -3446,7 +3609,9 @@
            ;; --- Validate byte string ---
            (if (ref.test (ref $Bytes) (local.get $bstr))
                (then (local.set $bs (ref.cast (ref $Bytes) (local.get $bstr))))
-               (else (call $raise-check-bytes (local.get $bstr)) (unreachable)))
+               (else (call $raise-floating-point-bytes->real:bad-bytes
+                           (local.get $bstr))
+                     (unreachable)))
 
            (local.set $arr (struct.get $Bytes $bs (local.get $bs)))
            (local.set $len (call $i8array-length (local.get $arr)))
@@ -3455,32 +3620,64 @@
            (if (ref.eq (local.get $start) (global.get $missing))
                (then (local.set $from (i32.const 0)))
                (else (if (ref.test (ref i31) (local.get $start))
-                         (then (local.set $from (i31.get_u (ref.cast (ref i31) (local.get $start))))
+                         (then (local.set $from (i31.get_s (ref.cast (ref i31) (local.get $start))))
                                (if (i32.eqz (i32.and (local.get $from) (i32.const 1)))
-                                   (then (local.set $from (i32.shr_u (local.get $from) (i32.const 1))))
-                                   (else (call $raise-check-fixnum (local.get $start)) (unreachable))))
-                         (else (call $raise-check-fixnum (local.get $start)) (unreachable)))))
+                                   (then (local.set $from (i32.shr_s (local.get $from) (i32.const 1))))
+                                   (else (call $raise-floating-point-bytes->real:bad-index
+                                               (local.get $start))
+                                         (unreachable)))
+                               (if (i32.lt_s (local.get $from) (i32.const 0))
+                                   (then (call $raise-floating-point-bytes->real:bad-index
+                                               (local.get $start))
+                                         (unreachable))))
+                         (else (call $raise-floating-point-bytes->real:bad-index
+                                     (local.get $start))
+                               (unreachable)))))
 
            ;; --- Decode end ---
            (if (ref.eq (local.get $end) (global.get $missing))
                (then (local.set $to (local.get $len)))
                (else (if (ref.test (ref i31) (local.get $end))
-                         (then (local.set $to (i31.get_u (ref.cast (ref i31) (local.get $end))))
+                         (then (local.set $to (i31.get_s (ref.cast (ref i31) (local.get $end))))
                                (if (i32.eqz (i32.and (local.get $to) (i32.const 1)))
-                                   (then (local.set $to (i32.shr_u (local.get $to) (i32.const 1))))
-                                   (else (call $raise-check-fixnum (local.get $end)) (unreachable))))
-                         (else (call $raise-check-fixnum (local.get $end)) (unreachable)))))
+                                   (then (local.set $to (i32.shr_s (local.get $to) (i32.const 1))))
+                                   (else (call $raise-floating-point-bytes->real:bad-index
+                                               (local.get $end))
+                                         (unreachable)))
+                               (if (i32.lt_s (local.get $to) (i32.const 0))
+                                   (then (call $raise-floating-point-bytes->real:bad-index
+                                               (local.get $end))
+                                         (unreachable))))
+                         (else (call $raise-floating-point-bytes->real:bad-index
+                                     (local.get $end))
+                               (unreachable)))))
 
            ;; --- Bounds check ---
-           (if (i32.gt_u (local.get $from) (local.get $to))
-               (then (call $raise-bad-bytes-range (local.get $bstr) (local.get $from) (local.get $to)) (unreachable)))
+           (if (i32.gt_u (local.get $from) (local.get $len))
+               (then (call $raise-floating-point-bytes->real:bad-range
+                           (local.get $bstr)
+                           (local.get $from)
+                           (local.get $to))
+                     (unreachable)))
            (if (i32.gt_u (local.get $to) (local.get $len))
-               (then (call $raise-bad-bytes-range (local.get $bstr) (local.get $from) (local.get $to)) (unreachable)))
+               (then (call $raise-floating-point-bytes->real:bad-range
+                           (local.get $bstr)
+                           (local.get $from)
+                           (local.get $to))
+                     (unreachable)))
+           (if (i32.gt_u (local.get $from) (local.get $to))
+               (then (call $raise-floating-point-bytes->real:bad-range
+                           (local.get $bstr)
+                           (local.get $from)
+                           (local.get $to))
+                     (unreachable)))
 
            (local.set $nbytes (i32.sub (local.get $to) (local.get $from)))
            (if (i32.and (i32.ne (local.get $nbytes) (i32.const 4))
                         (i32.ne (local.get $nbytes) (i32.const 8)))
-               (then (call $raise-argument-error/internal (local.get $bstr)) (unreachable)))
+               (then (call $raise-floating-point-bytes->real:bad-length
+                           (local.get $nbytes))
+                     (unreachable)))
 
            ;; --- Decode big-endian? ---
            (if (ref.eq (local.get $big?) (global.get $missing))

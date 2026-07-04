@@ -1225,6 +1225,82 @@
                     (list "floating-point-bytes->real"
                           (and (= (floating-point-bytes->real (bytes 0 0 128 63)) 1.0)
                                (= (floating-point-bytes->real (bytes 63 240 0 0 0 0 0 0) #t 0 8) 1.0)))
+                    (list "floating-point-bytes->real errors are catchable with who"
+                          (let ([catch-contract/message-contains?
+                                 (lambda (parts thunk)
+                                   (let ([message
+                                          (with-handlers ([exn:fail:contract?
+                                                           (lambda (exn)
+                                                             (exn-message exn))])
+                                            (thunk)
+                                            #f)])
+                                     (and message
+                                          (andmap (lambda (part)
+                                                    (string-contains? message part))
+                                                  parts))))])
+                            (and
+                             (catch-contract/message-contains?
+                              '("floating-point-bytes->real: contract violation"
+                                "bytes?"
+                                "given: 42")
+                              (lambda ()
+                                (floating-point-bytes->real 42)))
+                             (catch-contract/message-contains?
+                              '("floating-point-bytes->real: contract violation"
+                                "exact-nonnegative-integer?"
+                                "given: #f")
+                              (lambda ()
+                                (floating-point-bytes->real (bytes 0 0 128 63) #f #f 4)))
+                             (catch-contract/message-contains?
+                              '("floating-point-bytes->real: contract violation"
+                                "exact-nonnegative-integer?"
+                                "given: -1")
+                              (lambda ()
+                                (floating-point-bytes->real (bytes 0 0 128 63) #f -1 4)))
+                             (catch-contract/message-contains?
+                              '("floating-point-bytes->real: contract violation"
+                                "exact-nonnegative-integer?"
+                                "given: #f")
+                              (lambda ()
+                                (floating-point-bytes->real (bytes 0 0 128 63) #f 0 #f)))
+                             (catch-contract/message-contains?
+                              '("floating-point-bytes->real: contract violation"
+                                "exact-nonnegative-integer?"
+                                "given: -1")
+                              (lambda ()
+                                (floating-point-bytes->real (bytes 0 0 128 63) #f 0 -1)))
+                             (catch-contract/message-contains?
+                              '("floating-point-bytes->real: starting index is out of range"
+                                "starting index: 5"
+                                "valid range: [0, 4]"
+                                "index:")
+                              (lambda ()
+                                (floating-point-bytes->real (bytes 0 0 128 63) #f 5)))
+                             (catch-contract/message-contains?
+                              '("floating-point-bytes->real: ending index is out of range"
+                                "ending index: 5"
+                                "valid range: [0, 4]"
+                                "index:")
+                              (lambda ()
+                                (floating-point-bytes->real (bytes 0 0 128 63) #f 0 5)))
+                             (catch-contract/message-contains?
+                              '("floating-point-bytes->real: ending index is smaller than starting index"
+                                "ending index: 1"
+                                "starting index: 3"
+                                "valid range: [0, 4]"
+                                "index:")
+                              (lambda ()
+                                (floating-point-bytes->real (bytes 0 0 128 63) #f 3 1)))
+                             (catch-contract/message-contains?
+                              '("floating-point-bytes->real: length is not 4 or 8 bytes"
+                                "length: 3")
+                              (lambda ()
+                                (floating-point-bytes->real (bytes 0 0 128))))
+                             (catch-contract/message-contains?
+                              '("floating-point-bytes->real: length is not 4 or 8 bytes"
+                                "length: 0")
+                              (lambda ()
+                                (floating-point-bytes->real (bytes)))))))
                     (list "floating-point byte conversions accept truthy big-endian values"
                           (and (bytes=? (real->floating-point-bytes 1.0 8 'big)
                                         #"\x3f\xf0\x00\x00\x00\x00\x00\x00")
