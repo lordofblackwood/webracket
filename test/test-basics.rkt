@@ -1151,6 +1151,30 @@
                                (equal? (system-type 'vm) 'chez-scheme)
                                (equal? (system-type 'gc) 'cs)
                                (equal? (vector-ref (system-type 'fs-change) 2) #f)))
+                    (list "system-type argument errors are catchable with who"
+                          (let ([catch-contract/who+expected+given?
+                                 (lambda (who expected given thunk)
+                                   (let ([message
+                                          (with-handlers ([exn:fail:contract?
+                                                           (lambda (exn)
+                                                             (exn-message exn))])
+                                            (thunk)
+                                            #f)])
+                                     (and message
+                                          (string-contains? message who)
+                                          (string-contains? message expected)
+                                          (string-contains? message given))))])
+                            (and
+                             (catch-contract/who+expected+given?
+                              "system-type"
+                              "(or/c 'os 'os* 'arch"
+                              "#f"
+                              (lambda () (system-type #f)))
+                             (catch-contract/who+expected+given?
+                              "system-type"
+                              "(or/c 'os 'os* 'arch"
+                              "'bogus"
+                              (lambda () (system-type 'bogus))))))
                     (list "current-compile-target-machine"
                           (let ([original (current-compile-target-machine)])
                             (and (equal? original (system-type 'target-machine))

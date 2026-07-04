@@ -12,12 +12,15 @@
 ;;   Declare strings used by system/runtime information helpers.
 (define system-runtime-string-constants
   `((racket-version    ,(version))
+    (system-type-mode-contract
+     "(or/c 'os 'os* 'arch 'word 'vm 'gc 'link 'machine 'target-machine\n                  'so-suffix 'so-mode 'fs-change 'cross)")
     (webracket-machine "WebRacket")))
 
 ;; system-runtime-symbol-constants : (listof symbol?)
 ;;   Declare symbols used by system/runtime information helpers.
 (define system-runtime-symbol-constants
-  '(os
+  '(system-type
+    os
     os*
     arch
     wasm32
@@ -29,6 +32,8 @@
     static
     machine
     target-machine
+    so-suffix
+    so-mode
     webracket
     fs-change
     supported
@@ -68,9 +73,8 @@
 
      ;; system-type : [symbol?] -> any/c
      ;;   Bootstrap target metadata for WebRacket. This is intentionally
-     ;;   target-oriented, not host-OS detection. Unknown modes return #f
-     ;;   for now instead of implementing Racket's full contract/error
-     ;;   surface.
+     ;;   target-oriented, not host-OS detection. Some valid native-library
+     ;;   modes return #f until WebRacket has a browser-specific answer.
      (func $system-type (type $Prim01)
            (param $mode (ref eq)) ;; optional symbol, defaults to 'os
            (result      (ref eq))
@@ -95,6 +99,10 @@
                (then (return (global.get $string:webracket-machine))))
            (if (ref.eq (local.get $mode) (global.get $symbol:target-machine))
                (then (return (global.get $symbol:webracket))))
+           (if (ref.eq (local.get $mode) (global.get $symbol:so-suffix))
+               (then (return (global.get $false))))
+           (if (ref.eq (local.get $mode) (global.get $symbol:so-mode))
+               (then (return (global.get $false))))
            (if (ref.eq (local.get $mode) (global.get $symbol:fs-change))
                (then
                 (return
@@ -108,7 +116,11 @@
                                               (global.get $symbol:file-level))))))
            (if (ref.eq (local.get $mode) (global.get $symbol:cross))
                (then (return (global.get $false))))
-           (global.get $false))
+           (call $raise-argument-error1
+                 (global.get $symbol:system-type)
+                 (global.get $string:system-type-mode-contract)
+                 (local.get $mode))
+           (unreachable))
 
      ;; version : -> string?
      ;;   Return the Racket version used to generate this WebRacket runtime.
