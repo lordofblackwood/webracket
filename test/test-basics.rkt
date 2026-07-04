@@ -8130,6 +8130,35 @@
                             (list third "y")
                             (list fourth "")
                             (list (eof-object? fifth) #t))))
+              (list "read-line mode argument errors are catchable with who"
+                    (let ([catch-contract/who+expected+given?
+                           (lambda (who expected given thunk)
+                             (let ([message
+                                    (with-handlers ([exn:fail:contract?
+                                                     (lambda (exn)
+                                                       (exn-message exn))])
+                                      (thunk)
+                                      #f)])
+                               (and message
+                                    (string-contains? message who)
+                                    (string-contains? message expected)
+                                    (string-contains? message given))))])
+                      (and
+                       (catch-contract/who+expected+given?
+                        "read-line"
+                        "(or/c 'linefeed 'return 'return-linefeed 'any 'any-one)"
+                        "'bogus"
+                        (lambda () (read-line (open-input-string "x") 'bogus)))
+                       (catch-contract/who+expected+given?
+                        "read-line"
+                        "(or/c 'linefeed 'return 'return-linefeed 'any 'any-one)"
+                        "#f"
+                        (lambda () (read-line (open-input-string "x") #f)))
+                       (catch-contract/who+expected+given?
+                        "read-bytes-line"
+                        "(or/c 'linefeed 'return 'return-linefeed 'any 'any-one)"
+                        "'bogus"
+                        (lambda () (read-bytes-line (open-input-string "x") 'bogus))))))
 
               (list "peek-bytes!/basic"
                     (let* ([buffer (make-bytes 6 (char->integer #\_))]
@@ -10745,6 +10774,20 @@
                            (with-handlers ([exn:fail:contract? (lambda (_ex) #t)])
                              (file->bytes-lines "/app/data/bytes-lines.txt" 'update)
                              #f)
+                           (let ([message
+                                  (with-handlers ([exn:fail:contract?
+                                                   (lambda (exn)
+                                                     (exn-message exn))])
+                                    (file->bytes-lines "/app/data/bytes-lines.txt"
+                                                       'binary
+                                                       'bogus)
+                                    #f)])
+                             (and message
+                                  (string-contains? message "file->bytes-lines")
+                                  (string-contains?
+                                   message
+                                   "(or/c 'linefeed 'return 'return-linefeed 'any 'any-one)")
+                                  (string-contains? message "'bogus")))
                            (with-handlers ([(lambda (ex) (exn:fail:filesystem? ex))
                                             (lambda (_ex) #t)])
                              (file->bytes-lines "/app/data/missing-bytes-lines.txt")

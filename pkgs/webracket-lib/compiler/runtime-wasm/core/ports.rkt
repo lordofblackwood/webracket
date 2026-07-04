@@ -33,12 +33,15 @@
     (input-port?                "input-port?")
     (output-port?               "output-port?")
     (file-stream-port?          "file-stream-port?")
-    (terminal-port?             "terminal-port?")))
+    (terminal-port?             "terminal-port?")
+    (read-line-mode-contract    "(or/c 'linefeed 'return 'return-linefeed 'any 'any-one)")))
 
 ;; port-runtime-symbol-constants : (listof symbol?)
 ;;   Declare symbols used by string-port modes and line-ending modes.
 (define port-runtime-symbol-constants
   '(string
+    read-line
+    read-bytes-line
     linefeed
     return
     return-linefeed
@@ -178,6 +181,7 @@
 ;;   Preserve the runtime emission order for line-reading helpers.
 (define port-read-line-runtime-only-helper-names
   '($raise-read-line:bad-mode
+    $read-line-mode-code
     $read-line/custom
     $read-line
     $read-bytes-line))
@@ -2380,7 +2384,33 @@
   (function-forms->runtime-helpers
    'port-read-line-runtime-only-helpers
    (list
-    '(func $raise-read-line:bad-mode (param $mode (ref eq)) (unreachable))
+    '(func $raise-read-line:bad-mode
+           (param $who  (ref eq))
+           (param $mode (ref eq))
+           (call $raise-argument-error1
+                 (local.get $who)
+                 (global.get $string:read-line-mode-contract)
+                 (local.get $mode))
+           (unreachable))
+
+    '(func $read-line-mode-code
+           (param $who      (ref eq))
+           (param $mode-val (ref eq))
+           (result          i32)
+
+           (block
+            (if (ref.eq (local.get $mode-val) (global.get $symbol:linefeed))
+                (then (return (i32.const 0))))
+            (if (ref.eq (local.get $mode-val) (global.get $symbol:return))
+                (then (return (i32.const 1))))
+            (if (ref.eq (local.get $mode-val) (global.get $symbol:return-linefeed))
+                (then (return (i32.const 2))))
+            (if (ref.eq (local.get $mode-val) (global.get $symbol:any))
+                (then (return (i32.const 3))))
+            (if (ref.eq (local.get $mode-val) (global.get $symbol:any-one))
+                (then (return (i32.const 4)))))
+           (call $raise-read-line:bad-mode (local.get $who) (local.get $mode-val))
+           (unreachable))
 
     `(func $read-line/custom
            (param $port        (ref $CustomInputPort))
@@ -2521,20 +2551,10 @@
                           (then (global.get $symbol:linefeed))
                           (else (local.get $mode))))
            ;; Decode the mode into an internal tag.
-           (local.set $mode-code (i32.const -1))
-           (block
-            (if (ref.eq (local.get $mode-val) (global.get $symbol:linefeed))
-                (then (local.set $mode-code (i32.const 0)) (br 1)))
-            (if (ref.eq (local.get $mode-val) (global.get $symbol:return))
-                (then (local.set $mode-code (i32.const 1)) (br 1)))
-            (if (ref.eq (local.get $mode-val) (global.get $symbol:return-linefeed))
-                (then (local.set $mode-code (i32.const 2)) (br 1)))
-            (if (ref.eq (local.get $mode-val) (global.get $symbol:any))
-                (then (local.set $mode-code (i32.const 3)) (br 1)))
-            (if (ref.eq (local.get $mode-val) (global.get $symbol:any-one))
-               (then (local.set $mode-code (i32.const 4)) (br 1)))
-            (call $raise-read-line:bad-mode (local.get $mode-val))
-            (unreachable))
+           (local.set $mode-code
+                      (call $read-line-mode-code
+                            (global.get $symbol:read-line)
+                            (local.get $mode-val)))
 
            ;; Dispatch based on the input port type.
            (if (ref.test (ref $InputStringPort) (local.get $in))
@@ -2641,9 +2661,20 @@
            (param $mode (ref eq)) ;; optional read-line-mode?, default = 'linefeed
            (result      (ref eq))
 
-           (local $line (ref eq))
+           (local $line      (ref eq))
+           (local $mode-val  (ref eq))
+           (local $mode-code i32)
 
-           (local.set $line (call $read-line (local.get $in) (local.get $mode)))
+           (local.set $mode-val
+                      (if (result (ref eq))
+                          (ref.eq (local.get $mode) (global.get $missing))
+                          (then (global.get $symbol:linefeed))
+                          (else (local.get $mode))))
+           (local.set $mode-code
+                      (call $read-line-mode-code
+                            (global.get $symbol:read-bytes-line)
+                            (local.get $mode-val)))
+           (local.set $line (call $read-line (local.get $in) (local.get $mode-val)))
            (if (ref.eq (local.get $line) (global.get $eof))
                (then (return (global.get $eof))))
            (call $string->bytes/utf-8

@@ -813,20 +813,10 @@
                          (ref.eq (local.get $line-mode-raw) (global.get $missing))
                          (then (global.get $symbol:any))
                          (else (local.get $line-mode-raw))))
-          (local.set $mode-code (i32.const -1))
-          (block
-           (if (ref.eq (local.get $line-mode) (global.get $symbol:linefeed))
-               (then (local.set $mode-code (i32.const 0)) (br 1)))
-           (if (ref.eq (local.get $line-mode) (global.get $symbol:return))
-               (then (local.set $mode-code (i32.const 1)) (br 1)))
-           (if (ref.eq (local.get $line-mode) (global.get $symbol:return-linefeed))
-               (then (local.set $mode-code (i32.const 2)) (br 1)))
-           (if (ref.eq (local.get $line-mode) (global.get $symbol:any))
-               (then (local.set $mode-code (i32.const 3)) (br 1)))
-           (if (ref.eq (local.get $line-mode) (global.get $symbol:any-one))
-               (then (local.set $mode-code (i32.const 4)) (br 1)))
-           (call $raise-read-line:bad-mode (local.get $line-mode))
-           (unreachable))
+          (local.set $mode-code
+                     (call $read-line-mode-code
+                           (global.get $symbol:file->bytes-lines)
+                           (local.get $line-mode)))
           (local.set $bytes
                      (call $vfs-read-file-bytes
                            (global.get $symbol:file->bytes-lines)
