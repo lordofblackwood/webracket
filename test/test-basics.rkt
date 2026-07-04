@@ -2343,6 +2343,31 @@
                           (equal? (char-foldcase #\space) #\space)
                           (equal? (procedure-arity char-foldcase) 1)))
 
+              (list "character case conversion argument errors are catchable with who"
+                    (let ([catch-contract/who+expected?
+                           (lambda (who expected thunk)
+                             (let ([message
+                                    (with-handlers ([exn:fail:contract?
+                                                     (lambda (exn)
+                                                       (exn-message exn))])
+                                      (thunk)
+                                      #f)])
+                               (and (string? message)
+                                    (string-contains? message who)
+                                    (string-contains? message expected))))])
+                      (and (catch-contract/who+expected? "char-upcase"
+                                                         "char?"
+                                                         (lambda () (char-upcase 42)))
+                           (catch-contract/who+expected? "char-downcase"
+                                                         "char?"
+                                                         (lambda () (char-downcase 42)))
+                           (catch-contract/who+expected? "char-titlecase"
+                                                         "char?"
+                                                         (lambda () (char-titlecase 42)))
+                           (catch-contract/who+expected? "char-foldcase"
+                                                         "char?"
+                                                         (lambda () (char-foldcase 42))))))
+
               (list "char-ci=?"
                     (and (equal? (char-ci=? #\A #\a) #t)
                          (equal? (char-ci=? #\A #\B) #f)))

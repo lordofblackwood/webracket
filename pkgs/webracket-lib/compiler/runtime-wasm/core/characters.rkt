@@ -90,6 +90,13 @@
          ;; https://docs.racket-lang.org/reference/characters.html
 
          (func $raise-check-char (param $x (ref eq)) (unreachable))
+         (func $raise-char-expected/who
+               (param $who (ref eq))
+               (param $x   (ref eq))
+               (call $raise-argument-error1
+                     (local.get $who)
+                     (global.get $string:char?)
+                     (local.get $x)))
          (func $raise-invalid-codepoint (unreachable))
 
          ;; 4.6.1 Characters and Scalar Values
@@ -534,14 +541,18 @@
               (local $cp2   i32)
               ;; Type check
               (if (i32.eqz (ref.test (ref i31) (local.get $c)))
-                  (then (call $raise-check-char (local.get $c))))
+                  (then (call $raise-char-expected/who
+                              (global.get $symbol:char-upcase)
+                              (local.get $c))))
               (local.set $i31   (ref.cast (ref i31) (local.get $c)))
               (local.set $c/tag (i31.get_u (local.get $i31)))
               ;; Decode codepoint
               (if (i32.ne (i32.and (local.get $c/tag)
                                    (i32.const ,char-mask))
                           (i32.const ,char-tag))
-                  (then (call $raise-check-char (local.get $c))))
+                  (then (call $raise-char-expected/who
+                              (global.get $symbol:char-upcase)
+                              (local.get $c))))
               (local.set $cp (i32.shr_u (local.get $c/tag) (i32.const ,char-shift)))
               ;; Call host to compute upcase mapping
               (local.set $cp2 (call $char-upcase/ucs (local.get $cp)))
@@ -556,14 +567,18 @@
               (local $cp2   i32)
               ;; Type check
               (if (i32.eqz (ref.test (ref i31) (local.get $c)))
-                  (then (call $raise-check-char (local.get $c))))
+                  (then (call $raise-char-expected/who
+                              (global.get $symbol:char-downcase)
+                              (local.get $c))))
               (local.set $i31   (ref.cast (ref i31) (local.get $c)))
               (local.set $c/tag (i31.get_u (local.get $i31)))
               ;; Decode codepoint
               (if (i32.ne (i32.and (local.get $c/tag)
                                    (i32.const ,char-mask))
                           (i32.const ,char-tag))
-                  (then (call $raise-check-char (local.get $c))))
+                  (then (call $raise-char-expected/who
+                              (global.get $symbol:char-downcase)
+                              (local.get $c))))
               (local.set $cp (i32.shr_u (local.get $c/tag) (i32.const ,char-shift)))
               ;; Call host to compute downcase mapping
               (local.set $cp2 (call $char-downcase/ucs (local.get $cp)))
@@ -578,14 +593,18 @@
               (local $cp2   i32)
               ;; Type check
               (if (i32.eqz (ref.test (ref i31) (local.get $c)))
-                  (then (call $raise-check-char (local.get $c))))
+                  (then (call $raise-char-expected/who
+                              (global.get $symbol:char-titlecase)
+                              (local.get $c))))
               (local.set $i31   (ref.cast (ref i31) (local.get $c)))
               (local.set $c/tag (i31.get_u (local.get $i31)))
               ;; Decode codepoint
               (if (i32.ne (i32.and (local.get $c/tag)
                                    (i32.const ,char-mask))
                           (i32.const ,char-tag))
-                  (then (call $raise-check-char (local.get $c))))
+                  (then (call $raise-char-expected/who
+                              (global.get $symbol:char-titlecase)
+                              (local.get $c))))
               (local.set $cp (i32.shr_u (local.get $c/tag) (i32.const ,char-shift)))
               ;; Call host to compute titlecase mapping
               (local.set $cp2 (call $char-titlecase/ucs (local.get $cp)))
@@ -602,14 +621,18 @@
               (local $cp2   i32)
               ;; Type check
               (if (i32.eqz (ref.test (ref i31) (local.get $c)))
-                  (then (call $raise-check-char (local.get $c))))
+                  (then (call $raise-char-expected/who
+                              (global.get $symbol:char-foldcase)
+                              (local.get $c))))
               (local.set $i31   (ref.cast (ref i31) (local.get $c)))
               (local.set $c/tag (i31.get_u (local.get $i31)))
               ;; Decode codepoint
               (if (i32.ne (i32.and (local.get $c/tag)
                                    (i32.const ,char-mask))
                           (i32.const ,char-tag))
-                  (then (call $raise-check-char (local.get $c))))
+                  (then (call $raise-char-expected/who
+                              (global.get $symbol:char-foldcase)
+                              (local.get $c))))
               (local.set $cp (i32.shr_u (local.get $c/tag) (i32.const ,char-shift)))
               ;; Call host to compute foldcase mapping
               (local.set $cp2 (call $char-foldcase/ucs (local.get $cp)))
