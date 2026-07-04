@@ -40,6 +40,9 @@
 ;;   Declare symbols used by string-port modes and line-ending modes.
 (define port-runtime-symbol-constants
   '(string
+    read-string!
+    peek-string!
+    write-string
     read-line
     read-bytes-line
     linefeed
@@ -2070,10 +2073,18 @@
                          (else (call $raise-check-fixnum (local.get $end)) (unreachable)))))
            ;; --- Bounds checks ---
            (if (i32.gt_u (local.get $from) (local.get $to))
-               (then (call $raise-bad-string-range (local.get $str) (local.get $from) (local.get $to))
+               (then (call $raise-bad-string-range
+                           (global.get $symbol:read-string!)
+                           (local.get $str)
+                           (local.get $from)
+                           (local.get $to))
                      (unreachable)))
            (if (i32.gt_u (local.get $to) (local.get $len))
-               (then (call $raise-bad-string-range (local.get $str) (local.get $from) (local.get $to))
+               (then (call $raise-bad-string-range
+                           (global.get $symbol:read-string!)
+                           (local.get $str)
+                           (local.get $from)
+                           (local.get $to))
                      (unreachable)))
 
            (local.set $count (i32.sub (local.get $to) (local.get $from)))
@@ -2982,10 +2993,18 @@
                          (else (call $raise-check-fixnum (local.get $end)) (unreachable)))))
            ;; --- Bounds checks ---
            (if (i32.gt_u (local.get $from) (local.get $to))
-               (then (call $raise-bad-string-range (local.get $str) (local.get $from) (local.get $to))
+               (then (call $raise-bad-string-range
+                           (global.get $symbol:peek-string!)
+                           (local.get $str)
+                           (local.get $from)
+                           (local.get $to))
                      (unreachable)))
            (if (i32.gt_u (local.get $to) (local.get $len))
-               (then (call $raise-bad-string-range (local.get $str) (local.get $from) (local.get $to))
+               (then (call $raise-bad-string-range
+                           (global.get $symbol:peek-string!)
+                           (local.get $str)
+                           (local.get $from)
+                           (local.get $to))
                      (unreachable)))
 
            (local.set $count (i32.sub (local.get $to) (local.get $from)))
@@ -4050,7 +4069,123 @@
            (ref.i31 (i32.shl (local.get $count) (i32.const 1))))
 
 
-     (func $raise-bad-string-range (param $x (ref eq)) (param i32) (param i32) (unreachable))
+     (func $raise-bad-string-range
+           (param $who  (ref eq))
+           (param $x    (ref eq))
+           (param $from i32)
+           (param $to   i32)
+
+           (local $s       (ref $String))
+           (local $len     i32)
+           (local $out     (ref $GrowableArray))
+           (local $message (ref $String))
+
+           (local.set $s   (ref.cast (ref $String) (local.get $x)))
+           (local.set $len
+                      (call $i32array-length
+                            (struct.get $String $codepoints (local.get $s))))
+
+           (if (i32.gt_u (local.get $from) (local.get $len))
+               (then
+                (local.set $out
+                           (call $make-growable-array (i32.const 9)))
+                (call $growable-array-add! (local.get $out)
+                      (call $format/display (local.get $who)))
+                (call $growable-array-add! (local.get $out)
+                      (global.get $string:substring:starting-index-out-of-range))
+                (call $growable-array-add! (local.get $out)
+                      (global.get $string:substring:starting-index))
+                (call $growable-array-add! (local.get $out)
+                      (call $format/display
+                            (ref.i31 (i32.shl (local.get $from) (i32.const 1)))))
+                (call $growable-array-add! (local.get $out)
+                      (global.get $string:string-ref:valid-range))
+                (call $growable-array-add! (local.get $out)
+                      (call $format/display
+                            (ref.i31 (i32.shl (local.get $len) (i32.const 1)))))
+                (call $growable-array-add! (local.get $out)
+                      (global.get $string:string-ref:valid-range-close))
+                (call $growable-array-add! (local.get $out)
+                      (global.get $string:string-utf8:byte-string))
+                (call $growable-array-add! (local.get $out)
+                      (call $format/write (local.get $x)))
+                (local.set $message
+                           (call $growable-array-of-strings->string (local.get $out)))
+                (call $raise
+                      (call $exn:fail:contract/make
+                            (local.get $message)
+                            (call $current-continuation-marks (global.get $missing)))
+                      (global.get $true))
+                (unreachable)))
+
+           (if (i32.gt_u (local.get $to) (local.get $len))
+               (then
+                (local.set $out
+                           (call $make-growable-array (i32.const 9)))
+                (call $growable-array-add! (local.get $out)
+                      (call $format/display (local.get $who)))
+                (call $growable-array-add! (local.get $out)
+                      (global.get $string:substring:ending-index-out-of-range))
+                (call $growable-array-add! (local.get $out)
+                      (global.get $string:substring:ending-index))
+                (call $growable-array-add! (local.get $out)
+                      (call $format/display
+                            (ref.i31 (i32.shl (local.get $to) (i32.const 1)))))
+                (call $growable-array-add! (local.get $out)
+                      (global.get $string:string-ref:valid-range))
+                (call $growable-array-add! (local.get $out)
+                      (call $format/display
+                            (ref.i31 (i32.shl (local.get $len) (i32.const 1)))))
+                (call $growable-array-add! (local.get $out)
+                      (global.get $string:string-ref:valid-range-close))
+                (call $growable-array-add! (local.get $out)
+                      (global.get $string:string-utf8:byte-string))
+                (call $growable-array-add! (local.get $out)
+                      (call $format/write (local.get $x)))
+                (local.set $message
+                           (call $growable-array-of-strings->string (local.get $out)))
+                (call $raise
+                      (call $exn:fail:contract/make
+                            (local.get $message)
+                            (call $current-continuation-marks (global.get $missing)))
+                      (global.get $true))
+                (unreachable)))
+
+           (local.set $out
+                      (call $make-growable-array (i32.const 11)))
+           (call $growable-array-add! (local.get $out)
+                 (call $format/display (local.get $who)))
+           (call $growable-array-add! (local.get $out)
+                 (global.get $string:substring:ending-index-before-start))
+           (call $growable-array-add! (local.get $out)
+                 (global.get $string:substring:ending-index))
+           (call $growable-array-add! (local.get $out)
+                 (call $format/display
+                       (ref.i31 (i32.shl (local.get $to) (i32.const 1)))))
+           (call $growable-array-add! (local.get $out)
+                 (global.get $string:substring:starting-index))
+           (call $growable-array-add! (local.get $out)
+                 (call $format/display
+                       (ref.i31 (i32.shl (local.get $from) (i32.const 1)))))
+           (call $growable-array-add! (local.get $out)
+                 (global.get $string:string-ref:valid-range))
+           (call $growable-array-add! (local.get $out)
+                 (call $format/display
+                       (ref.i31 (i32.shl (local.get $len) (i32.const 1)))))
+           (call $growable-array-add! (local.get $out)
+                 (global.get $string:string-ref:valid-range-close))
+           (call $growable-array-add! (local.get $out)
+                 (global.get $string:string-utf8:byte-string))
+           (call $growable-array-add! (local.get $out)
+                 (call $format/write (local.get $x)))
+           (local.set $message
+                      (call $growable-array-of-strings->string (local.get $out)))
+           (call $raise
+                 (call $exn:fail:contract/make
+                       (local.get $message)
+                       (call $current-continuation-marks (global.get $missing)))
+                 (global.get $true))
+           (unreachable))
 
      ;; Like Racket's write-string, but currently only string ports are supported
      ;; as output destinations. The port argument must be provided explicitly.
@@ -4102,9 +4237,19 @@
                          (else (call $raise-check-fixnum (local.get $end)) (unreachable)))))
            ;; --- Bounds checks ---
            (if (i32.gt_u (local.get $from) (local.get $to))
-               (then (call $raise-bad-string-range (local.get $str) (local.get $from) (local.get $to)) (unreachable)))
+               (then (call $raise-bad-string-range
+                           (global.get $symbol:write-string)
+                           (local.get $str)
+                           (local.get $from)
+                           (local.get $to))
+                     (unreachable)))
            (if (i32.gt_u (local.get $to) (local.get $len))
-               (then (call $raise-bad-string-range (local.get $str) (local.get $from) (local.get $to)) (unreachable)))
+               (then (call $raise-bad-string-range
+                           (global.get $symbol:write-string)
+                           (local.get $str)
+                           (local.get $from)
+                           (local.get $to))
+                     (unreachable)))
 
            (local.set $count (i32.sub (local.get $to) (local.get $from)))
            ;; --- Convert requested slice to bytes ---

@@ -77,6 +77,27 @@ Follow-up:
 - If the current behavior is wrong, fix the constructor and update the
   pinned split-link expectation in `core-runtime.rkt`.
 
+### Port Range Decoders Still Treat Negative Fixnums As Unsigned
+
+Location:
+
+- `pkgs/webracket-lib/compiler/runtime-wasm/core/ports.rkt`
+
+Current behavior:
+
+- Several port range paths decode start/end/skip indexes with unsigned
+  `i31.get_u` and `i32.shr_u`.
+- Positive out-of-range string indexes now raise catchable Racket-style range
+  errors with the right `who`, but negative fixnums can still arrive at range
+  validation as large unsigned indexes.
+
+Follow-up:
+
+- Replace the unsigned decode pattern in port range primitives with signed
+  fixnum decoding.
+- Raise caller-specific `exact-nonnegative-integer?` contract errors for
+  negative indexes, preserving the primitive `who`.
+
 ## Runtime-Only Core Boundaries
 
 These helpers have moved out of `runtime-wasm.rkt` into themed core modules,

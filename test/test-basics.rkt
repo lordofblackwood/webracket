@@ -8656,6 +8656,50 @@
                       (and (equal? count 3)
                            (equal? (get-output-string port) "éll"))))
 
+              (list "string port range errors are catchable with who"
+                    (let ([catch-range/who+reason+index?
+                           (lambda (who reason index-line value-line thunk)
+                             (let ([message
+                                    (with-handlers ([exn:fail:contract?
+                                                     (lambda (exn)
+                                                       (exn-message exn))])
+                                      (thunk)
+                                      #f)])
+                               (and message
+                                    (string-contains? message who)
+                                    (string-contains? message reason)
+                                    (string-contains? message index-line)
+                                    (string-contains? message "valid range: [0, 3]")
+                                    (string-contains? message value-line))))])
+                      (and
+                       (catch-range/who+reason+index?
+                        "write-string"
+                        "starting index is out of range"
+                        "starting index: 4"
+                        "byte string: \"abc\""
+                        (lambda () (write-string "abc" (open-output-string) 4)))
+                       (catch-range/who+reason+index?
+                        "read-string!"
+                        "ending index is smaller than starting index"
+                        "ending index: 1"
+                        "byte string: \"xxx\""
+                        (lambda ()
+                          (read-string! (make-string 3 #\x)
+                                        (open-input-string "abc")
+                                        2
+                                        1)))
+                       (catch-range/who+reason+index?
+                        "peek-string!"
+                        "ending index is out of range"
+                        "ending index: 4"
+                        "byte string: \"xxx\""
+                        (lambda ()
+                          (peek-string! (make-string 3 #\x)
+                                        0
+                                        (open-input-string "abc")
+                                        1
+                                        4))))))
+
               (list "fprintf/bootstrap"
                     (let ([port (open-output-string)])
                       (and (void? (fprintf port "value=~a symbol=~s~n" 42 'ok))
