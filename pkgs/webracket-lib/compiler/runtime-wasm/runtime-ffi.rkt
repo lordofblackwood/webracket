@@ -5,6 +5,7 @@
          make-current-runtime-ffi-state
          runtime-ffi-state-active-primitive-names
          runtime-ffi-state-filter-current-bindings!
+         runtime-ffi-state-import-wrapper-helper-forms
          runtime-ffi-state-record-metrics!
          select-active-ffi-runtime-bindings
          select-current-ffi-runtime-bindings
@@ -16,6 +17,8 @@
          "../private/wasm-utils.rkt"
          (only-in "module-forms.rkt"
                   module-func-name)
+         (only-in "core/ffi.rkt"
+                  unsafe-ffi-runtime-only-helper-forms)
          (only-in "runtime-analysis.rkt"
                   list->eq-set)
          (only-in "runtime-metrics.rkt"
@@ -51,6 +54,14 @@
 (define (runtime-ffi-state-active-primitive-names state)
   (for/list ([f (in-list (runtime-ffi-state-active-foreigns state))])
     (foreign-racket-name f)))
+
+;; runtime-ffi-state-import-wrapper-helper-forms : runtime-ffi-state? -> (listof datum?)
+;;   Render active FFI host imports, generated wrappers, and unsafe lookup helpers.
+(define (runtime-ffi-state-import-wrapper-helper-forms state)
+  (append (runtime-ffi-state-active-imports-wat state)
+          (runtime-ffi-state-active-funcs-wat state)
+          (unsafe-ffi-runtime-only-helper-forms
+           (runtime-ffi-state-active-foreigns state))))
 
 ;; active-ffi-primitive-names : (listof foreign?) (listof symbol?) boolean? -> (listof symbol?)
 ;;   Select the foreign primitive names needed by the current program.
@@ -234,6 +245,15 @@
                   '((func $a/imported)))
     (check-equal? (runtime-ffi-state-active-funcs-wat state)
                   '((func $a)))
+    (define import-wrapper-helper-forms
+      (runtime-ffi-state-import-wrapper-helper-forms state))
+    (check-equal? (first import-wrapper-helper-forms) '(func $a/imported))
+    (check-equal? (second import-wrapper-helper-forms) '(func $a))
+    (check-true
+     (for/or ([form (in-list import-wrapper-helper-forms)])
+       (and (pair? form)
+            (eq? (first form) 'func)
+            (eq? (second form) '$unsafe-ffi-primitive))))
     (parameterize ([current-runtime-metric-rows '()])
       (runtime-ffi-state-record-metrics! state)
       (define rows (current-runtime-metric-rows))

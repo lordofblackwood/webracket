@@ -34,6 +34,7 @@
                   runtime-ffi-state-active-primitive-names
                   runtime-ffi-state-all-foreigns
                   runtime-ffi-state-filter-current-bindings!
+                  runtime-ffi-state-import-wrapper-helper-forms
                   runtime-ffi-state-record-metrics!)
          (only-in "runtime-wasm/runtime-metrics.rkt"
                   runtime-metric-add!
@@ -102,8 +103,7 @@
                   ffi-callback-global-forms
                   ffi-entry-global-forms
                   ffi-runtime-only-helper-forms
-                  unsafe-ffi-primitive-table-global-forms
-                  unsafe-ffi-runtime-only-helper-forms)
+                  unsafe-ffi-primitive-table-global-forms)
          (only-in "runtime-wasm/core/filesystem.rkt"
                   filesystem-temporary-global-forms
                   filesystem-runtime-helper-forms)
@@ -472,13 +472,8 @@
 
          ,@js-host-import-forms
 
-         ;; FFI related imports
-         ,@(runtime-ffi-state-active-imports-wat ffi-state) ; generated from "driver.rkt" in "define-foreign.rkt"
-         ,@(runtime-ffi-state-active-funcs-wat ffi-state)   ; generated from "driver.rkt" in "define-foreign.rkt"
-
-         ;;   Unsafe FFI primitive helpers are implemented in runtime-wasm/core/ffi.rkt.
-         ,@(unsafe-ffi-runtime-only-helper-forms
-            (runtime-ffi-state-active-foreigns ffi-state))
+         ;; FFI imports, generated wrappers, and unsafe primitive lookup helpers.
+         ,@(runtime-ffi-state-import-wrapper-helper-forms ffi-state)
 
          ;;;
          ;;; Exceptions
