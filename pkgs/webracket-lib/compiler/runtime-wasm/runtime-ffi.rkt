@@ -1,14 +1,20 @@
 #lang racket
 
 (provide ffi-import-name
-         select-active-ffi-runtime-bindings)
+         select-active-ffi-runtime-bindings
+         select-current-ffi-runtime-bindings
+         runtime-ffi-foreign-fingerprint
+         runtime-record-ffi-metrics!)
 
-(require "../private/structs.rkt"
+(require "../private/parameters.rkt"
+         "../private/structs.rkt"
          "../private/wasm-utils.rkt"
          (only-in "module-forms.rkt"
                   module-func-name)
          (only-in "runtime-analysis.rkt"
-                  list->eq-set))
+                  list->eq-set)
+         (only-in "runtime-metrics.rkt"
+                  runtime-metric-add!))
 
 ;; ffi-import-name : foreign? -> symbol?
 ;;   Return the generated Wasm import wrapper name for a foreign primitive.
@@ -69,6 +75,33 @@
           active-ffi-imports-wat
           active-ffi-funcs-wat))
 
+;; select-current-ffi-runtime-bindings :
+;;   (listof foreign?) (listof symbol?) -> (values (listof foreign?) (listof any/c) (listof any/c))
+;;   Select active FFI bindings from the current compiler parameters.
+(define (select-current-ffi-runtime-bindings all-ffi-foreigns used-primitives)
+  (select-active-ffi-runtime-bindings
+   all-ffi-foreigns
+   (current-ffi-imports-wat)
+   (current-ffi-funcs-wat)
+   used-primitives
+   (current-tree-shake?)))
+
+;; runtime-ffi-foreign-fingerprint : (listof foreign?) -> string?
+;;   Return a compact fingerprint for the active FFI foreign names.
+(define (runtime-ffi-foreign-fingerprint active-ffi-foreigns)
+  (format "~x"
+          (abs (equal-hash-code
+                (sort (map foreign-racket-name active-ffi-foreigns)
+                      symbol<?)))))
+
+;; runtime-record-ffi-metrics! : (listof foreign?) -> void?
+;;   Record selected FFI foreign count and fingerprint metrics.
+(define (runtime-record-ffi-metrics! active-ffi-foreigns)
+  (runtime-metric-add! "runtime:ffi-foreign-count"
+                       (length active-ffi-foreigns))
+  (runtime-metric-add! "runtime:ffi-foreign-fingerprint"
+                       (runtime-ffi-foreign-fingerprint active-ffi-foreigns)))
+
 (module+ test
   (require rackunit)
 
@@ -121,4 +154,24 @@
                                         #f))
   (check-equal? (map foreign-racket-name unshaken-foreigns) '(b a c))
   (check-equal? unshaken-imports '((func $a/imported) (func $b/imported)))
-  (check-equal? unshaken-funcs '((func $a) (func $b))))
+  (check-equal? unshaken-funcs '((func $a) (func $b)))
+
+  (parameterize ([current-ffi-imports-wat sample-imports]
+                 [current-ffi-funcs-wat sample-funcs]
+                 [current-tree-shake? #t])
+    (define-values (current-foreigns
+                    current-imports
+                    current-funcs)
+      (select-current-ffi-runtime-bindings sample-foreigns '(a ignored)))
+    (check-equal? (map foreign-racket-name current-foreigns) '(a))
+    (check-equal? current-imports '((func $a/imported)))
+    (check-equal? current-funcs '((func $a))))
+
+  (check-equal? (runtime-ffi-foreign-fingerprint (list foreign-a))
+                (runtime-ffi-foreign-fingerprint (list foreign-a)))
+  (parameterize ([current-runtime-metric-rows '()])
+    (runtime-record-ffi-metrics! (list foreign-a foreign-b))
+    (define rows (current-runtime-metric-rows))
+    (check-equal? (second (assoc "runtime:ffi-foreign-count" rows)) "2")
+    (check-equal? (second (assoc "runtime:ffi-foreign-fingerprint" rows))
+                  (runtime-ffi-foreign-fingerprint (list foreign-a foreign-b)))))

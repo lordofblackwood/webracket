@@ -48,7 +48,8 @@
          (only-in "runtime-wasm/runtime-helper-index.rkt"
                   runtime-helper-index)
          (only-in "runtime-wasm/runtime-ffi.rkt"
-                  select-active-ffi-runtime-bindings)
+                  runtime-record-ffi-metrics!
+                  select-current-ffi-runtime-bindings)
          (only-in "runtime-wasm/runtime-metrics.rkt"
                   runtime-metric-add!
                   runtime-metric-add/computed!
@@ -1820,24 +1821,15 @@
        (define-values (selected-ffi-foreigns
                        selected-ffi-imports-wat
                        selected-ffi-funcs-wat)
-         (select-active-ffi-runtime-bindings
+         (select-current-ffi-runtime-bindings
           all-ffi-foreigns
-          (current-ffi-imports-wat)
-          (current-ffi-funcs-wat)
-          used-primitives
-          (current-tree-shake?)))
+          used-primitives))
        (set! active-ffi-foreigns selected-ffi-foreigns)
        (set! active-ffi-imports-wat selected-ffi-imports-wat)
        (set! active-ffi-funcs-wat selected-ffi-funcs-wat)))
     (runtime-metric-add! "runtime:target"
                          (if (current-browser?) "browser" "node"))
-    (runtime-metric-add! "runtime:ffi-foreign-count"
-                         (length active-ffi-foreigns))
-    (runtime-metric-add! "runtime:ffi-foreign-fingerprint"
-                         (format "~x"
-                                 (abs (equal-hash-code
-                                       (sort (map foreign-racket-name active-ffi-foreigns)
-                                             symbol<?)))))
+    (runtime-record-ffi-metrics! active-ffi-foreigns)
     (runtime-metric-add! "runtime:program-primitive-count"
                          (length used-primitives))
     (define full-module
