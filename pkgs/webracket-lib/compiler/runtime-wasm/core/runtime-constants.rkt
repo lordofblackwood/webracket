@@ -6,10 +6,14 @@
          runtime-linklet-body-reserved-symbols/registration
          runtime-linklet-body-reserved-symbols
          make-program-runtime-constant-registry
-         make-core-populated-runtime-constant-registry)
+         make-core-populated-runtime-constant-registry
+         runtime-constant-declaration-forms
+         runtime-constant-initializer-forms)
 
 (require (only-in "../constants.rkt"
-                  make-populated-runtime-constant-registry)
+                  make-populated-runtime-constant-registry
+                  runtime-constant-declaration-forms
+                  runtime-constant-initializer-forms)
          (only-in "runtime-bytes-constants.rkt"
                   core-runtime-bytes-constants)
          (only-in "runtime-string-constants.rkt"

@@ -305,6 +305,8 @@
                   regexp-runtime-helper-forms)
          (only-in "runtime-wasm/core/runtime-constants.rkt"
                   make-program-runtime-constant-registry
+                  runtime-constant-declaration-forms
+                  runtime-constant-initializer-forms
                   runtime-linklet-body-reserved-symbols)
          (only-in "runtime-wasm/core/reflection.rkt"
                   reflection-runtime-helper-forms)
@@ -373,7 +375,6 @@
          (only-in "runtime-wasm/core/wills.rkt"
                   will-runtime-helper-forms)
          "runtime-wasm/core-runtime.rkt"
-         "runtime-wasm/constants.rkt"
          "runtime-wasm/shared-types.rkt")
 
 (module+ test
