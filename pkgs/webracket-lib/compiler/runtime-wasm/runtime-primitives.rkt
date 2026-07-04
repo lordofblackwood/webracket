@@ -3,6 +3,7 @@
 (provide runtime-described-primitives
          runtime-active-primitives-sorted
          runtime-active-described-primitives-sorted
+         runtime-console-bridge-primitive-names
          runtime-ffi-primitive-names
          runtime-primitive-func->symbol
          runtime-primitive-global->symbol
@@ -46,6 +47,14 @@
 (define (runtime-ffi-primitive-names active-ffi-foreigns)
   (for/list ([f (in-list active-ffi-foreigns)])
     (foreign-racket-name f)))
+
+;; runtime-console-bridge-primitive-names : list? -> (listof symbol?)
+;;   Return primitive names requested by console bridge bindings.
+(define (runtime-console-bridge-primitive-names console-bridge-bindings)
+  (for/list ([binding (in-list console-bridge-bindings)]
+             #:do [(define kind (first binding))]
+             #:when (eq? kind 'primitive))
+    (second binding)))
 
 ;; runtime-primitive-func->symbol : (listof symbol?) -> hasheq?
 ;;   Map generated primitive function names back to Racket primitive names.
@@ -118,6 +127,11 @@
   (check-equal? (runtime-described-primitives '(car cons))
                 '(car cons))
   (check-equal? (runtime-ffi-primitive-names sample-foreigns) '(ffi-a ffi-b))
+  (check-equal? (runtime-console-bridge-primitive-names
+                 '((primitive cons)
+                   (foreign document)
+                   (primitive display)))
+                '(cons display))
   (check-equal? (hash-ref (runtime-primitive-func->symbol '(cons)) '$cons)
                 'cons)
   (check-equal? (hash-ref (runtime-primitive-global->symbol '(cons)) '$prim:cons)

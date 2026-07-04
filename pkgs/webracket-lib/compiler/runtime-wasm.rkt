@@ -56,6 +56,7 @@
                   time-runtime-step)
          (only-in "runtime-wasm/runtime-primitives.rkt"
                   runtime-active-described-primitives-sorted
+                  runtime-console-bridge-primitive-names
                   runtime-described-primitives
                   runtime-ffi-global->symbol
                   runtime-ffi-primitive-global-forms
@@ -427,10 +428,7 @@
 
     (define console-bridge-enabled? (pair? console-bridge-bindings))
     (define console-bridge-primitive-names
-      (for/list ([binding (in-list console-bridge-bindings)]
-                 #:do [(define kind (first binding))]
-                 #:when (eq? kind 'primitive))
-        (second binding)))
+      (runtime-console-bridge-primitive-names console-bridge-bindings))
 
     (define primitive-func->symbol
       (runtime-primitive-func->symbol described-primitives))
