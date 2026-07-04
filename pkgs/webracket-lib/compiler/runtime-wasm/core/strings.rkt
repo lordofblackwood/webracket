@@ -48,6 +48,12 @@
     (valid-string-length? "valid-string-length?")
     (string?         "string?")
     (mutable-string? "mutable-string?")
+    (string-ref:index-out-of-range ": index is out of range")
+    (string-ref:index-out-of-range-empty ": index is out of range for empty string")
+    (string-ref:index "\n  index: ")
+    (string-ref:valid-range "\n  valid range: [0, ")
+    (string-ref:valid-range-close "]")
+    (string-ref:string "\n  string: ")
     (string-or-bytes "(or/c string? bytes?)")))
 
 ;; string-core-runtime-helpers : (listof core-runtime-helper?)
@@ -198,7 +204,10 @@
 ;; string-selector-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for string selector helpers.
 (define string-selector-runtime-only-helper-names
-  '($string-length
+  '($raise-string-ref:string-expected
+    $raise-string-ref:index-expected
+    $raise-string-ref:index-out-of-range
+    $string-length
     $string-length/checked/i32
     $string-ref
     $string-ref/checked
@@ -748,6 +757,68 @@
   (function-forms->runtime-helpers
    'string-selector-runtime-only-helpers
    `(
+         (func $raise-string-ref:string-expected
+               (param $x (ref eq))
+               (call $raise-argument-error1
+                     (global.get $symbol:string-ref)
+                     (global.get $string:string?)
+                     (local.get $x)))
+
+         (func $raise-string-ref:index-expected
+               (param $x (ref eq))
+               (call $raise-argument-error1
+                     (global.get $symbol:string-ref)
+                     (global.get $string:exact-nonnegative-integer?)
+                     (local.get $x)))
+
+         (func $raise-string-ref:index-out-of-range
+               (param $s   (ref $String))
+               (param $idx i32)
+               (param $len i32)
+
+               (local $out     (ref $GrowableArray))
+               (local $message (ref $String))
+
+               (local.set $out
+                          (call $make-growable-array (i32.const 10)))
+               (call $growable-array-add! (local.get $out)
+                     (call $format/display (global.get $symbol:string-ref)))
+               (if (i32.eqz (local.get $len))
+                   (then
+                    (call $growable-array-add! (local.get $out)
+                          (global.get $string:string-ref:index-out-of-range-empty)))
+                   (else
+                    (call $growable-array-add! (local.get $out)
+                          (global.get $string:string-ref:index-out-of-range))))
+               (call $growable-array-add! (local.get $out)
+                     (global.get $string:string-ref:index))
+               (call $growable-array-add! (local.get $out)
+                     (call $format/display
+                           (ref.i31 (i32.shl (local.get $idx) (i32.const 1)))))
+               (if (i32.ne (local.get $len) (i32.const 0))
+                   (then
+                    (call $growable-array-add! (local.get $out)
+                          (global.get $string:string-ref:valid-range))
+                    (call $growable-array-add! (local.get $out)
+                          (call $format/display
+                                (ref.i31
+                                 (i32.shl (i32.sub (local.get $len) (i32.const 1))
+                                          (i32.const 1)))))
+                    (call $growable-array-add! (local.get $out)
+                          (global.get $string:string-ref:valid-range-close))))
+               (call $growable-array-add! (local.get $out)
+                     (global.get $string:string-ref:string))
+               (call $growable-array-add! (local.get $out)
+                     (call $format/write (local.get $s)))
+               (local.set $message
+                          (call $growable-array-of-strings->string (local.get $out)))
+               (call $raise
+                     (call $exn:fail:contract/make
+                           (local.get $message)
+                           (call $current-continuation-marks (global.get $missing)))
+                     (global.get $true))
+               (unreachable))
+
          (func $string-length (type $Prim1)
                (param $s-raw (ref eq))
                (result (ref eq))
@@ -781,29 +852,35 @@
                (local $str     (ref $String))
                (local $idx-i31 (ref i31))
                (local $idx     i32)
+               (local $len     i32)
 
                ;; --- All tests ---
                (if (i32.eqz (ref.test (ref $String) (local.get $s)))
-                   (then (call $raise-check-string (local.get $s))))
+                   (then (call $raise-string-ref:string-expected (local.get $s))))
 
                (if (i32.eqz (ref.test (ref i31) (local.get $i)))
-                   (then (call $raise-check-fixnum (local.get $i))))
+                   (then (call $raise-string-ref:index-expected (local.get $i))))
 
                (local.set $idx-i31 (ref.cast (ref i31) (local.get $i)))
                (local.set $idx (i31.get_u (local.get $idx-i31)))
                (if (i32.ne (i32.and (local.get $idx) (i32.const 1)) (i32.const 0))
-                   (then (call $raise-check-fixnum (local.get $i))))
+                   (then (call $raise-string-ref:index-expected (local.get $i))))
 
                ;; --- All decoding ---
                (local.set $str (ref.cast (ref $String) (local.get $s)))
-               (local.set $idx (i32.shr_u (local.get $idx) (i32.const 1)))
+               (local.set $idx (i32.shr_s (i31.get_s (local.get $idx-i31)) (i32.const 1)))
+               (if (i32.lt_s (local.get $idx) (i32.const 0))
+                   (then (call $raise-string-ref:index-expected (local.get $i))))
+               (local.set $len (call $string-length/checked/i32 (local.get $str)))
 
                ;; --- Bounds check and delegate ---
                (if (result (ref eq))
-                   (i32.lt_u (local.get $idx)
-                             (call $string-length/checked/i32 (local.get $str)))
+                   (i32.lt_u (local.get $idx) (local.get $len))
                    (then (call $string-ref/checked (local.get $str) (local.get $idx)))
-                   (else (call $raise-bad-string-index/i32 (local.get $s) (local.get $idx))
+                   (else (call $raise-string-ref:index-out-of-range
+                               (local.get $str)
+                               (local.get $idx)
+                               (local.get $len))
                          (unreachable))))
 
          (func $string-ref/checked   ; unsafe: no bounds check

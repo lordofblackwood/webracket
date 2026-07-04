@@ -1344,6 +1344,51 @@
                          (equal? (string-ref "abc" 2) #\c)
                          (equal? (procedure-arity string-ref) 2)))
 
+              (list "string-ref argument errors are catchable with who"
+                    (let ([catch-contract/who+expected?
+                           (lambda (who expected thunk)
+                             (let ([message
+                                    (with-handlers ([exn:fail:contract?
+                                                     (lambda (exn)
+                                                       (exn-message exn))])
+                                      (thunk)
+                                      #f)])
+                               (and (string? message)
+                                    (string-contains? message who)
+                                    (string-contains? message expected))))]
+                          [catch-contract/message-contains?
+                           (lambda (thunk . parts)
+                             (let ([message
+                                    (with-handlers ([exn:fail:contract?
+                                                     (lambda (exn)
+                                                       (exn-message exn))])
+                                      (thunk)
+                                      #f)])
+                               (and (string? message)
+                                    (andmap (lambda (part)
+                                              (string-contains? message part))
+                                            parts))))])
+                      (and (catch-contract/who+expected? "string-ref"
+                                                         "string?"
+                                                         (lambda () (string-ref 42 0)))
+                           (catch-contract/who+expected? "string-ref"
+                                                         "exact-nonnegative-integer?"
+                                                         (lambda () (string-ref "abc" #f)))
+                           (catch-contract/who+expected? "string-ref"
+                                                         "exact-nonnegative-integer?"
+                                                         (lambda () (string-ref "abc" -1)))
+                           (catch-contract/message-contains? (lambda () (string-ref "abc" 3))
+                                                             "string-ref"
+                                                             "index is out of range"
+                                                             "index: 3"
+                                                             "valid range: [0, 2]"
+                                                             "string: \"abc\"")
+                           (catch-contract/message-contains? (lambda () (string-ref "" 0))
+                                                             "string-ref"
+                                                             "empty string"
+                                                             "index: 0"
+                                                             "string: \"\""))))
+
               (list "make-string and string-set! argument errors are catchable with who"
                     (let ([catch-contract/who+expected?
                            (lambda (who expected thunk)
