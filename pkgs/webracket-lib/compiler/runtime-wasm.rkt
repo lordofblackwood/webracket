@@ -25,7 +25,7 @@
          (only-in "runtime-wasm/js-imports.rkt"
                   js-host-import-forms)
          (only-in "runtime-wasm/module-forms.rkt"
-                  module-func-name
+                  module-func-names
                   forms->module)
          (only-in "runtime-wasm/runtime-analysis.rkt"
                   analyze-program-fragment
@@ -442,10 +442,7 @@
       (runtime-ffi-global->symbol all-ffi-foreigns))
 
     (define program-function-names
-      (for/list ([form (in-list dls)]
-                 #:do [(define name (module-func-name form))]
-                 #:when name)
-        name))
+      (module-func-names dls))
 
     (define (declare-primitives-as-globals)
       (runtime-primitive-global-forms (active-described-primitives-sorted)))

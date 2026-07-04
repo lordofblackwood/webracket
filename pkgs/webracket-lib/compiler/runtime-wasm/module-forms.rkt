@@ -3,6 +3,7 @@
 (provide module-func-name
          module-global-name
          module-data-name
+         module-func-names
          module-write-bytes
          module-form-count
          module-func-count
@@ -45,6 +46,14 @@
   (call-with-output-bytes
    (lambda (out)
      (write module out))))
+
+;; module-func-names : (listof any/c) -> (listof symbol?)
+;;   Return all named function forms in a sequence of module body forms.
+(define (module-func-names forms)
+  (for/list ([form (in-list forms)]
+             #:do [(define name (module-func-name form))]
+             #:when name)
+    name))
 
 ;; module-form-count : list? procedure? -> exact-nonnegative-integer?
 ;;   Count module body forms accepted by predicate.
@@ -105,6 +114,7 @@
   (check-false (module-func-name '(func (export "anon"))))
   (check-equal? (module-global-name '(global $g i32 (i32.const 0))) '$g)
   (check-equal? (module-data-name '(data $d "abc")) '$d)
+  (check-equal? (module-func-names (cdr sample-module)) '($f))
   (check-equal? (module-func-count sample-module) 1)
   (check-equal? (module-global-count sample-module) 1)
   (check-equal? (module-export-count sample-module) 1)
