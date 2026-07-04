@@ -2,6 +2,8 @@
 
 (provide path-current-global-forms
          path-current-initializer-forms
+         path-display-formatting-runtime-string-constants
+         path-display-formatting-runtime-only-forms
          path-runtime-string-constants
          path-runtime-symbol-constants
          path-runtime-bytes-constants
@@ -23,6 +25,13 @@
     (path-for-some-system?     "path-for-some-system?")
     (path-element?             "path-element?")
     (listof-path?              "(listof path?)")))
+
+;; path-display-formatting-runtime-string-constants : (listof (list/c symbol? string?))
+;;   Declare string constants used to format unreadable path values.
+(define path-display-formatting-runtime-string-constants
+  '((hash-less-path-colon       "#<path:")
+    (hash-less-unix-path-colon  "#<unix-path:")
+    (hash-less-windows-path-colon "#<windows-path:")))
 
 ;; path-runtime-symbol-constants : (listof symbol?)
 ;;   Declare symbols used by path decomposition and path-kind helpers.
@@ -96,6 +105,50 @@
                                        (global.get $missing)))
                      (global.set $current-directory-for-user-path
                                  (global.get $current-directory-path))))
+
+;; path-display-formatting-runtime-only-forms : (listof datum?)
+;;   Enumerate path display helpers spliced into the formatting helper order.
+(define path-display-formatting-runtime-only-forms
+  '(
+         (func $format/display:path
+               (param $p (ref $Path))
+               (result   (ref $String))
+
+               (local $conv   (ref eq))
+               (local $bytes  (ref $Bytes))
+               (local $prefix (ref $String))
+               (local $out    (ref $GrowableArray))
+
+               ;; Extract path convention and byte representation.
+               (local.set $conv  (struct.get $Path $convention (local.get $p)))
+               (local.set $bytes (struct.get $Path $bytes      (local.get $p)))
+               ;; Choose an appropriate prefix based on the path convention.
+               (local.set $prefix (ref.cast (ref $String)
+                                            (global.get $string:hash-less-path-colon)))
+
+               (if (ref.eq (local.get $conv) (global.get $system-path-convention))
+                   (then (nop))
+                   (else
+                    (if (ref.eq (local.get $conv) (global.get $symbol:unix))
+                        (then (local.set $prefix
+                                         (ref.cast (ref $String)
+                                                   (global.get $string:hash-less-unix-path-colon))))
+                        (else
+                         (if (ref.eq (local.get $conv) (global.get $symbol:windows))
+                             (then
+                              (local.set
+                               $prefix
+                               (ref.cast (ref $String)
+                                         (global.get $string:hash-less-windows-path-colon)))))))))
+               ;; Render the unreadable path descriptor.
+               (local.set $out (call $make-growable-array (i32.const 3)))
+               (call $growable-array-add! (local.get $out) (local.get $prefix))
+               (call $growable-array-add! (local.get $out)
+                     (call $bytes->string/utf-8/checked (local.get $bytes)))
+               (call $growable-array-add! (local.get $out)
+                     (ref.cast (ref $String)
+                               (global.get $string:->)))
+               (call $growable-array-of-strings->string (local.get $out)))))
 
 ;; path-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for basic path helpers.
@@ -2866,6 +2919,10 @@
   ;;   Return the function name from a rendered helper form.
   (define (form-name form)
     (second form))
+
+  (check-equal?
+   (map form-name path-display-formatting-runtime-only-forms)
+   '($format/display:path))
 
   (define path-helper-index
     (make-core-runtime-helper-index path-runtime-only-helpers))
