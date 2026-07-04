@@ -41,6 +41,7 @@
 ;;   Declare symbols used by string-port modes and line-ending modes.
 (define port-runtime-symbol-constants
   '(string
+    read-bytes
     read-bytes!
     read-bytes-avail!
     read-bytes-avail!*
@@ -49,6 +50,7 @@
     peek-bytes-avail!*
     peek-bytes
     write-bytes
+    read-string
     read-string!
     peek-string!
     peek-string
@@ -2458,8 +2460,8 @@
            (param $in  (ref eq)) ;; input-port? (optional, default = (current-input-port))
            (result     (ref eq))
 
-           (local $count-i31 (ref i31))
            (local $count     i32)
+           (local $raw       i32)
            (local $buf       (ref $Bytes))
            (local $res       (ref eq))
            (local $read      i32)
@@ -2468,12 +2470,19 @@
 
            ;; --- Decode amount ---
            (if (i32.eqz (ref.test (ref i31) (local.get $amt)))
-               (then (call $raise-check-fixnum (local.get $amt)) (unreachable)))
-           (local.set $count-i31 (ref.cast (ref i31) (local.get $amt)))
-           (local.set $count (i31.get_u (local.get $count-i31)))
-           (if (i32.ne (i32.and (local.get $count) (i32.const 1)) (i32.const 0))
-               (then (call $raise-check-fixnum (local.get $amt)) (unreachable)))
-           (local.set $count (i32.shr_u (local.get $count) (i32.const 1)))
+               (then (call $raise-port-bytes-index-expected
+                           (global.get $symbol:read-bytes)
+                           (local.get $amt))))
+           (local.set $raw (i31.get_s (ref.cast (ref i31) (local.get $amt))))
+           (if (i32.eqz (i32.and (local.get $raw) (i32.const 1)))
+               (then (local.set $count (i32.shr_s (local.get $raw) (i32.const 1)))
+                     (if (i32.lt_s (local.get $count) (i32.const 0))
+                         (then (call $raise-port-bytes-index-expected
+                                     (global.get $symbol:read-bytes)
+                                     (local.get $amt)))))
+               (else (call $raise-port-bytes-index-expected
+                           (global.get $symbol:read-bytes)
+                           (local.get $amt))))
 
            ;; --- Handle zero-length read ---
            (if (i32.eqz (local.get $count))
@@ -2484,7 +2493,10 @@
                (then (local.set $in (call $current-input-port
                                           (global.get $missing)))))
            (if (i32.eqz (ref.test (ref $InputPort) (local.get $in)))
-               (then (call $raise-check-string-port (local.get $in)) (unreachable)))
+               (then (call $raise-argument-error1
+                           (global.get $symbol:read-bytes)
+                           (global.get $string:input-port?)
+                           (local.get $in))))
 
            ;; --- Allocate destination buffer ---
            (local.set $buf
@@ -2535,8 +2547,8 @@
            (param $in  (ref eq)) ;; input-port?               (optional, default = (current-input-port))
            (result     (ref eq))
 
-           (local $count-i31 (ref i31))
            (local $count     i32)
+           (local $raw       i32)
            (local $buf       (ref $String))
            (local $res       (ref eq))
            (local $read      i32)
@@ -2545,12 +2557,19 @@
 
            ;; --- Decode amount ---
            (if (i32.eqz (ref.test (ref i31) (local.get $amt)))
-               (then (call $raise-check-fixnum (local.get $amt)) (unreachable)))
-           (local.set $count-i31 (ref.cast (ref i31) (local.get $amt)))
-           (local.set $count (i31.get_u (local.get $count-i31)))
-           (if (i32.ne (i32.and (local.get $count) (i32.const 1)) (i32.const 0))
-               (then (call $raise-check-fixnum (local.get $amt)) (unreachable)))
-           (local.set $count (i32.shr_u (local.get $count) (i32.const 1)))
+               (then (call $raise-port-range-index-expected
+                           (global.get $symbol:read-string)
+                           (local.get $amt))))
+           (local.set $raw (i31.get_s (ref.cast (ref i31) (local.get $amt))))
+           (if (i32.eqz (i32.and (local.get $raw) (i32.const 1)))
+               (then (local.set $count (i32.shr_s (local.get $raw) (i32.const 1)))
+                     (if (i32.lt_s (local.get $count) (i32.const 0))
+                         (then (call $raise-port-range-index-expected
+                                     (global.get $symbol:read-string)
+                                     (local.get $amt)))))
+               (else (call $raise-port-range-index-expected
+                           (global.get $symbol:read-string)
+                           (local.get $amt))))
 
            ;; --- Handle zero-length read ---
            (if (i32.eqz (local.get $count))
@@ -2561,7 +2580,10 @@
                (then (local.set $in (call $current-input-port
                                           (global.get $missing)))))
            (if (i32.eqz (ref.test (ref $InputPort) (local.get $in)))
-               (then (call $raise-check-string-port (local.get $in)) (unreachable)))
+               (then (call $raise-argument-error1
+                           (global.get $symbol:read-string)
+                           (global.get $string:input-port?)
+                           (local.get $in))))
 
            ;; --- Allocate destination string ---
            (local.set $buf (call $make-string/checked (local.get $count) (i32.const 0)))

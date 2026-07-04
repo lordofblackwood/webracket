@@ -98,9 +98,10 @@ Current behavior:
   accepts `#f` as the optional end index.
 - The allocation wrappers `peek-bytes` and `peek-string` now use signed
   fixnum decoding and raise caller-specific count/skip errors.
-- Single-value peek wrappers such as `peek-byte` and `peek-char`, plus
-  allocation wrappers such as `read-bytes` and `read-string`, still have older
-  unsigned/fixnum checks for their count or skip arguments.
+- The allocation wrappers `read-bytes` and `read-string` now use signed fixnum
+  decoding and raise caller-specific count errors.
+- Single-value peek wrappers such as `peek-byte` and `peek-char` still have
+  older unsigned/fixnum checks for their skip arguments.
 
 Follow-up:
 

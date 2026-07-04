@@ -7916,6 +7916,57 @@
                       (and (equal? empty "")
                            (equal? rest "data"))))
 
+              (list "read wrapper argument errors are catchable with who"
+                    (let ([catch-contract/message-contains?
+                           (lambda (parts thunk)
+                             (let ([message
+                                    (with-handlers ([exn:fail:contract?
+                                                     (lambda (exn)
+                                                       (exn-message exn))])
+                                      (thunk)
+                                      #f)])
+                               (and message
+                                    (andmap (lambda (part)
+                                              (string-contains? message part))
+                                            parts))))])
+                      (and
+                       (catch-contract/message-contains?
+                        '("read-bytes: contract violation"
+                          "expected: exact-nonnegative-integer?"
+                          "given: #f")
+                        (lambda ()
+                          (read-bytes #f (open-input-bytes #"abc"))))
+                       (catch-contract/message-contains?
+                        '("read-bytes: contract violation"
+                          "expected: exact-nonnegative-integer?"
+                          "given: -1")
+                        (lambda ()
+                          (read-bytes -1 (open-input-bytes #"abc"))))
+                       (catch-contract/message-contains?
+                        '("read-bytes: contract violation"
+                          "expected: input-port?"
+                          "given: 42")
+                        (lambda ()
+                          (read-bytes 1 42)))
+                       (catch-contract/message-contains?
+                        '("read-string: contract violation"
+                          "expected: exact-nonnegative-integer?"
+                          "given: -1")
+                        (lambda ()
+                          (read-string -1 (open-input-string "abc"))))
+                       (catch-contract/message-contains?
+                        '("read-string: contract violation"
+                          "expected: exact-nonnegative-integer?"
+                          "given: #f")
+                        (lambda ()
+                          (read-string #f (open-input-string "abc"))))
+                       (catch-contract/message-contains?
+                        '("read-string: contract violation"
+                          "expected: input-port?"
+                          "given: 42")
+                        (lambda ()
+                          (read-string 1 42))))))
+
               (list "byte-ready?/basic"
                     (let ([port (open-input-bytes (bytes 65 66))])
                       (and (equal? (byte-ready? port) #t)
