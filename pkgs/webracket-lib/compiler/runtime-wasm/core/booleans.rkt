@@ -67,9 +67,17 @@
 
                ;; Type checks
                (if (ref.eq (call $boolean? (local.get $x)) (global.get $false))
-                   (then (call $raise-argument-error/internal (local.get $x)) (unreachable)))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:boolean=?)
+                               (global.get $string:boolean?)
+                               (local.get $x))
+                         (unreachable)))
                (if (ref.eq (call $boolean? (local.get $y)) (global.get $false))
-                   (then (call $raise-argument-error/internal (local.get $y)) (unreachable)))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:boolean=?)
+                               (global.get $string:boolean?)
+                               (local.get $y))
+                         (unreachable)))
 
                ;; Compare booleans
                (if (result (ref eq))

@@ -415,6 +415,23 @@
                          (equal? (boolean=? #t #f) #f)
                          (equal? (boolean=? #f #f) #t)
                          (equal? (procedure-arity boolean=?) 2)))
+              (list "boolean=? argument errors are catchable with who"
+                    (let ([catch-contract/who+expected+given?
+                           (lambda (thunk)
+                             (let ([message
+                                    (with-handlers ([exn:fail:contract?
+                                                     (lambda (exn)
+                                                       (exn-message exn))])
+                                      (thunk)
+                                      #f)])
+                               (and (string? message)
+                                    (string-contains? message "boolean=?")
+                                    (string-contains? message "boolean?")
+                                    (string-contains? message "42"))))])
+                      (and (catch-contract/who+expected+given?
+                            (lambda () (boolean=? 42 #t)))
+                           (catch-contract/who+expected+given?
+                            (lambda () (boolean=? #t 42))))))
               (list "false?"
                     (and (equal? (false? #f) #t)
                          (equal? (false? #t) #f)
