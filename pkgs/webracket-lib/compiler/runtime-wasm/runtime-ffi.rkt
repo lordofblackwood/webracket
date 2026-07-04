@@ -1,6 +1,10 @@
 #lang racket
 
 (provide ffi-import-name
+         external-value-runtime-helper-forms
+         ffi-callback-global-forms
+         ffi-entry-global-forms
+         ffi-runtime-only-helper-forms
          (struct-out runtime-ffi-state)
          make-current-runtime-ffi-state
          runtime-ffi-state-active-primitive-names
@@ -11,6 +15,7 @@
          runtime-ffi-state-record-metrics!
          select-active-ffi-runtime-bindings
          select-current-ffi-runtime-bindings
+         unsafe-ffi-primitive-table-global-forms
          runtime-ffi-foreign-fingerprint
          runtime-record-ffi-metrics!)
 
@@ -20,6 +25,11 @@
          (only-in "module-forms.rkt"
                   module-func-name)
          (only-in "core/ffi.rkt"
+                  external-value-runtime-helper-forms
+                  ffi-callback-global-forms
+                  ffi-entry-global-forms
+                  ffi-runtime-only-helper-forms
+                  unsafe-ffi-primitive-table-global-forms
                   unsafe-ffi-runtime-only-helper-forms)
          (only-in "runtime-primitives.rkt"
                   runtime-ffi-primitive-global-forms
@@ -196,6 +206,12 @@
       (func $b)
       (func $a)
       (func $not-ffi)))
+
+  (check-pred list? ffi-callback-global-forms)
+  (check-pred list? ffi-entry-global-forms)
+  (check-pred list? unsafe-ffi-primitive-table-global-forms)
+  (check-pred list? (ffi-runtime-only-helper-forms '()))
+  (check-pred procedure? external-value-runtime-helper-forms)
 
   (define-values (tree-shaken-foreigns
                   tree-shaken-imports

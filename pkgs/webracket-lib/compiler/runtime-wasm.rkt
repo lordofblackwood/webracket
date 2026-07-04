@@ -24,6 +24,10 @@
          (only-in "runtime-wasm/runtime-helper-index.rkt"
                   runtime-helper-index)
          (only-in "runtime-wasm/runtime-ffi.rkt"
+                  external-value-runtime-helper-forms
+                  ffi-callback-global-forms
+                  ffi-entry-global-forms
+                  ffi-runtime-only-helper-forms
                   make-current-runtime-ffi-state
                   runtime-ffi-state-active-foreigns
                   runtime-ffi-state-active-funcs-wat
@@ -34,7 +38,8 @@
                   runtime-ffi-state-import-wrapper-helper-forms
                   runtime-ffi-state-primitive-global-forms
                   runtime-ffi-state-primitive-initializer-forms
-                  runtime-ffi-state-record-metrics!)
+                  runtime-ffi-state-record-metrics!
+                  unsafe-ffi-primitive-table-global-forms)
          (only-in "runtime-wasm/runtime-metrics.rkt"
                   runtime-metric-add!
                   time-runtime-step)
@@ -95,12 +100,6 @@
                   fasl-tag-runtime-helper-forms
                   fasl-encoding-runtime-helper-forms
                   fasl-decoding-runtime-helper-forms)
-         (only-in "runtime-wasm/core/ffi.rkt"
-                  external-value-runtime-helper-forms
-                  ffi-callback-global-forms
-                  ffi-entry-global-forms
-                  ffi-runtime-only-helper-forms
-                  unsafe-ffi-primitive-table-global-forms)
          (only-in "runtime-wasm/core/filesystem.rkt"
                   filesystem-temporary-global-forms
                   filesystem-runtime-helper-forms)
