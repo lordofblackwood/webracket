@@ -1639,7 +1639,7 @@
                  #:logger-current-initializer-forms logger-current-initializer-forms
                  #:custodian-current-initializer-forms custodian-current-initializer-forms
                  #:event-initializer-forms event-initializer-forms
-                 #:entry-struct-property-initializer-forms struct-property-initializer-forms
+                 #:struct-property-initializer-forms struct-property-initializer-forms
                  #:path-current-initializer-forms path-current-initializer-forms
                  #:environment-parameter-initializer-forms environment-parameter-initializer-forms
                  #:character-general-category-initializer-forms

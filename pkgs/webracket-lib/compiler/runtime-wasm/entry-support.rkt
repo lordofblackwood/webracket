@@ -116,7 +116,7 @@
 ;;   #:runtime-constant-initializer-forms list? #:parameterization-initializer-forms list?
 ;;   #:random-current-initializer-forms list? #:thread-current-initializer-forms list?
 ;;   #:logger-current-initializer-forms list? #:custodian-current-initializer-forms list?
-;;   #:event-initializer-forms list? #:entry-struct-property-initializer-forms list?
+;;   #:event-initializer-forms list? #:struct-property-initializer-forms list?
 ;;   #:path-current-initializer-forms list? #:environment-parameter-initializer-forms list?
 ;;   #:character-general-category-initializer-forms list? #:realm-initializer-forms list?
 ;;   #:primitive-initializer-forms list? #:ffi-primitive-initializer-forms list?
@@ -138,7 +138,7 @@
          #:logger-current-initializer-forms logger-current-initializer-forms
          #:custodian-current-initializer-forms custodian-current-initializer-forms
          #:event-initializer-forms event-initializer-forms
-         #:entry-struct-property-initializer-forms entry-struct-property-initializer-forms
+         #:struct-property-initializer-forms struct-property-initializer-forms
          #:path-current-initializer-forms path-current-initializer-forms
          #:environment-parameter-initializer-forms environment-parameter-initializer-forms
          #:character-general-category-initializer-forms character-general-category-initializer-forms
@@ -176,7 +176,7 @@
          ,@custodian-current-initializer-forms
          ,@event-initializer-forms
 
-         ,@entry-struct-property-initializer-forms
+         ,@struct-property-initializer-forms
 
          ,@path-current-initializer-forms
          ,@environment-parameter-initializer-forms
@@ -289,7 +289,7 @@
      #:logger-current-initializer-forms '((call $init-logger))
      #:custodian-current-initializer-forms '((call $init-custodian))
      #:event-initializer-forms '((call $init-event))
-     #:entry-struct-property-initializer-forms '((call $init-entry-struct-property))
+     #:struct-property-initializer-forms '((call $init-struct-property))
      #:path-current-initializer-forms '((call $init-path))
      #:environment-parameter-initializer-forms '((call $init-environment))
      #:character-general-category-initializer-forms '((call $init-char-category))
