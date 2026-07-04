@@ -176,7 +176,6 @@
                   linklet-instance-runtime-helper-forms)
          (only-in "runtime-wasm/core/linklets.rkt"
                   linklet-bootstrap-runtime-helper-forms
-                  linklet-body-core-reserved-symbols
                   linklet-interpreter-runtime-helper-forms
                   primitive-table-module-symbols
                   linklet-primitive-table-global-forms
@@ -292,7 +291,8 @@
          (only-in "runtime-wasm/core/regexps.rkt"
                   regexp-runtime-helper-forms)
          (only-in "runtime-wasm/core/runtime-constants.rkt"
-                  make-core-populated-runtime-constant-registry)
+                  make-program-runtime-constant-registry
+                  runtime-linklet-body-reserved-symbols)
          (only-in "runtime-wasm/core/reflection.rkt"
                   reflection-runtime-helper-forms)
          (only-in "runtime-wasm/core/security.rkt"
@@ -501,23 +501,19 @@
          (list (foreign-racket-name f)
                (length (foreign-argument-types f))))))
 
-    (define linklet-body-reserved-symbols/registration
-      (remove-duplicates (append linklet-body-core-reserved-symbols all-primitives)
-                         eq?))
-
     (define linklet-body-reserved-symbols
-      (sort linklet-body-reserved-symbols/registration symbol<?))
+      (runtime-linklet-body-reserved-symbols all-primitives))
 
     ;; Runtime constants include program constants passed by `generate-code`
     ;; plus constants required by runtime support.
     (define runtime-constant-registry
-      (make-core-populated-runtime-constant-registry
+      (make-program-runtime-constant-registry
        string-constants
        bytes-constants
        symbol-constants
        (active-described-primitives-sorted)
        (active-ffi-primitive-names)
-       linklet-body-reserved-symbols/registration))
+       all-primitives))
 
     ;;;
     ;;; WEB-ASSEMBLY
