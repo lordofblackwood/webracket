@@ -1381,6 +1381,28 @@
                                                          "char?"
                                                          (lambda () (string-set! (string #\a) 0 42))))))
 
+              (list "string-fill! argument errors are catchable with who"
+                    (let ([catch-contract/who+expected?
+                           (lambda (who expected thunk)
+                             (let ([message
+                                    (with-handlers ([exn:fail:contract?
+                                                     (lambda (exn)
+                                                       (exn-message exn))])
+                                      (thunk)
+                                      #f)])
+                               (and (string? message)
+                                    (string-contains? message who)
+                                    (string-contains? message expected))))])
+                      (and (catch-contract/who+expected? "string-fill!"
+                                                         "mutable-string?"
+                                                         (lambda () (string-fill! 42 #\x)))
+                           (catch-contract/who+expected? "string-fill!"
+                                                         "mutable-string?"
+                                                         (lambda () (string-fill! "abc" #\x)))
+                           (catch-contract/who+expected? "string-fill!"
+                                                         "char?"
+                                                         (lambda () (string-fill! (string #\a) 42))))))
+
               (list "substring"
                     (and (equal? (substring "ab" 0 1) "a")
                          (equal? (substring "ab" 1 2) "b")

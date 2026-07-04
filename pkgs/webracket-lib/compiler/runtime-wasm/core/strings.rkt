@@ -219,6 +219,9 @@
   '($substring
     $string-copy
     $raise-immutable-string
+    $raise-string-fill!:string-expected
+    $raise-string-fill!:char-expected
+    $raise-string-fill!:string-immutable
     $string-fill!))
 
 ;; string-copy!-runtime-only-helper-names : (listof symbol?)
@@ -986,6 +989,25 @@
 
          (func $raise-immutable-string (param $x (ref eq)) (unreachable))
 
+         (func $raise-string-fill!:string-expected
+               (param $x (ref eq))
+               (call $raise-argument-error1
+                     (global.get $symbol:string-fill!)
+                     (global.get $string:mutable-string?)
+                     (local.get $x)))
+         (func $raise-string-fill!:char-expected
+               (param $x (ref eq))
+               (call $raise-argument-error1
+                     (global.get $symbol:string-fill!)
+                     (global.get $string:char?)
+                     (local.get $x)))
+         (func $raise-string-fill!:string-immutable
+               (param $x (ref eq))
+               (call $raise-argument-error1
+                     (global.get $symbol:string-fill!)
+                     (global.get $string:mutable-string?)
+                     (local.get $x)))
+
          (func $string-fill! (type $Prim2)
                (param $s   (ref eq))
                (param $ch  (ref eq))
@@ -997,17 +1019,17 @@
 
                ;; --- 1. Check and cast string ---
                (if (i32.eqz (ref.test (ref $String) (local.get $s)))
-                   (then (call $raise-check-string (local.get $s))))
+                   (then (call $raise-string-fill!:string-expected (local.get $s))))
                (local.set $str (ref.cast (ref $String) (local.get $s)))
                ;; --- 2. Raise if immutable ---
                (if (i32.ne (struct.get $String $immutable (local.get $str)) (i32.const 0))
-                   (then (call $raise-immutable-string (local.get $s))))
+                   (then (call $raise-string-fill!:string-immutable (local.get $s))))
                ;; --- 3. Decode and check char immediate ---
                (if (i32.eqz (ref.test (ref i31) (local.get $ch)))
-                   (then (call $raise-check-char (local.get $ch))))
+                   (then (call $raise-string-fill!:char-expected (local.get $ch))))
                (local.set $cp (i31.get_u (ref.cast (ref i31) (local.get $ch))))
                (if (i32.ne (i32.and (local.get $cp) (i32.const ,char-mask)) (i32.const ,char-tag))
-                   (then (call $raise-check-char (local.get $ch))))
+                   (then (call $raise-string-fill!:char-expected (local.get $ch))))
                (local.set $cp (i32.shr_u (local.get $cp) (i32.const ,char-shift)))
                ;; --- 4. Fill (keep eq-hash-code) ---
                (local.set $arr (struct.get $String $codepoints (local.get $str)))
