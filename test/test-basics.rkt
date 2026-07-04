@@ -2250,6 +2250,59 @@
                            (eq? (bytes-copy! bstr 0 #"testing") (void))
                            (equal? bstr (bytes 116 101 115 116 105 110 103 0 0 0)))))
 
+              (list "byte-string mutable destination errors are catchable with who"
+                    (let ([catch-contract/message-contains?
+                           (lambda (parts thunk)
+                             (let ([message
+                                    (with-handlers ([exn:fail:contract?
+                                                     (lambda (exn)
+                                                       (exn-message exn))])
+                                      (thunk)
+                                      #f)])
+                               (and message
+                                    (andmap (lambda (part)
+                                              (string-contains? message part))
+                                            parts))))])
+                      (and
+                       (catch-contract/message-contains?
+                        '("bytes-set!: contract violation"
+                          "(and/c bytes? (not/c immutable?))"
+                          "given:")
+                        (lambda ()
+                          (bytes-set! (bytes->immutable-bytes (bytes 1 2)) 0 9)))
+                       (catch-contract/message-contains?
+                        '("bytes-set!: contract violation"
+                          "(and/c bytes? (not/c immutable?))"
+                          "given: 42")
+                        (lambda ()
+                          (bytes-set! 42 0 9)))
+                       (catch-contract/message-contains?
+                        '("bytes-fill!: contract violation"
+                          "(and/c bytes? (not/c immutable?))"
+                          "given:")
+                        (lambda ()
+                          (bytes-fill! (bytes->immutable-bytes (bytes 1 2)) 9)))
+                       (catch-contract/message-contains?
+                        '("bytes-fill!: contract violation"
+                          "(and/c bytes? (not/c immutable?))"
+                          "given: 42")
+                        (lambda ()
+                          (bytes-fill! 42 9)))
+                       (catch-contract/message-contains?
+                        '("bytes-copy!: contract violation"
+                          "(and/c bytes? (not/c immutable?))"
+                          "given:")
+                        (lambda ()
+                          (bytes-copy! (bytes->immutable-bytes (bytes 1 2 3))
+                                       0
+                                       (bytes 9 8))))
+                       (catch-contract/message-contains?
+                        '("bytes-copy!: contract violation"
+                          "(and/c bytes? (not/c immutable?))"
+                          "given: 42")
+                        (lambda ()
+                          (bytes-copy! 42 0 (bytes 9 8)))))))
+
               (list "list->bytes/bytes->list"
                     (equal? (memq (list->bytes (bytes->list #"apple"))
                                   '(#"apple")) #f))

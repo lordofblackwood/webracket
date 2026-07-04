@@ -148,6 +148,29 @@ Follow-up:
 - Keep generated-output tests for the byte/string read and peek wrappers so
   later mutability cleanups do not accidentally reintroduce this trap path.
 
+### `real->floating-point-bytes` Still Uses Mutable-Bytes Trap Stub
+
+Location:
+
+- `pkgs/webracket-lib/compiler/runtime-wasm/core/numbers.rkt`
+
+Current behavior:
+
+- The destination argument is documented in the WAT comment as
+  `(and/c bytes? (not/c immutable?))`.
+- If the destination is immutable, the helper still calls
+  `$raise-expected-mutable-bytes`, which is a raw trap stub.
+- If the destination is not bytes, the current branch calls
+  `$raise-argument-error/internal` with `start-raw`, which looks like the wrong
+  offending value.
+
+Follow-up:
+
+- Compare Racket's oracle for `real->floating-point-bytes` destination
+  validation.
+- Replace both destination-validation paths with caller-specific Racket
+  exceptions whose `who` is `real->floating-point-bytes`.
+
 ## Runtime-Only Core Boundaries
 
 These helpers have moved out of `runtime-wasm.rkt` into themed core modules,

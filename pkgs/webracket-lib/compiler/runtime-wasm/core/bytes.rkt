@@ -22,6 +22,7 @@
 (define bytes-runtime-string-constants
   '((byte?                      "byte?")
     (bytes?                     "bytes?")
+    (mutable-bytes?             "(and/c bytes? (not/c immutable?))")
     (bytes-converter?           "bytes-converter?")))
 
 ;; bytes-runtime-bytes-constants : (listof (list/c symbol? bytes?))
@@ -66,6 +67,7 @@
 (define bytes-basic-runtime-only-helper-names
   '($raise-byte-out-of-range
     $raise-check-bytes
+    $raise-check-mutable-bytes/who
     $raise-check-byte
     $raise-bad-bytes-ref-index
     $raise-bad-bytes-set-index
@@ -93,6 +95,11 @@
            (call $raise-argument-error1
                  (global.get $symbol:bytes?)
                  (global.get $string:bytes?)
+                 (local.get $x)))
+     (func $raise-check-mutable-bytes/who (param $who (ref eq)) (param $x (ref eq))
+           (call $raise-argument-error1
+                 (local.get $who)
+                 (global.get $string:mutable-bytes?)
                  (local.get $x)))
      (func $raise-check-byte (param $x (ref eq))
            (call $raise-argument-error1
@@ -556,10 +563,15 @@
            ;; 1. Check that $a is a byte string
            (if (ref.test (ref $Bytes) (local.get $a))
                (then (local.set $b (ref.cast (ref $Bytes) (local.get $a))))
-               (else (call $raise-check-bytes (local.get $a))))
+               (else (call $raise-check-mutable-bytes/who
+                           (global.get $symbol:bytes-set!)
+                           (local.get $a))))
            ;; Byte literals and bytes->immutable-bytes results must reject mutation.
            (if (i32.eq (struct.get $Bytes $immutable (local.get $b)) (i32.const 1))
-               (then (call $raise-expected-mutable-bytes (local.get $a)) (unreachable)))
+               (then (call $raise-check-mutable-bytes/who
+                           (global.get $symbol:bytes-set!)
+                           (local.get $a))
+                     (unreachable)))
            ;; 2. Decode and check fixnum index $i
            (if (ref.test (ref i31) (local.get $i))
                (then
@@ -664,7 +676,9 @@
 
            ;; --- Validate $dest ---
            (if (i32.eqz (ref.test (ref $Bytes) (local.get $dest)))
-               (then (call $raise-check-bytes (local.get $dest))))
+               (then (call $raise-check-mutable-bytes/who
+                           (global.get $symbol:bytes-copy!)
+                           (local.get $dest))))
            ;; --- Validate $src ---
            (if (i32.eqz (ref.test (ref $Bytes) (local.get $src)))
                (then (call $raise-check-bytes (local.get $src))))
@@ -673,7 +687,10 @@
            (local.set $s (ref.cast (ref $Bytes) (local.get $src)))
            ;; --- Reject immutable destination ---
            (if (i32.eq (struct.get $Bytes $immutable (local.get $d)) (i32.const 1))
-               (then (call $raise-expected-mutable-bytes (local.get $dest)) (unreachable)))
+               (then (call $raise-check-mutable-bytes/who
+                           (global.get $symbol:bytes-copy!)
+                           (local.get $dest))
+                     (unreachable)))
            ;; --- Decode $dest-start ---
            (if (i32.eqz (ref.test (ref i31) (local.get $dest-start)))
                (then (call $raise-check-fixnum (local.get $dest-start))))
@@ -968,11 +985,17 @@
            ;; dest must be a (mutable) byte string
            (if (ref.test (ref $Bytes) (local.get $dest))
                (then (local.set $bs (ref.cast (ref $Bytes) (local.get $dest))))
-               (else (call $raise-check-bytes (local.get $dest)) (unreachable)))
+               (else (call $raise-check-mutable-bytes/who
+                           (global.get $symbol:bytes-fill!)
+                           (local.get $dest))
+                     (unreachable)))
 
            ;; reject immutable byte strings
            (if (i32.eq (struct.get $Bytes $immutable (local.get $bs)) (i32.const 1))
-               (then (call $raise-expected-mutable-bytes (local.get $dest)) (unreachable)))
+               (then (call $raise-check-mutable-bytes/who
+                           (global.get $symbol:bytes-fill!)
+                           (local.get $dest))
+                     (unreachable)))
 
            ;; b must be a fixnum byte (i31 with lsb=0), then 0..255
            (if (ref.test (ref i31) (local.get $b))
