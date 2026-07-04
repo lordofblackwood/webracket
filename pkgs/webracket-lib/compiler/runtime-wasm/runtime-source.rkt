@@ -66,7 +66,10 @@
 (define-runtime-path core-random-path "core/random.rkt")
 (define-runtime-path core-realms-path "core/realms.rkt")
 (define-runtime-path core-regexps-path "core/regexps.rkt")
+(define-runtime-path core-runtime-bytes-constants-path "core/runtime-bytes-constants.rkt")
 (define-runtime-path core-runtime-constants-path "core/runtime-constants.rkt")
+(define-runtime-path core-runtime-string-constants-path "core/runtime-string-constants.rkt")
+(define-runtime-path core-runtime-symbol-constants-path "core/runtime-symbol-constants.rkt")
 (define-runtime-path core-reflection-path "core/reflection.rkt")
 (define-runtime-path core-security-path "core/security.rkt")
 (define-runtime-path core-semaphores-path "core/semaphores.rkt")
@@ -147,7 +150,10 @@
         core-random-path
         core-realms-path
         core-regexps-path
+        core-runtime-bytes-constants-path
         core-runtime-constants-path
+        core-runtime-string-constants-path
+        core-runtime-symbol-constants-path
         core-reflection-path
         core-security-path
         core-semaphores-path
