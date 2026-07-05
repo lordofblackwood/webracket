@@ -7083,6 +7083,31 @@
                         "procedure?"
                         "given: 42"))))
 
+              (list "hash update procedure errors preserve who"
+                    (let ([catch-contract/contains?
+                           (lambda (thunk . needles)
+                             (let ([message
+                                    (with-handlers ([exn:fail:contract?
+                                                     (lambda (exn)
+                                                       (exn-message exn))])
+                                      (thunk)
+                                      #f)])
+                               (and message
+                                    (andmap (lambda (needle)
+                                              (string-contains? message needle))
+                                            needles))))])
+                      (and
+                       (catch-contract/contains?
+                        (lambda () (hash-update (hash 'a 1) 'a 42))
+                        "hash-update"
+                        "procedure?"
+                        "given: 42")
+                       (catch-contract/contains?
+                        (lambda () (hash-update! (make-hash '((a . 1))) 'a 42))
+                        "hash-update!"
+                        "procedure?"
+                        "given: 42"))))
+
               (list "immutable hash map/copy and filters"
                     (let* ([h       (hash 'a 1 'b 2 'c 3)]
                            [copy    (hash-map/copy h (lambda (k v) (values k (+ v 10))))]

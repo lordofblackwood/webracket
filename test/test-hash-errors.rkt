@@ -299,6 +299,18 @@
          "hash-filter-values"
          "procedure?"
          "given: 42")))
+ (list "hash update procedure errors preserve who"
+       (and
+        (catch-contract/contains?
+         (lambda () (hash-update (hash 'a 1) 'a 42))
+         "hash-update"
+         "procedure?"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (hash-update! (make-hash '((a . 1))) 'a 42))
+         "hash-update!"
+         "procedure?"
+         "given: 42")))
  (list "immutable hash operation mutability errors are catchable with who"
        (and
         (catch-contract/contains?

@@ -1413,14 +1413,19 @@
               (result      (ref eq))
 
               ;; Check type: must be (ref $Hash)
-              (if (i32.eqz (ref.test (ref $Hash) (local.get $ht)))
-                  (then (call $raise-argument-error1
-                              (global.get $symbol:hash-update!)
-                              (global.get $string:mutable-hash?)
-                              (local.get $ht))
-                        (unreachable)))
+	              (if (i32.eqz (ref.test (ref $Hash) (local.get $ht)))
+	                  (then (call $raise-argument-error1
+	                              (global.get $symbol:hash-update!)
+	                              (global.get $string:mutable-hash?)
+	                              (local.get $ht))
+	                        (unreachable)))
+	              (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
+	                  (then (call $raise-argument-error:procedure-expected/who
+	                              (global.get $symbol:hash-update!)
+	                              (local.get $proc))
+	                        (unreachable)))
 
-              ;; Dispatch on table type
+	              ;; Dispatch on table type
               (if (ref.test (ref $HashEqMutable) (local.get $ht))
                   (then (return (call $hasheq-update!
                                       (local.get $ht)

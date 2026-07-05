@@ -4254,9 +4254,11 @@
                                (global.get $string:immutable-hash?)
                                (local.get $ht))
                          (unreachable)))
-               (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
-                   (then (call $raise-argument-error:procedure-expected (local.get $proc))
-                         (unreachable)))
+	               (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
+	                   (then (call $raise-argument-error:procedure-expected/who
+	                               (global.get $symbol:hash-update)
+	                               (local.get $proc))
+	                         (unreachable)))
 
                (local.set $old-value
                           (call $hash-ref
