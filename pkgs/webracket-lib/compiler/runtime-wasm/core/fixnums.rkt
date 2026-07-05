@@ -17,6 +17,8 @@
   '((fixnum?             "fixnum?")
     (fx-overflow:middle  ": fixnum overflow with arguments ")
     (fx-overflow:and     " and ")
+    (fx-division-by-zero ": attempt to divide by zero")
+    (division-by-zero    ": division by zero")
     (expected-fixnum:got "expected fixnum, got: ")))
 
 ;; fixnum-runtime-symbol-constants : (listof symbol?)
@@ -24,6 +26,7 @@
 (define fixnum-runtime-symbol-constants
   '(fixnum?
     fixnum
+    /
     fx/))
 
 ;; fixnum-global-forms : (listof datum?)
@@ -94,6 +97,7 @@
     $raise-fx-overflow
     $ensure-fixnum-argument
     $fx*
+    $raise-division-by-zero/who
     $raise-division-by-zero
     $unsafe-fxquotient
     $fxquotient
@@ -235,7 +239,10 @@
   (function-forms->runtime-helpers
    'fixnum-predicate-runtime-only-helpers
    `(
-     (func $raise-not-fixnum (param $x (ref eq)) (unreachable))
+     (func $raise-not-fixnum
+           (param $x (ref eq))
+           (call $raise-check-fixnum (local.get $x))
+           (unreachable))
 
      (func $fixnum? (type $Prim1) (param $v (ref eq)) (result (ref eq))
            (if (result (ref eq))
@@ -466,7 +473,7 @@
 
            (if (i32.eqz (local.get $yi))
                (then
-                (call $raise-division-by-zero)
+                (call $raise-division-by-zero/who (global.get $symbol:fx/))
                 (unreachable))
                (else))
 
@@ -612,7 +619,43 @@
 
            (ref.i31 (i32.wrap_i64 (local.get $pt))))
 
-     (func $raise-division-by-zero (unreachable))
+     (func $raise-division-by-zero/who
+           (param $who (ref eq))
+
+           (local $message (ref $String))
+           (local $exn     (ref $Struct))
+
+           (local.set $message
+                      (call $string-append/2
+                            (call $format/display (local.get $who))
+                            (global.get $string:fx-division-by-zero)))
+           (local.set $exn
+                      (call $exn:fail:contract/make
+                            (ref.cast (ref eq) (local.get $message))
+                            (call $current-continuation-marks
+                                  (global.get $missing))))
+           (call $raise
+                 (ref.cast (ref eq) (local.get $exn))
+                 (global.get $true))
+           (unreachable))
+
+     (func $raise-division-by-zero
+           (local $message (ref $String))
+           (local $exn     (ref $Struct))
+
+           (local.set $message
+                      (call $string-append/2
+                            (call $format/display (global.get $symbol:/))
+                            (global.get $string:division-by-zero)))
+           (local.set $exn
+                      (call $exn:fail:contract/make
+                            (ref.cast (ref eq) (local.get $message))
+                            (call $current-continuation-marks
+                                  (global.get $missing))))
+           (call $raise
+                 (ref.cast (ref eq) (local.get $exn))
+                 (global.get $true))
+           (unreachable))
 
      (func $unsafe-fxquotient (type $Prim2)
            (param $x (ref eq))
@@ -632,22 +675,22 @@
            (local $q  i32)                     ;; quotient
 
            ;; --- check $x is a fixnum ---
-           (if (i32.eqz (ref.test (ref i31) (local.get $x)))
-               (then (call $raise-check-fixnum (local.get $x)) (unreachable)))
+           (call $ensure-fixnum-argument
+                 (global.get $symbol:fxquotient)
+                 (local.get $x))
            (local.set $xu (i31.get_s (ref.cast (ref i31) (local.get $x))))
-           (if (i32.and (local.get $xu) (i32.const 1))
-               (then (call $raise-check-fixnum (local.get $x)) (unreachable)))
            (local.set $xi (i32.shr_s (local.get $xu) (i32.const 1)))
            ;; --- check $y is a fixnum ---
-           (if (i32.eqz (ref.test (ref i31) (local.get $y)))
-               (then (call $raise-check-fixnum (local.get $y)) (unreachable)))
+           (call $ensure-fixnum-argument
+                 (global.get $symbol:fxquotient)
+                 (local.get $y))
            (local.set $yu (i31.get_s (ref.cast (ref i31) (local.get $y))))
-           (if (i32.and (local.get $yu) (i32.const 1))
-               (then (call $raise-check-fixnum (local.get $y)) (unreachable)))
            (local.set $yi (i32.shr_s (local.get $yu) (i32.const 1)))
            ;; --- divide by zero? ---
            (if (i32.eqz (local.get $yi))
-               (then (call $raise-division-by-zero) (unreachable)))
+               (then (call $raise-division-by-zero/who
+                           (global.get $symbol:fxquotient))
+                     (unreachable)))
            ;; --- compute truncating quotient ---
            (local.set $q (i32.div_s (local.get $xi) (local.get $yi)))
            ;; --- (optional) fixnum-range check: [-2^29, 2^29-1] ---
@@ -668,9 +711,26 @@
                                (i31.get_s (ref.cast i31ref (local.get $y))))))
 
      (func $fxremainder (type $Prim2)
-           (param $x (ref eq)) (param $y (ref eq)) (result (ref eq))
-           (ref.i31 (i32.rem_s (i31.get_s (ref.cast i31ref (local.get $x)))
-                               (i31.get_s (ref.cast i31ref (local.get $y))))))
+           (param $x (ref eq))
+           (param $y (ref eq))
+           (result   (ref eq))
+
+           (local $xv i32)
+           (local $yv i32)
+
+           (call $ensure-fixnum-argument
+                 (global.get $symbol:fxremainder)
+                 (local.get $x))
+           (call $ensure-fixnum-argument
+                 (global.get $symbol:fxremainder)
+                 (local.get $y))
+           (local.set $xv (i31.get_s (ref.cast i31ref (local.get $x))))
+           (local.set $yv (i31.get_s (ref.cast i31ref (local.get $y))))
+           (if (i32.eqz (local.get $yv))
+               (then (call $raise-division-by-zero/who
+                           (global.get $symbol:fxremainder))
+                     (unreachable)))
+           (ref.i31 (i32.rem_s (local.get $xv) (local.get $yv))))
 
      (func $unsafe-fxmodulo (type $Prim2)
            (param $x (ref eq))
@@ -696,8 +756,19 @@
      (func $fxmodulo (type $Prim2)
            (param $x (ref eq)) (param $y (ref eq)) (result (ref eq))
            (local $xv i32) (local $yv i32) (local $r i32)
+
+           (call $ensure-fixnum-argument
+                 (global.get $symbol:fxmodulo)
+                 (local.get $x))
+           (call $ensure-fixnum-argument
+                 (global.get $symbol:fxmodulo)
+                 (local.get $y))
            (local.set $xv (i31.get_s (ref.cast i31ref (local.get $x))))
            (local.set $yv (i31.get_s (ref.cast i31ref (local.get $y))))
+           (if (i32.eqz (local.get $yv))
+               (then (call $raise-division-by-zero/who
+                           (global.get $symbol:fxmodulo))
+                     (unreachable)))
            (local.set $r  (i32.rem_s (local.get $xv) (local.get $yv)))
            (if (result (ref eq))
                (i32.eqz (local.get $r))
