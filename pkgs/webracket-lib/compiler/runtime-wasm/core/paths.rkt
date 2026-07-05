@@ -24,7 +24,10 @@
     (path-string?              "path-string?")
     (path-for-some-system?     "path-for-some-system?")
     (path-element?             "path-element?")
-    (listof-path?              "(listof path?)")))
+    (listof-path?              "(listof path?)")
+    (path-convention-type      "(or/c 'windows 'unix)")
+    (bytes->path:empty         ": byte string is empty")
+    (bytes->path:nul           ": byte string contains a nul character\n  byte string: ")))
 
 ;; path-display-formatting-runtime-string-constants : (listof (list/c symbol? string?))
 ;;   Declare string constants used to format unreadable path values.
@@ -484,12 +487,57 @@
 
           (global.get $system-path-convention))
 
-    (func $raise-bytes->path:nul (param $bstr (ref eq))
-          (call $js-log (local.get $bstr))
+    (func $raise-bytes->path:nul
+          (param $who  (ref eq))
+          (param $bstr (ref eq))
+
+          (local $bs      (ref $Bytes))
+          (local $arr     (ref $I8Array))
+          (local $out     (ref $GrowableArray))
+          (local $message (ref $String))
+
+          (local.set $bs  (ref.cast (ref $Bytes) (local.get $bstr)))
+          (local.set $arr (struct.get $Bytes $bs (local.get $bs)))
+
+          (if (i32.eqz (array.len (local.get $arr)))
+              (then
+               (local.set $out (call $make-growable-array (i32.const 2)))
+               (call $growable-array-add! (local.get $out)
+                     (call $format/display (local.get $who)))
+               (call $growable-array-add! (local.get $out)
+                     (global.get $string:bytes->path:empty))
+               (local.set $message
+                          (call $growable-array-of-strings->string (local.get $out)))
+               (call $raise
+                     (call $exn:fail:contract/make
+                           (local.get $message)
+                           (call $current-continuation-marks (global.get $missing)))
+                     (global.get $true))
+               (unreachable)))
+
+          (local.set $out (call $make-growable-array (i32.const 3)))
+          (call $growable-array-add! (local.get $out)
+                (call $format/display (local.get $who)))
+          (call $growable-array-add! (local.get $out)
+                (global.get $string:bytes->path:nul))
+          (call $growable-array-add! (local.get $out)
+                (call $format/write (local.get $bstr)))
+          (local.set $message
+                     (call $growable-array-of-strings->string (local.get $out)))
+          (call $raise
+                (call $exn:fail:contract/make
+                      (local.get $message)
+                      (call $current-continuation-marks (global.get $missing)))
+                (global.get $true))
           (unreachable))
 
-    (func $raise-bytes->path:bad-type (param $type (ref eq))
-          (call $js-log (local.get $type))
+    (func $raise-bytes->path:bad-type
+          (param $who  (ref eq))
+          (param $type (ref eq))
+          (call $raise-argument-error1
+                (local.get $who)
+                (global.get $string:path-convention-type)
+                (local.get $type))
           (unreachable))
 
     (func $bytes->path (type $Prim12)
@@ -512,7 +560,9 @@
           ;; Reject byte strings that are empty or contain a NUL byte.
           (if (i32.eqz (ref.eq (call $non-empty-bytes-without-nuls (local.get $input-bytes))
                                (global.get $true)))
-              (then (call $raise-bytes->path:nul (local.get $bstr-raw))
+              (then (call $raise-bytes->path:nul
+                          (global.get $symbol:bytes->path)
+                          (local.get $bstr-raw))
                     (unreachable)))
           ;; Normalize to an immutable byte string for storage.
           (local.set $bytes (ref.cast (ref $Bytes)
@@ -521,12 +571,18 @@
           (if (ref.eq (local.get $type-raw) (global.get $missing))
               (then (nop)) ; the default is system path convention
               (else (if (i32.eqz (ref.test (ref $Symbol) (local.get $type-raw)))
-                        (then (call $raise-check-symbol (local.get $type-raw)) (unreachable)))
+                        (then (call $raise-bytes->path:bad-type
+                                    (global.get $symbol:bytes->path)
+                                    (local.get $type-raw))
+                              (unreachable)))
 
                     (local.set $type (ref.cast (ref $Symbol) (local.get $type-raw)))
                     (if (i32.eqz (ref.eq (call $unix-or-windows (local.get $type))
                                          (global.get $true)))
-                        (then (call $raise-bytes->path:bad-type (local.get $type-raw)) (unreachable)))
+                        (then (call $raise-bytes->path:bad-type
+                                    (global.get $symbol:bytes->path)
+                                    (local.get $type-raw))
+                              (unreachable)))
                     (local.set $conv (local.get $type-raw))))
           ;; Construct and return the new path struct.
           (struct.new $Path
@@ -628,6 +684,21 @@
                                (local.get $bstr-raw))
                          (unreachable))
                    (else (return (global.get $false))))))
+          (if (i32.eqz (ref.eq (local.get $type-raw) (global.get $missing)))
+              (then
+               (if (i32.eqz (ref.test (ref $Symbol) (local.get $type-raw)))
+                   (then (call $raise-bytes->path:bad-type
+                               (global.get $symbol:bytes->path-element)
+                               (local.get $type-raw))
+                         (unreachable)))
+               (if (i32.eqz
+                    (ref.eq (call $unix-or-windows
+                                  (ref.cast (ref $Symbol) (local.get $type-raw)))
+                            (global.get $true)))
+                   (then (call $raise-bytes->path:bad-type
+                               (global.get $symbol:bytes->path-element)
+                               (local.get $type-raw))
+                         (unreachable)))))
           (local.set $path (call $bytes->path (local.get $bstr-raw) (local.get $type-raw)))
           (if (ref.eq (call $path-element? (local.get $path)) (global.get $true))
               (then (return (local.get $path))))
@@ -658,7 +729,9 @@
                           (local.get $str-raw))
                     (unreachable)))
           (if (i32.eqz (ref.test (ref $Symbol) (local.get $kind-raw)))
-              (then (call $raise-check-symbol (local.get $kind-raw))
+              (then (call $raise-bytes->path:bad-type
+                          (global.get $symbol:string->some-system-path)
+                          (local.get $kind-raw))
                     (unreachable)))
           (local.set $str (ref.cast (ref $String) (local.get $str-raw)))
           (local.set $kind (ref.cast (ref $Symbol) (local.get $kind-raw)))
@@ -668,7 +741,9 @@
                     (unreachable)))
           (if (i32.eqz (ref.eq (call $unix-or-windows (local.get $kind))
                                (global.get $true)))
-              (then (call $raise-bytes->path:bad-type (local.get $kind-raw))
+              (then (call $raise-bytes->path:bad-type
+                          (global.get $symbol:string->some-system-path)
+                          (local.get $kind-raw))
                     (unreachable)))
           (local.set $bytes
                      (call $string->bytes/utf-8
@@ -1002,12 +1077,16 @@
           (local $next   (ref eq))
 
           (if (i32.eqz (ref.test (ref $Symbol) (local.get $type-raw)))
-              (then (call $raise-check-symbol (local.get $type-raw))
+              (then (call $raise-bytes->path:bad-type
+                          (global.get $symbol:build-path/convention-type)
+                          (local.get $type-raw))
                     (unreachable)))
           (local.set $type (ref.cast (ref $Symbol) (local.get $type-raw)))
           (if (i32.eqz (ref.eq (call $unix-or-windows (local.get $type))
                                (global.get $true)))
-              (then (call $raise-bytes->path:bad-type (local.get $type-raw))
+              (then (call $raise-bytes->path:bad-type
+                          (global.get $symbol:build-path/convention-type)
+                          (local.get $type-raw))
                     (unreachable)))
           (local.set $result
                      (call $path-part->path/convention
