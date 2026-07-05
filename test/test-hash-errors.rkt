@@ -422,6 +422,41 @@
            "hash-iterate-key"
            "no element at index"
            "index: 99"))))
+ (list "mutable hash iteration type errors preserve who"
+       (and
+        (catch-contract/contains?
+         (lambda () (mutable-hash-iterate-first 42))
+         "mutable-hash-iterate-first"
+         "(and/c hash? (not/c immutable?))"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (mutable-hash-iterate-next 42 0))
+         "mutable-hash-iterate-next"
+         "(and/c hash? (not/c immutable?))"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (mutable-hash-iterate-key 42 0))
+         "mutable-hash-iterate-key"
+         "(and/c hash? (not/c immutable?))"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (mutable-hash-iterate-value 42 0))
+         "mutable-hash-iterate-value"
+         "(and/c hash? (not/c immutable?))"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (mutable-hash-iterate-pair 42 0))
+         "mutable-hash-iterate-pair"
+         "(and/c hash? (not/c immutable?))"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda ()
+           (call-with-values
+            (lambda () (mutable-hash-iterate-key+value 42 0))
+            cons))
+         "mutable-hash-iterate-key+value"
+         "(and/c hash? (not/c immutable?))"
+         "given: 42")))
  (list "hash iteration position contract errors preserve who"
        (let ([i (hash 'a 1)]
              [m (make-hash '((a . 1)))])

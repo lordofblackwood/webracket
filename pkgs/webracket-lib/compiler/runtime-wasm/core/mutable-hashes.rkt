@@ -2538,10 +2538,13 @@
               (param $ht (ref eq))   ;; mutable hash table
               (result    (ref eq))   ;; first iteration position or #f
 
-              ;; Check type: must be (ref $Hash)
-              (if (i32.eqz (ref.test (ref $Hash) (local.get $ht)))
-                  (then (call $raise-argument-error:hash-expected)
-                        (unreachable)))
+	              ;; Check type: must be (ref $Hash)
+	              (if (i32.eqz (ref.test (ref $Hash) (local.get $ht)))
+	                  (then (call $raise-argument-error1
+	                              (global.get $symbol:mutable-hash-iterate-first)
+	                              (global.get $string:mutable-hash?)
+	                              (local.get $ht))
+	                        (unreachable)))
               ;; Dispatch on table type
               (if (ref.test (ref $HashEqMutable) (local.get $ht))
                   (then (return (call $hasheq-iterate-first (local.get $ht)))))
@@ -2580,10 +2583,13 @@
               (param $pos (ref eq))   ;; current position
               (result     (ref eq))   ;; next position or #f
 
-              ;; Check type: must be (ref $Hash)
-              (if (i32.eqz (ref.test (ref $Hash) (local.get $ht)))
-                  (then (call $raise-argument-error:hash-expected)
-                        (unreachable)))
+	              ;; Check type: must be (ref $Hash)
+	              (if (i32.eqz (ref.test (ref $Hash) (local.get $ht)))
+	                  (then (call $raise-argument-error1
+	                              (global.get $symbol:mutable-hash-iterate-next)
+	                              (global.get $string:mutable-hash?)
+	                              (local.get $ht))
+	                        (unreachable)))
               ;; Dispatch on table type
               (if (ref.test (ref $HashEqMutable) (local.get $ht))
                   (then (return (call $hasheq-iterate-next (local.get $ht) (local.get $pos)))))
@@ -2754,10 +2760,13 @@
              (result            (ref eq))
              (local $entry      (ref $ImmutableHashEntry))
 
-             ;; Check type: must be (ref $Hash)
-             (if (i32.eqz (ref.test (ref $Hash) (local.get $ht)))
-                 (then (call $raise-argument-error:hash-expected)
-                       (unreachable)))
+	             ;; Check type: must be (ref $Hash)
+	             (if (i32.eqz (ref.test (ref $Hash) (local.get $ht)))
+	                 (then (call $raise-argument-error1
+	                             (global.get $symbol:mutable-hash-iterate-key)
+	                             (global.get $string:mutable-hash?)
+	                             (local.get $ht))
+	                       (unreachable)))
              ;; Dispatch on table type
              (if (ref.test (ref $HashEqMutable) (local.get $ht))
                  (then (return (call $hasheq-iterate-key
@@ -2804,10 +2813,13 @@
              (result (ref eq))
              (local $entry      (ref $ImmutableHashEntry))
 
-             ;; Check type: must be (ref $Hash)
-             (if (i32.eqz (ref.test (ref $Hash) (local.get $ht)))
-                 (then (call $raise-argument-error:hash-expected)
-                       (unreachable)))
+	             ;; Check type: must be (ref $Hash)
+	             (if (i32.eqz (ref.test (ref $Hash) (local.get $ht)))
+	                 (then (call $raise-argument-error1
+	                             (global.get $symbol:mutable-hash-iterate-value)
+	                             (global.get $string:mutable-hash?)
+	                             (local.get $ht))
+	                       (unreachable)))
              ;; Dispatch on table type
              (if (ref.test (ref $HashEqMutable) (local.get $ht))
                  (then (return (call $hasheq-iterate-value
@@ -2854,10 +2866,13 @@
              (result            (ref eq))
              (local $entry      (ref $ImmutableHashEntry))
 
-             ;; Check type: must be (ref $Hash)
-             (if (i32.eqz (ref.test (ref $Hash) (local.get $ht)))
-                 (then (call $raise-argument-error:hash-expected)
-                       (unreachable)))
+	             ;; Check type: must be (ref $Hash)
+	             (if (i32.eqz (ref.test (ref $Hash) (local.get $ht)))
+	                 (then (call $raise-argument-error1
+	                             (global.get $symbol:mutable-hash-iterate-pair)
+	                             (global.get $string:mutable-hash?)
+	                             (local.get $ht))
+	                       (unreachable)))
              ;; Dispatch on table type
              (if (ref.test (ref $HashEqMutable) (local.get $ht))
                  (then (return (call $hasheq-iterate-pair
@@ -2906,10 +2921,13 @@
              (result            (ref eq))  ;; returns two values encoded in $Values
              (local $entry      (ref $ImmutableHashEntry))
 
-             ;; Check type: must be (ref $Hash)
-             (if (i32.eqz (ref.test (ref $Hash) (local.get $ht)))
-                 (then (call $raise-argument-error:hash-expected)
-                       (unreachable)))
+	             ;; Check type: must be (ref $Hash)
+	             (if (i32.eqz (ref.test (ref $Hash) (local.get $ht)))
+	                 (then (call $raise-argument-error1
+	                             (global.get $symbol:mutable-hash-iterate-key+value)
+	                             (global.get $string:mutable-hash?)
+	                             (local.get $ht))
+	                       (unreachable)))
              ;; Dispatch on table type
              (if (ref.test (ref $HashEqMutable) (local.get $ht))
                  (then (return (call $hasheq-iterate-key+value
