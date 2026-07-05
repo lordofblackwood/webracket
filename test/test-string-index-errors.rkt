@@ -15,6 +15,24 @@
                  needles))))
 
 (list
+ (list "string take/drop type errors are catchable with who"
+       (and
+        (catch-contract/contains? (lambda () (string-take 42 1))
+                                  "string-take"
+                                  "string?"
+                                  "given: 42")
+        (catch-contract/contains? (lambda () (string-take-right 42 1))
+                                  "string-take-right"
+                                  "string?"
+                                  "given: 42")
+        (catch-contract/contains? (lambda () (string-drop 42 1))
+                                  "string-drop"
+                                  "string?"
+                                  "given: 42")
+        (catch-contract/contains? (lambda () (string-drop-right 42 1))
+                                  "string-drop-right"
+                                  "string?"
+                                  "given: 42")))
  (list "string-set! out-of-range errors are catchable with who"
        (catch-contract/contains?
         (lambda ()

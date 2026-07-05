@@ -3589,7 +3589,10 @@
                (local $len   i32)
 
                (if (i32.eqz (ref.test (ref $String) (local.get $s)))
-                   (then (call $raise-check-string (local.get $s))))
+                   (then (call $raise-argument-error:string-expected/who
+                               (global.get $symbol:string-take)
+                               (local.get $s))
+                         (unreachable)))
                (if (i32.eqz (ref.test (ref i31) (local.get $n)))
                    (then (call $raise-check-fixnum (local.get $n))))
 
@@ -3633,7 +3636,10 @@
                (local $len   i32)
 
                (if (i32.eqz (ref.test (ref $String) (local.get $s)))
-                   (then (call $raise-check-string (local.get $s))))
+                   (then (call $raise-argument-error:string-expected/who
+                               (global.get $symbol:string-take-right)
+                               (local.get $s))
+                         (unreachable)))
                (if (i32.eqz (ref.test (ref i31) (local.get $n)))
                    (then (call $raise-check-fixnum (local.get $n))))
 
@@ -3675,7 +3681,10 @@
                (local $len   i32)
 
                (if (i32.eqz (ref.test (ref $String) (local.get $s)))
-                   (then (call $raise-check-string (local.get $s))))
+                   (then (call $raise-argument-error:string-expected/who
+                               (global.get $symbol:string-drop)
+                               (local.get $s))
+                         (unreachable)))
                (if (i32.eqz (ref.test (ref i31) (local.get $n)))
                    (then (call $raise-check-fixnum (local.get $n))))
 
@@ -3715,7 +3724,10 @@
                (local $len   i32)
 
                (if (i32.eqz (ref.test (ref $String) (local.get $s)))
-                   (then (call $raise-check-string (local.get $s))))
+                   (then (call $raise-argument-error:string-expected/who
+                               (global.get $symbol:string-drop-right)
+                               (local.get $s))
+                         (unreachable)))
                (if (i32.eqz (ref.test (ref i31) (local.get $n)))
                    (then (call $raise-check-fixnum (local.get $n))))
 
