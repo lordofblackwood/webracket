@@ -19,9 +19,12 @@
 ;; number-runtime-string-constants : (listof (list/c symbol? string?))
 ;;   Declare string constants used by generic number predicates and errors.
 (define number-runtime-string-constants
-  '((real?                      "real?")
+  '((number?                    "number?")
+    (real?                      "real?")
     (exact-nonnegative-integer? "exact-nonnegative-integer?")
     (exact-integer?             "exact-integer?")
+    (number->string:radix       "(or/c 2 8 10 16)")
+    (string->number:radix       "(integer-in 2 16)")
     (real->floating-point-bytes:size "(or/c 4 8)")
     (real->floating-point-bytes:short-dest ": byte string length is shorter than starting position plus size")
     (real->floating-point-bytes:byte-string-length "\n  byte string length: ")
@@ -2869,8 +2872,16 @@
    '(
      ;;; Helpers for $number->string
 
-     (func $raise-number->string-bad-input (unreachable))
-     (func $raise-number->string-bad-radix (unreachable))
+     (func $raise-number->string-bad-input (param $bad (ref eq))
+           (call $raise-argument-error1
+                 (global.get $symbol:number->string)
+                 (global.get $string:number?)
+                 (local.get $bad)))
+     (func $raise-number->string-bad-radix (param $bad (ref eq))
+           (call $raise-argument-error1
+                 (global.get $symbol:number->string)
+                 (global.get $string:number->string:radix)
+                 (local.get $bad)))
 
      (func $number->string:check-radix (param $radix i32) (result i32)
            ; number->string accepts 2, 8, 10, or 16 as radix
@@ -2963,59 +2974,82 @@
            (local $n     i32)
            (local $max   i32)
            (local $i31   (ref i31))
+           (local $bits  i32)
            (local $c     (ref $Complex))
-           ;; Treat missing radix as #f to reuse existing defaults.
+           ;; Treat missing radix as #f to reuse the existing default-radix path.
            (if (ref.eq (local.get $radix-raw) (global.get $missing))
                (then (local.set $radix-raw (global.get $false))))
            ;; Step 1: Check if $z is a fixnum or flonum
            (if (ref.test (ref i31) (local.get $z))
-               (then (local.set $n (i32.shr_s (i31.get_s (ref.cast (ref i31) (local.get $z)))
-                                              (i32.const 1))))
+               (then
+                (local.set $i31 (ref.cast (ref i31) (local.get $z)))
+                (local.set $bits (i31.get_u (local.get $i31)))
+                (if (i32.eqz (i32.and (local.get $bits) (i32.const 1)))
+                    (then (local.set $n (i32.shr_s (i31.get_s (local.get $i31))
+                                                   (i32.const 1))))
+                    (else (call $raise-number->string-bad-input (local.get $z))
+                          (unreachable))))
                (else
                 (if (ref.test (ref $Flonum) (local.get $z))
                     (then
-                     ;; Handle optional radix for flonum (must be 10 or #f)
+                     ;; Handle optional radix for flonum (must be 10 or #f).
                      (if (ref.eq (local.get $radix-raw) (global.get $false))
                          (then (return (call $flonum->string
                                               (ref.cast (ref $Flonum) (local.get $z)))))
                          (else
-                          (if (ref.test (ref i31) (local.get $radix-raw))
-                              (then
-                               (local.set $radix
-                                          (i32.shr_u (i31.get_u (ref.cast (ref i31) (local.get $radix-raw)))
-                                                     (i32.const 1)))
-                               (if (i32.eq (local.get $radix) (i32.const 10))
-                                   (then (return (call $flonum->string
-                                                        (ref.cast (ref $Flonum) (local.get $z)))))
-                                   (else (call $raise-number->string-bad-radix))))
-                              (else (call $raise-number->string-bad-radix))))))
+                          (if (i32.eqz (ref.test (ref i31) (local.get $radix-raw)))
+                              (then (call $raise-number->string-bad-radix (local.get $radix-raw))
+                                    (unreachable)))
+                          (local.set $i31 (ref.cast (ref i31) (local.get $radix-raw)))
+                          (local.set $bits (i31.get_u (local.get $i31)))
+                          (if (i32.and (local.get $bits) (i32.const 1))
+                              (then (call $raise-number->string-bad-radix (local.get $radix-raw))
+                                    (unreachable)))
+                          (local.set $radix (i32.shr_u (local.get $bits) (i32.const 1)))
+                          (if (i32.eq (local.get $radix) (i32.const 10))
+                              (then (return (call $flonum->string
+                                                   (ref.cast (ref $Flonum) (local.get $z)))))
+                              (else (call $raise-number->string-bad-radix (local.get $radix-raw))
+                                    (unreachable))))))
                     (else
                      (if (ref.test (ref $Complex) (local.get $z))
                          (then
                           (local.set $c (ref.cast (ref $Complex) (local.get $z)))
                           (if (ref.eq (local.get $radix-raw) (global.get $false))
-                              (then (return (call $format/display:complex (local.get $c)))))
-                          (if (ref.test (ref i31) (local.get $radix-raw))
-                              (then
-                               (local.set $radix
-                                          (i32.shr_u (i31.get_u (ref.cast (ref i31) (local.get $radix-raw)))
-                                                     (i32.const 1)))
+                              (then (return (call $format/display:complex (local.get $c))))
+                              (else
+                               (if (i32.eqz (ref.test (ref i31) (local.get $radix-raw)))
+                                   (then (call $raise-number->string-bad-radix (local.get $radix-raw))
+                                         (unreachable)))
+                               (local.set $i31 (ref.cast (ref i31) (local.get $radix-raw)))
+                               (local.set $bits (i31.get_u (local.get $i31)))
+                               (if (i32.and (local.get $bits) (i32.const 1))
+                                   (then (call $raise-number->string-bad-radix (local.get $radix-raw))
+                                         (unreachable)))
+                               (local.set $radix (i32.shr_u (local.get $bits) (i32.const 1)))
                                (if (i32.eq (local.get $radix) (i32.const 10))
                                    (then (return (call $format/display:complex (local.get $c))))
-                                   (else (call $raise-number->string-bad-radix))))
-                              (else (call $raise-number->string-bad-radix))))
-                         (else (call $raise-number->string-bad-input)))))))
+                                   (else (call $raise-number->string-bad-radix (local.get $radix-raw))
+                                         (unreachable))))))
+                         (else (call $raise-number->string-bad-input (local.get $z))
+                               (unreachable)))))))
            ;; Step 2: Handle radix for fixnums
            (if (ref.eq (local.get $radix-raw) (global.get $false))
-               (then (local.set $radix (i32.const 10))) ;; default = 10
-               (else (if (ref.test (ref i31) (local.get $radix-raw))
-                         (then (local.set $radix
-                                          (i32.shr_u (i31.get_u (ref.cast (ref i31) (local.get $radix-raw)))
-                                                     (i32.const 1))))
-                         (else (call $raise-number->string-bad-radix)))))
+               (then (local.set $radix (i32.const 10)))
+               (else
+                (if (i32.eqz (ref.test (ref i31) (local.get $radix-raw)))
+                    (then (call $raise-number->string-bad-radix (local.get $radix-raw))
+                          (unreachable)))
+                (local.set $i31 (ref.cast (ref i31) (local.get $radix-raw)))
+                (local.set $bits (i31.get_u (local.get $i31)))
+                (if (i32.and (local.get $bits) (i32.const 1))
+                    (then (call $raise-number->string-bad-radix (local.get $radix-raw))
+                          (unreachable)))
+                (local.set $radix (i32.shr_u (local.get $bits) (i32.const 1)))))
            ;; Step 3: Validate the radix
            (if (i32.eqz (call $number->string:check-radix (local.get $radix)))
-               (then (call $raise-number->string-bad-radix)))
+               (then (call $raise-number->string-bad-radix (local.get $radix-raw))
+                     (unreachable)))
            ;; Step 4: Get max length for this radix
            (local.set $max (call $number->string:max-length (local.get $radix)))
            ;; Step 5: Convert and return
@@ -3027,8 +3061,16 @@
   (function-forms->runtime-helpers
    'string-number-conversion-runtime-only-helpers
    '(
-     (func $raise-string->number:bad-argument (unreachable))
-     (func $raise-string->number:bad-radix (unreachable))
+     (func $raise-string->number:bad-argument (param $bad (ref eq))
+           (call $raise-argument-error1
+                 (global.get $symbol:string->number)
+                 (global.get $string:string?)
+                 (local.get $bad)))
+     (func $raise-string->number:bad-radix (param $bad (ref eq))
+           (call $raise-argument-error1
+                 (global.get $symbol:string->number)
+                 (global.get $string:string->number:radix)
+                 (local.get $bad)))
 
      ;; string->number:parse-fractional-part : string? i32 -> f64 i32
      ;;   Parse decimal digits into an inexact fractional value.
@@ -3202,6 +3244,7 @@
 
            (local $s        (ref $String))
            (local $radix    i32)
+           (local $radix-bits i32)
            (local $arr      (ref $I32Array))
            (local $len      i32)
            (local $i        i32)
@@ -3219,7 +3262,7 @@
            (if (ref.test (ref $String) (local.get $s-raw))
                (then (nop))
                (else
-                (call $raise-string->number:bad-argument)
+                (call $raise-string->number:bad-argument (local.get $s-raw))
                 (unreachable)))
            (local.set $s (ref.cast (ref $String) (local.get $s-raw)))
 
@@ -3229,20 +3272,24 @@
                (else
                 (if (ref.test (ref i31) (local.get $radix-raw))
                     (then
+                     (local.set $radix-bits
+                                (i31.get_u
+                                 (ref.cast (ref i31) (local.get $radix-raw))))
+                     (if (i32.and (local.get $radix-bits) (i32.const 1))
+                         (then
+                          (call $raise-string->number:bad-radix (local.get $radix-raw))
+                          (unreachable)))
                      (local.set $radix
-                                (i32.shr_u
-                                 (i31.get_u
-                                  (ref.cast (ref i31) (local.get $radix-raw)))
-                                 (i32.const 1))))
+                                (i32.shr_u (local.get $radix-bits) (i32.const 1))))
                     (else
-                     (call $raise-string->number:bad-radix)
+                     (call $raise-string->number:bad-radix (local.get $radix-raw))
                      (unreachable)))))
 
            (if (i32.or
                 (i32.lt_u (local.get $radix) (i32.const 2))
-                (i32.gt_u (local.get $radix) (i32.const 16)))
+               (i32.gt_u (local.get $radix) (i32.const 16)))
                (then
-                (call $raise-string->number:bad-radix)
+                (call $raise-string->number:bad-radix (local.get $radix-raw))
                 (unreachable))
                (else (nop)))
 

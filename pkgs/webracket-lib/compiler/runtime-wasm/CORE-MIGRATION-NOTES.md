@@ -148,6 +148,42 @@ Follow-up:
 - Keep generated-output tests for the byte/string read and peek wrappers so
   later mutability cleanups do not accidentally reintroduce this trap path.
 
+### `number->string` Treats Explicit `#f` Radix As Omitted
+
+Location:
+
+- `pkgs/webracket-lib/compiler/runtime-wasm/core/numbers.rkt`
+
+Current behavior:
+
+- `$number->string` accepts `#f` for the optional radix position and treats it
+  as the default radix 10.
+- This preserves the current compiled optional-argument convention: missing
+  radix is normalized to `#f` inside the runtime helper.
+- Racket rejects an explicit `#f` radix with a contract error, but WebRacket
+  currently cannot distinguish an omitted radix from an explicit `#f` at this
+  helper boundary.
+
+Baseline observation:
+
+- Before replacing the raw error stubs in this area, the committed runtime
+  accepted `(number->string #f)` and `(number->string 1 #f)` without raising a
+  catchable contract error. A value probe printed `(15 1)`, corresponding to
+  strings `"15"` and `"1"`.
+- The first behavior is a representation bug: `#f` is an immediate `i31`, so
+  `$number->string` must check the low bit before treating an `i31` as a
+  fixnum. That path now raises a `number?` contract error.
+- The explicit-`#f` radix behavior is preserved for now because fixing it
+  requires changing optional-argument lowering or the primitive wrapper
+  convention, not only replacing runtime error stubs.
+
+Follow-up:
+
+- Give optional primitive wrappers a way to distinguish an omitted argument
+  from an explicitly supplied `#f`.
+- Once that boundary can distinguish the two cases, make `(number->string 1
+  #f)` raise the Racket-compatible radix contract error.
+
 ## Runtime-Only Core Boundaries
 
 These helpers have moved out of `runtime-wasm.rkt` into themed core modules,
