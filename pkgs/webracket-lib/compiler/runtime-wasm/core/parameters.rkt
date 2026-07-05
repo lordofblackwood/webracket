@@ -1326,8 +1326,11 @@
                             (local.get $path-raw)))
            (if (i32.eqz (call $path-bytes-absolute?
                               (struct.get $Path $bytes (local.get $path))))
-               (then (call $raise-path-expected (local.get $path-raw))
-                     (unreachable)))
+               (then (local.set $path
+                                (ref.cast (ref $Path)
+                                          (call $path->complete-path
+                                                (local.get $path)
+                                                (global.get $missing))))))
            (global.set $current-directory-path (local.get $path))
            (global.get $void))
 
@@ -1347,8 +1350,11 @@
                             (local.get $path-raw)))
            (if (i32.eqz (call $path-bytes-absolute?
                               (struct.get $Path $bytes (local.get $path))))
-               (then (call $raise-path-expected (local.get $path-raw))
-                     (unreachable)))
+               (then (local.set $path
+                                (ref.cast (ref $Path)
+                                          (call $path->complete-path
+                                                (local.get $path)
+                                                (global.get $missing))))))
            (global.set $current-directory-for-user-path (local.get $path))
            (global.get $void))
 

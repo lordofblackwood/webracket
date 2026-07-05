@@ -206,6 +206,31 @@
         "shrink-path-wrt"
         "path?"
         "given: 42"))
+ (list "current-directory parameters complete relative paths"
+       (let ([original-current (current-directory)]
+             [original-user    (current-directory-for-user)])
+         (let ([ok (and (void? (current-directory "rel/"))
+                        (equal? (path->string (current-directory))
+                                "/app/rel/")
+                        (void? (current-directory original-current))
+                        (void? (current-directory-for-user "user/"))
+                        (equal? (path->string (current-directory-for-user))
+                                "/app/user/"))])
+           (current-directory original-current)
+           (current-directory-for-user original-user)
+           ok)))
+ (list "current-directory parameters reject non-path values with who"
+       (and
+        (catch-contract/contains?
+         (lambda () (current-directory 42))
+         "current-directory"
+         "(or/c path-string? path-for-some-system?)"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (current-directory-for-user 42))
+         "current-directory-for-user"
+         "(or/c path-string? path-for-some-system?)"
+         "given: 42")))
  (list "path string conversion successes still work"
        (and (equal? (path->string (string->path "app/main.rkt"))
                     "app/main.rkt")
