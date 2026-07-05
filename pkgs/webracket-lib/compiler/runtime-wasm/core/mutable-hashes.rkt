@@ -385,7 +385,10 @@
 
               ;; Check type: must be (ref $Hash)
               (if (i32.eqz (ref.test (ref $Hash) (local.get $ht)))
-                  (then (call $raise-argument-error:hash-expected)
+                  (then (call $raise-argument-error1
+                              (global.get $symbol:hash-ref)
+                              (global.get $string:hash?)
+                              (local.get $ht))
                         (unreachable)))
               ;; Mutable or immutable?
               (if (ref.test (ref $HashEqMutable) (local.get $ht))
@@ -603,7 +606,10 @@
               (param $failure (ref eq)) ;; optional failure, default raises
               (result         (ref eq))
               (if (i32.eqz (ref.test (ref $Hash) (local.get $ht)))
-                  (then (call $raise-argument-error:hash-expected)
+                  (then (call $raise-argument-error1
+                              (global.get $symbol:hash-ref-key)
+                              (global.get $string:hash?)
+                              (local.get $ht))
                         (unreachable)))
               (if (ref.test (ref $HashEqMutable) (local.get $ht))
                   (then (return (call $hasheq-ref-key
@@ -835,7 +841,10 @@
 
               (local.set $dst (call $make-empty-hash))
               (if (i32.eqz (ref.test (ref $Hash) (local.get $ht)))
-                  (then (call $raise-argument-error:hash-expected)
+                  (then (call $raise-argument-error1
+                              (global.get $symbol:hash-copy)
+                              (global.get $string:hash?)
+                              (local.get $ht))
                         (unreachable)))
 
               (if (i32.or
@@ -1865,7 +1874,10 @@
 
               ;; Check type: must be (ref $Hash)
               (if (i32.eqz (ref.test (ref $Hash) (local.get $ht)))
-                  (then (call $raise-argument-error:hash-expected)
+                  (then (call $raise-argument-error1
+                              (global.get $symbol:hash-has-key?)
+                              (global.get $string:hash?)
+                              (local.get $ht))
                         (unreachable)))
               ;; Dispatch on table type
               (if (ref.test (ref $HashEqMutable) (local.get $ht))
@@ -1921,10 +1933,16 @@
               (local $key (ref eq))
 
               (if (i32.eqz (ref.test (ref $Hash) (local.get $ht1)))
-                  (then (call $raise-argument-error:hash-expected)
+                  (then (call $raise-argument-error1
+                              (global.get $symbol:hash-keys-subset?)
+                              (global.get $string:hash?)
+                              (local.get $ht1))
                         (unreachable)))
               (if (i32.eqz (ref.test (ref $Hash) (local.get $ht2)))
-                  (then (call $raise-argument-error:hash-expected)
+                  (then (call $raise-argument-error1
+                              (global.get $symbol:hash-keys-subset?)
+                              (global.get $string:hash?)
+                              (local.get $ht2))
                         (unreachable)))
 
               (local.set $pos (call $mutable-hash-iterate-first (local.get $ht1)))
@@ -2189,7 +2207,10 @@
               (result    (ref eq))
               ;; Check type: must be (ref $Hash)
               (if (i32.eqz (ref.test (ref $Hash) (local.get $ht)))
-                  (then (call $raise-argument-error:hash-expected)
+                  (then (call $raise-argument-error1
+                              (global.get $symbol:hash-empty?)
+                              (global.get $string:hash?)
+                              (local.get $ht))
                         (unreachable)))
               ;; Dispatch on table type
               (if (ref.test (ref $HashEqMutable) (local.get $ht))

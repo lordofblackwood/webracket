@@ -30,6 +30,8 @@
                   fixnum-runtime-symbol-constants)
          (only-in "flonums.rkt"
                   flonum-runtime-symbol-constants)
+         (only-in "hashes.rkt"
+                  hash-runtime-symbol-constants)
          (only-in "immutable-hashes.rkt"
                   immutable-hash-runtime-symbol-constants)
          (only-in "impersonators.rkt"
@@ -95,6 +97,7 @@
           bytes-runtime-symbol-constants
           event-runtime-symbol-constants
           will-runtime-symbol-constants
+          hash-runtime-symbol-constants
           immutable-hash-runtime-symbol-constants
           impersonator-runtime-symbol-constants
           continuation-runtime-symbol-constants

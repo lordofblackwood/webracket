@@ -94,4 +94,101 @@
          (lambda () (make-immutable-hashalw '(x)))
          "make-immutable-hashalw"
          "(listof pair?)"
-         "given: (x)"))))
+         "given: (x)")))
+ (list "read-only hash argument errors are catchable with who"
+       (and
+        (catch-contract/contains?
+         (lambda () (hash-ref 42 'x))
+         "hash-ref"
+         "hash?"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (hash-ref-key 42 'x))
+         "hash-ref-key"
+         "hash?"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (hash-has-key? 42 'x))
+         "hash-has-key?"
+         "hash?"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (hash-count 42))
+         "hash-count"
+         "hash?"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (hash-empty? 42))
+         "hash-empty?"
+         "hash?"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (hash->list 42))
+         "hash->list"
+         "hash?"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (hash-keys 42))
+         "hash-keys"
+         "hash?"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (hash-values 42))
+         "hash-values"
+         "hash?"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (hash-copy 42))
+         "hash-copy"
+         "hash?"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (hash-eq? 42))
+         "hash-eq?"
+         "hash?"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (hash-eqv? 42))
+         "hash-eqv?"
+         "hash?"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (hash-equal? 42))
+         "hash-equal?"
+         "hash?"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (hash-equal-always? 42))
+         "hash-equal-always?"
+         "hash?"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (hash-for-each 42 (lambda (k v) #t)))
+         "hash-for-each"
+         "hash?"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (hash-map 42 (lambda (k v) k)))
+         "hash-map"
+         "hash?"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (hash-map/copy 42 (lambda (k v) (values k v))))
+         "hash-map/copy"
+         "hash?"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (hash-filter 42 (lambda (k v) #t)))
+         "hash-filter"
+         "hash?"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (hash-filter-keys 42 (lambda (k) #t)))
+         "hash-filter-keys"
+         "hash?"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (hash-filter-values 42 (lambda (v) #t)))
+         "hash-filter-values"
+         "hash?"
+         "given: 42"))))

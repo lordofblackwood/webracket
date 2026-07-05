@@ -3,6 +3,7 @@
 (provide hash-runtime-only-helpers
          hash-seed-global-forms
          hash-runtime-string-constants
+         hash-runtime-symbol-constants
          hash-predicate-runtime-helper-forms
          hash-table-predicate-runtime-helper-forms
          hash-table-operation-runtime-helper-forms
@@ -28,6 +29,30 @@
     (hash-ref-key:does-not-contain-key "hash-ref-key: hash does not contain key\n  key: ")
     (hash-ref!:no-value-found-key "hash-ref!: no value found for key: ")
     (hash-update!:no-value-found-key "hash-update!: no value found for key: ")))
+
+;; hash-runtime-symbol-constants : (listof symbol?)
+;;   Declare symbols used by public hash contract checks.
+(define hash-runtime-symbol-constants
+  '(hash-eq?
+    hash-eqv?
+    hash-equal?
+    hash-equal-always?
+    hash-count
+    hash->list
+    hash-for-each
+    hash-map
+    hash-map/copy
+    hash-filter
+    hash-filter-keys
+    hash-filter-values
+    hash-keys
+    hash-values
+    hash-ref
+    hash-ref-key
+    hash-copy
+    hash-has-key?
+    hash-keys-subset?
+    hash-empty?))
 
 ;; hash-seed-global-forms : (listof datum?)
 ;;   Declare global state for hash-code seed generation.
@@ -354,6 +379,10 @@
                   (else (global.get $false))))))
 
    (for/list ([pred '($hash-eq? $hash-eqv? $hash-equal? $hash-equal-always?)]
+              [who-symbol '($symbol:hash-eq?
+                            $symbol:hash-eqv?
+                            $symbol:hash-equal?
+                            $symbol:hash-equal-always?)]
               [mutable-type '($HashEqMutable
                               $HashEqvMutable
                               $HashEqualMutable
@@ -371,7 +400,10 @@
                (result    (ref eq))
                ;; Validate argument is a hash table
                (if (i32.eqz (call $hash-leaf?/i32 (local.get $ht)))
-                   (then (call $raise-argument-error:hash-expected)
+                   (then (call $raise-argument-error1
+                               (global.get ,who-symbol)
+                               (global.get $string:hash?)
+                               (local.get $ht))
                          (unreachable)))
                (if (result (ref eq))
                    (i32.or (ref.test (ref ,mutable-type) (local.get $ht))
@@ -393,7 +425,10 @@
 
               ;; Check type: must be (ref $Hash)
               (if (i32.eqz (ref.test (ref $Hash) (local.get $ht)))
-                  (then (call $raise-argument-error:hash-expected)
+                  (then (call $raise-argument-error1
+                              (global.get $symbol:hash-count)
+                              (global.get $string:hash?)
+                              (local.get $ht))
                         (unreachable)))
               ;; Dispatch on table type
               (if (ref.test (ref $HashEqMutable) (local.get $ht))
@@ -491,7 +526,10 @@
 
               ;; Check type: must be (ref $Hash)
               (if (i32.eqz (ref.test (ref $Hash) (local.get $ht)))
-                  (then (call $raise-argument-error:hash-expected)
+                  (then (call $raise-argument-error1
+                              (global.get $symbol:hash->list)
+                              (global.get $string:hash?)
+                              (local.get $ht))
                         (unreachable)))
 
               ;; Use the general hash-iteration entry points. Despite their
@@ -661,7 +699,10 @@
 
                ;; Check type: must be (ref $Hash)
                (if (i32.eqz (ref.test (ref $Hash) (local.get $ht)))
-                   (then (call $raise-argument-error:hash-expected)
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:hash-for-each)
+                               (global.get $string:hash?)
+                               (local.get $ht))
                          (unreachable)))
                ;; Optional for try-order
                (if (ref.eq (local.get $try) (global.get $missing))
@@ -878,7 +919,10 @@
 
               ;; Check type: must be (ref $Hash)
               (if (i32.eqz (ref.test (ref $Hash) (local.get $ht)))
-                  (then (call $raise-argument-error:hash-expected)
+                  (then (call $raise-argument-error1
+                              (global.get $symbol:hash-map)
+                              (global.get $string:hash?)
+                              (local.get $ht))
                         (unreachable)))
               ;; Validate procedure
               (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
@@ -1145,7 +1189,10 @@
 
               ;; Validate argument is a hash table
               (if (i32.eqz (ref.test (ref $Hash) (local.get $ht)))
-                  (then (call $raise-argument-error:hash-expected)
+                  (then (call $raise-argument-error1
+                              (global.get $symbol:hash-map/copy)
+                              (global.get $string:hash?)
+                              (local.get $ht))
                         (unreachable)))
 
               ;; Dispatch on table type
@@ -1371,7 +1418,13 @@
 
                ;; Check type: must be (ref $Hash)
                (if (i32.eqz (ref.test (ref $Hash) (local.get $ht)))
-                   (then (call $raise-argument-error:hash-expected)
+                   (then (call $raise-argument-error1
+                               (global.get ,(case prim
+                                              [($hash-filter) '$symbol:hash-filter]
+                                              [($hash-filter-keys) '$symbol:hash-filter-keys]
+                                              [($hash-filter-values) '$symbol:hash-filter-values]))
+                               (global.get $string:hash?)
+                               (local.get $ht))
                          (unreachable)))
 
                ;; Validate predicate
@@ -1584,6 +1637,7 @@
 
    ;; The try-order? argument is accepted but ignored.
    (for/list ([prim           '($hash-keys       $hash-values)]
+              [who-symbol     '($symbol:hash-keys $symbol:hash-values)]
               [hasheq-prim    '($hasheq-keys     $hasheq-values)]
               [hasheqv-prim   '($hasheqv-keys    $hasheqv-values)]
               [hashequal-prim '($hashequal-keys  $hashequal-values)]
@@ -1599,7 +1653,10 @@
 
                ;; Check type: must be (ref $Hash)
                (if (i32.eqz (ref.test (ref $Hash) (local.get $ht)))
-                   (then (call $raise-argument-error:hash-expected)
+                   (then (call $raise-argument-error1
+                               (global.get ,who-symbol)
+                               (global.get $string:hash?)
+                               (local.get $ht))
                          (unreachable)))
 
                ;; Dispatch on table type
