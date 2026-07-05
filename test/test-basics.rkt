@@ -7270,6 +7270,54 @@
                                       cons)
                                      '(bad . bad))))))
 
+              (list "hash iteration type errors preserve who"
+                    (let ([catch-contract/contains?
+                           (lambda (thunk . needles)
+                             (let ([message
+                                    (with-handlers ([exn:fail:contract?
+                                                     (lambda (exn)
+                                                       (exn-message exn))])
+                                      (thunk)
+                                      #f)])
+                               (and message
+                                    (andmap (lambda (needle)
+                                              (string-contains? message needle))
+                                            needles))))])
+                      (and
+                       (catch-contract/contains?
+                        (lambda () (hash-iterate-first 42))
+                        "hash-iterate-first:"
+                        "expected: hash?"
+                        "given: 42")
+                       (catch-contract/contains?
+                        (lambda () (hash-iterate-next 42 0))
+                        "hash-iterate-next:"
+                        "expected: hash?"
+                        "given: 42")
+                       (catch-contract/contains?
+                        (lambda () (hash-iterate-key 42 0))
+                        "hash-iterate-key:"
+                        "expected: hash?"
+                        "given: 42")
+                       (catch-contract/contains?
+                        (lambda () (hash-iterate-value 42 0))
+                        "hash-iterate-value:"
+                        "expected: hash?"
+                        "given: 42")
+                       (catch-contract/contains?
+                        (lambda () (hash-iterate-pair 42 0))
+                        "hash-iterate-pair:"
+                        "expected: hash?"
+                        "given: 42")
+                       (catch-contract/contains?
+                        (lambda ()
+                          (call-with-values
+                           (lambda () (hash-iterate-key+value 42 0))
+                           cons))
+                        "hash-iterate-key+value:"
+                        "expected: hash?"
+                        "given: 42"))))
+
               (list "hash iteration bad-index errors are catchable with who"
                     (let ([catch-contract/contains?
                            (lambda (thunk . needles)
@@ -7288,17 +7336,17 @@
                         (and
                          (catch-contract/contains?
                           (lambda () (hash-iterate-key i 99))
-                          "hash-iterate-key"
+                          "hash-iterate-key: no element at index"
                           "no element at index"
                           "index: 99")
                          (catch-contract/contains?
                           (lambda () (hash-iterate-value i 99))
-                          "hash-iterate-value"
+                          "hash-iterate-value: no element at index"
                           "no element at index"
                           "index: 99")
                          (catch-contract/contains?
                           (lambda () (hash-iterate-pair i 99))
-                          "hash-iterate-pair"
+                          "hash-iterate-pair: no element at index"
                           "no element at index"
                           "index: 99")
                          (catch-contract/contains?
@@ -7306,14 +7354,14 @@
                             (call-with-values
                              (lambda () (hash-iterate-key+value i 99))
                              cons))
-                          "hash-iterate-key+value"
+                          "hash-iterate-key+value: no element at index"
                           "no element at index"
                           "index: 99")
-	                         (catch-contract/contains?
-	                          (lambda () (hash-iterate-key m 99))
-	                          "hash-iterate-key"
-	                          "no element at index"
-	                          "index: 99")))))
+                         (catch-contract/contains?
+                          (lambda () (hash-iterate-key m 99))
+                          "hash-iterate-key: no element at index"
+                          "no element at index"
+                          "index: 99")))))
 
               (list "mutable hash iteration type errors preserve who"
                     (let ([catch-contract/contains?
@@ -7331,37 +7379,120 @@
                       (and
                        (catch-contract/contains?
                         (lambda () (mutable-hash-iterate-first 42))
-                        "mutable-hash-iterate-first"
-                        "(and/c hash? (not/c immutable?))"
+                        "mutable-hash-iterate-first:"
+                        "expected: (and/c hash? (not/c immutable?))"
                         "given: 42")
                        (catch-contract/contains?
                         (lambda () (mutable-hash-iterate-next 42 0))
-                        "mutable-hash-iterate-next"
-                        "(and/c hash? (not/c immutable?))"
+                        "mutable-hash-iterate-next:"
+                        "expected: (and/c hash? (not/c immutable?))"
                         "given: 42")
                        (catch-contract/contains?
                         (lambda () (mutable-hash-iterate-key 42 0))
-                        "mutable-hash-iterate-key"
-                        "(and/c hash? (not/c immutable?))"
+                        "mutable-hash-iterate-key:"
+                        "expected: (and/c hash? (not/c immutable?))"
                         "given: 42")
                        (catch-contract/contains?
                         (lambda () (mutable-hash-iterate-value 42 0))
-                        "mutable-hash-iterate-value"
-                        "(and/c hash? (not/c immutable?))"
+                        "mutable-hash-iterate-value:"
+                        "expected: (and/c hash? (not/c immutable?))"
                         "given: 42")
                        (catch-contract/contains?
                         (lambda () (mutable-hash-iterate-pair 42 0))
-                        "mutable-hash-iterate-pair"
-                        "(and/c hash? (not/c immutable?))"
+                        "mutable-hash-iterate-pair:"
+                        "expected: (and/c hash? (not/c immutable?))"
                         "given: 42")
                        (catch-contract/contains?
                         (lambda ()
                           (call-with-values
                            (lambda () (mutable-hash-iterate-key+value 42 0))
                            cons))
-                        "mutable-hash-iterate-key+value"
-                        "(and/c hash? (not/c immutable?))"
+                        "mutable-hash-iterate-key+value:"
+                        "expected: (and/c hash? (not/c immutable?))"
                         "given: 42"))))
+
+              (list "mutable hash iteration position errors preserve who"
+                    (let ([catch-contract/contains?
+                           (lambda (thunk . needles)
+                             (let ([message
+                                    (with-handlers ([exn:fail:contract?
+                                                     (lambda (exn)
+                                                       (exn-message exn))])
+                                      (thunk)
+                                      #f)])
+                               (and message
+                                    (andmap (lambda (needle)
+                                              (string-contains? message needle))
+                                            needles))))])
+                      (let ([m (make-hash '((a . 1)))])
+                        (and
+                         (catch-contract/contains?
+                          (lambda () (mutable-hash-iterate-next m -1))
+                          "mutable-hash-iterate-next:"
+                          "exact-nonnegative-integer?"
+                          "given: -1")
+                         (catch-contract/contains?
+                          (lambda () (mutable-hash-iterate-key m #f))
+                          "mutable-hash-iterate-key:"
+                          "exact-nonnegative-integer?"
+                          "given: #f")
+                         (catch-contract/contains?
+                          (lambda () (mutable-hash-iterate-value m -1))
+                          "mutable-hash-iterate-value:"
+                          "exact-nonnegative-integer?"
+                          "given: -1")
+                         (catch-contract/contains?
+                          (lambda () (mutable-hash-iterate-pair m -1))
+                          "mutable-hash-iterate-pair:"
+                          "exact-nonnegative-integer?"
+                          "given: -1")
+                         (catch-contract/contains?
+                          (lambda ()
+                            (call-with-values
+                             (lambda () (mutable-hash-iterate-key+value m -1))
+                             cons))
+                          "mutable-hash-iterate-key+value:"
+                          "exact-nonnegative-integer?"
+                          "given: -1")))))
+
+              (list "mutable hash iteration bad-index errors preserve who"
+                    (let ([catch-contract/contains?
+                           (lambda (thunk . needles)
+                             (let ([message
+                                    (with-handlers ([exn:fail:contract?
+                                                     (lambda (exn)
+                                                       (exn-message exn))])
+                                      (thunk)
+                                      #f)])
+                               (and message
+                                    (andmap (lambda (needle)
+                                              (string-contains? message needle))
+                                            needles))))])
+                      (let ([m (make-hash '((a . 1)))])
+                        (and
+                         (catch-contract/contains?
+                          (lambda () (mutable-hash-iterate-key m 99))
+                          "mutable-hash-iterate-key: no element at index"
+                          "no element at index"
+                          "index: 99")
+                         (catch-contract/contains?
+                          (lambda () (mutable-hash-iterate-value m 99))
+                          "mutable-hash-iterate-value: no element at index"
+                          "no element at index"
+                          "index: 99")
+                         (catch-contract/contains?
+                          (lambda () (mutable-hash-iterate-pair m 99))
+                          "mutable-hash-iterate-pair: no element at index"
+                          "no element at index"
+                          "index: 99")
+                         (catch-contract/contains?
+                          (lambda ()
+                            (call-with-values
+                             (lambda () (mutable-hash-iterate-key+value m 99))
+                             cons))
+                          "mutable-hash-iterate-key+value: no element at index"
+                          "no element at index"
+                          "index: 99")))))
 
               (list "hash iteration position contract errors preserve who"
                     (let ([catch-contract/contains?

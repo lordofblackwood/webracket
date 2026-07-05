@@ -59,15 +59,16 @@
     hash-copy
     hash-has-key?
     hash-keys-subset?
-	    hash-empty?
-	    mutable-hash-iterate-first
-	    mutable-hash-iterate-next
-	    mutable-hash-iterate-key
-	    mutable-hash-iterate-value
-	    mutable-hash-iterate-pair
-	    mutable-hash-iterate-key+value
-	    hash-iterate-next
-	    hash-iterate-key
+    hash-empty?
+    mutable-hash-iterate-first
+    mutable-hash-iterate-next
+    mutable-hash-iterate-key
+    mutable-hash-iterate-value
+    mutable-hash-iterate-pair
+    mutable-hash-iterate-key+value
+    hash-iterate-first
+    hash-iterate-next
+    hash-iterate-key
     hash-iterate-value
     hash-iterate-pair
     hash-iterate-key+value))

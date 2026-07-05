@@ -48,27 +48,27 @@
   (for/list ([helper (in-list helpers)])
     (core-runtime-helper-name helper)))
 
-;; hash-iterate-position-validation-forms : symbol? symbol? symbol? -> (listof datum?)
+;; hash-iterate-position-validation-forms : datum? symbol? symbol? -> (listof datum?)
 ;;   Generate validation for an exact-nonnegative-integer iterator position.
-(define (hash-iterate-position-validation-forms who-symbol pos-local index-local)
+(define (hash-iterate-position-validation-forms who-expr pos-local index-local)
   `((if (ref.test (ref i31) (local.get ,pos-local))
         (then (local.set ,index-local
                          (i31.get_s (ref.cast (ref i31) (local.get ,pos-local))))
               (if (i32.ne (i32.and (local.get ,index-local) (i32.const 1))
                           (i32.const 0))
                   (then (call $raise-exact-nonnegative-integer-expected/who
-                              (global.get ,who-symbol)
+                              ,who-expr
                               (local.get ,pos-local))
                         (unreachable)))
               (local.set ,index-local
                          (i32.shr_s (local.get ,index-local) (i32.const 1))))
         (else (call $raise-exact-nonnegative-integer-expected/who
-                    (global.get ,who-symbol)
+                    ,who-expr
                     (local.get ,pos-local))
               (unreachable)))
     (if (i32.lt_s (local.get ,index-local) (i32.const 0))
         (then (call $raise-exact-nonnegative-integer-expected/who
-                    (global.get ,who-symbol)
+                    ,who-expr
                     (local.get ,pos-local))
               (unreachable)))))
 
@@ -167,16 +167,22 @@
     $hash-iterate-value
     $hash-iterate-pair
     $hash-iterate-key+value
+    $mutable-hash-iterate-first/who
     $mutable-hash-iterate-first
     $hasheq-iterate-first
     $hasheqv-iterate-first
     $hashequal-iterate-first
     $hashalw-iterate-first
+    $mutable-hash-iterate-next/who
     $mutable-hash-iterate-next
     $hasheq-iterate-next
     $hasheqv-iterate-next
     $hashequal-iterate-next
     $hashalw-iterate-next
+    $mutable-hash-iterate-key/who
+    $mutable-hash-iterate-value/who
+    $mutable-hash-iterate-pair/who
+    $mutable-hash-iterate-key+value/who
     $mutable-hash-iterate-key
     $mutable-hash-iterate-value
     $mutable-hash-iterate-pair
@@ -2415,7 +2421,10 @@
                  (then
                   (return_call $immutable-hash-iterate-first/public
                                (local.get $ht))))
-             (return_call $mutable-hash-iterate-first (local.get $ht)))))
+             (return_call $mutable-hash-iterate-first/who
+                          (global.get $symbol:hash-iterate-first)
+                          (global.get $string:hash?)
+                          (local.get $ht)))))
 
    (core-runtime-helper
     '$hash-iterate-next
@@ -2432,7 +2441,9 @@
                   (return_call $immutable-hash-iterate-next/public
                                (local.get $ht)
                                (local.get $pos))))
-             (return_call $mutable-hash-iterate-next
+             (return_call $mutable-hash-iterate-next/who
+                          (global.get $symbol:hash-iterate-next)
+                          (global.get $string:hash?)
                           (local.get $ht)
                           (local.get $pos)))))
 
@@ -2453,7 +2464,9 @@
                                (local.get $ht)
                                (local.get $pos)
                                (local.get $bad-index))))
-             (return_call $mutable-hash-iterate-key
+             (return_call $mutable-hash-iterate-key/who
+                          (global.get $symbol:hash-iterate-key)
+                          (global.get $string:hash?)
                           (local.get $ht)
                           (local.get $pos)
                           (local.get $bad-index)))))
@@ -2475,7 +2488,9 @@
                                (local.get $ht)
                                (local.get $pos)
                                (local.get $bad-index))))
-             (return_call $mutable-hash-iterate-value
+             (return_call $mutable-hash-iterate-value/who
+                          (global.get $symbol:hash-iterate-value)
+                          (global.get $string:hash?)
                           (local.get $ht)
                           (local.get $pos)
                           (local.get $bad-index)))))
@@ -2497,7 +2512,9 @@
                                (local.get $ht)
                                (local.get $pos)
                                (local.get $bad-index))))
-             (return_call $mutable-hash-iterate-pair
+             (return_call $mutable-hash-iterate-pair/who
+                          (global.get $symbol:hash-iterate-pair)
+                          (global.get $string:hash?)
                           (local.get $ht)
                           (local.get $pos)
                           (local.get $bad-index)))))
@@ -2519,7 +2536,9 @@
                                (local.get $ht)
                                (local.get $pos)
                                (local.get $bad-index))))
-             (return_call $mutable-hash-iterate-key+value
+             (return_call $mutable-hash-iterate-key+value/who
+                          (global.get $symbol:hash-iterate-key+value)
+                          (global.get $string:hash?)
                           (local.get $ht)
                           (local.get $pos)
                           (local.get $bad-index)))))))
@@ -2530,21 +2549,23 @@
   (append
    (list
     (core-runtime-helper
-     '$mutable-hash-iterate-first
-     "$mutable-hash-iterate-first"
+     '$mutable-hash-iterate-first/who
+     "$mutable-hash-iterate-first/who"
      (lambda ()
-       `;; mutable-hash-iterate-first
-        (func $mutable-hash-iterate-first (type $Prim1)
-              (param $ht (ref eq))   ;; mutable hash table
-              (result    (ref eq))   ;; first iteration position or #f
+       `;; mutable-hash-iterate-first/who
+        (func $mutable-hash-iterate-first/who
+              (param $who      (ref eq))  ;; public primitive name
+              (param $expected (ref eq))  ;; expected contract string
+              (param $ht       (ref eq))  ;; mutable hash table
+              (result          (ref eq))  ;; first iteration position or #f
 
-	              ;; Check type: must be (ref $Hash)
-	              (if (i32.eqz (ref.test (ref $Hash) (local.get $ht)))
-	                  (then (call $raise-argument-error1
-	                              (global.get $symbol:mutable-hash-iterate-first)
-	                              (global.get $string:mutable-hash?)
-	                              (local.get $ht))
-	                        (unreachable)))
+              ;; Check type: must be (ref $Hash)
+              (if (i32.eqz (ref.test (ref $Hash) (local.get $ht)))
+                  (then (call $raise-argument-error1
+                              (local.get $who)
+                              (local.get $expected)
+                              (local.get $ht))
+                        (unreachable)))
               ;; Dispatch on table type
               (if (ref.test (ref $HashEqMutable) (local.get $ht))
                   (then (return (call $hasheq-iterate-first (local.get $ht)))))
@@ -2570,35 +2591,65 @@
               (if (ref.test (ref $HashEqualAlwaysImmutable) (local.get $ht))
                   (then (return (call $immutable-hasheqv-iterate-first
                                       (call $immutable-hash-as-hasheqv (local.get $ht))))))
-              (call $raise-argument-error:mutable-hash-expected (local.get $ht))
+              (call $raise-argument-error1
+                    (local.get $who)
+                    (local.get $expected)
+                    (local.get $ht))
               (unreachable))))
 
     (core-runtime-helper
-     '$mutable-hash-iterate-next
-     "$mutable-hash-iterate-next"
+     '$mutable-hash-iterate-first
+     "$mutable-hash-iterate-first"
      (lambda ()
-       `;; mutable-hash-iterate-next
-        (func $mutable-hash-iterate-next (type $Prim2)
-              (param $ht  (ref eq))   ;; mutable hash table
-              (param $pos (ref eq))   ;; current position
-              (result     (ref eq))   ;; next position or #f
+       `;; mutable-hash-iterate-first
+        (func $mutable-hash-iterate-first (type $Prim1)
+              (param $ht (ref eq))   ;; mutable hash table
+              (result    (ref eq))   ;; first iteration position or #f
+              (return_call $mutable-hash-iterate-first/who
+                           (global.get $symbol:mutable-hash-iterate-first)
+                           (global.get $string:mutable-hash?)
+                           (local.get $ht)))))
 
-	              ;; Check type: must be (ref $Hash)
-	              (if (i32.eqz (ref.test (ref $Hash) (local.get $ht)))
-	                  (then (call $raise-argument-error1
-	                              (global.get $symbol:mutable-hash-iterate-next)
-	                              (global.get $string:mutable-hash?)
-	                              (local.get $ht))
-	                        (unreachable)))
+    (core-runtime-helper
+     '$mutable-hash-iterate-next/who
+     "$mutable-hash-iterate-next/who"
+     (lambda ()
+       `;; mutable-hash-iterate-next/who
+        (func $mutable-hash-iterate-next/who
+              (param $who      (ref eq))  ;; public primitive name
+              (param $expected (ref eq))  ;; expected contract string
+              (param $ht       (ref eq))  ;; mutable hash table
+              (param $pos      (ref eq))  ;; current position
+              (result          (ref eq))  ;; next position or #f
+
+              ;; Check type: must be (ref $Hash)
+              (if (i32.eqz (ref.test (ref $Hash) (local.get $ht)))
+                  (then (call $raise-argument-error1
+                              (local.get $who)
+                              (local.get $expected)
+                              (local.get $ht))
+                        (unreachable)))
               ;; Dispatch on table type
               (if (ref.test (ref $HashEqMutable) (local.get $ht))
-                  (then (return (call $hasheq-iterate-next (local.get $ht) (local.get $pos)))))
+                  (then (return (call $hasheq-iterate-next
+                                      (local.get $ht)
+                                      (local.get $pos)
+                                      (local.get $who)))))
               (if (ref.test (ref $HashEqvMutable) (local.get $ht))
-                  (then (return (call $hasheqv-iterate-next (local.get $ht) (local.get $pos)))))
+                  (then (return (call $hasheqv-iterate-next
+                                      (local.get $ht)
+                                      (local.get $pos)
+                                      (local.get $who)))))
               (if (ref.test (ref $HashEqualMutable) (local.get $ht))
-                  (then (return (call $hashequal-iterate-next (local.get $ht) (local.get $pos)))))
+                  (then (return (call $hashequal-iterate-next
+                                      (local.get $ht)
+                                      (local.get $pos)
+                                      (local.get $who)))))
               (if (ref.test (ref $HashEqualAlwaysMutable) (local.get $ht))
-                  (then (return (call $hashalw-iterate-next (local.get $ht) (local.get $pos)))))
+                  (then (return (call $hashalw-iterate-next
+                                      (local.get $ht)
+                                      (local.get $pos)
+                                      (local.get $who)))))
               (if (ref.test (ref $HashEqImmutable) (local.get $ht))
                   (then (return (call $immutable-hasheqv-iterate-next
                                       (call $immutable-hash-as-hasheqv (local.get $ht))
@@ -2615,8 +2666,26 @@
                   (then (return (call $immutable-hasheqv-iterate-next
                                       (call $immutable-hash-as-hasheqv (local.get $ht))
                                       (local.get $pos)))))
-              (call $raise-argument-error:mutable-hash-expected (local.get $ht))
-              (unreachable)))))
+              (call $raise-argument-error1
+                    (local.get $who)
+                    (local.get $expected)
+                    (local.get $ht))
+              (unreachable))))
+
+    (core-runtime-helper
+     '$mutable-hash-iterate-next
+     "$mutable-hash-iterate-next"
+     (lambda ()
+       `;; mutable-hash-iterate-next
+        (func $mutable-hash-iterate-next (type $Prim2)
+              (param $ht  (ref eq))   ;; mutable hash table
+              (param $pos (ref eq))   ;; current position
+              (result     (ref eq))   ;; next position or #f
+              (return_call $mutable-hash-iterate-next/who
+                           (global.get $symbol:mutable-hash-iterate-next)
+                           (global.get $string:mutable-hash?)
+                           (local.get $ht)
+                           (local.get $pos))))))
 
    (for/list ([iter-first     '($hasheq-iterate-first
                                 $hasheqv-iterate-first
@@ -2695,9 +2764,9 @@
       (symbol->string iter-next)
       (lambda ()
         `(func ,iter-next
-               (type $Prim2)
                (param $ht  (ref eq))   ;; mutable hash table
                (param $pos (ref eq))   ;; current iteration position
+               (param $who (ref eq))   ;; public primitive name
                (result     (ref eq))   ;; next iteration position or #f
 
                (local $table    (ref ,type))
@@ -2713,7 +2782,7 @@
 
                ;; Decode and validate position.
                ,@(hash-iterate-position-validation-forms
-                  '$symbol:hash-iterate-next
+                  '(local.get $who)
                   '$pos
                   '$i)
 
@@ -2749,56 +2818,144 @@
 (define mutable-hash-iteration-accessor-dispatch-runtime-only-helpers
   (list
    (core-runtime-helper
-    '$mutable-hash-iterate-key
-    "$mutable-hash-iterate-key"
+    '$mutable-hash-iterate-key/who
+    "$mutable-hash-iterate-key/who"
     (lambda ()
-      `;; mutable-hash-iterate-key
-       (func $mutable-hash-iterate-key (type $Prim23)
-             (param $ht         (ref eq))  ;; mutable hash table
-             (param $pos        (ref eq))  ;; iteration position
-             (param $bad-index  (ref eq))  ;; optional bad-index value, default = raise
-             (result            (ref eq))
-             (local $entry      (ref $ImmutableHashEntry))
+      `;; mutable-hash-iterate-key/who
+       (func $mutable-hash-iterate-key/who
+             (param $who       (ref eq))  ;; public primitive name
+             (param $expected  (ref eq))  ;; expected contract string
+             (param $ht        (ref eq))  ;; mutable hash table
+             (param $pos       (ref eq))  ;; iteration position
+             (param $bad-index (ref eq))  ;; optional bad-index value, default = raise
+             (result           (ref eq))
+             (local $entry     (ref $ImmutableHashEntry))
 
-	             ;; Check type: must be (ref $Hash)
-	             (if (i32.eqz (ref.test (ref $Hash) (local.get $ht)))
-	                 (then (call $raise-argument-error1
-	                             (global.get $symbol:mutable-hash-iterate-key)
-	                             (global.get $string:mutable-hash?)
-	                             (local.get $ht))
-	                       (unreachable)))
+             ;; Check type: must be (ref $Hash)
+             (if (i32.eqz (ref.test (ref $Hash) (local.get $ht)))
+                 (then (call $raise-argument-error1
+                             (local.get $who)
+                             (local.get $expected)
+                             (local.get $ht))
+                       (unreachable)))
              ;; Dispatch on table type
              (if (ref.test (ref $HashEqMutable) (local.get $ht))
                  (then (return (call $hasheq-iterate-key
                                      (local.get $ht)
                                      (local.get $pos)
-                                     (local.get $bad-index)))))
+                                     (local.get $bad-index)
+                                     (local.get $who)))))
              (if (ref.test (ref $HashEqvMutable) (local.get $ht))
                  (then (return (call $hasheqv-iterate-key
                                      (local.get $ht)
                                      (local.get $pos)
-                                     (local.get $bad-index)))))
+                                     (local.get $bad-index)
+                                     (local.get $who)))))
              (if (ref.test (ref $HashEqualMutable) (local.get $ht))
                  (then (return (call $hashequal-iterate-key
                                      (local.get $ht)
                                      (local.get $pos)
-                                     (local.get $bad-index)))))
+                                     (local.get $bad-index)
+                                     (local.get $who)))))
              (if (ref.test (ref $HashEqualAlwaysMutable) (local.get $ht))
                  (then (return (call $hashalw-iterate-key
                                      (local.get $ht)
                                      (local.get $pos)
-                                     (local.get $bad-index)))))
+                                     (local.get $bad-index)
+                                     (local.get $who)))))
              (if (ref.test (ref $Hash) (local.get $ht))
                  (then
                   (local.set $entry
                              (ref.cast (ref $ImmutableHashEntry)
                                        (call $immutable-hasheqv-iterate-entry
                                              (call $immutable-hash-as-hasheqv (local.get $ht))
-                                             (global.get $symbol:hash-iterate-key)
+                                             (local.get $who)
                                              (local.get $pos)
                                              (local.get $bad-index))))
                   (return (struct.get $ImmutableHashEntry $key (local.get $entry)))))
-             (call $raise-argument-error:mutable-hash-expected (local.get $ht))
+             (call $raise-argument-error1
+                   (local.get $who)
+                   (local.get $expected)
+                   (local.get $ht))
+             (unreachable))))
+
+   (core-runtime-helper
+    '$mutable-hash-iterate-key
+    "$mutable-hash-iterate-key"
+    (lambda ()
+      `;; mutable-hash-iterate-key
+       (func $mutable-hash-iterate-key (type $Prim23)
+             (param $ht        (ref eq))  ;; mutable hash table
+             (param $pos       (ref eq))  ;; iteration position
+             (param $bad-index (ref eq))  ;; optional bad-index value, default = raise
+             (result           (ref eq))
+             (return_call $mutable-hash-iterate-key/who
+                          (global.get $symbol:mutable-hash-iterate-key)
+                          (global.get $string:mutable-hash?)
+                          (local.get $ht)
+                          (local.get $pos)
+                          (local.get $bad-index)))))
+
+   (core-runtime-helper
+    '$mutable-hash-iterate-value/who
+    "$mutable-hash-iterate-value/who"
+    (lambda ()
+      `;; mutable-hash-iterate-value/who
+       (func $mutable-hash-iterate-value/who
+             (param $who       (ref eq))  ;; public primitive name
+             (param $expected  (ref eq))  ;; expected contract string
+             (param $ht        (ref eq))  ;; mutable hash table
+             (param $pos       (ref eq))  ;; iteration position
+             (param $bad-index (ref eq))  ;; optional bad-index value, default = raise
+             (result           (ref eq))
+             (local $entry     (ref $ImmutableHashEntry))
+
+             ;; Check type: must be (ref $Hash)
+             (if (i32.eqz (ref.test (ref $Hash) (local.get $ht)))
+                 (then (call $raise-argument-error1
+                             (local.get $who)
+                             (local.get $expected)
+                             (local.get $ht))
+                       (unreachable)))
+             ;; Dispatch on table type
+             (if (ref.test (ref $HashEqMutable) (local.get $ht))
+                 (then (return (call $hasheq-iterate-value
+                                     (local.get $ht)
+                                     (local.get $pos)
+                                     (local.get $bad-index)
+                                     (local.get $who)))))
+             (if (ref.test (ref $HashEqvMutable) (local.get $ht))
+                 (then (return (call $hasheqv-iterate-value
+                                     (local.get $ht)
+                                     (local.get $pos)
+                                     (local.get $bad-index)
+                                     (local.get $who)))))
+             (if (ref.test (ref $HashEqualMutable) (local.get $ht))
+                 (then (return (call $hashequal-iterate-value
+                                     (local.get $ht)
+                                     (local.get $pos)
+                                     (local.get $bad-index)
+                                     (local.get $who)))))
+             (if (ref.test (ref $HashEqualAlwaysMutable) (local.get $ht))
+                 (then (return (call $hashalw-iterate-value
+                                     (local.get $ht)
+                                     (local.get $pos)
+                                     (local.get $bad-index)
+                                     (local.get $who)))))
+             (if (ref.test (ref $Hash) (local.get $ht))
+                 (then
+                  (local.set $entry
+                             (ref.cast (ref $ImmutableHashEntry)
+                                       (call $immutable-hasheqv-iterate-entry
+                                             (call $immutable-hash-as-hasheqv (local.get $ht))
+                                             (local.get $who)
+                                             (local.get $pos)
+                                             (local.get $bad-index))))
+                  (return (struct.get $ImmutableHashEntry $value (local.get $entry)))))
+             (call $raise-argument-error1
+                   (local.get $who)
+                   (local.get $expected)
+                   (local.get $ht))
              (unreachable))))
 
    (core-runtime-helper
@@ -2807,51 +2964,79 @@
     (lambda ()
       `;; mutable-hash-iterate-value
        (func $mutable-hash-iterate-value (type $Prim23)
-             (param $ht         (ref eq))  ;; mutable hash table
-             (param $pos        (ref eq))  ;; iteration position
-             (param $bad-index  (ref eq))  ;; optional bad-index value, default = raise
-             (result (ref eq))
-             (local $entry      (ref $ImmutableHashEntry))
+             (param $ht        (ref eq))  ;; mutable hash table
+             (param $pos       (ref eq))  ;; iteration position
+             (param $bad-index (ref eq))  ;; optional bad-index value, default = raise
+             (result           (ref eq))
+             (return_call $mutable-hash-iterate-value/who
+                          (global.get $symbol:mutable-hash-iterate-value)
+                          (global.get $string:mutable-hash?)
+                          (local.get $ht)
+                          (local.get $pos)
+                          (local.get $bad-index)))))
 
-	             ;; Check type: must be (ref $Hash)
-	             (if (i32.eqz (ref.test (ref $Hash) (local.get $ht)))
-	                 (then (call $raise-argument-error1
-	                             (global.get $symbol:mutable-hash-iterate-value)
-	                             (global.get $string:mutable-hash?)
-	                             (local.get $ht))
-	                       (unreachable)))
+   (core-runtime-helper
+    '$mutable-hash-iterate-pair/who
+    "$mutable-hash-iterate-pair/who"
+    (lambda ()
+      `;; mutable-hash-iterate-pair/who
+       (func $mutable-hash-iterate-pair/who
+             (param $who       (ref eq))  ;; public primitive name
+             (param $expected  (ref eq))  ;; expected contract string
+             (param $ht        (ref eq))  ;; mutable hash table
+             (param $pos       (ref eq))  ;; iteration position
+             (param $bad-index (ref eq))  ;; optional bad-index value, default = raise
+             (result           (ref eq))
+             (local $entry     (ref $ImmutableHashEntry))
+
+             ;; Check type: must be (ref $Hash)
+             (if (i32.eqz (ref.test (ref $Hash) (local.get $ht)))
+                 (then (call $raise-argument-error1
+                             (local.get $who)
+                             (local.get $expected)
+                             (local.get $ht))
+                       (unreachable)))
              ;; Dispatch on table type
              (if (ref.test (ref $HashEqMutable) (local.get $ht))
-                 (then (return (call $hasheq-iterate-value
+                 (then (return (call $hasheq-iterate-pair
                                      (local.get $ht)
                                      (local.get $pos)
-                                     (local.get $bad-index)))))
+                                     (local.get $bad-index)
+                                     (local.get $who)))))
              (if (ref.test (ref $HashEqvMutable) (local.get $ht))
-                 (then (return (call $hasheqv-iterate-value
+                 (then (return (call $hasheqv-iterate-pair
                                      (local.get $ht)
                                      (local.get $pos)
-                                     (local.get $bad-index)))))
+                                     (local.get $bad-index)
+                                     (local.get $who)))))
              (if (ref.test (ref $HashEqualMutable) (local.get $ht))
-                 (then (return (call $hashequal-iterate-value
+                 (then (return (call $hashequal-iterate-pair
                                      (local.get $ht)
                                      (local.get $pos)
-                                     (local.get $bad-index)))))
+                                     (local.get $bad-index)
+                                     (local.get $who)))))
              (if (ref.test (ref $HashEqualAlwaysMutable) (local.get $ht))
-                 (then (return (call $hashalw-iterate-value
+                 (then (return (call $hashalw-iterate-pair
                                      (local.get $ht)
                                      (local.get $pos)
-                                     (local.get $bad-index)))))
+                                     (local.get $bad-index)
+                                     (local.get $who)))))
              (if (ref.test (ref $Hash) (local.get $ht))
                  (then
                   (local.set $entry
                              (ref.cast (ref $ImmutableHashEntry)
                                        (call $immutable-hasheqv-iterate-entry
                                              (call $immutable-hash-as-hasheqv (local.get $ht))
-                                             (global.get $symbol:hash-iterate-value)
+                                             (local.get $who)
                                              (local.get $pos)
                                              (local.get $bad-index))))
-                  (return (struct.get $ImmutableHashEntry $value (local.get $entry)))))
-             (call $raise-argument-error:mutable-hash-expected (local.get $ht))
+                  (return (call $cons
+                                (struct.get $ImmutableHashEntry $key (local.get $entry))
+                                (struct.get $ImmutableHashEntry $value (local.get $entry))))))
+             (call $raise-argument-error1
+                   (local.get $who)
+                   (local.get $expected)
+                   (local.get $ht))
              (unreachable))))
 
    (core-runtime-helper
@@ -2860,53 +3045,79 @@
     (lambda ()
       `;; mutable-hash-iterate-pair
        (func $mutable-hash-iterate-pair (type $Prim23)
-             (param $ht         (ref eq))  ;; mutable hash table
-             (param $pos        (ref eq))  ;; iteration position
-             (param $bad-index  (ref eq))  ;; optional bad-index value, default = raise
-             (result            (ref eq))
-             (local $entry      (ref $ImmutableHashEntry))
+             (param $ht        (ref eq))  ;; mutable hash table
+             (param $pos       (ref eq))  ;; iteration position
+             (param $bad-index (ref eq))  ;; optional bad-index value, default = raise
+             (result           (ref eq))
+             (return_call $mutable-hash-iterate-pair/who
+                          (global.get $symbol:mutable-hash-iterate-pair)
+                          (global.get $string:mutable-hash?)
+                          (local.get $ht)
+                          (local.get $pos)
+                          (local.get $bad-index)))))
 
-	             ;; Check type: must be (ref $Hash)
-	             (if (i32.eqz (ref.test (ref $Hash) (local.get $ht)))
-	                 (then (call $raise-argument-error1
-	                             (global.get $symbol:mutable-hash-iterate-pair)
-	                             (global.get $string:mutable-hash?)
-	                             (local.get $ht))
-	                       (unreachable)))
+   (core-runtime-helper
+    '$mutable-hash-iterate-key+value/who
+    "$mutable-hash-iterate-key+value/who"
+    (lambda ()
+      `;; mutable-hash-iterate-key+value/who
+       (func $mutable-hash-iterate-key+value/who
+             (param $who       (ref eq))  ;; public primitive name
+             (param $expected  (ref eq))  ;; expected contract string
+             (param $ht        (ref eq))  ;; mutable hash table
+             (param $pos       (ref eq))  ;; iteration position
+             (param $bad-index (ref eq))  ;; optional bad-index value, default = raise
+             (result           (ref eq))  ;; returns two values encoded in $Values
+             (local $entry     (ref $ImmutableHashEntry))
+
+             ;; Check type: must be (ref $Hash)
+             (if (i32.eqz (ref.test (ref $Hash) (local.get $ht)))
+                 (then (call $raise-argument-error1
+                             (local.get $who)
+                             (local.get $expected)
+                             (local.get $ht))
+                       (unreachable)))
              ;; Dispatch on table type
              (if (ref.test (ref $HashEqMutable) (local.get $ht))
-                 (then (return (call $hasheq-iterate-pair
+                 (then (return (call $hasheq-iterate-key+value
                                      (local.get $ht)
                                      (local.get $pos)
-                                     (local.get $bad-index)))))
+                                     (local.get $bad-index)
+                                     (local.get $who)))))
              (if (ref.test (ref $HashEqvMutable) (local.get $ht))
-                 (then (return (call $hasheqv-iterate-pair
+                 (then (return (call $hasheqv-iterate-key+value
                                      (local.get $ht)
                                      (local.get $pos)
-                                     (local.get $bad-index)))))
+                                     (local.get $bad-index)
+                                     (local.get $who)))))
              (if (ref.test (ref $HashEqualMutable) (local.get $ht))
-                 (then (return (call $hashequal-iterate-pair
+                 (then (return (call $hashequal-iterate-key+value
                                      (local.get $ht)
                                      (local.get $pos)
-                                     (local.get $bad-index)))))
+                                     (local.get $bad-index)
+                                     (local.get $who)))))
              (if (ref.test (ref $HashEqualAlwaysMutable) (local.get $ht))
-                 (then (return (call $hashalw-iterate-pair
+                 (then (return (call $hashalw-iterate-key+value
                                      (local.get $ht)
                                      (local.get $pos)
-                                     (local.get $bad-index)))))
+                                     (local.get $bad-index)
+                                     (local.get $who)))))
              (if (ref.test (ref $Hash) (local.get $ht))
                  (then
                   (local.set $entry
                              (ref.cast (ref $ImmutableHashEntry)
                                        (call $immutable-hasheqv-iterate-entry
                                              (call $immutable-hash-as-hasheqv (local.get $ht))
-                                             (global.get $symbol:hash-iterate-pair)
+                                             (local.get $who)
                                              (local.get $pos)
                                              (local.get $bad-index))))
-                  (return (call $cons
-                                (struct.get $ImmutableHashEntry $key (local.get $entry))
-                                (struct.get $ImmutableHashEntry $value (local.get $entry))))))
-             (call $raise-argument-error:mutable-hash-expected (local.get $ht))
+                  (return (array.new_fixed $Values 2
+                                           (struct.get $ImmutableHashEntry $key (local.get $entry))
+                                           (struct.get $ImmutableHashEntry $value (local.get $entry))))))
+             (call $raise-argument-error1
+                   (local.get $who)
+                   (local.get $expected)
+                   (local.get $ht))
              (unreachable))))
 
    (core-runtime-helper
@@ -2915,54 +3126,16 @@
     (lambda ()
       `;; mutable-hash-iterate-key+value
        (func $mutable-hash-iterate-key+value (type $Prim23)
-             (param $ht         (ref eq))  ;; mutable hash table
-             (param $pos        (ref eq))  ;; iteration position
-             (param $bad-index  (ref eq))  ;; optional bad-index value, default = raise
-             (result            (ref eq))  ;; returns two values encoded in $Values
-             (local $entry      (ref $ImmutableHashEntry))
-
-	             ;; Check type: must be (ref $Hash)
-	             (if (i32.eqz (ref.test (ref $Hash) (local.get $ht)))
-	                 (then (call $raise-argument-error1
-	                             (global.get $symbol:mutable-hash-iterate-key+value)
-	                             (global.get $string:mutable-hash?)
-	                             (local.get $ht))
-	                       (unreachable)))
-             ;; Dispatch on table type
-             (if (ref.test (ref $HashEqMutable) (local.get $ht))
-                 (then (return (call $hasheq-iterate-key+value
-                                     (local.get $ht)
-                                     (local.get $pos)
-                                     (local.get $bad-index)))))
-             (if (ref.test (ref $HashEqvMutable) (local.get $ht))
-                 (then (return (call $hasheqv-iterate-key+value
-                                     (local.get $ht)
-                                     (local.get $pos)
-                                     (local.get $bad-index)))))
-             (if (ref.test (ref $HashEqualMutable) (local.get $ht))
-                 (then (return (call $hashequal-iterate-key+value
-                                     (local.get $ht)
-                                     (local.get $pos)
-                                     (local.get $bad-index)))))
-             (if (ref.test (ref $HashEqualAlwaysMutable) (local.get $ht))
-                 (then (return (call $hashalw-iterate-key+value
-                                     (local.get $ht)
-                                     (local.get $pos)
-                                     (local.get $bad-index)))))
-             (if (ref.test (ref $Hash) (local.get $ht))
-                 (then
-                  (local.set $entry
-                             (ref.cast (ref $ImmutableHashEntry)
-                                       (call $immutable-hasheqv-iterate-entry
-                                             (call $immutable-hash-as-hasheqv (local.get $ht))
-                                             (global.get $symbol:hash-iterate-key+value)
-                                             (local.get $pos)
-                                             (local.get $bad-index))))
-                  (return (array.new_fixed $Values 2
-                                           (struct.get $ImmutableHashEntry $key (local.get $entry))
-                                           (struct.get $ImmutableHashEntry $value (local.get $entry))))))
-             (call $raise-argument-error:mutable-hash-expected (local.get $ht))
-             (unreachable))))))
+             (param $ht        (ref eq))  ;; mutable hash table
+             (param $pos       (ref eq))  ;; iteration position
+             (param $bad-index (ref eq))  ;; optional bad-index value, default = raise
+             (result           (ref eq))  ;; returns two values encoded in $Values
+             (return_call $mutable-hash-iterate-key+value/who
+                          (global.get $symbol:mutable-hash-iterate-key+value)
+                          (global.get $string:mutable-hash?)
+                          (local.get $ht)
+                          (local.get $pos)
+                          (local.get $bad-index)))))))
 
 ;; mutable-hash-iteration-accessor-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate table-specific mutable hash iterator accessor helpers.
@@ -2998,10 +3171,10 @@
        (symbol->string iter-key)
        (lambda ()
          `(func ,iter-key
-                (type $Prim13)
                 (param $ht        (ref eq))  ;; mutable hash table
                 (param $pos       (ref eq))  ;; iteration position
                 (param $bad-index (ref eq))  ;; optional bad-index value, default = raise
+                (param $who       (ref eq))  ;; public primitive name
                 (result (ref eq))
 
                 (local $table   (ref ,type))
@@ -3018,7 +3191,7 @@
 
                        ;; Decode and validate position.
                        ,@(hash-iterate-position-validation-forms
-                          '$symbol:hash-iterate-key
+                          '(local.get $who)
                           '$pos
                           '$index)
 
@@ -3042,7 +3215,7 @@
 
                 (if (ref.eq (local.get $bad-index) (global.get $missing))
                     (then (call $raise-mutable-hash-iterate-bad-index
-                                (global.get $symbol:hash-iterate-key)
+                                (local.get $who)
                                 (local.get $pos))
                           (unreachable)))
                 (return (local.get $bad-index)))))
@@ -3052,10 +3225,10 @@
        (symbol->string iter-value)
        (lambda ()
          `(func ,iter-value
-                (type $Prim13)
                 (param $ht        (ref eq))  ;; mutable hash table
                 (param $pos       (ref eq))  ;; iteration position
                 (param $bad-index (ref eq))  ;; optional bad-index value, default = raise
+                (param $who       (ref eq))  ;; public primitive name
                 (result (ref eq))
 
                 (local $table   (ref ,type))
@@ -3072,7 +3245,7 @@
 
                        ;; Decode and validate position.
                        ,@(hash-iterate-position-validation-forms
-                          '$symbol:hash-iterate-value
+                          '(local.get $who)
                           '$pos
                           '$index)
 
@@ -3099,7 +3272,7 @@
 
                 (if (ref.eq (local.get $bad-index) (global.get $missing))
                     (then (call $raise-mutable-hash-iterate-bad-index
-                                (global.get $symbol:hash-iterate-value)
+                                (local.get $who)
                                 (local.get $pos))
                           (unreachable)))
                 (return (local.get $bad-index)))))
@@ -3109,10 +3282,10 @@
        (symbol->string iter-pair)
        (lambda ()
          `(func ,iter-pair
-                (type $Prim13)
                 (param $ht        (ref eq))  ;; mutable hash table
                 (param $pos       (ref eq))  ;; iteration position
                 (param $bad-index (ref eq))  ;; optional bad-index value, default = raise
+                (param $who       (ref eq))  ;; public primitive name
                 (result (ref eq))
 
                 (local $table   (ref ,type))
@@ -3130,7 +3303,7 @@
 
                        ;; Decode and validate position.
                        ,@(hash-iterate-position-validation-forms
-                          '$symbol:hash-iterate-pair
+                          '(local.get $who)
                           '$pos
                           '$index)
 
@@ -3159,7 +3332,7 @@
 
                 (if (ref.eq (local.get $bad-index) (global.get $missing))
                     (then (call $raise-mutable-hash-iterate-bad-index
-                                (global.get $symbol:hash-iterate-pair)
+                                (local.get $who)
                                 (local.get $pos))
                           (unreachable)))
                 (return (call $cons (local.get $bad-index) (local.get $bad-index))))))
@@ -3169,10 +3342,10 @@
        (symbol->string iter-key+value)
        (lambda ()
          `(func ,iter-key+value
-                (type $Prim13)
                 (param $ht        (ref eq))  ;; mutable hash table
                 (param $pos       (ref eq))  ;; iteration position
                 (param $bad-index (ref eq))  ;; optional bad-index value, default = raise
+                (param $who       (ref eq))  ;; public primitive name
                 (result (ref eq))            ;; returns two values encoded in $Values
 
                 (local $table   (ref ,type))
@@ -3190,7 +3363,7 @@
 
                        ;; Decode and validate position.
                        ,@(hash-iterate-position-validation-forms
-                          '$symbol:hash-iterate-key+value
+                          '(local.get $who)
                           '$pos
                           '$index)
 
@@ -3219,7 +3392,7 @@
 
                 (if (ref.eq (local.get $bad-index) (global.get $missing))
                     (then (call $raise-mutable-hash-iterate-bad-index
-                                (global.get $symbol:hash-iterate-key+value)
+                                (local.get $who)
                                 (local.get $pos))
                           (unreachable)))
                 (return (array.new_fixed $Values 2
