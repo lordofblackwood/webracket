@@ -34,13 +34,15 @@
   '((vector?                    "vector?")
     (mutable-vector?            "(and/c vector? (not/c immutable?))")
     (valid-vector-index         "valid vector index")
-    (valid-vector-length        "valid vector length")))
+    (valid-vector-length        "valid-vector-length?")
+    (build-vector-procedure     "(exact-nonnegative-integer? . -> . any/c)")))
 
 ;; vector-runtime-symbol-constants : (listof symbol?)
 ;;   Declare symbols used by vector helpers and vector errors.
 (define vector-runtime-symbol-constants
   '(vector?
     make-vector
+    build-vector
     vector-length
     vector-ref
     vector-set!
@@ -201,7 +203,19 @@
                (param $x (ref eq))
                (call $raise-argument-error1
                      (global.get $symbol:make-vector)
+                     (global.get $string:valid-vector-length)
+                     (local.get $x)))
+         (func $raise-build-vector:bad-length
+               (param $x (ref eq))
+               (call $raise-argument-error1
+                     (global.get $symbol:build-vector)
                      (global.get $string:exact-nonnegative-integer?)
+                     (local.get $x)))
+         (func $raise-build-vector:procedure-expected
+               (param $x (ref eq))
+               (call $raise-argument-error1
+                     (global.get $symbol:build-vector)
+                     (global.get $string:build-vector-procedure)
                      (local.get $x)))
 
      ))
@@ -227,17 +241,23 @@
                (param $val    (ref eq))  ;; optional, defaults to 0
                (result        (ref eq))
 
-               (local $k   i32)
-               (local $k/s i32)
-               (local $v   (ref eq))  ;; possibly rewritten value
+               (local $k         i32)
+               (local $k-encoded i32)
+               (local $k/s       i32)
+               (local $v         (ref eq))  ;; possibly rewritten value
                ;; --- Type check for fixnum ---
                (if (i32.eqz (ref.test (ref i31) (local.get $k-fx)))
+                   (then (call $raise-make-vector:bad-length (local.get $k-fx))
+                         (unreachable)))
+               (local.set $k-encoded
+                          (i31.get_s (ref.cast (ref i31) (local.get $k-fx))))
+               (if (i32.ne (i32.and (local.get $k-encoded) (i32.const 1)) (i32.const 0))
                    (then (call $raise-make-vector:bad-length (local.get $k-fx))
                          (unreachable)))
                ;; --- Decode fixnum to i32 ---
                (local.set $k/s
                           (i32.shr_s
-                           (i31.get_s (ref.cast (ref i31) (local.get $k-fx)))
+                           (local.get $k-encoded)
                            (i32.const 1)))
                (if (i32.lt_s (local.get $k/s) (i32.const 0))
                    (then (call $raise-make-vector:bad-length (local.get $k-fx))
@@ -458,22 +478,30 @@
               (result       (ref eq))
 
               (local $n    i32)
+              (local $n-encoded i32)
               (local $f    (ref $Procedure))
               (local $finv (ref $ProcedureInvoker))
 
               ;; --- Check and unwrap n ---
               (if (i32.eqz (ref.test (ref i31) (local.get $n-raw)))
-                  (then (call $raise-expected-fixnum (local.get $n-raw))))
+                  (then (call $raise-build-vector:bad-length (local.get $n-raw))
+                        (unreachable)))
+              (local.set $n-encoded
+                         (i31.get_s (ref.cast (ref i31) (local.get $n-raw))))
+              (if (i32.ne (i32.and (local.get $n-encoded) (i32.const 1)) (i32.const 0))
+                  (then (call $raise-build-vector:bad-length (local.get $n-raw))
+                        (unreachable)))
               (local.set $n
                          (i32.shr_s
-                          (i31.get_s (ref.cast (ref i31) (local.get $n-raw)))
+                          (local.get $n-encoded)
                           (i32.const 1)))
               (if (i32.lt_s (local.get $n) (i32.const 0))
-                  (then (call $raise-argument-error/internal (local.get $n-raw))))
+                  (then (call $raise-build-vector:bad-length (local.get $n-raw))
+                        (unreachable)))
 
               ;; --- Check procedure ---
               (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
-                  (then (call $raise-argument-error:procedure-expected (local.get $proc))
+                  (then (call $raise-build-vector:procedure-expected (local.get $proc))
                         (unreachable)))
               (local.set $f    (ref.cast (ref $Procedure) (local.get $proc)))
               (local.set $finv (struct.get $Procedure $invoke (local.get $f)))

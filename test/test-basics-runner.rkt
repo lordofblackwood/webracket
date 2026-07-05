@@ -30,6 +30,10 @@
   (check-no-stdlib-result-tree "test/test-build-string-errors.rkt"
                                #:timeout-seconds 180))
 
+(test-case "test-vector-errors has no false leaves"
+  (check-no-stdlib-result-tree "test/test-vector-errors.rkt"
+                               #:timeout-seconds 180))
+
 (test-case "test-string-trim-errors has no false leaves"
   (check-no-stdlib-result-tree "test/test-string-trim-errors.rkt"
                                #:timeout-seconds 180))

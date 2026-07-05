@@ -4334,6 +4334,12 @@
                                     (string-contains? message who))))])
                       (and (catch-contract/who? "make-vector"
                                                 (lambda () (make-vector -1)))
+                           (catch-contract/who? "make-vector"
+                                                (lambda () (make-vector #f)))
+                           (catch-contract/who? "build-vector"
+                                                (lambda () (build-vector #f values)))
+                           (catch-contract/who? "build-vector"
+                                                (lambda () (build-vector 1 #f)))
                            (catch-contract/who? "vector-length"
                                                 (lambda () (vector-length 42)))
                            (catch-contract/who? "vector-ref"
