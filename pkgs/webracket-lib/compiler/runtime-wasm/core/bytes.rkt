@@ -42,15 +42,33 @@
   '(byte?))
 
 ;; bytes-runtime-symbol-constants : (listof symbol?)
-;;   Declare symbols used by byte converter helpers.
+;;   Declare symbols used by byte-string helpers and byte-string errors.
 (define bytes-runtime-symbol-constants
-  '(bytes-converter?
+  '(bytes?
+    bytes=?
+    bytes<?
+    bytes>?
+    bytes-converter?
     bytes-open-converter
     bytes-close-converter
     bytes-convert
     bytes-convert-end
     complete
     continues))
+
+;; bytes-runtime-who-global : symbol? -> symbol?
+;;   Return the runtime symbol global corresponding to a Wasm function name.
+(define (bytes-runtime-who-global name)
+  (string->symbol
+   (format "$symbol:~a" (substring (symbol->string name) 1))))
+
+;; raise-bytes-expected-form : symbol? datum? -> datum?
+;;   Build a bytes? contract-error call for a public byte-string function.
+(define (raise-bytes-expected-form who-name value-form)
+  `(call $raise-argument-error1
+         (global.get ,(bytes-runtime-who-global who-name))
+         (global.get $string:bytes?)
+         ,value-form))
 
 ;; make-predicate-body : symbol? -> (listof datum?)
 ;;   Generate the shared body for a single-argument Wasm predicate.
@@ -319,7 +337,11 @@
                (then (global.get $true))
                (else (global.get $false))))
 
-     (func $raise-expected-bytes (unreachable))
+     (func $raise-expected-bytes (param $x (ref eq))
+           (call $raise-argument-error1
+                 (global.get $symbol:bytes?)
+                 (global.get $string:bytes?)
+                 (local.get $x)))
 
      )))
 
@@ -384,10 +406,10 @@
              (param $v2 (ref eq)) ;; bytes?
              (result    (ref eq))
              (if (i32.eqz (ref.test (ref $Bytes) (local.get $v1)))
-                 (then (call $raise-expected-bytes (local.get $v1))
+                 (then ,(raise-bytes-expected-form name '(local.get $v1))
                        (unreachable)))
              (if (i32.eqz (ref.test (ref $Bytes) (local.get $v2)))
-                 (then (call $raise-expected-bytes (local.get $v2))
+                 (then ,(raise-bytes-expected-form name '(local.get $v2))
                        (unreachable)))
              (return_call ,name/2/checked
                           (ref.cast (ref $Bytes) (local.get $v1))
@@ -448,7 +470,7 @@
                           (local.set $node (ref.cast (ref $Pair) (local.get $bs)))
                           (local.set $next/any (struct.get $Pair $a (local.get $node)))
                           (if (i32.eqz (ref.test (ref $Bytes) (local.get $next/any)))
-                              (then (call $raise-expected-bytes (local.get $next/any))
+                              (then ,(raise-bytes-expected-form name '(local.get $next/any))
                                     (unreachable)))
                           (local.set $next
                                      (ref.cast (ref $Bytes) (local.get $next/any)))
@@ -473,7 +495,7 @@
              ;; Validate first argument
              (if (ref.test (ref $Bytes) (local.get $b0))
                  (then (local.set $b1 (ref.cast (ref $Bytes) (local.get $b0))))
-                 (else (call $raise-expected-bytes (local.get $b0)) (unreachable)))
+                 (else ,(raise-bytes-expected-form name '(local.get $b0)) (unreachable)))
              ;; No more arguments → true
              (if (ref.eq (local.get $bs) (global.get $null))
                  (then (return (global.get $true))))
@@ -482,7 +504,7 @@
              (local.set $v    (struct.get $Pair $a (local.get $node)))
              (if (ref.test (ref $Bytes) (local.get $v))
                  (then (local.set $b2 (ref.cast (ref $Bytes) (local.get $v))))
-                 (else (call $raise-expected-bytes (local.get $v)) (unreachable)))
+                 (else ,(raise-bytes-expected-form name '(local.get $v)) (unreachable)))
              (local.set $bs   (struct.get $Pair $d (local.get $node)))
              ;; Exactly two arguments?
              (if (ref.eq (local.get $bs) (global.get $null))
