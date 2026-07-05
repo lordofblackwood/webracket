@@ -3876,12 +3876,16 @@ current-parameterization    ; poor-man dynamic parameterization overlay
 
 (define (unsafe-uninterruptible-lock-acquire lock)
   (unless (webracket-uninterruptible-lock? lock)
-    (error 'unsafe-uninterruptible-lock-acquire "expected an uninterruptible lock"))
+    (raise-argument-error 'unsafe-uninterruptible-lock-acquire
+                          "uninterruptible-lock?"
+                          lock))
   (void))
 
 (define (unsafe-uninterruptible-lock-release lock)
   (unless (webracket-uninterruptible-lock? lock)
-    (error 'unsafe-uninterruptible-lock-release "expected an uninterruptible lock"))
+    (raise-argument-error 'unsafe-uninterruptible-lock-release
+                          "uninterruptible-lock?"
+                          lock))
   (void))
 
 (define unsafe-make-struct-type-property/guard-calls-no-arguments

@@ -41,6 +41,8 @@
          (only-in "linklets.rkt"
                   linklet-body-core-reserved-symbols
                   linklet-runtime-symbol-constants)
+         (only-in "locks.rkt"
+                  lock-runtime-symbol-constants)
          (only-in "lists.rkt"
                   list-runtime-symbol-constants)
          (only-in "locations.rkt"
@@ -123,6 +125,7 @@
           path-runtime-symbol-constants
           filesystem-runtime-symbol-constants
           reflection-runtime-symbol-constants
+          lock-runtime-symbol-constants
           linklet-instance-runtime-symbol-constants))
 
 ;; runtime-linklet-body-reserved-symbols/registration : (listof symbol?) -> (listof symbol?)

@@ -10271,7 +10271,31 @@
               (list "uninterruptible lock basics"
                     (let ([lock (unsafe-make-uninterruptible-lock)])
                       (and (void? (unsafe-uninterruptible-lock-acquire lock))
-                           (void? (unsafe-uninterruptible-lock-release lock))))))))
+                           (void? (unsafe-uninterruptible-lock-release lock)))))
+              (list "uninterruptible lock argument errors are catchable with who"
+                    (let ([catch-contract/who+expected+given?
+                           (lambda (who expected given thunk)
+                             (let ([message
+                                    (with-handlers ([exn:fail:contract?
+                                                     (lambda (exn)
+                                                       (exn-message exn))])
+                                      (thunk)
+                                      #f)])
+                               (and message
+                                    (string-contains? message who)
+                                    (string-contains? message expected)
+                                    (string-contains? message given))))])
+                      (and
+                       (catch-contract/who+expected+given?
+                        "unsafe-uninterruptible-lock-acquire"
+                        "uninterruptible-lock?"
+                        "42"
+                        (lambda () (unsafe-uninterruptible-lock-acquire 42)))
+                       (catch-contract/who+expected+given?
+                        "unsafe-uninterruptible-lock-release"
+                        "uninterruptible-lock?"
+                        "42"
+                        (lambda () (unsafe-uninterruptible-lock-release 42)))))))))
  
 
  (list "12. Macros"

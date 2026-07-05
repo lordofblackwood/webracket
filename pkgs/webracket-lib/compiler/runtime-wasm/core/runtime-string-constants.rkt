@@ -49,6 +49,8 @@
                   linklet-instance-runtime-string-constants)
          (only-in "linklets.rkt"
                   linklet-runtime-string-constants)
+         (only-in "locks.rkt"
+                  lock-runtime-string-constants)
          (only-in "lists.rkt"
                   list-runtime-string-constants)
          (only-in "locations.rkt"
@@ -157,6 +159,7 @@
           syntax-runtime-string-constants
           hash-runtime-string-constants
           control-flow-runtime-string-constants
+          lock-runtime-string-constants
           linklet-instance-runtime-string-constants
           linklet-runtime-string-constants
           logger-runtime-string-constants

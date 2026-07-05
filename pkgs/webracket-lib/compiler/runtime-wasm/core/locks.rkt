@@ -1,9 +1,22 @@
 #lang racket
 
-(provide lock-runtime-helper-forms
+(provide lock-runtime-string-constants
+         lock-runtime-symbol-constants
+         lock-runtime-helper-forms
          lock-runtime-only-helpers)
 
 (require "../core-helper.rkt")
+
+;; lock-runtime-string-constants : (listof (list/c symbol? string?))
+;;   Declare strings used by uninterruptible-lock contract checks.
+(define lock-runtime-string-constants
+  '((uninterruptible-lock? "uninterruptible-lock?")))
+
+;; lock-runtime-symbol-constants : (listof symbol?)
+;;   Declare symbols used by uninterruptible-lock contract checks.
+(define lock-runtime-symbol-constants
+  '(unsafe-uninterruptible-lock-acquire
+    unsafe-uninterruptible-lock-release))
 
 ;; lock-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate lock helpers that still depend on monolithic runtime globals.
@@ -30,7 +43,11 @@
              (param $lock (ref eq)) ;; uninterruptible lock
              (result      (ref eq))
              (if (i32.eqz (ref.test (ref $UninterruptibleLock) (local.get $lock)))
-                 (then (unreachable)))
+                 (then (call $raise-argument-error1
+                             (global.get $symbol:unsafe-uninterruptible-lock-acquire)
+                             (global.get $string:uninterruptible-lock?)
+                             (local.get $lock))
+                       (unreachable)))
              (global.get $void))))
 
 
@@ -44,7 +61,11 @@
              (param $lock (ref eq)) ;; uninterruptible lock
              (result      (ref eq))
              (if (i32.eqz (ref.test (ref $UninterruptibleLock) (local.get $lock)))
-                 (then (unreachable)))
+                 (then (call $raise-argument-error1
+                             (global.get $symbol:unsafe-uninterruptible-lock-release)
+                             (global.get $string:uninterruptible-lock?)
+                             (local.get $lock))
+                       (unreachable)))
              (global.get $void))))
 ))
 
