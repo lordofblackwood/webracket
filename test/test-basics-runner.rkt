@@ -22,6 +22,10 @@
   (check-no-stdlib-result-tree "test/test-number-conversion-errors.rkt"
                                #:timeout-seconds 180))
 
+(test-case "test-string-copy-errors has no false leaves"
+  (check-no-stdlib-result-tree "test/test-string-copy-errors.rkt"
+                               #:timeout-seconds 180))
+
 (test-case "test-character-errors has no false leaves"
   (check-no-stdlib-result-tree "test/test-character-errors.rkt"
                                #:timeout-seconds 180))

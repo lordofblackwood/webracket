@@ -48,6 +48,10 @@
     (valid-string-length? "valid-string-length?")
     (string?         "string?")
     (mutable-string? "mutable-string?")
+    (string-copy!:destination-contract "(and/c string? (not/c immutable?))")
+    (string-copy!:not-enough-room ": not enough room in target string")
+    (string-copy!:target-length "\n  target length: ")
+    (string-copy!:needed-length "\n  needed length: ")
     (string-ref:index-out-of-range ": index is out of range")
     (string-ref:index-out-of-range-empty ": index is out of range for empty string")
     (string-ref:index "\n  index: ")
@@ -1226,7 +1230,12 @@
                            (i32.const 0)       ;; mutable
                            (local.get $copy))) ;; $codepoints
 
-         (func $raise-immutable-string (param $x (ref eq)) (unreachable))
+         (func $raise-immutable-string
+               (param $x (ref eq))
+               (call $raise-argument-error1
+                     (global.get $symbol:string-copy!)
+                     (global.get $string:string-copy!:destination-contract)
+                     (local.get $x)))
 
          (func $raise-string-fill!:string-expected
                (param $x (ref eq))
@@ -3015,13 +3024,152 @@
   (function-forms->runtime-helpers
    'string-copy!-runtime-only-helpers
    '(
-         (func $raise-string-copy!:bad-destination       (unreachable))
-         (func $raise-string-copy!:bad-destination-start (unreachable))
-         (func $raise-string-copy!:bad-source            (unreachable))
-         (func $raise-string-copy!:bad-source-start      (unreachable))
-         (func $raise-string-copy!:bad-source-end        (unreachable))
-         (func $raise-string-copy!:bad-source-range      (unreachable))
-         (func $raise-string-copy!:bad-destination-range (unreachable))
+         (func $raise-string-copy!:bad-destination
+               (param $bad (ref eq))
+               (call $raise-argument-error1
+                     (global.get $symbol:string-copy!)
+                     (global.get $string:string-copy!:destination-contract)
+                     (local.get $bad)))
+         (func $raise-string-copy!:bad-destination-start
+               (param $bad (ref eq))
+               (call $raise-argument-error1
+                     (global.get $symbol:string-copy!)
+                     (global.get $string:exact-nonnegative-integer?)
+                     (local.get $bad)))
+         (func $raise-string-copy!:bad-source
+               (param $bad (ref eq))
+               (call $raise-argument-error1
+                     (global.get $symbol:string-copy!)
+                     (global.get $string:string?)
+                     (local.get $bad)))
+         (func $raise-string-copy!:bad-source-start
+               (param $bad (ref eq))
+               (call $raise-argument-error1
+                     (global.get $symbol:string-copy!)
+                     (global.get $string:exact-nonnegative-integer?)
+                     (local.get $bad)))
+         (func $raise-string-copy!:bad-source-end
+               (param $bad (ref eq))
+               (call $raise-argument-error1
+                     (global.get $symbol:string-copy!)
+                     (global.get $string:exact-nonnegative-integer?)
+                     (local.get $bad)))
+         (func $raise-string-copy!:bad-source-range
+               (param $src   (ref $String))
+               (param $start i32)
+               (param $end   i32)
+               (param $len   i32)
+
+               (local $out     (ref $GrowableArray))
+               (local $message (ref $String))
+
+               (local.set $out (call $make-growable-array (i32.const 12)))
+               (call $growable-array-add! (local.get $out)
+                     (call $format/display (global.get $symbol:string-copy!)))
+               (if (i32.gt_u (local.get $start) (local.get $len))
+                   (then
+                    (call $growable-array-add! (local.get $out)
+                          (global.get $string:substring:starting-index-out-of-range))
+                    (call $growable-array-add! (local.get $out)
+                          (global.get $string:substring:starting-index))
+                    (call $growable-array-add! (local.get $out)
+                          (call $format/display
+                                (ref.i31 (i32.shl (local.get $start) (i32.const 1))))))
+                   (else
+                    (if (i32.gt_u (local.get $start) (local.get $end))
+                        (then
+                         (call $growable-array-add! (local.get $out)
+                               (global.get $string:substring:ending-index-before-start))
+                         (call $growable-array-add! (local.get $out)
+                               (global.get $string:substring:ending-index))
+                         (call $growable-array-add! (local.get $out)
+                               (call $format/display
+                                     (ref.i31 (i32.shl (local.get $end) (i32.const 1)))))
+                         (call $growable-array-add! (local.get $out)
+                               (global.get $string:substring:starting-index))
+                         (call $growable-array-add! (local.get $out)
+                               (call $format/display
+                                     (ref.i31 (i32.shl (local.get $start) (i32.const 1))))))
+                        (else
+                         (call $growable-array-add! (local.get $out)
+                               (global.get $string:substring:ending-index-out-of-range))
+                         (call $growable-array-add! (local.get $out)
+                               (global.get $string:substring:ending-index))
+                         (call $growable-array-add! (local.get $out)
+                               (call $format/display
+                                     (ref.i31 (i32.shl (local.get $end) (i32.const 1)))))))))
+               (call $growable-array-add! (local.get $out)
+                     (global.get $string:string-ref:valid-range))
+               (call $growable-array-add! (local.get $out)
+                     (call $format/display
+                           (ref.i31 (i32.shl (local.get $len) (i32.const 1)))))
+               (call $growable-array-add! (local.get $out)
+                     (global.get $string:string-ref:valid-range-close))
+               (call $growable-array-add! (local.get $out)
+                     (global.get $string:string-ref:string))
+               (call $growable-array-add! (local.get $out)
+                     (call $format/write (local.get $src)))
+               (local.set $message
+                          (call $growable-array-of-strings->string (local.get $out)))
+               (call $raise
+                     (call $exn:fail:contract/make
+                           (local.get $message)
+                           (call $current-continuation-marks (global.get $missing)))
+                     (global.get $true))
+               (unreachable))
+         (func $raise-string-copy!:bad-destination-range
+               (param $dst    (ref $String))
+               (param $start  i32)
+               (param $needed i32)
+               (param $len    i32)
+
+               (local $out     (ref $GrowableArray))
+               (local $message (ref $String))
+
+               (local.set $out (call $make-growable-array (i32.const 10)))
+               (call $growable-array-add! (local.get $out)
+                     (call $format/display (global.get $symbol:string-copy!)))
+               (if (i32.gt_u (local.get $start) (local.get $len))
+                   (then
+                    (call $growable-array-add! (local.get $out)
+                          (global.get $string:substring:starting-index-out-of-range))
+                    (call $growable-array-add! (local.get $out)
+                          (global.get $string:substring:starting-index))
+                    (call $growable-array-add! (local.get $out)
+                          (call $format/display
+                                (ref.i31 (i32.shl (local.get $start) (i32.const 1)))))
+                    (call $growable-array-add! (local.get $out)
+                          (global.get $string:string-ref:valid-range))
+                    (call $growable-array-add! (local.get $out)
+                          (call $format/display
+                                (ref.i31 (i32.shl (local.get $len) (i32.const 1)))))
+                    (call $growable-array-add! (local.get $out)
+                          (global.get $string:string-ref:valid-range-close))
+                    (call $growable-array-add! (local.get $out)
+                          (global.get $string:string-ref:string))
+                    (call $growable-array-add! (local.get $out)
+                          (call $format/write (local.get $dst))))
+                   (else
+                    (call $growable-array-add! (local.get $out)
+                          (global.get $string:string-copy!:not-enough-room))
+                    (call $growable-array-add! (local.get $out)
+                          (global.get $string:string-copy!:target-length))
+                    (call $growable-array-add! (local.get $out)
+                          (call $format/display
+                                (ref.i31 (i32.shl (local.get $len) (i32.const 1)))))
+                    (call $growable-array-add! (local.get $out)
+                          (global.get $string:string-copy!:needed-length))
+                    (call $growable-array-add! (local.get $out)
+                          (call $format/display
+                                (ref.i31 (i32.shl (local.get $needed) (i32.const 1)))))))
+               (local.set $message
+                          (call $growable-array-of-strings->string (local.get $out)))
+               (call $raise
+                     (call $exn:fail:contract/make
+                           (local.get $message)
+                           (call $current-continuation-marks (global.get $missing)))
+                     (global.get $true))
+               (unreachable))
 
          (func $string-copy! (type $Prim35)
                (param $dst-raw       (ref eq))
@@ -3038,55 +3186,106 @@
                (local $src-end    i32)
                (local $src-len    i32)
                (local $dst-len    i32)
+               (local $bits       i32)
                ;; --- Type + fixnum checks ---
                (if (i32.eqz (ref.test (ref $String) (local.get $dst-raw)))
-                   (then (call $raise-string-copy!:bad-destination)))
+                   (then (call $raise-string-copy!:bad-destination (local.get $dst-raw))
+                         (unreachable)))
+               (local.set $dst (ref.cast (ref $String) (local.get $dst-raw)))
                (if (i32.eqz (ref.test (ref i31) (local.get $dst-start-raw)))
-                   (then (call $raise-string-copy!:bad-destination-start)))
-               (if (i32.ne (i32.and (i31.get_u (ref.cast (ref i31) (local.get $dst-start-raw))) (i32.const 1)) (i32.const 0))
-                   (then (call $raise-string-copy!:bad-destination-start)))
+                   (then (call $raise-string-copy!:bad-destination-start (local.get $dst-start-raw))
+                         (unreachable)))
+               (local.set $bits
+                          (i31.get_u
+                           (ref.cast (ref i31) (local.get $dst-start-raw))))
+               (if (i32.ne (i32.and (local.get $bits) (i32.const 1)) (i32.const 0))
+                   (then (call $raise-string-copy!:bad-destination-start (local.get $dst-start-raw))
+                         (unreachable)))
+               (local.set $dst-start
+                          (i32.shr_s
+                           (i31.get_s
+                            (ref.cast (ref i31) (local.get $dst-start-raw)))
+                           (i32.const 1)))
+               (if (i32.lt_s (local.get $dst-start) (i32.const 0))
+                   (then (call $raise-string-copy!:bad-destination-start (local.get $dst-start-raw))
+                         (unreachable)))
 
                (if (i32.eqz (ref.test (ref $String) (local.get $src-raw)))
-                   (then (call $raise-string-copy!:bad-source)))
+                   (then (call $raise-string-copy!:bad-source (local.get $src-raw))
+                         (unreachable)))
+               (local.set $src     (ref.cast (ref $String) (local.get $src-raw)))
+               (local.set $src-len (call $string-length/checked/i32 (local.get $src)))
                ;; src-start optional
-               (if (i32.eqz (ref.eq (local.get $src-start-raw) (global.get $missing)))
-                   (then
-                    (if (i32.eqz (ref.test (ref i31) (local.get $src-start-raw)))
-                        (then (call $raise-string-copy!:bad-source-start)))
-                    (if (i32.ne (i32.and (i31.get_u (ref.cast (ref i31) (local.get $src-start-raw))) (i32.const 1)) (i32.const 0))
-                        (then (call $raise-string-copy!:bad-source-start)))))
-               ;; src-end optional
-               (if (i32.eqz (ref.eq (local.get $src-end-raw) (global.get $missing)))
-                   (then
-                    (if (i32.eqz (ref.test (ref i31) (local.get $src-end-raw)))
-                        (then (call $raise-string-copy!:bad-source-end)))
-                    (if (i32.ne (i32.and (i31.get_u (ref.cast (ref i31) (local.get $src-end-raw))) (i32.const 1)) (i32.const 0))
-                        (then (call $raise-string-copy!:bad-source-end)))))
-               ;; --- Decode ---
-               (local.set $dst       (ref.cast (ref $String) (local.get $dst-raw)))
-               (local.set $src       (ref.cast (ref $String) (local.get $src-raw)))
-               (local.set $dst-start (i32.shr_u (i31.get_u (ref.cast (ref i31) (local.get $dst-start-raw))) (i32.const 1)))
-               (local.set $src-len   (call $string-length/checked/i32 (local.get $src)))
                (if (ref.eq (local.get $src-start-raw) (global.get $missing))
                    (then (local.set $src-start (i32.const 0)))
-                   (else (local.set $src-start (i32.shr_u (i31.get_u (ref.cast (ref i31) (local.get $src-start-raw))) (i32.const 1)))))
+                   (else
+                    (if (i32.eqz (ref.test (ref i31) (local.get $src-start-raw)))
+                        (then (call $raise-string-copy!:bad-source-start (local.get $src-start-raw))
+                              (unreachable)))
+                    (local.set $bits
+                               (i31.get_u
+                                (ref.cast (ref i31) (local.get $src-start-raw))))
+                    (if (i32.ne (i32.and (local.get $bits) (i32.const 1)) (i32.const 0))
+                        (then (call $raise-string-copy!:bad-source-start (local.get $src-start-raw))
+                              (unreachable)))
+                    (local.set $src-start
+                               (i32.shr_s
+                                (i31.get_s
+                                 (ref.cast (ref i31) (local.get $src-start-raw)))
+                                (i32.const 1)))
+                    (if (i32.lt_s (local.get $src-start) (i32.const 0))
+                        (then (call $raise-string-copy!:bad-source-start (local.get $src-start-raw))
+                              (unreachable)))))
+               ;; src-end optional
                (if (ref.eq (local.get $src-end-raw) (global.get $missing))
                    (then (local.set $src-end (local.get $src-len)))
-                   (else (local.set $src-end (i32.shr_u (i31.get_u (ref.cast (ref i31) (local.get $src-end-raw))) (i32.const 1)))))
+                   (else
+                    (if (i32.eqz (ref.test (ref i31) (local.get $src-end-raw)))
+                        (then (call $raise-string-copy!:bad-source-end (local.get $src-end-raw))
+                              (unreachable)))
+                    (local.set $bits
+                               (i31.get_u
+                                (ref.cast (ref i31) (local.get $src-end-raw))))
+                    (if (i32.ne (i32.and (local.get $bits) (i32.const 1)) (i32.const 0))
+                        (then (call $raise-string-copy!:bad-source-end (local.get $src-end-raw))
+                              (unreachable)))
+                    (local.set $src-end
+                               (i32.shr_s
+                                (i31.get_s
+                                 (ref.cast (ref i31) (local.get $src-end-raw)))
+                                (i32.const 1)))
+                    (if (i32.lt_s (local.get $src-end) (i32.const 0))
+                        (then (call $raise-string-copy!:bad-source-end (local.get $src-end-raw))
+                              (unreachable)))))
                ;; --- Mutability Check ---
                (if (i32.ne (struct.get $String $immutable (local.get $dst)) (i32.const 0))
-                   (then (call $raise-immutable-string (local.get $dst))))
+                   (then (call $raise-immutable-string (local.get $dst))
+                         (unreachable)))
                ;; --- Range Validation ---
                (local.set $dst-len (call $string-length/checked/i32 (local.get $dst)))
-               (if (i32.gt_u (local.get $src-start) (local.get $src-end))
-                   (then (call $raise-string-copy!:bad-source-range)))
-               (if (i32.gt_u (local.get $src-end) (local.get $src-len))
-                   (then (call $raise-string-copy!:bad-source-range)))
+               (if (i32.or
+                    (i32.gt_u (local.get $src-start) (local.get $src-end))
+                    (i32.or
+                     (i32.gt_u (local.get $src-start) (local.get $src-len))
+                     (i32.gt_u (local.get $src-end) (local.get $src-len))))
+                   (then (call $raise-string-copy!:bad-source-range
+                               (local.get $src)
+                               (local.get $src-start)
+                               (local.get $src-end)
+                               (local.get $src-len))
+                         (unreachable)))
                (if (i32.gt_u
                     (i32.add (local.get $dst-start)
                              (i32.sub (local.get $src-end) (local.get $src-start)))
                     (local.get $dst-len))
-                   (then (call $raise-string-copy!:bad-destination-range)))
+                   (then (call $raise-string-copy!:bad-destination-range
+                               (local.get $dst)
+                               (local.get $dst-start)
+                               (i32.add
+                                (local.get $dst-start)
+                                (i32.sub (local.get $src-end) (local.get $src-start)))
+                               (local.get $dst-len))
+                         (unreachable)))
                ;; --- Delegate ---
                (call $string-copy!/checked
                      (local.get $dst)
