@@ -6676,6 +6676,71 @@
                         "hash?"
                         "given: 42"))))
 
+              (list "mutable hash argument errors are catchable with who"
+                    (let ([catch-contract/contains?
+                           (lambda (thunk . needles)
+                             (let ([message
+                                    (with-handlers ([exn:fail:contract?
+                                                     (lambda (exn)
+                                                       (exn-message exn))])
+                                      (thunk)
+                                      #f)])
+                               (and message
+                                    (andmap (lambda (needle)
+                                              (string-contains? message needle))
+                                            needles))))])
+                      (and
+                       (catch-contract/contains?
+                        (lambda () (hash-set! 42 'x 1))
+                        "hash-set!"
+                        "(and/c hash? (not/c immutable?))"
+                        "given: 42")
+                       (catch-contract/contains?
+                        (lambda () (hash-set! (hash 'a 1) 'x 1))
+                        "hash-set!"
+                        "(and/c hash? (not/c immutable?))"
+                        "given:")
+                       (catch-contract/contains?
+                        (lambda () (hash-ref! 42 'x 1))
+                        "hash-ref!"
+                        "(and/c hash? (not/c immutable?))"
+                        "given: 42")
+                       (catch-contract/contains?
+                        (lambda () (hash-ref! (hash 'a 1) 'x 1))
+                        "hash-ref!"
+                        "(and/c hash? (not/c immutable?))"
+                        "given:")
+                       (catch-contract/contains?
+                        (lambda () (hash-update! 42 'x add1))
+                        "hash-update!"
+                        "(and/c hash? (not/c immutable?))"
+                        "given: 42")
+                       (catch-contract/contains?
+                        (lambda () (hash-update! (hash 'a 1) 'a add1))
+                        "hash-update!"
+                        "(and/c hash? (not/c immutable?))"
+                        "given:")
+                       (catch-contract/contains?
+                        (lambda () (hash-remove! 42 'x))
+                        "hash-remove!"
+                        "(and/c hash? (not/c immutable?))"
+                        "given: 42")
+                       (catch-contract/contains?
+                        (lambda () (hash-remove! (hash 'a 1) 'a))
+                        "hash-remove!"
+                        "(and/c hash? (not/c immutable?))"
+                        "given:")
+                       (catch-contract/contains?
+                        (lambda () (hash-clear! 42))
+                        "hash-clear!"
+                        "(and/c hash? (not/c immutable?))"
+                        "given: 42")
+                       (catch-contract/contains?
+                        (lambda () (hash-clear! (hash 'a 1)))
+                        "hash-clear!"
+                        "(and/c hash? (not/c immutable?))"
+                        "given:"))))
+
               (list "hash-ref-key"
                     (and (let ([h (make-hasheq)])
                            (hash-set! h 'a 1)

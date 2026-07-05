@@ -796,7 +796,10 @@
 
               ;; Check type: must be (ref $Hash)
               (if (i32.eqz (ref.test (ref $Hash) (local.get $ht)))
-                  (then (call $raise-argument-error:hash-expected)
+                  (then (call $raise-argument-error1
+                              (global.get $symbol:hash-set!)
+                              (global.get $string:mutable-hash?)
+                              (local.get $ht))
                         (unreachable)))
               ;; Dispatch on table type
               (if (ref.test (ref $HashEqMutable) (local.get $ht))
@@ -819,6 +822,10 @@
                                       (local.get $ht)
                                       (local.get $key)
                                       (local.get $val)))))
+              (call $raise-argument-error1
+                    (global.get $symbol:hash-set!)
+                    (global.get $string:mutable-hash?)
+                    (local.get $ht))
               (unreachable))))
 
     (core-runtime-helper
@@ -1165,7 +1172,10 @@
 
               ;; Check type: must be (ref $Hash)
               (if (i32.eqz (ref.test (ref $Hash) (local.get $ht)))
-                  (then (call $raise-argument-error:hash-expected)
+                  (then (call $raise-argument-error1
+                              (global.get $symbol:hash-ref!)
+                              (global.get $string:mutable-hash?)
+                              (local.get $ht))
                         (unreachable)))
               ;; Dispatch on table type
               (if (ref.test (ref $HashEqMutable) (local.get $ht))
@@ -1188,6 +1198,10 @@
                                       (local.get $ht)
                                       (local.get $key)
                                       (local.get $to-set)))))
+              (call $raise-argument-error1
+                    (global.get $symbol:hash-ref!)
+                    (global.get $string:mutable-hash?)
+                    (local.get $ht))
               (unreachable)))))
 
    (for/list ([hash-ref!       '($hasheq-ref!
@@ -1376,7 +1390,10 @@
 
               ;; Check type: must be (ref $Hash)
               (if (i32.eqz (ref.test (ref $Hash) (local.get $ht)))
-                  (then (call $raise-argument-error:hash-expected)
+                  (then (call $raise-argument-error1
+                              (global.get $symbol:hash-update!)
+                              (global.get $string:mutable-hash?)
+                              (local.get $ht))
                         (unreachable)))
 
               ;; Dispatch on table type
@@ -1404,6 +1421,10 @@
                                       (local.get $key)
                                       (local.get $proc)
                                       (local.get $fail)))))
+              (call $raise-argument-error1
+                    (global.get $symbol:hash-update!)
+                    (global.get $string:mutable-hash?)
+                    (local.get $ht))
               (unreachable)))))
 
    (for/list ([hash-update       '($hasheq-update!
@@ -1637,7 +1658,10 @@
 
               ;; Check type: must be (ref $Hash)
               (if (i32.eqz (ref.test (ref $Hash) (local.get $ht)))
-                  (then (call $raise-argument-error:hash-expected)
+                  (then (call $raise-argument-error1
+                              (global.get $symbol:hash-remove!)
+                              (global.get $string:mutable-hash?)
+                              (local.get $ht))
                         (unreachable)))
               ;; Dispatch on table type
               (if (ref.test (ref $HashEqMutable) (local.get $ht))
@@ -1652,6 +1676,10 @@
               (if (ref.test (ref $HashEqualAlwaysMutable) (local.get $ht))
                   (then (return (call $hashalw-remove!
                                       (local.get $ht) (local.get $key)))))
+              (call $raise-argument-error1
+                    (global.get $symbol:hash-remove!)
+                    (global.get $string:mutable-hash?)
+                    (local.get $ht))
               (unreachable)))))
 
    (for/list ([hash-remove    '($hasheq-remove!
@@ -2112,7 +2140,10 @@
               (result    (ref eq))
               ;; Check type: must be (ref $Hash)
               (if (i32.eqz (ref.test (ref $Hash) (local.get $ht)))
-                  (then (call $raise-argument-error:hash-expected)
+                  (then (call $raise-argument-error1
+                              (global.get $symbol:hash-clear!)
+                              (global.get $string:mutable-hash?)
+                              (local.get $ht))
                         (unreachable)))
 
               ;; Dispatch on table type
@@ -2128,6 +2159,10 @@
               (if (ref.test (ref $HashEqualAlwaysMutable) (local.get $ht))
                   (then (return (call $hashalw-clear!
                                       (local.get $ht)))))
+              (call $raise-argument-error1
+                    (global.get $symbol:hash-clear!)
+                    (global.get $string:mutable-hash?)
+                    (local.get $ht))
               (unreachable)))))
 
    (for/list ([hash-clear     '($hasheq-clear!

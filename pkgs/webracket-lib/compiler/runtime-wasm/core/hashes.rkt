@@ -25,6 +25,7 @@
 ;;   Declare strings used by hash predicates and hash-like checks.
 (define hash-runtime-string-constants
   '((hash? "hash?")
+    (mutable-hash? "(and/c hash? (not/c immutable?))")
     (hash-ref:no-value-found-key "hash-ref: no value found for key\n  key: ")
     (hash-ref-key:does-not-contain-key "hash-ref-key: hash does not contain key\n  key: ")
     (hash-ref!:no-value-found-key "hash-ref!: no value found for key: ")
@@ -49,6 +50,11 @@
     hash-values
     hash-ref
     hash-ref-key
+    hash-set!
+    hash-ref!
+    hash-update!
+    hash-remove!
+    hash-clear!
     hash-copy
     hash-has-key?
     hash-keys-subset?
