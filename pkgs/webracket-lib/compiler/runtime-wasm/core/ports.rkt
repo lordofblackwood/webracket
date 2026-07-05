@@ -4582,8 +4582,7 @@
                              (local.get $n)))))
            (local.get $result))
 
-     ;; Like Racket's write-bytes, but currently only string ports are supported
-     ;; as output destinations.
+     ;; Like Racket's write-bytes.
      (func $write-bytes (type $Prim14)
            (param $bstr  (ref eq)) ;; bytes?
            (param $out   (ref eq)) ;; output-port?               (optional, default = (current-output-port))
@@ -4603,6 +4602,7 @@
            (local $res   (ref eq))
            (local $raw-start i32)
            (local $raw-end   i32)
+           (local $discard?  i32)
 
            ;; --- Validate byte string argument ---
            (if (i32.eqz (ref.test (ref $Bytes) (local.get $bstr)))
@@ -4628,7 +4628,7 @@
                (then (local.set $out (call $prop-output-port-target
                                            (local.get $out)))))
            (if (i32.eqz (ref.test (ref $OutputPort) (local.get $out)))
-               (then (call $raise-check-string-port (local.get $out)) (unreachable)))
+               (then (local.set $discard? (i32.const 1))))
            ;; --- Decode optional start index ---
            (if (ref.eq (local.get $start) (global.get $missing))
                (then (local.set $from (i32.const 0)))
@@ -4680,6 +4680,8 @@
                      (unreachable)))
 
            (local.set $count (i32.sub (local.get $to) (local.get $from)))
+           (if (local.get $discard?)
+               (then (return (ref.i31 (i32.shl (local.get $count) (i32.const 1))))))
            (if (ref.test (ref $CustomOutputPort) (local.get $out))
                (then
                 (return_call $write-bytes/custom
