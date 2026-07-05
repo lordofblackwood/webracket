@@ -4467,12 +4467,16 @@
                     (loop $walk
                           (br_if $done (ref.eq (local.get $alist) (global.get $null)))
                           (if (i32.eqz (ref.test (ref $Pair) (local.get $alist)))
-                              (then (call $raise-argument-error:pair-expected1 (local.get $alist))
+                              (then (call $raise-argument-error:pair-expected1
+                                          (global.get $symbol:make-immutable-hash)
+                                          (local.get $assocs))
                                     (unreachable)))
                           (local.set $pair (ref.cast (ref $Pair) (local.get $alist)))
                           (local.set $kv (struct.get $Pair $a (local.get $pair)))
                           (if (i32.eqz (ref.test (ref $Pair) (local.get $kv)))
-                              (then (call $raise-argument-error:pair-expected2 (local.get $kv))
+                              (then (call $raise-argument-error:pair-expected2
+                                          (global.get $symbol:make-immutable-hash)
+                                          (local.get $assocs))
                                     (unreachable)))
                           (local.set $kvp (ref.cast (ref $Pair) (local.get $kv)))
                           (local.set $ht (call $immutable-hash-set
@@ -4505,12 +4509,16 @@
                     (loop $walk
                           (br_if $done (ref.eq (local.get $alist) (global.get $null)))
                           (if (i32.eqz (ref.test (ref $Pair) (local.get $alist)))
-                              (then (call $raise-argument-error:pair-expected1 (local.get $alist))
+                              (then (call $raise-argument-error:pair-expected1
+                                          (global.get $symbol:make-immutable-hashalw)
+                                          (local.get $assocs))
                                     (unreachable)))
                           (local.set $pair (ref.cast (ref $Pair) (local.get $alist)))
                           (local.set $kv (struct.get $Pair $a (local.get $pair)))
                           (if (i32.eqz (ref.test (ref $Pair) (local.get $kv)))
-                              (then (call $raise-argument-error:pair-expected2 (local.get $kv))
+                              (then (call $raise-argument-error:pair-expected2
+                                          (global.get $symbol:make-immutable-hashalw)
+                                          (local.get $assocs))
                                     (unreachable)))
                           (local.set $kvp (ref.cast (ref $Pair) (local.get $kv)))
                           (local.set $ht (call $immutable-hashalw-set
@@ -4543,12 +4551,16 @@
                     (loop $walk
                           (br_if $done (ref.eq (local.get $alist) (global.get $null)))
                           (if (i32.eqz (ref.test (ref $Pair) (local.get $alist)))
-                              (then (call $raise-argument-error:pair-expected1 (local.get $alist))
+                              (then (call $raise-argument-error:pair-expected1
+                                          (global.get $symbol:make-immutable-hasheq)
+                                          (local.get $assocs))
                                     (unreachable)))
                           (local.set $pair (ref.cast (ref $Pair) (local.get $alist)))
                           (local.set $kv (struct.get $Pair $a (local.get $pair)))
                           (if (i32.eqz (ref.test (ref $Pair) (local.get $kv)))
-                              (then (call $raise-argument-error:pair-expected2 (local.get $kv))
+                              (then (call $raise-argument-error:pair-expected2
+                                          (global.get $symbol:make-immutable-hasheq)
+                                          (local.get $assocs))
                                     (unreachable)))
                           (local.set $kvp (ref.cast (ref $Pair) (local.get $kv)))
                           (local.set $ht (call $immutable-hasheq-set
@@ -4582,12 +4594,16 @@
                     (loop $walk
                           (br_if $done (ref.eq (local.get $alist) (global.get $null)))
                           (if (i32.eqz (ref.test (ref $Pair) (local.get $alist)))
-                              (then (call $raise-argument-error:pair-expected1 (local.get $alist))
+                              (then (call $raise-argument-error:pair-expected1
+                                          (global.get $symbol:make-immutable-hasheqv)
+                                          (local.get $assocs))
                                     (unreachable)))
                           (local.set $pair (ref.cast (ref $Pair) (local.get $alist)))
                           (local.set $kv (struct.get $Pair $a (local.get $pair)))
                           (if (i32.eqz (ref.test (ref $Pair) (local.get $kv)))
-                              (then (call $raise-argument-error:pair-expected2 (local.get $kv))
+                              (then (call $raise-argument-error:pair-expected2
+                                          (global.get $symbol:make-immutable-hasheqv)
+                                          (local.get $assocs))
                                     (unreachable)))
                           (local.set $kvp (ref.cast (ref $Pair) (local.get $kv)))
                           (local.set $ht (call $immutable-hasheqv-set

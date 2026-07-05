@@ -6496,6 +6496,76 @@
                         "hash-update!"
                         "no value found for key: 42"))))
 
+              (list "mutable hash constructor alist errors are catchable with who"
+                    (let ([catch-contract/contains?
+                           (lambda (thunk . needles)
+                             (let ([message
+                                    (with-handlers ([exn:fail:contract?
+                                                     (lambda (exn)
+                                                       (exn-message exn))])
+                                      (thunk)
+                                      #f)])
+                               (and message
+                                    (andmap (lambda (needle)
+                                              (string-contains? message needle))
+                                            needles))))])
+                      (and
+                       (catch-contract/contains?
+                        (lambda () (make-hash 42))
+                        "make-hash"
+                        "(listof pair?)"
+                        "given: 42")
+                       (catch-contract/contains?
+                        (lambda () (make-hasheq '(x)))
+                        "make-hasheq"
+                        "(listof pair?)"
+                        "given: (x)")
+                       (catch-contract/contains?
+                        (lambda () (make-hasheqv '(x)))
+                        "make-hasheqv"
+                        "(listof pair?)"
+                        "given: (x)")
+                       (catch-contract/contains?
+                        (lambda () (make-hashalw '(x)))
+                        "make-hashalw"
+                        "(listof pair?)"
+                        "given: (x)"))))
+
+              (list "immutable hash constructor alist errors are catchable with who"
+                    (let ([catch-contract/contains?
+                           (lambda (thunk . needles)
+                             (let ([message
+                                    (with-handlers ([exn:fail:contract?
+                                                     (lambda (exn)
+                                                       (exn-message exn))])
+                                      (thunk)
+                                      #f)])
+                               (and message
+                                    (andmap (lambda (needle)
+                                              (string-contains? message needle))
+                                            needles))))])
+                      (and
+                       (catch-contract/contains?
+                        (lambda () (make-immutable-hash 42))
+                        "make-immutable-hash"
+                        "(listof pair?)"
+                        "given: 42")
+                       (catch-contract/contains?
+                        (lambda () (make-immutable-hasheq '(x)))
+                        "make-immutable-hasheq"
+                        "(listof pair?)"
+                        "given: (x)")
+                       (catch-contract/contains?
+                        (lambda () (make-immutable-hasheqv '(x)))
+                        "make-immutable-hasheqv"
+                        "(listof pair?)"
+                        "given: (x)")
+                       (catch-contract/contains?
+                        (lambda () (make-immutable-hashalw '(x)))
+                        "make-immutable-hashalw"
+                        "(listof pair?)"
+                        "given: (x)"))))
+
               (list "hash-ref-key"
                     (and (let ([h (make-hasheq)])
                            (hash-set! h 'a 1)

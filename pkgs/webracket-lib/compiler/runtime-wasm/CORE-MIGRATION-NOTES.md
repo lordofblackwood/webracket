@@ -184,6 +184,33 @@ Follow-up:
 - Once that boundary can distinguish the two cases, make `(number->string 1
   #f)` raise the Racket-compatible radix contract error.
 
+### Mutable Pairs Can Trap While Formatting Error Values
+
+Location:
+
+- `pkgs/webracket-lib/compiler/runtime-wasm/core/formatting.rkt`
+- error paths that call `$raise-argument-error1` with an offending value that
+  contains mutable pairs
+
+Current behavior:
+
+- Replacing hash constructor association-list traps with
+  `$raise-argument-error1` made malformed alists catchable when the offending
+  value can be formatted.
+- A malformed alist containing `(mcons 'x 'y)` still traps while rendering the
+  error message, because `$format/display` reaches
+  `$raise-format/display:unknown-datatype` for mutable pairs.
+- Racket reports the original value in the constructor error, for example
+  `(list (mcons 'x 'y))`, so avoiding that value entirely would lose useful
+  error detail.
+
+Follow-up:
+
+- Teach the formatter how to render mutable pairs before expecting every
+  argument-error path to safely include values that contain `mcons`.
+- Add a focused generated-output test once mutable-pair formatting is in
+  place.
+
 ## Runtime-Only Core Boundaries
 
 These helpers have moved out of `runtime-wasm.rkt` into themed core modules,

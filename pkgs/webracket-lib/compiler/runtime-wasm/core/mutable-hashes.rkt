@@ -234,24 +234,49 @@
      '$raise-argument-error:pair-expected
      "$raise-argument-error:pair-expected"
      (lambda ()
-       `(func $raise-argument-error:pair-expected (unreachable))))
+       `(func $raise-argument-error:pair-expected
+              (param $who (ref eq))
+              (param $got (ref eq))
+              (call $raise-argument-error1
+                    (local.get $who)
+                    (global.get $string:listof-pair?)
+                    (local.get $got))
+              (unreachable))))
 
     (core-runtime-helper
      '$raise-argument-error:pair-expected1
      "$raise-argument-error:pair-expected1"
      (lambda ()
-       `(func $raise-argument-error:pair-expected1 (unreachable))))
+       `(func $raise-argument-error:pair-expected1
+              (param $who (ref eq))
+              (param $got (ref eq))
+              (call $raise-argument-error1
+                    (local.get $who)
+                    (global.get $string:listof-pair?)
+                    (local.get $got))
+              (unreachable))))
 
     (core-runtime-helper
      '$raise-argument-error:pair-expected2
      "$raise-argument-error:pair-expected2"
      (lambda ()
-       `(func $raise-argument-error:pair-expected2 (unreachable)))))
+       `(func $raise-argument-error:pair-expected2
+              (param $who (ref eq))
+              (param $got (ref eq))
+              (call $raise-argument-error1
+                    (local.get $who)
+                    (global.get $string:listof-pair?)
+                    (local.get $got))
+              (unreachable)))))
 
    (for/list ([make-hash '($make-hasheq
                            $make-hasheqv
                            $make-hash
                            $make-hashalw)]
+              [who-symbol '($symbol:make-hasheq
+                            $symbol:make-hasheqv
+                            $symbol:make-hash
+                            $symbol:make-hashalw)]
               [make-empty '($make-empty-hasheq
                             $make-empty-hasheqv
                             $make-empty-hash
@@ -294,14 +319,20 @@
                             (br_if $done (ref.eq (local.get $alist) (global.get $null)))
                             ;; Must be a pair
                             (if (i32.eqz (ref.test (ref $Pair) (local.get $alist)))
-                                (then (call $raise-argument-error:pair-expected1 (local.get $alist)) (unreachable)))
+                                (then (call $raise-argument-error:pair-expected1
+                                            (global.get ,who-symbol)
+                                            (local.get $assocs))
+                                      (unreachable)))
                             (local.set $pair (ref.cast (ref $Pair) (local.get $alist)))
                             ;; Extract car and cdr of current pair
                             (local.set $first (struct.get $Pair $a (local.get $pair))) ;; first = key/value pair
                             (local.set $rest  (struct.get $Pair $d (local.get $pair))) ;; rest  = remaining pairings
                             ;; Validate first is a pair (key . value)
                             (if (i32.eqz (ref.test (ref $Pair) (local.get $first)))
-                                (then (call $raise-argument-error:pair-expected2 (local.get $first)) (unreachable)))
+                                (then (call $raise-argument-error:pair-expected2
+                                            (global.get ,who-symbol)
+                                            (local.get $assocs))
+                                      (unreachable)))
                             ;; Extract key and value from nested pair
                             (local.set $pair (ref.cast (ref $Pair) (local.get $first)))
                             (local.set $key  (struct.get $Pair $a (local.get $pair))) ;; key

@@ -50,4 +50,48 @@
               (equal? (hash-ref i 'missing (lambda () 'fallback)) 'fallback)
               (begin
                 (hash-update! m 'a add1)
-                (equal? (hash-ref m 'a) 2))))))
+                (equal? (hash-ref m 'a) 2)))))
+ (list "mutable hash constructor alist errors are catchable with who"
+       (and
+        (catch-contract/contains?
+         (lambda () (make-hash 42))
+         "make-hash"
+         "(listof pair?)"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (make-hasheq '(x)))
+         "make-hasheq"
+         "(listof pair?)"
+         "given: (x)")
+        (catch-contract/contains?
+         (lambda () (make-hasheqv '(x)))
+         "make-hasheqv"
+         "(listof pair?)"
+         "given: (x)")
+        (catch-contract/contains?
+         (lambda () (make-hashalw '(x)))
+         "make-hashalw"
+         "(listof pair?)"
+         "given: (x)")))
+ (list "immutable hash constructor alist errors are catchable with who"
+       (and
+        (catch-contract/contains?
+         (lambda () (make-immutable-hash 42))
+         "make-immutable-hash"
+         "(listof pair?)"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (make-immutable-hasheq '(x)))
+         "make-immutable-hasheq"
+         "(listof pair?)"
+         "given: (x)")
+        (catch-contract/contains?
+         (lambda () (make-immutable-hasheqv '(x)))
+         "make-immutable-hasheqv"
+         "(listof pair?)"
+         "given: (x)")
+        (catch-contract/contains?
+         (lambda () (make-immutable-hashalw '(x)))
+         "make-immutable-hashalw"
+         "(listof pair?)"
+         "given: (x)"))))
