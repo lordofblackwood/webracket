@@ -543,9 +543,18 @@
   (function-forms->runtime-helpers
    'string-build-runtime-only-helpers
    `(
-         (func $raise-build-string:bad-length    (unreachable))
+         (func $raise-build-string:bad-length
+               (param $bad (ref eq))
+               (call $raise-argument-error1
+                     (global.get $symbol:build-string)
+                     (global.get $string:exact-nonnegative-integer?)
+                     (local.get $bad)))
          (func $raise-build-string:char-expected
-               (param $v (ref eq)) (call $js-log (local.get $v)) (unreachable))
+               (param $bad (ref eq))
+               (call $raise-argument-error1
+                     (global.get $symbol:string-set!)
+                     (global.get $string:char?)
+                     (local.get $bad)))
 
          (func $build-string (type $Prim2)
                (param $n-raw (ref eq))
@@ -561,10 +570,26 @@
                (local $res  (ref eq))
                (local $cp   i32)
                (local $str  (ref $String))
+               (local $bits i32)
 
                ;; --- Check arguments ---
                (if (i32.eqz (ref.test (ref i31) (local.get $n-raw)))
-                   (then (call $raise-build-string:bad-length)))
+                   (then (call $raise-build-string:bad-length (local.get $n-raw))
+                         (unreachable)))
+               (local.set $bits
+                          (i31.get_u
+                           (ref.cast (ref i31) (local.get $n-raw))))
+               (if (i32.and (local.get $bits) (i32.const 1))
+                   (then (call $raise-build-string:bad-length (local.get $n-raw))
+                         (unreachable)))
+               (local.set $n
+                          (i32.shr_s
+                           (i31.get_s
+                            (ref.cast (ref i31) (local.get $n-raw)))
+                           (i32.const 1)))
+               (if (i32.lt_s (local.get $n) (i32.const 0))
+                   (then (call $raise-build-string:bad-length (local.get $n-raw))
+                         (unreachable)))
 	               (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
 	                   (then (call $raise-argument-error:procedure-expected/who
 	                               (global.get $symbol:build-string)
@@ -572,8 +597,6 @@
 	                         (unreachable)))
 
                ;; --- Decode and prepare ---
-               (local.set $n    (i32.shr_u (i31.get_u (ref.cast (ref i31) (local.get $n-raw)))
-                                           (i32.const 1)))
                (local.set $f    (ref.cast (ref $Procedure) (local.get $proc)))
                (local.set $finv (struct.get $Procedure $invoke (local.get $f)))
 
