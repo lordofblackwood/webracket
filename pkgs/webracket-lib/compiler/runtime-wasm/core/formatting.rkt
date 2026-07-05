@@ -106,6 +106,8 @@
     (missing                    "#<missing>")
     (open-paren                 "(")
     (close-paren                ")")
+    (open-brace                 "{")
+    (close-brace                "}")
     (dot-space                  ". ")
     (space-dot-space            " . ")
     (vector-prefix              "#(")
@@ -713,6 +715,10 @@
                (if (ref.test (ref $Pair) (local.get $v))
                    (then (return (call $format/display:pair
                                        (ref.cast (ref $Pair) (local.get $v))))))
+               ;; --- Case: mutable pair ---
+               (if (ref.test (ref $MPair) (local.get $v))
+                   (then (return (call $format/display:mpair
+                                       (ref.cast (ref $MPair) (local.get $v))))))
                ;; --- Case: vector ---
                (if (ref.test (ref $Vector) (local.get $v))
                    (then (return (call $format/display:vector
@@ -825,6 +831,9 @@
                (if (ref.test (ref $Pair) (local.get $v))
                    (then (return (call $format/write:pair
                                        (local.get $v)))))
+               (if (ref.test (ref $MPair) (local.get $v))
+                   (then (return (call $format/write:mpair
+                                       (ref.cast (ref $MPair) (local.get $v))))))
                (if (ref.test (ref $Vector) (local.get $v))
                    (then (return (call $format/write:vector
                                        (ref.cast (ref $Vector) (local.get $v))))))
@@ -866,10 +875,12 @@
                       (i32.or
                        (ref.test (ref $Pair) (local.get $v))
                        (i32.or
-                        (ref.test (ref $Vector) (local.get $v))
+                        (ref.test (ref $MPair) (local.get $v))
                         (i32.or
-                         (ref.test (ref $Hash) (local.get $v))
-                         (ref.test (ref $Box) (local.get $v))))))))
+                         (ref.test (ref $Vector) (local.get $v))
+                         (i32.or
+                          (ref.test (ref $Hash) (local.get $v))
+                          (ref.test (ref $Box) (local.get $v)))))))))
                    (then
                     (return
                      (call $string-append/2
@@ -988,6 +999,68 @@
                (call $growable-array-add! (local.get $out)
                                         (ref.cast (ref $String)
                                                  (global.get $string:close-paren)))
+               (call $growable-array-of-strings->string (local.get $out)))
+
+         ;; format/write:mpair : mpair? -> string?
+         ;;   Render mutable pairs recursively using write/print conventions.
+         (func $format/write:mpair (param $v (ref $MPair)) (result (ref $String))
+               (local $out   (ref $GrowableArray))
+               (local $stack (ref $GrowableArray))
+               (local $car   (ref eq))
+               (local $cdr   (ref $MPair))
+               (local $tail  (ref eq))
+               (local $str   (ref $String))
+               (local $open  (ref $String))
+               (local $close (ref $String))
+
+               (local.set $open  (ref.cast (ref $String)
+                                            (global.get $string:open-paren)))
+               (local.set $close (ref.cast (ref $String)
+                                            (global.get $string:close-paren)))
+               (if (i32.eqz
+                    (ref.eq (call $parameter-value-or-global
+                                  (global.get $prim:print-mpair-curly-braces)
+                                  (global.get $print-mpair-curly-braces-value))
+                            (global.get $false)))
+                   (then (local.set $open  (ref.cast (ref $String)
+                                                     (global.get $string:open-brace)))
+                         (local.set $close (ref.cast (ref $String)
+                                                     (global.get $string:close-brace)))))
+               (local.set $out   (call $make-growable-array (i32.const 8)))
+               (local.set $stack (call $make-growable-array (i32.const 8)))
+               (call $growable-array-add! (local.get $out) (local.get $open))
+               (call $growable-array-add! (local.get $stack) (local.get $v))
+               (block $done
+                      (loop $walk
+                            (br_if $done (i32.eqz (call $growable-array-count (local.get $stack))))
+                            (local.set $tail (call $growable-array-remove-last! (local.get $stack)))
+                            (if (ref.test (ref $MPair) (local.get $tail))
+                                (then
+                                 (local.set $cdr (ref.cast (ref $MPair) (local.get $tail)))
+                                 (local.set $car (struct.get $MPair $a (local.get $cdr)))
+                                 (local.set $tail (struct.get $MPair $d (local.get $cdr)))
+                                 (local.set $str (call $format/write (local.get $car)))
+                                 (call $growable-array-add! (local.get $out) (local.get $str))
+                                 (if (ref.test (ref $MPair) (local.get $tail))
+                                     (then
+                                      (call $growable-array-add! (local.get $out)
+                                                                 (ref.cast (ref $String)
+                                                                           (global.get $string:space)))
+                                      (call $growable-array-add! (local.get $stack) (local.get $tail)))
+                                     (else
+                                      (if (ref.eq (local.get $tail) (global.get $null))
+                                          (then)
+                                          (else
+                                           (call $growable-array-add! (local.get $out)
+                                                                      (ref.cast (ref $String)
+                                                                                (global.get $string:space-dot-space)))
+                                           (local.set $str (call $format/write (local.get $tail)))
+                                           (call $growable-array-add! (local.get $out) (local.get $str)))))))
+                                (else
+                                 (call $raise-format/display:pair:expected-pair)
+                                 (unreachable)))
+                            (br $walk)))
+               (call $growable-array-add! (local.get $out) (local.get $close))
                (call $growable-array-of-strings->string (local.get $out)))
 
          ;; format/write:vector : vector? -> string?
@@ -1387,6 +1460,70 @@
                (call $growable-array-add! (local.get $out)
                                         (ref.cast (ref $String)
                                                  (global.get $string:close-paren)))
+               (call $growable-array-of-strings->string (local.get $out)))
+
+         ;; format/display:mpair : mpair? -> string?
+         ;;   Render mutable pairs recursively using display conventions.
+         (func $format/display:mpair (param $v (ref $MPair)) (result (ref $String))
+               (local $out   (ref $GrowableArray))
+               (local $stack (ref $GrowableArray))
+               (local $car   (ref eq))
+               (local $cdr   (ref $MPair))
+               (local $tail  (ref eq))
+               (local $str   (ref $String))
+               (local $open  (ref $String))
+               (local $close (ref $String))
+
+               (local.set $open  (ref.cast (ref $String)
+                                            (global.get $string:open-paren)))
+               (local.set $close (ref.cast (ref $String)
+                                            (global.get $string:close-paren)))
+               (if (i32.eqz
+                    (ref.eq (call $parameter-value-or-global
+                                  (global.get $prim:print-mpair-curly-braces)
+                                  (global.get $print-mpair-curly-braces-value))
+                            (global.get $false)))
+                   (then (local.set $open  (ref.cast (ref $String)
+                                                     (global.get $string:open-brace)))
+                         (local.set $close (ref.cast (ref $String)
+                                                     (global.get $string:close-brace)))))
+               (local.set $out   (call $make-growable-array (i32.const 8)))
+               (local.set $stack (call $make-growable-array (i32.const 8)))
+               (call $growable-array-add! (local.get $out) (local.get $open))
+               (call $growable-array-add! (local.get $stack) (local.get $v))
+
+               (block $done
+                      (loop $walk
+                            (br_if $done (i32.eqz (call $growable-array-count (local.get $stack))))
+                            (local.set $tail (call $growable-array-remove-last! (local.get $stack)))
+
+                            (if (ref.test (ref $MPair) (local.get $tail))
+                                (then
+                                 (local.set $cdr (ref.cast (ref $MPair) (local.get $tail)))
+                                 (local.set $car (struct.get $MPair $a (local.get $cdr)))
+                                 (local.set $tail (struct.get $MPair $d (local.get $cdr)))
+                                 ;; Format car
+                                 (local.set $str (call $format/display (local.get $car)))
+                                 (call $growable-array-add! (local.get $out) (local.get $str))
+                                 ;; Handle cdr
+                                 (if (ref.test (ref $MPair) (local.get $tail))
+                                     (then (call $growable-array-add! (local.get $out)
+                                                                       (ref.cast (ref $String)
+                                                                                (global.get $string:space)))
+                                           (call $growable-array-add! (local.get $stack) (local.get $tail)))
+                                     (else (if (ref.eq (local.get $tail) (global.get $null))
+                                               (then) ;; proper mutable list: done
+                                               (else  ;; improper mutable list: emit ". cdr"
+                                                (call $growable-array-add! (local.get $out)
+                                                                         (ref.cast (ref $String)
+                                                                                  (global.get $string:space-dot-space)))
+                                                (local.set $str (call $format/display (local.get $tail)))
+                                                (call $growable-array-add! (local.get $out) (local.get $str)))))))
+                                (else
+                                 (call $raise-format/display:pair:expected-pair)
+                                 (unreachable)))
+                            (br $walk)))
+               (call $growable-array-add! (local.get $out) (local.get $close))
                (call $growable-array-of-strings->string (local.get $out)))
 
 

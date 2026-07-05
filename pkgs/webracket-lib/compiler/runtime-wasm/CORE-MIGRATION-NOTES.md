@@ -232,7 +232,7 @@ Follow-up:
 - Prefer wrapper-specific validation before padding or pass enough metadata for
   runtime helpers to report the source-level offending value.
 
-### Mutable Pairs Can Trap While Formatting Error Values
+### Mutable Pairs in Formatted Error Values
 
 Location:
 
@@ -240,24 +240,21 @@ Location:
 - error paths that call `$raise-argument-error1` with an offending value that
   contains mutable pairs
 
-Current behavior:
+Status:
 
-- Replacing hash constructor association-list traps with
-  `$raise-argument-error1` made malformed alists catchable when the offending
-  value can be formatted.
-- A malformed alist containing `(mcons 'x 'y)` still traps while rendering the
-  error message, because `$format/display` reaches
-  `$raise-format/display:unknown-datatype` for mutable pairs.
-- Racket reports the original value in the constructor error, for example
-  `(list (mcons 'x 'y))`, so avoiding that value entirely would lose useful
-  error detail.
+- Fixed. `$format/display` and `$format/write` now render `$MPair` values, so
+  malformed hash constructor association lists containing `(mcons 'x 'y)` raise
+  catchable contract exceptions instead of trapping while rendering `given`.
+- The formatter follows Racket's default `print-mpair-curly-braces` behavior for
+  ordinary write/display output, for example `{x . y}`.
 
 Follow-up:
 
-- Teach the formatter how to render mutable pairs before expecting every
-  argument-error path to safely include values that contain `mcons`.
-- Add a focused generated-output test once mutable-pair formatting is in
-  place.
+- Racket's internal error-value renderer can print mutable pairs in constructor
+  notation for `~e`, for example `(mcons 'x 'y)`. WebRacket's bootstrap
+  formatter still implements only a subset of full `format`/error-value
+  rendering, so this is a formatting-parity follow-up rather than a remaining
+  trap.
 
 ## Runtime-Only Core Boundaries
 

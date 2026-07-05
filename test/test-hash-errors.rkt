@@ -127,7 +127,14 @@
          (lambda () (make-hashalw '(x)))
          "make-hashalw"
          "(listof pair?)"
-         "given: '(x)")))
+         "given: '(x)")
+        (catch-contract/contains?
+         (lambda () (make-hasheq (list (mcons 'x 'y))))
+         "make-hasheq"
+         "(listof pair?)"
+         "given:"
+         "x"
+         "y")))
  (list "immutable hash constructor alist errors are catchable with who"
        (and
         (catch-contract/contains?
@@ -149,7 +156,14 @@
          (lambda () (make-immutable-hashalw '(x)))
          "make-immutable-hashalw"
          "(listof pair?)"
-         "given: '(x)")))
+         "given: '(x)")
+        (catch-contract/contains?
+         (lambda () (make-immutable-hasheq (list (mcons 'x 'y))))
+         "make-immutable-hasheq"
+         "(listof pair?)"
+         "given:"
+         "x"
+         "y")))
  (list "read-only hash argument errors are catchable with who"
        (and
         (catch-contract/contains?

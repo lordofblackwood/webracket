@@ -29,5 +29,9 @@
         "fprintf"
         "string?"
         "given: 42"))
+ (list "format renders mutable pairs without traps"
+       (and (equal? (format "~a" (mcons 'x 'y)) "{x . y}")
+            (equal? (format "~s" (mcons 'x 'y)) "{x . y}")
+            (equal? (format "~a" (mcons 1 (mcons 2 '()))) "{1 2}")))
  (list "format success still works"
        (equal? (format "~a/~s" "x" "y") "x/\"y\"")))
