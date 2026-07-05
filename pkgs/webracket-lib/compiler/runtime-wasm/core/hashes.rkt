@@ -718,6 +718,11 @@
                                (global.get $string:hash?)
                                (local.get $ht))
                          (unreachable)))
+               (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
+                   (then (call $raise-argument-error:procedure-expected/who
+                               (global.get $symbol:hash-for-each)
+                               (local.get $proc))
+                         (unreachable)))
                ;; Optional for try-order
                (if (ref.eq (local.get $try) (global.get $missing))
                    (then (local.set $try (global.get $false))))
@@ -940,7 +945,9 @@
                         (unreachable)))
               ;; Validate procedure
               (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
-                  (then (call $raise-argument-error:procedure-expected (local.get $proc))
+                  (then (call $raise-argument-error:procedure-expected/who
+                              (global.get $symbol:hash-map)
+                              (local.get $proc))
                         (unreachable)))
               ;; Optional try-order?
               (if (ref.eq (local.get $try) (global.get $missing))
@@ -1207,6 +1214,11 @@
                               (global.get $symbol:hash-map/copy)
                               (global.get $string:hash?)
                               (local.get $ht))
+                        (unreachable)))
+              (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
+                  (then (call $raise-argument-error:procedure-expected/who
+                              (global.get $symbol:hash-map/copy)
+                              (local.get $proc))
                         (unreachable)))
 
               ;; Dispatch on table type
@@ -1541,7 +1553,9 @@
 
                ;; Validate predicate
                (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
-                   (then (call $raise-argument-error:procedure-expected (local.get $proc))
+                   (then (call $raise-argument-error:procedure-expected/who
+                               (global.get ,who-symbol)
+                               (local.get $proc))
                          (unreachable)))
 
                ;; Dispatch on table type

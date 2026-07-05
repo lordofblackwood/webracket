@@ -247,6 +247,58 @@
          "hash-filter-values"
          "hash?"
          "given: 42")))
+ (list "higher-order hash procedure errors preserve who"
+       (and
+        (catch-contract/contains?
+         (lambda () (hash-for-each (make-hash '((a . 1))) 42))
+         "hash-for-each"
+         "procedure?"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (hash-for-each (hash 'a 1) 42))
+         "hash-for-each"
+         "procedure?"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (hash-map (make-hash '((a . 1))) 42))
+         "hash-map"
+         "procedure?"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (hash-map (hash 'a 1) 42))
+         "hash-map"
+         "procedure?"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (hash-map/copy (make-hash '((a . 1))) 42))
+         "hash-map/copy"
+         "procedure?"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (hash-map/copy (hash 'a 1) 42))
+         "hash-map/copy"
+         "procedure?"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (hash-filter (make-hash '((a . 1))) 42))
+         "hash-filter"
+         "procedure?"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (hash-filter (hash 'a 1) 42))
+         "hash-filter"
+         "procedure?"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (hash-filter-keys (make-hash '((a . 1))) 42))
+         "hash-filter-keys"
+         "procedure?"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (hash-filter-values (hash 'a 1) 42))
+         "hash-filter-values"
+         "procedure?"
+         "given: 42")))
  (list "immutable hash operation mutability errors are catchable with who"
        (and
         (catch-contract/contains?

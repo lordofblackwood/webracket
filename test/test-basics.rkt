@@ -7018,6 +7018,71 @@
                              (equal? (hash-ref h2 'a) 2)
                              (equal? (hash-ref h2 'b) 3)))))
 
+              (list "higher-order hash procedure errors preserve who"
+                    (let ([catch-contract/contains?
+                           (lambda (thunk . needles)
+                             (let ([message
+                                    (with-handlers ([exn:fail:contract?
+                                                     (lambda (exn)
+                                                       (exn-message exn))])
+                                      (thunk)
+                                      #f)])
+                               (and message
+                                    (andmap (lambda (needle)
+                                              (string-contains? message needle))
+                                            needles))))])
+                      (and
+                       (catch-contract/contains?
+                        (lambda () (hash-for-each (make-hash '((a . 1))) 42))
+                        "hash-for-each"
+                        "procedure?"
+                        "given: 42")
+                       (catch-contract/contains?
+                        (lambda () (hash-for-each (hash 'a 1) 42))
+                        "hash-for-each"
+                        "procedure?"
+                        "given: 42")
+                       (catch-contract/contains?
+                        (lambda () (hash-map (make-hash '((a . 1))) 42))
+                        "hash-map"
+                        "procedure?"
+                        "given: 42")
+                       (catch-contract/contains?
+                        (lambda () (hash-map (hash 'a 1) 42))
+                        "hash-map"
+                        "procedure?"
+                        "given: 42")
+                       (catch-contract/contains?
+                        (lambda () (hash-map/copy (make-hash '((a . 1))) 42))
+                        "hash-map/copy"
+                        "procedure?"
+                        "given: 42")
+                       (catch-contract/contains?
+                        (lambda () (hash-map/copy (hash 'a 1) 42))
+                        "hash-map/copy"
+                        "procedure?"
+                        "given: 42")
+                       (catch-contract/contains?
+                        (lambda () (hash-filter (make-hash '((a . 1))) 42))
+                        "hash-filter"
+                        "procedure?"
+                        "given: 42")
+                       (catch-contract/contains?
+                        (lambda () (hash-filter (hash 'a 1) 42))
+                        "hash-filter"
+                        "procedure?"
+                        "given: 42")
+                       (catch-contract/contains?
+                        (lambda () (hash-filter-keys (make-hash '((a . 1))) 42))
+                        "hash-filter-keys"
+                        "procedure?"
+                        "given: 42")
+                       (catch-contract/contains?
+                        (lambda () (hash-filter-values (hash 'a 1) 42))
+                        "hash-filter-values"
+                        "procedure?"
+                        "given: 42"))))
+
               (list "immutable hash map/copy and filters"
                     (let* ([h       (hash 'a 1 'b 2 'c 3)]
                            [copy    (hash-map/copy h (lambda (k v) (values k (+ v 10))))]
