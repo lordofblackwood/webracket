@@ -52,6 +52,7 @@
     (string-copy!:not-enough-room ": not enough room in target string")
     (string-copy!:target-length "\n  target length: ")
     (string-copy!:needed-length "\n  needed length: ")
+    (string-trim:separator-contract "(or/c string? regexp?)")
     (string-ref:index-out-of-range ": index is out of range")
     (string-ref:index-out-of-range-empty ": index is out of range for empty string")
     (string-ref:index "\n  index: ")
@@ -301,7 +302,9 @@
 ;; string-trim-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for string trim helpers.
 (define string-trim-runtime-only-helper-names
-  '($string-trim-right
+  '($raise-string-trim:string-expected
+    $raise-string-trim:separator-expected
+    $string-trim-right
     $string-trim-left
     $string-trim))
 
@@ -3584,6 +3587,22 @@
   (function-forms->runtime-helpers
    'string-trim-runtime-only-helpers
    `(
+         (func $raise-string-trim:string-expected
+               (param $bad (ref eq))
+               (call $raise-argument-error1
+                     (global.get $symbol:string-trim)
+                     (global.get $string:string?)
+                     (local.get $bad))
+               (unreachable))
+
+         (func $raise-string-trim:separator-expected
+               (param $bad (ref eq))
+               (call $raise-argument-error1
+                     (global.get $symbol:string-trim)
+                     (global.get $string:string-trim:separator-contract)
+                     (local.get $bad))
+               (unreachable))
+
          (func $string-trim-right (type $Prim2)
                (param $s       (ref eq))   ;; any value, must be a string
                (param $sep     (ref eq))   ;; a character (tagged i31) or #f
@@ -3755,14 +3774,14 @@
 
                ;; --- Check and decode required string argument ---
                (if (i32.eqz (ref.test (ref $String) (local.get $s)))
-                   (then (call $raise-check-string (local.get $s))))
+                   (then (call $raise-string-trim:string-expected (local.get $s))))
                (local.set $str    (ref.cast (ref $String) (local.get $s)))
                (local.set $result (local.get $str))
                ;; --- Handle optional separator (defaults to whitespace trimming) ---
                (if (ref.eq (local.get $sep) (global.get $missing))
                    (then (local.set $use-whitespace? (i32.const 1)))
                    (else (if (i32.eqz (ref.test (ref $String) (local.get $sep)))
-                             (then (call $raise-check-string (local.get $sep))))
+                             (then (call $raise-string-trim:separator-expected (local.get $sep))))
                          (local.set $sep-str (ref.cast (ref $String) (local.get $sep)))
                          (local.set $use-whitespace? (i32.const 0))))
                ;; --- Decode left? flag (default #t) ---
