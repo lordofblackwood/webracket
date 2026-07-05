@@ -162,8 +162,7 @@
 ;; path-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for basic path helpers.
 (define path-runtime-only-helper-names
-  '($raise-path-expected
-    $path?
+  '($path?
     $path-for-some-system?
     $unix-or-windows
     $is-path-sep?
@@ -251,10 +250,6 @@
 ;;   Enumerate basic and path manipulation helpers used by the monolithic runtime.
 (define path-runtime-only-forms
   '(
-    (func $raise-path-expected (param $x (ref eq))
-          (call $js-log (local.get $x))
-          (unreachable))
-
     (func $path? (type $Prim1)
           (param $v (ref eq)) ;; any/c
           (result   (ref eq))
