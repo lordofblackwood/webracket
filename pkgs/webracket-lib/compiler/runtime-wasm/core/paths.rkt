@@ -27,7 +27,9 @@
     (listof-path?              "(listof path?)")
     (path-convention-type      "(or/c 'windows 'unix)")
     (bytes->path:empty         ": byte string is empty")
-    (bytes->path:nul           ": byte string contains a nul character\n  byte string: ")))
+    (bytes->path:nul           ": byte string contains a nul character\n  byte string: ")
+    (string->path:empty        ": path string is empty")
+    (string->path:nul          ": path string contains a nul character\n  path string: ")))
 
 ;; path-display-formatting-runtime-string-constants : (listof (list/c symbol? string?))
 ;;   Declare string constants used to format unreadable path values.
@@ -172,6 +174,7 @@
     $path-convention-type
     $system-path-convention-type
     $raise-bytes->path:nul
+    $raise-string->path:nul
     $raise-bytes->path:bad-type
     $bytes->path
     $string->path
@@ -531,6 +534,48 @@
                 (global.get $true))
           (unreachable))
 
+    (func $raise-string->path:nul
+          (param $who (ref eq))
+          (param $str (ref eq))
+
+          (local $s       (ref $String))
+          (local $out     (ref $GrowableArray))
+          (local $message (ref $String))
+
+          (local.set $s (ref.cast (ref $String) (local.get $str)))
+
+          (if (i32.eqz (call $string-length/checked/i32 (local.get $s)))
+              (then
+               (local.set $out (call $make-growable-array (i32.const 2)))
+               (call $growable-array-add! (local.get $out)
+                     (call $format/display (local.get $who)))
+               (call $growable-array-add! (local.get $out)
+                     (global.get $string:string->path:empty))
+               (local.set $message
+                          (call $growable-array-of-strings->string (local.get $out)))
+               (call $raise
+                     (call $exn:fail:contract/make
+                           (local.get $message)
+                           (call $current-continuation-marks (global.get $missing)))
+                     (global.get $true))
+               (unreachable)))
+
+          (local.set $out (call $make-growable-array (i32.const 3)))
+          (call $growable-array-add! (local.get $out)
+                (call $format/display (local.get $who)))
+          (call $growable-array-add! (local.get $out)
+                (global.get $string:string->path:nul))
+          (call $growable-array-add! (local.get $out)
+                (call $format/write (local.get $str)))
+          (local.set $message
+                     (call $growable-array-of-strings->string (local.get $out)))
+          (call $raise
+                (call $exn:fail:contract/make
+                      (local.get $message)
+                      (call $current-continuation-marks (global.get $missing)))
+                (global.get $true))
+          (unreachable))
+
     (func $raise-bytes->path:bad-type
           (param $who  (ref eq))
           (param $type (ref eq))
@@ -606,7 +651,9 @@
           (local.set $str (ref.cast (ref $String) (local.get $str-raw)))
           (if (i32.eqz (ref.eq (call $non-empty-string-without-nuls (local.get $str))
                                (global.get $true)))
-              (then (call $raise-path-expected (local.get $str-raw))
+              (then (call $raise-string->path:nul
+                          (global.get $symbol:string->path)
+                          (local.get $str-raw))
                     (unreachable)))
           (local.set $bytes
                      (call $string->bytes/utf-8
@@ -637,14 +684,10 @@
           (local.set $str (ref.cast (ref $String) (local.get $str-raw)))
           (if (i32.eqz (ref.eq (call $non-empty-string-without-nuls (local.get $str))
                                (global.get $true)))
-              (then
-               (if (ref.eq (local.get $false-on-non-element?) (global.get $false))
-                   (then (call $raise-argument-error1
-                               (global.get $symbol:string->path-element)
-                               (global.get $string:path-element?)
-                               (local.get $str-raw))
-                         (unreachable))
-                   (else (return (global.get $false))))))
+              (then (call $raise-string->path:nul
+                          (global.get $symbol:string->path-element)
+                          (local.get $str-raw))
+                    (unreachable)))
           (local.set $path (call $string->path (local.get $str)))
           (if (ref.eq (call $path-element? (local.get $path)) (global.get $true))
               (then (return (local.get $path))))
@@ -676,14 +719,10 @@
           (local.set $bytes (ref.cast (ref $Bytes) (local.get $bstr-raw)))
           (if (i32.eqz (ref.eq (call $non-empty-bytes-without-nuls (local.get $bytes))
                                (global.get $true)))
-              (then
-               (if (ref.eq (local.get $false-on-non-element?) (global.get $false))
-                   (then (call $raise-argument-error1
-                               (global.get $symbol:bytes->path-element)
-                               (global.get $string:path-element?)
-                               (local.get $bstr-raw))
-                         (unreachable))
-                   (else (return (global.get $false))))))
+              (then (call $raise-bytes->path:nul
+                          (global.get $symbol:bytes->path-element)
+                          (local.get $bstr-raw))
+                    (unreachable)))
           (if (i32.eqz (ref.eq (local.get $type-raw) (global.get $missing)))
               (then
                (if (i32.eqz (ref.test (ref $Symbol) (local.get $type-raw)))
@@ -735,10 +774,6 @@
                     (unreachable)))
           (local.set $str (ref.cast (ref $String) (local.get $str-raw)))
           (local.set $kind (ref.cast (ref $Symbol) (local.get $kind-raw)))
-          (if (i32.eqz (ref.eq (call $non-empty-string-without-nuls (local.get $str))
-                               (global.get $true)))
-              (then (call $raise-path-expected (local.get $str-raw))
-                    (unreachable)))
           (if (i32.eqz (ref.eq (call $unix-or-windows (local.get $kind))
                                (global.get $true)))
               (then (call $raise-bytes->path:bad-type

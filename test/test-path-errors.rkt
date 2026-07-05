@@ -58,6 +58,37 @@
          "bytes->path"
          "nul character"
          "byte string:")))
+ (list "string->path path string content errors are catchable with who"
+       (and
+        (catch-contract/contains?
+         (lambda () (string->path ""))
+         "string->path"
+         "path string is empty")
+        (catch-contract/contains?
+         (lambda () (string->path (string #\a #\nul #\b)))
+         "string->path"
+         "nul character"
+         "path string:")))
+ (list "path-element constructors reject empty path strings and bytes even with false mode"
+       (and
+        (catch-contract/contains?
+         (lambda () (string->path-element "" #t))
+         "string->path-element"
+         "path string is empty")
+        (catch-contract/contains?
+         (lambda () (string->path-element (string #\a #\nul #\b) #t))
+         "string->path-element"
+         "nul character"
+         "path string:")
+        (catch-contract/contains?
+         (lambda () (bytes->path-element #"" 'unix #t))
+         "bytes->path-element"
+         "byte string is empty")
+        (catch-contract/contains?
+         (lambda () (bytes->path-element (bytes 97 0 98) 'unix #t))
+         "bytes->path-element"
+         "nul character"
+         "byte string:")))
  (list "bytes->path-element convention errors are catchable with who"
        (catch-contract/contains?
         (lambda () (bytes->path-element #"main.rkt" 42))
@@ -72,6 +103,17 @@
         "(or/c"
         "'unix"
         "given: 42"))
+ (list "string->some-system-path delegates path content errors to bytes->path"
+       (and
+        (catch-contract/contains?
+         (lambda () (string->some-system-path "" 'unix))
+         "bytes->path"
+         "byte string is empty")
+        (catch-contract/contains?
+         (lambda () (string->some-system-path (string #\a #\nul #\b) 'unix))
+         "bytes->path"
+         "nul character"
+         "byte string:")))
  (list "path string conversion successes still work"
        (and (equal? (path->string (string->path "app/main.rkt"))
                     "app/main.rkt")
