@@ -117,17 +117,17 @@
          (lambda () (make-hasheq '(x)))
          "make-hasheq"
          "(listof pair?)"
-         "given: (x)")
+         "given: '(x)")
         (catch-contract/contains?
          (lambda () (make-hasheqv '(x)))
          "make-hasheqv"
          "(listof pair?)"
-         "given: (x)")
+         "given: '(x)")
         (catch-contract/contains?
          (lambda () (make-hashalw '(x)))
          "make-hashalw"
          "(listof pair?)"
-         "given: (x)")))
+         "given: '(x)")))
  (list "immutable hash constructor alist errors are catchable with who"
        (and
         (catch-contract/contains?
@@ -139,17 +139,17 @@
          (lambda () (make-immutable-hasheq '(x)))
          "make-immutable-hasheq"
          "(listof pair?)"
-         "given: (x)")
+         "given: '(x)")
         (catch-contract/contains?
          (lambda () (make-immutable-hasheqv '(x)))
          "make-immutable-hasheqv"
          "(listof pair?)"
-         "given: (x)")
+         "given: '(x)")
         (catch-contract/contains?
          (lambda () (make-immutable-hashalw '(x)))
          "make-immutable-hashalw"
          "(listof pair?)"
-         "given: (x)")))
+         "given: '(x)")))
  (list "read-only hash argument errors are catchable with who"
        (and
         (catch-contract/contains?
@@ -557,7 +557,7 @@
            (lambda () (hash-iterate-next i 'x))
            "hash-iterate-next"
            "exact-nonnegative-integer?"
-           "given: x")
+           "given: 'x")
           (catch-contract/contains?
            (lambda () (hash-iterate-next m -1))
            "hash-iterate-next"

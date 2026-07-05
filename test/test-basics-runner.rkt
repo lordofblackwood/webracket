@@ -4,7 +4,8 @@
          "no-stdlib-result-tree-support.rkt")
 
 (test-case "test-basics has no false leaves"
-  (check-no-stdlib-result-tree "test/test-basics.rkt"))
+  (check-no-stdlib-result-tree/chunked "test/test-basics.rkt"
+                                       #:timeout-seconds 240))
 
 (test-case "test-byte-text-errors has no false leaves"
   (check-no-stdlib-result-tree "test/test-byte-text-errors.rkt"

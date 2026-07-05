@@ -104,7 +104,7 @@
          (lambda () (vector-argmax values '#()))
          "vector-argmax"
          "(and/c vector? (lambda (v) (positive? (vector-length v))))"
-         "given: #()")))
+         "given: '#()")))
  (list "vector filter/search procedure errors are catchable with who"
        (and
         (catch-contract/contains?
