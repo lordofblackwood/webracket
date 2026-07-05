@@ -59,4 +59,30 @@
  (list "bytes->string/utf-8/basic"
        (and (equal? (bytes->string/utf-8 (bytes 65 195 169))
                     (string #\A (integer->char 233)))
-            (equal? (bytes->string/utf-8 (bytes 255) #\?) "?"))))
+            (equal? (bytes->string/utf-8 (bytes 255) #\?) "?")))
+ (list "bytes-open-converter string errors are catchable with who"
+       (let ([catch-contract/contains?
+              (lambda (thunk . needles)
+                (let ([message
+                       (with-handlers ([exn:fail:contract?
+                                        (lambda (exn)
+                                          (exn-message exn))])
+                         (thunk)
+                         #f)])
+                  (and message
+                       (andmap (lambda (needle)
+                                 (string-contains? message needle))
+                               needles))))])
+         (and
+          (catch-contract/contains?
+           (lambda () (bytes-open-converter 42 "UTF-8"))
+           "bytes-open-converter"
+           "string?"
+           "given: 42")
+          (catch-contract/contains?
+           (lambda () (bytes-open-converter "UTF-8" 42))
+           "bytes-open-converter"
+           "string?"
+           "given: 42"))))
+ (list "bytes-open-converter success still works"
+       (bytes-converter? (bytes-open-converter "UTF-8" "UTF-8"))))

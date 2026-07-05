@@ -831,9 +831,17 @@
            (param $to   (ref eq)) ;; string?
            (result      (ref eq))
            (if (i32.eqz (ref.test (ref $String) (local.get $from)))
-               (then (call $raise-check-string (local.get $from)) (unreachable)))
+               (then (call $raise-argument-error1
+                           (global.get $symbol:bytes-open-converter)
+                           (global.get $string:string?)
+                           (local.get $from))
+                     (unreachable)))
            (if (i32.eqz (ref.test (ref $String) (local.get $to)))
-               (then (call $raise-check-string (local.get $to)) (unreachable)))
+               (then (call $raise-argument-error1
+                           (global.get $symbol:bytes-open-converter)
+                           (global.get $string:string?)
+                           (local.get $to))
+                     (unreachable)))
            (struct.new $BytesConverter (i32.const 0) (i32.const 0)))
 
      ;; bytes-close-converter : bytes-converter? -> void?
