@@ -33,6 +33,10 @@
   '((port?                      "port?")
     (input-port?                "input-port?")
     (output-port?               "output-port?")
+    (port-or-false-contract     "(or/c port? #f)")
+    (progress-or-false-contract "(or/c #f progress-evt?)")
+    (string-port-backend-unsupported
+     ": only string-backed ports are supported by WebRacket for this operation")
     (file-stream-port?          "file-stream-port?")
     (terminal-port?             "terminal-port?")
     (read-line-mode-contract    "(or/c 'linefeed 'return 'return-linefeed 'any 'any-one)")))
@@ -369,8 +373,32 @@
   (function-forms->runtime-helpers
    'port-predicate-runtime-only-helpers
    '(
-     (func $raise-check-string-port (param $x (ref eq)) (unreachable))
-     (func $raise-check-port-or-false (param $x (ref eq)) (unreachable))
+     (func $raise-check-string-port
+           (param $who (ref eq))
+           (param $x   (ref eq))
+
+           (local $message (ref $String))
+
+           (local.set $message
+                      (call $string-append/2
+                            (call $format/display (local.get $who))
+                            (global.get $string:string-port-backend-unsupported)))
+           (call $raise
+                 (call $exn:fail:unsupported/make
+                       (local.get $message)
+                       (call $current-continuation-marks (global.get $missing)))
+                 (global.get $true))
+           (unreachable))
+
+     (func $raise-check-port-or-false
+           (param $who (ref eq))
+           (param $x   (ref eq))
+
+           (call $raise-argument-error1
+                 (local.get $who)
+                 (global.get $string:port-or-false-contract)
+                 (local.get $x))
+           (unreachable))
 
      (func $string-port? (type $Prim1)
            (param $v (ref eq))
@@ -2970,7 +2998,9 @@
                                                (global.get $string:input-port?)
                                                (local.get $in))
                                          (unreachable))
-                                   (else (call $raise-check-string-port (local.get $in))
+                                   (else (call $raise-check-string-port
+                                               (global.get $symbol:read-line)
+                                               (local.get $in))
                                          (unreachable)))))))
 
            (local.set $buf   (call $make-i32growable-array (i32.const 32)))
@@ -3161,7 +3191,10 @@
                            (local.get $in))
                      (unreachable)))
            (if (i32.eqz (ref.test (ref $InputStringPort) (local.get $in)))
-               (then (call $raise-check-string-port (local.get $in)) (unreachable)))
+               (then (call $raise-check-string-port
+                           (local.get $who)
+                           (local.get $in))
+                     (unreachable)))
            (local.set $sp (ref.cast (ref $InputStringPort) (local.get $in)))
 
            ;; --- Decode optional start index ---
@@ -3267,7 +3300,15 @@
                  (local.get $end)))
 
 
-     (func $peek-bytes-avail!:progress-not-supported (unreachable))
+     (func $peek-bytes-avail!:progress-not-supported
+           (param $who      (ref eq))
+           (param $progress (ref eq))
+
+           (call $raise-argument-error1
+                 (local.get $who)
+                 (global.get $string:progress-or-false-contract)
+                 (local.get $progress))
+           (unreachable))
 
      ;; NOTE: Like Racket's peek-bytes-avail!, but currently only string ports are supported
      ;;       and the progress argument must be #f.
@@ -3338,7 +3379,9 @@
            (if (ref.eq (local.get $progress) (global.get $missing))
                (then (local.set $progress (global.get $false))))
            (if (i32.eqz (ref.eq (local.get $progress) (global.get $false)))
-               (then (call $peek-bytes-avail!:progress-not-supported)
+               (then (call $peek-bytes-avail!:progress-not-supported
+                           (local.get $who)
+                           (local.get $progress))
                      (unreachable)))
 
            (call $peek-bytes!/who
@@ -3454,7 +3497,10 @@
                            (local.get $in))
                      (unreachable)))
            (if (i32.eqz (ref.test (ref $InputStringPort) (local.get $in)))
-               (then (call $raise-check-string-port (local.get $in)) (unreachable)))
+               (then (call $raise-check-string-port
+                           (global.get $symbol:peek-string!)
+                           (local.get $in))
+                     (unreachable)))
            (local.set $sp (ref.cast (ref $InputStringPort) (local.get $in)))
 
            ;; --- Decode optional start index ---
@@ -3967,7 +4013,10 @@
                            (global.get $string:input-port?)
                            (local.get $in))))
            (if (i32.eqz (ref.test (ref $InputStringPort) (local.get $in)))
-               (then (call $raise-check-string-port (local.get $in)) (unreachable)))
+               (then (call $raise-check-string-port
+                           (global.get $symbol:peek-bytes)
+                           (local.get $in))
+                     (unreachable)))
 
            ;; --- Handle zero-length peek ---
            (if (i32.eqz (local.get $count))
@@ -4083,7 +4132,10 @@
                            (global.get $string:input-port?)
                            (local.get $in))))
            (if (i32.eqz (ref.test (ref $InputStringPort) (local.get $in)))
-               (then (call $raise-check-string-port (local.get $in)) (unreachable)))
+               (then (call $raise-check-string-port
+                           (global.get $symbol:peek-string)
+                           (local.get $in))
+                     (unreachable)))
 
            ;; --- Handle zero-length peek ---
            (if (i32.eqz (local.get $count))
@@ -4690,7 +4742,10 @@
                              (local.get $from)
                              (local.get $to))))
            (if (i32.eqz (ref.test (ref $OutputPort) (local.get $out)))
-               (then (call $raise-check-string-port (local.get $out)) (unreachable)))
+               (then (call $raise-check-string-port
+                           (global.get $symbol:write-bytes)
+                           (local.get $out))
+                     (unreachable)))
            ;; --- Write the requested slice byte by byte ---
            (local.set $i (i32.const 0))
            (block $done

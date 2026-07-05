@@ -2,6 +2,7 @@
 
 (provide fasl-tag-runtime-only-helper-names
          fasl-tag-runtime-helper-forms
+         fasl-runtime-symbol-constants
          fasl-encoding-runtime-only-helper-names
          fasl-encoding-runtime-helper-forms
          fasl-decoding-runtime-helper-forms
@@ -43,6 +44,11 @@
 ;;   Preserve the runtime emission order for FASL tag globals.
 (define fasl-tag-runtime-only-helper-names
   (map first fasl-tag-runtime-only-helper-specs))
+
+;; fasl-runtime-symbol-constants : (listof symbol?)
+;;   Declare symbols used by FASL helpers.
+(define fasl-runtime-symbol-constants
+  '(s-exp->fasl))
 
 ;; fasl-tag-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate FASL tag globals used by the monolithic runtime.
@@ -107,7 +113,9 @@
                         (then
                          (call $fasl:s-exp->fasl (local.get $v) (local.get $out))
                          (global.get $void))
-                        (else (call $raise-check-port-or-false (local.get $out))
+                        (else (call $raise-check-port-or-false
+                                    (global.get $symbol:s-exp->fasl)
+                                    (local.get $out))
                               (unreachable))))))
 
          ;; raise-s-exp->fasl:unsupported-value : any/c -> none

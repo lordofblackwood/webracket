@@ -1,0 +1,79 @@
+;; Focused no-stdlib generated-output checks for input-port wrapper errors.
+;;
+;; Compile this file with `--no-stdlib`.
+
+(define (catch-contract/contains? thunk . needles)
+  (let ([message
+         (with-handlers ([exn:fail:contract?
+                          (lambda (exn)
+                            (exn-message exn))])
+           (thunk)
+           #f)])
+    (and message
+         (andmap (lambda (needle)
+                   (string-contains? message needle))
+                 needles))))
+
+(define (catch-unsupported/contains? thunk . needles)
+  (let ([message
+         (with-handlers ([exn:fail:unsupported?
+                          (lambda (exn)
+                            (exn-message exn))])
+           (thunk)
+           #f)])
+    (and message
+         (andmap (lambda (needle)
+                   (string-contains? message needle))
+                 needles))))
+
+(define (proxy-input)
+  (let ([base (open-input-string "abcd")])
+    (make-input-port 'proxy base base (lambda () (void)))))
+
+(list
+ (list "peek-bytes-avail! progress errors are catchable with who"
+       (and
+        (catch-contract/contains?
+         (lambda ()
+           (peek-bytes-avail! (make-bytes 4 0)
+                              0
+                              'progress
+                              (open-input-bytes #"abcd")
+                              0
+                              2))
+         "peek-bytes-avail!"
+         "(or/c #f progress-evt?)"
+         "given: 'progress")
+        (catch-contract/contains?
+         (lambda ()
+           (peek-bytes-avail!* (make-bytes 4 0)
+                               0
+                               'progress
+                               (open-input-bytes #"abcd")
+                               0
+                               2))
+         "peek-bytes-avail!*"
+         "(or/c #f progress-evt?)"
+         "given: 'progress")))
+ (list "custom input-port peek backends are catchable unsupported errors"
+       (and
+        (catch-unsupported/contains?
+         (lambda ()
+           (peek-bytes! (make-bytes 2 0) 0 (proxy-input) 0 2))
+         "peek-bytes!"
+         "only string-backed ports are supported by WebRacket")
+        (catch-unsupported/contains?
+         (lambda ()
+           (peek-string! (make-string 2 #\_) 0 (proxy-input) 0 2))
+         "peek-string!"
+         "only string-backed ports are supported by WebRacket")
+        (catch-unsupported/contains?
+         (lambda ()
+           (peek-bytes 1 0 (proxy-input)))
+         "peek-bytes"
+         "only string-backed ports are supported by WebRacket")
+        (catch-unsupported/contains?
+         (lambda ()
+           (peek-string 1 0 (proxy-input)))
+         "peek-string"
+         "only string-backed ports are supported by WebRacket"))))

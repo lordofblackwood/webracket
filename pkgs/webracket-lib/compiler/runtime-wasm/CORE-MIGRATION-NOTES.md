@@ -148,6 +148,28 @@ Follow-up:
 - Keep generated-output tests for the byte/string read and peek wrappers so
   later mutability cleanups do not accidentally reintroduce this trap path.
 
+### Some Peek Wrappers Still Do Not Support Custom Input Ports
+
+Location:
+
+- `pkgs/webracket-lib/compiler/runtime-wasm/core/ports.rkt`
+
+Current behavior:
+
+- `peek-bytes!`, `peek-string!`, `peek-bytes`, and `peek-string` still require
+  string-backed input ports internally.
+- Passing a custom input port to these wrappers now raises a catchable
+  `exn:fail:unsupported` with the correct primitive `who` instead of falling
+  through to a WebAssembly trap.
+- Racket can use custom-port peek procedures for these operations, so this is a
+  runtime capability gap rather than final semantics.
+
+Follow-up:
+
+- Add custom-input-port dispatch for the affected peek wrappers.
+- Once custom peeking is implemented, replace the pinned unsupported-error test
+  with successful custom-port behavior tests.
+
 ### `number->string` Treats Explicit `#f` Radix As Omitted
 
 Location:

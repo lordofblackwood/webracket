@@ -22,6 +22,8 @@
                   exception-runtime-symbol-constants
                   exception-fail-runtime-symbol-constants
                   exception-break-runtime-symbol-constants)
+         (only-in "fasl.rkt"
+                  fasl-runtime-symbol-constants)
          (only-in "ffi.rkt"
                   ffi-runtime-symbol-constants)
          (only-in "filesystem.rkt"
@@ -111,6 +113,7 @@
           time-clock-runtime-symbol-constants
           exception-break-runtime-symbol-constants
           io-handler-runtime-symbol-constants
+          fasl-runtime-symbol-constants
           port-runtime-symbol-constants
           port-event-runtime-symbol-constants
           namespace-runtime-symbol-constants
