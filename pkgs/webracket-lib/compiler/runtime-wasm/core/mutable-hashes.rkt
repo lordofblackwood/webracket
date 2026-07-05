@@ -322,7 +322,25 @@
      '$raise-hash-ref-key-not-found
      "$raise-hash-ref-key-not-found"
      (lambda ()
-       `(func $raise-hash-ref-key-not-found (param $key (ref eq)) (unreachable))))
+       `(func $raise-hash-ref-key-not-found
+              (param $prefix (ref eq))
+              (param $key    (ref eq))
+              (local $out     (ref $GrowableArray))
+              (local $message (ref $String))
+
+              (local.set $out (call $make-growable-array (i32.const 2)))
+              (call $growable-array-add! (local.get $out)
+                    (ref.cast (ref $String) (local.get $prefix)))
+              (call $growable-array-add! (local.get $out)
+                    (call $format/display (local.get $key)))
+              (local.set $message
+                         (call $growable-array-of-strings->string (local.get $out)))
+              (call $raise
+                    (call $exn:fail:contract/make
+                          (local.get $message)
+                          (call $current-continuation-marks (global.get $missing)))
+                    (global.get $true))
+              (unreachable))))
 
     (core-runtime-helper
      '$hash-ref
@@ -519,7 +537,9 @@
                ;; Not found — handle failure result
                (if (result (ref eq))
                    (ref.eq (local.get $fail) (global.get $missing))
-                   (then (call $raise-hash-ref-key-not-found (local.get $key))
+                   (then (call $raise-hash-ref-key-not-found
+                               (global.get $string:hash-ref:no-value-found-key)
+                               (local.get $key))
                          (unreachable))
                    (else
                     (if (result (ref eq))
@@ -703,7 +723,9 @@
                             (br $probe)))
                (if (result (ref eq))
                    (ref.eq (local.get $fail) (global.get $missing))
-                   (then (call $raise-hash-ref-key-not-found (local.get $key))
+                   (then (call $raise-hash-ref-key-not-found
+                               (global.get $string:hash-ref-key:does-not-contain-key)
+                               (local.get $key))
                          (unreachable))
                    (else
                     (if (result (ref eq))
@@ -1273,7 +1295,9 @@
 
                ;; Missing entry — compute value to insert
                (if (ref.eq (local.get $to-set) (global.get $missing))
-                   (then (call $raise-hash-ref-key-not-found (local.get $key))
+                   (then (call $raise-hash-ref-key-not-found
+                               (global.get $string:hash-ref!:no-value-found-key)
+                               (local.get $key))
                          (unreachable)))
 
                (local.set $value
@@ -1517,7 +1541,9 @@
 
                ;; Missing entry — compute default
                (if (ref.eq (local.get $fail) (global.get $missing))
-                   (then (call $raise-hash-ref-key-not-found (local.get $key))
+                   (then (call $raise-hash-ref-key-not-found
+                               (global.get $string:hash-update!:no-value-found-key)
+                               (local.get $key))
                          (unreachable)))
 
                (local.set $default

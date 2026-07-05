@@ -1148,7 +1148,9 @@
                           (br $scan)))
              (if (result (ref eq))
                  (ref.eq (local.get $fail) (global.get $missing))
-                 (then (call $raise-hash-ref-key-not-found (local.get $key))
+                 (then (call $raise-hash-ref-key-not-found
+                             (global.get $string:hash-ref:no-value-found-key)
+                             (local.get $key))
                        (unreachable))
                  (else
                   (if (result (ref eq))
@@ -1198,7 +1200,9 @@
                           (br $scan)))
              (if (result (ref eq))
                  (ref.eq (local.get $fail) (global.get $missing))
-                 (then (call $raise-hash-ref-key-not-found (local.get $key))
+                 (then (call $raise-hash-ref-key-not-found
+                             (global.get $string:hash-ref-key:does-not-contain-key)
+                             (local.get $key))
                        (unreachable))
                  (else
                   (if (result (ref eq))
@@ -1274,7 +1278,9 @@
                           (br $scan)))
              (if (result (ref eq))
                  (ref.eq (local.get $fail) (global.get $missing))
-                 (then (call $raise-hash-ref-key-not-found (local.get $key))
+                 (then (call $raise-hash-ref-key-not-found
+                             (global.get $string:hash-ref:no-value-found-key)
+                             (local.get $key))
                        (unreachable))
                  (else
                   (if (result (ref eq))
@@ -1322,7 +1328,9 @@
                           (br $scan)))
              (if (result (ref eq))
                  (ref.eq (local.get $fail) (global.get $missing))
-                 (then (call $raise-hash-ref-key-not-found (local.get $key))
+                 (then (call $raise-hash-ref-key-not-found
+                             (global.get $string:hash-ref-key:does-not-contain-key)
+                             (local.get $key))
                        (unreachable))
                  (else
                   (if (result (ref eq))
@@ -3075,7 +3083,9 @@
                           (br $scan)))
              (if (result (ref eq))
                  (ref.eq (local.get $fail) (global.get $missing))
-                 (then (call $raise-hash-ref-key-not-found (local.get $key))
+                 (then (call $raise-hash-ref-key-not-found
+                             (global.get $string:hash-ref:no-value-found-key)
+                             (local.get $key))
                        (unreachable))
                  (else
                   (if (result (ref eq))
@@ -3125,7 +3135,9 @@
                           (br $scan)))
              (if (result (ref eq))
                  (ref.eq (local.get $fail) (global.get $missing))
-                 (then (call $raise-hash-ref-key-not-found (local.get $key))
+                 (then (call $raise-hash-ref-key-not-found
+                             (global.get $string:hash-ref-key:does-not-contain-key)
+                             (local.get $key))
                        (unreachable))
                  (else
                   (if (result (ref eq))
@@ -3205,7 +3217,9 @@
                           (br $scan)))
              (if (result (ref eq))
                  (ref.eq (local.get $fail) (global.get $missing))
-                 (then (call $raise-hash-ref-key-not-found (local.get $key))
+                 (then (call $raise-hash-ref-key-not-found
+                             (global.get $string:hash-ref:no-value-found-key)
+                             (local.get $key))
                        (unreachable))
                  (else
                   (if (result (ref eq))
@@ -3255,7 +3269,9 @@
                           (br $scan)))
              (if (result (ref eq))
                  (ref.eq (local.get $fail) (global.get $missing))
-                 (then (call $raise-hash-ref-key-not-found (local.get $key))
+                 (then (call $raise-hash-ref-key-not-found
+                             (global.get $string:hash-ref-key:does-not-contain-key)
+                             (local.get $key))
                        (unreachable))
                  (else
                   (if (result (ref eq))

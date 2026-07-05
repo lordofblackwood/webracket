@@ -38,6 +38,10 @@
   (check-no-stdlib-result-tree "test/test-lock-errors.rkt"
                                #:timeout-seconds 180))
 
+(test-case "test-hash-errors has no false leaves"
+  (check-no-stdlib-result-tree "test/test-hash-errors.rkt"
+                               #:timeout-seconds 180))
+
 (test-case "test-character-errors has no false leaves"
   (check-no-stdlib-result-tree "test/test-character-errors.rkt"
                                #:timeout-seconds 180))

@@ -23,7 +23,11 @@
 ;; hash-runtime-string-constants : (listof (list/c symbol? string?))
 ;;   Declare strings used by hash predicates and hash-like checks.
 (define hash-runtime-string-constants
-  '((hash? "hash?")))
+  '((hash? "hash?")
+    (hash-ref:no-value-found-key "hash-ref: no value found for key\n  key: ")
+    (hash-ref-key:does-not-contain-key "hash-ref-key: hash does not contain key\n  key: ")
+    (hash-ref!:no-value-found-key "hash-ref!: no value found for key: ")
+    (hash-update!:no-value-found-key "hash-update!: no value found for key: ")))
 
 ;; hash-seed-global-forms : (listof datum?)
 ;;   Declare global state for hash-code seed generation.
