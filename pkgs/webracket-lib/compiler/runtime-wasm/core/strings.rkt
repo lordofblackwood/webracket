@@ -2,6 +2,7 @@
 
 (provide string-core-runtime-helpers
          string-runtime-string-constants
+         string-runtime-symbol-constants
          string-additional-runtime-only-helper-names
          string-append-runtime-only-helper-names
          string-array-conversion-runtime-only-helper-names
@@ -67,6 +68,12 @@
     (string-utf8:byte-string "\n  byte string: ")
     (listof-string? "(listof string?)")
     (string-or-bytes "(or/c string? bytes?)")))
+
+;; string-runtime-symbol-constants : (listof symbol?)
+;;   Declare symbols used by string helpers and string errors.
+(define string-runtime-symbol-constants
+  '(string-trim-left
+    string-trim-right))
 
 ;; string-core-runtime-helpers : (listof core-runtime-helper?)
 ;;   Enumerate string helpers that can be emitted in core runtime.
@@ -170,6 +177,7 @@
 (define string-constructor-runtime-only-helper-names
   '($raise-make-string:bad-length
     $raise-make-string:bad-char
+    $raise-argument-error:char-expected/who
     $raise-argument-error:char-expected
     $make-string
     $make-string/checked
@@ -296,7 +304,8 @@
 ;; string-error-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for string-section error stubs.
 (define string-error-runtime-only-helper-names
-  '($raise-argument-error:string-expected
+  '($raise-argument-error:string-expected/who
+    $raise-argument-error:string-expected
     $bomb))
 
 ;; string-trim-runtime-only-helper-names : (listof symbol?)
@@ -448,7 +457,20 @@
                      (global.get $symbol:make-string)
                      (global.get $string:char?)
                      (local.get $x)))
-         (func $raise-argument-error:char-expected (unreachable))
+         (func $raise-argument-error:char-expected/who
+               (param $who (ref eq))
+               (param $x   (ref eq))
+               (call $raise-argument-error1
+                     (local.get $who)
+                     (global.get $string:char?)
+                     (local.get $x))
+               (unreachable))
+         (func $raise-argument-error:char-expected
+               (param $x (ref eq))
+               (call $raise-argument-error:char-expected/who
+                     (global.get $symbol:char?)
+                     (local.get $x))
+               (unreachable))
 
          (func $make-string (type $Prim12)
                (param $n-raw  (ref eq))    ;; fixnum
@@ -3576,7 +3598,20 @@
   (function-forms->runtime-helpers
    'string-error-runtime-only-helpers
    '(
-         (func $raise-argument-error:string-expected (unreachable))
+         (func $raise-argument-error:string-expected/who
+               (param $who (ref eq))
+               (param $x   (ref eq))
+               (call $raise-argument-error1
+                     (local.get $who)
+                     (global.get $string:string?)
+                     (local.get $x))
+               (unreachable))
+         (func $raise-argument-error:string-expected
+               (param $x (ref eq))
+               (call $raise-argument-error:string-expected/who
+                     (global.get $symbol:string-trim)
+                     (local.get $x))
+               (unreachable))
 
          (func $bomb (unreachable))
      )))
@@ -3618,19 +3653,25 @@
 
                ;; --- Type check inputs ---
                (if (i32.eqz (ref.test (ref $String) (local.get $s)))
-                   (then (call $raise-argument-error:string-expected (local.get $s))
+                   (then (call $raise-argument-error:string-expected/who
+                               (global.get $symbol:string-trim-right)
+                               (local.get $s))
                          (unreachable)))
 
                (if (ref.eq (local.get $sep) (global.get $false))
                    (then (local.set $use-whitespace? (i32.const 1)))
                    (else
                     (if (i32.eqz (ref.test (ref i31) (local.get $sep)))
-                        (then (call $raise-argument-error:char-expected (local.get $sep))
+                        (then (call $raise-argument-error:char-expected/who
+                                    (global.get $symbol:string-trim-right)
+                                    (local.get $sep))
                               (unreachable)))
                     (local.set $sep/tag (i31.get_u (ref.cast (ref i31) (local.get $sep))))
                     (if (i32.ne (i32.and (local.get $sep/tag) (i32.const ,char-mask))
                                 (i32.const ,char-tag))
-                        (then (call $raise-argument-error:char-expected (local.get $sep))
+                        (then (call $raise-argument-error:char-expected/who
+                                    (global.get $symbol:string-trim-right)
+                                    (local.get $sep))
                               (unreachable)))
                     (local.set $use-whitespace? (i32.const 0))))
 
@@ -3690,7 +3731,9 @@
 
                ;; --- Check inputs ---
                (if (i32.eqz (ref.test (ref $String) (local.get $s)))
-                   (then (call $raise-argument-error:string-expected (local.get $s))
+                   (then (call $raise-argument-error:string-expected/who
+                               (global.get $symbol:string-trim-left)
+                               (local.get $s))
                          (unreachable)))
 
                (if (ref.eq (local.get $sep) (global.get $false))
@@ -3698,7 +3741,8 @@
                    (else
                     ;; Check: is it a (ref i31)?
                     (if (i32.eqz (ref.test (ref i31) (local.get $sep)))
-                        (then (call $raise-argument-error:char-expected
+                        (then (call $raise-argument-error:char-expected/who
+                                    (global.get $symbol:string-trim-left)
                                     (local.get $sep))
                               (unreachable)))
                     ;; Extract raw tagged value
@@ -3707,7 +3751,8 @@
                     ;; Check tag matches ,char-tag
                     (if (i32.ne (i32.and (local.get $sep/tag) (i32.const ,char-mask))
                                 (i32.const ,char-tag))
-                        (then (call $raise-argument-error:char-expected
+                        (then (call $raise-argument-error:char-expected/who
+                                    (global.get $symbol:string-trim-left)
                                     (local.get $sep))
                               (unreachable)))
                     ;; Passed: decode

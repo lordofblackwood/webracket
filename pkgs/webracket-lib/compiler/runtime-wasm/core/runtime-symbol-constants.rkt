@@ -70,6 +70,8 @@
                   security-runtime-symbol-constants)
          (only-in "structs.rkt"
                   struct-runtime-symbol-constants)
+         (only-in "strings.rkt"
+                  string-runtime-symbol-constants)
          (only-in "syntax.rkt"
                   syntax-runtime-symbol-constants)
          (only-in "system.rkt"
@@ -119,6 +121,7 @@
           list-runtime-symbol-constants
           fixnum-runtime-symbol-constants
           flonum-runtime-symbol-constants
+          string-runtime-symbol-constants
           byte-predicate-runtime-symbol-constants
           vector-runtime-symbol-constants
           ffi-runtime-symbol-constants
