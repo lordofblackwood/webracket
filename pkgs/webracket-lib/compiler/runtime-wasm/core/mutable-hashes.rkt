@@ -48,6 +48,30 @@
   (for/list ([helper (in-list helpers)])
     (core-runtime-helper-name helper)))
 
+;; hash-iterate-position-validation-forms : symbol? symbol? symbol? -> (listof datum?)
+;;   Generate validation for an exact-nonnegative-integer iterator position.
+(define (hash-iterate-position-validation-forms who-symbol pos-local index-local)
+  `((if (ref.test (ref i31) (local.get ,pos-local))
+        (then (local.set ,index-local
+                         (i31.get_s (ref.cast (ref i31) (local.get ,pos-local))))
+              (if (i32.ne (i32.and (local.get ,index-local) (i32.const 1))
+                          (i32.const 0))
+                  (then (call $raise-exact-nonnegative-integer-expected/who
+                              (global.get ,who-symbol)
+                              (local.get ,pos-local))
+                        (unreachable)))
+              (local.set ,index-local
+                         (i32.shr_s (local.get ,index-local) (i32.const 1))))
+        (else (call $raise-exact-nonnegative-integer-expected/who
+                    (global.get ,who-symbol)
+                    (local.get ,pos-local))
+              (unreachable)))
+    (if (i32.lt_s (local.get ,index-local) (i32.const 0))
+        (then (call $raise-exact-nonnegative-integer-expected/who
+                    (global.get ,who-symbol)
+                    (local.get ,pos-local))
+              (unreachable)))))
+
 ;; mutable-hash-constructor-runtime-helper-forms : hasheq? -> (listof datum?)
 ;;   Render mutable hash constructor helpers in runtime assembly order.
 (define (mutable-hash-constructor-runtime-helper-forms helper-index)
@@ -2676,20 +2700,17 @@
                    (then (call ,raise-expected (local.get $ht))
                          (unreachable)))
 
-               ;; Decode and validate position
-               (if (i32.eqz (ref.test (ref i31) (local.get $pos)))
-                   (then (call $raise-check-fixnum (local.get $pos))
-                         (unreachable)))
-               (local.set $i (i31.get_u (ref.cast (ref i31) (local.get $pos))))
-               (if (i32.and (local.get $i) (i32.const 1))
-                   (then (call $raise-check-fixnum (local.get $pos))
-                         (unreachable)))
+               ;; Decode and validate position.
+               ,@(hash-iterate-position-validation-forms
+                  '$symbol:hash-iterate-next
+                  '$pos
+                  '$i)
 
                (local.set $table   (ref.cast (ref ,type) (local.get $ht)))
                (local.set $entries (struct.get ,type $entries (local.get $table)))
                (local.set $capacity (i32.div_u (array.len (local.get $entries)) (i32.const 2)))
 
-               (local.set $i (i32.add (i32.shr_u (local.get $i) (i32.const 1)) (i32.const 1)))
+               (local.set $i (i32.add (local.get $i) (i32.const 1)))
 
                (block $done
                       (loop $loop
@@ -2972,15 +2993,11 @@
                            (then (call ,raise-expected (local.get $ht))
                                  (unreachable)))
 
-                       ;; Decode and validate position
-                       (if (i32.eqz (ref.test (ref i31) (local.get $pos)))
-                           (then (call $raise-check-fixnum (local.get $pos))
-                                 (unreachable)))
-                       (local.set $index (i31.get_u (ref.cast (ref i31) (local.get $pos))))
-                       (if (i32.and (local.get $index) (i32.const 1))
-                           (then (call $raise-check-fixnum (local.get $pos))
-                                 (unreachable)))
-                       (local.set $index (i32.shr_u (local.get $index) (i32.const 1)))
+                       ;; Decode and validate position.
+                       ,@(hash-iterate-position-validation-forms
+                          '$symbol:hash-iterate-key
+                          '$pos
+                          '$index)
 
                        (local.set $table   (ref.cast (ref ,type) (local.get $ht)))
                        (local.set $entries (struct.get ,type $entries (local.get $table)))
@@ -3030,15 +3047,11 @@
                            (then (call ,raise-expected (local.get $ht))
                                  (unreachable)))
 
-                       ;; Decode and validate position
-                       (if (i32.eqz (ref.test (ref i31) (local.get $pos)))
-                           (then (call $raise-check-fixnum (local.get $pos))
-                                 (unreachable)))
-                       (local.set $index (i31.get_u (ref.cast (ref i31) (local.get $pos))))
-                       (if (i32.and (local.get $index) (i32.const 1))
-                           (then (call $raise-check-fixnum (local.get $pos))
-                                 (unreachable)))
-                       (local.set $index (i32.shr_u (local.get $index) (i32.const 1)))
+                       ;; Decode and validate position.
+                       ,@(hash-iterate-position-validation-forms
+                          '$symbol:hash-iterate-value
+                          '$pos
+                          '$index)
 
                        (local.set $table   (ref.cast (ref ,type) (local.get $ht)))
                        (local.set $entries (struct.get ,type $entries (local.get $table)))
@@ -3092,16 +3105,11 @@
                            (then (call ,raise-expected (local.get $ht))
                                  (unreachable)))
 
-                       ;; Decode and validate position
-                       (if (i32.eqz (ref.test (ref i31) (local.get $pos)))
-                           (then (call $raise-check-fixnum (local.get $pos))
-                                 (unreachable)))
-                       (local.set $index (i31.get_u (ref.cast (ref i31) (local.get $pos))))
-                       (if (i32.and (local.get $index) (i32.const 1))
-                           (then (call $raise-check-fixnum (local.get $pos))
-                                 (unreachable)))
-
-                       (local.set $index (i32.shr_u (local.get $index) (i32.const 1)))
+                       ;; Decode and validate position.
+                       ,@(hash-iterate-position-validation-forms
+                          '$symbol:hash-iterate-pair
+                          '$pos
+                          '$index)
 
                        (local.set $table   (ref.cast (ref ,type) (local.get $ht)))
                        (local.set $entries (struct.get ,type $entries (local.get $table)))
@@ -3157,15 +3165,11 @@
                            (then (call ,raise-expected (local.get $ht))
                                  (unreachable)))
 
-                       ;; Decode and validate position
-                       (if (i32.eqz (ref.test (ref i31) (local.get $pos)))
-                           (then (call $raise-check-fixnum (local.get $pos))
-                                 (unreachable)))
-                       (local.set $index (i31.get_u (ref.cast (ref i31) (local.get $pos))))
-                       (if (i32.and (local.get $index) (i32.const 1))
-                           (then (call $raise-check-fixnum (local.get $pos))
-                                 (unreachable)))
-                       (local.set $index (i32.shr_u (local.get $index) (i32.const 1)))
+                       ;; Decode and validate position.
+                       ,@(hash-iterate-position-validation-forms
+                          '$symbol:hash-iterate-key+value
+                          '$pos
+                          '$index)
 
                        (local.set $table   (ref.cast (ref ,type) (local.get $ht)))
                        (local.set $entries (struct.get ,type $entries (local.get $table)))

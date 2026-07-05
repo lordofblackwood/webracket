@@ -60,6 +60,7 @@
     hash-has-key?
     hash-keys-subset?
     hash-empty?
+    hash-iterate-next
     hash-iterate-key
     hash-iterate-value
     hash-iterate-pair

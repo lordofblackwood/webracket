@@ -5445,17 +5445,31 @@
               (local $pair    (ref $Pair))
               (local $index   i32)
               (local.set $view (call $immutable-hash-as-hasheqv (local.get $ht)))
+              ;; Decode and validate position before considering bad-index.
+              (if (ref.test (ref i31) (local.get $pos))
+                  (then (local.set $index
+                                   (i31.get_s (ref.cast (ref i31) (local.get $pos))))
+                        (if (i32.ne (i32.and (local.get $index) (i32.const 1))
+                                    (i32.const 0))
+                            (then (call $raise-exact-nonnegative-integer-expected/who
+                                        (local.get $who)
+                                        (local.get $pos))
+                                  (unreachable)))
+                        (local.set $index
+                                   (i32.shr_s (local.get $index) (i32.const 1))))
+                  (else (call $raise-exact-nonnegative-integer-expected/who
+                              (local.get $who)
+                              (local.get $pos))
+                        (unreachable)))
+              (if (i32.lt_s (local.get $index) (i32.const 0))
+                  (then (call $raise-exact-nonnegative-integer-expected/who
+                              (local.get $who)
+                              (local.get $pos))
+                        (unreachable)))
               (block $bad
                      (if (ref.eq (struct.get $HashEqvImmutable $root (local.get $view))
                                  (global.get $missing))
                          (then (br $bad)))
-                     (if (i32.eqz (ref.test (ref i31) (local.get $pos)))
-                         (then (br $bad)))
-                     (local.set $index
-                                (i31.get_u (ref.cast (ref i31) (local.get $pos))))
-                     (if (i32.and (local.get $index) (i32.const 1))
-                         (then (br $bad)))
-                     (local.set $index (i32.shr_u (local.get $index) (i32.const 1)))
                      (if (i32.ge_u (local.get $index)
                                    (struct.get $HashEqvImmutable $count (local.get $view)))
                          (then (br $bad)))
@@ -5506,16 +5520,28 @@
               (local $view  (ref $HashEqvImmutable))
               (local $index i32)
               (local.set $view (call $immutable-hash-as-hasheqv (local.get $ht)))
-              (if (i32.eqz (ref.test (ref i31) (local.get $pos)))
-                  (then (call $raise-check-fixnum (local.get $pos))
+              ;; Decode and validate position.
+              (if (ref.test (ref i31) (local.get $pos))
+                  (then (local.set $index
+                                   (i31.get_s (ref.cast (ref i31) (local.get $pos))))
+                        (if (i32.ne (i32.and (local.get $index) (i32.const 1))
+                                    (i32.const 0))
+                            (then (call $raise-exact-nonnegative-integer-expected/who
+                                        (global.get $symbol:hash-iterate-next)
+                                        (local.get $pos))
+                                  (unreachable)))
+                        (local.set $index
+                                   (i32.shr_s (local.get $index) (i32.const 1))))
+                  (else (call $raise-exact-nonnegative-integer-expected/who
+                              (global.get $symbol:hash-iterate-next)
+                              (local.get $pos))
                         (unreachable)))
-              (local.set $index
-                         (i31.get_u (ref.cast (ref i31) (local.get $pos))))
-              (if (i32.and (local.get $index) (i32.const 1))
-                  (then (call $raise-check-fixnum (local.get $pos))
+              (if (i32.lt_s (local.get $index) (i32.const 0))
+                  (then (call $raise-exact-nonnegative-integer-expected/who
+                              (global.get $symbol:hash-iterate-next)
+                              (local.get $pos))
                         (unreachable)))
-              (local.set $index (i32.add (i32.shr_u (local.get $index) (i32.const 1))
-                                         (i32.const 1)))
+              (local.set $index (i32.add (local.get $index) (i32.const 1)))
               (if (i32.ge_u (local.get $index)
                             (struct.get $HashEqvImmutable $count (local.get $view)))
                   (then (return (global.get $false))))

@@ -7116,6 +7116,61 @@
                           "no element at index"
                           "index: 99")))))
 
+              (list "hash iteration position contract errors preserve who"
+                    (let ([catch-contract/contains?
+                           (lambda (thunk . needles)
+                             (let ([message
+                                    (with-handlers ([exn:fail:contract?
+                                                     (lambda (exn)
+                                                       (exn-message exn))])
+                                      (thunk)
+                                      #f)])
+                               (and message
+                                    (andmap (lambda (needle)
+                                              (string-contains? message needle))
+                                            needles))))])
+                      (let ([i (hash 'a 1)]
+                            [m (make-hash '((a . 1)))])
+                        (and
+                         (catch-contract/contains?
+                          (lambda () (hash-iterate-next i 'x))
+                          "hash-iterate-next"
+                          "exact-nonnegative-integer?"
+                          "given: x")
+                         (catch-contract/contains?
+                          (lambda () (hash-iterate-next m -1))
+                          "hash-iterate-next"
+                          "exact-nonnegative-integer?"
+                          "given: -1")
+                         (catch-contract/contains?
+                          (lambda () (hash-iterate-key i #f))
+                          "hash-iterate-key"
+                          "exact-nonnegative-integer?"
+                          "given: #f")
+                         (catch-contract/contains?
+                          (lambda () (hash-iterate-value i -1))
+                          "hash-iterate-value"
+                          "exact-nonnegative-integer?"
+                          "given: -1")
+                         (catch-contract/contains?
+                          (lambda () (hash-iterate-pair i -1))
+                          "hash-iterate-pair"
+                          "exact-nonnegative-integer?"
+                          "given: -1")
+                         (catch-contract/contains?
+                          (lambda ()
+                            (call-with-values
+                             (lambda () (hash-iterate-key+value i -1))
+                             cons))
+                          "hash-iterate-key+value"
+                          "exact-nonnegative-integer?"
+                          "given: -1")
+                         (catch-contract/contains?
+                          (lambda () (hash-iterate-key m -1))
+                          "hash-iterate-key"
+                          "exact-nonnegative-integer?"
+                          "given: -1")))))
+
               (list "mutable-hash-iterate"
                     (let ([empty (make-hash)]
                           [h     (make-hasheq)])
