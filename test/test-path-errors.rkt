@@ -114,6 +114,27 @@
          "bytes->path"
          "nul character"
          "byte string:")))
+ (list "path accessors type errors are catchable with who"
+       (and
+        (catch-contract/contains?
+         (lambda () (path->bytes 42))
+         "path->bytes"
+         "path-for-some-system?"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (path->string 42))
+         "path->string"
+         "path?"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (some-system-path->string 42))
+         "some-system-path->string"
+         "path-for-some-system?"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (path->string (bytes->path #"x" 'windows)))
+         "path->string"
+         "path?")))
  (list "path string conversion successes still work"
        (and (equal? (path->string (string->path "app/main.rkt"))
                     "app/main.rkt")

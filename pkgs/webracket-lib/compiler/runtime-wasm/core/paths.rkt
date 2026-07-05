@@ -369,7 +369,10 @@
           (local $path (ref $Path))
 
           (if (i32.eqz (ref.test (ref $Path) (local.get $path-raw)))
-              (then (call $raise-path-expected (local.get $path-raw))
+              (then (call $raise-argument-error1
+                          (global.get $symbol:path->bytes)
+                          (global.get $string:path-for-some-system?)
+                          (local.get $path-raw))
                     (unreachable)))
 
           (local.set $path (ref.cast (ref $Path) (local.get $path-raw)))
@@ -384,13 +387,19 @@
           (local $conv  (ref eq))
 
           (if (i32.eqz (ref.test (ref $Path) (local.get $path-raw)))
-              (then (call $raise-path-expected (local.get $path-raw))
+              (then (call $raise-argument-error1
+                          (global.get $symbol:path->string)
+                          (global.get $string:path?)
+                          (local.get $path-raw))
                     (unreachable)))
 
           (local.set $path (ref.cast (ref $Path) (local.get $path-raw)))
           (local.set $conv (struct.get $Path $convention (local.get $path)))
           (if (i32.eqz (ref.eq (local.get $conv) (global.get $system-path-convention)))
-              (then (call $raise-path-expected (local.get $path-raw))
+              (then (call $raise-argument-error1
+                          (global.get $symbol:path->string)
+                          (global.get $string:path?)
+                          (local.get $path-raw))
                     (unreachable)))
 
           (local.set $bytes (struct.get $Path $bytes (local.get $path)))
@@ -404,7 +413,10 @@
           (local $path (ref $Path))
 
           (if (i32.eqz (ref.test (ref $Path) (local.get $path-raw)))
-              (then (call $raise-path-expected (local.get $path-raw))
+              (then (call $raise-argument-error1
+                          (local.get $who)
+                          (global.get $string:path?)
+                          (local.get $path-raw))
                     (unreachable)))
           (local.set $path (ref.cast (ref $Path) (local.get $path-raw)))
           (if (i32.eqz (ref.eq (struct.get $Path $convention (local.get $path))
@@ -460,7 +472,10 @@
           (local $path (ref $Path))
 
           (if (i32.eqz (ref.test (ref $Path) (local.get $path-raw)))
-              (then (call $raise-path-expected (local.get $path-raw))
+              (then (call $raise-argument-error1
+                          (global.get $symbol:some-system-path->string)
+                          (global.get $string:path-for-some-system?)
+                          (local.get $path-raw))
                     (unreachable)))
           (local.set $path (ref.cast (ref $Path) (local.get $path-raw)))
           (call $bytes->string/utf-8/checked
