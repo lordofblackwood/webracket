@@ -6,6 +6,10 @@
 (test-case "test-basics has no false leaves"
   (check-no-stdlib-result-tree "test/test-basics.rkt"))
 
+(test-case "test-byte-text-errors has no false leaves"
+  (check-no-stdlib-result-tree "test/test-byte-text-errors.rkt"
+                               #:timeout-seconds 120))
+
 (test-case "test-hash has no false leaves"
   (check-no-stdlib-result-tree "test/test-hash.rkt"
                                #:timeout-seconds 120))

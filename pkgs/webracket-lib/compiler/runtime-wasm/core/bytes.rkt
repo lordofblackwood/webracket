@@ -18,6 +18,7 @@
 (require "../core-helper.rkt"
          (only-in "../../private/immediates.rkt"
                   char-mask
+                  char-shift
                   char-tag))
 
 ;; bytes-runtime-string-constants : (listof (list/c symbol? string?))
@@ -27,6 +28,7 @@
     (bytes?                     "bytes?")
     (mutable-bytes?             "(and/c bytes? (not/c immutable?))")
     (char-or-false?             "(or/c char? #f)")
+    (bytes->string/utf-8:bad-encoding ": byte string is not a well-formed UTF-8 encoding")
     (bytes-converter?           "bytes-converter?")))
 
 ;; bytes-runtime-bytes-constants : (listof (list/c symbol? bytes?))
@@ -1382,8 +1384,10 @@
     $raise-bytes->string/latin-1:invalid-err-char
     $raise-bytes->string/latin-1:range-error
     $bytes->string/latin-1
+    $raise-bytes->string/utf-8:bad-argument
     $raise-bytes->string/utf-8
     $raise-bytes->string/utf-8:invalid-err-char
+    $raise-bytes->string/utf-8:range-error
     $bytes->string/utf-8
     $bytes->string/utf-8/defaults
     $bytes->string/utf-8/checked
@@ -1858,8 +1862,59 @@
            (call $i32array->immutable-string (local.get $codepoints)))
 
 
-     (func $raise-bytes->string/utf-8                  (unreachable))
-     (func $raise-bytes->string/utf-8:invalid-err-char (unreachable))
+     (func $raise-bytes->string/utf-8:bad-argument
+           (param $expected (ref eq))
+           (param $bad      (ref eq))
+           (call $raise-argument-error1
+                 (global.get $symbol:bytes->string/utf-8)
+                 (local.get $expected)
+                 (local.get $bad))
+           (unreachable))
+
+     (func $raise-bytes->string/utf-8
+           (param $bstr (ref eq))
+
+           (local $out     (ref $GrowableArray))
+           (local $message (ref $String))
+
+           (local.set $out (call $make-growable-array (i32.const 4)))
+           (call $growable-array-add! (local.get $out)
+                 (call $format/display
+                       (global.get $symbol:bytes->string/utf-8)))
+           (call $growable-array-add! (local.get $out)
+                 (global.get $string:bytes->string/utf-8:bad-encoding))
+           (call $growable-array-add! (local.get $out)
+                 (global.get $string:string-utf8:byte-string))
+           (call $growable-array-add! (local.get $out)
+                 (call $format/write (local.get $bstr)))
+           (local.set $message
+                      (call $growable-array-of-strings->string (local.get $out)))
+           (call $raise
+                 (call $exn:fail:contract/make
+                       (local.get $message)
+                       (call $current-continuation-marks (global.get $missing)))
+                 (global.get $true))
+           (unreachable))
+
+     (func $raise-bytes->string/utf-8:invalid-err-char
+           (param $bad (ref eq))
+           (call $raise-bytes->string/utf-8:bad-argument
+                 (global.get $string:char-or-false?)
+                 (local.get $bad))
+           (unreachable))
+
+     (func $raise-bytes->string/utf-8:range-error
+           (param $bstr  (ref eq))
+           (param $start i32)
+           (param $end   i32)
+           (param $len   i32)
+           (call $raise-byte-string-range-error
+                 (global.get $symbol:bytes->string/utf-8)
+                 (local.get $bstr)
+                 (local.get $start)
+                 (local.get $end)
+                 (local.get $len))
+           (unreachable))
 
      (func $bytes->string/utf-8 (type $Prim14)
            (param $bstr         (ref eq))
@@ -1869,32 +1924,66 @@
            (result              (ref eq))
 
            (local $bs               (ref null $Bytes))
+           (local $len              i32)
            (local $start            i32)
            (local $end              i32)
            (local $use-err-char     i32)
            (local $decoded-err-char i32)
+           (local $raw-start        i32)
+           (local $raw-end          i32)
+           (local $raw-err-char     i32)
 
            ;; Cast input to $Bytes
            (if (ref.test (ref $Bytes) (local.get $bstr))
                (then (local.set $bs (ref.cast (ref $Bytes) (local.get $bstr))))
-               (else (call $raise-bytes->string/utf-8)))
+               (else (call $raise-bytes->string/utf-8:bad-argument
+                           (global.get $string:bytes?)
+                           (local.get $bstr))))
+           (local.set $len (array.len (struct.get $Bytes $bs (local.get $bs))))
            ;; Decode start
            (if (ref.eq (local.get $start-raw) (global.get $missing))
                (then (local.set $start (i32.const 0)))
                (else
                 (if (ref.test (ref i31) (local.get $start-raw))
-                    (then (local.set $start (i32.shr_u (i31.get_u (ref.cast (ref i31) (local.get $start-raw))) (i32.const 1))))
-                    (else (call $raise-bytes->string/utf-8)))))
+                    (then (local.set $raw-start
+                                     (i31.get_s
+                                      (ref.cast (ref i31) (local.get $start-raw))))
+                          (if (i32.ne (i32.and (local.get $raw-start) (i32.const 1))
+                                      (i32.const 0))
+                              (then (call $raise-bytes->string/utf-8:bad-argument
+                                          (global.get $string:exact-nonnegative-integer?)
+                                          (local.get $start-raw))))
+                          (local.set $start
+                                     (i32.shr_s (local.get $raw-start) (i32.const 1)))
+                          (if (i32.lt_s (local.get $start) (i32.const 0))
+                              (then (call $raise-bytes->string/utf-8:bad-argument
+                                          (global.get $string:exact-nonnegative-integer?)
+                                          (local.get $start-raw)))))
+                    (else (call $raise-bytes->string/utf-8:bad-argument
+                                (global.get $string:exact-nonnegative-integer?)
+                                (local.get $start-raw))))))
            ;; Decode end
            (if (ref.eq (local.get $end-raw) (global.get $missing))
-               (then (local.set $end (array.len (struct.get $Bytes $bs (local.get $bs)))))
+               (then (local.set $end (local.get $len)))
                (else
                 (if (ref.test (ref i31) (local.get $end-raw))
-                    (then (local.set $end
-                                     (i32.shr_u
-                                      (i31.get_u (ref.cast (ref i31) (local.get $end-raw)))
-                                      (i32.const 1))))
-                    (else (call $raise-bytes->string/utf-8)))))
+                    (then (local.set $raw-end
+                                     (i31.get_s
+                                      (ref.cast (ref i31) (local.get $end-raw))))
+                          (if (i32.ne (i32.and (local.get $raw-end) (i32.const 1))
+                                      (i32.const 0))
+                              (then (call $raise-bytes->string/utf-8:bad-argument
+                                          (global.get $string:exact-nonnegative-integer?)
+                                          (local.get $end-raw))))
+                          (local.set $end
+                                     (i32.shr_s (local.get $raw-end) (i32.const 1)))
+                          (if (i32.lt_s (local.get $end) (i32.const 0))
+                              (then (call $raise-bytes->string/utf-8:bad-argument
+                                          (global.get $string:exact-nonnegative-integer?)
+                                          (local.get $end-raw)))))
+                    (else (call $raise-bytes->string/utf-8:bad-argument
+                                (global.get $string:exact-nonnegative-integer?)
+                                (local.get $end-raw))))))
            ;; Decode err-char
            (if (ref.eq (local.get $err-char) (global.get $missing))
                ; missing
@@ -1908,12 +1997,29 @@
                     (else
                      ; character
                      (if (ref.test (ref i31) (local.get $err-char))
-                         (then (local.set $use-err-char (i32.const 1))
-                               (local.set $decoded-err-char
-                                          (i32.shr_u
-                                           (i31.get_u (ref.cast (ref i31) (local.get $err-char)))
-                                           (i32.const 1))))
-                         (else (call $raise-bytes->string/utf-8:invalid-err-char)))))))
+                         (then (local.set $raw-err-char
+                                          (i31.get_s
+                                           (ref.cast (ref i31) (local.get $err-char))))
+                               (if (i32.eq (i32.and (local.get $raw-err-char)
+                                                   (i32.const ,char-mask))
+                                           (i32.const ,char-tag))
+                                   (then (local.set $use-err-char (i32.const 1))
+                                         (local.set $decoded-err-char
+                                                    (i32.shr_u
+                                                     (local.get $raw-err-char)
+                                                     (i32.const ,char-shift))))
+                                   (else (call $raise-bytes->string/utf-8:invalid-err-char
+                                               (local.get $err-char)))))
+                         (else (call $raise-bytes->string/utf-8:invalid-err-char
+                                     (local.get $err-char))))))))
+           ;; Range check
+           (if (i32.or (i32.gt_u (local.get $start) (local.get $end))
+                       (i32.gt_u (local.get $end) (local.get $len)))
+               (then (call $raise-bytes->string/utf-8:range-error
+                           (local.get $bstr)
+                           (local.get $start)
+                           (local.get $end)
+                           (local.get $len))))
            ;; Delegate to implementation
            (call $bytes->string/utf-8:work
                  (ref.as_non_null (local.get $bs))
@@ -1984,7 +2090,8 @@
                         (if (i32.lt_s (local.get $need) (i32.const 0))
                             (then
                              (if (i32.eqz (local.get $use-err-char))
-                                 (then (call $raise-bytes->string/utf-8))
+                                 (then (call $raise-bytes->string/utf-8
+                                             (local.get $bs)))
                                  (else
                                   (call $i32growable-array-add! (local.get $buf) (local.get $err-char))
                                   (local.set $i (i32.add (local.get $i) (i32.const 1)))
@@ -1993,7 +2100,8 @@
                         (if (i32.gt_u (i32.add (local.get $i) (local.get $need)) (local.get $end))
                             (then
                              (if (i32.eqz (local.get $use-err-char))
-                                 (then (call $raise-bytes->string/utf-8))
+                                 (then (call $raise-bytes->string/utf-8
+                                             (local.get $bs)))
                                  (else
                                   (call $i32growable-array-add! (local.get $buf) (local.get $err-char))
                                   (local.set $i (i32.add (local.get $i) (i32.const 1)))
@@ -2020,7 +2128,8 @@
                         (if (i32.ne (local.get $need) (i32.const 0))
                             (then
                              (if (i32.eqz (local.get $use-err-char))
-                                 (then (call $raise-bytes->string/utf-8))
+                                 (then (call $raise-bytes->string/utf-8
+                                             (local.get $bs)))
                                  (else
                                   (call $i32growable-array-add! (local.get $buf) (local.get $err-char))
                                   (br $loop)))))
