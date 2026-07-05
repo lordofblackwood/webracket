@@ -29,7 +29,8 @@
     (hash-ref:no-value-found-key "hash-ref: no value found for key\n  key: ")
     (hash-ref-key:does-not-contain-key "hash-ref-key: hash does not contain key\n  key: ")
     (hash-ref!:no-value-found-key "hash-ref!: no value found for key: ")
-    (hash-update!:no-value-found-key "hash-update!: no value found for key: ")))
+    (hash-update!:no-value-found-key "hash-update!: no value found for key: ")
+    (hash-iterate:no-element-at-index ": no element at index\n  index: ")))
 
 ;; hash-runtime-symbol-constants : (listof symbol?)
 ;;   Declare symbols used by public hash contract checks.
@@ -58,7 +59,11 @@
     hash-copy
     hash-has-key?
     hash-keys-subset?
-    hash-empty?))
+    hash-empty?
+    hash-iterate-key
+    hash-iterate-value
+    hash-iterate-pair
+    hash-iterate-key+value))
 
 ;; hash-seed-global-forms : (listof datum?)
 ;;   Declare global state for hash-code seed generation.

@@ -243,4 +243,36 @@
          (lambda () (hash-clear! (hash 'a 1)))
          "hash-clear!"
          "(and/c hash? (not/c immutable?))"
-         "given:"))))
+         "given:")))
+ (list "hash iteration bad-index errors are catchable with who"
+       (let ([i (hash 'a 1)]
+             [m (make-hash '((a . 1)))])
+         (and
+          (catch-contract/contains?
+           (lambda () (hash-iterate-key i 99))
+           "hash-iterate-key"
+           "no element at index"
+           "index: 99")
+          (catch-contract/contains?
+           (lambda () (hash-iterate-value i 99))
+           "hash-iterate-value"
+           "no element at index"
+           "index: 99")
+          (catch-contract/contains?
+           (lambda () (hash-iterate-pair i 99))
+           "hash-iterate-pair"
+           "no element at index"
+           "index: 99")
+          (catch-contract/contains?
+           (lambda ()
+             (call-with-values
+              (lambda () (hash-iterate-key+value i 99))
+              cons))
+           "hash-iterate-key+value"
+           "no element at index"
+           "index: 99")
+          (catch-contract/contains?
+           (lambda () (hash-iterate-key m 99))
+           "hash-iterate-key"
+           "no element at index"
+           "index: 99")))))

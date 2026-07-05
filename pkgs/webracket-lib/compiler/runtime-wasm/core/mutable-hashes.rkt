@@ -2352,7 +2352,25 @@
     "$raise-mutable-hash-iterate-bad-index"
     (lambda ()
       `(func $raise-mutable-hash-iterate-bad-index
+             (param $who (ref eq))  ;; public iterator accessor name
              (param $pos (ref eq))  ;; iteration position
+             (local $out     (ref $GrowableArray))
+             (local $message (ref $String))
+
+             (local.set $out (call $make-growable-array (i32.const 3)))
+             (call $growable-array-add! (local.get $out)
+                   (call $format/display (local.get $who)))
+             (call $growable-array-add! (local.get $out)
+                   (global.get $string:hash-iterate:no-element-at-index))
+             (call $growable-array-add! (local.get $out)
+                   (call $format/display (local.get $pos)))
+             (local.set $message
+                        (call $growable-array-of-strings->string (local.get $out)))
+             (call $raise
+                   (call $exn:fail:contract/make
+                         (local.get $message)
+                         (call $current-continuation-marks (global.get $missing)))
+                   (global.get $true))
              (unreachable))))
 
    (core-runtime-helper
@@ -2741,6 +2759,7 @@
                              (ref.cast (ref $ImmutableHashEntry)
                                        (call $immutable-hasheqv-iterate-entry
                                              (call $immutable-hash-as-hasheqv (local.get $ht))
+                                             (global.get $symbol:hash-iterate-key)
                                              (local.get $pos)
                                              (local.get $bad-index))))
                   (return (struct.get $ImmutableHashEntry $key (local.get $entry)))))
@@ -2790,6 +2809,7 @@
                              (ref.cast (ref $ImmutableHashEntry)
                                        (call $immutable-hasheqv-iterate-entry
                                              (call $immutable-hash-as-hasheqv (local.get $ht))
+                                             (global.get $symbol:hash-iterate-value)
                                              (local.get $pos)
                                              (local.get $bad-index))))
                   (return (struct.get $ImmutableHashEntry $value (local.get $entry)))))
@@ -2839,6 +2859,7 @@
                              (ref.cast (ref $ImmutableHashEntry)
                                        (call $immutable-hasheqv-iterate-entry
                                              (call $immutable-hash-as-hasheqv (local.get $ht))
+                                             (global.get $symbol:hash-iterate-pair)
                                              (local.get $pos)
                                              (local.get $bad-index))))
                   (return (call $cons
@@ -2890,6 +2911,7 @@
                              (ref.cast (ref $ImmutableHashEntry)
                                        (call $immutable-hasheqv-iterate-entry
                                              (call $immutable-hash-as-hasheqv (local.get $ht))
+                                             (global.get $symbol:hash-iterate-key+value)
                                              (local.get $pos)
                                              (local.get $bad-index))))
                   (return (array.new_fixed $Values 2
@@ -2979,7 +3001,9 @@
                        (return (local.get $key)))
 
                 (if (ref.eq (local.get $bad-index) (global.get $missing))
-                    (then (call $raise-mutable-hash-iterate-bad-index (local.get $pos))
+                    (then (call $raise-mutable-hash-iterate-bad-index
+                                (global.get $symbol:hash-iterate-key)
+                                (local.get $pos))
                           (unreachable)))
                 (return (local.get $bad-index)))))
 
@@ -3038,7 +3062,9 @@
                                                    (i32.const 1)))))
 
                 (if (ref.eq (local.get $bad-index) (global.get $missing))
-                    (then (call $raise-mutable-hash-iterate-bad-index (local.get $pos))
+                    (then (call $raise-mutable-hash-iterate-bad-index
+                                (global.get $symbol:hash-iterate-value)
+                                (local.get $pos))
                           (unreachable)))
                 (return (local.get $bad-index)))))
 
@@ -3101,7 +3127,9 @@
                        (return (call $cons (local.get $key) (local.get $val))))
 
                 (if (ref.eq (local.get $bad-index) (global.get $missing))
-                    (then (call $raise-mutable-hash-iterate-bad-index (local.get $pos))
+                    (then (call $raise-mutable-hash-iterate-bad-index
+                                (global.get $symbol:hash-iterate-pair)
+                                (local.get $pos))
                           (unreachable)))
                 (return (call $cons (local.get $bad-index) (local.get $bad-index))))))
 
@@ -3163,7 +3191,9 @@
                        (return (array.new_fixed $Values 2 (local.get $key) (local.get $val))))
 
                 (if (ref.eq (local.get $bad-index) (global.get $missing))
-                    (then (call $raise-mutable-hash-iterate-bad-index (local.get $pos))
+                    (then (call $raise-mutable-hash-iterate-bad-index
+                                (global.get $symbol:hash-iterate-key+value)
+                                (local.get $pos))
                           (unreachable)))
                 (return (array.new_fixed $Values 2
                                          (local.get $bad-index)
