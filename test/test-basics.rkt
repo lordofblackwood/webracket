@@ -7018,6 +7018,40 @@
                              (equal? (hash-ref h2 'a) 2)
                              (equal? (hash-ref h2 'b) 3)))))
 
+              (list "immutable hash map/copy and filters"
+                    (let* ([h       (hash 'a 1 'b 2 'c 3)]
+                           [copy    (hash-map/copy h (lambda (k v) (values k (+ v 10))))]
+                           [by-pair (hash-filter h (lambda (k v) (< v 3)))]
+                           [by-key  (hash-filter-keys h (lambda (k) (or (eq? k 'a) (eq? k 'c))))]
+                           [by-val  (hash-filter-values h (lambda (v) (< v 3)))]
+                           [eqh     (hasheq 'a 1 'b 2)]
+                           [eqf     (hash-filter eqh (lambda (k v) (eq? k 'a)))])
+                      (and (immutable-hash? copy)
+                           (hash-equal? copy)
+                           (equal? (hash-count copy) 3)
+                           (equal? (hash-ref copy 'a) 11)
+                           (equal? (hash-ref copy 'b) 12)
+                           (immutable-hash? by-pair)
+                           (hash-equal? by-pair)
+                           (equal? (hash-count by-pair) 2)
+                           (equal? (hash-ref by-pair 'a) 1)
+                           (equal? (hash-ref by-pair 'b) 2)
+                           (equal? (hash-ref by-pair 'c #f) #f)
+                           (immutable-hash? by-key)
+                           (equal? (hash-count by-key) 2)
+                           (equal? (hash-ref by-key 'a) 1)
+                           (equal? (hash-ref by-key 'c) 3)
+                           (equal? (hash-ref by-key 'b #f) #f)
+                           (immutable-hash? by-val)
+                           (equal? (hash-count by-val) 2)
+                           (equal? (hash-ref by-val 'a) 1)
+                           (equal? (hash-ref by-val 'b) 2)
+                           (equal? (hash-ref by-val 'c #f) #f)
+                           (immutable-hash? eqf)
+                           (hash-eq? eqf)
+                           (equal? (hash-count eqf) 1)
+                           (equal? (hash-ref eqf 'a) 1))))
+
               (list "hash-filter"
                     (let ([h (make-hasheq)])
                       (hash-set! h 1 'a)
