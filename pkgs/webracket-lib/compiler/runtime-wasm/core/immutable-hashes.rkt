@@ -22,6 +22,8 @@
     (hash-set-non-hash "hash-set expected hash table, got:")
     (hash-set-exn-message "hash-set received exception message:")
     (hash-set-unsupported "hash-set unsupported hash table:")
+    (hash-constructor:key-without-value
+     ": key does not have a value (i.e., an odd number of arguments were provided)\n  key: ")
     (reader-graph-unsupported
      "cyclic reader graphs and hash placeholders are not supported by WebRacket yet")))
 
@@ -128,7 +130,7 @@
     $immutable-hashalw-ref-key
     $immutable-hashalw-has-key?
     $immutable-hasheqv-set
-    $raise-hasheqv-odd-arguments
+    $raise-hash-constructor-odd-arguments
     $immutable-hasheq-set
     $immutable-hash-set
     $immutable-hashalw-set
@@ -252,6 +254,10 @@
 (define immutable-hash-runtime-symbol-constants
   '(hash-placeholder?
     hash-weak?
+    hash
+    hasheq
+    hasheqv
+    hashalw
     make-reader-graph
     make-placeholder
     placeholder-set!
@@ -4281,10 +4287,29 @@
 (define immutable-hash-varargs-constructor-runtime-only-helpers
   (list
    (core-runtime-helper
-    '$raise-hasheqv-odd-arguments
-    "$raise-hasheqv-odd-arguments"
+    '$raise-hash-constructor-odd-arguments
+    "$raise-hash-constructor-odd-arguments"
     (lambda ()
-      `(func $raise-hasheqv-odd-arguments (unreachable))))
+      `(func $raise-hash-constructor-odd-arguments
+             (param $who (ref eq))
+             (param $key (ref eq))
+             (local $out     (ref $GrowableArray))
+             (local $message (ref $String))
+             (local.set $out (call $make-growable-array (i32.const 3)))
+             (call $growable-array-add! (local.get $out)
+                   (call $format/display (local.get $who)))
+             (call $growable-array-add! (local.get $out)
+                   (global.get $string:hash-constructor:key-without-value))
+             (call $growable-array-add! (local.get $out)
+                   (call $format/display (local.get $key)))
+             (local.set $message
+                        (call $growable-array-of-strings->string (local.get $out)))
+             (call $raise
+                   (call $exn:fail:contract/make
+                         (local.get $message)
+                         (call $current-continuation-marks (global.get $missing)))
+                   (global.get $true))
+             (unreachable))))
 
    ;; hash : any/c any/c ... -> immutable-hash?
    ;;   Build an immutable hash from alternating keys and values.
@@ -4306,12 +4331,18 @@
                     (loop $loop
                           (br_if $done (ref.eq (local.get $args*) (global.get $null)))
                           (if (i32.eqz (ref.test (ref $Pair) (local.get $args*)))
-                              (then (call $raise-hasheqv-odd-arguments) (unreachable)))
+                              (then (call $raise-hash-constructor-odd-arguments
+                                          (global.get $symbol:hash)
+                                          (local.get $args*))
+                                    (unreachable)))
                           (local.set $pair (ref.cast (ref $Pair) (local.get $args*)))
                           (local.set $key (struct.get $Pair $a (local.get $pair)))
                           (local.set $args* (struct.get $Pair $d (local.get $pair)))
                           (if (i32.eqz (ref.test (ref $Pair) (local.get $args*)))
-                              (then (call $raise-hasheqv-odd-arguments) (unreachable)))
+                              (then (call $raise-hash-constructor-odd-arguments
+                                          (global.get $symbol:hash)
+                                          (local.get $key))
+                                    (unreachable)))
                           (local.set $pair (ref.cast (ref $Pair) (local.get $args*)))
                           (local.set $val (struct.get $Pair $a (local.get $pair)))
                           (local.set $args* (struct.get $Pair $d (local.get $pair)))
@@ -4344,13 +4375,17 @@
                     (loop $walk
                           (br_if $done (ref.eq (local.get $node) (global.get $null)))
                           (if (i32.eqz (ref.test (ref $Pair) (local.get $node)))
-                              (then (call $raise-hasheqv-odd-arguments)
+                              (then (call $raise-hash-constructor-odd-arguments
+                                          (global.get $symbol:hasheq)
+                                          (local.get $node))
                                     (unreachable)))
                           (local.set $pair (ref.cast (ref $Pair) (local.get $node)))
                           (local.set $key (struct.get $Pair $a (local.get $pair)))
                           (local.set $node (struct.get $Pair $d (local.get $pair)))
                           (if (i32.eqz (ref.test (ref $Pair) (local.get $node)))
-                              (then (call $raise-hasheqv-odd-arguments)
+                              (then (call $raise-hash-constructor-odd-arguments
+                                          (global.get $symbol:hasheq)
+                                          (local.get $key))
                                     (unreachable)))
                           (local.set $pair (ref.cast (ref $Pair) (local.get $node)))
                           (local.set $val (struct.get $Pair $a (local.get $pair)))
@@ -4384,13 +4419,17 @@
                     (loop $walk
                           (br_if $done (ref.eq (local.get $node) (global.get $null)))
                           (if (i32.eqz (ref.test (ref $Pair) (local.get $node)))
-                              (then (call $raise-hasheqv-odd-arguments)
+                              (then (call $raise-hash-constructor-odd-arguments
+                                          (global.get $symbol:hashalw)
+                                          (local.get $node))
                                     (unreachable)))
                           (local.set $pair (ref.cast (ref $Pair) (local.get $node)))
                           (local.set $key (struct.get $Pair $a (local.get $pair)))
                           (local.set $node (struct.get $Pair $d (local.get $pair)))
                           (if (i32.eqz (ref.test (ref $Pair) (local.get $node)))
-                              (then (call $raise-hasheqv-odd-arguments)
+                              (then (call $raise-hash-constructor-odd-arguments
+                                          (global.get $symbol:hashalw)
+                                          (local.get $key))
                                     (unreachable)))
                           (local.set $pair (ref.cast (ref $Pair) (local.get $node)))
                           (local.set $val (struct.get $Pair $a (local.get $pair)))
@@ -4422,13 +4461,17 @@
                     (loop $walk
                           (br_if $done (ref.eq (local.get $node) (global.get $null)))
                           (if (i32.eqz (ref.test (ref $Pair) (local.get $node)))
-                              (then (call $raise-hasheqv-odd-arguments)
+                              (then (call $raise-hash-constructor-odd-arguments
+                                          (global.get $symbol:hasheqv)
+                                          (local.get $node))
                                     (unreachable)))
                           (local.set $pair (ref.cast (ref $Pair) (local.get $node)))
                           (local.set $key (struct.get $Pair $a (local.get $pair)))
                           (local.set $node (struct.get $Pair $d (local.get $pair)))
                           (if (i32.eqz (ref.test (ref $Pair) (local.get $node)))
-                              (then (call $raise-hasheqv-odd-arguments)
+                              (then (call $raise-hash-constructor-odd-arguments
+                                          (global.get $symbol:hasheqv)
+                                          (local.get $key))
                                     (unreachable)))
                           (local.set $pair (ref.cast (ref $Pair) (local.get $node)))
                           (local.set $val (struct.get $Pair $a (local.get $pair)))

@@ -51,6 +51,28 @@
               (begin
                 (hash-update! m 'a add1)
                 (equal? (hash-ref m 'a) 2)))))
+ (list "immutable hash varargs odd argument errors are catchable with who"
+       (and
+        (catch-contract/contains?
+         (lambda () (hash 'a))
+         "hash"
+         "key does not have a value"
+         "key: a")
+        (catch-contract/contains?
+         (lambda () (hasheq 'a))
+         "hasheq"
+         "key does not have a value"
+         "key: a")
+        (catch-contract/contains?
+         (lambda () (hasheqv 'a))
+         "hasheqv"
+         "key does not have a value"
+         "key: a")
+        (catch-contract/contains?
+         (lambda () (hashalw 'a))
+         "hashalw"
+         "key does not have a value"
+         "key: a")))
  (list "mutable hash constructor alist errors are catchable with who"
        (and
         (catch-contract/contains?

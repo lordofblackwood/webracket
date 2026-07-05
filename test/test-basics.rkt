@@ -6496,6 +6496,41 @@
                         "hash-update!"
                         "no value found for key: 42"))))
 
+              (list "immutable hash varargs odd argument errors are catchable with who"
+                    (let ([catch-contract/contains?
+                           (lambda (thunk . needles)
+                             (let ([message
+                                    (with-handlers ([exn:fail:contract?
+                                                     (lambda (exn)
+                                                       (exn-message exn))])
+                                      (thunk)
+                                      #f)])
+                               (and message
+                                    (andmap (lambda (needle)
+                                              (string-contains? message needle))
+                                            needles))))])
+                      (and
+                       (catch-contract/contains?
+                        (lambda () (hash 'a))
+                        "hash"
+                        "key does not have a value"
+                        "key: a")
+                       (catch-contract/contains?
+                        (lambda () (hasheq 'a))
+                        "hasheq"
+                        "key does not have a value"
+                        "key: a")
+                       (catch-contract/contains?
+                        (lambda () (hasheqv 'a))
+                        "hasheqv"
+                        "key does not have a value"
+                        "key: a")
+                       (catch-contract/contains?
+                        (lambda () (hashalw 'a))
+                        "hashalw"
+                        "key does not have a value"
+                        "key: a"))))
+
               (list "mutable hash constructor alist errors are catchable with who"
                     (let ([catch-contract/contains?
                            (lambda (thunk . needles)
