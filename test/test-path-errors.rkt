@@ -164,6 +164,48 @@
          "build-path"
          "(or/c path-string? path-for-some-system? 'up 'same)"
          "given: \"\"")))
+ (list "build-path rejects absolute paths after the first part with who"
+       (and
+        (catch-contract/contains?
+         (lambda () (build-path "/app" "/abs"))
+         "build-path"
+         "absolute path cannot be added to a path"
+         "absolute path: \"/abs\"")
+        (catch-contract/contains?
+         (lambda () (build-path/convention-type 'unix "/app" "/abs"))
+         "build-path/convention-type"
+         "absolute path cannot be added to a path"
+         "absolute path: \"/abs\"")))
+ (list "normalize-path rejects invalid wrt paths with who"
+       (and
+        (catch-contract/contains?
+         (lambda () (normalize-path "x" 42))
+         "normalize-path"
+         "(and/c path-string? complete-path?)"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (normalize-path "x" "rel"))
+         "normalize-path"
+         "(and/c path-string? complete-path?)"
+         "given: \"rel\"")))
+ (list "path-only rejects invalid path strings with who"
+       (and
+        (catch-contract/contains?
+         (lambda () (path-only 42))
+         "path-only"
+         "(or/c path-string? path-for-some-system?)"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (path-only ""))
+         "path-only"
+         "(or/c path-string? path-for-some-system?)"
+         "given: \"\"")))
+ (list "shrink-path-wrt rejects non-path inputs with who"
+       (catch-contract/contains?
+        (lambda () (shrink-path-wrt 42 null))
+        "shrink-path-wrt"
+        "path?"
+        "given: 42"))
  (list "path string conversion successes still work"
        (and (equal? (path->string (string->path "app/main.rkt"))
                     "app/main.rkt")

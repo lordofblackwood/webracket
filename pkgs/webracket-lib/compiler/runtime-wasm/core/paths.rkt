@@ -23,11 +23,13 @@
     (path?                     "path?")
     (path-string?              "path-string?")
     (path-string-or-some-system "(or/c path-string? path-for-some-system?)")
+    (complete-path-string      "(and/c path-string? complete-path?)")
     (path-part                 "(or/c path-string? path-for-some-system? 'up 'same)")
     (path-for-some-system?     "path-for-some-system?")
     (path-element?             "path-element?")
     (listof-path?              "(listof path?)")
     (path-convention-type      "(or/c 'windows 'unix)")
+    (absolute-path-cannot-be-added ": absolute path cannot be added to a path\n  absolute path: ")
     (bytes->path:empty         ": byte string is empty")
     (bytes->path:nul           ": byte string contains a nul character\n  byte string: ")
     (string->path:empty        ": path string is empty")
@@ -178,8 +180,11 @@
     $raise-bytes->path:nul
     $raise-string->path:nul
     $raise-bytes->path:bad-type
+    $raise-path-argument-error1/write
     $raise-path-string-expected/who
     $raise-path-part-expected/who
+    $raise-complete-path-expected/who
+    $raise-absolute-path-cannot-be-added
     $bytes->path
     $string->path
     $string->path-element
@@ -604,9 +609,10 @@
                 (local.get $type))
           (unreachable))
 
-    (func $raise-path-string-expected/who
-          (param $who (ref eq))
-          (param $bad (ref eq))
+    (func $raise-path-argument-error1/write
+          (param $who      (ref eq))
+          (param $expected (ref eq))
+          (param $bad      (ref eq))
 
           (local $out     (ref $GrowableArray))
           (local $message (ref $String))
@@ -617,7 +623,7 @@
           (call $growable-array-add! (local.get $out)
                 (global.get $string:contract-violation:prefix))
           (call $growable-array-add! (local.get $out)
-                (global.get $string:path-string-or-some-system))
+                (local.get $expected))
           (call $growable-array-add! (local.get $out)
                 (global.get $string:arity-error:given))
           (call $growable-array-add! (local.get $out)
@@ -631,22 +637,45 @@
                 (global.get $true))
           (unreachable))
 
+    (func $raise-path-string-expected/who
+          (param $who (ref eq))
+          (param $bad (ref eq))
+          (call $raise-path-argument-error1/write
+                (local.get $who)
+                (global.get $string:path-string-or-some-system)
+                (local.get $bad))
+          (unreachable))
+
     (func $raise-path-part-expected/who
+          (param $who (ref eq))
+          (param $bad (ref eq))
+          (call $raise-path-argument-error1/write
+                (local.get $who)
+                (global.get $string:path-part)
+                (local.get $bad))
+          (unreachable))
+
+    (func $raise-complete-path-expected/who
+          (param $who (ref eq))
+          (param $bad (ref eq))
+          (call $raise-path-argument-error1/write
+                (local.get $who)
+                (global.get $string:complete-path-string)
+                (local.get $bad))
+          (unreachable))
+
+    (func $raise-absolute-path-cannot-be-added
           (param $who (ref eq))
           (param $bad (ref eq))
 
           (local $out     (ref $GrowableArray))
           (local $message (ref $String))
 
-          (local.set $out (call $make-growable-array (i32.const 5)))
+          (local.set $out (call $make-growable-array (i32.const 3)))
           (call $growable-array-add! (local.get $out)
                 (call $format/display (local.get $who)))
           (call $growable-array-add! (local.get $out)
-                (global.get $string:contract-violation:prefix))
-          (call $growable-array-add! (local.get $out)
-                (global.get $string:path-part))
-          (call $growable-array-add! (local.get $out)
-                (global.get $string:arity-error:given))
+                (global.get $string:absolute-path-cannot-be-added))
           (call $growable-array-add! (local.get $out)
                 (call $format/write (local.get $bad)))
           (local.set $message
@@ -990,7 +1019,9 @@
                                (local.get $rel-raw)))
           (local.set $rel-bs (struct.get $Path $bytes (local.get $rel)))
           (if (call $path-bytes-absolute? (local.get $rel-bs))
-              (then (call $raise-path-expected (local.get $rel-raw))
+              (then (call $raise-absolute-path-cannot-be-added
+                          (global.get $symbol:build-path)
+                          (local.get $rel-raw))
                     (unreachable)))
           (local.set $base-bs (struct.get $Path $bytes (local.get $base)))
           (local.set $base-arr (struct.get $Bytes $bs (local.get $base-bs)))
@@ -1143,7 +1174,9 @@
                            (local.get $rel-raw)))
           (local.set $rel-bs (struct.get $Path $bytes (local.get $rel)))
           (if (call $path-bytes-absolute? (local.get $rel-bs))
-              (then (call $raise-path-expected (local.get $rel-raw))
+              (then (call $raise-absolute-path-cannot-be-added
+                          (local.get $who)
+                          (local.get $rel-raw))
                     (unreachable)))
           (local.set $base-bs (struct.get $Path $bytes (local.get $base)))
           (local.set $sep-bs
@@ -1632,16 +1665,45 @@
           (local $wrt (ref eq))
           (local $wrt-path (ref $Path))
 
-          (local.set $wrt (global.get $current-directory-path))
+          (local.set $wrt-path
+                     (ref.cast (ref $Path) (global.get $current-directory-path)))
+          (local.set $wrt (local.get $wrt-path))
           (if (i32.eqz (ref.eq (local.get $wrt-raw) (global.get $missing)))
               (then
-               (local.set $wrt-path
-                          (call $path-string->path/checked
-                                (global.get $symbol:normalize-path)
-                                (local.get $wrt-raw)))
+               (if (ref.test (ref $Path) (local.get $wrt-raw))
+                   (then
+                    (local.set $wrt-path (ref.cast (ref $Path) (local.get $wrt-raw)))
+                    (if (i32.eqz
+                         (ref.eq (struct.get $Path $convention (local.get $wrt-path))
+                                 (global.get $system-path-convention)))
+                        (then (call $raise-complete-path-expected/who
+                                    (global.get $symbol:normalize-path)
+                                    (local.get $wrt-raw))
+                              (unreachable))))
+                   (else
+                    (if (i32.eqz (ref.test (ref $String) (local.get $wrt-raw)))
+                        (then (call $raise-complete-path-expected/who
+                                    (global.get $symbol:normalize-path)
+                                    (local.get $wrt-raw))
+                              (unreachable)))
+                    (if (i32.eqz (ref.eq (call $non-empty-string-without-nuls
+                                                 (ref.cast (ref $String)
+                                                           (local.get $wrt-raw)))
+                                         (global.get $true)))
+                        (then (call $raise-complete-path-expected/who
+                                    (global.get $symbol:normalize-path)
+                                    (local.get $wrt-raw))
+                              (unreachable)))
+                    (local.set $wrt-path
+                               (ref.cast (ref $Path)
+                                         (call $string->path
+                                               (ref.cast (ref $String)
+                                                         (local.get $wrt-raw)))))))
                (if (i32.eqz (call $path-bytes-absolute?
                                   (struct.get $Path $bytes (local.get $wrt-path))))
-                   (then (call $raise-path-expected (local.get $wrt-raw))
+                   (then (call $raise-complete-path-expected/who
+                               (global.get $symbol:normalize-path)
+                               (local.get $wrt-raw))
                          (unreachable)))
                (local.set $wrt (local.get $wrt-path))))
           (call $simplify-path
@@ -1960,7 +2022,10 @@
           (local $any?      i32)
 
           (if (i32.eqz (ref.test (ref $Path) (local.get $path-raw)))
-              (then (call $raise-path-expected (local.get $path-raw))
+              (then (call $raise-path-argument-error1/write
+                          (global.get $symbol:shrink-path-wrt)
+                          (global.get $string:path?)
+                          (local.get $path-raw))
                     (unreachable)))
           (local.set $path (ref.cast (ref $Path) (local.get $path-raw)))
           (local.set $conv (struct.get $Path $convention (local.get $path)))
@@ -3065,12 +3130,16 @@
                (local.set $conv (struct.get $Path $convention (local.get $path))))
               (else
                (if (i32.eqz (ref.test (ref $String) (local.get $path-raw)))
-                   (then (call $raise-path-expected (local.get $path-raw))
+                   (then (call $raise-path-string-expected/who
+                               (global.get $symbol:path-only)
+                               (local.get $path-raw))
                          (unreachable)))
                (if (i32.eqz (ref.eq (call $non-empty-string-without-nuls
                                           (ref.cast (ref $String) (local.get $path-raw)))
                                     (global.get $true)))
-                   (then (call $raise-path-expected (local.get $path-raw))
+                   (then (call $raise-path-string-expected/who
+                               (global.get $symbol:path-only)
+                               (local.get $path-raw))
                          (unreachable)))
                (local.set $path
                           (ref.cast (ref $Path)
