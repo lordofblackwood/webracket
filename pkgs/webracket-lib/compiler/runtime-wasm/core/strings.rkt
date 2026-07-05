@@ -72,7 +72,17 @@
 ;; string-runtime-symbol-constants : (listof symbol?)
 ;;   Declare symbols used by string helpers and string errors.
 (define string-runtime-symbol-constants
-  '(string-trim-left
+  '(string=?
+    string<?
+    string<=?
+    string>?
+    string>=?
+    string-ci=?
+    string-ci<?
+    string-ci<=?
+    string-ci>?
+    string-ci>=?
+    string-trim-left
     string-trim-right))
 
 ;; string-core-runtime-helpers : (listof core-runtime-helper?)
@@ -2233,7 +2243,9 @@
 
                ;; Type check first argument
                (if (i32.eqz (ref.test (ref $String) (local.get $a)))
-                   (then (call $raise-argument-error:string-expected (local.get $a))
+                   (then (call $raise-argument-error:string-expected/who
+                               (global.get $symbol:string=?)
+                               (local.get $a))
                          (unreachable)))
                (local.set $prev (ref.cast (ref $String) (local.get $a)))
                (local.set $restlist (local.get $rest))
@@ -2251,7 +2263,9 @@
                      (local.set $pair (ref.cast (ref $Pair) (local.get $restlist)))
                      (local.set $next (struct.get $Pair $a (local.get $pair)))
                      (if (i32.eqz (ref.test (ref $String) (local.get $next)))
-                         (then (call $raise-argument-error:string-expected (local.get $next))
+                         (then (call $raise-argument-error:string-expected/who
+                                     (global.get $symbol:string=?)
+                                     (local.get $next))
                                (unreachable)))
                      (local.set $curr (ref.cast (ref $String) (local.get $next)))
                      (if (i32.eqz (call $string=?/i32/checked (local.get $prev) (local.get $curr)))
@@ -2306,7 +2320,9 @@
 
                ;; Type check first argument
                (if (i32.eqz (ref.test (ref $String) (local.get $a)))
-                   (then (call $raise-argument-error:string-expected (local.get $a))
+                   (then (call $raise-argument-error:string-expected/who
+                               (global.get $symbol:string<?)
+                               (local.get $a))
                          (unreachable)))
                (local.set $prev (ref.cast (ref $String) (local.get $a)))
                (local.set $restlist (local.get $rest))
@@ -2324,7 +2340,9 @@
                      (local.set $pair (ref.cast (ref $Pair) (local.get $restlist)))
                      (local.set $next (struct.get $Pair $a (local.get $pair)))
                      (if (i32.eqz (ref.test (ref $String) (local.get $next)))
-                         (then (call $raise-argument-error:string-expected (local.get $next))
+                         (then (call $raise-argument-error:string-expected/who
+                                     (global.get $symbol:string<?)
+                                     (local.get $next))
                                (unreachable)))
                      (local.set $curr (ref.cast (ref $String) (local.get $next)))
                      (if (i32.eqz (call $string</i32/checked (local.get $prev) (local.get $curr)))
@@ -2357,7 +2375,9 @@
 
                ;; Type check first argument
                (if (i32.eqz (ref.test (ref $String) (local.get $a)))
-                   (then (call $raise-argument-error:string-expected (local.get $a))
+                   (then (call $raise-argument-error:string-expected/who
+                               (global.get $symbol:string<=?)
+                               (local.get $a))
                          (unreachable)))
                (local.set $prev (ref.cast (ref $String) (local.get $a)))
                (local.set $restlist (local.get $rest))
@@ -2375,7 +2395,9 @@
                      (local.set $pair (ref.cast (ref $Pair) (local.get $restlist)))
                      (local.set $next (struct.get $Pair $a (local.get $pair)))
                      (if (i32.eqz (ref.test (ref $String) (local.get $next)))
-                         (then (call $raise-argument-error:string-expected (local.get $next))
+                         (then (call $raise-argument-error:string-expected/who
+                                     (global.get $symbol:string<=?)
+                                     (local.get $next))
                                (unreachable)))
                      (local.set $curr (ref.cast (ref $String) (local.get $next)))
                      ;; Fail if current < previous
@@ -2407,7 +2429,9 @@
 
                ;; Type check first argument
                (if (i32.eqz (ref.test (ref $String) (local.get $a)))
-                   (then (call $raise-argument-error:string-expected (local.get $a))
+                   (then (call $raise-argument-error:string-expected/who
+                               (global.get $symbol:string>?)
+                               (local.get $a))
                          (unreachable)))
                (local.set $prev (ref.cast (ref $String) (local.get $a)))
                (local.set $restlist (local.get $rest))
@@ -2425,7 +2449,9 @@
                      (local.set $pair (ref.cast (ref $Pair) (local.get $restlist)))
                      (local.set $next (struct.get $Pair $a (local.get $pair)))
                      (if (i32.eqz (ref.test (ref $String) (local.get $next)))
-                         (then (call $raise-argument-error:string-expected (local.get $next))
+                         (then (call $raise-argument-error:string-expected/who
+                                     (global.get $symbol:string>?)
+                                     (local.get $next))
                                (unreachable)))
                      (local.set $curr (ref.cast (ref $String) (local.get $next)))
                      (if (i32.eqz (call $string</i32/checked (local.get $curr) (local.get $prev)))
@@ -2458,7 +2484,9 @@
 
                ;; Type check first argument
                (if (i32.eqz (ref.test (ref $String) (local.get $a)))
-                   (then (call $raise-argument-error:string-expected (local.get $a))
+                   (then (call $raise-argument-error:string-expected/who
+                               (global.get $symbol:string>=?)
+                               (local.get $a))
                          (unreachable)))
                (local.set $prev (ref.cast (ref $String) (local.get $a)))
                (local.set $restlist (local.get $rest))
@@ -2476,7 +2504,9 @@
                      (local.set $pair (ref.cast (ref $Pair) (local.get $restlist)))
                      (local.set $next (struct.get $Pair $a (local.get $pair)))
                      (if (i32.eqz (ref.test (ref $String) (local.get $next)))
-                         (then (call $raise-argument-error:string-expected (local.get $next))
+                         (then (call $raise-argument-error:string-expected/who
+                                     (global.get $symbol:string>=?)
+                                     (local.get $next))
                                (unreachable)))
                      (local.set $curr (ref.cast (ref $String) (local.get $next)))
                      ;; Fail if previous < current
@@ -2572,15 +2602,16 @@
                             (br $loop)))
                (return (i32.sub (local.get $len-a) (local.get $len-b))))
      )
-    (for*/list ([entry (in-list '(($string-ci=?   eq)
-                                        ($string-ci<?   lt)
-                                        ($string-ci<=?  le)
-                                        ($string-ci>?   gt)
-                                        ($string-ci>=?  ge)))]
+    (for*/list ([entry (in-list '(($string-ci=?   $symbol:string-ci=?   eq)
+                                        ($string-ci<?   $symbol:string-ci<?   lt)
+                                        ($string-ci<=?  $symbol:string-ci<=?  le)
+                                        ($string-ci>?   $symbol:string-ci>?   gt)
+                                        ($string-ci>=?  $symbol:string-ci>=?  ge)))]
                       [form
                        (in-list
                         (let* ([cmp             (car entry)]
-                               [kind            (cadr entry)]
+                               [who             (cadr entry)]
+                               [kind            (caddr entry)]
                                [cmp/2           (string->symbol (~a cmp "/2"))]
                                [cmp/i32         (string->symbol (~a cmp "/i32"))]
                                [cmp/i32/checked (string->symbol (~a cmp "/i32/checked"))]
@@ -2634,7 +2665,9 @@
 
                                   ;; Type check first argument
                                   (if (i32.eqz (ref.test (ref $String) (local.get $a)))
-                                      (then (call $raise-argument-error:string-expected (local.get $a))
+                                      (then (call $raise-argument-error:string-expected/who
+                                                  (global.get ,who)
+                                                  (local.get $a))
                                             (unreachable)))
                                   (local.set $prev (ref.cast (ref $String) (local.get $a)))
                                   (local.set $restlist (local.get $rest))
@@ -2652,7 +2685,9 @@
                                         (local.set $pair (ref.cast (ref $Pair) (local.get $restlist)))
                                         (local.set $next (struct.get $Pair $a (local.get $pair)))
                                         (if (i32.eqz (ref.test (ref $String) (local.get $next)))
-                                            (then (call $raise-argument-error:string-expected (local.get $next))
+                                            (then (call $raise-argument-error:string-expected/who
+                                                        (global.get ,who)
+                                                        (local.get $next))
                                                   (unreachable)))
                                         (local.set $curr (ref.cast (ref $String) (local.get $next)))
                                         (local.set $cmp (call $string-ci-compare/checked (local.get $prev) (local.get $curr)))
