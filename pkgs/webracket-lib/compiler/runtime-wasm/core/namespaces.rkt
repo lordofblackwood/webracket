@@ -118,7 +118,9 @@
                     (unreachable)))
           ;; 2) Check that $sym is a symbol
           (if (i32.eqz (ref.test (ref $Symbol) (local.get $sym)))
-              (then (call $raise-check-symbol (local.get $sym))
+              (then (call $raise-symbol-expected/who
+                          (global.get $symbol:namespace-variable-value-simple)
+                          (local.get $sym))
                     (unreachable)))
           ;; 3) Delegate to the checked implementation
           (call $namespace-variable-value/checked
@@ -182,7 +184,9 @@
                     (unreachable)))
           ;; 2) Check that $sym is a symbol
           (if (i32.eqz (ref.test (ref $Symbol) (local.get $sym)))
-              (then (call $raise-check-symbol (local.get $sym))
+              (then (call $raise-symbol-expected/who
+                          (global.get $symbol:namespace-set-variable-value!)
+                          (local.get $sym))
                     (unreachable)))
           ;; 3) Delegate to the checked implementation
           (call $namespace-set-variable-value!/checked
@@ -238,7 +242,9 @@
                     (unreachable)))
           ;; 2) Check that $sym is a symbol
           (if (i32.eqz (ref.test (ref $Symbol) (local.get $sym)))
-              (then (call $raise-check-symbol (local.get $sym))
+              (then (call $raise-symbol-expected/who
+                          (global.get $symbol:namespace-undefine-variable!)
+                          (local.get $sym))
                     (unreachable)))
           ;; 3) Delegate to the checked implementation
           (call $namespace-undefine-variable!/checked
@@ -270,7 +276,9 @@
                     (unreachable)))
           ;; 2) Check that $sym is a symbol
           (if (i32.eqz (ref.test (ref $Symbol) (local.get $sym)))
-              (then (call $raise-check-symbol (local.get $sym))
+              (then (call $raise-symbol-expected/who
+                          (global.get $symbol:namespace-has-key?)
+                          (local.get $sym))
                     (unreachable)))
           ;; 3) Delegate to the checked implementation
           (call $namespace-has-key?/checked

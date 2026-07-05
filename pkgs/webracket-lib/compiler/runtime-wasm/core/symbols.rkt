@@ -520,8 +520,6 @@
                    (then (global.get $true))
                    (else (global.get $false))))
 
-         (func $raise-check-symbol (param $x (ref eq)) (unreachable))
-
          (func $symbol<? (type $Prim>=1)
                (param $a    (ref eq))
                (param $rest (ref eq))

@@ -22,29 +22,6 @@ paths should report Racket errors.
 
 ## Preserved Behavior To Revisit
 
-### `$raise-check-symbol` Still Needs Caller-Specific `who`
-
-Location:
-
-- `pkgs/webracket-lib/compiler/runtime-wasm/core/symbols.rkt`
-- callers in `core/paths.rkt`, `core/namespaces.rkt`, and `core/linklets.rkt`
-
-Current behavior:
-
-- Public symbol primitives now route their argument checks through helpers that
-  take an explicit `who`.
-- The shared `$raise-check-symbol` helper remains a trap-style placeholder
-  because it is used by several other domains whose correct end-user `who`
-  differs by caller.
-
-Follow-up:
-
-- Replace each remaining `$raise-check-symbol` caller with a caller-specific
-  symbol contract error.
-- Avoid giving `$raise-check-symbol` a single generic `who`; that would make
-  the error catchable, but would report misleading messages for paths,
-  namespaces, and linklets.
-
 ### `$growable-bytes->bytes` Sets `$Bytes` Immutable Field To Byte Count
 
 Location:
@@ -206,6 +183,32 @@ Follow-up:
   from an explicitly supplied `#f`.
 - Once that boundary can distinguish the two cases, make `(number->string 1
   #f)` raise the Racket-compatible radix contract error.
+
+### Optional Primitive Padding Can Obscure Offending Values
+
+Location:
+
+- `pkgs/webracket-lib/compiler/compiler.rkt`
+- runtime helpers for optional primitives, observed with
+  `namespace-set-variable-value!`
+
+Current behavior:
+
+- Optional primitive calls are padded with `$missing` so direct Wasm calls can
+  use a fixed helper signature.
+- Some runtime helpers have source-level argument conventions that do not line
+  up with the raw helper argument order.
+- After replacing `$raise-check-symbol`, the
+  `namespace-set-variable-value!` wrong-symbol path is catchable and reports
+  the correct `who` and expected `symbol?` contract, but one source-level arity
+  shape reports `given: #<missing>` instead of the original bad argument.
+
+Follow-up:
+
+- Audit optional primitive wrappers whose helper argument order differs from
+  source-level order.
+- Prefer wrapper-specific validation before padding or pass enough metadata for
+  runtime helpers to report the source-level offending value.
 
 ### Mutable Pairs Can Trap While Formatting Error Values
 

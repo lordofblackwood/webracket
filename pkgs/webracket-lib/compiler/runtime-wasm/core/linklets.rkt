@@ -1008,7 +1008,9 @@
                (result       (ref eq))
 
                (if (i32.eqz (ref.test (ref $Symbol) (local.get $key)))
-                   (then (call $raise-check-symbol (local.get $key))
+                   (then (call $raise-symbol-expected/who
+                               (global.get $symbol:primitive-table)
+                               (local.get $key))
                          (unreachable)))
 
                (call $initialize-primitive-table-user-installed)
