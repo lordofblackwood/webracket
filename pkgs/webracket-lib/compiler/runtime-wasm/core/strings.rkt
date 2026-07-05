@@ -72,7 +72,8 @@
 ;; string-runtime-symbol-constants : (listof symbol?)
 ;;   Declare symbols used by string helpers and string errors.
 (define string-runtime-symbol-constants
-  '(string=?
+  '(string
+    string=?
     string<?
     string<=?
     string>?
@@ -217,6 +218,8 @@
 (define string-basic-runtime-only-helper-names
   '($string?
     $non-empty-string?
+    $raise-string:char-expected
+    $string-char->integer/i32
     $string))
 
 ;; string-buffer-error-runtime-only-helper-names : (listof symbol?)
@@ -741,7 +744,7 @@
 (define string-basic-runtime-only-helpers
   (function-forms->runtime-helpers
    'string-basic-runtime-only-helpers
-   '(
+   `(
          (func $string? (type $Prim1) (param $s (ref eq)) (result (ref eq))
                (if (result (ref eq))
                    (ref.test (ref $String) (local.get $s))
@@ -766,6 +769,30 @@
                    (else (global.get $false))))
 
          ;; Constructors
+
+         (func $raise-string:char-expected
+               (param $x (ref eq))
+               (call $raise-argument-error1
+                     (global.get $symbol:string)
+                     (global.get $string:char?)
+                     (local.get $x))
+               (unreachable))
+
+         (func $string-char->integer/i32
+               (param $c (ref eq))
+               (result i32)
+
+               (local $raw i32)
+
+               (if (i32.eqz (ref.test (ref i31) (local.get $c)))
+                   (then (call $raise-string:char-expected (local.get $c))
+                         (unreachable)))
+               (local.set $raw (i31.get_u (ref.cast (ref i31) (local.get $c))))
+               (if (i32.ne (i32.and (local.get $raw) (i32.const ,char-mask))
+                           (i32.const ,char-tag))
+                   (then (call $raise-string:char-expected (local.get $c))
+                         (unreachable)))
+               (i32.shr_u (local.get $raw) (i32.const ,char-shift)))
 
          (func $string (type $Prim>=0)
                (param $args (ref eq))
@@ -820,7 +847,7 @@
                                  (array.set $I32Array
                                             (local.get $arr)
                                             (local.get $i)
-                                            (call $char->integer/i32 (local.get $ch)))
+                                            (call $string-char->integer/i32 (local.get $ch)))
                                  (local.set $i (i32.add (local.get $i) (i32.const 1)))
                                  (br $loop))))
                    (else
@@ -831,7 +858,7 @@
                                  (array.set $I32Array
                                             (local.get $arr)
                                             (local.get $i)
-                                            (call $char->integer/i32 (local.get $ch)))
+                                            (call $string-char->integer/i32 (local.get $ch)))
                                  (local.set $i (i32.add (local.get $i) (i32.const 1)))
                                  (br $loop)))))
                ;; Construct mutable string

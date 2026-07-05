@@ -42,6 +42,10 @@
   (check-no-stdlib-result-tree "test/test-string-comparison-errors.rkt"
                                #:timeout-seconds 180))
 
+(test-case "test-string-constructor-errors has no false leaves"
+  (check-no-stdlib-result-tree "test/test-string-constructor-errors.rkt"
+                               #:timeout-seconds 180))
+
 (test-case "test-lock-errors has no false leaves"
   (check-no-stdlib-result-tree "test/test-lock-errors.rkt"
                                #:timeout-seconds 180))

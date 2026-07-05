@@ -19910,10 +19910,7 @@
                         `(array.set $I32Array
                                     (ref.cast (ref $I32Array) ,$a)
                                     (i32.const ,i)
-                                    (i32.shr_s
-                                     (i31.get_s
-                                      (ref.cast (ref i31) (call $char->integer ,v)))
-                                     (i32.const 1))))
+                                    (call $string-char->integer/i32 ,v)))
                      (λ ($a)
                         `(struct.new $String
                                      (i32.const 0) ; hash
