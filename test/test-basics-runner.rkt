@@ -54,6 +54,10 @@
   (check-no-stdlib-result-tree "test/test-string-misc-errors.rkt"
                                #:timeout-seconds 180))
 
+(test-case "test-path-errors has no false leaves"
+  (check-no-stdlib-result-tree "test/test-path-errors.rkt"
+                               #:timeout-seconds 180))
+
 (test-case "test-lock-errors has no false leaves"
   (check-no-stdlib-result-tree "test/test-lock-errors.rkt"
                                #:timeout-seconds 180))

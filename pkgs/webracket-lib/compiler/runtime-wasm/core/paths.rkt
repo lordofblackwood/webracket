@@ -542,7 +542,10 @@
           (local $bytes (ref eq))
 
           (if (i32.eqz (ref.test (ref $String) (local.get $str-raw)))
-              (then (call $raise-check-string (local.get $str-raw))
+              (then (call $raise-argument-error1
+                          (global.get $symbol:string->path)
+                          (global.get $string:string?)
+                          (local.get $str-raw))
                     (unreachable)))
           (local.set $str (ref.cast (ref $String) (local.get $str-raw)))
           (if (i32.eqz (ref.eq (call $non-empty-string-without-nuls (local.get $str))
@@ -568,7 +571,10 @@
           (local $path (ref eq))
 
           (if (i32.eqz (ref.test (ref $String) (local.get $str-raw)))
-              (then (call $raise-check-string (local.get $str-raw))
+              (then (call $raise-argument-error1
+                          (global.get $symbol:string->path-element)
+                          (global.get $string:string?)
+                          (local.get $str-raw))
                     (unreachable)))
           (if (ref.eq (local.get $false-on-non-element?) (global.get $missing))
               (then (local.set $false-on-non-element? (global.get $false))))
@@ -646,7 +652,10 @@
           (local $kind  (ref $Symbol))
 
           (if (i32.eqz (ref.test (ref $String) (local.get $str-raw)))
-              (then (call $raise-check-string (local.get $str-raw))
+              (then (call $raise-argument-error1
+                          (global.get $symbol:string->some-system-path)
+                          (global.get $string:string?)
+                          (local.get $str-raw))
                     (unreachable)))
           (if (i32.eqz (ref.test (ref $Symbol) (local.get $kind-raw)))
               (then (call $raise-check-symbol (local.get $kind-raw))
