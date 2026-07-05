@@ -22,6 +22,8 @@
     (relative-path-string-or-false "(or/c #f (and/c path-string? relative-path?))")
     (path?                     "path?")
     (path-string?              "path-string?")
+    (path-string-or-some-system "(or/c path-string? path-for-some-system?)")
+    (path-part                 "(or/c path-string? path-for-some-system? 'up 'same)")
     (path-for-some-system?     "path-for-some-system?")
     (path-element?             "path-element?")
     (listof-path?              "(listof path?)")
@@ -176,6 +178,8 @@
     $raise-bytes->path:nul
     $raise-string->path:nul
     $raise-bytes->path:bad-type
+    $raise-path-string-expected/who
+    $raise-path-part-expected/who
     $bytes->path
     $string->path
     $string->path-element
@@ -600,6 +604,60 @@
                 (local.get $type))
           (unreachable))
 
+    (func $raise-path-string-expected/who
+          (param $who (ref eq))
+          (param $bad (ref eq))
+
+          (local $out     (ref $GrowableArray))
+          (local $message (ref $String))
+
+          (local.set $out (call $make-growable-array (i32.const 5)))
+          (call $growable-array-add! (local.get $out)
+                (call $format/display (local.get $who)))
+          (call $growable-array-add! (local.get $out)
+                (global.get $string:contract-violation:prefix))
+          (call $growable-array-add! (local.get $out)
+                (global.get $string:path-string-or-some-system))
+          (call $growable-array-add! (local.get $out)
+                (global.get $string:arity-error:given))
+          (call $growable-array-add! (local.get $out)
+                (call $format/write (local.get $bad)))
+          (local.set $message
+                     (call $growable-array-of-strings->string (local.get $out)))
+          (call $raise
+                (call $exn:fail:contract/make
+                      (local.get $message)
+                      (call $current-continuation-marks (global.get $missing)))
+                (global.get $true))
+          (unreachable))
+
+    (func $raise-path-part-expected/who
+          (param $who (ref eq))
+          (param $bad (ref eq))
+
+          (local $out     (ref $GrowableArray))
+          (local $message (ref $String))
+
+          (local.set $out (call $make-growable-array (i32.const 5)))
+          (call $growable-array-add! (local.get $out)
+                (call $format/display (local.get $who)))
+          (call $growable-array-add! (local.get $out)
+                (global.get $string:contract-violation:prefix))
+          (call $growable-array-add! (local.get $out)
+                (global.get $string:path-part))
+          (call $growable-array-add! (local.get $out)
+                (global.get $string:arity-error:given))
+          (call $growable-array-add! (local.get $out)
+                (call $format/write (local.get $bad)))
+          (local.set $message
+                     (call $growable-array-of-strings->string (local.get $out)))
+          (call $raise
+                (call $exn:fail:contract/make
+                      (local.get $message)
+                      (call $current-continuation-marks (global.get $missing)))
+                (global.get $true))
+          (unreachable))
+
     (func $bytes->path (type $Prim12)
           (param $bstr-raw (ref eq)) ;; bytes?
           (param $type-raw (ref eq)) ;; optional, defaults to (system-path-convention-type)
@@ -817,17 +875,23 @@
                (local.set $path (ref.cast (ref $Path) (local.get $path-raw)))
                (local.set $conv (struct.get $Path $convention (local.get $path)))
                (if (i32.eqz (ref.eq (local.get $conv) (global.get $system-path-convention)))
-                   (then (call $raise-path-expected (local.get $path-raw))
+                   (then (call $raise-path-string-expected/who
+                               (local.get $who)
+                               (local.get $path-raw))
                          (unreachable)))
                (return (local.get $path))))
 
           (if (i32.eqz (ref.test (ref $String) (local.get $path-raw)))
-              (then (call $raise-path-expected (local.get $path-raw))
+              (then (call $raise-path-string-expected/who
+                          (local.get $who)
+                          (local.get $path-raw))
                     (unreachable)))
           (local.set $str (ref.cast (ref $String) (local.get $path-raw)))
           (if (i32.eqz (ref.eq (call $non-empty-string-without-nuls (local.get $str))
                                (global.get $true)))
-              (then (call $raise-path-expected (local.get $path-raw))
+              (then (call $raise-path-string-expected/who
+                          (local.get $who)
+                          (local.get $path-raw))
                     (unreachable)))
           (ref.cast (ref $Path) (call $string->path (local.get $str))))
 
@@ -1027,12 +1091,16 @@
                          (unreachable)))
                (return (local.get $path))))
           (if (i32.eqz (ref.test (ref $String) (local.get $part-raw)))
-              (then (call $raise-path-expected (local.get $part-raw))
+              (then (call $raise-path-part-expected/who
+                          (local.get $who)
+                          (local.get $part-raw))
                     (unreachable)))
           (local.set $str (ref.cast (ref $String) (local.get $part-raw)))
           (if (i32.eqz (ref.eq (call $non-empty-string-without-nuls (local.get $str))
                                (global.get $true)))
-              (then (call $raise-path-expected (local.get $part-raw))
+              (then (call $raise-path-part-expected/who
+                          (local.get $who)
+                          (local.get $part-raw))
                     (unreachable)))
           (local.set $path (ref.cast (ref $Path) (call $string->path (local.get $str))))
           (if (i32.eqz (ref.eq (struct.get $Path $convention (local.get $path))

@@ -135,6 +135,35 @@
          (lambda () (path->string (bytes->path #"x" 'windows)))
          "path->string"
          "path?")))
+ (list "path-string consumers reject invalid path strings with who"
+       (and
+        (catch-contract/contains?
+         (lambda () (path->complete-path 42))
+         "path->complete-path"
+         "(or/c path-string? path-for-some-system?)"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (path->complete-path ""))
+         "path->complete-path"
+         "(or/c path-string? path-for-some-system?)"
+         "given: \"\"")
+        (catch-contract/contains?
+         (lambda () (path->directory-path 42))
+         "path->directory-path"
+         "(or/c path-string? path-for-some-system?)"
+         "given: 42")))
+ (list "build-path rejects invalid path parts with who"
+       (and
+        (catch-contract/contains?
+         (lambda () (build-path 42))
+         "build-path"
+         "(or/c path-string? path-for-some-system? 'up 'same)"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (build-path ""))
+         "build-path"
+         "(or/c path-string? path-for-some-system? 'up 'same)"
+         "given: \"\"")))
  (list "path string conversion successes still work"
        (and (equal? (path->string (string->path "app/main.rkt"))
                     "app/main.rkt")
