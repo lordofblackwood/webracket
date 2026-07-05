@@ -4355,7 +4355,23 @@
                            (catch-contract/who? "vector*-ref"
                                                 (lambda () (vector*-ref (vector 'a) 1)))
                            (catch-contract/who? "vector*-set!"
-                                                (lambda () (vector*-set! (vector-immutable 'a) 0 'x))))))
+                                                (lambda () (vector*-set! (vector-immutable 'a) 0 'x)))
+                           (catch-contract/who? "vector-map"
+                                                (lambda () (vector-map #f '#(1))))
+                           (catch-contract/who? "vector-map!"
+                                                (lambda () (vector-map! #f (vector 1))))
+                           (catch-contract/who? "vector-count"
+                                                (lambda () (vector-count #f '#(1))))
+                           (catch-contract/who? "vector-argmin"
+                                                (lambda () (vector-argmin #f '#(1))))
+                           (catch-contract/who? "vector-filter"
+                                                (lambda () (vector-filter #f '#(1))))
+                           (catch-contract/who? "vector-member"
+                                                (lambda () (vector-member 1 '#(1) #f)))
+                           (catch-contract/who? "vector-sort"
+                                                (lambda () (vector-sort '#(1) #f)))
+                           (catch-contract/who? "vector-sort!"
+                                                (lambda () (vector-sort! (vector 1) #f))))))
 
               (list "vector range errors are catchable with who"
                     (let ([catch-contract/who?

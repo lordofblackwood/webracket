@@ -35,7 +35,12 @@
     (mutable-vector?            "(and/c vector? (not/c immutable?))")
     (valid-vector-index         "valid vector index")
     (valid-vector-length        "valid-vector-length?")
-    (build-vector-procedure     "(exact-nonnegative-integer? . -> . any/c)")))
+    (build-vector-procedure     "(exact-nonnegative-integer? . -> . any/c)")
+    (vector-unary-any-procedure "(any/c . -> . any/c)")
+    (vector-unary-real-procedure "(any/c . -> . real?)")
+    (vector-binary-any-procedure "(any/c any/c . -> . any/c)")
+    (non-empty-vector           "(and/c vector? (lambda (v) (positive? (vector-length v))))")
+    (all-vectors-same-size      ": all vectors must have same size")))
 
 ;; vector-runtime-symbol-constants : (listof symbol?)
 ;;   Declare symbols used by vector helpers and vector errors.
@@ -64,6 +69,14 @@
     vector-extend
     vector-empty?
     vector-append
+    vector-map
+    vector-map!
+    vector-count
+    vector-argmin
+    vector-argmax
+    vector-filter
+    vector-filter-not
+    vector-member
     vector-sort
     vector-sort!))
 
@@ -217,6 +230,35 @@
                      (global.get $symbol:build-vector)
                      (global.get $string:build-vector-procedure)
                      (local.get $x)))
+         (func $raise-vector-argument-error/who
+               (param $who      (ref eq))
+               (param $expected (ref eq))
+               (param $x        (ref eq))
+               (call $raise-argument-error1
+                     (local.get $who)
+                     (local.get $expected)
+                     (local.get $x)))
+         (func $raise-vector-length-mismatch
+               (param $who (ref eq))
+
+               (local $out     (ref $GrowableArray))
+               (local $message (ref $String))
+
+               (local.set $out
+                          (call $make-growable-array (i32.const 2)))
+               (call $growable-array-add! (local.get $out)
+                     (call $format/display (local.get $who)))
+               (call $growable-array-add! (local.get $out)
+                     (global.get $string:all-vectors-same-size))
+               (local.set $message
+                          (call $growable-array-of-strings->string (local.get $out)))
+
+               (call $raise
+                     (call $exn:fail:contract/make
+                           (local.get $message)
+                           (call $current-continuation-marks (global.get $missing)))
+                     (global.get $true))
+               (unreachable))
 
      ))
 
@@ -1753,14 +1795,55 @@
               (param $rest (ref eq))
               (result      (ref eq))
 
-              ;; Copy first vector and delegate to vector-map!
-              (call $vector-map! (local.get $proc)
-                                 (call $vector-copy (local.get $v0)
-                                                    (global.get $missing)
-                                                    (global.get $missing))
-                                 (local.get $rest)))
+              (local $vec0 (ref $Vector))
+              (local $copy (ref $Vector))
+
+              (local.set $vec0 (global.get $dummy-vector))
+
+              ;; Validate procedure first, matching Racket's argument order.
+              (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
+                  (then (call $raise-vector-argument-error/who
+                              (global.get $symbol:vector-map)
+                              (global.get $string:procedure?)
+                              (local.get $proc))
+                        (unreachable)))
+
+              ;; Validate and copy the first vector under vector-map's name.
+              (if (ref.test (ref $Vector) (local.get $v0))
+                  (then (local.set $vec0 (ref.cast (ref $Vector) (local.get $v0))))
+                  (else (call $raise-check-vector/who
+                              (global.get $symbol:vector-map)
+                              (local.get $v0))
+                        (unreachable)))
+              (local.set $copy
+                         (struct.new $Vector
+                                     (i32.const 0)
+                                     (i32.const 0)
+                                     (call $array-copy
+                                           (struct.get $Vector $arr (local.get $vec0))
+                                           (i32.const 0)
+                                           (array.len (struct.get $Vector $arr (local.get $vec0))))))
+
+              (call $vector-map!/who
+                    (global.get $symbol:vector-map)
+                    (local.get $proc)
+                    (local.get $copy)
+                    (local.get $rest)))
 
         (func $vector-map! (type $Prim>=2)
+              (param $proc (ref eq))
+              (param $v0   (ref eq))
+              (param $rest (ref eq))
+              (result      (ref eq))
+
+              (call $vector-map!/who
+                    (global.get $symbol:vector-map!)
+                    (local.get $proc)
+                    (local.get $v0)
+                    (local.get $rest)))
+
+        (func $vector-map!/who
+              (param $who  (ref eq))
               (param $proc (ref eq))
               (param $v0   (ref eq))
               (param $rest (ref eq))
@@ -1784,7 +1867,10 @@
 
               ;; 1) Validate procedure
               (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
-                  (then (call $raise-argument-error:procedure-expected (local.get $proc))
+                  (then (call $raise-vector-argument-error/who
+                              (local.get $who)
+                              (global.get $string:procedure?)
+                              (local.get $proc))
                         (unreachable)))
               (local.set $f    (ref.cast (ref $Procedure) (local.get $proc)))
               (local.set $finv (struct.get $Procedure $invoke (local.get $f)))
@@ -1793,10 +1879,15 @@
               (local.set $vec0 (global.get $dummy-vector))
               (if (ref.test (ref $Vector) (local.get $v0))
                   (then (local.set $vec0 (ref.cast (ref $Vector) (local.get $v0))))
-                  (else (call $raise-check-vector (local.get $v0))
+                  (else (call $raise-immutable-vector/who
+                              (local.get $who)
+                              (local.get $v0))
                         (unreachable)))
               (if (i32.ne (struct.get $Vector $immutable (local.get $vec0)) (i32.const 0))
-                  (then (call $raise-immutable-vector (local.get $v0))))
+                  (then (call $raise-immutable-vector/who
+                              (local.get $who)
+                              (local.get $v0))
+                        (unreachable)))
               (local.set $len (array.len (struct.get $Vector $arr (local.get $vec0))))
 
               ;; 3) Walk rest vectors
@@ -1814,14 +1905,17 @@
                            ;; Load car as (ref eq), test, then cast before putting into $vec
                            (local.set $tmp (struct.get $Pair $a (local.get $pair)))
                            (if (i32.eqz (ref.test (ref $Vector) (local.get $tmp)))
-                               (then (call $raise-check-vector (local.get $tmp))
+                               (then (call $raise-check-vector/who
+                                           (local.get $who)
+                                           (local.get $tmp))
                                      (unreachable)))
                            (local.set $vec (ref.cast (ref $Vector) (local.get $tmp)))
 
                            (if (i32.ne
                                 (array.len (struct.get $Vector $arr (local.get $vec)))
                                 (local.get $len))
-                               (then (call $raise-argument-error/internal (local.get $vec))
+                               (then (call $raise-vector-length-mismatch
+                                           (local.get $who))
                                      (unreachable)))
                            (local.set $nvecs (i32.add (local.get $nvecs) (i32.const 1)))
                            (local.set $cur (struct.get $Pair $d (local.get $pair)))
@@ -1907,7 +2001,10 @@
 
               ;; 1) Validate procedure
               (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
-                  (then (call $raise-argument-error:procedure-expected (local.get $proc))
+                  (then (call $raise-vector-argument-error/who
+                              (global.get $symbol:vector-count)
+                              (global.get $string:procedure?)
+                              (local.get $proc))
                         (unreachable)))
               (local.set $f    (ref.cast (ref $Procedure) (local.get $proc)))
               (local.set $finv (struct.get $Procedure $invoke (local.get $f)))
@@ -1916,7 +2013,9 @@
               (local.set $vec0 (global.get $dummy-vector))
               (if (ref.test (ref $Vector) (local.get $v0))
                   (then (local.set $vec0 (ref.cast (ref $Vector) (local.get $v0))))
-                  (else (call $raise-check-vector (local.get $v0))
+                  (else (call $raise-check-vector/who
+                              (global.get $symbol:vector-count)
+                              (local.get $v0))
                         (unreachable)))
               (local.set $len (array.len (struct.get $Vector $arr (local.get $vec0))))
 
@@ -1935,14 +2034,17 @@
                            ;; Load car as (ref eq), test, then cast before putting into $vec
                            (local.set $tmp (struct.get $Pair $a (local.get $pair)))
                            (if (i32.eqz (ref.test (ref $Vector) (local.get $tmp)))
-                               (then (call $raise-check-vector (local.get $tmp))
+                               (then (call $raise-check-vector/who
+                                           (global.get $symbol:vector-count)
+                                           (local.get $tmp))
                                      (unreachable)))
                            (local.set $vec (ref.cast (ref $Vector) (local.get $tmp)))
 
                            (if (i32.ne
                                 (array.len (struct.get $Vector $arr (local.get $vec)))
                                 (local.get $len))
-                               (then (call $raise-argument-error/internal (local.get $vec))
+                               (then (call $raise-vector-length-mismatch
+                                           (global.get $symbol:vector-count))
                                      (unreachable)))
                            (local.set $nvecs (i32.add (local.get $nvecs) (i32.const 1)))
                            (local.set $cur (struct.get $Pair $d (local.get $pair)))
@@ -2025,6 +2127,10 @@
 (define vector-argminmax-runtime-only-forms
   (let ()
             (define (gen-vector-argminmax $name cmp)
+              (define who
+                (string->symbol
+                 (format "$symbol:~a"
+                         (substring (symbol->string $name) 1))))
               `((func ,$name (type $Prim2)
                       (param $proc (ref eq)) ;; procedure
                       (param $vec  (ref eq)) ;; vector
@@ -2045,7 +2151,10 @@
 
                       ;; Validate procedure
                       (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
-                          (then (call $raise-argument-error:procedure-expected (local.get $proc))
+                          (then (call $raise-vector-argument-error/who
+                                      (global.get ,who)
+                                      (global.get $string:vector-unary-real-procedure)
+                                      (local.get $proc))
                                 (unreachable)))
                       (local.set $f    (ref.cast (ref $Procedure) (local.get $proc)))
                       (local.set $finv (struct.get $Procedure $invoke (local.get $f)))
@@ -2053,12 +2162,17 @@
                       ;; Validate vector
                       (if (ref.test (ref $Vector) (local.get $vec))
                           (then (local.set $vector (ref.cast (ref $Vector) (local.get $vec))))
-                          (else (call $raise-check-vector (local.get $vec))
+                          (else (call $raise-check-vector/who
+                                      (global.get ,who)
+                                      (local.get $vec))
                                 (unreachable)))
                       (local.set $len (array.len (struct.get $Vector $arr (local.get $vector))))
                       ;; non-empty vector
                       (if (i32.eqz (local.get $len))
-                          (then (call $raise-argument-error/internal (local.get $vec))
+                          (then (call $raise-vector-argument-error/who
+                                      (global.get ,who)
+                                      (global.get $string:non-empty-vector)
+                                      (local.get $vec))
                                 (unreachable)))
                       ;; Prepare argument array
                       (local.set $args (array.new $Args (global.get $null) (i32.const 1)))
@@ -2110,6 +2224,7 @@
 (define vector-filter-search-runtime-only-forms
   `(
         (func $vector-filter/template
+              (param $who  (ref eq))  ;; caller name
               (param $proc (ref eq))  ;; predicate, must accept one argument
               (param $vec  (ref eq))  ;; vector
               (param $not? i32)       ;; 1 => keep elements where predicate returns #f
@@ -2128,7 +2243,10 @@
 
               ;; 1) Validate procedure
               (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
-                  (then (call $raise-argument-error:procedure-expected (local.get $proc))
+                  (then (call $raise-vector-argument-error/who
+                              (local.get $who)
+                              (global.get $string:vector-unary-any-procedure)
+                              (local.get $proc))
                         (unreachable)))
               (local.set $f    (ref.cast (ref $Procedure) (local.get $proc)))
               (local.set $finv (struct.get $Procedure $invoke (local.get $f)))
@@ -2136,7 +2254,9 @@
               (local.set $v (global.get $dummy-vector))
               (if (ref.test (ref $Vector) (local.get $vec))
                   (then (local.set $v (ref.cast (ref $Vector) (local.get $vec))))
-                  (else (call $raise-check-vector (local.get $vec))
+                  (else (call $raise-check-vector/who
+                              (local.get $who)
+                              (local.get $vec))
                         (unreachable)))
               (local.set $len (array.len (struct.get $Vector $arr (local.get $v))))
               ;; 3) Prepare argument array and growable result array
@@ -2175,13 +2295,17 @@
                   (param $proc (ref eq))  ;; predicate
                   (param $vec  (ref eq))  ;; vector
                   (result (ref eq))
-                  (call $vector-filter/template (local.get $proc) (local.get $vec) (i32.const 0)))
+                  (call $vector-filter/template
+                        (global.get $symbol:vector-filter)
+                        (local.get $proc) (local.get $vec) (i32.const 0)))
 
             (func $vector-filter-not (type $Prim2)
                   (param $proc (ref eq))  ;; predicate
                   (param $vec  (ref eq))  ;; vector
                   (result (ref eq))
-                  (call $vector-filter/template (local.get $proc) (local.get $vec) (i32.const 1)))
+                  (call $vector-filter/template
+                        (global.get $symbol:vector-filter-not)
+                        (local.get $proc) (local.get $vec) (i32.const 1)))
 
             ,@(for/list ([name '($vector-memq $vector-memv)]
                          [cmp  '((ref.eq (local.get $needle)             (local.get $elem))
@@ -2232,7 +2356,9 @@
                   (local.set $vecv (global.get $dummy-vector))
                   (if (ref.test (ref $Vector) (local.get $vec))
                       (then (local.set $vecv (ref.cast (ref $Vector) (local.get $vec))))
-                      (else (call $raise-check-vector (local.get $vec))))
+                      (else (call $raise-check-vector/who
+                                  (global.get $symbol:vector-member)
+                                  (local.get $vec))))
                   (local.set $len (array.len (struct.get $Vector $arr (local.get $vecv))))
                   (local.set $i   (i32.const 0))
                   (loop $loop
@@ -2268,10 +2394,15 @@
                   (local.set $vecv (global.get $dummy-vector))
                   (if (ref.test (ref $Vector) (local.get $vec))
                       (then (local.set $vecv (ref.cast (ref $Vector) (local.get $vec))))
-                      (else (call $raise-check-vector (local.get $vec))))
+                      (else (call $raise-check-vector/who
+                                  (global.get $symbol:vector-member)
+                                  (local.get $vec))))
 
                   (if (i32.eqz (ref.test (ref $Procedure) (local.get $same?)))
-                      (then (call $raise-argument-error:procedure-expected (local.get $same?))
+                      (then (call $raise-vector-argument-error/who
+                                  (global.get $symbol:vector-member)
+                                  (global.get $string:procedure?)
+                                  (local.get $same?))
                             (unreachable)))
 
                   (local.set $args (array.new $Args (global.get $null) (i32.const 2)))
@@ -2559,7 +2690,10 @@
 
               ;; Validate procedure
               (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
-                  (then (call $raise-argument-error:procedure-expected (local.get $proc))
+                  (then (call $raise-vector-argument-error/who
+                              (global.get $symbol:vector-sort!)
+                              (global.get $string:vector-binary-any-procedure)
+                              (local.get $proc))
                         (unreachable)))
               (local.set $f    (ref.cast (ref $Procedure) (local.get $proc)))
               (local.set $finv (struct.get $Procedure $invoke (local.get $f)))
@@ -2633,7 +2767,10 @@
 
               ;; Validate procedure
               (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
-                  (then (call $raise-argument-error:procedure-expected (local.get $proc))
+                  (then (call $raise-vector-argument-error/who
+                              (global.get $symbol:vector-sort)
+                              (global.get $string:vector-binary-any-procedure)
+                              (local.get $proc))
                         (unreachable)))
 
               ;; Copy the vector or subvector
