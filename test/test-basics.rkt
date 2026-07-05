@@ -6711,6 +6711,46 @@
                         "hash?"
                         "given: 42"))))
 
+              (list "immutable hash operation mutability errors are catchable with who"
+                    (let ([catch-contract/contains?
+                           (lambda (thunk . needles)
+                             (let ([message
+                                    (with-handlers ([exn:fail:contract?
+                                                     (lambda (exn)
+                                                       (exn-message exn))])
+                                      (thunk)
+                                      #f)])
+                               (and message
+                                    (andmap (lambda (needle)
+                                              (string-contains? message needle))
+                                            needles))))])
+                      (and
+                       (catch-contract/contains?
+                        (lambda () (hash-set 42 'x 1))
+                        "hash-set"
+                        "(and/c hash? immutable?)"
+                        "given: 42")
+                       (catch-contract/contains?
+                        (lambda () (hash-set (make-hash) 'x 1))
+                        "hash-set"
+                        "(and/c hash? immutable?)"
+                        "given:")
+                       (catch-contract/contains?
+                        (lambda () (hash-remove (make-hash) 'x))
+                        "hash-remove"
+                        "(and/c hash? immutable?)"
+                        "given:")
+                       (catch-contract/contains?
+                        (lambda () (hash-update (make-hash) 'x add1 0))
+                        "hash-update"
+                        "(and/c hash? immutable?)"
+                        "given:")
+                       (catch-contract/contains?
+                        (lambda () (hash-clear (make-hash)))
+                        "hash-clear"
+                        "(and/c hash? immutable?)"
+                        "given:"))))
+
               (list "mutable hash argument errors are catchable with who"
                     (let ([catch-contract/contains?
                            (lambda (thunk . needles)

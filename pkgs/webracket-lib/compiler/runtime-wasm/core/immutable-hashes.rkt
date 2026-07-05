@@ -19,6 +19,7 @@
 (define immutable-hash-runtime-string-constants
   '((ephemeron? "ephemeron?")
     (placeholder? "placeholder?")
+    (immutable-hash? "(and/c hash? immutable?)")
     (hash-set-non-hash "hash-set expected hash table, got:")
     (hash-set-exn-message "hash-set received exception message:")
     (hash-set-unsupported "hash-set unsupported hash table:")
@@ -258,6 +259,10 @@
     hasheq
     hasheqv
     hashalw
+    hash-set
+    hash-remove
+    hash-update
+    hash-clear
     make-reader-graph
     make-placeholder
     placeholder-set!
@@ -4160,11 +4165,10 @@
                (result     (ref eq))
                (call $debug-allocation-tick (i32.const 3))
                (if (i32.eqz (call $immutable-hash-leaf?/i32 (local.get $ht)))
-                   (then (drop (call $js-log (global.get $string:hash-set-non-hash)))
-                         (if (ref.eq (call $exn? (local.get $ht)) (global.get $true))
-                             (then (drop (call $js-log (global.get $string:hash-set-exn-message)))
-                                   (drop (call $js-log (call $exn-message (local.get $ht))))))
-                         (call $raise-argument-error:hash-expected)
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:hash-set)
+                               (global.get $string:immutable-hash?)
+                               (local.get $ht))
                          (unreachable)))
                (if (ref.test (ref $HashEqImmutable) (local.get $ht))
                    (then (return (call $immutable-hasheq-set
@@ -4186,8 +4190,10 @@
                                        (local.get $ht)
                                        (local.get $key)
                                        (local.get $val)))))
-               (drop (call $js-log (global.get $string:hash-set-unsupported)))
-               (drop (call $js-log (local.get $ht)))
+               (call $raise-argument-error1
+                     (global.get $symbol:hash-set)
+                     (global.get $string:immutable-hash?)
+                     (local.get $ht))
                (unreachable))
 
          ;; hash-remove : immutable-hash? any/c -> immutable-hash?
@@ -4198,7 +4204,10 @@
                (param $key (ref eq)) ;; key
                (result     (ref eq))
                (if (i32.eqz (call $immutable-hash-leaf?/i32 (local.get $ht)))
-                   (then (call $raise-argument-error:hash-expected)
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:hash-remove)
+                               (global.get $string:immutable-hash?)
+                               (local.get $ht))
                          (unreachable)))
                (if (ref.test (ref $HashEqImmutable) (local.get $ht))
                    (then (return (call $immutable-hasheq-remove
@@ -4216,6 +4225,10 @@
                    (then (return (call $immutable-hashalw-remove
                                        (local.get $ht)
                                        (local.get $key)))))
+               (call $raise-argument-error1
+                     (global.get $symbol:hash-remove)
+                     (global.get $string:immutable-hash?)
+                     (local.get $ht))
                (unreachable))
 
          ;; hash-update : immutable-hash? any/c (any/c -> any/c) [any/c or (-> any/c)] -> immutable-hash?
@@ -4236,7 +4249,10 @@
                (local $new-value (ref eq))
 
                (if (i32.eqz (call $immutable-hash-leaf?/i32 (local.get $ht)))
-                   (then (call $raise-argument-error:hash-expected)
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:hash-update)
+                               (global.get $string:immutable-hash?)
+                               (local.get $ht))
                          (unreachable)))
                (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
                    (then (call $raise-argument-error:procedure-expected (local.get $proc))
@@ -4269,7 +4285,10 @@
                (param $ht (ref eq)) ;; immutable hash table
                (result    (ref eq))
                (if (i32.eqz (ref.test (ref $Hash) (local.get $ht)))
-                   (then (call $raise-argument-error:hash-expected)
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:hash-clear)
+                               (global.get $string:immutable-hash?)
+                               (local.get $ht))
                          (unreachable)))
                (if (ref.test (ref $HashEqImmutable) (local.get $ht))
                    (then (return (call $make-empty-immutable-hasheq))))
@@ -4279,7 +4298,10 @@
                    (then (return (call $make-empty-immutable-hash))))
                (if (ref.test (ref $HashEqualAlwaysImmutable) (local.get $ht))
                    (then (return (call $make-empty-immutable-hashalw))))
-               (call $raise-argument-error:hash-expected)
+               (call $raise-argument-error1
+                     (global.get $symbol:hash-clear)
+                     (global.get $string:immutable-hash?)
+                     (local.get $ht))
                (unreachable)))))
 
 ;; immutable-hash-varargs-constructor-runtime-only-helpers : (listof core-runtime-helper?)
