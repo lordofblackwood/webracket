@@ -563,7 +563,10 @@
                (local.set $str (call $make-dummy-string))
                ;; 1. Check that s is a String
                (if (i32.eqz (ref.test (ref $String) (local.get $s)))
-                   (then (call $raise-check-string (local.get $s))))
+                   (then (call $raise-argument-error:string-expected/who
+                               (global.get $symbol:string->immutable-string)
+                               (local.get $s))
+                         (unreachable)))
                (local.set $str (ref.cast (ref $String) (local.get $s)))
                ;; 2. If already immutable, return it directly
                (if (result (ref eq))
@@ -1822,7 +1825,10 @@
 
                ;; --- Decode defaults ---
                (if (i32.eqz (ref.test (ref $String) (local.get $str-raw)))
-                   (then (call $raise-check-string (local.get $str-raw))))
+                   (then (call $raise-argument-error:string-expected/who
+                               (global.get $symbol:string-split)
+                               (local.get $str-raw))
+                         (unreachable)))
                (local.set $str (ref.cast (ref $String) (local.get $str-raw)))
 
                (local.set $sep
@@ -1832,7 +1838,9 @@
                               (else (if (result (ref $String))
                                         (ref.test (ref $String) (local.get $sep-raw))
                                         (then (ref.cast (ref $String) (local.get $sep-raw)))
-                                        (else (call $raise-check-string (local.get $sep-raw))
+                                        (else (call $raise-argument-error:string-expected/who
+                                                    (global.get $symbol:string-split)
+                                                    (local.get $sep-raw))
                                               (unreachable))))))
 
                (local.set $trim-val
@@ -4341,11 +4349,20 @@
 
               ;; Type checks
               (if (i32.eqz (ref.test (ref $String) (local.get $s)))
-                  (then (call $raise-check-string (local.get $s))))
+                  (then (call $raise-argument-error:string-expected/who
+                              (global.get $symbol:string-replace)
+                              (local.get $s))
+                        (unreachable)))
               (if (i32.eqz (ref.test (ref $String) (local.get $from)))
-                  (then (call $raise-check-string (local.get $from))))
+                  (then (call $raise-argument-error:string-expected/who
+                              (global.get $symbol:string-replace)
+                              (local.get $from))
+                        (unreachable)))
               (if (i32.eqz (ref.test (ref $String) (local.get $to)))
-                  (then (call $raise-check-string (local.get $to))))
+                  (then (call $raise-argument-error:string-expected/who
+                              (global.get $symbol:string-replace)
+                              (local.get $to))
+                        (unreachable)))
               (if (ref.eq (call $boolean? (local.get $all?)) (global.get $false))
                   (then (call $raise-argument-error/internal (local.get $all?))
                         (unreachable)))
