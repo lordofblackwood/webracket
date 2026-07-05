@@ -42,6 +42,9 @@
     exn?
     exn-message
     exn-continuation-marks
+    catch
+    catch*
+    call-with-exception-handler
     exn:fail
     exn:fail?
     make-exn
@@ -351,9 +354,15 @@
                (throw $exn (local.get $v)))
 
          (func $call-with-exception-handler:procedure-expected-as-handler
-               (unreachable))
+               (param $v (ref eq))
+               (call $raise-argument-error:procedure-expected/who
+                     (global.get $symbol:call-with-exception-handler)
+                     (local.get $v)))
          (func $call-with-exception-handler:procedure-expected-as-thunk
-               (unreachable))
+               (param $v (ref eq))
+               (call $raise-argument-error:procedure-expected/who
+                     (global.get $symbol:call-with-exception-handler)
+                     (local.get $v)))
 
          (func $call-with-exception-handler (type $Prim2)
                (param $handler (ref eq)) ;; procedure?
@@ -417,9 +426,21 @@
                       (unreachable)))
 
 
-         (func $catch:procedure-expected-for-predicate (unreachable))
-         (func $catch:procedure-expected-for-handler   (unreachable))
-         (func $catch:procedure-expected-for-thunk     (unreachable))
+         (func $catch:procedure-expected-for-predicate
+               (param $v (ref eq))
+               (call $raise-argument-error:procedure-expected/who
+                     (global.get $symbol:catch)
+                     (local.get $v)))
+         (func $catch:procedure-expected-for-handler
+               (param $v (ref eq))
+               (call $raise-argument-error:procedure-expected/who
+                     (global.get $symbol:catch)
+                     (local.get $v)))
+         (func $catch:procedure-expected-for-thunk
+               (param $v (ref eq))
+               (call $raise-argument-error:procedure-expected/who
+                     (global.get $symbol:catch)
+                     (local.get $v)))
 
          (func $catch (type $Prim3)
                (param $pred    (ref eq))
@@ -504,9 +525,21 @@
                ;   - fall through to return the value
                )
 
-         (func $catch*:procedure-expected-for-predicate (unreachable))
-         (func $catch*:procedure-expected-for-handler   (unreachable))
-         (func $catch*:procedure-expected-for-thunk     (unreachable))
+         (func $catch*:procedure-expected-for-predicate
+               (param $v (ref eq))
+               (call $raise-argument-error:procedure-expected/who
+                     (global.get $symbol:catch*)
+                     (local.get $v)))
+         (func $catch*:procedure-expected-for-handler
+               (param $v (ref eq))
+               (call $raise-argument-error:procedure-expected/who
+                     (global.get $symbol:catch*)
+                     (local.get $v)))
+         (func $catch*:procedure-expected-for-thunk
+               (param $v (ref eq))
+               (call $raise-argument-error:procedure-expected/who
+                     (global.get $symbol:catch*)
+                     (local.get $v)))
 
          (func $catch* (type $Prim3)
                (param $preds    (ref eq))
@@ -536,7 +569,7 @@
 
                ;; Validate thunk argument.
                (if (i32.eqz (ref.test (ref $Procedure) (local.get $thunk)))
-                   (then (call $catch*:procedure-expected-for-thunk #;(local.get $thunk))
+                   (then (call $catch*:procedure-expected-for-thunk (local.get $thunk))
                          (unreachable)))
 
                ;; Validate predicate and handler lists.
@@ -570,10 +603,10 @@
                             (local.set $handler-val (struct.get $Pair $a (local.get $handler-pair)))
 
                             (if (i32.eqz (ref.test (ref $Procedure) (local.get $pred-val)))
-                                (then (call $catch*:procedure-expected-for-predicate #;(local.get $pred-val))
+                                (then (call $catch*:procedure-expected-for-predicate (local.get $pred-val))
                                       (unreachable)))
                             (if (i32.eqz (ref.test (ref $Procedure) (local.get $handler-val)))
-                                (then (call $catch*:procedure-expected-for-handler #;(local.get $handler-val))
+                                (then (call $catch*:procedure-expected-for-handler (local.get $handler-val))
                                       (unreachable)))
                             (local.set $pred-node (struct.get $Pair $d (local.get $pred-pair)))
                             (local.set $handler-node (struct.get $Pair $d (local.get $handler-pair)))

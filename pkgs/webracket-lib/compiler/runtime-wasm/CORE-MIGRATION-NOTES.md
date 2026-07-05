@@ -256,6 +256,29 @@ Follow-up:
   rendering, so this is a formatting-parity follow-up rather than a remaining
   trap.
 
+### Exception Handler Validation Is Eager
+
+Location:
+
+- `pkgs/webracket-lib/compiler/runtime-wasm/core/exceptions.rkt`
+
+Current behavior:
+
+- `catch`, `catch*`, and `call-with-exception-handler` now raise catchable
+  contract exceptions instead of trapping when an existing procedure validation
+  path fails.
+- Some validations are still eager. For example, Racket allows
+  `(with-handlers ([42 values]) 'ok)` and
+  `(call-with-exception-handler 42 (lambda () 'ok))` to return normally because
+  the bad predicate/handler is never applied. WebRacket currently validates
+  these paths before running the body.
+
+Follow-up:
+
+- Move predicate/handler procedure checks to the point where the exception path
+  actually applies them, while still reporting the correct `who` and offending
+  value when an exception does force the bad predicate or handler.
+
 ## Runtime-Only Core Boundaries
 
 These helpers have moved out of `runtime-wasm.rkt` into themed core modules,
