@@ -47,6 +47,8 @@
                   location-runtime-symbol-constants)
          (only-in "loggers.rkt"
                   logger-runtime-symbol-constants)
+         (only-in "namespaces.rkt"
+                  namespace-runtime-symbol-constants)
          (only-in "parameters.rkt"
                   parameter-runtime-symbol-constants)
          (only-in "paths.rkt"
@@ -104,6 +106,7 @@
           io-handler-runtime-symbol-constants
           port-runtime-symbol-constants
           port-event-runtime-symbol-constants
+          namespace-runtime-symbol-constants
           parameter-runtime-symbol-constants
           system-runtime-symbol-constants
           linklet-runtime-symbol-constants

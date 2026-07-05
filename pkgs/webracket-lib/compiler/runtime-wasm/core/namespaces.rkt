@@ -4,6 +4,7 @@
          namespace-initializer-forms
          namespace-module-registry-global-forms
          namespace-runtime-string-constants
+         namespace-runtime-symbol-constants
          namespace-runtime-only-helpers
          namespace-runtime-only-helper-names
          namespace-runtime-helper-forms
@@ -15,6 +16,14 @@
 ;;   Declare strings used by namespace helpers and namespace contract checks.
 (define namespace-runtime-string-constants
   '((namespace? "namespace?")))
+
+;; namespace-runtime-symbol-constants : (listof symbol?)
+;;   Declare symbols used by namespace contract checks.
+(define namespace-runtime-symbol-constants
+  '(namespace-variable-value-simple
+    namespace-set-variable-value!
+    namespace-undefine-variable!
+    namespace-has-key?))
 
 ;; namespace-current-global-forms : (listof datum?)
 ;;   Declare the current namespace backing global.
@@ -88,7 +97,14 @@
           (call $js-log (global.get $string:missing-binding))
           (call $js-log (local.get $sym))
           (unreachable))
-    (func $raise-argument-error:namespace-expected (unreachable))
+    (func $raise-argument-error:namespace-expected
+          (param $who (ref eq))
+          (param $bad (ref eq))
+          (call $raise-argument-error1
+                (local.get $who)
+                (global.get $string:namespace?)
+                (local.get $bad))
+          (unreachable))
 
     (func $namespace-variable-value-simple (type $Prim2)
           (param $ns  (ref eq))
@@ -96,7 +112,9 @@
           (result     (ref eq))
           ;; 1) Check that $ns is a namespace
           (if (i32.eqz (ref.test (ref $Namespace) (local.get $ns)))
-              (then (call $raise-argument-error:namespace-expected (local.get $ns))
+              (then (call $raise-argument-error:namespace-expected
+                          (global.get $symbol:namespace-variable-value-simple)
+                          (local.get $ns))
                     (unreachable)))
           ;; 2) Check that $sym is a symbol
           (if (i32.eqz (ref.test (ref $Symbol) (local.get $sym)))
@@ -158,7 +176,9 @@
           (result     (ref eq))
           ;; 1) Check that $ns is a namespace
           (if (i32.eqz (ref.test (ref $Namespace) (local.get $ns)))
-              (then (call $raise-argument-error:namespace-expected (local.get $ns))
+              (then (call $raise-argument-error:namespace-expected
+                          (global.get $symbol:namespace-set-variable-value!)
+                          (local.get $ns))
                     (unreachable)))
           ;; 2) Check that $sym is a symbol
           (if (i32.eqz (ref.test (ref $Symbol) (local.get $sym)))
@@ -212,7 +232,9 @@
           (result     (ref eq))
           ;; 1) Check that $ns is a namespace
           (if (i32.eqz (ref.test (ref $Namespace) (local.get $ns)))
-              (then (call $raise-argument-error:namespace-expected (local.get $ns))
+              (then (call $raise-argument-error:namespace-expected
+                          (global.get $symbol:namespace-undefine-variable!)
+                          (local.get $ns))
                     (unreachable)))
           ;; 2) Check that $sym is a symbol
           (if (i32.eqz (ref.test (ref $Symbol) (local.get $sym)))
@@ -242,7 +264,9 @@
           (result     (ref eq))
           ;; 1) Check that $ns is a namespace
           (if (i32.eqz (ref.test (ref $Namespace) (local.get $ns)))
-              (then (call $raise-argument-error:namespace-expected (local.get $ns))
+              (then (call $raise-argument-error:namespace-expected
+                          (global.get $symbol:namespace-has-key?)
+                          (local.get $ns))
                     (unreachable)))
           ;; 2) Check that $sym is a symbol
           (if (i32.eqz (ref.test (ref $Symbol) (local.get $sym)))
