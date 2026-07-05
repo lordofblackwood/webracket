@@ -3,6 +3,7 @@
 (provide character-general-category-global-forms
          character-general-category-initializer-forms
          character-general-category-runtime-symbol-constants
+         character-runtime-string-constants
          character-runtime-symbol-constants
          character-runtime-helper-forms
          character-runtime-only-helper-names
@@ -19,7 +20,40 @@
 ;; character-runtime-symbol-constants : (listof symbol?)
 ;;   Declare symbols used by character and grapheme-break helpers.
 (define character-runtime-symbol-constants
-  '(Other
+  '(char?
+    char->integer
+    integer->char
+    char-utf-8-length
+    char=?
+    char<?
+    char<=?
+    char>?
+    char>=?
+    char-ci=?
+    char-ci<?
+    char-ci<=?
+    char-ci>?
+    char-ci>=?
+    char-alphabetic?
+    char-lower-case?
+    char-upper-case?
+    char-title-case?
+    char-numeric?
+    char-symbolic?
+    char-punctuation?
+    char-graphic?
+    char-blank?
+    char-iso-control?
+    char-extended-pictographic?
+    char-whitespace?
+    char-general-category
+    char-grapheme-break-property
+    char-upcase
+    char-downcase
+    char-titlecase
+    char-foldcase
+    char-grapheme-step
+    Other
     CR
     LF
     Control
@@ -33,6 +67,24 @@
     T
     LV
     LVT))
+
+;; character-runtime-string-constants : (listof (list/c symbol? string?))
+;;   Declare string constants used by character contract checks.
+(define character-runtime-string-constants
+  '((valid-unicode-scalar-value? "valid-unicode-scalar-value?")))
+
+;; character-runtime-who-global : symbol? -> symbol?
+;;   Return the runtime symbol global corresponding to a Wasm function name.
+(define (character-runtime-who-global name)
+  (string->symbol
+   (format "$symbol:~a" (substring (symbol->string name) 1))))
+
+;; raise-char-expected-form : symbol? datum? -> datum?
+;;   Build a char? contract-error call for a public character function.
+(define (raise-char-expected-form who-name value-form)
+  `(call $raise-char-expected/who
+         (global.get ,(character-runtime-who-global who-name))
+         ,value-form))
 
 ;; character-general-category-global-forms : (listof datum?)
 ;;   Declare the symbol table used by char-general-category.
@@ -89,7 +141,11 @@
 
          ;; https://docs.racket-lang.org/reference/characters.html
 
-         (func $raise-check-char (param $x (ref eq)) (unreachable))
+         (func $raise-check-char (param $x (ref eq))
+               (call $raise-char-expected/who
+                     (global.get $symbol:char?)
+                     (local.get $x))
+               (unreachable))
          (func $raise-char-expected/who
                (param $who (ref eq))
                (param $x   (ref eq))
@@ -97,7 +153,13 @@
                      (local.get $who)
                      (global.get $string:char?)
                      (local.get $x)))
-         (func $raise-invalid-codepoint (unreachable))
+         (func $raise-invalid-codepoint
+               (param $bad (ref eq))
+               (call $raise-argument-error1
+                     (global.get $symbol:integer->char)
+                     (global.get $string:valid-unicode-scalar-value?)
+                     (local.get $bad))
+               (unreachable))
 
          ;; 4.6.1 Characters and Scalar Values
 
@@ -161,11 +223,11 @@
                (local $k/i32 i32)
                ;; Fail early if not a fixnum
                (if (i32.eqz (ref.test (ref i31) (local.get $k)))
-                   (then (call $raise-expected-fixnum (local.get $k)) (unreachable)))
+                   (then (call $raise-invalid-codepoint (local.get $k)) (unreachable)))
                ;; Unpack fixnum (must have LSB = 0)
                (local.set $k/i32 (i31.get_u (ref.cast (ref i31) (local.get $k))))
                (if (i32.and (local.get $k/i32) (i32.const 1))
-                   (then (call $raise-expected-fixnum (local.get $k)) (unreachable)))
+                   (then (call $raise-invalid-codepoint (local.get $k)) (unreachable)))
                (local.set $k/i32 (i32.shr_u (local.get $k/i32) (i32.const 1)))
                ;; Check allowed Unicode code point range:
                ;;   [0, 0xD7FF] or [0xE000, 0x10FFFF]
@@ -223,9 +285,9 @@
             `(func ,$cmp/2 (param $c1 (ref eq)) (param $c2 (ref eq)) (result (ref eq))
                    ;; Ensure both arguments are characters
                    (if (ref.eq (call $char? (local.get $c1)) (global.get $false))
-                       (then (call $raise-check-char (local.get $c1))))
+                       (then ,(raise-char-expected-form $cmp '(local.get $c1))))
                    (if (ref.eq (call $char? (local.get $c2)) (global.get $false))
-                       (then (call $raise-check-char (local.get $c2))))
+                       (then ,(raise-char-expected-form $cmp '(local.get $c2))))
                    ,(if inst
                         `(if (result (ref eq))
                              (,inst (i32.shr_u (i31.get_u (ref.cast (ref i31) (local.get $c1)))
@@ -244,7 +306,7 @@
                    (local $ch    (ref eq))
                    ;; Validate the first argument
                    (if (ref.eq (call $char? (local.get $c0)) (global.get $false))
-                       (then (call $raise-check-char (local.get $c0))))
+                       (then ,(raise-char-expected-form $cmp '(local.get $c0))))
                     (block $done
                            (loop $loop
                                  (br_if $done (ref.eq (local.get $cs) (global.get $null)))
@@ -252,7 +314,7 @@
                                  (local.set $ch   (struct.get $Pair $a (local.get $node)))
                                  ;; Validate each subsequent argument
                                  (if (ref.eq (call $char? (local.get $ch)) (global.get $false))
-                                     (then (call $raise-check-char (local.get $ch))))
+                                     (then ,(raise-char-expected-form $cmp '(local.get $ch))))
                                  (if (ref.eq (call ,$cmp/2 (local.get $c0) (local.get $ch))
                                              (global.get $false))
                                      (then (return (global.get $false))))
@@ -271,9 +333,9 @@
                    (local $fc2 i32)
                    ;; Ensure both arguments are characters
                    (if (ref.eq (call $char? (local.get $c1)) (global.get $false))
-                       (then (call $raise-check-char (local.get $c1))))
+                       (then ,(raise-char-expected-form $cmp '(local.get $c1))))
                    (if (ref.eq (call $char? (local.get $c2)) (global.get $false))
-                       (then (call $raise-check-char (local.get $c2))))
+                       (then ,(raise-char-expected-form $cmp '(local.get $c2))))
                    ;; Extract codepoints
                    (local.set $cp1 (i32.shr_u (i31.get_u (ref.cast (ref i31) (local.get $c1)))
                                              (i32.const ,char-shift)))
@@ -300,7 +362,7 @@
                    (local $ch    (ref eq))
                    ;; Validate the first argument
                    (if (ref.eq (call $char? (local.get $c0)) (global.get $false))
-                       (then (call $raise-check-char (local.get $c0))))
+                       (then ,(raise-char-expected-form $cmp '(local.get $c0))))
                    (block $done
                           (loop $loop
                                 (br_if $done (ref.eq (local.get $cs) (global.get $null)))
@@ -308,7 +370,7 @@
                                 (local.set $ch   (struct.get $Pair $a (local.get $node)))
                                 ;; Validate each subsequent argument
                                 (if (ref.eq (call $char? (local.get $ch)) (global.get $false))
-                                    (then (call $raise-check-char (local.get $ch))))
+                                    (then ,(raise-char-expected-form $cmp '(local.get $ch))))
                                 (if (ref.eq (call ,$cmp/2 (local.get $c0) (local.get $ch))
                                             (global.get $false))
                                     (then (return (global.get $false))))
@@ -335,14 +397,14 @@
                    (local $cp    i32)
                    ;; Type check
                    (if (i32.eqz (ref.test (ref i31) (local.get $c)))
-                       (then (call $raise-check-char (local.get $c))))
+                       (then ,(raise-char-expected-form name '(local.get $c))))
                    (local.set $i31   (ref.cast (ref i31) (local.get $c)))
                    (local.set $c/tag (i31.get_u (local.get $i31)))
                    ;; Decode codepoint
                    (if (i32.ne (i32.and (local.get $c/tag)
                                         (i32.const ,char-mask))
                                (i32.const ,char-tag))
-                       (then (call $raise-check-char (local.get $c))))
+                       (then ,(raise-char-expected-form name '(local.get $c))))
                    (local.set $cp (i32.shr_u (local.get $c/tag) (i32.const ,char-shift)))
                    (if (result (ref eq))
                        (call ,imp (local.get $cp))
@@ -355,14 +417,14 @@
               (local $cp    i32)
               ;; Type check
               (if (i32.eqz (ref.test (ref i31) (local.get $c)))
-                  (then (call $raise-check-char (local.get $c))))
+                  (then ,(raise-char-expected-form '$char-blank? '(local.get $c))))
               (local.set $i31   (ref.cast (ref i31) (local.get $c)))
               (local.set $c/tag (i31.get_u (local.get $i31)))
               ;; Decode codepoint
               (if (i32.ne (i32.and (local.get $c/tag)
                                    (i32.const ,char-mask))
                           (i32.const ,char-tag))
-                  (then (call $raise-check-char (local.get $c))))
+                  (then ,(raise-char-expected-form '$char-blank? '(local.get $c))))
               (local.set $cp (i32.shr_u (local.get $c/tag) (i32.const ,char-shift)))
               ;; Delegate
               (call $char-blank?/ucs (local.get $cp)))
@@ -394,14 +456,14 @@
               (local $cp    i32)
               ;; Type check
               (if (i32.eqz (ref.test (ref i31) (local.get $c)))
-                  (then (call $raise-check-char (local.get $c))))
+                  (then ,(raise-char-expected-form '$char-iso-control? '(local.get $c))))
               (local.set $i31   (ref.cast (ref i31) (local.get $c)))
               (local.set $c/tag (i31.get_u (local.get $i31)))
               ;; Decode codepoint
               (if (i32.ne (i32.and (local.get $c/tag)
                                    (i32.const ,char-mask))
                           (i32.const ,char-tag))
-                  (then (call $raise-check-char (local.get $c))))
+                  (then ,(raise-char-expected-form '$char-iso-control? '(local.get $c))))
               (local.set $cp (i32.shr_u (local.get $c/tag) (i32.const ,char-shift)))
               (if (i32.le_u (local.get $cp) (i32.const ,(char->integer #\u001F)))
                   (then (return (global.get $true))))
@@ -416,14 +478,14 @@
               (local $cp    i32)
               ;; Type check
               (if (i32.eqz (ref.test (ref i31) (local.get $c)))
-                  (then (call $raise-check-char (local.get $c))))
+                  (then ,(raise-char-expected-form '$char-extended-pictographic? '(local.get $c))))
               (local.set $i31   (ref.cast (ref i31) (local.get $c)))
               (local.set $c/tag (i31.get_u (local.get $i31)))
               ;; Decode codepoint
               (if (i32.ne (i32.and (local.get $c/tag)
                                    (i32.const ,char-mask))
                           (i32.const ,char-tag))
-                  (then (call $raise-check-char (local.get $c))))
+                  (then ,(raise-char-expected-form '$char-extended-pictographic? '(local.get $c))))
               (local.set $cp (i32.shr_u (local.get $c/tag) (i32.const ,char-shift)))
               (if (result (ref eq))
                   (call $char-extended-pictographic?/ucs (local.get $cp))
@@ -436,14 +498,14 @@
               (local $cp    i32)
               ;; Type check
               (if (i32.eqz (ref.test (ref i31) (local.get $c)))
-                  (then (call $raise-check-char (local.get $c))))
+                  (then ,(raise-char-expected-form '$char-whitespace? '(local.get $c))))
               (local.set $i31   (ref.cast (ref i31) (local.get $c)))
               (local.set $c/tag (i31.get_u (local.get $i31)))
               ;; Decode codepoint
               (if (i32.ne (i32.and (local.get $c/tag)
                                    (i32.const ,char-mask))
                           (i32.const ,char-tag))
-                  (then (call $raise-check-char (local.get $c))))
+                  (then ,(raise-char-expected-form '$char-whitespace? '(local.get $c))))
               (local.set $cp (i32.shr_u (local.get $c/tag) (i32.const ,char-shift)))
               ;; Delegate
               (call $char-whitespace?/ucs (local.get $cp)))
@@ -488,12 +550,12 @@
 
               ;; Type check
               (if (i32.eqz (ref.test (ref i31) (local.get $c)))
-                  (then (call $raise-check-char (local.get $c))))
+                  (then ,(raise-char-expected-form '$char-general-category '(local.get $c))))
               (local.set $i31   (ref.cast (ref i31) (local.get $c)))
               (local.set $c/tag (i31.get_u (local.get $i31)))
               (if (i32.ne (i32.and (local.get $c/tag) (i32.const ,char-mask))
                           (i32.const ,char-tag))
-                  (then (call $raise-check-char (local.get $c))))
+                  (then ,(raise-char-expected-form '$char-general-category '(local.get $c))))
               (local.set $cp (i32.shr_u (local.get $c/tag) (i32.const ,char-shift)))
               ;; Delegate to host
               (local.set $idx (call $char-general-category/ucs (local.get $cp)))
@@ -510,14 +572,16 @@
               (local $prop  i32)
               ;; Type check
               (if (i32.eqz (ref.test (ref i31) (local.get $c)))
-                  (then (call $raise-check-char (local.get $c)) (unreachable)))
+                  (then ,(raise-char-expected-form '$char-grapheme-break-property '(local.get $c))
+                        (unreachable)))
               (local.set $i31   (ref.cast (ref i31) (local.get $c)))
               (local.set $c/tag (i31.get_u (local.get $i31)))
               ;; Decode codepoint
               (if (i32.ne (i32.and (local.get $c/tag)
                                    (i32.const ,char-mask))
                           (i32.const ,char-tag))
-                  (then (call $raise-check-char (local.get $c)) (unreachable)))
+                  (then ,(raise-char-expected-form '$char-grapheme-break-property '(local.get $c))
+                        (unreachable)))
               (local.set $cp (i32.shr_u (local.get $c/tag) (i32.const ,char-shift)))
               ;; Delegate to host
               (local.set $prop
@@ -696,12 +760,14 @@
 
               ;; Validate character argument
               (if (i32.eqz (ref.test (ref i31) (local.get $c)))
-                  (then (call $raise-check-char (local.get $c)) (unreachable)))
+                  (then ,(raise-char-expected-form '$char-grapheme-step '(local.get $c))
+                        (unreachable)))
               (local.set $c/i31 (ref.cast (ref i31) (local.get $c)))
               (local.set $c/tag (i31.get_u (local.get $c/i31)))
               (if (i32.ne (i32.and (local.get $c/tag) (i32.const ,char-mask))
                           (i32.const ,char-tag))
-                  (then (call $raise-check-char (local.get $c)) (unreachable)))
+                  (then ,(raise-char-expected-form '$char-grapheme-step '(local.get $c))
+                        (unreachable)))
               (local.set $cp (i32.shr_u (local.get $c/tag) (i32.const ,char-shift)))
 
               ;; Validate fixnum state

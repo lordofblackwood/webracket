@@ -8,6 +8,8 @@
                   box-runtime-string-constants)
          (only-in "bytes.rkt"
                   bytes-runtime-string-constants)
+         (only-in "characters.rkt"
+                  character-runtime-string-constants)
          (only-in "checkers.rkt"
                   checker-runtime-string-constants)
          (only-in "control-flow.rkt"
@@ -107,6 +109,7 @@
   (append printer-prefix-formatting-runtime-string-constants
           immediate-value-formatting-runtime-string-constants
           opaque-value-formatting-runtime-string-constants
+          character-runtime-string-constants
           string-runtime-string-constants
           symbol-runtime-string-constants
           boolean-runtime-string-constants
