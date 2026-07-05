@@ -110,6 +110,29 @@ Follow-up:
 - Raise caller-specific `exact-nonnegative-integer?` contract errors for
   negative indexes, preserving the primitive `who`.
 
+### Some VFS Buffer Overflow Guards Still Trap
+
+Location:
+
+- `pkgs/webracket-lib/compiler/runtime-wasm/core/filesystem.rkt`
+- shared `$raise-string-buffer-overflow` in
+  `pkgs/webracket-lib/compiler/runtime-wasm/core/strings.rkt`
+
+Current behavior:
+
+- VFS path-buffer overflow guards now raise catchable contract errors that
+  include the filesystem operation `who`.
+- Some related fixed-buffer guards still call `$raise-string-buffer-overflow`,
+  including destination/file-buffer paths in multi-path filesystem operations
+  and file-content buffers.
+
+Follow-up:
+
+- Replace remaining primitive-facing `$raise-string-buffer-overflow` paths with
+  caller-specific Racket exceptions.
+- Distinguish path-buffer failures from file-content buffer failures in the
+  error message.
+
 ### Immutable Byte/String Input Destinations Are Mutated By Port Reads
 
 Location:

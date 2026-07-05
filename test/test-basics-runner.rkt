@@ -58,6 +58,10 @@
   (check-no-stdlib-result-tree "test/test-path-errors.rkt"
                                #:timeout-seconds 180))
 
+(test-case "test-filesystem-errors has no false leaves"
+  (check-no-stdlib-result-tree "test/test-filesystem-errors.rkt"
+                               #:timeout-seconds 180))
+
 (test-case "test-format-errors has no false leaves"
   (check-no-stdlib-result-tree "test/test-format-errors.rkt"
                                #:timeout-seconds 180))

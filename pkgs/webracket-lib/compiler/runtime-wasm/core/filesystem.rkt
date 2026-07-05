@@ -33,6 +33,7 @@
     (vfs:stat-failed            "file-or-directory-stat: VFS path does not exist")
     (vfs:type-failed            "file-or-directory-type: VFS path does not exist")
     (vfs:identity-failed        "file-or-directory-identity: VFS path does not exist")
+    (vfs:path-too-long          ": path is too long for WebRacket VFS\n  path: ")
     (permissions-mode           "(or/c #f 'bits (integer-in 0 65535))")
     (input-file-mode-flag       "(or/c 'binary 'text)")
     (output-file-mode-flag      "(or/c 'binary 'text)")
@@ -74,7 +75,8 @@
 ;; filesystem-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for VFS and file-operation helpers.
 (define filesystem-runtime-only-helper-names
-  '($vfs-path-stat-kind
+  '($raise-vfs-path-too-long
+    $vfs-path-stat-kind
     $file-exists?
     $directory-exists?
     $link-exists?
@@ -126,6 +128,29 @@
 ;;   Enumerate VFS and file-operation helpers used by the monolithic runtime.
 (define filesystem-runtime-only-forms
   '(
+    (func $raise-vfs-path-too-long
+          (param $who      (ref eq))
+          (param $path-raw (ref eq))
+
+          (local $out     (ref $GrowableArray))
+          (local $message (ref $String))
+
+          (local.set $out (call $make-growable-array (i32.const 3)))
+          (call $growable-array-add! (local.get $out)
+                (call $format/display (local.get $who)))
+          (call $growable-array-add! (local.get $out)
+                (global.get $string:vfs:path-too-long))
+          (call $growable-array-add! (local.get $out)
+                (call $format/write (local.get $path-raw)))
+          (local.set $message
+                     (call $growable-array-of-strings->string (local.get $out)))
+          (call $raise
+                (call $exn:fail:contract/make
+                      (local.get $message)
+                      (call $current-continuation-marks (global.get $missing)))
+                (global.get $true))
+          (unreachable))
+
     (func $vfs-path-stat-kind
           (param $who      (ref eq)) ;; symbol? (currently for diagnostics)
           (param $path-raw (ref eq)) ;; path-string?
@@ -145,7 +170,9 @@
                       (struct.get $Bytes $bs (local.get $bytes))))
           (if (i32.gt_u (local.get $len)
                         (global.get $memory-map:vfs-path-buffer-length))
-              (then (call $raise-path-expected (local.get $path-raw))
+              (then (call $raise-vfs-path-too-long
+                          (local.get $who)
+                          (local.get $path-raw))
                     (unreachable)))
           (if (i32.eqz
                (call $linear-memory-range-available?
@@ -260,7 +287,9 @@
                       (struct.get $Bytes $bs (local.get $path-bs))))
           (if (i32.gt_u (local.get $path-len)
                         (global.get $memory-map:vfs-path-buffer-length))
-              (then (call $raise-path-expected (local.get $path-raw))
+              (then (call $raise-vfs-path-too-long
+                          (global.get $symbol:directory-list)
+                          (local.get $path-raw))
                     (unreachable)))
           (if (i32.eqz
                (call $linear-memory-range-available?
@@ -448,7 +477,9 @@
                       (struct.get $Bytes $bs (local.get $path-bs))))
           (if (i32.gt_u (local.get $path-len)
                         (global.get $memory-map:vfs-path-buffer-length))
-              (then (call $raise-path-expected (local.get $path-raw))
+              (then (call $raise-vfs-path-too-long
+                          (global.get $symbol:file-or-directory-stat)
+                          (local.get $path-raw))
                     (unreachable)))
           (if (i32.eqz
                (call $linear-memory-range-available?
@@ -536,7 +567,9 @@
                       (struct.get $Bytes $bs (local.get $path-bs))))
           (if (i32.gt_u (local.get $path-len)
                         (global.get $memory-map:vfs-path-buffer-length))
-              (then (call $raise-path-expected (local.get $path-raw))
+              (then (call $raise-vfs-path-too-long
+                          (global.get $symbol:file-or-directory-identity)
+                          (local.get $path-raw))
                     (unreachable)))
           (if (i32.eqz
                (call $linear-memory-range-available?
@@ -577,7 +610,9 @@
                       (struct.get $Bytes $bs (local.get $bytes))))
           (if (i32.gt_u (local.get $len)
                         (global.get $memory-map:vfs-path-buffer-length))
-              (then (call $raise-path-expected (local.get $path-raw))
+              (then (call $raise-vfs-path-too-long
+                          (global.get $symbol:file-size)
+                          (local.get $path-raw))
                     (unreachable)))
           (if (i32.eqz
                (call $linear-memory-range-available?
@@ -620,7 +655,9 @@
                       (struct.get $Bytes $bs (local.get $path-bs))))
           (if (i32.gt_u (local.get $path-len)
                         (global.get $memory-map:vfs-path-buffer-length))
-              (then (call $raise-path-expected (local.get $path-raw))
+              (then (call $raise-vfs-path-too-long
+                          (local.get $who)
+                          (local.get $path-raw))
                     (unreachable)))
           (if (i32.eqz
                (call $linear-memory-range-available?
@@ -1069,7 +1106,9 @@
                       (struct.get $Bytes $bs (local.get $bytes))))
           (if (i32.gt_u (local.get $path-len)
                         (global.get $memory-map:vfs-path-buffer-length))
-              (then (call $raise-path-expected (local.get $path-raw))
+              (then (call $raise-vfs-path-too-long
+                          (global.get $symbol:webracket-vfs-write-file)
+                          (local.get $path-raw))
                     (unreachable)))
           (if (i32.gt_u (local.get $bytes-len)
                         (global.get $memory-map:vfs-file-buffer-length))
@@ -1128,7 +1167,9 @@
                       (struct.get $Bytes $bs (local.get $path-bs))))
           (if (i32.gt_u (local.get $path-len)
                         (global.get $memory-map:vfs-path-buffer-length))
-              (then (call $raise-path-expected (local.get $path-raw))
+              (then (call $raise-vfs-path-too-long
+                          (global.get $symbol:delete-file)
+                          (local.get $path-raw))
                     (unreachable)))
           (if (i32.eqz
                (call $linear-memory-range-available?
@@ -1172,7 +1213,9 @@
                       (struct.get $Bytes $bs (local.get $path-bs))))
           (if (i32.gt_u (local.get $path-len)
                         (global.get $memory-map:vfs-path-buffer-length))
-              (then (call $raise-path-expected (local.get $path-raw))
+              (then (call $raise-vfs-path-too-long
+                          (global.get $symbol:make-directory)
+                          (local.get $path-raw))
                     (unreachable)))
           (if (i32.eqz
                (call $linear-memory-range-available?
@@ -1215,7 +1258,9 @@
                       (struct.get $Bytes $bs (local.get $path-bs))))
           (if (i32.gt_u (local.get $path-len)
                         (global.get $memory-map:vfs-path-buffer-length))
-              (then (call $raise-path-expected (local.get $path-raw))
+              (then (call $raise-vfs-path-too-long
+                          (global.get $symbol:make-directory*)
+                          (local.get $path-raw))
                     (unreachable)))
           (if (i32.eqz
                (call $linear-memory-range-available?
@@ -1258,7 +1303,9 @@
                       (struct.get $Bytes $bs (local.get $path-bs))))
           (if (i32.gt_u (local.get $path-len)
                         (global.get $memory-map:vfs-path-buffer-length))
-              (then (call $raise-path-expected (local.get $path-raw))
+              (then (call $raise-vfs-path-too-long
+                          (global.get $symbol:make-parent-directory*)
+                          (local.get $path-raw))
                     (unreachable)))
           (if (i32.eqz
                (call $linear-memory-range-available?
@@ -1301,7 +1348,9 @@
                       (struct.get $Bytes $bs (local.get $path-bs))))
           (if (i32.gt_u (local.get $path-len)
                         (global.get $memory-map:vfs-path-buffer-length))
-              (then (call $raise-path-expected (local.get $path-raw))
+              (then (call $raise-vfs-path-too-long
+                          (global.get $symbol:delete-directory)
+                          (local.get $path-raw))
                     (unreachable)))
           (if (i32.eqz
                (call $linear-memory-range-available?
@@ -1354,7 +1403,9 @@
                       (struct.get $Bytes $bs (local.get $path-bs))))
           (if (i32.gt_u (local.get $path-len)
                         (global.get $memory-map:vfs-path-buffer-length))
-              (then (call $raise-path-expected (local.get $path-raw))
+              (then (call $raise-vfs-path-too-long
+                          (global.get $symbol:delete-directory/files)
+                          (local.get $path-raw))
                     (unreachable)))
           (if (i32.eqz
                (call $linear-memory-range-available?
@@ -1411,7 +1462,9 @@
                       (struct.get $Bytes $bs (local.get $new-bs))))
           (if (i32.gt_u (local.get $old-len)
                         (global.get $memory-map:vfs-path-buffer-length))
-              (then (call $raise-path-expected (local.get $old-raw))
+              (then (call $raise-vfs-path-too-long
+                          (global.get $symbol:rename-file-or-directory)
+                          (local.get $old-raw))
                     (unreachable)))
           (if (i32.gt_u (local.get $new-len)
                         (global.get $memory-map:vfs-file-buffer-length))
@@ -1492,7 +1545,9 @@
                       (struct.get $Bytes $bs (local.get $dest-bs))))
           (if (i32.gt_u (local.get $src-len)
                         (global.get $memory-map:vfs-path-buffer-length))
-              (then (call $raise-path-expected (local.get $src-raw))
+              (then (call $raise-vfs-path-too-long
+                          (global.get $symbol:copy-directory/files)
+                          (local.get $src-raw))
                     (unreachable)))
           (if (i32.gt_u (local.get $dest-len)
                         (global.get $memory-map:vfs-file-buffer-length))
@@ -1565,7 +1620,9 @@
                       (struct.get $Bytes $bs (local.get $dest-bs))))
           (if (i32.gt_u (local.get $src-len)
                         (global.get $memory-map:vfs-path-buffer-length))
-              (then (call $raise-path-expected (local.get $src-raw))
+              (then (call $raise-vfs-path-too-long
+                          (global.get $symbol:copy-file)
+                          (local.get $src-raw))
                     (unreachable)))
           (if (i32.gt_u (local.get $dest-len)
                         (global.get $memory-map:vfs-file-buffer-length))
@@ -2014,7 +2071,9 @@
                       (struct.get $Bytes $bs (local.get $bytes))))
           (if (i32.gt_u (local.get $len)
                         (global.get $memory-map:vfs-path-buffer-length))
-              (then (call $raise-path-expected (local.get $path-raw))
+              (then (call $raise-vfs-path-too-long
+                          (global.get $symbol:file-or-directory-modify-seconds)
+                          (local.get $path-raw))
                     (unreachable)))
           (if (i32.eqz
                (call $linear-memory-range-available?
@@ -2108,7 +2167,9 @@
                       (struct.get $Bytes $bs (local.get $bytes))))
           (if (i32.gt_u (local.get $len)
                         (global.get $memory-map:vfs-path-buffer-length))
-              (then (call $raise-path-expected (local.get $path-raw))
+              (then (call $raise-vfs-path-too-long
+                          (global.get $symbol:file-or-directory-permissions)
+                          (local.get $path-raw))
                     (unreachable)))
           (if (i32.eqz
                (call $linear-memory-range-available?
