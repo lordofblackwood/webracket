@@ -486,7 +486,10 @@
                (local $next     i32)
 
                (if (i32.eqz (ref.test (ref $String) (local.get $fmt-raw)))
-                   (then (call $raise-check-string (local.get $fmt-raw))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:format)
+                               (global.get $string:string?)
+                               (local.get $fmt-raw))
                          (unreachable)))
                (local.set $fmt     (ref.cast (ref $String) (local.get $fmt-raw)))
                (local.set $fmt-arr (struct.get $String $codepoints (local.get $fmt)))
