@@ -73,6 +73,11 @@
 ;;   Declare symbols used by string helpers and string errors.
 (define string-runtime-symbol-constants
   '(string
+    string-set!
+    string-take
+    string-take-right
+    string-drop
+    string-drop-right
     string=?
     string<?
     string<=?
@@ -198,7 +203,8 @@
 ;; string-index-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for string index error helpers.
 (define string-index-runtime-only-helper-names
-  '($raise-bad-string-index
+  '($raise-string-index-out-of-range/who/i32
+    $raise-bad-string-index
     $raise-bad-string-index/i32
     $raise-string-length:bad-argument
     $raise-string-index-out-of-bounds/i32))
@@ -683,8 +689,69 @@
   (function-forms->runtime-helpers
    'string-index-runtime-only-helpers
    '(
+         (func $raise-string-index-out-of-range/who/i32
+               (param $who (ref eq))
+               (param $s   (ref eq))
+               (param $idx i32)
+               (param $max i32)
+
+               (local $out     (ref $GrowableArray))
+               (local $message (ref $String))
+
+               (local.set $out
+                          (call $make-growable-array (i32.const 10)))
+               (call $growable-array-add! (local.get $out)
+                     (call $format/display (local.get $who)))
+               (if (i32.lt_s (local.get $max) (i32.const 0))
+                   (then
+                    (call $growable-array-add! (local.get $out)
+                          (global.get $string:string-ref:index-out-of-range-empty)))
+                   (else
+                    (call $growable-array-add! (local.get $out)
+                          (global.get $string:string-ref:index-out-of-range))))
+               (call $growable-array-add! (local.get $out)
+                     (global.get $string:string-ref:index))
+               (call $growable-array-add! (local.get $out)
+                     (call $format/display
+                           (ref.i31 (i32.shl (local.get $idx) (i32.const 1)))))
+               (if (i32.ge_s (local.get $max) (i32.const 0))
+                   (then
+                    (call $growable-array-add! (local.get $out)
+                          (global.get $string:string-ref:valid-range))
+                    (call $growable-array-add! (local.get $out)
+                          (call $format/display
+                                (ref.i31 (i32.shl (local.get $max) (i32.const 1)))))
+                    (call $growable-array-add! (local.get $out)
+                          (global.get $string:string-ref:valid-range-close))))
+               (call $growable-array-add! (local.get $out)
+                     (global.get $string:string-ref:string))
+               (call $growable-array-add! (local.get $out)
+                     (call $format/write (local.get $s)))
+               (local.set $message
+                          (call $growable-array-of-strings->string (local.get $out)))
+               (call $raise
+                     (call $exn:fail:contract/make
+                           (local.get $message)
+                           (call $current-continuation-marks (global.get $missing)))
+                     (global.get $true))
+               (unreachable))
+
          (func $raise-bad-string-index     (param $x (ref eq)) (param $i (ref eq))  (unreachable))
-         (func $raise-bad-string-index/i32 (param $x (ref eq)) (param $i i32)       (unreachable))
+         (func $raise-bad-string-index/i32
+               (param $x (ref eq))
+               (param $i i32)
+
+               (local $str (ref $String))
+               (local $len i32)
+
+               (local.set $str (ref.cast (ref $String) (local.get $x)))
+               (local.set $len (call $string-length/checked/i32 (local.get $str)))
+               (call $raise-string-index-out-of-range/who/i32
+                     (global.get $symbol:string-ref)
+                     (local.get $x)
+                     (local.get $i)
+                     (i32.sub (local.get $len) (i32.const 1)))
+               (unreachable))
          (func $raise-string-length:bad-argument
                (param $x (ref eq))
                (call $raise-argument-error1
@@ -1069,6 +1136,7 @@
                (local $idx     i32)
                (local $cp      i32)
                (local $tagged  i32)
+               (local $len     i32)
                ;; --- Type checks ---
                (if (i32.eqz (ref.test (ref $String) (local.get $s)))
                    (then (call $raise-string-set!:string-expected (local.get $s))))
@@ -1098,11 +1166,16 @@
                (local.set $cp (i32.shr_u (local.get $tagged) (i32.const ,char-shift)))
                ;; --- Bounds-check and write ---
                (local.set $arr (struct.get $String $codepoints (local.get $str)))
-               (if (i32.lt_u (local.get $idx) (call $i32array-length (local.get $arr)))
+               (local.set $len (call $i32array-length (local.get $arr)))
+               (if (i32.lt_u (local.get $idx) (local.get $len))
                    (then (call $i32array-set! (local.get $arr) (local.get $idx) (local.get $cp))
                          ;; Keep the hash. The eq-identity doesn't change.
                          (return (global.get $void)))
-                   (else (call $raise-bad-string-index/i32 (local.get $s) (local.get $idx))))
+                   (else (call $raise-string-index-out-of-range/who/i32
+                               (global.get $symbol:string-set!)
+                               (local.get $s)
+                               (local.get $idx)
+                               (i32.sub (local.get $len) (i32.const 1)))))
                (unreachable))
      )))
 
@@ -3530,8 +3603,12 @@
                (local.set $len
                           (call $string-length/checked/i32 (local.get $str)))
                (if (i32.gt_u (local.get $n/i32) (local.get $len))
-                   (then (call $raise-bad-string-index/i32
-                               (local.get $s) (local.get $n/i32))))
+                   (then (call $raise-string-index-out-of-range/who/i32
+                               (global.get $symbol:string-take)
+                               (local.get $s)
+                               (local.get $n/i32)
+                               (local.get $len))
+                         (unreachable)))
 
                (call $string-take/checked (local.get $str) (local.get $n/i32)))
 
@@ -3568,7 +3645,11 @@
 
                (local.set $len (call $string-length/checked/i32 (local.get $str)))
                (if (i32.gt_u (local.get $n/i32) (local.get $len))
-                   (then (call $raise-bad-string-index/i32 (local.get $s) (local.get $n/i32))
+                   (then (call $raise-string-index-out-of-range/who/i32
+                               (global.get $symbol:string-take-right)
+                               (local.get $s)
+                               (local.get $n/i32)
+                               (local.get $len))
                          (unreachable)))
 
                (call $string-take-right/checked (local.get $str) (local.get $n/i32)))
@@ -3606,7 +3687,12 @@
 
                (local.set $len (call $string-length/checked/i32 (local.get $str)))
                (if (i32.gt_u (local.get $n/i32) (local.get $len))
-                   (then (call $raise-bad-string-index/i32 (local.get $s) (local.get $n/i32))))
+                   (then (call $raise-string-index-out-of-range/who/i32
+                               (global.get $symbol:string-drop)
+                               (local.get $s)
+                               (local.get $n/i32)
+                               (local.get $len))
+                         (unreachable)))
 
                (call $string-drop/checked (local.get $str) (local.get $n/i32)))
 
@@ -3641,7 +3727,12 @@
 
                (local.set $len (call $string-length/checked/i32 (local.get $str)))
                (if (i32.gt_u (local.get $n/i32) (local.get $len))
-                   (then (call $raise-bad-string-index/i32 (local.get $s) (local.get $n/i32))))
+                   (then (call $raise-string-index-out-of-range/who/i32
+                               (global.get $symbol:string-drop-right)
+                               (local.get $s)
+                               (local.get $n/i32)
+                               (local.get $len))
+                         (unreachable)))
 
                (call $string-drop-right/checked (local.get $str) (local.get $n/i32)))
 
