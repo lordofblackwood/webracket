@@ -33,5 +33,11 @@
        (and (equal? (format "~a" (mcons 'x 'y)) "{x . y}")
             (equal? (format "~s" (mcons 'x 'y)) "{x . y}")
             (equal? (format "~a" (mcons 1 (mcons 2 '()))) "{1 2}")))
+ (list "unquoted-printing-string-value errors are catchable with who"
+       (catch-contract/contains?
+        (lambda () (unquoted-printing-string-value 42))
+        "unquoted-printing-string-value"
+        "unquoted-printing-string?"
+        "given: 42"))
  (list "format success still works"
        (equal? (format "~a/~s" "x" "y") "x/\"y\"")))

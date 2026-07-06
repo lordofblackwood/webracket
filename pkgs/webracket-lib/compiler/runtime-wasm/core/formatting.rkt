@@ -112,6 +112,7 @@
     (space-dot-space            " . ")
     (vector-prefix              "#(")
     (values-prefix              "(values")
+    (unquoted-printing-string?  "unquoted-printing-string?")
     (colon                      ":")
     (dash                       "-")
     (bang                       "!")
@@ -369,7 +370,13 @@
                            (i32.const 0)
                            (local.get $str)))
 
-         (func $raise-argument-error:unquoted-printing-string-expected (unreachable))
+         (func $raise-argument-error:unquoted-printing-string-expected
+               (param $got (ref eq))
+
+               (call $raise-argument-error1
+                     (global.get $symbol:unquoted-printing-string-value)
+                     (global.get $string:unquoted-printing-string?)
+                     (local.get $got)))
 
          (func $unquoted-printing-string-value (type $Prim1)
                (param $ups (ref eq))  ;; unquoted-printing-string?
