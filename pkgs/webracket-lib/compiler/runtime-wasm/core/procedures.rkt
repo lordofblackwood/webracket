@@ -49,6 +49,7 @@
     (procedure-arity?    "procedure-arity?")
     (arity-at-least?     "arity-at-least?")
     (procedure?          "procedure?")
+    (primitive?          "primitive?")
     (arity-error:start
      ": arity mismatch;\n the expected number of arguments does not match the given number\n  expected: ")
     (arity-error:start/no-expected
@@ -78,6 +79,9 @@
     application-not-procedure-frontier
     binding-result-arity-frontier
     procedure-arity-frontier
+    procedure-arity-includes?
+    primitive?
+    primitive-result-arity
     expected-count
     received-count
     got-struct-type
@@ -1197,7 +1201,8 @@
 ;; primitive-reflection-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for primitive reflection helpers.
 (define primitive-reflection-runtime-only-helper-names
-  '($raise-argument-error:primitive-procedure-expected
+  '($raise-argument-error:primitive-procedure-expected/who
+    $raise-argument-error:primitive-procedure-expected
     $primitive?
     $primitive-result-arity
     $primitive-closure?))
@@ -3574,32 +3579,41 @@
                         (br $loop)))
            (local.get $mask))
 
-     (func $raise-argument-error:fixnum-expected (unreachable))
+     (func $raise-argument-error:fixnum-expected
+           (param $got (ref eq))
+
+           (call $raise-argument-error1
+                 (global.get $symbol:procedure-arity-includes?)
+                 (global.get $string:exact-nonnegative-integer?)
+                 (local.get $got)))
 
      (func $procedure-arity-includes?
-           (param $proc    (ref eq))
-           (param $k       (ref eq))    ;; fixnum
-           (param $kws-ok? (ref eq))    ;; fixnum or #f
+           (param $proc    (ref eq))    ;; procedure?
+           (param $k       (ref eq))    ;; exact-nonnegative-integer?
+           (param $kws-ok? (ref eq))    ;; optional any/c, default = #f
            (result         (ref eq))    ;; returns #true or #false
 
-           (local $k-fx    (ref i31))
-           (local $k-i32   i32)
-           (local $mask-fx (ref i31))
-           (local $mask    i32)
+           (local $k-fx  (ref i31))
+           (local $k-i32 i32)
+           (local $mask  i32)
 
-           ;; Step 1: type check and decode k
-           (if (ref.test (ref i31) (local.get $k))
-               (then
-                (local.set $k-fx (ref.cast (ref i31) (local.get $k)))
-                (local.set $k-i32 (i32.shr_u (i31.get_u (local.get $k-fx)) (i32.const 1))))
-               (else
-                (call $raise-argument-error:fixnum-expected)
-                (unreachable)))
-           ;; Step 2: call procedure-arity-mask
-           (local.set $mask-fx (ref.cast (ref i31)
-                                         (call $procedure-arity-mask (local.get $proc))))
-           (local.set $mask    (i32.shr_u (i31.get_u (local.get $mask-fx)) (i32.const 1)))
-           ;; Step 3: check if bit $k-i32 is set in $mask
+           ;; Step 1: validate proc with the public function's `who`.
+           (if (ref.eq (call $procedure? (local.get $proc)) (global.get $false))
+               (then (call $raise-argument-error:procedure-expected/who
+                           (global.get $symbol:procedure-arity-includes?)
+                           (local.get $proc))
+                     (unreachable)))
+           ;; Step 2: type check and decode k.
+           (if (ref.eq (call $exact-nonnegative-integer? (local.get $k)) (global.get $false))
+               (then (call $raise-argument-error:fixnum-expected (local.get $k))
+                     (unreachable)))
+           (local.set $k-fx (ref.cast (ref i31) (local.get $k)))
+           (local.set $k-i32 (i32.shr_u (i31.get_u (local.get $k-fx)) (i32.const 1)))
+           ;; Step 3: get the checked arity mask.
+           (local.set $mask
+                      (call $procedure-arity-mask/checked/i32
+                            (ref.cast (ref $Procedure) (local.get $proc))))
+           ;; Step 4: check if bit $k-i32 is set in $mask.
            (if (i32.ne (i32.and (local.get $mask)
                                 (i32.shl (i32.const 1) (local.get $k-i32)))
                        (i32.const 0))
@@ -3623,7 +3637,21 @@
                             (i32.shl (i32.const 1) (local.get $k-i32)))
                    (i32.const 0)))
 
-     (func $raise-argument-error:primitive-procedure-expected (unreachable))
+     (func $raise-argument-error:primitive-procedure-expected/who
+           (param $who (ref eq))
+           (param $got (ref eq))
+
+           (call $raise-argument-error1
+                 (local.get $who)
+                 (global.get $string:primitive?)
+                 (local.get $got)))
+
+     (func $raise-argument-error:primitive-procedure-expected
+           (param $got (ref eq))
+
+           (call $raise-argument-error:primitive-procedure-expected/who
+                 (global.get $symbol:primitive?)
+                 (local.get $got)))
 
      (func $primitive? (type $Prim1)
            (param $v (ref eq))
@@ -3640,7 +3668,9 @@
            (local $p (ref $PrimitiveProcedure))
            ;; Step 1: Validate type
            (if (i32.eqz (ref.test (ref $PrimitiveProcedure) (local.get $v)))
-               (then (call $raise-argument-error:primitive-procedure-expected)))
+               (then (call $raise-argument-error:primitive-procedure-expected/who
+                           (global.get $symbol:primitive-result-arity)
+                           (local.get $v))))
            ;; Step 2: Cast after validation
            (local.set $p (ref.cast (ref $PrimitiveProcedure) (local.get $v)))
            ;; Step 3: Return result-arity field

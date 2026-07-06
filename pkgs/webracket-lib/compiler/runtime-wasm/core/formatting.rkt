@@ -1261,7 +1261,8 @@
 
                ;; Step 1: type check and cast
                (if (i32.eqz (ref.test (ref $PrimitiveProcedure) (local.get $v)))
-                   (then (call $raise-argument-error:primitive-procedure-expected)))
+                   (then (call $raise-argument-error:primitive-procedure-expected
+                               (local.get $v))))
                (local.set $p (ref.cast (ref $PrimitiveProcedure) (local.get $v)))
                ;; Step 2: extract fields
                (local.set $name      (struct.get $PrimitiveProcedure $name  (local.get $p)))
