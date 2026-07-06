@@ -912,8 +912,17 @@
                      (if (ref.eq (struct.get $Pair $d (local.get $node))
                                  (global.get $null))
                          (then (nop))
-                         (else (call $raise-arity-error:exactly) (unreachable))))
-                    (else (call $raise-arity-error:exactly) (unreachable)))))
+                         (else
+                          (call $raise-arity-mismatch/name+given
+                                (global.get $symbol:fx-/wraparound)
+                                (i32.add (i32.const 1)
+                                         (call $length/i32 (local.get $rest))))
+                          (unreachable))))
+                    (else
+                     (call $raise-arity-mismatch/name+given
+                           (global.get $symbol:fx-/wraparound)
+                           (i32.const 2))
+                     (unreachable)))))
            (ref.i31
             (i32.sub
              (i31.get_s (ref.cast (ref i31) (local.get $a)))

@@ -2,6 +2,18 @@
 ;;
 ;; Compile this file with `--no-stdlib`.
 
+(define (catch-contract/contains? thunk . needles)
+  (let ([message
+         (with-handlers ([exn:fail:contract?
+                          (lambda (exn)
+                            (exn-message exn))])
+           (thunk)
+           #f)])
+    (and message
+         (andmap (lambda (needle)
+                   (string-contains? message needle))
+                 needles))))
+
 (list
  (list "fixnum division errors are catchable with who"
        (let ([catch-division?
@@ -41,4 +53,10 @@
           (catch-fixnum? "fxremainder"
                          (lambda () (fxremainder 1.0 1)))
           (catch-fixnum? "fxmodulo"
-                         (lambda () (fxmodulo 1.0 1)))))))
+                         (lambda () (fxmodulo 1.0 1))))))
+ (list "fx-/wraparound arity errors are catchable with who"
+       (catch-contract/contains?
+        (lambda () (fx-/wraparound 1 2 3))
+        "fx-/wraparound"
+        "arity mismatch"
+        "given: 3")))
