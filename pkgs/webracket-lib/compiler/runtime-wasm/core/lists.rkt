@@ -17,7 +17,8 @@
   '((pair?           "pair?")
     (list?           "list?")
     (non-empty-list? "(and/c list? (not/c empty?))")
-    (listof-pair?    "(listof pair?)")))
+    (listof-pair?    "(listof pair?)")
+    (range:non-zero-step "(and/c real? (not/c zero?))")))
 
 ;; list-runtime-symbol-constants : (listof symbol?)
 ;;   Declare symbols used by pair and list helpers.
@@ -39,7 +40,8 @@
     drop
     drop-right
     split-at
-    split-at-right))
+    split-at-right
+    in-inclusive-range))
 
 ;; pair-global-forms : (listof datum?)
 ;;   Declare shared pair values used for default local initialization.
@@ -4939,6 +4941,36 @@
                           (br $loop)))
              (local.get $acc))))
 
+    ;; raise-range:real-expected : symbol? any/c -> none
+    ;;   Raise a range real? contract error with a Racket-compatible who.
+    (core-runtime-helper
+     '$raise-range:real-expected
+     "$raise-range:real-expected"
+     (lambda ()
+       `(func $raise-range:real-expected
+             (param $who (ref eq))
+             (param $bad (ref eq))
+             (call $raise-argument-error1
+                   (local.get $who)
+                   (global.get $string:real?)
+                   (local.get $bad))
+             (unreachable))))
+
+    ;; raise-range:zero-step : symbol? any/c -> none
+    ;;   Raise a catchable contract error for WebRacket's zero-step rejection.
+    (core-runtime-helper
+     '$raise-range:zero-step
+     "$raise-range:zero-step"
+     (lambda ()
+       `(func $raise-range:zero-step
+             (param $who (ref eq))
+             (param $bad (ref eq))
+             (call $raise-argument-error1
+                   (local.get $who)
+                   (global.get $string:range:non-zero-step)
+                   (local.get $bad))
+             (unreachable))))
+
     ;; range-proc : real? real? optional-real? -> list?
     ;;   First-class wrapper for range.
     (core-runtime-helper
@@ -5001,8 +5033,9 @@
                            (else (if (call $fx?/i32 (local.get $start-val))
                                      (then (local.set $start-i32
                                                      (i32.shr_s (i31.get_s (ref.cast (ref i31) (local.get $start-val))) (i32.const 1))))
-                                     (else (call $raise-argument-error/internal (local.get $start-val))
-                                           (unreachable)))))))
+                                     (else (call $raise-range:real-expected
+                                                 (global.get $symbol:in-range)
+                                                 (local.get $start-val))))))))
 
              ;; end
              (if (call $fl?/i32 (local.get $end-val))
@@ -5012,8 +5045,9 @@
                  (else (if (call $fx?/i32 (local.get $end-val))
                            (then (local.set $end-i32
                                            (i32.shr_s (i31.get_s (ref.cast (ref i31) (local.get $end-val))) (i32.const 1))))
-                           (else (call $raise-argument-error/internal (local.get $end-val))
-                                 (unreachable)))))
+                           (else (call $raise-range:real-expected
+                                       (global.get $symbol:in-range)
+                                       (local.get $end-val))))))
 
              ;; step (optional, defaults to 1)
              (if (ref.eq (local.get $step-val) (global.get $missing))
@@ -5028,18 +5062,21 @@
                            (else (if (call $fx?/i32 (local.get $step-val))
                                      (then (local.set $step-i32
                                                      (i32.shr_s (i31.get_s (ref.cast (ref i31) (local.get $step-val))) (i32.const 1))))
-                                     (else (call $raise-argument-error/internal (local.get $step-val))
-                                           (unreachable)))))))
+                                     (else (call $raise-range:real-expected
+                                                 (global.get $symbol:in-range)
+                                                 (local.get $step-val))))))))
 
              ;; step must be non-zero when provided
              (if (i32.eqz (ref.eq (local.get $step-val) (global.get $missing)))
                  (then (if (i32.eqz (local.get $use-fl))
                            (then (if (i32.eq (local.get $step-i32) (i32.const 0))
-                                     (then (call $raise-argument-error/internal (local.get $step-val))
-                                           (unreachable))))
+                                     (then (call $raise-range:zero-step
+                                                 (global.get $symbol:in-range)
+                                                 (local.get $step-val)))))
                            (else (if (f64.eq (local.get $step-f64) (f64.const 0))
-                                     (then (call $raise-argument-error/internal (local.get $step-val))
-                                           (unreachable)))))))
+                                     (then (call $raise-range:zero-step
+                                                 (global.get $symbol:in-range)
+                                                 (local.get $step-val))))))))
 
              ;; decide variant
              (if (i32.eqz (local.get $use-fl))
@@ -5182,8 +5219,9 @@
                  (else (if (call $fx?/i32 (local.get $start-raw))
                            (then (local.set $start-i32
                                            (i32.shr_s (i31.get_s (ref.cast (ref i31) (local.get $start-raw))) (i32.const 1))))
-                           (else (call $raise-argument-error/internal (local.get $start-raw))
-                                 (unreachable)))))
+                           (else (call $raise-range:real-expected
+                                       (global.get $symbol:in-inclusive-range)
+                                       (local.get $start-raw))))))
 
              ;; end
              (if (call $fl?/i32 (local.get $end-raw))
@@ -5193,8 +5231,9 @@
                  (else (if (call $fx?/i32 (local.get $end-raw))
                            (then (local.set $end-i32
                                            (i32.shr_s (i31.get_s (ref.cast (ref i31) (local.get $end-raw))) (i32.const 1))))
-                           (else (call $raise-argument-error/internal (local.get $end-raw))
-                                 (unreachable)))))
+                           (else (call $raise-range:real-expected
+                                       (global.get $symbol:in-inclusive-range)
+                                       (local.get $end-raw))))))
 
              ;; step
              (if (ref.eq (local.get $step-raw) (global.get $missing))
@@ -5217,18 +5256,21 @@
                            (else (if (call $fx?/i32 (local.get $step-raw))
                                      (then (local.set $step-i32
                                                      (i32.shr_s (i31.get_s (ref.cast (ref i31) (local.get $step-raw))) (i32.const 1))))
-                                     (else (call $raise-argument-error/internal (local.get $step-raw))
-                                           (unreachable)))))))
+                                     (else (call $raise-range:real-expected
+                                                 (global.get $symbol:in-inclusive-range)
+                                                 (local.get $step-raw))))))))
 
              ;; step must be non-zero when provided
              (if (i32.eqz (ref.eq (local.get $step-raw) (global.get $missing)))
                  (then (if (i32.eqz (local.get $use-fl))
                            (then (if (i32.eq (local.get $step-i32) (i32.const 0))
-                                     (then (call $raise-argument-error/internal (local.get $step-raw))
-                                           (unreachable))))
+                                     (then (call $raise-range:zero-step
+                                                 (global.get $symbol:in-inclusive-range)
+                                                 (local.get $step-raw)))))
                            (else (if (f64.eq (local.get $step-f64) (f64.const 0))
-                                     (then (call $raise-argument-error/internal (local.get $step-raw))
-                                           (unreachable)))))))
+                                     (then (call $raise-range:zero-step
+                                                 (global.get $symbol:in-inclusive-range)
+                                                 (local.get $step-raw))))))))
 
              ;; decide variant
              (if (i32.eqz (local.get $use-fl))
@@ -7480,6 +7522,8 @@
      (core    $make-list/checked)
      (runtime $build-list)
      (runtime $build-list/checked)
+     (runtime $raise-range:real-expected)
+     (runtime $raise-range:zero-step)
      (runtime $range-proc)
      (runtime $range)
      (runtime $range/fixnum)
