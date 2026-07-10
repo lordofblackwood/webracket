@@ -20,7 +20,10 @@
     (random:exact-integer? "exact-integer?")
     (random:second-argument-contract "(or/c exact-integer? pseudo-random-generator?)")
     (random:gt/c-prefix "(>/c ")
-    (random:right-paren ")")))
+    (random:right-paren ")")
+    (random:argument-position-1st "\n  argument position: 1st")
+    (random:argument-position-2nd "\n  argument position: 2nd")
+    (random:other-arguments "\n  other arguments...:\n   ")))
 
 ;; Half : datum? -> datum?
 ;;   Decode a tagged fixnum expression to an i32 payload.
@@ -79,6 +82,7 @@
     $raise-random:first-exact-integer-contract
     $raise-random:second-argument-contract
     $raise-random:range-contract
+    $raise-random:argument-error2
     $random-seed
     $random))
 
@@ -214,10 +218,53 @@
                                (call $string-append/2
                                      (call $format/display (local.get $min-raw))
                                      (global.get $string:random:right-paren))))
-              (call $raise-argument-error1
-                    (global.get $symbol:random)
+              (call $raise-random:argument-error2
                     (local.get $expected)
-                    (local.get $x)))
+                    (local.get $x)
+                    (global.get $string:random:argument-position-2nd)
+                    (local.get $min-raw)))
+
+        (func $raise-random:argument-error2
+              (param $expected (ref eq))
+              (param $bad      (ref eq))
+              (param $position (ref eq))
+              (param $other    (ref eq))
+
+              (local $out     (ref $GrowableArray))
+              (local $message (ref $String))
+
+              (local.set $out
+                         (call $make-growable-array (i32.const 9)))
+              (call $growable-array-add! (local.get $out)
+                    (call $format/display (global.get $symbol:random)))
+              (call $growable-array-add! (local.get $out)
+                    (global.get $string:contract-violation:prefix))
+              (call $growable-array-add! (local.get $out)
+                    (local.get $expected))
+              (call $growable-array-add! (local.get $out)
+                    (global.get $string:arity-error:given))
+              (call $growable-array-add! (local.get $out)
+                    (call $format/print
+                          (local.get $bad)
+                          (global.get $missing)))
+              (call $growable-array-add! (local.get $out)
+                    (local.get $position))
+              (call $growable-array-add! (local.get $out)
+                    (global.get $string:random:other-arguments))
+              (call $growable-array-add! (local.get $out)
+                    (call $format/print
+                          (local.get $other)
+                          (global.get $missing)))
+              (local.set $message
+                         (call $growable-array-of-strings->string
+                               (local.get $out)))
+              (call $raise
+                    (call $exn:fail:contract/make
+                          (local.get $message)
+                          (call $current-continuation-marks
+                                (global.get $missing)))
+                    (global.get $true))
+              (unreachable))
 
         ;; random-seed : exact-integer? -> void?
         ;;   Seed the current lightweight generator. The accepted range follows
@@ -301,15 +348,25 @@
                                                             (local.get $b)))))
                              (if (i32.eqz (call $fx?/i32 (local.get $a)))
                                  (then (if (ref.test (ref $PseudoRandomGenerator) (local.get $b))
-                                           (then (call $raise-random:generator-count-contract
-                                                       (local.get $a)))
-                                           (else (call $raise-random:first-exact-integer-contract
-                                                       (local.get $a))))
+                                           (then (call $raise-random:argument-error2
+                                                       (global.get $string:random:generator-count-contract)
+                                                       (local.get $a)
+                                                       (global.get $string:random:argument-position-1st)
+                                                       (local.get $b)))
+                                           (else (call $raise-random:argument-error2
+                                                       (global.get $string:random:exact-integer?)
+                                                       (local.get $a)
+                                                       (global.get $string:random:argument-position-1st)
+                                                       (local.get $b))))
                                        (unreachable)))
                              (if (i32.eqz (ref.test (ref $PseudoRandomGenerator) (local.get $b)))
                                  (then
                                   (if (i32.eqz (call $fx?/i32 (local.get $b)))
-                                      (then (call $raise-random:second-argument-contract (local.get $b))
+                                      (then (call $raise-random:argument-error2
+                                                  (global.get $string:random:second-argument-contract)
+                                                  (local.get $b)
+                                                  (global.get $string:random:argument-position-2nd)
+                                                  (local.get $a))
                                             (unreachable)))))
                              (local.set $min ,(Half `(i31.get_s (ref.cast i31ref (local.get $a)))))
                              (if (ref.test (ref $PseudoRandomGenerator) (local.get $b))
@@ -322,8 +379,11 @@
                              (local.set $range (i32.sub (local.get $max) (local.get $min)))
                              (if (i32.le_s (local.get $range) (i32.const 0))
                                  (then (if (ref.test (ref $PseudoRandomGenerator) (local.get $b))
-                                           (then (call $raise-random:generator-count-contract
-                                                       (local.get $a)))
+                                           (then (call $raise-random:argument-error2
+                                                       (global.get $string:random:generator-count-contract)
+                                                       (local.get $a)
+                                                       (global.get $string:random:argument-position-1st)
+                                                       (local.get $b)))
                                            (else (call $raise-random:range-contract
                                                        (local.get $a)
                                                        (local.get $b))))

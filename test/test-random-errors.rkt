@@ -31,17 +31,39 @@
          (lambda () (random #f 10))
          "random"
          "exact-integer?"
-         "given: #f")
+         "given: #f"
+         "argument position: 1st"
+         "other arguments...")
         (catch-contract/contains?
          (lambda () (random 1 #f))
          "random"
          "(or/c exact-integer? pseudo-random-generator?)"
-         "given: #f")
+         "given: #f"
+         "argument position: 2nd"
+         "other arguments...")
         (catch-contract/contains?
          (lambda () (random 10 1))
          "random"
          "(>/c 10)"
-         "given: 1")))
+         "given: 1"
+         "argument position: 2nd"
+         "other arguments...")
+        (let ([g (make-pseudo-random-generator)])
+          (and
+           (catch-contract/contains?
+            (lambda () (random #f g))
+            "random"
+            "(integer-in 1 4294967087)"
+            "given: #f"
+            "argument position: 1st"
+            "other arguments...")
+           (catch-contract/contains?
+            (lambda () (random 0 g))
+            "random"
+            "(integer-in 1 4294967087)"
+            "given: 0"
+            "argument position: 1st"
+            "other arguments...")))))
  (list "random-seed errors are catchable with who"
        (and
         (catch-contract/contains?

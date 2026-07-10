@@ -80,8 +80,9 @@ Current remaining raw-stub classes:
     value when it is available.
   - Public opaque values for semaphores, semaphore-peek events, will
     executors, loggers, log receivers, bytes converters, uninterruptible
-    locks, threads, thread groups, thread cells, custodians, custodian boxes,
-    and security guards now print as `#<...>` values instead of falling
+    locks, pseudo-random generators, threads, thread groups, thread cells,
+    custodians, custodian boxes, and security guards now print as `#<...>`
+    values instead of falling
     through to `$raise-format/display:unknown-datatype`. Compact regexp values
     now print from their stored source as `#rx`, `#px`, `#rx#`, or `#px#`
     forms.
@@ -150,9 +151,10 @@ Current remaining raw-stub classes:
   - Positive out-of-range indexes for `treelist-ref`, `treelist-set`,
     `treelist-insert`, and `treelist-delete` now raise catchable range-style
     contract errors with the bad index, valid range, and treelist length.
-    Follow-up: several public treelist wrappers still decode index arguments
-    with unsigned shifts, so negative exact indexes may be reported after
-    unsigned reinterpretation instead of as the original negative value.
+  - Negative index arguments for public treelist index and split helpers now
+    preserve the original negative value in catchable
+    `exact-nonnegative-integer?` contract errors. The focused
+    `test/test-treelist-errors.rkt` generated-output fixture covers this.
 
 - `vectors.rkt`:
   - Positive out-of-range element indexes for `vector-ref`, `vector-set!`,
@@ -166,9 +168,18 @@ Current remaining raw-stub classes:
     target-capacity range failures with catchable Racket-style contract errors.
 
 - `structs.rkt`:
-  - `$raise-check-struct-type` is only used by `$check-struct-type`, which is
-    not obviously source-visible. If a public caller is found, preserve its
-    `who` and expected contract, probably `(or/c struct-type? #f)`.
+  - `$check-struct-type` is a shared validator that receives an explicit `who`
+    and already raises a catchable `(or/c #f struct-type?)` argument error.
+    It does not appear to be a separate source-visible primitive; the focused
+    `test/test-struct-errors.rkt` generated-output fixture covers the public
+    struct constructor paths that use it.
+
+- `random.rkt`:
+  - Two-argument `random` contract errors now include the bad argument position
+    and an `other arguments...` block, matching the diagnostic shape Racket
+    uses for first/second argument and range failures. Formatting pseudo-random
+    generators as `#<pseudo-random-generator>` is required for those messages
+    to remain catchable when the other argument is a generator.
 
 ## Other Semantic Notes
 
