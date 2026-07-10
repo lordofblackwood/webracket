@@ -63,6 +63,7 @@
      "(or/c symbol? #f)")
     (make-struct-field-contract-str
      "(or/c symbol? string? #f)")
+    (make-prefab-struct-supported-key "supported simple prefab key")
     (field                     "field")
     (predicate-suffix          "?")
     (struct-accessor-suffix    "-ref")
@@ -139,6 +140,8 @@
     make-struct-type-property
     make-struct-field-accessor
     make-struct-field-mutator
+    make-prefab-struct
+    prefab-struct-type-key+field-count
     accessor
     mutator
     error
@@ -600,7 +603,8 @@
 ;; struct-prefab-constructor-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for prefab constructor helpers.
 (define struct-prefab-constructor-runtime-only-helper-names
-  '($make-prefab-struct))
+  '($raise-make-prefab-struct:key
+    $make-prefab-struct))
 
 ;; struct-type-constructor-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for struct type construction helpers.
@@ -3291,7 +3295,10 @@
            (local $metadata (ref eq))
 
            (if (i32.eqz (ref.test (ref $StructType) (local.get $v)))
-               (then (call $raise-argument-error/internal (local.get $v))
+               (then (call $raise-argument-error1
+                           (global.get $symbol:prefab-struct-type-key+field-count)
+                           (global.get $string:struct-type?)
+                           (local.get $v))
                      (unreachable)))
            (local.set $std (ref.cast (ref $StructType) (local.get $v)))
            (local.set $metadata (struct.get $StructType $immutables (local.get $std)))
@@ -3515,6 +3522,14 @@
    '(
      ;; make-prefab-struct : prefab-key? any/c ... -> struct?
      ;;   Construct a simple prefab struct through the shared interned type path.
+     (func $raise-make-prefab-struct:key
+           (param $bad (ref eq))
+           (call $raise-argument-error1
+                 (global.get $symbol:make-prefab-struct)
+                 (global.get $string:make-prefab-struct-supported-key)
+                 (local.get $bad))
+           (unreachable))
+
      (func $make-prefab-struct (type $Prim>=1)
            (param $key  (ref eq)) ;; supported prefab key
            (param $vals (ref eq)) ;; constructor field values
@@ -3553,7 +3568,7 @@
            (local $src            i32)
 
            (if (i32.eqz (call $simple-prefab-key?/i32 (local.get $key)))
-               (then (call $raise-argument-error/internal (local.get $key))
+               (then (call $raise-make-prefab-struct:key (local.get $key))
                      (unreachable)))
            (local.set $field-count    (call $length/i32 (local.get $vals)))
            (local.set $len            (if (result i32)
@@ -3582,7 +3597,7 @@
                                       (local.get $chain-parent-index)))
                      (if (i32.gt_u (local.get $chain-parent-total)
                                    (local.get $field-count))
-                         (then (call $raise-argument-error/internal (local.get $key))
+                         (then (call $raise-make-prefab-struct:key (local.get $key))
                                (unreachable)))
                      (local.set $key
                                 (call $simple-prefab-chain-alias-top->explicit-key/checked
@@ -3815,14 +3830,14 @@
                                          (local.get $parent-total)))
                                (else (local.get $field-count))))))
            (if (i32.lt_s (local.get $explicit-count) (i32.const 0))
-               (then (call $raise-argument-error/internal (local.get $key))
+               (then (call $raise-make-prefab-struct:key (local.get $key))
                      (unreachable)))
            (if (i32.and
                 (i32.ge_s (local.get $explicit-count) (i32.const 0))
                 (i32.ne
                  (i32.add (local.get $explicit-count) (local.get $parent-total))
                  (local.get $field-count)))
-               (then (call $raise-argument-error/internal (local.get $key))
+               (then (call $raise-make-prefab-struct:key (local.get $key))
                      (unreachable)))
            (local.set $total-count
                       (i32.add

@@ -473,4 +473,35 @@
                (lambda () (set-p-field0! p 9))
                "set-p-field0!"
                "cannot modify value of immutable field"
-               "field index: 0")))))))
+               "field index: 0"))))))
+ (list "prefab struct public errors are catchable with who"
+       (and
+        (prefab-key? '(prefab-ok 0 (0 #f) #()))
+        (let ([p (make-prefab-struct '(prefab-ok 1 (0 #f) #()) 10)])
+          (eq? (prefab-struct-key p) 'prefab-ok))
+        (equal? (prefab-struct-key 42) #f)
+        (catch-contract/contains?
+         (lambda () (make-prefab-struct 42))
+         "make-prefab-struct"
+         "supported simple prefab key"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (make-prefab-struct '(bad 1)))
+         "make-prefab-struct"
+         "supported simple prefab key"
+         "given:")
+        (catch-contract/contains?
+         (lambda () (make-prefab-struct '(bad 3 (0 #f) #()) 1 2))
+         "make-prefab-struct"
+         "supported simple prefab key"
+         "given:")
+        (catch-contract/contains?
+         (lambda () (make-prefab-struct '(child parent 3) 1 2))
+         "make-prefab-struct"
+         "supported simple prefab key"
+         "given:")
+        (catch-contract/contains?
+         (lambda () (prefab-struct-type-key+field-count 42))
+         "prefab-struct-type-key+field-count"
+         "struct-type?"
+         "given: 42"))))
