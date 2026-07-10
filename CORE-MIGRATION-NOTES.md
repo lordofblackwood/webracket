@@ -119,6 +119,10 @@ Current remaining raw-stub classes:
   - `real->floating-point-bytes` now preserves `who` and the `real?` contract
     for bad first arguments instead of falling through to the legacy generic
     `number?` path.
+  - Public numeric comparators and `min`/`max` now avoid treating immediate
+    values such as `#f` as malformed fixnums. Bad arguments raise catchable
+    contract errors with public `who`; `=` reports `number?`, while ordering
+    comparators and `min`/`max` report `real?`.
   - Some numeric conversion helpers still use older validation shapes; audit
     those separately before claiming complete numeric parity.
 

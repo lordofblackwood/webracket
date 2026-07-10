@@ -42,7 +42,18 @@
 ;; number-runtime-symbol-constants : (listof symbol?)
 ;;   Declare symbols used by generic number helpers and errors.
 (define number-runtime-symbol-constants
-  '(inexact->exact
+  '(+
+    -
+    *
+    /
+    =
+    <
+    >
+    <=
+    >=
+    min
+    max
+    inexact->exact
     exact->inexact
     real->double-flonum
     zero?
@@ -2736,7 +2747,28 @@
 
          ;; Binary number comparators
          ,@(let ()
-             (define (gencmp cmp fxcmp flcmp)
+             (define (symbol-global who)
+               (string->symbol (~a "$symbol:" who)))
+
+             (define (raise-expected-number who value)
+               `((call $raise-expected-number/who
+                       (global.get ,(symbol-global who))
+                       ,value)
+                 (unreachable)))
+
+             (define (raise-expected-real who value)
+               `((call $raise-expected-real
+                       (global.get ,(symbol-global who))
+                       ,value)
+                 (unreachable)))
+
+             (define (raise-expected expected who value)
+               (case expected
+                 [(number) (raise-expected-number who value)]
+                 [(real)   (raise-expected-real who value)]
+                 [else (error 'gencmp "unknown expected numeric contract: ~a" expected)]))
+
+             (define (gencmp cmp who expected fxcmp flcmp)
                `(func ,cmp
                       (param $x (ref eq))
                       (param $y (ref eq))
@@ -2746,33 +2778,22 @@
                       (local $y/is-fx i32)
                       (local $x/is-fl i32)
                       (local $y/is-fl i32)
-                      (local $x-fx    i32)
-                      (local $y-fx    i32)
                       (local $x-fl    (ref null $Flonum))
                       (local $y-fl    (ref null $Flonum))
                       ;; --- Check if x is a fixnum ---
-                      (local.set $x/is-fx (ref.test (ref i31) (local.get $x)))
-                      (if (local.get $x/is-fx)
-                          (then (local.set $x-fx (i31.get_u (ref.cast (ref i31) (local.get $x))))
-                                ;; Check low bit is 0 => valid fixnum
-                                (if (i32.and (local.get $x-fx) (i32.const 1))
-                                    (then (call $raise-check-fixnum (local.get $x)) (unreachable)))))
+                      (local.set $x/is-fx (call $fx?/i32 (local.get $x)))
                       ;; --- Check if x is a flonum ---
                       (local.set $x/is-fl (ref.test (ref $Flonum) (local.get $x)))
                       ;; --- Raise if x is not a number ---
                       (if (i32.eqz (i32.or (local.get $x/is-fx) (local.get $x/is-fl)))
-                          (then (call $raise-expected-number (local.get $x)) (unreachable)))
+                          (then ,@(raise-expected expected who `(local.get $x))))
                       ;; --- Check if y is a fixnum ---
-                      (local.set $y/is-fx (ref.test (ref i31) (local.get $y)))
-                      (if (local.get $y/is-fx)
-                          (then (local.set $y-fx (i31.get_u (ref.cast (ref i31) (local.get $y))))
-                                (if (i32.and (local.get $y-fx) (i32.const 1))
-                                    (then (call $raise-check-fixnum (local.get $y)) (unreachable)))))
+                      (local.set $y/is-fx (call $fx?/i32 (local.get $y)))
                       ;; --- Check if y is a flonum ---
                       (local.set $y/is-fl (ref.test (ref $Flonum) (local.get $y)))
                       ;; --- Raise if y is not a number ---
                       (if (i32.eqz (i32.or (local.get $y/is-fx) (local.get $y/is-fl)))
-                          (then (call $raise-expected-number (local.get $y)) (unreachable)))
+                          (then ,@(raise-expected expected who `(local.get $y))))
                       ;; --- If both are fixnums, use fx< ---
                       (if (i32.and (local.get $x/is-fx) (local.get $y/is-fx))
                           (then (return (call ,fxcmp (local.get $x) (local.get $y)))))
@@ -2791,15 +2812,36 @@
                             (ref.as_non_null (local.get $x-fl))
                             (ref.as_non_null (local.get $y-fl)))))
 
-             (list (gencmp '$=/2  '$fx=/2  '$fl=)   ; maybe specialize this one?
-                   (gencmp '$</2  '$fx</2  '$fl<)
-                   (gencmp '$>/2  '$fx>/2  '$fl>)
-                   (gencmp '$<=/2 '$fx<=/2 '$fl<=)
-                   (gencmp '$>=/2 '$fx>=/2 '$fl>=)))
+             (list (gencmp '$=/2  '=  'number '$fx=/2  '$fl=)   ; maybe specialize this one?
+                   (gencmp '$</2  '<  'real   '$fx</2  '$fl<)
+                   (gencmp '$>/2  '>  'real   '$fx>/2  '$fl>)
+                   (gencmp '$<=/2 '<= 'real   '$fx<=/2 '$fl<=)
+                   (gencmp '$>=/2 '>= 'real   '$fx>=/2 '$fl>=)))
 
          ;; Variadic Number Comparators
          ,@(let ()
-             (define (gen-variadic-cmp name cmp/2)
+             (define (symbol-global who)
+               (string->symbol (~a "$symbol:" who)))
+
+             (define (raise-expected-number who value)
+               `((call $raise-expected-number/who
+                       (global.get ,(symbol-global who))
+                       ,value)
+                 (unreachable)))
+
+             (define (raise-expected-real who value)
+               `((call $raise-expected-real
+                       (global.get ,(symbol-global who))
+                       ,value)
+                 (unreachable)))
+
+             (define (raise-expected expected who value)
+               (case expected
+                 [(number) (raise-expected-number who value)]
+                 [(real)   (raise-expected-real who value)]
+                 [else (error 'gen-variadic-cmp "unknown expected numeric contract: ~a" expected)]))
+
+             (define (gen-variadic-cmp name who expected cmp/2)
                `(func ,name (type $Prim>=1)
                       (param $x0  (ref eq))
                       (param $xs0 (ref eq))
@@ -2812,7 +2854,6 @@
                       (local $res     (ref eq))
                       (local $x/is-fx i32)
                       (local $x/is-fl i32)
-                      (local $x-fx    i32)
 
                       (local.set $xs
                                  (if (result (ref eq))
@@ -2824,14 +2865,10 @@
 
                       ;; Single argument: ensure it is a number and return #t.
                       (if (ref.eq (local.get $xs) (global.get $null))
-                          (then (local.set $x/is-fx (ref.test (ref i31) (local.get $x0)))
-                                (if (local.get $x/is-fx)
-                                    (then (local.set $x-fx (i31.get_u (ref.cast (ref i31) (local.get $x0))))
-                                          (if (i32.and (local.get $x-fx) (i32.const 1))
-                                              (then (call $raise-check-fixnum (local.get $x0)) (unreachable)))))
+                          (then (local.set $x/is-fx (call $fx?/i32 (local.get $x0)))
                                 (local.set $x/is-fl (ref.test (ref $Flonum) (local.get $x0)))
                                 (if (i32.eqz (i32.or (local.get $x/is-fx) (local.get $x/is-fl)))
-                                    (then (call $raise-expected-number (local.get $x0)) (unreachable)))
+                                    (then ,@(raise-expected expected who `(local.get $x0))))
                                 (return ,(Imm #t))))
 
                       (local.set $res  ,(Imm #t))
@@ -2851,16 +2888,20 @@
                                    (local.set $xs   (struct.get $Pair $d (local.get $node)))
                                    (br $loop)))
                       (local.get $res)))
-             (list (gen-variadic-cmp '$=  '$=/2)
-                   (gen-variadic-cmp '$<  '$</2)
-                   (gen-variadic-cmp '$>  '$>/2)
-                   (gen-variadic-cmp '$<= '$<=/2)
-                   (gen-variadic-cmp '$>= '$>=/2)))
+             (list (gen-variadic-cmp '$=  '=  'number '$=/2)
+                   (gen-variadic-cmp '$<  '<  'real   '$</2)
+                   (gen-variadic-cmp '$>  '>  'real   '$>/2)
+                   (gen-variadic-cmp '$<= '<= 'real   '$<=/2)
+                   (gen-variadic-cmp '$>= '>= 'real   '$>=/2)))
 
         ,@(let ()
+            (define (symbol-global who)
+              (string->symbol (~a "$symbol:" who)))
+
             (define (gen-minmax name fxop flop)
               (define $name/2 (string->symbol (~a "$" name "/2")))
               (define $name   (string->symbol (~a "$" name)))
+              (define $who    (symbol-global name))
               `((func ,$name/2 (type $Prim2)
                       (param $x (ref eq))
                       (param $y (ref eq))
@@ -2868,12 +2909,10 @@
 
                       (local $x/is-fx i32)
                       (local $x/is-fl i32)
-                      (local $x-fx    i32)
                       (local $x-fl    (ref $Flonum))
 
                       (local $y/is-fx i32)
                       (local $y/is-fl i32)
-                      (local $y-fx    i32)
                       (local $y-fl    (ref $Flonum))
 
                       ; Initialize non-defaultable locals
@@ -2881,24 +2920,22 @@
                       (local.set $y-fl (ref.cast (ref $Flonum) (global.get $flzero)))
 
                       ;; Type check $x
-                      (local.set $x/is-fx (ref.test (ref i31) (local.get $x)))
-                      (if (local.get $x/is-fx)
-                          (then (local.set $x-fx (i31.get_u (ref.cast (ref i31) (local.get $x))))
-                                (if (i32.and (local.get $x-fx) (i32.const 1))
-                                    (then (call $raise-check-fixnum (local.get $x)) (unreachable)))))
+                      (local.set $x/is-fx (call $fx?/i32 (local.get $x)))
                       (local.set $x/is-fl (ref.test (ref $Flonum) (local.get $x)))
                       (if (i32.eqz (i32.or (local.get $x/is-fx) (local.get $x/is-fl)))
-                          (then (call $raise-expected-number (local.get $x)) (unreachable)))
+                          (then (call $raise-expected-real
+                                      (global.get ,$who)
+                                      (local.get $x))
+                                (unreachable)))
 
                       ;; Type check $y
-                      (local.set $y/is-fx (ref.test (ref i31) (local.get $y)))
-                      (if (local.get $y/is-fx)
-                          (then (local.set $y-fx (i31.get_u (ref.cast (ref i31) (local.get $y))))
-                                (if (i32.and (local.get $y-fx) (i32.const 1))
-                                    (then (call $raise-check-fixnum (local.get $y)) (unreachable)))))
+                      (local.set $y/is-fx (call $fx?/i32 (local.get $y)))
                       (local.set $y/is-fl (ref.test (ref $Flonum) (local.get $y)))
                       (if (i32.eqz (i32.or (local.get $y/is-fx) (local.get $y/is-fl)))
-                          (then (call $raise-expected-number (local.get $y)) (unreachable)))
+                          (then (call $raise-expected-real
+                                      (global.get ,$who)
+                                      (local.get $y))
+                                (unreachable)))
 
                       (if (i32.and (local.get $x/is-fx) (local.get $y/is-fx))
                           (then (return (call ,fxop (local.get $x) (local.get $y)))))

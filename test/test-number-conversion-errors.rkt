@@ -135,7 +135,42 @@
 	           "exact-round"
 	           "rational?"
 	           "given: #f"
-	           (lambda () (exact-round #f))))))
+	           (lambda () (exact-round #f)))
+	          (catch-contract/who?
+	           "="
+	           "number?"
+	           "given: #f"
+	           (lambda () (= #f)))
+	          (catch-contract/who?
+	           "<"
+	           "real?"
+	           "given: #f"
+	           (lambda () (< 1 #f)))
+	          (catch-contract/who?
+	           ">"
+	           "real?"
+	           "given: #f"
+	           (lambda () (> #f 1)))
+	          (catch-contract/who?
+	           "<="
+	           "real?"
+	           "given: #f"
+	           (lambda () (<= #f)))
+	          (catch-contract/who?
+	           ">="
+	           "real?"
+	           "given: #f"
+	           (lambda () (>= 1 #f)))
+	          (catch-contract/who?
+	           "min"
+	           "real?"
+	           "given: #f"
+	           (lambda () (min #f)))
+	          (catch-contract/who?
+	           "max"
+	           "real?"
+	           "given: #f"
+	           (lambda () (max 1 #f))))))
 	 (list "number->string errors are catchable with who"
 	       (let ([catch-contract/who+expected+given?
 	              (lambda (expected given thunk)
