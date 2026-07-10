@@ -314,4 +314,98 @@
            (lambda () (make-struct-field-mutator p-set! 0 #f #f #f))
            "make-struct-field-mutator"
            "symbol?"
-           "given: #f")))))
+           "given: #f"))))
+ (list "generic struct accessor/mutator errors are catchable with who"
+       (let-values ([(pst make-p p? p-ref p-set!)
+                     (make-struct-type 'p #f 2 0 #f null #f #f (list 1))]
+                    [(qst make-q q? q-ref q-set!)
+                     (make-struct-type 'q #f 1 0)])
+         (let ([p (make-p 10 20)]
+               [q (make-q 99)])
+           (list
+            (= (p-ref p 1) 20)
+            (catch-contract/contains?
+             (lambda () (p-ref 42 0))
+             "p-ref"
+             "p?"
+             "given: 42")
+            (catch-contract/contains?
+             (lambda () (p-ref q 0))
+             "p-ref"
+             "p?")
+            (catch-contract/contains?
+             (lambda () (p-ref p #f))
+             "p-ref"
+             "exact-nonnegative-integer?"
+             "given: #f")
+            (catch-contract/contains?
+             (lambda () (p-ref p 2))
+             "p-ref"
+             "index too large"
+             "index: 2"
+             "maximum allowed index: 1")
+            (let ()
+              (p-set! p 0 9)
+              (= (p-ref p 0) 9))
+            (catch-contract/contains?
+             (lambda () (p-set! 42 0 9))
+             "p-set!"
+             "p?"
+             "given: 42")
+            (catch-contract/contains?
+             (lambda () (p-set! q 0 9))
+             "p-set!"
+             "p?")
+            (catch-contract/contains?
+             (lambda () (p-set! p #f 9))
+             "p-set!"
+             "exact-nonnegative-integer?"
+             "given: #f")
+            (catch-contract/contains?
+             (lambda () (p-set! p 2 9))
+             "p-set!"
+             "index too large"
+             "index: 2"
+             "maximum allowed index: 1")
+            (catch-contract/contains?
+             (lambda () (p-set! p 1 9))
+             "p-set!"
+             "cannot modify value of immutable field"
+             "field index: 1")))))
+ (list "struct field accessor/mutator range and call errors are catchable"
+       (let-values ([(pst make-p p? p-ref p-set!)
+                     (make-struct-type 'p #f 2 0 #f null #f #f (list 0))]
+                    [(zst make-z z? z-ref z-set!)
+                     (make-struct-type 'z #f 0 0)])
+         (let ([p (make-p 10 20)])
+           (list
+            (catch-contract/contains?
+             (lambda () (make-struct-field-accessor p-ref 2))
+             "make-struct-field-accessor"
+             "index too large"
+             "index: 2"
+             "maximum allowed index: 1")
+            (catch-contract/contains?
+             (lambda () (make-struct-field-mutator p-set! 2))
+             "make-struct-field-mutator"
+             "index too large"
+             "index: 2"
+             "maximum allowed index: 1")
+            (catch-contract/contains?
+             (lambda () (make-struct-field-accessor z-ref 0))
+             "make-struct-field-accessor"
+             "index too large"
+             "no fields accessible"
+             "index: 0")
+            (catch-contract/contains?
+             (lambda () (make-struct-field-mutator z-set! 0))
+             "make-struct-field-mutator"
+             "index too large"
+             "no fields accessible"
+             "index: 0")
+            (let ([set-p-field0! (make-struct-field-mutator p-set! 0)])
+              (catch-contract/contains?
+               (lambda () (set-p-field0! p 9))
+               "set-p-field0!"
+               "cannot modify value of immutable field"
+               "field index: 0")))))))

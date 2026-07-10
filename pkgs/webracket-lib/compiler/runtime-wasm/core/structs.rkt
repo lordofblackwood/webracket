@@ -64,6 +64,23 @@
     (make-struct-field-contract-str
      "(or/c symbol? string? #f)")
     (field                     "field")
+    (predicate-suffix          "?")
+    (struct-accessor-suffix    "-ref")
+    (struct-mutator-suffix     "-set!")
+    (struct-accessor:index-too-large
+     ": index too large\n  index: ")
+    (struct-accessor:index-too-large-no-fields
+     ": index too large; no fields accessible\n  index: ")
+    (struct-accessor:maximum-allowed-index
+     "\n  maximum allowed index: ")
+    (struct-accessor:structure-type
+     "\n  structure type: ")
+    (struct-type-prefix        "#<struct-type:")
+    (struct-type-close         ">")
+    (struct-mutator:immutable-field
+     ": cannot modify value of immutable field in structure\n  structure: ")
+    (struct-mutator:field-index
+     "\n  field index: ")
     (procedure-struct-type?     "procedure-struct-type?")
     (sealed-struct-supertype    "sealed structure type cannot be used as a supertype")
     (struct->list:on-opaque     "one of 'error, 'return-false, or 'skip")
@@ -605,6 +622,13 @@
 (define struct-accessor-runtime-only-helper-names
   '($make-struct-accessor
     $make-struct-accessor/checked
+    $struct-type-accessor-name
+    $struct-type-mutator-name
+    $struct-type-predicate-name-string
+    $struct-type->display-string
+    $raise-struct-accessor:target
+    $raise-struct-accessor:index
+    $raise-struct-accessor:index-too-large
     $struct-accessor))
 
 ;; struct-constructor-wrapper-runtime-only-helper-names : (listof symbol?)
@@ -622,6 +646,10 @@
 ;;   Preserve the runtime emission order for generic struct mutator helpers.
 (define struct-mutator-runtime-only-helper-names
   '($make-struct-mutator/checked
+    $raise-struct-mutator:target
+    $raise-struct-mutator:index
+    $raise-struct-mutator:index-too-large
+    $raise-struct-mutator:immutable-field
     $struct-mutator))
 
 ;; struct-field-mutator-runtime-only-helper-names : (listof symbol?)
@@ -3293,6 +3321,7 @@
 
      ;; prefab-struct-field-mutable?/i32 : struct-type? i32 -> i32
      ;;   For prefab metadata, allow mutation only for fields in the mask.
+     ;;   For ordinary struct immutability lists, reject listed fields.
      (func $prefab-struct-field-mutable?/i32
            (param $std   (ref $StructType))
            (param $index i32)
@@ -3301,15 +3330,57 @@
            (local $metadata      (ref eq))
            (local $key           (ref eq))
            (local $mutables      (ref $Vector))
+           (local $super         (ref eq))
+           (local $relative-index i32)
+           (local $cursor        (ref eq))
+           (local $cell          (ref $Pair))
+           (local $raw           (ref eq))
 
            (local.set $metadata (struct.get $StructType $immutables (local.get $std)))
-           (if (i32.eqz (call $prefab-metadata?/i32 (local.get $metadata)))
+           (if (call $prefab-metadata?/i32 (local.get $metadata))
+               (then
+                (local.set $key (struct.get $Pair $a (ref.cast (ref $Pair) (local.get $metadata))))
+                (local.set $mutables (call $simple-prefab-key-mutables/checked (local.get $key)))
+                (return
+                 (call $simple-prefab-mutable-mask-member?/i32
+                       (local.get $mutables)
+                       (local.get $index)))))
+
+           (if (i32.or (ref.eq (local.get $metadata) (global.get $false))
+                       (ref.eq (local.get $metadata) (global.get $null)))
                (then (return (i32.const 1))))
-           (local.set $key (struct.get $Pair $a (ref.cast (ref $Pair) (local.get $metadata))))
-           (local.set $mutables (call $simple-prefab-key-mutables/checked (local.get $key)))
-           (call $simple-prefab-mutable-mask-member?/i32
-                 (local.get $mutables)
-                 (local.get $index)))
+
+           (local.set $relative-index (local.get $index))
+           (local.set $super (struct.get $StructType $super (local.get $std)))
+           (if (i32.eqz (ref.eq (local.get $super) (global.get $false)))
+               (then
+                (local.set $relative-index
+                           (i32.sub
+                            (local.get $index)
+                            (struct.get $StructType $field-count
+                                        (ref.cast (ref $StructType)
+                                                  (local.get $super)))))))
+
+           (local.set $cursor (local.get $metadata))
+           (block $done
+                  (loop $walk
+                        (br_if $done (ref.eq (local.get $cursor) (global.get $null)))
+                        (if (i32.eqz (ref.test (ref $Pair) (local.get $cursor)))
+                            (then (return (i32.const 1))))
+                        (local.set $cell (ref.cast (ref $Pair) (local.get $cursor)))
+                        (local.set $raw (struct.get $Pair $a (local.get $cell)))
+                        (if (ref.eq (call $exact-nonnegative-integer? (local.get $raw))
+                                    (global.get $true))
+                            (then
+                             (if (i32.eq
+                                  (i32.shr_u
+                                   (i31.get_u (ref.cast (ref i31) (local.get $raw)))
+                                   (i32.const 1))
+                                  (local.get $relative-index))
+                                 (then (return (i32.const 0))))))
+                        (local.set $cursor (struct.get $Pair $d (local.get $cell)))
+                        (br $walk)))
+           (i32.const 1))
      )))
 
 
@@ -4543,6 +4614,10 @@
            (result             (ref eq)) ;; StructAccessorProcedure
 
            (local $free (ref $Free))
+           (local $name (ref $Symbol))
+
+           (local.set $name
+                      (call $struct-type-accessor-name (local.get $std)))
 
            ;; Pack just std and super-count; index comes at runtime
            (local.set $free
@@ -4552,7 +4627,7 @@
 
            (struct.new $StructAccessorProcedure
                        (i32.const 0)               ; hash
-                       (local.get $struct-name)    ; name:  #f or $String
+                       (local.get $name)           ; name:  #f or $Symbol
                        (ref.i31 (i32.const 4))     ; arity: 2
                        (global.get $false)         ; realm: #f or $Symbol
                        (ref.func $invoke-closure) ; invoke (used by apply, map, etc.)
@@ -4560,6 +4635,109 @@
                        (ref.func $struct-accessor)
                        (local.get $free)))
 
+     (func $struct-type-accessor-name
+           (param $std (ref $StructType))
+           (result (ref $Symbol))
+
+           (call $string->symbol/checked
+                 (call $string-append/2
+                       (call $symbol->immutable-string
+                             (struct.get $StructType $name (local.get $std)))
+                       (global.get $string:struct-accessor-suffix))))
+
+     (func $struct-type-mutator-name
+           (param $std (ref $StructType))
+           (result (ref $Symbol))
+
+           (call $string->symbol/checked
+                 (call $string-append/2
+                       (call $symbol->immutable-string
+                             (struct.get $StructType $name (local.get $std)))
+                       (global.get $string:struct-mutator-suffix))))
+
+     (func $struct-type-predicate-name-string
+           (param $std (ref $StructType))
+           (result (ref $String))
+
+           (call $string-append/2
+                 (call $symbol->immutable-string
+                       (struct.get $StructType $name (local.get $std)))
+                 (global.get $string:predicate-suffix)))
+
+     (func $struct-type->display-string
+           (param $std (ref $StructType))
+           (result (ref $String))
+
+           (call $string-append/2
+                 (call $string-append/2
+                       (global.get $string:struct-type-prefix)
+                       (call $symbol->immutable-string
+                             (struct.get $StructType $name (local.get $std))))
+                 (global.get $string:struct-type-close)))
+
+     (func $raise-struct-accessor:target
+           (param $who    (ref eq))
+           (param $std    (ref $StructType))
+           (param $target (ref eq))
+
+           (call $raise-argument-error1
+                 (local.get $who)
+                 (call $struct-type-predicate-name-string (local.get $std))
+                 (local.get $target))
+           (unreachable))
+
+     (func $raise-struct-accessor:index
+           (param $who (ref eq))
+           (param $bad (ref eq))
+
+           (call $raise-argument-error1
+                 (local.get $who)
+                 (global.get $string:exact-nonnegative-integer?)
+                 (local.get $bad))
+           (unreachable))
+
+     (func $raise-struct-accessor:index-too-large
+           (param $who              (ref eq))
+           (param $std              (ref $StructType))
+           (param $index            i32)
+           (param $accessible-count i32)
+
+           (local $out     (ref $GrowableArray))
+           (local $message (ref $String))
+
+           (local.set $out (call $make-growable-array (i32.const 8)))
+           (call $growable-array-add! (local.get $out)
+                 (call $format/display (local.get $who)))
+           (call $growable-array-add! (local.get $out)
+                 (if (result (ref eq))
+                     (i32.eqz (local.get $accessible-count))
+                     (then (global.get $string:struct-accessor:index-too-large-no-fields))
+                     (else (global.get $string:struct-accessor:index-too-large))))
+           (call $growable-array-add! (local.get $out)
+                 (call $format/display
+                       (ref.i31 (i32.shl (local.get $index) (i32.const 1)))))
+           (if (local.get $accessible-count)
+               (then
+                (call $growable-array-add! (local.get $out)
+                      (global.get $string:struct-accessor:maximum-allowed-index))
+                (call $growable-array-add! (local.get $out)
+                      (call $format/display
+                            (ref.i31
+                             (i32.shl
+                              (i32.sub (local.get $accessible-count) (i32.const 1))
+                              (i32.const 1)))))))
+           (call $growable-array-add! (local.get $out)
+                 (global.get $string:struct-accessor:structure-type))
+           (call $growable-array-add! (local.get $out)
+                 (call $struct-type->display-string (local.get $std)))
+           (local.set $message
+                      (call $growable-array-of-strings->string (local.get $out)))
+           (drop (call $raise
+                       (call $exn:fail:contract/make
+                             (local.get $message)
+                             (call $current-continuation-marks (global.get $missing)))
+                       (global.get $true)))
+           (unreachable))
 
      (func $struct-accessor
            (type $ClosureCode)
@@ -4577,9 +4755,12 @@
            (local $index          i32)
            (local $skip           i32)
            (local $fields         (ref $Array))
+           (local $who            (ref eq))
+           (local $accessible-count i32)
 
            ;; Unpack free vars
            (local.set $free            (struct.get $Closure $free (local.get $clos)))
+           (local.set $who             (struct.get $Closure $name (local.get $clos)))
            (local.set $std             (ref.cast (ref $StructType)
                                                  (array.get $Free (local.get $free) (i32.const 0))))
 
@@ -4591,24 +4772,41 @@
            ;; Get struct
            (local.set $target (array.get $Args (local.get $args) (i32.const 0)))
            (if (i32.eqz (ref.test (ref $Struct) (local.get $target)))
-               (then (call $raise-argument-error/internal (local.get $target))))
+               (then (call $raise-struct-accessor:target
+                           (local.get $who)
+                           (local.get $std)
+                           (local.get $target))))
            (local.set $struct (ref.cast (ref $Struct) (local.get $target)))
 
            ;; Get index and decode
            (local.set $index-fx (array.get $Args (local.get $args) (i32.const 1)))
            (if (i32.or (i32.eqz (ref.test (ref i31) (local.get $index-fx)))
                        (i32.ne (i32.and (i31.get_u (ref.cast (ref i31) (local.get $index-fx))) (i32.const 1)) (i32.const 0)))
-               (then (call $raise-argument-error/internal (local.get $index-fx))))
+               (then (call $raise-struct-accessor:index
+                           (local.get $who)
+                           (local.get $index-fx))))
            (local.set $index (i32.shr_u (i31.get_u (ref.cast (ref i31) (local.get $index-fx))) (i32.const 1)))
 
            ;; Type match - is $struct a subtype of $std
            (if (i32.eqz (call $struct-type-is-a?/i32
                               (struct.get $Struct $type (local.get $struct))
                               (local.get $std)))
-               (then (call $raise-argument-error/internal (local.get $target))))
+               (then (call $raise-struct-accessor:target
+                           (local.get $who)
+                           (local.get $std)
+                           (local.get $target))))
 
            ;; Get and return field
            (local.set $fields (struct.get $Struct $fields (local.get $struct)))
+           (local.set $accessible-count
+                      (i32.sub (struct.get $StructType $field-count (local.get $std))
+                               (local.get $skip)))
+           (if (i32.ge_u (local.get $index) (local.get $accessible-count))
+               (then (call $raise-struct-accessor:index-too-large
+                           (local.get $who)
+                           (local.get $std)
+                           (local.get $index)
+                           (local.get $accessible-count))))
            (array.get $Array (local.get $fields)
                       (i32.add (local.get $skip) (local.get $index))))
      )))
@@ -4731,19 +4929,117 @@
            (result                (ref eq))              ;; returns a closure
 
            (local $free (ref $Free))
+           (local $name (ref $Symbol))
+
+           (local.set $name
+                      (call $struct-type-mutator-name (local.get $std)))
+
            ;; Store the struct type and super-field count in the closure's free array
            (local.set $free (array.new_fixed $Free 2
                                              (local.get $std)
                                              (local.get $super-count-fx)))
            (struct.new $StructMutatorProcedure
                        (i32.const 0)               ; hash
-                       (global.get $false)         ; name:  #f or $String
+                       (local.get $name)           ; name:  #f or $Symbol
                        (ref.i31 (i32.const 6))     ; arity: 3
                        (global.get $false)         ; realm: #f or $Symbol
                        (ref.func $invoke-closure)  ; invoke (used by apply, map, etc.)
                        (global.get $false)         ; debug-id
                        (ref.func $struct-mutator)
                        (local.get $free)))
+
+     (func $raise-struct-mutator:target
+           (param $who    (ref eq))
+           (param $std    (ref $StructType))
+           (param $target (ref eq))
+
+           (call $raise-argument-error1
+                 (local.get $who)
+                 (call $struct-type-predicate-name-string (local.get $std))
+                 (local.get $target))
+           (unreachable))
+
+     (func $raise-struct-mutator:index
+           (param $who (ref eq))
+           (param $bad (ref eq))
+
+           (call $raise-argument-error1
+                 (local.get $who)
+                 (global.get $string:exact-nonnegative-integer?)
+                 (local.get $bad))
+           (unreachable))
+
+     (func $raise-struct-mutator:index-too-large
+           (param $who              (ref eq))
+           (param $std              (ref $StructType))
+           (param $index            i32)
+           (param $accessible-count i32)
+
+           (local $out     (ref $GrowableArray))
+           (local $message (ref $String))
+
+           (local.set $out (call $make-growable-array (i32.const 8)))
+           (call $growable-array-add! (local.get $out)
+                 (call $format/display (local.get $who)))
+           (call $growable-array-add! (local.get $out)
+                 (if (result (ref eq))
+                     (i32.eqz (local.get $accessible-count))
+                     (then (global.get $string:struct-accessor:index-too-large-no-fields))
+                     (else (global.get $string:struct-accessor:index-too-large))))
+           (call $growable-array-add! (local.get $out)
+                 (call $format/display
+                       (ref.i31 (i32.shl (local.get $index) (i32.const 1)))))
+           (if (local.get $accessible-count)
+               (then
+                (call $growable-array-add! (local.get $out)
+                      (global.get $string:struct-accessor:maximum-allowed-index))
+                (call $growable-array-add! (local.get $out)
+                      (call $format/display
+                            (ref.i31
+                             (i32.shl
+                              (i32.sub (local.get $accessible-count) (i32.const 1))
+                              (i32.const 1)))))))
+           (call $growable-array-add! (local.get $out)
+                 (global.get $string:struct-accessor:structure-type))
+           (call $growable-array-add! (local.get $out)
+                 (call $struct-type->display-string (local.get $std)))
+           (local.set $message
+                      (call $growable-array-of-strings->string (local.get $out)))
+           (drop (call $raise
+                       (call $exn:fail:contract/make
+                             (local.get $message)
+                             (call $current-continuation-marks (global.get $missing)))
+                       (global.get $true)))
+           (unreachable))
+
+     (func $raise-struct-mutator:immutable-field
+           (param $who    (ref eq))
+           (param $target (ref eq))
+           (param $index  i32)
+
+           (local $out     (ref $GrowableArray))
+           (local $message (ref $String))
+
+           (local.set $out (call $make-growable-array (i32.const 6)))
+           (call $growable-array-add! (local.get $out)
+                 (call $format/display (local.get $who)))
+           (call $growable-array-add! (local.get $out)
+                 (global.get $string:struct-mutator:immutable-field))
+           (call $growable-array-add! (local.get $out)
+                 (call $format/print (local.get $target) (global.get $missing)))
+           (call $growable-array-add! (local.get $out)
+                 (global.get $string:struct-mutator:field-index))
+           (call $growable-array-add! (local.get $out)
+                 (call $format/display
+                       (ref.i31 (i32.shl (local.get $index) (i32.const 1)))))
+           (local.set $message
+                      (call $growable-array-of-strings->string (local.get $out)))
+           (drop (call $raise
+                       (call $exn:fail:contract/make
+                             (local.get $message)
+                             (call $current-continuation-marks (global.get $missing)))
+                       (global.get $true)))
+           (unreachable))
 
      (func $struct-mutator  ; closure body
            (type $ClosureCode)
@@ -4765,9 +5061,12 @@
 
            (local $fields    (ref $Array))  ; fields of the received struct
            (local $skip      i32)
+           (local $who       (ref eq))
+           (local $accessible-count i32)
 
            ;; --- Unpack closure free vars ---
            (local.set $free           (struct.get $Closure $free (local.get $clos)))
+           (local.set $who            (struct.get $Closure $name (local.get $clos)))
            (local.set $std            (ref.cast (ref $StructType)
                                                 (array.get $Free (local.get $free) (i32.const 0))))
            (local.set $super-count-fx (array.get $Free (local.get $free) (i32.const 1)))
@@ -4779,7 +5078,10 @@
            ;; struct
            (local.set $target (array.get $Args (local.get $args) (i32.const 0)))
            (if (i32.eqz (ref.test (ref $Struct) (local.get $target)))
-               (then (call $raise-argument-error/internal (local.get $target))))
+               (then (call $raise-struct-mutator:target
+                           (local.get $who)
+                           (local.get $std)
+                           (local.get $target))))
            (local.set $struct (ref.cast (ref $Struct) (local.get $target)))
            ;; index
            (local.set $index-fx (array.get $Args (local.get $args) (i32.const 1)))
@@ -4787,7 +5089,9 @@
                        (i32.ne (i32.and (i31.get_u (ref.cast (ref i31)
                                                              (local.get $index-fx)))
                                         (i32.const 1)) (i32.const 0)))
-               (then (call $raise-argument-error/internal (local.get $index-fx))))
+               (then (call $raise-struct-mutator:index
+                           (local.get $who)
+                           (local.get $index-fx))))
            (local.set $index (i32.shr_u (i31.get_u (ref.cast (ref i31)
                                                              (local.get $index-fx)))
                                         (i32.const 1)))
@@ -4800,14 +5104,28 @@
            (if (i32.eqz (call $struct-type-is-a?/i32
                               (struct.get $Struct $type (local.get $struct))
                               (local.get $std)))
-               (then (call $raise-argument-error/internal (local.get $target))))
+               (then (call $raise-struct-mutator:target
+                           (local.get $who)
+                           (local.get $std)
+                           (local.get $target))))
            ;; --- Set field ---
            (local.set $fields (struct.get $Struct $fields (local.get $struct)))
+           (local.set $accessible-count
+                      (i32.sub (struct.get $StructType $field-count (local.get $std))
+                               (local.get $skip)))
+           (if (i32.ge_u (local.get $index) (local.get $accessible-count))
+               (then (call $raise-struct-mutator:index-too-large
+                           (local.get $who)
+                           (local.get $std)
+                           (local.get $index)
+                           (local.get $accessible-count))))
            (if (i32.eqz (call $prefab-struct-field-mutable?/i32
                               (local.get $std)
                               (i32.add (local.get $skip) (local.get $index))))
-               (then (call $raise-argument-error/internal (local.get $index-fx))
-                     (unreachable)))
+               (then (call $raise-struct-mutator:immutable-field
+                           (local.get $who)
+                           (local.get $target)
+                           (local.get $index))))
            (array.set $Array (local.get $fields)
                       (i32.add (local.get $skip) (local.get $index))
                       (local.get $val))
@@ -4865,9 +5183,12 @@
            (local $val      (ref eq))      ; args[1]
            (local $fields   (ref $Array))
            (local $skip     i32)
+           (local $who      (ref eq))
+           (local $accessible-count i32)
 
            ;; --- Unpack free vars ---
            (local.set $free           (struct.get $Closure $free (local.get $clos)))
+           (local.set $who            (struct.get $Closure $name (local.get $clos)))
            (local.set $std            (ref.cast (ref $StructType)
                                                 (array.get $Free (local.get $free) (i32.const 0))))
            (local.set $super-count-fx (array.get $Free (local.get $free) (i32.const 1)))
@@ -4883,7 +5204,10 @@
            ;; --- Get arguments ---
            (local.set $target (array.get $Args (local.get $args) (i32.const 0)))
            (if (i32.eqz (ref.test (ref $Struct) (local.get $target)))
-               (then (call $raise-argument-error/internal (local.get $target))))
+               (then (call $raise-struct-mutator:target
+                           (local.get $who)
+                           (local.get $std)
+                           (local.get $target))))
            (local.set $struct (ref.cast (ref $Struct) (local.get $target)))
 
            (local.set $val (array.get $Args (local.get $args) (i32.const 1)))
@@ -4893,15 +5217,29 @@
            (if (i32.eqz (call $struct-type-is-a?/i32
                               (struct.get $Struct $type (local.get $struct))
                               (local.get $std)))
-               (then (call $raise-argument-error/internal (local.get $target))))
+               (then (call $raise-struct-mutator:target
+                           (local.get $who)
+                           (local.get $std)
+                           (local.get $target))))
 
            ;; --- Set field ---
            (local.set $fields (struct.get $Struct $fields (local.get $struct)))
+           (local.set $accessible-count
+                      (i32.sub (struct.get $StructType $field-count (local.get $std))
+                               (local.get $skip)))
+           (if (i32.ge_u (local.get $index) (local.get $accessible-count))
+               (then (call $raise-struct-mutator:index-too-large
+                           (local.get $who)
+                           (local.get $std)
+                           (local.get $index)
+                           (local.get $accessible-count))))
            (if (i32.eqz (call $prefab-struct-field-mutable?/i32
                               (local.get $std)
                               (i32.add (local.get $skip) (local.get $index))))
-               (then (call $raise-argument-error/internal (local.get $index-fx))
-                     (unreachable)))
+               (then (call $raise-struct-mutator:immutable-field
+                           (local.get $who)
+                           (local.get $target)
+                           (local.get $index))))
            (array.set $Array (local.get $fields)
                       (i32.add (local.get $skip) (local.get $index))
                       (local.get $val))
@@ -4985,6 +5323,8 @@
            (local $free             (ref $Free))
            (local $std              (ref $StructType))
            (local $super-count-fx   (ref eq))
+           (local $super-count      i32)
+           (local $accessible-count i32)
            (local $struct-name      (ref eq))
            (local $struct-name-sym  (ref $Symbol))
            (local $struct-name-str  (ref $String))
@@ -5024,6 +5364,19 @@
                                                            (local.get $free) (i32.const 0))))
            (local.set $super-count-fx (array.get $Free
                                                  (local.get $free) (i32.const 1)))
+           (local.set $super-count
+                      (i32.shr_u (i31.get_u
+                                  (ref.cast (ref i31) (local.get $super-count-fx)))
+                                 (i32.const 1)))
+           (local.set $accessible-count
+                      (i32.sub (struct.get $StructType $field-count (local.get $std))
+                               (local.get $super-count)))
+           (if (i32.ge_u (local.get $field-pos) (local.get $accessible-count))
+               (then (call $raise-struct-mutator:index-too-large
+                           (global.get $symbol:make-struct-field-mutator)
+                           (local.get $std)
+                           (local.get $field-pos)
+                           (local.get $accessible-count))))
            (local.set $struct-name    (struct.get $StructType $name (local.get $std)))
            (local.set $field-name
                       (if (result (ref eq))
@@ -5278,6 +5631,9 @@
            (local $accessor             (ref $Closure))
            (local $free                 (ref $Free))
            (local $std                  (ref $StructType))
+           (local $super-count-fx       (ref eq))
+           (local $super-count          i32)
+           (local $accessible-count     i32)
            (local $struct-name          (ref eq))
            (local $field-accessor-name  (ref eq))
            (local $field-index          i32)
@@ -5342,6 +5698,20 @@
            (local.set $free (struct.get $Closure $free (local.get $accessor)))
            (local.set $std  (ref.cast (ref $StructType)
                                       (array.get $Free (local.get $free) (i32.const 0))))
+           (local.set $super-count-fx (array.get $Free (local.get $free) (i32.const 1)))
+           (local.set $super-count
+                      (i32.shr_u (i31.get_u
+                                  (ref.cast (ref i31) (local.get $super-count-fx)))
+                                 (i32.const 1)))
+           (local.set $accessible-count
+                      (i32.sub (struct.get $StructType $field-count (local.get $std))
+                               (local.get $super-count)))
+           (if (i32.ge_u (local.get $field-index) (local.get $accessible-count))
+               (then (call $raise-struct-accessor:index-too-large
+                           (global.get $symbol:make-struct-field-accessor)
+                           (local.get $std)
+                           (local.get $field-index)
+                           (local.get $accessible-count))))
            (local.set $struct-name (struct.get $StructType $name (local.get $std)))
            (local.set $field-accessor-name
                       (if (result (ref eq))
