@@ -61,9 +61,12 @@ Current remaining raw-stub classes:
     contract errors. For some values the correct Racket behavior is likely to
     add a printer instead of raising an exception.
   - Public opaque values for semaphores, semaphore-peek events, will
-    executors, loggers, log receivers, bytes converters, and
-    uninterruptible locks now print as `#<...>` values instead of falling
-    through to `$raise-format/display:unknown-datatype`.
+    executors, loggers, log receivers, bytes converters, uninterruptible
+    locks, threads, thread groups, thread cells, custodians, custodian boxes,
+    and security guards now print as `#<...>` values instead of falling
+    through to `$raise-format/display:unknown-datatype`. Compact regexp values
+    now print from their stored source as `#rx`, `#px`, `#rx#`, or `#px#`
+    forms.
   - `$raise-not-a-string` currently belongs to a commented-out `string->bytes`
     helper. Treat it as dead unless that helper is restored.
 

@@ -38,7 +38,9 @@
     (hash-hash                  "#hash")
     (hash-hasheq                "#hasheq")
     (hash-hasheqv               "#hasheqv")
-    (hash-hashalw               "#hashalw")))
+    (hash-hashalw               "#hashalw")
+    (hash-rx                    "#rx")
+    (hash-px                    "#px")))
 
 ;; immediate-value-formatting-runtime-string-constants : (listof (list/c symbol? string?))
 ;;   Declare string constants used to format immediate singleton values.
@@ -103,7 +105,14 @@
      (hash-less-logger           "#<logger>")
      (hash-less-log-receiver     "#<log-receiver>")
      (hash-less-bytes-converter  "#<bytes-converter>")
-     (hash-less-uninterruptible-lock "#<uninterruptible-lock>"))))
+     (hash-less-uninterruptible-lock "#<uninterruptible-lock>")
+     (hash-less-thread           "#<thread>")
+     (hash-less-thread-group     "#<thread-group>")
+     (hash-less-thread-cell      "#<thread-cell>")
+     (hash-less-custodian        "#<custodian>")
+     (hash-less-custodian-box    "#<custodian-box>")
+     (hash-less-security-guard   "#<security-guard>")
+     (hash-less-regexp           "#<regexp>"))))
 
 ;; formatting-runtime-string-constants : (listof (list/c symbol? string?))
 ;;   Declare string constants used by formatting and printer-extension helpers.
@@ -769,6 +778,10 @@
                (if (ref.test (ref $External) (local.get $v))
                    (then (return (call $format/display:external
                                        (ref.cast (ref $External) (local.get $v))))))
+               ;; --- Case: regexp ---
+               (if (ref.test (ref $Regexp) (local.get $v))
+                   (then (return (call $format/display:regexp
+                                       (ref.cast (ref $Regexp) (local.get $v))))))
                ;; --- Case: char ---
                (if (ref.test (ref i31) (local.get $v))
                    (then (local.set $i31 (ref.cast (ref i31) (local.get $v)))
@@ -848,9 +861,65 @@
                (if (ref.test (ref $UninterruptibleLock) (local.get $v))
                    (then (return (ref.cast (ref $String)
                                            (global.get $string:hash-less-uninterruptible-lock)))))
+               (if (ref.test (ref $Thread) (local.get $v))
+                   (then (return (ref.cast (ref $String)
+                                           (global.get $string:hash-less-thread)))))
+               (if (ref.test (ref $ThreadGroup) (local.get $v))
+                   (then (return (ref.cast (ref $String)
+                                           (global.get $string:hash-less-thread-group)))))
+               (if (ref.test (ref $ThreadCell) (local.get $v))
+                   (then (return (ref.cast (ref $String)
+                                           (global.get $string:hash-less-thread-cell)))))
+               (if (ref.test (ref $Custodian) (local.get $v))
+                   (then (return (ref.cast (ref $String)
+                                           (global.get $string:hash-less-custodian)))))
+               (if (ref.test (ref $CustodianBox) (local.get $v))
+                   (then (return (ref.cast (ref $String)
+                                           (global.get $string:hash-less-custodian-box)))))
+               (if (ref.test (ref $SecurityGuard) (local.get $v))
+                   (then (return (ref.cast (ref $String)
+                                           (global.get $string:hash-less-security-guard)))))
                ;; --- Fallback ---
                (call $raise-format/display:unknown-datatype)
                (unreachable))
+
+         ;; format/display:regexp : regexp? -> string?
+         ;;   Render compact regexp values using the source carried by the
+         ;;   runtime object.
+         (func $format/display:regexp
+               (param $rx (ref $Regexp))
+               (result    (ref $String))
+
+               (local $kind   i32)
+               (local $source (ref eq))
+               (local $prefix (ref $String))
+
+               (local.set $kind (struct.get $Regexp $kind (local.get $rx)))
+               (local.set $source (struct.get $Regexp $source (local.get $rx)))
+               (local.set $prefix
+                          (ref.cast (ref $String)
+                                    (global.get $string:hash-rx)))
+               (if (i32.eq (local.get $kind) (i32.const 1))
+                   (then (local.set $prefix
+                                    (ref.cast (ref $String)
+                                              (global.get $string:hash-px))))
+                   (else (if (i32.eq (local.get $kind) (i32.const 3))
+                             (then (local.set $prefix
+                                              (ref.cast (ref $String)
+                                                        (global.get $string:hash-px)))))))
+               (if (ref.test (ref $String) (local.get $source))
+                   (then (return (call $string-append/2
+                                       (local.get $prefix)
+                                       (call $format/write:string
+                                             (ref.cast (ref $String)
+                                                       (local.get $source)))))))
+               (if (ref.test (ref $Bytes) (local.get $source))
+                   (then (return (call $string-append/2
+                                       (local.get $prefix)
+                                       (call $format/display:bytes
+                                             (ref.cast (ref $Bytes)
+                                                       (local.get $source)))))))
+               (ref.cast (ref $String) (global.get $string:hash-less-regexp)))
 
          ;; format/write : any/c -> string?
          ;;   Render a value using the subset of write/print-like conventions

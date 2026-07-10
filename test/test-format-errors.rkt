@@ -47,6 +47,20 @@
               (equal? (format "~a" receiver) "#<log-receiver>")
               (equal? (format "~a" converter) "#<bytes-converter>")
               (equal? (format "~a" lock) "#<uninterruptible-lock>"))))
+ (list "format renders thread and custodian values without traps"
+       (let ([thread-text (format "~a" (current-thread))]
+             [cust (current-custodian)])
+         (and (string-contains? thread-text "#<thread")
+              (equal? (format "~a" (current-thread-group)) "#<thread-group>")
+              (equal? (format "~a" (make-thread-cell 1)) "#<thread-cell>")
+              (equal? (format "~a" cust) "#<custodian>")
+              (equal? (format "~a" (make-custodian-box cust 1)) "#<custodian-box>")
+              (equal? (format "~a" (current-security-guard)) "#<security-guard>"))))
+ (list "format renders regexp values without traps"
+       (and (equal? (format "~a" (webracket-literal-regexp "a")) "#rx\"a\"")
+            (equal? (format "~a" (webracket-literal-pregexp "a")) "#px\"a\"")
+            (equal? (format "~a" (webracket-literal-byte-regexp #"a")) "#rx#\"a\"")
+            (equal? (format "~a" (webracket-literal-byte-pregexp #"a")) "#px#\"a\"")))
  (list "unquoted-printing-string-value errors are catchable with who"
        (catch-contract/contains?
         (lambda () (unquoted-printing-string-value 42))
