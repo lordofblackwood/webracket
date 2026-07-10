@@ -254,6 +254,23 @@
  (list "exact->inexact accepts complex values"
        (equal? (number->string (exact->inexact 1+2i))
                "1.0+2.0i"))
+ (list "inexact->exact non-finite errors report no exact representation"
+       (let ([catch-domain-error?
+              (lambda (value rendered)
+                (let ([message
+                       (with-handlers ([exn:fail:contract?
+                                        (lambda (exn)
+                                          (exn-message exn))])
+                         (inexact->exact value)
+                         #f)])
+                  (and message
+                       (string-contains? message "inexact->exact")
+                       (string-contains? message "no exact representation")
+                       (string-contains? message rendered))))])
+         (and
+          (catch-domain-error? +nan.0 "+nan.0")
+          (catch-domain-error? +inf.0 "+inf.0")
+          (catch-domain-error? -inf.0 "-inf.0"))))
  (list "number conversion basics still work"
        (and (equal? (number->string 42) "42")
             (equal? (number->string 16 16) "10")

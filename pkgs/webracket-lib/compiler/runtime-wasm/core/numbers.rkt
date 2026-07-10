@@ -36,6 +36,7 @@
     (floating-point-bytes->real:length-not-4-or-8 ": length is not 4 or 8 bytes")
     (floating-point-bytes->real:length-line "\n  length: ")
     (floating-point-bytes->real:index-line "\n  index: ")
+    (inexact->exact:no-exact-representation ": no exact representation for ")
     (order-of-magnitude:positive-finite "(and/c (>/c 0.0) (not/c +inf.0))")
     (bitwise-bit-field:end-before-start "ending index is smaller than starting index")))
 
@@ -220,7 +221,8 @@
     $raise-expected-exact-nonnegative-integer
     $raise-expected-rational
     $raise-expected-real
-    $raise-expected-keyword))
+    $raise-expected-keyword
+    $raise-inexact->exact:no-exact-representation))
 
 ;; number-helper-forms : hasheq? (listof symbol?) -> (listof datum?)
 ;;   Render the given number helper names from a helper index.
@@ -497,17 +499,17 @@
                    (local.set $fl (ref.cast (ref $Flonum) (local.get $z)))
                    (local.set $f64 (struct.get $Flonum $v (local.get $fl)))
                    (if (f64.ne (local.get $f64) (local.get $f64))
-                       (then (call $raise-expected-number/who
-                                   (global.get $symbol:inexact->exact)
-                                   (local.get $z)) (unreachable)))
+                       (then (call $raise-inexact->exact:no-exact-representation
+                                   (local.get $z))
+                             (unreachable)))
                    (if (f64.eq (local.get $f64) (f64.const +inf))
-                       (then (call $raise-expected-number/who
-                                   (global.get $symbol:inexact->exact)
-                                   (local.get $z)) (unreachable)))
+                       (then (call $raise-inexact->exact:no-exact-representation
+                                   (local.get $z))
+                             (unreachable)))
                    (if (f64.eq (local.get $f64) (f64.const -inf))
-                       (then (call $raise-expected-number/who
-                                   (global.get $symbol:inexact->exact)
-                                   (local.get $z)) (unreachable)))
+                       (then (call $raise-inexact->exact:no-exact-representation
+                                   (local.get $z))
+                             (unreachable)))
                    (if (f64.eq (f64.floor (local.get $f64)) (local.get $f64))
                        (then
                         (local.set $i32 (i32.trunc_f64_s (local.get $f64)))
@@ -2375,6 +2377,30 @@
                     (global.get $string:keyword?))
               (call $growable-array-add! (local.get $out)
                     (global.get $string:arity-error:given))
+              (call $growable-array-add! (local.get $out)
+                    (call $format/display (local.get $x)))
+              (local.set $message
+                         (call $growable-array-of-strings->string (local.get $out)))
+
+              (call $raise
+                    (call $exn:fail:contract/make
+                          (local.get $message)
+                          (call $current-continuation-marks (global.get $missing)))
+                    (global.get $true))
+              (unreachable))
+
+        (func $raise-inexact->exact:no-exact-representation
+              (param $x (ref eq))
+
+              (local $out     (ref $GrowableArray))
+              (local $message (ref $String))
+
+              (local.set $out (call $make-growable-array (i32.const 3)))
+              (call $growable-array-add! (local.get $out)
+                    (call $format/display
+                          (global.get $symbol:inexact->exact)))
+              (call $growable-array-add! (local.get $out)
+                    (global.get $string:inexact->exact:no-exact-representation))
               (call $growable-array-add! (local.get $out)
                     (call $format/display (local.get $x)))
               (local.set $message

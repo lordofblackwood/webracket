@@ -126,6 +126,10 @@ Current remaining raw-stub classes:
   - `exact->inexact` now reports Racket's public `number?` contract for bad
     arguments and accepts WebRacket complex numbers by converting their real and
     imaginary components.
+  - `inexact->exact` now reports Racket's non-finite domain error for `+nan.0`,
+    `+inf.0`, and `-inf.0` instead of a misleading `number?` contract error.
+    Finite non-integral flonums still need rational-number support before they
+    can match Racket's successful conversion behavior.
   - Some numeric conversion helpers still use older validation shapes; audit
     those separately before claiming complete numeric parity.
 
