@@ -154,9 +154,9 @@ Current remaining raw-stub classes:
     `vector-take-right`, `vector-drop-right`, `vector-split-at`, and
     `vector-split-at-right`, now raise catchable range-style contract errors
     with the bad index, valid range, and vector.
-  - `vector-copy`, `vector-copy!`, `vector->values`, and vector sorting range
-    paths still use the older generic vector range helper; handle their
-    start/end/destination-range messages separately.
+  - `vector-copy`, `vector-copy!`, `vector->values`, `vector-sort`, and
+    `vector-sort!` now distinguish start-index, end-index, end-before-start, and
+    target-capacity range failures with catchable Racket-style contract errors.
 
 - `structs.rkt`:
   - `$raise-check-struct-type` is only used by `$check-struct-type`, which is

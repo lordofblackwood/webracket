@@ -190,10 +190,10 @@
          "index: 2"
          "valid range: [0, 1]"
          "vector:")))
- (list "negative vector range indexes preserve the public contract"
-       (and
-        (catch-contract/contains?
-         (lambda () (vector-copy '#(a b) -1))
+  (list "negative vector range indexes preserve the public contract"
+        (and
+         (catch-contract/contains?
+          (lambda () (vector-copy '#(a b) -1))
          "vector-copy"
          "exact-nonnegative-integer?"
          "given: -1")
@@ -244,13 +244,80 @@
          "given: -1")
         (catch-contract/contains?
          (lambda () (vector-sort! (vector 2 1) < 0 -1))
-         "vector-sort!"
-         "exact-nonnegative-integer?"
-         "given: -1")))
- (list "negative vector slice indexes preserve the public contract"
-       (and
-        (catch-contract/contains?
-         (lambda () (vector-take '#(a b) -1))
+          "vector-sort!"
+          "exact-nonnegative-integer?"
+          "given: -1")))
+  (list "positive vector copy ranges report range details"
+        (and
+         (catch-contract/contains?
+          (lambda () (vector-copy '#(a b) 3))
+          "vector-copy"
+          "starting index is out of range"
+          "starting index: 3"
+          "valid range: [0, 2]"
+          "vector:")
+         (catch-contract/contains?
+          (lambda () (vector-copy '#(a b) 0 3))
+          "vector-copy"
+          "ending index is out of range"
+          "ending index: 3"
+          "valid range: [0, 2]"
+          "vector:")
+         (catch-contract/contains?
+          (lambda () (vector-copy '#(a b) 2 1))
+          "vector-copy"
+          "ending index is smaller than starting index"
+          "ending index: 1"
+          "starting index: 2"
+          "valid range: [0, 2]"
+          "vector:")
+         (catch-contract/contains?
+          (lambda () (vector-copy! (vector 'a 'b) 0 '#(x y) 3))
+          "vector-copy!"
+          "starting index is out of range"
+          "starting index: 3"
+          "valid range: [0, 2]"
+          "vector:")
+         (catch-contract/contains?
+          (lambda () (vector-copy! (vector 'a 'b) 0 '#(x y) 0 3))
+          "vector-copy!"
+          "ending index is out of range"
+          "ending index: 3"
+          "valid range: [0, 2]"
+          "vector:")
+         (catch-contract/contains?
+          (lambda () (vector-copy! (vector 'a) 0 '#(x y)))
+          "vector-copy!"
+          "not enough room in target vector"
+          "target length: 1"
+          "needed length: 2")
+         (catch-contract/contains?
+          (lambda () (vector->values '#(a b) 2 1))
+          "vector->values"
+          "ending index is smaller than starting index"
+          "ending index: 1"
+          "starting index: 2"
+          "valid range: [0, 2]"
+          "vector:")
+         (catch-contract/contains?
+          (lambda () (vector-sort '#(2 1) < 0 3))
+          "vector-sort"
+          "ending index is out of range"
+          "ending index: 3"
+          "valid range: [0, 2]"
+          "vector:")
+         (catch-contract/contains?
+          (lambda () (vector-sort! (vector 2 1) < 2 1))
+          "vector-sort!"
+          "ending index is smaller than starting index"
+          "ending index: 1"
+          "starting index: 2"
+          "valid range: [0, 2]"
+          "vector:")))
+  (list "negative vector slice indexes preserve the public contract"
+        (and
+         (catch-contract/contains?
+          (lambda () (vector-take '#(a b) -1))
          "vector-take"
          "exact-nonnegative-integer?"
          "given: -1")
