@@ -28,6 +28,14 @@
     (struct?                    "struct?")
     (struct-type?               "struct-type?")
     (struct-type-or-false       "(or/c #f struct-type?)")
+    (make-struct-type-property-guard
+     "(or/c (procedure-arity-includes/c 2) #f 'can-impersonate)")
+    (make-struct-type-property-supers
+     "(listof (cons/c struct-type-property? (procedure-arity-includes/c 1)))")
+    (make-struct-type-property-accessor-name
+     "(or/c symbol? #f)")
+    (make-struct-type-property-contract-str
+     "(or/c symbol? string? #f)")
     (procedure-struct-type?     "procedure-struct-type?")
     (sealed-struct-supertype    "sealed structure type cannot be used as a supertype")
     (struct->list:on-opaque     "one of 'error, 'return-false, or 'skip")
@@ -82,6 +90,7 @@
     struct->list
     struct->vector
     make-struct-type
+    make-struct-type-property
     mutator
     error
     return-false
@@ -420,6 +429,12 @@
 (define struct-type-property-constructor-runtime-only-helper-names
   '($struct-type-info-for-guard
     $struct-type-properties-normalize
+    $raise-make-struct-type-property:name
+    $raise-make-struct-type-property:guard
+    $raise-make-struct-type-property:supers
+    $raise-make-struct-type-property:accessor-name
+    $raise-make-struct-type-property:contract-str
+    $raise-make-struct-type-property:realm
     $make-struct-type-property
     $unsafe-make-struct-type-property/guard-calls-no-arguments))
 
@@ -6049,13 +6064,61 @@
 
            (ref.cast (ref eq) (local.get $table)))
 
+     (func $raise-make-struct-type-property:name
+           (param $bad (ref eq))
+           (call $raise-argument-error1
+                 (global.get $symbol:make-struct-type-property)
+                 (global.get $string:symbol?)
+                 (local.get $bad))
+           (unreachable))
+
+     (func $raise-make-struct-type-property:guard
+           (param $bad (ref eq))
+           (call $raise-argument-error1
+                 (global.get $symbol:make-struct-type-property)
+                 (global.get $string:make-struct-type-property-guard)
+                 (local.get $bad))
+           (unreachable))
+
+     (func $raise-make-struct-type-property:supers
+           (param $bad (ref eq))
+           (call $raise-argument-error1
+                 (global.get $symbol:make-struct-type-property)
+                 (global.get $string:make-struct-type-property-supers)
+                 (local.get $bad))
+           (unreachable))
+
+     (func $raise-make-struct-type-property:accessor-name
+           (param $bad (ref eq))
+           (call $raise-argument-error1
+                 (global.get $symbol:make-struct-type-property)
+                 (global.get $string:make-struct-type-property-accessor-name)
+                 (local.get $bad))
+           (unreachable))
+
+     (func $raise-make-struct-type-property:contract-str
+           (param $bad (ref eq))
+           (call $raise-argument-error1
+                 (global.get $symbol:make-struct-type-property)
+                 (global.get $string:make-struct-type-property-contract-str)
+                 (local.get $bad))
+           (unreachable))
+
+     (func $raise-make-struct-type-property:realm
+           (param $bad (ref eq))
+           (call $raise-argument-error1
+                 (global.get $symbol:make-struct-type-property)
+                 (global.get $string:symbol?)
+                 (local.get $bad))
+           (unreachable))
+
      (func $make-struct-type-property
            (param $name               (ref eq))  ;; symbol
            ;; optional parameters (defaults in parentheses):
            (param $guard-info         (ref eq))  ;; guard/#f ('#f)
            (param $supers-spec        (ref eq))  ;; list of (cons prop proc)/#f ('())
            (param $can-impersonate?   (ref eq))  ;; any/c (#f)
-           (param $accessor-name-info (ref eq))  ;; symbol/string/#f (#f)
+           (param $accessor-name-info (ref eq))  ;; symbol/#f (#f)
            (param $contract-info      (ref eq))  ;; string/symbol/#f (#f)
            (param $realm-info         (ref eq))  ;; symbol/#f ('racket)
            (result                    (ref eq))
@@ -6085,7 +6148,7 @@
 
            ;; Validate property name and capture its string form.
            (if (i32.eqz (ref.test (ref $Symbol) (local.get $name)))
-               (then (call $raise-argument-error/internal (local.get $name))
+               (then (call $raise-make-struct-type-property:name (local.get $name))
                      (unreachable)))
            (local.set $name-sym    (ref.cast (ref $Symbol) (local.get $name)))
            (local.set $name-string (ref.cast (ref $String)
@@ -6118,11 +6181,20 @@
                                             (global.get $symbol:can-impersonate))
                                       (i32.const 1))
                               (then (local.set $impersonate (global.get $true)))
-                              (else (call $raise-argument-error/internal (local.get $guard-info))
+                              (else (call $raise-make-struct-type-property:guard
+                                          (local.get $guard-info))
                                     (unreachable))))
                          (else
                           (if (i32.eqz (ref.test (ref $Procedure) (local.get $guard-info)))
-                              (then (call $raise-argument-error/internal (local.get $guard-info))
+                              (then (call $raise-make-struct-type-property:guard
+                                          (local.get $guard-info))
+                                    (unreachable)))
+                          (if (i32.eqz
+                               (call $procedure-arity-includes?/checked/i32
+                                     (ref.cast (ref $Procedure) (local.get $guard-info))
+                                     (i32.const 2)))
+                              (then (call $raise-make-struct-type-property:guard
+                                          (local.get $guard-info))
                                     (unreachable)))
                           (local.set $guard (local.get $guard-info))))))))
 
@@ -6141,7 +6213,8 @@
                                                        (global.get $null)))
                                   (if (i32.eqz (ref.test (ref $Pair)
                                                          (local.get $supers-cursor)))
-                                      (then (call $raise-argument-error/internal (local.get $supers-cursor))
+                                      (then (call $raise-make-struct-type-property:supers
+                                                  (local.get $supers-spec))
                                             (unreachable)))
                                   (local.set $supers-cell
                                              (ref.cast (ref $Pair)
@@ -6149,7 +6222,8 @@
                                   (local.set $supers-entry-raw
                                              (struct.get $Pair $a (local.get $supers-cell)))
                                   (if (i32.eqz (ref.test (ref $Pair) (local.get $supers-entry-raw)))
-                                      (then (call $raise-argument-error/internal (local.get $supers-entry-raw))
+                                      (then (call $raise-make-struct-type-property:supers
+                                                  (local.get $supers-spec))
                                             (unreachable)))
                                   (local.set $supers-entry
                                              (ref.cast (ref $Pair) (local.get $supers-entry-raw)))
@@ -6157,7 +6231,8 @@
                                              (struct.get $Pair $a (local.get $supers-entry)))
                                   (if (i32.eqz (ref.test (ref $StructTypeProperty)
                                                          (local.get $super-prop-raw)))
-                                      (then (call $raise-argument-error/internal (local.get $super-prop-raw))
+                                      (then (call $raise-make-struct-type-property:supers
+                                                  (local.get $supers-spec))
                                             (unreachable)))
                                   (local.set $super-prop
                                              (ref.cast (ref $StructTypeProperty)
@@ -6165,10 +6240,18 @@
                                   (local.set $super-proc-raw
                                              (struct.get $Pair $d (local.get $supers-entry)))
                                   (if (i32.eqz (ref.test (ref $Procedure) (local.get $super-proc-raw)))
-                                      (then (call $raise-argument-error/internal (local.get $super-proc-raw))
+                                      (then (call $raise-make-struct-type-property:supers
+                                                  (local.get $supers-spec))
                                             (unreachable)))
                                   (local.set $super-proc
                                              (ref.cast (ref $Procedure) (local.get $super-proc-raw)))
+                                  (if (i32.eqz
+                                       (call $procedure-arity-includes?/checked/i32
+                                             (local.get $super-proc)
+                                             (i32.const 1)))
+                                      (then (call $raise-make-struct-type-property:supers
+                                                  (local.get $supers-spec))
+                                            (unreachable)))
                                   (local.set $supers-cursor
                                              (struct.get $Pair $d (local.get $supers-cell)))
                                   (br $walk)))))))
@@ -6181,7 +6264,7 @@
                     (then (local.set $impersonate (global.get $false)))
                     (else (local.set $impersonate (global.get $true))))))
 
-           ;; Accessor name: allow #f, string, or symbol (converted to string).
+           ;; Accessor name: allow #f or symbol (converted to string).
            (if (ref.eq (local.get $accessor-name-info) (global.get $missing))
                (then)
                (else
@@ -6197,19 +6280,9 @@
                                                                (ref.cast (ref $Symbol)
                                                                          (local.get $accessor-name-info))))))
                           (local.set $closure-name (local.get $accessor-name-info)))
-                         (else
-                          (if (ref.test (ref $String) (local.get $accessor-name-info))
-                              (then (local.set $accessor-name
-                                               (ref.cast (ref eq)
-                                                         (ref.cast (ref $String)
-                                                                   (local.get $accessor-name-info))))
-                                    (local.set $closure-name
-                                               (ref.cast (ref eq)
-                                                         (call $string->symbol/checked
-                                                               (ref.cast (ref $String)
-                                                                         (local.get $accessor-name-info))))))
-                              (else (call $raise-argument-error/internal (local.get $accessor-name-info))
-                                    (unreachable)))))))))
+                         (else (call $raise-make-struct-type-property:accessor-name
+                                     (local.get $accessor-name-info))
+                               (unreachable)))))))
 
            ;; Contract string: allow #f, string, or symbol (converted to string).
            (if (ref.eq (local.get $contract-info) (global.get $missing))
@@ -6231,7 +6304,8 @@
                                                (ref.cast (ref eq)
                                                          (ref.cast (ref $String)
                                                                    (local.get $contract-info)))))
-                              (else (call $raise-argument-error/internal (local.get $contract-info))
+                              (else (call $raise-make-struct-type-property:contract-str
+                                          (local.get $contract-info))
                                     (unreachable)))))))))
 
            ;; Realm defaults to 'racket unless a symbol is supplied.
@@ -6242,7 +6316,8 @@
                     (then)
                     (else
                      (if (i32.eqz (ref.test (ref $Symbol) (local.get $realm-info)))
-                         (then (call $raise-argument-error/internal (local.get $realm-info))
+                         (then (call $raise-make-struct-type-property:realm
+                                     (local.get $realm-info))
                                (unreachable)))
                      (local.set $realm (local.get $realm-info))))))
 
@@ -6311,7 +6386,7 @@
            (param $guard-info         (ref eq)) ;; optional guard/#f, default = #f
            (param $supers-spec        (ref eq)) ;; optional list/#f, default = '()
            (param $can-impersonate?   (ref eq)) ;; optional any/c, default = #f
-           (param $accessor-name-info (ref eq)) ;; optional symbol/string/#f, default = #f
+           (param $accessor-name-info (ref eq)) ;; optional symbol/#f, default = #f
            (param $contract-info      (ref eq)) ;; optional string/symbol/#f, default = #f
            (param $realm-info         (ref eq)) ;; optional symbol/#f, default = 'racket
            (result                    (ref eq))
