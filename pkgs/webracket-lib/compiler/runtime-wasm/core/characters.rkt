@@ -71,7 +71,8 @@
 ;; character-runtime-string-constants : (listof (list/c symbol? string?))
 ;;   Declare string constants used by character contract checks.
 (define character-runtime-string-constants
-  '((valid-unicode-scalar-value? "valid-unicode-scalar-value?")))
+  '((valid-unicode-scalar-value? "valid-unicode-scalar-value?")
+    (grapheme-cluster-state? "grapheme-cluster-state?")))
 
 ;; character-runtime-who-global : symbol? -> symbol?
 ;;   Return the runtime symbol global corresponding to a Wasm function name.
@@ -772,11 +773,19 @@
 
               ;; Validate fixnum state
               (if (i32.eqz (ref.test (ref i31) (local.get $state)))
-                  (then (call $raise-check-fixnum (local.get $state)) (unreachable)))
+                  (then (call $raise-argument-error1
+                              (global.get $symbol:char-grapheme-step)
+                              (global.get $string:grapheme-cluster-state?)
+                              (local.get $state))
+                        (unreachable)))
               (local.set $state/i31 (ref.cast (ref i31) (local.get $state)))
               (local.set $state/raw (i31.get_s (local.get $state/i31)))
               (if (i32.ne (i32.and (local.get $state/raw) (i32.const 1)) (i32.const 0))
-                  (then (call $raise-check-fixnum (local.get $state)) (unreachable)))
+                  (then (call $raise-argument-error1
+                              (global.get $symbol:char-grapheme-step)
+                              (global.get $string:grapheme-cluster-state?)
+                              (local.get $state))
+                        (unreachable)))
               (local.set $state-val (i32.shr_s (local.get $state/raw) (i32.const 1)))
 
               ;; Decode previous-state fields

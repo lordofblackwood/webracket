@@ -68,4 +68,15 @@
            (lambda () (char=? #\a 42)))
           (catch-contract/who+expected+given?
            "char-ci<?"
-           (lambda () (char-ci<? #\a 42)))))))
+           (lambda () (char-ci<? #\a 42))))))
+ (list "char-grapheme-step state errors are catchable with who"
+       (let ([message
+              (with-handlers ([exn:fail:contract?
+                               (lambda (exn)
+                                 (exn-message exn))])
+                (char-grapheme-step #\a #f)
+                #f)])
+         (and message
+              (string-contains? message "char-grapheme-step")
+              (string-contains? message "grapheme-cluster-state?")
+              (string-contains? message "given: #f")))))
