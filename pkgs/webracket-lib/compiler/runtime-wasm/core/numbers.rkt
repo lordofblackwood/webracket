@@ -2,6 +2,7 @@
 
 (provide generic-arithmetic-runtime-helper-forms
          number-runtime-string-constants
+         number-runtime-symbol-constants
          generic-bitwise-runtime-helper-forms
          generic-numeric-runtime-helper-forms
          number-error-runtime-helper-forms
@@ -32,7 +33,15 @@
     (real->floating-point-bytes:size-line "\n  size: ")
     (floating-point-bytes->real:length-not-4-or-8 ": length is not 4 or 8 bytes")
     (floating-point-bytes->real:length-line "\n  length: ")
-    (floating-point-bytes->real:index-line "\n  index: ")))
+    (floating-point-bytes->real:index-line "\n  index: ")
+    (order-of-magnitude:positive-finite "(and/c (>/c 0.0) (not/c +inf.0))")
+    (bitwise-bit-field:end-before-start "ending index is smaller than starting index")))
+
+;; number-runtime-symbol-constants : (listof symbol?)
+;;   Declare symbols used by generic number helpers and errors.
+(define number-runtime-symbol-constants
+  '(order-of-magnitude
+    bitwise-bit-field))
 
 ;; Half : datum? -> datum?
 ;;   Decode a tagged fixnum expression to an i32 payload.
@@ -1858,9 +1867,15 @@
                             (then
                              (local.set $f64 (f64.convert_i32_s (local.get $i)))
                              (local.set $ok (i32.const 1)))
-                            (else (call $raise-argument-error/internal (local.get $r))
+                            (else (call $raise-argument-error1
+                                        (global.get $symbol:order-of-magnitude)
+                                        (global.get $string:order-of-magnitude:positive-finite)
+                                        (local.get $r))
                                   (unreachable))))
-                       (else (call $raise-argument-error/internal (local.get $r))
+                       (else (call $raise-argument-error1
+                                   (global.get $symbol:order-of-magnitude)
+                                   (global.get $string:order-of-magnitude:positive-finite)
+                                   (local.get $r))
                              (unreachable)))))
 
               (if (i32.eqz (local.get $ok))
@@ -1870,18 +1885,30 @@
                         (local.set $fl (ref.cast (ref $Flonum) (local.get $r)))
                         (local.set $f64 (struct.get $Flonum $v (local.get $fl)))
                         (if (f64.le (local.get $f64) (f64.const 0))
-                            (then (call $raise-argument-error/internal (local.get $r))
+                            (then (call $raise-argument-error1
+                                        (global.get $symbol:order-of-magnitude)
+                                        (global.get $string:order-of-magnitude:positive-finite)
+                                        (local.get $r))
                                   (unreachable)))
                         (if (f64.eq (local.get $f64) (f64.const inf))
-                            (then (call $raise-argument-error/internal (local.get $r))
+                            (then (call $raise-argument-error1
+                                        (global.get $symbol:order-of-magnitude)
+                                        (global.get $string:order-of-magnitude:positive-finite)
+                                        (local.get $r))
                                   (unreachable)))
                         (if (f64.ne (local.get $f64) (local.get $f64))
-                            (then (call $raise-argument-error/internal (local.get $r))
+                            (then (call $raise-argument-error1
+                                        (global.get $symbol:order-of-magnitude)
+                                        (global.get $string:order-of-magnitude:positive-finite)
+                                        (local.get $r))
                                   (unreachable)))
                         (local.set $ok (i32.const 1))))))
 
               (if (i32.eqz (local.get $ok))
-                  (then (call $raise-argument-error/internal (local.get $r))
+                  (then (call $raise-argument-error1
+                              (global.get $symbol:order-of-magnitude)
+                              (global.get $string:order-of-magnitude:positive-finite)
+                              (local.get $r))
                         (unreachable)))
 
               (local.set $m
@@ -2800,11 +2827,23 @@
 
               ;; --- Range checks ---
               (if (i32.lt_s (local.get $start/i) (i32.const 0))
-                  (then (call $raise-argument-error/internal (local.get $start)) (unreachable)))
+                  (then (call $raise-argument-error1
+                              (global.get $symbol:bitwise-bit-field)
+                              (global.get $string:exact-nonnegative-integer?)
+                              (local.get $start))
+                        (unreachable)))
               (if (i32.lt_s (local.get $end/i) (i32.const 0))
-                  (then (call $raise-argument-error/internal (local.get $end)) (unreachable)))
+                  (then (call $raise-argument-error1
+                              (global.get $symbol:bitwise-bit-field)
+                              (global.get $string:exact-nonnegative-integer?)
+                              (local.get $end))
+                        (unreachable)))
               (if (i32.lt_s (local.get $end/i) (local.get $start/i))
-                  (then (call $raise-argument-error/internal (local.get $end)) (unreachable)))
+                  (then (call $raise-arguments-error
+                              (global.get $symbol:bitwise-bit-field)
+                              (global.get $string:bitwise-bit-field:end-before-start)
+                              (array.new_fixed $Args 0))
+                        (unreachable)))
 
               ;; --- Compute width and mask ---
               (local.set $width (i32.sub (local.get $end/i) (local.get $start/i)))

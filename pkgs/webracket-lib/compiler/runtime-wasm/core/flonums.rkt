@@ -19,7 +19,10 @@
     (flonum-integer?              "(and/c flonum? integer?)")
     (flonum-error:colon-space     ": ")
     (fl->fx-error:result-for      "result for ")
-    (fl->fx-error:outside-fixnum  " would be outside of fixnum range")))
+    (fl->fx-error:outside-fixnum  " would be outside of fixnum range")
+    (flbit-field:index            "(integer-in 0 64)")
+    (flbit-field:start<=end       "start must be <= end")
+    (flbit-field:outside-fixnum   "result would be outside of WebRacket fixnum range")))
 
 ;; flonum-runtime-symbol-constants : (listof symbol?)
 ;;   Declare symbols used by flonum helpers and errors.
@@ -806,19 +809,34 @@
 
             ;; Range checks: 0 <= start <= end <= 64
             (if (i32.lt_s (local.get $start/i) (i32.const 0))
-                (then (call $raise-argument-error/internal (local.get $start))
+                (then (call $raise-argument-error1
+                            (global.get $symbol:flbit-field)
+                            (global.get $string:flbit-field:index)
+                            (local.get $start))
                       (unreachable)))
             (if (i32.lt_s (local.get $end/i) (i32.const 0))
-                (then (call $raise-argument-error/internal (local.get $end))
+                (then (call $raise-argument-error1
+                            (global.get $symbol:flbit-field)
+                            (global.get $string:flbit-field:index)
+                            (local.get $end))
                       (unreachable)))
             (if (i32.gt_u (local.get $start/i) (i32.const 64))
-                (then (call $raise-argument-error/internal (local.get $start))
+                (then (call $raise-argument-error1
+                            (global.get $symbol:flbit-field)
+                            (global.get $string:flbit-field:index)
+                            (local.get $start))
                       (unreachable)))
             (if (i32.gt_u (local.get $end/i) (i32.const 64))
-                (then (call $raise-argument-error/internal (local.get $end))
+                (then (call $raise-argument-error1
+                            (global.get $symbol:flbit-field)
+                            (global.get $string:flbit-field:index)
+                            (local.get $end))
                       (unreachable)))
             (if (i32.lt_s (local.get $end/i) (local.get $start/i))
-                (then (call $raise-argument-error/internal (local.get $end))
+                (then (call $raise-arguments-error
+                            (global.get $symbol:flbit-field)
+                            (global.get $string:flbit-field:start<=end)
+                            (array.new_fixed $Args 0))
                       (unreachable)))
 
             ;; Compute mask for requested width
@@ -837,7 +855,10 @@
 
             ;; Enforce fixnum-sized result (no bignum support yet)
             (if (i64.gt_u (local.get $result64) (i64.const 536870911))
-                (then (call $raise-argument-error/internal (local.get $a))
+                (then (call $raise-arguments-error
+                            (global.get $symbol:flbit-field)
+                            (global.get $string:flbit-field:outside-fixnum)
+                            (array.new_fixed $Args 0))
                       (unreachable)))
 
             (local.set $result/i32 (i32.wrap_i64 (local.get $result64)))

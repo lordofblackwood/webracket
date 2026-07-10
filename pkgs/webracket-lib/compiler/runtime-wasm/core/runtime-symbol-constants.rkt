@@ -57,6 +57,8 @@
                   logger-runtime-symbol-constants)
          (only-in "namespaces.rkt"
                   namespace-runtime-symbol-constants)
+         (only-in "numbers.rkt"
+                  number-runtime-symbol-constants)
          (only-in "parameters.rkt"
                   parameter-runtime-symbol-constants)
          (only-in "paths.rkt"
@@ -125,6 +127,7 @@
           system-runtime-symbol-constants
           linklet-runtime-symbol-constants
           multiple-value-runtime-symbol-constants
+          number-runtime-symbol-constants
           list-runtime-symbol-constants
           fixnum-runtime-symbol-constants
           flonum-runtime-symbol-constants
