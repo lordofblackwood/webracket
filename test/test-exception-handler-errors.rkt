@@ -15,6 +15,36 @@
                  needles))))
 
 (list
+ (list "raise-argument-error positional messages are catchable"
+       (and
+        (catch-contract/contains?
+         (lambda () (raise-argument-error 'demo "number?" #f))
+         "demo"
+         "expected: number?"
+         "given: #f")
+        (catch-contract/contains?
+         (lambda () (raise-argument-error 'demo "number?" 0 #f))
+         "demo"
+         "expected: number?"
+         "given: #f"
+         "argument position: 1st")
+        (catch-contract/contains?
+         (lambda () (raise-argument-error 'demo "number?" 1 #f 'a))
+         "demo"
+         "expected: number?"
+         "given: 'a"
+         "argument position: 2nd"
+         "other arguments..."
+         "#f")
+        (catch-contract/contains?
+         (lambda () (raise-argument-error 'demo "number?" 2 #f 'a 'b))
+         "demo"
+         "expected: number?"
+         "given: 'b"
+         "argument position: 3rd"
+         "other arguments..."
+         "#f"
+         "'a")))
  (list "call-with-exception-handler procedure errors are catchable"
        (and
         (catch-contract/contains?

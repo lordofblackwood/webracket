@@ -33,6 +33,13 @@
     (catch*-matching-lengths "same number of handlers as predicates")
     (filesystem-errno "(cons/c exact-integer? (or/c 'posix 'windows 'gai))")
     (valid-argument "valid argument")
+    (argument-position-prefix "\n  argument position: ")
+    (argument-position-st "st")
+    (argument-position-nd "nd")
+    (argument-position-rd "rd")
+    (argument-position-th "th")
+    (other-arguments-prefix "\n  other arguments...:")
+    (other-argument-line "\n   ")
     (uncaught-exception "uncaught exception: ")))
 
 ;; exception-runtime-symbol-constants : (listof symbol?)
@@ -4351,11 +4358,108 @@
                      (global.get $string:valid-argument)
                      (local.get $x)))
 
+         (func $raise-argument-error/position
+               (param $who       (ref eq))
+               (param $expected  (ref eq))
+               (param $pos       i32)
+               (param $got       (ref eq))
+               (param $rest-args (ref $Args))
+
+               (local $out           (ref $GrowableArray))
+               (local $message       (ref $String))
+               (local $argument-no   i32)
+               (local $argument-mod10 i32)
+               (local $argument-mod100 i32)
+               (local $len           i32)
+               (local $i             i32)
+
+               (local.set $out
+                          (call $make-growable-array (i32.const 16)))
+               (call $growable-array-add! (local.get $out)
+                     (call $format/display (local.get $who)))
+               (call $growable-array-add! (local.get $out)
+                     (global.get $string:contract-violation:prefix))
+               (call $growable-array-add! (local.get $out)
+                     (ref.cast (ref $String) (local.get $expected)))
+               (call $growable-array-add! (local.get $out)
+                     (global.get $string:arity-error:given))
+               (call $growable-array-add! (local.get $out)
+                     (call $format/print
+                           (local.get $got)
+                           (global.get $missing)))
+               (call $growable-array-add! (local.get $out)
+                     (global.get $string:argument-position-prefix))
+               (local.set $argument-no (i32.add (local.get $pos) (i32.const 1)))
+               (call $growable-array-add! (local.get $out)
+                     (call $format/display
+                           (ref.i31 (i32.shl (local.get $argument-no) (i32.const 1)))))
+               (local.set $argument-mod100
+                          (i32.rem_s (local.get $argument-no) (i32.const 100)))
+               (local.set $argument-mod10
+                          (i32.rem_s (local.get $argument-no) (i32.const 10)))
+               (if (i32.and
+                    (i32.ge_s (local.get $argument-mod100) (i32.const 11))
+                    (i32.le_s (local.get $argument-mod100) (i32.const 13)))
+                   (then
+                    (call $growable-array-add! (local.get $out)
+                          (global.get $string:argument-position-th)))
+                   (else
+                    (if (i32.eq (local.get $argument-mod10) (i32.const 1))
+                        (then
+                         (call $growable-array-add! (local.get $out)
+                               (global.get $string:argument-position-st)))
+                        (else
+                         (if (i32.eq (local.get $argument-mod10) (i32.const 2))
+                             (then
+                              (call $growable-array-add! (local.get $out)
+                                    (global.get $string:argument-position-nd)))
+                             (else
+                              (if (i32.eq (local.get $argument-mod10) (i32.const 3))
+                                  (then
+                                   (call $growable-array-add! (local.get $out)
+                                         (global.get $string:argument-position-rd)))
+                                  (else
+                                   (call $growable-array-add! (local.get $out)
+                                         (global.get $string:argument-position-th))))))))))
+               (local.set $len (array.len (local.get $rest-args)))
+               (if (i32.gt_u (local.get $len) (i32.const 1))
+                   (then
+                    (call $growable-array-add! (local.get $out)
+                          (global.get $string:other-arguments-prefix))
+                    (local.set $i (i32.const 0))
+                    (block $done
+                           (loop $loop
+                                 (br_if $done
+                                        (i32.ge_u (local.get $i) (local.get $len)))
+                                 (if (i32.ne (local.get $i) (local.get $pos))
+                                     (then
+                                      (call $growable-array-add! (local.get $out)
+                                            (global.get $string:other-argument-line))
+                                      (call $growable-array-add! (local.get $out)
+                                            (call $format/print
+                                                  (array.get $Args
+                                                             (local.get $rest-args)
+                                                             (local.get $i))
+                                                  (global.get $missing)))))
+                                 (local.set $i
+                                            (i32.add (local.get $i) (i32.const 1)))
+                                 (br $loop)))))
+               (local.set $message
+                          (call $growable-array-of-strings->string (local.get $out)))
+
+               (call $raise
+                     (call $exn:fail:contract/make
+                           (local.get $message)
+                           (call $current-continuation-marks
+                                 (global.get $missing)))
+                     (global.get $true))
+               (unreachable))
+
          ;; raise-argument-error : symbol? string? any/c any/c ... -> none
          ;;   Public primitive used by compiled library code to report
          ;;   contract violations. In the optional variant, the third argument
-         ;;   is the bad argument position and the actual bad value is the
-         ;;   first rest argument; extra values are currently ignored.
+         ;;   is the zero-based bad argument position and the rest arguments
+         ;;   are the full argument list.
          (func $raise-argument-error (type $Prim>=3)
                (param $who      (ref eq)) ;; symbol?
                (param $expected (ref eq)) ;; string?
@@ -4364,15 +4468,47 @@
                (result          (ref eq)) ;; unreachable
                (local $got      (ref eq))
                (local $rest-args (ref $Args))
+               (local $pos      i32)
                (local.set $got (local.get $third))
                (if (ref.test (ref $Args) (local.get $rest))
                    (then
                     (local.set $rest-args (ref.cast (ref $Args) (local.get $rest)))
                     (if (i32.gt_u (array.len (local.get $rest-args)) (i32.const 0))
-                        (then (local.set $got
+                        (then
+                         (if (i32.eqz (call $fx?/i32 (local.get $third)))
+                             (then (call $raise-argument-error1
+                                         (local.get $who)
+                                         (local.get $expected)
                                          (array.get $Args
                                                     (local.get $rest-args)
-                                                    (i32.const 0)))))))
+                                                    (i32.const 0)))
+                                   (unreachable)))
+                         (local.set $pos
+                                    (i32.shr_s
+                                     (i31.get_s (ref.cast (ref i31) (local.get $third)))
+                                     (i32.const 1)))
+                         (if (i32.or
+                              (i32.lt_s (local.get $pos) (i32.const 0))
+                              (i32.ge_u (local.get $pos)
+                                        (array.len (local.get $rest-args))))
+                             (then (call $raise-argument-error1
+                                         (local.get $who)
+                                         (local.get $expected)
+                                         (array.get $Args
+                                                    (local.get $rest-args)
+                                                    (i32.const 0)))
+                                   (unreachable)))
+                         (local.set $got
+                                    (array.get $Args
+                                               (local.get $rest-args)
+                                               (local.get $pos)))
+                         (call $raise-argument-error/position
+                               (local.get $who)
+                               (local.get $expected)
+                               (local.get $pos)
+                               (local.get $got)
+                               (local.get $rest-args))
+                         (unreachable)))))
                (call $raise-argument-error1
                      (local.get $who)
                      (local.get $expected)
