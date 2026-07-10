@@ -39,6 +39,12 @@
         "sync/timeout"
         "(or/c #f (and/c real? (not/c negative?)) (-> any))"
         "given: 'bad"))
+ (list "sync/timeout rejects non-thunk timeout procedures with who"
+       (catch-contract/contains?
+        (lambda () (sync/timeout (lambda (x) 0) always-evt))
+        "sync/timeout"
+        "(or/c #f (and/c real? (not/c negative?)) (-> any))"
+        "given:"))
  (list "handle-evt rejects non-procedures with who"
        (catch-contract/contains?
         (lambda () (handle-evt always-evt 42))

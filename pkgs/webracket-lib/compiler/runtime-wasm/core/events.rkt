@@ -442,6 +442,17 @@
                                        (global.get $symbol:sync/timeout)
                                        (global.get $string:sync-timeout-contract)
                                        (local.get $timeout))
+                                 (unreachable)))))
+                  (if (ref.test (ref $Procedure) (local.get $timeout))
+                      (then
+                       (if (i32.eqz
+                            (call $procedure-arity-includes?/checked/i32
+                                  (ref.cast (ref $Procedure) (local.get $timeout))
+                                  (i32.const 0)))
+                           (then (call $raise-argument-error1
+                                       (global.get $symbol:sync/timeout)
+                                       (global.get $string:sync-timeout-contract)
+                                       (local.get $timeout))
                                  (unreachable)))))))
 
              (local.set $node (local.get $events))
