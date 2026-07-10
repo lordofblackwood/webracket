@@ -272,22 +272,37 @@
     values
     void))
 
+;; primitive-finite-rest-list-wrappers : (listof (list/c symbol? exact-nonnegative-integer? exact-nonnegative-integer? exact-nonnegative-integer?))
+;;   Primitives whose reflected arity is a finite optional range, but whose
+;;   runtime entry point uses mandatory arguments plus one rest-list argument.
+(define primitive-finite-rest-list-wrappers
+  '((bytes-convert 2 7 32)))
+
+;; primitive-finite-rest-list-shape : symbol? any/c -> (or/c exact-nonnegative-integer? #f)
+;;   Return the specialized finite-arity rest-list invoker shape, if any.
+(define (primitive-finite-rest-list-shape pr arity)
+  (for/first ([entry (in-list primitive-finite-rest-list-wrappers)]
+              #:when (and (eq? pr (first entry))
+                          (arity-range? arity (second entry) (third entry))))
+    (fourth entry)))
+
 ;; primitive-shapes : (listof exact-nonnegative-integer?)
 ;;   Enumerate primitive invoker shapes emitted by the runtime.
 (define primitive-shapes
-  '(0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31))
+  '(0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32))
 
 ;; primitive-arity->shape : symbol? any/c -> (or/c exact-nonnegative-integer? #f)
 ;;   Select the primitive invoker shape for a primitive name and arity.
 (define (primitive-arity->shape pr arity)
-  (let ([base (arity->shape arity)])
-    (and base
-         (cond
-           [(= base 30)
-            (if (memq pr primitive-variadic-args) 31 base)]
-           [(>= base 6)
-            (if (memq pr primitive-variadic-args) (+ base 4) base)]
-           [else base]))))
+  (or (primitive-finite-rest-list-shape pr arity)
+      (let ([base (arity->shape arity)])
+        (and base
+             (cond
+               [(= base 30)
+                (if (memq pr primitive-variadic-args) 31 base)]
+               [(>= base 6)
+                (if (memq pr primitive-variadic-args) (+ base 4) base)]
+               [else base])))))
 
 ;; shape->invoker : exact-nonnegative-integer? -> symbol?
 ;;   Return the primitive invoker function name for shape.
@@ -325,6 +340,7 @@
     [29 'primitive-invoke:shape-29]
     [30 'primitive-invoke:shape-30]
     [31 'primitive-invoke:shape-31]
+    [32 'primitive-invoke:shape-32]
     [_  'primitive-invoke]))
 
 ;; procedure-primitive-global-forms : (listof symbol?) -> (listof datum?)
@@ -991,6 +1007,25 @@
                 (else (return (call $raise-code-type-mismatch (local.get $pproc))))))
            (else (return (call $primitive-invoke:raise-arity-error
                                (local.get $pproc) (local.get $argc)))))
+       (unreachable))]
+    [32 ; between 2 and 7 arguments, rest arguments as list
+     `((if (i32.lt_u (local.get $argc) (i32.const 2))
+           (then (return (call $primitive-invoke:raise-arity-error
+                               (local.get $pproc) (local.get $argc)))))
+       (if (i32.gt_u (local.get $argc) (i32.const 7))
+           (then (return (call $primitive-invoke:raise-arity-error
+                               (local.get $pproc) (local.get $argc)))))
+       (if (ref.test (ref $Prim>=2) (local.get $code))
+           (then (local.set $rest
+                            (call $rest-arguments->list
+                                  (local.get $args)
+                                  (i32.const 2)))
+                 (return_call_ref $Prim>=2
+                                  (local.get $a0)
+                                  (local.get $a1)
+                                  (local.get $rest)
+                                  (ref.cast (ref $Prim>=2) (local.get $code))))
+           (else (return (call $raise-code-type-mismatch (local.get $pproc)))))
        (unreachable))]
     [_ (error 'primitive-invoker-tail "unknown shape: ~a" shape)]))
 
@@ -2174,11 +2209,12 @@
                                           (then (local.set $rest
                                                            (call $rest-arguments->list
                                                                  (local.get $args)
-                                                                 (i32.const 1))))
-                                          (else (return_call_ref $Prim>=1
+                                                                 (i32.const 1)))
+                                                (return_call_ref $Prim>=1
                                                                  (local.get $a0)
                                                                  (local.get $rest)
-                                                                 (ref.cast (ref $Prim>=1) (local.get $code))))))
+                                                                 (ref.cast (ref $Prim>=1) (local.get $code))))
+                                          (else (return (call $raise-code-type-mismatch (local.get $pproc))))))
                                 (else (return (call $primitive-invoke:raise-arity-error
                                                     (local.get $pproc) (local.get $argc))))
                           )) ;; end $L8
@@ -2188,12 +2224,13 @@
                                         (then (local.set $rest
                                                          (call $rest-arguments->list
                                                                (local.get $args)
-                                                               (i32.const 2))))
-                                        (else (return_call_ref $Prim>=2
+                                                               (i32.const 2)))
+                                              (return_call_ref $Prim>=2
                                                                (local.get $a0)
                                                                (local.get $a1)
                                                                (local.get $rest)
-                                                               (ref.cast (ref $Prim>=2) (local.get $code))))))
+                                                               (ref.cast (ref $Prim>=2) (local.get $code))))
+                                        (else (return (call $raise-code-type-mismatch (local.get $pproc))))))
                               (else (return (call $primitive-invoke:raise-arity-error
                                                   (local.get $pproc) (local.get $argc))))
                         )) ;; end $L9
@@ -2203,13 +2240,14 @@
                                       (then (local.set $rest
                                                        (call $rest-arguments->list
                                                              (local.get $args)
-                                                             (i32.const 3))))
-                                      (else (return_call_ref $Prim>=3
+                                                             (i32.const 3)))
+                                            (return_call_ref $Prim>=3
                                                              (local.get $a0)
                                                              (local.get $a1)
                                                              (local.get $a2)
                                                              (local.get $rest)
-                                                             (ref.cast (ref $Prim>=3) (local.get $code))))))
+                                                             (ref.cast (ref $Prim>=3) (local.get $code))))
+                                      (else (return (call $raise-code-type-mismatch (local.get $pproc))))))
                             (else (return (call $primitive-invoke:raise-arity-error
                                                     (local.get $pproc) (local.get $argc))))
                       )) ;; end $L10
@@ -3815,7 +3853,9 @@
   (check-equal? (primitive-arity->shape 'values (arity-at-least 0)) 10)
   (check-equal? (primitive-arity->shape 'apply (arity-at-least 0)) 6)
   (check-equal? (primitive-arity->shape 'void (arity-at-least 4)) 31)
+  (check-equal? (primitive-arity->shape 'bytes-convert '(2 3 4 5 6 7)) 32)
   (check-equal? (shape->invoker 31) 'primitive-invoke:shape-31)
+  (check-equal? (shape->invoker 32) 'primitive-invoke:shape-32)
   (check-equal? (arity->procedure-field-expr 2) (Imm 2))
   (check-equal? (arity->procedure-field-expr '(0 2))
                 '(ref.cast (ref eq)
@@ -3860,6 +3900,12 @@
            (local.get $args)
            (i32.const 4))
     (second invoker-forms)))
+  (check-true
+   (tree-member?
+    '(call $rest-arguments->list
+           (local.get $args)
+           (i32.const 2))
+    (primitive-invoker 32)))
   (check-exn exn:fail?
              (lambda ()
                (primitive-invoker-tail 99)))

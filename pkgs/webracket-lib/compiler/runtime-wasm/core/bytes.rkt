@@ -914,7 +914,10 @@
                            (local.get $converter-raw))
                      (unreachable)))
            (if (i32.eqz (ref.test (ref $Bytes) (local.get $src-raw)))
-               (then (call $raise-check-bytes (local.get $src-raw)) (unreachable)))
+               (then (call $raise-check-bytes/who
+                           (global.get $symbol:bytes-convert)
+                           (local.get $src-raw))
+                     (unreachable)))
            (local.set $src (ref.cast (ref $Bytes) (local.get $src-raw)))
            (local.set $src-start (ref.i31 (i32.const 0)))
            (local.set $src-end
@@ -958,7 +961,10 @@
                                   (ref.i31 (i32.shl (local.get $read-count) (i32.const 1)))
                                   (global.get $symbol:complete)))))
            (if (i32.eqz (ref.test (ref $Bytes) (local.get $dest-raw)))
-               (then (call $raise-check-bytes (local.get $dest-raw)) (unreachable)))
+               (then (call $raise-check-bytes/who
+                           (global.get $symbol:bytes-convert)
+                           (local.get $dest-raw))
+                     (unreachable)))
            (drop (call $bytes-copy!
                        (local.get $dest-raw)
                        (local.get $dest-start)

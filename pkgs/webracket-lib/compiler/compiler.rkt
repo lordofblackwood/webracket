@@ -1097,15 +1097,27 @@
 
 ;; primitive-tail-call-args : symbol? (listof any/c) -> (listof any/c)
 ;;   Adjust primitive tail-call arguments for direct Wasm `return_call`.
-;;   `optional-rest` primitives are already bundled by the ordinary inline
-;;   path, so re-running `primitive-direct-call-args` would wrap the rest
-;;   list a second time.
+;;   Rest-style primitives are already bundled by the ordinary inline path, so
+;;   re-running `primitive-direct-call-args` would wrap or pad the rest argument
+;;   a second time.
 (define (primitive-tail-call-args sym args)
   (define spec (primitive-inline-spec-ref sym))
   (if (and spec
-           (eq? (primitive-inline-spec-kind spec) 'optional-rest))
+           (memq (primitive-inline-spec-kind spec)
+                 '(optional-rest variadic variadic-args)))
       args
       (primitive-direct-call-args sym args)))
+
+(module+ test
+  (check-equal? (primitive-tail-call-args 'bytes-convert
+                                          '(converter source rest))
+                '(converter source rest))
+  (check-equal? (primitive-tail-call-args 'bytes-convert-end
+                                          '(converter))
+                '(converter
+                  (global.get $missing)
+                  (global.get $missing)
+                  (global.get $missing))))
 
 
 ;;;

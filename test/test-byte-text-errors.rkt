@@ -103,5 +103,41 @@
             "bytes-convert-end"
             "bytes?"
             "given: 'bad"))))
+ (list "bytes-convert byte-string errors are catchable with who"
+       (let ([catch-contract/contains?
+              (lambda (thunk . needles)
+                (let ([message
+                       (with-handlers ([exn:fail:contract?
+                                        (lambda (exn)
+                                          (exn-message exn))])
+                         (thunk)
+                         #f)])
+                  (and message
+                       (andmap (lambda (needle)
+                                 (string-contains? message needle))
+                               needles))))])
+         (let ([converter (bytes-open-converter "UTF-8" "UTF-8")])
+           (and
+            (catch-contract/contains?
+             (lambda () (bytes-convert converter 'bad))
+             "bytes-convert"
+             "bytes?"
+             "given: 'bad")
+            (catch-contract/contains?
+             (lambda () ((lambda (f c) (f c 'bad)) bytes-convert converter))
+             "bytes-convert"
+             "bytes?"
+             "given: 'bad")
+            (catch-contract/contains?
+             (lambda () (bytes-convert converter #"abc" 0 3 'bad))
+             "bytes-convert"
+             "bytes?"
+             "given: 'bad")))))
+ (list "bytes-convert success still works"
+       (let ([converter (bytes-open-converter "UTF-8" "UTF-8")])
+         (let-values ([(out read status) (bytes-convert converter #"abc")])
+           (and (equal? out #"abc")
+                (equal? read 3)
+                (equal? status 'complete)))))
  (list "bytes-open-converter success still works"
        (bytes-converter? (bytes-open-converter "UTF-8" "UTF-8"))))

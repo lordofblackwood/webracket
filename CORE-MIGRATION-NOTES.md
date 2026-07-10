@@ -58,11 +58,17 @@ Current remaining raw-stub classes:
     `exn:fail:out-of-memory`, since the live callers are shared linear-memory
     staging buffers used by FFI and filesystem bridges. `$bomb` now raises a
     catchable internal contract error.
-  - `bytes-convert` appears to have a separate public calling-convention issue:
-    a direct no-stdlib probe of `(bytes-convert converter 'bad)` reached the
-    runtime with `#<missing>` as the converter argument and reported
-    `bytes-converter?`. Fix that as its own slice before polishing its
-    byte-string argument errors.
+  - `bytes-convert` exposed a fallback `$primitive-invoke` bug for at-least
+    list-rest primitive shapes: the at-least-1, at-least-2, and at-least-3
+    branches built `$rest` on a successful type test but performed the
+    `return_call_ref` in the failure branch. First-class calls could therefore
+    trap with an illegal cast instead of reaching the primitive contract error.
+    It also exposed a tail-call emission bug: variadic primitives are already
+    lowered to mandatory arguments plus one rest argument, so direct
+    `return_call` generation must not re-pad those calls with `$missing`.
+    The first-class primitive object also needs a finite-arity/rest-list
+    invoker shape because Racket reports `bytes-convert` as accepting 2 through
+    7 arguments while WebRacket's runtime entry is `$Prim>=2` with a rest list.
 
 - `formatting.rkt` and struct formatting:
   - Formatter fallback stubs are not all ordinary contract errors. For some
