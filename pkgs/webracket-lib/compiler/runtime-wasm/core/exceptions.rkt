@@ -242,7 +242,6 @@
 ;;   Enumerate early error helpers used before the main exception section.
 (define bootstrap-error-runtime-only-forms
   '(
-         (func $raise-expected-string                 (unreachable))
          (func $raise-unexpected-argument
                (param $bad (ref eq))
                (call $raise-argument-error1

@@ -50,7 +50,8 @@
 ;;   Declare symbols used by FASL helpers.
 (define fasl-runtime-symbol-constants
   '(s-exp->fasl
-    fasl->s-exp))
+    fasl->s-exp
+    linear-memory->string))
 
 ;; fasl-runtime-string-constants : (listof (list/c symbol? string?))
 ;;   Declare string constants used by FASL helpers.
@@ -1052,7 +1053,10 @@
 
           (local.set $v (call $linear-memory->value (local.get $start)))
           (if (i32.eqz (ref.test (ref $String) (local.get $v)))
-              (then (call $raise-expected-string)
+              (then (call $raise-argument-error1
+                          (global.get $symbol:linear-memory->string)
+                          (global.get $string:string?)
+                          (local.get $v))
                     (unreachable)))
           (return (ref.cast (ref $String) (local.get $v))))))
 

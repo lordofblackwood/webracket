@@ -66,6 +66,7 @@
     (substring:starting-index "\n  starting index: ")
     (substring:ending-index "\n  ending index: ")
     (string-utf8:byte-string "\n  byte string: ")
+    (string-buffer-overflow "WebRacket linear-memory buffer is too small")
     (listof-string? "(listof string?)")
     (string-or-bytes "(or/c string? bytes?)")))
 
@@ -4643,7 +4644,14 @@
   (function-forms->runtime-helpers
    'string-buffer-error-runtime-only-helpers
    '(
-         (func $raise-string-buffer-overflow (unreachable))
+         (func $raise-string-buffer-overflow
+               (drop (call $raise
+                           (call $make-exn:fail:out-of-memory
+                                 (global.get $string:string-buffer-overflow)
+                                 (call $current-continuation-marks
+                                       (global.get $missing)))
+                           (global.get $true)))
+               (unreachable))
      )))
 
 ;; string-runtime-only-helpers : (listof core-runtime-helper?)
