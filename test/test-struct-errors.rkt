@@ -375,9 +375,12 @@
  (list "struct field accessor/mutator range and call errors are catchable"
        (let-values ([(pst make-p p? p-ref p-set!)
                      (make-struct-type 'p #f 2 0 #f null #f #f (list 0))]
+                    [(qst make-q q? q-ref q-set!)
+                     (make-struct-type 'q #f 1 0)]
                     [(zst make-z z? z-ref z-set!)
                      (make-struct-type 'z #f 0 0)])
-         (let ([p (make-p 10 20)])
+         (let ([p (make-p 10 20)]
+               [q (make-q 99)])
            (list
             (catch-contract/contains?
              (lambda () (make-struct-field-accessor p-ref 2))
@@ -403,6 +406,68 @@
              "index too large"
              "no fields accessible"
              "index: 0")
+            (let ([p-field0 (make-struct-field-accessor p-ref 0)])
+              (list
+               (= (p-field0 p) 10)
+               (catch-contract/contains?
+                (lambda () (p-field0 42))
+                "p-field0"
+                "p?"
+                "given: 42")
+               (catch-contract/contains?
+                (lambda () (p-field0 q))
+                "p-field0"
+                "p?")))
+            (let ([field (make-struct-field-accessor p-ref 0 'field "custom-contract")])
+              (catch-contract/contains?
+               (lambda () (field 42))
+               "field"
+               "custom-contract"
+               "given: 42"))
+            (let ([field (make-struct-field-accessor p-ref 0 'field 'contract-symbol)])
+              (catch-contract/contains?
+               (lambda () (field 42))
+               "field"
+               "contract-symbol"
+               "given: 42"))
+            (let ([accessor (make-struct-field-accessor p-ref 0 #f "custom-contract")])
+              (catch-contract/contains?
+               (lambda () (accessor 42))
+               "accessor"
+               "custom-contract"
+               "given: 42"))
+            (let ([set-p-field1! (make-struct-field-mutator p-set! 1)])
+              (list
+               (begin
+                 (set-p-field1! p 30)
+                 (= (p-ref p 1) 30))
+               (catch-contract/contains?
+                (lambda () (set-p-field1! 42 9))
+                "set-p-field1!"
+                "p?"
+                "given: 42")
+               (catch-contract/contains?
+                (lambda () (set-p-field1! q 9))
+                "set-p-field1!"
+                "p?")))
+            (let ([field (make-struct-field-mutator p-set! 1 'field "custom-contract")])
+              (catch-contract/contains?
+               (lambda () (field 42 9))
+               "field"
+               "custom-contract"
+               "given: 42"))
+            (let ([field (make-struct-field-mutator p-set! 1 'field 'contract-symbol)])
+              (catch-contract/contains?
+               (lambda () (field 42 9))
+               "field"
+               "contract-symbol"
+               "given: 42"))
+            (let ([mutator (make-struct-field-mutator p-set! 1 #f "custom-contract")])
+              (catch-contract/contains?
+               (lambda () (mutator 42 9))
+               "mutator"
+               "custom-contract"
+               "given: 42"))
             (let ([set-p-field0! (make-struct-field-mutator p-set! 0)])
               (catch-contract/contains?
                (lambda () (set-p-field0! p 9))

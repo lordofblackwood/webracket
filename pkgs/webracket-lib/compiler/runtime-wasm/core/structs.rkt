@@ -139,6 +139,7 @@
     make-struct-type-property
     make-struct-field-accessor
     make-struct-field-mutator
+    accessor
     mutator
     error
     return-false
@@ -5146,15 +5147,17 @@
            (param $std            (ref $StructType))
            (param $super-count-fx (ref eq)) ;; fixnum
            (param $index-fx       (ref eq)) ;; fixnum
+           (param $expected-contract (ref eq)) ;; string expected for target errors
            (param $name           (ref eq)) ;; symbol used for object-name
            (param $realm          (ref eq)) ;; procedure realm symbol
            (result                (ref eq)) ;; returns closure
 
            (local $free (ref $Free))
-           (local.set $free (array.new_fixed $Free 3
+           (local.set $free (array.new_fixed $Free 4
                                              (local.get $std)
                                              (local.get $super-count-fx)
-                                             (local.get $index-fx)))
+                                             (local.get $index-fx)
+                                             (local.get $expected-contract)))
            (struct.new $StructMutatorProcedure
                        (i32.const 0)               ; hash
                        (local.get $name)           ; name:  #f or $Symbol
@@ -5175,6 +5178,7 @@
            (local $std            (ref $StructType)) ; free[0]
            (local $super-count-fx (ref eq))          ; free[1]
            (local $index-fx       (ref eq))          ; free[2]
+           (local $expected-contract (ref eq))        ; free[3]
            (local $super-count    i32)
            (local $index          i32)
 
@@ -5193,6 +5197,7 @@
                                                 (array.get $Free (local.get $free) (i32.const 0))))
            (local.set $super-count-fx (array.get $Free (local.get $free) (i32.const 1)))
            (local.set $index-fx       (array.get $Free (local.get $free) (i32.const 2)))
+           (local.set $expected-contract (array.get $Free (local.get $free) (i32.const 3)))
            (local.set $super-count    (i32.shr_u
                                        (i31.get_u (ref.cast (ref i31) (local.get $super-count-fx)))
                                        (i32.const 1)))
@@ -5204,9 +5209,9 @@
            ;; --- Get arguments ---
            (local.set $target (array.get $Args (local.get $args) (i32.const 0)))
            (if (i32.eqz (ref.test (ref $Struct) (local.get $target)))
-               (then (call $raise-struct-mutator:target
+               (then (call $raise-argument-error1
                            (local.get $who)
-                           (local.get $std)
+                           (local.get $expected-contract)
                            (local.get $target))))
            (local.set $struct (ref.cast (ref $Struct) (local.get $target)))
 
@@ -5217,9 +5222,9 @@
            (if (i32.eqz (call $struct-type-is-a?/i32
                               (struct.get $Struct $type (local.get $struct))
                               (local.get $std)))
-               (then (call $raise-struct-mutator:target
+               (then (call $raise-argument-error1
                            (local.get $who)
-                           (local.get $std)
+                           (local.get $expected-contract)
                            (local.get $target))))
 
            ;; --- Set field ---
@@ -5334,6 +5339,7 @@
            (local $name             (ref eq))
            (local $realm-checked    (ref eq))
            (local $arg-contract     (ref eq))
+           (local $expected-contract (ref eq))
            (local $combine?         i32)
            (local $field-pos        i32)
 
@@ -5412,6 +5418,18 @@
            (if (i32.eqz (ref.test (ref $Symbol) (local.get $realm-checked)))
                (then (call $raise-make-struct-field-mutator:realm
                            (local.get $realm-checked))))
+           (local.set $expected-contract
+                      (if (result (ref eq))
+                          (ref.eq (local.get $arg-contract) (global.get $false))
+                          (then (call $struct-type-predicate-name-string (local.get $std)))
+                          (else
+                           (if (result (ref eq))
+                               (ref.test (ref $Symbol) (local.get $arg-contract))
+                               (then
+                                (call $symbol->immutable-string
+                                      (ref.cast (ref $Symbol)
+                                                (local.get $arg-contract))))
+                               (else (local.get $arg-contract))))))
 
            ;; --- Determine procedure name ---
            (local.set $name (global.get $symbol:mutator))
@@ -5479,6 +5497,7 @@
                  (local.get $std)
                  (local.get $super-count-fx)
                  (local.get $field-pos-fx)
+                 (local.get $expected-contract)
                  (local.get $name)
                  (local.get $realm-checked)))
      )))
@@ -5639,6 +5658,7 @@
            (local $field-index          i32)
            (local $field-name           (ref eq))
            (local $contract-checked     (ref eq))
+           (local $expected-contract    (ref eq))
            (local $realm-checked        (ref eq))
 
            ;; --- Type checks ---
@@ -5713,12 +5733,27 @@
                            (local.get $field-index)
                            (local.get $accessible-count))))
            (local.set $struct-name (struct.get $StructType $name (local.get $std)))
+           (local.set $expected-contract
+                      (if (result (ref eq))
+                          (ref.eq (local.get $contract-checked) (global.get $false))
+                          (then (call $struct-type-predicate-name-string (local.get $std)))
+                          (else
+                           (if (result (ref eq))
+                               (ref.test (ref $Symbol) (local.get $contract-checked))
+                               (then
+                                (call $symbol->immutable-string
+                                      (ref.cast (ref $Symbol)
+                                                (local.get $contract-checked))))
+                               (else (local.get $contract-checked))))))
            (local.set $field-accessor-name
                       (if (result (ref eq))
-                          (i32.or (ref.eq (local.get $struct-name) (global.get $false))
-                                  (ref.eq (local.get $field-name) (global.get $false)))
-                          (then (global.get $false))
-                          (else (call $string->symbol
+                          (ref.eq (local.get $field-name) (global.get $false))
+                          (then (global.get $symbol:accessor))
+                          (else
+                           (if (result (ref eq))
+                               (ref.eq (local.get $contract-checked) (global.get $false))
+                               (then
+                                (call $string->symbol
                                       (call $string-append/2
                                             (call $string-append/2
                                                   (call $symbol->string
@@ -5727,11 +5762,14 @@
                                                   (call $codepoint->string (i32.const 45)))
                                             (call $symbol->string
                                                   (ref.cast (ref $Symbol)
-                                                            (local.get $field-name))))))))
+                                                            (local.get $field-name))))))
+                               (else (local.get $field-name))))))
            ;; --- Build Free vector ---
-           (local.set $free (array.new_fixed $Free 2
-                                             (local.get $accessor-proc)
-                                             (local.get $field-index-fx)))
+           (local.set $free (array.new_fixed $Free 4
+                                             (local.get $std)
+                                             (local.get $super-count-fx)
+                                             (local.get $field-index-fx)
+                                             (local.get $expected-contract)))
            ;; --- Return closure ---
            (struct.new $Closure
                        (i32.const 0)                     ; hash
@@ -5744,38 +5782,56 @@
                        (local.get $free)))
 
      (func $struct-field-accessor/specialized
-           ;; TODO: This just calls the generic accessor.
-           ;;       Making a specialized accessor ought to be more efficient.
            (type $ClosureCode)
            (param $clos (ref $Closure))
            (param $args (ref $Args))
            (result      (ref eq))
 
-           (local $free      (ref $Free))
-           (local $accessor  (ref $Closure)) ;; free[0] generic accessor
-           (local $field-idx (ref eq))       ;; free[1] field-pos as fixnum
+           (local $free              (ref $Free))
+           (local $std               (ref $StructType))
+           (local $super-count-fx    (ref eq))
+           (local $field-index-fx    (ref eq))
+           (local $expected-contract (ref eq))
+           (local $super-count       i32)
+           (local $field-index       i32)
+           (local $target            (ref eq))
+           (local $struct            (ref $Struct))
+           (local $fields            (ref $Array))
+           (local $who               (ref eq))
 
-           (local $struct    (ref eq))       ;; args[0]
+           (local.set $free              (struct.get $Closure $free (local.get $clos)))
+           (local.set $who               (struct.get $Closure $name (local.get $clos)))
+           (local.set $std               (ref.cast (ref $StructType)
+                                                   (array.get $Free (local.get $free) (i32.const 0))))
+           (local.set $super-count-fx    (array.get $Free (local.get $free) (i32.const 1)))
+           (local.set $field-index-fx    (array.get $Free (local.get $free) (i32.const 2)))
+           (local.set $expected-contract (array.get $Free (local.get $free) (i32.const 3)))
+           (local.set $super-count
+                      (i32.shr_u (i31.get_u
+                                  (ref.cast (ref i31) (local.get $super-count-fx)))
+                                 (i32.const 1)))
+           (local.set $field-index
+                      (i32.shr_u (i31.get_u
+                                  (ref.cast (ref i31) (local.get $field-index-fx)))
+                                 (i32.const 1)))
 
-           (local $args2     (ref $Args))    ;; new arguments used to call the generic accessor
-
-           ;; Unpack free vars
-           (local.set $free       (struct.get $Closure $free (local.get $clos)))
-           (local.set $accessor   (ref.cast (ref $Closure)
-                                            (array.get $Free (local.get $free) (i32.const 0))))
-           (local.set $field-idx            (array.get $Free (local.get $free) (i32.const 1)))
-           ;; Get struct argument
-           (local.set $struct     (array.get $Args (local.get $args) (i32.const 0)))
-           ;; Construct args array: [struct, field-idx]
-           (local.set $args2      (array.new_fixed $Args 2
-                                                   (local.get  $struct)
-                                                   (local.get  $field-idx)))
-           ;; Call the generic accessor directly
-           ; (inlined $call-closure (local.get $accessor) (local.get $args2))
-           (call_ref $ClosureCode
-                     (local.get $accessor)
-                     (local.get $args2)
-                     (struct.get $Closure $code (local.get $accessor))))
+           (local.set $target (array.get $Args (local.get $args) (i32.const 0)))
+           (if (i32.eqz (ref.test (ref $Struct) (local.get $target)))
+               (then (call $raise-argument-error1
+                           (local.get $who)
+                           (local.get $expected-contract)
+                           (local.get $target))))
+           (local.set $struct (ref.cast (ref $Struct) (local.get $target)))
+           (if (i32.eqz (call $struct-type-is-a?/i32
+                              (struct.get $Struct $type (local.get $struct))
+                              (local.get $std)))
+               (then (call $raise-argument-error1
+                           (local.get $who)
+                           (local.get $expected-contract)
+                           (local.get $target))))
+           (local.set $fields (struct.get $Struct $fields (local.get $struct)))
+           (array.get $Array (local.get $fields)
+                      (i32.add (local.get $super-count) (local.get $field-index))))
      )))
 
 ;; struct-procedure-predicate-runtime-only-helpers : (listof core-runtime-helper?)
