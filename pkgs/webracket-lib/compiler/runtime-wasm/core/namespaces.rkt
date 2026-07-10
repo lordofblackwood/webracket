@@ -15,7 +15,9 @@
 ;; namespace-runtime-string-constants : (listof (list/c symbol? string?))
 ;;   Declare strings used by namespace helpers and namespace contract checks.
 (define namespace-runtime-string-constants
-  '((namespace? "namespace?")))
+  '((namespace? "namespace?")
+    (namespace-variable-value-simple:undefined
+     "namespace-variable-value-simple: given name is not defined\n  name: ")))
 
 ;; namespace-runtime-symbol-constants : (listof symbol?)
 ;;   Declare symbols used by namespace contract checks.
@@ -89,13 +91,20 @@
                       (i32.const 0)))                       ;; $protect
 
     ;; raise-undefined-top : symbol? -> never
-    ;;   Log the missing top-level binding before throwing, so large
-    ;;   generated programs expose the next runtime gap directly.
+    ;;   Raise a catchable variable exception for a missing top-level binding.
     (func $raise-undefined-top
           (param $sym (ref eq)) ;; missing symbol
 
-          (call $js-log (global.get $string:missing-binding))
-          (call $js-log (local.get $sym))
+          (call $raise
+                (call $exn:fail:contract:variable/make
+                      (call $string-append/2
+                            (global.get $string:namespace-variable-value-simple:undefined)
+                            (call $format/print
+                                  (local.get $sym)
+                                  (global.get $missing)))
+                      (call $current-continuation-marks (global.get $missing))
+                      (local.get $sym))
+                (global.get $true))
           (unreachable))
     (func $raise-argument-error:namespace-expected
           (param $who (ref eq))

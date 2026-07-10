@@ -96,6 +96,13 @@ Current remaining raw-stub classes:
     value and source-location fields; WebRacket still needs that subtype if
     code depends on `exn:misc:match?` or `prop:exn:srclocs`.
 
+- `namespaces.rkt` and `linklet-instances.rkt`:
+  - Missing namespace and instance bindings now raise catchable
+    `exn:fail:contract:variable` values with the missing symbol in the
+    variable-id field instead of logging and trapping.
+  - Reassigning an instance variable marked constant now raises a catchable
+    contract error instead of logging and trapping.
+
 - `treelists.rkt`:
   - Positive out-of-range indexes for `treelist-ref`, `treelist-set`,
     `treelist-insert`, and `treelist-delete` now raise catchable range-style

@@ -14,7 +14,12 @@
   '((instance?                     "instance?")
     (missing-variable-value        "missing variable value")
     (missing-binding               "missing binding:")
+    (link:missing-binding          "link: missing binding\n  name: ")
+    (instance-variable-box:missing-binding
+     "instance-variable-box: missing binding\n  name: ")
     (instance-variable-not-found   "instance variable not found:")
+    (instance-variable-value:not-found
+     "instance-variable-value: instance variable not found\n  name: ")
     (cannot-modify-constant        "cannot modify a constant")
     (at-most-one-optional-argument "expected at most one optional argument")
     (instance-mode?                "(or/c #f 'constant 'consistent)")
@@ -73,35 +78,50 @@
                      (local.get $sym))
                (unreachable))
 
+         (func $raise-linklet-variable-error
+               (param $prefix (ref eq)) ;; message prefix
+               (param $sym    (ref eq)) ;; missing symbol
+
+               (call $raise
+                     (call $exn:fail:contract:variable/make
+                           (call $string-append/2
+                                 (local.get $prefix)
+                                 (call $format/print
+                                       (local.get $sym)
+                                       (global.get $missing)))
+                           (call $current-continuation-marks (global.get $missing))
+                           (local.get $sym))
+                     (global.get $true))
+               (unreachable))
+
          (func $raise-link-missing-binding
                (param $sym (ref eq))   ;; missing symbol
 
-               (call $js-log (global.get $symbol:link))
-               (call $js-log (global.get $string:missing-binding))
-               (call $js-log (local.get $sym))
-               (unreachable))
+               (call $raise-linklet-variable-error
+                     (global.get $string:link:missing-binding)
+                     (local.get $sym)))
 
          (func $raise-instance-variable-box-missing-binding
                (param $sym (ref eq))   ;; missing symbol
 
-               (call $js-log (global.get $symbol:instance-variable-box))
-               (call $js-log (global.get $string:missing-binding))
-               (call $js-log (local.get $sym))
-               (unreachable))
+               (call $raise-linklet-variable-error
+                     (global.get $string:instance-variable-box:missing-binding)
+                     (local.get $sym)))
 
          (func $raise-instance-variable-not-found
                (param $sym (ref eq))   ;; missing symbol
 
-               (call $js-log (global.get $symbol:instance-variable-value))
-               (call $js-log (global.get $string:instance-variable-not-found))
-               (call $js-log (local.get $sym))
-               (unreachable))
+               (call $raise-linklet-variable-error
+                     (global.get $string:instance-variable-value:not-found)
+                     (local.get $sym)))
 
          (func $raise-instance-variable-constant
                (param $sym (ref eq))   ;; constant symbol
 
-               (call $js-log (local.get $sym))
-               (call $js-log (global.get $string:cannot-modify-constant))
+               (call $raise-argument-error1
+                     (global.get $symbol:instance-set-variable-value!)
+                     (global.get $string:cannot-modify-constant)
+                     (local.get $sym))
                (unreachable))
 
          (func $raise-instance-optional-argument

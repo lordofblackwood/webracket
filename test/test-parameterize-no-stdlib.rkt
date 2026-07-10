@@ -14,6 +14,20 @@
                    (string-contains? message needle))
                  needles))))
 
+(define (catch-variable/contains? thunk expected-id . needles)
+  (let ([caught
+         (with-handlers ([exn:fail:contract:variable?
+                          (lambda (exn)
+                            (list (exn-message exn)
+                                  (exn:fail:contract:variable-id exn)))])
+           (thunk)
+           #f)])
+    (and caught
+         (equal? (cadr caught) expected-id)
+         (andmap (lambda (needle)
+                   (string-contains? (car caught) needle))
+                 needles))))
+
 (list
  (list "parameterize current-namespace/basic"
        (let ([ns (make-empty-namespace)])
@@ -78,6 +92,38 @@
           "namespace-undefine-variable!"
           "symbol?"
           "given: 42")))
+ (list "namespace-variable-value-simple missing binding errors are catchable"
+       (let ([ns (make-empty-namespace)])
+         (catch-variable/contains?
+          (lambda () (namespace-variable-value-simple ns 'missing))
+          'missing
+          "namespace-variable-value-simple"
+          "not defined"
+          "missing")))
+ (list "instance-variable-box missing binding errors are catchable"
+       (let ([inst (make-instance 'missing-box)])
+         (catch-variable/contains?
+          (lambda () (instance-variable-box inst 'missing #f))
+          'missing
+          "instance-variable-box"
+          "missing binding"
+          "missing")))
+ (list "instance-variable-value missing binding errors are catchable"
+       (let ([inst (make-instance 'missing-value)])
+         (catch-variable/contains?
+          (lambda () (instance-variable-value inst 'missing))
+          'missing
+          "instance-variable-value"
+          "not found"
+          "missing")))
+ (list "instance constant mutation errors are catchable"
+       (let ([inst (make-instance 'constant-mutation)])
+         (instance-set-variable-value! inst 'x 1 'constant)
+         (catch-contract/contains?
+          (lambda () (instance-set-variable-value! inst 'x 2))
+          "instance-set-variable-value!"
+          "cannot modify a constant"
+          "x")))
  (list "primitive-table key errors are catchable with who"
        (catch-contract/contains?
         (lambda () (primitive-table 42))
