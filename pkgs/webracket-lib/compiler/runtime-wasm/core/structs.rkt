@@ -27,6 +27,7 @@
     (struct-open                "#(struct ")
     (struct?                    "struct?")
     (struct-type?               "struct-type?")
+    (struct-type-or-false       "(or/c #f struct-type?)")
     (procedure-struct-type?     "procedure-struct-type?")
     (sealed-struct-supertype    "sealed structure type cannot be used as a supertype")
     (struct->list:on-opaque     "one of 'error, 'return-false, or 'skip")
@@ -80,6 +81,7 @@
     equal+hash
     struct->list
     struct->vector
+    make-struct-type
     mutator
     error
     return-false
@@ -539,7 +541,10 @@
 ;; struct-type-constructor-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for struct type construction helpers.
 (define struct-type-constructor-runtime-only-helper-names
-  '($make-struct-type))
+  '($raise-make-struct-type:name
+    $raise-make-struct-type:super
+    $raise-make-struct-type:field-count
+    $make-struct-type))
 
 ;; struct-accessor-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for generic struct accessor helpers.
@@ -3826,6 +3831,30 @@
   (function-forms->runtime-helpers
    'struct-type-constructor-runtime-only-helpers
    '(
+     (func $raise-make-struct-type:name
+           (param $bad (ref eq))
+           (call $raise-argument-error1
+                 (global.get $symbol:make-struct-type)
+                 (global.get $string:symbol?)
+                 (local.get $bad))
+           (unreachable))
+
+     (func $raise-make-struct-type:super
+           (param $bad (ref eq))
+           (call $raise-argument-error1
+                 (global.get $symbol:make-struct-type)
+                 (global.get $string:struct-type-or-false)
+                 (local.get $bad))
+           (unreachable))
+
+     (func $raise-make-struct-type:field-count
+           (param $bad (ref eq))
+           (call $raise-argument-error1
+                 (global.get $symbol:make-struct-type)
+                 (global.get $string:exact-nonnegative-integer?)
+                 (local.get $bad))
+           (unreachable))
+
      (func $make-struct-type
            ;; Parameters
            (param $name             (ref eq))  ;; (ref $Symbol)
@@ -3888,22 +3917,20 @@
 
            ;; --- Type checks ---
            (if (i32.eqz (ref.test (ref $Symbol) (local.get $name)))
-               (then (call $raise-argument-error/internal (local.get $name))))
+               (then (call $raise-make-struct-type:name (local.get $name))))
 
            (if (i32.and
                 (i32.eqz (ref.eq (local.get $super) (global.get $false)))
                 (i32.eqz (ref.test (ref $StructType) (local.get $super))))
-               (then (call $raise-argument-error/internal (local.get $super))))
+               (then (call $raise-make-struct-type:super (local.get $super))))
 
-           (if (i32.or
-                (i32.eqz (ref.test (ref i31) (local.get $init-count)))
-                (i32.ne (i32.and (i31.get_u (ref.cast (ref i31) (local.get $init-count))) (i32.const 1)) (i32.const 0)))
-               (then (call $raise-argument-error/internal (local.get $init-count))))
+           (if (ref.eq (call $exact-nonnegative-integer? (local.get $init-count))
+                       (global.get $false))
+               (then (call $raise-make-struct-type:field-count (local.get $init-count))))
 
-           (if (i32.or
-                (i32.eqz (ref.test (ref i31) (local.get $auto-count)))
-                (i32.ne (i32.and (i31.get_u (ref.cast (ref i31) (local.get $auto-count))) (i32.const 1)) (i32.const 0)))
-               (then (call $raise-argument-error/internal (local.get $auto-count))))
+           (if (ref.eq (call $exact-nonnegative-integer? (local.get $auto-count))
+                       (global.get $false))
+               (then (call $raise-make-struct-type:field-count (local.get $auto-count))))
 
            ;; Initialize non-defaultable prefab locals before branching.
            (local.set $prefab-existing (global.get $false))
