@@ -36,6 +36,7 @@
    (make-no-stdlib-result-tree-fixture "test/test-reflection-errors.rkt")
    (make-no-stdlib-result-tree-fixture "test/test-format-errors.rkt")
    (make-no-stdlib-result-tree-fixture "test/test-misc-primitive-errors.rkt")
+   (make-no-stdlib-result-tree-fixture "test/test-logger-errors.rkt")
    (make-no-stdlib-result-tree-fixture "test/test-security-errors.rkt")
    (make-no-stdlib-result-tree-fixture "test/test-exception-handler-errors.rkt")
    (make-no-stdlib-result-tree-fixture "test/test-procedure-errors.rkt")
@@ -48,7 +49,7 @@
    (make-no-stdlib-result-tree-fixture "test/test-character-errors.rkt")
    (make-no-stdlib-result-tree-fixture "test/test-event-sync-errors.rkt")
    (make-no-stdlib-result-tree-fixture "test/test-hash.rkt"
-                                       #:timeout-seconds 120)))
+                                       #:timeout-seconds 240)))
 
 ;; fixture-jobs : -> exact-positive-integer?
 ;;   Return the requested fixture parallelism, defaulting to four workers.

@@ -1280,7 +1280,7 @@
       stencil-vector $system-stencil-vector unsafe-stencil-vector
       stencil-vector-update $system-stencil-vector-update unsafe-stencil-vector-update
       bytes-convert
-      make-logger log-message
+      make-logger
       make-log-receiver
       sync sync/timeout
       chaperone-procedure chaperone-struct chaperone-vector chaperone-box chaperone-hash
@@ -1306,7 +1306,6 @@
         [(extend-parameterization) 1]
         [(make-logger) 0]
         [(make-log-receiver) 2]
-        [(log-message) 3]
         [(unsafe-fxand unsafe-fxior unsafe-fxxor) 1]
         [(symbol<? keyword<? path<?
                    string=? string<? string<=? string>? string>=?
@@ -1338,7 +1337,6 @@
         [(stencil-vector $system-stencil-vector unsafe-stencil-vector) 1]
         [(make-logger) 0]
         [(make-log-receiver) 2]
-        [(log-message) 3]
         [(bytes-convert) 2]
         [(+ * unsafe-fx+ unsafe-fx* compose compose1 cartesian-product string-append-immutable gcd lcm hash hasheq hasheqv hashalw) 0]
         [else 1])))
@@ -1880,21 +1878,25 @@
    (make-inline-specs/by-name
     '(make-input-port
       make-output-port
+      log-message
       peek-bytes-avail!
       peek-bytes-avail!*)
     'optional-rest
     (λ (name)
       (case name
         [(make-input-port make-output-port) 4]
+        [(log-message) 3]
         [else 2]))
     (λ (name)
       (case name
         [(make-input-port) 10]
         [(make-output-port) 11]
+        [(log-message) 6]
         [else 6]))
     (λ (name)
       (case name
         [(make-input-port make-output-port) 4]
+        [(log-message) 3]
         [else 1])))))
   )
 

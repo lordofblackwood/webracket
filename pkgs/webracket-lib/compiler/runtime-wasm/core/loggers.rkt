@@ -14,6 +14,9 @@
 (define logger-runtime-string-constants
   '((logger?         "logger?")
     (log-receiver?   "log-receiver?")
+    (log-level/c     "(or/c 'none 'fatal 'error 'warning 'info 'debug)")
+    (string-or-symbol "(or/c string? symbol?)")
+    (false-or-symbol "(or/c #f symbol?)")
     (symbol-or-false "(or/c symbol? #f)")))
 
 ;; logger-runtime-symbol-constants : (listof symbol?)
@@ -27,7 +30,13 @@
     logger-name
     log-level?
     log-max-level
-    log-message))
+    log-message
+    none
+    fatal
+    error
+    warning
+    info
+    debug))
 
 ;; logger-current-global-forms : (listof datum?)
 ;;   Declare the current logger global.
@@ -78,6 +87,115 @@
                  (else (global.get $false))))))
 
 
+   ;; log-level?/i32 : any/c -> i32
+   ;;   Check whether a value is one of Racket's log-level symbols.
+   (core-runtime-helper
+    '$log-level?/i32
+    "$log-level?/i32"
+    (lambda ()
+      `(func $log-level?/i32
+             (param $level (ref eq))
+             (result       i32)
+             (i32.or
+              (i32.or
+               (ref.eq (local.get $level) (global.get $symbol:none))
+               (ref.eq (local.get $level) (global.get $symbol:fatal)))
+              (i32.or
+               (i32.or
+                (ref.eq (local.get $level) (global.get $symbol:error))
+                (ref.eq (local.get $level) (global.get $symbol:warning)))
+               (i32.or
+                (ref.eq (local.get $level) (global.get $symbol:info))
+                (ref.eq (local.get $level) (global.get $symbol:debug))))))))
+
+
+   ;; check-log-level : symbol? any/c -> void?
+   ;;   Raise a Racket contract error unless level is a log-level symbol.
+   (core-runtime-helper
+    '$check-log-level
+    "$check-log-level"
+    (lambda ()
+      `(func $check-log-level
+             (param $who   (ref eq)) ;; symbol
+             (param $level (ref eq)) ;; log-level/c
+             (if (i32.eqz (call $log-level?/i32 (local.get $level)))
+                 (then (call $raise-argument-error1
+                             (local.get $who)
+                             (global.get $string:log-level/c)
+                             (local.get $level))
+                       (unreachable))))))
+
+
+   ;; check-log-topic : symbol? any/c -> void?
+   ;;   Raise a Racket contract error unless topic is #f or a symbol.
+   (core-runtime-helper
+    '$check-log-topic
+    "$check-log-topic"
+    (lambda ()
+      `(func $check-log-topic
+             (param $who   (ref eq)) ;; symbol
+             (param $topic (ref eq)) ;; (or/c #f symbol?)
+             (if (i32.eqz (i32.or
+                           (ref.eq (local.get $topic) (global.get $false))
+                           (ref.test (ref $Symbol) (local.get $topic))))
+                 (then (call $raise-argument-error1
+                             (local.get $who)
+                             (global.get $string:false-or-symbol)
+                             (local.get $topic))
+                       (unreachable))))))
+
+
+   ;; check-log-topics : symbol? list? -> void?
+   ;;   Validate a rest-list of logger topics.
+   (core-runtime-helper
+    '$check-log-topics
+    "$check-log-topics"
+    (lambda ()
+      `(func $check-log-topics
+             (param $who    (ref eq)) ;; symbol
+             (param $topics (ref eq)) ;; rest-list of (or/c #f symbol?)
+             (local $node  (ref eq))
+             (local $pair  (ref $Pair))
+             (local.set $node (local.get $topics))
+             (block $done
+                    (loop $loop
+                          (br_if $done
+                                 (ref.eq (local.get $node) (global.get $null)))
+                          (if (i32.eqz (ref.test (ref $Pair) (local.get $node)))
+                              (then (call $raise-argument-error1
+                                          (local.get $who)
+                                          (global.get $string:false-or-symbol)
+                                          (local.get $node))
+                                    (unreachable)))
+                          (local.set $pair
+                                     (ref.cast (ref $Pair) (local.get $node)))
+                          (call $check-log-topic
+                                (local.get $who)
+                                (struct.get $Pair $a (local.get $pair)))
+                          (local.set $node
+                                     (struct.get $Pair $d (local.get $pair)))
+                          (br $loop))))))
+
+
+   ;; check-log-message : symbol? any/c -> void?
+   ;;   Raise a Racket contract error unless message is a string or symbol.
+   (core-runtime-helper
+    '$check-log-message
+    "$check-log-message"
+    (lambda ()
+      `(func $check-log-message
+             (param $who     (ref eq)) ;; symbol
+             (param $message (ref eq)) ;; (or/c string? symbol?)
+             (if (i32.eqz (i32.or
+                           (ref.test (ref $String) (local.get $message))
+                           (ref.test (ref $Symbol) (local.get $message))))
+                 (then (call $raise-argument-error1
+                             (local.get $who)
+                             (global.get $string:string-or-symbol)
+                             (local.get $message))
+                       (unreachable))))))
+
+
    ;; make-logger : [(or/c symbol? #f)] ... -> logger?
    ;;   Create an inert logger. Only the optional topic/name is retained;
    ;;   parent and filter arguments are accepted but ignored for now.
@@ -123,6 +241,12 @@
                              (global.get $string:logger?)
                              (local.get $logger-raw))
                        (unreachable)))
+             (call $check-log-level
+                   (global.get $symbol:make-log-receiver)
+                   (local.get $level))
+             (call $check-log-topics
+                   (global.get $symbol:make-log-receiver)
+                   (local.get $topics))
              (struct.new $LogReceiver
                          (i32.const 0)
                          (ref.cast (ref $Logger) (local.get $logger-raw))
@@ -196,6 +320,13 @@
                              (global.get $string:logger?)
                              (local.get $logger-raw))
                        (unreachable)))
+             (call $check-log-level
+                   (global.get $symbol:log-level?)
+                   (local.get $level))
+             (if (i32.eqz (ref.eq (local.get $topic) (global.get $missing)))
+                 (then (call $check-log-topic
+                             (global.get $symbol:log-level?)
+                             (local.get $topic))))
              (global.get $false))))
 
 
@@ -215,6 +346,10 @@
                              (global.get $string:logger?)
                              (local.get $logger-raw))
                        (unreachable)))
+             (if (i32.eqz (ref.eq (local.get $topic) (global.get $missing)))
+                 (then (call $check-log-topic
+                             (global.get $symbol:log-max-level)
+                             (local.get $topic))))
              (global.get $false))))
 
 
@@ -236,6 +371,12 @@
                              (global.get $string:logger?)
                              (local.get $logger-raw))
                        (unreachable)))
+             (call $check-log-level
+                   (global.get $symbol:log-message)
+                   (local.get $level))
+             (call $check-log-message
+                   (global.get $symbol:log-message)
+                   (local.get $message))
              (global.get $void))))
 ))
 
@@ -244,6 +385,11 @@
 (define logger-runtime-only-helper-names
   '($logger?
     $log-receiver?
+    $log-level?/i32
+    $check-log-level
+    $check-log-topic
+    $check-log-topics
+    $check-log-message
     $make-logger
     $make-log-receiver
     $logger-name
