@@ -240,6 +240,20 @@
           "real?"
           "given: #f"
           (lambda () (real->floating-point-bytes #f 8)))))
+ (list "exact->inexact errors are catchable with number contract"
+       (let ([message
+              (with-handlers ([exn:fail:contract?
+                               (lambda (exn)
+                                 (exn-message exn))])
+                (exact->inexact #f)
+                #f)])
+         (and message
+              (string-contains? message "exact->inexact")
+              (string-contains? message "number?")
+              (string-contains? message "given: #f"))))
+ (list "exact->inexact accepts complex values"
+       (equal? (number->string (exact->inexact 1+2i))
+               "1.0+2.0i"))
  (list "number conversion basics still work"
        (and (equal? (number->string 42) "42")
             (equal? (number->string 16 16) "10")

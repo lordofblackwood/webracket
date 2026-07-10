@@ -123,6 +123,9 @@ Current remaining raw-stub classes:
     values such as `#f` as malformed fixnums. Bad arguments raise catchable
     contract errors with public `who`; `=` reports `number?`, while ordering
     comparators and `min`/`max` report `real?`.
+  - `exact->inexact` now reports Racket's public `number?` contract for bad
+    arguments and accepts WebRacket complex numbers by converting their real and
+    imaginary components.
   - Some numeric conversion helpers still use older validation shapes; audit
     those separately before claiming complete numeric parity.
 

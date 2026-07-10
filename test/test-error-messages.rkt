@@ -78,12 +78,12 @@
         (list (msg-contains? "apply: contract violation")
               (msg-contains? "expected: list?")
               (msg-contains? "given: (4 . 5)"))))
- (list "exact->inexact non-real"
+ (list "exact->inexact non-number"
        (message-matches?
         (lambda () (exact->inexact "x"))
         (list (msg-contains? "exact->inexact: contract violation")
-              (msg-contains? "expected: real?")
-              (msg-contains? "given: x"))))
+              (msg-contains? "expected: number?")
+              (msg-contains? "given: \"x\""))))
  (list "real->double-flonum non-real"
        (message-matches?
         (lambda () (real->double-flonum "x"))

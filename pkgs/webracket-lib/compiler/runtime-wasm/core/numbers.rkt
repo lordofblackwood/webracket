@@ -528,6 +528,7 @@
               (result   (ref eq))
 
               (local $bits i32)
+              (local $c    (ref $Complex))
 
               ;; If z is already a flonum, return it
               (if (ref.test (ref $Flonum) (local.get $z))
@@ -543,8 +544,22 @@
                                                   (i32.shr_s (local.get $bits)
                                                              (i32.const 1)))))))))
 
+              ;; Convert the components of a complex number.
+              (if (ref.test (ref $Complex) (local.get $z))
+                  (then
+                   (local.set $c (ref.cast (ref $Complex) (local.get $z)))
+                   (return
+                    (struct.new $Complex
+                                (i32.const 0)
+                                (call $exact->inexact
+                                      (struct.get $Complex $real (local.get $c)))
+                                (call $exact->inexact
+                                      (struct.get $Complex $imag (local.get $c)))))))
+
               ;; Not a number
-              (call $raise-expected-real (global.get $symbol:exact->inexact) (local.get $z))
+              (call $raise-expected-number/who
+                    (global.get $symbol:exact->inexact)
+                    (local.get $z))
               (unreachable))
 
 
