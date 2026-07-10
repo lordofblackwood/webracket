@@ -92,7 +92,10 @@
   '($raise-byte-out-of-range
     $raise-check-bytes
     $raise-check-mutable-bytes/who
+    $raise-check-byte/who
     $raise-check-byte
+    $bytes-index/i32
+    $byte-value/i32/who
     $raise-bad-bytes-ref-index
     $raise-bad-bytes-set-index
     $raise-bad-bytes-range
@@ -125,11 +128,71 @@
                  (local.get $who)
                  (global.get $string:mutable-bytes?)
                  (local.get $x)))
-     (func $raise-check-byte (param $x (ref eq))
+     (func $raise-check-byte/who (param $who (ref eq)) (param $x (ref eq))
            (call $raise-argument-error1
-                 (global.get $symbol:byte?)
+                 (local.get $who)
                  (global.get $string:byte?)
                  (local.get $x)))
+     (func $raise-check-byte (param $x (ref eq))
+           (call $raise-check-byte/who
+                 (global.get $symbol:byte?)
+                 (local.get $x)))
+     (func $bytes-index/i32
+           (param $who (ref eq))
+           (param $x   (ref eq))
+           (result i32)
+
+           (local $bits i32)
+           (local $idx  i32)
+
+           (if (i32.eqz (ref.test (ref i31) (local.get $x)))
+               (then
+                (call $raise-argument-error1
+                      (local.get $who)
+                      (global.get $string:exact-nonnegative-integer?)
+                      (local.get $x))
+                (unreachable)))
+           (local.set $bits (i31.get_s (ref.cast (ref i31) (local.get $x))))
+           (if (i32.and (local.get $bits) (i32.const 1))
+               (then
+                (call $raise-argument-error1
+                      (local.get $who)
+                      (global.get $string:exact-nonnegative-integer?)
+                      (local.get $x))
+                (unreachable)))
+           (local.set $idx (i32.shr_s (local.get $bits) (i32.const 1)))
+           (if (i32.lt_s (local.get $idx) (i32.const 0))
+               (then
+                (call $raise-argument-error1
+                      (local.get $who)
+                      (global.get $string:exact-nonnegative-integer?)
+                      (local.get $x))
+                (unreachable)))
+           (local.get $idx))
+     (func $byte-value/i32/who
+           (param $who (ref eq))
+           (param $x   (ref eq))
+           (result i32)
+
+           (local $bits i32)
+           (local $val  i32)
+
+           (if (i32.eqz (ref.test (ref i31) (local.get $x)))
+               (then
+                (call $raise-check-byte/who (local.get $who) (local.get $x))
+                (unreachable)))
+           (local.set $bits (i31.get_s (ref.cast (ref i31) (local.get $x))))
+           (if (i32.and (local.get $bits) (i32.const 1))
+               (then
+                (call $raise-check-byte/who (local.get $who) (local.get $x))
+                (unreachable)))
+           (local.set $val (i32.shr_s (local.get $bits) (i32.const 1)))
+           (if (i32.or (i32.lt_s (local.get $val) (i32.const 0))
+                       (i32.gt_u (local.get $val) (i32.const 255)))
+               (then
+                (call $raise-check-byte/who (local.get $who) (local.get $x))
+                (unreachable)))
+           (local.get $val))
      ;; Out-of-range byte-string indexes must be catchable Racket errors,
      ;; not raw Wasm traps.
      (func $raise-bad-bytes-ref-index (param $x (ref eq)) (param $idx (ref eq))
@@ -155,29 +218,18 @@
 
            (local $len i32)
            (local $val i32)
-           ;; Decode and check $k as fixnum
-           (if (ref.test (ref i31) (local.get $k-raw))
-               (then (local.set $len (i31.get_u (ref.cast (ref i31) (local.get $k-raw))))
-                     (if (i32.eqz (i32.and (local.get $len) (i32.const 1)))
-                         (then (local.set $len (i32.shr_u (local.get $len) (i32.const 1))))
-                         (else (call $raise-check-fixnum (local.get $k-raw))
-                               (unreachable))))
-               (else (call $raise-check-fixnum (local.get $k-raw))
-                     (unreachable)))
+           ;; Decode and check $k as exact-nonnegative-integer?
+           (local.set $len
+                      (call $bytes-index/i32
+                            (global.get $symbol:make-bytes)
+                            (local.get $k-raw)))
            ;; Handle optional byte argument
            (if (ref.eq (local.get $b-raw) (global.get $missing))
                (then (local.set $val (i32.const 0)))
-               (else (if (ref.test (ref i31) (local.get $b-raw))
-                         (then (local.set $val (i31.get_u (ref.cast (ref i31) (local.get $b-raw))))
-                               (if (i32.eqz (i32.and (local.get $val) (i32.const 1)))
-                                   (then (local.set $val (i32.shr_u (local.get $val) (i32.const 1)))
-                                         (if (i32.gt_u (local.get $val) (i32.const 255))
-                                             (then (call $raise-byte-out-of-range (local.get $b-raw))
-                                                   (unreachable))))
-                                   (else (call $raise-check-fixnum (local.get $b-raw))
-                                         (unreachable))))
-                         (else (call $raise-check-fixnum (local.get $b-raw))
-                               (unreachable)))))
+               (else (local.set $val
+                                (call $byte-value/i32/who
+                                      (global.get $symbol:make-bytes)
+                                      (local.get $b-raw)))))
            ;; Construct mutable bytes object
            (call $debug-allocation-tick (i32.const 7))
            (struct.new $Bytes
@@ -559,13 +611,11 @@
            (if (ref.test (ref $Bytes) (local.get $a))
                (then (local.set $b (ref.cast (ref $Bytes) (local.get $a))))
                (else (call $raise-check-bytes (local.get $a))))
-           ;; 2. Decode and check that $i is a fixnum
-           (if (ref.test (ref i31) (local.get $i))
-               (then (local.set $idx (i31.get_u (ref.cast (ref i31) (local.get $i))))
-                     (if (i32.eqz (i32.and (local.get $idx) (i32.const 1)))
-                         (then (local.set $idx (i32.shr_u (local.get $idx) (i32.const 1))))
-                         (else (call $raise-check-fixnum (local.get $i)) )))
-               (else (call $raise-check-fixnum (local.get $i))))
+           ;; 2. Decode and check that $i is exact-nonnegative-integer?
+           (local.set $idx
+                      (call $bytes-index/i32
+                            (global.get $symbol:bytes-ref)
+                            (local.get $i)))
            ;; 3. Get byte array and bounds-check
            (local.set $arr (struct.get $Bytes $bs (local.get $b)))
            (if (i32.lt_u (local.get $idx) (array.len (local.get $arr)))
@@ -600,25 +650,16 @@
                            (global.get $symbol:bytes-set!)
                            (local.get $a))
                      (unreachable)))
-           ;; 2. Decode and check fixnum index $i
-           (if (ref.test (ref i31) (local.get $i))
-               (then
-                (local.set $idx (i31.get_u (ref.cast (ref i31) (local.get $i))))
-                (if (i32.eqz (i32.and (local.get $idx) (i32.const 1)))
-                    (then (local.set $idx (i32.shr_u (local.get $idx) (i32.const 1))))
-                    (else (call $raise-check-fixnum (local.get $i)))))
-               (else (call $raise-check-fixnum (local.get $i))))
-           ;; 3. Decode and check fixnum byte value $v
-           (if (ref.test (ref i31) (local.get $v))
-               (then
-                (local.set $bv (i31.get_u (ref.cast (ref i31) (local.get $v))))
-                (if (i32.eqz (i32.and (local.get $bv) (i32.const 1)))
-                    (then
-                     (local.set $bv (i32.shr_u (local.get $bv) (i32.const 1)))
-                     (if (i32.gt_u (local.get $bv) (i32.const 255))
-                         (then (call $raise-check-byte (local.get $v)))))
-                    (else (call $raise-check-byte (local.get $v)))))
-               (else (call $raise-check-byte (local.get $v))))
+           ;; 2. Decode and check exact-nonnegative-integer? index $i
+           (local.set $idx
+                      (call $bytes-index/i32
+                            (global.get $symbol:bytes-set!)
+                            (local.get $i)))
+           ;; 3. Decode and check byte value $v
+           (local.set $bv
+                      (call $byte-value/i32/who
+                            (global.get $symbol:bytes-set!)
+                            (local.get $v)))
            ;; 4. Bounds check and set byte
            (local.set $arr (struct.get $Bytes $bs (local.get $b)))
            (if (i32.lt_u (local.get $idx) (call $i8array-length (local.get $arr)))
@@ -654,24 +695,18 @@
 
            (local.set $arr (struct.get $Bytes $bs (local.get $bs)))
            (local.set $len (call $i8array-length (local.get $arr)))
-           ;; Decode and validate fixnum $start
-           (if (ref.test (ref i31) (local.get $start))
-               (then
-                (local.set $from (i31.get_u (ref.cast (ref i31) (local.get $start))))
-                (if (i32.eqz (i32.and (local.get $from) (i32.const 1)))
-                    (then (local.set $from (i32.shr_u (local.get $from) (i32.const 1))))
-                    (else (call $raise-check-fixnum (local.get $start)) (unreachable))))
-               (else (call $raise-check-fixnum (local.get $start)) (unreachable)))
-           ;; Decode and validate fixnum $end (optional)
+           ;; Decode and validate exact-nonnegative-integer? $start
+           (local.set $from
+                      (call $bytes-index/i32
+                            (global.get $symbol:subbytes)
+                            (local.get $start)))
+           ;; Decode and validate exact-nonnegative-integer? $end (optional)
            (if (ref.eq (local.get $end) (global.get $missing))
                (then (local.set $to (local.get $len)))
-               (else (if (ref.test (ref i31) (local.get $end))
-                         (then
-                          (local.set $to (i31.get_u (ref.cast (ref i31) (local.get $end))))
-                          (if (i32.eqz (i32.and (local.get $to) (i32.const 1)))
-                              (then (local.set $to (i32.shr_u (local.get $to) (i32.const 1))))
-                              (else (call $raise-check-fixnum (local.get $end)) (unreachable))))
-                         (else (call $raise-check-fixnum (local.get $end)) (unreachable)))))
+               (else (local.set $to
+                                (call $bytes-index/i32
+                                      (global.get $symbol:subbytes)
+                                      (local.get $end)))))
            ;; Bounds check: 0 <= from <= to <= len
            (if (i32.gt_u (local.get $from) (local.get $to))
                (then (call $raise-bad-bytes-range (local.get $b) (local.get $from) (local.get $to)) (unreachable)))
@@ -719,16 +754,10 @@
                            (global.get $symbol:bytes-copy!)
                            (local.get $dest))
                      (unreachable)))
-           ;; --- Decode $dest-start ---
-           (if (i32.eqz (ref.test (ref i31) (local.get $dest-start)))
-               (then (call $raise-check-fixnum (local.get $dest-start))))
-           (if (i32.ne (i32.and (i31.get_u (ref.cast (ref i31) (local.get $dest-start)))
-                                (i32.const 1))
-                       (i32.const 0))
-               (then (call $raise-check-fixnum (local.get $dest-start))))
            (local.set $di
-                      (i32.shr_u (i31.get_u (ref.cast (ref i31) (local.get $dest-start)))
-                                 (i32.const 1)))
+                      (call $bytes-index/i32
+                            (global.get $symbol:bytes-copy!)
+                            (local.get $dest-start)))
            ;; --- Extract arrays and lengths  ---
            (local.set $darr     (struct.get $Bytes $bs (local.get $d)))
            (local.set $sarr     (struct.get $Bytes $bs (local.get $s)))
@@ -737,29 +766,17 @@
            ;; --- Decode optional $src-start ---
            (if (ref.eq (local.get $src-start) (global.get $missing))
                (then (local.set $si (i32.const 0)))
-               (else
-                (if (i32.eqz (ref.test (ref i31) (local.get $src-start)))
-                    (then (call $raise-check-fixnum (local.get $src-start))))
-                (if (i32.ne (i32.and (i31.get_u (ref.cast (ref i31) (local.get $src-start)))
-                                     (i32.const 1))
-                            (i32.const 0))
-                    (then (call $raise-check-fixnum (local.get $src-start))))
-                (local.set $si
-                           (i32.shr_u (i31.get_u (ref.cast (ref i31) (local.get $src-start)))
-                                      (i32.const 1)))))
+               (else (local.set $si
+                                (call $bytes-index/i32
+                                      (global.get $symbol:bytes-copy!)
+                                      (local.get $src-start)))))
            ;; --- Decode optional $src-end ---
            (if (ref.eq (local.get $src-end) (global.get $missing))
                (then (local.set $ei (local.get $src-len)))
-               (else
-                (if (i32.eqz (ref.test (ref i31) (local.get $src-end)))
-                    (then (call $raise-check-fixnum (local.get $src-end))))
-                (if (i32.ne (i32.and (i31.get_u (ref.cast (ref i31) (local.get $src-end)))
-                                     (i32.const 1))
-                            (i32.const 0))
-                    (then (call $raise-check-fixnum (local.get $src-end))))
-                (local.set $ei
-                           (i32.shr_u (i31.get_u (ref.cast (ref i31) (local.get $src-end)))
-                                      (i32.const 1)))))
+               (else (local.set $ei
+                                (call $bytes-index/i32
+                                      (global.get $symbol:bytes-copy!)
+                                      (local.get $src-end)))))
            ;; --- Range validation ---
            (if (i32.gt_u (local.get $si) (local.get $ei))
                (then (call $raise-bad-bytes-range (local.get $src)
