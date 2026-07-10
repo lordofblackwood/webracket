@@ -61,6 +61,13 @@
             (equal? (format "~a" (webracket-literal-pregexp "a")) "#px\"a\"")
             (equal? (format "~a" (webracket-literal-byte-regexp #"a")) "#rx#\"a\"")
             (equal? (format "~a" (webracket-literal-byte-pregexp #"a")) "#px#\"a\"")))
+ (list "format renders event values without traps"
+       (let ([ch (make-channel)])
+         (and (equal? (format "~a" always-evt) "#<always-evt>")
+              (equal? (format "~s" never-evt) "#<never-evt>")
+              (equal? (format "~a" ch) "#<channel>")
+              (equal? (format "~s" (channel-put-evt ch 'x)) "#<channel-put-evt>")
+              (equal? (format "~a" (handle-evt always-evt values)) "#<handle-evt>"))))
  (list "unquoted-printing-string-value errors are catchable with who"
        (catch-contract/contains?
         (lambda () (unquoted-printing-string-value 42))

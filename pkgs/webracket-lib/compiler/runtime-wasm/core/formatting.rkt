@@ -7,6 +7,7 @@
          character-notation-formatting-runtime-string-constants
          arrow-formatting-runtime-string-constants
          hash-less-formatting-runtime-string-constants
+         formatting-runtime-symbol-constants
          formatting-runtime-string-constants
          struct-type-property-formatting-runtime-string-constants
          unquoted-printing-string-runtime-helper-forms
@@ -101,6 +102,11 @@
      (hash-less-treelist-colon-space "#<treelist: ")
      (hash-less-semaphore        "#<semaphore>")
      (hash-less-semaphore-peek-evt "#<semaphore-peek-evt>")
+     (hash-less-always-evt       "#<always-evt>")
+     (hash-less-never-evt        "#<never-evt>")
+     (hash-less-channel          "#<channel>")
+     (hash-less-channel-put-evt  "#<channel-put-evt>")
+     (hash-less-handle-evt       "#<handle-evt>")
      (hash-less-will-executor    "#<will-executor>")
      (hash-less-logger           "#<logger>")
      (hash-less-log-receiver     "#<log-receiver>")
@@ -114,11 +120,17 @@
      (hash-less-security-guard   "#<security-guard>")
      (hash-less-regexp           "#<regexp>"))))
 
+;; formatting-runtime-symbol-constants : (listof symbol?)
+;;   Declare symbols used by formatting and printer-extension helpers.
+(define formatting-runtime-symbol-constants
+  '(format))
+
 ;; formatting-runtime-string-constants : (listof (list/c symbol? string?))
 ;;   Declare string constants used by formatting and printer-extension helpers.
 (define formatting-runtime-string-constants
   '((custom-write?              "custom-write?")
     (custom-print-quotable?     "custom-print-quotable?")
+    (format-displayable-value?  "known printable value?")
     (missing                    "#<missing>")
     (open-paren                 "(")
     (close-paren                ")")
@@ -482,7 +494,13 @@
 ;;   Enumerate formatting and display helpers used by the monolithic runtime.
 (define display-formatting-runtime-only-forms
   `(
-         (func $raise-format/display:unknown-datatype (unreachable))
+         (func $raise-format/display:unknown-datatype
+               (param $v (ref eq))
+               (call $raise-argument-error1
+                     (global.get $symbol:format)
+                     (global.get $string:format-displayable-value?)
+                     (local.get $v))
+               (unreachable))
 
          (func $raise-format/display:got-boxed  (unreachable))
          (func $raise-format/display:got-box    (unreachable))
@@ -840,6 +858,21 @@
                    (then (return (ref.cast (ref $String)
                                            (global.get $string:hash-less-output-port)))))
                ;; --- Case: opaque runtime values ---
+               (if (ref.test (ref $AlwaysEvt) (local.get $v))
+                   (then (return (ref.cast (ref $String)
+                                           (global.get $string:hash-less-always-evt)))))
+               (if (ref.test (ref $NeverEvt) (local.get $v))
+                   (then (return (ref.cast (ref $String)
+                                           (global.get $string:hash-less-never-evt)))))
+               (if (ref.test (ref $Channel) (local.get $v))
+                   (then (return (ref.cast (ref $String)
+                                           (global.get $string:hash-less-channel)))))
+               (if (ref.test (ref $ChannelPutEvt) (local.get $v))
+                   (then (return (ref.cast (ref $String)
+                                           (global.get $string:hash-less-channel-put-evt)))))
+               (if (ref.test (ref $HandleEvt) (local.get $v))
+                   (then (return (ref.cast (ref $String)
+                                           (global.get $string:hash-less-handle-evt)))))
                (if (ref.test (ref $Semaphore) (local.get $v))
                    (then (return (ref.cast (ref $String)
                                            (global.get $string:hash-less-semaphore)))))
@@ -880,7 +913,7 @@
                    (then (return (ref.cast (ref $String)
                                            (global.get $string:hash-less-security-guard)))))
                ;; --- Fallback ---
-               (call $raise-format/display:unknown-datatype)
+               (call $raise-format/display:unknown-datatype (local.get $v))
                (unreachable))
 
          ;; format/display:regexp : regexp? -> string?

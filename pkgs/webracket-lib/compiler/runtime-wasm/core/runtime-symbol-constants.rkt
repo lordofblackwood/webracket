@@ -32,6 +32,8 @@
                   fixnum-runtime-symbol-constants)
          (only-in "flonums.rkt"
                   flonum-runtime-symbol-constants)
+         (only-in "formatting.rkt"
+                  formatting-runtime-symbol-constants)
          (only-in "hashes.rkt"
                   hash-runtime-symbol-constants)
          (only-in "immutable-hashes.rkt"
@@ -124,6 +126,7 @@
           list-runtime-symbol-constants
           fixnum-runtime-symbol-constants
           flonum-runtime-symbol-constants
+          formatting-runtime-symbol-constants
           string-runtime-symbol-constants
           byte-predicate-runtime-symbol-constants
           vector-runtime-symbol-constants
