@@ -53,6 +53,85 @@
          (lambda () (bitwise-bit-field 7 2 1))
          "bitwise-bit-field"
          "ending index is smaller than starting index")))
+ (list "bitwise type errors are catchable with who"
+       (list "bitwise-and one-arg fast path"
+             (catch-contract/contains?
+              (lambda () (bitwise-and #f))
+              "bitwise-and"
+              "exact-integer?"
+              "given: #f"))
+       (list "bitwise-and two-arg fast path"
+             (catch-contract/contains?
+              (lambda () (bitwise-and 1 #f))
+              "bitwise-and"
+              "exact-integer?"
+              "given: #f"))
+       (list "bitwise-ior"
+             (catch-contract/contains?
+              (lambda () (bitwise-ior 1 #f))
+              "bitwise-ior"
+              "exact-integer?"
+              "given: #f"))
+       (list "bitwise-xor"
+             (catch-contract/contains?
+              (lambda () (bitwise-xor #f 1))
+              "bitwise-xor"
+              "exact-integer?"
+              "given: #f"))
+       (list "bitwise-not"
+             (catch-contract/contains?
+              (lambda () (bitwise-not #f))
+              "bitwise-not"
+              "exact-integer?"
+              "given: #f"))
+       (list "bitwise-bit-set? value"
+             (catch-contract/contains?
+              (lambda () (bitwise-bit-set? #f 0))
+              "bitwise-bit-set?"
+              "exact-integer?"
+              "given: #f"))
+       (list "bitwise-bit-set? position"
+             (catch-contract/contains?
+              (lambda () (bitwise-bit-set? 1 -1))
+              "bitwise-bit-set?"
+              "exact-nonnegative-integer?"
+              "given: -1"))
+       (list "bitwise-first-bit-set"
+             (catch-contract/contains?
+              (lambda () (bitwise-first-bit-set #f))
+              "bitwise-first-bit-set"
+              "exact-integer?"
+              "given: #f"))
+       (list "bitwise-bit-field value"
+             (catch-contract/contains?
+              (lambda () (bitwise-bit-field #f 0 1))
+              "bitwise-bit-field"
+              "exact-integer?"
+              "given: #f"))
+       (list "bitwise-bit-field start"
+             (catch-contract/contains?
+              (lambda () (bitwise-bit-field 1 #f 1))
+              "bitwise-bit-field"
+              "exact-nonnegative-integer?"
+              "given: #f"))
+       (list "arithmetic-shift value"
+             (catch-contract/contains?
+              (lambda () (arithmetic-shift #f 1))
+              "arithmetic-shift"
+              "exact-integer?"
+              "given: #f"))
+       (list "arithmetic-shift count"
+             (catch-contract/contains?
+              (lambda () (arithmetic-shift 1 #f))
+              "arithmetic-shift"
+              "exact-integer?"
+              "given: #f"))
+       (list "integer-length"
+             (catch-contract/contains?
+              (lambda () (integer-length #f))
+              "integer-length"
+              "exact-integer?"
+              "given: #f")))
  (list "flbit-field range errors are catchable with who"
        (and
         (catch-contract/contains?

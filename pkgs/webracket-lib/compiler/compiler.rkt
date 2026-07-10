@@ -19844,6 +19844,7 @@
         [(bitwise-and bitwise-ior bitwise-xor)
          (define aes (AExpr* ae1))
          (when (null? aes) (error 'primapp "too few arguments: ~a" sym))
+         (define $prim ($ sym))
          (define $op (case sym
                         [(bitwise-and) '$bitwise-and/2]
                         [(bitwise-ior) '$bitwise-ior/2]
@@ -19854,7 +19855,7 @@
               (case sym
                 [(bitwise-and) (Imm -1)]
                 [else           '(global.get $zero)])]
-             [(list ae0) ae0]
+             [(list ae0) `(call ,$prim ,ae0 (global.get $null))]
              [(list* ae0 ae1 aes*)
               `(call ,$op (call ,$op ,ae0 ,ae1) ,(loop aes*))]))]
 

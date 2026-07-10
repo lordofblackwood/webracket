@@ -112,8 +112,12 @@ Current remaining raw-stub classes:
     the exact rounding functions, trigonometric functions, `atan`, and angle
     conversion. `modulo` now validates integer arguments before delegating to
     `remainder`, so type errors preserve `modulo` as `who`.
-  - Some numeric conversion and bitwise helpers still use older validation
-    shapes; audit those separately before claiming complete numeric parity.
+  - Public bitwise helpers now preserve `who` and use Racket's
+    `exact-integer?` / `exact-nonnegative-integer?` contracts for wrong-type
+    paths, including the compiler fast path for one-argument `bitwise-and`,
+    `bitwise-ior`, and `bitwise-xor`.
+  - Some numeric conversion helpers still use older validation shapes; audit
+    those separately before claiming complete numeric parity.
 
 - `checkers.rkt`:
   - `$match:error` now raises a catchable `exn:fail` value instead of raising a

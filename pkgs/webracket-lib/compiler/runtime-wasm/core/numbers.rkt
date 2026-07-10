@@ -90,6 +90,14 @@
     degrees->radians
     radians->degrees
     order-of-magnitude
+    bitwise-and
+    bitwise-ior
+    bitwise-xor
+    bitwise-not
+    bitwise-bit-set?
+    bitwise-first-bit-set
+    arithmetic-shift
+    integer-length
     bitwise-bit-field))
 
 ;; Half : datum? -> datum?
@@ -197,6 +205,8 @@
     $raise-expected-number3
     $raise-expected-number4
     $raise-expected-integer
+    $raise-expected-exact-integer
+    $raise-expected-exact-nonnegative-integer
     $raise-expected-rational
     $raise-expected-real
     $raise-expected-keyword))
@@ -2268,6 +2278,24 @@
                     (local.get $x))
               (unreachable))
 
+        (func $raise-expected-exact-integer
+              (param $who (ref eq))   ;; symbol
+              (param $x   (ref eq))
+              (call $raise-argument-error1
+                    (local.get $who)
+                    (global.get $string:exact-integer?)
+                    (local.get $x))
+              (unreachable))
+
+        (func $raise-expected-exact-nonnegative-integer
+              (param $who (ref eq))   ;; symbol
+              (param $x   (ref eq))
+              (call $raise-argument-error1
+                    (local.get $who)
+                    (global.get $string:exact-nonnegative-integer?)
+                    (local.get $x))
+              (unreachable))
+
         (func $raise-expected-rational
               (param $who (ref eq))   ;; symbol
               (param $x   (ref eq))
@@ -2960,8 +2988,19 @@
             (define (gen-bitop name fxop)
               (define $name/2 (string->symbol (~a "$" name "/2")))
               (define $name   (string->symbol (~a "$" name)))
+              (define $who    (string->symbol (~a "$symbol:" name)))
               `((func ,$name/2 (type $Prim2)
                       (param $x (ref eq)) (param $y (ref eq)) (result (ref eq))
+                      (if (ref.eq (call $exact-integer? (local.get $x)) (global.get $false))
+                          (then (call $raise-expected-exact-integer
+                                      (global.get ,$who)
+                                      (local.get $x))
+                                (unreachable)))
+                      (if (ref.eq (call $exact-integer? (local.get $y)) (global.get $false))
+                          (then (call $raise-expected-exact-integer
+                                      (global.get ,$who)
+                                      (local.get $y))
+                                (unreachable)))
                       (call ,fxop (local.get $x) (local.get $y)))
                 (func ,$name (type $Prim>=1)
                       (param $x0 (ref eq)) (param $xs0 (ref eq)) (result (ref eq))
@@ -2976,6 +3015,11 @@
                                                  (ref.cast (ref $Args) (local.get $xs0))
                                                  (i32.const 0)))
                                      (else (local.get $xs0))))
+                      (if (ref.eq (call $exact-integer? (local.get $x0)) (global.get $false))
+                          (then (call $raise-expected-exact-integer
+                                      (global.get ,$who)
+                                      (local.get $x0))
+                                (unreachable)))
                       (local.set $r (local.get $x0))
                       (block $done
                              (loop $loop
@@ -2999,8 +3043,11 @@
               (local $x/i  i32)   ; unboxed signed i32
 
               ;; --- Validate $x ---
-              (if (i32.eqz (call $fx?/i32 (local.get $x)))
-                  (then (call $raise-expected-number (local.get $x)) (unreachable)))
+              (if (ref.eq (call $exact-integer? (local.get $x)) (global.get $false))
+                  (then (call $raise-expected-exact-integer
+                              (global.get $symbol:bitwise-not)
+                              (local.get $x))
+                        (unreachable)))
               ;; --- Extract $x/i ---
               (local.set $x/fx (i31.get_u (ref.cast (ref i31) (local.get $x))))
               (local.set $x/i  (i32.shr_s (local.get $x/fx) (i32.const 1)))
@@ -3019,10 +3066,16 @@
               (local $m/i  i32)   ; unboxed unsigned m
 
               ;; --- Validate $n and $m ---
-              (if (i32.eqz (call $fx?/i32 (local.get $n)))
-                  (then (call $raise-expected-number (local.get $n)) (unreachable)))
-              (if (i32.eqz (call $fx?/i32 (local.get $m)))
-                  (then (call $raise-expected-number (local.get $m)) (unreachable)))
+              (if (ref.eq (call $exact-integer? (local.get $n)) (global.get $false))
+                  (then (call $raise-expected-exact-integer
+                              (global.get $symbol:bitwise-bit-set?)
+                              (local.get $n))
+                        (unreachable)))
+              (if (ref.eq (call $exact-nonnegative-integer? (local.get $m)) (global.get $false))
+                  (then (call $raise-expected-exact-nonnegative-integer
+                              (global.get $symbol:bitwise-bit-set?)
+                              (local.get $m))
+                        (unreachable)))
               ;; --- Extract values ---
               (local.set $n/fx (i31.get_u (ref.cast (ref i31) (local.get $n))))
               (local.set $m/fx (i31.get_u (ref.cast (ref i31) (local.get $m))))
@@ -3047,8 +3100,11 @@
               (local $n/i  i32)
 
               ;; --- Validate $n ---
-              (if (i32.eqz (call $fx?/i32 (local.get $n)))
-                  (then (call $raise-expected-number (local.get $n)) (unreachable)))
+              (if (ref.eq (call $exact-integer? (local.get $n)) (global.get $false))
+                  (then (call $raise-expected-exact-integer
+                              (global.get $symbol:bitwise-first-bit-set)
+                              (local.get $n))
+                        (unreachable)))
               ;; --- Extract $n/i ---
               (local.set $n/fx (i31.get_u (ref.cast (ref i31) (local.get $n))))
               (local.set $n/i  (i32.shr_s (local.get $n/fx) (i32.const 1)))
@@ -3079,12 +3135,21 @@
               (local $shifted  i32)
 
               ;; --- Validate inputs ---
-              (if (i32.eqz (call $fx?/i32 (local.get $n)))
-                  (then (call $raise-expected-number (local.get $n)) (unreachable)))
-              (if (i32.eqz (call $fx?/i32 (local.get $start)))
-                  (then (call $raise-expected-number (local.get $start)) (unreachable)))
-              (if (i32.eqz (call $fx?/i32 (local.get $end)))
-                  (then (call $raise-expected-number (local.get $end)) (unreachable)))
+              (if (ref.eq (call $exact-integer? (local.get $n)) (global.get $false))
+                  (then (call $raise-expected-exact-integer
+                              (global.get $symbol:bitwise-bit-field)
+                              (local.get $n))
+                        (unreachable)))
+              (if (ref.eq (call $exact-nonnegative-integer? (local.get $start)) (global.get $false))
+                  (then (call $raise-expected-exact-nonnegative-integer
+                              (global.get $symbol:bitwise-bit-field)
+                              (local.get $start))
+                        (unreachable)))
+              (if (ref.eq (call $exact-nonnegative-integer? (local.get $end)) (global.get $false))
+                  (then (call $raise-expected-exact-nonnegative-integer
+                              (global.get $symbol:bitwise-bit-field)
+                              (local.get $end))
+                        (unreachable)))
 
               ;; --- Extract values ---
               (local.set $n/fx     (i31.get_s (ref.cast (ref i31) (local.get $n))))
@@ -3094,19 +3159,6 @@
               (local.set $start/i  (i32.shr_s (local.get $start/fx) (i32.const 1)))
               (local.set $end/i    (i32.shr_s (local.get $end/fx) (i32.const 1)))
 
-              ;; --- Range checks ---
-              (if (i32.lt_s (local.get $start/i) (i32.const 0))
-                  (then (call $raise-argument-error1
-                              (global.get $symbol:bitwise-bit-field)
-                              (global.get $string:exact-nonnegative-integer?)
-                              (local.get $start))
-                        (unreachable)))
-              (if (i32.lt_s (local.get $end/i) (i32.const 0))
-                  (then (call $raise-argument-error1
-                              (global.get $symbol:bitwise-bit-field)
-                              (global.get $string:exact-nonnegative-integer?)
-                              (local.get $end))
-                        (unreachable)))
               (if (i32.lt_s (local.get $end/i) (local.get $start/i))
                   (then (call $raise-arguments-error
                               (global.get $symbol:bitwise-bit-field)
@@ -3141,9 +3193,15 @@
 
               ;; --- Validate inputs ---
               (if (ref.eq (call $exact-integer? (local.get $n)) (global.get $false))
-                  (then (call $raise-expected-number (local.get $n)) (unreachable)))
+                  (then (call $raise-expected-exact-integer
+                              (global.get $symbol:arithmetic-shift)
+                              (local.get $n))
+                        (unreachable)))
               (if (ref.eq (call $exact-integer? (local.get $m)) (global.get $false))
-                  (then (call $raise-expected-number (local.get $m))))
+                  (then (call $raise-expected-exact-integer
+                              (global.get $symbol:arithmetic-shift)
+                              (local.get $m))
+                        (unreachable)))
 
               ;; --- Extract values ---
               (local.set $n/fx (i31.get_s (ref.cast (ref i31) (local.get $n))))
@@ -3171,7 +3229,12 @@
               (local $n/fx i32)
               (local $len i32)
 
-              ;; Validate: must be a fixnum (ref i31 with lsb = 0); otherwise raise.
+              ;; Validate: must be a fixnum exact integer; otherwise raise.
+              (if (ref.eq (call $exact-integer? (local.get $n)) (global.get $false))
+                  (then (call $raise-expected-exact-integer
+                              (global.get $symbol:integer-length)
+                              (local.get $n))
+                        (unreachable)))
               (if (result (ref eq))
                   (ref.test (ref i31) (local.get $n))
                   (then
@@ -3207,11 +3270,11 @@
                                           (i32.xor (local.get $n/fx) (i32.const -1)))))
                              (ref.i31 (i32.shl (local.get $len) (i32.const 1))))))
                        (else
-                        (call $raise-expected-number (local.get $n))
+                        ;; This branch is unreachable after $exact-integer? validation.
                         (unreachable))))
                   (else
-                  (call $raise-expected-number (local.get $n))
-                  (unreachable))))
+                   ;; This branch is unreachable after $exact-integer? validation.
+                   (unreachable))))
 
 
 
