@@ -134,6 +134,122 @@
          "vector-sort!"
          "(any/c any/c . -> . any/c)"
          "given: #f")))
+ (list "negative vector element indexes preserve the public contract"
+       (and
+        (catch-contract/contains?
+         (lambda () (vector-ref '#(a b) -1))
+         "vector-ref"
+         "exact-nonnegative-integer?"
+         "given: -1")
+        (catch-contract/contains?
+         (lambda () (vector*-ref '#(a b) -1))
+         "vector*-ref"
+         "exact-nonnegative-integer?"
+         "given: -1")
+        (catch-contract/contains?
+         (lambda () (vector-set! (vector 'a 'b) -1 'x))
+         "vector-set!"
+         "exact-nonnegative-integer?"
+         "given: -1")
+        (catch-contract/contains?
+         (lambda () (vector*-set! (vector 'a 'b) -1 'x))
+         "vector*-set!"
+         "exact-nonnegative-integer?"
+         "given: -1")
+        (catch-contract/contains?
+         (lambda () (vector-set/copy '#(a b) -1 'x))
+         "vector-set/copy"
+         "exact-nonnegative-integer?"
+         "given: -1")))
+ (list "negative vector range indexes preserve the public contract"
+       (and
+        (catch-contract/contains?
+         (lambda () (vector-copy '#(a b) -1))
+         "vector-copy"
+         "exact-nonnegative-integer?"
+         "given: -1")
+        (catch-contract/contains?
+         (lambda () (vector-copy '#(a b) 0 -1))
+         "vector-copy"
+         "exact-nonnegative-integer?"
+         "given: -1")
+        (catch-contract/contains?
+         (lambda () (vector-copy! (vector 'a 'b) -1 '#(x)))
+         "vector-copy!"
+         "exact-nonnegative-integer?"
+         "given: -1")
+        (catch-contract/contains?
+         (lambda () (vector-copy! (vector 'a 'b) 0 '#(x y) -1))
+         "vector-copy!"
+         "exact-nonnegative-integer?"
+         "given: -1")
+        (catch-contract/contains?
+         (lambda () (vector-copy! (vector 'a 'b) 0 '#(x y) 0 -1))
+         "vector-copy!"
+         "exact-nonnegative-integer?"
+         "given: -1")
+        (catch-contract/contains?
+         (lambda () (vector->values '#(a b) -1))
+         "vector->values"
+         "exact-nonnegative-integer?"
+         "given: -1")
+        (catch-contract/contains?
+         (lambda () (vector->values '#(a b) 0 -1))
+         "vector->values"
+         "exact-nonnegative-integer?"
+         "given: -1")
+        (catch-contract/contains?
+         (lambda () (vector-sort '#(2 1) < -1))
+         "vector-sort"
+         "exact-nonnegative-integer?"
+         "given: -1")
+        (catch-contract/contains?
+         (lambda () (vector-sort '#(2 1) < 0 -1))
+         "vector-sort"
+         "exact-nonnegative-integer?"
+         "given: -1")
+        (catch-contract/contains?
+         (lambda () (vector-sort! (vector 2 1) < -1))
+         "vector-sort!"
+         "exact-nonnegative-integer?"
+         "given: -1")
+        (catch-contract/contains?
+         (lambda () (vector-sort! (vector 2 1) < 0 -1))
+         "vector-sort!"
+         "exact-nonnegative-integer?"
+         "given: -1")))
+ (list "negative vector slice indexes preserve the public contract"
+       (and
+        (catch-contract/contains?
+         (lambda () (vector-take '#(a b) -1))
+         "vector-take"
+         "exact-nonnegative-integer?"
+         "given: -1")
+        (catch-contract/contains?
+         (lambda () (vector-drop '#(a b) -1))
+         "vector-drop"
+         "exact-nonnegative-integer?"
+         "given: -1")
+        (catch-contract/contains?
+         (lambda () (vector-take-right '#(a b) -1))
+         "vector-take-right"
+         "exact-nonnegative-integer?"
+         "given: -1")
+        (catch-contract/contains?
+         (lambda () (vector-drop-right '#(a b) -1))
+         "vector-drop-right"
+         "exact-nonnegative-integer?"
+         "given: -1")
+        (catch-contract/contains?
+         (lambda () (vector-split-at '#(a b) -1))
+         "vector-split-at"
+         "exact-nonnegative-integer?"
+         "given: -1")
+        (catch-contract/contains?
+         (lambda () (vector-split-at-right '#(a b) -1))
+         "vector-split-at-right"
+         "exact-nonnegative-integer?"
+         "given: -1")))
  (list "vector constructors still work"
        (and (equal? (make-vector 3 'x) '#(x x x))
             (equal? (build-vector 3 values) '#(0 1 2)))))
