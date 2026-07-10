@@ -188,6 +188,23 @@
            "(integer-in 2 16)"
            "given: 17"
            (lambda () (string->number "1" 17))))))
+ (list "floating-point byte conversion real errors preserve who"
+       (let ([catch-contract/who+expected+given?
+              (lambda (expected given thunk)
+                (let ([message
+                       (with-handlers ([exn:fail:contract?
+                                        (lambda (exn)
+                                          (exn-message exn))])
+                         (thunk)
+                         #f)])
+                  (and message
+                       (string-contains? message "real->floating-point-bytes")
+                       (string-contains? message expected)
+                       (string-contains? message given))))])
+         (catch-contract/who+expected+given?
+          "real?"
+          "given: #f"
+          (lambda () (real->floating-point-bytes #f 8)))))
  (list "number conversion basics still work"
        (and (equal? (number->string 42) "42")
             (equal? (number->string 16 16) "10")

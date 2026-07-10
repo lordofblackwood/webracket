@@ -116,6 +116,9 @@ Current remaining raw-stub classes:
     `exact-integer?` / `exact-nonnegative-integer?` contracts for wrong-type
     paths, including the compiler fast path for one-argument `bitwise-and`,
     `bitwise-ior`, and `bitwise-xor`.
+  - `real->floating-point-bytes` now preserves `who` and the `real?` contract
+    for bad first arguments instead of falling through to the legacy generic
+    `number?` path.
   - Some numeric conversion helpers still use older validation shapes; audit
     those separately before claiming complete numeric parity.
 

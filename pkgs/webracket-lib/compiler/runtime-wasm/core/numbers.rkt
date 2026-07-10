@@ -4293,9 +4293,12 @@
            (if (ref.test (ref $Flonum) (local.get $x))
                (then (local.set $fl (ref.cast (ref $Flonum) (local.get $x))))
                (else
-                (if (ref.test (ref i31) (local.get $x))
+                (if (ref.eq (call $exact-integer? (local.get $x)) (global.get $true))
                     (then (local.set $fl (call $fx->fl/precise (local.get $x))))
-                    (else (call $raise-expected-number (local.get $x)) (unreachable)))))
+                    (else (call $raise-expected-real
+                                (global.get $symbol:real->floating-point-bytes)
+                                (local.get $x))
+                          (unreachable)))))
            (local.set $val (struct.get $Flonum $v (local.get $fl)))
 
            ;; Do it!
