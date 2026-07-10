@@ -132,6 +132,7 @@
 ;;   Preserve the runtime emission order for numeric error helpers.
 (define number-error-runtime-only-helper-names
   '($raise-expected-number/common
+    $raise-expected-number/who
     $raise-expected-number
     $raise-expected-number1
     $raise-expected-number2
@@ -1950,6 +1951,15 @@
                     (global.get $true))
               (unreachable))
 
+        (func $raise-expected-number/who
+              (param $who (ref eq))
+              (param $x   (ref eq))
+              (call $raise-argument-error1
+                    (local.get $who)
+                    (global.get $string:number?)
+                    (local.get $x))
+              (unreachable))
+
         (func $raise-expected-number
               (param $x (ref eq))
               (call $raise-expected-number/common (local.get $x))
@@ -2065,7 +2075,7 @@
    'generic-arithmetic-runtime-only-helpers
    `(
          ,@(let ()
-             (define (binop $op $fxop $flop)
+             (define (binop $op $who $fxop $flop)
                `(func ,$op (type $Prim2)
                       (param $x (ref eq))
                       (param $y (ref eq))
@@ -2086,7 +2096,9 @@
                                               (then (call ,$flop
                                                           (call $fx->fl/precise (local.get $x)) (local.get $y)))
                                               ; x fixnum, y not a number
-                                              (else (call $raise-expected-number1 (local.get $y))
+                                              (else (call $raise-expected-number/who
+                                                          (global.get ,$who)
+                                                          (local.get $y))
                                                     (unreachable))))))
                           ; x not fixnum
                           (else (if (result (ref eq))
@@ -2104,14 +2116,18 @@
                                                         (then (call ,$flop
                                                                     (local.get $x) (call $fx->fl/precise (local.get $y))))
                                                         ; x flonum, y not a number
-                                                        (else (call $raise-expected-number2 (local.get $y))
+                                                        (else (call $raise-expected-number/who
+                                                                    (global.get ,$who)
+                                                                    (local.get $y))
                                                               (unreachable))))))
                                     ; x is not a number
-                                    (else (call $raise-expected-number3 (local.get $x))
+                                    (else (call $raise-expected-number/who
+                                                (global.get ,$who)
+                                                (local.get $x))
                                           (unreachable)))))))
-            (list (binop '$+/2 '$fx+ '$fl+)
-                  (binop '$-/2 '$fx- '$fl-)
-                  (binop '$*/2 '$fx* '$fl*)))
+            (list (binop '$+/2 '$symbol:+ '$fx+ '$fl+)
+                  (binop '$-/2 '$symbol:- '$fx- '$fl-)
+                  (binop '$*/2 '$symbol:* '$fx* '$fl*)))
 
         (func $+ (type $Prim>=0)
                (param $xs0 (ref eq)) (result (ref eq))
@@ -2208,18 +2224,24 @@
                ;; --- Check that $x is a number ---
                ; Note: $x is not a number if: it is not a fixnum and not a flonum
                (if (i32.and
-                    (i32.eqz (ref.test (ref i31) (local.get $x)))
+                    (i32.eqz (call $fx?/i32 (local.get $x)))
                     (i32.eqz (ref.test (ref $Flonum) (local.get $x))))
-                   (then (call $raise-expected-number (local.get $x)) (unreachable)))
+                   (then (call $raise-expected-number/who
+                               (global.get $symbol:/)
+                               (local.get $x))
+                         (unreachable)))
                ;; --- Check that $y is a number ---
                (if (i32.and
-                    (i32.eqz (ref.test (ref i31) (local.get $y)))
+                    (i32.eqz (call $fx?/i32 (local.get $y)))
                     (i32.eqz (ref.test (ref $Flonum) (local.get $y))))
-                   (then (call $raise-expected-number (local.get $y)) (unreachable)))
+                   (then (call $raise-expected-number/who
+                               (global.get $symbol:/)
+                               (local.get $y))
+                         (unreachable)))
                ;; --- Both fixnums? try exact division ---
                (if (result (ref eq))
-                   (i32.and (ref.test (ref i31) (local.get $x))
-                            (ref.test (ref i31) (local.get $y)))
+                   (i32.and (call $fx?/i32 (local.get $x))
+                            (call $fx?/i32 (local.get $y)))
                    (then (local.set $xi ,(Half `(i31.get_s (ref.cast i31ref (local.get $x)))))
                          (local.set $yi ,(Half `(i31.get_s (ref.cast i31ref (local.get $y)))))
                          (if (i32.eqz (local.get $yi))

@@ -20,13 +20,37 @@
            (lambda () (zero? #f))
            "given: #f")
           (catch-number-contract?
+           (lambda () (expt 2 #f))
+           "given: #f"))))
+ (list "arithmetic number errors preserve who"
+       (let ([catch-number-contract/who?
+              (lambda (who thunk given)
+                (let ([message
+                       (with-handlers ([exn:fail:contract?
+                                        (lambda (exn)
+                                          (exn-message exn))])
+                         (thunk)
+                         #f)])
+                  (and message
+                       (string-contains? message who)
+                       (string-contains? message "number?")
+                       (string-contains? message given))))])
+         (and
+          (catch-number-contract/who?
+           "+"
            (lambda () (+ 1 #f))
            "given: #f")
-          (catch-number-contract?
+          (catch-number-contract/who?
+           "-"
+           (lambda () (- 1 #f))
+           "given: #f")
+          (catch-number-contract/who?
+           "*"
            (lambda () (* #f 1))
            "given: #f")
-          (catch-number-contract?
-           (lambda () (expt 2 #f))
+          (catch-number-contract/who?
+           "/"
+           (lambda () (/ 1 #f))
            "given: #f"))))
  (list "number->string errors are catchable with who"
        (let ([catch-contract/who+expected+given?

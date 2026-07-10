@@ -81,10 +81,10 @@ Current remaining raw-stub classes:
 - `numbers.rkt`:
   - The legacy `$raise-expected-number*` helpers now raise catchable
     `exn:fail:contract` values with `number?` and the offending value instead
-    of logging and trapping. They still do not preserve the precise
-    primitive-level `who`, because their old call sites only pass the offending
-    value. A follow-up should add `who`-aware call paths for public arithmetic
-    and numeric primitives.
+    of logging and trapping. Public `+`, `-`, `*`, and `/` now use a
+    `who`-aware path for bad number arguments. Other legacy numeric callers
+    still do not preserve the precise primitive-level `who`, because their old
+    call sites only pass the offending value.
 
 - `treelists.rkt`:
   - Positive out-of-range indexes for `treelist-ref`, `treelist-set`,
