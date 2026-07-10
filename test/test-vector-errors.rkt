@@ -161,6 +161,35 @@
          "vector-set/copy"
          "exact-nonnegative-integer?"
          "given: -1")))
+ (list "positive vector element indexes report range details"
+       (and
+        (catch-contract/contains?
+         (lambda () (vector-ref '#(a b) 2))
+         "vector-ref"
+         "index is out of range"
+         "index: 2"
+         "valid range: [0, 1]"
+         "vector:")
+        (catch-contract/contains?
+         (lambda () (vector-ref '#() 0))
+         "vector-ref"
+         "index is out of range for empty vector"
+         "index: 0"
+         "vector:")
+        (catch-contract/contains?
+         (lambda () (vector-set! (vector 'a 'b) 2 'x))
+         "vector-set!"
+         "index is out of range"
+         "index: 2"
+         "valid range: [0, 1]"
+         "vector:")
+        (catch-contract/contains?
+         (lambda () (vector-set/copy '#(a b) 2 'x))
+         "vector-set/copy"
+         "index is out of range"
+         "index: 2"
+         "valid range: [0, 1]"
+         "vector:")))
  (list "negative vector range indexes preserve the public contract"
        (and
         (catch-contract/contains?
@@ -250,6 +279,36 @@
          "vector-split-at-right"
          "exact-nonnegative-integer?"
          "given: -1")))
+ (list "positive vector slice indexes report range details"
+       (and
+        (catch-contract/contains?
+         (lambda () (vector-take '#(a b) 3))
+         "vector-take"
+         "index is out of range"
+         "index: 3"
+         "valid range: [0, 2]"
+         "vector:")
+        (catch-contract/contains?
+         (lambda () (vector-drop '#(a b) 3))
+         "vector-drop"
+         "index is out of range"
+         "index: 3"
+         "valid range: [0, 2]"
+         "vector:")
+        (catch-contract/contains?
+         (lambda () (vector-split-at '#() 1))
+         "vector-split-at"
+         "index is out of range"
+         "index: 1"
+         "valid range: [0, 0]"
+         "vector:")
+        (catch-contract/contains?
+         (lambda () (vector-split-at-right '#(a b) 3))
+         "vector-split-at-right"
+         "index is out of range"
+         "index: 3"
+         "valid range: [0, 2]"
+         "vector:")))
  (list "vector constructors still work"
        (and (equal? (make-vector 3 'x) '#(x x x))
             (equal? (build-vector 3 values) '#(0 1 2)))))

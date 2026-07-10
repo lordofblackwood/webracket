@@ -35,6 +35,12 @@
     (mutable-vector?            "(and/c vector? (not/c immutable?))")
     (valid-vector-index         "valid vector index")
     (valid-vector-length        "valid-vector-length?")
+    (vector-index-out-of-range  ": index is out of range")
+    (vector-index-out-of-range-empty ": index is out of range for empty vector")
+    (vector-index               "\n  index: ")
+    (vector-valid-range         "\n  valid range: [0, ")
+    (vector-valid-range-close   "]")
+    (vector-vector              "\n  vector: ")
     (build-vector-procedure     "(exact-nonnegative-integer? . -> . any/c)")
     (vector-unary-any-procedure "(any/c . -> . any/c)")
     (vector-unary-real-procedure "(any/c . -> . real?)")
@@ -194,10 +200,50 @@
               (param $v   (ref $Vector))
               (param $i   i32)
               (param $len i32)
-              (call $raise-argument-error1
-                    (local.get $who)
-                    (global.get $string:valid-vector-index)
-                    (ref.i31 (i32.shl (local.get $i) (i32.const 1)))))
+
+              (local $out     (ref $GrowableArray))
+              (local $message (ref $String))
+
+              (local.set $out
+                         (call $make-growable-array (i32.const 10)))
+              (call $growable-array-add! (local.get $out)
+                    (call $format/display (local.get $who)))
+              (if (i32.eqz (local.get $len))
+                  (then
+                   (call $growable-array-add! (local.get $out)
+                         (global.get $string:vector-index-out-of-range-empty)))
+                  (else
+                   (call $growable-array-add! (local.get $out)
+                         (global.get $string:vector-index-out-of-range))))
+              (call $growable-array-add! (local.get $out)
+                    (global.get $string:vector-index))
+              (call $growable-array-add! (local.get $out)
+                    (call $format/display
+                          (ref.i31 (i32.shl (local.get $i) (i32.const 1)))))
+              (if (i32.ne (local.get $len) (i32.const 0))
+                  (then
+                   (call $growable-array-add! (local.get $out)
+                         (global.get $string:vector-valid-range))
+                   (call $growable-array-add! (local.get $out)
+                         (call $format/display
+                               (ref.i31
+                                (i32.shl
+                                 (i32.sub (local.get $len) (i32.const 1))
+                                 (i32.const 1)))))
+                   (call $growable-array-add! (local.get $out)
+                         (global.get $string:vector-valid-range-close))))
+              (call $growable-array-add! (local.get $out)
+                    (global.get $string:vector-vector))
+              (call $growable-array-add! (local.get $out)
+                    (call $format/write (local.get $v)))
+              (local.set $message
+                         (call $growable-array-of-strings->string (local.get $out)))
+              (call $raise
+                    (call $exn:fail:contract/make
+                          (local.get $message)
+                          (call $current-continuation-marks (global.get $missing)))
+                    (global.get $true))
+              (unreachable))
         (func $raise-bad-vector-ref-index
               (param $v (ref $Vector)) (param $i i32) (param $len i32)
               (call $raise-bad-vector-ref-index/who
@@ -231,10 +277,40 @@
                (param $v   (ref $Vector))
                (param $i   i32)
                (param $len i32)
-               (call $raise-argument-error1
-                     (local.get $who)
-                     (global.get $string:valid-vector-index)
-                     (ref.i31 (i32.shl (local.get $i) (i32.const 1)))))
+
+               (local $out     (ref $GrowableArray))
+               (local $message (ref $String))
+
+               (local.set $out
+                          (call $make-growable-array (i32.const 10)))
+               (call $growable-array-add! (local.get $out)
+                     (call $format/display (local.get $who)))
+               (call $growable-array-add! (local.get $out)
+                     (global.get $string:vector-index-out-of-range))
+               (call $growable-array-add! (local.get $out)
+                     (global.get $string:vector-index))
+               (call $growable-array-add! (local.get $out)
+                     (call $format/display
+                           (ref.i31 (i32.shl (local.get $i) (i32.const 1)))))
+               (call $growable-array-add! (local.get $out)
+                     (global.get $string:vector-valid-range))
+               (call $growable-array-add! (local.get $out)
+                     (call $format/display
+                           (ref.i31 (i32.shl (local.get $len) (i32.const 1)))))
+               (call $growable-array-add! (local.get $out)
+                     (global.get $string:vector-valid-range-close))
+               (call $growable-array-add! (local.get $out)
+                     (global.get $string:vector-vector))
+               (call $growable-array-add! (local.get $out)
+                     (call $format/write (local.get $v)))
+               (local.set $message
+                          (call $growable-array-of-strings->string (local.get $out)))
+               (call $raise
+                     (call $exn:fail:contract/make
+                           (local.get $message)
+                           (call $current-continuation-marks (global.get $missing)))
+                     (global.get $true))
+               (unreachable))
          (func $raise-bad-vector-take-index
                (param $v (ref $Vector)) (param $i i32) (param $len i32)
                (call $raise-bad-vector-take-index/who

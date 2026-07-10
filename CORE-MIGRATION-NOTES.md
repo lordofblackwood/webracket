@@ -147,6 +147,17 @@ Current remaining raw-stub classes:
     with unsigned shifts, so negative exact indexes may be reported after
     unsigned reinterpretation instead of as the original negative value.
 
+- `vectors.rkt`:
+  - Positive out-of-range element indexes for `vector-ref`, `vector-set!`,
+    `vector*-ref`, `vector*-set!`, and `vector-set/copy`, plus positive
+    out-of-range slice counts for `vector-take`, `vector-drop`,
+    `vector-take-right`, `vector-drop-right`, `vector-split-at`, and
+    `vector-split-at-right`, now raise catchable range-style contract errors
+    with the bad index, valid range, and vector.
+  - `vector-copy`, `vector-copy!`, `vector->values`, and vector sorting range
+    paths still use the older generic vector range helper; handle their
+    start/end/destination-range messages separately.
+
 - `structs.rkt`:
   - `$raise-check-struct-type` is only used by `$check-struct-type`, which is
     not obviously source-visible. If a public caller is found, preserve its
