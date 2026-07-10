@@ -47,6 +47,44 @@
          "make-struct-type"
          "exact-nonnegative-integer?"
          "given: -1")))
+ (list "make-struct-type optional argument errors are catchable with who"
+       (and
+        (let-values ([(st make-p p? p-ref p-set!)
+                      (make-struct-type 'ins-current #f 0 0 #f null 'current)])
+          (procedure? make-p))
+        (let-values ([(st make-p p? p-ref p-set!)
+                      (make-struct-type 'ins-prefab #f 0 0 #f null 'prefab)])
+          (procedure? make-p))
+        (catch-contract/contains?
+         (lambda () (make-struct-type 'bad #f 1 0 #f null #f #f null 42))
+         "make-struct-type"
+         "(or/c #f procedure?)"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (make-struct-type 'bad #f 1 0 #f null 42))
+         "make-struct-type"
+         "(or/c inspector? #f 'current 'prefab)"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (make-struct-type 'bad #f 1 0 #f null 'other))
+         "make-struct-type"
+         "(or/c inspector? #f 'current 'prefab)"
+         "other")
+        (catch-contract/contains?
+         (lambda () (make-struct-type 'bad #f 1 0 #f 42))
+         "make-struct-type"
+         "(listof (cons/c struct-type-property? any/c))"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (make-struct-type 'bad #f 1 0 #f (list 42)))
+         "make-struct-type"
+         "(listof (cons/c struct-type-property? any/c))"
+         "given:")
+        (catch-contract/contains?
+         (lambda () (make-struct-type 'bad #f 1 0 #f (list (cons 42 1))))
+         "make-struct-type"
+         "(listof (cons/c struct-type-property? any/c))"
+         "given:")))
  (list "make-struct-type-property argument errors are catchable with who"
        (and
         (catch-contract/contains?

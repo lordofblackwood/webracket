@@ -30,6 +30,10 @@
     (struct-type-or-false       "(or/c #f struct-type?)")
     (struct-type-property-or-false
      "(or/c struct-type-property? #f)")
+    (make-struct-type-guard     "(or/c #f procedure?)")
+    (make-struct-type-inspector "(or/c inspector? #f 'current 'prefab)")
+    (make-struct-type-props
+     "(listof (cons/c struct-type-property? any/c))")
     (make-struct-type-property-guard
      "(or/c (procedure-arity-includes/c 2) #f 'can-impersonate)")
     (make-struct-type-property-supers
@@ -62,6 +66,7 @@
     prop:evt
     evt
     prefab
+    current
     prop:object-name
     object-name
     prop:procedure
@@ -572,6 +577,9 @@
   '($raise-make-struct-type:name
     $raise-make-struct-type:super
     $raise-make-struct-type:field-count
+    $raise-make-struct-type:guard
+    $raise-make-struct-type:inspector
+    $raise-make-struct-type:props
     $make-struct-type))
 
 ;; struct-accessor-runtime-only-helper-names : (listof symbol?)
@@ -3893,6 +3901,30 @@
                  (local.get $bad))
            (unreachable))
 
+     (func $raise-make-struct-type:guard
+           (param $bad (ref eq))
+           (call $raise-argument-error1
+                 (global.get $symbol:make-struct-type)
+                 (global.get $string:make-struct-type-guard)
+                 (local.get $bad))
+           (unreachable))
+
+     (func $raise-make-struct-type:inspector
+           (param $bad (ref eq))
+           (call $raise-argument-error1
+                 (global.get $symbol:make-struct-type)
+                 (global.get $string:make-struct-type-inspector)
+                 (local.get $bad))
+           (unreachable))
+
+     (func $raise-make-struct-type:props
+           (param $bad (ref eq))
+           (call $raise-argument-error1
+                 (global.get $symbol:make-struct-type)
+                 (global.get $string:make-struct-type-props)
+                 (local.get $bad))
+           (unreachable))
+
      (func $make-struct-type
            ;; Parameters
            (param $name             (ref eq))  ;; (ref $Symbol)
@@ -4016,8 +4048,31 @@
            (if (i32.and
                 (i32.eqz (ref.eq (local.get $guard-checked) (global.get $false)))
                 (i32.eqz (ref.test (ref $Procedure) (local.get $guard-checked))))
-               (then (call $raise-argument-error/internal (local.get $guard-checked))
+               (then (call $raise-make-struct-type:guard (local.get $guard-checked))
                      (unreachable)))
+
+           ;; WebRacket currently represents inspectors as #f. Preserve the
+           ;; supported public shorthands while rejecting other values.
+           (if (ref.eq (local.get $inspector) (global.get $missing))
+               (then (local.set $inspector (global.get $false))))
+           (if (i32.eqz (ref.eq (local.get $inspector) (global.get $false)))
+               (then
+                (if (i32.eqz (ref.test (ref $Symbol) (local.get $inspector)))
+                    (then (call $raise-make-struct-type:inspector (local.get $inspector))
+                          (unreachable)))
+                (if (i32.and
+                     (i32.eqz (call $symbol=?/i32
+                                    (ref.cast (ref $Symbol) (local.get $inspector))
+                                    (ref.cast (ref $Symbol) (global.get $symbol:prefab))))
+                     (i32.eqz (call $symbol=?/i32
+                                    (ref.cast (ref $Symbol) (local.get $inspector))
+                                    (ref.cast (ref $Symbol) (global.get $symbol:current)))))
+                    (then (call $raise-make-struct-type:inspector (local.get $inspector))
+                          (unreachable)))
+                (if (call $symbol=?/i32
+                          (ref.cast (ref $Symbol) (local.get $inspector))
+                          (ref.cast (ref $Symbol) (global.get $symbol:current)))
+                    (then (local.set $inspector (global.get $false))))))
 
            ;; --- Initialize property tables ---
            (local.set $props-new   (call $struct-type-property-table-empty))
@@ -4208,17 +4263,17 @@
                   (loop $walk
                         (br_if $done (ref.eq (local.get $props-cursor) (global.get $null)))
                         (if (i32.eqz (ref.test (ref $Pair) (local.get $props-cursor)))
-                            (then (call $raise-argument-error/internal (local.get $props-cursor))
+                            (then (call $raise-make-struct-type:props (local.get $props-spec))
                                   (unreachable)))
                         (local.set $props-cell (ref.cast (ref $Pair) (local.get $props-cursor)))
                         (local.set $entry-raw (struct.get $Pair $a (local.get $props-cell)))
                         (if (i32.eqz (ref.test (ref $Pair) (local.get $entry-raw)))
-                            (then (call $raise-argument-error/internal (local.get $entry-raw))
+                            (then (call $raise-make-struct-type:props (local.get $props-spec))
                                   (unreachable)))
                         (local.set $entry (ref.cast (ref $Pair) (local.get $entry-raw)))
                         (local.set $prop-raw (struct.get $Pair $a (local.get $entry)))
                         (if (i32.eqz (ref.test (ref $StructTypeProperty) (local.get $prop-raw)))
-                            (then (call $raise-argument-error/internal (local.get $prop-raw))
+                            (then (call $raise-make-struct-type:props (local.get $props-spec))
                                   (unreachable)))
                         (local.set $prop-desc (ref.cast (ref $StructTypeProperty) (local.get $prop-raw)))
                         (local.set $value (struct.get $Pair $d (local.get $entry)))
