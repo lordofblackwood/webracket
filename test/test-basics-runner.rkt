@@ -49,6 +49,7 @@
    (make-no-stdlib-result-tree-fixture "test/test-port-input-errors.rkt")
    (make-no-stdlib-result-tree-fixture "test/test-port-output-errors.rkt")
    (make-no-stdlib-result-tree-fixture "test/test-lock-errors.rkt")
+   (make-no-stdlib-result-tree-fixture "test/test-will-errors.rkt")
    (make-no-stdlib-result-tree-fixture "test/test-hash-errors.rkt")
    (make-no-stdlib-result-tree-fixture "test/test-character-errors.rkt")
    (make-no-stdlib-result-tree-fixture "test/test-event-sync-errors.rkt")

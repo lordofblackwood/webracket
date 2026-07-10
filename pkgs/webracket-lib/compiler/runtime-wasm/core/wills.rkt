@@ -10,7 +10,8 @@
 ;; will-runtime-string-constants : (listof (list/c symbol? string?))
 ;;   Declare string constants used by will-executor helpers.
 (define will-runtime-string-constants
-  '((will-executor? "will-executor?")))
+  '((will-executor?          "will-executor?")
+    (will-procedure-arity-1 "(procedure-arity-includes/c 1)")))
 
 ;; will-runtime-symbol-constants : (listof symbol?)
 ;;   Declare symbols used by will-executor helpers.
@@ -79,7 +80,7 @@
              (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc-raw)))
                  (then (call $raise-argument-error1
                              (global.get $symbol:will-register)
-                             (global.get $string:procedure?)
+                             (global.get $string:will-procedure-arity-1)
                              (local.get $proc-raw))
                        (unreachable)))
              (local.set $proc (ref.cast (ref $Procedure) (local.get $proc-raw)))
@@ -88,7 +89,7 @@
                                 (i32.const 1)))
                  (then (call $raise-argument-error1
                              (global.get $symbol:will-register)
-                             (global.get $string:procedure?)
+                             (global.get $string:will-procedure-arity-1)
                              (local.get $proc-raw))
                        (unreachable)))
              (local.set $executor
@@ -135,6 +136,12 @@
       `(func $will-execute (type $Prim1)
              (param $executor-raw (ref eq)) ;; will-executor?
              (result              (ref eq))
+             (if (i32.eqz (ref.test (ref $WillExecutor) (local.get $executor-raw)))
+                 (then (call $raise-argument-error1
+                             (global.get $symbol:will-execute)
+                             (global.get $string:will-executor?)
+                             (local.get $executor-raw))
+                       (unreachable)))
              (call $will-try-execute
                    (local.get $executor-raw)
                    (global.get $false)))))
