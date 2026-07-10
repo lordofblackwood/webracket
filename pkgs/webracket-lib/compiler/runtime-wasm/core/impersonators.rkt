@@ -13,7 +13,11 @@
 ;; impersonator-runtime-string-constants : (listof (list/c symbol? string?))
 ;;   Declare string constants used by impersonator and chaperone helpers.
 (define impersonator-runtime-string-constants
-  '((impersonator-property? "impersonator-property?")))
+  '((impersonator-property? "impersonator-property?")
+    (impersonators-unsupported "impersonators are not supported by WebRacket")
+    (procedure-arity-2 "(procedure-arity-includes/c 2)")
+    (procedure-arity-3 "(procedure-arity-includes/c 3)")
+    (procedure-arity-3-or-false "(or/c (procedure-arity-includes/c 3) #f)")))
 
 ;; impersonator-runtime-symbol-constants : (listof symbol?)
 ;;   Declare symbols used by impersonator and chaperone helpers.
@@ -36,7 +40,10 @@
 ;; chaperone-procedure-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for chaperone procedure helpers.
 (define chaperone-procedure-runtime-only-helper-names
-  '($chaperone-procedure
+  '($check-procedure-arity
+    $check-procedure-arity-or-false
+    $check-chaperone-hash-required-callbacks
+    $chaperone-procedure
     $chaperone-struct
     $chaperone-vector
     $chaperone-box
@@ -72,6 +79,10 @@
      (func $impersonator-val (type $Prim1)
            (param $v (ref eq)) ;; unsupported impersonator value
            (result   (ref eq))
+           (call $raise-arguments-error
+                 (global.get $symbol:impersonator-val)
+                 (global.get $string:impersonators-unsupported)
+                 (array.new_fixed $Args 0))
            (unreachable))
 
      ;; make-impersonator-property : symbol? -> values impersonator-property? procedure? procedure?
@@ -153,6 +164,87 @@
                                  (local.get $inv))))
            (local.get $fallback))
 
+     ;; check-procedure-arity : symbol? string? any/c exact-nonnegative-integer? -> void?
+     ;;   Validate that a callback is a procedure accepting argc arguments.
+     (func $check-procedure-arity
+           (param $who      (ref eq)) ;; primitive name for errors
+           (param $expected (ref eq)) ;; expected contract text
+           (param $v        (ref eq)) ;; candidate procedure
+           (param $argc     i32)      ;; required arity
+
+           (local $proc (ref $Procedure))
+
+           (if (i32.eqz (ref.test (ref $Procedure) (local.get $v)))
+               (then (call $raise-argument-error1
+                           (local.get $who)
+                           (local.get $expected)
+                           (local.get $v))
+                     (unreachable)))
+           (local.set $proc (ref.cast (ref $Procedure) (local.get $v)))
+           (if (i32.eqz (call $procedure-arity-includes?/checked/i32
+                              (local.get $proc)
+                              (local.get $argc)))
+               (then (call $raise-argument-error1
+                           (local.get $who)
+                           (local.get $expected)
+                           (local.get $v))
+                     (unreachable))))
+
+     ;; check-procedure-arity-or-false : symbol? string? any/c exact-nonnegative-integer? -> void?
+     ;;   Validate a callback that can also be #f.
+     (func $check-procedure-arity-or-false
+           (param $who      (ref eq)) ;; primitive name for errors
+           (param $expected (ref eq)) ;; expected contract text
+           (param $v        (ref eq)) ;; candidate procedure or #f
+           (param $argc     i32)      ;; required arity
+
+           (if (ref.eq (local.get $v) (global.get $false))
+               (then (return)))
+           (call $check-procedure-arity
+                 (local.get $who)
+                 (local.get $expected)
+                 (local.get $v)
+                 (local.get $argc)))
+
+     ;; check-chaperone-hash-required-callbacks : list? -> void?
+     ;;   Validate the remove and key callbacks carried in the variadic tail.
+     (func $check-chaperone-hash-required-callbacks
+           (param $rest (ref eq)) ;; remove/key/optional/property arguments
+
+           (local $cell        (ref $Pair))
+           (local $remove-proc (ref eq))
+           (local $key-proc    (ref eq))
+
+           (if (i32.eqz (ref.test (ref $Pair) (local.get $rest)))
+               (then (call $raise-argument-error1
+                           (global.get $symbol:chaperone-hash)
+                           (global.get $string:procedure-arity-3)
+                           (local.get $rest))
+                     (unreachable)))
+           (local.set $cell (ref.cast (ref $Pair) (local.get $rest)))
+           (local.set $remove-proc (struct.get $Pair $a (local.get $cell)))
+           (local.set $rest (struct.get $Pair $d (local.get $cell)))
+
+           (call $check-procedure-arity
+                 (global.get $symbol:chaperone-hash)
+                 (global.get $string:procedure-arity-3)
+                 (local.get $remove-proc)
+                 (i32.const 3))
+
+           (if (i32.eqz (ref.test (ref $Pair) (local.get $rest)))
+               (then (call $raise-argument-error1
+                           (global.get $symbol:chaperone-hash)
+                           (global.get $string:procedure-arity-3)
+                           (local.get $rest))
+                     (unreachable)))
+           (local.set $cell (ref.cast (ref $Pair) (local.get $rest)))
+           (local.set $key-proc (struct.get $Pair $a (local.get $cell)))
+           (call $check-procedure-arity
+                 (global.get $symbol:chaperone-hash)
+                 (global.get $string:procedure-arity-3)
+                 (local.get $key-proc)
+                 (i32.const 3)))
+
      ;; chaperone-procedure : procedure? (or/c procedure? #f) any/c ... -> procedure?
      ;;   Reference chaperones interpose on calls while preserving
      ;;   chaperone-of? constraints. WebRacket does not implement real
@@ -206,6 +298,16 @@
                            (global.get $string:vector?)
                            (local.get $vec))
                      (unreachable)))
+           (call $check-procedure-arity-or-false
+                 (global.get $symbol:chaperone-vector)
+                 (global.get $string:procedure-arity-3-or-false)
+                 (local.get $ref-proc)
+                 (i32.const 3))
+           (call $check-procedure-arity-or-false
+                 (global.get $symbol:chaperone-vector)
+                 (global.get $string:procedure-arity-3-or-false)
+                 (local.get $set-proc)
+                 (i32.const 3))
            (local.get $vec))
 
      ;; chaperone-box : box? procedure? procedure? any/c ... -> box?
@@ -224,6 +326,16 @@
                            (global.get $string:box?)
                            (local.get $box))
                      (unreachable)))
+           (call $check-procedure-arity
+                 (global.get $symbol:chaperone-box)
+                 (global.get $string:procedure-arity-2)
+                 (local.get $unbox-proc)
+                 (i32.const 2))
+           (call $check-procedure-arity
+                 (global.get $symbol:chaperone-box)
+                 (global.get $string:procedure-arity-2)
+                 (local.get $set-proc)
+                 (i32.const 2))
            (local.get $box))
 
      ;; chaperone-hash : hash? procedure? procedure? procedure? procedure? any/c ... -> hash?
@@ -243,6 +355,18 @@
                            (global.get $string:hash?)
                            (local.get $hash))
                      (unreachable)))
+           (call $check-procedure-arity
+                 (global.get $symbol:chaperone-hash)
+                 (global.get $string:procedure-arity-2)
+                 (local.get $ref-proc)
+                 (i32.const 2))
+           (call $check-procedure-arity
+                 (global.get $symbol:chaperone-hash)
+                 (global.get $string:procedure-arity-3)
+                 (local.get $set-proc)
+                 (i32.const 3))
+           (call $check-chaperone-hash-required-callbacks
+                 (local.get $rest))
            (local.get $hash))
 
      ;; unsafe-chaperone-procedure : procedure? procedure? any/c ... -> procedure?
