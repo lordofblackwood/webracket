@@ -18,39 +18,40 @@ Current remaining raw-stub classes:
   - `$raise-expected-string` was removed. `linear-memory->string` now raises a
     catchable `exn:fail:contract` with `who` tied to `linear-memory->string`
     when decoded FASL data is not a string.
-  - `$raise-expected-fixnum` is used by `$list-from-range`; public `range`
-    validates arguments before choosing the fixnum/flonum implementations.
-    Keep this lower priority unless a compiler fast path is found to call
-    `$list-from-range` without validation.
+  - `$raise-expected-fixnum` now raises a catchable `exn:fail:contract`.
+    Public `range` validates arguments before choosing the fixnum/flonum
+    implementation, so this remains a fallback path rather than a deliberately
+    polished public error message.
 
 - `mutable-hashes.rkt` and `symbols.rkt`:
   - `$raise-hash-insert:table-full` and
-    `$raise-symbol-table-insert:table-full` are internal capacity failures.
-    They should probably become an internal runtime error or
-    `exn:fail:out-of-memory`, but they are hard to exercise from a focused
-    source-level test.
+    `$raise-symbol-table-insert:table-full` now raise catchable
+    `exn:fail:out-of-memory` values. They are hard to exercise from a focused
+    source-level test because normal growth should resize before saturation.
   - Concrete mutable hash helper stubs such as
-    `$raise-argument-error:mutable-hasheq-expected` are internal dispatch
-    targets. The public generic operations already validate and raise with
-    `who`. If a concrete helper becomes source-visible, add a focused test and
-    give it a concrete `who`.
+    `$raise-argument-error:mutable-hasheq-expected` now raise catchable
+    `exn:fail:contract` values. These helpers are shared across several hidden
+    concrete mutable-hash dispatch paths, so they currently use the generic
+    mutable-hash contract rather than preserving the precise public `who`.
 
 - `strings.rkt` and `bytes.rkt`:
   - `$raise-check-string`, `$raise-bad-string-index`, and
-    `$raise-expected-mutable-bytes` appear to be legacy/unused stubs. Public
-    string and bytes primitives mostly route through newer helpers that preserve
-    `who`.
+    `$raise-expected-mutable-bytes` now raise catchable contract errors, but
+    they still appear to be legacy/unused stubs. Public string and bytes
+    primitives mostly route through newer helpers that preserve `who`.
   - `$raise-invalid-utf8-input`, `$raise-invalid-utf8-start`, and
-    `$raise-invalid-utf8-end` in `strings.rkt` appear unreferenced; the public
-    `bytes->string/utf-8` path uses the byte-decoding helpers in `bytes.rkt`,
-    which already raise catchable contract errors.
-  - `$raise-string-copy!/checked:out-of-bounds` belongs to a `/checked` helper.
-    Keep `/checked` trusted unless evidence shows a user/compiler path reaches
-    it without prior validation.
+    `$raise-invalid-utf8-end` in `strings.rkt` now raise catchable fallback
+    errors, but still appear unreferenced; the public `bytes->string/utf-8`
+    path uses the byte-decoding helpers in `bytes.rkt`, which already raise
+    catchable contract errors.
+  - `$raise-string-copy!/checked:out-of-bounds` belongs to a `/checked` helper
+    and now raises a catchable internal contract error. Keep `/checked` trusted
+    unless evidence shows a user/compiler path reaches it without prior
+    validation.
   - `$raise-string-buffer-overflow` now raises a catchable
     `exn:fail:out-of-memory`, since the live callers are shared linear-memory
-    staging buffers used by FFI and filesystem bridges. `$bomb` remains a
-    builder/internal invariant failure.
+    staging buffers used by FFI and filesystem bridges. `$bomb` now raises a
+    catchable internal contract error.
 
 - `formatting.rkt` and struct formatting:
   - Formatter fallback stubs are not all ordinary contract errors. For some

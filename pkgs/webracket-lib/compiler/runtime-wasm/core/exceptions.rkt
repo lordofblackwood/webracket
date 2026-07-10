@@ -4435,7 +4435,13 @@
                            (global.get $true)))
                (unreachable))
 
-         (func $raise-expected-fixnum (param $x (ref eq)) (unreachable))))
+         (func $raise-expected-fixnum
+               (param $x (ref eq))
+               (call $raise-argument-error1
+                     (global.get $symbol:fixnum?)
+                     (global.get $string:fixnum?)
+                     (local.get $x))
+               (unreachable))))
 
 ;; exception-contract-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Register generic contract-error helpers.

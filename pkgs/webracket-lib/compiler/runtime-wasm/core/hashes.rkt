@@ -30,7 +30,8 @@
     (hash-ref-key:does-not-contain-key "hash-ref-key: hash does not contain key\n  key: ")
     (hash-ref!:no-value-found-key "hash-ref!: no value found for key: ")
     (hash-update!:no-value-found-key "hash-update!: no value found for key: ")
-    (hash-iterate:no-element-at-index ": no element at index\n  index: ")))
+    (hash-iterate:no-element-at-index ": no element at index\n  index: ")
+    (hash-table-full "WebRacket hash table insertion failed")))
 
 ;; hash-runtime-symbol-constants : (listof symbol?)
 ;;   Declare symbols used by public hash contract checks.

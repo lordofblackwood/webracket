@@ -67,6 +67,13 @@
     (substring:ending-index "\n  ending index: ")
     (string-utf8:byte-string "\n  byte string: ")
     (string-buffer-overflow "WebRacket linear-memory buffer is too small")
+    (string-check:string-copy!/checked "internal string-copy!/checked bounds check failed")
+    (string-check:index-out-of-bounds "internal string index bounds check failed")
+    (string-check:invalid-utf8-input "invalid UTF-8 input")
+    (string-check:invalid-utf8-start "invalid UTF-8 starting index")
+    (string-check:invalid-utf8-end "invalid UTF-8 ending index")
+    (string-check:invalid-utf8-range "invalid UTF-8 range")
+    (string-check:internal-invariant "internal string invariant failed")
     (listof-string? "(listof string?)")
     (string-or-bytes "(or/c string? bytes?)")))
 
@@ -456,7 +463,13 @@
   (function-forms->runtime-helpers
    'string-check-runtime-only-helpers
    '(
-         (func $raise-check-string         (param $x (ref eq))                      (unreachable))
+         (func $raise-check-string
+               (param $x (ref eq))
+               (call $raise-argument-error1
+                     (global.get $symbol:string)
+                     (global.get $string:string?)
+                     (local.get $x))
+               (unreachable))
      )))
 
 ;; string-constructor-runtime-only-helpers : (listof core-runtime-helper?)
@@ -740,7 +753,14 @@
                      (global.get $true))
                (unreachable))
 
-         (func $raise-bad-string-index     (param $x (ref eq)) (param $i (ref eq))  (unreachable))
+         (func $raise-bad-string-index
+               (param $x (ref eq))
+               (param $i (ref eq))
+               (call $raise-argument-error1
+                     (global.get $symbol:string-ref)
+                     (global.get $string:exact-nonnegative-integer?)
+                     (local.get $i))
+               (unreachable))
          (func $raise-bad-string-index/i32
                (param $x (ref eq))
                (param $i i32)
@@ -763,7 +783,14 @@
                      (global.get $string:string?)
                      (local.get $x)))
 
-         (func $raise-string-index-out-of-bounds/i32 (param $x (ref eq)) (param $i i32) (param $n i32)
+         (func $raise-string-index-out-of-bounds/i32
+               (param $x (ref eq))
+               (param $i i32)
+               (param $n i32)
+               (call $raise-arguments-error
+                     (global.get $symbol:string-ref)
+                     (global.get $string:string-check:index-out-of-bounds)
+                     (array.new_fixed $Args 0))
                (unreachable))
      )))
 
@@ -2837,13 +2864,32 @@
   (function-forms->runtime-helpers
    'string-utf8-runtime-only-helpers
    `(
-         (func $raise-invalid-utf8-input (param $bad (ref eq)) (result (ref eq)) (unreachable))
+         (func $raise-invalid-utf8-input (param $bad (ref eq)) (result (ref eq))
+               (call $raise-argument-error1
+                     (global.get $symbol:string->bytes/utf-8)
+                     (global.get $string:string-check:invalid-utf8-input)
+                     (local.get $bad))
+               (unreachable))
 
-         (func $raise-invalid-utf8-start (param $bad (ref eq)) (result (ref eq)) (unreachable))
+         (func $raise-invalid-utf8-start (param $bad (ref eq)) (result (ref eq))
+               (call $raise-argument-error1
+                     (global.get $symbol:string->bytes/utf-8)
+                     (global.get $string:string-check:invalid-utf8-start)
+                     (local.get $bad))
+               (unreachable))
 
-         (func $raise-invalid-utf8-end (param $bad (ref eq)) (result (ref eq)) (unreachable))
+         (func $raise-invalid-utf8-end (param $bad (ref eq)) (result (ref eq))
+               (call $raise-argument-error1
+                     (global.get $symbol:string->bytes/utf-8)
+                     (global.get $string:string-check:invalid-utf8-end)
+                     (local.get $bad))
+               (unreachable))
 
          (func $raise-invalid-utf8-range (param $start (ref eq)) (param $end (ref eq)) (result (ref eq))
+               (call $raise-arguments-error
+                     (global.get $symbol:string->bytes/utf-8)
+                     (global.get $string:string-check:invalid-utf8-range)
+                     (array.new_fixed $Args 0))
                (unreachable))
 
          (func $raise-string-utf8-index-out-of-range
@@ -3491,7 +3537,12 @@
                (global.get $void))
 
 
-         (func $raise-string-copy!/checked:out-of-bounds (unreachable))
+         (func $raise-string-copy!/checked:out-of-bounds
+               (call $raise-arguments-error
+                     (global.get $symbol:string-copy!)
+                     (global.get $string:string-check:string-copy!/checked)
+                     (array.new_fixed $Args 0))
+               (unreachable))
 
          (func $string-copy!/checked
                (param $dst        (ref $String)) ;; Destination string
@@ -3787,7 +3838,12 @@
                      (local.get $x))
                (unreachable))
 
-         (func $bomb (unreachable))
+         (func $bomb
+               (call $raise-arguments-error
+                     (global.get $symbol:string)
+                     (global.get $string:string-check:internal-invariant)
+                     (array.new_fixed $Args 0))
+               (unreachable))
      )))
 
 ;; string-trim-runtime-only-helpers : (listof core-runtime-helper?)

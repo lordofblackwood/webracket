@@ -975,14 +975,27 @@
       raise-expected
       (symbol->string raise-expected)
       (lambda ()
-        `(func ,raise-expected (unreachable)))))
+        `(func ,raise-expected
+               (param $bad (ref eq))
+               (call $raise-argument-error1
+                     (global.get $symbol:hash-set!)
+                     (global.get $string:mutable-hash?)
+                     (local.get $bad))
+               (unreachable)))))
 
    (list
     (core-runtime-helper
      '$raise-hash-insert:table-full
      "$raise-hash-insert:table-full"
      (lambda ()
-       `(func $raise-hash-insert:table-full (unreachable))))
+       `(func $raise-hash-insert:table-full
+              (drop (call $raise
+                          (call $make-exn:fail:out-of-memory
+                                (global.get $string:hash-table-full)
+                                (call $current-continuation-marks
+                                      (global.get $missing)))
+                          (global.get $true)))
+              (unreachable))))
 
     (core-runtime-helper
      '$hash-kind/i32
@@ -1680,7 +1693,12 @@
      '$raise-argument-error:hasheq-mutable-expected
      "$raise-argument-error:hasheq-mutable-expected"
      (lambda ()
-       `(func $raise-argument-error:hasheq-mutable-expected (unreachable))))
+       `(func $raise-argument-error:hasheq-mutable-expected
+              (call $raise-arguments-error
+                    (global.get $symbol:hash-remove!)
+                    (global.get $string:mutable-hash?)
+                    (array.new_fixed $Args 0))
+              (unreachable))))
 
     (core-runtime-helper
      '$hash-remove!

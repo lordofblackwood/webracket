@@ -22,6 +22,7 @@
 (define symbol-runtime-string-constants
   '((symbol? "symbol?")
     (symbol-or-string? "(or/c symbol? string?)")
+    (symbol-table-full "WebRacket symbol table insertion failed")
     (g       "g")))
 
 ;; symbol-table-type-forms : (listof datum?)
@@ -142,7 +143,14 @@
            ;; Not found
            (global.get $missing))
 
-     (func $raise-symbol-table-insert:table-full (unreachable))
+     (func $raise-symbol-table-insert:table-full
+           (drop (call $raise
+                       (call $make-exn:fail:out-of-memory
+                             (global.get $string:symbol-table-full)
+                             (call $current-continuation-marks
+                                   (global.get $missing)))
+                       (global.get $true)))
+           (unreachable))
 
      (func $symbol-table-insert
            (param $table (ref $SymbolTable))

@@ -31,6 +31,7 @@
     (mutable-bytes?             "(and/c bytes? (not/c immutable?))")
     (char-or-false?             "(or/c char? #f)")
     (bytes->string/utf-8:bad-encoding ": byte string is not a well-formed UTF-8 encoding")
+    (bytes:expected-mutable "expected mutable byte string")
     (bytes-converter?           "bytes-converter?")))
 
 ;; bytes-runtime-bytes-constants : (listof (list/c symbol? bytes?))
@@ -1016,7 +1017,12 @@
   (function-forms->runtime-helpers
    'byte-sequence-runtime-only-helpers
    '(
-     (func $raise-expected-mutable-bytes (unreachable))
+     (func $raise-expected-mutable-bytes
+           (call $raise-arguments-error
+                 (global.get $symbol:bytes-fill!)
+                 (global.get $string:bytes:expected-mutable)
+                 (array.new_fixed $Args 0))
+           (unreachable))
      (func $raise-listof-bytes/who (param $who (ref eq)) (param $xs (ref eq))
            (call $raise-argument-error1
                  (local.get $who)
