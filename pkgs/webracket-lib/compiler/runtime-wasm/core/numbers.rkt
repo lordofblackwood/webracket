@@ -22,6 +22,8 @@
 (define number-runtime-string-constants
   '((number?                    "number?")
     (real?                      "real?")
+    (integer?                   "integer?")
+    (rational?                  "rational?")
     (exact-nonnegative-integer? "exact-nonnegative-integer?")
     (exact-integer?             "exact-integer?")
     (number->string:radix       "(or/c 2 8 10 16)")
@@ -40,7 +42,54 @@
 ;; number-runtime-symbol-constants : (listof symbol?)
 ;;   Declare symbols used by generic number helpers and errors.
 (define number-runtime-symbol-constants
-  '(order-of-magnitude
+  '(inexact->exact
+    exact->inexact
+    real->double-flonum
+    zero?
+    integer-sqrt
+    integer-sqrt/remainder
+    expt
+    exp
+    log
+    positive?
+    negative?
+    even?
+    odd?
+    nan?
+    infinite?
+    quotient
+    remainder
+    modulo
+    quotient/remainder
+    add1
+    sub1
+    sqr
+    sqrt
+    abs
+    round
+    floor
+    ceiling
+    truncate
+    sgn
+    exact-round
+    exact-floor
+    exact-ceiling
+    exact-truncate
+    sin
+    cos
+    tan
+    asin
+    acos
+    sinh
+    cosh
+    tanh
+    asinh
+    acosh
+    atanh
+    atan
+    degrees->radians
+    radians->degrees
+    order-of-magnitude
     bitwise-bit-field))
 
 ;; Half : datum? -> datum?
@@ -147,6 +196,8 @@
     $raise-expected-number2
     $raise-expected-number3
     $raise-expected-number4
+    $raise-expected-integer
+    $raise-expected-rational
     $raise-expected-real
     $raise-expected-keyword))
 
@@ -425,19 +476,29 @@
                    (local.set $fl (ref.cast (ref $Flonum) (local.get $z)))
                    (local.set $f64 (struct.get $Flonum $v (local.get $fl)))
                    (if (f64.ne (local.get $f64) (local.get $f64))
-                       (then (call $raise-expected-number (local.get $z)) (unreachable)))
+                       (then (call $raise-expected-number/who
+                                   (global.get $symbol:inexact->exact)
+                                   (local.get $z)) (unreachable)))
                    (if (f64.eq (local.get $f64) (f64.const +inf))
-                       (then (call $raise-expected-number (local.get $z)) (unreachable)))
+                       (then (call $raise-expected-number/who
+                                   (global.get $symbol:inexact->exact)
+                                   (local.get $z)) (unreachable)))
                    (if (f64.eq (local.get $f64) (f64.const -inf))
-                       (then (call $raise-expected-number (local.get $z)) (unreachable)))
+                       (then (call $raise-expected-number/who
+                                   (global.get $symbol:inexact->exact)
+                                   (local.get $z)) (unreachable)))
                    (if (f64.eq (f64.floor (local.get $f64)) (local.get $f64))
                        (then
                         (local.set $i32 (i32.trunc_f64_s (local.get $f64)))
                         (return (ref.i31 (i32.shl (local.get $i32) (i32.const 1)))))
-                       (else (call $raise-expected-number (local.get $z)) (unreachable)))))
+                       (else (call $raise-expected-number/who
+                                   (global.get $symbol:inexact->exact)
+                                   (local.get $z)) (unreachable)))))
 
               ;; Not a number
-              (call $raise-expected-number (local.get $z))
+              (call $raise-expected-number/who
+                    (global.get $symbol:inexact->exact)
+                    (local.get $z))
               (unreachable))
 
 
@@ -507,7 +568,9 @@
                          (if (i32.eqz (i32.shr_u (local.get $x/fx) (i32.const 1))) ;; value == 0?
                              (then (return (global.get $true)))
                              (else (return (global.get $false)))))
-                        (else (call $raise-expected-number (local.get $x)) (unreachable)))))
+                        (else (call $raise-expected-number/who
+                                    (global.get $symbol:zero?)
+                                    (local.get $x)) (unreachable)))))
                ;; If x is a flonum, check if it's 0.0
                (if (ref.test (ref $Flonum) (local.get $x))
                    (then
@@ -516,7 +579,9 @@
                         (then (return (global.get $true)))
                         (else (return (global.get $false))))))
                ;; Not a number
-               (call $raise-expected-number (local.get $x))
+               (call $raise-expected-number/who
+                     (global.get $symbol:zero?)
+                     (local.get $x))
                (unreachable))
 
         (func $integer-sqrt (type $Prim1)
@@ -542,7 +607,9 @@
                              (return (ref.i31 (i32.shl (local.get $i32) (i32.const 1)))))
                             (else
                              (return (struct.new $Flonum (i32.const 0) (local.get $f64))))))
-                       (else (call $raise-expected-number (local.get $n))
+                       (else (call $raise-expected-integer
+                                   (global.get $symbol:integer-sqrt)
+                                   (local.get $n))
                              (unreachable)))))
 
               ;; Flonum case
@@ -555,11 +622,15 @@
                         (return (struct.new $Flonum
                                             (i32.const 0)
                                             (f64.floor (call $js-raw-math-sqrt (local.get $f64))))))
-                       (else (call $raise-expected-number (local.get $n))
+                       (else (call $raise-expected-integer
+                                   (global.get $symbol:integer-sqrt)
+                                   (local.get $n))
                              (unreachable)))))
 
               ;; Not a number
-              (call $raise-expected-number (local.get $n))
+              (call $raise-expected-integer
+                    (global.get $symbol:integer-sqrt)
+                    (local.get $n))
               (unreachable))
 
         (func $integer-sqrt/remainder (type $Prim1)
@@ -596,7 +667,9 @@
                              (return (array.new_fixed $Values 2
                                                        (struct.new $Flonum (i32.const 0) (local.get $sqrtf))
                                                        (struct.new $Flonum (i32.const 0) (local.get $remf))))))
-                       (else (call $raise-expected-number (local.get $n))
+                       (else (call $raise-expected-integer
+                                   (global.get $symbol:integer-sqrt/remainder)
+                                   (local.get $n))
                              (unreachable))))))
 
               ;; Flonum case
@@ -611,11 +684,15 @@
                         (return (array.new_fixed $Values 2
                                                   (struct.new $Flonum (i32.const 0) (local.get $sqrtf))
                                                   (struct.new $Flonum (i32.const 0) (local.get $remf)))))
-                       (else (call $raise-expected-number (local.get $n))
+                       (else (call $raise-expected-integer
+                                   (global.get $symbol:integer-sqrt/remainder)
+                                   (local.get $n))
                              (unreachable)))))
 
               ;; Not a number
-              (call $raise-expected-number (local.get $n))
+              (call $raise-expected-integer
+                    (global.get $symbol:integer-sqrt/remainder)
+                    (local.get $n))
               (unreachable))
 
         ; Note:
@@ -663,13 +740,17 @@
                        (then
                         (local.set $zf64 (f64.convert_i32_s (i32.shr_s (local.get $zbits) (i32.const 1))))
                         (local.set $exactz (i32.const 1)))
-                       (else (call $raise-expected-number (local.get $z)) (unreachable))))
+                       (else (call $raise-expected-number/who
+                                   (global.get $symbol:expt)
+                                   (local.get $z)) (unreachable))))
                   (else
                    (if (ref.test (ref $Flonum) (local.get $z))
                        (then
                         (local.set $zf64 (struct.get $Flonum $v (ref.cast (ref $Flonum) (local.get $z))))
                         (local.set $exactz (i32.const 0)))
-                       (else (call $raise-expected-number (local.get $z)) (unreachable)))))
+                       (else (call $raise-expected-number/who
+                                   (global.get $symbol:expt)
+                                   (local.get $z)) (unreachable)))))
 
               ;; Decode w
               (if (ref.test (ref i31) (local.get $w))
@@ -679,13 +760,17 @@
                        (then
                         (local.set $wf64 (f64.convert_i32_s (i32.shr_s (local.get $wbits) (i32.const 1))))
                         (local.set $exactw (i32.const 1)))
-                       (else (call $raise-expected-number (local.get $w)) (unreachable))))
+                       (else (call $raise-expected-number/who
+                                   (global.get $symbol:expt)
+                                   (local.get $w)) (unreachable))))
                   (else
                    (if (ref.test (ref $Flonum) (local.get $w))
                        (then
                         (local.set $wf64 (struct.get $Flonum $v (ref.cast (ref $Flonum) (local.get $w))))
                         (local.set $exactw (i32.const 0)))
-                       (else (call $raise-expected-number (local.get $w)) (unreachable)))))
+                       (else (call $raise-expected-number/who
+                                   (global.get $symbol:expt)
+                                   (local.get $w)) (unreachable)))))
 
               ;; Special cases for exact results
               (if (i32.and (local.get $exactw)
@@ -738,7 +823,9 @@
                             (else
                              (local.set $f64 (call $js-raw-math-exp (f64.convert_i32_s (local.get $bits))))
                              (return (struct.new $Flonum (i32.const 0) (local.get $f64))))))
-                       (else (call $raise-expected-number (local.get $x))
+                       (else (call $raise-expected-number/who
+                                   (global.get $symbol:exp)
+                                   (local.get $x))
                              (unreachable)))))
 
               ;; Flonum case
@@ -749,7 +836,9 @@
                    (return (struct.new $Flonum (i32.const 0) (call $js-raw-math-exp (local.get $f64))))))
 
               ;; Not a number
-              (call $raise-expected-number (local.get $x))
+              (call $raise-expected-number/who
+                    (global.get $symbol:exp)
+                    (local.get $x))
               (unreachable))
 
         (func $log (type $Prim12)
@@ -779,14 +868,18 @@
                              (local.set $res
                                         (call $js-raw-math-log (f64.convert_i32_s (local.get $bits))))
                              (return (struct.new $Flonum (i32.const 0) (local.get $res))))
-                            (else (call $raise-expected-number (local.get $z)) (unreachable)))))
+                            (else (call $raise-expected-number/who
+                                        (global.get $symbol:log)
+                                        (local.get $z)) (unreachable)))))
                    (if (ref.test (ref $Flonum) (local.get $z))
                        (then
                         (local.set $fl (ref.cast (ref $Flonum) (local.get $z)))
                         (local.set $zf64 (struct.get $Flonum $v (local.get $fl)))
                         (return (struct.new $Flonum (i32.const 0)
                                             (call $js-raw-math-log (local.get $zf64))))))
-                   (call $raise-expected-number (local.get $z))
+                   (call $raise-expected-number/who
+                         (global.get $symbol:log)
+                         (local.get $z))
                    (unreachable))
                   (else
                    ;; Log with base
@@ -799,13 +892,17 @@
                              (if (i32.eqz (local.get $bits))
                                  (then (call $raise-division-by-zero) (unreachable)))
                              (local.set $zf64 (f64.convert_i32_s (local.get $bits))))
-                            (else (call $raise-expected-number (local.get $z)) (unreachable))))
+                            (else (call $raise-expected-number/who
+                                        (global.get $symbol:log)
+                                        (local.get $z)) (unreachable))))
                        (else
                         (if (ref.test (ref $Flonum) (local.get $z))
                             (then
                              (local.set $fl (ref.cast (ref $Flonum) (local.get $z)))
                              (local.set $zf64 (struct.get $Flonum $v (local.get $fl))))
-                            (else (call $raise-expected-number (local.get $z)) (unreachable)))))
+                            (else (call $raise-expected-number/who
+                                        (global.get $symbol:log)
+                                        (local.get $z)) (unreachable)))))
                    (if (ref.test (ref i31) (local.get $b))
                        (then
                         (local.set $bits (i31.get_s (ref.cast (ref i31) (local.get $b))))
@@ -815,13 +912,17 @@
                              (if (i32.eq (local.get $bits) (i32.const 1))
                                  (then (call $raise-division-by-zero) (unreachable)))
                              (local.set $bf64 (f64.convert_i32_s (local.get $bits))))
-                            (else (call $raise-expected-number (local.get $b)) (unreachable))))
+                            (else (call $raise-expected-number/who
+                                        (global.get $symbol:log)
+                                        (local.get $b)) (unreachable))))
                        (else
                         (if (ref.test (ref $Flonum) (local.get $b))
                             (then
                              (local.set $fl (ref.cast (ref $Flonum) (local.get $b)))
                              (local.set $bf64 (struct.get $Flonum $v (local.get $fl))))
-                            (else (call $raise-expected-number (local.get $b)) (unreachable)))))
+                            (else (call $raise-expected-number/who
+                                        (global.get $symbol:log)
+                                        (local.get $b)) (unreachable)))))
                    (local.set $res
                               (f64.div (call $js-raw-math-log (local.get $zf64))
                                        (call $js-raw-math-log (local.get $bf64))))
@@ -848,7 +949,9 @@
                                        (i32.const 0))
                              (then (return (global.get $true)))
                              (else (return (global.get $false)))))
-                        (else (call $raise-expected-number (local.get $x)) (unreachable)))))
+                        (else (call $raise-expected-real
+                                    (global.get $symbol:positive?)
+                                    (local.get $x)) (unreachable)))))
 
                ;; If x is a flonum, check if it's > 0.0
                (if (ref.test (ref $Flonum) (local.get $x))
@@ -859,7 +962,9 @@
                         (else (return (global.get $false))))))
 
                ;; Not a number
-               (call $raise-expected-number (local.get $x))
+               (call $raise-expected-real
+                     (global.get $symbol:positive?)
+                     (local.get $x))
                (unreachable))
 
          (func $negative? (type $Prim1)
@@ -878,7 +983,9 @@
                          (if (i32.lt_s (i32.shr_s (local.get $x/fx) (i32.const 1)) (i32.const 0))
                              (then (return (global.get $true)))
                              (else (return (global.get $false)))))
-                        (else (call $raise-expected-number (local.get $x)) (unreachable)))))
+                        (else (call $raise-expected-real
+                                    (global.get $symbol:negative?)
+                                    (local.get $x)) (unreachable)))))
 
                ;; If x is a flonum, check if it's < 0.0
                (if (ref.test (ref $Flonum) (local.get $x))
@@ -889,7 +996,9 @@
                         (else (return (global.get $false))))))
 
                ;; Not a number
-               (call $raise-expected-number (local.get $x))
+               (call $raise-expected-real
+                     (global.get $symbol:negative?)
+                     (local.get $x))
                (unreachable))
 
          (func $even? (type $Prim1)
@@ -911,7 +1020,9 @@
                          (if (i32.eqz (i32.and (local.get $i32) (i32.const 1)))
                              (then (return (global.get $true)))
                              (else (return (global.get $false)))))
-                        (else (call $raise-expected-number (local.get $n)) (unreachable)))))
+                        (else (call $raise-expected-integer
+                                    (global.get $symbol:even?)
+                                    (local.get $n)) (unreachable)))))
 
                ;; Flonum case
                (if (ref.test (ref $Flonum) (local.get $n))
@@ -919,27 +1030,42 @@
                     (local.set $fl (ref.cast (ref $Flonum) (local.get $n)))
                     (local.set $f64 (struct.get $Flonum $v (local.get $fl)))
                     (if (f64.ne (local.get $f64) (local.get $f64))
-                        (then (call $raise-expected-number (local.get $n)) (unreachable)))
+                        (then (call $raise-expected-integer
+                                    (global.get $symbol:even?)
+                                    (local.get $n)) (unreachable)))
                     (if (f64.eq (local.get $f64) (f64.const +inf))
-                        (then (call $raise-expected-number (local.get $n)) (unreachable)))
+                        (then (call $raise-expected-integer
+                                    (global.get $symbol:even?)
+                                    (local.get $n)) (unreachable)))
                     (if (f64.eq (local.get $f64) (f64.const -inf))
-                        (then (call $raise-expected-number (local.get $n)) (unreachable)))
+                        (then (call $raise-expected-integer
+                                    (global.get $symbol:even?)
+                                    (local.get $n)) (unreachable)))
                     (if (f64.eq (f64.floor (local.get $f64)) (local.get $f64))
                         (then
                          (local.set $i32 (i32.trunc_f64_s (local.get $f64)))
                          (if (i32.eqz (i32.and (local.get $i32) (i32.const 1)))
                              (then (return (global.get $true)))
                              (else (return (global.get $false)))))
-                        (else (call $raise-expected-number (local.get $n)) (unreachable)))))
+                        (else (call $raise-expected-integer
+                                    (global.get $symbol:even?)
+                                    (local.get $n)) (unreachable)))))
 
                ;; Not an integer
-               (call $raise-expected-number (local.get $n))
+               (call $raise-expected-integer
+                     (global.get $symbol:even?)
+                     (local.get $n))
                (unreachable))
 
          (func $odd? (type $Prim1)
                (param $n (ref eq))
                (result (ref eq))
 
+               (if (ref.eq (call $integer? (local.get $n)) (global.get $false))
+                   (then (call $raise-expected-integer
+                               (global.get $symbol:odd?)
+                               (local.get $n))
+                         (unreachable)))
                (if (result (ref eq))
                    (ref.eq (call $even? (local.get $n)) (global.get $true))
                    (then (global.get $false))
@@ -1000,7 +1126,9 @@
                         (else (return (global.get $false))))))
 
                ;; Not a number
-               (call $raise-expected-number (local.get $x))
+               (call $raise-expected-number/who
+                     (global.get $symbol:nan?)
+                     (local.get $x))
                (unreachable))
 
          (func $infinite? (type $Prim1)
@@ -1026,7 +1154,9 @@
                     (return (global.get $false))))
 
                ;; Not a number
-               (call $raise-expected-number (local.get $x))
+               (call $raise-expected-number/who
+                     (global.get $symbol:infinite?)
+                     (local.get $x))
                (unreachable))
 
          (func $positive-integer? (type $Prim1)
@@ -1160,17 +1290,27 @@
                              (then (local.set $nu (i31.get_s (ref.cast i31ref (local.get $n))))
                                    (if (i32.eqz (i32.and (local.get $nu) (i32.const 1)))
                                        (then (local.set $nf (f64.convert_i32_s (i32.shr_s (local.get $nu) (i32.const 1)))))
-                                       (else (call $raise-expected-number (local.get $n)) (unreachable))))
-                             (else (call $raise-expected-number (local.get $n)) (unreachable)))))
+                                       (else (call $raise-expected-integer
+                                                   (global.get $symbol:quotient)
+                                                   (local.get $n)) (unreachable))))
+                             (else (call $raise-expected-integer
+                                         (global.get $symbol:quotient)
+                                         (local.get $n)) (unreachable)))))
 
                ;; ensure n is a finite integer
                (if (f64.eq (local.get $nf) (f64.const inf))
-                   (then (call $raise-expected-number (local.get $n)) (unreachable)))
+                   (then (call $raise-expected-integer
+                               (global.get $symbol:quotient)
+                               (local.get $n)) (unreachable)))
                (if (f64.eq (local.get $nf) (f64.const -inf))
-                   (then (call $raise-expected-number (local.get $n)) (unreachable)))
+                   (then (call $raise-expected-integer
+                               (global.get $symbol:quotient)
+                               (local.get $n)) (unreachable)))
                (if (f64.eq (f64.floor (local.get $nf)) (local.get $nf))
                    (then)
-                   (else (call $raise-expected-number (local.get $n)) (unreachable)))
+                   (else (call $raise-expected-integer
+                               (global.get $symbol:quotient)
+                               (local.get $n)) (unreachable)))
 
                ;; convert m to f64
                (if (ref.test (ref $Flonum) (local.get $m))
@@ -1180,17 +1320,27 @@
                              (then (local.set $mu (i31.get_s (ref.cast i31ref (local.get $m))))
                                    (if (i32.eqz (i32.and (local.get $mu) (i32.const 1)))
                                        (then (local.set $mf (f64.convert_i32_s (i32.shr_s (local.get $mu) (i32.const 1)))))
-                                       (else (call $raise-expected-number (local.get $m)) (unreachable))))
-                             (else (call $raise-expected-number (local.get $m)) (unreachable)))))
+                                       (else (call $raise-expected-integer
+                                                   (global.get $symbol:quotient)
+                                                   (local.get $m)) (unreachable))))
+                             (else (call $raise-expected-integer
+                                         (global.get $symbol:quotient)
+                                         (local.get $m)) (unreachable)))))
 
                ;; ensure m is a finite integer
                (if (f64.eq (local.get $mf) (f64.const inf))
-                   (then (call $raise-expected-number (local.get $m)) (unreachable)))
+                   (then (call $raise-expected-integer
+                               (global.get $symbol:quotient)
+                               (local.get $m)) (unreachable)))
                (if (f64.eq (local.get $mf) (f64.const -inf))
-                   (then (call $raise-expected-number (local.get $m)) (unreachable)))
+                   (then (call $raise-expected-integer
+                               (global.get $symbol:quotient)
+                               (local.get $m)) (unreachable)))
                (if (f64.eq (f64.floor (local.get $mf)) (local.get $mf))
                    (then)
-                   (else (call $raise-expected-number (local.get $m)) (unreachable)))
+                   (else (call $raise-expected-integer
+                               (global.get $symbol:quotient)
+                               (local.get $m)) (unreachable)))
 
                ;; divide by zero?
                (if (f64.eq (local.get $mf) (f64.const 0.0))
@@ -1233,17 +1383,27 @@
                              (then (local.set $nu (i31.get_s (ref.cast i31ref (local.get $n))))
                                    (if (i32.eqz (i32.and (local.get $nu) (i32.const 1)))
                                        (then (local.set $nf (f64.convert_i32_s (i32.shr_s (local.get $nu) (i32.const 1)))))
-                                       (else (call $raise-expected-number (local.get $n)) (unreachable))))
-                             (else (call $raise-expected-number (local.get $n)) (unreachable)))))
+                                       (else (call $raise-expected-integer
+                                                   (global.get $symbol:remainder)
+                                                   (local.get $n)) (unreachable))))
+                             (else (call $raise-expected-integer
+                                         (global.get $symbol:remainder)
+                                         (local.get $n)) (unreachable)))))
 
                ;; ensure n is a finite integer
                (if (f64.eq (local.get $nf) (f64.const inf))
-                   (then (call $raise-expected-number (local.get $n)) (unreachable)))
+                   (then (call $raise-expected-integer
+                               (global.get $symbol:remainder)
+                               (local.get $n)) (unreachable)))
                (if (f64.eq (local.get $nf) (f64.const -inf))
-                   (then (call $raise-expected-number (local.get $n)) (unreachable)))
+                   (then (call $raise-expected-integer
+                               (global.get $symbol:remainder)
+                               (local.get $n)) (unreachable)))
                (if (f64.eq (f64.floor (local.get $nf)) (local.get $nf))
                    (then)
-                   (else (call $raise-expected-number (local.get $n)) (unreachable)))
+                   (else (call $raise-expected-integer
+                               (global.get $symbol:remainder)
+                               (local.get $n)) (unreachable)))
 
                ;; convert m to f64
                (if (ref.test (ref $Flonum) (local.get $m))
@@ -1253,17 +1413,27 @@
                              (then (local.set $mu (i31.get_s (ref.cast i31ref (local.get $m))))
                                    (if (i32.eqz (i32.and (local.get $mu) (i32.const 1)))
                                        (then (local.set $mf (f64.convert_i32_s (i32.shr_s (local.get $mu) (i32.const 1)))))
-                                       (else (call $raise-expected-number (local.get $m)) (unreachable))))
-                             (else (call $raise-expected-number (local.get $m)) (unreachable)))))
+                                       (else (call $raise-expected-integer
+                                                   (global.get $symbol:remainder)
+                                                   (local.get $m)) (unreachable))))
+                             (else (call $raise-expected-integer
+                                         (global.get $symbol:remainder)
+                                         (local.get $m)) (unreachable)))))
 
                ;; ensure m is a finite integer
                (if (f64.eq (local.get $mf) (f64.const inf))
-                   (then (call $raise-expected-number (local.get $m)) (unreachable)))
+                   (then (call $raise-expected-integer
+                               (global.get $symbol:remainder)
+                               (local.get $m)) (unreachable)))
                (if (f64.eq (local.get $mf) (f64.const -inf))
-                   (then (call $raise-expected-number (local.get $m)) (unreachable)))
+                   (then (call $raise-expected-integer
+                               (global.get $symbol:remainder)
+                               (local.get $m)) (unreachable)))
                (if (f64.eq (f64.floor (local.get $mf)) (local.get $mf))
                    (then)
-                   (else (call $raise-expected-number (local.get $m)) (unreachable)))
+                   (else (call $raise-expected-integer
+                               (global.get $symbol:remainder)
+                               (local.get $m)) (unreachable)))
 
                ;; divide by zero?
                (if (f64.eq (local.get $mf) (f64.const 0.0))
@@ -1287,10 +1457,21 @@
                (local $mu i32)
                (local $fl (ref $Flonum))
                (local $mf f64)
-               (local $rf f64)
+	               (local $rf f64)
 
-               ;; Compute remainder; it validates numeric args and non-zero divisor.
-               (local.set $r (call $remainder (local.get $n) (local.get $m)))
+	               ;; Validate here so user-facing type errors preserve `modulo` as `who`.
+	               (if (ref.eq (call $integer? (local.get $n)) (global.get $false))
+	                   (then (call $raise-expected-integer
+	                               (global.get $symbol:modulo)
+	                               (local.get $n))
+	                         (unreachable)))
+	               (if (ref.eq (call $integer? (local.get $m)) (global.get $false))
+	                   (then (call $raise-expected-integer
+	                               (global.get $symbol:modulo)
+	                               (local.get $m))
+	                         (unreachable)))
+	               ;; Compute remainder; it validates the non-zero divisor.
+	               (local.set $r (call $remainder (local.get $n) (local.get $m)))
                ;; Convert m to f64 for sign checks; capture integer payload when fixnum.
                (if (ref.test (ref i31) (local.get $m))
                    (then
@@ -1303,7 +1484,9 @@
                                     (f64.convert_i32_s
                                      (i32.shr_s (local.get $mu) (i32.const 1)))))
                         (else
-                         (call $raise-expected-number (local.get $m))
+                         (call $raise-expected-integer
+                               (global.get $symbol:modulo)
+                               (local.get $m))
                          (unreachable))))
                    (else
                     (local.set $fl (ref.cast (ref $Flonum) (local.get $m)))
@@ -1384,17 +1567,27 @@
                              (then (local.set $nu (i31.get_s (ref.cast i31ref (local.get $n))))
                                    (if (i32.eqz (i32.and (local.get $nu) (i32.const 1)))
                                        (then (local.set $nf (f64.convert_i32_s (i32.shr_s (local.get $nu) (i32.const 1)))))
-                                       (else (call $raise-expected-number (local.get $n)) (unreachable))))
-                             (else (call $raise-expected-number (local.get $n)) (unreachable)))))
+                                       (else (call $raise-expected-integer
+                                                   (global.get $symbol:quotient/remainder)
+                                                   (local.get $n)) (unreachable))))
+                             (else (call $raise-expected-integer
+                                         (global.get $symbol:quotient/remainder)
+                                         (local.get $n)) (unreachable)))))
 
                ;; ensure n is a finite integer
                (if (f64.eq (local.get $nf) (f64.const inf))
-                   (then (call $raise-expected-number (local.get $n)) (unreachable)))
+                   (then (call $raise-expected-integer
+                               (global.get $symbol:quotient/remainder)
+                               (local.get $n)) (unreachable)))
                (if (f64.eq (local.get $nf) (f64.const -inf))
-                   (then (call $raise-expected-number (local.get $n)) (unreachable)))
+                   (then (call $raise-expected-integer
+                               (global.get $symbol:quotient/remainder)
+                               (local.get $n)) (unreachable)))
                (if (f64.eq (f64.floor (local.get $nf)) (local.get $nf))
                    (then)
-                   (else (call $raise-expected-number (local.get $n)) (unreachable)))
+                   (else (call $raise-expected-integer
+                               (global.get $symbol:quotient/remainder)
+                               (local.get $n)) (unreachable)))
 
                ;; convert m to f64
                (if (ref.test (ref $Flonum) (local.get $m))
@@ -1404,17 +1597,27 @@
                              (then (local.set $mu (i31.get_s (ref.cast i31ref (local.get $m))))
                                    (if (i32.eqz (i32.and (local.get $mu) (i32.const 1)))
                                        (then (local.set $mf (f64.convert_i32_s (i32.shr_s (local.get $mu) (i32.const 1)))))
-                                       (else (call $raise-expected-number (local.get $m)) (unreachable))))
-                             (else (call $raise-expected-number (local.get $m)) (unreachable)))))
+                                       (else (call $raise-expected-integer
+                                                   (global.get $symbol:quotient/remainder)
+                                                   (local.get $m)) (unreachable))))
+                             (else (call $raise-expected-integer
+                                         (global.get $symbol:quotient/remainder)
+                                         (local.get $m)) (unreachable)))))
 
                ;; ensure m is a finite integer
                (if (f64.eq (local.get $mf) (f64.const inf))
-                   (then (call $raise-expected-number (local.get $m)) (unreachable)))
+                   (then (call $raise-expected-integer
+                               (global.get $symbol:quotient/remainder)
+                               (local.get $m)) (unreachable)))
                (if (f64.eq (local.get $mf) (f64.const -inf))
-                   (then (call $raise-expected-number (local.get $m)) (unreachable)))
+                   (then (call $raise-expected-integer
+                               (global.get $symbol:quotient/remainder)
+                               (local.get $m)) (unreachable)))
                (if (f64.eq (f64.floor (local.get $mf)) (local.get $mf))
                    (then)
-                   (else (call $raise-expected-number (local.get $m)) (unreachable)))
+                   (else (call $raise-expected-integer
+                               (global.get $symbol:quotient/remainder)
+                               (local.get $m)) (unreachable)))
 
                ;; divide by zero?
                (if (f64.eq (local.get $mf) (f64.const 0.0))
@@ -1451,7 +1654,9 @@
                                              (i32.const 0)
                                              (f64.add (local.get $f64v) (f64.const 1.0))))))
                ;; Not a number
-               (call $raise-expected-number (local.get $v))
+               (call $raise-expected-number/who
+                     (global.get $symbol:add1)
+                     (local.get $v))
                (unreachable))
 
          (func $sub1 (type $Prim1)
@@ -1477,7 +1682,9 @@
                                       (i32.const 0)
                                       (f64.sub (local.get $f64v) (f64.const 1.0))))))
                ;; Not a number
-               (call $raise-expected-number (local.get $v))
+               (call $raise-expected-number/who
+                     (global.get $symbol:sub1)
+                     (local.get $v))
                (unreachable))
 
          (func $sqr (type $Prim1)
@@ -1495,7 +1702,9 @@
                (if (ref.test (ref $Flonum) (local.get $x))
                    (then (return (call $fl* (local.get $x) (local.get $x)))))
                ;; Not a number
-               (call $raise-expected-number (local.get $x))
+               (call $raise-expected-number/who
+                     (global.get $symbol:sqr)
+                     (local.get $x))
                (unreachable))
 
 
@@ -1523,7 +1732,9 @@
                               (return (ref.i31 (i32.shl (local.get $bits) (i32.const 1)))))
                              (else
                               (return (struct.new $Flonum (i32.const 0) (local.get $f64))))))
-                        (else (call $raise-expected-number (local.get $x))
+                        (else (call $raise-expected-number/who
+                                    (global.get $symbol:sqrt)
+                                    (local.get $x))
                               (unreachable)))))
 
                ;; If x is a flonum, compute sqrt and box
@@ -1536,7 +1747,9 @@
                                         (call $js-raw-math-sqrt (local.get $f64))))))
 
                ;; Not a number
-               (call $raise-expected-number (local.get $x))
+               (call $raise-expected-number/who
+                     (global.get $symbol:sqrt)
+                     (local.get $x))
                (unreachable))
 
 
@@ -1578,7 +1791,9 @@
                           (local.set $bits (i31.get_s (ref.cast (ref i31) (local.get $x))))
                           (if (i32.eqz (i32.and (local.get $bits) (i32.const 1)))
                               (then ,@fixstmts)
-                              (else (call $raise-expected-number (local.get $x))
+                              (else (call $raise-expected-real
+                                          (global.get ,(string->symbol (format "$symbol:~a" name)))
+                                          (local.get $x))
                                     (unreachable)))))
 
                      ;; Flonum case
@@ -1591,7 +1806,9 @@
                                               ,expr))))
 
                      ;; Not a number
-                     (call $raise-expected-number (local.get $x))
+                     (call $raise-expected-real
+                           (global.get ,(string->symbol (format "$symbol:~a" name)))
+                           (local.get $x))
                      (unreachable))))
 
         (func $sgn (type $Prim1)
@@ -1614,7 +1831,9 @@
                             (else (if (i32.gt_s (local.get $bits) (i32.const 0))
                                       (then (return ,(Imm 1)))
                                       (else (return ,(Imm -1)))))))
-                       (else (call $raise-expected-number (local.get $x))
+                       (else (call $raise-expected-real
+                                   (global.get $symbol:sgn)
+                                   (local.get $x))
                              (unreachable)))))
 
               ;; Flonum case
@@ -1633,7 +1852,9 @@
                                                                               (f64.const 0.0))))))))))))
 
               ;; Not a number
-              (call $raise-expected-number (local.get $x))
+              (call $raise-expected-real
+                    (global.get $symbol:sgn)
+                    (local.get $x))
               (unreachable))
 
         ;; Exact integer rounding functions
@@ -1660,7 +1881,9 @@
                           (local.set $bits (i31.get_s (ref.cast (ref i31) (local.get $x))))
                           (if (i32.eqz (i32.and (local.get $bits) (i32.const 1)))
                               (then (return (local.get $x)))
-                              (else (call $raise-expected-number (local.get $x))
+                              (else (call $raise-expected-rational
+                                          (global.get ,(string->symbol (format "$symbol:~a" name)))
+                                          (local.get $x))
                                     (unreachable)))))
 
                      ;; Flonum case
@@ -1669,21 +1892,33 @@
                           (local.set $fl (ref.cast (ref $Flonum) (local.get $x)))
                           (local.set $f64 (struct.get $Flonum $v (local.get $fl)))
                           (if (f64.ne (local.get $f64) (local.get $f64))
-                              (then (call $raise-expected-number (local.get $x)) (unreachable)))
+                              (then (call $raise-expected-rational
+                                          (global.get ,(string->symbol (format "$symbol:~a" name)))
+                                          (local.get $x)) (unreachable)))
                           (if (f64.eq (local.get $f64) (f64.const +inf))
-                              (then (call $raise-expected-number (local.get $x)) (unreachable)))
+                              (then (call $raise-expected-rational
+                                          (global.get ,(string->symbol (format "$symbol:~a" name)))
+                                          (local.get $x)) (unreachable)))
                           (if (f64.eq (local.get $f64) (f64.const -inf))
-                              (then (call $raise-expected-number (local.get $x)) (unreachable)))
+                              (then (call $raise-expected-rational
+                                          (global.get ,(string->symbol (format "$symbol:~a" name)))
+                                          (local.get $x)) (unreachable)))
                           (local.set $f64 (,expr (local.get $f64)))
                           (if (f64.gt (local.get $f64) (f64.const 1073741823.0))
-                              (then (call $raise-expected-number (local.get $x)) (unreachable)))
+                              (then (call $raise-expected-rational
+                                          (global.get ,(string->symbol (format "$symbol:~a" name)))
+                                          (local.get $x)) (unreachable)))
                           (if (f64.lt (local.get $f64) (f64.const -1073741824.0))
-                              (then (call $raise-expected-number (local.get $x)) (unreachable)))
+                              (then (call $raise-expected-rational
+                                          (global.get ,(string->symbol (format "$symbol:~a" name)))
+                                          (local.get $x)) (unreachable)))
                           (local.set $bits (i32.trunc_f64_s (local.get $f64)))
                           (return (ref.i31 (i32.shl (local.get $bits) (i32.const 1))))))
 
                      ;; Not a number
-                     (call $raise-expected-number (local.get $x))
+                     (call $raise-expected-rational
+                           (global.get ,(string->symbol (format "$symbol:~a" name)))
+                           (local.get $x))
                      (unreachable))))
 
         ;; Trigonometric functions
@@ -1729,7 +1964,9 @@
                                                    (call ,js
                                                          (f64.convert_i32_s
                                                           (i32.shr_s (local.get $bits) (i32.const 1)))))))
-                              (else (call $raise-expected-number (local.get $x))
+                              (else (call $raise-expected-number/who
+                                          (global.get ,(string->symbol (format "$symbol:~a" name)))
+                                          (local.get $x))
                                     (unreachable)))))
 
                      (if (ref.test (ref $Flonum) (local.get $x))
@@ -1740,7 +1977,9 @@
                                                (i32.const 0)
                                                (call ,js (local.get $f64))))))
 
-                     (call $raise-expected-number (local.get $x))
+                     (call $raise-expected-number/who
+                           (global.get ,(string->symbol (format "$symbol:~a" name)))
+                           (local.get $x))
                      (unreachable))))
 
         (func $atan (type $Prim12)
@@ -1763,13 +2002,17 @@
                                         (f64.convert_i32_s
                                          (i32.shr_s (local.get $bits) (i32.const 1))))
                              (local.set $y-exact (i32.const 1)))
-                       (else (call $raise-expected-number (local.get $y)) (unreachable))))
+	                       (else (call $raise-expected-number/who
+	                                   (global.get $symbol:atan)
+	                                   (local.get $y)) (unreachable))))
                   (else
                    (if (ref.test (ref $Flonum) (local.get $y))
                        (then (local.set $y/f64
                                         (struct.get $Flonum $v
                                                     (ref.cast (ref $Flonum) (local.get $y)))))
-                       (else (call $raise-expected-number (local.get $y)) (unreachable)))))
+	                       (else (call $raise-expected-number/who
+	                                   (global.get $symbol:atan)
+	                                   (local.get $y)) (unreachable)))))
 
               (if (ref.eq (local.get $x) (global.get $missing))
                   (then
@@ -1788,13 +2031,17 @@
                        (then (local.set $x/f64
                                         (f64.convert_i32_s
                                          (i32.shr_s (local.get $bits) (i32.const 1)))))
-                       (else (call $raise-expected-number (local.get $x)) (unreachable))))
+	                       (else (call $raise-expected-number/who
+	                                   (global.get $symbol:atan)
+	                                   (local.get $x)) (unreachable))))
                   (else
                    (if (ref.test (ref $Flonum) (local.get $x))
                        (then (local.set $x/f64
                                         (struct.get $Flonum $v
                                                     (ref.cast (ref $Flonum) (local.get $x)))))
-                       (else (call $raise-expected-number (local.get $x)) (unreachable)))))
+	                       (else (call $raise-expected-number/who
+	                                   (global.get $symbol:atan)
+	                                   (local.get $x)) (unreachable)))))
 
               (struct.new $Flonum
                           (i32.const 0)
@@ -1828,7 +2075,9 @@
                                (return (struct.new $Flonum
                                                    (i32.const 0)
                                                    (local.get $f64))))
-                              (else (call $raise-expected-number (local.get $x))
+                              (else (call $raise-expected-real
+                                          (global.get ,(string->symbol (format "$symbol:~a" name)))
+                                          (local.get $x))
                                     (unreachable)))))
 
                      (if (ref.test (ref $Flonum) (local.get $x))
@@ -1839,7 +2088,9 @@
                                                (i32.const 0)
                                                (f64.mul (local.get $f64) (f64.const ,factor))))))
 
-                    (call $raise-expected-number (local.get $x))
+                    (call $raise-expected-real
+                          (global.get ,(string->symbol (format "$symbol:~a" name)))
+                          (local.get $x))
                     (unreachable))))
 
         (func $order-of-magnitude (type $Prim1)
@@ -2006,6 +2257,24 @@
         (func $raise-expected-number4
               (param $x (ref eq))
               (call $raise-expected-number/common (local.get $x))
+              (unreachable))
+
+        (func $raise-expected-integer
+              (param $who (ref eq))   ;; symbol
+              (param $x   (ref eq))
+              (call $raise-argument-error1
+                    (local.get $who)
+                    (global.get $string:integer?)
+                    (local.get $x))
+              (unreachable))
+
+        (func $raise-expected-rational
+              (param $who (ref eq))   ;; symbol
+              (param $x   (ref eq))
+              (call $raise-argument-error1
+                    (local.get $who)
+                    (global.get $string:rational?)
+                    (local.get $x))
               (unreachable))
 
         (func $raise-expected-real

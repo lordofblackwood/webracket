@@ -103,9 +103,17 @@ Current remaining raw-stub classes:
   - The legacy `$raise-expected-number*` helpers now raise catchable
     `exn:fail:contract` values with `number?` and the offending value instead
     of logging and trapping. Public `+`, `-`, `*`, and `/` now use a
-    `who`-aware path for bad number arguments. Other legacy numeric callers
-    still do not preserve the precise primitive-level `who`, because their old
-    call sites only pass the offending value.
+    `who`-aware path for bad number arguments.
+  - A broad generic-numeric pass now preserves `who` and the more precise
+    Racket contract for many primitive-facing wrong-type paths, including
+    `zero?`, `positive?`, `negative?`, `even?`, `odd?`, `nan?`, `infinite?`,
+    `quotient`, `remainder`, `modulo`, `quotient/remainder`, `add1`, `sub1`,
+    `sqr`, `sqrt`, `abs`, `round`, `floor`, `ceiling`, `truncate`, `sgn`,
+    the exact rounding functions, trigonometric functions, `atan`, and angle
+    conversion. `modulo` now validates integer arguments before delegating to
+    `remainder`, so type errors preserve `modulo` as `who`.
+  - Some numeric conversion and bitwise helpers still use older validation
+    shapes; audit those separately before claiming complete numeric parity.
 
 - `checkers.rkt`:
   - `$match:error` now raises a catchable `exn:fail` value instead of raising a
