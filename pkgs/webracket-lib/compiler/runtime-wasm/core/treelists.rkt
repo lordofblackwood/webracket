@@ -56,6 +56,38 @@
                      (local.get $who)
                      (global.get $string:treelist?)
                      (local.get $x)))
+         (func $treelist-index/i32
+               (param $who (ref eq))
+               (param $x   (ref eq))
+               (result i32)
+
+               (local $bits i32)
+               (local $idx  i32)
+
+               (if (i32.eqz (ref.test (ref i31) (local.get $x)))
+                   (then
+                    (call $raise-argument-error1
+                          (local.get $who)
+                          (global.get $string:exact-nonnegative-integer?)
+                          (local.get $x))
+                    (unreachable)))
+               (local.set $bits (i31.get_s (ref.cast (ref i31) (local.get $x))))
+               (if (i32.and (local.get $bits) (i32.const 1))
+                   (then
+                    (call $raise-argument-error1
+                          (local.get $who)
+                          (global.get $string:exact-nonnegative-integer?)
+                          (local.get $x))
+                    (unreachable)))
+               (local.set $idx (i32.shr_s (local.get $bits) (i32.const 1)))
+               (if (i32.lt_s (local.get $idx) (i32.const 0))
+                   (then
+                    (call $raise-argument-error1
+                          (local.get $who)
+                          (global.get $string:exact-nonnegative-integer?)
+                          (local.get $x))
+                    (unreachable)))
+               (local.get $idx))
          (func $raise-treelist-index-out-of-range/who/i32
                (param $who (ref eq))
                (param $tl  (ref $Treelist))
@@ -4985,13 +5017,10 @@
                  (else (call $raise-check-treelist/who
                              (global.get $symbol:treelist-ref)
                              (local.get $v))))
-             (if (ref.test (ref i31) (local.get $i))
-                 (then
-                  (local.set $idx (i31.get_u (ref.cast (ref i31) (local.get $i))))
-                  (if (i32.eqz (i32.and (local.get $idx) (i32.const 1)))
-                      (then (local.set $idx (i32.shr_u (local.get $idx) (i32.const 1))))
-                      (else (call $raise-check-fixnum (local.get $i)))))
-                 (else (call $raise-check-fixnum (local.get $i))))
+             (local.set $idx
+                        (call $treelist-index/i32
+                              (global.get $symbol:treelist-ref)
+                              (local.get $i)))
              (call $treelist-ref/checked (local.get $tl) (local.get $idx)))))
 
 
@@ -5088,13 +5117,10 @@
                  (else (call $raise-check-treelist/who
                              (global.get $symbol:treelist-set)
                              (local.get $v0))))
-             (if (ref.test (ref i31) (local.get $v1))
-                 (then
-                  (local.set $idx (i31.get_u (ref.cast (ref i31) (local.get $v1))))
-                  (if (i32.eqz (i32.and (local.get $idx) (i32.const 1)))
-                      (then (local.set $idx (i32.shr_u (local.get $idx) (i32.const 1))))
-                      (else (call $raise-check-fixnum (local.get $v1)))))
-                 (else (call $raise-check-fixnum (local.get $v1))))
+             (local.set $idx
+                        (call $treelist-index/i32
+                              (global.get $symbol:treelist-set)
+                              (local.get $v1)))
              (call $treelist-set/checked
                    (local.get $tl)
                    (local.get $idx)
@@ -5118,13 +5144,10 @@
                  (else (call $raise-check-treelist/who
                              (global.get $symbol:treelist-take)
                              (local.get $v0))))
-             (if (ref.test (ref i31) (local.get $v1))
-                 (then
-                  (local.set $idx (i31.get_u (ref.cast (ref i31) (local.get $v1))))
-                  (if (i32.eqz (i32.and (local.get $idx) (i32.const 1)))
-                      (then (local.set $idx (i32.shr_u (local.get $idx) (i32.const 1))))
-                      (else (call $raise-check-fixnum (local.get $v1)))))
-                 (else (call $raise-check-fixnum (local.get $v1))))
+             (local.set $idx
+                        (call $treelist-index/i32
+                              (global.get $symbol:treelist-take)
+                              (local.get $v1)))
              (local.set $len (struct.get $Treelist $size (local.get $tl)))
              (if (i32.gt_u (local.get $idx) (local.get $len))
                  (then
@@ -5155,13 +5178,10 @@
                  (else (call $raise-check-treelist/who
                              (global.get $symbol:treelist-drop)
                              (local.get $v0))))
-             (if (ref.test (ref i31) (local.get $v1))
-                 (then
-                  (local.set $idx (i31.get_u (ref.cast (ref i31) (local.get $v1))))
-                  (if (i32.eqz (i32.and (local.get $idx) (i32.const 1)))
-                      (then (local.set $idx (i32.shr_u (local.get $idx) (i32.const 1))))
-                      (else (call $raise-check-fixnum (local.get $v1)))))
-                 (else (call $raise-check-fixnum (local.get $v1))))
+             (local.set $idx
+                        (call $treelist-index/i32
+                              (global.get $symbol:treelist-drop)
+                              (local.get $v1)))
              (local.set $len (struct.get $Treelist $size (local.get $tl)))
              (if (i32.gt_u (local.get $idx) (local.get $len))
                  (then
@@ -5191,13 +5211,10 @@
                  (else (call $raise-check-treelist/who
                              (global.get $symbol:treelist-split-at)
                              (local.get $v0))))
-             (if (ref.test (ref i31) (local.get $v1))
-                 (then
-                  (local.set $idx (i31.get_u (ref.cast (ref i31) (local.get $v1))))
-                  (if (i32.eqz (i32.and (local.get $idx) (i32.const 1)))
-                      (then (local.set $idx (i32.shr_u (local.get $idx) (i32.const 1))))
-                      (else (call $raise-check-fixnum (local.get $v1)))))
-                 (else (call $raise-check-fixnum (local.get $v1))))
+             (local.set $idx
+                        (call $treelist-index/i32
+                              (global.get $symbol:treelist-split-at)
+                              (local.get $v1)))
              (call $treelist-split-at/checked (local.get $tl) (local.get $idx)))))
 
 
@@ -5218,13 +5235,10 @@
                  (else (call $raise-check-treelist/who
                              (global.get $symbol:treelist-take-right)
                              (local.get $v0))))
-             (if (ref.test (ref i31) (local.get $v1))
-                 (then
-                  (local.set $n (i31.get_u (ref.cast (ref i31) (local.get $v1))))
-                  (if (i32.eqz (i32.and (local.get $n) (i32.const 1)))
-                      (then (local.set $n (i32.shr_u (local.get $n) (i32.const 1))))
-                      (else (call $raise-check-fixnum (local.get $v1)))))
-                 (else (call $raise-check-fixnum (local.get $v1))))
+             (local.set $n
+                        (call $treelist-index/i32
+                              (global.get $symbol:treelist-take-right)
+                              (local.get $v1)))
              (local.set $len (struct.get $Treelist $size (local.get $tl)))
              (if (i32.gt_u (local.get $n) (local.get $len))
                  (then
@@ -5255,13 +5269,10 @@
                  (else (call $raise-check-treelist/who
                              (global.get $symbol:treelist-drop-right)
                              (local.get $v0))))
-             (if (ref.test (ref i31) (local.get $v1))
-                 (then
-                  (local.set $n (i31.get_u (ref.cast (ref i31) (local.get $v1))))
-                  (if (i32.eqz (i32.and (local.get $n) (i32.const 1)))
-                      (then (local.set $n (i32.shr_u (local.get $n) (i32.const 1))))
-                      (else (call $raise-check-fixnum (local.get $v1)))))
-                 (else (call $raise-check-fixnum (local.get $v1))))
+             (local.set $n
+                        (call $treelist-index/i32
+                              (global.get $symbol:treelist-drop-right)
+                              (local.get $v1)))
              (local.set $len (struct.get $Treelist $size (local.get $tl)))
              (if (i32.gt_u (local.get $n) (local.get $len))
                  (then
@@ -5293,20 +5304,14 @@
                  (else (call $raise-check-treelist/who
                              (global.get $symbol:treelist-sublist)
                              (local.get $v0))))
-             (if (ref.test (ref i31) (local.get $v1))
-                 (then
-                  (local.set $start (i31.get_u (ref.cast (ref i31) (local.get $v1))))
-                  (if (i32.eqz (i32.and (local.get $start) (i32.const 1)))
-                      (then (local.set $start (i32.shr_u (local.get $start) (i32.const 1))))
-                      (else (call $raise-check-fixnum (local.get $v1)))))
-                 (else (call $raise-check-fixnum (local.get $v1))))
-             (if (ref.test (ref i31) (local.get $v2))
-                 (then
-                  (local.set $end (i31.get_u (ref.cast (ref i31) (local.get $v2))))
-                  (if (i32.eqz (i32.and (local.get $end) (i32.const 1)))
-                      (then (local.set $end (i32.shr_u (local.get $end) (i32.const 1))))
-                      (else (call $raise-check-fixnum (local.get $v2)))))
-                 (else (call $raise-check-fixnum (local.get $v2))))
+             (local.set $start
+                        (call $treelist-index/i32
+                              (global.get $symbol:treelist-sublist)
+                              (local.get $v1)))
+             (local.set $end
+                        (call $treelist-index/i32
+                              (global.get $symbol:treelist-sublist)
+                              (local.get $v2)))
              (call $treelist-sublist/checked
                    (local.get $tl)
                    (local.get $start)
@@ -5500,13 +5505,10 @@
                  (else (call $raise-check-treelist/who
                              (global.get $symbol:treelist-insert)
                              (local.get $v0))))
-             (if (ref.test (ref i31) (local.get $v1))
-                 (then
-                  (local.set $idx (i31.get_u (ref.cast (ref i31) (local.get $v1))))
-                  (if (i32.eqz (i32.and (local.get $idx) (i32.const 1)))
-                      (then (local.set $idx (i32.shr_u (local.get $idx) (i32.const 1))))
-                      (else (call $raise-check-fixnum (local.get $v1)))))
-                 (else (call $raise-check-fixnum (local.get $v1))))
+             (local.set $idx
+                        (call $treelist-index/i32
+                              (global.get $symbol:treelist-insert)
+                              (local.get $v1)))
              (call $treelist-insert/checked
                    (local.get $tl)
                    (local.get $idx)
@@ -5531,13 +5533,10 @@
                  (else (call $raise-check-treelist/who
                              (global.get $symbol:treelist-delete)
                              (local.get $v0))))
-             (if (ref.test (ref i31) (local.get $v1))
-                 (then
-                  (local.set $idx (i31.get_u (ref.cast (ref i31) (local.get $v1))))
-                  (if (i32.eqz (i32.and (local.get $idx) (i32.const 1)))
-                      (then (local.set $idx (i32.shr_u (local.get $idx) (i32.const 1))))
-                      (else (call $raise-check-fixnum (local.get $v1)))))
-                 (else (call $raise-check-fixnum (local.get $v1))))
+             (local.set $idx
+                        (call $treelist-index/i32
+                              (global.get $symbol:treelist-delete)
+                              (local.get $v1)))
              (call $treelist-delete/checked
                    (local.get $tl)
                    (local.get $idx)))))

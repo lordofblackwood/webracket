@@ -46,6 +46,59 @@
            "index: 2"
            "valid range: [0, 1]"
            "treelist length: 2"))))
+ (list "negative treelist indexes preserve the public contract"
+       (let ([tl (treelist 1 2)])
+         (and
+          (catch-contract/contains?
+           (lambda () (treelist-ref tl -1))
+           "treelist-ref"
+           "exact-nonnegative-integer?"
+           "given: -1")
+          (catch-contract/contains?
+           (lambda () (treelist-set tl -1 'x))
+           "treelist-set"
+           "exact-nonnegative-integer?"
+           "given: -1")
+          (catch-contract/contains?
+           (lambda () (treelist-insert tl -1 'x))
+           "treelist-insert"
+           "exact-nonnegative-integer?"
+           "given: -1")
+          (catch-contract/contains?
+           (lambda () (treelist-delete tl -1))
+           "treelist-delete"
+           "exact-nonnegative-integer?"
+           "given: -1")
+          (catch-contract/contains?
+           (lambda () (treelist-take tl -1))
+           "treelist-take"
+           "exact-nonnegative-integer?"
+           "given: -1")
+          (catch-contract/contains?
+           (lambda () (treelist-drop tl -1))
+           "treelist-drop"
+           "exact-nonnegative-integer?"
+           "given: -1")
+          (catch-contract/contains?
+           (lambda () (treelist-take-right tl -1))
+           "treelist-take-right"
+           "exact-nonnegative-integer?"
+           "given: -1")
+          (catch-contract/contains?
+           (lambda () (treelist-drop-right tl -1))
+           "treelist-drop-right"
+           "exact-nonnegative-integer?"
+           "given: -1")
+          (catch-contract/contains?
+           (lambda () (treelist-sublist tl -1 1))
+           "treelist-sublist"
+           "exact-nonnegative-integer?"
+           "given: -1")
+          (catch-contract/contains?
+           (lambda () (treelist-sublist tl 0 -1))
+           "treelist-sublist"
+           "exact-nonnegative-integer?"
+           "given: -1"))))
  (list "treelist index success still works"
        (let ([tl (treelist 1 2)])
          (and (equal? (treelist-ref tl 1) 2)
