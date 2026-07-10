@@ -18,6 +18,8 @@
                   event-runtime-string-constants)
          (only-in "exceptions.rkt"
                   exception-runtime-string-constants)
+         (only-in "fasl.rkt"
+                  fasl-runtime-string-constants)
          (only-in "ffi.rkt"
                   ffi-runtime-string-constants)
          (only-in "filesystem.rkt"
@@ -150,6 +152,7 @@
           will-runtime-string-constants
           thread-runtime-string-constants
           exception-runtime-string-constants
+          fasl-runtime-string-constants
           port-closed-error-runtime-string-constants
           filesystem-runtime-string-constants
           path-runtime-string-constants

@@ -55,7 +55,9 @@
     call-with-parameterization-wrapper-entry
     argc
     arg0-parameterization?
-    arg1-procedure?))
+    arg1-procedure?
+    external-number->flonum
+    external-string->string))
 
 ;; ffi-runtime-string-constants : (listof (list/c symbol? string?))
 ;;   Declare strings used by callback return diagnostics and the console bridge.
@@ -63,6 +65,7 @@
   '((callback:no-js-equivalent
      "The callback attempted to return a WebRacket value with no JavaScript equivalent (i.e. without a FASL encoding): ")
     (unsafe-ffi-primitive:expected "registered unsafe FFI primitive symbol?")
+    (external?                    "external?")
     (string-or-symbol?         "(or/c string? symbol?)")
     (wr-kind:value              "value")
     (wr-kind:missing-binding    "missing-binding")
@@ -198,7 +201,11 @@
            (local $f   f64)
            ;; Check that $v is an $External
            (if (i32.eqz (ref.test (ref $External) (local.get $v)))
-               (then (call $raise-argument-error/internal (local.get $v)) (unreachable)))
+               (then (call $raise-argument-error1
+                           (global.get $symbol:external-number->flonum)
+                           (global.get $string:external?)
+                           (local.get $v))
+                     (unreachable)))
            ;; Cast to $External
            (local.set $e (ref.cast (ref $External) (local.get $v)))
            ;; Extract underlying JS value
@@ -220,7 +227,11 @@
            (local $ptr i32)
            ;; Check that $v is an $External
            (if (i32.eqz (ref.test (ref $External) (local.get $v)))
-               (then (call $raise-argument-error/internal (local.get $v)) (unreachable)))
+               (then (call $raise-argument-error1
+                           (global.get $symbol:external-string->string)
+                           (global.get $string:external?)
+                           (local.get $v))
+                     (unreachable)))
            ;; Cast to $External
            (local.set $e (ref.cast (ref $External) (local.get $v)))
            ;; Extract underlying JS value

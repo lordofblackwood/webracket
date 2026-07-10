@@ -4364,7 +4364,10 @@
                               (local.get $to))
                         (unreachable)))
               (if (ref.eq (call $boolean? (local.get $all?)) (global.get $false))
-                  (then (call $raise-argument-error/internal (local.get $all?))
+                  (then (call $raise-argument-error1
+                              (global.get $symbol:string-replace)
+                              (global.get $string:boolean?)
+                              (local.get $all?))
                         (unreachable)))
 
               ;; Decode after checks

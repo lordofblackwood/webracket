@@ -2,6 +2,7 @@
 
 (provide fasl-tag-runtime-only-helper-names
          fasl-tag-runtime-helper-forms
+         fasl-runtime-string-constants
          fasl-runtime-symbol-constants
          fasl-encoding-runtime-only-helper-names
          fasl-encoding-runtime-helper-forms
@@ -48,7 +49,13 @@
 ;; fasl-runtime-symbol-constants : (listof symbol?)
 ;;   Declare symbols used by FASL helpers.
 (define fasl-runtime-symbol-constants
-  '(s-exp->fasl))
+  '(s-exp->fasl
+    fasl->s-exp))
+
+;; fasl-runtime-string-constants : (listof (list/c symbol? string?))
+;;   Declare string constants used by FASL helpers.
+(define fasl-runtime-string-constants
+  '((fasl->s-exp-input "(or/c bytes? input-port?)")))
 
 ;; fasl-tag-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate FASL tag globals used by the monolithic runtime.
@@ -410,7 +417,10 @@
           (local $i   i32)
 
           (if (i32.eqz (ref.test (ref $Bytes) (local.get $bs)))
-              (then (call $raise-argument-error/internal (local.get $bs))
+              (then (call $raise-argument-error1
+                          (global.get $symbol:fasl->s-exp)
+                          (global.get $string:fasl->s-exp-input)
+                          (local.get $bs))
                     (unreachable)))
           (local.set $b   (ref.cast (ref $Bytes) (local.get $bs)))
 

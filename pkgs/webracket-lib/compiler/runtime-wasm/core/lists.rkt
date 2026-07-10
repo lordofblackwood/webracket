@@ -41,6 +41,22 @@
     drop-right
     split-at
     split-at-right
+    first
+    second
+    third
+    fourth
+    fifth
+    sixth
+    seventh
+    eighth
+    ninth
+    tenth
+    eleventh
+    twelfth
+    thirteenth
+    fourteenth
+    fifteenth
+    last
     in-inclusive-range))
 
 ;; pair-global-forms : (listof datum?)
@@ -300,6 +316,9 @@
 ;; list-ordinal-accessor-helper : symbol? exact-nonnegative-integer? -> core-runtime-helper?
 ;;   Build a helper for a generated ordinal list accessor.
 (define (list-ordinal-accessor-helper name idx)
+  (define who-global
+    (string->symbol
+     (format "$symbol:~a" (substring (symbol->string name) 1))))
   (core-runtime-helper
    name
    (symbol->string name)
@@ -309,12 +328,16 @@
             (result (ref eq))
             ;; Type check: non-empty proper list
             (if (ref.eq (local.get $xs) (global.get $null))
-                (then (call $js-log (call $format/display (local.get $xs)))
-                      (call $raise-argument-error/internal (local.get $xs))
+                (then (call $raise-argument-error1
+                            (global.get ,who-global)
+                            (global.get $string:non-empty-list?)
+                            (local.get $xs))
                       (unreachable)))
             (if (ref.eq (call $list? (local.get $xs)) (global.get $false))
-                (then (call $js-log (call $format/display (local.get $xs)))
-                      (call $raise-argument-error/internal (local.get $xs))
+                (then (call $raise-argument-error1
+                            (global.get ,who-global)
+                            (global.get $string:non-empty-list?)
+                            (local.get $xs))
                       (unreachable)))
             ;; Retrieve element using list-ref
             (call $list-ref
@@ -884,9 +907,17 @@
               (local $p (ref $Pair))
               ;; Type check: non-empty proper list
               (if (ref.eq (local.get $xs) (global.get $null))
-                  (then (call $raise-argument-error/internal (local.get $xs)) (unreachable)))
+                  (then (call $raise-argument-error1
+                              (global.get $symbol:last)
+                              (global.get $string:non-empty-list?)
+                              (local.get $xs))
+                        (unreachable)))
               (if (ref.eq (call $list? (local.get $xs)) (global.get $false))
-                  (then (call $raise-argument-error/internal (local.get $xs)) (unreachable)))
+                  (then (call $raise-argument-error1
+                              (global.get $symbol:last)
+                              (global.get $string:non-empty-list?)
+                              (local.get $xs))
+                        (unreachable)))
               ;; Retrieve last element
               (local.set $p (call $last-pair/checked (ref.cast (ref $Pair) (local.get $xs))))
               (struct.get $Pair $a (local.get $p)))))

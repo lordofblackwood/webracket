@@ -95,6 +95,10 @@
   (check-no-stdlib-result-tree "test/test-format-errors.rkt"
                                #:timeout-seconds 180))
 
+(test-case "test-misc-primitive-errors has no false leaves"
+  (check-no-stdlib-result-tree "test/test-misc-primitive-errors.rkt"
+                               #:timeout-seconds 180))
+
 (test-case "test-exception-handler-errors has no false leaves"
   (check-no-stdlib-result-tree "test/test-exception-handler-errors.rkt"
                                #:timeout-seconds 180))
