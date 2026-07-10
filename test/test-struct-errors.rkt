@@ -100,6 +100,22 @@
          "make-struct-type-property"
          "symbol?"
          "given: 42")))
+ (list "struct type property predicate procedure property errors are catchable with who"
+       (let-values ([(prop:p p? p-ref) (make-struct-type-property 'p)])
+         (and
+          (struct-type-property-predicate-procedure? p?)
+          (struct-type-property-predicate-procedure? p? prop:p)
+          (struct-type-property-predicate-procedure? p? #f)
+          (catch-contract/contains?
+           (lambda () (struct-type-property-predicate-procedure? p? 42))
+           "struct-type-property-predicate-procedure?"
+           "(or/c struct-type-property? #f)"
+           "given: 42")
+          (catch-contract/contains?
+           (lambda () (struct-type-property-predicate-procedure? 42 42))
+           "struct-type-property-predicate-procedure?"
+           "(or/c struct-type-property? #f)"
+           "given: 42"))))
  (list "struct field accessor/mutator maker errors are catchable with who"
        (let-values ([(st make-p p? p-ref p-set!) (make-struct-type 'p #f 2 0)])
          (and

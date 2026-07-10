@@ -28,6 +28,8 @@
     (struct?                    "struct?")
     (struct-type?               "struct-type?")
     (struct-type-or-false       "(or/c #f struct-type?)")
+    (struct-type-property-or-false
+     "(or/c struct-type-property? #f)")
     (make-struct-type-property-guard
      "(or/c (procedure-arity-includes/c 2) #f 'can-impersonate)")
     (make-struct-type-property-supers
@@ -5761,7 +5763,10 @@
                  (then)
                  (else
                   (if (i32.eqz (ref.test (ref $StructTypeProperty) (local.get $prop-info)))
-                      (then (call $raise-argument-error/internal (local.get $prop-info))
+                      (then (call $raise-argument-error1
+                                  (global.get $symbol:struct-type-property-predicate-procedure?)
+                                  (global.get $string:struct-type-property-or-false)
+                                  (local.get $prop-info))
                             (unreachable)))
                   (local.set $expected (local.get $prop-info))))
 
