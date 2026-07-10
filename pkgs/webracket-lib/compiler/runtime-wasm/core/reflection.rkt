@@ -495,14 +495,26 @@
 
         ; This function determines if the variable stems from a module compiled in unsafe mode or not.
         (func $variable-reference-from-unsafe? (type $Prim1)
-              (param  $varref (ref eq))
+              (param  $varref (ref eq)) ;; variable-reference?
               (result (ref eq))
+              (if (i32.eqz (ref.test (ref $VariableReference) (local.get $varref)))
+                  (then (call $raise-argument-error1
+                              (global.get $symbol:variable-reference-from-unsafe?)
+                              (global.get $string:variable-reference?)
+                              (local.get $varref))
+                        (unreachable)))
               (struct.get $VariableReference $from-unsafe?
                           (ref.cast (ref $VariableReference) (local.get $varref))))
 
         (func $variable-reference-constant? (type $Prim1)
-              (param $varref (ref eq))
+              (param $varref (ref eq)) ;; variable-reference?
               (result (ref eq))
+              (if (i32.eqz (ref.test (ref $VariableReference) (local.get $varref)))
+                  (then (call $raise-argument-error1
+                              (global.get $symbol:variable-reference-constant?)
+                              (global.get $string:variable-reference?)
+                              (local.get $varref))
+                        (unreachable)))
               (struct.get $VariableReference $constant?
                           (ref.cast (ref $VariableReference) (local.get $varref))))
 
