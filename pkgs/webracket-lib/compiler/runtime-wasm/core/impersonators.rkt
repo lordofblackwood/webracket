@@ -218,7 +218,7 @@
            (if (i32.eqz (ref.test (ref $Pair) (local.get $rest)))
                (then (call $raise-argument-error1
                            (global.get $symbol:chaperone-hash)
-                           (global.get $string:procedure-arity-3)
+                           (global.get $string:procedure-arity-2)
                            (local.get $rest))
                      (unreachable)))
            (local.set $cell (ref.cast (ref $Pair) (local.get $rest)))
@@ -227,23 +227,23 @@
 
            (call $check-procedure-arity
                  (global.get $symbol:chaperone-hash)
-                 (global.get $string:procedure-arity-3)
+                 (global.get $string:procedure-arity-2)
                  (local.get $remove-proc)
-                 (i32.const 3))
+                 (i32.const 2))
 
            (if (i32.eqz (ref.test (ref $Pair) (local.get $rest)))
                (then (call $raise-argument-error1
                            (global.get $symbol:chaperone-hash)
-                           (global.get $string:procedure-arity-3)
+                           (global.get $string:procedure-arity-2)
                            (local.get $rest))
                      (unreachable)))
            (local.set $cell (ref.cast (ref $Pair) (local.get $rest)))
            (local.set $key-proc (struct.get $Pair $a (local.get $cell)))
            (call $check-procedure-arity
                  (global.get $symbol:chaperone-hash)
-                 (global.get $string:procedure-arity-3)
+                 (global.get $string:procedure-arity-2)
                  (local.get $key-proc)
-                 (i32.const 3)))
+                 (i32.const 2)))
 
      ;; chaperone-procedure : procedure? (or/c procedure? #f) any/c ... -> procedure?
      ;;   Reference chaperones interpose on calls while preserving

@@ -107,12 +107,12 @@
         (catch-contract/contains?
          (lambda () (chaperone-hash (hash) p2 p3 42 p3))
          "chaperone-hash"
-         "(procedure-arity-includes/c 3)"
+         "(procedure-arity-includes/c 2)"
          "given: 42")
         (catch-contract/contains?
-         (lambda () (chaperone-hash (hash) p2 p3 p3 42))
+         (lambda () (chaperone-hash (hash) p2 p3 p2 42))
          "chaperone-hash"
-         "(procedure-arity-includes/c 3)"
+         "(procedure-arity-includes/c 2)"
          "given: 42")))
  (list "identity chaperone bridges still succeed"
        (let ([v (vector 1)]
@@ -121,6 +121,6 @@
          (and (eq? (chaperone-vector v #f #f) v)
               (eq? (chaperone-vector v p3 p3) v)
               (eq? (chaperone-box b p2 p2) b)
-              (eq? (chaperone-hash h p2 p3 p3 p3) h)
+              (eq? (chaperone-hash h p2 p3 p2 p2) h)
               (eq? (chaperone-procedure p2 #f) p2)
               (eq? (chaperone-procedure p2 p3) p3)))))
