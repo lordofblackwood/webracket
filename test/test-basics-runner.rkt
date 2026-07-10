@@ -75,6 +75,10 @@
   (check-no-stdlib-result-tree "test/test-procedure-errors.rkt"
                                #:timeout-seconds 180))
 
+(test-case "test-values-errors has no false leaves"
+  (check-no-stdlib-result-tree "test/test-values-errors.rkt"
+                               #:timeout-seconds 180))
+
 (test-case "test-port-input-errors has no false leaves"
   (check-no-stdlib-result-tree "test/test-port-input-errors.rkt"
                                #:timeout-seconds 180))

@@ -1331,11 +1331,15 @@
                                (then
                                 (local.set $vals (ref.cast (ref $Values) (local.get $res)))
                                 (if (i32.ne (array.len (local.get $vals)) (i32.const 2))
-                                    (then (call $raise-wrong-number-of-values-received)
+                                    (then (call $raise-wrong-number-of-values-received
+                                                (i32.const 2)
+                                                (array.len (local.get $vals)))
                                           (unreachable)))
                                 (local.set $nkey (array.get $Values (local.get $vals) (i32.const 0)))
                                 (local.set $nval (array.get $Values (local.get $vals) (i32.const 1))))
-                               (else (call $raise-wrong-number-of-values-received)
+                               (else (call $raise-wrong-number-of-values-received
+                                           (i32.const 2)
+                                           (i32.const 1))
                                      (unreachable)))
                            (local.set $dst
                                       (call $hash-set
@@ -1512,11 +1516,15 @@
                                 (then
                                  (local.set $vals (ref.cast (ref $Values) (local.get $res)))
                                  (if (i32.ne (array.len (local.get $vals)) (i32.const 2))
-                                     (then (call $raise-wrong-number-of-values-received)
+                                     (then (call $raise-wrong-number-of-values-received
+                                                 (i32.const 2)
+                                                 (array.len (local.get $vals)))
                                            (unreachable)))
                                  (local.set $nkey (array.get $Values (local.get $vals) (i32.const 0)))
                                  (local.set $nval (array.get $Values (local.get $vals) (i32.const 1))))
-                                (else (call $raise-wrong-number-of-values-received)
+                                (else (call $raise-wrong-number-of-values-received
+                                            (i32.const 2)
+                                            (i32.const 1))
                                       (unreachable)))
 
                             ;; Insert into destination table

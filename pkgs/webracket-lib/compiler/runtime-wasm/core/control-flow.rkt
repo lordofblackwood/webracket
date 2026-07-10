@@ -14,7 +14,10 @@
 ;; control-flow-runtime-string-constants : (listof (list/c symbol? string?))
 ;;   Declare strings used by control-flow helpers.
 (define control-flow-runtime-string-constants
-  '((dynamic-require-unsupported "dynamic module loading is not supported")))
+  '((dynamic-require-unsupported "dynamic module loading is not supported")
+    (value-result-arity-error:start
+     "result arity mismatch;\n expected number of values not received\n  expected: ")
+    (value-result-arity-error:received "\n  received: ")))
 
 ;; multiple-value-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for multiple-value helpers.
@@ -101,7 +104,30 @@
   (function-forms->runtime-helpers
    'value-expectation-runtime-only-helpers
    '(
-     (func $raise-wrong-number-of-values-received (unreachable))
+     (func $raise-wrong-number-of-values-received
+           (param $expected i32)
+           (param $received i32)
+
+           (local $out     (ref $GrowableArray))
+           (local $message (ref $String))
+
+           (local.set $out (call $make-growable-array (i32.const 4)))
+           (call $growable-array-add! (local.get $out)
+                 (global.get $string:value-result-arity-error:start))
+           (call $growable-array-add! (local.get $out)
+                 (call $i32->string (local.get $expected)))
+           (call $growable-array-add! (local.get $out)
+                 (global.get $string:value-result-arity-error:received))
+           (call $growable-array-add! (local.get $out)
+                 (call $i32->string (local.get $received)))
+           (local.set $message
+                      (call $growable-array-of-strings->string (local.get $out)))
+           (call $raise
+                 (call $exn:fail:contract:arity/make
+                       (local.get $message)
+                       (call $current-continuation-marks (global.get $missing)))
+                 (global.get $true))
+           (unreachable))
 
      (func $expect-zero-values
            (param $v (ref eq))
@@ -113,11 +139,15 @@
                      (i32.eq
                       (array.len (ref.cast (ref $Values) (local.get $v)))
                       (i32.const 0)))
-                    (then (call $raise-wrong-number-of-values-received)
+                    (then (call $raise-wrong-number-of-values-received
+                                (i32.const 0)
+                                (array.len (ref.cast (ref $Values) (local.get $v))))
                           (unreachable)))
                 (global.get $void))
                (else
-                (call $raise-wrong-number-of-values-received)
+                (call $raise-wrong-number-of-values-received
+                      (i32.const 0)
+                      (i32.const 1))
                 (unreachable))))
 
      (func $expect-one-value
@@ -130,7 +160,9 @@
                      (i32.eq
                       (array.len (ref.cast (ref $Values) (local.get $v)))
                       (i32.const 1)))
-                    (then (call $raise-wrong-number-of-values-received)
+                    (then (call $raise-wrong-number-of-values-received
+                                (i32.const 1)
+                                (array.len (ref.cast (ref $Values) (local.get $v))))
                           (unreachable)))
                 (array.get $Values
                            (ref.cast (ref $Values) (local.get $v))
@@ -149,11 +181,15 @@
                      (i32.eq
                       (array.len (ref.cast (ref $Values) (local.get $v)))
                       (local.get $n)))
-                    (then (call $raise-wrong-number-of-values-received)
+                    (then (call $raise-wrong-number-of-values-received
+                                (local.get $n)
+                                (array.len (ref.cast (ref $Values) (local.get $v))))
                           (unreachable)))
                 (ref.cast (ref $Values) (local.get $v)))
                (else
-                (call $raise-wrong-number-of-values-received)
+                (call $raise-wrong-number-of-values-received
+                      (local.get $n)
+                      (i32.const 1))
                 (unreachable))))
      )))
 

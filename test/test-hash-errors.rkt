@@ -261,6 +261,18 @@
          "hash-filter-values"
          "hash?"
          "given: 42")))
+ (list "hash-map/copy callback result arity errors are catchable"
+       (and
+        (catch-contract/contains?
+         (lambda () (hash-map/copy (make-hash '((a . 1))) (lambda (k v) k)))
+         "result arity mismatch"
+         "expected: 2"
+         "received: 1")
+        (catch-contract/contains?
+         (lambda () (hash-map/copy (hash 'a 1) (lambda (k v) (values k v 'extra))))
+         "result arity mismatch"
+         "expected: 2"
+         "received: 3")))
  (list "hash iteration type errors preserve who"
        (and
         (catch-contract/contains?
