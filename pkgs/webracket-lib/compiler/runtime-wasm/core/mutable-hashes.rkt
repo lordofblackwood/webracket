@@ -482,7 +482,13 @@
       raise-expected
       (symbol->string raise-expected)
       (lambda ()
-        `(func ,raise-expected (unreachable)))))
+        `(func ,raise-expected
+               (param $bad (ref eq))
+               (call $raise-argument-error1
+                     (global.get $symbol:hash-ref)
+                     (global.get $string:hash?)
+                     (local.get $bad))
+               (unreachable)))))
 
    (for/list ([hash-ref/plain         '($hasheq-ref/plain
                                         $hasheqv-ref/plain

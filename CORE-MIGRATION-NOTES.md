@@ -33,6 +33,12 @@ Current remaining raw-stub classes:
     `exn:fail:contract` values. These helpers are shared across several hidden
     concrete mutable-hash dispatch paths, so they currently use the generic
     mutable-hash contract rather than preserving the precise public `who`.
+  - Concrete mutable hash read-family stubs such as
+    `$raise-argument-error:hasheq-expected` now raise catchable
+    `exn:fail:contract` values instead of raw traps. These helpers are hidden
+    concrete dispatch guards, so they currently use `hash-ref`/`hash?` for the
+    fallback message rather than trying to expose a non-public concrete helper
+    name.
 
 - `strings.rkt` and `bytes.rkt`:
   - `$raise-check-string`, `$raise-bad-string-index`, and

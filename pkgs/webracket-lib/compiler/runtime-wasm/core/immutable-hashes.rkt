@@ -4737,7 +4737,7 @@
                                 (struct.get $HashEqualAlwaysImmutable $count
                                             (ref.cast (ref $HashEqualAlwaysImmutable)
                                                       (local.get $ht)))))))
-	              (call $raise-argument-error:hash-expected)
+	              (call $raise-argument-error:hash-expected (local.get $ht))
 	              (unreachable))
 
         ;; immutable-hamt-packed-node->entries : packed-bnode acc -> list?
