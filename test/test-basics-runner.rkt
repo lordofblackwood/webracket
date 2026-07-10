@@ -119,6 +119,10 @@
   (check-no-stdlib-result-tree "test/test-character-errors.rkt"
                                #:timeout-seconds 180))
 
+(test-case "test-event-sync-errors has no false leaves"
+  (check-no-stdlib-result-tree "test/test-event-sync-errors.rkt"
+                               #:timeout-seconds 180))
+
 (test-case "test-hash has no false leaves"
   (check-no-stdlib-result-tree "test/test-hash.rkt"
                                #:timeout-seconds 120))

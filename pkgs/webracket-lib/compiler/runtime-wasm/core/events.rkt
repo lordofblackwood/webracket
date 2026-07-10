@@ -15,7 +15,9 @@
 (define event-runtime-string-constants
   '((evt?        "evt?")
     (handle-evt? "handle-evt?")
-    (channel?    "channel?")))
+    (channel?    "channel?")
+    (sync-timeout-contract
+     "(or/c #f (and/c real? (not/c negative?)) (-> any))")))
 
 ;; event-runtime-symbol-constants : (listof symbol?)
 ;;   Declare symbols used by event and channel helpers.
@@ -29,7 +31,9 @@
     channel-put-evt?
     evt?
     handle-evt
-    handle-evt?))
+    handle-evt?
+    sync
+    sync/timeout))
 
 ;; event-global-forms : (listof datum?)
 ;;   Declare singleton event globals for the runtime.
@@ -376,19 +380,27 @@
       `(func $sync (type $Prim>=0)
              (param $events (ref eq)) ;; event candidates
              (result        (ref eq))
-       
+
              (local $r    (ref eq))
+             (local $evt  (ref eq))
              (local $node (ref eq))
              (local $p    (ref $Pair))
-       
+
              (local.set $node (local.get $events))
              (loop $again
                (if (ref.test (ref $Pair) (local.get $node))
                    (then
                     (local.set $p (ref.cast (ref $Pair) (local.get $node)))
+                    (local.set $evt (struct.get $Pair $a (local.get $p)))
+                    (if (ref.eq (call $evt? (local.get $evt)) (global.get $false))
+                        (then (call $raise-argument-error1
+                                    (global.get $symbol:sync)
+                                    (global.get $string:evt?)
+                                    (local.get $evt))
+                              (unreachable)))
                     (local.set $r
                                (call $sync-one
-                                     (struct.get $Pair $a (local.get $p))
+                                     (local.get $evt)
                                      (i32.const 1)))
                     (if (i32.eqz (ref.eq (local.get $r) (global.get $false)))
                         (then (return (local.get $r))))
@@ -408,19 +420,44 @@
              (param $timeout (ref eq)) ;; timeout or #f
              (param $events  (ref eq)) ;; rest event candidates
              (result         (ref eq))
-       
+
              (local $r    (ref eq))
+             (local $evt  (ref eq))
              (local $node (ref eq))
              (local $p    (ref $Pair))
-       
+
+             (if (i32.eqz (ref.eq (local.get $timeout) (global.get $false)))
+                 (then
+                  (if (i32.eqz (ref.test (ref $Procedure) (local.get $timeout)))
+                      (then
+                       (if (ref.eq (call $real? (local.get $timeout)) (global.get $false))
+                           (then (call $raise-argument-error1
+                                       (global.get $symbol:sync/timeout)
+                                       (global.get $string:sync-timeout-contract)
+                                       (local.get $timeout))
+                                 (unreachable)))
+                       (if (ref.eq (call $negative? (local.get $timeout)) (global.get $true))
+                           (then (call $raise-argument-error1
+                                       (global.get $symbol:sync/timeout)
+                                       (global.get $string:sync-timeout-contract)
+                                       (local.get $timeout))
+                                 (unreachable)))))))
+
              (local.set $node (local.get $events))
              (loop $again
                (if (ref.test (ref $Pair) (local.get $node))
                    (then
                     (local.set $p (ref.cast (ref $Pair) (local.get $node)))
+                    (local.set $evt (struct.get $Pair $a (local.get $p)))
+                    (if (ref.eq (call $evt? (local.get $evt)) (global.get $false))
+                        (then (call $raise-argument-error1
+                                    (global.get $symbol:sync/timeout)
+                                    (global.get $string:evt?)
+                                    (local.get $evt))
+                              (unreachable)))
                     (local.set $r
                                (call $sync-one
-                                     (struct.get $Pair $a (local.get $p))
+                                     (local.get $evt)
                                      (i32.const 1)))
                     (if (i32.eqz (ref.eq (local.get $r) (global.get $false)))
                         (then (return (local.get $r))))
