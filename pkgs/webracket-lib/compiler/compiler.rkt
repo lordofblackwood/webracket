@@ -1873,7 +1873,8 @@
            procedure-reduce-arity procedure-reduce-arity-mask
                        bytes->path path->complete-path string->path-element
                        bytes->path-element datum->correlated correlated-property
-                       inclusive-range inclusive-range-proc) 'missing]
+                       inclusive-range inclusive-range-proc
+                       make-struct-field-accessor make-struct-field-mutator) 'missing]
          [else 'false])))
    (make-inline-specs/by-name
     '(make-input-port

@@ -36,6 +36,15 @@
      "(or/c symbol? #f)")
     (make-struct-type-property-contract-str
      "(or/c symbol? string? #f)")
+    (make-struct-field-accessor-procedure
+     "(and/c struct-accessor-procedure? (procedure-arity-includes/c 2))")
+    (make-struct-field-mutator-procedure
+     "(and/c struct-mutator-procedure? (procedure-arity-includes/c 3))")
+    (make-struct-field-name
+     "(or/c symbol? #f)")
+    (make-struct-field-contract-str
+     "(or/c symbol? string? #f)")
+    (field                     "field")
     (procedure-struct-type?     "procedure-struct-type?")
     (sealed-struct-supertype    "sealed structure type cannot be used as a supertype")
     (struct->list:on-opaque     "one of 'error, 'return-false, or 'skip")
@@ -91,6 +100,8 @@
     struct->vector
     make-struct-type
     make-struct-type-property
+    make-struct-field-accessor
+    make-struct-field-mutator
     mutator
     error
     return-false
@@ -591,6 +602,11 @@
   '($make-struct-mutator/specialized/checked
     $struct-mutator/specialized
     $build-structure-field-mutator-name
+    $raise-make-struct-field-mutator:mutator-proc
+    $raise-make-struct-field-mutator:field-pos
+    $raise-make-struct-field-mutator:name
+    $raise-make-struct-field-mutator:contract-str
+    $raise-make-struct-field-mutator:realm
     $make-struct-field-mutator))
 
 ;; struct-predicate-runtime-only-helper-names : (listof symbol?)
@@ -603,7 +619,12 @@
 ;; struct-field-accessor-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for struct field accessor helpers.
 (define struct-field-accessor-runtime-only-helper-names
-  '($make-struct-field-accessor
+  '($raise-make-struct-field-accessor:accessor-proc
+    $raise-make-struct-field-accessor:field-pos
+    $raise-make-struct-field-accessor:name
+    $raise-make-struct-field-accessor:contract-str
+    $raise-make-struct-field-accessor:realm
+    $make-struct-field-accessor
     $struct-field-accessor/specialized))
 
 ;; struct-procedure-predicate-runtime-only-helper-names : (listof symbol?)
@@ -4659,15 +4680,54 @@
                  (ref.cast (ref $String)
                            (call $string-append (local.get $parts)))))
 
+     (func $raise-make-struct-field-mutator:mutator-proc
+           (param $bad (ref eq))
+           (call $raise-argument-error1
+                 (global.get $symbol:make-struct-field-mutator)
+                 (global.get $string:make-struct-field-mutator-procedure)
+                 (local.get $bad))
+           (unreachable))
+
+     (func $raise-make-struct-field-mutator:field-pos
+           (param $bad (ref eq))
+           (call $raise-argument-error1
+                 (global.get $symbol:make-struct-field-mutator)
+                 (global.get $string:exact-nonnegative-integer?)
+                 (local.get $bad))
+           (unreachable))
+
+     (func $raise-make-struct-field-mutator:name
+           (param $bad (ref eq))
+           (call $raise-argument-error1
+                 (global.get $symbol:make-struct-field-mutator)
+                 (global.get $string:make-struct-field-name)
+                 (local.get $bad))
+           (unreachable))
+
+     (func $raise-make-struct-field-mutator:contract-str
+           (param $bad (ref eq))
+           (call $raise-argument-error1
+                 (global.get $symbol:make-struct-field-mutator)
+                 (global.get $string:make-struct-field-contract-str)
+                 (local.get $bad))
+           (unreachable))
+
+     (func $raise-make-struct-field-mutator:realm
+           (param $bad (ref eq))
+           (call $raise-argument-error1
+                 (global.get $symbol:make-struct-field-mutator)
+                 (global.get $string:symbol?)
+                 (local.get $bad))
+           (unreachable))
 
      (func $make-struct-field-mutator  ; Racket primitive
            ; Note: This functions uses the internal representation of
            ;       a mutator procedure closure.
            (param $mutator-proc      (ref eq)) ;; closure
            (param $field-pos-fx      (ref eq)) ;; fixnum
-           (param $field/proc-name   (ref eq)) ;; symbol, string, or #f
+           (param $field/proc-name   (ref eq)) ;; symbol or #f
            (param $arg-contract-str  (ref eq)) ;; string/symbol/#f
-           (param $realm             (ref eq)) ;; symbol or #f
+           (param $realm             (ref eq)) ;; symbol
            (result                   (ref eq)) ;; returns a specialized mutator
 
            (local $clos             (ref $Closure))
@@ -4685,11 +4745,27 @@
            (local $realm-checked    (ref eq))
            (local $arg-contract     (ref eq))
            (local $combine?         i32)
+           (local $field-pos        i32)
 
            ;; --- Check mutator-proc is a closure ---
-           (if (i32.eqz (ref.test (ref $Closure) (local.get $mutator-proc)))
-               (then (call $raise-argument-error/internal (local.get $mutator-proc))))
+           (if (i32.eqz (ref.test (ref $StructMutatorProcedure) (local.get $mutator-proc)))
+               (then (call $raise-make-struct-field-mutator:mutator-proc
+                           (local.get $mutator-proc))))
+           (if (i32.eqz
+                (call $procedure-arity-includes?/checked/i32
+                      (ref.cast (ref $Procedure) (local.get $mutator-proc))
+                      (i32.const 3)))
+               (then (call $raise-make-struct-field-mutator:mutator-proc
+                           (local.get $mutator-proc))))
            (local.set $clos (ref.cast (ref $Closure) (local.get $mutator-proc)))
+
+           (if (ref.eq (call $exact-nonnegative-integer? (local.get $field-pos-fx))
+                       (global.get $false))
+               (then (call $raise-make-struct-field-mutator:field-pos
+                           (local.get $field-pos-fx))))
+           (local.set $field-pos
+                      (i32.shr_u (i31.get_u (ref.cast (ref i31) (local.get $field-pos-fx)))
+                                  (i32.const 1)))
 
            ;; --- Extract fields ---
            (local.set $free           (struct.get $Closure $free (local.get $clos)))
@@ -4699,14 +4775,40 @@
            (local.set $super-count-fx (array.get $Free
                                                  (local.get $free) (i32.const 1)))
            (local.set $struct-name    (struct.get $StructType $name (local.get $std)))
-           (local.set $field-name     (local.get $field/proc-name))
-           (local.set $arg-contract   (local.get $arg-contract-str))
-           (local.set $realm-checked  (local.get $realm))
+           (local.set $field-name
+                      (if (result (ref eq))
+                          (ref.eq (local.get $field/proc-name) (global.get $missing))
+                          (then
+                           (call $string->symbol/checked
+                                 (call $string-append/2
+                                       (global.get $string:field)
+                                       (call $i32->string (local.get $field-pos)))))
+                          (else (local.get $field/proc-name))))
+           (local.set $arg-contract
+                      (if (result (ref eq))
+                          (ref.eq (local.get $arg-contract-str) (global.get $missing))
+                          (then (global.get $false))
+                          (else (local.get $arg-contract-str))))
+           (local.set $realm-checked
+                      (if (result (ref eq))
+                          (ref.eq (local.get $realm) (global.get $missing))
+                          (then (global.get $symbol:racket))
+                          (else (local.get $realm))))
 
-           ;; --- Validate realm ---
-           (if (i32.and (i32.eqz (ref.eq (local.get $realm-checked) (global.get $false)))
-                        (i32.eqz (ref.test (ref $Symbol) (local.get $realm-checked))))
-               (then (call $raise-argument-error/internal (local.get $realm-checked))))
+           ;; --- Validate optional arguments ---
+           (if (i32.and (i32.eqz (ref.eq (local.get $field-name) (global.get $false)))
+                        (i32.eqz (ref.test (ref $Symbol) (local.get $field-name))))
+               (then (call $raise-make-struct-field-mutator:name
+                           (local.get $field-name))))
+           (if (i32.and
+                (i32.eqz (ref.eq (local.get $arg-contract) (global.get $false)))
+                (i32.and (i32.eqz (ref.test (ref $Symbol) (local.get $arg-contract)))
+                         (i32.eqz (ref.test (ref $String) (local.get $arg-contract)))))
+               (then (call $raise-make-struct-field-mutator:contract-str
+                           (local.get $arg-contract))))
+           (if (i32.eqz (ref.test (ref $Symbol) (local.get $realm-checked)))
+               (then (call $raise-make-struct-field-mutator:realm
+                           (local.get $realm-checked))))
 
            ;; --- Determine procedure name ---
            (local.set $name (global.get $symbol:mutator))
@@ -4766,13 +4868,8 @@
                          (else
                           (local.set $name (local.get $field-name)))))
                     (else
-                     (if (i32.eqz (ref.test (ref $String) (local.get $field-name)))
-                         (then (call $raise-argument-error/internal (local.get $field-name)))
-                         (else
-                          (local.set $name
-                                     (call $string->symbol/checked
-                                           (ref.cast (ref $String)
-                                                     (local.get $field-name))))))))))
+                     (call $raise-make-struct-field-mutator:name
+                           (local.get $field-name))))))
 
            ;; --- Call specialized mutator constructor ---
            (call $make-struct-mutator/specialized/checked
@@ -4877,6 +4974,46 @@
   (function-forms->runtime-helpers
    'struct-field-accessor-runtime-only-helpers
    '(
+     (func $raise-make-struct-field-accessor:accessor-proc
+           (param $bad (ref eq))
+           (call $raise-argument-error1
+                 (global.get $symbol:make-struct-field-accessor)
+                 (global.get $string:make-struct-field-accessor-procedure)
+                 (local.get $bad))
+           (unreachable))
+
+     (func $raise-make-struct-field-accessor:field-pos
+           (param $bad (ref eq))
+           (call $raise-argument-error1
+                 (global.get $symbol:make-struct-field-accessor)
+                 (global.get $string:exact-nonnegative-integer?)
+                 (local.get $bad))
+           (unreachable))
+
+     (func $raise-make-struct-field-accessor:name
+           (param $bad (ref eq))
+           (call $raise-argument-error1
+                 (global.get $symbol:make-struct-field-accessor)
+                 (global.get $string:make-struct-field-name)
+                 (local.get $bad))
+           (unreachable))
+
+     (func $raise-make-struct-field-accessor:contract-str
+           (param $bad (ref eq))
+           (call $raise-argument-error1
+                 (global.get $symbol:make-struct-field-accessor)
+                 (global.get $string:make-struct-field-contract-str)
+                 (local.get $bad))
+           (unreachable))
+
+     (func $raise-make-struct-field-accessor:realm
+           (param $bad (ref eq))
+           (call $raise-argument-error1
+                 (global.get $symbol:make-struct-field-accessor)
+                 (global.get $string:symbol?)
+                 (local.get $bad))
+           (unreachable))
+
      (func $make-struct-field-accessor ; primitive, section 5.2, returns specialized accessor
            ;; Parameters
            (param $accessor-proc  (ref eq))   ;; closure produced by make-struct-accessor
@@ -4893,22 +5030,64 @@
            (local $std                  (ref $StructType))
            (local $struct-name          (ref eq))
            (local $field-accessor-name  (ref eq))
+           (local $field-index          i32)
+           (local $field-name           (ref eq))
+           (local $contract-checked     (ref eq))
+           (local $realm-checked        (ref eq))
 
            ;; --- Type checks ---
            ;; Check accessor-proc is a struct accessor procedure
            (if (i32.eqz (ref.test (ref $StructAccessorProcedure) (local.get $accessor-proc)))
-               (then (call $raise-argument-error/internal (local.get $accessor-proc))))
+               (then (call $raise-make-struct-field-accessor:accessor-proc
+                           (local.get $accessor-proc))))
+           (if (i32.eqz
+                (call $procedure-arity-includes?/checked/i32
+                      (ref.cast (ref $Procedure) (local.get $accessor-proc))
+                      (i32.const 2)))
+               (then (call $raise-make-struct-field-accessor:accessor-proc
+                           (local.get $accessor-proc))))
            (local.set $accessor (ref.cast (ref $Closure) (local.get $accessor-proc)))
-           ;; Check field-index is a fixnum (i31 with lsb = 0)
-           (if (i32.or (i32.eqz (ref.test (ref i31) (local.get $field-index-fx)))
-                       (i32.ne (i32.and (i31.get_u (ref.cast (ref i31) (local.get $field-index-fx)))
-                                        (i32.const 1))
-                               (i32.const 0)))
-               (then (call $raise-argument-error/internal (local.get $field-index-fx))))
+           ;; Check field-index is an exact nonnegative integer.
+           (if (ref.eq (call $exact-nonnegative-integer? (local.get $field-index-fx))
+                       (global.get $false))
+               (then (call $raise-make-struct-field-accessor:field-pos
+                           (local.get $field-index-fx))))
+           (local.set $field-index
+                      (i32.shr_u (i31.get_u (ref.cast (ref i31) (local.get $field-index-fx)))
+                                  (i32.const 1)))
+           (local.set $field-name
+                      (if (result (ref eq))
+                          (ref.eq (local.get $name) (global.get $missing))
+                          (then
+                           (call $string->symbol/checked
+                                 (call $string-append/2
+                                       (global.get $string:field)
+                                       (call $i32->string (local.get $field-index)))))
+                          (else (local.get $name))))
+           (local.set $contract-checked
+                      (if (result (ref eq))
+                          (ref.eq (local.get $contract-str) (global.get $missing))
+                          (then (global.get $false))
+                          (else (local.get $contract-str))))
+           (local.set $realm-checked
+                      (if (result (ref eq))
+                          (ref.eq (local.get $realm) (global.get $missing))
+                          (then (global.get $symbol:racket))
+                          (else (local.get $realm))))
            ;; field name must be a symbol or #f
-           (if (i32.eqz (ref.eq (local.get $name) (global.get $false)))
-               (then (if (i32.eqz (ref.test (ref $Symbol) (local.get $name)))
-                         (then (call $raise-argument-error/internal (local.get $name))))))
+           (if (i32.and (i32.eqz (ref.eq (local.get $field-name) (global.get $false)))
+                        (i32.eqz (ref.test (ref $Symbol) (local.get $field-name))))
+               (then (call $raise-make-struct-field-accessor:name
+                           (local.get $field-name))))
+           (if (i32.and
+                (i32.eqz (ref.eq (local.get $contract-checked) (global.get $false)))
+                (i32.and (i32.eqz (ref.test (ref $Symbol) (local.get $contract-checked)))
+                         (i32.eqz (ref.test (ref $String) (local.get $contract-checked)))))
+               (then (call $raise-make-struct-field-accessor:contract-str
+                           (local.get $contract-checked))))
+           (if (i32.eqz (ref.test (ref $Symbol) (local.get $realm-checked)))
+               (then (call $raise-make-struct-field-accessor:realm
+                           (local.get $realm-checked))))
            ;; Build the name of the struct accessor
            (local.set $free (struct.get $Closure $free (local.get $accessor)))
            (local.set $std  (ref.cast (ref $StructType)
@@ -4917,7 +5096,7 @@
            (local.set $field-accessor-name
                       (if (result (ref eq))
                           (i32.or (ref.eq (local.get $struct-name) (global.get $false))
-                                  (ref.eq (local.get $name) (global.get $false)))
+                                  (ref.eq (local.get $field-name) (global.get $false)))
                           (then (global.get $false))
                           (else (call $string->symbol
                                       (call $string-append/2
@@ -4928,7 +5107,7 @@
                                                   (call $codepoint->string (i32.const 45)))
                                             (call $symbol->string
                                                   (ref.cast (ref $Symbol)
-                                                            (local.get $name))))))))
+                                                            (local.get $field-name))))))))
            ;; --- Build Free vector ---
            (local.set $free (array.new_fixed $Free 2
                                              (local.get $accessor-proc)
@@ -4938,7 +5117,7 @@
                        (i32.const 0)                     ; hash
                        (local.get $field-accessor-name)  ; name:  #f or $Symbol
                        (ref.i31 (i32.const 2))           ; arity: 1
-                       (local.get $realm)                ; realm: #f or $Symbol
+                       (local.get $realm-checked)        ; realm: $Symbol
                        (ref.func $invoke-closure)        ; invoke (used by apply, map, etc.)
                        (global.get $false)               ; debug-id
                        (ref.func $struct-field-accessor/specialized)
