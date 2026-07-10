@@ -33,6 +33,42 @@
                                   "string-drop-right"
                                   "string?"
                                   "given: 42")))
+ (list "string take/drop non-integer count errors preserve who"
+       (and
+        (catch-contract/contains? (lambda () (string-take "abc" #f))
+                                  "string-take"
+                                  "exact-nonnegative-integer?"
+                                  "given: #f")
+        (catch-contract/contains? (lambda () (string-take-right "abc" #f))
+                                  "string-take-right"
+                                  "exact-nonnegative-integer?"
+                                  "given: #f")
+        (catch-contract/contains? (lambda () (string-drop "abc" #f))
+                                  "string-drop"
+                                  "exact-nonnegative-integer?"
+                                  "given: #f")
+        (catch-contract/contains? (lambda () (string-drop-right "abc" #f))
+                                  "string-drop-right"
+                                  "exact-nonnegative-integer?"
+                                  "given: #f")))
+ (list "string take/drop negative count errors preserve who"
+       (and
+        (catch-contract/contains? (lambda () (string-take "abc" -1))
+                                  "string-take"
+                                  "exact-nonnegative-integer?"
+                                  "given: -1")
+        (catch-contract/contains? (lambda () (string-take-right "abc" -1))
+                                  "string-take-right"
+                                  "exact-nonnegative-integer?"
+                                  "given: -1")
+        (catch-contract/contains? (lambda () (string-drop "abc" -1))
+                                  "string-drop"
+                                  "exact-nonnegative-integer?"
+                                  "given: -1")
+        (catch-contract/contains? (lambda () (string-drop-right "abc" -1))
+                                  "string-drop-right"
+                                  "exact-nonnegative-integer?"
+                                  "given: -1")))
  (list "string-set! out-of-range errors are catchable with who"
        (catch-contract/contains?
         (lambda ()

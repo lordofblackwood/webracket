@@ -3653,14 +3653,16 @@
                                (global.get $symbol:string-take)
                                (local.get $s))
                          (unreachable)))
-               (if (i32.eqz (ref.test (ref i31) (local.get $n)))
-                   (then (call $raise-check-fixnum (local.get $n))))
+               (if (ref.eq (call $exact-nonnegative-integer? (local.get $n))
+                            (global.get $false))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:string-take)
+                               (global.get $string:exact-nonnegative-integer?)
+                               (local.get $n))
+                         (unreachable)))
 
                (local.set $str   (ref.cast (ref $String) (local.get $s)))
                (local.set $n/tag (i31.get_u (ref.cast (ref i31) (local.get $n))))
-
-               (if (i32.and (local.get $n/tag) (i32.const 1))
-                   (then (call $raise-check-fixnum (local.get $n))))
                (local.set $n/i32 (i32.shr_u (local.get $n/tag) (i32.const 1)))
 
                (local.set $len
@@ -3700,13 +3702,16 @@
                                (global.get $symbol:string-take-right)
                                (local.get $s))
                          (unreachable)))
-               (if (i32.eqz (ref.test (ref i31) (local.get $n)))
-                   (then (call $raise-check-fixnum (local.get $n))))
+               (if (ref.eq (call $exact-nonnegative-integer? (local.get $n))
+                            (global.get $false))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:string-take-right)
+                               (global.get $string:exact-nonnegative-integer?)
+                               (local.get $n))
+                         (unreachable)))
 
                (local.set $str   (ref.cast (ref $String) (local.get $s)))
                (local.set $n/tag (i31.get_u (ref.cast (ref i31) (local.get $n))))
-               (if (i32.and (local.get $n/tag) (i32.const 1))
-                   (then (call $raise-check-fixnum (local.get $n))))
                (local.set $n/i32 (i32.shr_u (local.get $n/tag) (i32.const 1)))
 
                (local.set $len (call $string-length/checked/i32 (local.get $str)))
@@ -3745,13 +3750,16 @@
                                (global.get $symbol:string-drop)
                                (local.get $s))
                          (unreachable)))
-               (if (i32.eqz (ref.test (ref i31) (local.get $n)))
-                   (then (call $raise-check-fixnum (local.get $n))))
+               (if (ref.eq (call $exact-nonnegative-integer? (local.get $n))
+                            (global.get $false))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:string-drop)
+                               (global.get $string:exact-nonnegative-integer?)
+                               (local.get $n))
+                         (unreachable)))
 
                (local.set $str   (ref.cast (ref $String) (local.get $s)))
                (local.set $n/tag (i31.get_u (ref.cast (ref i31) (local.get $n))))
-               (if (i32.and (local.get $n/tag) (i32.const 1))
-                   (then (call $raise-check-fixnum (local.get $n))))
                (local.set $n/i32 (i32.shr_u (local.get $n/tag) (i32.const 1)))
 
                (local.set $len (call $string-length/checked/i32 (local.get $str)))
@@ -3788,13 +3796,16 @@
                                (global.get $symbol:string-drop-right)
                                (local.get $s))
                          (unreachable)))
-               (if (i32.eqz (ref.test (ref i31) (local.get $n)))
-                   (then (call $raise-check-fixnum (local.get $n))))
+               (if (ref.eq (call $exact-nonnegative-integer? (local.get $n))
+                            (global.get $false))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:string-drop-right)
+                               (global.get $string:exact-nonnegative-integer?)
+                               (local.get $n))
+                         (unreachable)))
 
                (local.set $str   (ref.cast (ref $String) (local.get $s)))
                (local.set $n/tag (i31.get_u (ref.cast (ref i31) (local.get $n))))
-               (if (i32.and (local.get $n/tag) (i32.const 1))
-                   (then (call $raise-check-fixnum (local.get $n))))
                (local.set $n/i32 (i32.shr_u (local.get $n/tag) (i32.const 1)))
 
                (local.set $len (call $string-length/checked/i32 (local.get $str)))
