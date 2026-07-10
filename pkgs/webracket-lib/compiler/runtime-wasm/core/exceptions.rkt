@@ -243,7 +243,13 @@
 (define bootstrap-error-runtime-only-forms
   '(
          (func $raise-expected-string                 (unreachable))
-         (func $raise-unexpected-argument             (unreachable))
+         (func $raise-unexpected-argument
+               (param $bad (ref eq))
+               (call $raise-argument-error1
+                     (global.get $symbol:unsafe-ffi-primitive)
+                     (global.get $string:unsafe-ffi-primitive:expected)
+                     (local.get $bad))
+               (unreachable))
 
          ;; Convert a host exception caught at an FFI boundary into a
          ;; regular WebRacket exn:fail so `with-handlers` can catch it.

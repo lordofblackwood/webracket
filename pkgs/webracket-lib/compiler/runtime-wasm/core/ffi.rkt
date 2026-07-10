@@ -34,6 +34,7 @@
 ;;   Declare symbols used by FFI debug probes and callback/bridge diagnostics.
 (define ffi-runtime-symbol-constants
   '(webracket-debug-allocation-budget!
+    unsafe-ffi-primitive
     wr-ref
     webracket-debug-allocation-counters
     webracket-debug-invoke-budget!
@@ -61,6 +62,7 @@
 (define ffi-runtime-string-constants
   '((callback:no-js-equivalent
      "The callback attempted to return a WebRacket value with no JavaScript equivalent (i.e. without a FASL encoding): ")
+    (unsafe-ffi-primitive:expected "registered unsafe FFI primitive symbol?")
     (string-or-symbol?         "(or/c string? symbol?)")
     (wr-kind:value              "value")
     (wr-kind:missing-binding    "missing-binding")
@@ -1437,8 +1439,8 @@
                                 (ref.cast (ref $HashEqMutable)
                                           (global.get $unsafe-ffi-primitive-table))
                                 (local.get $name)
-                                (global.get $missing)))
-               (if (ref.eq (local.get $proc) (global.get $missing))
+                                (global.get $false)))
+               (if (ref.eq (local.get $proc) (global.get $false))
                    (then
                     (call $raise-unexpected-argument (local.get $name))
                     (unreachable)))
