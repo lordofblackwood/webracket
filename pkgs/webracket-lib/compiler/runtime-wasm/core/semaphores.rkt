@@ -9,7 +9,8 @@
 ;; semaphore-runtime-string-constants : (listof (list/c symbol? string?))
 ;;   Declare string constants used by semaphore helpers and semaphore errors.
 (define semaphore-runtime-string-constants
-  '((semaphore? "semaphore?")))
+  '((semaphore? "semaphore?")
+    (try-fail-thunk-or-false "(or/c (procedure-arity-includes/c 0) #f)")))
 
 ;; semaphore-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate semaphore helpers that still depend on monolithic runtime globals.
@@ -169,7 +170,8 @@
                         (local.get $sema-raw))
                   (unreachable)))
              (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc-raw)))
-                 (then (call $raise-argument-error:procedure-expected
+                 (then (call $raise-argument-error:procedure-expected/who
+                             (global.get $symbol:call-with-semaphore)
                              (local.get $proc-raw))
                        (unreachable)))
              (local.set $sema (ref.cast (ref $Semaphore) (local.get $sema-raw)))
@@ -184,6 +186,29 @@
                   (local.set $pair (ref.cast (ref $Pair) (local.get $rest)))
                   (local.set $try-fail (struct.get $Pair $a (local.get $pair)))
                   (local.set $args-list (struct.get $Pair $d (local.get $pair)))))
+             (if (i32.and
+                  (i32.and
+                   (i32.eqz (ref.eq (local.get $try-fail) (global.get $false)))
+                   (i32.eqz (ref.eq (local.get $try-fail) (global.get $undefined))))
+                  (i32.and
+                   (i32.eqz (ref.eq (local.get $try-fail) (global.get $unsafe-undefined)))
+                   (i32.eqz (ref.test (ref $Procedure) (local.get $try-fail)))))
+                 (then (call $raise-argument-error1
+                             (global.get $symbol:call-with-semaphore)
+                             (global.get $string:try-fail-thunk-or-false)
+                             (local.get $try-fail))
+                       (unreachable)))
+             (if (ref.test (ref $Procedure) (local.get $try-fail))
+                 (then
+                  (if (i32.eqz
+                       (call $procedure-arity-includes?/checked/i32
+                             (ref.cast (ref $Procedure) (local.get $try-fail))
+                             (i32.const 0)))
+                      (then (call $raise-argument-error1
+                                  (global.get $symbol:call-with-semaphore)
+                                  (global.get $string:try-fail-thunk-or-false)
+                                  (local.get $try-fail))
+                            (unreachable)))))
              (if (i32.le_s (struct.get $Semaphore $count (local.get $sema))
                            (i32.const 0))
                  (then

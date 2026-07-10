@@ -263,7 +263,8 @@
                              (local.get $evt-raw))
                        (unreachable)))
              (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc-raw)))
-                 (then (call $raise-argument-error:procedure-expected
+                 (then (call $raise-argument-error:procedure-expected/who
+                             (global.get $symbol:handle-evt)
                              (local.get $proc-raw))
                        (unreachable)))
              (struct.new $HandleEvt

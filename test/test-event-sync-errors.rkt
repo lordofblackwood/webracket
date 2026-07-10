@@ -39,6 +39,24 @@
         "sync/timeout"
         "(or/c #f (and/c real? (not/c negative?)) (-> any))"
         "given: 'bad"))
+ (list "handle-evt rejects non-procedures with who"
+       (catch-contract/contains?
+        (lambda () (handle-evt always-evt 42))
+        "handle-evt"
+        "procedure?"
+        "given: 42"))
+ (list "call-with-semaphore rejects non-procedures with who"
+       (catch-contract/contains?
+        (lambda () (call-with-semaphore (make-semaphore 1) 42))
+        "call-with-semaphore"
+        "procedure?"
+        "given: 42"))
+ (list "call-with-semaphore validates try-fail thunk with who"
+       (catch-contract/contains?
+        (lambda () (call-with-semaphore (make-semaphore 1) values 42))
+        "call-with-semaphore"
+        "(or/c (procedure-arity-includes/c 0) #f)"
+        "given: 42"))
  (list "sync still selects ready events"
        (and (equal? (sync always-evt) always-evt)
             (let ([s (make-semaphore 1)])
