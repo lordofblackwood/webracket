@@ -86,6 +86,14 @@ Current remaining raw-stub classes:
     value. A follow-up should add `who`-aware call paths for public arithmetic
     and numeric primitives.
 
+- `treelists.rkt`:
+  - Positive out-of-range indexes for `treelist-ref`, `treelist-set`,
+    `treelist-insert`, and `treelist-delete` now raise catchable range-style
+    contract errors with the bad index, valid range, and treelist length.
+    Follow-up: several public treelist wrappers still decode index arguments
+    with unsigned shifts, so negative exact indexes may be reported after
+    unsigned reinterpretation instead of as the original negative value.
+
 - `structs.rkt`:
   - `$raise-check-struct-type` is only used by `$check-struct-type`, which is
     not obviously source-visible. If a public caller is found, preserve its
