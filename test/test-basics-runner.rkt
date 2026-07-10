@@ -17,6 +17,7 @@
    (make-no-stdlib-result-tree-fixture "test/test-fixnum-errors.rkt")
    (make-no-stdlib-result-tree-fixture "test/test-number-conversion-errors.rkt")
    (make-no-stdlib-result-tree-fixture "test/test-numeric-range-errors.rkt")
+   (make-no-stdlib-result-tree-fixture "test/test-random-errors.rkt")
    (make-no-stdlib-result-tree-fixture "test/test-string-copy-errors.rkt")
    (make-no-stdlib-result-tree-fixture "test/test-build-string-errors.rkt")
    (make-no-stdlib-result-tree-fixture "test/test-vector-errors.rkt")

@@ -734,13 +734,24 @@
       (func $flrandom (type $Prim01) ; one optional argument
             ;; (flrandom [rand-gen pseudo-random-generator?]) -> flonum in (0,1)
             ;; rand-gen : pseudo-random-generator? (optional, default: uses shared generator)
-            ;; The rand-gen argument is currently ignored.
             (param $rg (ref eq))
             (result    (ref eq))
 
+            (local $gen (ref $PseudoRandomGenerator))
             (local $r i32)
 
-            (local.set $r (call $random-u32))
+            (local.set $gen (call $current-random-generator))
+            (if (i32.eqz (ref.eq (local.get $rg) (global.get $missing)))
+                (then
+                 (if (i32.eqz (ref.test (ref $PseudoRandomGenerator) (local.get $rg)))
+                     (then (call $raise-argument-error1
+                                 (global.get $symbol:flrandom)
+                                 (global.get $string:pseudo-random-generator?)
+                                 (local.get $rg))
+                           (unreachable)))
+                 (local.set $gen
+                            (ref.cast (ref $PseudoRandomGenerator) (local.get $rg)))))
+            (local.set $r (call $random-u32/generator (local.get $gen)))
             (struct.new $Flonum
                         (i32.const 0)
                         (f64.div
@@ -749,8 +760,8 @@
                          (f64.const 4294967298.0))))
 
       (func $unsafe-flrandom (type $Prim01)
-            ;; Unsafe variant, same behaviour as flrandom.
-            ;; rand-gen : pseudo-random-generator? (optional, default ignored)
+            ;; Unsafe variant: skip generator validation and use shared generator.
+            ;; rand-gen : pseudo-random-generator? (optional, ignored)
             (param $rg (ref eq))
             (result    (ref eq))
 
