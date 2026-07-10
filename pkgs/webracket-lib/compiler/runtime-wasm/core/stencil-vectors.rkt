@@ -1,16 +1,44 @@
 #lang racket
 
-(provide stencil-vector-runtime-helper-forms
+(provide stencil-vector-runtime-string-constants
+         stencil-vector-runtime-symbol-constants
+         stencil-vector-runtime-helper-forms
          stencil-vector-runtime-only-helpers)
 
 (require "../core-helper.rkt")
+
+;; stencil-vector-runtime-string-constants : (listof (list/c symbol? string?))
+;;   Declare string constants used by stencil-vector helpers and errors.
+(define stencil-vector-runtime-string-constants
+  '((stencil-vector?               "stencil-vector?")
+    (stencil-vector-mask-contract  "(integer-in 0 (sub1 (expt 2 (stencil-vector-mask-width))))")
+    (stencil-vector-mask-count     "mask does not match given number of items")
+    (stencil-vector-remove-missing "mask of stencil vector does not have all bits in removal mask")
+    (stencil-vector-add-present    "mask of stencil vector already has bits in addition mask")
+    (stencil-vector-add-count      "addition mask does not match given number of items")
+    (stencil-vector-truncate-wide  "new mask has more slots than stencil vector")))
+
+;; stencil-vector-runtime-symbol-constants : (listof symbol?)
+;;   Declare symbols used as `who` names by stencil-vector helpers.
+(define stencil-vector-runtime-symbol-constants
+  '(stencil-vector
+    $system-stencil-vector
+    stencil-vector-length
+    stencil-vector-mask
+    stencil-vector-ref
+    stencil-vector-set!
+    stencil-vector-update
+    $system-stencil-vector-update
+    $system-stencil-vector-truncate!))
 
 ;; stencil-vector-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for stencil-vector helpers.
 (define stencil-vector-runtime-only-helper-names
   '($stencil-vector-mask-width
     $$stencil-vector-mask-valid?/i32
+    $$stencil-vector-mask/i32
     $$stencil-vector-popcount/i32
+    $raise-stencil-vector-index-out-of-range/who
     $$make-stencil-vector/checked
     $stencil-vector
     $$system-stencil-vector
@@ -60,6 +88,44 @@
                       (i32.lt_s (local.get $mask) (i32.const 67108864))))))
 
 
+   ;; $stencil-vector-mask/i32 : symbol? any/c -> i32
+   ;;   Validate a public stencil-vector mask and return the unboxed value.
+   (core-runtime-helper
+    '$$stencil-vector-mask/i32
+    "$$stencil-vector-mask/i32"
+    (lambda ()
+      `(func $$stencil-vector-mask/i32
+             (param $who    (ref eq))
+             (param $mask-v (ref eq))
+             (result        i32)
+             (local $bits i32)
+             (local $mask i32)
+             (if (i32.eqz (ref.test (ref i31) (local.get $mask-v)))
+                 (then
+                  (call $raise-argument-error1
+                        (local.get $who)
+                        (global.get $string:stencil-vector-mask-contract)
+                        (local.get $mask-v))
+                  (unreachable)))
+             (local.set $bits (i31.get_s (ref.cast (ref i31) (local.get $mask-v))))
+             (if (i32.and (local.get $bits) (i32.const 1))
+                 (then
+                  (call $raise-argument-error1
+                        (local.get $who)
+                        (global.get $string:stencil-vector-mask-contract)
+                        (local.get $mask-v))
+                  (unreachable)))
+             (local.set $mask (i32.shr_s (local.get $bits) (i32.const 1)))
+             (if (i32.eqz (call $$stencil-vector-mask-valid?/i32 (local.get $mask)))
+                 (then
+                  (call $raise-argument-error1
+                        (local.get $who)
+                        (global.get $string:stencil-vector-mask-contract)
+                        (local.get $mask-v))
+                  (unreachable)))
+             (local.get $mask))))
+
+
    ;; $stencil-vector-popcount/i32 : i32 -> i32
    ;;   Count the active slots in a stencil-vector mask.
    (core-runtime-helper
@@ -70,6 +136,22 @@
              (param $mask i32)
              (result i32)
              (i32.popcnt (local.get $mask)))))
+
+
+   ;; raise-stencil-vector-index-out-of-range/who : symbol? i32 -> none
+   ;;   Raise a catchable error for an out-of-range dense slot index.
+   (core-runtime-helper
+    '$raise-stencil-vector-index-out-of-range/who
+    "$raise-stencil-vector-index-out-of-range/who"
+    (lambda ()
+      `(func $raise-stencil-vector-index-out-of-range/who
+             (param $who (ref eq))
+             (param $i   i32)
+             (call $raise-argument-error1
+                   (local.get $who)
+                   (global.get $string:valid-vector-index)
+                   (ref.i31 (i32.shl (local.get $i) (i32.const 1))))
+             (unreachable))))
 
 
    ;; $make-stencil-vector/checked : i32 i32 (ref $Array) -> stencil-vector?
@@ -117,7 +199,10 @@
                   (local.set $as (ref.cast (ref $Args) (local.get $mask-v)))
                   (local.set $len (array.len (local.get $as)))
                   (if (i32.eqz (local.get $len))
-                      (then (call $raise-argument-error/internal (local.get $mask-v))
+                      (then (call $raise-argument-error1
+                                  (global.get $symbol:stencil-vector)
+                                  (global.get $string:stencil-vector-mask-contract)
+                                  (local.get $mask-v))
                             (unreachable)))
                   (local.set $mask-v (array.get $Args (local.get $as) (i32.const 0)))
                   (local.set $vals (global.get $null))
@@ -131,13 +216,16 @@
                                                 (array.get $Args (local.get $as) (local.get $i))
                                                 (local.get $vals)))
                                (br $args-loop)))))
-             (local.set $mask (call $fixnum->i32 (local.get $mask-v)))
-             (if (i32.eqz (call $$stencil-vector-mask-valid?/i32 (local.get $mask)))
-                 (then (call $raise-argument-error/internal (local.get $mask-v))
-                       (unreachable)))
+             (local.set $mask
+                        (call $$stencil-vector-mask/i32
+                              (global.get $symbol:stencil-vector)
+                              (local.get $mask-v)))
              (local.set $len (call $$stencil-vector-popcount/i32 (local.get $mask)))
              (if (i32.ne (call $length/i32 (local.get $vals)) (local.get $len))
-                 (then (call $raise-argument-error/internal (local.get $vals))
+                 (then (call $raise-arguments-error
+                             (global.get $symbol:stencil-vector)
+                             (global.get $string:stencil-vector-mask-count)
+                             (array.new_fixed $Args 0))
                        (unreachable)))
              (local.set $arr (call $list->array (local.get $vals)))
              (ref.cast (ref eq)
@@ -173,7 +261,10 @@
                   (local.set $as (ref.cast (ref $Args) (local.get $mask-v)))
                   (local.set $len (array.len (local.get $as)))
                   (if (i32.eqz (local.get $len))
-                      (then (call $raise-argument-error/internal (local.get $mask-v))
+                      (then (call $raise-argument-error1
+                                  (global.get $symbol:$system-stencil-vector)
+                                  (global.get $string:stencil-vector-mask-contract)
+                                  (local.get $mask-v))
                             (unreachable)))
                   (local.set $mask-v (array.get $Args (local.get $as) (i32.const 0)))
                   (local.set $vals (global.get $null))
@@ -187,13 +278,16 @@
                                                 (array.get $Args (local.get $as) (local.get $i))
                                                 (local.get $vals)))
                                (br $args-loop)))))
-             (local.set $mask (call $fixnum->i32 (local.get $mask-v)))
-             (if (i32.eqz (call $$stencil-vector-mask-valid?/i32 (local.get $mask)))
-                 (then (call $raise-argument-error/internal (local.get $mask-v))
-                       (unreachable)))
+             (local.set $mask
+                        (call $$stencil-vector-mask/i32
+                              (global.get $symbol:$system-stencil-vector)
+                              (local.get $mask-v)))
              (local.set $len (call $$stencil-vector-popcount/i32 (local.get $mask)))
              (if (i32.ne (call $length/i32 (local.get $vals)) (local.get $len))
-                 (then (call $raise-argument-error/internal (local.get $vals))
+                 (then (call $raise-arguments-error
+                             (global.get $symbol:$system-stencil-vector)
+                             (global.get $string:stencil-vector-mask-count)
+                             (array.new_fixed $Args 0))
                        (unreachable)))
              (local.set $arr (call $list->array (local.get $vals)))
              (ref.cast (ref eq)
@@ -268,7 +362,10 @@
              (param $v (ref eq))
              (result   (ref eq))
              (if (i32.eqz (ref.test (ref $StencilVector) (local.get $v)))
-                 (then (call $raise-argument-error/internal (local.get $v))
+                 (then (call $raise-argument-error1
+                             (global.get $symbol:stencil-vector-length)
+                             (global.get $string:stencil-vector?)
+                             (local.get $v))
                        (unreachable)))
              (ref.i31
               (i32.shl
@@ -298,7 +395,10 @@
              (param $v (ref eq))
              (result   (ref eq))
              (if (i32.eqz (ref.test (ref $StencilVector) (local.get $v)))
-                 (then (call $raise-argument-error/internal (local.get $v))
+                 (then (call $raise-argument-error1
+                             (global.get $symbol:stencil-vector-mask)
+                             (global.get $string:stencil-vector?)
+                             (local.get $v))
                        (unreachable)))
              (ref.i31
               (i32.shl
@@ -331,13 +431,21 @@
              (local $idx i32)
              (local $len i32)
              (if (i32.eqz (ref.test (ref $StencilVector) (local.get $v)))
-                 (then (call $raise-argument-error/internal (local.get $v))
+                 (then (call $raise-argument-error1
+                             (global.get $symbol:stencil-vector-ref)
+                             (global.get $string:stencil-vector?)
+                             (local.get $v))
                        (unreachable)))
              (local.set $sv  (ref.cast (ref $StencilVector) (local.get $v)))
-             (local.set $idx (call $fixnum->i32 (local.get $i)))
+             (local.set $idx
+                        (call $vector-index/i32
+                              (global.get $symbol:stencil-vector-ref)
+                              (local.get $i)))
              (local.set $len (array.len (struct.get $StencilVector $slots (local.get $sv))))
              (if (i32.ge_u (local.get $idx) (local.get $len))
-                 (then (call $raise-argument-error/internal (local.get $i))
+                 (then (call $raise-stencil-vector-index-out-of-range/who
+                             (global.get $symbol:stencil-vector-ref)
+                             (local.get $idx))
                        (unreachable)))
              (array.get $Array (struct.get $StencilVector $slots (local.get $sv)) (local.get $idx)))))
 
@@ -369,13 +477,21 @@
              (local $idx i32)
              (local $len i32)
              (if (i32.eqz (ref.test (ref $StencilVector) (local.get $v)))
-                 (then (call $raise-argument-error/internal (local.get $v))
+                 (then (call $raise-argument-error1
+                             (global.get $symbol:stencil-vector-set!)
+                             (global.get $string:stencil-vector?)
+                             (local.get $v))
                        (unreachable)))
              (local.set $sv  (ref.cast (ref $StencilVector) (local.get $v)))
-             (local.set $idx (call $fixnum->i32 (local.get $i)))
+             (local.set $idx
+                        (call $vector-index/i32
+                              (global.get $symbol:stencil-vector-set!)
+                              (local.get $i)))
              (local.set $len (array.len (struct.get $StencilVector $slots (local.get $sv))))
              (if (i32.ge_u (local.get $idx) (local.get $len))
-                 (then (call $raise-argument-error/internal (local.get $i))
+                 (then (call $raise-stencil-vector-index-out-of-range/who
+                             (global.get $symbol:stencil-vector-set!)
+                             (local.get $idx))
                        (unreachable)))
              (array.set $Array (struct.get $StencilVector $slots (local.get $sv)) (local.get $idx) (local.get $val))
              (global.get $void))))
@@ -415,22 +531,35 @@
              (local $new-i    i32)
              (local $vals-i   (ref eq))
              (local $pair     (ref $Pair))
+             (local $who      (ref eq))
+             (local.set $who
+                        (if (result (ref eq))
+                            (local.get $system?)
+                            (then (global.get $symbol:$system-stencil-vector-update))
+                            (else (global.get $symbol:stencil-vector-update))))
              (local.set $old-mask (struct.get $StencilVector $mask (local.get $sv)))
              (if (i32.ne (i32.and (local.get $old-mask) (local.get $remove-mask))
                           (local.get $remove-mask))
-                 (then (call $raise-argument-error/internal
-                             (ref.i31 (i32.shl (local.get $remove-mask) (i32.const 1))))
+                 (then (call $raise-arguments-error
+                             (local.get $who)
+                             (global.get $string:stencil-vector-remove-missing)
+                             (array.new_fixed $Args 0))
                        (unreachable)))
              (if (i32.ne (i32.and (i32.and (local.get $old-mask)
                                            (i32.xor (local.get $remove-mask) (i32.const -1)))
                                    (local.get $add-mask))
                           (i32.const 0))
-                 (then (call $raise-argument-error/internal
-                             (ref.i31 (i32.shl (local.get $add-mask) (i32.const 1))))
+                 (then (call $raise-arguments-error
+                             (local.get $who)
+                             (global.get $string:stencil-vector-add-present)
+                             (array.new_fixed $Args 0))
                        (unreachable)))
              (if (i32.ne (call $$stencil-vector-popcount/i32 (local.get $add-mask))
                           (call $length/i32 (local.get $vals)))
-                 (then (call $raise-argument-error/internal (local.get $vals))
+                 (then (call $raise-arguments-error
+                             (local.get $who)
+                             (global.get $string:stencil-vector-add-count)
+                             (array.new_fixed $Args 0))
                        (unreachable)))
              (local.set $new-mask
                         (i32.or (i32.and (local.get $old-mask)
@@ -492,17 +621,20 @@
              (local $remove-mask i32)
              (local $add-mask    i32)
              (if (i32.eqz (ref.test (ref $StencilVector) (local.get $v)))
-                 (then (call $raise-argument-error/internal (local.get $v))
+                 (then (call $raise-argument-error1
+                             (global.get $symbol:stencil-vector-update)
+                             (global.get $string:stencil-vector?)
+                             (local.get $v))
                        (unreachable)))
              (local.set $sv (ref.cast (ref $StencilVector) (local.get $v)))
-             (local.set $remove-mask (call $fixnum->i32 (local.get $remove-v)))
-             (local.set $add-mask    (call $fixnum->i32 (local.get $add-v)))
-             (if (i32.eqz (call $$stencil-vector-mask-valid?/i32 (local.get $remove-mask)))
-                 (then (call $raise-argument-error/internal (local.get $remove-v))
-                       (unreachable)))
-             (if (i32.eqz (call $$stencil-vector-mask-valid?/i32 (local.get $add-mask)))
-                 (then (call $raise-argument-error/internal (local.get $add-v))
-                       (unreachable)))
+             (local.set $remove-mask
+                        (call $$stencil-vector-mask/i32
+                              (global.get $symbol:stencil-vector-update)
+                              (local.get $remove-v)))
+             (local.set $add-mask
+                        (call $$stencil-vector-mask/i32
+                              (global.get $symbol:stencil-vector-update)
+                              (local.get $add-v)))
              (call $$stencil-vector-update/core
                    (local.get $sv)
                    (local.get $remove-mask)
@@ -527,17 +659,20 @@
              (local $remove-mask i32)
              (local $add-mask    i32)
              (if (i32.eqz (ref.test (ref $StencilVector) (local.get $v)))
-                 (then (call $raise-argument-error/internal (local.get $v))
+                 (then (call $raise-argument-error1
+                             (global.get $symbol:$system-stencil-vector-update)
+                             (global.get $string:stencil-vector?)
+                             (local.get $v))
                        (unreachable)))
              (local.set $sv (ref.cast (ref $StencilVector) (local.get $v)))
-             (local.set $remove-mask (call $fixnum->i32 (local.get $remove-v)))
-             (local.set $add-mask    (call $fixnum->i32 (local.get $add-v)))
-             (if (i32.eqz (call $$stencil-vector-mask-valid?/i32 (local.get $remove-mask)))
-                 (then (call $raise-argument-error/internal (local.get $remove-v))
-                       (unreachable)))
-             (if (i32.eqz (call $$stencil-vector-mask-valid?/i32 (local.get $add-mask)))
-                 (then (call $raise-argument-error/internal (local.get $add-v))
-                       (unreachable)))
+             (local.set $remove-mask
+                        (call $$stencil-vector-mask/i32
+                              (global.get $symbol:$system-stencil-vector-update)
+                              (local.get $remove-v)))
+             (local.set $add-mask
+                        (call $$stencil-vector-mask/i32
+                              (global.get $symbol:$system-stencil-vector-update)
+                              (local.get $add-v)))
              (call $$stencil-vector-update/core
                    (local.get $sv)
                    (local.get $remove-mask)
@@ -560,16 +695,22 @@
              (local $sv       (ref $StencilVector))
              (local $new-mask i32)
              (if (i32.eqz (ref.test (ref $StencilVector) (local.get $v)))
-                 (then (call $raise-argument-error/internal (local.get $v))
+                 (then (call $raise-argument-error1
+                             (global.get $symbol:$system-stencil-vector-truncate!)
+                             (global.get $string:stencil-vector?)
+                             (local.get $v))
                        (unreachable)))
              (local.set $sv (ref.cast (ref $StencilVector) (local.get $v)))
-             (local.set $new-mask (call $fixnum->i32 (local.get $mask-v)))
-             (if (i32.eqz (call $$stencil-vector-mask-valid?/i32 (local.get $new-mask)))
-                 (then (call $raise-argument-error/internal (local.get $mask-v))
-                       (unreachable)))
+             (local.set $new-mask
+                        (call $$stencil-vector-mask/i32
+                              (global.get $symbol:$system-stencil-vector-truncate!)
+                              (local.get $mask-v)))
              (if (i32.gt_u (call $$stencil-vector-popcount/i32 (local.get $new-mask))
                            (array.len (struct.get $StencilVector $slots (local.get $sv))))
-                 (then (call $raise-argument-error/internal (local.get $mask-v))
+                 (then (call $raise-arguments-error
+                             (global.get $symbol:$system-stencil-vector-truncate!)
+                             (global.get $string:stencil-vector-truncate-wide)
+                             (array.new_fixed $Args 0))
                        (unreachable)))
              (struct.set $StencilVector $mask (local.get $sv) (local.get $new-mask))
              (global.get $void))))

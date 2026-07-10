@@ -47,6 +47,10 @@
   (check-no-stdlib-result-tree "test/test-vector-errors.rkt"
                                #:timeout-seconds 180))
 
+(test-case "test-stencil-vector-errors has no false leaves"
+  (check-no-stdlib-result-tree "test/test-stencil-vector-errors.rkt"
+                               #:timeout-seconds 180))
+
 (test-case "test-treelist-errors has no false leaves"
   (check-no-stdlib-result-tree "test/test-treelist-errors.rkt"
                                #:timeout-seconds 180))

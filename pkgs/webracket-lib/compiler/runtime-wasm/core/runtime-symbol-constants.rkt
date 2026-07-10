@@ -72,6 +72,8 @@
                   reflection-runtime-symbol-constants)
          (only-in "security.rkt"
                   security-runtime-symbol-constants)
+         (only-in "stencil-vectors.rkt"
+                  stencil-vector-runtime-symbol-constants)
          (only-in "structs.rkt"
                   struct-runtime-symbol-constants)
          (only-in "strings.rkt"
@@ -130,6 +132,7 @@
           string-runtime-symbol-constants
           byte-predicate-runtime-symbol-constants
           vector-runtime-symbol-constants
+          stencil-vector-runtime-symbol-constants
           ffi-runtime-symbol-constants
           location-runtime-symbol-constants
           checker-runtime-symbol-constants

@@ -84,6 +84,8 @@
                   security-runtime-string-constants)
          (only-in "semaphores.rkt"
                   semaphore-runtime-string-constants)
+         (only-in "stencil-vectors.rkt"
+                  stencil-vector-runtime-string-constants)
          (only-in "strings.rkt"
                   string-runtime-string-constants)
          (only-in "structs.rkt"
@@ -130,6 +132,7 @@
           flonum-runtime-string-constants
           bytes-runtime-string-constants
           vector-runtime-string-constants
+          stencil-vector-runtime-string-constants
           box-runtime-string-constants
           immutable-hash-runtime-string-constants
           port-predicate-runtime-string-constants
