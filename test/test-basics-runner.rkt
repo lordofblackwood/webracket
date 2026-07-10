@@ -40,6 +40,7 @@
    (make-no-stdlib-result-tree-fixture "test/test-security-errors.rkt")
    (make-no-stdlib-result-tree-fixture "test/test-exception-handler-errors.rkt")
    (make-no-stdlib-result-tree-fixture "test/test-procedure-errors.rkt")
+   (make-no-stdlib-result-tree-fixture "test/test-parameterization-errors.rkt")
    (make-no-stdlib-result-tree-fixture "test/test-impersonator-errors.rkt")
    (make-no-stdlib-result-tree-fixture "test/test-ffi-errors.rkt")
    (make-no-stdlib-result-tree-fixture "test/test-values-errors.rkt")

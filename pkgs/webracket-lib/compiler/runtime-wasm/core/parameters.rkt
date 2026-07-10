@@ -39,6 +39,7 @@
 (define parameter-runtime-string-constants
   '((parameter?        "parameter?")
     (parameterization? "parameterization?")
+    (cache-configuration-index "(integer-in 0 7)")
     (readtable-or-false "(or/c readtable? #f)")))
 
 ;; parameter-runtime-symbol-constants : (listof symbol?)
@@ -977,7 +978,8 @@
                            (local.get $paramz-raw))
                      (unreachable)))
            (if (i32.eqz (ref.test (ref $Procedure) (local.get $thunk-raw)))
-               (then (call $raise-argument-error:procedure-expected
+               (then (call $raise-argument-error:procedure-expected/who
+                           (global.get $symbol:call-with-parameterization)
                            (local.get $thunk-raw))
                      (unreachable)))
            (local.set $thunk (ref.cast (ref $Procedure) (local.get $thunk-raw)))
@@ -1030,7 +1032,7 @@
            (global.set $current-parameterization-value (local.get $old))
            (local.get $res))
 
-     ;; cache-configuration : exact-nonnegative-integer? (-> any/c) -> any/c
+     ;; cache-configuration : (integer-in 0 7) (-> any/c) -> any/c
      ;;   Small #%paramz cache used by racket/private/config during
      ;;   expander startup. Racket CS records these once per place; WebRacket
      ;;   keeps an eight-slot cache, enough for the current configuration
@@ -1045,15 +1047,23 @@
            (local $cached (ref eq))
            (local $invoke (ref $ProcedureInvoker))
 
+           (if (ref.eq (call $exact-nonnegative-integer? (local.get $index-raw))
+                       (global.get $false))
+               (then (call $raise-argument-error1
+                           (global.get $symbol:cache-configuration)
+                           (global.get $string:cache-configuration-index)
+                           (local.get $index-raw))
+                     (unreachable)))
            (local.set $index (call $fixnum->i32 (local.get $index-raw)))
            (if (i32.ge_u (local.get $index) (i32.const 8))
                (then (call $raise-argument-error1
                            (global.get $symbol:cache-configuration)
-                           (global.get $string:exact-nonnegative-integer?)
+                           (global.get $string:cache-configuration-index)
                            (local.get $index-raw))
                      (unreachable)))
            (if (i32.eqz (ref.test (ref $Procedure) (local.get $thunk-raw)))
-               (then (call $raise-argument-error:procedure-expected
+               (then (call $raise-argument-error:procedure-expected/who
+                           (global.get $symbol:cache-configuration)
                            (local.get $thunk-raw))
                      (unreachable)))
            (local.set $thunk (ref.cast (ref $Procedure) (local.get $thunk-raw)))
