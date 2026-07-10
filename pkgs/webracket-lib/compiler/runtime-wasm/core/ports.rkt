@@ -33,6 +33,11 @@
   '((port?                      "port?")
     (input-port?                "input-port?")
     (output-port?               "output-port?")
+    (call-with-output-string-procedure "(output-port? . -> . any)")
+    (input-port-read-contract   "(or/c (procedure-arity-includes/c 1) input-port?)")
+    (input-port-peek-contract   "(or/c (procedure-arity-includes/c 3) input-port? #f)")
+    (output-port-write-contract "(or/c output-port? (procedure-arity-includes/c 5))")
+    (port-procedure-arity-0     "(procedure-arity-includes/c 0)")
     (port-or-false-contract     "(or/c port? #f)")
     (progress-or-false-contract "(or/c #f progress-evt?)")
     (string-port-backend-unsupported
@@ -45,6 +50,9 @@
 ;;   Declare symbols used by string-port modes and line-ending modes.
 (define port-runtime-symbol-constants
   '(string
+    call-with-output-string
+    make-input-port
+    make-output-port
     read-bytes
     read-bytes!
     read-bytes-avail!
@@ -1286,10 +1294,13 @@
            (local $port (ref $OutputStringPort))
            (local $args (ref $Args))
 
-           ;; 1. Ensure the argument is a procedure
-           (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
-               (then (call $raise-argument-error:procedure-expected (local.get $proc))
-                     (unreachable)))
+           ;; 1. Ensure the argument is a one-argument procedure
+           (local.set $f
+                      (call $check-procedure-arity/who
+                            (global.get $symbol:call-with-output-string)
+                            (global.get $string:call-with-output-string-procedure)
+                            (local.get $proc)
+                            (i32.const 1)))
 
            ;; 2. Open a fresh output string port
            (local.set $port
@@ -1297,7 +1308,6 @@
                                 (call $open-output-string (global.get $missing))))
 
            ;; 3. Prepare the procedure invocation with the port argument
-           (local.set $f    (ref.cast (ref $Procedure) (local.get $proc)))
            (local.set $finv (struct.get $Procedure $invoke (local.get $f)))
            (local.set $args (array.new_fixed $Args 1 (local.get $port)))
 
@@ -1381,19 +1391,43 @@
                                                 (else (local.set $buffer-mode (local.get $arg))))))))))))
                         (br $loop)))
 
-           ;; --- Ensure read-in is either an input port or a procedure ---
+           ;; --- Ensure read-in is either an input port or a one-argument procedure ---
            (if (i32.eqz (i32.or (ref.test (ref $InputPort) (local.get $read))
                                 (ref.test (ref $Procedure) (local.get $read))))
-               ; TODO: raise exception
-               (then (return (global.get $false))))
+               (then (call $raise-argument-error1
+                           (global.get $symbol:make-input-port)
+                           (global.get $string:input-port-read-contract)
+                           (local.get $read))
+                     (unreachable)))
+           (if (ref.test (ref $Procedure) (local.get $read))
+               (then (drop (call $check-procedure-arity/who
+                                  (global.get $symbol:make-input-port)
+                                  (global.get $string:input-port-read-contract)
+                                  (local.get $read)
+                                  (i32.const 1)))))
 
-           ;; --- Ensure peek-in is #f, an input port, or a procedure ---
+           ;; --- Ensure peek-in is #f, an input port, or a three-argument procedure ---
            (if (i32.eqz (ref.eq (local.get $peek) (global.get $false)))
                (then
                 (if (i32.eqz (i32.or (ref.test (ref $InputPort) (local.get $peek))
                                      (ref.test (ref $Procedure) (local.get $peek))))
-                    ; TODO: raise exception
-                    (then (return (global.get $false))))))
+                    (then (call $raise-argument-error1
+                                (global.get $symbol:make-input-port)
+                                (global.get $string:input-port-peek-contract)
+                                (local.get $peek))
+                          (unreachable)))
+                (if (ref.test (ref $Procedure) (local.get $peek))
+                    (then (drop (call $check-procedure-arity/who
+                                       (global.get $symbol:make-input-port)
+                                       (global.get $string:input-port-peek-contract)
+                                       (local.get $peek)
+                                       (i32.const 3)))))))
+
+           (drop (call $check-procedure-arity/who
+                       (global.get $symbol:make-input-port)
+                       (global.get $string:port-procedure-arity-0)
+                       (local.get $close)
+                       (i32.const 0)))
 
            (local.set $bytes (ref.cast (ref $Bytes)    (global.get $bytes:empty)))
            (local.set $loc   (ref.cast (ref $Location) (call $make-initial-location)))
@@ -1492,12 +1526,20 @@
                                 (ref.test (ref $Procedure) (local.get $write))))
                (then (call $raise-argument-error1
                            (global.get $symbol:make-output-port)
-                           (global.get $string:output-port?)
+                           (global.get $string:output-port-write-contract)
                            (local.get $write))
                      (unreachable)))
-           (if (ref.eq (call $procedure? (local.get $close)) (global.get $false))
-               (then (call $raise-argument-error:procedure-expected (local.get $close))
-                     (unreachable)))
+           (if (ref.test (ref $Procedure) (local.get $write))
+               (then (drop (call $check-procedure-arity/who
+                                  (global.get $symbol:make-output-port)
+                                  (global.get $string:output-port-write-contract)
+                                  (local.get $write)
+                                  (i32.const 5)))))
+           (drop (call $check-procedure-arity/who
+                       (global.get $symbol:make-output-port)
+                       (global.get $string:port-procedure-arity-0)
+                       (local.get $close)
+                       (i32.const 0)))
 
            (local.set $bytes (ref.cast (ref $Bytes)    (global.get $bytes:empty)))
            (local.set $loc   (ref.cast (ref $Location) (call $make-initial-location)))

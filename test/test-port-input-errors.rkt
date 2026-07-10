@@ -31,6 +31,28 @@
     (make-input-port 'proxy base base (lambda () (void)))))
 
 (list
+ (list "make-input-port constructor contract errors are catchable"
+       (and
+        (catch-contract/contains?
+         (lambda () (make-input-port 'custom 42 #f (lambda () (void))))
+         "make-input-port"
+         "(or/c (procedure-arity-includes/c 1) input-port?)"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (make-input-port 'custom (open-input-string "") 42 (lambda () (void))))
+         "make-input-port"
+         "(or/c (procedure-arity-includes/c 3) input-port? #f)"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (make-input-port 'custom (open-input-string "") #f 42))
+         "make-input-port"
+         "(procedure-arity-includes/c 0)"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (make-input-port 'custom (lambda (bs) 0) #f (lambda (x) (void))))
+         "make-input-port"
+         "(procedure-arity-includes/c 0)"
+         "given:")))
  (list "peek-bytes-avail! progress errors are catchable with who"
        (and
         (catch-contract/contains?
