@@ -7,145 +7,58 @@
   (check-no-stdlib-result-tree/chunked "test/test-basics.rkt"
                                        #:timeout-seconds 240))
 
-(test-case "test-byte-text-errors has no false leaves"
-  (check-no-stdlib-result-tree "test/test-byte-text-errors.rkt"
-                               #:timeout-seconds 180))
+(define focused-fixtures
+  (list
+   (make-no-stdlib-result-tree-fixture "test/test-byte-text-errors.rkt")
+   (make-no-stdlib-result-tree-fixture "test/test-byte-comparison-errors.rkt")
+   (make-no-stdlib-result-tree-fixture "test/test-byte-index-errors.rkt")
+   (make-no-stdlib-result-tree-fixture "test/test-byte-value-errors.rkt")
+   (make-no-stdlib-result-tree-fixture "test/test-byte-sequence-errors.rkt")
+   (make-no-stdlib-result-tree-fixture "test/test-fixnum-errors.rkt")
+   (make-no-stdlib-result-tree-fixture "test/test-number-conversion-errors.rkt")
+   (make-no-stdlib-result-tree-fixture "test/test-numeric-range-errors.rkt")
+   (make-no-stdlib-result-tree-fixture "test/test-string-copy-errors.rkt")
+   (make-no-stdlib-result-tree-fixture "test/test-build-string-errors.rkt")
+   (make-no-stdlib-result-tree-fixture "test/test-vector-errors.rkt")
+   (make-no-stdlib-result-tree-fixture "test/test-stencil-vector-errors.rkt")
+   (make-no-stdlib-result-tree-fixture "test/test-struct-errors.rkt"
+                                       #:timeout-seconds 240)
+   (make-no-stdlib-result-tree-fixture "test/test-treelist-errors.rkt")
+   (make-no-stdlib-result-tree-fixture "test/test-string-trim-errors.rkt")
+   (make-no-stdlib-result-tree-fixture "test/test-string-comparison-errors.rkt")
+   (make-no-stdlib-result-tree-fixture "test/test-string-constructor-errors.rkt")
+   (make-no-stdlib-result-tree-fixture "test/test-string-index-errors.rkt")
+   (make-no-stdlib-result-tree-fixture "test/test-string-misc-errors.rkt")
+   (make-no-stdlib-result-tree-fixture "test/test-range-errors.rkt")
+   (make-no-stdlib-result-tree-fixture "test/test-path-errors.rkt")
+   (make-no-stdlib-result-tree-fixture "test/test-filesystem-errors.rkt")
+   (make-no-stdlib-result-tree-fixture "test/test-format-errors.rkt")
+   (make-no-stdlib-result-tree-fixture "test/test-misc-primitive-errors.rkt")
+   (make-no-stdlib-result-tree-fixture "test/test-exception-handler-errors.rkt")
+   (make-no-stdlib-result-tree-fixture "test/test-procedure-errors.rkt")
+   (make-no-stdlib-result-tree-fixture "test/test-ffi-errors.rkt")
+   (make-no-stdlib-result-tree-fixture "test/test-values-errors.rkt")
+   (make-no-stdlib-result-tree-fixture "test/test-port-input-errors.rkt")
+   (make-no-stdlib-result-tree-fixture "test/test-port-output-errors.rkt")
+   (make-no-stdlib-result-tree-fixture "test/test-lock-errors.rkt")
+   (make-no-stdlib-result-tree-fixture "test/test-hash-errors.rkt")
+   (make-no-stdlib-result-tree-fixture "test/test-character-errors.rkt")
+   (make-no-stdlib-result-tree-fixture "test/test-event-sync-errors.rkt")
+   (make-no-stdlib-result-tree-fixture "test/test-hash.rkt"
+                                       #:timeout-seconds 120)))
 
-(test-case "test-byte-comparison-errors has no false leaves"
-  (check-no-stdlib-result-tree "test/test-byte-comparison-errors.rkt"
-                               #:timeout-seconds 180))
+;; fixture-jobs : -> exact-positive-integer?
+;;   Return the requested fixture parallelism, defaulting to four workers.
+(define (fixture-jobs)
+  (define raw (getenv "WEBRACKET_FIXTURE_JOBS"))
+  (define n (and raw (string->number raw)))
+  (if (and (exact-integer? n) (positive? n))
+      n
+      4))
 
-(test-case "test-byte-index-errors has no false leaves"
-  (check-no-stdlib-result-tree "test/test-byte-index-errors.rkt"
-                               #:timeout-seconds 180))
-
-(test-case "test-byte-value-errors has no false leaves"
-  (check-no-stdlib-result-tree "test/test-byte-value-errors.rkt"
-                               #:timeout-seconds 180))
-
-(test-case "test-byte-sequence-errors has no false leaves"
-  (check-no-stdlib-result-tree "test/test-byte-sequence-errors.rkt"
-                               #:timeout-seconds 180))
-
-(test-case "test-fixnum-errors has no false leaves"
-  (check-no-stdlib-result-tree "test/test-fixnum-errors.rkt"
-                               #:timeout-seconds 180))
-
-(test-case "test-number-conversion-errors has no false leaves"
-  (check-no-stdlib-result-tree "test/test-number-conversion-errors.rkt"
-                               #:timeout-seconds 180))
-
-(test-case "test-numeric-range-errors has no false leaves"
-  (check-no-stdlib-result-tree "test/test-numeric-range-errors.rkt"
-                               #:timeout-seconds 180))
-
-(test-case "test-string-copy-errors has no false leaves"
-  (check-no-stdlib-result-tree "test/test-string-copy-errors.rkt"
-                               #:timeout-seconds 180))
-
-(test-case "test-build-string-errors has no false leaves"
-  (check-no-stdlib-result-tree "test/test-build-string-errors.rkt"
-                               #:timeout-seconds 180))
-
-(test-case "test-vector-errors has no false leaves"
-  (check-no-stdlib-result-tree "test/test-vector-errors.rkt"
-                               #:timeout-seconds 180))
-
-(test-case "test-stencil-vector-errors has no false leaves"
-  (check-no-stdlib-result-tree "test/test-stencil-vector-errors.rkt"
-                               #:timeout-seconds 180))
-
-(test-case "test-struct-errors has no false leaves"
-  (check-no-stdlib-result-tree "test/test-struct-errors.rkt"
-                               #:timeout-seconds 240))
-
-(test-case "test-treelist-errors has no false leaves"
-  (check-no-stdlib-result-tree "test/test-treelist-errors.rkt"
-                               #:timeout-seconds 180))
-
-(test-case "test-string-trim-errors has no false leaves"
-  (check-no-stdlib-result-tree "test/test-string-trim-errors.rkt"
-                               #:timeout-seconds 180))
-
-(test-case "test-string-comparison-errors has no false leaves"
-  (check-no-stdlib-result-tree "test/test-string-comparison-errors.rkt"
-                               #:timeout-seconds 180))
-
-(test-case "test-string-constructor-errors has no false leaves"
-  (check-no-stdlib-result-tree "test/test-string-constructor-errors.rkt"
-                               #:timeout-seconds 180))
-
-(test-case "test-string-index-errors has no false leaves"
-  (check-no-stdlib-result-tree "test/test-string-index-errors.rkt"
-                               #:timeout-seconds 180))
-
-(test-case "test-string-misc-errors has no false leaves"
-  (check-no-stdlib-result-tree "test/test-string-misc-errors.rkt"
-                               #:timeout-seconds 180))
-
-(test-case "test-range-errors has no false leaves"
-  (check-no-stdlib-result-tree "test/test-range-errors.rkt"
-                               #:timeout-seconds 180))
-
-(test-case "test-path-errors has no false leaves"
-  (check-no-stdlib-result-tree "test/test-path-errors.rkt"
-                               #:timeout-seconds 180))
-
-(test-case "test-filesystem-errors has no false leaves"
-  (check-no-stdlib-result-tree "test/test-filesystem-errors.rkt"
-                               #:timeout-seconds 180))
-
-(test-case "test-format-errors has no false leaves"
-  (check-no-stdlib-result-tree "test/test-format-errors.rkt"
-                               #:timeout-seconds 180))
-
-(test-case "test-misc-primitive-errors has no false leaves"
-  (check-no-stdlib-result-tree "test/test-misc-primitive-errors.rkt"
-                               #:timeout-seconds 180))
-
-(test-case "test-exception-handler-errors has no false leaves"
-  (check-no-stdlib-result-tree "test/test-exception-handler-errors.rkt"
-                               #:timeout-seconds 180))
-
-(test-case "test-procedure-errors has no false leaves"
-  (check-no-stdlib-result-tree "test/test-procedure-errors.rkt"
-                               #:timeout-seconds 180))
-
-(test-case "test-ffi-errors has no false leaves"
-  (check-no-stdlib-result-tree "test/test-ffi-errors.rkt"
-                               #:timeout-seconds 180))
-
-(test-case "test-values-errors has no false leaves"
-  (check-no-stdlib-result-tree "test/test-values-errors.rkt"
-                               #:timeout-seconds 180))
-
-(test-case "test-port-input-errors has no false leaves"
-  (check-no-stdlib-result-tree "test/test-port-input-errors.rkt"
-                               #:timeout-seconds 180))
-
-(test-case "test-port-output-errors has no false leaves"
-  (check-no-stdlib-result-tree "test/test-port-output-errors.rkt"
-                               #:timeout-seconds 180))
-
-(test-case "test-lock-errors has no false leaves"
-  (check-no-stdlib-result-tree "test/test-lock-errors.rkt"
-                               #:timeout-seconds 180))
-
-(test-case "test-hash-errors has no false leaves"
-  (check-no-stdlib-result-tree "test/test-hash-errors.rkt"
-                               #:timeout-seconds 180))
-
-(test-case "test-character-errors has no false leaves"
-  (check-no-stdlib-result-tree "test/test-character-errors.rkt"
-                               #:timeout-seconds 180))
-
-(test-case "test-event-sync-errors has no false leaves"
-  (check-no-stdlib-result-tree "test/test-event-sync-errors.rkt"
-                               #:timeout-seconds 180))
-
-(test-case "test-hash has no false leaves"
-  (check-no-stdlib-result-tree "test/test-hash.rkt"
-                               #:timeout-seconds 120))
+(test-case "focused no-stdlib result-tree fixtures have no false leaves"
+  (check-no-stdlib-result-tree-fixtures/parallel focused-fixtures
+                                                 #:jobs (fixture-jobs)))
 
 (module+ main
   (void))

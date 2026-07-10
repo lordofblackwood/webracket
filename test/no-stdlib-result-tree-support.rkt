@@ -1,17 +1,38 @@
 #lang racket/base
 
 (provide check-no-stdlib-result-tree
-         check-no-stdlib-result-tree/chunked)
+         check-no-stdlib-result-tree/chunked
+         make-no-stdlib-result-tree-fixture
+         check-no-stdlib-result-tree-fixtures/parallel
+         (struct-out no-stdlib-result-tree-fixture))
 
 (require racket/list
+         racket/async-channel
          racket/file
          racket/path
          racket/port
          racket/runtime-path
+         racket/string
          rackunit
          "../webify/test-module-support.rkt")
 
 (define-runtime-path repo-root "..")
+
+(struct no-stdlib-result-tree-fixture
+  (path timeout-seconds chunked? max-datum-bytes)
+  #:transparent)
+
+(struct fixture-result
+  (index fixture ok? message)
+  #:transparent)
+
+;; make-no-stdlib-result-tree-fixture : path-string? [#:timeout-seconds exact-positive-integer?] [#:chunked? boolean?] [#:max-datum-bytes exact-positive-integer?] -> no-stdlib-result-tree-fixture?
+;;   Build a generated-output fixture description for the parallel checker.
+(define (make-no-stdlib-result-tree-fixture path
+                                            #:timeout-seconds [timeout-seconds 180]
+                                            #:chunked? [chunked? #f]
+                                            #:max-datum-bytes [max-datum-bytes 160000])
+  (no-stdlib-result-tree-fixture path timeout-seconds chunked? max-datum-bytes))
 
 ;; read-single-datum : string? -> any/c
 ;;   Read the one result tree that a no-stdlib test program prints.
@@ -181,3 +202,76 @@
     (lambda ()
       (with-handlers ([exn:fail? void])
         (delete-directory/files tmp-dir)))))
+
+;; run-no-stdlib-result-tree-fixture : no-stdlib-result-tree-fixture? -> void?
+;;   Run one generated-output fixture using the appropriate checker.
+(define (run-no-stdlib-result-tree-fixture fixture)
+  (define test-path (no-stdlib-result-tree-fixture-path fixture))
+  (define timeout-seconds (no-stdlib-result-tree-fixture-timeout-seconds fixture))
+  (if (no-stdlib-result-tree-fixture-chunked? fixture)
+      (check-no-stdlib-result-tree/chunked
+       test-path
+       #:timeout-seconds timeout-seconds
+       #:max-datum-bytes (no-stdlib-result-tree-fixture-max-datum-bytes fixture))
+      (check-no-stdlib-result-tree
+       test-path
+       #:timeout-seconds timeout-seconds)))
+
+;; run-fixture/capture : exact-nonnegative-integer? no-stdlib-result-tree-fixture? -> fixture-result?
+;;   Run one fixture and capture any rackunit failure for parallel reporting.
+(define (run-fixture/capture index fixture)
+  (with-handlers ([exn:fail?
+                   (lambda (exn)
+                     (fixture-result index fixture #f (exn-message exn)))])
+    (run-no-stdlib-result-tree-fixture fixture)
+    (fixture-result index fixture #t "")))
+
+;; fixture-result<? : fixture-result? fixture-result? -> boolean?
+;;   Compare fixture results by original fixture order.
+(define (fixture-result<? a b)
+  (< (fixture-result-index a) (fixture-result-index b)))
+
+;; fixture-failure-message : fixture-result? -> string?
+;;   Render one failed fixture for a combined rackunit failure.
+(define (fixture-failure-message result)
+  (format "~a failed:\n~a"
+          (no-stdlib-result-tree-fixture-path (fixture-result-fixture result))
+          (fixture-result-message result)))
+
+;; check-no-stdlib-result-tree-fixtures/parallel : (listof no-stdlib-result-tree-fixture?) [#:jobs exact-positive-integer?] -> void?
+;;   Run independent generated-output fixtures with a bounded worker pool.
+(define (check-no-stdlib-result-tree-fixtures/parallel fixtures #:jobs [jobs 4])
+  (define fixture-count (length fixtures))
+  (define worker-count (if (zero? fixture-count)
+                           0
+                           (max 1 (min jobs fixture-count))))
+  (define done (gensym 'done))
+  (define job-ch (make-async-channel))
+  (define result-ch (make-async-channel))
+  (define workers
+    (for/list ([_ (in-range worker-count)])
+      (thread
+       (lambda ()
+         (let loop ()
+           (define job (async-channel-get job-ch))
+           (unless (eq? job done)
+             (async-channel-put
+              result-ch
+              (run-fixture/capture (car job) (cdr job)))
+             (loop)))))))
+  (for ([fixture (in-list fixtures)]
+        [index (in-naturals)])
+    (async-channel-put job-ch (cons index fixture)))
+  (for ([_ (in-range worker-count)])
+    (async-channel-put job-ch done))
+  (define results
+    (for/list ([_ (in-range fixture-count)])
+      (async-channel-get result-ch)))
+  (for ([worker (in-list workers)])
+    (thread-wait worker))
+  (define failures
+    (filter (lambda (result)
+              (not (fixture-result-ok? result)))
+            (sort results fixture-result<?)))
+  (unless (null? failures)
+    (fail (string-join (map fixture-failure-message failures) "\n\n"))))
