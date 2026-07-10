@@ -22,7 +22,8 @@
 (define security-runtime-string-constants
   '((security-guard? "security-guard?")
     (custodian?      "custodian?")
-    (custodian-box?  "custodian-box?")))
+    (custodian-box?  "custodian-box?")
+    (inspector?      "inspector?")))
 
 ;; security-runtime-symbol-constants : (listof symbol?)
 ;;   Declare symbols used by security guard and custodian helpers.
@@ -37,7 +38,9 @@
     custodian-shut-down?
     make-custodian-box
     custodian-box?
-    custodian-box-value))
+    custodian-box-value
+    make-inspector
+    inspector-superior?))
 
 ;; security-current-global-forms : (listof datum?)
 ;;   Declare current security guard and custodian globals.
@@ -334,6 +337,12 @@
          (func $make-inspector (type $Prim1)
                (param $parent (ref eq)) ;; parent inspector
                (result (ref eq))
+               (if (i32.eqz (ref.eq (local.get $parent) (global.get $false)))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:make-inspector)
+                               (global.get $string:inspector?)
+                               (local.get $parent))
+                         (unreachable)))
                (global.get $false))
 
          ;; inspector-superior? : inspector? inspector? -> boolean?
@@ -345,6 +354,18 @@
                (param $inspector (ref eq)) ;; inspector?
                (param $maybe-subinspector (ref eq)) ;; inspector?
                (result (ref eq))
+               (if (i32.eqz (ref.eq (local.get $inspector) (global.get $false)))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:inspector-superior?)
+                               (global.get $string:inspector?)
+                               (local.get $inspector))
+                         (unreachable)))
+               (if (i32.eqz (ref.eq (local.get $maybe-subinspector) (global.get $false)))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:inspector-superior?)
+                               (global.get $string:inspector?)
+                               (local.get $maybe-subinspector))
+                         (unreachable)))
                (if (result (ref eq))
                    (i32.and (ref.eq (local.get $inspector) (global.get $false))
                             (ref.eq (local.get $maybe-subinspector) (global.get $false)))
