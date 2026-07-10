@@ -90,6 +90,12 @@ Current remaining raw-stub classes:
     still do not preserve the precise primitive-level `who`, because their old
     call sites only pass the offending value.
 
+- `checkers.rkt`:
+  - `$match:error` now raises a catchable `exn:fail` value instead of raising a
+    plain string. Racket uses the more precise `exn:misc:match` subtype with
+    value and source-location fields; WebRacket still needs that subtype if
+    code depends on `exn:misc:match?` or `prop:exn:srclocs`.
+
 - `treelists.rkt`:
   - Positive out-of-range indexes for `treelist-ref`, `treelist-set`,
     `treelist-insert`, and `treelist-delete` now raise catchable range-style

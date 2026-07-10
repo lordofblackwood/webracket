@@ -84,11 +84,16 @@
                                 (local.get $name-str)
                                 (global.get $string:match-error:prefix)))
 
-               (local.set $val-str (call $format/display (local.get $val)))
+               (local.set $val-str
+                          (call $format/print
+                                (local.get $val)
+                                (global.get $missing)))
 
                (call $raise
-                     (call $string-append/2 (local.get $prefix) (local.get $val-str))
-                     (global.get $missing))
+                     (call $exn:fail/make
+                           (call $string-append/2 (local.get $prefix) (local.get $val-str))
+                           (call $current-continuation-marks (global.get $missing)))
+                     (global.get $true))
 
                (unreachable))
 
