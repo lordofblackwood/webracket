@@ -28,6 +28,7 @@
     (struct?                    "struct?")
     (struct-type?               "struct-type?")
     (struct-type-or-false       "(or/c #f struct-type?)")
+    (inspector-or-false         "(or/c inspector? #f)")
     (struct-type-property-or-false
      "(or/c struct-type-property? #f)")
     (make-struct-type-guard     "(or/c #f procedure?)")
@@ -509,8 +510,8 @@
 (define struct-basic-runtime-only-helper-names
   '($struct?
     $struct-type?
-    $raise-check-struct-type
     $check-struct-type
+    $check-inspector
     $struct-type-is-a?/i32
     $struct-type-authentic?))
 
@@ -807,10 +808,8 @@
                (then (global.get $true))
                (else (global.get $false))))
 
-     (func $raise-check-struct-type (unreachable))
-
      (func $check-struct-type
-           (param $name (ref $String))
+           (param $name (ref eq))
            (param $v    (ref eq))
            (result      (ref eq))
 
@@ -820,11 +819,27 @@
                (else (if (result (ref eq))
                          (ref.test (ref $StructType) (local.get $v))
                          (then (local.get $v))
-                         (else (call $raise-check-struct-type)
-                               #;(call $raise-argument-error
-                                       (local.get $name)
-                                       (call $str-struct-type-or-false)
-                                       (local.get $v))
+                         (else (call $raise-argument-error1
+                                     (local.get $name)
+                                     (global.get $string:struct-type-or-false)
+                                     (local.get $v))
+                               (unreachable))))))
+
+     (func $check-inspector
+           (param $name (ref eq))
+           (param $v    (ref eq))
+           (result      (ref eq))
+
+           (if (result (ref eq))
+               (ref.eq (local.get $v) (global.get $false))
+               (then (local.get $v)) ;; allow #f
+               (else (if (result (ref eq))
+                         (ref.eq (call $inspector? (local.get $v)) (global.get $true))
+                         (then (local.get $v))
+                         (else (call $raise-argument-error1
+                                     (local.get $name)
+                                     (global.get $string:inspector-or-false)
+                                     (local.get $v))
                                (unreachable))))))
 
      (func $struct-type-is-a?/i32
