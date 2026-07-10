@@ -15,10 +15,9 @@ assertion.
 Current remaining raw-stub classes:
 
 - `exceptions.rkt`:
-  - `$raise-expected-string` is used by `linear-memory->string`, which is an
-    exported Wasm/host bridge helper for FASL data. It is not currently a normal
-    Racket primitive path. If host data can make this reachable, raise a
-    catchable `exn:fail:contract` with `who` tied to `linear-memory->string`.
+  - `$raise-expected-string` was removed. `linear-memory->string` now raises a
+    catchable `exn:fail:contract` with `who` tied to `linear-memory->string`
+    when decoded FASL data is not a string.
   - `$raise-expected-fixnum` is used by `$list-from-range`; public `range`
     validates arguments before choosing the fixnum/flonum implementations.
     Keep this lower priority unless a compiler fast path is found to call
@@ -48,18 +47,19 @@ Current remaining raw-stub classes:
   - `$raise-string-copy!/checked:out-of-bounds` belongs to a `/checked` helper.
     Keep `/checked` trusted unless evidence shows a user/compiler path reaches
     it without prior validation.
-  - `$raise-string-buffer-overflow` and `$bomb` are builder/internal invariant
-    failures. If user input can reach them, decide whether the right exception
-    is contract, unsupported, or out-of-memory before replacing the trap.
+  - `$raise-string-buffer-overflow` now raises a catchable
+    `exn:fail:out-of-memory`, since the live callers are shared linear-memory
+    staging buffers used by FFI and filesystem bridges. `$bomb` remains a
+    builder/internal invariant failure.
 
 - `formatting.rkt` and struct formatting:
-  - Formatter fallback stubs such as
-    `$raise-format/display:unknown-datatype`,
-    `$raise-format/display:pair:expected-pair`,
-    `$raise-format/display:vector:expected-vector`, and
-    `$raise-format/display:struct:expected-struct` are not all ordinary
-    contract errors. For some values the correct Racket behavior is likely to
-    add a printer instead of raising an exception.
+  - Formatter fallback stubs are not all ordinary contract errors. For some
+    values the correct Racket behavior is likely to add a printer instead of
+    raising an exception.
+  - Defensive formatter traps for unexpected pair/struct/vector/value cases now
+    raise catchable formatter exceptions. `$raise-format/display:pair:expected-pair`
+    and `$raise-format/display:struct:expected-struct` include the offending
+    value when it is available.
   - Public opaque values for semaphores, semaphore-peek events, will
     executors, loggers, log receivers, bytes converters, uninterruptible
     locks, threads, thread groups, thread cells, custodians, custodian boxes,

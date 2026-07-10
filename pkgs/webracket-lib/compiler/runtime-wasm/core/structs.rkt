@@ -1289,7 +1289,13 @@
   (function-forms->runtime-helpers
    'struct-format-runtime-only-helpers
    '(
-     (func $raise-format/display:struct:expected-struct (unreachable))
+     (func $raise-format/display:struct:expected-struct
+           (param $v (ref eq))
+           (call $raise-argument-error1
+                 (global.get $symbol:format)
+                 (global.get $string:struct?)
+                 (local.get $v))
+           (unreachable))
 
      (func $format/display:struct
            (param $v (ref eq))
@@ -1305,7 +1311,9 @@
 
            ;; Check struct type
            (if (i32.eqz (ref.test (ref $Struct) (local.get $v)))
-               (then (call $raise-format/display:struct:expected-struct)))
+               (then (call $raise-format/display:struct:expected-struct
+                           (local.get $v))
+                     (unreachable)))
 
            ;; Cast and extract
            (local.set $s      (ref.cast (ref $Struct) (local.get $v)))

@@ -145,7 +145,12 @@
     (dash                       "-")
     (bang                       "!")
     (backslash-x                "\\x")
-    (set                        "set")))
+    (set                        "set")
+    (format-display:got-boxed   "internal formatter encountered boxed value")
+    (format-display:got-box     "internal formatter encountered box value")
+    (format-display:got-values  "internal formatter encountered values")
+    (format-display:expected-vector "internal formatter expected vector")
+    (format-display:expected-values "internal formatter expected values")))
 
 ;; struct-type-property-formatting-runtime-string-constants : (listof (list/c symbol? string?))
 ;;   Declare string constants used by struct type property formatting.
@@ -502,9 +507,24 @@
                      (local.get $v))
                (unreachable))
 
-         (func $raise-format/display:got-boxed  (unreachable))
-         (func $raise-format/display:got-box    (unreachable))
-         (func $raise-format/display:got-values (unreachable))
+         (func $raise-format/display:got-boxed
+               (call $raise-arguments-error
+                     (global.get $symbol:format)
+                     (global.get $string:format-display:got-boxed)
+                     (array.new_fixed $Args 0))
+               (unreachable))
+         (func $raise-format/display:got-box
+               (call $raise-arguments-error
+                     (global.get $symbol:format)
+                     (global.get $string:format-display:got-box)
+                     (array.new_fixed $Args 0))
+               (unreachable))
+         (func $raise-format/display:got-values
+               (call $raise-arguments-error
+                     (global.get $symbol:format)
+                     (global.get $string:format-display:got-values)
+                     (array.new_fixed $Args 0))
+               (unreachable))
 
          ;; format : string? any/c ... -> string?
          ;;   Small runtime formatter for bootstrap/error paths. It supports
@@ -1131,7 +1151,8 @@
                                            (local.set $str (call $format/write (local.get $tail)))
                                            (call $growable-array-add! (local.get $out) (local.get $str)))))))
                                 (else
-                                 (call $raise-format/display:pair:expected-pair)
+                                 (call $raise-format/display:pair:expected-pair
+                                       (local.get $tail))
                                  (unreachable)))
                             (br $walk)))
                (call $growable-array-add! (local.get $out)
@@ -1195,7 +1216,8 @@
                                            (local.set $str (call $format/write (local.get $tail)))
                                            (call $growable-array-add! (local.get $out) (local.get $str)))))))
                                 (else
-                                 (call $raise-format/display:pair:expected-pair)
+                                 (call $raise-format/display:pair:expected-pair
+                                       (local.get $tail))
                                  (unreachable)))
                             (br $walk)))
                (call $growable-array-add! (local.get $out) (local.get $close))
@@ -1547,7 +1569,13 @@
                (call $growable-array-of-strings->string (local.get $out)))
 
 
-         (func $raise-format/display:pair:expected-pair       (unreachable))
+         (func $raise-format/display:pair:expected-pair
+               (param $v (ref eq))
+               (call $raise-argument-error1
+                     (global.get $symbol:format)
+                     (global.get $string:pair?)
+                     (local.get $v))
+               (unreachable))
 
          (func $format/display:pair (param $v (ref eq)) (result (ref $String))
                (local $out   (ref $GrowableArray))
@@ -1593,7 +1621,8 @@
                                                 (local.set $str (call $format/display (local.get $tail)))
                                                 (call $growable-array-add! (local.get $out) (local.get $str)))))))
                                 (else
-                                 (call $raise-format/display:pair:expected-pair)
+                                 (call $raise-format/display:pair:expected-pair
+                                       (local.get $tail))
                                  (unreachable)))
                             (br $walk)))
                (call $growable-array-add! (local.get $out)
@@ -1659,14 +1688,20 @@
                                                 (local.set $str (call $format/display (local.get $tail)))
                                                 (call $growable-array-add! (local.get $out) (local.get $str)))))))
                                 (else
-                                 (call $raise-format/display:pair:expected-pair)
+                                 (call $raise-format/display:pair:expected-pair
+                                       (local.get $tail))
                                  (unreachable)))
                             (br $walk)))
                (call $growable-array-add! (local.get $out) (local.get $close))
                (call $growable-array-of-strings->string (local.get $out)))
 
 
-         (func $raise-format/display:vector:expected-vector (unreachable))
+         (func $raise-format/display:vector:expected-vector
+               (call $raise-arguments-error
+                     (global.get $symbol:format)
+                     (global.get $string:format-display:expected-vector)
+                     (array.new_fixed $Args 0))
+               (unreachable))
 
          (func $format/display:vector (param $v (ref $Vector)) (result (ref $String))
                (local $out   (ref $GrowableArray))
@@ -1833,7 +1868,12 @@
                ;; Combine and return
                (call $growable-array-of-strings->string (local.get $out)))
 
-         (func $raise-format/display:vector:expected-values (unreachable))
+         (func $raise-format/display:vector:expected-values
+               (call $raise-arguments-error
+                     (global.get $symbol:format)
+                     (global.get $string:format-display:expected-values)
+                     (array.new_fixed $Args 0))
+               (unreachable))
 
          (func $format/display:values (param $arr (ref $Values)) (result (ref $String))
                (local $out   (ref $GrowableArray))
@@ -1907,12 +1947,14 @@
                       (loop $walk
                             (br_if $done (ref.eq (local.get $cursor) (global.get $null)))
                             (if (i32.eqz (ref.test (ref $Pair) (local.get $cursor)))
-                                (then (call $raise-format/display:pair:expected-pair)
+                                (then (call $raise-format/display:pair:expected-pair
+                                            (local.get $cursor))
                                       (unreachable)))
                             (local.set $cell (ref.cast (ref $Pair) (local.get $cursor)))
                             (local.set $entry (struct.get $Pair $a (local.get $cell)))
                             (if (i32.eqz (ref.test (ref $Pair) (local.get $entry)))
-                                (then (call $raise-format/display:pair:expected-pair)
+                                (then (call $raise-format/display:pair:expected-pair
+                                            (local.get $entry))
                                       (unreachable)))
                             (if (i32.eqz (local.get $first?))
                                 (then (call $growable-array-add! (local.get $out)
@@ -2471,7 +2513,12 @@
                              (local.get $out-buf)))
 
 
-               (func $raise-not-a-string (param $val (ref eq)) (unreachable))
+               (func $raise-not-a-string (param $val (ref eq)) (result (ref eq))
+                     (call $raise-argument-error1
+                           (global.get $symbol:format)
+                           (global.get $string:string?)
+                           (local.get $val))
+                     (unreachable))
 
                #;(func $string->bytes (export "string->bytes")
                        ; todo: check mode
