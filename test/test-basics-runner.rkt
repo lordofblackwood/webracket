@@ -19,6 +19,10 @@
   (check-no-stdlib-result-tree "test/test-byte-index-errors.rkt"
                                #:timeout-seconds 180))
 
+(test-case "test-byte-value-errors has no false leaves"
+  (check-no-stdlib-result-tree "test/test-byte-value-errors.rkt"
+                               #:timeout-seconds 180))
+
 (test-case "test-fixnum-errors has no false leaves"
   (check-no-stdlib-result-tree "test/test-fixnum-errors.rkt"
                                #:timeout-seconds 180))

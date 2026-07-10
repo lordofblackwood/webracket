@@ -25,6 +25,7 @@
 ;;   Declare string constants used by byte-string helpers and byte-string errors.
 (define bytes-runtime-string-constants
   '((byte?                      "byte?")
+    (listof-byte?                "(listof byte?)")
     (bytes?                     "bytes?")
     (mutable-bytes?             "(and/c bytes? (not/c immutable?))")
     (char-or-false?             "(or/c char? #f)")
@@ -286,44 +287,22 @@
                                  (else
                                   (call $raise-pair-expected (local.get $node))
                                   (unreachable)))
-                             (if (ref.test (ref i31) (local.get $x))
-                                 (then
-                                  (local.set $v (i31.get_u (ref.cast (ref i31) (local.get $x))))
-                                  (if (i32.eqz (i32.and (local.get $v) (i32.const 1)))
-                                      (then
-                                       (local.set $v (i32.shr_u (local.get $v) (i32.const 1)))
-                                       (if (i32.lt_u (local.get $v) (i32.const 256))
-                                           (then
-                                            (call $i8array-set! (local.get $arr) (local.get $i) (local.get $v)))
-                                           (else
-                                            (call $raise-byte-out-of-range (local.get $x))
-                                            (unreachable))))
-                                      (else
-                                       (call $raise-check-fixnum (local.get $x))(unreachable)))
+                             (local.set $v
+                                        (call $byte-value/i32/who
+                                              (global.get $symbol:bytes)
+                                              (local.get $x)))
+                             (call $i8array-set! (local.get $arr) (local.get $i) (local.get $v))
                              (local.set $i (i32.add (local.get $i) (i32.const 1)))
-                             (br $loop-list)))))
+                             (br $loop-list)))
                       (else
                        (loop $loop-args
                              (br_if $done (i32.ge_u (local.get $i) (local.get $len)))
                              (local.set $x (array.get $Args (local.get $as) (local.get $i)))
-                             (if (ref.test (ref i31) (local.get $x))
-                                 (then
-                                  (local.set $v (i31.get_u (ref.cast (ref i31) (local.get $x))))
-                                  (if (i32.eqz (i32.and (local.get $v) (i32.const 1)))
-                                      (then
-                                       (local.set $v (i32.shr_u (local.get $v) (i32.const 1)))
-                                       (if (i32.lt_u (local.get $v) (i32.const 256))
-                                           (then
-                                            (call $i8array-set! (local.get $arr) (local.get $i) (local.get $v)))
-                                           (else
-                                            (call $raise-byte-out-of-range (local.get $x))
-                                            (unreachable))))
-                                      (else
-                                       (call $raise-check-fixnum (local.get $x))
-                                       (unreachable))))
-                                 (else
-                                  (call $raise-check-fixnum (local.get $x))
-                                  (unreachable)))
+                             (local.set $v
+                                        (call $byte-value/i32/who
+                                              (global.get $symbol:bytes)
+                                              (local.get $x)))
+                             (call $i8array-set! (local.get $arr) (local.get $i) (local.get $v))
                              (local.set $i (i32.add (local.get $i) (i32.const 1)))
                              (br $loop-args)))))
            ;; Wrap in Bytes struct and return
@@ -1009,6 +988,7 @@
 ;;   Preserve the runtime emission order for byte fill, append, and list helpers.
 (define byte-sequence-runtime-only-helper-names
   '($raise-expected-mutable-bytes
+    $raise-listof-byte/who
     $bytes-fill!
     $bytes-append
     $bytes-append/2
@@ -1024,6 +1004,11 @@
    'byte-sequence-runtime-only-helpers
    '(
      (func $raise-expected-mutable-bytes (unreachable))
+     (func $raise-listof-byte/who (param $who (ref eq)) (param $xs (ref eq))
+           (call $raise-argument-error1
+                 (local.get $who)
+                 (global.get $string:listof-byte?)
+                 (local.get $xs)))
 
      (func $bytes-fill! (type $Prim2)
            (param $dest (ref eq))
@@ -1032,7 +1017,6 @@
 
            (local $bs     (ref null $Bytes))
            (local $arr    (ref $I8Array))
-           (local $b/tag  i32)     ;; raw i31 payload (tagged)
            (local $val    i32)     ;; untagged byte value 0..255
 
            ;; dest must be a (mutable) byte string
@@ -1050,19 +1034,10 @@
                            (local.get $dest))
                      (unreachable)))
 
-           ;; b must be a fixnum byte (i31 with lsb=0), then 0..255
-           (if (ref.test (ref i31) (local.get $b))
-               (then
-                (local.set $b/tag (i31.get_u (ref.cast (ref i31) (local.get $b))))
-                ;; ensure lsb=0 => fixnum (not a char etc.)
-                (if (i32.ne (i32.and (local.get $b/tag) (i32.const 1)) (i32.const 0))
-                    (then (call $raise-check-byte (local.get $b)) (unreachable)))
-                ;; untag: shift right by 1 (your fixnum convention)
-                (local.set $val (i32.shr_u (local.get $b/tag) (i32.const 1)))
-                ;; range check 0..255
-                (if (i32.ge_u (local.get $val) (i32.const 256))
-                    (then (call $raise-check-byte (local.get $b)) (unreachable))))
-               (else (call $raise-check-byte (local.get $b)) (unreachable)))
+           (local.set $val
+                      (call $byte-value/i32/who
+                            (global.get $symbol:bytes-fill!)
+                            (local.get $b)))
 
            ;; Fill underlying byte array
            (local.set $arr (struct.get $Bytes $bs (local.get $bs)))
@@ -1370,9 +1345,12 @@
            (local $arr  (ref $I8Array))
            (local $i    i32)
            (local $len  i32)
+           (local $orig (ref eq))
            (local $x    (ref eq))
+           (local $bits i32)
            (local $v    i32)
            ;; Step 1: Compute length of list
+           (local.set $orig (local.get $xs))
            (local.set $len (call $length/i32 (local.get $xs)))
            ;; Step 2: Allocate mutable byte array of length $len
            (local.set $arr (call $i8make-array (local.get $len) (i32.const 0)))
@@ -1389,25 +1367,29 @@
                         (if (ref.test (ref $Pair) (local.get $xs))
                             (then
                              (local.set $x (struct.get $Pair $a (ref.cast (ref $Pair) (local.get $xs))))
-                             (if (ref.test (ref i31) (local.get $x))
+                             (if (i32.eqz (ref.test (ref i31) (local.get $x)))
                                  (then
-                                  (local.set $v (i31.get_u (ref.cast (ref i31) (local.get $x))))
-                                  (if (i32.eqz (i32.and (local.get $v) (i32.const 1)))
-                                      (then
-                                       (local.set $v (i32.shr_u (local.get $v) (i32.const 1)))
-                                       (if (i32.lt_u (local.get $v) (i32.const 256))
-                                           (then
-                                            (call $i8array-set! (local.get $arr) (local.get $i) (local.get $v))
-                                            (local.set $i (i32.add (local.get $i) (i32.const 1))))
-                                           (else
-                                            (call $raise-byte-out-of-range (local.get $x))
-                                            (unreachable))))
-                                      (else
-                                       (call $raise-check-fixnum (local.get $x))
-                                       (unreachable))))
-                                 (else
-                                  (call $raise-check-fixnum (local.get $x))
+                                  (call $raise-listof-byte/who
+                                        (global.get $symbol:list->bytes)
+                                        (local.get $orig))
                                   (unreachable)))
+                             (local.set $bits (i31.get_s (ref.cast (ref i31) (local.get $x))))
+                             (if (i32.and (local.get $bits) (i32.const 1))
+                                 (then
+                                  (call $raise-listof-byte/who
+                                        (global.get $symbol:list->bytes)
+                                        (local.get $orig))
+                                  (unreachable)))
+                             (local.set $v (i32.shr_s (local.get $bits) (i32.const 1)))
+                             (if (i32.or (i32.lt_s (local.get $v) (i32.const 0))
+                                         (i32.gt_u (local.get $v) (i32.const 255)))
+                                 (then
+                                  (call $raise-listof-byte/who
+                                        (global.get $symbol:list->bytes)
+                                        (local.get $orig))
+                                  (unreachable)))
+                             (call $i8array-set! (local.get $arr) (local.get $i) (local.get $v))
+                             (local.set $i (i32.add (local.get $i) (i32.const 1)))
                              (local.set $xs (struct.get $Pair $d (ref.cast (ref $Pair) (local.get $xs)))))
                             (else
                              (call $raise-pair-expected (local.get $xs))
