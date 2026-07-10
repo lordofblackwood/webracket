@@ -1,0 +1,65 @@
+;; Focused no-stdlib generated-output checks for control-flow errors.
+;;
+;; Compile this file with `--no-stdlib`.
+
+(define (catch-contract/contains? thunk . needles)
+  (let ([message
+         (with-handlers ([exn:fail:contract?
+                          (lambda (exn)
+                            (exn-message exn))])
+           (thunk)
+           #f)])
+    (and message
+         (andmap (lambda (needle)
+                   (string-contains? message needle))
+                 needles))))
+
+(list
+ (list "continuation barrier checks zero-arity thunk contract"
+       (and
+        (catch-contract/contains?
+         (lambda () (call-with-continuation-barrier 42))
+         "call-with-continuation-barrier"
+         "(procedure-arity-includes/c 0)"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (call-with-continuation-barrier add1))
+         "call-with-continuation-barrier"
+         "(procedure-arity-includes/c 0)"
+         "given:")))
+ (list "call-with-escape-continuation checks one-arity procedure contract"
+       (and
+        (catch-contract/contains?
+         (lambda () (call-with-escape-continuation 42))
+         "call-with-escape-continuation"
+         "(procedure-arity-includes/c 1)"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (call-with-escape-continuation (lambda () 'bad)))
+         "call-with-escape-continuation"
+         "(procedure-arity-includes/c 1)"
+         "given:")))
+ (list "call-with-immediate-continuation-mark checks one-arity receiver contract"
+       (and
+        (catch-contract/contains?
+         (lambda () (call-with-immediate-continuation-mark 'key 42))
+         "call-with-immediate-continuation-mark"
+         "(procedure-arity-includes/c 1)"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (call-with-immediate-continuation-mark 'key (lambda () 'bad)))
+         "call-with-immediate-continuation-mark"
+         "(procedure-arity-includes/c 1)"
+         "given:")))
+ (list "dynamic-require checks failure thunk contract"
+       (and
+        (catch-contract/contains?
+         (lambda () (dynamic-require 'racket/base 'car 42))
+         "dynamic-require"
+         "(or/c 'error (-> any))"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (dynamic-require 'racket/base 'car add1))
+         "dynamic-require"
+         "(or/c 'error (-> any))"
+         "given:"))))

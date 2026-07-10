@@ -15,6 +15,9 @@
 ;;   Declare strings used by control-flow helpers.
 (define control-flow-runtime-string-constants
   '((dynamic-require-unsupported "dynamic module loading is not supported")
+    (dynamic-require-failure-thunk "(or/c 'error (-> any))")
+    (procedure-arity-0 "(procedure-arity-includes/c 0)")
+    (procedure-arity-1 "(procedure-arity-includes/c 1)")
     (value-result-arity-error:start
      "result arity mismatch;\n expected number of values not received\n  expected: ")
     (value-result-arity-error:received "\n  received: ")))
@@ -42,6 +45,8 @@
 ;;   Preserve the runtime emission order for continuation helpers.
 (define continuation-runtime-only-helper-names
   '($invoke-escape-continuation
+    $check-procedure-arity/who
+    $call-thunk/who
     $call-thunk
     $dynamic-wind
     $dynamic-require
@@ -70,7 +75,10 @@
     continuation-prompt-tag?
     continuation?
     root-continuation-prompt-tag
-    call-with-escape-continuation))
+    dynamic-require
+    call-with-continuation-barrier
+    call-with-escape-continuation
+    call-with-immediate-continuation-mark))
 
 ;; control-flow-helper-forms : hasheq? (listof symbol?) -> (listof datum?)
 ;;   Render the given control-flow helper names from a helper index.
@@ -323,6 +331,57 @@
                               (call $values (local.get $args))))
            (unreachable))
 
+     ;; check-procedure-arity/who : symbol? string? any/c i32 -> procedure?
+     ;;   Validate a public procedure arity contract and return the procedure.
+     (func $check-procedure-arity/who
+           (param $who      (ref eq))
+           (param $expected (ref eq))
+           (param $proc-raw (ref eq))
+           (param $arity    i32)
+           (result          (ref $Procedure))
+
+           (local $proc (ref $Procedure))
+
+           (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc-raw)))
+               (then (call $raise-argument-error1
+                           (local.get $who)
+                           (local.get $expected)
+                           (local.get $proc-raw))
+                     (unreachable)))
+           (local.set $proc (ref.cast (ref $Procedure) (local.get $proc-raw)))
+           (if (i32.eqz (call $procedure-arity-includes?/checked/i32
+                              (local.get $proc)
+                              (local.get $arity)))
+               (then (call $raise-argument-error1
+                           (local.get $who)
+                           (local.get $expected)
+                           (local.get $proc-raw))
+                     (unreachable)))
+           (local.get $proc))
+
+     ;; $call-thunk/who : symbol? string? procedure? -> any/c
+     ;;   Invoke a zero-argument procedure after public contract validation.
+     (func $call-thunk/who
+           (param $who       (ref eq))
+           (param $expected  (ref eq))
+           (param $thunk-raw (ref eq))
+           (result           (ref eq))
+
+           (local $thunk (ref $Procedure))
+           (local $inv   (ref $ProcedureInvoker))
+
+           (local.set $thunk
+                      (call $check-procedure-arity/who
+                            (local.get $who)
+                            (local.get $expected)
+                            (local.get $thunk-raw)
+                            (i32.const 0)))
+           (local.set $inv (struct.get $Procedure $invoke (local.get $thunk)))
+           (call_ref $ProcedureInvoker
+                     (local.get $thunk)
+                     (array.new $Args (global.get $null) (i32.const 0))
+                     (local.get $inv)))
+
      ;; $call-thunk : procedure? -> any/c
      ;;   Invoke a zero-argument procedure.
      (func $call-thunk
@@ -394,11 +453,14 @@
            (if (result (ref eq))
                (ref.eq (call $procedure? (local.get $failure-thunk)) (global.get $true))
                (then
-                (call $call-thunk (local.get $failure-thunk)))
+                (call $call-thunk/who
+                      (global.get $symbol:dynamic-require)
+                      (global.get $string:dynamic-require-failure-thunk)
+                      (local.get $failure-thunk)))
                (else
                 (call $raise-argument-error1
                       (global.get $symbol:dynamic-require)
-                      (global.get $string:procedure?)
+                      (global.get $string:dynamic-require-failure-thunk)
                       (local.get $failure-thunk))
                 (unreachable))))
 
@@ -410,7 +472,10 @@
      (func $call-with-continuation-barrier (type $Prim1)
            (param $thunk (ref eq)) ;; procedure?
            (result       (ref eq))
-           (call $call-thunk (local.get $thunk)))
+           (call $call-thunk/who
+                 (global.get $symbol:call-with-continuation-barrier)
+                 (global.get $string:procedure-arity-0)
+                 (local.get $thunk)))
 
      ;; call-with-escape-continuation : ((procedure? -> any/c) -> any/c) -> any/c
      ;;   Bootstrap implementation using a private Wasm exception. This
@@ -435,10 +500,12 @@
                                   (i32.const 0)
                                   (global.get $false)))
 
-           (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc-raw)))
-               (then (call $raise-argument-error:procedure-expected (local.get $proc-raw))
-                     (unreachable)))
-           (local.set $proc (ref.cast (ref $Procedure) (local.get $proc-raw)))
+           (local.set $proc
+                      (call $check-procedure-arity/who
+                            (global.get $symbol:call-with-escape-continuation)
+                            (global.get $string:procedure-arity-1)
+                            (local.get $proc-raw)
+                            (i32.const 1)))
            (local.set $inv  (struct.get $Procedure $invoke (local.get $proc)))
            (block $done (result (ref eq))
              (block $handler-block (result (ref eq))
@@ -484,11 +551,12 @@
            (local $inv  (ref $ProcedureInvoker))
            (local $arg  (ref eq))
 
-           (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc-raw)))
-               (then (call $raise-argument-error:procedure-expected
-                           (local.get $proc-raw))
-                     (unreachable)))
-           (local.set $proc (ref.cast (ref $Procedure) (local.get $proc-raw)))
+           (local.set $proc
+                      (call $check-procedure-arity/who
+                            (global.get $symbol:call-with-immediate-continuation-mark)
+                            (global.get $string:procedure-arity-1)
+                            (local.get $proc-raw)
+                            (i32.const 1)))
            (local.set $inv  (struct.get $Procedure $invoke (local.get $proc)))
            (local.set $arg
                       (if (result (ref eq))
