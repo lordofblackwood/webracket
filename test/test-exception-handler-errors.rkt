@@ -26,8 +26,15 @@
          (lambda () (raise-argument-error 'demo "number?" 0 #f))
          "demo"
          "expected: number?"
+         "given: #f")
+        (catch-contract/contains?
+         (lambda () (raise-argument-error 'demo "number?" 0 #f 'a))
+         "demo"
+         "expected: number?"
          "given: #f"
-         "argument position: 1st")
+         "argument position: 1st"
+         "other arguments..."
+         "'a")
         (catch-contract/contains?
          (lambda () (raise-argument-error 'demo "number?" 1 #f 'a))
          "demo"
@@ -44,7 +51,31 @@
          "argument position: 3rd"
          "other arguments..."
          "#f"
-         "'a")))
+         "'a")
+        (catch-contract/contains?
+         (lambda () (raise-argument-error 'demo "number?" "bad" #f))
+         "raise-argument-error"
+         "expected: exact-nonnegative-integer?"
+         "given: \"bad\"")
+        (catch-contract/contains?
+         (lambda () (raise-argument-error* 'demo 'racket "number?" "bad" #f))
+         "raise-argument-error*"
+         "expected: exact-nonnegative-integer?"
+         "given: \"bad\"")
+        (catch-contract/contains?
+         (lambda () (raise-argument-error* 'demo 'racket "number?" 2 #f 'a 'b))
+         "demo"
+         "expected: number?"
+         "given: 'b"
+         "argument position: 3rd"
+         "other arguments..."
+         "#f"
+         "'a")
+        (catch-contract/contains?
+         (lambda () (raise-argument-error* 'demo "number?" 0 #f))
+         "demo"
+         "expected: number?"
+         "given: #f")))
  (list "call-with-exception-handler procedure errors are catchable"
        (and
         (catch-contract/contains?

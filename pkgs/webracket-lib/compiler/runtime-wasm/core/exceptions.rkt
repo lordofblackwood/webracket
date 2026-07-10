@@ -95,7 +95,9 @@
     exn:fail:syntax:missing-module-path
     exn:fail:syntax:unbound
     exn:fail:syntax:unbound?
-    make-exn:fail:syntax:unbound))
+    make-exn:fail:syntax:unbound
+    raise-argument-error
+    raise-argument-error*))
 
 ;; exception-fail-runtime-symbol-constants : (listof symbol?)
 ;;   Declare fail-exception symbols referenced directly by runtime helpers.
@@ -4455,17 +4457,16 @@
                      (global.get $true))
                (unreachable))
 
-         ;; raise-argument-error : symbol? string? any/c any/c ... -> none
-         ;;   Public primitive used by compiled library code to report
-         ;;   contract violations. In the optional variant, the third argument
-         ;;   is the zero-based bad argument position and the rest arguments
-         ;;   are the full argument list.
-         (func $raise-argument-error (type $Prim>=3)
+         ;; raise-argument-error/value-or-position :
+         ;;   symbol? symbol? string? any/c any/c ... -> none
+         ;;   Shared implementation for argument errors where the bad value may
+         ;;   be supplied directly or selected by zero-based argument position.
+         (func $raise-argument-error/value-or-position
                (param $who      (ref eq)) ;; symbol?
+               (param $position-who (ref eq)) ;; symbol?
                (param $expected (ref eq)) ;; string?
                (param $third    (ref eq)) ;; bad value or bad argument index
                (param $rest     (ref eq)) ;; rest arguments as $Args
-               (result          (ref eq)) ;; unreachable
                (local $got      (ref eq))
                (local $rest-args (ref $Args))
                (local $pos      i32)
@@ -4477,20 +4478,22 @@
                         (then
                          (if (i32.eqz (call $fx?/i32 (local.get $third)))
                              (then (call $raise-argument-error1
-                                         (local.get $who)
-                                         (local.get $expected)
-                                         (array.get $Args
-                                                    (local.get $rest-args)
-                                                    (i32.const 0)))
+                                         (local.get $position-who)
+                                         (global.get $string:exact-nonnegative-integer?)
+                                         (local.get $third))
                                    (unreachable)))
                          (local.set $pos
                                     (i32.shr_s
                                      (i31.get_s (ref.cast (ref i31) (local.get $third)))
                                      (i32.const 1)))
-                         (if (i32.or
-                              (i32.lt_s (local.get $pos) (i32.const 0))
-                              (i32.ge_u (local.get $pos)
-                                        (array.len (local.get $rest-args))))
+                         (if (i32.lt_s (local.get $pos) (i32.const 0))
+                             (then (call $raise-argument-error1
+                                         (local.get $position-who)
+                                         (global.get $string:exact-nonnegative-integer?)
+                                         (local.get $third))
+                                   (unreachable)))
+                         (if (i32.ge_u (local.get $pos)
+                                       (array.len (local.get $rest-args)))
                              (then (call $raise-argument-error1
                                          (local.get $who)
                                          (local.get $expected)
@@ -4502,6 +4505,12 @@
                                     (array.get $Args
                                                (local.get $rest-args)
                                                (local.get $pos)))
+                         (if (i32.eq (array.len (local.get $rest-args)) (i32.const 1))
+                             (then (call $raise-argument-error1
+                                         (local.get $who)
+                                         (local.get $expected)
+                                         (local.get $got))
+                                   (unreachable)))
                          (call $raise-argument-error/position
                                (local.get $who)
                                (local.get $expected)
@@ -4515,6 +4524,24 @@
                      (local.get $got))
                (unreachable))
 
+         ;; raise-argument-error : symbol? string? any/c any/c ... -> none
+         ;;   Public primitive used by compiled library code to report
+         ;;   contract violations.
+         (func $raise-argument-error (type $Prim>=3)
+               (param $who      (ref eq)) ;; symbol?
+               (param $expected (ref eq)) ;; string?
+               (param $third    (ref eq)) ;; bad value or bad argument index
+               (param $rest     (ref eq)) ;; rest arguments as $Args
+               (result          (ref eq)) ;; unreachable
+
+               (call $raise-argument-error/value-or-position
+                     (local.get $who)
+                     (global.get $symbol:raise-argument-error)
+                     (local.get $expected)
+                     (local.get $third)
+                     (local.get $rest))
+               (unreachable))
+
          ;; raise-argument-error* : symbol? symbol? string? any/c any/c ... -> none
          ;;   Realm-aware variant of raise-argument-error. WebRacket does not
          ;;   yet adjust error messages by realm, so the realm argument is
@@ -4526,21 +4553,50 @@
                (param $fourth   (ref eq)) ;; bad value or bad argument index
                (param $rest     (ref eq)) ;; rest arguments as $Args
                (result          (ref eq)) ;; unreachable
-               (local $got       (ref eq))
-               (local $rest-args (ref $Args))
-               (local.set $got (local.get $fourth))
-               (if (ref.test (ref $Args) (local.get $rest))
+               (local $rest-args        (ref $Args))
+               (local $compat-rest-args (ref $Args))
+
+               (if (i32.eqz (ref.test (ref $String) (local.get $expected)))
                    (then
-                    (local.set $rest-args (ref.cast (ref $Args) (local.get $rest)))
-                    (if (i32.gt_u (array.len (local.get $rest-args)) (i32.const 0))
-                        (then (local.set $got
-                                         (array.get $Args
-                                                    (local.get $rest-args)
-                                                    (i32.const 0)))))))
-               (call $raise-argument-error1
+                    (if (i32.eqz (ref.test (ref $String) (local.get $realm)))
+                        (then (call $raise-argument-error1
+                                    (global.get $symbol:raise-argument-error*)
+                                    (global.get $string:string?)
+                                    (local.get $expected))
+                              (unreachable)))
+                    (if (ref.test (ref $Args) (local.get $rest))
+                        (then
+                         (local.set $rest-args (ref.cast (ref $Args) (local.get $rest)))
+                         (if (i32.gt_u (array.len (local.get $rest-args)) (i32.const 0))
+                             (then
+                              (call $raise-argument-error/value-or-position
+                                    (local.get $who)
+                                    (global.get $symbol:raise-argument-error)
+                                    (local.get $realm)
+                                    (local.get $expected)
+                                    (local.get $rest))
+                              (unreachable)))))
+                    (local.set $compat-rest-args
+                               (array.new $Args
+                                          (global.get $missing)
+                                          (i32.const 1)))
+                    (array.set $Args
+                               (local.get $compat-rest-args)
+                               (i32.const 0)
+                               (local.get $fourth))
+                    (call $raise-argument-error/value-or-position
+                          (local.get $who)
+                          (global.get $symbol:raise-argument-error)
+                          (local.get $realm)
+                          (local.get $expected)
+                          (local.get $compat-rest-args))
+                    (unreachable)))
+               (call $raise-argument-error/value-or-position
                      (local.get $who)
+                     (global.get $symbol:raise-argument-error*)
                      (local.get $expected)
-                     (local.get $got))
+                     (local.get $fourth)
+                     (local.get $rest))
                (unreachable))
 
          ;; raise-arguments-error : symbol? string? any/c ... -> none

@@ -20,21 +20,21 @@
        (with-handlers ([exn:fail:contract? (λ (e)
                                              (string=?
                                               (exn-message e)
-                                              "map: contract violation\n  expected: list?\n  given: 42\n  argument position: 1st"))])
+                                              "map: contract violation\n  expected: list?\n  given: 42"))])
          (raise-argument-error 'map "list?" 0 42)
          #f))
  (list "raise-argument-error*"
        (with-handlers ([exn:fail:contract? (λ (e)
                                              (string=?
                                               (exn-message e)
-                                              "map: contract violation\n  expected: list?\n  given: 42\n  argument position: 1st"))])
-         (raise-argument-error* 'map "list?" 0 42)
+                                              "map: contract violation\n  expected: list?\n  given: 42"))])
+         (raise-argument-error* 'map 'racket "list?" 42)
          #f)
        (with-handlers ([exn:fail:contract? (λ (e)
                                              (string=?
                                               (exn-message e)
-                                              "map: contract violation\n  expected: list?\n  given: 42\n  argument position: 1st"))])
-         (raise-argument-error* 'map "list?" 0 1 42)
+                                              "map: contract violation\n  expected: list?\n  given: 42\n  argument position: 1st\n  other arguments...:\n   'extra"))])
+         (raise-argument-error* 'map 'racket "list?" 0 42 'extra)
          #f))
  (list "error-message->adjusted-string"
        (string=? (error-message->adjusted-string "add1" 'realm "problem" 'other)

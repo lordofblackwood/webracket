@@ -23,11 +23,13 @@ Current remaining raw-stub classes:
     implementation, so this remains a fallback path rather than a deliberately
     polished public error message.
   - Generic `raise-argument-error` now preserves zero-based position arguments
-    from source-level calls, reports the selected bad value, and includes an
-    `other arguments...` block for the remaining supplied arguments. The
-    realm-aware `raise-argument-error*` entry is still compatibility debt:
-    WebRacket currently supports an older simplified call shape, while Racket's
-    `raise-argument-error*` treats the realm as a separate required argument.
+    from source-level calls when there is more than one supplied argument,
+    reports the selected bad value, and includes an `other arguments...` block
+    for the remaining supplied arguments. The realm-aware
+    `raise-argument-error*` entry now shares this message path for proper
+    Racket-shaped calls and keeps the older simplified WebRacket shape as a
+    compatibility path that routes through `raise-argument-error` instead of
+    trapping.
 
 - `mutable-hashes.rkt` and `symbols.rkt`:
   - `$raise-hash-insert:table-full` and
