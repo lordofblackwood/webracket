@@ -15,6 +15,30 @@
                  needles))))
 
 (list
+ (list "channel-get rejects non-channels with who"
+       (catch-contract/contains?
+        (lambda () (channel-get 42))
+        "channel-get"
+        "channel?"
+        "given: 42"))
+ (list "channel-try-get rejects non-channels with who"
+       (catch-contract/contains?
+        (lambda () (channel-try-get 42))
+        "channel-try-get"
+        "channel?"
+        "given: 42"))
+ (list "channel-put rejects non-channels with who"
+       (catch-contract/contains?
+        (lambda () (channel-put 42 'value))
+        "channel-put"
+        "channel?"
+        "given: 42"))
+ (list "channel-put-evt rejects non-channels with who"
+       (catch-contract/contains?
+        (lambda () (channel-put-evt 42 'value))
+        "channel-put-evt"
+        "channel?"
+        "given: 42"))
  (list "sync rejects non-events with who"
        (catch-contract/contains?
         (lambda () (sync 42))

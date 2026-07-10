@@ -218,7 +218,18 @@
       `(func $channel-get (type $Prim1)
              (param $ch-raw (ref eq)) ;; channel?
              (result        (ref eq))
-             (return_call $channel-try-get (local.get $ch-raw)))))
+             (local $ch (ref $Channel))
+             (if (i32.eqz (ref.test (ref $Channel) (local.get $ch-raw)))
+                 (then (call $raise-argument-error1
+                             (global.get $symbol:channel-get)
+                             (global.get $string:channel?)
+                             (local.get $ch-raw))
+                       (unreachable)))
+             (local.set $ch (ref.cast (ref $Channel) (local.get $ch-raw)))
+             (if (i32.eqz (struct.get $Channel $ready (local.get $ch)))
+                 (then (return (global.get $false))))
+             (struct.set $Channel $ready (local.get $ch) (i32.const 0))
+             (struct.get $Channel $value (local.get $ch)))))
 
 
    ;; channel-put-evt : channel? any/c -> channel-put-evt?
