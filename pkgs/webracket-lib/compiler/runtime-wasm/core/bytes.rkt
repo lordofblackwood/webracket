@@ -326,7 +326,9 @@
           ;; 1. Check that b is a byte string
           (if (ref.test (ref $Bytes) (local.get $b))
               (then (local.set $bs (ref.cast (ref $Bytes) (local.get $b))))
-              (else (call $raise-check-bytes (local.get $b))
+              (else (call $raise-check-bytes/who
+                          (global.get $symbol:bytes->immutable-bytes)
+                          (local.get $b))
                     (unreachable)))
           ;; 2. If already immutable, return it directly
           (if (result (ref eq))
@@ -363,7 +365,9 @@
            ;; Check that $a is a byte string
            (if (ref.test (ref $Bytes) (local.get $a))
                (then (local.set $bs (ref.cast (ref $Bytes) (local.get $a))))
-               (else (call $raise-check-bytes (local.get $a))
+               (else (call $raise-check-bytes/who
+                           (global.get $symbol:bytes-length)
+                           (local.get $a))
                      (unreachable)))
            ;; Get the backing array and compute length
            (local.set $arr (struct.get $Bytes $bs (local.get $bs)))
@@ -597,7 +601,9 @@
            ;; 1. Check that $a is a byte string
            (if (ref.test (ref $Bytes) (local.get $a))
                (then (local.set $b (ref.cast (ref $Bytes) (local.get $a))))
-               (else (call $raise-check-bytes (local.get $a))))
+               (else (call $raise-check-bytes/who
+                           (global.get $symbol:bytes-ref)
+                           (local.get $a))))
            ;; 2. Decode and check that $i is exact-nonnegative-integer?
            (local.set $idx
                       (call $bytes-index/i32
@@ -678,7 +684,10 @@
            ;; Check that $b is a byte string
            (if (ref.test (ref $Bytes) (local.get $b))
                (then (local.set $bs (ref.cast (ref $Bytes) (local.get $b))))
-               (else (call $raise-check-bytes (local.get $b)) (unreachable)))
+               (else (call $raise-check-bytes/who
+                           (global.get $symbol:subbytes)
+                           (local.get $b))
+                     (unreachable)))
 
            (local.set $arr (struct.get $Bytes $bs (local.get $bs)))
            (local.set $len (call $i8array-length (local.get $arr)))
@@ -731,7 +740,9 @@
                            (local.get $dest))))
            ;; --- Validate $src ---
            (if (i32.eqz (ref.test (ref $Bytes) (local.get $src)))
-               (then (call $raise-check-bytes (local.get $src))))
+               (then (call $raise-check-bytes/who
+                           (global.get $symbol:bytes-copy!)
+                           (local.get $src))))
            ;; --- Cast after validation ---
            (local.set $d (ref.cast (ref $Bytes) (local.get $dest)))
            (local.set $s (ref.cast (ref $Bytes) (local.get $src)))
@@ -796,7 +807,10 @@
            ;; Check that $src is a byte string
            (if (ref.test (ref $Bytes) (local.get $src))
                (then (local.set $b (ref.cast (ref $Bytes) (local.get $src))))
-               (else (call $raise-check-bytes (local.get $src)) (unreachable)))
+               (else (call $raise-check-bytes/who
+                           (global.get $symbol:bytes-copy)
+                           (local.get $src))
+                     (unreachable)))
            ;; Extract and copy the underlying I8Array
            (local.set $a  (struct.get $Bytes $bs (local.get $b)))
            (local.set $a2 (call $i8array-copy (local.get $a) (i32.const 0) (call $i8array-length (local.get $a))))
@@ -985,7 +999,10 @@
                                               (array.new_fixed $I8Array 0))
                                   (global.get $symbol:complete)))))
            (if (i32.eqz (ref.test (ref $Bytes) (local.get $dest-raw)))
-               (then (call $raise-check-bytes (local.get $dest-raw)) (unreachable)))
+               (then (call $raise-check-bytes/who
+                           (global.get $symbol:bytes-convert-end)
+                           (local.get $dest-raw))
+                     (unreachable)))
            (array.new_fixed $Values
                             2
                             (ref.i31 (i32.const 0))

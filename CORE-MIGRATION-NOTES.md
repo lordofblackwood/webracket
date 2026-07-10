@@ -58,6 +58,11 @@ Current remaining raw-stub classes:
     `exn:fail:out-of-memory`, since the live callers are shared linear-memory
     staging buffers used by FFI and filesystem bridges. `$bomb` now raises a
     catchable internal contract error.
+  - `bytes-convert` appears to have a separate public calling-convention issue:
+    a direct no-stdlib probe of `(bytes-convert converter 'bad)` reached the
+    runtime with `#<missing>` as the converter argument and reported
+    `bytes-converter?`. Fix that as its own slice before polishing its
+    byte-string argument errors.
 
 - `formatting.rkt` and struct formatting:
   - Formatter fallback stubs are not all ordinary contract errors. For some

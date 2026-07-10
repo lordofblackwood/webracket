@@ -18,6 +18,12 @@
                  needles))))
 
 (list
+ (list "VFS write rejects non-byte content with who"
+       (catch-fail/contains?
+        (lambda () (webracket-vfs-write-file "/tmp/out" 'bad))
+        "webracket-vfs-write-file"
+        "bytes?"
+        "given: 'bad"))
  (list "long VFS paths raise catchable errors with who"
        (and
         (catch-fail/contains?

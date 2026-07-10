@@ -1094,7 +1094,9 @@
                            (global.get $symbol:webracket-vfs-write-file)
                            (local.get $path-raw)))
           (if (i32.eqz (ref.test (ref $Bytes) (local.get $bytes-raw)))
-              (then (call $raise-check-bytes (local.get $bytes-raw))
+              (then (call $raise-check-bytes/who
+                          (global.get $symbol:webracket-vfs-write-file)
+                          (local.get $bytes-raw))
                     (unreachable)))
           (local.set $bytes (ref.cast (ref $Bytes) (local.get $bytes-raw)))
           (local.set $path-bs (struct.get $Path $bytes (local.get $path)))

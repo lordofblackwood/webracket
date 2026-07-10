@@ -15,6 +15,38 @@
                  needles))))
 
 (list
+ (list "byte-string operations report byte-string contracts with public who"
+       (and
+        (catch-contract/contains?
+         (lambda () (bytes->immutable-bytes 'bad))
+         "bytes->immutable-bytes"
+         "bytes?"
+         "given: 'bad")
+        (catch-contract/contains?
+         (lambda () (bytes-length 'bad))
+         "bytes-length"
+         "bytes?"
+         "given: 'bad")
+        (catch-contract/contains?
+         (lambda () (bytes-ref 'bad 0))
+         "bytes-ref"
+         "bytes?"
+         "given: 'bad")
+        (catch-contract/contains?
+         (lambda () (subbytes 'bad 0))
+         "subbytes"
+         "bytes?"
+         "given: 'bad")
+        (catch-contract/contains?
+         (lambda () (bytes-copy 'bad))
+         "bytes-copy"
+         "bytes?"
+         "given: 'bad")
+        (catch-contract/contains?
+         (lambda () (bytes-copy! (bytes 1 2) 0 'bad))
+         "bytes-copy!"
+         "bytes?"
+         "given: 'bad")))
  (list "make-bytes errors preserve the public contract"
        (and
         (catch-contract/contains?

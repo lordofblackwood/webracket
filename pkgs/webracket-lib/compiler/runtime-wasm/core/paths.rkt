@@ -696,7 +696,9 @@
           (local.set $conv (global.get $system-path-convention))
           ;; Ensure the source is a byte string.
           (if (i32.eqz (ref.test (ref $Bytes) (local.get $bstr-raw)))
-              (then (call $raise-check-bytes (local.get $bstr-raw))
+              (then (call $raise-check-bytes/who
+                          (global.get $symbol:bytes->path)
+                          (local.get $bstr-raw))
                     (unreachable)))
           (local.set $input-bytes (ref.cast (ref $Bytes) (local.get $bstr-raw)))
           ;; Reject byte strings that are empty or contain a NUL byte.
@@ -809,7 +811,9 @@
           (local $path  (ref eq))
 
           (if (i32.eqz (ref.test (ref $Bytes) (local.get $bstr-raw)))
-              (then (call $raise-check-bytes (local.get $bstr-raw))
+              (then (call $raise-check-bytes/who
+                          (global.get $symbol:bytes->path-element)
+                          (local.get $bstr-raw))
                     (unreachable)))
           (if (ref.eq (local.get $false-on-non-element?) (global.get $missing))
               (then (local.set $false-on-non-element? (global.get $false))))

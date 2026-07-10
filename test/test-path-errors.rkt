@@ -33,6 +33,18 @@
         "string->some-system-path"
         "string?"
         "given: 42"))
+ (list "bytes->path source type errors are catchable with who"
+       (and
+        (catch-contract/contains?
+         (lambda () (bytes->path 'bad))
+         "bytes->path"
+         "bytes?"
+         "given: 'bad")
+        (catch-contract/contains?
+         (lambda () (bytes->path-element 'bad))
+         "bytes->path-element"
+         "bytes?"
+         "given: 'bad")))
  (list "bytes->path convention errors are catchable with who"
        (and
         (catch-contract/contains?
