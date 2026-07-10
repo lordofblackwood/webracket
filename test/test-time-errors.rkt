@@ -1,0 +1,72 @@
+;; Focused no-stdlib generated-output checks for date/time errors.
+;;
+;; Compile this file with `--no-stdlib`.
+
+(define (catch-contract/contains? thunk . needles)
+  (let ([message
+         (with-handlers ([exn:fail:contract?
+                          (lambda (exn)
+                            (exn-message exn))])
+           (thunk)
+           #f)])
+    (and message
+         (andmap (lambda (needle)
+                   (string-contains? message needle))
+                 needles))))
+
+(list
+ (list "date constructor range errors report valid ranges"
+       (and
+        (catch-contract/contains?
+         (lambda () (date 61 0 0 1 1 2024 0 0 #f 0))
+         "date"
+         "(integer-in 0 60)"
+         "given: 61")
+        (catch-contract/contains?
+         (lambda () (date 0 60 0 1 1 2024 0 0 #f 0))
+         "date"
+         "(integer-in 0 59)"
+         "given: 60")
+        (catch-contract/contains?
+         (lambda () (date 0 0 24 1 1 2024 0 0 #f 0))
+         "date"
+         "(integer-in 0 23)"
+         "given: 24")
+        (catch-contract/contains?
+         (lambda () (date 0 0 0 0 1 2024 0 0 #f 0))
+         "date"
+         "(integer-in 1 31)"
+         "given: 0")
+        (catch-contract/contains?
+         (lambda () (date 0 0 0 1 13 2024 0 0 #f 0))
+         "date"
+         "(integer-in 1 12)"
+         "given: 13")
+        (catch-contract/contains?
+         (lambda () (date 0 0 0 1 1 2024 7 0 #f 0))
+         "date"
+         "(integer-in 0 6)"
+         "given: 7")
+        (catch-contract/contains?
+         (lambda () (date 0 0 0 1 1 2024 0 366 #f 0))
+         "date"
+         "(integer-in 0 365)"
+         "given: 366")))
+ (list "date* constructor range errors report valid ranges"
+       (catch-contract/contains?
+        (lambda () (date* 0 0 0 1 1 2024 0 0 #f 0 1000000000 "UTC"))
+        "date*"
+        "(integer-in 0 999999999)"
+        "given: 1000000000"))
+ (list "date accessors reject non-date values with who"
+       (and
+        (catch-contract/contains?
+         (lambda () (date-second 42))
+         "date-second"
+         "date?"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (date*-nanosecond 42))
+         "date*-nanosecond"
+         "date*?"
+         "given: 42"))))
