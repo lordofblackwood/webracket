@@ -85,6 +85,68 @@
          "make-struct-type"
          "(listof (cons/c struct-type-property? any/c))"
          "given:")))
+ (list "make-struct-type immutable and constructor name errors are catchable with who"
+       (and
+        (let-values ([(st make-p p? p-ref p-set!)
+                      (make-struct-type 'named #f 1 0 #f null #f #f null #f 'make-named)])
+          (procedure? make-p))
+        (catch-contract/contains?
+         (lambda () (make-struct-type 'bad #f 1 0 #f null #f #f #f))
+         "make-struct-type"
+         "(listof exact-nonnegative-integer?)"
+         "given: #f")
+        (catch-contract/contains?
+         (lambda () (make-struct-type 'bad #f 1 0 #f null #f #f 'x))
+         "make-struct-type"
+         "(listof exact-nonnegative-integer?)"
+         "given:")
+        (catch-contract/contains?
+         (lambda () (make-struct-type 'bad #f 1 0 #f null #f #f (list -1)))
+         "make-struct-type"
+         "(listof exact-nonnegative-integer?)"
+         "given:")
+        (catch-contract/contains?
+         (lambda () (make-struct-type 'bad #f 1 0 #f null #f #f (list 1)))
+         "make-struct-type"
+         "index for immutable field"
+         "index: 1"
+         "initialized-field count: 1")
+        (catch-contract/contains?
+         (lambda () (make-struct-type 'bad #f 1 0 #f null #f #f null #f 42))
+         "make-struct-type"
+         "(or/c #f symbol?)"
+         "given: 42")))
+ (list "make-struct-type procedure spec errors are catchable with who"
+       (and
+        (let-values ([(st make-p p? p-ref p-set!)
+                      (make-struct-type 'proc-index #f 1 0 #f null #f 0)])
+          (procedure? make-p))
+        (let-values ([(st make-p p? p-ref p-set!)
+                      (make-struct-type 'proc-procedure
+                                        #f
+                                        1
+                                        0
+                                        #f
+                                        null
+                                        #f
+                                        (lambda (self arg) arg))])
+          (procedure? make-p))
+        (catch-contract/contains?
+         (lambda () (make-struct-type 'bad #f 1 0 #f null #f 'x))
+         "make-struct-type"
+         "(or/c procedure? exact-nonnegative-integer? #f)"
+         "given:")
+        (catch-contract/contains?
+         (lambda () (make-struct-type 'bad #f 1 0 #f null #f -1))
+         "make-struct-type"
+         "(or/c procedure? exact-nonnegative-integer? #f)"
+         "given: -1")
+        (catch-contract/contains?
+         (lambda () (make-struct-type 'bad #f 1 0 #f null #f 1))
+         "make-struct-type"
+         "index for procedure"
+         "index: 1"
+         "field count: 1")))
  (list "make-struct-type-property argument errors are catchable with who"
        (and
         (catch-contract/contains?

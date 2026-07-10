@@ -34,6 +34,19 @@
     (make-struct-type-inspector "(or/c inspector? #f 'current 'prefab)")
     (make-struct-type-props
      "(listof (cons/c struct-type-property? any/c))")
+    (make-struct-type-immutables
+     "(listof exact-nonnegative-integer?)")
+    (make-struct-type-constructor-name "(or/c #f symbol?)")
+    (make-struct-type-proc-spec
+     "(or/c procedure? exact-nonnegative-integer? #f)")
+    (make-struct-type-immutable-index
+     ": index for immutable field >= initialized-field count\n  index: ")
+    (make-struct-type-proc-spec-index
+     ": index for procedure >= initialized-field count\n  index: ")
+    (make-struct-type-initialized-field-count
+     "\n  initialized-field count: ")
+    (make-struct-type-field-count "\n  field count: ")
+    (make-struct-type-in-list "\n  in list: ")
     (make-struct-type-property-guard
      "(or/c (procedure-arity-includes/c 2) #f 'can-impersonate)")
     (make-struct-type-property-supers
@@ -580,6 +593,11 @@
     $raise-make-struct-type:guard
     $raise-make-struct-type:inspector
     $raise-make-struct-type:props
+    $raise-make-struct-type:immutables
+    $raise-make-struct-type:immutable-index
+    $raise-make-struct-type:constructor-name
+    $raise-make-struct-type:proc-spec
+    $raise-make-struct-type:proc-spec-index
     $make-struct-type))
 
 ;; struct-accessor-runtime-only-helper-names : (listof symbol?)
@@ -3925,6 +3943,93 @@
                  (local.get $bad))
            (unreachable))
 
+     (func $raise-make-struct-type:immutables
+           (param $bad (ref eq))
+           (call $raise-argument-error1
+                 (global.get $symbol:make-struct-type)
+                 (global.get $string:make-struct-type-immutables)
+                 (local.get $bad))
+           (unreachable))
+
+     (func $raise-make-struct-type:constructor-name
+           (param $bad (ref eq))
+           (call $raise-argument-error1
+                 (global.get $symbol:make-struct-type)
+                 (global.get $string:make-struct-type-constructor-name)
+                 (local.get $bad))
+           (unreachable))
+
+     (func $raise-make-struct-type:proc-spec
+           (param $bad (ref eq))
+           (call $raise-argument-error1
+                 (global.get $symbol:make-struct-type)
+                 (global.get $string:make-struct-type-proc-spec)
+                 (local.get $bad))
+           (unreachable))
+
+     (func $raise-make-struct-type:immutable-index
+           (param $bad-index  (ref eq))
+           (param $init-count i32)
+           (param $bad-list   (ref eq))
+
+           (local $out     (ref $GrowableArray))
+           (local $message (ref $String))
+
+           (local.set $out (call $make-growable-array (i32.const 8)))
+           (call $growable-array-add! (local.get $out)
+                 (call $format/display (global.get $symbol:make-struct-type)))
+           (call $growable-array-add! (local.get $out)
+                 (global.get $string:make-struct-type-immutable-index))
+           (call $growable-array-add! (local.get $out)
+                 (call $format/display (local.get $bad-index)))
+           (call $growable-array-add! (local.get $out)
+                 (global.get $string:make-struct-type-initialized-field-count))
+           (call $growable-array-add! (local.get $out)
+                 (call $format/display
+                       (ref.i31 (i32.shl (local.get $init-count) (i32.const 1)))))
+           (call $growable-array-add! (local.get $out)
+                 (global.get $string:make-struct-type-in-list))
+           (call $growable-array-add! (local.get $out)
+                 (call $format/print
+                       (local.get $bad-list)
+                       (global.get $missing)))
+           (local.set $message
+                      (call $growable-array-of-strings->string (local.get $out)))
+           (drop (call $raise
+                       (call $exn:fail:contract/make
+                             (local.get $message)
+                             (call $current-continuation-marks (global.get $missing)))
+                       (global.get $true)))
+           (unreachable))
+
+     (func $raise-make-struct-type:proc-spec-index
+           (param $bad-index  (ref eq))
+           (param $init-count i32)
+
+           (local $out     (ref $GrowableArray))
+           (local $message (ref $String))
+
+           (local.set $out (call $make-growable-array (i32.const 6)))
+           (call $growable-array-add! (local.get $out)
+                 (call $format/display (global.get $symbol:make-struct-type)))
+           (call $growable-array-add! (local.get $out)
+                 (global.get $string:make-struct-type-proc-spec-index))
+           (call $growable-array-add! (local.get $out)
+                 (call $format/display (local.get $bad-index)))
+           (call $growable-array-add! (local.get $out)
+                 (global.get $string:make-struct-type-field-count))
+           (call $growable-array-add! (local.get $out)
+                 (call $format/display
+                       (ref.i31 (i32.shl (local.get $init-count) (i32.const 1)))))
+           (local.set $message
+                      (call $growable-array-of-strings->string (local.get $out)))
+           (drop (call $raise
+                       (call $exn:fail:contract/make
+                             (local.get $message)
+                             (call $current-continuation-marks (global.get $missing)))
+                       (global.get $true)))
+           (unreachable))
+
      (func $make-struct-type
            ;; Parameters
            (param $name             (ref eq))  ;; (ref $Symbol)
@@ -3984,6 +4089,12 @@
            (local $prefab-key     (ref null $Symbol))
            (local $prefab-existing (ref eq))
            (local $prefab-metadata (ref eq))
+           (local $immutables-list   (ref eq))
+           (local $immutables-cursor (ref eq))
+           (local $immutables-cell   (ref $Pair))
+           (local $immutable-raw     (ref eq))
+           (local $immutable-index   i32)
+           (local $proc-spec-index   i32)
 
            ;; --- Type checks ---
            (if (i32.eqz (ref.test (ref $Symbol) (local.get $name)))
@@ -4040,6 +4151,10 @@
            (local.set $field-count (i32.add (local.get $super-count)
                                             (i32.add (local.get $init) (local.get $auto))))
 
+           ;; Optional auto-v defaults to #f.
+           (if (ref.eq (local.get $auto-val) (global.get $missing))
+               (then (local.set $auto-val (global.get $false))))
+
            ;; --- Guard ---
            ;; Optional guard defaults to #f. If present, it must be a procedure.
            (local.set $guard-checked (local.get $guard))
@@ -4073,6 +4188,84 @@
                           (ref.cast (ref $Symbol) (local.get $inspector))
                           (ref.cast (ref $Symbol) (global.get $symbol:current)))
                     (then (local.set $inspector (global.get $false))))))
+
+           ;; Optional immutable field indexes default to null. Each index must
+           ;; refer to an initialized field.
+           (local.set $immutables-list (local.get $immutables))
+           (if (ref.eq (local.get $immutables-list) (global.get $missing))
+               (then
+                (local.set $immutables-list (global.get $null))
+                (local.set $immutables (global.get $null))))
+           (local.set $immutables-cursor (local.get $immutables-list))
+           (block $done-immutables
+                  (loop $walk-immutables
+                        (br_if $done-immutables
+                               (ref.eq (local.get $immutables-cursor) (global.get $null)))
+                        (if (i32.eqz (ref.test (ref $Pair) (local.get $immutables-cursor)))
+                            (then (call $raise-make-struct-type:immutables
+                                        (local.get $immutables-list))
+                                  (unreachable)))
+                        (local.set $immutables-cell
+                                   (ref.cast (ref $Pair) (local.get $immutables-cursor)))
+                        (local.set $immutable-raw
+                                   (struct.get $Pair $a (local.get $immutables-cell)))
+                        (if (ref.eq (call $exact-nonnegative-integer?
+                                          (local.get $immutable-raw))
+                                    (global.get $false))
+                            (then (call $raise-make-struct-type:immutables
+                                        (local.get $immutables-list))
+                                  (unreachable)))
+                        (local.set $immutable-index
+                                   (i32.shr_s
+                                    (i31.get_s
+                                     (ref.cast (ref i31) (local.get $immutable-raw)))
+                                    (i32.const 1)))
+                        (if (i32.ge_u (local.get $immutable-index) (local.get $init))
+                            (then (call $raise-make-struct-type:immutable-index
+                                        (local.get $immutable-raw)
+                                        (local.get $init)
+                                        (local.get $immutables-list))
+                                  (unreachable)))
+                        (local.set $immutables-cursor
+                                   (struct.get $Pair $d (local.get $immutables-cell)))
+                        (br $walk-immutables)))
+
+           ;; Optional constructor name defaults to #f.
+           (if (ref.eq (local.get $constructor-name) (global.get $missing))
+               (then (local.set $constructor-name (global.get $false))))
+           (if (i32.and
+                (i32.eqz (ref.eq (local.get $constructor-name) (global.get $false)))
+                (i32.eqz (ref.test (ref $Symbol) (local.get $constructor-name))))
+               (then (call $raise-make-struct-type:constructor-name
+                           (local.get $constructor-name))
+                     (unreachable)))
+
+           ;; Optional proc-spec defaults to #f. It can be a procedure or an
+           ;; initialized-field index.
+           (if (ref.eq (local.get $proc-spec) (global.get $missing))
+               (then (local.set $proc-spec (global.get $false))))
+           (if (i32.and
+                (i32.eqz (ref.eq (local.get $proc-spec) (global.get $false)))
+                (i32.and
+                 (i32.eqz (ref.test (ref $Procedure) (local.get $proc-spec)))
+                 (ref.eq (call $exact-nonnegative-integer? (local.get $proc-spec))
+                         (global.get $false))))
+               (then (call $raise-make-struct-type:proc-spec
+                           (local.get $proc-spec))
+                     (unreachable)))
+           (if (ref.eq (call $exact-nonnegative-integer? (local.get $proc-spec))
+                       (global.get $true))
+               (then
+                (local.set $proc-spec-index
+                           (i32.shr_s
+                            (i31.get_s
+                             (ref.cast (ref i31) (local.get $proc-spec)))
+                            (i32.const 1)))
+                (if (i32.ge_u (local.get $proc-spec-index) (local.get $init))
+                    (then (call $raise-make-struct-type:proc-spec-index
+                                (local.get $proc-spec)
+                                (local.get $init))
+                          (unreachable)))))
 
            ;; --- Initialize property tables ---
            (local.set $props-new   (call $struct-type-property-table-empty))

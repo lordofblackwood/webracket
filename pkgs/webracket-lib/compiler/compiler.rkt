@@ -1874,6 +1874,7 @@
                        bytes->path path->complete-path string->path-element
                        bytes->path-element datum->correlated correlated-property
                        inclusive-range inclusive-range-proc
+                       make-struct-type
                        make-struct-field-accessor make-struct-field-mutator) 'missing]
          [else 'false])))
    (make-inline-specs/by-name
