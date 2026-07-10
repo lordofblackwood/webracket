@@ -804,12 +804,18 @@
             (local.set $fl (ref.cast (ref $Flonum) (local.get $a)))
             (local.set $bits (i64.reinterpret_f64 (struct.get $Flonum $v (local.get $fl))))
 
-            ;; Validate start/end as fixnums
-            (if (i32.eqz (call $fx?/i32 (local.get $start)))
-                (then (call $raise-check-fixnum (local.get $start))
+            ;; Validate start/end before decoding.
+            (if (ref.eq (call $exact-integer? (local.get $start)) (global.get $false))
+                (then (call $raise-argument-error1
+                            (global.get $symbol:flbit-field)
+                            (global.get $string:flbit-field:index)
+                            (local.get $start))
                       (unreachable)))
-            (if (i32.eqz (call $fx?/i32 (local.get $end)))
-                (then (call $raise-check-fixnum (local.get $end))
+            (if (ref.eq (call $exact-integer? (local.get $end)) (global.get $false))
+                (then (call $raise-argument-error1
+                            (global.get $symbol:flbit-field)
+                            (global.get $string:flbit-field:index)
+                            (local.get $end))
                       (unreachable)))
 
             ;; Extract integer values
