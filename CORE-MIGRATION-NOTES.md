@@ -78,6 +78,14 @@ Current remaining raw-stub classes:
     `$raise-arity-error:exactly`/`$raise-arity-error:at-least` are currently
     unused placeholders or primitive-dispatch invariants.
 
+- `numbers.rkt`:
+  - The legacy `$raise-expected-number*` helpers now raise catchable
+    `exn:fail:contract` values with `number?` and the offending value instead
+    of logging and trapping. They still do not preserve the precise
+    primitive-level `who`, because their old call sites only pass the offending
+    value. A follow-up should add `who`-aware call paths for public arithmetic
+    and numeric primitives.
+
 - `structs.rkt`:
   - `$raise-check-struct-type` is only used by `$check-struct-type`, which is
     not obviously source-visible. If a public caller is found, preserve its

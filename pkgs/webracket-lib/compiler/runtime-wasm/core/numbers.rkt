@@ -131,7 +131,8 @@
 ;; number-error-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for numeric error helpers.
 (define number-error-runtime-only-helper-names
-  '($raise-expected-number
+  '($raise-expected-number/common
+    $raise-expected-number
     $raise-expected-number1
     $raise-expected-number2
     $raise-expected-number3
@@ -1921,30 +1922,53 @@
   (function-forms->runtime-helpers
    'number-error-runtime-only-helpers
    '(
+        (func $raise-expected-number/common
+              (param $x (ref eq))
+              (local $out     (ref $GrowableArray))
+              (local $message (ref $String))
+
+              ;; The legacy numeric callers do not yet pass a precise `who`.
+              ;; Keep the error catchable and preserve expected/given text;
+              ;; call-site-specific `who` is tracked as follow-up debt.
+              (local.set $out (call $make-growable-array (i32.const 5)))
+              (call $growable-array-add! (local.get $out)
+                    (global.get $string:number?))
+              (call $growable-array-add! (local.get $out)
+                    (global.get $string:contract-violation:prefix))
+              (call $growable-array-add! (local.get $out)
+                    (global.get $string:number?))
+              (call $growable-array-add! (local.get $out)
+                    (global.get $string:arity-error:given))
+              (call $growable-array-add! (local.get $out)
+                    (call $format/display (local.get $x)))
+              (local.set $message
+                         (call $growable-array-of-strings->string (local.get $out)))
+              (call $raise
+                    (call $exn:fail:contract/make
+                          (local.get $message)
+                          (call $current-continuation-marks (global.get $missing)))
+                    (global.get $true))
+              (unreachable))
+
         (func $raise-expected-number
               (param $x (ref eq))
-              (call $js-log (local.get $x))
+              (call $raise-expected-number/common (local.get $x))
               (unreachable))
         (func $raise-expected-number1
               (param $x (ref eq))
-              (call $js-log (local.get $x))
+              (call $raise-expected-number/common (local.get $x))
               (unreachable))
         (func $raise-expected-number2
               (param $x (ref eq))
-              (call $js-log (local.get $x))
+              (call $raise-expected-number/common (local.get $x))
               (unreachable))
         (func $raise-expected-number3
               (param $x (ref eq))
-              (call $js-log (local.get $x))
-              (call $js-log (call $fixnum? (local.get $x)))
-              (call $js-log (call $flonum? (local.get $x)))
-              (call $js-log (call $string? (local.get $x)))
-              (call $js-log (call $external? (local.get $x)))
-              (call $js-log (local.get $x))
+              (call $raise-expected-number/common (local.get $x))
               (unreachable))
         (func $raise-expected-number4
               (param $x (ref eq))
-              (call $js-log (local.get $x))
+              (call $raise-expected-number/common (local.get $x))
               (unreachable))
 
         (func $raise-expected-real

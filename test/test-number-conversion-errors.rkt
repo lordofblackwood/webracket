@@ -3,6 +3,31 @@
 ;; Compile this file with `--no-stdlib`.
 
 (list
+ (list "generic number errors are catchable"
+       (let ([catch-number-contract?
+              (lambda (thunk given)
+                (let ([message
+                       (with-handlers ([exn:fail:contract?
+                                        (lambda (exn)
+                                          (exn-message exn))])
+                         (thunk)
+                         #f)])
+                  (and message
+                       (string-contains? message "number?")
+                       (string-contains? message given))))])
+         (and
+          (catch-number-contract?
+           (lambda () (zero? #f))
+           "given: #f")
+          (catch-number-contract?
+           (lambda () (+ 1 #f))
+           "given: #f")
+          (catch-number-contract?
+           (lambda () (* #f 1))
+           "given: #f")
+          (catch-number-contract?
+           (lambda () (expt 2 #f))
+           "given: #f"))))
  (list "number->string errors are catchable with who"
        (let ([catch-contract/who+expected+given?
               (lambda (expected given thunk)
