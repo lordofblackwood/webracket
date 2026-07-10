@@ -60,6 +60,10 @@ Current remaining raw-stub classes:
     `$raise-format/display:struct:expected-struct` are not all ordinary
     contract errors. For some values the correct Racket behavior is likely to
     add a printer instead of raising an exception.
+  - Public opaque values for semaphores, semaphore-peek events, will
+    executors, loggers, log receivers, bytes converters, and
+    uninterruptible locks now print as `#<...>` values instead of falling
+    through to `$raise-format/display:unknown-datatype`.
   - `$raise-not-a-string` currently belongs to a commented-out `string->bytes`
     helper. Treat it as dead unless that helper is restored.
 

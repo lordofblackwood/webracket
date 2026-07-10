@@ -33,6 +33,20 @@
        (and (equal? (format "~a" (mcons 'x 'y)) "{x . y}")
             (equal? (format "~s" (mcons 'x 'y)) "{x . y}")
             (equal? (format "~a" (mcons 1 (mcons 2 '()))) "{1 2}")))
+ (list "format renders opaque runtime values without traps"
+       (let ([sema (make-semaphore)]
+             [will (make-will-executor)]
+             [logger (make-logger)]
+             [receiver (make-log-receiver (current-logger) 'debug)]
+             [converter (bytes-open-converter "UTF-8" "UTF-8")]
+             [lock (unsafe-make-uninterruptible-lock)])
+         (and (equal? (format "~a" sema) "#<semaphore>")
+              (equal? (format "~s" (semaphore-peek-evt sema)) "#<semaphore-peek-evt>")
+              (equal? (format "~a" will) "#<will-executor>")
+              (equal? (format "~a" logger) "#<logger>")
+              (equal? (format "~a" receiver) "#<log-receiver>")
+              (equal? (format "~a" converter) "#<bytes-converter>")
+              (equal? (format "~a" lock) "#<uninterruptible-lock>"))))
  (list "unquoted-printing-string-value errors are catchable with who"
        (catch-contract/contains?
         (lambda () (unquoted-printing-string-value 42))
