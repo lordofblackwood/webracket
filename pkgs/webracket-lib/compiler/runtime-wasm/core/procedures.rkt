@@ -62,6 +62,14 @@
     (result-arity-error:received "\n  received: ")
     (contract-violation:prefix
      ": contract violation\n  expected: ")
+    (primitive-invoke:no-code
+     "primitive procedure has no code pointer")
+    (primitive-invoke:code-type-mismatch
+     "primitive procedure code does not match its arity shape")
+    (primitive-invoke:unhandled-shape
+     "primitive procedure has unsupported arity shape")
+    (arity-error:generic
+     "arity mismatch;\n the expected number of arguments does not match the given number")
     (application:not-procedure
      "application: not a procedure;\n expected a procedure that can be applied to arguments\n  given: ")
     (question            "?")))
@@ -1255,7 +1263,13 @@
   (function-forms->runtime-helpers
    'procedure-invocation-error-runtime-only-helpers
    '(
-        (func $raise-arity-mismatch (unreachable))
+        (func $raise-arity-mismatch
+              (call $raise
+                    (call $exn:fail:contract:arity/make
+                          (global.get $string:arity-error:generic)
+                          (call $current-continuation-marks (global.get $missing)))
+                    (global.get $true))
+              (unreachable))
 
         (func $procedure-arity->expected-string
               (param $proc (ref $Procedure))
@@ -1835,12 +1849,19 @@
         (func $raise-no-code
               (param $pproc (ref $PrimitiveProcedure))
               (result (ref eq))
+              (call $raise-argument-error1
+                    (global.get $symbol:error)
+                    (global.get $string:primitive-invoke:no-code)
+                    (local.get $pproc))
               (unreachable))
 
         (func $raise-code-type-mismatch
               (param $pproc (ref $PrimitiveProcedure))
               (result (ref eq))
-              (call $js-log (call $format/display (local.get $pproc)))
+              (call $raise-argument-error1
+                    (global.get $symbol:error)
+                    (global.get $string:primitive-invoke:code-type-mismatch)
+                    (local.get $pproc))
               (unreachable))
 
         (func $primitive-invoke:raise-arity-error
@@ -1878,7 +1899,13 @@
                     (global.get $true))
               (unreachable))
 
-        (func $raise-primitive-invoke:unhandled-shape (unreachable))
+        (func $raise-primitive-invoke:unhandled-shape
+              (call $raise
+                    (call $exn:fail:contract/make
+                          (global.get $string:primitive-invoke:unhandled-shape)
+                          (call $current-continuation-marks (global.get $missing)))
+                    (global.get $true))
+              (unreachable))
      )))
 
 ;; primitive-dispatch-runtime-only-helper-names : (listof symbol?)
@@ -2262,8 +2289,21 @@
               (unreachable))
 
         ;; Unused stubs kept for now; safe to remove later.
-        (func $raise-arity-error:exactly  (unreachable))
-        (func $raise-arity-error:at-least (unreachable))
+        (func $raise-arity-error:exactly
+              (call $raise
+                    (call $exn:fail:contract:arity/make
+                          (global.get $string:arity-error:generic)
+                          (call $current-continuation-marks (global.get $missing)))
+                    (global.get $true))
+              (unreachable))
+
+        (func $raise-arity-error:at-least
+              (call $raise
+                    (call $exn:fail:contract:arity/make
+                          (global.get $string:arity-error:generic)
+                          (call $current-continuation-marks (global.get $missing)))
+                    (global.get $true))
+              (unreachable))
      )))
 
 ;; procedure-case-lambda-runtime-only-helpers : (listof core-runtime-helper?)

@@ -74,10 +74,13 @@ Current remaining raw-stub classes:
 - `procedures.rkt`:
   - First-class closure/case-lambda/primitive arity errors already use
     catchable `exn:fail:contract:arity`.
-  - Remaining stubs such as `$raise-arity-mismatch`,
-    `$raise-primitive-invoke:unhandled-shape`, and
-    `$raise-arity-error:exactly`/`$raise-arity-error:at-least` are currently
-    unused placeholders or primitive-dispatch invariants.
+  - Legacy placeholders such as `$raise-arity-mismatch` and
+    `$raise-arity-error:exactly`/`$raise-arity-error:at-least` now raise
+    catchable `exn:fail:contract:arity` values. They remain unused
+    placeholders and can be removed later.
+  - Primitive-dispatch invariants such as missing primitive code, code/arity
+    shape mismatch, and unhandled shapes now raise catchable contract errors
+    instead of logging or trapping.
 
 - `numbers.rkt`:
   - The legacy `$raise-expected-number*` helpers now raise catchable
