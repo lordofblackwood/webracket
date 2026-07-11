@@ -1347,7 +1347,9 @@
 
                ;; Validate procedure argument.
                (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
-                   (then (call $raise-argument-error:procedure-expected (local.get $proc))
+                   (then (call $raise-argument-error:procedure-expected/who
+                               (global.get $symbol:make-compiled-linklet)
+                               (local.get $proc))
                          (unreachable)))
 
                (local.set $compiled-linklet
