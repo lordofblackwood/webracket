@@ -24,6 +24,7 @@
                   current-browser?
                   current-runtime-cache-dir
                   current-runtime-primitive-report-path
+                  current-split-runtime?
                   current-tree-shake?)
          "../private/structs.rkt"
          "../private/wasm-utils.rkt"
@@ -780,12 +781,20 @@
                                tree-shake?
                                primitive-func->symbol)
   (if tree-shake?
-      (let loop ([retained-primitives (primitive-retained-set analysis)])
+      (let loop ([retained-primitives
+                  (if (current-split-runtime?)
+                      (sort described-primitives symbol<?)
+                      (primitive-retained-set analysis))])
         (define retained-functions
-          (retained-function-set
-           analysis
-           retained-primitives
-           #:primitive-func->symbol primitive-func->symbol))
+          (if (current-split-runtime?)
+              (sort
+               (for/list ([entry (in-list (primitive-graph-ref analysis 'function-graph))])
+                 (car entry))
+               symbol<?)
+              (retained-function-set
+               analysis
+               retained-primitives
+               #:primitive-func->symbol primitive-func->symbol)))
         (define next-primitives
           (sort (remove-duplicates
                  (append retained-primitives
@@ -1049,6 +1058,40 @@
   (check-not-false (member '$root retained-functions))
   (check-not-false (member '$helper retained-functions))
   (check-not-false (member '$p retained-functions))
+
+  (define split-stable-runtime-module
+    '(module
+      (func $p)
+      (func $split-only-helper (call $p))
+      (global $prim:p (mut (ref eq)) (ref.null eq))))
+  (define split-stable-analysis
+    (analyze-stable-runtime
+     split-stable-runtime-module
+     #:primitive-func->symbol primitive-func->symbol
+     #:primitive-global->symbol primitive-global->symbol
+     #:described-primitives '(p q)))
+  (define split-stable-combined-analysis
+    (append split-stable-analysis
+            (list (cons 'program-root-primitives '())
+                  (cons 'program-root-functions '()))))
+
+  (define-values (normal-stable-primitives normal-stable-functions)
+    (parameterize ([current-split-runtime? #f])
+      (retained-runtime-sets split-stable-combined-analysis
+                             '(q p)
+                             #t
+                             primitive-func->symbol)))
+  (check-equal? normal-stable-primitives '())
+  (check-equal? normal-stable-functions '())
+
+  (define-values (split-stable-primitives split-stable-functions)
+    (parameterize ([current-split-runtime? #t])
+      (retained-runtime-sets split-stable-combined-analysis
+                             '(q p)
+                             #t
+                             primitive-func->symbol)))
+  (check-equal? split-stable-primitives '(p q))
+  (check-equal? split-stable-functions '($p $split-only-helper))
 
   (define-values (unshaken-primitives unshaken-functions)
     (retained-runtime-sets combined-analysis
