@@ -181,6 +181,68 @@
          "given:"
          "x"
          "y")))
+ (list "weak and ephemeron hash constructor alist errors preserve who"
+       (and
+        (catch-contract/contains?
+         (lambda () (make-weak-hash 42))
+         "make-weak-hash"
+         "(listof pair?)"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (make-weak-hasheq 42))
+         "make-weak-hasheq"
+         "(listof pair?)"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (make-weak-hasheqv 42))
+         "make-weak-hasheqv"
+         "(listof pair?)"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (make-weak-hashalw 42))
+         "make-weak-hashalw"
+         "(listof pair?)"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (make-ephemeron-hasheq 42))
+         "make-ephemeron-hasheq"
+         "(listof pair?)"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (make-weak-hasheq '(x)))
+         "make-weak-hasheq"
+         "(listof pair?)"
+         "given: '(x)")
+        (catch-contract/contains?
+         (lambda () (make-ephemeron-hasheq '(x)))
+         "make-ephemeron-hasheq"
+         "(listof pair?)"
+         "given: '(x)")
+        (catch-contract/contains?
+         (lambda () (make-weak-hasheq (list (mcons 'x 'y))))
+         "make-weak-hasheq"
+         "(listof pair?)"
+         "given:"
+         "x"
+         "y")))
+ (list "weak and ephemeron hash constructors keep strong fallback behavior"
+       (let ([weak-equal (make-weak-hash '((a . 1)))]
+             [weak-eq    (make-weak-hasheq '((a . 1)))]
+             [weak-eqv   (make-weak-hasheqv '((1 . one)))]
+             [weak-alw   (make-weak-hashalw '((a . 1)))]
+             [eph-eq     (make-ephemeron-hasheq '((a . 1)))])
+         (and (hash? weak-equal)
+              (hash? weak-eq)
+              (hash? weak-eqv)
+              (hash? weak-alw)
+              (hash? eph-eq)
+              (not (hash-weak? weak-equal))
+              (not (hash-weak? eph-eq))
+              (equal? (hash-ref weak-equal 'a) 1)
+              (equal? (hash-ref weak-eq 'a) 1)
+              (equal? (hash-ref weak-eqv 1) 'one)
+              (equal? (hash-ref weak-alw 'a) 1)
+              (equal? (hash-ref eph-eq 'a) 1))))
  (list "read-only hash argument errors are catchable with who"
        (and
         (catch-contract/contains?

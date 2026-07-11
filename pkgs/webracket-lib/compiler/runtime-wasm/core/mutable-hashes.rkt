@@ -31,7 +31,11 @@
 ;; mutable-hash-association-constructor-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for association-list mutable hash constructors.
 (define mutable-hash-association-constructor-runtime-only-helper-names
-  '($make-hasheq
+  '($make-hasheq/who
+    $make-hasheqv/who
+    $make-hash/who
+    $make-hashalw/who
+    $make-hasheq
     $make-hasheqv
     $make-hash
     $make-hashalw))
@@ -299,80 +303,100 @@
                     (local.get $got))
               (unreachable)))))
 
-   (for/list ([make-hash '($make-hasheq
-                           $make-hasheqv
-                           $make-hash
-                           $make-hashalw)]
-              [who-symbol '($symbol:make-hasheq
-                            $symbol:make-hasheqv
-                            $symbol:make-hash
-                            $symbol:make-hashalw)]
-              [make-empty '($make-empty-hasheq
-                            $make-empty-hasheqv
-                            $make-empty-hash
-                            $make-empty-hashalw)]
-              [type '($HashEqMutable
-                      $HashEqvMutable
-                      $HashEqualMutable
-                      $HashEqualAlwaysMutable)]
-              [set!/checked '($hasheq-set!/mutable/checked
-                              $hasheqv-set!/mutable/checked
-                              $hash-set!/mutable/checked
-                              $hashalw-set!/mutable/checked)])
-     (core-runtime-helper
-      make-hash
-      (symbol->string make-hash)
-      (lambda ()
-        `(func ,make-hash (type $Prim01) ; (make-hasheq [assocs])   - optional default null
-               (param $assocs (ref eq))   ;; Either $missing or an alist of key/value pairs
-               (result        (ref eq))   ;; an (ref $HashEqMutable)
+   (append
+    (for/list ([make-hash/who '($make-hasheq/who
+                                $make-hasheqv/who
+                                $make-hash/who
+                                $make-hashalw/who)]
+               [make-empty '($make-empty-hasheq
+                             $make-empty-hasheqv
+                             $make-empty-hash
+                             $make-empty-hashalw)]
+               [type '($HashEqMutable
+                       $HashEqvMutable
+                       $HashEqualMutable
+                       $HashEqualAlwaysMutable)]
+               [set!/checked '($hasheq-set!/mutable/checked
+                               $hasheqv-set!/mutable/checked
+                               $hash-set!/mutable/checked
+                               $hashalw-set!/mutable/checked)])
+      (core-runtime-helper
+       make-hash/who
+       (symbol->string make-hash/who)
+       (lambda ()
+         `(func ,make-hash/who (type $Prim2)
+                (param $who    (ref eq)) ;; public constructor name for errors
+                (param $assocs (ref eq)) ;; optional alist, default = missing
+                (result        (ref eq)) ;; an (ref $HashEqMutable)
 
-               (local $alist (ref eq))
-               (local $pair  (ref $Pair))
-               (local $key   (ref eq))
-               (local $val   (ref eq))
-               (local $first (ref eq)) ; of the alist
-               (local $rest  (ref eq)) ; of the alist
-               (local $ht    (ref ,type))
+                (local $alist (ref eq))
+                (local $pair  (ref $Pair))
+                (local $key   (ref eq))
+                (local $val   (ref eq))
+                (local $first (ref eq)) ; of the alist
+                (local $rest  (ref eq)) ; of the alist
+                (local $ht    (ref ,type))
 
-               ;; Case 1: No argument => make empty table
-               (if (ref.eq (local.get $assocs) (global.get $missing))
-                   (then (return (call ,make-empty))))
-               ;; Case 2: Provided association list
-               (local.set $ht    (ref.cast (ref ,type)
-                                           (call ,make-empty)))
-               (local.set $alist (local.get $assocs))
+                ;; Case 1: No argument => make empty table
+                (if (ref.eq (local.get $assocs) (global.get $missing))
+                    (then (return (call ,make-empty))))
+                ;; Case 2: Provided association list
+                (local.set $ht    (ref.cast (ref ,type)
+                                            (call ,make-empty)))
+                (local.set $alist (local.get $assocs))
 
-               (block $done
-                      (loop $walk
-                            ;; Stop when list is null
-                            (br_if $done (ref.eq (local.get $alist) (global.get $null)))
-                            ;; Must be a pair
-                            (if (i32.eqz (ref.test (ref $Pair) (local.get $alist)))
-                                (then (call $raise-argument-error:pair-expected1
-                                            (global.get ,who-symbol)
-                                            (local.get $assocs))
-                                      (unreachable)))
-                            (local.set $pair (ref.cast (ref $Pair) (local.get $alist)))
-                            ;; Extract car and cdr of current pair
-                            (local.set $first (struct.get $Pair $a (local.get $pair))) ;; first = key/value pair
-                            (local.set $rest  (struct.get $Pair $d (local.get $pair))) ;; rest  = remaining pairings
-                            ;; Validate first is a pair (key . value)
-                            (if (i32.eqz (ref.test (ref $Pair) (local.get $first)))
-                                (then (call $raise-argument-error:pair-expected2
-                                            (global.get ,who-symbol)
-                                            (local.get $assocs))
-                                      (unreachable)))
-                            ;; Extract key and value from nested pair
-                            (local.set $pair (ref.cast (ref $Pair) (local.get $first)))
-                            (local.set $key  (struct.get $Pair $a (local.get $pair))) ;; key
-                            (local.set $val  (struct.get $Pair $d (local.get $pair))) ;; value
-                            ;; Insert into table
-                            (call ,set!/checked (local.get $ht) (local.get $key) (local.get $val))
-                            ;; Move to next element in alist
-                            (local.set $alist (local.get $rest))
+                (block $done
+                       (loop $walk
+                             ;; Stop when list is null
+                             (br_if $done (ref.eq (local.get $alist) (global.get $null)))
+                             ;; Must be a pair
+                             (if (i32.eqz (ref.test (ref $Pair) (local.get $alist)))
+                                 (then (call $raise-argument-error:pair-expected1
+                                             (local.get $who)
+                                             (local.get $assocs))
+                                       (unreachable)))
+                             (local.set $pair (ref.cast (ref $Pair) (local.get $alist)))
+                             ;; Extract car and cdr of current pair
+                             (local.set $first (struct.get $Pair $a (local.get $pair))) ;; first = key/value pair
+                             (local.set $rest  (struct.get $Pair $d (local.get $pair))) ;; rest  = remaining pairings
+                             ;; Validate first is a pair (key . value)
+                             (if (i32.eqz (ref.test (ref $Pair) (local.get $first)))
+                                 (then (call $raise-argument-error:pair-expected2
+                                             (local.get $who)
+                                             (local.get $assocs))
+                                       (unreachable)))
+                             ;; Extract key and value from nested pair
+                             (local.set $pair (ref.cast (ref $Pair) (local.get $first)))
+                             (local.set $key  (struct.get $Pair $a (local.get $pair))) ;; key
+                             (local.set $val  (struct.get $Pair $d (local.get $pair))) ;; value
+                             ;; Insert into table
+                             (call ,set!/checked (local.get $ht) (local.get $key) (local.get $val))
+                             ;; Move to next element in alist
+                             (local.set $alist (local.get $rest))
                              (br $walk)))
-               (local.get $ht)))))))
+                (local.get $ht)))))
+    (for/list ([make-hash '($make-hasheq
+                            $make-hasheqv
+                            $make-hash
+                            $make-hashalw)]
+               [make-hash/who '($make-hasheq/who
+                                $make-hasheqv/who
+                                $make-hash/who
+                                $make-hashalw/who)]
+               [who-symbol '($symbol:make-hasheq
+                             $symbol:make-hasheqv
+                             $symbol:make-hash
+                             $symbol:make-hashalw)])
+      (core-runtime-helper
+       make-hash
+       (symbol->string make-hash)
+       (lambda ()
+         `(func ,make-hash (type $Prim01) ; optional assocs, default = null
+                (param $assocs (ref eq))
+                (result        (ref eq))
+                (return_call ,make-hash/who
+                             (global.get ,who-symbol)
+                             (local.get $assocs)))))))))
 
 ;; mutable-hash-read-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate generic and mutable hash value lookup helpers.

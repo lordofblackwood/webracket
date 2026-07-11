@@ -270,7 +270,15 @@
     make-hash-placeholder
     make-hasheq-placeholder
     make-hasheqv-placeholder
-    make-hashalw-placeholder))
+    make-hashalw-placeholder
+    make-weak-hash
+    make-weak-hasheq
+    make-weak-hasheqv
+    make-weak-hashalw
+    make-ephemeron
+    make-ephemeron-hasheq
+    ephemeron?
+    ephemeron-value))
 
 ;; immutable-hash-prelude-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate immutable hash and reader-placeholder prelude helpers.
@@ -5799,7 +5807,9 @@
 
              (if (ref.eq (local.get $assocs) (global.get $missing))
                  (then (local.set $assocs (global.get $null))))
-             (call $make-hash (local.get $assocs)))))
+             (call $make-hash/who
+                   (global.get $symbol:make-weak-hash)
+                   (local.get $assocs)))))
 
    (core-runtime-helper
     '$make-weak-hasheq
@@ -5811,7 +5821,9 @@
 
              (if (ref.eq (local.get $assocs) (global.get $missing))
                  (then (local.set $assocs (global.get $null))))
-             (call $make-hasheq (local.get $assocs)))))
+             (call $make-hasheq/who
+                   (global.get $symbol:make-weak-hasheq)
+                   (local.get $assocs)))))
 
    ;; make-ephemeron-hasheq : [(listof pair?) = null] -> mutable-hasheq?
    ;;   Strong fallback. WebRacket does not have ephemeron/weak GC hooks
@@ -5826,7 +5838,9 @@
 
              (if (ref.eq (local.get $assocs) (global.get $missing))
                  (then (local.set $assocs (global.get $null))))
-             (call $make-hasheq (local.get $assocs)))))
+             (call $make-hasheq/who
+                   (global.get $symbol:make-ephemeron-hasheq)
+                   (local.get $assocs)))))
 
    ;; make-ephemeron : any/c any/c -> ephemeron?
    ;;   Strong fallback. WebRacket keeps the key/value strongly because
@@ -5886,7 +5900,9 @@
 
              (if (ref.eq (local.get $assocs) (global.get $missing))
                  (then (local.set $assocs (global.get $null))))
-             (call $make-hasheqv (local.get $assocs)))))
+             (call $make-hasheqv/who
+                   (global.get $symbol:make-weak-hasheqv)
+                   (local.get $assocs)))))
 
    (core-runtime-helper
     '$make-weak-hashalw
@@ -5898,7 +5914,9 @@
 
              (if (ref.eq (local.get $assocs) (global.get $missing))
                  (then (local.set $assocs (global.get $null))))
-             (call $make-hashalw (local.get $assocs)))))))
+             (call $make-hashalw/who
+                   (global.get $symbol:make-weak-hashalw)
+                   (local.get $assocs)))))))
 
 ;; immutable-hash-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate immutable hash helpers that still depend on monolithic runtime globals.
