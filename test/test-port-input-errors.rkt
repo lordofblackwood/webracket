@@ -170,6 +170,18 @@
            (peek-string 1 0 (proxy-input)))
          "peek-string"
          "only string-backed ports are supported by WebRacket")))
+ (list "reader stubs validate input ports before unsupported errors"
+       (and
+        (catch-contract/contains?
+         (lambda () (read 42))
+         "read"
+         "input-port?"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (read-syntax 'source 42))
+         "read-syntax"
+         "input-port?"
+         "given: 42")))
  (list "reader stubs are catchable unsupported errors"
        (and
         (catch-unsupported/contains?

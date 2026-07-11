@@ -78,7 +78,9 @@
 ;; io-handler-runtime-symbol-constants : (listof symbol?)
 ;;   Declare symbols used by port handler accessors.
 (define io-handler-runtime-symbol-constants
-  '(port-read-handler
+  '(read
+    read-syntax
+    port-read-handler
     port-write-handler
     port-display-handler
     port-print-handler
@@ -270,6 +272,13 @@
                (func $read (type $Prim01)
                      (param $in (ref eq)) ;; optional input-port?, default = current-input-port
                      (result    (ref eq))
+                     (if (i32.and (i32.eqz (ref.eq (local.get $in) (global.get $missing)))
+                                  (i32.eqz (call $input-port-like?/i32 (local.get $in))))
+                         (then (call $raise-argument-error1
+                                     (global.get $symbol:read)
+                                     (global.get $string:input-port?)
+                                     (local.get $in))
+                               (unreachable)))
                      (drop (call $raise
                                  (call $exn:fail:unsupported/make
                                        (global.get $string:read-unsupported)
@@ -285,6 +294,13 @@
                      (param $source-name (ref eq)) ;; optional source name
                      (param $in          (ref eq)) ;; optional input-port?, default = current-input-port
                      (result             (ref eq))
+                     (if (i32.and (i32.eqz (ref.eq (local.get $in) (global.get $missing)))
+                                  (i32.eqz (call $input-port-like?/i32 (local.get $in))))
+                         (then (call $raise-argument-error1
+                                     (global.get $symbol:read-syntax)
+                                     (global.get $string:input-port?)
+                                     (local.get $in))
+                               (unreachable)))
                      (drop (call $raise
                                  (call $exn:fail:unsupported/make
                                        (global.get $string:read-syntax-unsupported)

@@ -34,6 +34,8 @@ Recent semantic cleanup:
 - `read-byte-or-special`, `read-char-or-special`, `peek-byte-or-special`,
   and `peek-char-or-special` now validate their wrapper-only optional
   arguments before delegating to the plain byte/character operations.
+- `read` and `read-syntax` still raise unsupported-reader exceptions for
+  valid ports, but now report `input-port?` contract errors for bad ports.
 
 ## Preserved Behavior To Revisit
 
