@@ -3,6 +3,7 @@
 (provide (struct-out core-runtime-helper)
          make-core-runtime-helper-index
          core-runtime-helper-ref
+         core-runtime-helper->form
          core-runtime-helper-form
          core-runtime-helper-forms
          function-forms->runtime-helpers)

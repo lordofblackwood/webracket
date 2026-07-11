@@ -1,7 +1,9 @@
 #lang racket
 (provide generate-runtime
          generate-core-runtime
-         generate-shared-types)
+         generate-shared-types
+         (struct-out split-runtime-modules)
+         split-core-runtime-module)
 
 (require (only-in "private/priminfo.rkt"
                   primitive->description)
@@ -353,7 +355,8 @@
          (only-in "runtime-wasm/core/wills.rkt"
                   will-runtime-helper-forms)
          "runtime-wasm/core-runtime.rkt"
-         "runtime-wasm/shared-types.rkt")
+         "runtime-wasm/shared-types.rkt"
+         "runtime-wasm/split-runtime.rkt")
 
 (module+ test
   (require (submod "runtime-wasm/core-runtime.rkt" test)))
