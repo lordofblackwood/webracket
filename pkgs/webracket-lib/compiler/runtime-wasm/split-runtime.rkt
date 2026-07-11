@@ -338,11 +338,13 @@
 
 ;; classified-runtime-import/export-forms :
 ;;   (listof datum?) (listof datum?) [#:module string?]
+;;   [#:export-all? boolean?]
 ;;   -> (values (listof symbol?) (listof datum?) (listof datum?))
 ;;   Build import and export declarations for runtime definitions used by program forms.
 (define (classified-runtime-import/export-forms runtime-forms
                                                 program-forms
-                                                #:module [module-name "core"])
+                                                #:module [module-name "core"]
+                                                #:export-all? [export-all? #f])
   (define function-form-by-name
     (named-form-index
      (filter function-definition-form? runtime-forms)
@@ -371,6 +373,18 @@
   (define referenced-tag-names
     (filter (lambda (name) (hash-ref tag-form-by-name name #f))
             referenced-names))
+  (define exported-function-names
+    (if export-all?
+        (sort (hash-keys function-form-by-name) symbol<?)
+        referenced-function-names))
+  (define exported-global-names
+    (if export-all?
+        (sort (hash-keys global-form-by-name) symbol<?)
+        referenced-global-names))
+  (define exported-tag-names
+    (if export-all?
+        (sort (hash-keys tag-form-by-name) symbol<?)
+        referenced-tag-names))
   (define import-forms
     (append
      (for/list ([name (in-list referenced-function-names)])
@@ -384,9 +398,9 @@
                                 #:module module-name))))
   (define export-forms
     (append
-     (map runtime-function-export-form referenced-function-names)
-     (map runtime-global-export-form referenced-global-names)
-     (map runtime-tag-export-form referenced-tag-names)))
+     (map runtime-function-export-form exported-function-names)
+     (map runtime-global-export-form exported-global-names)
+     (map runtime-tag-export-form exported-tag-names)))
   (values (append referenced-function-names
                   referenced-global-names
                   referenced-tag-names)
@@ -741,7 +755,8 @@
     (classified-runtime-import/export-forms
      runtime-body-forms
      program-forms
-     #:module import-module-name))
+     #:module import-module-name
+     #:export-all? #t))
   (define runtime-function-names
     (form-function-name-set runtime-body-forms))
   (define program-available-function-names
