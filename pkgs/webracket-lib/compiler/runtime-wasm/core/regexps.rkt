@@ -2,6 +2,7 @@
 
 (provide regexp-runtime-string-constants
          regexp-runtime-bytes-constants
+         regexp-runtime-symbol-constants
          regexp-runtime-helper-forms
          regexp-runtime-only-helper-names
          regexp-runtime-only-helpers)
@@ -33,6 +34,14 @@
     (rx-unix-path-list  #"([^:]*):(.*)")
     (rx-windows-path-list #"([^;]*);(.*)")))
 
+;; regexp-runtime-symbol-constants : (listof symbol?)
+;;   Declare symbols used by regexp constructor contract checks.
+(define regexp-runtime-symbol-constants
+  '(regexp
+    pregexp
+    byte-regexp
+    byte-pregexp))
+
 ;; regexp-runtime-only-forms : (listof datum?)
 ;;   Enumerate regular expression helpers used by the monolithic runtime.
 (define regexp-runtime-only-forms
@@ -62,6 +71,12 @@
          (func $webracket-literal-regexp (type $Prim1)
                (param $source (ref eq)) ;; pattern string
                (result        (ref eq))
+               (if (i32.eqz (ref.test (ref $String) (local.get $source)))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:regexp)
+                               (global.get $string:string?)
+                               (local.get $source))
+                         (unreachable)))
                (call $make-regexp-value
                      (i32.const 0)
                      (ref.cast (ref $String) (local.get $source))))
@@ -71,6 +86,12 @@
          (func $webracket-literal-pregexp (type $Prim1)
                (param $source (ref eq)) ;; pattern string
                (result        (ref eq))
+               (if (i32.eqz (ref.test (ref $String) (local.get $source)))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:pregexp)
+                               (global.get $string:string?)
+                               (local.get $source))
+                         (unreachable)))
                (call $make-regexp-value
                      (i32.const 1)
                      (ref.cast (ref $String) (local.get $source))))
@@ -80,6 +101,12 @@
          (func $webracket-literal-byte-regexp (type $Prim1)
                (param $source (ref eq)) ;; pattern bytes
                (result        (ref eq))
+               (if (i32.eqz (ref.test (ref $Bytes) (local.get $source)))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:byte-regexp)
+                               (global.get $string:bytes?)
+                               (local.get $source))
+                         (unreachable)))
                (call $make-regexp-value
                      (i32.const 2)
                      (ref.cast (ref $Bytes) (local.get $source))))
@@ -89,6 +116,12 @@
          (func $webracket-literal-byte-pregexp (type $Prim1)
                (param $source (ref eq)) ;; pattern bytes
                (result        (ref eq))
+               (if (i32.eqz (ref.test (ref $Bytes) (local.get $source)))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:byte-pregexp)
+                               (global.get $string:bytes?)
+                               (local.get $source))
+                         (unreachable)))
                (call $make-regexp-value
                      (i32.const 3)
                      (ref.cast (ref $Bytes) (local.get $source))))
@@ -98,6 +131,12 @@
          (func $byte-regexp (type $Prim1)
                (param $source (ref eq)) ;; pattern bytes
                (result        (ref eq))
+               (if (i32.eqz (ref.test (ref $Bytes) (local.get $source)))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:byte-regexp)
+                               (global.get $string:bytes?)
+                               (local.get $source))
+                         (unreachable)))
                (return_call $webracket-literal-byte-regexp (local.get $source)))
 
          ;; byte-pregexp : bytes? -> byte-pregexp?
@@ -105,6 +144,12 @@
          (func $byte-pregexp (type $Prim1)
                (param $source (ref eq)) ;; pattern bytes
                (result        (ref eq))
+               (if (i32.eqz (ref.test (ref $Bytes) (local.get $source)))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:byte-pregexp)
+                               (global.get $string:bytes?)
+                               (local.get $source))
+                         (unreachable)))
                (return_call $webracket-literal-byte-pregexp (local.get $source)))
 
          ;; regexp? : any/c -> boolean?

@@ -40,6 +40,8 @@ Recent semantic cleanup:
   and the print-handler quote depth with default handler `who` names.
 - Focused generated-output coverage now includes public box-family errors
   and system/runtime helper argument errors.
+- Regexp and byte-regexp constructors now validate source argument types
+  before building literal regexp values, avoiding raw Wasm cast traps.
 
 ## Preserved Behavior To Revisit
 

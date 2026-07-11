@@ -70,6 +70,8 @@
                   procedure-runtime-symbol-constants)
          (only-in "realms.rkt"
                   realm-runtime-symbol-constants)
+         (only-in "regexps.rkt"
+                  regexp-runtime-symbol-constants)
          (only-in "reflection.rkt"
                   reflection-runtime-symbol-constants)
          (only-in "security.rkt"
@@ -131,6 +133,7 @@
           list-runtime-symbol-constants
           fixnum-runtime-symbol-constants
           flonum-runtime-symbol-constants
+          regexp-runtime-symbol-constants
           formatting-runtime-symbol-constants
           string-runtime-symbol-constants
           byte-predicate-runtime-symbol-constants

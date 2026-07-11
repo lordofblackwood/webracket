@@ -38,6 +38,7 @@
    (make-no-stdlib-result-tree-fixture "test/test-filesystem-errors.rkt")
    (make-no-stdlib-result-tree-fixture "test/test-reflection-errors.rkt")
    (make-no-stdlib-result-tree-fixture "test/test-format-errors.rkt")
+   (make-no-stdlib-result-tree-fixture "test/test-regexp-errors.rkt")
    (make-no-stdlib-result-tree-fixture "test/test-misc-primitive-errors.rkt")
    (make-no-stdlib-result-tree-fixture "test/test-logger-errors.rkt")
    (make-no-stdlib-result-tree-fixture "test/test-time-errors.rkt")
