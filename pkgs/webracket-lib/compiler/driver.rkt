@@ -3809,6 +3809,8 @@
                  "ports are tied to WebRacket string ports, VFS, and browser IO")
    (substitution 'racket/private/kw 'webracket/private/kw 'runtime-owned 'high 'keep-webracket-owned
                  "keyword-procedure structs must share one WebRacket runtime type across composed providers")
+   (substitution 'racket/private/promise 'webracket/promise 'runtime-owned 'low 'keep-webracket-owned
+                 "private promise helpers share the browser-local promise implementation")
    (substitution 'racket/private/sort 'webracket/private/sort 'runtime-owned 'high 'keep-webracket-owned
                  "keyword-capable sort bindings should use WebRacket's primitive sort bridge")
    (substitution 'racket/private/share-search 'webracket/private/share-search 'runtime-owned 'low 'keep-webracket-owned
@@ -4777,6 +4779,7 @@
                            racket/private/kernstruct
                            racket/private/class-internal
                            racket/private/class-struct
+                           racket/private/class-wrapped
                            racket/private/stx
                            syntax/context
                            syntax/intdef
@@ -4888,6 +4891,11 @@
           'module-graph-reverse-support-probe
           (lambda ()
             (module-path-available? 'racket/private/reverse))))
+       (define have-racket/private/class-struct?
+         (with-module-bridge-timing
+          'module-graph-class-struct-support-probe
+          (lambda ()
+            (module-path-available? 'racket/private/class-struct))))
        (define needs-unit-support?
          (with-module-bridge-timing
           'module-graph-unit-support-demand
@@ -4937,8 +4945,11 @@
             racket/private/kernstruct
             racket/private/serialize-structs
             racket/private/class-internal
-            racket/private/class-struct
+            racket/private/class-wrapped
             racket/private/list)
+          (if have-racket/private/class-struct?
+              '(racket/private/class-struct)
+              '())
           (if have-racket/private/pico?
               '(racket/private/pico)
               (if have-racket/private/reverse?
@@ -5104,7 +5115,11 @@
                             (webify-module-provider-cache-ref provider-cache
                                                               'racket/private/class-internal)
                             (webify-module-provider-cache-ref provider-cache
-                                                              'racket/private/class-struct)))
+                                                              'racket/private/class-wrapped))
+                      (if have-racket/private/class-struct?
+                          (list (webify-module-provider-cache-ref provider-cache
+                                                                  'racket/private/class-struct))
+                          '()))
                      '())
                  (if needs-unit-support?
                      (unit-support-reports)

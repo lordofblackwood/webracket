@@ -981,6 +981,10 @@
           (eq? local '1/string->number)
           (eq? external 'string->number))
      '(racket-src/expander/host/string-to-number string->number)]
+    [(and (eq? module-name 'webracket/private/pre-base-apply)
+          (eq? local '1/new-apply-proc)
+          (eq? external 'new-apply-proc))
+     '(#%kernel apply)]
     [(and (memq module-name '(racket-src/expander/read/vector
                               racket-src/expander/read/vector.rkt))
           (eq? local 'not-an-fX.1)
@@ -1087,6 +1091,29 @@
     [(and (eq? module-name 'racket/private/class-internal)
           (symbolic-name=? external 'contract-continuation-mark-key))
      '(racket/contract/private/guts contract-continuation-mark-key)]
+    [(and (eq? module-name 'racket/private/class-internal)
+          (for/or ([name (in-list '(wrapped-class-info-blame
+                                    wrapped-class-info-neg-extra-arg-vec
+                                    wrapped-class-info-neg-acceptors-ht
+                                    wrapped-class-info-pos-field-projs
+                                    wrapped-class-info-neg-field-projs
+                                    wrapped-class-info-init-proj-pairs
+                                    wrapped-object
+                                    wrapped-object?
+                                    wrapped-object-object
+                                    wrapped-object-neg-extra-arg-vec
+                                    wrapped-object-pos-field-projs
+                                    wrapped-object-neg-field-projs
+                                    wrapped-object-neg-party
+                                    unwrap-object
+                                    impersonator-prop:wrapped-class-info
+                                    impersonator-prop:has-wrapped-class-info?
+                                    impersonator-prop:get-wrapped-class-info
+                                    impersonator-prop:wrapped-class-neg-party
+                                    impersonator-prop:has-wrapped-class-neg-party?
+                                    impersonator-prop:get-wrapped-class-neg-party))])
+            (symbolic-name=? external name)))
+     (list 'racket/private/class-wrapped external)]
     [(and (memq module-name '(contract racket/private/unit/contract))
           (symbolic-name=? external 'contract-continuation-mark-key))
      '(racket/contract/private/guts contract-continuation-mark-key)]

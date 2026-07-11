@@ -1842,11 +1842,29 @@
     (first-slice-export-plan-value-ids plan))
   (define export-args
     (first-slice-export-plan-export-args plan))
-  (define candidate-specs
+  (define raw-candidate-specs
     (first-slice-export-plan-candidate-specs plan))
   (define chosen-export-entries
     (or export-entries
         (first-slice-export-plan-entry-map plan)))
+  (define import-arg-symbols
+    (for/hasheq ([sym (in-list (datum-symbols import-args))])
+      (values sym #t)))
+  (define (candidate-import-dependent? spec)
+    (define export (vector-ref spec 0))
+    (define entry (hash-ref chosen-export-entries export))
+    (define meta (bridge-export-entry-metadata entry))
+    (define cell-id (hash-ref meta 'cell-id #f))
+    (define value-id (hash-ref meta 'value-id #f))
+    (or (hash-ref import-arg-symbols (bridge-export-entry-binding entry) #f)
+        (and cell-id
+             (hash-ref import-arg-symbols cell-id #f))
+        (and value-id
+             (hash-ref import-arg-symbols value-id #f))))
+  (define candidate-specs
+    (filter (lambda (spec)
+              (not (candidate-import-dependent? spec)))
+            raw-candidate-specs))
   (define candidate-export-args
     (for/list ([spec (in-list candidate-specs)])
       (vector-ref spec 1)))

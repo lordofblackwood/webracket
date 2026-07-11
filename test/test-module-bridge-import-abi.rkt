@@ -8,6 +8,8 @@
          "../pkgs/webracket-lib/compiler/webify/first-slice.rkt"
          "../pkgs/webracket-lib/compiler/webify/known.rkt"
          "../pkgs/webracket-lib/compiler/webify/lower.rkt"
+         (only-in "../pkgs/webracket-lib/compiler/webify/module-input.rkt"
+                  compiled-primitive-alias-hint)
          "../pkgs/webracket-lib/compiler/webify/module-adapter.rkt"
          "../pkgs/webracket-lib/compiler/webify/module-composer.rkt"
          "../pkgs/webracket-lib/compiler/webify/module-instance.rkt")
@@ -158,6 +160,43 @@
   (check-false
    (datum-contains? datum
                     '(module-variable-define! out-cell tmp 'constant))))
+
+(test-case "export-cell imports block late materialization"
+  (define exports '(out))
+  (define proc-id
+    (car (first-slice-top-level-helper-ids exports)))
+  (define cell-id
+    (hash-ref (first-slice-top-level-export-cell-ids exports) 'out))
+  (define value-id
+    (hash-ref (first-slice-top-level-export-value-ids exports) 'out))
+  (define datum
+    (first-slice->top-level-datum/imports
+     '(lambda (instance in-cell out-cell)
+        (module-variable-define! out-cell 42 'constant)
+        (module-variable-ref/no-check out-cell))
+     (list cell-id)
+     exports
+     #:module-name 'demo/self-import
+     #:importss '((in))))
+  (check-false
+   (datum-contains? datum
+                    '(define webify-late-export-local-value0$0 (void))))
+  (check-true
+   (datum-contains? datum
+                    `(define ,cell-id (module-variable-make 'out))))
+  (check-true
+   (datum-contains? datum
+                    `(,proc-id (#%variable-reference) ,cell-id ,cell-id)))
+  (check-true
+   (datum-contains? datum
+                    `(define ,value-id (module-variable-ref ,cell-id)))))
+
+(test-case "pre-base apply helper imports primitive apply instead of itself"
+  (check-equal?
+   (compiled-primitive-alias-hint 'webracket/private/pre-base-apply
+                                  '1/new-apply-proc
+                                  'new-apply-proc)
+   '(#%kernel apply)))
 
 (test-case "late-materialization locals avoid lowered helper name collisions"
   (define datum

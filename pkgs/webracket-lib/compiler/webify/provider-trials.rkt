@@ -672,6 +672,7 @@
     racket/private/more-scheme
     racket/private/pico
     racket/private/port
+    racket/private/promise
     racket/private/reverse
     racket/private/sort
     racket/private/reqprov
@@ -684,6 +685,7 @@
     racket/private/class-c
     racket/private/class-internal
     racket/private/class-struct
+    racket/private/class-wrapped
     racket/private/object-c
     racket/private/unit/contract
     racket/private/unit/contract-syntax
