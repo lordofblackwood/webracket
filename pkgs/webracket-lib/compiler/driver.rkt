@@ -48,6 +48,8 @@
          (only-in racket/pretty     pretty-write)
          (only-in racket/format     ~a)
          (only-in racket/fasl       fasl->s-exp s-exp->fasl)
+         (only-in file/sha1         bytes->hex-string
+                                    sha1-bytes)
          (only-in racket/system     system*)
          (only-in racket/string     string-join
                                     string-prefix?)
@@ -65,6 +67,8 @@
                   split-runtime-modules-core
                   split-runtime-modules-imported-names
                   split-runtime-modules-program)
+         (only-in "runtime-wasm/module-forms.rkt"
+                  module-write-bytes)
          (only-in racket/list       append* append-map remove-duplicates second take)
          (only-in racket/match      match)
          (only-in racket/set list->seteq)
@@ -2862,6 +2866,62 @@
 (define (split-runtime-wasm-path out-wasm)
   (path-replace-extension+suffix out-wasm ".runtime" ".wasm"))
 
+;; split-runtime-core-fingerprint : list? -> string?
+;;   Fingerprint the generated core runtime module tree for Wasm cache reuse.
+(define (split-runtime-core-fingerprint core-module)
+  (bytes->hex-string
+   (sha1-bytes
+    (module-write-bytes core-module))))
+
+;; split-runtime-core-cache-path : string? -> path?
+;;   Return the stable cache path for an assembled split core runtime module.
+(define (split-runtime-core-cache-path fingerprint)
+  (runtime-provider-cache-path
+   "split-runtime-core-v1"
+   (format "~a.wasm" fingerprint)))
+
+;; copy-file/replace! : path-string? path-string? -> void?
+;;   Copy src to dest, replacing an existing file.
+(define (copy-file/replace! src dest)
+  (copy-file src dest #t))
+
+;; assemble-split-runtime-core/cached! :
+;;   list? path-string? path-string? (list? path-string? path-string? -> boolean?) -> boolean?
+;;   Assemble the core runtime sidecar, reusing a fingerprinted Wasm cache hit.
+(define (assemble-split-runtime-core/cached! core-module
+                                             runtime-wat
+                                             runtime-wasm
+                                             assemble-module!)
+  (define fingerprint (split-runtime-core-fingerprint core-module))
+  (define cache-path (split-runtime-core-cache-path fingerprint))
+  (define (cache-hit? path)
+    (and (not (current-provider-cache-force?))
+         (file-exists? path)))
+  (define (copy-cached-runtime!)
+    (copy-file/replace! cache-path runtime-wasm)
+    #t)
+  (cond
+    [(cache-hit? cache-path)
+     (provider-cache-log "split runtime core wasm hit: ~a" cache-path)
+     (copy-cached-runtime!)]
+    [else
+     (call-with-provider-cache-lock
+      cache-path
+      (lambda ()
+        (cond
+          [(cache-hit? cache-path)
+           (provider-cache-log "split runtime core wasm hit: ~a" cache-path)
+           (copy-cached-runtime!)]
+          [else
+           (provider-cache-log "split runtime core wasm miss; assembling: ~a"
+                               cache-path)
+           (define assembled?
+             (assemble-module! core-module runtime-wat runtime-wasm))
+           (when assembled?
+             (make-directory* (path-only cache-path))
+             (copy-file/replace! runtime-wasm cache-path))
+           assembled?])))]))
+
 ;; host-wasm-reference : boolean? path-string? path-string? -> path-string?
 ;;   Return the Wasm path as the generated host should reference it.
 (define (host-wasm-reference browser? out-host out-wasm)
@@ -3295,9 +3355,11 @@
                  #:exec-path-from-shell? exec-path-from-shell?)))
   (define wat->wasm-success?
     (and (or (not split-runtime?)
-             (assemble-module! (split-runtime-modules-core split-modules)
-                               runtime-wat
-                               runtime-wasm))
+             (assemble-split-runtime-core/cached!
+              (split-runtime-modules-core split-modules)
+              runtime-wat
+              runtime-wasm
+              assemble-module!))
          (assemble-module! program-wat out-wat out-wasm)))
   (unless wat->wasm-success?
     (error 'drive-compilation
