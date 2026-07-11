@@ -65,6 +65,65 @@
          "read-char"
          "input-port?"
          "given: 42")))
+ (list "special input wrappers validate optional contracts with who"
+       (and
+        (catch-contract/contains?
+         (lambda () (read-byte-or-special 42))
+         "read-byte-or-special"
+         "input-port?"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (read-char-or-special 42))
+         "read-char-or-special"
+         "input-port?"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (read-byte-or-special (open-input-string "") 42))
+         "read-byte-or-special"
+         "(or/c #f (procedure-arity-includes/c 1))"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (read-char-or-special (open-input-string "") (lambda () 0)))
+         "read-char-or-special"
+         "(or/c #f (procedure-arity-includes/c 1))"
+         "given:")))
+ (list "peek special wrappers validate optional contracts with who"
+       (and
+        (catch-contract/contains?
+         (lambda () (peek-byte-or-special 42))
+         "peek-byte-or-special"
+         "input-port?"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (peek-char-or-special 42))
+         "peek-char-or-special"
+         "input-port?"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (peek-byte-or-special (open-input-string "") -1))
+         "peek-byte-or-special"
+         "exact-nonnegative-integer?"
+         "given: -1")
+        (catch-contract/contains?
+         (lambda () (peek-char-or-special (open-input-string "") -1))
+         "peek-char-or-special"
+         "exact-nonnegative-integer?"
+         "given: -1")
+        (catch-contract/contains?
+         (lambda () (peek-byte-or-special (open-input-string "") 0 'progress #f))
+         "peek-byte-or-special"
+         "(or/c #f evt?)"
+         "given: 'progress")
+        (catch-contract/contains?
+         (lambda () (peek-byte-or-special (open-input-string "") 0 #f 42))
+         "peek-byte-or-special"
+         "(or/c (any/c -> any/c) #f 'special)"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (peek-char-or-special (open-input-string "") 0 (lambda () 0)))
+         "peek-char-or-special"
+         "(or/c (any/c -> any/c) #f 'special)"
+         "given:")))
  (list "peek-bytes-avail! progress errors are catchable with who"
        (and
         (catch-contract/contains?

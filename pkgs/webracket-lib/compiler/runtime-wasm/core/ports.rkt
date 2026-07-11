@@ -40,6 +40,9 @@
     (port-procedure-arity-0     "(procedure-arity-includes/c 0)")
     (port-or-false-contract     "(or/c port? #f)")
     (progress-or-false-contract "(or/c #f progress-evt?)")
+    (evt-or-false-contract      "(or/c #f evt?)")
+    (read-special-wrap-contract "(or/c #f (procedure-arity-includes/c 1))")
+    (peek-special-wrap-contract "(or/c (any/c -> any/c) #f 'special)")
     (string-port-backend-unsupported
      ": only string-backed ports are supported by WebRacket for this operation")
     (file-stream-port?          "file-stream-port?")
@@ -77,6 +80,11 @@
     get-output-bytes
     read-line
     read-bytes-line
+    read-byte-or-special
+    read-char-or-special
+    peek-byte-or-special
+    peek-char-or-special
+    special
     linefeed
     return
     return-linefeed
@@ -205,7 +213,8 @@
 ;; port-byte-char-special-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for byte and character special input helpers.
 (define port-byte-char-special-runtime-only-helper-names
-  '($read-byte-or-special
+  '($check-read-special-wrap/who
+    $read-byte-or-special
     $read-char-or-special))
 
 ;; port-read-bytes-runtime-only-helper-names : (listof symbol?)
@@ -256,6 +265,8 @@
 (define port-peek-byte-runtime-only-helper-names
   '($peek-byte
     $peek-char
+    $check-peek-progress-evt/who
+    $check-peek-special-wrap/who
     $peek-byte-or-special
     $peek-char-or-special))
 
@@ -2116,24 +2127,60 @@
   (function-forms->runtime-helpers
    'port-read-special-wrapper-runtime-only-helpers
    '(
+     (func $check-read-special-wrap/who
+           (param $who          (ref eq))
+           (param $special-wrap (ref eq))
+
+           (if (ref.eq (local.get $special-wrap) (global.get $missing))
+               (then)
+               (else
+                (if (ref.eq (local.get $special-wrap) (global.get $false))
+                    (then)
+                    (else
+                     (drop (call $check-procedure-arity/who
+                                 (local.get $who)
+                                 (global.get $string:read-special-wrap-contract)
+                                 (local.get $special-wrap)
+                                 (i32.const 1))))))))
+
      ;; read-byte-or-special : [input-port?] [special-wrap/c] [any/c] -> (or/c byte? eof-object? any/c)
      ;;   Bootstrap implementation: WebRacket ports do not yet produce special values.
      (func $read-byte-or-special (type $Prim03)
            (param $in           (ref eq)) ;; optional input-port?, default = (current-input-port)
-           (param $special-wrap (ref eq)) ;; optional procedure-or-false?, ignored until special values exist
+           (param $special-wrap (ref eq)) ;; optional procedure-or-false?, validated but ignored until special values exist
            (param $source-name  (ref eq)) ;; optional any/c, passed to special producers in full Racket
            (result              (ref eq))
 
+           (if (i32.and (i32.eqz (ref.eq (local.get $in) (global.get $missing)))
+                        (i32.eqz (call $input-port-like?/i32 (local.get $in))))
+               (then (call $raise-argument-error1
+                           (global.get $symbol:read-byte-or-special)
+                           (global.get $string:input-port?)
+                           (local.get $in))
+                     (unreachable)))
+           (call $check-read-special-wrap/who
+                 (global.get $symbol:read-byte-or-special)
+                 (local.get $special-wrap))
            (call $read-byte (local.get $in)))
 
      ;; read-char-or-special : [input-port?] [special-wrap/c] [any/c] -> (or/c char? eof-object? any/c)
      ;;   Bootstrap implementation: WebRacket ports do not yet produce special values.
      (func $read-char-or-special (type $Prim03)
            (param $in           (ref eq)) ;; optional input-port?, default = (current-input-port)
-           (param $special-wrap (ref eq)) ;; optional procedure-or-false?, ignored until special values exist
+           (param $special-wrap (ref eq)) ;; optional procedure-or-false?, validated but ignored until special values exist
            (param $source-name  (ref eq)) ;; optional any/c, passed to special producers in full Racket
            (result              (ref eq))
 
+           (if (i32.and (i32.eqz (ref.eq (local.get $in) (global.get $missing)))
+                        (i32.eqz (call $input-port-like?/i32 (local.get $in))))
+               (then (call $raise-argument-error1
+                           (global.get $symbol:read-char-or-special)
+                           (global.get $string:input-port?)
+                           (local.get $in))
+                     (unreachable)))
+           (call $check-read-special-wrap/who
+                 (global.get $symbol:read-char-or-special)
+                 (local.get $special-wrap))
            (call $read-char (local.get $in))))))
 
 ;; port-read-bytes-runtime-only-helpers : (listof core-runtime-helper?)
@@ -3971,16 +4018,69 @@
            (ref.i31 (i32.or (i32.shl (local.get $cp) (i32.const ,char-shift))
                             (i32.const ,char-tag))))
 
+    '(func $check-peek-progress-evt/who
+           (param $who          (ref eq))
+           (param $progress-evt (ref eq))
+
+           (if (ref.eq (local.get $progress-evt) (global.get $missing))
+               (then)
+               (else
+                (if (i32.and (i32.eqz (ref.eq (local.get $progress-evt) (global.get $false)))
+                             (ref.eq (call $evt? (local.get $progress-evt)) (global.get $false)))
+                    (then (call $raise-argument-error1
+                                (local.get $who)
+                                (global.get $string:evt-or-false-contract)
+                                (local.get $progress-evt))
+                          (unreachable))))))
+
+    '(func $check-peek-special-wrap/who
+           (param $who          (ref eq))
+           (param $special-wrap (ref eq))
+
+           (if (ref.eq (local.get $special-wrap) (global.get $missing))
+               (then)
+               (else
+                (if (ref.eq (local.get $special-wrap) (global.get $false))
+                    (then)
+                    (else
+                     (if (ref.eq (local.get $special-wrap) (global.get $symbol:special))
+                         (then)
+                         (else
+                          (drop (call $check-procedure-arity/who
+                                      (local.get $who)
+                                      (global.get $string:peek-special-wrap-contract)
+                                      (local.get $special-wrap)
+                                      (i32.const 1))))))))))
+
     ;; peek-byte-or-special : [input-port?] [exact-nonnegative-integer?] [evt-or-false?] [special-wrap/c] [any/c] -> (or/c byte? eof-object? any/c)
     ;;   Bootstrap implementation: special values and progress events are not modeled yet.
     '(func $peek-byte-or-special (type $Prim5)
            (param $in           (ref eq)) ;; optional input-port?, default = (current-input-port)
            (param $skip         (ref eq)) ;; optional exact-nonnegative-integer?, default = 0
-           (param $progress-evt (ref eq)) ;; optional evt-or-false?, ignored until progress events exist
-           (param $special-wrap (ref eq)) ;; optional procedure-or-false-or-special?, ignored until special values exist
+           (param $progress-evt (ref eq)) ;; optional evt-or-false?, validated but ignored until progress events exist
+           (param $special-wrap (ref eq)) ;; optional procedure-or-false-or-special?, validated but ignored until special values exist
            (param $source-name  (ref eq)) ;; optional any/c, passed to special producers in full Racket
            (result              (ref eq))
 
+           (if (i32.and (i32.eqz (ref.eq (local.get $in) (global.get $missing)))
+                        (i32.eqz (call $input-port-like?/i32 (local.get $in))))
+               (then (call $raise-argument-error1
+                           (global.get $symbol:peek-byte-or-special)
+                           (global.get $string:input-port?)
+                           (local.get $in))
+                     (unreachable)))
+           (if (i32.and (i32.eqz (ref.eq (local.get $skip) (global.get $missing)))
+                        (ref.eq (call $exact-nonnegative-integer? (local.get $skip))
+                                (global.get $false)))
+               (then (call $raise-port-bytes-index-expected
+                           (global.get $symbol:peek-byte-or-special)
+                           (local.get $skip))))
+           (call $check-peek-progress-evt/who
+                 (global.get $symbol:peek-byte-or-special)
+                 (local.get $progress-evt))
+           (call $check-peek-special-wrap/who
+                 (global.get $symbol:peek-byte-or-special)
+                 (local.get $special-wrap))
            (call $peek-byte (local.get $in) (local.get $skip)))
 
     ;; peek-char-or-special : [input-port?] [exact-nonnegative-integer?] [special-wrap/c] [any/c] -> (or/c char? eof-object? any/c)
@@ -3988,10 +4088,26 @@
     '(func $peek-char-or-special (type $Prim4)
            (param $in           (ref eq)) ;; optional input-port?, default = (current-input-port)
            (param $skip         (ref eq)) ;; optional exact-nonnegative-integer?, default = 0
-           (param $special-wrap (ref eq)) ;; optional procedure-or-false-or-special?, ignored until special values exist
+           (param $special-wrap (ref eq)) ;; optional procedure-or-false-or-special?, validated but ignored until special values exist
            (param $source-name  (ref eq)) ;; optional any/c, passed to special producers in full Racket
            (result              (ref eq))
 
+           (if (i32.and (i32.eqz (ref.eq (local.get $in) (global.get $missing)))
+                        (i32.eqz (call $input-port-like?/i32 (local.get $in))))
+               (then (call $raise-argument-error1
+                           (global.get $symbol:peek-char-or-special)
+                           (global.get $string:input-port?)
+                           (local.get $in))
+                     (unreachable)))
+           (if (i32.and (i32.eqz (ref.eq (local.get $skip) (global.get $missing)))
+                        (ref.eq (call $exact-nonnegative-integer? (local.get $skip))
+                                (global.get $false)))
+               (then (call $raise-port-range-index-expected
+                           (global.get $symbol:peek-char-or-special)
+                           (local.get $skip))))
+           (call $check-peek-special-wrap/who
+                 (global.get $symbol:peek-char-or-special)
+                 (local.get $special-wrap))
            (call $peek-char (local.get $in) (local.get $skip))))))
 
 ;; port-peek-wrapper-runtime-only-helpers : (listof core-runtime-helper?)

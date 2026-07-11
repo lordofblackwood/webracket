@@ -31,6 +31,9 @@ Recent semantic cleanup:
   placeholder inputs as `exn:fail:unsupported`.
 - `read-byte` and `read-char` now reject non-input-port values with
   caller-specific `input-port?` contract errors.
+- `read-byte-or-special`, `read-char-or-special`, `peek-byte-or-special`,
+  and `peek-char-or-special` now validate their wrapper-only optional
+  arguments before delegating to the plain byte/character operations.
 
 ## Preserved Behavior To Revisit
 
