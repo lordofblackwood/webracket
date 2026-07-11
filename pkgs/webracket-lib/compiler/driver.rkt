@@ -2896,14 +2896,27 @@
   (copy-file src dest #t))
 
 ;; assemble-split-runtime-core/cached! :
-;;   list? path-string? path-string? (list? path-string? path-string? -> boolean?) -> boolean?
+;;   list? path-string? path-string? boolean?
+;;   (list? path-string? path-string? -> boolean?)
+;;   [#:record-timing! (string? real? -> any/c)] -> boolean?
 ;;   Assemble the core runtime sidecar, reusing a fingerprinted Wasm cache hit.
 (define (assemble-split-runtime-core/cached! core-module
                                              runtime-wat
                                              runtime-wasm
                                              pretty-wat?
-                                             assemble-module!)
-  (define fingerprint (split-runtime-core-fingerprint core-module))
+                                             assemble-module!
+                                             #:record-timing!
+                                             [record-timing! void])
+  (define (time-core-cache-step label thunk)
+    (define start-ms (now-ms))
+    (begin0
+      (thunk)
+      (record-timing! label (- (now-ms) start-ms))))
+  (define fingerprint
+    (time-core-cache-step
+     "split-runtime-core:fingerprint"
+     (lambda ()
+       (split-runtime-core-fingerprint core-module))))
   (define cache-wasm-path (split-runtime-core-cache-wasm-path fingerprint))
   (define cache-wat-path (split-runtime-core-cache-wat-path fingerprint
                                                             pretty-wat?))
@@ -2912,20 +2925,32 @@
          (file-exists? path)))
   (define (cache-runtime-wat!)
     (make-directory* (path-only cache-wat-path))
-    (copy-file/replace! runtime-wat cache-wat-path))
+    (time-core-cache-step
+     "split-runtime-core:cache-wat-copy"
+     (lambda ()
+       (copy-file/replace! runtime-wat cache-wat-path))))
   (define (write-runtime-wat!)
-    (write-wat-to-file runtime-wat core-module #:pretty? pretty-wat?))
+    (time-core-cache-step
+     "split-runtime-core:write-wat"
+     (lambda ()
+       (write-wat-to-file runtime-wat core-module #:pretty? pretty-wat?))))
   (define (materialize-runtime-wat!)
     (cond
       [(cache-hit? cache-wat-path)
-       (copy-file/replace! cache-wat-path runtime-wat)]
+       (time-core-cache-step
+        "split-runtime-core:materialize-wat-hit"
+        (lambda ()
+          (copy-file/replace! cache-wat-path runtime-wat)))]
       [else
        (provider-cache-log "split runtime core wat miss; writing: ~a"
                            cache-wat-path)
        (write-runtime-wat!)
        (cache-runtime-wat!)]))
   (define (copy-cached-runtime!)
-    (copy-file/replace! cache-wasm-path runtime-wasm)
+    (time-core-cache-step
+     "split-runtime-core:materialize-wasm-hit"
+     (lambda ()
+       (copy-file/replace! cache-wasm-path runtime-wasm)))
     (materialize-runtime-wat!)
     #t)
   (cond
@@ -2946,10 +2971,16 @@
                                cache-wasm-path)
            (write-runtime-wat!)
            (define assembled?
-             (assemble-module! core-module runtime-wat runtime-wasm))
+             (time-core-cache-step
+              "split-runtime-core:assemble-wasm"
+              (lambda ()
+                (assemble-module! core-module runtime-wat runtime-wasm))))
            (when assembled?
              (make-directory* (path-only cache-wasm-path))
-             (copy-file/replace! runtime-wasm cache-wasm-path)
+             (time-core-cache-step
+              "split-runtime-core:cache-wasm-copy"
+              (lambda ()
+                (copy-file/replace! runtime-wasm cache-wasm-path)))
              (cache-runtime-wat!))
            assembled?])))]))
 
@@ -3023,6 +3054,7 @@
 
   (define exit-code       0)
   (define compile-timings #f)
+  (define split-runtime-core-timing-rows '())
   (define t-driver-start (now-ms))
   (current-source-module-language #f)
   (current-source-module-provider-names #f)
@@ -3403,7 +3435,12 @@
               runtime-wat
               runtime-wasm
               pretty-wat?
-              assemble-module!))
+              assemble-module!
+              #:record-timing!
+              (lambda (label elapsed-ms)
+                (set! split-runtime-core-timing-rows
+                      (cons (list label elapsed-ms)
+                            split-runtime-core-timing-rows)))))
          (assemble-module! program-wat out-wat out-wasm)))
   (unless wat->wasm-success?
     (error 'drive-compilation
@@ -3487,6 +3524,8 @@
                                driver-total-ms))
     (define read-detail-rows (reverse (current-read-source-timing-rows)))
     (define module-bridge-detail-rows (reverse (current-module-bridge-detail-rows)))
+    (define split-runtime-core-detail-rows
+      (reverse split-runtime-core-timing-rows))
     (define driver-rows
       (append
        (list (list "ffi-setup"        ffi-setup-ms)
@@ -3534,6 +3573,14 @@
          (format-metric-table
           (for/list ([row (in-list module-bridge-metric-rows)])
             (list (car row) (~a (second row)))))))
+    (when (pair? split-runtime-core-detail-rows)
+      (displayln "=== Split Runtime Core Cache Details ===")
+      (displayln
+       (format-timing-table
+        (append split-runtime-core-detail-rows
+                (list (list "total"
+                            (for/sum ([row (in-list split-runtime-core-detail-rows)])
+                              (second row))))))))
     (displayln "=== Compile Pipeline ===")
     (displayln overall-table)
     (define pass-table (current-pass-timing-table))
