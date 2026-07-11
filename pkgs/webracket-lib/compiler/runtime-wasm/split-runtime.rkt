@@ -537,6 +537,62 @@
                #:when name)
     (values name #t)))
 
+;; sorted-named-forms : (listof datum?) (datum? -> (or/c symbol? #f)) -> (listof datum?)
+;;   Sort named forms into canonical order for stable split-runtime fingerprints.
+(define (sorted-named-forms forms name-of)
+  (sort forms
+        (lambda (a b)
+          (define a-name (name-of a))
+          (define b-name (name-of b))
+          (cond
+            [(and a-name b-name) (symbol<? a-name b-name)]
+            [a-name #t]
+            [else #f]))))
+
+;; constant-declaration-form? : datum? -> boolean?
+;;   Check whether a form declares a generated runtime/program constant.
+(define (constant-declaration-form? form)
+  (or (let ([name (module-data-name form)])
+        (and name (constant-data-name? name)))
+      (let ([name (module-global-name form)])
+        (and name (constant-global-name? name)))))
+
+;; constant-declaration-form-name : datum? -> (or/c symbol? #f)
+;;   Return the generated name for a constant declaration form.
+(define (constant-declaration-form-name form)
+  (or (module-data-name form)
+      (module-global-name form)))
+
+;; canonicalize-runtime-constant-declarations : (listof datum?) -> (listof datum?)
+;;   Merge pulled-back constants into one canonical runtime constant block.
+(define (canonicalize-runtime-constant-declarations forms)
+  (define-values (constant-forms non-constant-forms/reversed first-index _index)
+    (for/fold ([constant-forms '()]
+               [non-constant-forms/reversed '()]
+               [first-index #f]
+               [index 0])
+              ([form (in-list forms)])
+      (if (constant-declaration-form? form)
+          (values (cons form constant-forms)
+                  non-constant-forms/reversed
+                  (or first-index index)
+                  (add1 index))
+          (values constant-forms
+                  (cons form non-constant-forms/reversed)
+                  first-index
+                  (add1 index)))))
+  (define sorted-constant-forms
+    (sorted-named-forms constant-forms constant-declaration-form-name))
+  (define non-constant-forms (reverse non-constant-forms/reversed))
+  (cond
+    [(null? sorted-constant-forms)
+     non-constant-forms]
+    [else
+     (define insertion-index (or first-index (length non-constant-forms)))
+     (append (take non-constant-forms insertion-index)
+             sorted-constant-forms
+             (drop non-constant-forms insertion-index))]))
+
 ;; runtime-referenced-program-global-names : (listof datum?) (listof datum?) -> (listof symbol?)
 ;;   Return program-owned globals that are referenced by runtime-side forms.
 (define (runtime-referenced-program-global-names runtime-forms program-forms)
@@ -742,15 +798,22 @@
   (define program-forms
     (reverse remaining-program-forms/reversed))
   (define pulled-runtime-data-forms
-    (runtime-referenced-program-data-forms runtime-forms
-                                          initial-program-forms))
+    (sorted-named-forms
+     (runtime-referenced-program-data-forms runtime-forms
+                                           initial-program-forms)
+     module-data-name))
+  (define pulled-runtime-global-forms
+    (sorted-named-forms
+     (reverse pulled-runtime-global-forms/reversed)
+     module-global-name))
   (define runtime-body-forms
-    (append
-     (for/list ([form (in-list runtime-forms)]
-                #:unless (declare-elem-form? form))
-       form)
-     pulled-runtime-data-forms
-     (reverse pulled-runtime-global-forms/reversed)))
+    (canonicalize-runtime-constant-declarations
+     (append
+      (for/list ([form (in-list runtime-forms)]
+                 #:unless (declare-elem-form? form))
+        form)
+      pulled-runtime-data-forms
+      pulled-runtime-global-forms)))
   (define-values (imported-names import-forms export-forms)
     (classified-runtime-import/export-forms
      runtime-body-forms
@@ -1046,6 +1109,60 @@
    (for/or ([form (in-list classified-program-forms)])
      (and (function-definition-form? form)
           (eq? (module-func-name form) '$runtime-add-state))))
+
+  (define pullback-order-module
+    '(module
+      (type $I8Array (array (mut i8)))
+      (data $symbol-data:c "c")
+      (global $symbol:c (mut (ref eq)) (ref.i31 (i32.const 0)))
+      (func $runtime-symbols
+            (drop
+             (array.new_data $I8Array
+                             $symbol-data:a
+                             (i32.const 0)
+                             (i32.const 1)))
+            (drop
+             (array.new_data $I8Array
+                             $symbol-data:b
+                             (i32.const 0)
+                             (i32.const 1)))
+            (drop (global.get $symbol:a))
+            (drop (global.get $symbol:b)))
+      (data $symbol-data:b "b")
+      (global $symbol:b (mut (ref eq)) (ref.i31 (i32.const 0)))
+      (data $symbol-data:a "a")
+      (global $symbol:a (mut (ref eq)) (ref.i31 (i32.const 0)))
+      (global $result (mut i32) (i32.const 0))
+      (func $probe (export "probe") (call $runtime-symbols))))
+  (define pullback-order-split
+    (split-classified-runtime-module
+     pullback-order-module
+     #:program-function-names '($probe)
+     #:result-global '$result
+     #:top-level-variable-declarations
+     '((global $result (mut i32) (i32.const 0)))
+     #:string-constants '()
+     #:bytes-constants '()
+     #:symbol-constants '((b b) (a a))))
+  (define pullback-order-core-forms
+    (module-forms (split-runtime-modules-core pullback-order-split)))
+  (check-equal?
+   (for/list ([form (in-list pullback-order-core-forms)]
+              #:do [(define name (or (module-data-name form)
+                                     (module-global-name form)))]
+              #:when (memq name '($symbol-data:a
+                                  $symbol-data:b
+                                  $symbol-data:c
+                                  $symbol:a
+                                  $symbol:b
+                                  $symbol:c)))
+     name)
+   '($symbol-data:a
+     $symbol-data:b
+     $symbol-data:c
+     $symbol:a
+     $symbol:b
+     $symbol:c))
 
   (define core-link-probe-module
     `(module

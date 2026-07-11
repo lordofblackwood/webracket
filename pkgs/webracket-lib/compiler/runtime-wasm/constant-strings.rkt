@@ -20,11 +20,22 @@
 (define (string-global-name name)
   (string->symbol (~a "$string:" name)))
 
+;; constant-entry<? : list? list? -> boolean?
+;;   Order constant registry entries by generated WAT name.
+(define (constant-entry<? a b)
+  (symbol<? (first a) (first b)))
+
+;; runtime-constant-registry-sorted-strings : runtime-constant-registry? -> list?
+;;   Return string constants in canonical emission order.
+(define (runtime-constant-registry-sorted-strings registry)
+  (sort (runtime-constant-registry-strings registry)
+        constant-entry<?))
+
 ;; runtime-constant-registry-declare-strings : runtime-constant-registry? -> list?
 ;;   Emit WAT data/global declarations for registered string constants.
 (define (runtime-constant-registry-declare-strings registry)
   (append*
-   (for/list ([ns (reverse (runtime-constant-registry-strings registry))])
+   (for/list ([ns (in-list (runtime-constant-registry-sorted-strings registry))])
      (define name (first ns))
      (define string (second ns))
      (define $string-data:name (string-data-name name))
@@ -35,7 +46,7 @@
 ;; runtime-constant-registry-initialize-strings : runtime-constant-registry? -> list?
 ;;   Emit WAT initialization forms for registered string constants.
 (define (runtime-constant-registry-initialize-strings registry)
-  (for/list ([ns (reverse (runtime-constant-registry-strings registry))])
+  (for/list ([ns (in-list (runtime-constant-registry-sorted-strings registry))])
     (define name (first ns))
     (define string (second ns))
     (define $string-data:name (string-data-name name))

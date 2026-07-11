@@ -139,6 +139,12 @@
     (for/list ([form (in-list forms)])
       (second form)))
 
+  ;; initializer-target-names : (listof datum?) -> (listof symbol?)
+  ;;   Extract global names targeted by constant initializer forms.
+  (define (initializer-target-names forms)
+    (for/list ([form (in-list forms)])
+      (second form)))
+
   (check-equal? (string-global-name 'hello) '$string:hello)
   (check-equal? (bytes-global-name 'hello) '$bytes:hello)
   (check-equal? (symbol-global-name 'hello) '$symbol:hello)
@@ -197,10 +203,28 @@
     (runtime-constant-registry-add-symbol! registry 'bar)
     (check-equal?
      (form-names (runtime-constant-registry-declare-symbols! registry))
-     '($symbol-data:foo
-       $symbol:foo
-       $symbol-data:bar
-       $symbol:bar)))
+     '($symbol-data:bar
+       $symbol:bar
+       $symbol-data:foo
+       $symbol:foo)))
+
+  (define (make-order-registry order)
+    (make-runtime-constant-registry
+     (for/list ([name (in-list order)])
+       (list name (symbol->string name)))
+     (for/list ([name (in-list order)])
+       (list name (string->bytes/utf-8 (symbol->string name))))
+     (for/list ([name (in-list order)])
+       (list name name))))
+
+  (let ([registry-a (make-order-registry '(a b c))]
+        [registry-b (make-order-registry '(c b a))])
+    (check-equal? (form-names (runtime-constant-declaration-forms registry-a))
+                  (form-names (runtime-constant-declaration-forms registry-b)))
+    (check-equal? (initializer-target-names
+                   (runtime-constant-initializer-forms registry-a))
+                  (initializer-target-names
+                   (runtime-constant-initializer-forms registry-b))))
 
   (define (sample-populated-runtime-constant-registry)
     (make-populated-runtime-constant-registry
@@ -217,50 +241,50 @@
   (let ([registry (sample-populated-runtime-constant-registry)])
     (check-equal?
      (form-names (runtime-constant-registry-declare-strings registry))
-     '($string-data:program-string
-       $string:program-string
-       $string-data:core-string
-       $string:core-string))
+     '($string-data:core-string
+       $string:core-string
+       $string-data:program-string
+       $string:program-string))
     (check-equal?
      (form-names (runtime-constant-registry-declare-bytes registry))
-     '($bytes-data:program-bytes
-       $bytes:program-bytes
-       $bytes-data:core-bytes
-       $bytes:core-bytes))
+     '($bytes-data:core-bytes
+       $bytes:core-bytes
+       $bytes-data:program-bytes
+       $bytes:program-bytes))
     (check-equal?
      (form-names (runtime-constant-registry-declare-symbols! registry))
-     '($symbol-data:program-symbol
-       $symbol:program-symbol
-       $symbol-data:primitive
-       $symbol:primitive
+     '($symbol-data:core-symbol
+       $symbol:core-symbol
        $symbol-data:ffi
        $symbol:ffi
+       $symbol-data:primitive
+       $symbol:primitive
+       $symbol-data:program-symbol
+       $symbol:program-symbol
        $symbol-data:reserved
-       $symbol:reserved
-       $symbol-data:core-symbol
-       $symbol:core-symbol)))
+       $symbol:reserved)))
 
   (let ([registry (sample-populated-runtime-constant-registry)])
     (check-equal?
      (form-names (runtime-constant-declaration-forms registry))
-     '($string-data:program-string
-       $string:program-string
-       $string-data:core-string
+     '($string-data:core-string
        $string:core-string
-       $bytes-data:program-bytes
-       $bytes:program-bytes
+       $string-data:program-string
+       $string:program-string
        $bytes-data:core-bytes
        $bytes:core-bytes
-       $symbol-data:program-symbol
-       $symbol:program-symbol
-       $symbol-data:primitive
-       $symbol:primitive
+       $bytes-data:program-bytes
+       $bytes:program-bytes
+       $symbol-data:core-symbol
+       $symbol:core-symbol
        $symbol-data:ffi
        $symbol:ffi
+       $symbol-data:primitive
+       $symbol:primitive
+       $symbol-data:program-symbol
+       $symbol:program-symbol
        $symbol-data:reserved
-       $symbol:reserved
-       $symbol-data:core-symbol
-       $symbol:core-symbol)))
+       $symbol:reserved)))
 
   (let ([registry (sample-populated-runtime-constant-registry)])
     (check-equal?

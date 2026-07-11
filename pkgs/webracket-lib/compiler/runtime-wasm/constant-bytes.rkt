@@ -20,11 +20,22 @@
 (define (bytes-global-name name)
   (string->symbol (~a "$bytes:" name)))
 
+;; constant-entry<? : list? list? -> boolean?
+;;   Order constant registry entries by generated WAT name.
+(define (constant-entry<? a b)
+  (symbol<? (first a) (first b)))
+
+;; runtime-constant-registry-sorted-bytes : runtime-constant-registry? -> list?
+;;   Return byte constants in canonical emission order.
+(define (runtime-constant-registry-sorted-bytes registry)
+  (sort (runtime-constant-registry-bytes registry)
+        constant-entry<?))
+
 ;; runtime-constant-registry-declare-bytes : runtime-constant-registry? -> list?
 ;;   Emit WAT data/global declarations for registered byte string constants.
 (define (runtime-constant-registry-declare-bytes registry)
   (append*
-   (for/list ([ns (reverse (runtime-constant-registry-bytes registry))])
+   (for/list ([ns (in-list (runtime-constant-registry-sorted-bytes registry))])
      (define name (first ns))
      (define bytes (second ns))
      (define $bytes-data:name (bytes-data-name name))
@@ -35,7 +46,7 @@
 ;; runtime-constant-registry-initialize-bytes : runtime-constant-registry? -> list?
 ;;   Emit WAT initialization forms for registered byte string constants.
 (define (runtime-constant-registry-initialize-bytes registry)
-  (for/list ([ns (reverse (runtime-constant-registry-bytes registry))])
+  (for/list ([ns (in-list (runtime-constant-registry-sorted-bytes registry))])
     (define name (first ns))
     (define bytes (second ns))
     (define $bytes-data:name (bytes-data-name name))

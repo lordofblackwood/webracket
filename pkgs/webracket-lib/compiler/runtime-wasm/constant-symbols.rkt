@@ -20,6 +20,11 @@
 (define (symbol-global-name name)
   (string->symbol (~a "$symbol:" name)))
 
+;; constant-entry<? : list? list? -> boolean?
+;;   Order constant registry entries by generated WAT name.
+(define (constant-entry<? a b)
+  (symbol<? (first a) (first b)))
+
 ;; remove-duplicates/string : list? procedure? -> list?
 ;;   Remove duplicates using a string key in linear time.
 (define (remove-duplicates/string xs key)
@@ -45,16 +50,18 @@
 (define (runtime-constant-registry-normalize-symbols! registry)
   (set-runtime-constant-registry-symbols!
    registry
-   (remove-duplicates/string (runtime-constant-registry-symbols registry)
-                             (lambda (ns)
-                               (symbol->string (first ns))))))
+   (sort
+    (remove-duplicates/string (runtime-constant-registry-symbols registry)
+                              (lambda (ns)
+                                (symbol->string (first ns))))
+    constant-entry<?)))
 
 ;; runtime-constant-registry-declare-symbols! : runtime-constant-registry? -> list?
 ;;   Emit WAT data/global declarations for registered symbol constants.
 (define (runtime-constant-registry-declare-symbols! registry)
   (runtime-constant-registry-normalize-symbols! registry)
   (append*
-   (for/list ([ns (reverse (runtime-constant-registry-symbols registry))])
+   (for/list ([ns (in-list (runtime-constant-registry-symbols registry))])
      (define name (first ns))
      (define symbol (second ns))
      (define string (symbol->string symbol))
@@ -67,7 +74,7 @@
 ;;   Emit WAT initialization forms for registered symbol constants.
 (define (runtime-constant-registry-initialize-symbols! registry)
   (runtime-constant-registry-normalize-symbols! registry)
-  (for/list ([ns (reverse (runtime-constant-registry-symbols registry))])
+  (for/list ([ns (in-list (runtime-constant-registry-symbols registry))])
     (define name (first ns))
     (define symbol (second ns))
     (define string (symbol->string symbol))

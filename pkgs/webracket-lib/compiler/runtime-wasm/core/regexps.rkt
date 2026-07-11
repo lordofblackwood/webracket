@@ -44,6 +44,8 @@
     pregexp
     byte-regexp
     byte-pregexp
+    regexp-match
+    regexp-match?
     regexp-replace
     regexp-replace*))
 
