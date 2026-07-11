@@ -56,6 +56,10 @@
              (local.set $B
                         (block $ok (result (ref $Boxed))
                           (br_on_cast $ok (ref eq) (ref $Boxed) (local.get $b))
+                          (call $raise-argument-error1
+                                (global.get $symbol:unboxed)
+                                (global.get $string:boxed?)
+                                (local.get $b))
                           (unreachable)))
              (local.set $v (struct.get $Boxed $v (local.get $B)))
              ;; Compiler boxes use `unsafe-undefined` as an ordinary

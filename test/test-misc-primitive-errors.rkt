@@ -73,8 +73,13 @@
          "keyword<?"
          "keyword?"
          "given: \"bad\"")))
- (list "internal boxed mutation argument errors are catchable"
+ (list "internal boxed accessor and mutation argument errors are catchable"
        (and
+        (catch-contract/contains?
+         (lambda () (unboxed 42))
+         "unboxed"
+         "boxed?"
+         "given: 42")
         (catch-contract/contains?
          (lambda () (set-boxed! 42 'value))
          "set-boxed!"

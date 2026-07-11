@@ -190,9 +190,9 @@ Current remaining raw-stub classes:
     zero-arity procedures instead of returning the internal `$error` sentinel.
 
 - `boxes.rkt`:
-  - Internal compiler-box mutators `set-boxed!` and `initialize-boxed!` now
-    raise catchable `boxed?` contract errors for bad cell values instead of
-    returning the internal `$error` sentinel.
+  - Internal compiler-box helpers `unboxed`, `set-boxed!`, and
+    `initialize-boxed!` now raise catchable `boxed?` contract errors for bad
+    cell values instead of trapping or returning the internal `$error` sentinel.
 
 - `control-flow.rkt`:
   - `dynamic-require` without a fallback thunk now raises a catchable
