@@ -141,6 +141,29 @@ racket tools/measure-simplify-module-builds.rkt \
   pkgs/web-easy/examples/hello-world/hello-world.rkt
 ```
 
+measure-split-runtime.rkt
+-------------------------
+Benchmarks the experimental `--split-runtime` path against monolithic output on
+a tiny no-stdlib Node program. It uses private provider/runtime caches, runs a
+cold split compile to populate the stable runtime cache, then compares
+monolithic and warm split compile/run timings. The tool exits non-zero if the
+compiled program does not run or if the warm split run does not use the cached
+runtime wasm.
+
+Run:
+
+```sh
+racket -S pkgs tools/measure-split-runtime.rkt
+```
+
+Optional:
+
+```sh
+racket -S pkgs tools/measure-split-runtime.rkt \
+  --source test/test-trivial.rkt \
+  --expect '(^|\n)42(\n|$)'
+```
+
 fetch-html-element-attributes.mjs
 ---------------------------------
 Generator for a machine-readable HTML element/attribute snapshot.
