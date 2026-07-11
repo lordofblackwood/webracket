@@ -89,4 +89,20 @@
        (let ([env (current-environment-variables)])
          (and (environment-variables? env)
               (equal? (environment-variables-ref env #"") #f)
-              (void? (current-environment-variables env))))))
+              (void? (current-environment-variables env)))))
+ (list "current-print argument errors preserve who"
+       (and
+        (catch-contract/contains?
+         (lambda () (current-print 42))
+         "current-print"
+         "(procedure-arity-includes/c 1)"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (current-print (lambda () 'no-args)))
+         "current-print"
+         "(procedure-arity-includes/c 1)"
+         "given: #<procedure")))
+ (list "current-print accepts one-argument printers"
+       (let ([old (current-print)])
+         (and (void? (current-print (lambda (v) (void))))
+              (void? (current-print old))))))

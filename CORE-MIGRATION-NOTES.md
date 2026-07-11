@@ -185,6 +185,9 @@ Current remaining raw-stub classes:
   - `current-environment-variables` now raises a catchable
     `environment-variables?` contract error for bad setter values instead of
     returning the internal `$error` sentinel.
+  - `current-print` now raises a catchable
+    `(procedure-arity-includes/c 1)` contract error for non-procedures and
+    zero-arity procedures instead of returning the internal `$error` sentinel.
 
 - `control-flow.rkt`:
   - `dynamic-require` without a fallback thunk now raises a catchable

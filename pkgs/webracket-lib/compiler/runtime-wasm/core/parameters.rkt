@@ -40,6 +40,7 @@
   '((parameter?        "parameter?")
     (parameterization? "parameterization?")
     (cache-configuration-index "(integer-in 0 7)")
+    (current-print:procedure-arity-1 "(procedure-arity-includes/c 1)")
     (readtable-or-false "(or/c readtable? #f)")
     (current-environment-variables:environment-variables? "environment-variables?")))
 
@@ -76,6 +77,7 @@
     parameterization-key
     current-compile-target-machine
     current-compile-realm
+    current-print
     current-environment-variables))
 
 ;; reader-printer-policy-parameter-specs : (listof (list symbol? symbol? symbol? symbol?))
@@ -1239,13 +1241,27 @@
      (func $current-print (type $Prim01)
            (param $printer-raw (ref eq)) ;; optional procedure?, default current printer
            (result (ref eq))
+           (local $printer (ref $Procedure))
            (if (ref.eq (local.get $printer-raw) (global.get $missing))
                (then
                 (if (ref.eq (global.get $current-print-value) (global.get $false))
                     (then (return (global.get $prim:js-log)))
                     (else (return (global.get $current-print-value))))))
            (if (i32.eqz (ref.test (ref $Procedure) (local.get $printer-raw)))
-               (then (return (global.get $error))))
+               (then (call $raise-argument-error1
+                           (global.get $symbol:current-print)
+                           (global.get $string:current-print:procedure-arity-1)
+                           (local.get $printer-raw))
+                     (unreachable)))
+           (local.set $printer (ref.cast (ref $Procedure) (local.get $printer-raw)))
+           (if (i32.eqz (call $procedure-arity-includes?/checked/i32
+                              (local.get $printer)
+                              (i32.const 1)))
+               (then (call $raise-argument-error1
+                           (global.get $symbol:current-print)
+                           (global.get $string:current-print:procedure-arity-1)
+                           (local.get $printer-raw))
+                     (unreachable)))
            (global.set $current-print-value (local.get $printer-raw))
            (global.get $void))
 
