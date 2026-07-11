@@ -86,4 +86,21 @@
        (and (exact-integer? (current-process-milliseconds))
             (exact-integer? (current-process-milliseconds #f))
             (exact-integer? (current-process-milliseconds (current-thread)))
-            (exact-integer? (current-process-milliseconds 'subprocesses)))))
+            (exact-integer? (current-process-milliseconds 'subprocesses))))
+ (list "seconds->date rejects non-finite seconds without trapping"
+       (and
+        (catch-contract/contains?
+         (lambda () (seconds->date +nan.0))
+         "inexact->exact"
+         "no exact representation"
+         "+nan.0")
+        (catch-contract/contains?
+         (lambda () (seconds->date +inf.0))
+         "inexact->exact"
+         "no exact representation"
+         "+inf.0")
+        (catch-contract/contains?
+         (lambda () (seconds->date -inf.0))
+         "inexact->exact"
+         "no exact representation"
+         "-inf.0"))))

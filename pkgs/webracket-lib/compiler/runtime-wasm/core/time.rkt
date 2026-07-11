@@ -348,9 +348,25 @@
           (param $v   (ref eq))
           (result     f64)
           (local $bits i32)
+          (local $f64  f64)
           (if (ref.test (ref $Flonum) (local.get $v))
-              (then (return (struct.get $Flonum $v
-                                        (ref.cast (ref $Flonum) (local.get $v))))))
+              (then
+               (local.set $f64
+                          (struct.get $Flonum $v
+                                      (ref.cast (ref $Flonum) (local.get $v))))
+               (if (f64.ne (local.get $f64) (local.get $f64))
+                   (then (call $raise-inexact->exact:no-exact-representation
+                               (local.get $v))
+                         (unreachable)))
+               (if (f64.eq (local.get $f64) (f64.const +inf))
+                   (then (call $raise-inexact->exact:no-exact-representation
+                               (local.get $v))
+                         (unreachable)))
+               (if (f64.eq (local.get $f64) (f64.const -inf))
+                   (then (call $raise-inexact->exact:no-exact-representation
+                               (local.get $v))
+                         (unreachable)))
+               (return (local.get $f64))))
           (if (ref.test (ref i31) (local.get $v))
               (then
                (local.set $bits (i31.get_s (ref.cast (ref i31) (local.get $v))))
