@@ -3229,11 +3229,12 @@
                       (i32.sub (i32.const -1) (local.get $at-least-from)))))
            (ref.cast (ref eq) (local.get $arr)))
 
-     ;; make-composed-procedure : list? boolean? -> procedure?
+     ;; make-composed-procedure : list? boolean? symbol? -> procedure?
      ;;   Build the procedure returned by compose or compose1.
      (func $make-composed-procedure
            (param $args    (ref eq))
            (param $single? (ref eq))
+           (param $who     (ref eq))
            (result         (ref eq))
 
            (local $procs (ref $Array))
@@ -3253,7 +3254,8 @@
                                                   (local.get $procs)
                                                   (local.get $i))))
                             (then
-                             (call $raise-argument-error:procedure-expected
+                             (call $raise-argument-error:procedure-expected/who
+                                   (local.get $who)
                                    (array.get $Array
                                               (local.get $procs)
                                               (local.get $i)))
@@ -3301,12 +3303,18 @@
      (func $compose (type $Prim>=0)
            (param $args (ref eq))
            (result      (ref eq))
-           (call $make-composed-procedure (local.get $args) (global.get $false)))
+           (call $make-composed-procedure
+                 (local.get $args)
+                 (global.get $false)
+                 (global.get $symbol:compose)))
 
      (func $compose1 (type $Prim>=0)
            (param $args (ref eq))
            (result      (ref eq))
-           (call $make-composed-procedure (local.get $args) (global.get $true)))
+           (call $make-composed-procedure
+                 (local.get $args)
+                 (global.get $true)
+                 (global.get $symbol:compose1)))
 
      (func $procedure-extract-target (type $Prim1)
            (param $proc (ref eq)) ; procedure?

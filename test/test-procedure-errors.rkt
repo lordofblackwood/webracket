@@ -77,6 +77,18 @@
         "primitive-result-arity"
         "primitive?"
         "given: 42"))
+ (list "procedure composition errors preserve who"
+       (and
+        (catch-contract/contains?
+         (lambda () (compose 42))
+         "compose"
+         "procedure?"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (compose1 42))
+         "compose1"
+         "procedure?"
+         "given: 42")))
  (list "apply final argument errors print non-list values"
        (and
         (catch-contract/contains?
