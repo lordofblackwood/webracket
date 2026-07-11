@@ -69,4 +69,21 @@
          (lambda () (date*-nanosecond 42))
          "date*-nanosecond"
          "date*?"
-         "given: 42"))))
+         "given: 42")))
+ (list "current-process-milliseconds rejects invalid scopes"
+       (and
+        (catch-contract/contains?
+         (lambda () (current-process-milliseconds 42))
+         "current-process-milliseconds"
+         "(or/c #f thread? 'subprocesses)"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (current-process-milliseconds 'bad))
+         "current-process-milliseconds"
+         "(or/c #f thread? 'subprocesses)"
+         "given: 'bad")))
+ (list "current-process-milliseconds accepts valid scopes"
+       (and (exact-integer? (current-process-milliseconds))
+            (exact-integer? (current-process-milliseconds #f))
+            (exact-integer? (current-process-milliseconds (current-thread)))
+            (exact-integer? (current-process-milliseconds 'subprocesses)))))

@@ -22,6 +22,7 @@
     (integer-in-0-6  "(integer-in 0 6)")
     (integer-in-0-365 "(integer-in 0 365)")
     (integer-in-0-999999999 "(integer-in 0 999999999)")
+    (process-milliseconds-scope "(or/c #f thread? 'subprocesses)")
     (UTC    "UTC")
     (local  "local")))
 
@@ -55,6 +56,7 @@
     current-milliseconds
     current-process-milliseconds
     current-gc-milliseconds
+    subprocesses
     seconds->date
     current-date))
 
@@ -384,12 +386,25 @@
                       (f64.const 1000)))
             (i32.const 1))))
 
-    ;; current-process-milliseconds : [any/c] -> exact-integer?
+    ;; current-process-milliseconds : [(or/c #f thread? 'subprocesses)] -> exact-integer?
     ;;   Browser JavaScript does not expose Racket-style process CPU time;
-    ;;   use the wall-clock fixnum value as a bootstrap approximation.
+    ;;   use the wall-clock fixnum value as a bootstrap approximation for
+    ;;   accepted scopes.
     (func $current-process-milliseconds (type $Prim01)
           (param $scope (ref eq)) ;; optional: #f, thread?, or 'subprocesses
           (result (ref eq))
+          (if (i32.and
+               (i32.and
+                (i32.eqz (ref.eq (local.get $scope) (global.get $missing)))
+                (i32.eqz (ref.eq (local.get $scope) (global.get $false))))
+               (i32.and
+                (i32.eqz (ref.test (ref $Thread) (local.get $scope)))
+                (i32.eqz (ref.eq (local.get $scope) (global.get $symbol:subprocesses)))))
+              (then (call $raise-argument-error1
+                          (global.get $symbol:current-process-milliseconds)
+                          (global.get $string:process-milliseconds-scope)
+                          (local.get $scope))
+                    (unreachable)))
           (return_call $current-milliseconds))
 
     ;; current-gc-milliseconds : -> exact-integer?
