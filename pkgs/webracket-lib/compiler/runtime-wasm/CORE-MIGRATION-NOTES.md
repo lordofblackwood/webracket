@@ -29,6 +29,8 @@ Recent semantic cleanup:
   as `exn:fail:unsupported` with a `s-exp->fasl` message prefix.
 - `make-reader-graph` now reports unsupported cyclic reader-graph and hash
   placeholder inputs as `exn:fail:unsupported`.
+- `read-byte` and `read-char` now reject non-input-port values with
+  caller-specific `input-port?` contract errors.
 
 ## Preserved Behavior To Revisit
 

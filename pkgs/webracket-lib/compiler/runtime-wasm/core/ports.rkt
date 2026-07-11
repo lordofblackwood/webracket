@@ -1898,7 +1898,14 @@
            (if (ref.eq (local.get $in) (global.get $missing))
                (then (local.set $in (call $current-input-port
                                           (global.get $missing)))))
-           ;; Ensure the input is a string port.
+           ;; Ensure the input is an input port.
+           (if (i32.eqz (call $input-port-like?/i32 (local.get $in)))
+               (then (call $raise-argument-error1
+                           (global.get $symbol:read-byte)
+                           (global.get $string:input-port?)
+                           (local.get $in))
+                     (unreachable)))
+           ;; Dispatch supported input-port implementations.
            (if (ref.test (ref $InputStringPort) (local.get $in))
                (then (local.set $sp (ref.cast (ref $InputStringPort) (local.get $in))))
                (else
@@ -2026,8 +2033,12 @@
                (then (local.set $in (call $current-input-port
                                           (global.get $missing)))))
            ;; Ensure the input is an input port.
-           (if (i32.eqz (ref.test (ref $InputPort) (local.get $in)))
-               (then (return (global.get $false))))
+           (if (i32.eqz (call $input-port-like?/i32 (local.get $in)))
+               (then (call $raise-argument-error1
+                           (global.get $symbol:read-char)
+                           (global.get $string:input-port?)
+                           (local.get $in))
+                     (unreachable)))
 
            (local.set $first (call $read-byte (local.get $in)))
            (if (ref.eq (local.get $first) (global.get $eof))

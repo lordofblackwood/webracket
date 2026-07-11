@@ -53,6 +53,18 @@
          "make-input-port"
          "(procedure-arity-includes/c 0)"
          "given:")))
+ (list "single byte and char readers reject non-input ports with who"
+       (and
+        (catch-contract/contains?
+         (lambda () (read-byte 42))
+         "read-byte"
+         "input-port?"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (read-char 42))
+         "read-char"
+         "input-port?"
+         "given: 42")))
  (list "peek-bytes-avail! progress errors are catchable with who"
        (and
         (catch-contract/contains?
