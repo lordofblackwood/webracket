@@ -10,7 +10,8 @@
 ;; box-runtime-string-constants : (listof (list/c symbol? string?))
 ;;   Declare string constants used by box helpers and box errors.
 (define box-runtime-string-constants
-  '((box?                      "box?")
+  '((boxed?                    "boxed?")
+    (box?                      "box?")
     (mutable-box?              "(and/c box? (not/c immutable?))")
     (box-not-impersonator?     "(and/c box? (not impersonator?))")
     (mutable-box-not-impersonator?
@@ -79,12 +80,16 @@
              ;; to fill the placeholder for Schemify/Webify lowered modules.
              (param $b (ref eq)) (param $v (ref eq))
              (result (ref eq))
-             ; 1. Cast $b into a (ref $Box)
+             ; 1. Cast $b into a (ref $Boxed)
              (local $B (ref $Boxed))
              (local.set $B
                         (block $ok (result (ref $Boxed))
                                (br_on_cast $ok (ref eq) (ref $Boxed) (local.get $b))
-                               (return (global.get $error))))
+                               (call $raise-argument-error1
+                                     (global.get $symbol:set-boxed!)
+                                     (global.get $string:boxed?)
+                                     (local.get $b))
+                               (unreachable)))
              ; 2. Set the contents
              (struct.set $Boxed $v (local.get $B) (local.get $v))
              ; 3. Return `void`
@@ -102,7 +107,11 @@
              (local.set $B
                         (block $ok (result (ref $Boxed))
                                (br_on_cast $ok (ref eq) (ref $Boxed) (local.get $b))
-                               (return (global.get $error))))
+                               (call $raise-argument-error1
+                                     (global.get $symbol:initialize-boxed!)
+                                     (global.get $string:boxed?)
+                                     (local.get $b))
+                               (unreachable)))
              (struct.set $Boxed $v (local.get $B) (local.get $v))
              (global.get $void))))
 

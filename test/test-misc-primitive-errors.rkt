@@ -73,9 +73,27 @@
          "keyword<?"
          "keyword?"
          "given: \"bad\"")))
+ (list "internal boxed mutation argument errors are catchable"
+       (and
+        (catch-contract/contains?
+         (lambda () (set-boxed! 42 'value))
+         "set-boxed!"
+         "boxed?"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (initialize-boxed! 42 'value))
+         "initialize-boxed!"
+         "boxed?"
+         "given: 42")))
  (list "misc primitive success cases still work"
-       (and (equal? (first '(a b c)) 'a)
-            (equal? (last '(a b c)) 'c)
-            (equal? (string-replace "aaa" "a" "b" #f) "baa")
-            (equal? (string-replace "aaa" "a" "b" #t) "bbb")
-            (equal? (fasl->s-exp (s-exp->fasl '(1 . 2))) '(1 . 2)))))
+       (let ([b (boxed 'old)])
+         (and (equal? (first '(a b c)) 'a)
+              (equal? (last '(a b c)) 'c)
+              (equal? (string-replace "aaa" "a" "b" #f) "baa")
+              (equal? (string-replace "aaa" "a" "b" #t) "bbb")
+              (equal? (fasl->s-exp (s-exp->fasl '(1 . 2))) '(1 . 2))
+              (boxed? b)
+              (void? (set-boxed! b 'new))
+              (equal? (unboxed b) 'new)
+              (void? (initialize-boxed! b 'initialized))
+              (equal? (unboxed b) 'initialized)))))
