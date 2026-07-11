@@ -1115,6 +1115,55 @@
      (and (function-definition-form? form)
           (eq? (module-func-name form) '$runtime-add-state))))
 
+  (define direct-ffi-classified-module
+    '(module
+      (type $T (func (result i32)))
+      (func $runtime-helper (result i32) (i32.const 41))
+      (func $js-eval/imported (import "host" "js-eval") (result i32))
+      (func $js-eval
+            (result i32)
+            (i32.add
+             (call $runtime-helper)
+             (call $js-eval/imported)))
+      (global $prim:js-eval (mut (ref eq)) (ref.null eq))
+      (global $result (mut i32) (i32.const 0))
+      (func $entry (global.set $result (call $js-eval)))))
+  (define direct-ffi-classified-split
+    (split-classified-runtime-module
+     direct-ffi-classified-module
+     #:program-function-names '($entry)
+     #:result-global '$result
+     #:top-level-variable-declarations
+     '((global $result (mut i32) (i32.const 0)))
+     #:string-constants '()
+     #:bytes-constants '()
+     #:symbol-constants '()
+     #:extra-program-function-names '($js-eval/imported $js-eval)
+     #:extra-program-global-names '($prim:js-eval)))
+  (define direct-ffi-core-forms
+    (module-forms (split-runtime-modules-core direct-ffi-classified-split)))
+  (define direct-ffi-program-forms
+    (module-forms (split-runtime-modules-program direct-ffi-classified-split)))
+
+  (check-equal? (split-runtime-modules-imported-names
+                 direct-ffi-classified-split)
+                '($runtime-helper))
+  (check-not-false
+   (member '(func $runtime-helper (result i32) (i32.const 41))
+           direct-ffi-core-forms))
+  (check-not-false
+   (member '(func $js-eval/imported
+                  (import "host" "js-eval")
+                  (result i32))
+           direct-ffi-program-forms))
+  (check-not-false
+   (member '(global $prim:js-eval (mut (ref eq)) (ref.null eq))
+           direct-ffi-program-forms))
+  (check-false
+   (for/or ([form (in-list direct-ffi-core-forms)])
+     (memq (or (module-func-name form) (module-global-name form))
+           '($js-eval/imported $js-eval $prim:js-eval))))
+
   (define pullback-order-module
     '(module
       (type $I8Array (array (mut i8)))

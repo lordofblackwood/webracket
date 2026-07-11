@@ -994,6 +994,34 @@
                   (func $entry)
                   (func $program)))
 
+  (define split-extra-program-sample-module
+    '(module
+      (func $runtime-helper)
+      (func $js-eval/imported (import "host" "js-eval"))
+      (func $js-eval (call $js-eval/imported))
+      (global $runtime-global (mut (ref eq)) (ref.null eq))
+      (global $prim:js-eval (mut (ref eq)) (ref.null eq))))
+
+  (define-values (split-extra-runtime-forms split-extra-program-forms)
+    (split-module-forms
+     split-extra-program-sample-module
+     #:program-function-names '()
+     #:result-global '$result
+     #:top-level-variable-declarations '()
+     #:string-constants '()
+     #:bytes-constants '()
+     #:symbol-constants '()
+     #:extra-program-function-names '($js-eval/imported $js-eval)
+     #:extra-program-global-names '($prim:js-eval)))
+
+  (check-equal? split-extra-runtime-forms
+                '((global $runtime-global (mut (ref eq)) (ref.null eq))
+                  (func $runtime-helper)))
+  (check-equal? split-extra-program-forms
+                '((global $prim:js-eval (mut (ref eq)) (ref.null eq))
+                  (func $js-eval (call $js-eval/imported))
+                  (func $js-eval/imported (import "host" "js-eval"))))
+
   (define primitive-func->symbol
     (hasheq '$p 'p '$q 'q))
 

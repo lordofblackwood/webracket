@@ -210,6 +210,13 @@
       (func $b)
       (func $a)
       (func $not-ffi)))
+  (define (symbol-in? value wanted)
+    (cond
+      [(eq? value wanted) #t]
+      [(pair? value)
+       (or (symbol-in? (car value) wanted)
+           (symbol-in? (cdr value) wanted))]
+      [else #f]))
 
   (check-pred list? ffi-callback-global-forms)
   (check-pred list? ffi-entry-global-forms)
@@ -291,6 +298,17 @@
        (and (pair? form)
             (eq? (first form) 'func)
             (eq? (second form) '$unsafe-ffi-primitive))))
+    (define split-direct-import-wrapper-helper-forms
+      (runtime-ffi-state-import-wrapper-helper-forms
+       state
+       #:unsafe-ffi-foreigns '()))
+    (check-equal? (first split-direct-import-wrapper-helper-forms)
+                  '(func $a/imported))
+    (check-equal? (second split-direct-import-wrapper-helper-forms)
+                  '(func $a))
+    (check-false
+     (for/or ([form (in-list split-direct-import-wrapper-helper-forms)])
+       (symbol-in? form '$prim:a)))
     (check-equal? (runtime-ffi-state-primitive-global-forms state)
                   '((global $prim:a (mut (ref eq)) (ref.i31 (i32.const 79)))))
     (check-match (runtime-ffi-state-primitive-initializer-forms state)
