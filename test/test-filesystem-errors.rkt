@@ -51,6 +51,74 @@
          "open-input-file"
          "VFS file read failed"
          "/app/missing-open-input.txt")))
+ (list "single-path VFS failures report paths"
+       (and
+        (catch-fail/contains?
+         (lambda () (file-size "/app/missing-size.txt"))
+         "file-size"
+         "path:"
+         "/app/missing-size.txt")
+        (catch-fail/contains?
+         (lambda () (file-or-directory-type "/app/missing-type.txt" #t))
+         "file-or-directory-type"
+         "path:"
+         "/app/missing-type.txt")
+        (catch-fail/contains?
+         (lambda () (directory-list "/app/missing-list-dir"))
+         "directory-list"
+         "path:"
+         "/app/missing-list-dir")
+        (catch-fail/contains?
+         (lambda () (delete-file "/app/missing-delete.txt"))
+         "delete-file"
+         "path:"
+         "/app/missing-delete.txt")
+        (catch-fail/contains?
+         (lambda () (make-directory "/app/missing-parent/child"))
+         "make-directory"
+         "path:"
+         "/app/missing-parent/child")
+        (catch-fail/contains?
+         (lambda () (delete-directory "/app/missing-empty-dir"))
+         "delete-directory"
+         "path:"
+         "/app/missing-empty-dir")
+        (catch-fail/contains?
+         (lambda () (delete-directory/files "/app/missing-tree"))
+         "delete-directory/files"
+         "path:"
+         "/app/missing-tree")
+        (catch-fail/contains?
+         (lambda () (file-or-directory-modify-seconds "/app/missing-mtime"))
+         "file-or-directory-modify-seconds"
+         "path:"
+         "/app/missing-mtime")
+        (catch-fail/contains?
+         (lambda () (file-or-directory-permissions "/app/missing-perms"))
+         "file-or-directory-permissions"
+         "path:"
+         "/app/missing-perms")))
+ (list "write-side VFS failures report who and path"
+       (and
+        (let ([_ (webracket-vfs-write-file "/app/existing-output.txt" #"old")])
+          (catch-fail/contains?
+           (lambda () (open-output-file "/app/existing-output.txt"))
+           "open-output-file"
+           "VFS file write failed"
+           "/app/existing-output.txt"))
+        (let ([_ (make-directory "/app/output-dir")])
+          (catch-fail/contains?
+           (lambda () (open-output-file "/app/output-dir"))
+           "open-output-file"
+           "VFS file write failed"
+           "/app/output-dir"))
+        (catch-fail/contains?
+         (lambda () (open-output-file "/app/missing-must-truncate.txt"
+                                      'binary
+                                      'must-truncate))
+         "open-output-file"
+         "VFS file write failed"
+         "/app/missing-must-truncate.txt")))
  (list "multi-path VFS operations report oversized destination paths with who"
        (and
         (catch-fail/contains?

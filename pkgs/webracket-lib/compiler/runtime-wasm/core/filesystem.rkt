@@ -79,7 +79,8 @@
 ;; filesystem-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for VFS and file-operation helpers.
 (define filesystem-runtime-only-helper-names
-  '($raise-vfs-file-error/who-path
+  '($raise-vfs-file-error/path
+    $raise-vfs-file-error/who-path
     $raise-vfs-path-too-long
     $raise-vfs-file-buffer-too-small
     $vfs-path-stat-kind
@@ -134,6 +135,25 @@
 ;;   Enumerate VFS and file-operation helpers used by the monolithic runtime.
 (define filesystem-runtime-only-forms
   '(
+    (func $raise-vfs-file-error/path
+          (param $message  (ref eq))
+          (param $path-raw (ref eq))
+
+          (local $out  (ref $GrowableArray))
+          (local $full (ref $String))
+
+          (local.set $out (call $make-growable-array (i32.const 3)))
+          (call $growable-array-add! (local.get $out)
+                (ref.cast (ref $String) (local.get $message)))
+          (call $growable-array-add! (local.get $out)
+                (global.get $string:vfs:error-path))
+          (call $growable-array-add! (local.get $out)
+                (call $format/write (local.get $path-raw)))
+          (local.set $full
+                     (call $growable-array-of-strings->string (local.get $out)))
+          (call $raise-vfs-file-error (local.get $full))
+          (unreachable))
+
     (func $raise-vfs-file-error/who-path
           (param $who      (ref eq))
           (param $path-raw (ref eq))
@@ -296,8 +316,9 @@
           (if (i32.eqz (ref.eq (local.get $must-exist-raw) (global.get $false)))
               (then
                (if (i32.eqz (ref.eq (local.get $must-exist-raw) (global.get $missing)))
-                   (then (call $raise-vfs-file-error
-                               (global.get $string:vfs:type-failed))
+                   (then (call $raise-vfs-file-error/path
+                               (global.get $string:vfs:type-failed)
+                               (local.get $path-raw))
                          (unreachable)))))
           (global.get $false))
 
@@ -371,15 +392,17 @@
               (then (call $raise-string-buffer-overflow)
                     (unreachable)))
           (if (i32.lt_s (local.get $fasl-len) (i32.const 0))
-              (then (call $raise-vfs-file-error
-                          (global.get $string:vfs:directory-list-failed))
+              (then (call $raise-vfs-file-error/path
+                          (global.get $string:vfs:directory-list-failed)
+                          (local.get $path-raw))
                     (unreachable)))
           (local.set $names-raw
                      (call $fasl-memory->s-exp
                            (global.get $memory-map:vfs-file-buffer-base)))
           (if (i32.eqz (ref.test (ref $Vector) (local.get $names-raw)))
-              (then (call $raise-vfs-file-error
-                          (global.get $string:vfs:directory-list-failed))
+              (then (call $raise-vfs-file-error/path
+                          (global.get $string:vfs:directory-list-failed)
+                          (local.get $path-raw))
                     (unreachable)))
           (local.set $names (ref.cast (ref $Vector) (local.get $names-raw)))
           (local.set $arr (struct.get $Vector $arr (local.get $names)))
@@ -394,8 +417,9 @@
                                              (local.get $arr)
                                              (local.get $i)))
                        (if (i32.eqz (ref.test (ref $String) (local.get $entry)))
-                           (then (call $raise-vfs-file-error
-                                       (global.get $string:vfs:directory-list-failed))
+                           (then (call $raise-vfs-file-error/path
+                                       (global.get $string:vfs:directory-list-failed)
+                                       (local.get $path-raw))
                                  (unreachable)))
                        (local.set $entry-path
                                   (call $string->path
@@ -561,23 +585,26 @@
               (then (call $raise-string-buffer-overflow)
                     (unreachable)))
           (if (i32.lt_s (local.get $fasl-len) (i32.const 0))
-              (then (call $raise-vfs-file-error
-                          (global.get $string:vfs:stat-failed))
+              (then (call $raise-vfs-file-error/path
+                          (global.get $string:vfs:stat-failed)
+                          (local.get $path-raw))
                     (unreachable)))
           (local.set $items-raw
                      (call $fasl-memory->s-exp
                            (global.get $memory-map:vfs-file-buffer-base)))
           (if (i32.eqz (ref.test (ref $Vector) (local.get $items-raw)))
-              (then (call $raise-vfs-file-error
-                          (global.get $string:vfs:stat-failed))
+              (then (call $raise-vfs-file-error/path
+                          (global.get $string:vfs:stat-failed)
+                          (local.get $path-raw))
                     (unreachable)))
           (local.set $items (ref.cast (ref $Vector) (local.get $items-raw)))
           (local.set $arr (struct.get $Vector $arr (local.get $items)))
           (if (i32.ne
                (i32.and (array.len (local.get $arr)) (i32.const 1))
-               (i32.const 0))
-              (then (call $raise-vfs-file-error
-                          (global.get $string:vfs:stat-failed))
+              (i32.const 0))
+              (then (call $raise-vfs-file-error/path
+                          (global.get $string:vfs:stat-failed)
+                          (local.get $path-raw))
                     (unreachable)))
           (local.set $ht (call $make-empty-hasheq))
           (local.set $i (i32.const 0))
@@ -640,8 +667,9 @@
                            (global.get $memory-map:vfs-path-buffer-base)
                            (local.get $path-len)))
           (if (i32.le_s (local.get $id) (i32.const 0))
-              (then (call $raise-vfs-file-error
-                          (global.get $string:vfs:identity-failed))
+              (then (call $raise-vfs-file-error/path
+                          (global.get $string:vfs:identity-failed)
+                          (local.get $path-raw))
                     (unreachable)))
           (ref.i31 (i32.shl (local.get $id) (i32.const 1))))
 
@@ -681,8 +709,9 @@
                                  (global.get $memory-map:vfs-path-buffer-base)
                                  (local.get $len)))
           (if (i32.lt_s (local.get $size) (i32.const 0))
-              (then (call $raise-vfs-file-error
-                          (global.get $string:vfs:file-size-failed))
+              (then (call $raise-vfs-file-error/path
+                          (global.get $string:vfs:file-size-failed)
+                          (local.get $path-raw))
                     (unreachable)))
           (ref.i31 (i32.shl (local.get $size) (i32.const 1))))
 
@@ -1207,7 +1236,9 @@
                            (global.get $memory-map:vfs-file-buffer-base)
                            (local.get $bytes-len)))
           (if (i32.lt_s (local.get $status) (i32.const 0))
-              (then (call $raise-vfs-file-error
+              (then (call $raise-vfs-file-error/who-path
+                          (global.get $symbol:webracket-vfs-write-file)
+                          (local.get $path-raw)
                           (global.get $string:vfs:write-file-failed))
                     (unreachable)))
           (global.get $void))
@@ -1252,8 +1283,9 @@
                            (global.get $memory-map:vfs-path-buffer-base)
                            (local.get $path-len)))
           (if (i32.lt_s (local.get $status) (i32.const 0))
-              (then (call $raise-vfs-file-error
-                          (global.get $string:vfs:delete-file-failed))
+              (then (call $raise-vfs-file-error/path
+                          (global.get $string:vfs:delete-file-failed)
+                          (local.get $path-raw))
                     (unreachable)))
           (global.get $void))
 
@@ -1298,8 +1330,9 @@
                            (global.get $memory-map:vfs-path-buffer-base)
                            (local.get $path-len)))
           (if (i32.lt_s (local.get $status) (i32.const 0))
-              (then (call $raise-vfs-file-error
-                          (global.get $string:vfs:make-directory-failed))
+              (then (call $raise-vfs-file-error/path
+                          (global.get $string:vfs:make-directory-failed)
+                          (local.get $path-raw))
                     (unreachable)))
           (global.get $void))
 
@@ -1343,8 +1376,9 @@
                            (global.get $memory-map:vfs-path-buffer-base)
                            (local.get $path-len)))
           (if (i32.lt_s (local.get $status) (i32.const 0))
-              (then (call $raise-vfs-file-error
-                          (global.get $string:vfs:make-directory*-failed))
+              (then (call $raise-vfs-file-error/path
+                          (global.get $string:vfs:make-directory*-failed)
+                          (local.get $path-raw))
                     (unreachable)))
           (global.get $void))
 
@@ -1388,8 +1422,9 @@
                            (global.get $memory-map:vfs-path-buffer-base)
                            (local.get $path-len)))
           (if (i32.lt_s (local.get $status) (i32.const 0))
-              (then (call $raise-vfs-file-error
-                          (global.get $string:vfs:make-parent-directory*-failed))
+              (then (call $raise-vfs-file-error/path
+                          (global.get $string:vfs:make-parent-directory*-failed)
+                          (local.get $path-raw))
                     (unreachable)))
           (global.get $void))
 
@@ -1433,8 +1468,9 @@
                            (global.get $memory-map:vfs-path-buffer-base)
                            (local.get $path-len)))
           (if (i32.lt_s (local.get $status) (i32.const 0))
-              (then (call $raise-vfs-file-error
-                          (global.get $string:vfs:delete-directory-failed))
+              (then (call $raise-vfs-file-error/path
+                          (global.get $string:vfs:delete-directory-failed)
+                          (local.get $path-raw))
                     (unreachable)))
           (global.get $void))
 
@@ -1488,8 +1524,9 @@
                            (global.get $memory-map:vfs-path-buffer-base)
                            (local.get $path-len)))
           (if (i32.lt_s (local.get $status) (i32.const 0))
-              (then (call $raise-vfs-file-error
-                          (global.get $string:vfs:delete-directory/files-failed))
+              (then (call $raise-vfs-file-error/path
+                          (global.get $string:vfs:delete-directory/files-failed)
+                          (local.get $path-raw))
                     (unreachable)))
           (global.get $void))
 
@@ -2197,8 +2234,9 @@
           (if (i32.lt_s (local.get $mtime) (i32.const 0))
               (then
                (if (ref.eq (local.get $fail-raw) (global.get $missing))
-                   (then (call $raise-vfs-file-error
-                               (global.get $string:vfs:modify-seconds-failed))
+                   (then (call $raise-vfs-file-error/path
+                               (global.get $string:vfs:modify-seconds-failed)
+                               (local.get $path-raw))
                          (unreachable)))
                (local.set $args
                           (array.new $Args
@@ -2288,8 +2326,9 @@
                            (local.get $set-mode?)
                            (local.get $mode)))
           (if (i32.lt_s (local.get $bits) (i32.const 0))
-              (then (call $raise-vfs-file-error
-                          (global.get $string:vfs:permissions-failed))
+              (then (call $raise-vfs-file-error/path
+                          (global.get $string:vfs:permissions-failed)
+                          (local.get $path-raw))
                     (unreachable)))
           (if (local.get $set-mode?)
               (then (return (global.get $void))))
@@ -2375,19 +2414,25 @@
                            (global.get $symbol:open-output-file)
                            (local.get $path-raw)))
           (if (i32.eq (local.get $kind) (i32.const 2))
-              (then (call $raise-vfs-file-error
+              (then (call $raise-vfs-file-error/who-path
+                          (global.get $symbol:open-output-file)
+                          (local.get $path-raw)
                           (global.get $string:vfs:write-file-failed))
                     (unreachable)))
           (if (i32.and
                (ref.eq (local.get $exists) (global.get $symbol:error))
                (i32.ne (local.get $kind) (i32.const 0)))
-              (then (call $raise-vfs-file-error
+              (then (call $raise-vfs-file-error/who-path
+                          (global.get $symbol:open-output-file)
+                          (local.get $path-raw)
                           (global.get $string:vfs:write-file-failed))
                     (unreachable)))
           (if (i32.and
                (ref.eq (local.get $exists) (global.get $symbol:must-truncate))
                (i32.ne (local.get $kind) (i32.const 1)))
-              (then (call $raise-vfs-file-error
+              (then (call $raise-vfs-file-error/who-path
+                          (global.get $symbol:open-output-file)
+                          (local.get $path-raw)
                           (global.get $string:vfs:write-file-failed))
                     (unreachable)))
           (local.set $append?
