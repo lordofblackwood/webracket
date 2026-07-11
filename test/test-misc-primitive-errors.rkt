@@ -14,6 +14,18 @@
                    (string-contains? message needle))
                  needles))))
 
+(define (catch-unsupported/contains? thunk . needles)
+  (let ([message
+         (with-handlers ([exn:fail:unsupported?
+                          (lambda (exn)
+                            (exn-message exn))])
+           (thunk)
+           #f)])
+    (and message
+         (andmap (lambda (needle)
+                   (string-contains? message needle))
+                 needles))))
+
 (list
  (list "ordinal list accessors check non-empty lists"
        (and
@@ -49,6 +61,11 @@
         "fasl->s-exp"
         "(or/c bytes? input-port?)"
         "given: 42"))
+ (list "s-exp->fasl unsupported values are catchable"
+       (catch-unsupported/contains?
+        (lambda () (s-exp->fasl (lambda (x) x)))
+        "s-exp->fasl"
+        "unsupported value"))
  (list "external conversion argument errors are catchable"
        (and
         (catch-contract/contains?

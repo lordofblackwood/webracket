@@ -79,4 +79,11 @@
        (catch-unsupported/contains?
         (lambda () (dynamic-require 'racket/base 'car))
         "dynamic-require"
-        "dynamic module loading is not supported")))
+        "dynamic module loading is not supported"))
+ (list "module-call-with-prompt runtime primitive is catchable unsupported"
+       (catch-unsupported/contains?
+        (lambda ()
+          (let ([call-with-module-prompt module-call-with-prompt])
+            (call-with-module-prompt (lambda () 'ok))))
+        "module-call-with-prompt"
+        "module prompts are not supported")))

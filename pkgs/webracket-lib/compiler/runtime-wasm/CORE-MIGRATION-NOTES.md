@@ -20,6 +20,14 @@ not behavior to carry forward into core support. Internal trusted helpers
 may still use traps for impossible invariants, but primitive-facing error
 paths should report Racket errors.
 
+Recent semantic cleanup:
+
+- `module-call-with-prompt` now reports the unsupported module-prompt
+  runtime path as `exn:fail:unsupported`, not as a thunk argument contract
+  error.
+- `s-exp->fasl` now reports values outside the current FASL encoder surface
+  as `exn:fail:unsupported` with a `s-exp->fasl` message prefix.
+
 ## Preserved Behavior To Revisit
 
 ### `$growable-bytes->bytes` Sets `$Bytes` Immutable Field To Byte Count

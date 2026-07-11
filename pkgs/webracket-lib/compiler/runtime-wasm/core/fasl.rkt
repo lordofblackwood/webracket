@@ -56,7 +56,9 @@
 ;; fasl-runtime-string-constants : (listof (list/c symbol? string?))
 ;;   Declare string constants used by FASL helpers.
 (define fasl-runtime-string-constants
-  '((fasl->s-exp-input "(or/c bytes? input-port?)")))
+  '((fasl->s-exp-input "(or/c bytes? input-port?)")
+    (s-exp->fasl-unsupported-prefix
+     "s-exp->fasl: unsupported value\n  value: ")))
 
 ;; fasl-tag-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate FASL tag globals used by the monolithic runtime.
@@ -132,8 +134,10 @@
                (param $v (ref eq))
 
                (drop (call $raise
-                           (call $make-exn:fail
-                                 (call $format/display (local.get $v))
+                           (call $exn:fail:unsupported/make
+                                 (call $string-append/2
+                                       (global.get $string:s-exp->fasl-unsupported-prefix)
+                                       (call $format/display (local.get $v)))
                                  (call $current-continuation-marks
                                        (global.get $missing)))
                            (global.get $true)))

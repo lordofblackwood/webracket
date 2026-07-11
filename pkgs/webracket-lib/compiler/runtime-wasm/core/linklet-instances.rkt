@@ -27,7 +27,8 @@
     (module-variable-reference?    "module-variable-reference?")
     (module-variable-same-length-vectors
      "value vector with the same length as the cell vector")
-    (module-prompts-unsupported    "module prompts are not supported by WebRacket yet")))
+    (module-prompts-unsupported
+     "module-call-with-prompt: module prompts are not supported by WebRacket yet")))
 
 ;; linklet-instance-runtime-symbol-constants : (listof symbol?)
 ;;   Declare symbols used by linklet instance mutation modes.
@@ -850,10 +851,12 @@
 	               (param $rest  (ref eq)) ;; prompt metadata
 	               (result (ref eq))
 
-	               (call $raise-argument-error1
-	                     (global.get $symbol:module-call-with-prompt)
-	                     (global.get $string:module-prompts-unsupported)
-	                     (local.get $thunk))
+	               (drop (call $raise
+	                           (call $exn:fail:unsupported/make
+	                                 (global.get $string:module-prompts-unsupported)
+	                                 (call $current-continuation-marks
+	                                       (global.get $missing)))
+	                           (global.get $true)))
 	               (unreachable))
      ))
 
