@@ -9,6 +9,7 @@
                   primitive->description)
          (only-in "private/parameters.rkt"
                   current-browser?
+                  current-tree-shake?
                   current-split-runtime?)
          (only-in "private/wasm-utils.rkt"
                   $
@@ -28,7 +29,8 @@
                   analyzed-runtime-module?
                   analyzed-runtime-module-module
                   analyzed-runtime-module-program-forms
-                  analyzed-runtime-module-runtime-forms)
+                  analyzed-runtime-module-runtime-forms
+                  analyzed-runtime-module-stable-runtime-cache-fingerprint)
          (only-in "runtime-wasm/runtime-helper-index.rkt"
                   runtime-helper-index)
          (only-in "runtime-wasm/runtime-ffi.rkt"
@@ -1893,6 +1895,12 @@
          (lambda ()
            (split-classified-runtime-forms
             (analyzed-runtime-module-runtime-forms analyzed-module)
-            (analyzed-runtime-module-program-forms analyzed-module))))
+            (analyzed-runtime-module-program-forms analyzed-module)
+            #:core-cache-key
+            `(split-runtime-core-cache
+              1
+              ,(if (current-tree-shake?) 'tree-shake 'no-tree-shake)
+              ,(analyzed-runtime-module-stable-runtime-cache-fingerprint
+                analyzed-module)))))
         final-module)
     ))

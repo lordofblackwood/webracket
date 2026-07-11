@@ -53,6 +53,8 @@
                                     string-prefix?)
          (only-in racket/set        set-member?
                                     seteq)
+         (only-in file/sha1         bytes->hex-string
+                                    sha1-bytes)
          racket/unsafe/undefined
          #;(only-in "lang/reader.rkt" read-syntax)
          (only-in "assembler.rkt"
@@ -64,6 +66,7 @@
                   split-core-runtime-module
                   split-runtime-modules?
                   split-runtime-modules-core
+                  split-runtime-modules-core-cache-key
                   split-runtime-modules-imported-names
                   split-runtime-modules-program)
          (only-in "runtime-wasm/module-forms.rkt"
@@ -2874,18 +2877,25 @@
 (define (split-runtime-core-fingerprint core-module)
   (module-write-sha1 core-module))
 
+;; split-runtime-core-cache-key-fingerprint : any/c -> string?
+;;   Fingerprint a compiler-provided stable split runtime cache key.
+(define (split-runtime-core-cache-key-fingerprint cache-key)
+  (bytes->hex-string
+   (sha1-bytes
+    (s-exp->fasl cache-key))))
+
 ;; split-runtime-core-cache-wasm-path : string? -> path?
 ;;   Return the stable cache path for an assembled split core runtime module.
 (define (split-runtime-core-cache-wasm-path fingerprint)
   (runtime-provider-cache-path
-   "split-runtime-core-v2"
+   "split-runtime-core-v3"
    (format "~a.wasm" fingerprint)))
 
 ;; split-runtime-core-cache-wat-path : string? boolean? -> path?
 ;;   Return the stable cache path for a rendered split core runtime WAT module.
 (define (split-runtime-core-cache-wat-path fingerprint pretty-wat?)
   (runtime-provider-cache-path
-   "split-runtime-core-v2"
+   "split-runtime-core-v3"
    (format "~a.~a.wat"
            fingerprint
            (if pretty-wat? "pretty" "compact"))))
@@ -2898,6 +2908,7 @@
 ;; assemble-split-runtime-core/cached! :
 ;;   list? path-string? path-string? boolean?
 ;;   (list? path-string? path-string? -> boolean?)
+;;   [#:cache-key any/c]
 ;;   [#:record-timing! (string? real? -> any/c)] -> boolean?
 ;;   Assemble the core runtime sidecar, reusing a fingerprinted Wasm cache hit.
 (define (assemble-split-runtime-core/cached! core-module
@@ -2905,6 +2916,7 @@
                                              runtime-wasm
                                              pretty-wat?
                                              assemble-module!
+                                             #:cache-key [cache-key #f]
                                              #:record-timing!
                                              [record-timing! void])
   (define (time-core-cache-step label thunk)
@@ -2913,10 +2925,15 @@
       (thunk)
       (record-timing! label (- (now-ms) start-ms))))
   (define fingerprint
-    (time-core-cache-step
-     "split-runtime-core:fingerprint"
-     (lambda ()
-       (split-runtime-core-fingerprint core-module))))
+    (if cache-key
+        (time-core-cache-step
+         "split-runtime-core:stable-cache-key"
+         (lambda ()
+           (split-runtime-core-cache-key-fingerprint cache-key)))
+        (time-core-cache-step
+         "split-runtime-core:fingerprint"
+         (lambda ()
+           (split-runtime-core-fingerprint core-module)))))
   (define cache-wasm-path (split-runtime-core-cache-wasm-path fingerprint))
   (define cache-wat-path (split-runtime-core-cache-wat-path fingerprint
                                                             pretty-wat?))
@@ -3436,6 +3453,7 @@
               runtime-wasm
               pretty-wat?
               assemble-module!
+              #:cache-key (split-runtime-modules-core-cache-key split-modules)
               #:record-timing!
               (lambda (label elapsed-ms)
                 (set! split-runtime-core-timing-rows

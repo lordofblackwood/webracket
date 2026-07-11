@@ -26,7 +26,11 @@
 
 ;; A split runtime result contains the standalone runtime module and the
 ;; rewritten program module that imports selected helper functions from it.
-(struct split-runtime-modules (core program imported-names import-forms) #:transparent)
+;; core-cache-key is #f unless the producer can prove that the runtime side is
+;; stable enough to cache without hashing the generated module tree.
+(struct split-runtime-modules
+  (core program imported-names import-forms core-cache-key)
+  #:transparent)
 
 ;; function-import-form? : any/c -> boolean?
 ;;   Check whether form is a top-level imported function declaration.
@@ -760,7 +764,8 @@
    core-module
    `(module ,@prefix ,@import-forms ,@rest)
    (map core-runtime-helper-name selected-helpers)
-   import-forms))
+   import-forms
+   #f))
 
 ;; split-classified-runtime-forms :
 ;;   (listof datum?) (listof datum?) [#:import-module string?] -> split-runtime-modules?
@@ -768,7 +773,8 @@
 (define (split-classified-runtime-forms
          runtime-forms
          initial-program-forms
-         #:import-module [import-module-name "core"])
+         #:import-module [import-module-name "core"]
+         #:core-cache-key [core-cache-key #f])
   (define pulled-runtime-global-names
     (runtime-referenced-program-global-names runtime-forms
                                              initial-program-forms))
@@ -842,7 +848,8 @@
       ,@program-elem-forms
       ,@program-supplemental-elem-forms)
    imported-names
-   import-forms))
+   import-forms
+   core-cache-key))
 
 ;; split-classified-runtime-module :
 ;;   datum? #:program-function-names (listof symbol?) #:result-global symbol?
@@ -861,7 +868,8 @@
          #:symbol-constants symbol-constants
          #:extra-program-function-names [extra-program-function-names '()]
          #:extra-program-global-names [extra-program-global-names '()]
-         #:import-module [import-module-name "core"])
+         #:import-module [import-module-name "core"]
+         #:core-cache-key [core-cache-key #f])
   (define-values (runtime-forms/reversed program-forms/reversed)
     (split-module-forms
      module
@@ -876,7 +884,8 @@
   (split-classified-runtime-forms
    (reverse runtime-forms/reversed)
    (reverse program-forms/reversed)
-   #:import-module import-module-name))
+   #:import-module import-module-name
+   #:core-cache-key core-cache-key))
 
 (module+ test
   (require rackunit
@@ -1086,6 +1095,15 @@
     (reverse classified-runtime-forms/reversed)
     (reverse classified-program-forms/reversed))
    classified-split)
+  (check-false (split-runtime-modules-core-cache-key classified-split))
+  (check-equal?
+   (split-runtime-modules-core-cache-key
+    (split-classified-runtime-forms
+     '((func $runtime-helper))
+     '((func $program)
+       (func $entry))
+     #:core-cache-key '(stable-core-key)))
+   '(stable-core-key))
 
   (check-equal?
    (split-runtime-modules-imported-names classified-split)

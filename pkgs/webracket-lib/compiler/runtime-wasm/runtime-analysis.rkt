@@ -6,6 +6,7 @@
          analyzed-runtime-module-module
          analyzed-runtime-module-runtime-forms
          analyzed-runtime-module-program-forms
+         analyzed-runtime-module-stable-runtime-cache-fingerprint
          analyze-stable-runtime/cached
          analyze-stable-runtime
          list->eq-set
@@ -46,12 +47,13 @@
          racket/file)
 
 ;; analyzed-runtime-module :
-;;   list? (listof datum?) (listof datum?) -> analyzed-runtime-module?
+;;   list? (listof datum?) (listof datum?) any/c -> analyzed-runtime-module?
 ;;   Carries a pruned module plus classified pruned forms for split mode.
 (struct analyzed-runtime-module
   (module
    runtime-forms
-   program-forms)
+   program-forms
+   stable-runtime-cache-fingerprint)
   #:transparent)
 
 ;; default-time-runtime-step : string? (-> any/c) -> any/c
@@ -291,6 +293,7 @@
 ;;         #:active-ffi-funcs-wat list? #:cache-root (or/c path-string? #f)
 ;;         #:primitive-func->symbol hasheq? #:primitive-global->symbol hasheq?
 ;;         #:described-primitives (listof symbol?)
+;;         [#:cache-fingerprint any/c]
 ;;         [#:time-runtime-step (string? (-> any/c) -> any/c)] -> list?
 ;;   Return stable runtime analysis, using the runtime-analysis cache when available.
 (define (analyze-stable-runtime/cached
@@ -304,18 +307,20 @@
          #:primitive-func->symbol primitive-func->symbol
          #:primitive-global->symbol primitive-global->symbol
          #:described-primitives described-primitives
+         #:cache-fingerprint [cache-fingerprint #f]
          #:time-runtime-step [time-runtime-step default-time-runtime-step])
   (define stable-runtime-cache-fingerprint
-    (time-runtime-step
-     "tree-shake:stable-runtime-cache-fingerprint"
-     (lambda ()
-       (stable-runtime-analysis-cache-fingerprint
-        stable-runtime-module
-        #:browser? browser?
-        #:runtime-source-fingerprint runtime-source-fingerprint
-        #:active-ffi-foreigns active-ffi-foreigns
-        #:active-ffi-imports-wat active-ffi-imports-wat
-        #:active-ffi-funcs-wat active-ffi-funcs-wat))))
+    (or cache-fingerprint
+        (time-runtime-step
+         "tree-shake:stable-runtime-cache-fingerprint"
+         (lambda ()
+           (stable-runtime-analysis-cache-fingerprint
+            stable-runtime-module
+            #:browser? browser?
+            #:runtime-source-fingerprint runtime-source-fingerprint
+            #:active-ffi-foreigns active-ffi-foreigns
+            #:active-ffi-imports-wat active-ffi-imports-wat
+            #:active-ffi-funcs-wat active-ffi-funcs-wat)))))
   (runtime-metric-add! "runtime:stable-runtime-fingerprint"
                        (format "~x"
                                (abs (equal-hash-code
@@ -427,11 +432,24 @@
     (forms->module runtime-forms-before-prune))
   (define stable-runtime-module
     (stable-runtime-analysis-module runtime-only-module))
+  (define runtime-source-cache-fingerprint
+    (runtime-source-fingerprint))
+  (define stable-runtime-cache-fingerprint
+    (time-runtime-step
+     "tree-shake:stable-runtime-cache-fingerprint"
+     (lambda ()
+       (stable-runtime-analysis-cache-fingerprint
+        stable-runtime-module
+        #:browser? (current-browser?)
+        #:runtime-source-fingerprint runtime-source-cache-fingerprint
+        #:active-ffi-foreigns stable-runtime-active-ffi-foreigns
+        #:active-ffi-imports-wat stable-runtime-active-ffi-imports-wat
+        #:active-ffi-funcs-wat stable-runtime-active-ffi-funcs-wat))))
   (define stable-runtime-analysis
     (analyze-stable-runtime/cached
      stable-runtime-module
      #:browser? (current-browser?)
-     #:runtime-source-fingerprint (runtime-source-fingerprint)
+     #:runtime-source-fingerprint runtime-source-cache-fingerprint
      #:active-ffi-foreigns stable-runtime-active-ffi-foreigns
      #:active-ffi-imports-wat stable-runtime-active-ffi-imports-wat
      #:active-ffi-funcs-wat stable-runtime-active-ffi-funcs-wat
@@ -439,6 +457,7 @@
      #:primitive-func->symbol primitive-func->symbol
      #:primitive-global->symbol primitive-global->symbol
      #:described-primitives described-primitives
+     #:cache-fingerprint stable-runtime-cache-fingerprint
      #:time-runtime-step time-runtime-step))
   (define program-analysis
     (time-runtime-step
@@ -518,7 +537,8 @@
   (if include-classified?
       (analyzed-runtime-module final-module
                                final-runtime-forms
-                               final-program-forms)
+                               final-program-forms
+                               stable-runtime-cache-fingerprint)
       final-module))
 
 ;; walk-symbol-refs : any/c hasheq? -> (listof symbol?)
@@ -1387,6 +1407,9 @@
        #:include-classified? #t)))
 
   (check-true (analyzed-runtime-module? pipeline-final-result))
+  (check-match
+   (analyzed-runtime-module-stable-runtime-cache-fingerprint pipeline-final-result)
+   `(stable-runtime-analysis-cache ,_ . ,_))
   (check-equal? (analyzed-runtime-module-module pipeline-final-result)
                 pipeline-final-module)
   (check-not-false
