@@ -14,7 +14,7 @@
 ;; control-flow-runtime-string-constants : (listof (list/c symbol? string?))
 ;;   Declare strings used by control-flow helpers.
 (define control-flow-runtime-string-constants
-  '((dynamic-require-unsupported "dynamic module loading is not supported")
+  '((dynamic-require-unsupported "dynamic-require: dynamic module loading is not supported")
     (dynamic-require-failure-thunk "(or/c 'error (-> any))")
     (procedure-arity-0 "(procedure-arity-includes/c 0)")
     (procedure-arity-1 "(procedure-arity-includes/c 1)")
@@ -445,10 +445,12 @@
                (then (local.set $failure-thunk (global.get $false))))
            (if (ref.eq (local.get $failure-thunk) (global.get $false))
                (then
-                (call $raise-argument-error1
-                      (global.get $symbol:dynamic-require)
-                      (global.get $string:dynamic-require-unsupported)
-                      (local.get $mod-path))
+                (drop (call $raise
+                            (call $exn:fail:unsupported/make
+                                  (global.get $string:dynamic-require-unsupported)
+                                  (call $current-continuation-marks
+                                        (global.get $missing)))
+                            (global.get $true)))
                 (unreachable)))
            (if (result (ref eq))
                (ref.eq (call $procedure? (local.get $failure-thunk)) (global.get $true))

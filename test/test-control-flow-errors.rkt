@@ -14,6 +14,18 @@
                    (string-contains? message needle))
                  needles))))
 
+(define (catch-unsupported/contains? thunk . needles)
+  (let ([message
+         (with-handlers ([exn:fail:unsupported?
+                          (lambda (exn)
+                            (exn-message exn))])
+           (thunk)
+           #f)])
+    (and message
+         (andmap (lambda (needle)
+                   (string-contains? message needle))
+                 needles))))
+
 (list
  (list "continuation barrier checks zero-arity thunk contract"
        (and
@@ -62,4 +74,9 @@
          (lambda () (dynamic-require 'racket/base 'car add1))
          "dynamic-require"
          "(or/c 'error (-> any))"
-         "given:"))))
+         "given:")))
+ (list "dynamic-require without fallback is catchable unsupported"
+       (catch-unsupported/contains?
+        (lambda () (dynamic-require 'racket/base 'car))
+        "dynamic-require"
+        "dynamic module loading is not supported")))

@@ -178,6 +178,12 @@ Current remaining raw-stub classes:
     catchable `exn:fail:unsupported` values with `read:` / `read-syntax:` in the
     message instead of encoding the unsupported reader as an argument contract.
 
+- `control-flow.rkt`:
+  - `dynamic-require` without a fallback thunk now raises a catchable
+    `exn:fail:unsupported` value with `dynamic-require:` in the message instead
+    of encoding unsupported dynamic module loading as an argument contract. Bad
+    fallback-thunk values remain ordinary contract errors.
+
 - `namespaces.rkt` and `linklet-instances.rkt`:
   - Missing namespace and instance bindings now raise catchable
     `exn:fail:contract:variable` values with the missing symbol in the
