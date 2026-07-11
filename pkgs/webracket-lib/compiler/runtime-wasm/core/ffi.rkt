@@ -35,6 +35,7 @@
 (define ffi-runtime-symbol-constants
   '(webracket-debug-allocation-budget!
     unsafe-ffi-primitive
+    procedure->external
     wr-ref
     webracket-debug-allocation-counters
     webracket-debug-invoke-budget!
@@ -1406,7 +1407,9 @@
 
                ;; Fail-early type check
                (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
-                   (then (call $raise-argument-error:procedure-expected (local.get $proc))
+                   (then (call $raise-argument-error:procedure-expected/who
+                               (global.get $symbol:procedure->external)
+                               (local.get $proc))
                          (unreachable)))
 
                (local.set $p (ref.cast (ref $Procedure) (local.get $proc)))

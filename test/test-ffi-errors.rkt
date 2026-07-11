@@ -15,6 +15,12 @@
                  needles))))
 
 (list
+ (list "procedure->external procedure errors preserve who"
+       (catch-contract/contains?
+        (lambda () (procedure->external 42))
+        "procedure->external"
+        "procedure?"
+        "given: 42"))
  (list "unsafe-ffi-primitive missing binding errors are catchable with who"
        (catch-contract/contains?
         (lambda () (unsafe-ffi-primitive 'missing-ffi-binding))
