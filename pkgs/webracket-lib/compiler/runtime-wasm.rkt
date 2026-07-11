@@ -24,7 +24,11 @@
          (only-in "runtime-wasm/module-forms.rkt"
                   module-func-names)
          (only-in "runtime-wasm/runtime-analysis.rkt"
-                  analyze-and-prune-runtime-module)
+                  analyze-and-prune-runtime-module
+                  analyzed-runtime-module?
+                  analyzed-runtime-module-module
+                  analyzed-runtime-module-program-forms
+                  analyzed-runtime-module-runtime-forms)
          (only-in "runtime-wasm/runtime-helper-index.rkt"
                   runtime-helper-index)
          (only-in "runtime-wasm/runtime-ffi.rkt"
@@ -1844,7 +1848,7 @@
                          (length used-primitives))
     (define full-module
       (time-runtime-step "runtime:build-runtime-module" build-runtime-module))
-    (define final-module
+    (define analyzed-module
       (analyze-and-prune-runtime-module
        full-module
        #:program-function-names program-function-names
@@ -1877,17 +1881,18 @@
        #:used-primitives used-primitives
        #:console-bridge-primitive-names console-bridge-primitive-names
        #:primitive-description? primitive->description
-       #:time-runtime-step time-runtime-step))
+       #:time-runtime-step time-runtime-step
+       #:include-classified? (current-split-runtime?)))
+    (define final-module
+      (if (analyzed-runtime-module? analyzed-module)
+          (analyzed-runtime-module-module analyzed-module)
+          analyzed-module))
     (if (current-split-runtime?)
-        (split-classified-runtime-module
-         final-module
-         #:program-function-names program-function-names
-         #:result-global result
-         #:top-level-variable-declarations top-level-variable-declarations
-         #:string-constants string-constants
-         #:bytes-constants bytes-constants
-         #:symbol-constants symbol-constants
-         #:extra-program-function-names (split-program-ffi-function-names)
-         #:extra-program-global-names (split-program-ffi-global-names))
+        (time-runtime-step
+         "runtime:split-classified-runtime-forms"
+         (lambda ()
+           (split-classified-runtime-forms
+            (analyzed-runtime-module-runtime-forms analyzed-module)
+            (analyzed-runtime-module-program-forms analyzed-module))))
         final-module)
     ))

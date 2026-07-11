@@ -10,6 +10,7 @@
          runtime-function-import-form
          runtime-global-export-form
          runtime-global-import-form
+         split-classified-runtime-forms
          split-classified-runtime-module
          split-core-runtime-module)
 
@@ -761,37 +762,13 @@
    (map core-runtime-helper-name selected-helpers)
    import-forms))
 
-;; split-classified-runtime-module :
-;;   datum? #:program-function-names (listof symbol?) #:result-global symbol?
-;;          #:top-level-variable-declarations (listof datum?)
-;;          #:string-constants list? #:bytes-constants list? #:symbol-constants list?
-;;          [#:extra-program-function-names list?] [#:extra-program-global-names list?]
-;;          [#:import-module string?] -> split-runtime-modules?
-;;   Split a generated module into runtime and program modules using runtime metadata.
-(define (split-classified-runtime-module
-         module
-         #:program-function-names program-function-names
-         #:result-global result
-         #:top-level-variable-declarations top-level-variable-declarations
-         #:string-constants string-constants
-         #:bytes-constants bytes-constants
-         #:symbol-constants symbol-constants
-         #:extra-program-function-names [extra-program-function-names '()]
-         #:extra-program-global-names [extra-program-global-names '()]
+;; split-classified-runtime-forms :
+;;   (listof datum?) (listof datum?) [#:import-module string?] -> split-runtime-modules?
+;;   Build runtime/program modules from already-classified module body forms.
+(define (split-classified-runtime-forms
+         runtime-forms
+         initial-program-forms
          #:import-module [import-module-name "core"])
-  (define-values (runtime-forms/reversed program-forms/reversed)
-    (split-module-forms
-     module
-     #:program-function-names program-function-names
-     #:result-global result
-     #:top-level-variable-declarations top-level-variable-declarations
-     #:string-constants string-constants
-     #:bytes-constants bytes-constants
-     #:symbol-constants symbol-constants
-     #:extra-program-function-names extra-program-function-names
-     #:extra-program-global-names extra-program-global-names))
-  (define runtime-forms (reverse runtime-forms/reversed))
-  (define initial-program-forms (reverse program-forms/reversed))
   (define pulled-runtime-global-names
     (runtime-referenced-program-global-names runtime-forms
                                              initial-program-forms))
@@ -866,6 +843,40 @@
       ,@program-supplemental-elem-forms)
    imported-names
    import-forms))
+
+;; split-classified-runtime-module :
+;;   datum? #:program-function-names (listof symbol?) #:result-global symbol?
+;;          #:top-level-variable-declarations (listof datum?)
+;;          #:string-constants list? #:bytes-constants list? #:symbol-constants list?
+;;          [#:extra-program-function-names list?] [#:extra-program-global-names list?]
+;;          [#:import-module string?] -> split-runtime-modules?
+;;   Split a generated module into runtime and program modules using runtime metadata.
+(define (split-classified-runtime-module
+         module
+         #:program-function-names program-function-names
+         #:result-global result
+         #:top-level-variable-declarations top-level-variable-declarations
+         #:string-constants string-constants
+         #:bytes-constants bytes-constants
+         #:symbol-constants symbol-constants
+         #:extra-program-function-names [extra-program-function-names '()]
+         #:extra-program-global-names [extra-program-global-names '()]
+         #:import-module [import-module-name "core"])
+  (define-values (runtime-forms/reversed program-forms/reversed)
+    (split-module-forms
+     module
+     #:program-function-names program-function-names
+     #:result-global result
+     #:top-level-variable-declarations top-level-variable-declarations
+     #:string-constants string-constants
+     #:bytes-constants bytes-constants
+     #:symbol-constants symbol-constants
+     #:extra-program-function-names extra-program-function-names
+     #:extra-program-global-names extra-program-global-names))
+  (split-classified-runtime-forms
+   (reverse runtime-forms/reversed)
+   (reverse program-forms/reversed)
+   #:import-module import-module-name))
 
 (module+ test
   (require rackunit
@@ -1059,6 +1070,22 @@
     (module-forms (split-runtime-modules-core classified-split)))
   (define classified-program-forms
     (module-forms (split-runtime-modules-program classified-split)))
+  (define-values (classified-runtime-forms/reversed
+                  classified-program-forms/reversed)
+    (split-module-forms
+     classified-sample-module
+     #:program-function-names '($probe)
+     #:result-global '$result
+     #:top-level-variable-declarations
+     '((global $result (mut i32) (i32.const 0)))
+     #:string-constants '()
+     #:bytes-constants '()
+     #:symbol-constants '((check-list check-list))))
+  (check-equal?
+   (split-classified-runtime-forms
+    (reverse classified-runtime-forms/reversed)
+    (reverse classified-program-forms/reversed))
+   classified-split)
 
   (check-equal?
    (split-runtime-modules-imported-names classified-split)

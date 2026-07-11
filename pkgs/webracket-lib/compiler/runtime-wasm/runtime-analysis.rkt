@@ -2,6 +2,10 @@
 
 (provide analyze-program-fragment
          analyze-and-prune-runtime-module
+         analyzed-runtime-module?
+         analyzed-runtime-module-module
+         analyzed-runtime-module-runtime-forms
+         analyzed-runtime-module-program-forms
          analyze-stable-runtime/cached
          analyze-stable-runtime
          list->eq-set
@@ -40,6 +44,15 @@
                   runtime-source-fingerprint)
          racket/fasl
          racket/file)
+
+;; analyzed-runtime-module :
+;;   list? (listof datum?) (listof datum?) -> analyzed-runtime-module?
+;;   Carries a pruned module plus classified pruned forms for split mode.
+(struct analyzed-runtime-module
+  (module
+   runtime-forms
+   program-forms)
+  #:transparent)
 
 ;; default-time-runtime-step : string? (-> any/c) -> any/c
 ;;   Run a timed analysis thunk when the caller does not supply timing.
@@ -360,7 +373,8 @@
 ;;         #:described-primitives (listof symbol?) #:used-primitives (listof symbol?)
 ;;         #:console-bridge-primitive-names (listof symbol?)
 ;;         #:primitive-description? procedure?
-;;         [#:time-runtime-step (string? (-> any/c) -> any/c)] -> list?
+;;         [#:time-runtime-step (string? (-> any/c) -> any/c)]
+;;         [#:include-classified? boolean?] -> (or/c list? analyzed-runtime-module?)
 ;;   Split, analyze, report, and optionally prune a generated runtime module.
 (define (analyze-and-prune-runtime-module
          full-module
@@ -388,7 +402,8 @@
          #:used-primitives used-primitives
          #:console-bridge-primitive-names console-bridge-primitive-names
          #:primitive-description? primitive-description?
-         #:time-runtime-step [time-runtime-step default-time-runtime-step])
+         #:time-runtime-step [time-runtime-step default-time-runtime-step]
+         #:include-classified? [include-classified? #f])
   (time-runtime-step
    "runtime:record-built-module-metrics"
    (lambda ()
@@ -461,22 +476,38 @@
       analysis
       retained-primitives
       described-primitives)))
-  (define final-module
+  (define pruned-program-function-names
+    (append program-function-names extra-program-function-names))
+  (define (prune-forms forms)
+    (prune-runtime-forms
+     forms
+     retained-primitives
+     retained-functions
+     #:program-function-names pruned-program-function-names
+     #:program-driver-function-names program-driver-function-names
+     #:primitive-global->symbol primitive-global->symbol
+     #:ffi-global->symbol ffi-global->symbol
+     #:active-ffi-foreigns active-ffi-foreigns))
+  (define-values (final-module final-runtime-forms final-program-forms)
     (if (current-tree-shake?)
         (time-runtime-step
          "tree-shake:prune-runtime-module"
          (λ ()
-           (prune-runtime-module
-            full-module
-            retained-primitives
-            retained-functions
-            #:program-function-names (append program-function-names
-                                             extra-program-function-names)
-            #:program-driver-function-names program-driver-function-names
-            #:primitive-global->symbol primitive-global->symbol
-            #:ffi-global->symbol ffi-global->symbol
-            #:active-ffi-foreigns active-ffi-foreigns)))
-        full-module))
+           (define pruned-module-forms (prune-forms (cdr full-module)))
+           (define pruned-runtime-forms
+             (and include-classified?
+                  (prune-forms (reverse runtime-forms-before-prune))))
+           (define pruned-program-forms
+             (and include-classified?
+                  (prune-forms (reverse program-forms-before-prune))))
+           (values (forms->module pruned-module-forms)
+                   pruned-runtime-forms
+                   pruned-program-forms)))
+        (values full-module
+                (and include-classified?
+                     (reverse runtime-forms-before-prune))
+                (and include-classified?
+                     (reverse program-forms-before-prune)))))
   (time-runtime-step
    "tree-shake:record-final-metrics"
    (lambda ()
@@ -484,7 +515,11 @@
                                                described-primitives
                                                retained-primitives
                                                (current-tree-shake?))))
-  final-module)
+  (if include-classified?
+      (analyzed-runtime-module final-module
+                               final-runtime-forms
+                               final-program-forms)
+      final-module))
 
 ;; walk-symbol-refs : any/c hasheq? -> (listof symbol?)
 ;;   Find symbolic references represented by keys in `symbol->value`.
@@ -874,13 +909,13 @@
       (values (sort described-primitives symbol<?)
               '())))
 
-;; prune-runtime-module :
-;;   list? (listof symbol?) (listof symbol?) #:program-function-names list?
-;;         #:program-driver-function-names list? #:primitive-global->symbol hasheq?
-;;         #:ffi-global->symbol hasheq? #:active-ffi-foreigns list? -> list?
-;;   Remove unretained runtime function/global forms from a module.
-(define (prune-runtime-module
-         module
+;; prune-runtime-forms :
+;;   (listof datum?) (listof symbol?) (listof symbol?) #:program-function-names list?
+;;   #:program-driver-function-names list? #:primitive-global->symbol hasheq?
+;;   #:ffi-global->symbol hasheq? #:active-ffi-foreigns list? -> (listof datum?)
+;;   Remove unretained runtime function/global forms from module body forms.
+(define (prune-runtime-forms
+         forms
          retained-primitives
          retained-functions
          #:program-function-names program-function-names
@@ -932,21 +967,45 @@
                                                (cadr part)))))
                   part))]
       [_ form]))
-  `(module
-     ,@(for/list ([form (in-list (cdr module))]
-                  #:unless (let ([name (module-func-name form)])
-                             (and name
-                                  (not (hash-ref retained-ht name #f))))
-                  #:unless (let ([name (module-global-name form)])
-                             (and name
-                                  (not (retained-primitive-global-name? name)))))
-         (cond
-           [(eq? (module-func-name form) '$entry)
-            (prune-entry-form form)]
-           [(and (pair? form)
-                 (eq? (car form) 'elem))
-            (prune-elem-form form)]
-           [else form]))))
+  (for/list ([form (in-list forms)]
+             #:unless (let ([name (module-func-name form)])
+                        (and name
+                             (not (hash-ref retained-ht name #f))))
+             #:unless (let ([name (module-global-name form)])
+                        (and name
+                             (not (retained-primitive-global-name? name)))))
+    (cond
+      [(eq? (module-func-name form) '$entry)
+       (prune-entry-form form)]
+      [(and (pair? form)
+            (eq? (car form) 'elem))
+       (prune-elem-form form)]
+      [else form])))
+
+;; prune-runtime-module :
+;;   list? (listof symbol?) (listof symbol?) #:program-function-names list?
+;;         #:program-driver-function-names list? #:primitive-global->symbol hasheq?
+;;         #:ffi-global->symbol hasheq? #:active-ffi-foreigns list? -> list?
+;;   Remove unretained runtime function/global forms from a module.
+(define (prune-runtime-module
+         module
+         retained-primitives
+         retained-functions
+         #:program-function-names program-function-names
+         #:program-driver-function-names program-driver-function-names
+         #:primitive-global->symbol primitive-global->symbol
+         #:ffi-global->symbol ffi-global->symbol
+         #:active-ffi-foreigns active-ffi-foreigns)
+  (forms->module
+   (prune-runtime-forms
+    (cdr module)
+    retained-primitives
+    retained-functions
+    #:program-function-names program-function-names
+    #:program-driver-function-names program-driver-function-names
+    #:primitive-global->symbol primitive-global->symbol
+    #:ffi-global->symbol ffi-global->symbol
+    #:active-ffi-foreigns active-ffi-foreigns)))
 
 ;; write-runtime-primitive-report! :
 ;;   (or/c path-string? #f) list? (listof symbol?) (listof symbol?) -> void?
@@ -1299,4 +1358,46 @@
   (check-not-false (member '(global $prim:p (mut (ref eq)) (ref.null eq))
                            (cdr pipeline-final-module)))
   (check-false (member '(global $prim:q (mut (ref eq)) (ref.null eq))
-                       (cdr pipeline-final-module))))
+                       (cdr pipeline-final-module)))
+
+  (define pipeline-final-result
+    (parameterize ([current-tree-shake? #t]
+                   [current-runtime-cache-dir #f]
+                   [current-runtime-primitive-report-path #f]
+                   [current-runtime-metric-rows '()])
+      (analyze-and-prune-runtime-module
+       pipeline-module
+       #:program-function-names '($program)
+       #:result-global '$program-global
+       #:top-level-variable-declarations
+       '((global $program-global (mut (ref eq)) (ref.null eq)))
+       #:string-constants '((program-string "program"))
+       #:bytes-constants '()
+       #:symbol-constants '()
+       #:primitive-func->symbol primitive-func->symbol
+       #:primitive-global->symbol primitive-global->symbol
+       #:ffi-global->symbol (hasheq)
+       #:active-ffi-foreigns '()
+       #:active-ffi-imports-wat '()
+       #:active-ffi-funcs-wat '()
+       #:described-primitives '(p q)
+       #:used-primitives '()
+       #:console-bridge-primitive-names '()
+       #:primitive-description? (lambda (name) (memq name '(p q)))
+       #:include-classified? #t)))
+
+  (check-true (analyzed-runtime-module? pipeline-final-result))
+  (check-equal? (analyzed-runtime-module-module pipeline-final-result)
+                pipeline-final-module)
+  (check-not-false
+   (member '(func $p)
+           (analyzed-runtime-module-runtime-forms pipeline-final-result)))
+  (check-false
+   (member '(func $q)
+           (analyzed-runtime-module-runtime-forms pipeline-final-result)))
+  (check-not-false
+   (member '(func $program)
+           (analyzed-runtime-module-program-forms pipeline-final-result)))
+  (check-not-false
+   (member '(func $entry (call $program))
+           (analyzed-runtime-module-program-forms pipeline-final-result))))
