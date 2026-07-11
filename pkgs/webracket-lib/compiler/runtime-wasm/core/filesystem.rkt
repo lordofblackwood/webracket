@@ -1503,7 +1503,9 @@
                     (unreachable)))
           (if (i32.gt_u (local.get $new-len)
                         (global.get $memory-map:vfs-file-buffer-length))
-              (then (call $raise-string-buffer-overflow)
+              (then (call $raise-vfs-path-too-long
+                          (global.get $symbol:rename-file-or-directory)
+                          (local.get $new-raw))
                     (unreachable)))
           (if (i32.eqz
                (call $linear-memory-range-available?
@@ -1586,7 +1588,9 @@
                     (unreachable)))
           (if (i32.gt_u (local.get $dest-len)
                         (global.get $memory-map:vfs-file-buffer-length))
-              (then (call $raise-string-buffer-overflow)
+              (then (call $raise-vfs-path-too-long
+                          (global.get $symbol:copy-directory/files)
+                          (local.get $dest-raw))
                     (unreachable)))
           (if (i32.eqz
                (call $linear-memory-range-available?
@@ -1661,7 +1665,9 @@
                     (unreachable)))
           (if (i32.gt_u (local.get $dest-len)
                         (global.get $memory-map:vfs-file-buffer-length))
-              (then (call $raise-string-buffer-overflow)
+              (then (call $raise-vfs-path-too-long
+                          (global.get $symbol:copy-file)
+                          (local.get $dest-raw))
                     (unreachable)))
           (if (i32.eqz
                (call $linear-memory-range-available?

@@ -5,6 +5,9 @@
 (define long-vfs-path
   (string-append "/app/" (make-string 4100 #\a)))
 
+(define huge-vfs-path
+  (string-append "/app/" (make-string 1048577 #\a)))
+
 (define (catch-fail/contains? thunk . needles)
   (let ([message
          (with-handlers ([exn:fail?
@@ -31,6 +34,23 @@
         "webracket-vfs-write-file"
         "file content is too large"
         "/tmp/too-large"))
+ (list "multi-path VFS operations report oversized destination paths with who"
+       (and
+        (catch-fail/contains?
+         (lambda () (rename-file-or-directory "/app/source.txt" huge-vfs-path))
+         "rename-file-or-directory"
+         "path is too long"
+         "path:")
+        (catch-fail/contains?
+         (lambda () (copy-file "/app/source.txt" huge-vfs-path))
+         "copy-file"
+         "path is too long"
+         "path:")
+        (catch-fail/contains?
+         (lambda () (copy-directory/files "/app/source-dir" huge-vfs-path))
+         "copy-directory/files"
+         "path is too long"
+         "path:")))
  (list "long VFS paths raise catchable errors with who"
        (and
         (catch-fail/contains?

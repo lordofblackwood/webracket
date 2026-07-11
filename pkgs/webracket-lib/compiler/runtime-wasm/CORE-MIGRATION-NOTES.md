@@ -112,9 +112,10 @@ Current behavior:
 - VFS file-content reads and `webracket-vfs-write-file` content-size guards
   now raise catchable `exn:fail:out-of-memory` errors with the operation `who`
   and path.
+- Multi-path filesystem operations now report oversized destination paths with
+  caller-specific path-too-long contract errors.
 - Some related fixed-buffer guards still call `$raise-string-buffer-overflow`,
-  including destination/file-buffer paths in multi-path filesystem operations
-  and low-level buffer-availability checks.
+  including low-level buffer-availability checks and fixed FASL result buffers.
 
 Follow-up:
 
