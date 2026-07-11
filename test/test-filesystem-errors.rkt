@@ -34,6 +34,23 @@
         "webracket-vfs-write-file"
         "file content is too large"
         "/tmp/too-large"))
+ (list "read-side VFS failures report who and path"
+       (and
+        (catch-fail/contains?
+         (lambda () (file->bytes "/app/missing-read-bytes.txt"))
+         "file->bytes"
+         "VFS file read failed"
+         "/app/missing-read-bytes.txt")
+        (catch-fail/contains?
+         (lambda () (file->string "/app/missing-read-string.txt"))
+         "file->string"
+         "VFS file read failed"
+         "/app/missing-read-string.txt")
+        (catch-fail/contains?
+         (lambda () (open-input-file "/app/missing-open-input.txt"))
+         "open-input-file"
+         "VFS file read failed"
+         "/app/missing-open-input.txt")))
  (list "multi-path VFS operations report oversized destination paths with who"
        (and
         (catch-fail/contains?

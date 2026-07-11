@@ -33,6 +33,8 @@
     (vfs:stat-failed            "file-or-directory-stat: VFS path does not exist")
     (vfs:type-failed            "file-or-directory-type: VFS path does not exist")
     (vfs:identity-failed        "file-or-directory-identity: VFS path does not exist")
+    (vfs:error-separator        ": ")
+    (vfs:error-path             "\n  path: ")
     (vfs:path-too-long          ": path is too long for WebRacket VFS\n  path: ")
     (vfs:file-buffer-too-small
      ": file content is too large for WebRacket VFS buffer\n  path: ")
@@ -77,7 +79,8 @@
 ;; filesystem-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for VFS and file-operation helpers.
 (define filesystem-runtime-only-helper-names
-  '($raise-vfs-path-too-long
+  '($raise-vfs-file-error/who-path
+    $raise-vfs-path-too-long
     $raise-vfs-file-buffer-too-small
     $vfs-path-stat-kind
     $file-exists?
@@ -131,6 +134,30 @@
 ;;   Enumerate VFS and file-operation helpers used by the monolithic runtime.
 (define filesystem-runtime-only-forms
   '(
+    (func $raise-vfs-file-error/who-path
+          (param $who      (ref eq))
+          (param $path-raw (ref eq))
+          (param $detail   (ref eq))
+
+          (local $out     (ref $GrowableArray))
+          (local $message (ref $String))
+
+          (local.set $out (call $make-growable-array (i32.const 5)))
+          (call $growable-array-add! (local.get $out)
+                (call $format/display (local.get $who)))
+          (call $growable-array-add! (local.get $out)
+                (global.get $string:vfs:error-separator))
+          (call $growable-array-add! (local.get $out)
+                (ref.cast (ref $String) (local.get $detail)))
+          (call $growable-array-add! (local.get $out)
+                (global.get $string:vfs:error-path))
+          (call $growable-array-add! (local.get $out)
+                (call $format/write (local.get $path-raw)))
+          (local.set $message
+                     (call $growable-array-of-strings->string (local.get $out)))
+          (call $raise-vfs-file-error (local.get $message))
+          (unreachable))
+
     (func $raise-vfs-path-too-long
           (param $who      (ref eq))
           (param $path-raw (ref eq))
@@ -706,7 +733,9 @@
                            (global.get $memory-map:vfs-path-buffer-base)
                            (local.get $path-len)))
           (if (i32.lt_s (local.get $expected) (i32.const 0))
-              (then (call $raise-vfs-file-error
+              (then (call $raise-vfs-file-error/who-path
+                          (local.get $who)
+                          (local.get $path-raw)
                           (global.get $string:vfs:read-file-failed))
                     (unreachable)))
           (if (i32.gt_u (local.get $expected)
@@ -722,7 +751,9 @@
                            (global.get $memory-map:vfs-file-buffer-base)
                            (global.get $memory-map:vfs-file-buffer-length)))
           (if (i32.lt_s (local.get $file-len) (i32.const 0))
-              (then (call $raise-vfs-file-error
+              (then (call $raise-vfs-file-error/who-path
+                          (local.get $who)
+                          (local.get $path-raw)
                           (global.get $string:vfs:read-file-failed))
                     (unreachable)))
           (if (i32.gt_u (local.get $file-len)
