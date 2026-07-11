@@ -1,6 +1,7 @@
 #lang racket
 
 (provide (struct-out split-runtime-modules)
+         split-runtime-modules-core-module
          core-runtime-helper-import-form
          core-runtime-helper-import-forms
          classified-runtime-import/export-forms
@@ -28,9 +29,17 @@
 ;; rewritten program module that imports selected helper functions from it.
 ;; core-cache-key is #f unless the producer can prove that the runtime side is
 ;; stable enough to cache without hashing the generated module tree.
+;; When a cache key is present, `core` may be a promise so warm cache hits can
+;; avoid constructing the runtime module tree.
 (struct split-runtime-modules
   (core program imported-names import-forms core-cache-key)
   #:transparent)
+
+;; split-runtime-modules-core-module : split-runtime-modules? -> datum?
+;;   Return the runtime core module, forcing a lazy core when needed.
+(define (split-runtime-modules-core-module split)
+  (define core (split-runtime-modules-core split))
+  (if (promise? core) (force core) core))
 
 ;; function-import-form? : any/c -> boolean?
 ;;   Check whether form is a top-level imported function declaration.
@@ -834,12 +843,16 @@
       form))
   (define program-data-forms
     (program-referenced-runtime-data-forms runtime-body-forms program-forms))
+  (define (runtime-core-module)
+    `(module
+       ,@runtime-body-forms
+       ,@runtime-elem-forms
+       ,@runtime-supplemental-elem-forms
+       ,@export-forms))
   (split-runtime-modules
-   `(module
-      ,@runtime-body-forms
-      ,@runtime-elem-forms
-      ,@runtime-supplemental-elem-forms
-      ,@export-forms)
+   (if core-cache-key
+       (delay (runtime-core-module))
+       (runtime-core-module))
    `(module
       ,@program-prefix-forms
       ,@import-forms
@@ -1076,7 +1089,7 @@
      #:bytes-constants '()
      #:symbol-constants '((check-list check-list))))
   (define classified-core-forms
-    (module-forms (split-runtime-modules-core classified-split)))
+    (module-forms (split-runtime-modules-core-module classified-split)))
   (define classified-program-forms
     (module-forms (split-runtime-modules-program classified-split)))
   (define-values (classified-runtime-forms/reversed
@@ -1104,6 +1117,15 @@
        (func $entry))
      #:core-cache-key '(stable-core-key)))
    '(stable-core-key))
+  (define lazy-core-split
+    (split-classified-runtime-forms
+     '((func $runtime-helper))
+     '((func $program)
+       (func $entry))
+     #:core-cache-key '(stable-core-key)))
+  (check-true (promise? (split-runtime-modules-core lazy-core-split)))
+  (check-equal? (car (split-runtime-modules-core-module lazy-core-split))
+                'module)
 
   (check-equal?
    (split-runtime-modules-imported-names classified-split)
@@ -1186,7 +1208,7 @@
      #:extra-program-function-names '($js-eval/imported $js-eval)
      #:extra-program-global-names '($prim:js-eval)))
   (define direct-ffi-core-forms
-    (module-forms (split-runtime-modules-core direct-ffi-classified-split)))
+    (module-forms (split-runtime-modules-core-module direct-ffi-classified-split)))
   (define direct-ffi-program-forms
     (module-forms (split-runtime-modules-program direct-ffi-classified-split)))
 
@@ -1244,7 +1266,7 @@
      #:bytes-constants '()
      #:symbol-constants '((b b) (a a))))
   (define pullback-order-core-forms
-    (module-forms (split-runtime-modules-core pullback-order-split)))
+    (module-forms (split-runtime-modules-core-module pullback-order-split)))
   (check-equal?
    (for/list ([form (in-list pullback-order-core-forms)]
               #:do [(define name (or (module-data-name form)
@@ -1314,7 +1336,7 @@
     (define classified-program-wasm-path
       (path-replace-extension classified-program-wat-path ".wasm"))
     (check-true
-     (wat->wasm (split-runtime-modules-core core-link-split)
+     (wat->wasm (split-runtime-modules-core-module core-link-split)
                 #:wat core-wat-path
                 #:wasm core-wasm-path))
     (check-true
@@ -1334,7 +1356,7 @@
                 #:wat boundary-program-wat-path
                 #:wasm boundary-program-wasm-path))
     (check-true
-     (wat->wasm (split-runtime-modules-core classified-split)
+     (wat->wasm (split-runtime-modules-core-module classified-split)
                 #:wat classified-core-wat-path
                 #:wasm classified-core-wasm-path))
     (check-true

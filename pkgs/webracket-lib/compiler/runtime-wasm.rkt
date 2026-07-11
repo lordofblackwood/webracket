@@ -3,6 +3,7 @@
          generate-core-runtime
          generate-shared-types
          (struct-out split-runtime-modules)
+         split-runtime-modules-core-module
          split-core-runtime-module)
 
 (require (only-in "private/priminfo.rkt"

@@ -21630,7 +21630,7 @@
     [(variable? x) (variable-id x)]
     [(split-runtime-modules? x)
      (struct-copy split-runtime-modules x
-                  [core (strip (split-runtime-modules-core x))]
+                  [core (strip (split-runtime-modules-core-module x))]
                   [program (strip (split-runtime-modules-program x))]
                   [import-forms (strip (split-runtime-modules-import-forms x))])]
     [(pair? x)     (cons (strip (car x))

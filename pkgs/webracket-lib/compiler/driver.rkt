@@ -65,7 +65,7 @@
          (only-in "runtime-wasm.rkt"
                   split-core-runtime-module
                   split-runtime-modules?
-                  split-runtime-modules-core
+                  split-runtime-modules-core-module
                   split-runtime-modules-core-cache-key
                   split-runtime-modules-imported-names
                   split-runtime-modules-program)
@@ -3461,7 +3461,7 @@
     (and (or (not split-runtime?)
              (assemble-split-runtime-core/cached!
               (lambda ()
-                (split-runtime-modules-core split-modules))
+                (split-runtime-modules-core-module split-modules))
               runtime-wat
               runtime-wasm
               pretty-wat?
