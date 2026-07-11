@@ -765,6 +765,7 @@
 ;;   datum? #:program-function-names (listof symbol?) #:result-global symbol?
 ;;          #:top-level-variable-declarations (listof datum?)
 ;;          #:string-constants list? #:bytes-constants list? #:symbol-constants list?
+;;          [#:extra-program-function-names list?] [#:extra-program-global-names list?]
 ;;          [#:import-module string?] -> split-runtime-modules?
 ;;   Split a generated module into runtime and program modules using runtime metadata.
 (define (split-classified-runtime-module
@@ -775,6 +776,8 @@
          #:string-constants string-constants
          #:bytes-constants bytes-constants
          #:symbol-constants symbol-constants
+         #:extra-program-function-names [extra-program-function-names '()]
+         #:extra-program-global-names [extra-program-global-names '()]
          #:import-module [import-module-name "core"])
   (define-values (runtime-forms/reversed program-forms/reversed)
     (split-module-forms
@@ -784,7 +787,9 @@
      #:top-level-variable-declarations top-level-variable-declarations
      #:string-constants string-constants
      #:bytes-constants bytes-constants
-     #:symbol-constants symbol-constants))
+     #:symbol-constants symbol-constants
+     #:extra-program-function-names extra-program-function-names
+     #:extra-program-global-names extra-program-global-names))
   (define runtime-forms (reverse runtime-forms/reversed))
   (define initial-program-forms (reverse program-forms/reversed))
   (define pulled-runtime-global-names

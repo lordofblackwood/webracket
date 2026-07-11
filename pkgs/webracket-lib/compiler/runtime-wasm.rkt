@@ -10,6 +10,9 @@
          (only-in "private/parameters.rkt"
                   current-browser?
                   current-split-runtime?)
+         (only-in "private/wasm-utils.rkt"
+                  $
+                  prim:)
          (only-in "runtime-wasm/entry-support.rkt"
                   entry-function-form
                   entry-result-global-forms
@@ -26,6 +29,7 @@
                   runtime-helper-index)
          (only-in "runtime-wasm/runtime-ffi.rkt"
                   external-value-runtime-helper-forms
+                  ffi-import-name
                   ffi-callback-global-forms
                   ffi-entry-global-forms
                   ffi-runtime-only-helper-forms
@@ -455,6 +459,24 @@
       (runtime-ffi-state-primitive-initializer-forms ffi-state))
     (define unsafe-ffi-primitive-table-initializer-forms
       '((call $initialize-unsafe-ffi-primitive-table)))
+    (define (split-direct-ffi-program-side?)
+      (and (current-split-runtime?)
+           (not (memq 'unsafe-ffi-primitive used-primitives))))
+    (define (split-program-ffi-foreigns)
+      (if (split-direct-ffi-program-side?)
+          (runtime-ffi-state-active-foreigns ffi-state)
+          '()))
+    (define (split-program-ffi-function-names)
+      (if (split-direct-ffi-program-side?)
+          (let ([active-foreigns (runtime-ffi-state-active-foreigns ffi-state)]
+                [active-names (runtime-ffi-state-active-primitive-names ffi-state)])
+            (append (map ffi-import-name active-foreigns)
+                    (map $ active-names)))
+          '()))
+    (define (split-program-ffi-global-names)
+      (for/list ([name (in-list (runtime-ffi-state-active-primitive-names ffi-state))]
+                 #:when (split-direct-ffi-program-side?))
+        ($ (prim: name))))
     ;; Symbol and keyword tables are initialized here for interning.
     (define global-state-initializer-forms
       '((call $initialize-the-symbol-table)
@@ -594,7 +616,12 @@
          ,@js-host-import-forms
 
          ;; FFI imports, generated wrappers, and unsafe primitive lookup helpers.
-         ,@(runtime-ffi-state-import-wrapper-helper-forms ffi-state)
+         ,@(runtime-ffi-state-import-wrapper-helper-forms
+            ffi-state
+            #:unsafe-ffi-foreigns
+            (if (split-direct-ffi-program-side?)
+                '()
+                (runtime-ffi-state-active-foreigns ffi-state)))
 
          ;;;
          ;;; Exceptions
@@ -1832,6 +1859,20 @@
        #:active-ffi-foreigns (runtime-ffi-state-active-foreigns ffi-state)
        #:active-ffi-imports-wat (runtime-ffi-state-active-imports-wat ffi-state)
        #:active-ffi-funcs-wat (runtime-ffi-state-active-funcs-wat ffi-state)
+       #:stable-runtime-active-ffi-foreigns
+       (if (split-direct-ffi-program-side?)
+           '()
+           (runtime-ffi-state-active-foreigns ffi-state))
+       #:stable-runtime-active-ffi-imports-wat
+       (if (split-direct-ffi-program-side?)
+           '()
+           (runtime-ffi-state-active-imports-wat ffi-state))
+       #:stable-runtime-active-ffi-funcs-wat
+       (if (split-direct-ffi-program-side?)
+           '()
+           (runtime-ffi-state-active-funcs-wat ffi-state))
+       #:extra-program-function-names (split-program-ffi-function-names)
+       #:extra-program-global-names (split-program-ffi-global-names)
        #:described-primitives described-primitives
        #:used-primitives used-primitives
        #:console-bridge-primitive-names console-bridge-primitive-names
@@ -1845,6 +1886,8 @@
          #:top-level-variable-declarations top-level-variable-declarations
          #:string-constants string-constants
          #:bytes-constants bytes-constants
-         #:symbol-constants symbol-constants)
+         #:symbol-constants symbol-constants
+         #:extra-program-function-names (split-program-ffi-function-names)
+         #:extra-program-global-names (split-program-ffi-global-names))
         final-module)
     ))

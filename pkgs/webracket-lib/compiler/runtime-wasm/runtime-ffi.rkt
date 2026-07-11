@@ -70,13 +70,17 @@
   (for/list ([f (in-list (runtime-ffi-state-active-foreigns state))])
     (foreign-racket-name f)))
 
-;; runtime-ffi-state-import-wrapper-helper-forms : runtime-ffi-state? -> (listof datum?)
+;; runtime-ffi-state-import-wrapper-helper-forms : runtime-ffi-state? #:unsafe-ffi-foreigns (listof foreign?) -> (listof datum?)
 ;;   Render active FFI host imports, generated wrappers, and unsafe lookup helpers.
-(define (runtime-ffi-state-import-wrapper-helper-forms state)
+(define (runtime-ffi-state-import-wrapper-helper-forms state
+                                                       #:unsafe-ffi-foreigns
+                                                       [unsafe-ffi-foreigns
+                                                        (runtime-ffi-state-active-foreigns
+                                                         state)])
   (append (runtime-ffi-state-active-imports-wat state)
           (runtime-ffi-state-active-funcs-wat state)
           (unsafe-ffi-runtime-only-helper-forms
-           (runtime-ffi-state-active-foreigns state))))
+           unsafe-ffi-foreigns)))
 
 ;; runtime-ffi-state-primitive-global-forms : runtime-ffi-state? -> (listof datum?)
 ;;   Declare globals that hold active FFI primitive procedure values.

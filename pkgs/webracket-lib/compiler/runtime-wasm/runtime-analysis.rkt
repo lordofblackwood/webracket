@@ -81,7 +81,9 @@
 ;; make-program-module-form? :
 ;;   #:program-function-names list? #:result-global symbol?
 ;;   #:top-level-variable-declarations list? #:string-constants list?
-;;   #:bytes-constants list? #:symbol-constants list? -> (datum? -> boolean?)
+;;   #:bytes-constants list? #:symbol-constants list?
+;;   [#:extra-program-function-names list?] [#:extra-program-global-names list?]
+;;   -> (datum? -> boolean?)
 ;;   Build a classifier for program-specific generated module forms.
 (define (make-program-module-form?
          #:program-function-names program-function-names
@@ -89,15 +91,19 @@
          #:top-level-variable-declarations top-level-variable-declarations
          #:string-constants string-constants
          #:bytes-constants bytes-constants
-         #:symbol-constants symbol-constants)
+         #:symbol-constants symbol-constants
+         #:extra-program-function-names [extra-program-function-names '()]
+         #:extra-program-global-names [extra-program-global-names '()])
   (define program-function-name-set
     (list->eq-set
      (append program-function-names
+             extra-program-function-names
              program-driver-function-names)))
   (define program-global-name-set
     (list->eq-set
      (append
       (list result)
+      extra-program-global-names
       (for/list ([form (in-list top-level-variable-declarations)]
                  #:do [(define name (module-global-name form))]
                  #:when name)
@@ -123,7 +129,9 @@
 ;; split-module-forms :
 ;;   list? #:program-function-names list? #:result-global symbol?
 ;;         #:top-level-variable-declarations list? #:string-constants list?
-;;         #:bytes-constants list? #:symbol-constants list? -> (values list? list?)
+;;         #:bytes-constants list? #:symbol-constants list?
+;;         [#:extra-program-function-names list?] [#:extra-program-global-names list?]
+;;         -> (values list? list?)
 ;;   Split a module body into runtime-specific and program-specific forms.
 (define (split-module-forms
          module
@@ -132,7 +140,9 @@
          #:top-level-variable-declarations top-level-variable-declarations
          #:string-constants string-constants
          #:bytes-constants bytes-constants
-         #:symbol-constants symbol-constants)
+         #:symbol-constants symbol-constants
+         #:extra-program-function-names [extra-program-function-names '()]
+         #:extra-program-global-names [extra-program-global-names '()])
   (define program-module-form?
     (make-program-module-form?
      #:program-function-names program-function-names
@@ -140,7 +150,9 @@
      #:top-level-variable-declarations top-level-variable-declarations
      #:string-constants string-constants
      #:bytes-constants bytes-constants
-     #:symbol-constants symbol-constants))
+     #:symbol-constants symbol-constants
+     #:extra-program-function-names extra-program-function-names
+     #:extra-program-global-names extra-program-global-names))
   (for/fold ([runtime-forms '()]
              [program-forms '()])
             ([form (in-list (cdr module))])
@@ -306,6 +318,10 @@
 ;;         #:primitive-func->symbol hasheq? #:primitive-global->symbol hasheq?
 ;;         #:ffi-global->symbol hasheq? #:active-ffi-foreigns list?
 ;;         #:active-ffi-imports-wat list? #:active-ffi-funcs-wat list?
+;;         [#:stable-runtime-active-ffi-foreigns list?]
+;;         [#:stable-runtime-active-ffi-imports-wat list?]
+;;         [#:stable-runtime-active-ffi-funcs-wat list?]
+;;         [#:extra-program-function-names list?] [#:extra-program-global-names list?]
 ;;         #:described-primitives (listof symbol?) #:used-primitives (listof symbol?)
 ;;         #:console-bridge-primitive-names (listof symbol?)
 ;;         #:primitive-description? procedure?
@@ -325,6 +341,14 @@
          #:active-ffi-foreigns active-ffi-foreigns
          #:active-ffi-imports-wat active-ffi-imports-wat
          #:active-ffi-funcs-wat active-ffi-funcs-wat
+         #:stable-runtime-active-ffi-foreigns
+         [stable-runtime-active-ffi-foreigns active-ffi-foreigns]
+         #:stable-runtime-active-ffi-imports-wat
+         [stable-runtime-active-ffi-imports-wat active-ffi-imports-wat]
+         #:stable-runtime-active-ffi-funcs-wat
+         [stable-runtime-active-ffi-funcs-wat active-ffi-funcs-wat]
+         #:extra-program-function-names [extra-program-function-names '()]
+         #:extra-program-global-names [extra-program-global-names '()]
          #:described-primitives described-primitives
          #:used-primitives used-primitives
          #:console-bridge-primitive-names console-bridge-primitive-names
@@ -339,7 +363,9 @@
      #:top-level-variable-declarations top-level-variable-declarations
      #:string-constants string-constants
      #:bytes-constants bytes-constants
-     #:symbol-constants symbol-constants))
+     #:symbol-constants symbol-constants
+     #:extra-program-function-names extra-program-function-names
+     #:extra-program-global-names extra-program-global-names))
   (runtime-record-split-module-metrics! runtime-forms-before-prune
                                         program-forms-before-prune
                                         program-function-names
@@ -353,9 +379,9 @@
      stable-runtime-module
      #:browser? (current-browser?)
      #:runtime-source-fingerprint (runtime-source-fingerprint)
-     #:active-ffi-foreigns active-ffi-foreigns
-     #:active-ffi-imports-wat active-ffi-imports-wat
-     #:active-ffi-funcs-wat active-ffi-funcs-wat
+     #:active-ffi-foreigns stable-runtime-active-ffi-foreigns
+     #:active-ffi-imports-wat stable-runtime-active-ffi-imports-wat
+     #:active-ffi-funcs-wat stable-runtime-active-ffi-funcs-wat
      #:cache-root (current-runtime-cache-dir)
      #:primitive-func->symbol primitive-func->symbol
      #:primitive-global->symbol primitive-global->symbol
@@ -406,7 +432,8 @@
             full-module
             retained-primitives
             retained-functions
-            #:program-function-names program-function-names
+            #:program-function-names (append program-function-names
+                                             extra-program-function-names)
             #:program-driver-function-names program-driver-function-names
             #:primitive-global->symbol primitive-global->symbol
             #:ffi-global->symbol ffi-global->symbol
