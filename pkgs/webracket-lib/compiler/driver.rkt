@@ -64,6 +64,7 @@
                   runtime)
          (only-in "runtime-wasm.rkt"
                   split-core-runtime-module
+                  split-runtime-modules?
                   split-runtime-modules-core
                   split-runtime-modules-imported-names
                   split-runtime-modules-program)
@@ -92,7 +93,8 @@
                                     current-letrec-strategy
                                     current-tree-shake?
                                     current-runtime-cache-dir
-                                    current-runtime-primitive-report-path)
+                                    current-runtime-primitive-report-path
+                                    current-split-runtime?)
          (only-in "private/timings.rkt"
                   now-ms
                   format-metric-table
@@ -3299,7 +3301,7 @@
     (provider-owned-primitive-alias-symbols
      #:expander-read-provider? effective-expander-read-provider?
      #:io-format-provider? effective-io-format-provider?))
-  (define wat
+  (define compiled-module
     (with-handlers (#;[exn:fail? (λ (e)
                                  (error 'drive-compilation
                                         (~a "compile failed: " (exn-message e))))])
@@ -3315,7 +3317,8 @@
                      [current-internal-immutable-hash-debug-shape?
                       internal-bind-immutable-hash-debug-shape?]
                      [current-provider-owned-primitive-aliases
-                      provider-owned-primitive-aliases])
+                      provider-owned-primitive-aliases]
+                     [current-split-runtime? split-runtime?])
         (comp stx-with-stdlib))))
   (define t-compile-end (now-ms))
 
@@ -3323,11 +3326,13 @@
   (define t-write-wat-start (now-ms))
   (define split-modules
     (and split-runtime?
-         (split-core-runtime-module wat #:require-all? #f)))
+         (if (split-runtime-modules? compiled-module)
+             compiled-module
+             (split-core-runtime-module compiled-module #:require-all? #f))))
   (define program-wat
     (if split-runtime?
         (split-runtime-modules-program split-modules)
-        wat))
+        compiled-module))
   (when (and split-runtime? verbose?)
     (displayln
      (format "Split runtime imports: ~a core helpers"

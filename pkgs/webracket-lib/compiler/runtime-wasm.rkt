@@ -8,7 +8,8 @@
 (require (only-in "private/priminfo.rkt"
                   primitive->description)
          (only-in "private/parameters.rkt"
-                  current-browser?)
+                  current-browser?
+                  current-split-runtime?)
          (only-in "runtime-wasm/entry-support.rkt"
                   entry-function-form
                   entry-result-global-forms
@@ -1665,23 +1666,27 @@
                          (length used-primitives))
     (define full-module
       (time-runtime-step "runtime:build-runtime-module" build-runtime-module))
-    (analyze-and-prune-runtime-module
-     full-module
-     #:program-function-names program-function-names
-     #:result-global result
-     #:top-level-variable-declarations top-level-variable-declarations
-     #:string-constants string-constants
-     #:bytes-constants bytes-constants
-     #:symbol-constants symbol-constants
-     #:primitive-func->symbol primitive-func->symbol
-     #:primitive-global->symbol primitive-global->symbol
-     #:ffi-global->symbol ffi-global->symbol
-     #:active-ffi-foreigns (runtime-ffi-state-active-foreigns ffi-state)
-     #:active-ffi-imports-wat (runtime-ffi-state-active-imports-wat ffi-state)
-     #:active-ffi-funcs-wat (runtime-ffi-state-active-funcs-wat ffi-state)
-     #:described-primitives described-primitives
-     #:used-primitives used-primitives
-     #:console-bridge-primitive-names console-bridge-primitive-names
-     #:primitive-description? primitive->description
-     #:time-runtime-step time-runtime-step)
+    (define final-module
+      (analyze-and-prune-runtime-module
+       full-module
+       #:program-function-names program-function-names
+       #:result-global result
+       #:top-level-variable-declarations top-level-variable-declarations
+       #:string-constants string-constants
+       #:bytes-constants bytes-constants
+       #:symbol-constants symbol-constants
+       #:primitive-func->symbol primitive-func->symbol
+       #:primitive-global->symbol primitive-global->symbol
+       #:ffi-global->symbol ffi-global->symbol
+       #:active-ffi-foreigns (runtime-ffi-state-active-foreigns ffi-state)
+       #:active-ffi-imports-wat (runtime-ffi-state-active-imports-wat ffi-state)
+       #:active-ffi-funcs-wat (runtime-ffi-state-active-funcs-wat ffi-state)
+       #:described-primitives described-primitives
+       #:used-primitives used-primitives
+       #:console-bridge-primitive-names console-bridge-primitive-names
+       #:primitive-description? primitive->description
+       #:time-runtime-step time-runtime-step))
+    (if (current-split-runtime?)
+        (split-core-runtime-module final-module #:require-all? #f)
+        final-module)
     ))
