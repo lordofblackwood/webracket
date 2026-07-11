@@ -21,7 +21,9 @@
 (define io-handler-runtime-string-constants
   '((read-unsupported        "read: the Racket reader is not supported by WebRacket yet")
     (read-syntax-unsupported "read-syntax: the Racket reader is not supported by WebRacket yet")
-    (reader-unsupported      "the Racket reader is not supported by WebRacket yet")))
+    (reader-unsupported      "the Racket reader is not supported by WebRacket yet")
+    (environment-variables-ref:environment-variables? "environment-variables?")
+    (bytes-environment-variable-name? "bytes-environment-variable-name?")))
 
 ;; io-handler-default-port-global-forms : (listof datum?)
 ;;   Declare globals for default port read, write, display, and print handlers.
@@ -79,7 +81,8 @@
   '(port-read-handler
     port-write-handler
     port-display-handler
-    port-print-handler))
+    port-print-handler
+    environment-variables-ref))
 
 ;; make-predicate-body : symbol? -> (listof datum?)
 ;;   Generate a standard WebRacket predicate body for ref-type.
@@ -144,10 +147,44 @@
                      (param $env-raw  (ref eq)) ;; environment-variable set
                      (param $name-raw (ref eq)) ;; byte string name
                      (result (ref eq))
+                     (local $name (ref $Bytes))
+                     (local $bs   (ref $I8Array))
+                     (local $len  i32)
+                     (local $i    i32)
+                     (local $ch   i32)
+
                      (if (i32.eqz (ref.test (ref $EnvironmentVariables) (local.get $env-raw)))
-                         (then (return (global.get $error))))
+                         (then (call $raise-argument-error1
+                                     (global.get $symbol:environment-variables-ref)
+                                     (global.get $string:environment-variables-ref:environment-variables?)
+                                     (local.get $env-raw))
+                               (unreachable)))
                      (if (i32.eqz (ref.test (ref $Bytes) (local.get $name-raw)))
-                         (then (return (global.get $error))))
+                         (then (call $raise-argument-error1
+                                     (global.get $symbol:environment-variables-ref)
+                                     (global.get $string:bytes-environment-variable-name?)
+                                     (local.get $name-raw))
+                               (unreachable)))
+                     (local.set $name (ref.cast (ref $Bytes) (local.get $name-raw)))
+                     (local.set $bs   (struct.get $Bytes $bs (local.get $name)))
+                     (local.set $len  (array.len (local.get $bs)))
+                     (local.set $i    (i32.const 0))
+                     (block $done
+                            (loop $loop
+                                  (br_if $done (i32.ge_u (local.get $i) (local.get $len)))
+                                  (local.set $ch (array.get_u $I8Array
+                                                              (local.get $bs)
+                                                              (local.get $i)))
+                                  (if (i32.or
+                                       (i32.eq (local.get $ch) (i32.const 0))
+                                       (i32.eq (local.get $ch) (i32.const 61)))
+                                      (then (call $raise-argument-error1
+                                                  (global.get $symbol:environment-variables-ref)
+                                                  (global.get $string:bytes-environment-variable-name?)
+                                                  (local.get $name-raw))
+                                            (unreachable)))
+                                  (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                                  (br $loop)))
                      (global.get $false))
                ;; print-values : any/c ... -> any/c ...
                ;;   Module-begin helper from racket/private/modbeg. It prints

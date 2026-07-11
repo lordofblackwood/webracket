@@ -61,4 +61,32 @@
                                               'fresh))])
            (and (equal? first 'cached)
                 (equal? second 'cached)
-                (equal? calls 1))))))
+                (equal? calls 1)))))
+ (list "environment variable argument errors preserve who"
+       (let ([env (current-environment-variables)])
+         (and
+          (catch-contract/contains?
+           (lambda () (current-environment-variables 42))
+           "current-environment-variables"
+           "environment-variables?"
+           "given: 42")
+          (catch-contract/contains?
+           (lambda () (environment-variables-ref 42 #"PATH"))
+           "environment-variables-ref"
+           "environment-variables?"
+           "given: 42")
+          (catch-contract/contains?
+           (lambda () (environment-variables-ref env 42))
+           "environment-variables-ref"
+           "bytes-environment-variable-name?"
+           "given: 42")
+          (catch-contract/contains?
+           (lambda () (environment-variables-ref env #"A=B"))
+           "environment-variables-ref"
+           "bytes-environment-variable-name?"
+           "given: #\"A=B\""))))
+ (list "environment variable success cases still work"
+       (let ([env (current-environment-variables)])
+         (and (environment-variables? env)
+              (equal? (environment-variables-ref env #"") #f)
+              (void? (current-environment-variables env))))))

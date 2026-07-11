@@ -40,7 +40,8 @@
   '((parameter?        "parameter?")
     (parameterization? "parameterization?")
     (cache-configuration-index "(integer-in 0 7)")
-    (readtable-or-false "(or/c readtable? #f)")))
+    (readtable-or-false "(or/c readtable? #f)")
+    (current-environment-variables:environment-variables? "environment-variables?")))
 
 ;; parameter-runtime-symbol-constants : (listof symbol?)
 ;;   Declare symbols used by reader, printer, and compile parameters.
@@ -74,7 +75,8 @@
     exception-handler-key
     parameterization-key
     current-compile-target-machine
-    current-compile-realm))
+    current-compile-realm
+    current-environment-variables))
 
 ;; reader-printer-policy-parameter-specs : (listof (list symbol? symbol? symbol? symbol?))
 ;;   Describe the boolean reader/printing policy parameters with their
@@ -1316,7 +1318,11 @@
            (if (ref.eq (local.get $env-raw) (global.get $missing))
                (then (return (global.get $current-environment-variables-value))))
            (if (i32.eqz (ref.test (ref $EnvironmentVariables) (local.get $env-raw)))
-               (then (return (global.get $error))))
+               (then (call $raise-argument-error1
+                           (global.get $symbol:current-environment-variables)
+                           (global.get $string:current-environment-variables:environment-variables?)
+                           (local.get $env-raw))
+                     (unreachable)))
            (global.set $current-environment-variables-value (local.get $env-raw))
            (global.get $void))
 

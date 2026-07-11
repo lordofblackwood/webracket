@@ -177,6 +177,14 @@ Current remaining raw-stub classes:
   - The intentionally unsupported `read` and `read-syntax` stubs now raise
     catchable `exn:fail:unsupported` values with `read:` / `read-syntax:` in the
     message instead of encoding the unsupported reader as an argument contract.
+  - `environment-variables-ref` now raises catchable contract errors for bad
+    environment-variable sets and malformed byte-string names instead of
+    returning the internal `$error` sentinel.
+
+- `parameters.rkt`:
+  - `current-environment-variables` now raises a catchable
+    `environment-variables?` contract error for bad setter values instead of
+    returning the internal `$error` sentinel.
 
 - `control-flow.rkt`:
   - `dynamic-require` without a fallback thunk now raises a catchable
