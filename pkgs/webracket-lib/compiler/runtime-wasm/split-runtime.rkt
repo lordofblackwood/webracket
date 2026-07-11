@@ -3,6 +3,11 @@
 (provide (struct-out split-runtime-modules)
          core-runtime-helper-import-form
          core-runtime-helper-import-forms
+         classified-runtime-import/export-forms
+         runtime-function-export-form
+         runtime-function-import-form
+         runtime-global-export-form
+         runtime-global-import-form
          split-core-runtime-module)
 
 (require "core-helper.rkt"
@@ -25,11 +30,28 @@
          [_ #f]))]
     [_ #f]))
 
+;; global-import-form? : any/c -> boolean?
+;;   Check whether form is a top-level imported global declaration.
+(define (global-import-form? form)
+  (match form
+    [`(global ,(? symbol?) ,parts ...)
+     (for/or ([part (in-list parts)])
+       (match part
+         [`(import ,(? string?) ,(? string?)) #t]
+         [_ #f]))]
+    [_ #f]))
+
 ;; function-definition-form? : any/c -> boolean?
 ;;   Check whether form is a named, non-imported function definition.
 (define (function-definition-form? form)
   (and (module-func-name form)
        (not (function-import-form? form))))
+
+;; global-definition-form? : any/c -> boolean?
+;;   Check whether form is a named, non-imported global definition.
+(define (global-definition-form? form)
+  (and (module-global-name form)
+       (not (global-import-form? form))))
 
 ;; function-type-form? : any/c -> boolean?
 ;;   Check whether part is a named function type use.
@@ -76,6 +98,56 @@
          (import ,module-name ,(core-runtime-helper-export-name helper))
          ,@(function-import-signature-forms form)))
 
+;; runtime-export-name : symbol? -> string?
+;;   Derive a stable runtime export name from a Wasm identifier.
+(define (runtime-export-name name)
+  (symbol->string name))
+
+;; runtime-function-import-form : datum? [#:module string?] -> datum?
+;;   Render an import declaration matching a runtime function definition.
+(define (runtime-function-import-form function-form #:module [module-name "core"])
+  (define name (module-func-name function-form))
+  (unless name
+    (error 'runtime-function-import-form
+           "expected a named function form, got: ~s"
+           function-form))
+  `(func ,name
+         (import ,module-name ,(runtime-export-name name))
+         ,@(function-import-signature-forms function-form)))
+
+;; runtime-function-export-form : symbol? -> datum?
+;;   Render an export declaration for a runtime function.
+(define (runtime-function-export-form name)
+  `(export ,(runtime-export-name name) (func ,name)))
+
+;; global-type-form : datum? -> datum?
+;;   Extract the type declaration from a named global definition.
+(define (global-type-form global-form)
+  (match global-form
+    [`(global ,(? symbol?) ,type ,_ ...)
+     type]
+    [_
+     (error 'global-type-form
+            "expected a named global form, got: ~s"
+            global-form)]))
+
+;; runtime-global-import-form : datum? [#:module string?] -> datum?
+;;   Render an import declaration matching a runtime global definition.
+(define (runtime-global-import-form global-form #:module [module-name "core"])
+  (define name (module-global-name global-form))
+  (unless name
+    (error 'runtime-global-import-form
+           "expected a named global form, got: ~s"
+           global-form))
+  `(global ,name
+           (import ,module-name ,(runtime-export-name name))
+           ,(global-type-form global-form)))
+
+;; runtime-global-export-form : symbol? -> datum?
+;;   Render an export declaration for a runtime global.
+(define (runtime-global-export-form name)
+  `(export ,(runtime-export-name name) (global ,name)))
+
 ;; core-runtime-helper-import-forms :
 ;;   (listof core-runtime-helper?) [#:module string?] -> (listof datum?)
 ;;   Render import declarations for registered core helpers.
@@ -88,7 +160,85 @@
 (define (import-insertion-prefix-form? form)
   (and (pair? form)
        (or (memq (car form) '(type rec import tag))
-           (function-import-form? form))))
+           (function-import-form? form)
+           (global-import-form? form))))
+
+;; named-form-index : (listof datum?) (datum? -> (or/c symbol? #f)) -> hasheq?
+;;   Build an index from Wasm identifier to top-level module form.
+(define (named-form-index forms name-of)
+  (for/hasheq ([form (in-list forms)]
+               #:do [(define name (name-of form))]
+               #:when name)
+    (values name form)))
+
+;; walk-symbol-refs : any/c hasheq? -> (listof symbol?)
+;;   Find symbolic references represented by keys in `available-names`.
+(define (walk-symbol-refs x available-names)
+  (define refs (make-hasheq))
+  (define (walk x)
+    (cond
+      [(symbol? x)
+       (when (hash-ref available-names x #f)
+         (hash-set! refs x #t))]
+      [(pair? x)
+       (walk (car x))
+       (walk (cdr x))]
+      [else (void)]))
+  (walk x)
+  (hash-keys refs))
+
+;; referenced-runtime-names : (listof datum?) hasheq? -> (listof symbol?)
+;;   Return runtime names referenced by the program forms.
+(define (referenced-runtime-names program-forms available-names)
+  (sort
+   (remove-duplicates
+    (append*
+     (for/list ([form (in-list program-forms)])
+       (walk-symbol-refs form available-names))))
+   symbol<?))
+
+;; classified-runtime-import/export-forms :
+;;   (listof datum?) (listof datum?) [#:module string?]
+;;   -> (values (listof symbol?) (listof datum?) (listof datum?))
+;;   Build import and export declarations for runtime functions/globals used by program forms.
+(define (classified-runtime-import/export-forms runtime-forms
+                                                program-forms
+                                                #:module [module-name "core"])
+  (define function-form-by-name
+    (named-form-index
+     (filter function-definition-form? runtime-forms)
+     module-func-name))
+  (define global-form-by-name
+    (named-form-index
+     (filter global-definition-form? runtime-forms)
+     module-global-name))
+  (define available-names
+    (for/hasheq ([name (in-list (append (hash-keys function-form-by-name)
+                                        (hash-keys global-form-by-name)))])
+      (values name #t)))
+  (define referenced-names
+    (referenced-runtime-names program-forms available-names))
+  (define referenced-function-names
+    (filter (lambda (name) (hash-ref function-form-by-name name #f))
+            referenced-names))
+  (define referenced-global-names
+    (filter (lambda (name) (hash-ref global-form-by-name name #f))
+            referenced-names))
+  (define import-forms
+    (append
+     (for/list ([name (in-list referenced-function-names)])
+       (runtime-function-import-form (hash-ref function-form-by-name name)
+                                     #:module module-name))
+     (for/list ([name (in-list referenced-global-names)])
+       (runtime-global-import-form (hash-ref global-form-by-name name)
+                                   #:module module-name))))
+  (define export-forms
+    (append
+     (map runtime-function-export-form referenced-function-names)
+     (map runtime-global-export-form referenced-global-names)))
+  (values (append referenced-function-names referenced-global-names)
+          import-forms
+          export-forms))
 
 ;; module-forms : datum? -> (listof datum?)
 ;;   Return a WAT module's body forms.
@@ -261,6 +411,46 @@
   (check-equal? (split-runtime-modules-imported-names sample-pruned-split)
                 '($sample-add))
 
+  (define boundary-runtime-forms
+    '((global $runtime-state (mut i32) (i32.const 40))
+      (func $runtime-add-state
+            (param $x i32)
+            (result i32)
+            (i32.add (local.get $x) (global.get $runtime-state)))
+      (func $unused-runtime-helper
+            (result i32)
+            (i32.const 0))))
+
+  (define boundary-program-forms
+    '((func $probe
+            (export "probe")
+            (result i32)
+            (global.set $runtime-state (i32.const 2))
+            (call $runtime-add-state (i32.const 40)))))
+
+  (define-values (boundary-imported-names
+                  boundary-import-forms
+                  boundary-export-forms)
+    (classified-runtime-import/export-forms
+     boundary-runtime-forms
+     boundary-program-forms))
+
+  (check-equal? boundary-imported-names
+                '($runtime-add-state $runtime-state))
+  (check-equal?
+   boundary-import-forms
+   '((func $runtime-add-state
+           (import "core" "$runtime-add-state")
+           (param $x i32)
+           (result i32))
+     (global $runtime-state
+             (import "core" "$runtime-state")
+             (mut i32))))
+  (check-equal?
+   boundary-export-forms
+   '((export "$runtime-add-state" (func $runtime-add-state))
+     (export "$runtime-state" (global $runtime-state))))
+
   (define core-link-probe-module
     `(module
        ,@(generate-shared-types)
@@ -295,6 +485,14 @@
       (make-temporary-file "webracket-split-program-~a.wat"))
     (define program-wasm-path
       (path-replace-extension program-wat-path ".wasm"))
+    (define boundary-core-wat-path
+      (make-temporary-file "webracket-boundary-core-~a.wat"))
+    (define boundary-core-wasm-path
+      (path-replace-extension boundary-core-wat-path ".wasm"))
+    (define boundary-program-wat-path
+      (make-temporary-file "webracket-boundary-program-~a.wat"))
+    (define boundary-program-wasm-path
+      (path-replace-extension boundary-program-wat-path ".wasm"))
     (check-true
      (wat->wasm (split-runtime-modules-core core-link-split)
                 #:wat core-wat-path
@@ -303,6 +501,18 @@
      (wat->wasm core-link-program
                 #:wat program-wat-path
                 #:wasm program-wasm-path))
+    (check-true
+     (wat->wasm `(module
+                   ,@boundary-runtime-forms
+                   ,@boundary-export-forms)
+                #:wat boundary-core-wat-path
+                #:wasm boundary-core-wasm-path))
+    (check-true
+     (wat->wasm `(module
+                   ,@boundary-import-forms
+                   ,@boundary-program-forms)
+                #:wat boundary-program-wat-path
+                #:wasm boundary-program-wasm-path))
 
     (define node-path (find-executable-path "node"))
     (when node-path
@@ -342,4 +552,34 @@ JS
                           (path->string node-script-path)
                           (path->string core-wasm-path)
                           (path->string program-wasm-path))
+       0)
+      (define boundary-node-script-path
+        (make-temporary-file "webracket-boundary-link-~a.mjs"))
+      (with-output-to-file boundary-node-script-path
+        (lambda ()
+          (display
+           #<<JS
+import fs from "node:fs/promises";
+
+const [corePath, programPath] = process.argv.slice(2);
+const coreBytes = await fs.readFile(corePath);
+const programBytes = await fs.readFile(programPath);
+const core = await WebAssembly.instantiate(coreBytes, {});
+const program = await WebAssembly.instantiate(
+  programBytes,
+  { core: core.instance.exports },
+);
+
+const actual = program.instance.exports.probe();
+if (actual !== 42) {
+  throw new Error(`probe: expected 42, got ${actual}`);
+}
+JS
+           ))
+        #:exists 'replace)
+      (check-equal?
+       (system*/exit-code node-path
+                          (path->string boundary-node-script-path)
+                          (path->string boundary-core-wasm-path)
+                          (path->string boundary-program-wasm-path))
        0))))
