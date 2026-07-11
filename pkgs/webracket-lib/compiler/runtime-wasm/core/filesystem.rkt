@@ -35,6 +35,8 @@
     (vfs:identity-failed        "file-or-directory-identity: VFS path does not exist")
     (vfs:error-separator        ": ")
     (vfs:error-path             "\n  path: ")
+    (vfs:error-source-path      "\n  source path: ")
+    (vfs:error-destination-path "\n  destination path: ")
     (vfs:path-too-long          ": path is too long for WebRacket VFS\n  path: ")
     (vfs:file-buffer-too-small
      ": file content is too large for WebRacket VFS buffer\n  path: ")
@@ -80,6 +82,7 @@
 ;;   Preserve the runtime emission order for VFS and file-operation helpers.
 (define filesystem-runtime-only-helper-names
   '($raise-vfs-file-error/path
+    $raise-vfs-file-error/two-paths
     $raise-vfs-file-error/who-path
     $raise-vfs-path-too-long
     $raise-vfs-file-buffer-too-small
@@ -149,6 +152,30 @@
                 (global.get $string:vfs:error-path))
           (call $growable-array-add! (local.get $out)
                 (call $format/write (local.get $path-raw)))
+          (local.set $full
+                     (call $growable-array-of-strings->string (local.get $out)))
+          (call $raise-vfs-file-error (local.get $full))
+          (unreachable))
+
+    (func $raise-vfs-file-error/two-paths
+          (param $message  (ref eq))
+          (param $src-raw  (ref eq))
+          (param $dest-raw (ref eq))
+
+          (local $out  (ref $GrowableArray))
+          (local $full (ref $String))
+
+          (local.set $out (call $make-growable-array (i32.const 5)))
+          (call $growable-array-add! (local.get $out)
+                (ref.cast (ref $String) (local.get $message)))
+          (call $growable-array-add! (local.get $out)
+                (global.get $string:vfs:error-source-path))
+          (call $growable-array-add! (local.get $out)
+                (call $format/write (local.get $src-raw)))
+          (call $growable-array-add! (local.get $out)
+                (global.get $string:vfs:error-destination-path))
+          (call $growable-array-add! (local.get $out)
+                (call $format/write (local.get $dest-raw)))
           (local.set $full
                      (call $growable-array-of-strings->string (local.get $out)))
           (call $raise-vfs-file-error (local.get $full))
@@ -1609,8 +1636,10 @@
                            (local.get $new-len)
                            (local.get $exists?)))
           (if (i32.lt_s (local.get $status) (i32.const 0))
-              (then (call $raise-vfs-file-error
-                          (global.get $string:vfs:rename-failed))
+              (then (call $raise-vfs-file-error/two-paths
+                          (global.get $string:vfs:rename-failed)
+                          (local.get $old-raw)
+                          (local.get $new-raw))
                     (unreachable)))
           (global.get $void))
 
@@ -1687,8 +1716,10 @@
                            (global.get $memory-map:vfs-file-buffer-base)
                            (local.get $dest-len)))
           (if (i32.lt_s (local.get $status) (i32.const 0))
-              (then (call $raise-vfs-file-error
-                          (global.get $string:vfs:copy-directory/files-failed))
+              (then (call $raise-vfs-file-error/two-paths
+                          (global.get $string:vfs:copy-directory/files-failed)
+                          (local.get $src-raw)
+                          (local.get $dest-raw))
                     (unreachable)))
           (global.get $void))
 
@@ -1771,8 +1802,10 @@
                            (local.get $dest-len)
                            (local.get $exists?)))
           (if (i32.lt_s (local.get $status) (i32.const 0))
-              (then (call $raise-vfs-file-error
-                          (global.get $string:vfs:copy-file-failed))
+              (then (call $raise-vfs-file-error/two-paths
+                          (global.get $string:vfs:copy-file-failed)
+                          (local.get $src-raw)
+                          (local.get $dest-raw))
                     (unreachable)))
           (global.get $void))
 

@@ -119,6 +119,32 @@
          "open-output-file"
          "VFS file write failed"
          "/app/missing-must-truncate.txt")))
+ (list "multi-path VFS failures report source and destination paths"
+       (and
+        (catch-fail/contains?
+         (lambda () (rename-file-or-directory "/app/missing-rename-source"
+                                              "/app/rename-destination"))
+         "rename-file-or-directory"
+         "source path:"
+         "/app/missing-rename-source"
+         "destination path:"
+         "/app/rename-destination")
+        (catch-fail/contains?
+         (lambda () (copy-file "/app/missing-copy-source"
+                               "/app/copy-destination"))
+         "copy-file"
+         "source path:"
+         "/app/missing-copy-source"
+         "destination path:"
+         "/app/copy-destination")
+        (catch-fail/contains?
+         (lambda () (copy-directory/files "/app/missing-copy-tree-source"
+                                          "/app/copy-tree-destination"))
+         "copy-directory/files"
+         "source path:"
+         "/app/missing-copy-tree-source"
+         "destination path:"
+         "/app/copy-tree-destination")))
  (list "multi-path VFS operations report oversized destination paths with who"
        (and
         (catch-fail/contains?
