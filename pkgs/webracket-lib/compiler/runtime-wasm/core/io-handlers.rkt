@@ -19,7 +19,9 @@
 ;; io-handler-runtime-string-constants : (listof (list/c symbol? string?))
 ;;   Declare strings used by bootstrap reader and printer handlers.
 (define io-handler-runtime-string-constants
-  '((reader-unsupported "the Racket reader is not supported by WebRacket yet")))
+  '((read-unsupported        "read: the Racket reader is not supported by WebRacket yet")
+    (read-syntax-unsupported "read-syntax: the Racket reader is not supported by WebRacket yet")
+    (reader-unsupported      "the Racket reader is not supported by WebRacket yet")))
 
 ;; io-handler-default-port-global-forms : (listof datum?)
 ;;   Declare globals for default port read, write, display, and print handlers.
@@ -231,10 +233,12 @@
                (func $read (type $Prim01)
                      (param $in (ref eq)) ;; optional input-port?, default = current-input-port
                      (result    (ref eq))
-                     (call $raise-argument-error1
-                           (global.get $symbol:read)
-                           (global.get $string:reader-unsupported)
-                           (local.get $in))
+                     (drop (call $raise
+                                 (call $exn:fail:unsupported/make
+                                       (global.get $string:read-unsupported)
+                                       (call $current-continuation-marks
+                                             (global.get $missing)))
+                                 (global.get $true)))
                      (unreachable))
 
                ;; read-syntax : [any/c] [input-port?] -> syntax?
@@ -244,10 +248,12 @@
                      (param $source-name (ref eq)) ;; optional source name
                      (param $in          (ref eq)) ;; optional input-port?, default = current-input-port
                      (result             (ref eq))
-                     (call $raise-argument-error1
-                           (global.get $symbol:read-syntax)
-                           (global.get $string:reader-unsupported)
-                           (local.get $in))
+                     (drop (call $raise
+                                 (call $exn:fail:unsupported/make
+                                       (global.get $string:read-syntax-unsupported)
+                                       (call $current-continuation-marks
+                                             (global.get $missing)))
+                                 (global.get $true)))
                      (unreachable))
                ;; port-read-handler : input-port? -> procedure?
                ;;   Get the Racket-level read handler attached to an input

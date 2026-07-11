@@ -98,4 +98,14 @@
          (lambda ()
            (peek-string 1 0 (proxy-input)))
          "peek-string"
-         "only string-backed ports are supported by WebRacket"))))
+         "only string-backed ports are supported by WebRacket")))
+ (list "reader stubs are catchable unsupported errors"
+       (and
+        (catch-unsupported/contains?
+         (lambda () (read))
+         "read"
+         "Racket reader is not supported by WebRacket")
+        (catch-unsupported/contains?
+         (lambda () (read-syntax 'source (open-input-string "1")))
+         "read-syntax"
+         "Racket reader is not supported by WebRacket"))))

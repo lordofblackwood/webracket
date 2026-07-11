@@ -173,6 +173,11 @@ Current remaining raw-stub classes:
     tail; improper mutable tails still fail later through the relevant mpair
     accessor, as in Racket.
 
+- `io-handlers.rkt`:
+  - The intentionally unsupported `read` and `read-syntax` stubs now raise
+    catchable `exn:fail:unsupported` values with `read:` / `read-syntax:` in the
+    message instead of encoding the unsupported reader as an argument contract.
+
 - `namespaces.rkt` and `linklet-instances.rkt`:
   - Missing namespace and instance bindings now raise catchable
     `exn:fail:contract:variable` values with the missing symbol in the
