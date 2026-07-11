@@ -38,6 +38,8 @@ Recent semantic cleanup:
   valid ports, but now report `input-port?` contract errors for bad ports.
 - Default read/write/display/print handlers now validate their port arguments
   and the print-handler quote depth with default handler `who` names.
+- Focused generated-output coverage now includes public box-family errors
+  and system/runtime helper argument errors.
 
 ## Preserved Behavior To Revisit
 
