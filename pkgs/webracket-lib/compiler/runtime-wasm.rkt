@@ -421,6 +421,29 @@
     (define program-function-names
       (module-func-names dls))
 
+    (define primitive-initializer-forms
+      (runtime-primitive-state-initializer-forms primitive-state))
+    (define ffi-primitive-initializer-forms
+      (runtime-ffi-state-primitive-initializer-forms ffi-state))
+    (define unsafe-ffi-primitive-table-initializer-forms
+      '((call $initialize-unsafe-ffi-primitive-table)))
+    (define split-runtime-primitive-initializer-name
+      '$initialize-split-runtime-primitives!)
+    (define split-runtime-primitive-initializer-helper-forms
+      (if (current-split-runtime?)
+          (list
+           `(func ,split-runtime-primitive-initializer-name
+                  ,@primitive-initializer-forms))
+          '()))
+    (define entry-primitive-initializer-forms
+      (if (current-split-runtime?)
+          `((call ,split-runtime-primitive-initializer-name))
+          primitive-initializer-forms))
+    (define entry-ffi-primitive-initializer-forms
+      ffi-primitive-initializer-forms)
+    (define entry-unsafe-ffi-primitive-table-initializer-forms
+      unsafe-ffi-primitive-table-initializer-forms)
+
     (define linklet-body-reserved-symbols
       (runtime-linklet-body-reserved-symbols all-primitives))
 
@@ -1614,6 +1637,7 @@
                ,@ffi-entry-global-forms
 
                ,@entry-support-forms
+               ,@split-runtime-primitive-initializer-helper-forms
 
                ,(entry-function-form
                  entry-locals
@@ -1635,9 +1659,11 @@
                  character-general-category-initializer-forms
                  #:realm-initializer-forms realm-initializer-forms
                  #:primitive-initializer-forms
-                 (runtime-primitive-state-initializer-forms primitive-state)
+                 entry-primitive-initializer-forms
                  #:ffi-primitive-initializer-forms
-                 (runtime-ffi-state-primitive-initializer-forms ffi-state)
+                 entry-ffi-primitive-initializer-forms
+                 #:unsafe-ffi-primitive-table-initializer-forms
+                 entry-unsafe-ffi-primitive-table-initializer-forms
                  #:security-guard-current-initializer-forms
                  security-guard-current-initializer-forms
                  #:error-value-handler-late-initializer-forms

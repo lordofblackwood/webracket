@@ -120,6 +120,7 @@
 ;;   #:path-current-initializer-forms list? #:environment-parameter-initializer-forms list?
 ;;   #:character-general-category-initializer-forms list? #:realm-initializer-forms list?
 ;;   #:primitive-initializer-forms list? #:ffi-primitive-initializer-forms list?
+;;   #:unsafe-ffi-primitive-table-initializer-forms list?
 ;;   #:security-guard-current-initializer-forms list? #:error-value-handler-late-initializer-forms list?
 ;;   #:print-read-parameter-late-initializer-forms list?
 ;;   #:io-handler-default-port-late-initializer-forms list?
@@ -145,6 +146,9 @@
          #:realm-initializer-forms realm-initializer-forms
          #:primitive-initializer-forms primitive-initializer-forms
          #:ffi-primitive-initializer-forms ffi-primitive-initializer-forms
+         #:unsafe-ffi-primitive-table-initializer-forms
+         [unsafe-ffi-primitive-table-initializer-forms
+          '((call $initialize-unsafe-ffi-primitive-table))]
          #:security-guard-current-initializer-forms security-guard-current-initializer-forms
          #:error-value-handler-late-initializer-forms error-value-handler-late-initializer-forms
          #:print-read-parameter-late-initializer-forms print-read-parameter-late-initializer-forms
@@ -191,7 +195,7 @@
          ;; Initialize variables holding primitives
          ,@primitive-initializer-forms
          ,@ffi-primitive-initializer-forms
-         (call $initialize-unsafe-ffi-primitive-table)
+         ,@unsafe-ffi-primitive-table-initializer-forms
          ,@security-guard-current-initializer-forms
          ,@error-value-handler-late-initializer-forms
          ,@print-read-parameter-late-initializer-forms
