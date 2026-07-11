@@ -598,23 +598,32 @@
                       (loop $validate
                             (if (ref.eq (local.get $pred-node) (global.get $null))
                                 (then (if (ref.eq (local.get $handler-node) (global.get $null))
-                                          (then (br $validated))
-                                          (else (call $raise-argument-error1
+                                          (then (br $validated)))
+                                      (if (i32.eqz (ref.test (ref $Pair) (local.get $handler-node)))
+                                          (then (call $raise-list-expected/who
                                                       (global.get $symbol:catch*)
-                                                      (global.get $string:catch*-matching-lengths)
-                                                      (local.get $handlers))
-                                                (unreachable)))))
+                                                      (local.get $handler-node))
+                                                (unreachable)))
+                                      (call $raise-argument-error1
+                                            (global.get $symbol:catch*)
+                                            (global.get $string:catch*-matching-lengths)
+                                            (local.get $handlers))
+                                      (unreachable)))
+                            (if (i32.eqz (ref.test (ref $Pair) (local.get $pred-node)))
+                                (then (call $raise-list-expected/who
+                                            (global.get $symbol:catch*)
+                                            (local.get $pred-node))
+                                      (unreachable)))
                             (if (ref.eq (local.get $handler-node) (global.get $null))
                                 (then (call $raise-argument-error1
                                             (global.get $symbol:catch*)
                                             (global.get $string:catch*-matching-lengths)
                                             (local.get $handlers))
                                       (unreachable)))
-                            (if (i32.eqz (ref.test (ref $Pair) (local.get $pred-node)))
-                                (then (call $raise-pair-expected (local.get $pred-node))
-                                      (unreachable)))
                             (if (i32.eqz (ref.test (ref $Pair) (local.get $handler-node)))
-                                (then (call $raise-pair-expected (local.get $handler-node))
+                                (then (call $raise-list-expected/who
+                                            (global.get $symbol:catch*)
+                                            (local.get $handler-node))
                                       (unreachable)))
                             (local.set $pred-pair (ref.cast (ref $Pair) (local.get $pred-node)))
                             (local.set $handler-pair (ref.cast (ref $Pair) (local.get $handler-node)))
@@ -659,7 +668,9 @@
                             (if (ref.eq (local.get $pred-node) (global.get $null))
                                 (then (throw $exn (local.get $exn-val))))
                             (if (i32.eqz (ref.test (ref $Pair) (local.get $pred-node)))
-                                (then (call $raise-pair-expected (local.get $pred-node))
+                                (then (call $raise-list-expected/who
+                                            (global.get $symbol:catch*)
+                                            (local.get $pred-node))
                                       (unreachable)))
                             (if (ref.eq (local.get $handler-node) (global.get $null))
                                 (then (call $raise-argument-error1
@@ -668,7 +679,9 @@
                                             (local.get $handlers))
                                       (unreachable)))
                             (if (i32.eqz (ref.test (ref $Pair) (local.get $handler-node)))
-                                (then (call $raise-pair-expected (local.get $handler-node))
+                                (then (call $raise-list-expected/who
+                                            (global.get $symbol:catch*)
+                                            (local.get $handler-node))
                                       (unreachable)))
 
                             (local.set $pred-pair    (ref.cast (ref $Pair) (local.get $pred-node)))

@@ -146,6 +146,41 @@
          "catch*"
          "procedure?"
          "given: 42")))
+ (list "catch* malformed list errors preserve who"
+       (and
+        (catch-contract/contains?
+         (lambda () (catch* 42
+                            (list (lambda (exn) exn))
+                            (lambda () 'ok)))
+         "catch*"
+         "list?"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (catch* (list exn?)
+                            42
+                            (lambda () 'ok)))
+         "catch*"
+         "list?"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (catch* (cons exn? 42)
+                            (list (lambda (exn) exn))
+                            (lambda () 'ok)))
+         "catch*"
+         "list?"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (catch* (list exn?)
+                            (cons (lambda (exn) exn) 42)
+                            (lambda () 'ok)))
+         "catch*"
+         "list?"
+         "given: 42")))
+ (list "catch* success still handles matching exceptions"
+       (equal? (catch* (list symbol?)
+                       (list (lambda (exn) (list 'caught exn)))
+                       (lambda () (raise 'boom)))
+               '(caught boom)))
  (list "with-handlers procedure errors are catchable"
        (and
         (catch-contract/contains?
