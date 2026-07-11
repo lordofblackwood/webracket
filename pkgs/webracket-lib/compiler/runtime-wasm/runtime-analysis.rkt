@@ -159,10 +159,45 @@
         (values runtime-forms (cons form program-forms))
         (values (cons form runtime-forms) program-forms))))
 
-;; module-fingerprint : list? -> string?
-;;   Hash the serialized WAT module tree.
-(define (module-fingerprint module)
-  (module-write-sha1 module))
+;; named-symbol-form-signature : symbol? any/c -> (or/c list? #f)
+;;   Return a top-level shape signature for a form with a symbolic name.
+(define (named-symbol-form-signature kind form)
+  (and (pair? form)
+       (pair? (cdr form))
+       (symbol? (cadr form))
+       (list kind (cadr form))))
+
+;; rec-type-signature : any/c -> list?
+;;   Return named type declarations inside a recursive type group.
+(define (rec-type-signature form)
+  `(rec ,@(for/list ([part (in-list (cdr form))]
+                     #:when (and (pair? part)
+                                  (eq? (car part) 'type)
+                                  (pair? (cdr part))
+                                  (symbol? (cadr part))))
+            (cadr part))))
+
+;; stable-runtime-form-signature : any/c -> datum?
+;;   Return a cheap cache-key signature for a stable runtime top-level form.
+(define (stable-runtime-form-signature form)
+  (cond
+    [(module-func-name form)   => (lambda (name) `(func ,name))]
+    [(module-global-name form) => (lambda (name) `(global ,name))]
+    [(module-data-name form)   => (lambda (name) `(data ,name))]
+    [(named-symbol-form-signature 'tag form) => values]
+    [(named-symbol-form-signature 'type form) => values]
+    [(and (pair? form) (eq? (car form) 'rec))
+     (rec-type-signature form)]
+    [(pair? form)
+     (list (car form) (length form))]
+    [else form]))
+
+;; stable-runtime-module-signature : list? -> datum?
+;;   Return a cheap top-level shape signature for stable runtime cache keys.
+(define (stable-runtime-module-signature module)
+  `(stable-runtime-module
+    ,@(for/list ([form (in-list (cdr module))])
+        (stable-runtime-form-signature form))))
 
 ;; stable-runtime-analysis-cache-fingerprint :
 ;;   list? #:browser? boolean? #:runtime-source-fingerprint any/c
@@ -177,10 +212,10 @@
          #:active-ffi-imports-wat active-ffi-imports-wat
          #:active-ffi-funcs-wat active-ffi-funcs-wat)
   `(stable-runtime-analysis-cache
-    1
+    2
     ,(if browser? 'browser 'node)
     ,runtime-source-fingerprint
-    ,(module-fingerprint runtime-module)
+    ,(stable-runtime-module-signature runtime-module)
     ,(sort (map foreign-racket-name active-ffi-foreigns) symbol<?)
     ,(equal-hash-code active-ffi-imports-wat)
     ,(equal-hash-code active-ffi-funcs-wat)))
@@ -1027,6 +1062,44 @@
                 '((global $prim:js-eval (mut (ref eq)) (ref.null eq))
                   (func $js-eval (call $js-eval/imported))
                   (func $js-eval/imported (import "host" "js-eval"))))
+
+  (define cache-fingerprint-a
+    (stable-runtime-analysis-cache-fingerprint
+     '(module (func $same (i32.const 1)))
+     #:browser? #f
+     #:runtime-source-fingerprint '(source a)
+     #:active-ffi-foreigns '()
+     #:active-ffi-imports-wat '()
+     #:active-ffi-funcs-wat '()))
+  (define cache-fingerprint-same-shape
+    (stable-runtime-analysis-cache-fingerprint
+     '(module (func $same (i32.const 2)))
+     #:browser? #f
+     #:runtime-source-fingerprint '(source a)
+     #:active-ffi-foreigns '()
+     #:active-ffi-imports-wat '()
+     #:active-ffi-funcs-wat '()))
+  (define cache-fingerprint-different-shape
+    (stable-runtime-analysis-cache-fingerprint
+     '(module (func $different (i32.const 1)))
+     #:browser? #f
+     #:runtime-source-fingerprint '(source a)
+     #:active-ffi-foreigns '()
+     #:active-ffi-imports-wat '()
+     #:active-ffi-funcs-wat '()))
+  (define cache-fingerprint-different-source
+    (stable-runtime-analysis-cache-fingerprint
+     '(module (func $same (i32.const 1)))
+     #:browser? #f
+     #:runtime-source-fingerprint '(source b)
+     #:active-ffi-foreigns '()
+     #:active-ffi-imports-wat '()
+     #:active-ffi-funcs-wat '()))
+  (check-match cache-fingerprint-a
+    `(stable-runtime-analysis-cache 2 node ,_ ,_ ,_ ,_ ,_))
+  (check-equal? cache-fingerprint-same-shape cache-fingerprint-a)
+  (check-not-equal? cache-fingerprint-different-shape cache-fingerprint-a)
+  (check-not-equal? cache-fingerprint-different-source cache-fingerprint-a)
 
   (define primitive-func->symbol
     (hasheq '$p 'p '$q 'q))
