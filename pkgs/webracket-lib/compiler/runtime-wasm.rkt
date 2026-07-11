@@ -1687,6 +1687,13 @@
        #:primitive-description? primitive->description
        #:time-runtime-step time-runtime-step))
     (if (current-split-runtime?)
-        (split-core-runtime-module final-module #:require-all? #f)
+        (split-classified-runtime-module
+         final-module
+         #:program-function-names program-function-names
+         #:result-global result
+         #:top-level-variable-declarations top-level-variable-declarations
+         #:string-constants string-constants
+         #:bytes-constants bytes-constants
+         #:symbol-constants symbol-constants)
         final-module)
     ))

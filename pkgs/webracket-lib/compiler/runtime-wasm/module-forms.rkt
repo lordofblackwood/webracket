@@ -13,14 +13,23 @@
          symbol-prefix-count
          forms->module)
 
+;; module-name-symbol : any/c -> (or/c symbol? #f)
+;;   Normalize a WAT identifier, accepting pre-strip syntax identifiers.
+(define (module-name-symbol x)
+  (cond
+    [(symbol? x) x]
+    [(and (identifier? x)
+          (symbol? (syntax-e x)))
+     (syntax-e x)]
+    [else #f]))
+
 ;; module-func-name : any/c -> (or/c symbol? #f)
 ;;   Return the name of a WAT function form, if the form has one.
 (define (module-func-name form)
   (and (pair? form)
        (eq? (car form) 'func)
        (pair? (cdr form))
-       (symbol? (cadr form))
-       (cadr form)))
+       (module-name-symbol (cadr form))))
 
 ;; module-global-name : any/c -> (or/c symbol? #f)
 ;;   Return the name of a WAT global form, if the form has one.
@@ -28,8 +37,7 @@
   (and (pair? form)
        (eq? (car form) 'global)
        (pair? (cdr form))
-       (symbol? (cadr form))
-       (cadr form)))
+       (module-name-symbol (cadr form))))
 
 ;; module-data-name : any/c -> (or/c symbol? #f)
 ;;   Return the name of a WAT data form, if the form has one.
@@ -37,8 +45,7 @@
   (and (pair? form)
        (eq? (car form) 'data)
        (pair? (cdr form))
-       (symbol? (cadr form))
-       (cadr form)))
+       (module-name-symbol (cadr form))))
 
 ;; module-write-bytes : list? -> bytes?
 ;;   Serialize a WAT module with `write` for hashing and size metrics.
@@ -111,9 +118,12 @@
       (export "f" (func $f))))
 
   (check-equal? (module-func-name '(func $f)) '$f)
+  (check-equal? (module-func-name (list 'func #'$f)) '$f)
   (check-false (module-func-name '(func (export "anon"))))
   (check-equal? (module-global-name '(global $g i32 (i32.const 0))) '$g)
+  (check-equal? (module-global-name (list 'global #'$g 'i32 '(i32.const 0))) '$g)
   (check-equal? (module-data-name '(data $d "abc")) '$d)
+  (check-equal? (module-data-name (list 'data #'$d "abc")) '$d)
   (check-equal? (module-func-names (cdr sample-module)) '($f))
   (check-equal? (module-func-count sample-module) 1)
   (check-equal? (module-global-count sample-module) 1)

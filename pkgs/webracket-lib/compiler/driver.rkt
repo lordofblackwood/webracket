@@ -3335,7 +3335,7 @@
         compiled-module))
   (when (and split-runtime? verbose?)
     (displayln
-     (format "Split runtime imports: ~a core helpers"
+     (format "Split runtime imports: ~a runtime definitions"
              (length (split-runtime-modules-imported-names split-modules)))
      (current-error-port)))
   (write-wat-to-file out-wat program-wat #:pretty? pretty-wat?)

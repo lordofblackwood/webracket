@@ -14,6 +14,8 @@
          split-core-runtime-module)
 
 (require "core-helper.rkt"
+         (only-in "constants.rkt"
+                  constant-global-name?)
          "core-runtime.rkt"
          "module-forms.rkt"
          (only-in "runtime-analysis.rkt"
@@ -28,7 +30,7 @@
 ;;   Check whether form is a top-level imported function declaration.
 (define (function-import-form? form)
   (match form
-    [`(func ,(? symbol?) ,parts ...)
+    [`(func ,_ ,parts ...)
      (for/or ([part (in-list parts)])
        (match part
          [`(import ,(? string?) ,(? string?)) #t]
@@ -39,7 +41,7 @@
 ;;   Check whether form is a top-level imported global declaration.
 (define (global-import-form? form)
   (match form
-    [`(global ,(? symbol?) ,parts ...)
+    [`(global ,_ ,parts ...)
      (for/or ([part (in-list parts)])
        (match part
          [`(import ,(? string?) ,(? string?)) #t]
@@ -50,7 +52,7 @@
 ;;   Check whether form is a top-level imported tag declaration.
 (define (tag-import-form? form)
   (match form
-    [`(tag ,(? symbol?) ,parts ...)
+    [`(tag ,_ ,parts ...)
      (for/or ([part (in-list parts)])
        (match part
          [`(import ,(? string?) ,(? string?)) #t]
@@ -103,7 +105,7 @@
 ;;   Extract the type use or inline signature for an imported function.
 (define (function-import-signature-forms function-form)
   (match function-form
-    [`(func ,(? symbol?) ,parts ...)
+    [`(func ,_ ,parts ...)
      (define type-forms
        (for/list ([part (in-list parts)]
                   #:when (function-type-form? part))
@@ -130,7 +132,7 @@
 ;;   Extract the parameter signature for an imported tag.
 (define (tag-import-signature-forms tag-form)
   (match tag-form
-    [`(tag ,(? symbol?) ,parts ...)
+    [`(tag ,_ ,parts ...)
      (for/list ([part (in-list parts)]
                 #:when (tag-signature-form? part))
        part)]
@@ -153,6 +155,16 @@
 ;;   Derive a stable runtime export name from a Wasm identifier.
 (define (runtime-export-name name)
   (symbol->string name))
+
+;; runtime-tag-export-name : symbol? -> string?
+;;   Derive a stable runtime export name for tags without colliding with functions.
+(define (runtime-tag-export-name name)
+  (format "tag:~a" (runtime-export-name name)))
+
+;; runtime-global-export-name : symbol? -> string?
+;;   Derive a stable runtime export name for globals without colliding with functions.
+(define (runtime-global-export-name name)
+  (format "global:~a" (runtime-export-name name)))
 
 ;; runtime-function-import-form : datum? [#:module string?] -> datum?
 ;;   Render an import declaration matching a runtime function definition.
@@ -180,19 +192,19 @@
            "expected a named tag form, got: ~s"
            tag-form))
   `(tag ,name
-        (import ,module-name ,(runtime-export-name name))
+        (import ,module-name ,(runtime-tag-export-name name))
         ,@(tag-import-signature-forms tag-form)))
 
 ;; runtime-tag-export-form : symbol? -> datum?
 ;;   Render an export declaration for a runtime tag.
 (define (runtime-tag-export-form name)
-  `(export ,(runtime-export-name name) (tag ,name)))
+  `(export ,(runtime-tag-export-name name) (tag ,name)))
 
 ;; global-type-form : datum? -> datum?
 ;;   Extract the type declaration from a named global definition.
 (define (global-type-form global-form)
   (match global-form
-    [`(global ,(? symbol?) ,type ,_ ...)
+    [`(global ,_ ,type ,_ ...)
      type]
     [_
      (error 'global-type-form
@@ -208,13 +220,13 @@
            "expected a named global form, got: ~s"
            global-form))
   `(global ,name
-           (import ,module-name ,(runtime-export-name name))
+           (import ,module-name ,(runtime-global-export-name name))
            ,(global-type-form global-form)))
 
 ;; runtime-global-export-form : symbol? -> datum?
 ;;   Render an export declaration for a runtime global.
 (define (runtime-global-export-form name)
-  `(export ,(runtime-export-name name) (global ,name)))
+  `(export ,(runtime-global-export-name name) (global ,name)))
 
 ;; core-runtime-helper-import-forms :
 ;;   (listof core-runtime-helper?) [#:module string?] -> (listof datum?)
@@ -244,14 +256,71 @@
 ;;   Find symbolic references represented by keys in `available-names`.
 (define (walk-symbol-refs x available-names)
   (define refs (make-hasheq))
+  (define (record! name)
+    (when (hash-ref available-names name #f)
+      (hash-set! refs name #t)))
+  (define (walk-list xs)
+    (for ([x (in-list xs)])
+      (walk x)))
   (define (walk x)
     (cond
       [(symbol? x)
-       (when (hash-ref available-names x #f)
-         (hash-set! refs x #t))]
+       (record! x)]
       [(pair? x)
-       (walk (car x))
-       (walk (cdr x))]
+       (match x
+         [`(func ,(? symbol?) ,parts ...)
+          (walk-list parts)]
+         [`(global ,(? symbol?) ,parts ...)
+          (walk-list parts)]
+         [`(tag ,(? symbol?) ,parts ...)
+          (walk-list parts)]
+         [`(data ,(? symbol?) ,parts ...)
+          (walk-list parts)]
+         [`(type ,(? symbol?) ,parts ...)
+          (walk-list parts)]
+         [`(param ,(? symbol?) ,parts ...)
+          (walk-list parts)]
+         [`(local ,(? symbol?) ,parts ...)
+          (walk-list parts)]
+         [`(local.get ,_) (void)]
+         [`(local.set ,_ ,parts ...)
+          (walk-list parts)]
+         [`(local.tee ,_ ,parts ...)
+          (walk-list parts)]
+         [`(block ,(? symbol?) ,parts ...)
+          (walk-list parts)]
+         [`(loop ,(? symbol?) ,parts ...)
+          (walk-list parts)]
+         [`(br ,_) (void)]
+         [`(br_if ,_ ,parts ...)
+          (walk-list parts)]
+         [`(br_table ,labels ... ,default)
+          (void)]
+         [`(catch ,tag ,_)
+          (record! tag)]
+         [`(catch_ref ,tag ,_)
+          (record! tag)]
+         [`(catch_all ,_) (void)]
+         [`(call ,name ,parts ...)
+          (record! name)
+          (walk-list parts)]
+         [`(return_call ,name ,parts ...)
+          (record! name)
+          (walk-list parts)]
+         [`(ref.func ,name)
+          (record! name)]
+         [`(global.get ,name)
+          (record! name)]
+         [`(global.set ,name ,parts ...)
+          (record! name)
+          (walk-list parts)]
+         [`(throw ,tag ,parts ...)
+          (record! tag)
+          (walk-list parts)]
+         [`(array.new_data ,_type ,data-name ,parts ...)
+          (record! data-name)
+          (walk-list parts)]
+         [_ (walk-list x)])]
       [else (void)]))
   (walk x)
   (hash-keys refs))
@@ -329,6 +398,21 @@
   (and (pair? form)
        (memq (car form) '(type rec))))
 
+;; top-level-import-form? : any/c -> boolean?
+;;   Check whether form is an old-style top-level import declaration.
+(define (top-level-import-form? form)
+  (and (pair? form)
+       (eq? (car form) 'import)))
+
+;; shared-program-prefix-form? : any/c -> boolean?
+;;   Check whether form must be duplicated before program-side runtime imports.
+(define (shared-program-prefix-form? form)
+  (or (type-prefix-form? form)
+      (top-level-import-form? form)
+      (function-import-form? form)
+      (global-import-form? form)
+      (tag-import-form? form)))
+
 ;; declare-elem-form? : any/c -> boolean?
 ;;   Check whether form is an `elem declare funcref` declaration.
 (define (declare-elem-form? form)
@@ -375,6 +459,61 @@
     (values (if runtime-form (cons runtime-form runtime-forms) runtime-forms)
             (if program-form (cons program-form program-forms) program-forms))))
 
+;; elem-form-ref-names : datum? -> (listof symbol?)
+;;   Return function names referenced by an `elem declare funcref` form.
+(define (elem-form-ref-names form)
+  (match form
+    [`(elem declare funcref ,refs ...)
+     (for/list ([ref (in-list refs)]
+                #:do [(define name (ref-func-name ref))]
+                #:when name)
+       name)]
+    [_ '()]))
+
+;; elem-forms-name-set : (listof datum?) -> hasheq?
+;;   Build a set of names already present in declaration elem forms.
+(define (elem-forms-name-set forms)
+  (for*/hasheq ([form (in-list forms)]
+                [name (in-list (elem-form-ref-names form))])
+    (values name #t)))
+
+;; direct-ref-func-names : (listof datum?) hasheq? -> (listof symbol?)
+;;   Return available function names referenced by `ref.func` expressions.
+(define (direct-ref-func-names forms available-function-names)
+  (define seen (make-hasheq))
+  (define names-reversed '())
+  (define (record! name)
+    (when (and (hash-ref available-function-names name #f)
+               (not (hash-ref seen name #f)))
+      (hash-set! seen name #t)
+      (set! names-reversed (cons name names-reversed))))
+  (define (walk x)
+    (cond
+      [(pair? x)
+       (match x
+         [`(ref.func ,name)
+          (record! name)]
+         [_ (for ([part (in-list x)])
+              (walk part))])]
+      [else (void)]))
+  (for ([form (in-list forms)])
+    (walk form))
+  (reverse names-reversed))
+
+;; supplemental-declare-elem-forms : (listof datum?) (listof symbol?) -> (listof datum?)
+;;   Add elem declarations for direct ref.func uses missing from existing elem forms.
+(define (supplemental-declare-elem-forms existing-forms direct-names)
+  (define existing-name-set (elem-forms-name-set existing-forms))
+  (define missing-names
+    (for/list ([name (in-list direct-names)]
+               #:unless (hash-ref existing-name-set name #f))
+      name))
+  (if (null? missing-names)
+      '()
+      (list `(elem declare funcref
+                  ,@(for/list ([name (in-list missing-names)])
+                      `(ref.func ,name))))))
+
 ;; form-function-name-set : (listof datum?) -> hasheq?
 ;;   Build a set of named function declarations in module body forms.
 (define (form-function-name-set forms)
@@ -382,6 +521,56 @@
                #:do [(define name (module-func-name form))]
                #:when name)
     (values name #t)))
+
+;; runtime-referenced-program-global-names : (listof datum?) (listof datum?) -> (listof symbol?)
+;;   Return program-owned globals that are referenced by runtime-side forms.
+(define (runtime-referenced-program-global-names runtime-forms program-forms)
+  (define program-global-form-by-name
+    (named-form-index
+     (filter (lambda (form)
+               (and (global-definition-form? form)
+                    (constant-global-name? (module-global-name form))))
+             program-forms)
+     module-global-name))
+  (define available-names
+    (for/hasheq ([name (in-list (hash-keys program-global-form-by-name))])
+      (values name #t)))
+  (referenced-runtime-names runtime-forms available-names))
+
+;; split-runtime-referenced-program-globals : (listof datum?) (listof symbol?)
+;;   -> (values (listof datum?) (listof datum?))
+;;   Pull program-owned globals back to the runtime when runtime forms use them.
+(define (split-runtime-referenced-program-globals program-forms names)
+  (define name-set
+    (for/hasheq ([name (in-list names)])
+      (values name #t)))
+  (for/fold ([runtime-global-forms '()]
+             [remaining-program-forms '()])
+            ([form (in-list program-forms)])
+    (define name (module-global-name form))
+    (if (and name
+             (hash-ref name-set name #f))
+        (values (cons form runtime-global-forms)
+                remaining-program-forms)
+        (values runtime-global-forms
+                (cons form remaining-program-forms)))))
+
+;; program-referenced-runtime-data-forms : (listof datum?) (listof datum?) -> (listof datum?)
+;;   Return runtime-owned passive data forms that program-side forms reference.
+(define (program-referenced-runtime-data-forms runtime-forms program-forms)
+  (define runtime-data-form-by-name
+    (named-form-index runtime-forms module-data-name))
+  (define available-names
+    (for/hasheq ([name (in-list (hash-keys runtime-data-form-by-name))])
+      (values name #t)))
+  (define referenced-name-set
+    (for/hasheq ([name (in-list (referenced-runtime-names program-forms
+                                                           available-names))])
+      (values name #t)))
+  (for/list ([form (in-list runtime-forms)]
+             #:do [(define name (module-data-name form))]
+             #:when (and name (hash-ref referenced-name-set name #f)))
+    form))
 
 ;; module-forms : datum? -> (listof datum?)
 ;;   Return a WAT module's body forms.
@@ -497,11 +686,23 @@
      #:bytes-constants bytes-constants
      #:symbol-constants symbol-constants))
   (define runtime-forms (reverse runtime-forms/reversed))
-  (define program-forms (reverse program-forms/reversed))
+  (define initial-program-forms (reverse program-forms/reversed))
+  (define pulled-runtime-global-names
+    (runtime-referenced-program-global-names runtime-forms
+                                             initial-program-forms))
+  (define-values (pulled-runtime-global-forms/reversed
+                  remaining-program-forms/reversed)
+    (split-runtime-referenced-program-globals
+     initial-program-forms
+     pulled-runtime-global-names))
+  (define program-forms
+    (reverse remaining-program-forms/reversed))
   (define runtime-body-forms
-    (for/list ([form (in-list runtime-forms)]
-               #:unless (declare-elem-form? form))
-      form))
+    (append
+     (for/list ([form (in-list runtime-forms)]
+                #:unless (declare-elem-form? form))
+       form)
+     (reverse pulled-runtime-global-forms/reversed)))
   (define-values (imported-names import-forms export-forms)
     (classified-runtime-import/export-forms
      runtime-body-forms
@@ -515,20 +716,37 @@
     (split-declare-elem-forms runtime-forms
                               runtime-function-names
                               program-available-function-names))
-  (define program-type-forms
+  (define runtime-elem-forms
+    (reverse runtime-elem-forms/reversed))
+  (define program-elem-forms
+    (reverse program-elem-forms/reversed))
+  (define runtime-supplemental-elem-forms
+    (supplemental-declare-elem-forms
+     runtime-elem-forms
+     (direct-ref-func-names runtime-body-forms runtime-function-names)))
+  (define program-supplemental-elem-forms
+    (supplemental-declare-elem-forms
+     program-elem-forms
+     (direct-ref-func-names program-forms program-available-function-names)))
+  (define program-prefix-forms
     (for/list ([form (in-list runtime-body-forms)]
-               #:when (type-prefix-form? form))
+               #:when (shared-program-prefix-form? form))
       form))
+  (define program-data-forms
+    (program-referenced-runtime-data-forms runtime-body-forms program-forms))
   (split-runtime-modules
    `(module
       ,@runtime-body-forms
-      ,@(reverse runtime-elem-forms/reversed)
+      ,@runtime-elem-forms
+      ,@runtime-supplemental-elem-forms
       ,@export-forms)
    `(module
-      ,@program-type-forms
+      ,@program-prefix-forms
       ,@import-forms
+      ,@program-data-forms
       ,@program-forms
-      ,@(reverse program-elem-forms/reversed))
+      ,@program-elem-forms
+      ,@program-supplemental-elem-forms)
    imported-names
    import-forms))
 
@@ -651,26 +869,35 @@
            (param $x i32)
            (result i32))
      (global $runtime-state
-             (import "core" "$runtime-state")
+             (import "core" "global:$runtime-state")
              (mut i32))
      (tag $boundary-exn
-          (import "core" "$boundary-exn")
+          (import "core" "tag:$boundary-exn")
           (param i32))))
   (check-equal?
    boundary-export-forms
    '((export "$runtime-add-state" (func $runtime-add-state))
-     (export "$runtime-state" (global $runtime-state))
-     (export "$boundary-exn" (tag $boundary-exn))))
+     (export "global:$runtime-state" (global $runtime-state))
+     (export "tag:$boundary-exn" (tag $boundary-exn))))
 
   (define classified-sample-module
     '(module
       (type $Probe (func (result i32)))
+      (type $I8Array (array (mut i8)))
+      (import "env" "memory" (memory $memory 1))
+      (data $string-data:runtime "x")
       (tag $boundary-exn (param i32))
       (global $runtime-state (mut i32) (i32.const 40))
+      (global $symbol:check-list (mut (ref eq)) (ref.i31 (i32.const 0)))
       (func $runtime-add-state
             (param $x i32)
             (result i32)
             (i32.add (local.get $x) (global.get $runtime-state)))
+      (func $runtime-symbol-value
+            (result i32)
+            (i31.get_s
+             (ref.cast (ref i31)
+                       (global.get $symbol:check-list))))
       (global $result (mut i32) (i32.const 0))
       (func $probe
             (export "probe")
@@ -678,8 +905,19 @@
             (if (i32.const 0)
                 (then
                  (throw $boundary-exn (i32.const 5))))
+            (drop
+             (array.new_data $I8Array
+                             $string-data:runtime
+                             (i32.const 0)
+                             (i32.const 1)))
             (global.set $runtime-state (i32.const 2))
-            (call $runtime-add-state (i32.const 40)))
+            (global.set $symbol:check-list (ref.i31 (i32.const 84)))
+            (drop (ref.func $runtime-symbol-value))
+            (i32.add
+             (call $runtime-add-state (i32.const 40))
+             (i32.sub
+              (call $runtime-symbol-value)
+              (i32.const 84))))
       (elem declare funcref
             (ref.func $runtime-add-state)
             (ref.func $probe))))
@@ -693,21 +931,55 @@
      '((global $result (mut i32) (i32.const 0)))
      #:string-constants '()
      #:bytes-constants '()
-     #:symbol-constants '()))
+     #:symbol-constants '((check-list check-list))))
   (define classified-core-forms
     (module-forms (split-runtime-modules-core classified-split)))
   (define classified-program-forms
     (module-forms (split-runtime-modules-program classified-split)))
 
-  (check-equal? (split-runtime-modules-imported-names classified-split)
-                '($runtime-add-state $runtime-state $boundary-exn))
+  (check-equal?
+   (split-runtime-modules-imported-names classified-split)
+   '($runtime-add-state
+     $runtime-symbol-value
+     $runtime-state
+     $symbol:check-list
+     $boundary-exn))
+  (check-not-false
+   (member '(import "env" "memory" (memory $memory 1))
+           classified-core-forms))
+  (check-not-false
+   (member '(import "env" "memory" (memory $memory 1))
+           classified-program-forms))
+  (check-not-false
+   (member '(data $string-data:runtime "x")
+           classified-core-forms))
+  (check-not-false
+   (member '(data $string-data:runtime "x")
+           classified-program-forms))
   (check-not-false
    (member '(elem declare funcref (ref.func $runtime-add-state))
            classified-core-forms))
   (check-not-false
+   (member '(global $symbol:check-list
+                    (mut (ref eq))
+                    (ref.i31 (i32.const 0)))
+           classified-core-forms))
+  (check-not-false
+   (member '(global $symbol:check-list
+                    (import "core" "global:$symbol:check-list")
+                    (mut (ref eq)))
+           classified-program-forms))
+  (check-false
+   (for/or ([form (in-list classified-program-forms)])
+     (and (global-definition-form? form)
+          (eq? (module-global-name form) '$symbol:check-list))))
+  (check-not-false
    (member '(elem declare funcref
                   (ref.func $runtime-add-state)
                   (ref.func $probe))
+           classified-program-forms))
+  (check-not-false
+   (member '(elem declare funcref (ref.func $runtime-symbol-value))
            classified-program-forms))
   (check-false
    (for/or ([form (in-list classified-program-forms)])
@@ -873,10 +1145,11 @@ import fs from "node:fs/promises";
 const [corePath, programPath] = process.argv.slice(2);
 const coreBytes = await fs.readFile(corePath);
 const programBytes = await fs.readFile(programPath);
-const core = await WebAssembly.instantiate(coreBytes, {});
+const imports = { env: { memory: new WebAssembly.Memory({ initial: 1 }) } };
+const core = await WebAssembly.instantiate(coreBytes, imports);
 const program = await WebAssembly.instantiate(
   programBytes,
-  { core: core.instance.exports },
+  { ...imports, core: core.instance.exports },
 );
 
 const actual = program.instance.exports.probe();
