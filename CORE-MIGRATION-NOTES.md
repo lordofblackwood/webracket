@@ -153,6 +153,15 @@ Current remaining raw-stub classes:
   - Some numeric conversion helpers still use older validation shapes; audit
     those separately before claiming complete numeric parity.
 
+- `lists.rkt`:
+  - Positive out-of-range `list-ref`, `list-tail`, `list-set`, and
+    `list-update` errors now report list index context instead of incorrectly
+    claiming that the already-valid index failed `exact-nonnegative-integer?`.
+    `list-tail` preserves Racket's distinction where index 0 accepts any value,
+    but positive indexes that cannot step through pairs report an index error.
+  - `take`, `drop`, `take-right`, and `drop-right` length failures now report
+    the required element/pair count and print the original offending value.
+
 - `checkers.rkt`:
   - `$match:error` now raises a catchable `exn:fail` value instead of raising a
     plain string. Racket uses the more precise `exn:misc:match` subtype with

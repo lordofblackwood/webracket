@@ -18,6 +18,14 @@
     (list?           "list?")
     (non-empty-list? "(and/c list? (not/c empty?))")
     (listof-pair?    "(listof pair?)")
+    (list-index-too-large ": index too large for list")
+    (list-index-reaches-non-pair ": index reaches a non-pair")
+    (list-index      "\n  index: ")
+    (list-in         "\n  in: ")
+    (list-at-least-elements-prefix "a list with at least ")
+    (list-at-least-elements-suffix " elements")
+    (list-at-least-pairs-prefix "a (possibly improper) list with at least ")
+    (list-at-least-pairs-suffix " pairs")
     (range:non-zero-step "(and/c real? (not/c zero?))")))
 
 ;; list-runtime-symbol-constants : (listof symbol?)
@@ -673,10 +681,37 @@
                (param $xs  (ref eq))
                (param $i   i32)
                (param $len i32)
-               (call $raise-argument-error1
-                     (local.get $who)
-                     (global.get $string:exact-nonnegative-integer?)
-                     (ref.i31 (i32.shl (local.get $i) (i32.const 1)))))
+               (local $out     (ref $GrowableArray))
+               (local $message (ref $String))
+
+               (local.set $out
+                          (call $make-growable-array (i32.const 8)))
+               (call $growable-array-add! (local.get $out)
+                     (call $format/display (local.get $who)))
+               (if (ref.eq (call $list? (local.get $xs)) (global.get $true))
+                   (then (call $growable-array-add! (local.get $out)
+                               (global.get $string:list-index-too-large)))
+                   (else (call $growable-array-add! (local.get $out)
+                               (global.get $string:list-index-reaches-non-pair))))
+               (call $growable-array-add! (local.get $out)
+                     (global.get $string:list-index))
+               (call $growable-array-add! (local.get $out)
+                     (call $format/display
+                           (ref.i31 (i32.shl (local.get $i) (i32.const 1)))))
+               (call $growable-array-add! (local.get $out)
+                     (global.get $string:list-in))
+               (call $growable-array-add! (local.get $out)
+                     (call $format/print
+                           (local.get $xs)
+                           (global.get $missing)))
+               (local.set $message
+                          (call $growable-array-of-strings->string (local.get $out)))
+               (call $raise
+                     (call $exn:fail:contract/make
+                           (local.get $message)
+                           (call $current-continuation-marks (global.get $missing)))
+                     (global.get $true))
+               (unreachable))
          (func $raise-bad-list-ref-index
                (param $xs (ref eq)) (param $i i32) (param $len i32)
                (call $raise-bad-list-ref-index/who
@@ -689,17 +724,68 @@
                (param $xs  (ref eq))
                (param $i   i32)
                (param $len i32)
-               (call $raise-argument-error1
+               (call $raise-bad-list-ref-index/who
                      (local.get $who)
-                     (global.get $string:exact-nonnegative-integer?)
-                     (ref.i31 (i32.shl (local.get $i) (i32.const 1)))))
+                     (local.get $xs)
+                     (local.get $i)
+                     (local.get $len)))
          (func $raise-bad-list-set-index
                (param $xs (ref eq)) (param $i i32) (param $len i32)
                (call $raise-bad-list-set-index/who
                      (global.get $symbol:list-set)
                      (local.get $xs)
                      (local.get $i)
-                     (local.get $len)))))
+                     (local.get $len)))
+         (func $raise-list-not-enough-elements/who
+               (param $who (ref eq))
+               (param $xs  (ref eq))
+               (param $n   i32)
+               (param $len i32)
+               (local $expected     (ref $GrowableArray))
+               (local $expected-str (ref $String))
+               (local $out          (ref $GrowableArray))
+               (local $message      (ref $String))
+
+               (local.set $expected
+                          (call $make-growable-array (i32.const 3)))
+               (if (ref.eq (call $list? (local.get $xs)) (global.get $true))
+                   (then (call $growable-array-add! (local.get $expected)
+                               (global.get $string:list-at-least-elements-prefix)))
+                   (else (call $growable-array-add! (local.get $expected)
+                               (global.get $string:list-at-least-pairs-prefix))))
+               (call $growable-array-add! (local.get $expected)
+                     (call $format/display
+                           (ref.i31 (i32.shl (local.get $n) (i32.const 1)))))
+               (if (ref.eq (call $list? (local.get $xs)) (global.get $true))
+                   (then (call $growable-array-add! (local.get $expected)
+                               (global.get $string:list-at-least-elements-suffix)))
+                   (else (call $growable-array-add! (local.get $expected)
+                               (global.get $string:list-at-least-pairs-suffix))))
+               (local.set $expected-str
+                          (call $growable-array-of-strings->string (local.get $expected)))
+
+               (local.set $out
+                          (call $make-growable-array (i32.const 5)))
+               (call $growable-array-add! (local.get $out)
+                     (call $format/display (local.get $who)))
+               (call $growable-array-add! (local.get $out)
+                     (global.get $string:contract-violation:prefix))
+               (call $growable-array-add! (local.get $out)
+                     (local.get $expected-str))
+               (call $growable-array-add! (local.get $out)
+                     (global.get $string:arity-error:given))
+               (call $growable-array-add! (local.get $out)
+                     (call $format/print
+                           (local.get $xs)
+                           (global.get $missing)))
+               (local.set $message
+                          (call $growable-array-of-strings->string (local.get $out)))
+               (call $raise
+                     (call $exn:fail:contract/make
+                           (local.get $message)
+                           (call $current-continuation-marks (global.get $missing)))
+                     (global.get $true))
+               (unreachable))))
 
 ;; list-error-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate pair/list error helpers used by the monolithic runtime.
@@ -947,10 +1033,12 @@
               (result (ref eq))
               (local $v    (ref $Pair))
               (local $k    i32)
+              (local $orig-i i32)
               (local $next (ref eq))
 
               (local.set $v (local.get $xs))
               (local.set $k (local.get $i))
+              (local.set $orig-i (local.get $i))
 
               (loop $loop
                     ;; If no steps remain, return current tail (a Pair value is fine as (ref eq)).
@@ -969,9 +1057,11 @@
                         (local.set $v (ref.cast (ref $Pair) (local.get $next)))
                          (br $loop))
                         (else
-                         (call $raise-pair-expected/who
+                         (call $raise-bad-list-ref-index/who
                                (local.get $who)
-                               (local.get $next)))))
+                               (local.get $xs)
+                               (local.get $orig-i)
+                               (i32.const 0)))))
               (unreachable))))
 
     ;; list-tail/checked : (ref $Pair) i32 -> (ref eq)
@@ -1026,9 +1116,11 @@
               (if (ref.test (ref $Pair) (local.get $xs))
                   (then (local.set $pair (ref.cast (ref $Pair) (local.get $xs))))
                   (else
-                   (call $raise-pair-expected/who
+                   (call $raise-bad-list-ref-index/who
                          (global.get $symbol:list-tail)
-                         (local.get $xs))
+                         (local.get $xs)
+                         (local.get $idx)
+                         (i32.const 0))
                    (unreachable)))
 
               (call $list-tail/checked/who
@@ -1463,16 +1555,18 @@
 
               ;; Non-empty list required when dropping more than zero
               (if (ref.eq (local.get $lst) (global.get $null))
-                  (then (call $raise-bad-list-ref-index/who
+                  (then (call $raise-list-not-enough-elements/who
                               (local.get $who)
                               (local.get $lst)
                               (local.get $n)
                               (i32.const 0))
                         (unreachable)))
               (if (i32.eqz (ref.test (ref $Pair) (local.get $lst)))
-                  (then (call $raise-pair-expected/who
+                  (then (call $raise-list-not-enough-elements/who
                               (local.get $who)
-                              (local.get $lst))
+                              (local.get $lst)
+                              (local.get $n)
+                              (i32.const 0))
                         (unreachable)))
 
               (local.set $orig (ref.cast (ref $Pair) (local.get $lst)))
@@ -1490,7 +1584,7 @@
                         (else
                          (local.set $len
                                     (i32.sub (local.get $n) (local.get $remaining)))
-                         (call $raise-bad-list-ref-index/who
+                         (call $raise-list-not-enough-elements/who
                                (local.get $who)
                                (local.get $orig)
                                (local.get $n)
@@ -1568,16 +1662,18 @@
                   (then (return (local.get $lst))))
 
               (if (ref.eq (local.get $lst) (global.get $null))
-                  (then (call $raise-bad-list-ref-index/who
+                  (then (call $raise-list-not-enough-elements/who
                               (local.get $who)
                               (local.get $lst)
                               (local.get $n)
                               (i32.const 0))
                         (unreachable)))
               (if (i32.eqz (ref.test (ref $Pair) (local.get $lst)))
-                  (then (call $raise-pair-expected/who
+                  (then (call $raise-list-not-enough-elements/who
                               (local.get $who)
-                              (local.get $lst))
+                              (local.get $lst)
+                              (local.get $n)
+                              (i32.const 0))
                         (unreachable)))
 
               (local.set $first (ref.cast (ref $Pair) (local.get $lst)))
@@ -1599,15 +1695,18 @@
                                     (then
                                      (local.set $len
                                                 (i32.sub (local.get $n) (local.get $remaining)))
-                                     (call $raise-bad-list-ref-index/who
+                                     (call $raise-list-not-enough-elements/who
                                            (local.get $who)
                                            (local.get $first)
                                            (local.get $n)
                                            (local.get $len))
                                      (unreachable))
-                                    (else (call $raise-pair-expected/who
+                                    (else (call $raise-list-not-enough-elements/who
                                                 (local.get $who)
-                                                (local.get $lead))
+                                                (local.get $first)
+                                                (local.get $n)
+                                                (i32.sub (local.get $n)
+                                                         (local.get $remaining)))
                                           (unreachable)))))))
 
               (local.set $lag (local.get $lst))
@@ -6680,10 +6779,11 @@
              (param $xs  (ref eq))
              (param $n   i32)
              (param $len i32)
-             (call $raise-argument-error1
+             (call $raise-list-not-enough-elements/who
                    (local.get $who)
-                   (global.get $string:list?)
-                   (local.get $xs)))))
+                   (local.get $xs)
+                   (local.get $n)
+                   (local.get $len)))))
 
     ;; raise-take-right:bad-length : list? i32 -> none
     ;;   Report that take-right asked for too many elements.
@@ -6712,10 +6812,11 @@
              (param $xs  (ref eq))
              (param $n   i32)
              (param $len i32)
-             (call $raise-argument-error1
+             (call $raise-list-not-enough-elements/who
                    (local.get $who)
-                   (global.get $string:list?)
-                   (local.get $xs)))))
+                   (local.get $xs)
+                   (local.get $n)
+                   (local.get $len)))))
 
     ;; take/who : symbol? list? exact-nonnegative-integer? -> list?
     ;;   Return the first n elements of a list, reporting errors with who.

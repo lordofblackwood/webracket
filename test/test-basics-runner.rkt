@@ -26,6 +26,7 @@
    (make-no-stdlib-result-tree-fixture "test/test-struct-errors.rkt"
                                        #:timeout-seconds 240)
    (make-no-stdlib-result-tree-fixture "test/test-treelist-errors.rkt")
+   (make-no-stdlib-result-tree-fixture "test/test-list-errors.rkt")
    (make-no-stdlib-result-tree-fixture "test/test-string-trim-errors.rkt")
    (make-no-stdlib-result-tree-fixture "test/test-string-comparison-errors.rkt")
    (make-no-stdlib-result-tree-fixture "test/test-string-constructor-errors.rkt")
