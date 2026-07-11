@@ -34,6 +34,8 @@
     (vfs:type-failed            "file-or-directory-type: VFS path does not exist")
     (vfs:identity-failed        "file-or-directory-identity: VFS path does not exist")
     (vfs:path-too-long          ": path is too long for WebRacket VFS\n  path: ")
+    (vfs:file-buffer-too-small
+     ": file content is too large for WebRacket VFS buffer\n  path: ")
     (permissions-mode           "(or/c #f 'bits (integer-in 0 65535))")
     (input-file-mode-flag       "(or/c 'binary 'text)")
     (output-file-mode-flag      "(or/c 'binary 'text)")
@@ -76,6 +78,7 @@
 ;;   Preserve the runtime emission order for VFS and file-operation helpers.
 (define filesystem-runtime-only-helper-names
   '($raise-vfs-path-too-long
+    $raise-vfs-file-buffer-too-small
     $vfs-path-stat-kind
     $file-exists?
     $directory-exists?
@@ -149,6 +152,30 @@
                       (local.get $message)
                       (call $current-continuation-marks (global.get $missing)))
                 (global.get $true))
+          (unreachable))
+
+    (func $raise-vfs-file-buffer-too-small
+          (param $who      (ref eq))
+          (param $path-raw (ref eq))
+
+          (local $out     (ref $GrowableArray))
+          (local $message (ref $String))
+
+          (local.set $out (call $make-growable-array (i32.const 3)))
+          (call $growable-array-add! (local.get $out)
+                (call $format/display (local.get $who)))
+          (call $growable-array-add! (local.get $out)
+                (global.get $string:vfs:file-buffer-too-small))
+          (call $growable-array-add! (local.get $out)
+                (call $format/write (local.get $path-raw)))
+          (local.set $message
+                     (call $growable-array-of-strings->string (local.get $out)))
+          (drop (call $raise
+                      (call $make-exn:fail:out-of-memory
+                            (local.get $message)
+                            (call $current-continuation-marks
+                                  (global.get $missing)))
+                      (global.get $true)))
           (unreachable))
 
     (func $vfs-path-stat-kind
@@ -684,7 +711,9 @@
                     (unreachable)))
           (if (i32.gt_u (local.get $expected)
                         (global.get $memory-map:vfs-file-buffer-length))
-              (then (call $raise-string-buffer-overflow)
+              (then (call $raise-vfs-file-buffer-too-small
+                          (local.get $who)
+                          (local.get $path-raw))
                     (unreachable)))
           (local.set $file-len
                      (call $js-vfs-read-file
@@ -698,7 +727,9 @@
                     (unreachable)))
           (if (i32.gt_u (local.get $file-len)
                         (global.get $memory-map:vfs-file-buffer-length))
-              (then (call $raise-string-buffer-overflow)
+              (then (call $raise-vfs-file-buffer-too-small
+                          (local.get $who)
+                          (local.get $path-raw))
                     (unreachable)))
           (call $memory-range->immutable-bytes
                 (global.get $memory-map:vfs-file-buffer-base)
@@ -1114,7 +1145,9 @@
                     (unreachable)))
           (if (i32.gt_u (local.get $bytes-len)
                         (global.get $memory-map:vfs-file-buffer-length))
-              (then (call $raise-string-buffer-overflow)
+              (then (call $raise-vfs-file-buffer-too-small
+                          (global.get $symbol:webracket-vfs-write-file)
+                          (local.get $path-raw))
                     (unreachable)))
           (if (i32.eqz
                (call $linear-memory-range-available?

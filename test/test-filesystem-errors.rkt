@@ -24,6 +24,13 @@
         "webracket-vfs-write-file"
         "bytes?"
         "given: 'bad"))
+ (list "VFS write reports oversized file content with who"
+       (catch-fail/contains?
+        (lambda () (webracket-vfs-write-file "/tmp/too-large"
+                                             (make-bytes 1048577 65)))
+        "webracket-vfs-write-file"
+        "file content is too large"
+        "/tmp/too-large"))
  (list "long VFS paths raise catchable errors with who"
        (and
         (catch-fail/contains?

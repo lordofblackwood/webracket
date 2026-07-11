@@ -109,9 +109,12 @@ Current behavior:
 
 - VFS path-buffer overflow guards now raise catchable contract errors that
   include the filesystem operation `who`.
+- VFS file-content reads and `webracket-vfs-write-file` content-size guards
+  now raise catchable `exn:fail:out-of-memory` errors with the operation `who`
+  and path.
 - Some related fixed-buffer guards still call `$raise-string-buffer-overflow`,
   including destination/file-buffer paths in multi-path filesystem operations
-  and file-content buffers.
+  and low-level buffer-availability checks.
 
 Follow-up:
 
