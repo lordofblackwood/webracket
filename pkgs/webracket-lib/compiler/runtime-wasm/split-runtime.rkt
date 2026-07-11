@@ -803,6 +803,11 @@
     (sorted-named-forms
      (reverse pulled-runtime-global-forms/reversed)
      module-global-name))
+  (define effective-core-cache-key
+    (and core-cache-key
+         (null? pulled-runtime-data-forms)
+         (null? pulled-runtime-global-forms)
+         core-cache-key))
   (define runtime-body-forms
     (canonicalize-runtime-constant-declarations
      (append
@@ -850,7 +855,7 @@
        ,@runtime-supplemental-elem-forms
        ,@export-forms))
   (split-runtime-modules
-   (if core-cache-key
+   (if effective-core-cache-key
        (delay (runtime-core-module))
        (runtime-core-module))
    `(module
@@ -862,7 +867,7 @@
       ,@program-supplemental-elem-forms)
    imported-names
    import-forms
-   core-cache-key))
+   effective-core-cache-key))
 
 ;; split-classified-runtime-module :
 ;;   datum? #:program-function-names (listof symbol?) #:result-global symbol?
@@ -1126,6 +1131,23 @@
   (check-true (promise? (split-runtime-modules-core lazy-core-split)))
   (check-equal? (car (split-runtime-modules-core-module lazy-core-split))
                 'module)
+  (define pulled-constant-split
+    (split-classified-runtime-forms
+     '((type $I8Array (array (mut i8)))
+       (func $runtime-symbol
+             (drop
+              (array.new_data $I8Array
+                              $symbol-data:program-symbol
+                              (i32.const 0)
+                              (i32.const 1)))
+             (drop (global.get $symbol:program-symbol))))
+     '((data $symbol-data:program-symbol "program-symbol")
+       (global $symbol:program-symbol (mut (ref eq)) (ref.i31 (i32.const 0)))
+       (func $program)
+       (func $entry))
+     #:core-cache-key '(stable-core-key)))
+  (check-false (split-runtime-modules-core-cache-key pulled-constant-split))
+  (check-false (promise? (split-runtime-modules-core pulled-constant-split)))
 
   (check-equal?
    (split-runtime-modules-imported-names classified-split)
