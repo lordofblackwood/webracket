@@ -105,6 +105,9 @@ Current remaining raw-stub classes:
 - `procedures.rkt`:
   - First-class closure/case-lambda/primitive arity errors already use
     catchable `exn:fail:contract:arity`.
+  - `$raise-apply-final-arg-not-list` now prints the offending final argument
+    in its `given:` line, so strings and symbols are rendered like Racket
+    contract errors instead of display-rendered.
   - Legacy placeholders such as `$raise-arity-mismatch` and
     `$raise-arity-error:exactly`/`$raise-arity-error:at-least` now raise
     catchable `exn:fail:contract:arity` values. They remain unused
@@ -118,6 +121,9 @@ Current remaining raw-stub classes:
     `exn:fail:contract` values with `number?` and the offending value instead
     of logging and trapping. Public `+`, `-`, `*`, and `/` now use a
     `who`-aware path for bad number arguments.
+  - Numeric real? contract helpers and keyword contract helpers now share
+    `$raise-argument-error1`, so their `given:` values use printed Racket
+    syntax (`"x"`, `'bad`) instead of display syntax.
   - A broad generic-numeric pass now preserves `who` and the more precise
     Racket contract for many primitive-facing wrong-type paths, including
     `zero?`, `positive?`, `negative?`, `even?`, `odd?`, `nan?`, `infinite?`,

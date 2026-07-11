@@ -1641,7 +1641,9 @@
               (call $growable-array-add! (local.get $out)
                     (global.get $string:arity-error:given))
               (call $growable-array-add! (local.get $out)
-                    (call $format/display (local.get $v)))
+                    (call $format/print
+                          (local.get $v)
+                          (global.get $missing)))
               (local.set $message
                          (call $growable-array-of-strings->string (local.get $out)))
 

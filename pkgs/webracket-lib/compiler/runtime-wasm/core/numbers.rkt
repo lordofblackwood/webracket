@@ -2257,7 +2257,9 @@
               (call $growable-array-add! (local.get $out)
                     (global.get $string:arity-error:given))
               (call $growable-array-add! (local.get $out)
-                    (call $format/display (local.get $x)))
+                    (call $format/print
+                          (local.get $x)
+                          (global.get $missing)))
               (local.set $message
                          (call $growable-array-of-strings->string (local.get $out)))
               (call $raise
@@ -2336,57 +2338,19 @@
         (func $raise-expected-real
               (param $who (ref eq))   ;; symbol
               (param $x   (ref eq))
-              (local $out     (ref $GrowableArray))
-              (local $message (ref $String))
-
-              ;; TODO: include argument position and other arguments like Racket.
-              (local.set $out (call $make-growable-array (i32.const 5)))
-              (call $growable-array-add! (local.get $out)
-                    (call $format/display (local.get $who)))
-              (call $growable-array-add! (local.get $out)
-                    (global.get $string:contract-violation:prefix))
-              (call $growable-array-add! (local.get $out)
-                    (global.get $string:real?))
-              (call $growable-array-add! (local.get $out)
-                    (global.get $string:arity-error:given))
-              (call $growable-array-add! (local.get $out)
-                    (call $format/display (local.get $x)))
-              (local.set $message
-                         (call $growable-array-of-strings->string (local.get $out)))
-
-              (call $raise
-                    (call $exn:fail:contract/make
-                          (local.get $message)
-                          (call $current-continuation-marks (global.get $missing)))
-                    (global.get $true))
+              (call $raise-argument-error1
+                    (local.get $who)
+                    (global.get $string:real?)
+                    (local.get $x))
               (unreachable))
 
         (func $raise-expected-keyword
               (param $who (ref eq))   ;; symbol
               (param $x   (ref eq))
-              (local $out     (ref $GrowableArray))
-              (local $message (ref $String))
-
-              ;; TODO: include argument position and other arguments like Racket.
-              (local.set $out (call $make-growable-array (i32.const 5)))
-              (call $growable-array-add! (local.get $out)
-                    (call $format/display (local.get $who)))
-              (call $growable-array-add! (local.get $out)
-                    (global.get $string:contract-violation:prefix))
-              (call $growable-array-add! (local.get $out)
-                    (global.get $string:keyword?))
-              (call $growable-array-add! (local.get $out)
-                    (global.get $string:arity-error:given))
-              (call $growable-array-add! (local.get $out)
-                    (call $format/display (local.get $x)))
-              (local.set $message
-                         (call $growable-array-of-strings->string (local.get $out)))
-
-              (call $raise
-                    (call $exn:fail:contract/make
-                          (local.get $message)
-                          (call $current-continuation-marks (global.get $missing)))
-                    (global.get $true))
+              (call $raise-argument-error1
+                    (local.get $who)
+                    (global.get $string:keyword?)
+                    (local.get $x))
               (unreachable))
 
         (func $raise-inexact->exact:no-exact-representation

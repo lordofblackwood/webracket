@@ -170,7 +170,12 @@
 	           "max"
 	           "real?"
 	           "given: #f"
-	           (lambda () (max 1 #f))))))
+	           (lambda () (max 1 #f)))
+	          (catch-contract/who?
+	           "positive?"
+	           "real?"
+	           "given: 'bad"
+	           (lambda () (positive? 'bad))))))
 	 (list "number->string errors are catchable with who"
 	       (let ([catch-contract/who+expected+given?
 	              (lambda (expected given thunk)
@@ -236,10 +241,34 @@
                        (string-contains? message "real->floating-point-bytes")
                        (string-contains? message expected)
                        (string-contains? message given))))])
-         (catch-contract/who+expected+given?
-          "real?"
-          "given: #f"
-          (lambda () (real->floating-point-bytes #f 8)))))
+	         (catch-contract/who+expected+given?
+	          "real?"
+	          "given: #f"
+	          (lambda () (real->floating-point-bytes #f 8)))))
+ (list "real contract errors print non-self-rendering values"
+       (let ([catch-contract/who+expected+given?
+              (lambda (who expected given thunk)
+                (let ([message
+                       (with-handlers ([exn:fail:contract?
+                                        (lambda (exn)
+                                          (exn-message exn))])
+                         (thunk)
+                         #f)])
+                  (and message
+                       (string-contains? message who)
+                       (string-contains? message expected)
+                       (string-contains? message given))))])
+         (and
+          (catch-contract/who+expected+given?
+           "real->double-flonum"
+           "real?"
+           "given: \"x\""
+           (lambda () (real->double-flonum "x")))
+          (catch-contract/who+expected+given?
+           "abs"
+           "real?"
+           "given: 'bad"
+           (lambda () (abs 'bad))))))
  (list "exact->inexact errors are catchable with number contract"
        (let ([message
               (with-handlers ([exn:fail:contract?

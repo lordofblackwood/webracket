@@ -61,6 +61,18 @@
          "external-string->string"
          "external?"
          "given: \"x\"")))
+ (list "keyword contract errors print symbolic values"
+       (and
+        (catch-contract/contains?
+         (lambda () (keyword<? '#:a 'bad))
+         "keyword<?"
+         "keyword?"
+         "given: 'bad")
+        (catch-contract/contains?
+         (lambda () (keyword<? '#:a "bad"))
+         "keyword<?"
+         "keyword?"
+         "given: \"bad\"")))
  (list "misc primitive success cases still work"
        (and (equal? (first '(a b c)) 'a)
             (equal? (last '(a b c)) 'c)

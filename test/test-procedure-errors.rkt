@@ -39,4 +39,21 @@
         (lambda () (primitive-result-arity 42))
         "primitive-result-arity"
         "primitive?"
-        "given: 42")))
+        "given: 42"))
+ (list "apply final argument errors print non-list values"
+       (and
+        (catch-contract/contains?
+         (lambda () (apply + 1 2 "x"))
+         "apply"
+         "list?"
+         "given: \"x\"")
+        (catch-contract/contains?
+         (lambda () (apply + 1 2 'bad))
+         "apply"
+         "list?"
+         "given: 'bad")
+        (catch-contract/contains?
+         (lambda () (apply + 1 2 (cons 3 4)))
+         "apply"
+         "list?"
+         "given: '(3 . 4)"))))

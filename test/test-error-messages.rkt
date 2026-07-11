@@ -71,13 +71,13 @@
         (lambda () (apply + 1 2 3 "x"))
         (list (msg-contains? "apply: contract violation")
               (msg-contains? "expected: list?")
-              (msg-contains? "given: x"))))
+              (msg-contains? "given: \"x\""))))
  (list "apply final argument not a list (improper)"
        (message-matches?
         (lambda () (apply + 1 2 3 (cons 4 5)))
         (list (msg-contains? "apply: contract violation")
               (msg-contains? "expected: list?")
-              (msg-contains? "given: (4 . 5)"))))
+              (msg-contains? "given: '(4 . 5)"))))
  (list "exact->inexact non-number"
        (message-matches?
         (lambda () (exact->inexact "x"))
@@ -89,4 +89,4 @@
         (lambda () (real->double-flonum "x"))
         (list (msg-contains? "real->double-flonum: contract violation")
               (msg-contains? "expected: real?")
-              (msg-contains? "given: x")))))
+              (msg-contains? "given: \"x\"")))))
