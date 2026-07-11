@@ -427,22 +427,106 @@
       (runtime-ffi-state-primitive-initializer-forms ffi-state))
     (define unsafe-ffi-primitive-table-initializer-forms
       '((call $initialize-unsafe-ffi-primitive-table)))
+    ;; Symbol and keyword tables are initialized here for interning.
+    (define global-state-initializer-forms
+      '((call $initialize-the-symbol-table)
+        (call $initialize-the-keyword-table)
+        (call $initialize-primitive-table-user-installed)
+        (call $initialize-prefab-struct-type-registry)))
     (define split-runtime-primitive-initializer-name
       '$initialize-split-runtime-primitives!)
+    (define split-runtime-pre-constant-initializer-name
+      '$initialize-split-runtime-before-constants!)
+    (define split-runtime-post-constant-initializer-name
+      '$initialize-split-runtime-after-constants!)
+    (define split-runtime-post-ffi-initializer-name
+      '$initialize-split-runtime-after-ffi!)
     (define split-runtime-primitive-initializer-helper-forms
       (if (current-split-runtime?)
           (list
            `(func ,split-runtime-primitive-initializer-name
                   ,@primitive-initializer-forms))
           '()))
+    (define split-runtime-entry-initializer-helper-forms
+      (if (current-split-runtime?)
+          `((func ,split-runtime-pre-constant-initializer-name
+                  ,@flonum-initializer-forms
+                  ,@global-state-initializer-forms)
+            (func ,split-runtime-post-constant-initializer-name
+                  ,@parameterization-initializer-forms
+                  ,@random-current-initializer-forms
+                  ,@thread-current-initializer-forms
+                  ,@logger-current-initializer-forms
+                  ,@custodian-current-initializer-forms
+                  ,@event-initializer-forms
+                  ,@struct-property-initializer-forms
+                  ,@path-current-initializer-forms
+                  ,@environment-parameter-initializer-forms
+                  (drop (call $reset-current-input-port!))
+                  (drop (call $reset-current-output-port!))
+                  (drop (call $reset-current-error-port!))
+                  ,@character-general-category-initializer-forms
+                  ,@realm-initializer-forms
+                  (call ,split-runtime-primitive-initializer-name))
+            (func ,split-runtime-post-ffi-initializer-name
+                  ,@security-guard-current-initializer-forms
+                  ,@error-value-handler-late-initializer-forms
+                  ,@print-read-parameter-late-initializer-forms
+                  ,@io-handler-default-port-late-initializer-forms
+                  ,@error-syntax-handler-late-initializer-forms))
+          '()))
+    (define entry-flonum-initializer-forms
+      (if (current-split-runtime?)
+          `((call ,split-runtime-pre-constant-initializer-name))
+          flonum-initializer-forms))
+    (define entry-global-state-initializer-forms
+      (if (current-split-runtime?)
+          '()
+          global-state-initializer-forms))
+    (define entry-parameterization-initializer-forms
+      (if (current-split-runtime?)
+          `((call ,split-runtime-post-constant-initializer-name))
+          parameterization-initializer-forms))
+    (define entry-random-current-initializer-forms
+      (if (current-split-runtime?) '() random-current-initializer-forms))
+    (define entry-thread-current-initializer-forms
+      (if (current-split-runtime?) '() thread-current-initializer-forms))
+    (define entry-logger-current-initializer-forms
+      (if (current-split-runtime?) '() logger-current-initializer-forms))
+    (define entry-custodian-current-initializer-forms
+      (if (current-split-runtime?) '() custodian-current-initializer-forms))
+    (define entry-event-initializer-forms
+      (if (current-split-runtime?) '() event-initializer-forms))
+    (define entry-struct-property-initializer-forms
+      (if (current-split-runtime?) '() struct-property-initializer-forms))
+    (define entry-path-current-initializer-forms
+      (if (current-split-runtime?) '() path-current-initializer-forms))
+    (define entry-environment-parameter-initializer-forms
+      (if (current-split-runtime?) '() environment-parameter-initializer-forms))
+    (define entry-character-general-category-initializer-forms
+      (if (current-split-runtime?) '() character-general-category-initializer-forms))
+    (define entry-realm-initializer-forms
+      (if (current-split-runtime?) '() realm-initializer-forms))
     (define entry-primitive-initializer-forms
       (if (current-split-runtime?)
-          `((call ,split-runtime-primitive-initializer-name))
+          '()
           primitive-initializer-forms))
     (define entry-ffi-primitive-initializer-forms
       ffi-primitive-initializer-forms)
     (define entry-unsafe-ffi-primitive-table-initializer-forms
       unsafe-ffi-primitive-table-initializer-forms)
+    (define entry-security-guard-current-initializer-forms
+      (if (current-split-runtime?)
+          `((call ,split-runtime-post-ffi-initializer-name))
+          security-guard-current-initializer-forms))
+    (define entry-error-value-handler-late-initializer-forms
+      (if (current-split-runtime?) '() error-value-handler-late-initializer-forms))
+    (define entry-print-read-parameter-late-initializer-forms
+      (if (current-split-runtime?) '() print-read-parameter-late-initializer-forms))
+    (define entry-io-handler-default-port-late-initializer-forms
+      (if (current-split-runtime?) '() io-handler-default-port-late-initializer-forms))
+    (define entry-error-syntax-handler-late-initializer-forms
+      (if (current-split-runtime?) '() error-syntax-handler-late-initializer-forms))
 
     (define linklet-body-reserved-symbols
       (runtime-linklet-body-reserved-symbols all-primitives))
@@ -1638,26 +1722,37 @@
 
                ,@entry-support-forms
                ,@split-runtime-primitive-initializer-helper-forms
+               ,@split-runtime-entry-initializer-helper-forms
 
                ,(entry-function-form
                  entry-locals
                  entry-body
                  result
-                 #:flonum-initializer-forms flonum-initializer-forms
+                 #:flonum-initializer-forms entry-flonum-initializer-forms
+                 #:global-state-initializer-forms
+                 entry-global-state-initializer-forms
                  #:runtime-constant-initializer-forms
                  (runtime-constant-initializer-forms runtime-constant-registry)
-                 #:parameterization-initializer-forms parameterization-initializer-forms
-                 #:random-current-initializer-forms random-current-initializer-forms
-                 #:thread-current-initializer-forms thread-current-initializer-forms
-                 #:logger-current-initializer-forms logger-current-initializer-forms
-                 #:custodian-current-initializer-forms custodian-current-initializer-forms
-                 #:event-initializer-forms event-initializer-forms
-                 #:struct-property-initializer-forms struct-property-initializer-forms
-                 #:path-current-initializer-forms path-current-initializer-forms
-                 #:environment-parameter-initializer-forms environment-parameter-initializer-forms
+                 #:parameterization-initializer-forms
+                 entry-parameterization-initializer-forms
+                 #:random-current-initializer-forms
+                 entry-random-current-initializer-forms
+                 #:thread-current-initializer-forms
+                 entry-thread-current-initializer-forms
+                 #:logger-current-initializer-forms
+                 entry-logger-current-initializer-forms
+                 #:custodian-current-initializer-forms
+                 entry-custodian-current-initializer-forms
+                 #:event-initializer-forms entry-event-initializer-forms
+                 #:struct-property-initializer-forms
+                 entry-struct-property-initializer-forms
+                 #:path-current-initializer-forms
+                 entry-path-current-initializer-forms
+                 #:environment-parameter-initializer-forms
+                 entry-environment-parameter-initializer-forms
                  #:character-general-category-initializer-forms
-                 character-general-category-initializer-forms
-                 #:realm-initializer-forms realm-initializer-forms
+                 entry-character-general-category-initializer-forms
+                 #:realm-initializer-forms entry-realm-initializer-forms
                  #:primitive-initializer-forms
                  entry-primitive-initializer-forms
                  #:ffi-primitive-initializer-forms
@@ -1665,15 +1760,15 @@
                  #:unsafe-ffi-primitive-table-initializer-forms
                  entry-unsafe-ffi-primitive-table-initializer-forms
                  #:security-guard-current-initializer-forms
-                 security-guard-current-initializer-forms
+                 entry-security-guard-current-initializer-forms
                  #:error-value-handler-late-initializer-forms
-                 error-value-handler-late-initializer-forms
+                 entry-error-value-handler-late-initializer-forms
                  #:print-read-parameter-late-initializer-forms
-                 print-read-parameter-late-initializer-forms
+                 entry-print-read-parameter-late-initializer-forms
                  #:io-handler-default-port-late-initializer-forms
-                 io-handler-default-port-late-initializer-forms
+                 entry-io-handler-default-port-late-initializer-forms
                  #:error-syntax-handler-late-initializer-forms
-                 error-syntax-handler-late-initializer-forms
+                 entry-error-syntax-handler-late-initializer-forms
                  #:top-vars top-vars
                  #:exception-struct-type-initializer-forms
                  exception-struct-type-initializer-forms

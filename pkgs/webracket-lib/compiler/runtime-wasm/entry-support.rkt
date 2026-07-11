@@ -117,6 +117,7 @@
 ;;   #:random-current-initializer-forms list? #:thread-current-initializer-forms list?
 ;;   #:logger-current-initializer-forms list? #:custodian-current-initializer-forms list?
 ;;   #:event-initializer-forms list? #:struct-property-initializer-forms list?
+;;   #:global-state-initializer-forms list?
 ;;   #:path-current-initializer-forms list? #:environment-parameter-initializer-forms list?
 ;;   #:character-general-category-initializer-forms list? #:realm-initializer-forms list?
 ;;   #:primitive-initializer-forms list? #:ffi-primitive-initializer-forms list?
@@ -140,6 +141,13 @@
          #:custodian-current-initializer-forms custodian-current-initializer-forms
          #:event-initializer-forms event-initializer-forms
          #:struct-property-initializer-forms struct-property-initializer-forms
+         #:global-state-initializer-forms
+         ;; Symbol and keyword tables are initialized here for interning.
+         [global-state-initializer-forms
+          '((call $initialize-the-symbol-table)
+            (call $initialize-the-keyword-table)
+            (call $initialize-primitive-table-user-installed)
+            (call $initialize-prefab-struct-type-registry))]
          #:path-current-initializer-forms path-current-initializer-forms
          #:environment-parameter-initializer-forms environment-parameter-initializer-forms
          #:character-general-category-initializer-forms character-general-category-initializer-forms
@@ -166,10 +174,7 @@
          ,@flonum-initializer-forms
 
          ;; Initialize global state
-         (call $initialize-the-symbol-table)  ; for interning
-         (call $initialize-the-keyword-table) ; for interning
-         (call $initialize-primitive-table-user-installed)
-         (call $initialize-prefab-struct-type-registry)
+         ,@global-state-initializer-forms
 
          ;; Initialize constants used by the program and runtime.
          ,@runtime-constant-initializer-forms
