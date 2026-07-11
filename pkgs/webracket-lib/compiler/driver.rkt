@@ -60,6 +60,11 @@
                   wat->wasm
                   initialize-assembler-environment!
                   runtime)
+         (only-in "runtime-wasm.rkt"
+                  split-core-runtime-module
+                  split-runtime-modules-core
+                  split-runtime-modules-imported-names
+                  split-runtime-modules-program)
          (only-in racket/list       append* append-map remove-duplicates second take)
          (only-in racket/match      match)
          (only-in racket/set list->seteq)
@@ -2841,6 +2846,33 @@
                            (default-output-path ".html"))))
   (compilation-output-paths out-wat out-wasm out-map out-host))
 
+;; path-replace-extension+suffix : path-string? string? string? -> path?
+;;   Replace a path's extension after adding a suffix to the stem.
+(define (path-replace-extension+suffix p suffix ext)
+  (define base (path-replace-extension p ""))
+  (string->path (format "~a~a~a" (path->string base) suffix ext)))
+
+;; split-runtime-wat-path : path-string? -> path?
+;;   Return the sidecar WAT path for the experimental split runtime module.
+(define (split-runtime-wat-path out-wat)
+  (path-replace-extension+suffix out-wat ".runtime" ".wat"))
+
+;; split-runtime-wasm-path : path-string? -> path?
+;;   Return the sidecar Wasm path for the experimental split runtime module.
+(define (split-runtime-wasm-path out-wasm)
+  (path-replace-extension+suffix out-wasm ".runtime" ".wasm"))
+
+;; host-wasm-reference : boolean? path-string? path-string? -> path-string?
+;;   Return the Wasm path as the generated host should reference it.
+(define (host-wasm-reference browser? out-host out-wasm)
+  (if browser?
+      (path->string
+       (find-relative-path
+        (path->complete-path (or (path-only out-host) (current-directory))
+                             (current-directory))
+        (path->complete-path out-wasm (current-directory))))
+      out-wasm))
+
 
 (define (drive-compilation
          ;; Paths
@@ -2869,6 +2901,7 @@
          #:module-bridge-elide-public-cells? [module-bridge-elide-public-cells? #f]
          #:tree-shake?       tree-shake?        ; remove dead code from the wat-file
          #:tree-shake-report tree-shake-report
+         #:split-runtime?    [split-runtime? #f]
          ;; Program Debug
          #:print-top-level-results? print-top-level-results?
          #:internal-bind-treelist-debug-shape? internal-bind-treelist-debug-shape?
@@ -3163,20 +3196,30 @@
   (define out-wasm (compilation-output-paths-wasm output-paths))
   (define out-map  (compilation-output-paths-map output-paths))
   (define out-host (compilation-output-paths-host output-paths))
+  (define runtime-wat  (and split-runtime? (split-runtime-wat-path out-wat)))
+  (define runtime-wasm (and split-runtime? (split-runtime-wasm-path out-wasm)))
 
   ; Preflight: ensure output files do not collide.
   (ensure-distinct-output-files!
    'drive-compilation
-   (list (cons "WAT output file"       out-wat)
-         (cons "Wasm output file"      out-wasm)
-         (cons "label-map output file" out-map)
-         (cons "host output file"      out-host)))
+   (append
+    (list (cons "WAT output file"       out-wat)
+          (cons "Wasm output file"      out-wasm)
+          (cons "label-map output file" out-map)
+          (cons "host output file"      out-host))
+    (if split-runtime?
+        (list (cons "split runtime WAT output file" runtime-wat)
+              (cons "split runtime Wasm output file" runtime-wasm))
+        '())))
 
   ; Preflight: ensure output locations are writable.
   (ensure-output-path-writable! 'drive-compilation out-wat  "WAT output file")
   (ensure-output-path-writable! 'drive-compilation out-wasm "Wasm output file")
   (ensure-output-path-writable! 'drive-compilation out-map  "label-map output file")
   (ensure-output-path-writable! 'drive-compilation out-host "host output file")
+  (when split-runtime?
+    (ensure-output-path-writable! 'drive-compilation runtime-wat "split runtime WAT output file")
+    (ensure-output-path-writable! 'drive-compilation runtime-wasm "split runtime Wasm output file"))
   
   ; Preflight: ensure wasm-tools exists and can run.
   (initialize-assembler-environment!
@@ -3218,25 +3261,50 @@
 
   ; 6. Save the resulting WAT module.
   (define t-write-wat-start (now-ms))
-  (write-wat-to-file out-wat wat #:pretty? pretty-wat?)
+  (define split-modules
+    (and split-runtime?
+         (split-core-runtime-module wat #:require-all? #f)))
+  (define program-wat
+    (if split-runtime?
+        (split-runtime-modules-program split-modules)
+        wat))
+  (when (and split-runtime? verbose?)
+    (displayln
+     (format "Split runtime imports: ~a core helpers"
+             (length (split-runtime-modules-imported-names split-modules)))
+     (current-error-port)))
+  (write-wat-to-file out-wat program-wat #:pretty? pretty-wat?)
   (ensure-generated-file-exists! 'drive-compilation out-wat "WAT output file")
+  (when split-runtime?
+    (write-wat-to-file runtime-wat
+                       (split-runtime-modules-core split-modules)
+                       #:pretty? pretty-wat?)
+    (ensure-generated-file-exists! 'drive-compilation runtime-wat "split runtime WAT output file"))
   (define t-write-wat-end (now-ms))
 
   ; 7. Compile the wat-file to wasm using `wat->wasm` from `assembler.rkt`
   (define t-assemble-start (now-ms))
-  (define wat->wasm-success?
+  (define (assemble-module! module wat-path wasm-path)
     (with-handlers ([exn:fail? (λ (e)
                                  (error 'drive-compilation
                                         (~a "wat->wasm failed: " (exn-message e))))])
-      (wat->wasm wat
-                 #:wat out-wat
-                 #:wasm out-wasm
+      (wat->wasm module
+                 #:wat wat-path
+                 #:wasm wasm-path
                  #:write-wat? #f
                  #:exec-path-from-shell? exec-path-from-shell?)))
+  (define wat->wasm-success?
+    (and (or (not split-runtime?)
+             (assemble-module! (split-runtime-modules-core split-modules)
+                               runtime-wat
+                               runtime-wasm))
+         (assemble-module! program-wat out-wat out-wasm)))
   (unless wat->wasm-success?
     (error 'drive-compilation
            (~a "wat->wasm failed to produce bytecode for " filename)))
   (ensure-generated-file-exists! 'drive-compilation out-wasm "Wasm bytecode file")
+  (when split-runtime?
+    (ensure-generated-file-exists! 'drive-compilation runtime-wasm "split runtime Wasm bytecode file"))
   (define t-assemble-end (now-ms))
 
   ; 7b. Write label map sidecar
@@ -3250,16 +3318,14 @@
   ; 8. Write the host file (default: "runtime.js")
   (define t-write-host-start (now-ms))
   (define runtime-wasm-reference
-    (if browser?
-        (path->string
-         (find-relative-path
-          (path->complete-path (or (path-only out-host) (current-directory))
-                               (current-directory))
-          (path->complete-path out-wasm (current-directory))))
-        out-wasm))
+    (host-wasm-reference browser? out-host out-wasm))
+  (define split-runtime-wasm-reference
+    (and split-runtime?
+         (host-wasm-reference browser? out-host runtime-wasm)))
   (with-output-to-file out-host
     (λ () (displayln
            (runtime #:out runtime-wasm-reference
+                    #:core-out split-runtime-wasm-reference
                     #:host (if node? 'node 'browser)
                     #:console-bridge? console-bridge?
                     #:vfs-preloads vfs-preloads

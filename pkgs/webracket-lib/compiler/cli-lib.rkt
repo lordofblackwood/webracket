@@ -46,6 +46,7 @@
    module-bridge-elide-public-cells?      ; expose safe public bridge exports as plain values
    tree-shake?                            ; remove unused runtime primitives
    tree-shake-report                      ; optional runtime primitive reachability report path
+   split-runtime?                         ; emit an experimental core-runtime/program Wasm split
    letrec-strategy                        ; letrec lowering strategy symbol
    print-top-level-results?               ; print top-level results for script-style runs
    internal-bind-treelist-debug-shape?    ; internal treelist shape debug hook
@@ -94,6 +95,7 @@
     (module-bridge-elide-public-cells? . ,(webracket-compile-config-module-bridge-elide-public-cells? cfg))
     (tree-shake? . ,(webracket-compile-config-tree-shake? cfg))
     (tree-shake-report . ,(webracket-compile-config-tree-shake-report cfg))
+    (split-runtime? . ,(webracket-compile-config-split-runtime? cfg))
     (letrec-strategy . ,(webracket-compile-config-letrec-strategy cfg))
     (print-top-level-results? . ,(webracket-compile-config-print-top-level-results? cfg))
     (internal-bind-treelist-debug-shape? . ,(webracket-compile-config-internal-bind-treelist-debug-shape? cfg))
@@ -149,6 +151,7 @@
    (ref 'module-bridge-elide-public-cells?)
    (ref 'tree-shake?)
    (ref 'tree-shake-report)
+   (ref/default 'split-runtime? #f)
    (ref 'letrec-strategy)
    (ref 'print-top-level-results?)
    (ref 'internal-bind-treelist-debug-shape?)
@@ -197,6 +200,7 @@
   (define module-bridge-elide-public-cells? #f)
   (define tree-shake? #t)
   (define tree-shake-report #f)
+  (define split-runtime? #f)
   (define letrec-strategy 'waddell)
   (define print-top-level-results? #f)
   (define internal-bind-treelist-debug-shape? #f)
@@ -380,6 +384,10 @@
      [("--tree-shake-report") filename
                               "Write the runtime primitive report to <filename>"
                               (set! tree-shake-report filename)]
+     [("--split-runtime") "Emit experimental split core-runtime/program Wasm modules"
+                          (set! split-runtime? #t)]
+     [("--no-split-runtime") "Emit the normal monolithic Wasm module (default)"
+                             (set! split-runtime? #f)]
      [("--letrec-basic") "Use the basic letrec lowering strategy"
                          (set! letrec-strategy 'basic)]
      [("--letrec-waddell") "Use the Waddell letrec lowering strategy"
@@ -536,6 +544,7 @@
        module-bridge-elide-public-cells?
        tree-shake?
        tree-shake-report
+       split-runtime?
        letrec-strategy
        print-top-level-results?
        internal-bind-treelist-debug-shape?
@@ -596,6 +605,7 @@
                        (webracket-compile-config-module-bridge-elide-public-cells? cfg)
                        #:tree-shake? (webracket-compile-config-tree-shake? cfg)
                        #:tree-shake-report (webracket-compile-config-tree-shake-report cfg)
+                       #:split-runtime? (webracket-compile-config-split-runtime? cfg)
                        #:print-top-level-results? (webracket-compile-config-print-top-level-results? cfg)
                        #:internal-bind-treelist-debug-shape?
                        (webracket-compile-config-internal-bind-treelist-debug-shape? cfg)

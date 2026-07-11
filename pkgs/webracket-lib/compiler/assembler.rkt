@@ -118,8 +118,17 @@
 ;; The only difference is that Node uses `fs.readFile` to load the wasm
 ;; and the browser needs to fetch it.
 
+(define (split-core-runtime-instantiation core-buffer-name)
+  (if core-buffer-name
+      @~a{const coreRuntimeModule = await WebAssembly.instantiate(@|core-buffer-name|, imports);
+imports["core"] = coreRuntimeModule.instance.exports;
+
+}
+      ""))
+
 (define (runtime-common #:console-bridge? [console-bridge? #f]
-                        #:browser?        [browser? #f])
+                        #:browser?        [browser? #f]
+                        #:core-buffer-name [core-buffer-name #f])
   @~a{
 var memory = new WebAssembly.Memory({initial:1024});
 // Static host bridge scratch map. Keep this in sync with runtime-wasm.rkt.
@@ -2165,6 +2174,7 @@ function install_console_bridge(exports) {
 }
 
 @|runtime-js-imports|
+@|(split-core-runtime-instantiation core-buffer-name)|
 
 const wasmModule
       = await WebAssembly
@@ -2288,6 +2298,7 @@ const wasmModule
       }))
 
 (define (node-runtime out.wasm
+                      #:core-out [core-out #f]
                       #:console-bridge? [console-bridge? #f]
                       #:vfs-preloads [vfs-preloads '()]
                       #:vfs-mounts [vfs-mounts '()])
@@ -2295,13 +2306,44 @@ const wasmModule
       import fs from 'node:fs/promises';
       
       const wasmBuffer = await fs.readFile("@|out.wasm|");
+      @|(if core-out
+            @~a{const coreWasmBuffer = await fs.readFile("@|core-out|");
+            }
+            "")|
       @|(vfs-mount-manifest-assignment vfs-mounts)|
       @|(vfs-preload-manifest-assignment vfs-preloads)|
       
-      @(runtime-common #:console-bridge? console-bridge? #:browser? #f)
+      @(runtime-common #:console-bridge? console-bridge? #:browser? #f
+                       #:core-buffer-name (and core-out "coreWasmBuffer"))
 })
 
+(define (browser-core-wasm-loader core-out)
+  (if core-out
+      @~a{const coreWasmUrl = "@|core-out|";
+       const coreWasmResponse = await fetch(coreWasmUrl);
+       if (!coreWasmResponse.ok) {
+         throw new Error(
+           `Failed to fetch core wasm '${coreWasmUrl}' (HTTP ${coreWasmResponse.status} ${coreWasmResponse.statusText}).`
+         );
+       }
+       const coreWasmBuffer = await coreWasmResponse.arrayBuffer();
+       const coreWasmBytes = new Uint8Array(coreWasmBuffer);
+       const isCoreWasmMagic =
+         coreWasmBytes.length >= 4 &&
+         coreWasmBytes[0] === 0x00 &&
+         coreWasmBytes[1] === 0x61 &&
+         coreWasmBytes[2] === 0x73 &&
+         coreWasmBytes[3] === 0x6d;
+       if (!isCoreWasmMagic) {
+         throw new Error(
+           `Fetched core wasm '${coreWasmUrl}' but content is not a WebAssembly binary (missing magic 00 61 73 6d).`
+         );
+       }
+       }
+      ""))
+
 (define (browser-runtime out.wasm
+                         #:core-out [core-out #f]
                          #:console-bridge? [console-bridge? #f]
                          #:vfs-preloads [vfs-preloads '()]
                          #:vfs-mounts [vfs-mounts '()])
@@ -2337,23 +2379,26 @@ const wasmModule
            "Likely cause: server returned HTML (for example a 404 page) instead of .wasm."
          );
        }
+       @|(browser-core-wasm-loader core-out)|
        @|(vfs-mount-manifest-assignment vfs-mounts)|
        @|(vfs-preload-manifest-assignment vfs-preloads)|
-       @(runtime-common #:console-bridge? console-bridge? #:browser? #t)
+       @(runtime-common #:console-bridge? console-bridge? #:browser? #t
+                        #:core-buffer-name (and core-out "coreWasmBuffer"))
        </script>
      </body>
      </html>
 })
 
 (define (runtime #:out  [out.wasm "out.wasm"]
+                 #:core-out [core-out #f]
                  #:host [host 'node]
                  #:console-bridge? [console-bridge? #f]
                  #:vfs-preloads [vfs-preloads '()]
                  #:vfs-mounts [vfs-mounts '()])
   (validate-vfs-manifest-interactions! vfs-preloads vfs-mounts)
   (case host
-    [(node)    (node-runtime    out.wasm #:console-bridge? console-bridge? #:vfs-preloads vfs-preloads #:vfs-mounts vfs-mounts)]
-    [(browser) (browser-runtime out.wasm #:console-bridge? console-bridge? #:vfs-preloads vfs-preloads #:vfs-mounts vfs-mounts)]
+    [(node)    (node-runtime    out.wasm #:core-out core-out #:console-bridge? console-bridge? #:vfs-preloads vfs-preloads #:vfs-mounts vfs-mounts)]
+    [(browser) (browser-runtime out.wasm #:core-out core-out #:console-bridge? console-bridge? #:vfs-preloads vfs-preloads #:vfs-mounts vfs-mounts)]
     [else      (error 'runtime (format "unknown host ~a" host))]))
 
 (module+ test
@@ -2361,6 +2406,10 @@ const wasmModule
     (runtime #:out "out.wasm" #:host 'browser #:console-bridge? #t))
   (define browser-runtime/plain
     (runtime #:out "out.wasm" #:host 'browser #:console-bridge? #f))
+  (define node-runtime/split
+    (runtime #:out "program.wasm" #:core-out "runtime.wasm" #:host 'node))
+  (define browser-runtime/split
+    (runtime #:out "program.wasm" #:core-out "runtime.wasm" #:host 'browser))
 
   (check-true  (regexp-match? #rx"globalThis\\.WR" browser-runtime/bridge))
   (check-true  (regexp-match? #rx"console_bridge_enabled = true" browser-runtime/bridge))
@@ -2372,6 +2421,10 @@ const wasmModule
   (check-true  (regexp-match? #rx"request: \\{ operation, name, args \\}" browser-runtime/bridge))
   (check-true  (regexp-match? #rx"WebRacket console bridge ready" browser-runtime/bridge))
   (check-false (regexp-match? #rx"console_bridge_enabled = true" browser-runtime/plain))
+  (check-true  (regexp-match? #rx"coreWasmBuffer = await fs\\.readFile\\(\"runtime\\.wasm\"\\)" node-runtime/split))
+  (check-true  (regexp-match? #rx"imports\\[\"core\"\\] = coreRuntimeModule\\.instance\\.exports" node-runtime/split))
+  (check-true  (regexp-match? #rx"const coreWasmUrl = \"runtime\\.wasm\"" browser-runtime/split))
+  (check-true  (regexp-match? #rx"core wasm" browser-runtime/split))
 
   (define runtime/preload
     (runtime #:out "out.wasm"

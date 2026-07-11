@@ -150,25 +150,33 @@
 
 ;; split-core-runtime-module :
 ;;   datum? [#:helpers (listof core-runtime-helper?)]
-;;          [#:import-module string?] [#:core-module datum?] -> split-runtime-modules?
+;;          [#:require-all? boolean?] [#:import-module string?]
+;;          [#:core-module datum?] -> split-runtime-modules?
 ;;   Rewrite a full module so registered core helper definitions become imports.
 (define (split-core-runtime-module module
                                    #:helpers [helpers core-runtime-helpers]
+                                   #:require-all? [require-all? #t]
                                    #:import-module [import-module-name "core"]
                                    #:core-module [core-module (generate-core-runtime)])
   (define forms (module-forms module))
   (define names (helper-name-set helpers))
   (define counts (helper-definition-counts forms names))
-  (check-helper-definitions! helpers counts)
+  (define selected-helpers
+    (if require-all?
+        helpers
+        (for/list ([helper (in-list helpers)]
+                   #:when (positive? (hash-ref counts (core-runtime-helper-name helper) 0)))
+          helper)))
+  (check-helper-definitions! selected-helpers counts)
   (define forms-without-helpers (remove-helper-definitions forms names))
   (define import-forms
-    (core-runtime-helper-import-forms helpers #:module import-module-name))
+    (core-runtime-helper-import-forms selected-helpers #:module import-module-name))
   (define-values (prefix rest)
     (splitf-at forms-without-helpers import-insertion-prefix-form?))
   (split-runtime-modules
    core-module
    `(module ,@prefix ,@import-forms ,@rest)
-   (map core-runtime-helper-name helpers)
+   (map core-runtime-helper-name selected-helpers)
    import-forms))
 
 (module+ test
@@ -237,6 +245,21 @@
               #:when (function-import-form? form))
      (module-func-name form))
    '($sample-add $sample-id))
+
+  (define sample-pruned-module
+    `(module
+       (type $SampleId (func (param i32) (result i32)))
+       ,(core-runtime-helper->form (first sample-helpers))
+       (func $probe (export "probe") (result i32)
+             (call $sample-add (i32.const 10) (i32.const 32)))))
+  (define sample-pruned-split
+    (split-core-runtime-module
+     sample-pruned-module
+     #:helpers sample-helpers
+     #:require-all? #f
+     #:core-module '(module)))
+  (check-equal? (split-runtime-modules-imported-names sample-pruned-split)
+                '($sample-add))
 
   (define core-link-probe-module
     `(module
