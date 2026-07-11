@@ -30,6 +30,11 @@ Current remaining raw-stub classes:
     Racket-shaped calls and keeps the older simplified WebRacket shape as a
     compatibility path that routes through `raise-argument-error` instead of
     trapping.
+  - Generic `raise-arguments-error` now formats field/value detail pairs,
+    validates that field labels are strings, and reports a catchable
+    `missing value after field string` error for odd detail lists. It still
+    omits Racket's multiline reindentation and unquoted-printing-string
+    special case.
 
 - `mutable-hashes.rkt` and `symbols.rkt`:
   - `$raise-hash-insert:table-full` and

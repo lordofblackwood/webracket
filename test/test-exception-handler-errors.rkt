@@ -76,6 +76,24 @@
          "demo"
          "expected: number?"
          "given: #f")))
+ (list "raise-arguments-error detail messages are catchable"
+       (and
+        (catch-contract/contains?
+         (lambda () (raise-arguments-error 'demo "bad pair" "left" 1 "right" 2))
+         "demo"
+         "bad pair"
+         "left: 1"
+         "right: 2")
+        (catch-contract/contains?
+         (lambda () (raise-arguments-error 'demo "bad pair" 'left 1))
+         "raise-arguments-error"
+         "expected: string?"
+         "given: 'left")
+        (catch-contract/contains?
+         (lambda () (raise-arguments-error 'demo "bad pair" "left"))
+         "raise-arguments-error"
+         "missing value after field string"
+         "string: \"left\"")))
  (list "call-with-exception-handler procedure errors are catchable"
        (and
         (catch-contract/contains?

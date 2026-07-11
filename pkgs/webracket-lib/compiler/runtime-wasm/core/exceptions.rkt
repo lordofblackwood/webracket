@@ -40,6 +40,10 @@
     (argument-position-th "th")
     (other-arguments-prefix "\n  other arguments...:")
     (other-argument-line "\n   ")
+    (argument-field-prefix "\n  ")
+    (argument-field-separator ": ")
+    (raise-arguments-error-missing-value "missing value after field string")
+    (raise-arguments-error-string "string")
     (uncaught-exception "uncaught exception: ")))
 
 ;; exception-runtime-symbol-constants : (listof symbol?)
@@ -97,7 +101,8 @@
     exn:fail:syntax:unbound?
     make-exn:fail:syntax:unbound
     raise-argument-error
-    raise-argument-error*))
+    raise-argument-error*
+    raise-arguments-error))
 
 ;; exception-fail-runtime-symbol-constants : (listof symbol?)
 ;;   Declare fail-exception symbols referenced directly by runtime helpers.
@@ -4600,24 +4605,94 @@
                (unreachable))
 
          ;; raise-arguments-error : symbol? string? any/c ... -> none
-         ;;   Report a multi-argument contract error. WebRacket currently
-         ;;   omits field/value detail formatting, but preserves the
-         ;;   non-returning exn:fail:contract behavior that bootstrap code
-         ;;   relies on.
+         ;;   Report a multi-argument contract error with field/value details.
          (func $raise-arguments-error (type $Prim>=2)
                (param $who     (ref eq)) ;; symbol?
                (param $message (ref eq)) ;; string?
-               (param $rest    (ref eq)) ;; ignored field/value details
+               (param $rest    (ref eq)) ;; field/value details as $Args
                (result         (ref eq)) ;; unreachable
-               (local $out          (ref $GrowableArray))
+               (local $out       (ref $GrowableArray))
                (local $full-message (ref $String))
-               (local.set $out (call $make-growable-array (i32.const 3)))
+               (local $rest-args (ref $Args))
+               (local $len       i32)
+               (local $i         i32)
+               (local $field     (ref eq))
+
+               (local.set $out (call $make-growable-array (i32.const 12)))
                (call $growable-array-add! (local.get $out)
                      (call $format/display (local.get $who)))
                (call $growable-array-add! (local.get $out)
                      (global.get $string:contract-violation:prefix))
                (call $growable-array-add! (local.get $out)
                      (call $format/display (local.get $message)))
+
+               (if (ref.test (ref $Args) (local.get $rest))
+                   (then
+                    (local.set $rest-args (ref.cast (ref $Args) (local.get $rest)))
+                    (local.set $len (array.len (local.get $rest-args)))
+                    (local.set $i (i32.const 0))
+                    (block $done
+                           (loop $loop
+                                 (br_if $done
+                                        (i32.ge_u (local.get $i) (local.get $len)))
+                                 (local.set $field
+                                            (array.get $Args
+                                                       (local.get $rest-args)
+                                                       (local.get $i)))
+                                 (if (i32.eqz (ref.test (ref $String) (local.get $field)))
+                                     (then (call $raise-argument-error1
+                                                 (global.get $symbol:raise-arguments-error)
+                                                 (global.get $string:string?)
+                                                 (local.get $field))
+                                           (unreachable)))
+                                 (if (i32.ge_u
+                                      (i32.add (local.get $i) (i32.const 1))
+                                      (local.get $len))
+                                     (then (local.set $out
+                                                      (call $make-growable-array
+                                                            (i32.const 6)))
+                                           (call $growable-array-add! (local.get $out)
+                                                 (call $format/display
+                                                       (global.get $symbol:raise-arguments-error)))
+                                           (call $growable-array-add! (local.get $out)
+                                                 (global.get $string:contract-violation:prefix))
+                                           (call $growable-array-add! (local.get $out)
+                                                 (global.get $string:raise-arguments-error-missing-value))
+                                           (call $growable-array-add! (local.get $out)
+                                                 (global.get $string:argument-field-prefix))
+                                           (call $growable-array-add! (local.get $out)
+                                                 (global.get $string:raise-arguments-error-string))
+                                           (call $growable-array-add! (local.get $out)
+                                                 (global.get $string:argument-field-separator))
+                                           (call $growable-array-add! (local.get $out)
+                                                 (call $format/print
+                                                       (local.get $field)
+                                                       (global.get $missing)))
+                                           (local.set $full-message
+                                                      (call $growable-array-of-strings->string
+                                                            (local.get $out)))
+                                           (drop (call $raise
+                                                       (call $exn:fail:contract/make
+                                                             (local.get $full-message)
+                                                             (call $current-continuation-marks
+                                                                   (global.get $missing)))
+                                                       (global.get $true)))
+                                           (unreachable)))
+                                 (call $growable-array-add! (local.get $out)
+                                       (global.get $string:argument-field-prefix))
+                                 (call $growable-array-add! (local.get $out)
+                                       (ref.cast (ref $String) (local.get $field)))
+                                 (call $growable-array-add! (local.get $out)
+                                       (global.get $string:argument-field-separator))
+                                 (call $growable-array-add! (local.get $out)
+                                       (call $format/print
+                                             (array.get $Args
+                                                        (local.get $rest-args)
+                                                        (i32.add (local.get $i) (i32.const 1)))
+                                             (global.get $missing)))
+                                 (local.set $i
+                                            (i32.add (local.get $i) (i32.const 2)))
+                                 (br $loop)))))
                (local.set $full-message
                           (call $growable-array-of-strings->string (local.get $out)))
                (drop (call $raise
