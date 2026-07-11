@@ -260,7 +260,9 @@
            (result         (ref eq))
 
            (if (ref.eq (call $procedure? (local.get $proc)) (global.get $false))
-               (then (call $raise-argument-error:procedure-expected (local.get $proc))
+               (then (call $raise-argument-error:procedure-expected/who
+                           (global.get $symbol:chaperone-procedure)
+                           (local.get $proc))
                      (unreachable)))
            (if (ref.eq (local.get $wrapper) (global.get $false))
                (then (return (local.get $proc))))
@@ -382,10 +384,14 @@
            (result         (ref eq))
 
            (if (ref.eq (call $procedure? (local.get $proc)) (global.get $false))
-               (then (call $raise-argument-error:procedure-expected (local.get $proc))
+               (then (call $raise-argument-error:procedure-expected/who
+                           (global.get $symbol:unsafe-chaperone-procedure)
+                           (local.get $proc))
                      (unreachable)))
            (if (ref.eq (call $procedure? (local.get $wrapper)) (global.get $false))
-               (then (call $raise-argument-error:procedure-expected (local.get $wrapper))
+               (then (call $raise-argument-error:procedure-expected/who
+                           (global.get $symbol:unsafe-chaperone-procedure)
+                           (local.get $wrapper))
                      (unreachable)))
            (local.get $wrapper))
 
@@ -397,10 +403,17 @@
            (param $props   (ref eq)) ;; ignored property/value list
            (result         (ref eq))
 
-           (return_call $unsafe-chaperone-procedure
-                        (local.get $proc)
-                        (local.get $wrapper)
-                        (local.get $props))))))
+           (if (ref.eq (call $procedure? (local.get $proc)) (global.get $false))
+               (then (call $raise-argument-error:procedure-expected/who
+                           (global.get $symbol:unsafe-impersonate-procedure)
+                           (local.get $proc))
+                     (unreachable)))
+           (if (ref.eq (call $procedure? (local.get $wrapper)) (global.get $false))
+               (then (call $raise-argument-error:procedure-expected/who
+                           (global.get $symbol:unsafe-impersonate-procedure)
+                           (local.get $wrapper))
+                     (unreachable)))
+           (local.get $wrapper)))))
 
 ;; impersonator-helper-forms : hasheq? (listof symbol?) -> (listof datum?)
 ;;   Render the given impersonator helper names from the runtime helper index.

@@ -1295,7 +1295,8 @@
       make-logger
       make-log-receiver
       sync sync/timeout
-      chaperone-procedure chaperone-struct chaperone-vector chaperone-box chaperone-hash
+      chaperone-procedure unsafe-chaperone-procedure unsafe-impersonate-procedure
+      chaperone-struct chaperone-vector chaperone-box chaperone-hash
       extend-parameterization
       string-append-immutable string-append* bytes-append*)
     ; - kind
@@ -1311,7 +1312,7 @@
         [(sync) 0]
         [(sync/timeout) 1]
         [(chaperone-struct) 1]
-        [(chaperone-procedure) 2]
+        [(chaperone-procedure unsafe-chaperone-procedure unsafe-impersonate-procedure) 2]
         [(chaperone-vector chaperone-box) 3]
         [(chaperone-hash) 5]
         [(call-with-semaphore) 2]
@@ -1341,7 +1342,7 @@
         [(sync) 0]
         [(sync/timeout) 1]
         [(chaperone-struct) 1]
-        [(chaperone-procedure) 2]
+        [(chaperone-procedure unsafe-chaperone-procedure unsafe-impersonate-procedure) 2]
         [(chaperone-vector chaperone-box chaperone-hash) 3]
         [(call-with-semaphore) 2]
         [(foldl foldr instance-set-variable-value!) 3]

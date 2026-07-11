@@ -57,12 +57,35 @@
        (and
         (catch-contract/contains?
          (lambda () (chaperone-procedure 42 #f))
+         "chaperone-procedure"
          "procedure?"
          "given: 42")
         (catch-contract/contains?
          (lambda () (chaperone-procedure p2 42))
          "chaperone-procedure"
          "(or/c procedure? #f)"
+         "given: 42")))
+ (list "unsafe procedure chaperones reject invalid contracts"
+       (and
+        (catch-contract/contains?
+         (lambda () (unsafe-chaperone-procedure 42 p2))
+         "unsafe-chaperone-procedure"
+         "procedure?"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (unsafe-chaperone-procedure p2 42))
+         "unsafe-chaperone-procedure"
+         "procedure?"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (unsafe-impersonate-procedure 42 p2))
+         "unsafe-impersonate-procedure"
+         "procedure?"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (unsafe-impersonate-procedure p2 42))
+         "unsafe-impersonate-procedure"
+         "procedure?"
          "given: 42")))
  (list "chaperone-vector rejects invalid interposers"
        (and
