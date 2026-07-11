@@ -3950,7 +3950,9 @@
                              (local.get $v0))
                        (unreachable)))
              (if (i32.eqz (ref.test (ref $Procedure) (local.get $v1)))
-                 (then (call $raise-argument-error:procedure-expected (local.get $v1))
+                 (then (call $raise-argument-error:procedure-expected/who
+                             (global.get $symbol:treelist-sort)
+                             (local.get $v1))
                        (unreachable)))
              (call $treelist-sort/checked
                    (local.get $tl)
@@ -4452,7 +4454,9 @@
                              (local.get $v0))
                        (unreachable)))
              (if (i32.eqz (ref.test (ref $Procedure) (local.get $v1)))
-                 (then (call $raise-argument-error:procedure-expected (local.get $v1))
+                 (then (call $raise-argument-error:procedure-expected/who
+                             (global.get $symbol:treelist-map)
+                             (local.get $v1))
                        (unreachable)))
              (local.set $f    (ref.cast (ref $Procedure) (local.get $v1)))
              (local.set $finv (struct.get $Procedure $invoke (local.get $f)))
@@ -4495,7 +4499,9 @@
                              (local.get $v0))
                        (unreachable)))
              (if (i32.eqz (ref.test (ref $Procedure) (local.get $v1)))
-                 (then (call $raise-argument-error:procedure-expected (local.get $v1))
+                 (then (call $raise-argument-error:procedure-expected/who
+                             (global.get $symbol:treelist-for-each)
+                             (local.get $v1))
                        (unreachable)))
              (local.set $f    (ref.cast (ref $Procedure) (local.get $v1)))
              (local.set $finv (struct.get $Procedure $invoke (local.get $f)))
@@ -4526,7 +4532,9 @@
              (local $args (ref $Args))
              (local $len  i32)
              (if (i32.eqz (ref.test (ref $Procedure) (local.get $v0)))
-                 (then (call $raise-argument-error:procedure-expected (local.get $v0))
+                 (then (call $raise-argument-error:procedure-expected/who
+                             (global.get $symbol:treelist-filter)
+                             (local.get $v0))
                        (unreachable)))
              (local.set $f    (ref.cast (ref $Procedure) (local.get $v0)))
              (local.set $finv (struct.get $Procedure $invoke (local.get $f)))
@@ -4574,7 +4582,9 @@
                              (local.get $v0))
                        (unreachable)))
              (if (i32.eqz (ref.test (ref $Procedure) (local.get $v1)))
-                 (then (call $raise-argument-error:procedure-expected (local.get $v1))
+                 (then (call $raise-argument-error:procedure-expected/who
+                             (global.get $symbol:treelist-find)
+                             (local.get $v1))
                        (unreachable)))
              (local.set $f    (ref.cast (ref $Procedure) (local.get $v1)))
              (local.set $finv (struct.get $Procedure $invoke (local.get $f)))
@@ -4610,7 +4620,9 @@
                  (then (local.set $use-proc (i32.const 0)))
                  (else
                   (if (i32.eqz (ref.test (ref $Procedure) (local.get $same?)))
-                      (then (call $raise-argument-error:procedure-expected (local.get $same?))
+                      (then (call $raise-argument-error:procedure-expected/who
+                                  (global.get $symbol:treelist-member?)
+                                  (local.get $same?))
                             (unreachable)))
                   (local.set $use-proc (i32.const 1))))
              (local.set $tl (global.get $empty-treelist))
@@ -4649,7 +4661,9 @@
                  (then (local.set $use-proc (i32.const 0)))
                  (else
                   (if (i32.eqz (ref.test (ref $Procedure) (local.get $same?)))
-                      (then (call $raise-argument-error:procedure-expected (local.get $same?))
+                      (then (call $raise-argument-error:procedure-expected/who
+                                  (global.get $symbol:treelist-index-of)
+                                  (local.get $same?))
                             (unreachable)))
                   (local.set $use-proc (i32.const 1))))
              (local.set $tl (global.get $empty-treelist))

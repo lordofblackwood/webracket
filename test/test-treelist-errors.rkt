@@ -104,4 +104,42 @@
          (and (equal? (treelist-ref tl 1) 2)
               (equal? (treelist-ref (treelist-set tl 1 'x) 1) 'x)
               (equal? (treelist-ref (treelist-insert tl 2 'x) 2) 'x)
-              (equal? (treelist->list (treelist-delete tl 1)) '(1))))))
+              (equal? (treelist->list (treelist-delete tl 1)) '(1)))))
+ (list "higher-order treelist procedure errors preserve who"
+       (let ([tl (treelist 1 2)])
+         (and
+          (catch-contract/contains?
+           (lambda () (treelist-sort tl 42))
+           "treelist-sort"
+           "procedure?"
+           "given: 42")
+          (catch-contract/contains?
+           (lambda () (treelist-map tl 42))
+           "treelist-map"
+           "procedure?"
+           "given: 42")
+          (catch-contract/contains?
+           (lambda () (treelist-for-each tl 42))
+           "treelist-for-each"
+           "procedure?"
+           "given: 42")
+          (catch-contract/contains?
+           (lambda () (treelist-filter 42 tl))
+           "treelist-filter"
+           "procedure?"
+           "given: 42")
+          (catch-contract/contains?
+           (lambda () (treelist-find tl 42))
+           "treelist-find"
+           "procedure?"
+           "given: 42")
+          (catch-contract/contains?
+           (lambda () (treelist-member? tl 1 42))
+           "treelist-member?"
+           "procedure?"
+           "given: 42")
+          (catch-contract/contains?
+           (lambda () (treelist-index-of tl 1 42))
+           "treelist-index-of"
+           "procedure?"
+           "given: 42")))))
