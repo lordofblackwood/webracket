@@ -19,6 +19,9 @@
     (dot-zo             ".zo")
     (id                 "id")
     (regexp?            "regexp?")
+    (regexp-replace:pattern-contract "(or/c regexp? byte-regexp? string? bytes?)")
+    (regexp-replace:input-contract "(or/c string? bytes?)")
+    (regexp-replace:insert-contract "(or/c string? bytes? procedure?)")
     (regexp-replace     "regexp-replace")
     (regexp-replace*    "regexp-replace*")))
 
@@ -40,7 +43,9 @@
   '(regexp
     pregexp
     byte-regexp
-    byte-pregexp))
+    byte-pregexp
+    regexp-replace
+    regexp-replace*))
 
 ;; regexp-runtime-only-forms : (listof datum?)
 ;;   Enumerate regular expression helpers used by the monolithic runtime.
@@ -639,6 +644,42 @@
                (param $insert (ref eq)) ;; string?, bytes?, or procedure?
                (param $prefix (ref eq)) ;; optional bytes?, default = #"", ignored by subset
                (result        (ref eq))
+               (if (i32.eqz
+                    (i32.or
+                     (i32.or (ref.test (ref $Regexp) (local.get $rx-raw))
+                             (ref.test (ref $String) (local.get $rx-raw)))
+                     (ref.test (ref $Bytes) (local.get $rx-raw))))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:regexp-replace)
+                               (global.get $string:regexp-replace:pattern-contract)
+                               (local.get $rx-raw))
+                         (unreachable)))
+               (if (i32.eqz
+                    (i32.or (ref.test (ref $String) (local.get $input))
+                            (ref.test (ref $Bytes) (local.get $input))))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:regexp-replace)
+                               (global.get $string:regexp-replace:input-contract)
+                               (local.get $input))
+                         (unreachable)))
+               (if (i32.eqz
+                    (i32.or
+                     (i32.or (ref.test (ref $String) (local.get $insert))
+                             (ref.test (ref $Bytes) (local.get $insert)))
+                     (ref.test (ref $Procedure) (local.get $insert))))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:regexp-replace)
+                               (global.get $string:regexp-replace:insert-contract)
+                               (local.get $insert))
+                         (unreachable)))
+               (if (i32.and
+                    (i32.eqz (ref.eq (local.get $prefix) (global.get $missing)))
+                    (i32.eqz (ref.test (ref $Bytes) (local.get $prefix))))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:regexp-replace)
+                               (global.get $string:bytes?)
+                               (local.get $prefix))
+                         (unreachable)))
                (return_call $regexp-replace/subset
                             (local.get $rx-raw)
                             (local.get $input)
@@ -653,6 +694,34 @@
                (param $insert (ref eq)) ;; string?, bytes?, or procedure?
                (param $rest   (ref eq)) ;; optional start/end/prefix args, ignored by subset
                (result        (ref eq))
+               (if (i32.eqz
+                    (i32.or
+                     (i32.or (ref.test (ref $Regexp) (local.get $rx-raw))
+                             (ref.test (ref $String) (local.get $rx-raw)))
+                     (ref.test (ref $Bytes) (local.get $rx-raw))))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:regexp-replace*)
+                               (global.get $string:regexp-replace:pattern-contract)
+                               (local.get $rx-raw))
+                         (unreachable)))
+               (if (i32.eqz
+                    (i32.or (ref.test (ref $String) (local.get $input))
+                            (ref.test (ref $Bytes) (local.get $input))))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:regexp-replace*)
+                               (global.get $string:regexp-replace:input-contract)
+                               (local.get $input))
+                         (unreachable)))
+               (if (i32.eqz
+                    (i32.or
+                     (i32.or (ref.test (ref $String) (local.get $insert))
+                             (ref.test (ref $Bytes) (local.get $insert)))
+                     (ref.test (ref $Procedure) (local.get $insert))))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:regexp-replace*)
+                               (global.get $string:regexp-replace:insert-contract)
+                               (local.get $insert))
+                         (unreachable)))
                (return_call $regexp-replace/subset
                             (local.get $rx-raw)
                             (local.get $input)

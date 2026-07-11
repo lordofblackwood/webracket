@@ -49,6 +49,45 @@
          "byte-pregexp"
          "bytes?"
          "given: 42")))
+ (list "regexp-replace rejects bad argument types with who"
+       (and
+        (catch-contract/contains?
+         (lambda () (regexp-replace 42 "abc" "x"))
+         "regexp-replace"
+         "(or/c regexp? byte-regexp? string? bytes?)"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (regexp-replace #rx"a" 42 "x"))
+         "regexp-replace"
+         "(or/c string? bytes?)"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (regexp-replace #rx"a" "abc" 42))
+         "regexp-replace"
+         "(or/c string? bytes? procedure?)"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (regexp-replace #rx"a" "abc" "x" 42))
+         "regexp-replace"
+         "bytes?"
+         "given: 42")))
+ (list "regexp-replace* rejects bad required argument types with who"
+       (and
+        (catch-contract/contains?
+         (lambda () (regexp-replace* 42 "abc" "x"))
+         "regexp-replace*"
+         "(or/c regexp? byte-regexp? string? bytes?)"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (regexp-replace* #rx"a" 42 "x"))
+         "regexp-replace*"
+         "(or/c string? bytes?)"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (regexp-replace* #rx"a" "abc" 42))
+         "regexp-replace*"
+         "(or/c string? bytes? procedure?)"
+         "given: 42")))
  (list "byte regexp constructor success cases still work"
        (list "byte-regexp constructs byte-regexp?"
              (byte-regexp? (byte-regexp #"a")))
@@ -57,4 +96,7 @@
        (list "byte-regexp matching positive case"
              (regexp-match? (byte-regexp #"a") #"cat"))
        (list "byte-regexp matching negative case"
-             (not (regexp-match? (byte-regexp #"z") #"cat")))))
+             (not (regexp-match? (byte-regexp #"z") #"cat")))
+       (list "regexp replacement subset still works"
+             (and (equal? (regexp-replace #rx"a" "banana" "A") "bAnana")
+                  (equal? (regexp-replace* #rx"a" "banana" "A") "bAnAnA")))))
