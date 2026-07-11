@@ -2906,12 +2906,12 @@
   (copy-file src dest #t))
 
 ;; assemble-split-runtime-core/cached! :
-;;   list? path-string? path-string? boolean?
+;;   (-> list?) path-string? path-string? boolean?
 ;;   (list? path-string? path-string? -> boolean?)
 ;;   [#:cache-key any/c]
 ;;   [#:record-timing! (string? real? -> any/c)] -> boolean?
 ;;   Assemble the core runtime sidecar, reusing a fingerprinted Wasm cache hit.
-(define (assemble-split-runtime-core/cached! core-module
+(define (assemble-split-runtime-core/cached! core-module-thunk
                                              runtime-wat
                                              runtime-wasm
                                              pretty-wat?
@@ -2924,6 +2924,14 @@
     (begin0
       (thunk)
       (record-timing! label (- (now-ms) start-ms))))
+  (define core-module #f)
+  (define (force-core-module!)
+    (or core-module
+        (let ([module (time-core-cache-step
+                       "split-runtime-core:force-module"
+                       core-module-thunk)])
+          (set! core-module module)
+          module)))
   (define fingerprint
     (if cache-key
         (time-core-cache-step
@@ -2933,7 +2941,7 @@
         (time-core-cache-step
          "split-runtime-core:fingerprint"
          (lambda ()
-           (split-runtime-core-fingerprint core-module)))))
+           (split-runtime-core-fingerprint (force-core-module!))))))
   (define cache-wasm-path (split-runtime-core-cache-wasm-path fingerprint))
   (define cache-wat-path (split-runtime-core-cache-wat-path fingerprint
                                                             pretty-wat?))
@@ -2950,7 +2958,9 @@
     (time-core-cache-step
      "split-runtime-core:write-wat"
      (lambda ()
-       (write-wat-to-file runtime-wat core-module #:pretty? pretty-wat?))))
+       (write-wat-to-file runtime-wat
+                          (force-core-module!)
+                          #:pretty? pretty-wat?))))
   (define (materialize-runtime-wat!)
     (cond
       [(cache-hit? cache-wat-path)
@@ -2991,7 +3001,9 @@
              (time-core-cache-step
               "split-runtime-core:assemble-wasm"
               (lambda ()
-                (assemble-module! core-module runtime-wat runtime-wasm))))
+                (assemble-module! (force-core-module!)
+                                  runtime-wat
+                                  runtime-wasm))))
            (when assembled?
              (make-directory* (path-only cache-wasm-path))
              (time-core-cache-step
@@ -3448,7 +3460,8 @@
   (define wat->wasm-success?
     (and (or (not split-runtime?)
              (assemble-split-runtime-core/cached!
-              (split-runtime-modules-core split-modules)
+              (lambda ()
+                (split-runtime-modules-core split-modules))
               runtime-wat
               runtime-wasm
               pretty-wat?
