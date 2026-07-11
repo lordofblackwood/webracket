@@ -22,6 +22,7 @@
   '((read-unsupported        "read: the Racket reader is not supported by WebRacket yet")
     (read-syntax-unsupported "read-syntax: the Racket reader is not supported by WebRacket yet")
     (reader-unsupported      "the Racket reader is not supported by WebRacket yet")
+    (print-quote-depth       "(or/c 0 1)")
     (environment-variables-ref:environment-variables? "environment-variables?")
     (bytes-environment-variable-name? "bytes-environment-variable-name?")))
 
@@ -41,7 +42,7 @@
                     (global.set $default-port-read-handler-value
                                 (struct.new $PrimitiveProcedure
                                             (i32.const 0)
-                                            (global.get $symbol:port-read-handler)
+                                            (global.get $symbol:default-port-read-handler)
                                             (ref.i31 (i32.const 2))
                                             (global.get $the-racket/primitive-realm)
                                             (ref.func $primitive-invoke:shape-1)
@@ -50,7 +51,7 @@
                     (global.set $default-port-write-handler-value
                                 (struct.new $PrimitiveProcedure
                                             (i32.const 0)
-                                            (global.get $symbol:port-write-handler)
+                                            (global.get $symbol:default-port-write-handler)
                                             (ref.i31 (i32.const 4))
                                             (global.get $the-racket/primitive-realm)
                                             (ref.func $primitive-invoke:shape-2)
@@ -59,7 +60,7 @@
                     (global.set $default-port-display-handler-value
                                 (struct.new $PrimitiveProcedure
                                             (i32.const 0)
-                                            (global.get $symbol:port-display-handler)
+                                            (global.get $symbol:default-port-display-handler)
                                             (ref.i31 (i32.const 4))
                                             (global.get $the-racket/primitive-realm)
                                             (ref.func $primitive-invoke:shape-2)
@@ -68,7 +69,7 @@
                     (global.set $default-port-print-handler-value
                                 (struct.new $PrimitiveProcedure
                                             (i32.const 0)
-                                            (global.get $symbol:port-print-handler)
+                                            (global.get $symbol:default-port-print-handler)
                                             (ref.i31 (i32.const 12))
                                             (global.get $the-racket/primitive-realm)
                                             (ref.func $primitive-invoke:shape-14)
@@ -80,6 +81,11 @@
 (define io-handler-runtime-symbol-constants
   '(read
     read-syntax
+    default-read-interaction
+    default-port-read-handler
+    default-port-write-handler
+    default-port-display-handler
+    default-port-print-handler
     port-read-handler
     port-write-handler
     port-display-handler
@@ -245,8 +251,14 @@
                ;;   install the parameter without attempting REPL reads.
                (func $default-current-read-interaction (type $Prim2)
                      (param $source-name (ref eq)) ;; source name, currently ignored
-                     (param $in          (ref eq)) ;; input-port?, currently ignored
+                     (param $in          (ref eq)) ;; input-port?
                      (result             (ref eq))
+                     (if (i32.eqz (call $input-port-like?/i32 (local.get $in)))
+                         (then (call $raise-argument-error1
+                                     (global.get $symbol:default-read-interaction)
+                                     (global.get $string:input-port?)
+                                     (local.get $in))
+                               (unreachable)))
                      (global.get $eof))
 
                ;; default-port-read-handler : input-port? [any/c] -> eof-object?
@@ -257,11 +269,23 @@
                      (param $in     (ref eq)) ;; input-port?
                      (param $source (ref eq)) ;; optional source name, ignored
                      (result        (ref eq))
+                     (if (i32.eqz (call $input-port-like?/i32 (local.get $in)))
+                         (then (call $raise-argument-error1
+                                     (global.get $symbol:default-port-read-handler)
+                                     (global.get $string:input-port?)
+                                     (local.get $in))
+                               (unreachable)))
                      (global.get $eof))
 
                (func $default-port-read-handler/1 (type $Prim1)
                      (param $in (ref eq)) ;; input-port?
                      (result    (ref eq))
+                     (if (i32.eqz (call $input-port-like?/i32 (local.get $in)))
+                         (then (call $raise-argument-error1
+                                     (global.get $symbol:default-port-read-handler)
+                                     (global.get $string:input-port?)
+                                     (local.get $in))
+                               (unreachable)))
                      (global.get $eof))
 
                ;; read : [input-port?] -> any/c
@@ -343,6 +367,12 @@
                      (param $v   (ref eq)) ;; any/c
                      (param $out (ref eq)) ;; output-port?
                      (result     (ref eq))
+                     (if (i32.eqz (call $output-port-like?/i32 (local.get $out)))
+                         (then (call $raise-argument-error1
+                                     (global.get $symbol:default-port-write-handler)
+                                     (global.get $string:output-port?)
+                                     (local.get $out))
+                               (unreachable)))
                      (drop (call $write-string
                                  (call $format/write (local.get $v))
                                  (local.get $out)
@@ -358,6 +388,12 @@
                      (param $v   (ref eq)) ;; any/c
                      (param $out (ref eq)) ;; output-port?
                      (result     (ref eq))
+                     (if (i32.eqz (call $output-port-like?/i32 (local.get $out)))
+                         (then (call $raise-argument-error1
+                                     (global.get $symbol:default-port-display-handler)
+                                     (global.get $string:output-port?)
+                                     (local.get $out))
+                               (unreachable)))
                      (drop (call $write-string
                                  (call $format/display (local.get $v))
                                  (local.get $out)
@@ -373,8 +409,32 @@
                (func $default-port-print-handler (type $Prim23)
                      (param $v           (ref eq)) ;; any/c
                      (param $out         (ref eq)) ;; output-port?
-                     (param $quote-depth (ref eq)) ;; optional (or/c 0 1), ignored
+                     (param $quote-depth (ref eq)) ;; optional (or/c 0 1)
                      (result             (ref eq))
+                     (local $depth-raw i32)
+                     (if (i32.eqz (call $output-port-like?/i32 (local.get $out)))
+                         (then (call $raise-argument-error1
+                                     (global.get $symbol:default-port-print-handler)
+                                     (global.get $string:output-port?)
+                                     (local.get $out))
+                               (unreachable)))
+                     (if (i32.eqz (ref.eq (local.get $quote-depth) (global.get $missing)))
+                         (then
+                          (if (i32.eqz (ref.test (ref i31) (local.get $quote-depth)))
+                              (then (call $raise-argument-error1
+                                          (global.get $symbol:default-port-print-handler)
+                                          (global.get $string:print-quote-depth)
+                                          (local.get $quote-depth))
+                                    (unreachable)))
+                          (local.set $depth-raw
+                                     (i31.get_s (ref.cast (ref i31) (local.get $quote-depth))))
+                          (if (i32.eqz (i32.or (i32.eq (local.get $depth-raw) (i32.const 0))
+                                               (i32.eq (local.get $depth-raw) (i32.const 2))))
+                              (then (call $raise-argument-error1
+                                          (global.get $symbol:default-port-print-handler)
+                                          (global.get $string:print-quote-depth)
+                                          (local.get $quote-depth))
+                                    (unreachable)))))
                      (drop (call $write-string
                                  (call $format/print
                                        (local.get $v)
@@ -575,13 +635,13 @@
                   $default-port-write-handler-value
                   $default-port-display-handler-value
                   $default-port-print-handler-value))
-  (check-true (tree-member? '(global.get $symbol:port-read-handler)
+  (check-true (tree-member? '(global.get $symbol:default-port-read-handler)
                             io-handler-default-port-late-initializer-forms))
-  (check-true (tree-member? '(global.get $symbol:port-write-handler)
+  (check-true (tree-member? '(global.get $symbol:default-port-write-handler)
                             io-handler-default-port-late-initializer-forms))
-  (check-true (tree-member? '(global.get $symbol:port-display-handler)
+  (check-true (tree-member? '(global.get $symbol:default-port-display-handler)
                             io-handler-default-port-late-initializer-forms))
-  (check-true (tree-member? '(global.get $symbol:port-print-handler)
+  (check-true (tree-member? '(global.get $symbol:default-port-print-handler)
                             io-handler-default-port-late-initializer-forms))
 
   (check-equal?

@@ -36,6 +36,8 @@ Recent semantic cleanup:
   arguments before delegating to the plain byte/character operations.
 - `read` and `read-syntax` still raise unsupported-reader exceptions for
   valid ports, but now report `input-port?` contract errors for bad ports.
+- Default read/write/display/print handlers now validate their port arguments
+  and the print-handler quote depth with default handler `who` names.
 
 ## Preserved Behavior To Revisit
 

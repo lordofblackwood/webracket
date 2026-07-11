@@ -241,7 +241,7 @@
                     (global.set $current-read-interaction-value
                                 (struct.new $PrimitiveProcedure
                                             (i32.const 0)
-                                            (global.get $symbol:current-read-interaction)
+                                            (global.get $symbol:default-read-interaction)
                                             (ref.i31 (i32.const 4))
                                             (global.get $the-racket/primitive-realm)
                                             (ref.func $primitive-invoke:shape-2)

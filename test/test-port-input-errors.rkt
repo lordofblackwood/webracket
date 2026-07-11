@@ -182,6 +182,18 @@
          "read-syntax"
          "input-port?"
          "given: 42")))
+ (list "default reader handlers validate input ports with who"
+       (and
+        (catch-contract/contains?
+         (lambda () ((current-read-interaction) 'source 42))
+         "default-read-interaction"
+         "input-port?"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () ((port-read-handler (open-input-string "")) 42))
+         "default-port-read-handler"
+         "input-port?"
+         "given: 42")))
  (list "reader stubs are catchable unsupported errors"
        (and
         (catch-unsupported/contains?
