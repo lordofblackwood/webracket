@@ -87,7 +87,14 @@
     application-not-procedure-frontier
     binding-result-arity-frontier
     procedure-arity-frontier
+    procedure-arity
+    procedure-arity-mask
     procedure-arity-includes?
+    procedure-extract-target
+    procedure-result-arity
+    procedure-specialize
+    procedure-reduce-arity
+    procedure-reduce-arity-mask
     primitive?
     primitive-result-arity
     expected-count
@@ -2556,7 +2563,9 @@
            (result      (ref eq))
 
            (if (ref.eq (call $procedure? (local.get $proc)) (global.get $false))
-               (then (call $raise-argument-error:procedure-expected (local.get $proc))
+               (then (call $raise-argument-error:procedure-expected/who
+                           (global.get $symbol:procedure-specialize)
+                           (local.get $proc))
                      (unreachable)))
            (local.get $proc))
 
@@ -3307,7 +3316,9 @@
            ;; not yet expose that internal target, so ordinary procedures
            ;; conservatively return #f for now.
            (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
-               (then (call $raise-argument-error:procedure-expected (local.get $proc))
+               (then (call $raise-argument-error:procedure-expected/who
+                           (global.get $symbol:procedure-extract-target)
+                           (local.get $proc))
                      (unreachable)))
            (global.get $false))
 
@@ -3330,7 +3341,9 @@
            (local.set $new-name  (global.get $false))
            (local.set $new-realm (global.get $false))
            (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
-               (then (call $raise-argument-error:procedure-expected (local.get $proc))
+               (then (call $raise-argument-error:procedure-expected/who
+                           (global.get $symbol:procedure-reduce-arity)
+                           (local.get $proc))
                      (unreachable)))
            (local.set $p (ref.cast (ref $Procedure) (local.get $proc)))
            (local.set $new-arity (call $procedure-arity-value->field
@@ -3407,7 +3420,9 @@
            (local.set $new-name  (global.get $false))
            (local.set $new-realm (global.get $false))
            (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
-               (then (call $raise-argument-error:procedure-expected (local.get $proc))
+               (then (call $raise-argument-error:procedure-expected/who
+                           (global.get $symbol:procedure-reduce-arity-mask)
+                           (local.get $proc))
                      (unreachable)))
            (local.set $p (ref.cast (ref $Procedure) (local.get $proc)))
            (local.set $new-arity
@@ -3473,7 +3488,9 @@
           ;; represented under $Procedure for fast application, but only
           ;; structs with prop:procedure are Racket procedures.
           (if (ref.eq (call $procedure? (local.get $proc)) (global.get $false))
-              (then (call $raise-argument-error:procedure-expected (local.get $proc))
+              (then (call $raise-argument-error:procedure-expected/who
+                          (global.get $symbol:procedure-arity)
+                          (local.get $proc))
                     (unreachable)))
            ;; 2. Delegate to the checked implementation
            (return_call $procedure-arity/checked
@@ -3553,7 +3570,9 @@
            (result      (ref eq))
 
            (if (ref.eq (call $procedure? (local.get $proc)) (global.get $false))
-               (then (call $raise-argument-error:procedure-expected (local.get $proc))
+               (then (call $raise-argument-error:procedure-expected/who
+                           (global.get $symbol:procedure-result-arity)
+                           (local.get $proc))
                      (unreachable)))
            (if (ref.test (ref $PrimitiveProcedure) (local.get $proc))
                (then
@@ -3575,7 +3594,9 @@
           ;; Step 1: type check and cast. Use semantic procedure-ness so
           ;; plain structs do not expose their internal application fields.
           (if (ref.eq (call $procedure? (local.get $proc)) (global.get $false))
-              (then (call $raise-argument-error:procedure-expected (local.get $proc))
+              (then (call $raise-argument-error:procedure-expected/who
+                          (global.get $symbol:procedure-arity-mask)
+                          (local.get $proc))
                     (unreachable)))
           (local.set $p (ref.cast (ref $Procedure) (local.get $proc)))
            ;; Step 2: compute mask in checked helper

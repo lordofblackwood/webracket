@@ -15,6 +15,43 @@
                  needles))))
 
 (list
+ (list "procedure reflection errors preserve who"
+       (and
+        (catch-contract/contains?
+         (lambda () (procedure-specialize 42))
+         "procedure-specialize"
+         "procedure?"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (procedure-extract-target 42))
+         "procedure-extract-target"
+         "procedure?"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (procedure-reduce-arity 42 1))
+         "procedure-reduce-arity"
+         "procedure?"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (procedure-reduce-arity-mask 42 2))
+         "procedure-reduce-arity-mask"
+         "procedure?"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (procedure-arity 42))
+         "procedure-arity"
+         "procedure?"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (procedure-result-arity 42))
+         "procedure-result-arity"
+         "procedure?"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (procedure-arity-mask 42))
+         "procedure-arity-mask"
+         "procedure?"
+         "given: 42")))
  (list "procedure-arity-includes? k errors are catchable"
        (and
         (catch-contract/contains?
