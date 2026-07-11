@@ -27,6 +27,41 @@
                  needles))))
 
 (list
+ (list "call-with-values procedure errors preserve who"
+       (and
+        (catch-contract/contains?
+         (lambda () (call-with-values 42 values))
+         "call-with-values"
+         "procedure?"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (call-with-values (lambda () 'ok) 42))
+         "call-with-values"
+         "procedure?"
+         "given: 42")))
+ (list "dynamic-wind thunk errors preserve who"
+       (and
+        (catch-contract/contains?
+         (lambda () (dynamic-wind 42
+                                  (lambda () 'body)
+                                  (lambda () 'after)))
+         "dynamic-wind"
+         "(procedure-arity-includes/c 0)"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (dynamic-wind (lambda () 'before)
+                                  42
+                                  (lambda () 'after)))
+         "dynamic-wind"
+         "(procedure-arity-includes/c 0)"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (dynamic-wind (lambda () 'before)
+                                  (lambda () 'body)
+                                  42))
+         "dynamic-wind"
+         "(procedure-arity-includes/c 0)"
+         "given: 42")))
  (list "continuation barrier checks zero-arity thunk contract"
        (and
         (catch-contract/contains?

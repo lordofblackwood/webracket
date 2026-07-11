@@ -39,7 +39,8 @@
 ;; multiple-value-runtime-symbol-constants : (listof symbol?)
 ;;   Declare symbols used by multiple-value helpers.
 (define multiple-value-runtime-symbol-constants
-  '(values))
+  '(values
+    call-with-values))
 
 ;; continuation-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for continuation helpers.
@@ -75,6 +76,7 @@
     continuation-prompt-tag?
     continuation?
     root-continuation-prompt-tag
+    dynamic-wind
     dynamic-require
     call-with-continuation-barrier
     call-with-escape-continuation
@@ -283,13 +285,17 @@
 
            ;; Step 1: type check generator
            (if (i32.eqz (ref.test (ref $Procedure) (local.get $gen)))
-               (then (call $raise-argument-error:procedure-expected (local.get $gen))
+               (then (call $raise-argument-error:procedure-expected/who
+                           (global.get $symbol:call-with-values)
+                           (local.get $gen))
                      (unreachable)))
            (local.set $g    (ref.cast (ref $Procedure) (local.get $gen)))
 
            ;; Step 2: type check receiver
            (if (i32.eqz (ref.test (ref $Procedure) (local.get $rec)))
-               (then (call $raise-argument-error:procedure-expected (local.get $rec))
+               (then (call $raise-argument-error:procedure-expected/who
+                           (global.get $symbol:call-with-values)
+                           (local.get $rec))
                      (unreachable)))
            (local.set $r    (ref.cast (ref $Procedure) (local.get $rec)))
 
@@ -414,19 +420,31 @@
            (local $res     (ref eq))
            (local $exn-val (ref eq))
 
-           (drop (call $call-thunk (local.get $before)))
+           (drop (call $call-thunk/who
+                       (global.get $symbol:dynamic-wind)
+                       (global.get $string:procedure-arity-0)
+                       (local.get $before)))
            (local.set $res
                       (block $done (result (ref eq))
                         (block $handler-block (result (ref eq))
                           (try_table (result (ref eq))
                                      (catch $exn $handler-block)
-                                     (call $call-thunk (local.get $body))
+                                     (call $call-thunk/who
+                                           (global.get $symbol:dynamic-wind)
+                                           (global.get $string:procedure-arity-0)
+                                           (local.get $body))
                                      (br $done)))
                         (local.set $exn-val)
-                        (drop (call $call-thunk (local.get $after)))
+                        (drop (call $call-thunk/who
+                                    (global.get $symbol:dynamic-wind)
+                                    (global.get $string:procedure-arity-0)
+                                    (local.get $after)))
                         (throw $exn (local.get $exn-val))
                         (unreachable)))
-           (drop (call $call-thunk (local.get $after)))
+           (drop (call $call-thunk/who
+                       (global.get $symbol:dynamic-wind)
+                       (global.get $string:procedure-arity-0)
+                       (local.get $after)))
            (local.get $res))
 
      ;; dynamic-require : module-path? (or/c symbol? #f 0) [(-> any/c)] -> any/c
