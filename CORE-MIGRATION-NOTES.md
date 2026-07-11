@@ -194,6 +194,11 @@ Current remaining raw-stub classes:
     `initialize-boxed!` now raise catchable `boxed?` contract errors for bad
     cell values instead of trapping or returning the internal `$error` sentinel.
 
+- `impersonators.rkt`:
+  - The intentionally unsupported `impersonator-val` primitive now raises a
+    catchable `exn:fail:unsupported` value instead of reporting unsupported
+    impersonators as an argument contract error.
+
 - `control-flow.rkt`:
   - `dynamic-require` without a fallback thunk now raises a catchable
     `exn:fail:unsupported` value with `dynamic-require:` in the message instead

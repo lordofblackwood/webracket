@@ -14,14 +14,25 @@
                    (string-contains? message needle))
                  needles))))
 
+(define (catch-unsupported/contains? thunk . needles)
+  (let ([message
+         (with-handlers ([exn:fail:unsupported?
+                          (lambda (exn)
+                            (exn-message exn))])
+           (thunk)
+           #f)])
+    (and message
+         (andmap (lambda (needle)
+                   (string-contains? message needle))
+                 needles))))
+
 (define (p2 a b) 'ok)
 (define (p3 a b c) 'ok)
 
 (list
  (list "impersonator-val unsupported path is catchable"
-       (catch-contract/contains?
+       (catch-unsupported/contains?
         (lambda () (impersonator-val 42))
-        "impersonator-val"
         "impersonators are not supported by WebRacket"))
  (list "impersonator property errors are catchable"
        (and

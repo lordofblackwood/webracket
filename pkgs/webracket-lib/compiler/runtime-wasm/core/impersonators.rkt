@@ -79,10 +79,12 @@
      (func $impersonator-val (type $Prim1)
            (param $v (ref eq)) ;; unsupported impersonator value
            (result   (ref eq))
-           (call $raise-arguments-error
-                 (global.get $symbol:impersonator-val)
-                 (global.get $string:impersonators-unsupported)
-                 (array.new_fixed $Args 0))
+           (drop (call $raise
+                       (call $exn:fail:unsupported/make
+                             (global.get $string:impersonators-unsupported)
+                             (call $current-continuation-marks
+                                   (global.get $missing)))
+                       (global.get $true)))
            (unreachable))
 
      ;; make-impersonator-property : symbol? -> values impersonator-property? procedure? procedure?
