@@ -2875,12 +2875,21 @@
    (sha1-bytes
     (module-write-bytes core-module))))
 
-;; split-runtime-core-cache-path : string? -> path?
+;; split-runtime-core-cache-wasm-path : string? -> path?
 ;;   Return the stable cache path for an assembled split core runtime module.
-(define (split-runtime-core-cache-path fingerprint)
+(define (split-runtime-core-cache-wasm-path fingerprint)
   (runtime-provider-cache-path
-   "split-runtime-core-v1"
+   "split-runtime-core-v2"
    (format "~a.wasm" fingerprint)))
+
+;; split-runtime-core-cache-wat-path : string? boolean? -> path?
+;;   Return the stable cache path for a rendered split core runtime WAT module.
+(define (split-runtime-core-cache-wat-path fingerprint pretty-wat?)
+  (runtime-provider-cache-path
+   "split-runtime-core-v2"
+   (format "~a.~a.wat"
+           fingerprint
+           (if pretty-wat? "pretty" "compact"))))
 
 ;; copy-file/replace! : path-string? path-string? -> void?
 ;;   Copy src to dest, replacing an existing file.
@@ -2893,35 +2902,56 @@
 (define (assemble-split-runtime-core/cached! core-module
                                              runtime-wat
                                              runtime-wasm
+                                             pretty-wat?
                                              assemble-module!)
   (define fingerprint (split-runtime-core-fingerprint core-module))
-  (define cache-path (split-runtime-core-cache-path fingerprint))
+  (define cache-wasm-path (split-runtime-core-cache-wasm-path fingerprint))
+  (define cache-wat-path (split-runtime-core-cache-wat-path fingerprint
+                                                            pretty-wat?))
   (define (cache-hit? path)
     (and (not (current-provider-cache-force?))
          (file-exists? path)))
+  (define (cache-runtime-wat!)
+    (make-directory* (path-only cache-wat-path))
+    (copy-file/replace! runtime-wat cache-wat-path))
+  (define (write-runtime-wat!)
+    (write-wat-to-file runtime-wat core-module #:pretty? pretty-wat?))
+  (define (materialize-runtime-wat!)
+    (cond
+      [(cache-hit? cache-wat-path)
+       (copy-file/replace! cache-wat-path runtime-wat)]
+      [else
+       (provider-cache-log "split runtime core wat miss; writing: ~a"
+                           cache-wat-path)
+       (write-runtime-wat!)
+       (cache-runtime-wat!)]))
   (define (copy-cached-runtime!)
-    (copy-file/replace! cache-path runtime-wasm)
+    (copy-file/replace! cache-wasm-path runtime-wasm)
+    (materialize-runtime-wat!)
     #t)
   (cond
-    [(cache-hit? cache-path)
-     (provider-cache-log "split runtime core wasm hit: ~a" cache-path)
+    [(cache-hit? cache-wasm-path)
+     (provider-cache-log "split runtime core wasm hit: ~a" cache-wasm-path)
      (copy-cached-runtime!)]
     [else
      (call-with-provider-cache-lock
-      cache-path
+      cache-wasm-path
       (lambda ()
         (cond
-          [(cache-hit? cache-path)
-           (provider-cache-log "split runtime core wasm hit: ~a" cache-path)
+          [(cache-hit? cache-wasm-path)
+           (provider-cache-log "split runtime core wasm hit: ~a"
+                               cache-wasm-path)
            (copy-cached-runtime!)]
           [else
            (provider-cache-log "split runtime core wasm miss; assembling: ~a"
-                               cache-path)
+                               cache-wasm-path)
+           (write-runtime-wat!)
            (define assembled?
              (assemble-module! core-module runtime-wat runtime-wasm))
            (when assembled?
-             (make-directory* (path-only cache-path))
-             (copy-file/replace! runtime-wasm cache-path))
+             (make-directory* (path-only cache-wasm-path))
+             (copy-file/replace! runtime-wasm cache-wasm-path)
+             (cache-runtime-wat!))
            assembled?])))]))
 
 ;; host-wasm-reference : boolean? path-string? path-string? -> path-string?
@@ -3340,11 +3370,6 @@
      (current-error-port)))
   (write-wat-to-file out-wat program-wat #:pretty? pretty-wat?)
   (ensure-generated-file-exists! 'drive-compilation out-wat "WAT output file")
-  (when split-runtime?
-    (write-wat-to-file runtime-wat
-                       (split-runtime-modules-core split-modules)
-                       #:pretty? pretty-wat?)
-    (ensure-generated-file-exists! 'drive-compilation runtime-wat "split runtime WAT output file"))
   (define t-write-wat-end (now-ms))
 
   ; 7. Compile the wat-file to wasm using `wat->wasm` from `assembler.rkt`
@@ -3364,6 +3389,7 @@
               (split-runtime-modules-core split-modules)
               runtime-wat
               runtime-wasm
+              pretty-wat?
               assemble-module!))
          (assemble-module! program-wat out-wat out-wasm)))
   (unless wat->wasm-success?
