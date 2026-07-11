@@ -15,6 +15,7 @@
 
 (require "core-helper.rkt"
          (only-in "constants.rkt"
+                  constant-data-name?
                   constant-global-name?)
          "core-runtime.rkt"
          "module-forms.rkt"
@@ -560,6 +561,11 @@
 (define (program-referenced-runtime-data-forms runtime-forms program-forms)
   (define runtime-data-form-by-name
     (named-form-index runtime-forms module-data-name))
+  (define program-data-name-set
+    (for/hasheq ([form (in-list program-forms)]
+                 #:do [(define name (module-data-name form))]
+                 #:when name)
+      (values name #t)))
   (define available-names
     (for/hasheq ([name (in-list (hash-keys runtime-data-form-by-name))])
       (values name #t)))
@@ -568,6 +574,30 @@
                                                            available-names))])
       (values name #t)))
   (for/list ([form (in-list runtime-forms)]
+             #:do [(define name (module-data-name form))]
+             #:when (and name
+                         (hash-ref referenced-name-set name #f)
+                         (not (hash-ref program-data-name-set name #f))))
+    form))
+
+;; runtime-referenced-program-data-forms : (listof datum?) (listof datum?) -> (listof datum?)
+;;   Return program-owned passive data forms that runtime-side forms reference.
+(define (runtime-referenced-program-data-forms runtime-forms program-forms)
+  (define program-data-form-by-name
+    (named-form-index
+     (filter (lambda (form)
+               (and (module-data-name form)
+                    (constant-data-name? (module-data-name form))))
+             program-forms)
+     module-data-name))
+  (define available-names
+    (for/hasheq ([name (in-list (hash-keys program-data-form-by-name))])
+      (values name #t)))
+  (define referenced-name-set
+    (for/hasheq ([name (in-list (referenced-runtime-names runtime-forms
+                                                           available-names))])
+      (values name #t)))
+  (for/list ([form (in-list program-forms)]
              #:do [(define name (module-data-name form))]
              #:when (and name (hash-ref referenced-name-set name #f)))
     form))
@@ -697,11 +727,15 @@
      pulled-runtime-global-names))
   (define program-forms
     (reverse remaining-program-forms/reversed))
+  (define pulled-runtime-data-forms
+    (runtime-referenced-program-data-forms runtime-forms
+                                          initial-program-forms))
   (define runtime-body-forms
     (append
      (for/list ([form (in-list runtime-forms)]
                 #:unless (declare-elem-form? form))
        form)
+     pulled-runtime-data-forms
      (reverse pulled-runtime-global-forms/reversed)))
   (define-values (imported-names import-forms export-forms)
     (classified-runtime-import/export-forms
@@ -886,6 +920,7 @@
       (type $I8Array (array (mut i8)))
       (import "env" "memory" (memory $memory 1))
       (data $string-data:runtime "x")
+      (data $symbol-data:check-list "check-list")
       (tag $boundary-exn (param i32))
       (global $runtime-state (mut i32) (i32.const 40))
       (global $symbol:check-list (mut (ref eq)) (ref.i31 (i32.const 0)))
@@ -895,6 +930,11 @@
             (i32.add (local.get $x) (global.get $runtime-state)))
       (func $runtime-symbol-value
             (result i32)
+            (drop
+             (array.new_data $I8Array
+                             $symbol-data:check-list
+                             (i32.const 0)
+                             (i32.const 1)))
             (i31.get_s
              (ref.cast (ref i31)
                        (global.get $symbol:check-list))))
@@ -955,6 +995,12 @@
            classified-core-forms))
   (check-not-false
    (member '(data $string-data:runtime "x")
+           classified-program-forms))
+  (check-not-false
+   (member '(data $symbol-data:check-list "check-list")
+           classified-core-forms))
+  (check-not-false
+   (member '(data $symbol-data:check-list "check-list")
            classified-program-forms))
   (check-not-false
    (member '(elem declare funcref (ref.func $runtime-add-state))

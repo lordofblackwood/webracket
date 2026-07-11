@@ -287,6 +287,8 @@
                   runtime-constant-declaration-forms
                   runtime-constant-initializer-forms
                   runtime-linklet-body-reserved-symbols)
+         (only-in "runtime-wasm/constants.rkt"
+                  make-runtime-constant-registry)
          (only-in "runtime-wasm/core/reflection.rkt"
                   reflection-runtime-helper-forms)
          (only-in "runtime-wasm/core/security.rkt"
@@ -421,6 +423,32 @@
     (define program-function-names
       (module-func-names dls))
 
+    (define linklet-body-reserved-symbols
+      (runtime-linklet-body-reserved-symbols all-primitives))
+
+    ;; Runtime constants include program constants passed by `generate-code`
+    ;; plus constants required by runtime support.
+    (define runtime-constant-registry
+      (make-program-runtime-constant-registry
+       string-constants
+       bytes-constants
+       symbol-constants
+       active-described-primitives-sorted
+       (runtime-ffi-state-active-primitive-names ffi-state)
+       all-primitives))
+    (define runtime-only-constant-registry
+      (make-program-runtime-constant-registry
+       '()
+       '()
+       '()
+       active-described-primitives-sorted
+       (runtime-ffi-state-active-primitive-names ffi-state)
+       all-primitives))
+    (define program-only-constant-registry
+      (make-runtime-constant-registry string-constants
+                                      bytes-constants
+                                      symbol-constants))
+
     (define primitive-initializer-forms
       (runtime-primitive-state-initializer-forms primitive-state))
     (define ffi-primitive-initializer-forms
@@ -435,6 +463,8 @@
         (call $initialize-prefab-struct-type-registry)))
     (define split-runtime-primitive-initializer-name
       '$initialize-split-runtime-primitives!)
+    (define split-runtime-constant-initializer-name
+      '$initialize-split-runtime-constants!)
     (define split-runtime-pre-constant-initializer-name
       '$initialize-split-runtime-before-constants!)
     (define split-runtime-post-constant-initializer-name
@@ -446,6 +476,13 @@
           (list
            `(func ,split-runtime-primitive-initializer-name
                   ,@primitive-initializer-forms))
+          '()))
+    (define split-runtime-constant-initializer-helper-forms
+      (if (current-split-runtime?)
+          (list
+           `(func ,split-runtime-constant-initializer-name
+                  ,@(runtime-constant-initializer-forms
+                     runtime-only-constant-registry)))
           '()))
     (define split-runtime-entry-initializer-helper-forms
       (if (current-split-runtime?)
@@ -483,6 +520,12 @@
       (if (current-split-runtime?)
           '()
           global-state-initializer-forms))
+    (define entry-runtime-constant-initializer-forms
+      (if (current-split-runtime?)
+          (append
+           `((call ,split-runtime-constant-initializer-name))
+           (runtime-constant-initializer-forms program-only-constant-registry))
+          (runtime-constant-initializer-forms runtime-constant-registry)))
     (define entry-parameterization-initializer-forms
       (if (current-split-runtime?)
           `((call ,split-runtime-post-constant-initializer-name))
@@ -527,20 +570,6 @@
       (if (current-split-runtime?) '() io-handler-default-port-late-initializer-forms))
     (define entry-error-syntax-handler-late-initializer-forms
       (if (current-split-runtime?) '() error-syntax-handler-late-initializer-forms))
-
-    (define linklet-body-reserved-symbols
-      (runtime-linklet-body-reserved-symbols all-primitives))
-
-    ;; Runtime constants include program constants passed by `generate-code`
-    ;; plus constants required by runtime support.
-    (define runtime-constant-registry
-      (make-program-runtime-constant-registry
-       string-constants
-       bytes-constants
-       symbol-constants
-       active-described-primitives-sorted
-       (runtime-ffi-state-active-primitive-names ffi-state)
-       all-primitives))
 
     ;;;
     ;;; WEB-ASSEMBLY
@@ -1722,6 +1751,7 @@
 
                ,@entry-support-forms
                ,@split-runtime-primitive-initializer-helper-forms
+               ,@split-runtime-constant-initializer-helper-forms
                ,@split-runtime-entry-initializer-helper-forms
 
                ,(entry-function-form
@@ -1732,7 +1762,7 @@
                  #:global-state-initializer-forms
                  entry-global-state-initializer-forms
                  #:runtime-constant-initializer-forms
-                 (runtime-constant-initializer-forms runtime-constant-registry)
+                 entry-runtime-constant-initializer-forms
                  #:parameterization-initializer-forms
                  entry-parameterization-initializer-forms
                  #:random-current-initializer-forms
