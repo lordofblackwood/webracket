@@ -26,7 +26,7 @@
     (hash-constructor:key-without-value
      ": key does not have a value (i.e., an odd number of arguments were provided)\n  key: ")
     (reader-graph-unsupported
-     "cyclic reader graphs and hash placeholders are not supported by WebRacket yet")))
+     "make-reader-graph: cyclic reader graphs and hash placeholders are not supported by WebRacket yet")))
 
 ;; immutable-hash-constructor-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for empty immutable hash constructors.
@@ -405,17 +405,21 @@
 
               (if (i32.le_s (local.get $fuel) (i32.const 0))
                   (then
-                   (call $raise-arguments-error
-                         (global.get $symbol:make-reader-graph)
-                         (global.get $string:reader-graph-unsupported)
-                         (array.new_fixed $Args 0))
+                   (drop (call $raise
+                               (call $exn:fail:unsupported/make
+                                     (global.get $string:reader-graph-unsupported)
+                                     (call $current-continuation-marks
+                                           (global.get $missing)))
+                               (global.get $true)))
                    (unreachable)))
               (if (ref.test (ref $HashPlaceholder) (local.get $v))
                   (then
-                   (call $raise-arguments-error
-                         (global.get $symbol:make-reader-graph)
-                         (global.get $string:reader-graph-unsupported)
-                         (array.new_fixed $Args 0))
+                   (drop (call $raise
+                               (call $exn:fail:unsupported/make
+                                     (global.get $string:reader-graph-unsupported)
+                                     (call $current-continuation-marks
+                                           (global.get $missing)))
+                               (global.get $true)))
                    (unreachable)))
               (local.set $fuel-1 (i32.sub (local.get $fuel) (i32.const 1)))
               (if (ref.test (ref $Placeholder) (local.get $v))

@@ -27,6 +27,8 @@ Recent semantic cleanup:
   error.
 - `s-exp->fasl` now reports values outside the current FASL encoder surface
   as `exn:fail:unsupported` with a `s-exp->fasl` message prefix.
+- `make-reader-graph` now reports unsupported cyclic reader-graph and hash
+  placeholder inputs as `exn:fail:unsupported`.
 
 ## Preserved Behavior To Revisit
 

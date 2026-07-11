@@ -14,6 +14,18 @@
                    (string-contains? message needle))
                  needles))))
 
+(define (catch-unsupported/contains? thunk . needles)
+  (let ([message
+         (with-handlers ([exn:fail:unsupported?
+                          (lambda (exn)
+                            (exn-message exn))])
+           (thunk)
+           #f)])
+    (and message
+         (andmap (lambda (needle)
+                   (string-contains? message needle))
+                 needles))))
+
 (list
  (list "hash-ref missing key errors are catchable with key detail"
        (and
@@ -51,6 +63,11 @@
               (begin
                 (hash-update! m 'a add1)
                 (equal? (hash-ref m 'a) 2)))))
+ (list "make-reader-graph unsupported hash placeholders are catchable"
+       (catch-unsupported/contains?
+        (lambda () (make-reader-graph (make-hash-placeholder '((a . 1)))))
+        "make-reader-graph"
+        "hash placeholders are not supported"))
  (list "immutable hash map/copy and filters work without traps"
        (let* ([h       (hash 'a 1 'b 2 'c 3)]
               [copy    (hash-map/copy h (lambda (k v) (values k (+ v 10))))]
