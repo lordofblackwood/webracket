@@ -38,7 +38,6 @@
                   runtime-record-tree-shake-retention-metrics!)
          (only-in "runtime-source.rkt"
                   runtime-source-fingerprint)
-         file/sha1
          racket/fasl
          racket/file)
 
@@ -163,9 +162,7 @@
 ;; module-fingerprint : list? -> string?
 ;;   Hash the serialized WAT module tree.
 (define (module-fingerprint module)
-  (bytes->hex-string
-   (sha1-bytes
-    (module-write-bytes module))))
+  (module-write-sha1 module))
 
 ;; stable-runtime-analysis-cache-fingerprint :
 ;;   list? #:browser? boolean? #:runtime-source-fingerprint any/c
@@ -261,13 +258,16 @@
          #:described-primitives described-primitives
          #:time-runtime-step [time-runtime-step default-time-runtime-step])
   (define stable-runtime-cache-fingerprint
-    (stable-runtime-analysis-cache-fingerprint
-     stable-runtime-module
-     #:browser? browser?
-     #:runtime-source-fingerprint runtime-source-fingerprint
-     #:active-ffi-foreigns active-ffi-foreigns
-     #:active-ffi-imports-wat active-ffi-imports-wat
-     #:active-ffi-funcs-wat active-ffi-funcs-wat))
+    (time-runtime-step
+     "tree-shake:stable-runtime-cache-fingerprint"
+     (lambda ()
+       (stable-runtime-analysis-cache-fingerprint
+        stable-runtime-module
+        #:browser? browser?
+        #:runtime-source-fingerprint runtime-source-fingerprint
+        #:active-ffi-foreigns active-ffi-foreigns
+        #:active-ffi-imports-wat active-ffi-imports-wat
+        #:active-ffi-funcs-wat active-ffi-funcs-wat))))
   (runtime-metric-add! "runtime:stable-runtime-fingerprint"
                        (format "~x"
                                (abs (equal-hash-code
@@ -354,7 +354,10 @@
          #:console-bridge-primitive-names console-bridge-primitive-names
          #:primitive-description? primitive-description?
          #:time-runtime-step [time-runtime-step default-time-runtime-step])
-  (runtime-record-built-module-metrics! full-module)
+  (time-runtime-step
+   "runtime:record-built-module-metrics"
+   (lambda ()
+     (runtime-record-built-module-metrics! full-module)))
   (define-values (runtime-forms-before-prune program-forms-before-prune)
     (split-module-forms
      full-module
@@ -439,10 +442,13 @@
             #:ffi-global->symbol ffi-global->symbol
             #:active-ffi-foreigns active-ffi-foreigns)))
         full-module))
-  (runtime-record-tree-shake-final-metrics! final-module
-                                            described-primitives
-                                            retained-primitives
-                                            (current-tree-shake?))
+  (time-runtime-step
+   "tree-shake:record-final-metrics"
+   (lambda ()
+     (runtime-record-tree-shake-final-metrics! final-module
+                                               described-primitives
+                                               retained-primitives
+                                               (current-tree-shake?))))
   final-module)
 
 ;; walk-symbol-refs : any/c hasheq? -> (listof symbol?)

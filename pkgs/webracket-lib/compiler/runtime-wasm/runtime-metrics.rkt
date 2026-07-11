@@ -19,6 +19,18 @@
                   module-global-name
                   symbol-prefix-count))
 
+;; runtime-byte-size-metrics-env-enabled? : -> boolean?
+;;   Check whether expensive full-module byte-size metrics were requested.
+(define (runtime-byte-size-metrics-env-enabled?)
+  (define value (getenv "WEBRACKET_RUNTIME_BYTE_SIZE_METRICS"))
+  (and value
+       (not (member value '("" "0" "false" "False" "FALSE")))))
+
+;; current-runtime-byte-size-metrics? : (parameterof boolean?)
+;;   Controls diagnostic byte-size metrics that serialize whole runtime modules.
+(define current-runtime-byte-size-metrics?
+  (make-parameter (runtime-byte-size-metrics-env-enabled?)))
+
 ;; time-runtime-step : string? (-> any/c) -> any/c
 ;;   Run thunk, preserving multiple values and recording elapsed time when enabled.
 (define (time-runtime-step label thunk)
@@ -45,12 +57,20 @@
   (when (current-runtime-metric-rows)
     (runtime-metric-add! label (thunk))))
 
+;; runtime-metric-add/module-byte-size! : string? list? -> void?
+;;   Record a full-module byte size only when explicitly enabled.
+(define (runtime-metric-add/module-byte-size! label module)
+  (if (current-runtime-byte-size-metrics?)
+      (runtime-metric-add/computed! label
+                                    (lambda ()
+                                      (module-byte-size module)))
+      (runtime-metric-add! label "skipped")))
+
 ;; runtime-record-built-module-metrics! : list? -> void?
 ;;   Record whole-module size and declaration counts before pruning.
 (define (runtime-record-built-module-metrics! full-module)
-  (runtime-metric-add/computed! "runtime:module-bytes-before-prune"
-                                (lambda ()
-                                  (module-byte-size full-module)))
+  (runtime-metric-add/module-byte-size! "runtime:module-bytes-before-prune"
+                                        full-module)
   (runtime-metric-add! "runtime:function-count-before-prune"
                        (module-func-count full-module))
   (runtime-metric-add! "runtime:global-count-before-prune"
@@ -131,9 +151,8 @@
                        (module-func-count final-module))
   (runtime-metric-add! "tree-shake:global-count-after-prune"
                        (module-global-count final-module))
-  (runtime-metric-add/computed! "tree-shake:module-bytes-after-prune"
-                                (lambda ()
-                                  (module-byte-size final-module))))
+  (runtime-metric-add/module-byte-size! "tree-shake:module-bytes-after-prune"
+                                        final-module))
 
 (module+ test
   (require rackunit)
@@ -176,12 +195,20 @@
       (data $d "abc")
       (export "f" (func $f))))
 
-  (parameterize ([current-runtime-metric-rows '()])
+  (parameterize ([current-runtime-metric-rows '()]
+                 [current-runtime-byte-size-metrics? #f])
     (runtime-record-built-module-metrics! sample-module)
     (define rows (current-runtime-metric-rows))
     (check-equal? (metric-ref rows "runtime:function-count-before-prune") "1")
     (check-equal? (metric-ref rows "runtime:global-count-before-prune") "1")
     (check-equal? (metric-ref rows "runtime:export-count-before-prune") "1")
+    (check-equal? (metric-ref rows "runtime:module-bytes-before-prune")
+                  "skipped"))
+
+  (parameterize ([current-runtime-metric-rows '()]
+                 [current-runtime-byte-size-metrics? #t])
+    (runtime-record-built-module-metrics! sample-module)
+    (define rows (current-runtime-metric-rows))
     (check-true (positive? (string->number
                             (metric-ref rows "runtime:module-bytes-before-prune")))))
 
@@ -214,7 +241,8 @@
     (check-equal? (metric-ref rows "tree-shake:root-primitive-count") "2")
     (check-equal? (metric-ref rows "tree-shake:retained-function-count") "3"))
 
-  (parameterize ([current-runtime-metric-rows '()])
+  (parameterize ([current-runtime-metric-rows '()]
+                 [current-runtime-byte-size-metrics? #f])
     (runtime-record-tree-shake-final-metrics! sample-module
                                               '(car cdr cons)
                                               '(car cons)
@@ -225,5 +253,15 @@
     (check-equal? (metric-ref rows "tree-shake:removed-primitive-count") "1")
     (check-equal? (metric-ref rows "tree-shake:function-count-after-prune") "1")
     (check-equal? (metric-ref rows "tree-shake:global-count-after-prune") "1")
+    (check-equal? (metric-ref rows "tree-shake:module-bytes-after-prune")
+                  "skipped"))
+
+  (parameterize ([current-runtime-metric-rows '()]
+                 [current-runtime-byte-size-metrics? #t])
+    (runtime-record-tree-shake-final-metrics! sample-module
+                                              '(car cdr cons)
+                                              '(car cons)
+                                              #t)
+    (define rows (current-runtime-metric-rows))
     (check-true (positive? (string->number
                             (metric-ref rows "tree-shake:module-bytes-after-prune"))))))

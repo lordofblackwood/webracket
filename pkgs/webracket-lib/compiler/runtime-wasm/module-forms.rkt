@@ -5,6 +5,7 @@
          module-data-name
          module-func-names
          module-write-bytes
+         module-write-sha1
          module-form-count
          module-func-count
          module-global-count
@@ -12,6 +13,8 @@
          module-byte-size
          symbol-prefix-count
          forms->module)
+
+(require file/sha1)
 
 ;; module-name-symbol : any/c -> (or/c symbol? #f)
 ;;   Normalize a WAT identifier, accepting pre-strip syntax identifiers.
@@ -48,11 +51,50 @@
        (module-name-symbol (cadr form))))
 
 ;; module-write-bytes : list? -> bytes?
-;;   Serialize a WAT module with `write` for hashing and size metrics.
+;;   Serialize a WAT module with `write`.
 (define (module-write-bytes module)
   (call-with-output-bytes
    (lambda (out)
      (write module out))))
+
+;; module-write-sha1 : list? -> string?
+;;   Hash the serialized WAT module without materializing the bytes.
+(define (module-write-sha1 module)
+  (define-values (in out) (make-pipe))
+  (define writer-result (make-channel))
+  (thread
+   (lambda ()
+     (with-handlers ([exn:fail?
+                      (lambda (e)
+                        (with-handlers ([exn:fail? void])
+                          (close-output-port out))
+                        (channel-put writer-result e))])
+       (write module out)
+       (close-output-port out)
+       (channel-put writer-result #t))))
+  (define digest (sha1 in))
+  (close-input-port in)
+  (define result (channel-get writer-result))
+  (when (exn:fail? result)
+    (raise result))
+  digest)
+
+;; module-write-size : list? -> exact-nonnegative-integer?
+;;   Count the serialized byte length without materializing the bytes.
+(define (module-write-size module)
+  (define size 0)
+  (define out
+    (make-output-port
+     'module-write-size
+     always-evt
+     (lambda (_bs start end _non-block? _breakable?)
+       (define n (- end start))
+       (set! size (+ size n))
+       n)
+     void))
+  (write module out)
+  (close-output-port out)
+  size)
 
 ;; module-func-names : (listof any/c) -> (listof symbol?)
 ;;   Return all named function forms in a sequence of module body forms.
@@ -91,7 +133,7 @@
 ;; module-byte-size : list? -> exact-nonnegative-integer?
 ;;   Return the byte size of the module's serialized s-expression.
 (define (module-byte-size module)
-  (bytes-length (module-write-bytes module)))
+  (module-write-size module))
 
 ;; symbol-prefix-count : (listof symbol?) string? -> exact-nonnegative-integer?
 ;;   Count symbols whose printed names start with prefix.
@@ -130,4 +172,7 @@
   (check-equal? (module-export-count sample-module) 1)
   (check-equal? (symbol-prefix-count '($string:a $bytes:a $string:b) "$string:") 2)
   (check-equal? (forms->module '((func $f))) '(module (func $f)))
-  (check-true (positive? (module-byte-size sample-module))))
+  (check-equal? (module-byte-size sample-module)
+                (bytes-length (module-write-bytes sample-module)))
+  (check-equal? (module-write-sha1 sample-module)
+                (sha1 (open-input-bytes (module-write-bytes sample-module)))))

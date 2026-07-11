@@ -48,8 +48,6 @@
          (only-in racket/pretty     pretty-write)
          (only-in racket/format     ~a)
          (only-in racket/fasl       fasl->s-exp s-exp->fasl)
-         (only-in file/sha1         bytes->hex-string
-                                    sha1-bytes)
          (only-in racket/system     system*)
          (only-in racket/string     string-join
                                     string-prefix?)
@@ -69,7 +67,7 @@
                   split-runtime-modules-imported-names
                   split-runtime-modules-program)
          (only-in "runtime-wasm/module-forms.rkt"
-                  module-write-bytes)
+                  module-write-sha1)
          (only-in racket/list       append* append-map remove-duplicates second take)
          (only-in racket/match      match)
          (only-in racket/set list->seteq)
@@ -2874,9 +2872,7 @@
 ;; split-runtime-core-fingerprint : list? -> string?
 ;;   Fingerprint the generated core runtime module tree for Wasm cache reuse.
 (define (split-runtime-core-fingerprint core-module)
-  (bytes->hex-string
-   (sha1-bytes
-    (module-write-bytes core-module))))
+  (module-write-sha1 core-module))
 
 ;; split-runtime-core-cache-wasm-path : string? -> path?
 ;;   Return the stable cache path for an assembled split core runtime module.
