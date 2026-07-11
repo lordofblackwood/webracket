@@ -167,6 +167,11 @@ Current remaining raw-stub classes:
     plain string. Racket uses the more precise `exn:misc:match` subtype with
     value and source-location fields; WebRacket still needs that subtype if
     code depends on `exn:misc:match?` or `prop:exn:srclocs`.
+  - `$check-mlist` now rejects ordinary immutable pairs and accepts only null or
+    mutable pairs at the initial `in-mlist` check, matching Racket now that
+    WebRacket has `$MPair` support. It does not pre-walk the whole mutable-list
+    tail; improper mutable tails still fail later through the relevant mpair
+    accessor, as in Racket.
 
 - `namespaces.rkt` and `linklet-instances.rkt`:
   - Missing namespace and instance bindings now raise catchable

@@ -41,6 +41,7 @@
    (make-no-stdlib-result-tree-fixture "test/test-logger-errors.rkt")
    (make-no-stdlib-result-tree-fixture "test/test-time-errors.rkt")
    (make-no-stdlib-result-tree-fixture "test/test-control-flow-errors.rkt")
+   (make-no-stdlib-result-tree-fixture "test/test-sequence-checker-errors.rkt")
    (make-no-stdlib-result-tree-fixture "test/test-security-errors.rkt")
    (make-no-stdlib-result-tree-fixture "test/test-exception-handler-errors.rkt")
    (make-no-stdlib-result-tree-fixture "test/test-procedure-errors.rkt")

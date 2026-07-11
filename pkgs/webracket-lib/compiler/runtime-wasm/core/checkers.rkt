@@ -150,8 +150,7 @@
                                (local.get $s))
                          (unreachable))))
 
-         ;; Racket's check-mlist accepts only mutable pairs; mpairs are
-         ;; currently unsupported, so this version accepts any pair.
+         ;; Racket's check-mlist accepts only mutable pairs or null.
          (func $check-mlist (type $Prim1)
                (param $l (ref eq))                 ;; mutable list
                (result (ref eq))
@@ -159,7 +158,7 @@
                    (ref.eq (local.get $l) (global.get $null))
                    (then (global.get $void))
                    (else (if (result (ref eq))
-                             (ref.eq (call $pair? (local.get $l)) (global.get $true))
+                             (ref.test (ref $MPair) (local.get $l))
                              (then (global.get $void))
                              (else (call $raise-argument-error1
                                          (global.get $symbol:in-mlist)
