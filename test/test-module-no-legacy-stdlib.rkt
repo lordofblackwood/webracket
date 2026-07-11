@@ -218,6 +218,14 @@
       "rendered")
     "\n")))
 
+(define regexp-script-source
+  (write-source!
+   sources-root
+   "script-regexp.rkt"
+   (string-join
+    '("(regexp-match #rx\"x\" \"x\")")
+    "\n")))
+
 (define format-module-source
   (write-source!
    sources-root
@@ -267,7 +275,7 @@
     (assert-stdlib-mode! "input-mode" "module" output)
     (assert-stdlib-mode! "legacy-stdlib-mode" "skipped-module-input" output)
     (assert-stdlib-mode! "io-format-provider-mode" "skipped-module-input" output)
-    (assert-stdlib-mode! "regexp-provider-mode" "skipped-module-no-demand" output)
+    (assert-stdlib-mode! "regexp-provider-top-level-mode" "skipped-module-no-demand" output)
     (assert-generated-output! dest-dir))
 
    (test-case
@@ -279,7 +287,7 @@
     (check-equal? status 0 output)
     (assert-stdlib-mode! "legacy-stdlib-mode" "skipped-module-input" output)
     (assert-stdlib-mode! "io-format-provider-mode" "skipped-module-input" output)
-    (assert-stdlib-mode! "regexp-provider-mode" "skipped-module-no-demand" output)
+    (assert-stdlib-mode! "regexp-provider-top-level-mode" "skipped-module-no-demand" output)
     (assert-generated-output! dest-dir))
 
    (test-case
@@ -291,7 +299,7 @@
    (check-equal? status 0 output)
    (assert-stdlib-mode! "legacy-stdlib-mode" "ignored-module-input" output)
    (assert-stdlib-mode! "io-format-provider-mode" "skipped-module-input" output)
-   (assert-stdlib-mode! "regexp-provider-mode" "skipped-module-no-demand" output)
+   (assert-stdlib-mode! "regexp-provider-top-level-mode" "skipped-module-no-demand" output)
    (assert-generated-output! dest-dir))
 
    (test-case
@@ -304,7 +312,7 @@
     (assert-stdlib-mode! "input-mode" "module" output)
     (assert-stdlib-mode! "legacy-stdlib-mode" "skipped-module-input" output)
     (assert-stdlib-mode! "io-format-provider-mode" "skipped-module-input" output)
-    (assert-stdlib-mode! "regexp-provider-mode" "skipped-module-no-demand" output)
+    (assert-stdlib-mode! "regexp-provider-top-level-mode" "skipped-module-no-demand" output)
     (assert-generated-output! dest-dir))
 
    (test-case
@@ -317,7 +325,7 @@
     (assert-stdlib-mode! "input-mode" "module" output)
     (assert-stdlib-mode! "legacy-stdlib-mode" "skipped-module-input" output)
     (assert-stdlib-mode! "io-format-provider-mode" "skipped-module-input" output)
-    (assert-stdlib-mode! "regexp-provider-mode" "skipped-module-no-demand" output)
+    (assert-stdlib-mode! "regexp-provider-top-level-mode" "skipped-module-no-demand" output)
     (assert-generated-output! dest-dir))
 
    (test-case
@@ -330,7 +338,30 @@
     (assert-stdlib-mode! "input-mode" "module" output)
     (assert-stdlib-mode! "legacy-stdlib-mode" "skipped-module-input" output)
     (assert-stdlib-mode! "io-format-provider-mode" "skipped-module-input" output)
-    (assert-stdlib-mode! "regexp-provider-mode" "enabled-module-demand" output)
+    (assert-stdlib-mode! "regexp-provider-top-level-mode" "enabled-module-demand" output)
+    (assert-generated-output! dest-dir))
+
+   (test-case
+    "script input skips regexp provider when source has no regexp demand"
+    (define dest-dir (build-path generated-root "script-no-regexp"))
+    (make-directory* dest-dir)
+    (define-values (status output)
+      (compile-with-timings script-source dest-dir '() env))
+    (check-equal? status 0 output)
+    (assert-stdlib-mode! "input-mode" "script" output)
+    (assert-stdlib-mode! "io-format-provider-mode" "enabled-script-input" output)
+    (assert-stdlib-mode! "regexp-provider-top-level-mode" "skipped-script-no-demand" output)
+    (assert-generated-output! dest-dir))
+
+   (test-case
+    "script input enables regexp provider only on demand"
+    (define dest-dir (build-path generated-root "script-regexp"))
+    (make-directory* dest-dir)
+    (define-values (status output)
+      (compile-with-timings regexp-script-source dest-dir '() env))
+    (check-equal? status 0 output)
+    (assert-stdlib-mode! "input-mode" "script" output)
+    (assert-stdlib-mode! "regexp-provider-top-level-mode" "enabled-script-demand" output)
     (assert-generated-output! dest-dir))
 
    (test-case

@@ -2639,17 +2639,20 @@
            (write-provider-cache! cache-path fingerprint forms)
            forms])))]))
 
-;; add-io-format-provider : syntax? #:expander-read-provider? boolean? #:expander-read-syntax-provider? boolean? -> syntax?
+;; add-io-format-provider : syntax? #:regexp-provider? boolean? #:expander-read-provider? boolean? #:expander-read-syntax-provider? boolean? -> syntax?
 ;;   Prepend only the staged io/format provider, without the old stdlib root.
 (define (add-io-format-provider stx
+                                #:regexp-provider? [regexp-provider? #t]
                                 #:expander-read-provider? [expander-read-provider? #f]
                                 #:expander-read-syntax-provider? [expander-read-syntax-provider? #f])
   (define provider-forms
     (append
-     (regexp-provider-forms #:public-aliases? #t
-                            #:cache-context (if expander-read-syntax-provider?
-                                                'read-syntax
-                                                'default))
+     (if regexp-provider?
+         (regexp-provider-forms #:public-aliases? #t
+                                #:cache-context (if expander-read-syntax-provider?
+                                                    'read-syntax
+                                                    'default))
+         '())
      (if expander-read-provider?
          (provider-slice-forms 'expander/read #:public-aliases? #t)
          '())
@@ -3104,6 +3107,15 @@
     expander-read-provider?)
   (define effective-expander-read-syntax-provider?
     expander-read-syntax-provider?)
+  (define source-needs-regexp-provider?
+    (if module-input?
+        (current-module-bridge-needs-regexp-provider?)
+        (module-bridge-datum-needs-regexp-provider? (syntax->datum stx-for-compile))))
+  (define effective-regexp-provider?
+    (or source-needs-regexp-provider?
+        effective-expander-read-provider?
+        effective-expander-read-syntax-provider?))
+  (current-module-bridge-needs-regexp-provider? source-needs-regexp-provider?)
   (define stdlib-decision-rows
     (list
      (stdlib-decision-note "input-mode"
@@ -3142,8 +3154,10 @@
                               (if (current-module-bridge-needs-regexp-provider?)
                                   "enabled-module-demand"
                                   "skipped-module-no-demand")]
+                             [(current-module-bridge-needs-regexp-provider?)
+                              "enabled-script-demand"]
                              [else
-                              "enabled"]))
+                              "skipped-script-no-demand"]))
      (stdlib-decision-note "regexp-provider-read-dependency-mode"
                            (if effective-expander-read-provider?
                                "enabled-via-expander-read"
@@ -3234,6 +3248,7 @@
          (displayln "Composing module stdlib-free `io/format` provider"
                     (current-error-port)))
        (add-io-format-provider stx-for-compile
+                               #:regexp-provider? effective-regexp-provider?
                                #:expander-read-provider? effective-expander-read-provider?
                                #:expander-read-syntax-provider? effective-expander-read-syntax-provider?)]
       [effective-expander-read-provider?
@@ -3260,7 +3275,9 @@
        (when verbose?
          (displayln "Composing module stdlib-free `regexp` provider"
                     (current-error-port)))
-       (add-regexp-provider stx-for-compile)]))
+       (if (current-module-bridge-needs-regexp-provider?)
+           (add-regexp-provider stx-for-compile)
+           stx-for-compile)]))
   (define t-add-stdlib-end (now-ms))
 
   (define t-preflight-start (now-ms))
