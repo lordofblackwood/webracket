@@ -335,6 +335,8 @@ RKT
        [cust (current-custodian)]
        [cust-box (make-custodian-box cust 42)]
        [ups (unquoted-printing-string "raw")]
+       [ih (hasheqv 'a 1 'b 2)]
+       [ih-pos (hash-iterate-first ih)]
        [linklet-info (linklet-summarize-target-machine-info 42)])
   (if (and (eq? 'cached 'cached)
            (not (eq? (box 1) (box 1)))
@@ -382,6 +384,14 @@ RKT
            (hash? mh)
            (mutable-hash? mh)
            (hash-empty? mh)
+           (hash? ih)
+           (not (mutable-hash? ih))
+           (hash-eqv? ih)
+           (hash-has-key? ih 'a)
+           (= (hash-ref ih 'b) 2)
+           ih-pos
+           (symbol? (hash-iterate-key ih ih-pos))
+           (number? (hash-iterate-value ih ih-pos))
            (not (struct? 42))
            (not (struct-type? 42))
            (not (struct-type-property? 42))

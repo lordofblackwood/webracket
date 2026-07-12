@@ -5931,18 +5931,44 @@
     $make-placeholder
     $immutable-hasheqv-bucket-index
     $immutable-hamt-packed-group-index
+    $immutable-hamt-packed-child-bit
+    $immutable-hamt-packed-key-bit
+    $immutable-hamt-packed-value-bit
+    $immutable-hamt-packed-bits
     $immutable-hamt-slot-kind
+    $immutable-hamt-bnode-packed-metadata
+    $immutable-hamt-store-bnode-metadata
     $immutable-hamt-bnode-metadata
     $immutable-hamt-packed-bnode?
     $immutable-hamt-packed-index
+    $immutable-hamt-packed-slot
+    $immutable-hamt-packed-child-slot
+    $immutable-hamt-packed-key-slot
+    $immutable-hamt-packed-value-slot
     $immutable-hamt-store-packed-bnode-metadata
     $immutable-hamt-wrap-inline-key/kind
     $immutable-hamt-inline-key-unwrap
     $immutable-hamt-inline-key-cached-hash
+    $immutable-hamt-packed-metadata-present?/i32
     $immutable-hasheq-bucket-has-key?
+    $immutable-hamt-bit
     $immutable-hamt-bucket-length
     $immutable-hamt-bucket-first-entry
+    $immutable-hamt-collapse-small-bucket
     $immutable-hamt-bucket->cnode
+    $immutable-hamt-packed-node->entries
+    $immutable-hamt-packed-node-entry-count
+    $immutable-hamt-packed-node-child-count
+    $immutable-hamt-packed-node-max-depth
+    $immutable-hamt-node->entries
+    $immutable-hamt-node-entry-count
+    $immutable-hamt-node-bnode-count
+    $immutable-hamt-node-cnode-count
+    $immutable-hamt-node-bucket-count
+    $immutable-hamt-node-inline-count
+    $immutable-hamt-node-slot-count
+    $immutable-hamt-node-max-depth
+    $immutable-hasheqv-iterate-first
     $make-ephemeron
     $ephemeron?))
 
