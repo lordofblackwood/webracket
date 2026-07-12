@@ -1,7 +1,8 @@
 #lang racket
 
 (provide memory-import-forms
-         memory-map-global-forms)
+         memory-map-global-forms
+         memory-map-global-names)
 
 ;; memory-import-forms : (listof datum?)
 ;;   Declare the single imported linear memory used by generated modules.
@@ -35,12 +36,30 @@
          (global $memory-map:string-buffer-base     (mut i32) (i32.const 1052672))
          (global $memory-map:string-buffer-length   (mut i32) (i32.const 4096))))
 
+;; memory-map-global-names : (listof symbol?)
+;;   Enumerate static memory-map globals shared by split runtime modules.
+(define memory-map-global-names
+  (for/list ([form (in-list memory-map-global-forms)]
+             #:when (match form
+                      [`(global ,(? symbol?) . ,_) #t]
+                      [_ #f]))
+    (second form)))
+
 (module+ test
   (require rackunit)
 
   (check-equal? memory-import-forms
                 '((import "env" "memory" (memory $memory 1024))))
   (check-equal? (map second memory-map-global-forms)
+                '($memory-map:vfs-file-buffer-base
+                  $memory-map:vfs-file-buffer-length
+                  $memory-map:vfs-path-buffer-base
+                  $memory-map:vfs-path-buffer-length
+                  $memory-map:callback-buffer-base
+                  $memory-map:callback-buffer-length
+                  $memory-map:string-buffer-base
+                  $memory-map:string-buffer-length))
+  (check-equal? memory-map-global-names
                 '($memory-map:vfs-file-buffer-base
                   $memory-map:vfs-file-buffer-length
                   $memory-map:vfs-path-buffer-base

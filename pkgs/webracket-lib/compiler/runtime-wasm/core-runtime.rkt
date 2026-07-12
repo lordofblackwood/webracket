@@ -46,6 +46,7 @@
          "core/lists.rkt"
          "core/linklets.rkt"
          "core/loggers.rkt"
+         "core/memory-map.rkt"
          "core/mlists.rkt"
          "core/mutable-hashes.rkt"
          "core/numbers.rkt"
@@ -280,6 +281,7 @@
             $one
             $two
             $three)
+          memory-map-global-names
           fasl-tag-global-names
           '($treelist:BITS
             $treelist:MAX_WIDTH
@@ -321,6 +323,7 @@
      ,@core-runtime-symbol-constant-declaration-forms
      ,@singleton-global-forms
      ,@ffi-debug-global-forms
+     ,@memory-map-global-forms
      ,@fixnum-global-forms
      ,@fasl-tag-global-forms
      ,@treelist-constant-global-forms
@@ -915,6 +918,8 @@
   (check-true (hash-has-key? core-runtime-global-name-set '$three))
   (check-true (hash-has-key? core-runtime-global-name-set '$fasl-fixnum))
   (check-true (hash-has-key? core-runtime-global-name-set '$fasl-keyword))
+  (check-true (hash-has-key? core-runtime-global-name-set '$memory-map:callback-buffer-base))
+  (check-true (hash-has-key? core-runtime-global-name-set '$memory-map:callback-buffer-length))
   (check-true (hash-has-key? core-runtime-global-name-set '$dummy-treelist-node))
   (check-true (hash-has-key? core-runtime-global-name-set '$empty-treelist))
   (check-true (hash-has-key? core-runtime-global-name-set '$treelist:BITS))
@@ -992,6 +997,13 @@
                  core-runtime-global-name-set)
                 '())
   (check-equal? (core-runtime-helper-dependency-problems
+                 '(func $ok (result i32)
+                        (global.get $memory-map:callback-buffer-base))
+                 core-helper-names
+                 shared-type-names
+                 core-runtime-global-name-set)
+                '())
+  (check-equal? (core-runtime-helper-dependency-problems
                  '(func $bad (param (ref eq)) (result i32)
                         (call $other (local.get $v)))
                  core-helper-names
@@ -1046,6 +1058,10 @@
   (check-true (for/or ([form (in-list core-forms)])
                 (global-form-named? '$exn-type form)))
   (check-true (for/or ([form (in-list core-forms)])
+                (global-form-named? '$memory-map:callback-buffer-base form)))
+  (check-true (for/or ([form (in-list core-forms)])
+                (global-form-named? '$memory-map:callback-buffer-length form)))
+  (check-true (for/or ([form (in-list core-forms)])
                 (tag-form-named? '$exn form)))
   (check-true (for/or ([form (in-list core-forms)])
                 (global-form-named? '$the-symbol-table form)))
@@ -1082,6 +1098,14 @@
   (check-true (for/or ([form (in-list core-forms)])
                 (global-export-form-named? "global:$exn-type"
                                            '$exn-type
+                                           form)))
+  (check-true (for/or ([form (in-list core-forms)])
+                (global-export-form-named? "global:$memory-map:callback-buffer-base"
+                                           '$memory-map:callback-buffer-base
+                                           form)))
+  (check-true (for/or ([form (in-list core-forms)])
+                (global-export-form-named? "global:$memory-map:callback-buffer-length"
+                                           '$memory-map:callback-buffer-length
                                            form)))
   (check-true (for/or ([form (in-list core-forms)])
                 (tag-export-form-named? "tag:$exn" '$exn form)))

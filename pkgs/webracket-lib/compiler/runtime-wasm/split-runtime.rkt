@@ -1910,6 +1910,41 @@
    (for/or ([form (in-list core-primitive-symbol-constant-import-program-forms)])
      (form-contains-global-set? '$symbol:append form)))
 
+  (define core-memory-map-import-split
+    (split-core-runtime-module
+     `(module
+        (global $memory-map:callback-buffer-base
+                (mut i32)
+                (i32.const 1052672))
+        (global $memory-map:callback-buffer-length
+                (mut i32)
+                (i32.const 65536))
+        (func $entry
+              (export "entry")
+              (result i32)
+              (i32.add
+               (global.get $memory-map:callback-buffer-base)
+               (global.get $memory-map:callback-buffer-length))))
+     #:helpers '()))
+  (define core-memory-map-import-program-forms
+    (module-forms (split-runtime-modules-program
+                   core-memory-map-import-split)))
+  (for ([name (in-list '($memory-map:callback-buffer-base
+                         $memory-map:callback-buffer-length))])
+    (check-not-false
+     (member name
+             (split-runtime-modules-imported-names
+              core-memory-map-import-split)))
+    (check-not-false
+     (member `(global ,name
+                      (import "core" ,(runtime-global-export-name name))
+                      (mut i32))
+             core-memory-map-import-program-forms))
+    (check-false
+     (for/or ([form (in-list core-memory-map-import-program-forms)])
+       (and (global-definition-form? form)
+            (eq? (module-global-name form) name)))))
+
   (define intern-table-import-split
     (split-core-runtime-module
      `(module
