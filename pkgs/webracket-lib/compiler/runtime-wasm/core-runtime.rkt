@@ -23,6 +23,7 @@
          "core/lists.rkt"
          "core/mlists.rkt"
          "core/procedures.rkt"
+         "core/regexps.rkt"
          "core/strings.rkt"
          "core/structs.rkt"
          "core/unsafe.rkt"
@@ -50,6 +51,7 @@
    list-core-runtime-helpers
    mlist-core-runtime-helpers
    procedure-core-runtime-helpers
+   regexp-core-runtime-helpers
    string-core-runtime-helpers
    struct-core-runtime-helpers
    unsafe-core-runtime-helpers

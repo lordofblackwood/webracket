@@ -3,6 +3,7 @@
 (provide regexp-runtime-string-constants
          regexp-runtime-bytes-constants
          regexp-runtime-symbol-constants
+         regexp-core-runtime-helpers
          regexp-runtime-helper-forms
          regexp-runtime-only-helper-names
          regexp-runtime-only-helpers)
@@ -731,17 +732,58 @@
                             (global.get $true)))
      ))
 
-;; regexp-runtime-only-helpers : (listof core-runtime-helper?)
+;; regexp-core-runtime-helper-names : (listof symbol?)
+;;   Name regular expression helpers available in the standalone core runtime.
+(define regexp-core-runtime-helper-names
+  '($make-regexp-value
+    $regexp?
+    $pregexp?
+    $byte-regexp?
+    $byte-pregexp?
+    $bytes-prefix?/i32/checked
+    $bytes-suffix?/i32/checked
+    $bytes-contains?/checked
+    $bytes-index-of-byte/checked))
+
+;; regexp-all-runtime-helpers : (listof core-runtime-helper?)
 ;;   Enumerate regular expression helpers used by the monolithic runtime.
-(define regexp-runtime-only-helpers
+(define regexp-all-runtime-helpers
   (function-forms->runtime-helpers
-   'regexp-runtime-only-helpers
+   'regexp-all-runtime-helpers
    regexp-runtime-only-forms))
 
 ;; regexp-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for regular expression helpers.
 (define regexp-runtime-only-helper-names
-  (map core-runtime-helper-name regexp-runtime-only-helpers))
+  (map core-runtime-helper-name regexp-all-runtime-helpers))
+
+;; select-regexp-helpers : (listof core-runtime-helper?) (listof symbol?) -> (listof core-runtime-helper?)
+;;   Select helpers by name while preserving the order of the source list.
+(define (select-regexp-helpers helpers names)
+  (define name-set
+    (for/hasheq ([name (in-list names)])
+      (values name #t)))
+  (for/list ([helper (in-list helpers)]
+             #:when (hash-ref name-set (core-runtime-helper-name helper) #f))
+    helper))
+
+;; regexp-core-runtime-helpers : (listof core-runtime-helper?)
+;;   Enumerate regexp helpers available in the standalone core runtime.
+(define regexp-core-runtime-helpers
+  (select-regexp-helpers regexp-all-runtime-helpers
+                         regexp-core-runtime-helper-names))
+
+;; regexp-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate regexp helpers that still depend on monolithic runtime globals.
+(define regexp-runtime-only-helpers
+  (let ([core-name-set
+         (for/hasheq ([name (in-list regexp-core-runtime-helper-names)])
+           (values name #t))])
+    (for/list ([helper (in-list regexp-all-runtime-helpers)]
+               #:unless (hash-ref core-name-set
+                                  (core-runtime-helper-name helper)
+                                  #f))
+      helper)))
 
 ;; regexp-helper-forms : hasheq? (listof symbol?) -> (listof datum?)
 ;;   Render the given regexp helper names from a helper index.
@@ -763,7 +805,13 @@
     (second form))
 
   (define regexp-helper-index
-    (make-core-runtime-helper-index regexp-runtime-only-helpers))
+    (make-core-runtime-helper-index
+     (append regexp-core-runtime-helpers
+             regexp-runtime-only-helpers)))
+
+  (check-equal?
+   (map core-runtime-helper-name regexp-core-runtime-helpers)
+   regexp-core-runtime-helper-names)
 
   (check-equal?
    (map form-name (regexp-runtime-helper-forms regexp-helper-index))

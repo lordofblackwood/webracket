@@ -298,6 +298,23 @@ RKT
       0))
 RKT
     expect
+    reject)
+   (write-generated-case!
+    source-dir
+    "regexp-core-helpers"
+    #<<RKT
+(if (and (regexp? #rx"abc")
+         (pregexp? #px"abc")
+         (byte-regexp? #rx#"abc")
+         (byte-pregexp? #px#"abc")
+         (not (regexp? 1))
+         (not (pregexp? #rx"abc"))
+         (not (byte-regexp? #rx"abc"))
+         (not (byte-pregexp? #rx#"abc")))
+    42
+    0)
+RKT
+    expect
     reject)))
 
 ;; record-failure! : string? any/c ... -> void?
