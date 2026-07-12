@@ -30,6 +30,7 @@
          procedure-ffi-primitive-initializer-forms
          procedure-primitive-invoker-forms
          procedure-primitive-error-core-runtime-helper-forms
+         procedure-primitive-dispatch-core-runtime-helper-forms
          procedure-primitive-invoker-core-runtime-helper-forms
          procedure-rest-argument-core-runtime-helper-forms
          procedure-bootstrap-runtime-helper-forms
@@ -1343,7 +1344,41 @@
                                    (global.get $string:primitive-invoke:code-type-mismatch))
                          (call $current-continuation-marks (global.get $missing)))
                    (global.get $true))
+             (unreachable))))
+
+   ;; raise-primitive-invoke:unhandled-shape : -> none
+   ;;   Raise a catchable internal error for a primitive shape unsupported by the generic dispatcher.
+   (core-runtime-helper
+    '$raise-primitive-invoke:unhandled-shape
+    "$raise-primitive-invoke:unhandled-shape"
+    (lambda ()
+      `(func $raise-primitive-invoke:unhandled-shape
+             (call $raise
+                   (call $exn:fail:contract/make
+                         (global.get $string:primitive-invoke:unhandled-shape)
+                         (call $current-continuation-marks (global.get $missing)))
+                   (global.get $true))
              (unreachable))))))
+
+;; primitive-invoke-debug-form? : datum? -> boolean?
+;;   Recognize probe-only instructions that would pull JS logging into core runtime.
+(define (primitive-invoke-debug-form? form)
+  (or (equal? form '(global.set $debug-current-procedure (local.get $proc)))
+      (equal? form '(call $debug-invoke-tick))))
+
+;; primitive-invoke-core-form : datum? -> datum?
+;;   Return the generic primitive dispatcher without program-side debug probes.
+(define (primitive-invoke-core-form form)
+  (match form
+    [`(func $primitive-invoke ,parts ...)
+     `(func $primitive-invoke
+            ,@(for/list ([part (in-list parts)]
+                         #:unless (primitive-invoke-debug-form? part))
+                part))]
+    [_
+     (error 'primitive-invoke-core-form
+            "expected $primitive-invoke function form, got: ~s"
+            form)]))
 
 ;; procedure-primitive-invoker-core-runtime-helpers : (listof core-runtime-helper?)
 ;;   Enumerate stable primitive shape invokers available in core runtime.
@@ -1351,12 +1386,6 @@
   (function-forms->runtime-helpers
    'procedure-primitive-invoker-core-runtime-helpers
    (procedure-primitive-invoker-forms primitive-shapes)))
-
-;; procedure-core-runtime-helpers : (listof core-runtime-helper?)
-;;   Enumerate procedure-call helpers that can be emitted in core runtime.
-(define procedure-core-runtime-helpers
-  (append procedure-base-core-runtime-helpers
-          procedure-primitive-invoker-core-runtime-helpers))
 
 ;; procedure-rest-argument-core-runtime-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for rest-argument core helpers.
@@ -1372,7 +1401,8 @@
     $procedure-arity-field->expected-string
     $primitive-invoke:raise-arity-error
     $raise-no-code
-    $raise-code-type-mismatch))
+    $raise-code-type-mismatch
+    $raise-primitive-invoke:unhandled-shape))
 
 ;; procedure-basic-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for basic procedure helpers.
@@ -1481,7 +1511,7 @@
 ;; primitive-invocation-error-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for primitive invocation error helpers.
 (define primitive-invocation-error-runtime-only-helper-names
-  '($raise-primitive-invoke:unhandled-shape))
+  '())
 
 ;; procedure-case-lambda-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for procedure case-lambda helpers.
@@ -2145,18 +2175,29 @@
      ))
    procedure-primitive-error-core-runtime-helper-names))
 
-;; primitive-dispatch-runtime-only-helper-names : (listof symbol?)
+;; primitive-dispatch-all-runtime-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for primitive dispatch helpers.
-(define primitive-dispatch-runtime-only-helper-names
+(define primitive-dispatch-all-runtime-helper-names
   '($primitive-invoke
     $raise-arity-error:exactly
     $raise-arity-error:at-least))
 
-;; primitive-dispatch-runtime-only-helpers : (listof core-runtime-helper?)
-;;   Enumerate primitive dispatch helpers used by the monolithic runtime.
-(define primitive-dispatch-runtime-only-helpers
+;; primitive-dispatch-core-runtime-helper-names : (listof symbol?)
+;;   Name primitive dispatch helpers available in the standalone core runtime.
+(define primitive-dispatch-core-runtime-helper-names
+  '($primitive-invoke))
+
+;; primitive-dispatch-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime-only primitive dispatch helper emission order.
+(define primitive-dispatch-runtime-only-helper-names
+  (remove* primitive-dispatch-core-runtime-helper-names
+           primitive-dispatch-all-runtime-helper-names))
+
+;; primitive-dispatch-all-runtime-helpers : (listof core-runtime-helper?)
+;;   Enumerate all primitive dispatch helpers.
+(define primitive-dispatch-all-runtime-helpers
   (function-forms->runtime-helpers
-   'primitive-dispatch-runtime-only-helpers
+   'primitive-dispatch-all-runtime-helpers
    '(
         ;; Shape codes:
         ;;   0: exact 0
@@ -2545,6 +2586,31 @@
                     (global.get $true))
               (unreachable))
      )))
+
+;; primitive-dispatch-core-runtime-helpers : (listof core-runtime-helper?)
+;;   Register primitive dispatch helpers available in the standalone core runtime.
+(define primitive-dispatch-core-runtime-helpers
+  (for/list ([helper (in-list
+                      (select-runtime-helpers primitive-dispatch-all-runtime-helpers
+                                              primitive-dispatch-core-runtime-helper-names))])
+    (core-runtime-helper
+     (core-runtime-helper-name helper)
+     (core-runtime-helper-export-name helper)
+     (lambda ()
+       (primitive-invoke-core-form (core-runtime-helper->form helper))))))
+
+;; primitive-dispatch-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Register primitive dispatch helpers that still depend on monolithic runtime definitions.
+(define primitive-dispatch-runtime-only-helpers
+  (remove-runtime-helpers primitive-dispatch-all-runtime-helpers
+                          primitive-dispatch-core-runtime-helper-names))
+
+;; procedure-core-runtime-helpers : (listof core-runtime-helper?)
+;;   Enumerate procedure-call helpers that can be emitted in core runtime.
+(define procedure-core-runtime-helpers
+  (append procedure-base-core-runtime-helpers
+          primitive-dispatch-core-runtime-helpers
+          procedure-primitive-invoker-core-runtime-helpers))
 
 ;; procedure-case-lambda-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate procedure case-lambda helpers used by the monolithic runtime.
@@ -4003,6 +4069,11 @@
 (define (procedure-primitive-error-core-runtime-helper-forms helper-index)
   (procedure-helper-forms helper-index procedure-primitive-error-core-runtime-helper-names))
 
+;; procedure-primitive-dispatch-core-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render primitive dispatch helpers from the shared core helper registry.
+(define (procedure-primitive-dispatch-core-runtime-helper-forms helper-index)
+  (procedure-helper-forms helper-index primitive-dispatch-core-runtime-helper-names))
+
 ;; procedure-primitive-invoker-core-runtime-helper-forms : hasheq? -> (listof datum?)
 ;;   Render primitive shape invokers from the shared core helper registry.
 (define (procedure-primitive-invoker-core-runtime-helper-forms helper-index)
@@ -4155,6 +4226,20 @@
    (map form-name
         (procedure-primitive-error-core-runtime-helper-forms procedure-core-helper-index))
    procedure-primitive-error-core-runtime-helper-names)
+
+  (check-equal?
+   (map form-name
+        (procedure-primitive-dispatch-core-runtime-helper-forms procedure-core-helper-index))
+   primitive-dispatch-core-runtime-helper-names)
+
+  (check-false
+   (tree-member? '(call $debug-invoke-tick)
+                 (first (procedure-primitive-dispatch-core-runtime-helper-forms
+                         procedure-core-helper-index))))
+  (check-false
+   (tree-member? '(global.set $debug-current-procedure (local.get $proc))
+                 (first (procedure-primitive-dispatch-core-runtime-helper-forms
+                         procedure-core-helper-index))))
 
   (check-equal?
    (map form-name
