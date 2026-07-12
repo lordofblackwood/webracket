@@ -168,6 +168,16 @@ Use `--include-cache-reference` to also measure Node output generated with
 `--split-runtime-cache-reference`, where warm runs read the cached runtime wasm
 directly instead of materializing a sidecar next to the program.
 
+Use `--prewarm-runtime-first --include-cache-reference` to benchmark the
+compile-once workflow: first populate the stable runtime cache through
+`prewarm-staged-providers.rkt`, then measure user compiles against that cache:
+
+```sh
+racket -S pkgs tools/measure-split-runtime.rkt \
+  --prewarm-runtime-first \
+  --include-cache-reference
+```
+
 check-split-runtime-prewarm.rkt
 -------------------------------
 Regression-style check for the compile-once split-runtime workflow. It creates

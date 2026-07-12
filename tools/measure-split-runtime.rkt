@@ -7,7 +7,8 @@
 ;; monolithic compiler output on a tiny no-stdlib Node program. It first runs a
 ;; cold split compile to populate the stable runtime cache, then measures a
 ;; monolithic compile/run and a warm split compile/run against the same private
-;; provider/runtime caches.
+;; provider/runtime caches. With `--prewarm-runtime-first`, the runtime cache is
+;; populated by the prewarm tool before any measured user compile.
 ;;
 ;; Invoke it from the repository root:
 ;;
@@ -80,6 +81,7 @@
 (define expected-output-regexp #rx"(^|\n)42(\n|$)")
 (define keep-temp? #t)
 (define include-cache-reference? #f)
+(define prewarm-runtime-first? #f)
 
 ;; resolve-source-path : string? -> path?
 ;;   Resolve a user-provided source path relative to the repository root.
@@ -107,7 +109,10 @@
   (set! keep-temp? #f)]
  [("--include-cache-reference")
   "Also measure Node output that references cached split-runtime wasm directly"
-  (set! include-cache-reference? #t)])
+  (set! include-cache-reference? #t)]
+ [("--prewarm-runtime-first")
+  "Prewarm the split runtime cache before measured user compiles; skips split-cold"
+  (set! prewarm-runtime-first? #t)])
 
 
 ;;; Subprocess Helpers
@@ -148,6 +153,21 @@
         (newline out))
       (display stderr out))
     #:exists 'truncate/replace))
+
+;; prewarm-split-runtime-cache! : path? path? path? path? -> (values boolean? real?)
+;;   Populate the runtime cache through the standalone prewarm tool.
+(define (prewarm-split-runtime-cache! racket-exe temp-root provider-cache runtime-cache)
+  (define prewarm-args
+    (list "-S" "pkgs" "tools/prewarm-staged-providers.rkt"
+          "--provider-cache-dir" (path->string provider-cache)
+          "--runtime-provider-cache-dir" (path->string runtime-cache)
+          "--mode" "split-runtime"))
+  (define-values (ok? stdout stderr wall-ms)
+    (run-command/capture repo-root racket-exe prewarm-args))
+  (write-log! (build-path temp-root "prewarm-split-runtime.log")
+              stdout
+              stderr)
+  (values ok? wall-ms))
 
 
 ;;; Timing Parsing
@@ -411,14 +431,32 @@
   (printf "Split runtime benchmark\n")
   (printf "  source:        ~a\n" (path->string source-file))
   (printf "  temp:          ~a\n" (path->string temp-root))
-  (printf "  compiled root: ~a\n\n" (path->string compiled-root))
+  (printf "  compiled root: ~a\n" (path->string compiled-root))
+  (printf "  runtime warm:  ~a\n\n"
+          (if prewarm-runtime-first?
+              "prewarm-staged-providers"
+              "split-cold"))
+  (define-values (prewarm-ok? prewarm-wall-ms)
+    (if prewarm-runtime-first?
+        (prewarm-split-runtime-cache! racket-exe
+                                      temp-root
+                                      provider-cache
+                                      runtime-cache)
+        (values #t 0.0)))
+  (unless prewarm-ok?
+    (printf "split runtime prewarm failed; log: ~a\n"
+            (path->string (build-path temp-root "prewarm-split-runtime.log")))
+    (exit 1))
+  (when prewarm-runtime-first?
+    (printf "prewarm\tok\t~a\n\n" (format-duration-ms prewarm-wall-ms)))
   (define split-cold
-    (compile-mode 'split-cold
-                  racket-exe
-                  temp-root
-                  provider-cache
-                  runtime-cache
-                  expected-output-regexp))
+    (and (not prewarm-runtime-first?)
+         (compile-mode 'split-cold
+                       racket-exe
+                       temp-root
+                       provider-cache
+                       runtime-cache
+                       expected-output-regexp)))
   (define monolithic
     (compile-mode 'monolithic
                   racket-exe
@@ -443,7 +481,8 @@
                        expected-output-regexp)))
   (printf "mode\tstatus\twall\tdriver-total\tcompile-pipeline\tcompile\tassemble\tgenerate-runtime\tcore-cache\tprogram-wasm-mb\truntime-wasm-mb\n")
   (define results
-    (append (list split-cold monolithic split-warm)
+    (append (if split-cold (list split-cold) '())
+            (list monolithic split-warm)
             (if split-cache-reference-warm
                 (list split-cache-reference-warm)
                 '())))
