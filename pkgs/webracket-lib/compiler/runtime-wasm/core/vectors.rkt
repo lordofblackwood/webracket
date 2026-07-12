@@ -112,9 +112,9 @@
                             (i32.const 0)          ;; mutable
                             (global.get $dummy-array)))))
 
-;; vector-core-runtime-helpers : (listof core-runtime-helper?)
-;;   Enumerate vector helpers that can be emitted in core runtime.
-(define vector-core-runtime-helpers
+;; vector-base-core-runtime-helpers : (listof core-runtime-helper?)
+;;   Enumerate manually defined vector helpers that originated in core runtime.
+(define vector-base-core-runtime-helpers
   (list
    ;; vector?/i32 : (ref eq) -> i32
    ;;   Return 1 if the value is a vector, 0 otherwise.
@@ -3282,27 +3282,22 @@
               (ref.i31 (i32.shl (local.get $i/u) (i32.const 1)))) ;; convert i32 to fixnum
         (return (local.get $new-vec)))
 
-;; vector-runtime-only-helpers : (listof core-runtime-helper?)
-;;   Enumerate vector helpers that still depend on monolithic runtime globals.
-(define vector-runtime-only-helpers
-  (append
-   vector-error-runtime-only-helpers
-   vector-make-runtime-only-helpers
-   vector-constructor-runtime-only-helpers
-   vector-build-runtime-only-helpers
-   vector-operation-runtime-only-helpers
-   vector-copy-runtime-only-helpers
-   vector-extend-runtime-only-helpers
-   vector-append-runtime-only-helpers
-   vector-slice-runtime-only-helpers
-   vector-list-conversion-runtime-only-helpers
-   vector-map-count-runtime-only-helpers
-   vector-argminmax-runtime-only-helpers
-   vector-filter-search-runtime-only-helpers
-   vector-sort-runtime-only-helpers
-   (function-forms->runtime-helpers
-    'vector-runtime-only-helpers
-    '(
+;; vector-promoted-runtime-helper-names : (listof symbol?)
+;;   Name runtime vector helpers that are available in the standalone core runtime.
+(define vector-promoted-runtime-helper-names
+  '($vector-length/checked/i32
+    $vector?
+    $vector->list/checked
+    $vector-sort!:swap!
+    $mutable-vector?
+    $immutable-vector?))
+
+;; vector-mutability-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate vector mutability predicates used by the monolithic runtime.
+(define vector-mutability-runtime-only-helpers
+  (function-forms->runtime-helpers
+   'vector-mutability-runtime-only-helpers
+   '(
          (func $mutable-vector? (type $Prim1) (param $v (ref eq)) (result (ref eq))
                (if (result (ref eq))
                    (ref.test (ref $Vector) (local.get $v))
@@ -3326,7 +3321,40 @@
                    (else (global.get $false))))
 
 
-     ))))
+     )))
+
+;; vector-all-runtime-helpers : (listof core-runtime-helper?)
+;;   Enumerate vector helpers in monolithic runtime order.
+(define vector-all-runtime-helpers
+  (append
+   vector-error-runtime-only-helpers
+   vector-make-runtime-only-helpers
+   vector-constructor-runtime-only-helpers
+   vector-build-runtime-only-helpers
+   vector-operation-runtime-only-helpers
+   vector-copy-runtime-only-helpers
+   vector-extend-runtime-only-helpers
+   vector-append-runtime-only-helpers
+   vector-slice-runtime-only-helpers
+   vector-list-conversion-runtime-only-helpers
+   vector-map-count-runtime-only-helpers
+   vector-argminmax-runtime-only-helpers
+   vector-filter-search-runtime-only-helpers
+   vector-sort-runtime-only-helpers
+   vector-mutability-runtime-only-helpers))
+
+;; vector-core-runtime-helpers : (listof core-runtime-helper?)
+;;   Enumerate vector helpers available in the standalone core runtime.
+(define vector-core-runtime-helpers
+  (append vector-base-core-runtime-helpers
+          (select-runtime-helpers vector-all-runtime-helpers
+                                  vector-promoted-runtime-helper-names)))
+
+;; vector-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate vector helpers that still depend on monolithic runtime globals.
+(define vector-runtime-only-helpers
+  (remove-runtime-helpers vector-all-runtime-helpers
+                          vector-promoted-runtime-helper-names))
 
 (module+ test
   (require rackunit)
@@ -3337,10 +3365,17 @@
     (second form))
 
   (define vector-helper-index
-    (make-core-runtime-helper-index vector-runtime-only-helpers))
+    (make-core-runtime-helper-index
+     (append vector-core-runtime-helpers
+             vector-runtime-only-helpers)))
 
   (define vector-core-helper-index
     (make-core-runtime-helper-index vector-core-runtime-helpers))
+
+  (check-equal?
+   (map core-runtime-helper-name vector-core-runtime-helpers)
+   (append vector-core-operation-runtime-only-helper-names
+           vector-promoted-runtime-helper-names))
 
   (check-equal?
    (map form-name (vector-mutability-runtime-helper-forms vector-helper-index))

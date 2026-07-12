@@ -321,12 +321,24 @@ RKT
     "predicate-core-helpers"
     #<<RKT
 (let* ([mh (make-hasheq)]
-       [un (string->uninterned-symbol "cached")])
+       [un (string->uninterned-symbol "cached")]
+       [s  (string #\a #\b #\c)]
+       [v  (vector 40 2)])
   (if (and (eq? 'cached 'cached)
            (not (eq? (box 1) (box 1)))
            (char? #\a)
            (char-blank? #\space)
            (char-whitespace? #\newline)
+           (string? s)
+           (mutable-string? s)
+           (immutable-string? "abc")
+           (= (string-length s) 3)
+           (char=? (string-ref s 1) #\b)
+           (vector? v)
+           (mutable-vector? v)
+           (immutable-vector? '#(1 2))
+           (= (vector-length v) 2)
+           (= (car (vector->list v)) 40)
            (symbol? un)
            (symbol? 'cached)
            (number? 42)

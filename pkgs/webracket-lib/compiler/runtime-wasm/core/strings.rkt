@@ -99,9 +99,9 @@
     string-trim-left
     string-trim-right))
 
-;; string-core-runtime-helpers : (listof core-runtime-helper?)
-;;   Enumerate string helpers that can be emitted in core runtime.
-(define string-core-runtime-helpers
+;; string-base-core-runtime-helpers : (listof core-runtime-helper?)
+;;   Enumerate manually defined string helpers that originated in core runtime.
+(define string-base-core-runtime-helpers
   (list
    (core-runtime-helper
     '$i32array->string
@@ -4561,6 +4561,28 @@
 (define string-hash-core-runtime-helper-names
   '($string-hash/i32))
 
+;; string-promoted-runtime-helper-names : (listof symbol?)
+;;   Name runtime string helpers that are available in the standalone core runtime.
+(define string-promoted-runtime-helper-names
+  '($mutable-string?
+    $immutable-string?
+    $make-dummy-string
+    $string?
+    $non-empty-string?
+    $make-immutable-string/checked
+    $string-length/checked/i32
+    $string-ref/checked
+    $string-ref/checked/i32
+    $string-split:matches?
+    $string=?/i32/checked
+    $string</i32/checked
+    $string-take/checked
+    $string-take-right/checked
+    $string-drop/checked
+    $string-drop-right/checked
+    $string-suffix?/i32/checked
+    $string-prefix?/i32/checked))
+
 ;; string-helper-forms : hasheq? (listof symbol?) -> (listof datum?)
 ;;   Render the given string helper names from the runtime helper index.
 (define (string-helper-forms helper-index names)
@@ -4721,9 +4743,9 @@
                (unreachable))
      )))
 
-;; string-runtime-only-helpers : (listof core-runtime-helper?)
-;;   Enumerate string helpers that still depend on monolithic runtime globals.
-(define string-runtime-only-helpers
+;; string-all-runtime-helpers : (listof core-runtime-helper?)
+;;   Enumerate string helpers in monolithic runtime order.
+(define string-all-runtime-helpers
   (append string-mutability-runtime-only-helpers
           string-check-runtime-only-helpers
           string-index-runtime-only-helpers
@@ -4749,6 +4771,19 @@
           string-trim-runtime-only-helpers
           string-additional-runtime-only-helpers))
 
+;; string-core-runtime-helpers : (listof core-runtime-helper?)
+;;   Enumerate string helpers available in the standalone core runtime.
+(define string-core-runtime-helpers
+  (append string-base-core-runtime-helpers
+          (select-runtime-helpers string-all-runtime-helpers
+                                  string-promoted-runtime-helper-names)))
+
+;; string-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate string helpers that still depend on monolithic runtime globals.
+(define string-runtime-only-helpers
+  (remove-runtime-helpers string-all-runtime-helpers
+                          string-promoted-runtime-helper-names))
+
 (module+ test
   (require rackunit)
 
@@ -4758,10 +4793,18 @@
     (second form))
 
   (define string-helper-index
-    (make-core-runtime-helper-index string-runtime-only-helpers))
+    (make-core-runtime-helper-index
+     (append string-core-runtime-helpers
+             string-runtime-only-helpers)))
 
   (define string-core-helper-index
     (make-core-runtime-helper-index string-core-runtime-helpers))
+
+  (check-equal?
+   (map core-runtime-helper-name string-core-runtime-helpers)
+   (append string-core-conversion-runtime-only-helper-names
+           string-hash-core-runtime-helper-names
+           string-promoted-runtime-helper-names))
 
   (check-equal?
    (map form-name (string-hash-core-runtime-helper-forms string-core-helper-index))
