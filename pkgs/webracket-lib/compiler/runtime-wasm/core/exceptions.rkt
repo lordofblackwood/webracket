@@ -1,6 +1,7 @@
 #lang racket
 
 (provide bootstrap-error-runtime-helper-forms
+         exception-core-runtime-helpers
          exception-tag-forms
          exception-struct-type-bindings
          exception-struct-type-cache-global-forms
@@ -4754,11 +4755,28 @@
    'exception-runtime-only-helpers
    exception-runtime-only-forms))
 
-;; exception-runtime-only-helpers : (listof core-runtime-helper?)
+;; exception-all-runtime-helpers : (listof core-runtime-helper?)
 ;;   Register exception, exception-structure, and reader-error helpers.
-(define exception-runtime-only-helpers
+(define exception-all-runtime-helpers
   (append bootstrap-error-runtime-only-helpers
           exception-main-runtime-only-helpers))
+
+;; exception-core-runtime-helper-names : (listof symbol?)
+;;   Name exception helpers available in the standalone core runtime.
+(define exception-core-runtime-helper-names
+  '($raise))
+
+;; exception-core-runtime-helpers : (listof core-runtime-helper?)
+;;   Enumerate exception helpers available in the standalone core runtime.
+(define exception-core-runtime-helpers
+  (select-runtime-helpers exception-all-runtime-helpers
+                          exception-core-runtime-helper-names))
+
+;; exception-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate exception helpers that remain program/runtime-local.
+(define exception-runtime-only-helpers
+  (remove-runtime-helpers exception-all-runtime-helpers
+                          exception-core-runtime-helper-names))
 
 ;; exception-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for exception helpers.
@@ -4797,6 +4815,7 @@
   (define exception-helper-index
     (make-core-runtime-helper-index
      (append exception-contract-runtime-only-helpers
+             exception-core-runtime-helpers
              exception-runtime-only-helpers)))
 
   (check-equal? exception-tag-forms

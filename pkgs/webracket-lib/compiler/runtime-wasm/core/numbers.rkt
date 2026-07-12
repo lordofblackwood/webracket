@@ -4828,6 +4828,7 @@
     $string->number:parse-integer
     $real->floating-point-bytes/checked
     $i32->string/pad6
+    $i32->string
     $i32->codepoints))
 
 ;; number-all-runtime-helpers : (listof core-runtime-helper?)

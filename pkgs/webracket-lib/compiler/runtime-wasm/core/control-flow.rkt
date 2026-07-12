@@ -5,6 +5,7 @@
          continuation-runtime-helper-forms
          continuation-mark-runtime-helper-forms
          control-flow-runtime-string-constants
+         control-flow-core-runtime-helpers
          multiple-value-runtime-symbol-constants
          continuation-runtime-symbol-constants
          control-flow-runtime-only-helpers)
@@ -203,9 +204,9 @@
                 (unreachable))))
      )))
 
-;; control-flow-runtime-only-helpers : (listof core-runtime-helper?)
+;; control-flow-all-runtime-helpers : (listof core-runtime-helper?)
 ;;   Enumerate control-flow helpers used by the monolithic runtime.
-(define control-flow-runtime-only-helpers
+(define control-flow-all-runtime-helpers
   (append
    value-expectation-runtime-only-helpers
    (function-forms->runtime-helpers
@@ -688,6 +689,23 @@
                (then (global.get $false))
            (else (local.get $none-v))))))))
 
+;; control-flow-core-runtime-helper-names : (listof symbol?)
+;;   Name control-flow helpers available in the standalone core runtime.
+(define control-flow-core-runtime-helper-names
+  '($current-continuation-marks))
+
+;; control-flow-core-runtime-helpers : (listof core-runtime-helper?)
+;;   Enumerate control-flow helpers available in the standalone core runtime.
+(define control-flow-core-runtime-helpers
+  (select-runtime-helpers control-flow-all-runtime-helpers
+                          control-flow-core-runtime-helper-names))
+
+;; control-flow-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate control-flow helpers that remain program/runtime-local.
+(define control-flow-runtime-only-helpers
+  (remove-runtime-helpers control-flow-all-runtime-helpers
+                          control-flow-core-runtime-helper-names))
+
 (module+ test
   (require rackunit)
 
@@ -697,7 +715,9 @@
     (second form))
 
   (define control-flow-helper-index
-    (make-core-runtime-helper-index control-flow-runtime-only-helpers))
+    (make-core-runtime-helper-index
+     (append control-flow-core-runtime-helpers
+             control-flow-runtime-only-helpers)))
 
   (check-equal?
    (map form-name (value-expectation-runtime-helper-forms control-flow-helper-index))

@@ -4,6 +4,8 @@
          core-runtime-helper-index
          core-runtime-global-names
          core-runtime-global-name-set
+         core-runtime-program-import-tag-names
+         core-runtime-program-preinitialized-global-names
          core-runtime-program-import-constant-global-names
          core-runtime-program-import-global-names
          generate-core-runtime)
@@ -22,7 +24,9 @@
          "core/boxes.rkt"
          "core/bytes.rkt"
          "core/characters.rkt"
+         "core/control-flow.rkt"
          "core/equality.rkt"
+         "core/exceptions.rkt"
          "core/events.rkt"
          "core/ffi.rkt"
          "core/fixnums.rkt"
@@ -46,6 +50,7 @@
          "core/numbers.rkt"
          "core/paths.rkt"
          "core/procedures.rkt"
+         "core/realms.rkt"
          "core/reflection.rkt"
          "core/regexps.rkt"
          "core/runtime-string-constants.rkt"
@@ -73,7 +78,9 @@
    box-core-runtime-helpers
    bytes-core-runtime-helpers
    character-core-runtime-helpers
+   control-flow-core-runtime-helpers
    equality-core-runtime-helpers
+   exception-core-runtime-helpers
    event-core-runtime-helpers
    external-value-core-runtime-helpers
    fixnum-core-runtime-helpers
@@ -242,7 +249,20 @@
 ;;   Name mutable core globals that split-core program modules must share.
 (define core-runtime-program-import-global-names
   '($the-symbol-table
-    $the-keyword-table))
+    $the-keyword-table
+    $the-racket-realm
+    $the-racket/primitive-realm))
+
+;; core-runtime-program-import-tag-names : (listof symbol?)
+;;   Name core tags that split-core program modules must share for catch/throw identity.
+(define core-runtime-program-import-tag-names
+  '($exn))
+
+;; core-runtime-program-preinitialized-global-names : (listof symbol?)
+;;   Name core-owned globals whose program-side initialization should be removed.
+(define core-runtime-program-preinitialized-global-names
+  '($the-racket-realm
+    $the-racket/primitive-realm))
 
 ;; core-runtime-program-import-constant-global-names : (listof symbol?)
 ;;   Name immutable-by-convention core constants that split-core programs should import.
@@ -264,6 +284,11 @@
 (define (core-runtime-global-export-form name)
   `(export ,(format "global:~a" (symbol->string name)) (global ,name)))
 
+;; core-runtime-tag-export-form : symbol? -> datum?
+;;   Export a core tag using the split-runtime tag export namespace.
+(define (core-runtime-tag-export-form name)
+  `(export ,(format "tag:~a" (symbol->string name)) (tag ,name)))
+
 ;; core-runtime-global-name-set : hasheq?
 ;;   Index stable core runtime globals by Wasm name.
 (define core-runtime-global-name-set
@@ -275,9 +300,11 @@
 (define (generate-core-runtime)
   `(module
      ,@(generate-shared-types)
+     ,@exception-tag-forms
      ,@core-runtime-string-constant-declaration-forms
      ,@core-runtime-symbol-constant-declaration-forms
      ,@singleton-global-forms
+     ,@realm-global-forms
      ,@symbol-table-global-forms
      ,@keyword-table-global-forms
      ,@thread-current-core-global-forms
@@ -289,10 +316,16 @@
            ,@core-runtime-string-constant-initializer-forms
            (call $initialize-the-symbol-table)
            (call $initialize-the-keyword-table)
-           ,@core-runtime-symbol-constant-initializer-forms)
+           ,@core-runtime-symbol-constant-initializer-forms
+           ,@realm-initializer-forms)
      (start $initialize-core-runtime!)
      (export "global:$the-symbol-table" (global $the-symbol-table))
      (export "global:$the-keyword-table" (global $the-keyword-table))
+     ,@(map core-runtime-global-export-form
+            '($the-racket-realm
+              $the-racket/primitive-realm))
+     ,@(map core-runtime-tag-export-form
+            core-runtime-program-import-tag-names)
      ,@(map core-runtime-global-export-form
             core-runtime-program-import-constant-global-names)
      ,@(core-runtime-helper-forms core-runtime-helpers #:export? #t)))
@@ -331,6 +364,13 @@
       [`(global ,global-name . ,_) (eq? global-name name)]
       [_ #f]))
 
+  ;; tag-form-named? : symbol? datum? -> boolean?
+  ;;   Check whether form is a tag declaration with the given name.
+  (define (tag-form-named? name form)
+    (match form
+      [`(tag ,tag-name . ,_) (eq? tag-name name)]
+      [_ #f]))
+
   ;; export-form-named? : string? symbol? datum? -> boolean?
   ;;   Check whether form exports the given global name.
   (define (global-export-form-named? export-name global-name form)
@@ -338,6 +378,15 @@
       [`(export ,name (global ,target))
        (and (string=? name export-name)
             (eq? target global-name))]
+      [_ #f]))
+
+  ;; tag-export-form-named? : string? symbol? datum? -> boolean?
+  ;;   Check whether form exports the given tag name.
+  (define (tag-export-form-named? export-name tag-name form)
+    (match form
+      [`(export ,name (tag ,target))
+       (and (string=? name export-name)
+            (eq? target tag-name))]
       [_ #f]))
 
   ;; function-export-names : datum? -> (listof string?)
@@ -822,6 +871,9 @@
   (check-true (hash-has-key? core-runtime-global-name-set '$symbol:racket))
   (check-true (hash-has-key? core-runtime-global-name-set '$the-symbol-table))
   (check-true (hash-has-key? core-runtime-global-name-set '$the-keyword-table))
+  (check-true (hash-has-key? core-runtime-global-name-set '$the-racket-realm))
+  (check-true (hash-has-key? core-runtime-global-name-set '$the-racket/primitive-realm))
+  (check-equal? core-runtime-program-import-tag-names '($exn))
   (check-true (for/or ([form (in-list shared-types)])
                 (type-form-named? '$Array form)))
   (check-true (for/or ([form (in-list shared-types)])
@@ -942,6 +994,12 @@
   (check-true (for/or ([form (in-list core-forms)])
                 (global-form-named? '$symbol:append form)))
   (check-true (for/or ([form (in-list core-forms)])
+                (global-form-named? '$the-racket-realm form)))
+  (check-true (for/or ([form (in-list core-forms)])
+                (global-form-named? '$the-racket/primitive-realm form)))
+  (check-true (for/or ([form (in-list core-forms)])
+                (tag-form-named? '$exn form)))
+  (check-true (for/or ([form (in-list core-forms)])
                 (global-form-named? '$the-symbol-table form)))
   (check-true (for/or ([form (in-list core-forms)])
                 (global-form-named? '$the-keyword-table form)))
@@ -965,6 +1023,16 @@
                 (global-export-form-named? "global:$symbol:append"
                                            '$symbol:append
                                            form)))
+  (check-true (for/or ([form (in-list core-forms)])
+                (global-export-form-named? "global:$the-racket-realm"
+                                           '$the-racket-realm
+                                           form)))
+  (check-true (for/or ([form (in-list core-forms)])
+                (global-export-form-named? "global:$the-racket/primitive-realm"
+                                           '$the-racket/primitive-realm
+                                           form)))
+  (check-true (for/or ([form (in-list core-forms)])
+                (tag-export-form-named? "tag:$exn" '$exn form)))
   (check-not-false (member '(start $initialize-core-runtime!) core-forms))
   (define string-converter-functions
     (for/list ([form (in-list core-forms)]

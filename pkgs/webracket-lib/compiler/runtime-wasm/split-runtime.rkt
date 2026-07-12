@@ -889,6 +889,30 @@
                 (cons form remaining-forms)
                 imported-names))))
 
+;; split-core-runtime-shared-tag-imports :
+;;   (listof datum?) (listof symbol?) string? -> (values (listof datum?) (listof datum?) (listof symbol?))
+;;   Replace core-owned program tag definitions with imports from the core runtime.
+(define (split-core-runtime-shared-tag-imports forms names import-module-name)
+  (define name-set
+    (for/hasheq ([name (in-list names)])
+      (values name #t)))
+  (for/fold ([import-forms '()]
+             [remaining-forms '()]
+             [imported-names '()])
+            ([form (in-list forms)])
+    (define name (and (tag-definition-form? form)
+                      (module-tag-name form)))
+    (if (and name
+             (hash-ref name-set name #f))
+        (values (cons (runtime-tag-import-form form
+                                               #:module import-module-name)
+                      import-forms)
+                remaining-forms
+                (cons name imported-names))
+        (values import-forms
+                (cons form remaining-forms)
+                imported-names))))
+
 ;; remove-core-owned-constant-global-sets : datum? hasheq? -> (or/c datum? #f)
 ;;   Remove program-side initializer writes for constants imported from the core runtime.
 (define (remove-core-owned-constant-global-sets form core-owned-global-names)
@@ -1013,15 +1037,17 @@
           helper)))
   (check-helper-definitions! selected-helpers counts)
   (define forms-without-helpers (remove-helper-definitions forms names))
-  (define core-owned-constant-global-name-set
-    (for/hasheq ([name (in-list core-runtime-program-import-constant-global-names)])
+  (define core-owned-preinitialized-global-name-set
+    (for/hasheq ([name (in-list
+                        (append core-runtime-program-import-constant-global-names
+                                core-runtime-program-preinitialized-global-names))])
       (values name #t)))
   (define forms-without-core-owned-constant-initializers
     (for/list ([form (in-list forms-without-helpers)]
                #:do [(define rewritten
                        (remove-core-owned-constant-global-sets
                         form
-                        core-owned-constant-global-name-set))]
+                        core-owned-preinitialized-global-name-set))]
                #:when rewritten)
       rewritten))
   (define pruned-program-forms
@@ -1038,18 +1064,30 @@
   (define global-import-forms (reverse global-import-forms/reversed))
   (define forms-without-core-globals (reverse forms-without-core-globals/reversed))
   (define imported-global-names (reverse imported-global-names/reversed))
+  (define-values (tag-import-forms/reversed
+                  forms-without-core-tags/reversed
+                  imported-tag-names/reversed)
+    (split-core-runtime-shared-tag-imports
+     forms-without-core-globals
+     core-runtime-program-import-tag-names
+     import-module-name))
+  (define tag-import-forms (reverse tag-import-forms/reversed))
+  (define forms-without-core-tags (reverse forms-without-core-tags/reversed))
+  (define imported-tag-names (reverse imported-tag-names/reversed))
   (define helper-import-forms
     (core-runtime-helper-import-forms selected-helpers #:module import-module-name))
   (define import-forms
     (append helper-import-forms
-            global-import-forms))
+            global-import-forms
+            tag-import-forms))
   (define-values (prefix rest)
-    (splitf-at forms-without-core-globals import-insertion-prefix-form?))
+    (splitf-at forms-without-core-tags import-insertion-prefix-form?))
   (split-runtime-modules
    effective-core-module
    `(module ,@prefix ,@import-forms ,@rest)
    (append (map core-runtime-helper-name selected-helpers)
-           imported-global-names)
+           imported-global-names
+           imported-tag-names)
    import-forms
    core-cache-key))
 
@@ -1907,6 +1945,33 @@
      (for/or ([form (in-list intern-table-import-program-forms)])
        (and (global-definition-form? form)
             (eq? (module-global-name form) name)))))
+
+  (define exn-tag-import-split
+    (split-core-runtime-module
+     `(module
+        (tag $exn (param (ref eq)))
+        (func $raise-it
+              (param $v (ref eq))
+              (throw $exn (local.get $v)))
+        (func $entry
+              (export "entry")
+              (param $v (ref eq))
+              (call $raise-it (local.get $v))))
+     #:helpers '()))
+  (define exn-tag-import-program-forms
+    (module-forms (split-runtime-modules-program exn-tag-import-split)))
+  (check-not-false
+   (member '$exn
+           (split-runtime-modules-imported-names exn-tag-import-split)))
+  (check-not-false
+   (member '(tag $exn
+                 (import "core" "tag:$exn")
+                 (param (ref eq)))
+           exn-tag-import-program-forms))
+  (check-false
+   (for/or ([form (in-list exn-tag-import-program-forms)])
+     (and (tag-definition-form? form)
+          (eq? (module-tag-name form) '$exn))))
 
   (when (find-executable-path "wasm-tools")
     (define core-wat-path
