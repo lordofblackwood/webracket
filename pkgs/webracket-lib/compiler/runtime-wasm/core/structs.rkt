@@ -435,7 +435,8 @@
     $struct-type-property-predicate->descriptor
     $struct-type-property?
     $make-struct-type-property-descriptor/checked
-    $struct-type-property-table-empty))
+    $struct-type-property-table-empty
+    $initialize-prefab-struct-type-registry))
 
 ;; struct-helper-forms : hasheq? (listof symbol?) -> (listof datum?)
 ;;   Render the given struct helper names from a helper index.

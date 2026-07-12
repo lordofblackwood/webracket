@@ -251,6 +251,7 @@
   (append
    '($the-symbol-table
      $the-keyword-table
+     $prefab-struct-type-registry
      $the-racket-realm
      $the-racket/primitive-realm)
    exception-struct-type-cache-global-names))
@@ -272,6 +273,10 @@
   (append core-runtime-string-constant-global-names
           core-runtime-symbol-constant-global-names
           '($dummy-array
+            $zero
+            $one
+            $two
+            $three
             $treelist:BITS
             $treelist:MAX_WIDTH
             $treelist:MASK
@@ -311,6 +316,7 @@
      ,@core-runtime-string-constant-declaration-forms
      ,@core-runtime-symbol-constant-declaration-forms
      ,@singleton-global-forms
+     ,@fixnum-global-forms
      ,@treelist-constant-global-forms
      ,@vector-dummy-array-global-forms
      ,@treelist-empty-global-forms
@@ -318,6 +324,7 @@
      ,@exception-struct-type-cache-global-forms
      ,@symbol-table-global-forms
      ,@keyword-table-global-forms
+     ,@struct-prefab-registry-global-forms
      ,@thread-current-core-global-forms
      ,core-runtime-string-constant-converter-form
      ,@(symbol-table-core-runtime-helper-forms)
@@ -327,11 +334,14 @@
            ,@core-runtime-string-constant-initializer-forms
            (call $initialize-the-symbol-table)
            (call $initialize-the-keyword-table)
+           (call $initialize-prefab-struct-type-registry)
            ,@core-runtime-symbol-constant-initializer-forms
            ,@realm-initializer-forms)
      (start $initialize-core-runtime!)
      (export "global:$the-symbol-table" (global $the-symbol-table))
      (export "global:$the-keyword-table" (global $the-keyword-table))
+     ,@(map core-runtime-global-export-form
+            '($prefab-struct-type-registry))
      ,@(map core-runtime-global-export-form
             '($the-racket-realm
               $the-racket/primitive-realm))
@@ -886,8 +896,13 @@
   (check-true (hash-has-key? core-runtime-global-name-set '$the-keyword-table))
   (check-true (hash-has-key? core-runtime-global-name-set '$the-racket-realm))
   (check-true (hash-has-key? core-runtime-global-name-set '$the-racket/primitive-realm))
+  (check-true (hash-has-key? core-runtime-global-name-set '$prefab-struct-type-registry))
   (check-true (hash-has-key? core-runtime-global-name-set '$exn-type))
   (check-true (hash-has-key? core-runtime-global-name-set '$dummy-array))
+  (check-true (hash-has-key? core-runtime-global-name-set '$zero))
+  (check-true (hash-has-key? core-runtime-global-name-set '$one))
+  (check-true (hash-has-key? core-runtime-global-name-set '$two))
+  (check-true (hash-has-key? core-runtime-global-name-set '$three))
   (check-true (hash-has-key? core-runtime-global-name-set '$dummy-treelist-node))
   (check-true (hash-has-key? core-runtime-global-name-set '$empty-treelist))
   (check-true (hash-has-key? core-runtime-global-name-set '$treelist:BITS))
