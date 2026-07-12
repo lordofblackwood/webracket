@@ -342,6 +342,8 @@ RKT
        [tlv (treelist->vector tl)]
        [sv (stencil-vector #b101 'a 'b)]
        [sys-sv ($system-stencil-vector #b11 'x 'y)]
+       [date-v (date 6 5 4 3 2 2024 1 33 #f 0)]
+       [date*-v (date* 6 5 4 3 2 2024 1 33 #f 0 9 "UTC")]
        [linklet-info (linklet-summarize-target-machine-info 42)])
   (if (and (eq? 'cached 'cached)
            (not (eq? (box 1) (box 1)))
@@ -424,6 +426,15 @@ RKT
            (= (stencil-vector-mask sv) #b101)
            (eq? (stencil-vector-ref sv 0) 'a)
            (eq? (stencil-vector-ref sv 1) 'b)
+           (date? date-v)
+           (not (date*? date-v))
+           (date? date*-v)
+           (date*? date*-v)
+           (= (date-second date-v) 6)
+           (not (impersonator? 42))
+           (not (procedure-impersonator*? (lambda (x) x)))
+           (not (chaperone? 42))
+           (not (external? 42))
            (not (struct? 42))
            (not (struct-type? 42))
            (not (struct-type-property? 42))

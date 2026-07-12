@@ -35,6 +35,7 @@
          (only-in "runtime-wasm/runtime-helper-index.rkt"
                   runtime-helper-index)
          (only-in "runtime-wasm/runtime-ffi.rkt"
+                  external-value-core-runtime-helper-forms
                   external-value-runtime-helper-forms
                   ffi-import-name
                   ffi-callback-global-forms
@@ -162,6 +163,7 @@
                   eof-object-runtime-helper-forms)
          (only-in "runtime-wasm/core/impersonators.rkt"
                   chaperone-procedure-runtime-helper-forms
+                  impersonator-core-runtime-helper-forms
                   impersonator-basic-runtime-helper-forms)
          (only-in "runtime-wasm/core/io-handlers.rkt"
                   io-handler-default-port-global-forms
@@ -365,6 +367,7 @@
                   thread-core-runtime-helper-forms
                   thread-runtime-helper-forms)
          (only-in "runtime-wasm/core/time.rkt"
+                  time-core-runtime-helper-forms
                   time-runtime-helper-forms)
          (only-in "runtime-wasm/core/treelists.rkt"
                   treelist-constant-global-forms
@@ -990,6 +993,7 @@
         ;;;
 
          ;;   Implemented in runtime-wasm/core/ffi.rkt.
+         ,@(external-value-core-runtime-helper-forms core-runtime-helper-index)
          ,@(external-value-runtime-helper-forms runtime-helper-index)
 
 
@@ -1326,6 +1330,7 @@
         ,@(port-predicate-runtime-helper-forms runtime-helper-index)
 
         ;;   Implemented in runtime-wasm/core/impersonators.rkt.
+        ,@(impersonator-core-runtime-helper-forms core-runtime-helper-index)
         ,@(impersonator-basic-runtime-helper-forms runtime-helper-index)
 
         ;; Output-port predicate helper is implemented in runtime-wasm/core/ports.rkt.
@@ -1646,6 +1651,7 @@
          ;; 14.9 Structure Inspectors
 
          ;;   Implemented in runtime-wasm/core/time.rkt.
+         ,@(time-core-runtime-helper-forms core-runtime-helper-index)
          ,@(time-runtime-helper-forms runtime-helper-index)
 
          ;;   Inspector and object-name helpers are implemented in runtime-wasm/core/security.rkt.

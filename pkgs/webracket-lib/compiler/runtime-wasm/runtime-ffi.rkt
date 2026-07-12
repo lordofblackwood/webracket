@@ -1,6 +1,8 @@
 #lang racket
 
 (provide ffi-import-name
+         external-value-core-runtime-helper-forms
+         external-value-core-runtime-helpers
          external-value-runtime-helper-forms
          ffi-callback-global-forms
          ffi-entry-global-forms
@@ -25,6 +27,8 @@
          (only-in "module-forms.rkt"
                   module-func-name)
          (only-in "core/ffi.rkt"
+                  external-value-core-runtime-helper-forms
+                  external-value-core-runtime-helpers
                   external-value-runtime-helper-forms
                   ffi-callback-global-forms
                   ffi-entry-global-forms

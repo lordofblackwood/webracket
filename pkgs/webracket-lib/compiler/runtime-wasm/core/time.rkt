@@ -1,6 +1,8 @@
 #lang racket
 
-(provide time-runtime-only-helpers
+(provide time-core-runtime-helpers
+         time-core-runtime-helper-forms
+         time-runtime-only-helpers
          time-runtime-string-constants
          time-date-runtime-symbol-constants
          time-clock-runtime-symbol-constants
@@ -484,18 +486,49 @@
                                      (f64.const 1000)))
                 (global.get $true)))))
 
-;; time-runtime-only-helper-names : (listof symbol?)
-;;   Preserve the runtime emission order for time helpers.
-(define time-runtime-only-helper-names
+;; time-all-runtime-helper-names : (listof symbol?)
+;;   Preserve the full runtime emission order for time helpers.
+(define time-all-runtime-helper-names
   (for/list ([form (in-list time-runtime-only-forms)])
     (cadr form)))
 
-;; time-runtime-only-helpers : (listof core-runtime-helper?)
-;;   Register date and time helpers used by the monolithic runtime.
-(define time-runtime-only-helpers
+;; time-core-runtime-helper-names : (listof symbol?)
+;;   Name time helpers available in the standalone core runtime.
+(define time-core-runtime-helper-names
+  '($date?
+    $date*?
+    $exact-fixnum-in-range?))
+
+;; time-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime-only time helper emission order.
+(define time-runtime-only-helper-names
+  (remove* time-core-runtime-helper-names
+           time-all-runtime-helper-names))
+
+;; time-all-runtime-helpers : (listof core-runtime-helper?)
+;;   Register all date and time helpers.
+(define time-all-runtime-helpers
   (function-forms->runtime-helpers
-   'time-runtime-only-helpers
+   'time-all-runtime-helpers
    time-runtime-only-forms))
+
+;; time-core-runtime-helpers : (listof core-runtime-helper?)
+;;   Register time helpers available in the standalone core runtime.
+(define time-core-runtime-helpers
+  (select-runtime-helpers time-all-runtime-helpers
+                          time-core-runtime-helper-names))
+
+;; time-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Register date and time helpers that still depend on monolithic runtime definitions.
+(define time-runtime-only-helpers
+  (remove-runtime-helpers time-all-runtime-helpers
+                          time-core-runtime-helper-names))
+
+;; time-core-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render promoted time helpers in runtime assembly order.
+(define (time-core-runtime-helper-forms helper-index)
+  (for/list ([name (in-list time-core-runtime-helper-names)])
+    (core-runtime-helper-form helper-index name)))
 
 ;; time-runtime-helper-forms : hasheq? -> (listof datum?)
 ;;   Render date and time helpers in runtime assembly order.
@@ -512,7 +545,20 @@
     (second form))
 
   (define time-helper-index
-    (make-core-runtime-helper-index time-runtime-only-helpers))
+    (make-core-runtime-helper-index
+     (append time-core-runtime-helpers
+             time-runtime-only-helpers)))
+
+  (define time-core-helper-index
+    (make-core-runtime-helper-index time-core-runtime-helpers))
+
+  (check-equal?
+   (map core-runtime-helper-name time-core-runtime-helpers)
+   time-core-runtime-helper-names)
+
+  (check-equal?
+   (map form-name (time-core-runtime-helper-forms time-core-helper-index))
+   time-core-runtime-helper-names)
 
   (check-equal?
    (map form-name (time-runtime-helper-forms time-helper-index))

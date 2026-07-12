@@ -2,6 +2,8 @@
 
 (provide impersonator-runtime-string-constants
          impersonator-runtime-symbol-constants
+         impersonator-core-runtime-helpers
+         impersonator-core-runtime-helper-forms
          impersonator-basic-runtime-only-helper-names
          impersonator-basic-runtime-helper-forms
          chaperone-procedure-runtime-only-helper-names
@@ -24,9 +26,9 @@
 (define impersonator-runtime-symbol-constants
   '(chaperone?))
 
-;; impersonator-basic-runtime-only-helper-names : (listof symbol?)
-;;   Preserve the runtime emission order for basic impersonator helpers.
-(define impersonator-basic-runtime-only-helper-names
+;; impersonator-basic-all-runtime-helper-names : (listof symbol?)
+;;   Preserve the full runtime emission order for basic impersonator helpers.
+(define impersonator-basic-all-runtime-helper-names
   '($impersonator?
     $procedure-impersonator*?
     $chaperone?
@@ -51,11 +53,26 @@
     $unsafe-chaperone-procedure
     $unsafe-impersonate-procedure))
 
-;; impersonator-runtime-only-helpers : (listof core-runtime-helper?)
-;;   Enumerate inert impersonator and chaperone support helpers.
-(define impersonator-runtime-only-helpers
+;; impersonator-core-runtime-helper-names : (listof symbol?)
+;;   Name inert impersonator helpers available in the standalone core runtime.
+(define impersonator-core-runtime-helper-names
+  '($impersonator?
+    $procedure-impersonator*?
+    $chaperone?
+    $impersonator-property?
+    $webracket-impersonator-property-predicate))
+
+;; impersonator-basic-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime-only emission order for basic impersonator helpers.
+(define impersonator-basic-runtime-only-helper-names
+  (remove* impersonator-core-runtime-helper-names
+           impersonator-basic-all-runtime-helper-names))
+
+;; impersonator-all-runtime-helpers : (listof core-runtime-helper?)
+;;   Enumerate all inert impersonator and chaperone support helpers.
+(define impersonator-all-runtime-helpers
   (function-forms->runtime-helpers
-   'impersonator-runtime-only-helpers
+   'impersonator-all-runtime-helpers
    '(
      (func $impersonator? (type $Prim1)
            (param $v (ref eq)) ;; any value
@@ -415,6 +432,18 @@
                      (unreachable)))
            (local.get $wrapper)))))
 
+;; impersonator-core-runtime-helpers : (listof core-runtime-helper?)
+;;   Enumerate inert impersonator helpers available in the standalone core runtime.
+(define impersonator-core-runtime-helpers
+  (select-runtime-helpers impersonator-all-runtime-helpers
+                          impersonator-core-runtime-helper-names))
+
+;; impersonator-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate inert impersonator and chaperone support helpers that still depend on monolithic runtime definitions.
+(define impersonator-runtime-only-helpers
+  (remove-runtime-helpers impersonator-all-runtime-helpers
+                          impersonator-core-runtime-helper-names))
+
 ;; impersonator-helper-forms : hasheq? (listof symbol?) -> (listof datum?)
 ;;   Render the given impersonator helper names from the runtime helper index.
 (define (impersonator-helper-forms helper-index names)
@@ -425,6 +454,11 @@
 ;;   Render basic impersonator helpers in runtime assembly order.
 (define (impersonator-basic-runtime-helper-forms helper-index)
   (impersonator-helper-forms helper-index impersonator-basic-runtime-only-helper-names))
+
+;; impersonator-core-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render promoted impersonator helpers in runtime assembly order.
+(define (impersonator-core-runtime-helper-forms helper-index)
+  (impersonator-helper-forms helper-index impersonator-core-runtime-helper-names))
 
 ;; chaperone-procedure-runtime-helper-forms : hasheq? -> (listof datum?)
 ;;   Render chaperone procedure helpers in runtime assembly order.
@@ -440,7 +474,21 @@
     (second form))
 
   (define impersonator-helper-index
-    (make-core-runtime-helper-index impersonator-runtime-only-helpers))
+    (make-core-runtime-helper-index
+     (append impersonator-core-runtime-helpers
+             impersonator-runtime-only-helpers)))
+
+  (define impersonator-core-helper-index
+    (make-core-runtime-helper-index impersonator-core-runtime-helpers))
+
+  (check-equal?
+   (map core-runtime-helper-name impersonator-core-runtime-helpers)
+   impersonator-core-runtime-helper-names)
+
+  (check-equal?
+   (map form-name
+        (impersonator-core-runtime-helper-forms impersonator-core-helper-index))
+   impersonator-core-runtime-helper-names)
 
   (check-equal?
    (map form-name

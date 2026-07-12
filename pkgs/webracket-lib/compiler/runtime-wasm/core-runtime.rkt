@@ -14,6 +14,7 @@
          "core/characters.rkt"
          "core/equality.rkt"
          "core/events.rkt"
+         "core/ffi.rkt"
          "core/fixnums.rkt"
          "core/flonums.rkt"
          "core/formatting.rkt"
@@ -25,6 +26,7 @@
          "core/i8-arrays.rkt"
          "core/immediates.rkt"
          "core/immutable-hashes.rkt"
+         "core/impersonators.rkt"
          "core/keywords.rkt"
          "core/lists.rkt"
          "core/linklets.rkt"
@@ -43,6 +45,7 @@
          "core/structs.rkt"
          "core/symbols.rkt"
          "core/threads.rkt"
+         "core/time.rkt"
          "core/treelists.rkt"
          "core/unsafe.rkt"
          "core/vectors.rkt"
@@ -60,6 +63,7 @@
    character-core-runtime-helpers
    equality-core-runtime-helpers
    event-core-runtime-helpers
+   external-value-core-runtime-helpers
    fixnum-core-runtime-helpers
    flonum-core-runtime-helpers
    formatting-core-runtime-helpers
@@ -72,6 +76,7 @@
    i8-array-byte-core-runtime-helpers
    immediate-core-runtime-helpers
    immutable-hash-core-runtime-helpers
+   impersonator-core-runtime-helpers
    keyword-core-runtime-helpers
    list-core-runtime-helpers
    linklet-core-runtime-helpers
@@ -90,6 +95,7 @@
    struct-core-runtime-helpers
    symbol-core-runtime-helpers
    thread-core-runtime-helpers
+   time-core-runtime-helpers
    treelist-core-runtime-helpers
    unsafe-core-runtime-helpers
    vector-core-runtime-helpers

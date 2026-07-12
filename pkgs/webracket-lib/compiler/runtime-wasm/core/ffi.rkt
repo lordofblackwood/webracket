@@ -1,6 +1,8 @@
 #lang racket
 
-(provide external-value-runtime-only-helper-names
+(provide external-value-core-runtime-helpers
+         external-value-core-runtime-helper-forms
+         external-value-runtime-only-helper-names
          external-value-runtime-helper-forms
          ffi-callback-global-forms
          ffi-entry-global-forms
@@ -162,19 +164,31 @@
     $callback-debug-id
     $procedure->external))
 
-;; external-value-runtime-only-helper-names : (listof symbol?)
-;;   Preserve the runtime emission order for external host value helpers.
-(define external-value-runtime-only-helper-names
+;; external-value-all-runtime-helper-names : (listof symbol?)
+;;   Preserve the full runtime emission order for external host value helpers.
+(define external-value-all-runtime-helper-names
   '($external?
     $external-null?
     $external-number->flonum
     $external-string->string))
 
-;; external-value-runtime-only-helpers : (listof core-runtime-helper?)
-;;   Register external host value helpers used by the monolithic runtime.
-(define external-value-runtime-only-helpers
+;; external-value-core-runtime-helper-names : (listof symbol?)
+;;   Name external host value helpers available in the standalone core runtime.
+(define external-value-core-runtime-helper-names
+  '($external?
+    $external-null?))
+
+;; external-value-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime-only external host value helper emission order.
+(define external-value-runtime-only-helper-names
+  (remove* external-value-core-runtime-helper-names
+           external-value-all-runtime-helper-names))
+
+;; external-value-all-runtime-helpers : (listof core-runtime-helper?)
+;;   Register all external host value helpers.
+(define external-value-all-runtime-helpers
   (function-forms->runtime-helpers
-   'external-value-runtime-only-helpers
+   'external-value-all-runtime-helpers
    '(
      (func $external? (type $Prim1)
            (param $v (ref eq))
@@ -245,6 +259,18 @@
                                   (ref.as_non_null (local.get $raw))))
            (call $linear-memory->string (local.get $ptr)))
      )))
+
+;; external-value-core-runtime-helpers : (listof core-runtime-helper?)
+;;   Register external host value helpers available in the standalone core runtime.
+(define external-value-core-runtime-helpers
+  (select-runtime-helpers external-value-all-runtime-helpers
+                          external-value-core-runtime-helper-names))
+
+;; external-value-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Register external host value helpers that still depend on monolithic runtime definitions.
+(define external-value-runtime-only-helpers
+  (remove-runtime-helpers external-value-all-runtime-helpers
+                          external-value-core-runtime-helper-names))
 
 ;;;
 ;;; Browser external-value sketch
@@ -1436,6 +1462,12 @@
   (for/list ([name (in-list external-value-runtime-only-helper-names)])
     (core-runtime-helper-form helper-index name)))
 
+;; external-value-core-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render promoted external host value helpers in runtime assembly order.
+(define (external-value-core-runtime-helper-forms helper-index)
+  (for/list ([name (in-list external-value-core-runtime-helper-names)])
+    (core-runtime-helper-form helper-index name)))
+
 ;; unsafe-ffi-runtime-only-helper-forms : (listof foreign?) -> (listof datum?)
 ;;   Render unsafe FFI primitive lookup helpers for the active `.ffi` primitives.
 (define (unsafe-ffi-runtime-only-helper-forms active-ffi-foreigns)
@@ -1503,7 +1535,21 @@
     (second form))
 
   (define ffi-helper-index
-    (make-core-runtime-helper-index ffi-runtime-only-helpers))
+    (make-core-runtime-helper-index
+     (append external-value-core-runtime-helpers
+             ffi-runtime-only-helpers)))
+
+  (define external-value-core-helper-index
+    (make-core-runtime-helper-index external-value-core-runtime-helpers))
+
+  (check-equal?
+   (map core-runtime-helper-name external-value-core-runtime-helpers)
+   external-value-core-runtime-helper-names)
+
+  (check-equal?
+   (map form-name
+        (external-value-core-runtime-helper-forms external-value-core-helper-index))
+   external-value-core-runtime-helper-names)
 
   (check-equal?
    (map form-name (external-value-runtime-helper-forms ffi-helper-index))
