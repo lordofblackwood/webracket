@@ -339,15 +339,63 @@
     $treelist-node-leftwise-dense?/i32
     $treelist-node-child-count
     $treelist-node-find-child-index/relaxed
+    $treelist-node-child-start
+    $treelist-node-child-size
+    $treelist-radix
+    $treelist-node-capacity
+    $treelist-height-for-size
+    $treelist-make-parent-root/checked
+    $treelist-rebalance-node-count
+    $treelist-rebalance-pack-sizes
+    $treelist-pack-children-range/checked
+    $treelist-rebalance-same-height/checked
+    $treelist-pack-same-height/checked
+    $treelist-short-node
+    $treelist-concat-plan/distribute
+    $treelist-concat-plan
+    $treelist-merge-boundary-slots/checked
+    $treelist-exec-concat-plan/checked
+    $treelist-rebalance-boundary/checked
+    $treelist-concat-subtree/checked
+    $treelist-append2/checked
     $treelist-leaf
+    $treelist-build-dense-node
+    $array->treelist/checked
+    $treelist-node-build/checked
+    $treelist-from-node/checked
+    $treelist-singleton-branch
+    $treelist-node-child-sizes/exact
     $treelist-node-copy-into!
     $treelist->array/checked
+    $treelist-node-split/checked
     $treelist-length/checked/i32
+    $treelist-ref-node/checked
+    $treelist-node-set/checked
+    $treelist-node-can-add-right-fast?/i32
+    $treelist-node-can-add-left-fast?/i32
+    $treelist-node-add-right/checked
+    $treelist-node-add-left/checked
+    $treelist-add/checked
+    $treelist-node-reverse/checked
+    $treelist-reverse/checked
+    $treelist-node-size/check
+    $treelist-node-valid?/i32
+    $treelist-valid?/i32
     $treelist-node-count/checked
     $treelist-node-relaxed-count/checked
     $treelist-node-max-child-count/checked
     $treelist-node-unary-start-depth/checked
     $treelist-node-max-unary-depth/checked
+    $treelist-flatten-into!
+    $treelist-flatten
+    $treelist-node-flatten-into!
+    $treelist-node-map-into!
+    $treelist-node-for-each
+    $treelist-node-filter-into!
+    $treelist-node-find/checked
+    $treelist-append/checked
+    $treelist-cons/checked
+    $make-treelist/checked
     $treelist->vector/checked
     $treelist?))
 

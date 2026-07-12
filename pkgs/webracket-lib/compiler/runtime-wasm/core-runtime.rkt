@@ -270,14 +270,19 @@
 ;;   Name immutable-by-convention core constants that split-core programs should import.
 (define core-runtime-program-import-constant-global-names
   (append core-runtime-string-constant-global-names
-          core-runtime-symbol-constant-global-names))
+          core-runtime-symbol-constant-global-names
+          '($dummy-array
+            $treelist:BITS
+            $treelist:MAX_WIDTH
+            $treelist:MASK
+            $dummy-treelist-node
+            $empty-treelist)))
 
 ;; core-runtime-global-names : (listof symbol?)
 ;;   Enumerate stable globals declared by the standalone core runtime.
 (define core-runtime-global-names
   (append singleton-global-names
-          core-runtime-string-constant-global-names
-          core-runtime-symbol-constant-global-names
+          core-runtime-program-import-constant-global-names
           core-runtime-program-import-global-names
           thread-current-core-global-names))
 
@@ -306,6 +311,9 @@
      ,@core-runtime-string-constant-declaration-forms
      ,@core-runtime-symbol-constant-declaration-forms
      ,@singleton-global-forms
+     ,@treelist-constant-global-forms
+     ,@vector-dummy-array-global-forms
+     ,@treelist-empty-global-forms
      ,@realm-global-forms
      ,@exception-struct-type-cache-global-forms
      ,@symbol-table-global-forms
@@ -879,6 +887,11 @@
   (check-true (hash-has-key? core-runtime-global-name-set '$the-racket-realm))
   (check-true (hash-has-key? core-runtime-global-name-set '$the-racket/primitive-realm))
   (check-true (hash-has-key? core-runtime-global-name-set '$exn-type))
+  (check-true (hash-has-key? core-runtime-global-name-set '$dummy-array))
+  (check-true (hash-has-key? core-runtime-global-name-set '$dummy-treelist-node))
+  (check-true (hash-has-key? core-runtime-global-name-set '$empty-treelist))
+  (check-true (hash-has-key? core-runtime-global-name-set '$treelist:BITS))
+  (check-true (hash-has-key? core-runtime-global-name-set '$treelist:MAX_WIDTH))
   (check-equal? core-runtime-program-import-tag-names '($exn))
   (check-true (for/or ([form (in-list shared-types)])
                 (type-form-named? '$Array form)))
