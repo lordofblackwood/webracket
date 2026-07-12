@@ -82,6 +82,7 @@
 (define keep-temp? #t)
 (define include-cache-reference? #f)
 (define prewarm-runtime-first? #f)
+(define precompile-compiler-first? #f)
 
 ;; resolve-source-path : string? -> path?
 ;;   Resolve a user-provided source path relative to the repository root.
@@ -112,7 +113,10 @@
   (set! include-cache-reference? #t)]
  [("--prewarm-runtime-first")
   "Prewarm the split runtime cache before measured user compiles; skips split-cold"
-  (set! prewarm-runtime-first? #t)])
+  (set! prewarm-runtime-first? #t)]
+ [("--precompile-compiler-first")
+  "Run raco make for the compiler into the isolated compiled root before measuring"
+  (set! precompile-compiler-first? #t)])
 
 
 ;;; Subprocess Helpers
@@ -153,6 +157,33 @@
         (newline out))
       (display stderr out))
     #:exists 'truncate/replace))
+
+;; compiler-entry-files : -> (listof path?)
+;;   Return compiler entry modules whose dependencies should be precompiled.
+(define (compiler-entry-files)
+  (list
+   (build-path repo-root "webracket.rkt")
+   (build-path repo-root "tools" "prewarm-staged-providers.rkt")
+   (build-path repo-root "pkgs" "webracket-lib" "compiler" "cli.rkt")
+   (build-path repo-root "pkgs" "webracket-lib" "compiler" "cli-lib.rkt")
+   (build-path repo-root "pkgs" "webracket-lib" "compiler" "driver.rkt")
+   (build-path repo-root "pkgs" "webracket-lib" "compiler" "compiler.rkt")
+   (build-path repo-root "pkgs" "webracket-lib" "compiler" "runtime-wasm.rkt")))
+
+;; precompile-compiler! : path? path? -> (values boolean? real?)
+;;   Precompile compiler modules into the current PLTCOMPILEDROOTS.
+(define (precompile-compiler! racket-exe temp-root)
+  (define compile-files
+    (compiler-entry-files))
+  (define args
+    (append (list "-S" "pkgs" "-l" "raco" "make")
+            (map path->string compile-files)))
+  (define-values (ok? stdout stderr wall-ms)
+    (run-command/capture repo-root racket-exe args))
+  (write-log! (build-path temp-root "precompile-compiler.log")
+              stdout
+              stderr)
+  (values ok? wall-ms))
 
 ;; prewarm-split-runtime-cache! : path? path? path? path? -> (values boolean? real?)
 ;;   Populate the runtime cache through the standalone prewarm tool.
@@ -432,10 +463,24 @@
   (printf "  source:        ~a\n" (path->string source-file))
   (printf "  temp:          ~a\n" (path->string temp-root))
   (printf "  compiled root: ~a\n" (path->string compiled-root))
+  (printf "  compiler warm: ~a\n"
+          (if precompile-compiler-first?
+              "raco make"
+              "not precompiled by benchmark"))
   (printf "  runtime warm:  ~a\n\n"
           (if prewarm-runtime-first?
               "prewarm-staged-providers"
               "split-cold"))
+  (define-values (precompile-ok? precompile-wall-ms)
+    (if precompile-compiler-first?
+        (precompile-compiler! racket-exe temp-root)
+        (values #t 0.0)))
+  (unless precompile-ok?
+    (printf "compiler precompile failed; log: ~a\n"
+            (path->string (build-path temp-root "precompile-compiler.log")))
+    (exit 1))
+  (when precompile-compiler-first?
+    (printf "precompile\tok\t~a\n" (format-duration-ms precompile-wall-ms)))
   (define-values (prewarm-ok? prewarm-wall-ms)
     (if prewarm-runtime-first?
         (prewarm-split-runtime-cache! racket-exe
@@ -448,7 +493,9 @@
             (path->string (build-path temp-root "prewarm-split-runtime.log")))
     (exit 1))
   (when prewarm-runtime-first?
-    (printf "prewarm\tok\t~a\n\n" (format-duration-ms prewarm-wall-ms)))
+    (printf "prewarm\tok\t~a\n" (format-duration-ms prewarm-wall-ms)))
+  (when (or precompile-compiler-first? prewarm-runtime-first?)
+    (newline))
   (define split-cold
     (and (not prewarm-runtime-first?)
          (compile-mode 'split-cold

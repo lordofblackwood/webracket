@@ -178,6 +178,18 @@ racket -S pkgs tools/measure-split-runtime.rkt \
   --include-cache-reference
 ```
 
+Use `--precompile-compiler-first` when you want the benchmark's wall-clock
+columns to reflect warm user compiles instead of also including the cost of
+loading/byte-compiling the compiler entry modules and their dependency graph
+into a fresh isolated compiled root:
+
+```sh
+racket -S pkgs tools/measure-split-runtime.rkt \
+  --precompile-compiler-first \
+  --prewarm-runtime-first \
+  --include-cache-reference
+```
+
 check-split-runtime-prewarm.rkt
 -------------------------------
 Regression-style check for the compile-once split-runtime workflow. It creates
