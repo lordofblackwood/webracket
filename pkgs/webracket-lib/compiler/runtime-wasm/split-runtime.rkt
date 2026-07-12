@@ -35,6 +35,11 @@
   (core program imported-names import-forms core-cache-key)
   #:transparent)
 
+;; default-core-module-sentinel : symbol?
+;;   Marks an omitted core module so stable-cache paths can keep it lazy.
+(define default-core-module-sentinel
+  (gensym 'default-core-module))
+
 ;; split-runtime-modules-core-module : split-runtime-modules? -> datum?
 ;;   Return the runtime core module, forcing a lazy core when needed.
 (define (split-runtime-modules-core-module split)
@@ -863,14 +868,24 @@
 ;; split-core-runtime-module :
 ;;   datum? [#:helpers (listof core-runtime-helper?)]
 ;;          [#:require-all? boolean?] [#:import-module string?]
-;;          [#:core-module datum?] [#:core-cache-key any/c] -> split-runtime-modules?
+;;          [#:core-module (or/c datum? promise?)] [#:core-cache-key any/c]
+;;          -> split-runtime-modules?
 ;;   Rewrite a full module so registered core helper definitions become imports.
 (define (split-core-runtime-module module
                                    #:helpers [helpers core-runtime-helpers]
                                    #:require-all? [require-all? #t]
                                    #:import-module [import-module-name "core"]
-                                   #:core-module [core-module (generate-core-runtime)]
+                                   #:core-module
+                                   [core-module default-core-module-sentinel]
                                    #:core-cache-key [core-cache-key #f])
+  (define effective-core-module
+    (cond
+      [(not (eq? core-module default-core-module-sentinel))
+       core-module]
+      [core-cache-key
+       (delay (generate-core-runtime))]
+      [else
+       (generate-core-runtime)]))
   (define forms (module-forms module))
   (define names (helper-name-set helpers))
   (define counts (helper-definition-counts forms names))
@@ -887,7 +902,7 @@
   (define-values (prefix rest)
     (splitf-at forms-without-helpers import-insertion-prefix-form?))
   (split-runtime-modules
-   core-module
+   effective-core-module
    `(module ,@prefix ,@import-forms ,@rest)
    (map core-runtime-helper-name selected-helpers)
    import-forms
@@ -1124,6 +1139,15 @@
               #:when (function-import-form? form))
      (module-func-name form))
    '($sample-add $sample-id))
+
+  (define sample-lazy-core-split
+    (split-core-runtime-module
+     sample-full-module
+     #:helpers sample-helpers
+     #:core-cache-key '(stable-core-key)))
+  (check-true (promise? (split-runtime-modules-core sample-lazy-core-split)))
+  (check-equal? (split-runtime-modules-core-cache-key sample-lazy-core-split)
+                '(stable-core-key))
 
   (define sample-pruned-module
     `(module
