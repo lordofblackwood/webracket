@@ -4,6 +4,7 @@
          bytes-runtime-bytes-constants
          byte-predicate-runtime-symbol-constants
          bytes-runtime-symbol-constants
+         bytes-core-runtime-helpers
          bytes-basic-runtime-only-helper-names
          byte-comparison-runtime-only-helper-names
          byte-indexing-runtime-only-helper-names
@@ -88,6 +89,20 @@
 ;;   Preserve the runtime emission order for bytes mutability predicates.
 (define bytes-mutability-runtime-only-helper-names
   '($mutable-bytes?
+    $immutable-bytes?))
+
+;; bytes-core-runtime-helper-names : (listof symbol?)
+;;   Name byte-string helpers available in the standalone core runtime.
+(define bytes-core-runtime-helper-names
+  '($bytes?
+    $bytes=?/2/checked
+    $bytes<?/2/checked
+    $bytes>?/2/checked
+    $byte?
+    $bytes-set!/checked
+    $bytes-converter?
+    $bytes->string/utf-8:determine-utf-8-sequence
+    $mutable-bytes?
     $immutable-bytes?))
 
 ;; bytes-basic-runtime-only-helper-names : (listof symbol?)
@@ -2406,19 +2421,12 @@
    (bytes-helper-forms helper-index byte-sequence-runtime-only-helper-names)
    (bytes-helper-forms helper-index byte-text-decoding-runtime-only-helper-names)))
 
-;; bytes-runtime-only-helpers : (listof core-runtime-helper?)
-;;   Enumerate bytes helpers that still depend on monolithic runtime globals.
-(define bytes-runtime-only-helpers
-  (append
-   bytes-basic-runtime-only-helpers
-   byte-comparison-runtime-only-helpers
-   byte-indexing-runtime-only-helpers
-   byte-converter-runtime-only-helpers
-   byte-sequence-runtime-only-helpers
-   byte-text-decoding-runtime-only-helpers
-   (function-forms->runtime-helpers
-    'bytes-runtime-only-helpers
-    '(
+;; bytes-mutability-runtime-helpers : (listof core-runtime-helper?)
+;;   Enumerate bytes mutability predicates.
+(define bytes-mutability-runtime-helpers
+  (function-forms->runtime-helpers
+   'bytes-mutability-runtime-helpers
+   '(
          (func $mutable-bytes? (type $Prim1) (param $v (ref eq)) (result (ref eq))
                (if (result (ref eq))
                    (ref.test (ref $Bytes) (local.get $v))
@@ -2442,7 +2450,47 @@
                    (else (global.get $false))))
 
 
-     ))))
+     )))
+
+;; bytes-all-runtime-helpers : (listof core-runtime-helper?)
+;;   Enumerate byte-string helpers in monolithic runtime order.
+(define bytes-all-runtime-helpers
+  (append
+   bytes-basic-runtime-only-helpers
+   byte-comparison-runtime-only-helpers
+   byte-indexing-runtime-only-helpers
+   byte-converter-runtime-only-helpers
+   byte-sequence-runtime-only-helpers
+   byte-text-decoding-runtime-only-helpers
+   bytes-mutability-runtime-helpers))
+
+;; select-bytes-helpers : (listof core-runtime-helper?) (listof symbol?) -> (listof core-runtime-helper?)
+;;   Select helpers by name while preserving the order of the source list.
+(define (select-bytes-helpers helpers names)
+  (define name-set
+    (for/hasheq ([name (in-list names)])
+      (values name #t)))
+  (for/list ([helper (in-list helpers)]
+             #:when (hash-ref name-set (core-runtime-helper-name helper) #f))
+    helper))
+
+;; bytes-core-runtime-helpers : (listof core-runtime-helper?)
+;;   Enumerate byte-string helpers available in the standalone core runtime.
+(define bytes-core-runtime-helpers
+  (select-bytes-helpers bytes-all-runtime-helpers
+                        bytes-core-runtime-helper-names))
+
+;; bytes-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate bytes helpers that still depend on monolithic runtime globals.
+(define bytes-runtime-only-helpers
+  (let ([core-name-set
+         (for/hasheq ([name (in-list bytes-core-runtime-helper-names)])
+           (values name #t))])
+    (for/list ([helper (in-list bytes-all-runtime-helpers)]
+               #:unless (hash-ref core-name-set
+                                  (core-runtime-helper-name helper)
+                                  #f))
+      helper)))
 
 (module+ test
   (require rackunit)
@@ -2453,7 +2501,13 @@
     (second form))
 
   (define bytes-helper-index
-    (make-core-runtime-helper-index bytes-runtime-only-helpers))
+    (make-core-runtime-helper-index
+     (append bytes-core-runtime-helpers
+             bytes-runtime-only-helpers)))
+
+  (check-equal?
+   (map core-runtime-helper-name bytes-core-runtime-helpers)
+   bytes-core-runtime-helper-names)
 
   (check-equal?
    (map form-name (bytes-mutability-runtime-helper-forms bytes-helper-index))

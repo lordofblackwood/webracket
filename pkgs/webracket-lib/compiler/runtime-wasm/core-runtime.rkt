@@ -10,6 +10,7 @@
          "core/arrays.rkt"
          "core/booleans.rkt"
          "core/boxes.rkt"
+         "core/bytes.rkt"
          "core/fixnums.rkt"
          "core/flonums.rkt"
          "core/growable-arrays.rkt"
@@ -35,6 +36,7 @@
    array-core-runtime-helpers
    boolean-core-runtime-helpers
    box-core-runtime-helpers
+   bytes-core-runtime-helpers
    fixnum-core-runtime-helpers
    flonum-core-runtime-helpers
    growable-array-core-runtime-helpers

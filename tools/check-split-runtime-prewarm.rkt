@@ -277,6 +277,27 @@ RKT
         0)))
 RKT
     expect
+    reject)
+   (write-generated-case!
+    source-dir
+    "bytes-core-helpers"
+    #<<RKT
+(let ([b (bytes 40 0)])
+  (bytes-set! b 1 2)
+  (if (and (bytes? b)
+           (mutable-bytes? b)
+           (immutable-bytes? #"abc")
+           (not (bytes? 1))
+           (byte? 255)
+           (not (byte? 256))
+           (bytes=? #"ab" #"ab")
+           (bytes<? #"ab" #"ac")
+           (bytes>? #"ad" #"ac")
+           (not (bytes-converter? b)))
+      (+ (bytes-ref b 0) (bytes-ref b 1))
+      0))
+RKT
+    expect
     reject)))
 
 ;; record-failure! : string? any/c ... -> void?
