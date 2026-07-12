@@ -277,11 +277,11 @@ prewarm-staged-providers.rkt
 ----------------------------
 Prebuilds cache artifacts before an example compile needs them. Existing modes
 prewarm staged provider artifacts such as regexp and expander/read. The
-`split-runtime` mode compiles and runs a tiny no-stdlib split-runtime program
-through the normal driver so the stable runtime wasm is already in the runtime
-provider cache before a real user program compile. By default, split-runtime
-prewarm targets Node output; use `--host browser` when warming the browser
-runtime sidecar cache.
+`split-runtime` mode compiles a tiny no-stdlib split-runtime program through
+the normal driver so the stable runtime wasm is already in the runtime provider
+cache before a real user program compile. By default, split-runtime prewarm
+targets Node output and runs the generated program; use `--host browser` when
+warming the browser runtime cache.
 
 Run:
 
@@ -291,6 +291,19 @@ racket -S pkgs tools/prewarm-staged-providers.rkt \
   --runtime-provider-cache-dir /tmp/webracket-runtime-cache \
   --mode split-runtime \
   --host browser
+```
+
+Use `--runtime-wasm-out` with `--mode split-runtime` to copy the selected cached
+runtime artifact to a stable path that browser builds can reference with
+`--split-runtime-core-url`:
+
+```sh
+racket -S pkgs tools/prewarm-staged-providers.rkt \
+  --provider-cache-dir /tmp/webracket-provider-cache \
+  --runtime-provider-cache-dir /tmp/webracket-runtime-cache \
+  --mode split-runtime \
+  --host browser \
+  --runtime-wasm-out /tmp/webracket-runtime.wasm
 ```
 
 fetch-html-element-attributes.mjs

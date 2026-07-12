@@ -217,17 +217,6 @@
        cache-root)
       '()))
 
-;; first-cached-runtime-wasm : (listof path?) -> (or/c path? #f)
-;;   Return a deterministic cached runtime wasm candidate.
-(define (first-cached-runtime-wasm paths)
-  (and (pair? paths)
-       (first (sort paths string<? #:key path->string))))
-
-;; copy-file/replace! : path-string? path-string? -> void?
-;;   Copy src to dest, replacing an existing file.
-(define (copy-file/replace! src dest)
-  (copy-file src dest #t))
-
 ;; record-failure! : string? any/c ... -> void?
 ;;   Accumulate a formatted check failure.
 (define failures '())
@@ -629,6 +618,8 @@ JS
                                       "playwright-default"
                                       chrome-executable))
 
+  (define shared-runtime-wasm
+    (build-path dest-dir shared-runtime-url))
   (define prewarm-args
     (append
      (list "-S" "pkgs" "tools/prewarm-staged-providers.rkt"
@@ -636,6 +627,9 @@ JS
            "--runtime-provider-cache-dir" (path->string runtime-cache)
            "--mode" "split-runtime"
            "--host" "browser")
+     (if shared-runtime-url?
+         (list "--runtime-wasm-out" (path->string shared-runtime-wasm))
+         '())
      (if force-prewarm? '("--force") '())))
   (define prewarm-result
     (run-command/capture repo-root racket-exe prewarm-args))
@@ -649,14 +643,6 @@ JS
   (when (null? cached-wasms-after-prewarm)
     (record-failure! "prewarm did not create a cached split-runtime wasm in ~a"
                      runtime-cache))
-  (define shared-runtime-wasm
-    (build-path dest-dir shared-runtime-url))
-  (when shared-runtime-url?
-    (define cached-runtime-wasm
-      (first-cached-runtime-wasm cached-wasms-after-prewarm))
-    (if cached-runtime-wasm
-        (copy-file/replace! cached-runtime-wasm shared-runtime-wasm)
-        (record-failure! "cannot create shared runtime url file without a cached runtime wasm")))
 
   (define compile-args
     (append
