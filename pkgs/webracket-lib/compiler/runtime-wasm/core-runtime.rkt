@@ -7,6 +7,11 @@
          generate-core-runtime)
 
 (require "core-helper.rkt"
+         (only-in "constants.rkt"
+                  make-runtime-constant-registry
+                  runtime-constant-registry-declare-strings
+                  runtime-constant-registry-initialize-strings
+                  string-global-name)
          "core/arrays.rkt"
          "core/booleans.rkt"
          "core/boxes.rkt"
@@ -38,6 +43,7 @@
          "core/procedures.rkt"
          "core/reflection.rkt"
          "core/regexps.rkt"
+         "core/runtime-string-constants.rkt"
          "core/security.rkt"
          "core/semaphores.rkt"
          "core/stencil-vectors.rkt"
@@ -106,10 +112,101 @@
 (define core-runtime-helper-index
   (make-core-runtime-helper-index core-runtime-helpers))
 
+;; core-runtime-string-constant-registry : runtime-constant-registry?
+;;   Register runtime string constants owned by the standalone core runtime.
+(define core-runtime-string-constant-registry
+  (make-runtime-constant-registry core-runtime-string-constants
+                                  '()
+                                  '()))
+
+;; core-runtime-string-constant-global-names : (listof symbol?)
+;;   Enumerate stable string globals declared by the standalone core runtime.
+(define core-runtime-string-constant-global-names
+  (for/list ([constant (in-list core-runtime-string-constants)])
+    (string-global-name (first constant))))
+
+;; core-runtime-string-constant-declaration-forms : (listof datum?)
+;;   Declare data segments and globals for core-owned string constants.
+(define core-runtime-string-constant-declaration-forms
+  (runtime-constant-registry-declare-strings
+   core-runtime-string-constant-registry))
+
+;; core-runtime-string-constant-converter-name : symbol?
+;;   Name the private core runtime helper used to decode compiler-authored UTF-8 constants.
+(define core-runtime-string-constant-converter-name
+  '$core-runtime-i8array->string)
+
+;; core-runtime-string-constant-converter-form : datum?
+;;   Decode valid UTF-8 data segments into immutable strings for core startup.
+(define core-runtime-string-constant-converter-form
+  `(func ,core-runtime-string-constant-converter-name
+         (param $arr (ref $I8Array))
+         (result (ref $String))
+         (local $buf  (ref $I32GrowableArray))
+         (local $end  i32)
+         (local $i    i32)
+         (local $byte i32)
+         (local $need i32)
+         (local $acc  i32)
+         (local $b2   i32)
+         (local $cp   i32)
+
+         (local.set $end (array.len (local.get $arr)))
+         (local.set $buf (call $make-i32growable-array (local.get $end)))
+         (local.set $i (i32.const 0))
+         (block $done
+                (loop $loop
+                      (br_if $done (i32.ge_u (local.get $i) (local.get $end)))
+                      (local.set $byte (array.get_u $I8Array (local.get $arr) (local.get $i)))
+                      (if (i32.lt_u (local.get $byte) (i32.const 128))
+                          (then
+                           (call $i32growable-array-add! (local.get $buf) (local.get $byte))
+                           (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                           (br $loop)))
+                      (call $bytes->string/utf-8:determine-utf-8-sequence (local.get $byte))
+                      (local.set $acc)
+                      (local.set $need)
+                      (if (i32.lt_s (local.get $need) (i32.const 0))
+                          (then (unreachable)))
+                      (if (i32.ge_u (i32.add (local.get $i) (local.get $need))
+                                     (local.get $end))
+                          (then (unreachable)))
+                      (local.set $cp (local.get $acc))
+                      (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                      (block $cont-fail
+                             (loop $cont-loop
+                                   (br_if $cont-fail (i32.eqz (local.get $need)))
+                                   (local.set $b2 (array.get_u $I8Array
+                                                               (local.get $arr)
+                                                               (local.get $i)))
+                                   (if (i32.and (i32.ge_u (local.get $b2) (i32.const 128))
+                                                (i32.lt_u (local.get $b2) (i32.const 192)))
+                                       (then
+                                        (local.set $cp
+                                                   (i32.or
+                                                    (i32.shl (local.get $cp) (i32.const 6))
+                                                    (i32.and (local.get $b2) (i32.const #x3F))))
+                                        (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                                        (local.set $need (i32.sub (local.get $need) (i32.const 1)))
+                                        (br $cont-loop)))))
+                      (if (i32.ne (local.get $need) (i32.const 0))
+                          (then (unreachable)))
+                      (call $i32growable-array-add! (local.get $buf) (local.get $cp))
+                      (br $loop)))
+         (call $i32growable-array->immutable-string (local.get $buf))))
+
+;; core-runtime-string-constant-initializer-forms : (listof datum?)
+;;   Initialize core-owned string constants when the core runtime instantiates.
+(define core-runtime-string-constant-initializer-forms
+  (runtime-constant-registry-initialize-strings
+   core-runtime-string-constant-registry
+   #:converter core-runtime-string-constant-converter-name))
+
 ;; core-runtime-global-names : (listof symbol?)
 ;;   Enumerate stable globals declared by the standalone core runtime.
 (define core-runtime-global-names
   (append singleton-global-names
+          core-runtime-string-constant-global-names
           thread-current-core-global-names))
 
 ;; core-runtime-global-name-set : hasheq?
@@ -123,8 +220,13 @@
 (define (generate-core-runtime)
   `(module
      ,@(generate-shared-types)
+     ,@core-runtime-string-constant-declaration-forms
      ,@singleton-global-forms
      ,@thread-current-core-global-forms
+     ,core-runtime-string-constant-converter-form
+     (func $initialize-core-runtime!
+           ,@core-runtime-string-constant-initializer-forms)
+     (start $initialize-core-runtime!)
      ,@(core-runtime-helper-forms core-runtime-helpers #:export? #t)))
 
 (module+ test
@@ -152,6 +254,13 @@
   (define (function-form-named? name form)
     (match form
       [`(func ,func-name . ,_) (eq? func-name name)]
+      [_ #f]))
+
+  ;; global-form-named? : symbol? datum? -> boolean?
+  ;;   Check whether form is a global declaration with the given name.
+  (define (global-form-named? name form)
+    (match form
+      [`(global ,global-name . ,_) (eq? global-name name)]
       [_ #f]))
 
   ;; function-export-names : datum? -> (listof string?)
@@ -631,6 +740,7 @@
   (check-pred list? shared-types)
   (check-true (hash-has-key? shared-type-names '$Array))
   (check-true (hash-has-key? shared-type-names '$Pair))
+  (check-true (hash-has-key? core-runtime-global-name-set '$string:empty))
   (check-true (for/or ([form (in-list shared-types)])
                 (type-form-named? '$Array form)))
   (check-true (for/or ([form (in-list shared-types)])
@@ -689,6 +799,13 @@
                  core-runtime-global-name-set)
                 '())
   (check-equal? (core-runtime-helper-dependency-problems
+                 '(func $ok (result (ref eq))
+                        (global.get $string:empty))
+                 core-helper-names
+                 shared-type-names
+                 core-runtime-global-name-set)
+                '())
+  (check-equal? (core-runtime-helper-dependency-problems
                  '(func $bad (param (ref eq)) (result i32)
                         (call $other (local.get $v)))
                  core-helper-names
@@ -730,6 +847,22 @@
   (check-pred list? core-forms)
   (check-true (for/or ([form (in-list core-forms)])
                 (type-form-named? '$Array form)))
+  (check-true (for/or ([form (in-list core-forms)])
+                (global-form-named? '$string:empty form)))
+  (check-not-false (member '(start $initialize-core-runtime!) core-forms))
+  (define string-converter-functions
+    (for/list ([form (in-list core-forms)]
+               #:when (function-form-named? core-runtime-string-constant-converter-name form))
+      form))
+  (check-equal? (length string-converter-functions) 1)
+  (check-equal? (function-export-names (first string-converter-functions))
+                '())
+  (check-true
+   (for/or ([form (in-list core-runtime-string-constant-initializer-forms)])
+     (match form
+       [`(global.set ,_ (call ,name . ,_))
+        (eq? name core-runtime-string-constant-converter-name)]
+       [_ #f])))
   (for ([helper (in-list core-runtime-helpers)])
     (define name (core-runtime-helper-name helper))
     (define export-name (core-runtime-helper-export-name helper))

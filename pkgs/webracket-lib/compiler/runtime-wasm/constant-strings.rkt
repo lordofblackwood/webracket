@@ -43,9 +43,10 @@
      (list `(data ,$string-data:name ,(wasm-data (string->bytes/utf-8 string)))
            `(global ,$string:name (mut (ref eq)) ,(Imm #f))))))
 
-;; runtime-constant-registry-initialize-strings : runtime-constant-registry? -> list?
+;; runtime-constant-registry-initialize-strings : runtime-constant-registry? [#:converter symbol?] -> list?
 ;;   Emit WAT initialization forms for registered string constants.
-(define (runtime-constant-registry-initialize-strings registry)
+(define (runtime-constant-registry-initialize-strings registry
+                                                       #:converter [converter '$i8array->string])
   (for/list ([ns (in-list (runtime-constant-registry-sorted-strings registry))])
     (define name (first ns))
     (define string (second ns))
@@ -53,6 +54,6 @@
     (define $string:name (string-global-name name))
     (define n (bytes-length (string->bytes/utf-8 string)))
     `(global.set ,$string:name
-                 (call $i8array->string
+                 (call ,converter
                        (array.new_data $I8Array ,$string-data:name
                                        (i32.const 0) (i32.const ,n))))))
