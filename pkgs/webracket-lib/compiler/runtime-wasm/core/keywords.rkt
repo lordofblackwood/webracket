@@ -4,6 +4,7 @@
          keyword-core-runtime-helper-forms
          keyword-runtime-string-constants
          keyword-table-global-forms
+         keyword-table-core-runtime-helper-forms
          keyword-table-initializer-runtime-helper-forms
          keyword-table-initializer-runtime-only-helper-names
          keyword-runtime-helper-forms
@@ -77,6 +78,11 @@
      (func $initialize-the-keyword-table
            (if (ref.is_null (global.get $the-keyword-table))
                (then (global.set $the-keyword-table (call $make-symbol-table))))))))
+
+;; keyword-table-core-runtime-helper-forms : -> (listof datum?)
+;;   Render private keyword table helpers for the standalone core runtime.
+(define (keyword-table-core-runtime-helper-forms)
+  (core-runtime-helper-forms keyword-table-initializer-runtime-only-helpers))
 
 ;; keyword-runtime-only-forms : (listof datum?)
 ;;   Enumerate keyword helpers used by the monolithic runtime.

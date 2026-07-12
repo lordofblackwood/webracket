@@ -1728,35 +1728,41 @@
    (for/or ([form (in-list constant-prune-program-forms)])
      (form-contains-global-set? '$string:live form)))
 
-  (define symbol-table-import-split
+  (define intern-table-import-split
     (split-core-runtime-module
      `(module
         ,@(generate-shared-types)
         (global $the-symbol-table
                 (mut (ref null $SymbolTable))
                 (ref.null $SymbolTable))
+        (global $the-keyword-table
+                (mut (ref null $SymbolTable))
+                (ref.null $SymbolTable))
         (func $entry
               (export "entry")
               (result i32)
               (if (result i32)
-                  (ref.is_null (global.get $the-symbol-table))
+                  (i32.or
+                   (ref.is_null (global.get $the-symbol-table))
+                   (ref.is_null (global.get $the-keyword-table)))
                   (then (i32.const 0))
                   (else (i32.const 42)))))
      #:helpers '()))
-  (define symbol-table-import-program-forms
-    (module-forms (split-runtime-modules-program symbol-table-import-split)))
-  (check-not-false
-   (member '$the-symbol-table
-           (split-runtime-modules-imported-names symbol-table-import-split)))
-  (check-not-false
-   (member '(global $the-symbol-table
-                    (import "core" "global:$the-symbol-table")
-                    (mut (ref null $SymbolTable)))
-           symbol-table-import-program-forms))
-  (check-false
-   (for/or ([form (in-list symbol-table-import-program-forms)])
-     (and (global-definition-form? form)
-          (eq? (module-global-name form) '$the-symbol-table))))
+  (define intern-table-import-program-forms
+    (module-forms (split-runtime-modules-program intern-table-import-split)))
+  (for ([name (in-list '($the-symbol-table $the-keyword-table))])
+    (check-not-false
+     (member name
+             (split-runtime-modules-imported-names intern-table-import-split)))
+    (check-not-false
+     (member `(global ,name
+                      (import "core" ,(runtime-global-export-name name))
+                      (mut (ref null $SymbolTable)))
+             intern-table-import-program-forms))
+    (check-false
+     (for/or ([form (in-list intern-table-import-program-forms)])
+       (and (global-definition-form? form)
+            (eq? (module-global-name form) name)))))
 
   (when (find-executable-path "wasm-tools")
     (define core-wat-path

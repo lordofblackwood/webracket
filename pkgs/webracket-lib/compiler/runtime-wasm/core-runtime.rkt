@@ -240,7 +240,8 @@
 ;; core-runtime-program-import-global-names : (listof symbol?)
 ;;   Name mutable core globals that split-core program modules must share.
 (define core-runtime-program-import-global-names
-  '($the-symbol-table))
+  '($the-symbol-table
+    $the-keyword-table))
 
 ;; core-runtime-global-names : (listof symbol?)
 ;;   Enumerate stable globals declared by the standalone core runtime.
@@ -266,16 +267,20 @@
      ,@core-runtime-symbol-constant-declaration-forms
      ,@singleton-global-forms
      ,@symbol-table-global-forms
+     ,@keyword-table-global-forms
      ,@thread-current-core-global-forms
      ,core-runtime-string-constant-converter-form
      ,@(symbol-table-core-runtime-helper-forms)
+     ,@(keyword-table-core-runtime-helper-forms)
      ,core-runtime-symbol-constant-converter-form
      (func $initialize-core-runtime!
            ,@core-runtime-string-constant-initializer-forms
            (call $initialize-the-symbol-table)
+           (call $initialize-the-keyword-table)
            ,@core-runtime-symbol-constant-initializer-forms)
      (start $initialize-core-runtime!)
      (export "global:$the-symbol-table" (global $the-symbol-table))
+     (export "global:$the-keyword-table" (global $the-keyword-table))
      ,@(core-runtime-helper-forms core-runtime-helpers #:export? #t)))
 
 (module+ test
@@ -802,6 +807,7 @@
   (check-true (hash-has-key? core-runtime-global-name-set '$string:empty))
   (check-true (hash-has-key? core-runtime-global-name-set '$symbol:racket))
   (check-true (hash-has-key? core-runtime-global-name-set '$the-symbol-table))
+  (check-true (hash-has-key? core-runtime-global-name-set '$the-keyword-table))
   (check-true (for/or ([form (in-list shared-types)])
                 (type-form-named? '$Array form)))
   (check-true (for/or ([form (in-list shared-types)])
@@ -922,8 +928,14 @@
   (check-true (for/or ([form (in-list core-forms)])
                 (global-form-named? '$the-symbol-table form)))
   (check-true (for/or ([form (in-list core-forms)])
+                (global-form-named? '$the-keyword-table form)))
+  (check-true (for/or ([form (in-list core-forms)])
                 (global-export-form-named? "global:$the-symbol-table"
                                            '$the-symbol-table
+                                           form)))
+  (check-true (for/or ([form (in-list core-forms)])
+                (global-export-form-named? "global:$the-keyword-table"
+                                           '$the-keyword-table
                                            form)))
   (check-not-false (member '(start $initialize-core-runtime!) core-forms))
   (define string-converter-functions
