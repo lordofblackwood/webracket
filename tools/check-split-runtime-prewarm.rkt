@@ -43,6 +43,7 @@
 (define suite? #f)
 (define keep-temp? #f)
 (define force-prewarm? #f)
+(define core-only? #f)
 
 ;; resolve-source-path : string? -> path?
 ;;   Resolve a user-provided source path relative to the repository root.
@@ -74,6 +75,9 @@
  [("--force-prewarm")
   "Force refresh of the staged provider/runtime cache during prewarm."
   (set! force-prewarm? #t)]
+ [("--split-runtime-core-only")
+  "Use the core-helper-only split runtime strategy for prewarm and compile."
+  (set! core-only? #t)]
  [("--keep-temp")
   "Keep the temporary check directory after a successful run."
   (set! keep-temp? #t)]
@@ -248,15 +252,19 @@ RKT
     (build-path dest-root (format "~a-~a" index case-name)))
   (make-directory* dest-dir)
   (define compile-args
-    (list "-S" "pkgs" "webracket.rkt"
-          "--node" "--run" "--timings"
-          "--split-runtime"
-          "--split-runtime-cache-reference"
-          "--no-stdlib"
-          "--provider-cache-dir" (path->string provider-cache)
-          "--runtime-provider-cache-dir" (path->string runtime-cache)
-          "--dest" (path->string dest-dir)
-          (path->string (check-case-source case))))
+    (append
+     (list "-S" "pkgs" "webracket.rkt"
+           "--node" "--run" "--timings"
+           "--split-runtime"
+           "--split-runtime-cache-reference"
+           "--no-stdlib")
+     (if core-only?
+         '("--split-runtime-core-only")
+         '())
+     (list "--provider-cache-dir" (path->string provider-cache)
+           "--runtime-provider-cache-dir" (path->string runtime-cache)
+           "--dest" (path->string dest-dir)
+           (path->string (check-case-source case)))))
   (define compile-result
     (run-command/capture repo-root racket-exe compile-args))
   (define compile-log
@@ -362,6 +370,9 @@ RKT
            "--provider-cache-dir" (path->string provider-cache)
            "--runtime-provider-cache-dir" (path->string runtime-cache)
            "--mode" "split-runtime")
+     (if core-only?
+         '("--split-runtime-core-only")
+         '())
      (if force-prewarm? '("--force") '())))
   (define prewarm-result
     (run-command/capture repo-root racket-exe prewarm-args))

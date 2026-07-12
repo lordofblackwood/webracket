@@ -45,6 +45,7 @@
 (define force-prewarm? #f)
 (define shared-runtime-url? #f)
 (define shared-runtime-url "runtime.wasm")
+(define core-only? #f)
 (define node-command "node")
 (define node-modules #f)
 (define chrome-executable #f)
@@ -91,6 +92,9 @@
  [("--shared-runtime-url")
   "Compile with --split-runtime-core-url runtime.wasm and verify no per-program sidecar is produced."
   (set! shared-runtime-url? #t)]
+ [("--split-runtime-core-only")
+  "Use the core-helper-only split runtime strategy for prewarm and compile."
+  (set! core-only? #t)]
  [("--keep-temp")
   "Keep the temporary check directory after a successful run."
   (set! keep-temp? #t)]
@@ -384,6 +388,35 @@ async function waitForConsoleMatch(consoleEntries, pageErrors, requestFailures, 
   });
 }
 
+async function waitForRequiredFetches(fetchedNames, pageErrors, requestFailures, requiredNames, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    if (requestFailures.length > 0) {
+      fail("request-failed", "browser request failed", {
+        requestFailures: requestFailures.join("\n"),
+      });
+    }
+    if (pageErrors.length > 0) {
+      fail("page-error", "browser page raised an error", {
+        pageErrors: pageErrors.join("\n"),
+      });
+    }
+
+    const fetched = new Set(fetchedNames);
+    const missing = requiredNames.filter((name) => !fetched.has(name));
+    if (missing.length === 0) {
+      return;
+    }
+    await sleep(100);
+  }
+
+  fail("missing-fetch", "generated page did not fetch an expected artifact", {
+    requiredNames: requiredNames.join(","),
+    fetched: Array.from(new Set(fetchedNames)).sort().join(","),
+  });
+}
+
 async function main() {
   const timeoutMs = Number.isFinite(config.timeoutMs) ? config.timeoutMs : 45000;
   const { pkg: playwrightPkg, from: playwrightFrom } = await importPlaywright();
@@ -442,6 +475,11 @@ async function main() {
                               requestFailures,
                               config.expectedOutput || null,
                               timeoutMs);
+    await waitForRequiredFetches(fetchedNames,
+                                 pageErrors,
+                                 requestFailures,
+                                 [config.htmlName, config.programWasmName, config.runtimeWasmName],
+                                 timeoutMs);
     await page.close();
   } catch (err) {
     fail("browser-run-failed",
@@ -612,6 +650,7 @@ JS
           (if shared-runtime-url?
               (format "shared url (~a)" shared-runtime-url)
               "sidecar"))
+  (printf "  split mode:    ~a\n" (if core-only? "core-only" "classified"))
   (printf "  node:          ~a\n" (path->string node-path))
   (printf "  node_modules:  ~a\n" node-modules)
   (printf "  chrome:        ~a\n\n" (if (string=? chrome-executable "")
@@ -627,6 +666,9 @@ JS
            "--runtime-provider-cache-dir" (path->string runtime-cache)
            "--mode" "split-runtime"
            "--host" "browser")
+     (if core-only?
+         '("--split-runtime-core-only")
+         '())
      (if shared-runtime-url?
          (list "--runtime-wasm-out" (path->string shared-runtime-wasm))
          '())
@@ -653,6 +695,9 @@ JS
            "--runtime-provider-cache-dir" (path->string runtime-cache))
      (if shared-runtime-url?
          (list "--split-runtime-core-url" shared-runtime-url)
+         '())
+     (if core-only?
+         '("--split-runtime-core-only")
          '())
      (list "--dest" (path->string dest-dir)
            (path->string source-file))))

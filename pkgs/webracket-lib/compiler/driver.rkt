@@ -71,6 +71,8 @@
                   split-runtime-modules-program)
          (only-in "runtime-wasm/module-forms.rkt"
                   module-write-sha1)
+         (only-in "runtime-wasm/runtime-source.rkt"
+                  runtime-source-fingerprint)
          (only-in racket/list       append* append-map remove-duplicates second take)
          (only-in racket/match      match)
          (only-in racket/set list->seteq)
@@ -3083,6 +3085,7 @@
          #:split-runtime?    [split-runtime? #f]
          #:split-runtime-cache-reference? [split-runtime-cache-reference? #f]
          #:split-runtime-core-url [split-runtime-core-url #f]
+         #:split-runtime-core-only? [split-runtime-core-only? #f]
          ;; Program Debug
          #:print-top-level-results? print-top-level-results?
          #:internal-bind-treelist-debug-shape? internal-bind-treelist-debug-shape?
@@ -3390,6 +3393,9 @@
   (when (and split-runtime-core-url split-runtime-cache-reference?)
     (error 'drive-compilation
            "`--split-runtime-core-url` cannot be combined with `--split-runtime-cache-reference`"))
+  (when (and split-runtime-core-only? (not split-runtime?))
+    (error 'drive-compilation
+           "`--split-runtime-core-only` requires `--split-runtime`"))
 
   ; Preflight: `-r` in Node mode requires a Node.js executable.
   (when (and node? run-after?)
@@ -3467,7 +3473,8 @@
                       internal-bind-immutable-hash-debug-shape?]
                      [current-provider-owned-primitive-aliases
                       provider-owned-primitive-aliases]
-                     [current-split-runtime? split-runtime?])
+                     [current-split-runtime?
+                      (and split-runtime? (not split-runtime-core-only?))])
         (comp stx-with-stdlib))))
   (define t-compile-end (now-ms))
 
@@ -3475,9 +3482,16 @@
   (define t-write-wat-start (now-ms))
   (define split-modules
     (and split-runtime?
-         (if (split-runtime-modules? compiled-module)
+         (if (and (not split-runtime-core-only?)
+                  (split-runtime-modules? compiled-module))
              compiled-module
-             (split-core-runtime-module compiled-module #:require-all? #f))))
+             (split-core-runtime-module
+              compiled-module
+              #:require-all? #f
+              #:core-cache-key
+              `(split-runtime-core-only-cache
+                1
+                ,(runtime-source-fingerprint))))))
   (define program-wat
     (if split-runtime?
         (split-runtime-modules-program split-modules)

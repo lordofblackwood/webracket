@@ -863,13 +863,14 @@
 ;; split-core-runtime-module :
 ;;   datum? [#:helpers (listof core-runtime-helper?)]
 ;;          [#:require-all? boolean?] [#:import-module string?]
-;;          [#:core-module datum?] -> split-runtime-modules?
+;;          [#:core-module datum?] [#:core-cache-key any/c] -> split-runtime-modules?
 ;;   Rewrite a full module so registered core helper definitions become imports.
 (define (split-core-runtime-module module
                                    #:helpers [helpers core-runtime-helpers]
                                    #:require-all? [require-all? #t]
                                    #:import-module [import-module-name "core"]
-                                   #:core-module [core-module (generate-core-runtime)])
+                                   #:core-module [core-module (generate-core-runtime)]
+                                   #:core-cache-key [core-cache-key #f])
   (define forms (module-forms module))
   (define names (helper-name-set helpers))
   (define counts (helper-definition-counts forms names))
@@ -890,7 +891,7 @@
    `(module ,@prefix ,@import-forms ,@rest)
    (map core-runtime-helper-name selected-helpers)
    import-forms
-   #f))
+   core-cache-key))
 
 ;; split-classified-runtime-forms :
 ;;   (listof datum?) (listof datum?) [#:import-module string?] -> split-runtime-modules?

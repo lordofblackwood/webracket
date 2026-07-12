@@ -49,6 +49,7 @@
    split-runtime?                         ; emit an experimental core-runtime/program Wasm split
    split-runtime-cache-reference?         ; Node split mode references cached runtime wasm directly
    split-runtime-core-url                  ; browser URL for a prewarmed split runtime wasm, or #f
+   split-runtime-core-only?                ; split only registered core-runtime helpers
    letrec-strategy                        ; letrec lowering strategy symbol
    print-top-level-results?               ; print top-level results for script-style runs
    internal-bind-treelist-debug-shape?    ; internal treelist shape debug hook
@@ -100,6 +101,7 @@
     (split-runtime? . ,(webracket-compile-config-split-runtime? cfg))
     (split-runtime-cache-reference? . ,(webracket-compile-config-split-runtime-cache-reference? cfg))
     (split-runtime-core-url . ,(webracket-compile-config-split-runtime-core-url cfg))
+    (split-runtime-core-only? . ,(webracket-compile-config-split-runtime-core-only? cfg))
     (letrec-strategy . ,(webracket-compile-config-letrec-strategy cfg))
     (print-top-level-results? . ,(webracket-compile-config-print-top-level-results? cfg))
     (internal-bind-treelist-debug-shape? . ,(webracket-compile-config-internal-bind-treelist-debug-shape? cfg))
@@ -158,6 +160,7 @@
    (ref/default 'split-runtime? #f)
    (ref/default 'split-runtime-cache-reference? #f)
    (ref/default 'split-runtime-core-url #f)
+   (ref/default 'split-runtime-core-only? #f)
    (ref 'letrec-strategy)
    (ref 'print-top-level-results?)
    (ref 'internal-bind-treelist-debug-shape?)
@@ -209,6 +212,7 @@
   (define split-runtime? #f)
   (define split-runtime-cache-reference? #f)
   (define split-runtime-core-url #f)
+  (define split-runtime-core-only? #f)
   (define letrec-strategy 'waddell)
   (define print-top-level-results? #f)
   (define internal-bind-treelist-debug-shape? #f)
@@ -408,6 +412,12 @@
      [("--no-split-runtime-core-url")
       "Materialize the browser split runtime wasm sidecar next to the program output (default)"
       (set! split-runtime-core-url #f)]
+     [("--split-runtime-core-only")
+      "Split only registered core-runtime helpers into the shared runtime module"
+      (set! split-runtime-core-only? #t)]
+     [("--no-split-runtime-core-only")
+      "Use the classified runtime/program split strategy (default)"
+      (set! split-runtime-core-only? #f)]
      [("--letrec-basic") "Use the basic letrec lowering strategy"
                          (set! letrec-strategy 'basic)]
      [("--letrec-waddell") "Use the Waddell letrec lowering strategy"
@@ -567,6 +577,7 @@
        split-runtime?
        split-runtime-cache-reference?
        split-runtime-core-url
+       split-runtime-core-only?
        letrec-strategy
        print-top-level-results?
        internal-bind-treelist-debug-shape?
@@ -632,6 +643,8 @@
                        (webracket-compile-config-split-runtime-cache-reference? cfg)
                        #:split-runtime-core-url
                        (webracket-compile-config-split-runtime-core-url cfg)
+                       #:split-runtime-core-only?
+                       (webracket-compile-config-split-runtime-core-only? cfg)
                        #:print-top-level-results? (webracket-compile-config-print-top-level-results? cfg)
                        #:internal-bind-treelist-debug-shape?
                        (webracket-compile-config-internal-bind-treelist-debug-shape? cfg)

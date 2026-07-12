@@ -222,6 +222,15 @@ racket -S pkgs tools/check-split-runtime-prewarm.rkt \
   --reject '#f'
 ```
 
+Use `--split-runtime-core-only` to check the helper-only split strategy, where
+only registered core-runtime helpers move into the shared runtime module and the
+rest of the program/provider graph stays in the program module:
+
+```sh
+racket -S pkgs tools/check-split-runtime-prewarm.rkt \
+  --split-runtime-core-only
+```
+
 The same representative check is available as:
 
 ```sh
@@ -259,6 +268,19 @@ the generated page fetches a prewarmed shared `runtime.wasm` URL via
 ```sh
 racket -S pkgs tools/check-split-runtime-browser.rkt \
   --shared-runtime-url
+```
+
+Use `--split-runtime-core-only` with `--shared-runtime-url` to exercise a more
+stable compile-once boundary. For example, this compiles a larger browser
+module graph against the same helper-only `runtime.wasm` and validates that the
+browser fetches both Wasm modules:
+
+```sh
+racket -S pkgs tools/check-split-runtime-browser.rkt \
+  --shared-runtime-url \
+  --split-runtime-core-only \
+  --source test/test-racket-list-sort-smoke.rkt \
+  --no-expect
 ```
 
 The same guarded check is available as:

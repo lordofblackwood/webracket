@@ -91,9 +91,16 @@
     (make-directory* parent))
   (copy-file runtime-wasm out-path #t))
 
-;; prewarm-split-runtime! : path? path? symbol? boolean? boolean? (or/c path-string? #f) -> void?
+;; prewarm-split-runtime! :
+;;   path? path? symbol? boolean? boolean? boolean? (or/c path-string? #f) -> void?
 ;;   Populate the stable split-runtime wasm cache through the normal driver.
-(define (prewarm-split-runtime! cache-dir runtime-cache-dir host force? verbose? runtime-wasm-out)
+(define (prewarm-split-runtime! cache-dir
+                                runtime-cache-dir
+                                host
+                                force?
+                                verbose?
+                                core-only?
+                                runtime-wasm-out)
   (define work-dir
     (make-temporary-file "webracket-split-runtime-prewarm-~a" 'directory))
   (define source-path
@@ -132,6 +139,7 @@
        #:tree-shake-report #f
        #:split-runtime? #t
        #:split-runtime-cache-reference? (eq? host 'node)
+       #:split-runtime-core-only? core-only?
        #:print-top-level-results? #f
        #:internal-bind-treelist-debug-shape? #f
        #:internal-bind-immutable-hash-debug-shape? #f
@@ -167,7 +175,8 @@
   (delete-directory/files work-dir))
 
 ;; prewarm-staged-providers! :
-;;   path-string? path-string? symbol? symbol? boolean? boolean? (or/c path-string? #f) -> void?
+;;   path-string? path-string? symbol? symbol? boolean? boolean? boolean? (or/c path-string? #f)
+;;   -> void?
 ;;   Build staged provider artifacts into the selected provider-cache roots.
 (define (prewarm-staged-providers! provider-cache-dir
                                    runtime-provider-cache-dir
@@ -175,6 +184,7 @@
                                    host
                                    force?
                                    verbose?
+                                   core-only?
                                    runtime-wasm-out)
   (when (and runtime-wasm-out
              (not (eq? mode 'split-runtime)))
@@ -212,14 +222,16 @@
                                host
                                force?
                                verbose?
+                               core-only?
                                runtime-wasm-out)]
       [_
        (error 'prewarm-staged-providers!
               "unsupported mode: ~a"
               mode)]))
-  (printf "prewarmed caches: mode=~a host=~a cache=~a runtime-cache=~a~a\n"
+  (printf "prewarmed caches: mode=~a host=~a split=~a cache=~a runtime-cache=~a~a\n"
           mode
           host
+          (if core-only? 'core-only 'classified)
           cache-dir
           runtime-cache-dir
           (if runtime-wasm-out
@@ -269,6 +281,7 @@
   (define host 'node)
   (define force? #f)
   (define verbose? #f)
+  (define core-only? #f)
   (define runtime-wasm-out #f)
   (command-line
    #:program "prewarm-staged-providers.rkt"
@@ -288,6 +301,12 @@
    [("--runtime-wasm-out") path
     "After split-runtime prewarm, copy the cached runtime wasm to <path>."
     (set! runtime-wasm-out path)]
+   [("--split-runtime-core-only")
+    "Prewarm the split runtime using only registered core-runtime helpers."
+    (set! core-only? #t)]
+   [("--no-split-runtime-core-only")
+    "Prewarm the classified runtime/program split strategy (default)."
+    (set! core-only? #f)]
    [("--force")
     "Force staged provider cache refresh."
     (set! force? #t)]
@@ -300,4 +319,5 @@
                               host
                               force?
                               verbose?
+                              core-only?
                               runtime-wasm-out))
