@@ -182,6 +182,13 @@ Run:
 racket -S pkgs tools/check-split-runtime-prewarm.rkt
 ```
 
+Use `--suite` to run the selected source plus generated no-stdlib fixtures
+against the same prewarmed runtime cache:
+
+```sh
+racket -S pkgs tools/check-split-runtime-prewarm.rkt --suite
+```
+
 prewarm-staged-providers.rkt
 ----------------------------
 Prebuilds cache artifacts before an example compile needs them. Existing modes

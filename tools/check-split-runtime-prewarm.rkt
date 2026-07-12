@@ -38,6 +38,7 @@
 
 (define source-file default-source-file)
 (define expected-output-regexp #rx"(^|\n)42(\n|$)")
+(define suite? #f)
 (define keep-temp? #f)
 (define force-prewarm? #f)
 
@@ -62,6 +63,9 @@
  [("--no-expect")
   "Do not validate generated program output."
   (set! expected-output-regexp #f)]
+ [("--suite")
+  "Also run generated no-stdlib fixtures against the same prewarmed runtime cache."
+  (set! suite? #t)]
  [("--force-prewarm")
   "Force refresh of the staged provider/runtime cache during prewarm."
   (set! force-prewarm? #t)]
@@ -154,11 +158,132 @@
 (define (format-seconds ms)
   (~r (/ ms 1000.0) #:precision '(= 1)))
 
+;; check-case : string? path? (or/c regexp? #f) -> check-case?
+;;   One source program compiled against the prewarmed split runtime cache.
+(struct check-case (name source expect) #:transparent)
+
+;; safe-case-name : string? -> string?
+;;   Keep generated directories and logs readable.
+(define (safe-case-name s)
+  (regexp-replace* #rx"[^A-Za-z0-9_.-]" s "_"))
+
+;; source-case-name : path? -> string?
+;;   Derive a stable case name from a source path.
+(define (source-case-name source)
+  (safe-case-name
+   (path->string (path-replace-extension (file-name-from-path source) #""))))
+
+;; write-generated-case! : path-string? string? string? (or/c regexp? #f) -> check-case?
+;;   Write a generated suite source under `source-dir`.
+(define (write-generated-case! source-dir name body expect)
+  (define source
+    (build-path source-dir (format "~a.rkt" name)))
+  (call-with-output-file source
+    (lambda (out)
+      (display body out)
+      (unless (string-suffix? body "\n")
+        (newline out)))
+    #:exists 'truncate/replace)
+  (check-case name source expect))
+
+;; generated-suite-cases : path-string? (or/c regexp? #f) -> (listof check-case?)
+;;   Build small no-stdlib programs that exercise several program/runtime edges.
+(define (generated-suite-cases temp-root expect)
+  (define source-dir
+    (build-path temp-root "sources"))
+  (make-directory* source-dir)
+  (list
+   (write-generated-case!
+    source-dir
+    "mixed-values"
+    #<<RKT
+(let* ([f (lambda (p v . rest)
+            (if (string? (car rest))
+                (+ (car p) (vector-ref v 1))
+                0))]
+       [p (cons 40 0)]
+       [v (vector 0 2)])
+  (f p v "cached-runtime"))
+RKT
+    expect)
+   (write-generated-case!
+    source-dir
+    "vector-mutation"
+    #<<RKT
+(let ([v (vector 40 0)])
+  (vector-set! v 1 2)
+  (+ (vector-ref v 0) (vector-ref v 1)))
+RKT
+    expect)))
+
 ;; record-failure! : string? any/c ... -> void?
 ;;   Accumulate a formatted check failure.
 (define failures '())
 (define (record-failure! fmt . args)
   (set! failures (cons (apply format fmt args) failures)))
+
+;; compile-case! :
+;;   check-case? exact-positive-integer? path-string? path-string? path-string?
+;;   path-string? path-string? -> command-result?
+;;   Compile/run one source by directly referencing the prewarmed runtime wasm.
+(define (compile-case! case index racket-exe provider-cache runtime-cache dest-root temp-root)
+  (define case-name
+    (safe-case-name (check-case-name case)))
+  (define dest-dir
+    (build-path dest-root (format "~a-~a" index case-name)))
+  (make-directory* dest-dir)
+  (define compile-args
+    (list "-S" "pkgs" "webracket.rkt"
+          "--node" "--run" "--timings"
+          "--split-runtime"
+          "--split-runtime-cache-reference"
+          "--no-stdlib"
+          "--provider-cache-dir" (path->string provider-cache)
+          "--runtime-provider-cache-dir" (path->string runtime-cache)
+          "--dest" (path->string dest-dir)
+          (path->string (check-case-source case))))
+  (define compile-result
+    (run-command/capture repo-root racket-exe compile-args))
+  (define compile-log
+    (build-path temp-root (format "compile-~a-~a.log" index case-name)))
+  (write-log! compile-log racket-exe compile-args compile-result)
+
+  (unless (command-result-ok? compile-result)
+    (record-failure! "~a: compile/run command failed; see ~a"
+                     (check-case-name case)
+                     compile-log))
+  (when (and (check-case-expect case)
+             (not (regexp-match? (check-case-expect case)
+                                 (command-result-stdout compile-result))))
+    (record-failure! "~a: stdout did not match expected output regexp ~s"
+                     (check-case-name case)
+                     (check-case-expect case)))
+  (unless (transcript-contains? compile-result
+                                #rx"split-runtime-core:reference-wasm-hit")
+    (record-failure! "~a: did not report split-runtime-core:reference-wasm-hit"
+                     (check-case-name case)))
+  (when (transcript-contains? compile-result
+                              #rx"split-runtime-core:assemble-wasm")
+    (record-failure! "~a: assembled the split runtime instead of using the cache"
+                     (check-case-name case)))
+  (when (transcript-contains? compile-result
+                              #rx"split-runtime-core:materialize-wasm-hit")
+    (record-failure! "~a: materialized a runtime wasm sidecar instead of referencing cache"
+                     (check-case-name case)))
+
+  (define program-wasm
+    (generated-path dest-dir (check-case-source case) ".wasm"))
+  (define runtime-sidecar-wasm
+    (generated-path dest-dir (check-case-source case) ".runtime.wasm"))
+  (unless (file-exists? program-wasm)
+    (record-failure! "~a: did not produce program wasm: ~a"
+                     (check-case-name case)
+                     program-wasm))
+  (when (file-exists? runtime-sidecar-wasm)
+    (record-failure! "~a: cache-reference compile unexpectedly produced runtime sidecar: ~a"
+                     (check-case-name case)
+                     runtime-sidecar-wasm))
+  compile-result)
 
 
 ;;; Main Check
@@ -186,7 +311,20 @@
   (putenv "PLTCOMPILEDROOTS" (path->string compiled-root))
 
   (printf "Split runtime prewarm check\n")
-  (printf "  source:        ~a\n" (path->string source-file))
+  (define cases
+    (append
+     (list (check-case (source-case-name source-file)
+                       source-file
+                       expected-output-regexp))
+     (if suite?
+         (generated-suite-cases temp-root expected-output-regexp)
+         '())))
+
+  (printf "  sources:       ~a\n" (length cases))
+  (for ([case (in-list cases)])
+    (printf "    ~a: ~a\n"
+            (check-case-name case)
+            (path->string (check-case-source case))))
   (printf "  temp:          ~a\n" (path->string temp-root))
   (printf "  compiled root: ~a\n\n" (path->string compiled-root))
 
@@ -211,53 +349,25 @@
     (record-failure! "prewarm did not create a cached split-runtime wasm in ~a"
                      runtime-cache))
 
-  (define compile-args
-    (list "-S" "pkgs" "webracket.rkt"
-          "--node" "--run" "--timings"
-          "--split-runtime"
-          "--split-runtime-cache-reference"
-          "--no-stdlib"
-          "--provider-cache-dir" (path->string provider-cache)
-          "--runtime-provider-cache-dir" (path->string runtime-cache)
-          "--dest" (path->string dest-dir)
-          (path->string source-file)))
-  (define compile-result
-    (run-command/capture repo-root racket-exe compile-args))
-  (define compile-log (build-path temp-root "compile.log"))
-  (write-log! compile-log racket-exe compile-args compile-result)
-
-  (unless (command-result-ok? compile-result)
-    (record-failure! "compile/run command failed; see ~a" compile-log))
-  (when (and expected-output-regexp
-             (not (regexp-match? expected-output-regexp
-                                 (command-result-stdout compile-result))))
-    (record-failure! "compile/run stdout did not match expected output regexp ~s"
-                     expected-output-regexp))
-  (unless (transcript-contains? compile-result
-                                #rx"split-runtime-core:reference-wasm-hit")
-    (record-failure! "compile/run did not report split-runtime-core:reference-wasm-hit"))
-  (when (transcript-contains? compile-result
-                              #rx"split-runtime-core:assemble-wasm")
-    (record-failure! "compile/run assembled the split runtime instead of using the cache"))
-  (when (transcript-contains? compile-result
-                              #rx"split-runtime-core:materialize-wasm-hit")
-    (record-failure! "compile/run materialized a runtime wasm sidecar instead of referencing cache"))
-
-  (define program-wasm
-    (generated-path dest-dir source-file ".wasm"))
-  (define runtime-sidecar-wasm
-    (generated-path dest-dir source-file ".runtime.wasm"))
-  (unless (file-exists? program-wasm)
-    (record-failure! "compile/run did not produce program wasm: ~a" program-wasm))
-  (when (file-exists? runtime-sidecar-wasm)
-    (record-failure! "cache-reference compile unexpectedly produced runtime sidecar: ~a"
-                     runtime-sidecar-wasm))
+  (define compile-results
+    (for/list ([case (in-list cases)]
+               [index (in-naturals 1)])
+      (compile-case! case
+                     index
+                     racket-exe
+                     provider-cache
+                     runtime-cache
+                     dest-dir
+                     temp-root)))
 
   (cond
     [(null? failures)
-     (printf "ok: prewarm=~as compile/run=~as cached-runtime-wasms=~a\n"
+     (printf "ok: prewarm=~as compile/runs=[~a] cached-runtime-wasms=~a\n"
              (format-seconds (command-result-wall-ms prewarm-result))
-             (format-seconds (command-result-wall-ms compile-result))
+             (string-join
+              (for/list ([result (in-list compile-results)])
+                (format "~as" (format-seconds (command-result-wall-ms result))))
+              ", ")
              (length cached-wasms-after-prewarm))
      (when keep-temp?
        (printf "kept temp: ~a\n" (path->string temp-root)))
