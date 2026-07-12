@@ -3,6 +3,7 @@
 (provide hash-runtime-only-helpers
          hash-core-runtime-helpers
          hash-seed-global-forms
+         hash-seed-global-names
          hash-runtime-string-constants
          hash-runtime-symbol-constants
          hash-predicate-core-runtime-helper-forms
@@ -82,6 +83,16 @@
 (define hash-seed-global-forms
   '(
          (global $next-hash-state (mut i32) (i32.const 0x9e3779b9)))) ;; initial seed, can be randomized or fixed
+
+;; hash-seed-global-names : (listof symbol?)
+;;   Enumerate hash-code seed globals.
+(define hash-seed-global-names
+  (for/list ([form (in-list hash-seed-global-forms)])
+    (match form
+      [`(global ,name . ,_) name]
+      [_ (error 'hash-seed-global-names
+                "expected global form, got: ~s"
+                form)])))
 
 ;; hash-predicate-all-runtime-helper-names : (listof symbol?)
 ;;   Preserve the full runtime emission order for hash predicate helpers.
@@ -2961,6 +2972,9 @@
     (make-core-runtime-helper-index
      (append hash-core-runtime-helpers
              hash-runtime-only-helpers)))
+
+  (check-equal? hash-seed-global-names
+                '($next-hash-state))
 
   (check-equal?
    (map core-runtime-helper-name hash-core-runtime-helpers)

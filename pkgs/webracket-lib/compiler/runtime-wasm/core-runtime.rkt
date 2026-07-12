@@ -51,6 +51,7 @@
          "core/mutable-hashes.rkt"
          "core/numbers.rkt"
          "core/paths.rkt"
+         "core/ports.rkt"
          "core/procedures.rkt"
          "core/realms.rkt"
          "core/reflection.rkt"
@@ -262,6 +263,9 @@
    struct-property-identity-global-names
    procedure-global-names
    syntax-global-names
+   port-current-global-names
+   path-current-global-names
+   hash-seed-global-names
    exception-struct-type-cache-global-names))
 
 ;; core-runtime-program-import-tag-names : (listof symbol?)
@@ -339,6 +343,9 @@
      ,@struct-property-identity-global-forms
      ,@procedure-global-forms
      ,@syntax-global-forms
+     ,@port-current-global-forms
+     ,@path-current-global-forms
+     ,@hash-seed-global-forms
      ,@exception-struct-type-cache-global-forms
      ,@symbol-table-global-forms
      ,@keyword-table-global-forms
@@ -372,6 +379,12 @@
             procedure-global-names)
      ,@(map core-runtime-global-export-form
             syntax-global-names)
+     ,@(map core-runtime-global-export-form
+            port-current-global-names)
+     ,@(map core-runtime-global-export-form
+            path-current-global-names)
+     ,@(map core-runtime-global-export-form
+            hash-seed-global-names)
      ,@(map core-runtime-global-export-form
             exception-struct-type-cache-global-names)
      ,@(map core-runtime-tag-export-form
@@ -953,6 +966,9 @@
   (check-true (hash-has-key? core-runtime-global-name-set '$prop:checked-procedure))
   (check-true (hash-has-key? core-runtime-global-name-set '$arity-at-least-type))
   (check-true (hash-has-key? core-runtime-global-name-set '$syntax-type))
+  (check-true (hash-has-key? core-runtime-global-name-set '$current-output-port-value))
+  (check-true (hash-has-key? core-runtime-global-name-set '$system-path-convention))
+  (check-true (hash-has-key? core-runtime-global-name-set '$next-hash-state))
   (check-true (hash-has-key? core-runtime-global-name-set '$dummy-treelist-node))
   (check-true (hash-has-key? core-runtime-global-name-set '$empty-treelist))
   (check-true (hash-has-key? core-runtime-global-name-set '$treelist:BITS))
@@ -1058,6 +1074,20 @@
                  core-runtime-global-name-set)
                 '())
   (check-equal? (core-runtime-helper-dependency-problems
+                 '(func $ok (result (ref eq))
+                        (global.get $current-output-port-value))
+                 core-helper-names
+                 shared-type-names
+                 core-runtime-global-name-set)
+                '())
+  (check-equal? (core-runtime-helper-dependency-problems
+                 '(func $ok (result i32)
+                        (global.get $next-hash-state))
+                 core-helper-names
+                 shared-type-names
+                 core-runtime-global-name-set)
+                '())
+  (check-equal? (core-runtime-helper-dependency-problems
                  '(func $bad (param (ref eq)) (result i32)
                         (call $other (local.get $v)))
                  core-helper-names
@@ -1124,6 +1154,12 @@
   (check-true (for/or ([form (in-list core-forms)])
                 (global-form-named? '$syntax-type form)))
   (check-true (for/or ([form (in-list core-forms)])
+                (global-form-named? '$current-output-port-value form)))
+  (check-true (for/or ([form (in-list core-forms)])
+                (global-form-named? '$system-path-convention form)))
+  (check-true (for/or ([form (in-list core-forms)])
+                (global-form-named? '$next-hash-state form)))
+  (check-true (for/or ([form (in-list core-forms)])
                 (tag-form-named? '$exn form)))
   (check-true (for/or ([form (in-list core-forms)])
                 (global-form-named? '$the-symbol-table form)))
@@ -1184,6 +1220,18 @@
   (check-true (for/or ([form (in-list core-forms)])
                 (global-export-form-named? "global:$syntax-type"
                                            '$syntax-type
+                                           form)))
+  (check-true (for/or ([form (in-list core-forms)])
+                (global-export-form-named? "global:$current-output-port-value"
+                                           '$current-output-port-value
+                                           form)))
+  (check-true (for/or ([form (in-list core-forms)])
+                (global-export-form-named? "global:$system-path-convention"
+                                           '$system-path-convention
+                                           form)))
+  (check-true (for/or ([form (in-list core-forms)])
+                (global-export-form-named? "global:$next-hash-state"
+                                           '$next-hash-state
                                            form)))
   (check-true (for/or ([form (in-list core-forms)])
                 (tag-export-form-named? "tag:$exn" '$exn form)))

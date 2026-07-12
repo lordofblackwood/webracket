@@ -16,6 +16,7 @@
          port-call-with-output-string-runtime-helper-forms
          port-input-runtime-helper-forms
          port-current-global-forms
+         port-current-global-names
          port-output-runtime-helper-forms
          port-runtime-only-helpers)
 
@@ -131,6 +132,16 @@
                (global $current-input-port-value  (mut (ref eq)) (ref.i31 (i32.const 0)))
                (global $current-output-port-value (mut (ref eq)) (ref.i31 (i32.const 0)))
                (global $current-error-port-value  (mut (ref eq)) (ref.i31 (i32.const 0)))))
+
+;; port-current-global-names : (listof symbol?)
+;;   Enumerate current input, output, and error port globals.
+(define port-current-global-names
+  (for/list ([form (in-list port-current-global-forms)])
+    (match form
+      [`(global ,name . ,_) name]
+      [_ (error 'port-current-global-names
+                "expected global form, got: ~s"
+                form)])))
 
 ;; port-predicate-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for port predicate and wrapper helpers.
@@ -5197,6 +5208,11 @@
 
   (define port-helper-index
     (make-core-runtime-helper-index port-runtime-only-helpers))
+
+  (check-equal? port-current-global-names
+                '($current-input-port-value
+                  $current-output-port-value
+                  $current-error-port-value))
 
   (check-equal?
    (map form-name (port-predicate-runtime-helper-forms port-helper-index))

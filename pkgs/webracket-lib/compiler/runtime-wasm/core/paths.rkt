@@ -1,6 +1,7 @@
 #lang racket
 
 (provide path-current-global-forms
+         path-current-global-names
          path-current-initializer-forms
          path-display-formatting-runtime-string-constants
          path-display-formatting-runtime-only-forms
@@ -104,6 +105,16 @@
                (global $current-directory-path   (mut (ref eq)) (ref.i31 (i32.const 0)))
                (global $current-directory-for-user-path (mut (ref eq)) (ref.i31 (i32.const 0)))
                (global $current-load-relative-directory-path (mut (ref eq)) (global.get $false))))
+
+;; path-current-global-names : (listof symbol?)
+;;   Enumerate path convention and current-directory globals.
+(define path-current-global-names
+  (for/list ([form (in-list path-current-global-forms)])
+    (match form
+      [`(global ,name . ,_) name]
+      [_ (error 'path-current-global-names
+                "expected global form, got: ~s"
+                form)])))
 
 ;; path-current-initializer-forms : (listof datum?)
 ;;   Initialize path convention and current-directory path state.
@@ -3265,6 +3276,12 @@
 
   (define path-core-helper-index
     (make-core-runtime-helper-index path-core-runtime-helpers))
+
+  (check-equal? path-current-global-names
+                '($system-path-convention
+                  $current-directory-path
+                  $current-directory-for-user-path
+                  $current-load-relative-directory-path))
 
   (check-equal?
    (map core-runtime-helper-name path-core-runtime-helpers)

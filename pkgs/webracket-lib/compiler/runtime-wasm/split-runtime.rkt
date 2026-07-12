@@ -2025,6 +2025,66 @@
      (for/or ([form (in-list core-type-cache-import-program-forms)])
        (form-contains-global-set? name form))))
 
+  (define core-state-cell-import-split
+    (split-core-runtime-module
+     `(module
+        (global $current-output-port-value
+                (mut (ref eq))
+                (ref.i31 (i32.const 0)))
+        (global $system-path-convention
+                (mut (ref eq))
+                (ref.i31 (i32.const 0)))
+        (global $next-hash-state
+                (mut i32)
+                (i32.const 0x9e3779b9))
+        (func $initialize-state-cells
+              (global.set $current-output-port-value (ref.i31 (i32.const 2)))
+              (global.set $system-path-convention (ref.i31 (i32.const 4)))
+              (global.set $next-hash-state (i32.const 1)))
+        (func $entry
+              (export "entry")
+              (result i32)
+              (call $initialize-state-cells)
+              (global.get $next-hash-state)))
+     #:helpers '()))
+  (define core-state-cell-import-program-forms
+    (module-forms (split-runtime-modules-program
+                   core-state-cell-import-split)))
+  (for ([name (in-list '($current-output-port-value
+                         $system-path-convention))])
+    (check-not-false
+     (member name
+             (split-runtime-modules-imported-names
+              core-state-cell-import-split)))
+    (check-not-false
+     (member `(global ,name
+                      (import "core" ,(runtime-global-export-name name))
+                      (mut (ref eq)))
+             core-state-cell-import-program-forms))
+    (check-false
+     (for/or ([form (in-list core-state-cell-import-program-forms)])
+       (and (global-definition-form? form)
+            (eq? (module-global-name form) name))))
+    (check-not-false
+     (for/or ([form (in-list core-state-cell-import-program-forms)])
+       (form-contains-global-set? name form))))
+  (check-not-false
+   (member '$next-hash-state
+           (split-runtime-modules-imported-names
+            core-state-cell-import-split)))
+  (check-not-false
+   (member `(global $next-hash-state
+                    (import "core" ,(runtime-global-export-name '$next-hash-state))
+                    (mut i32))
+           core-state-cell-import-program-forms))
+  (check-false
+   (for/or ([form (in-list core-state-cell-import-program-forms)])
+     (and (global-definition-form? form)
+          (eq? (module-global-name form) '$next-hash-state))))
+  (check-not-false
+   (for/or ([form (in-list core-state-cell-import-program-forms)])
+     (form-contains-global-set? '$next-hash-state form)))
+
   (define intern-table-import-split
     (split-core-runtime-module
      `(module
