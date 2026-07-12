@@ -4574,7 +4574,18 @@
     $string-ref/checked
     $string-ref/checked/i32
     $string-split:matches?
+    $string-split:trim-left
+    $string-split:trim-right
+    $string-split:find-match
+    $string-split:skip-repeats
+    $string=?/2
+    $string=?/i32
     $string=?/i32/checked
+    $string<?/2
+    $string<=?/2
+    $string>?/2
+    $string>=?/2
+    $string</i32
     $string</i32/checked
     $string-take/checked
     $string-take-right/checked
