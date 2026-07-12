@@ -3,10 +3,11 @@
 ;;; Prewarm Staged Providers
 ;;;
 
-;; This tool builds staged provider artifacts into a WebRacket provider cache
-;; before an example compile needs them. It is mainly used for expensive staged
-;; providers such as regexp support and `expander/read`, where prewarming moves
-;; the cold demodularization cost out of the normal compile path.
+;; This tool builds cache artifacts before an example compile needs them. It is
+;; mainly used for expensive staged providers such as regexp support and
+;; `expander/read`, and for the experimental split-runtime core wasm cache.
+;; Prewarming moves cold demodularization/runtime assembly cost out of the
+;; normal compile path.
 ;;
 ;; Invoke it with the Racket toolchain and cache directories you plan to use for
 ;; the later compile:
@@ -16,31 +17,39 @@
 ;;     --runtime-provider-cache-dir path/to/runtime-provider-cache \
 ;;     --mode read
 ;;
-;; It prints the prewarmed mode and cache path. The selected provider artifacts
-;; are written into the cache, and repeated runs reuse the existing artifacts
-;; unless `--force` is supplied.
+;; It prints the prewarmed mode and cache path. The selected artifacts are
+;; written into the cache, and repeated runs reuse the existing artifacts unless
+;; `--force` is supplied.
 
 
 ;;; Imports
 
-;; The tool reuses the compiler driver's staged-provider entry points so the
-;; prewarmed artifacts exactly match what normal WebRacket compilation expects.
+;; The tool reuses the compiler driver's staged-provider and compilation entry
+;; points so the prewarmed artifacts exactly match what normal WebRacket
+;; compilation expects.
 
 (require racket/cmdline
          racket/file
          racket/format
          racket/match
          racket/path
+         racket/port
+         racket/runtime-path
          "../pkgs/webracket-lib/compiler/driver.rkt"
          (only-in "../pkgs/webracket-lib/compiler/private/parameters.rkt"
                   current-runtime-cache-dir))
 
+(define-runtime-path repo-dir "..")
+(define repo-root
+  (simplify-path repo-dir))
+
 
 ;;; Provider Prewarming
 
-;; This section drives the staged provider builders under the requested cache
-;; settings. The modes mirror the practical compile needs: regexp alone, read
-;; plus its regexp dependency, or all currently known staged providers.
+;; This section drives staged provider builders and split-runtime prebuilds
+;; under the requested cache settings. The modes mirror the practical compile
+;; needs: regexp alone, read plus its regexp dependency, split-runtime core
+;; wasm, or all currently known staged providers.
 
 ;; cache-dir->complete-path : path-string? -> path?
 ;;   Normalize a cache root argument to an absolute path.
@@ -50,6 +59,86 @@
         dir
         (string->path dir)))
   (path->complete-path p))
+
+;; prewarm-split-runtime! : path? path? boolean? boolean? -> void?
+;;   Populate the stable split-runtime wasm cache through the normal driver.
+(define (prewarm-split-runtime! cache-dir runtime-cache-dir force? verbose?)
+  (define work-dir
+    (make-temporary-file "webracket-split-runtime-prewarm-~a" 'directory))
+  (define source-path
+    (build-path work-dir "split-runtime-prewarm.rkt"))
+  (define dest-dir
+    (build-path work-dir "out"))
+  (call-with-output-file source-path
+    (lambda (out)
+      (displayln "(void)" out))
+    #:exists 'truncate/replace)
+  (make-directory* dest-dir)
+  (define-values (exit-code _compile-timings)
+    (parameterize ([current-directory repo-root]
+                   [current-output-port (open-output-nowhere)])
+      (drive-compilation
+       #:filename source-path
+       #:wat-filename #f
+       #:wasm-filename #f
+       #:host-filename #f
+       #:dest-dir dest-dir
+       #:label-map-forms? #f
+       #:dump-passes-dir #f
+       #:dump-passes-limit #f
+       #:timings? #f
+       #:alpha-rename-profile? #f
+       #:simplify-profile? #f
+       #:pretty-wat? #f
+       #:verbose? verbose?
+       #:browser? #f
+       #:node? #t
+       #:letrec-strategy 'waddell
+       #:enable-cc-analysis? #f
+       #:enable-simplify? #f
+       #:module-bridge-elide-public-cells? #f
+       #:tree-shake? #t
+       #:tree-shake-report #f
+       #:split-runtime? #t
+       #:split-runtime-cache-reference? #t
+       #:print-top-level-results? #f
+       #:internal-bind-treelist-debug-shape? #f
+       #:internal-bind-immutable-hash-debug-shape? #f
+       #:console-bridge? #f
+       #:vfs-preloads '()
+       #:vfs-mounts '()
+       #:run-after? #t
+       #:exec-path-from-shell? #t
+       #:ffi-files '()
+       #:stdlib? #f
+       #:stdlib-io-format-provider? #f
+       #:expander-read-provider? #f
+       #:expander-read-syntax-provider? #f
+       #:webracket-module-bridge? #f
+       #:provider-substitutions? #t
+       #:provider-cache-dir cache-dir
+       #:runtime-provider-cache-dir runtime-cache-dir
+       #:clear-provider-cache? #f
+       #:clear-runtime-provider-cache? #f
+       #:force-provider-cache-refresh? force?)))
+  (unless (zero? exit-code)
+    (error 'prewarm-split-runtime!
+           "split-runtime prewarm compile exited with code ~a"
+           exit-code))
+  (define (runtime-cache-wasm-file? p)
+    (and (file-exists? p)
+         (equal? (path-get-extension p) #".wasm")
+         (not (regexp-match? #rx"^\\.LOCK"
+                             (path->string (file-name-from-path p))))))
+  (define runtime-cache-files
+    (find-files
+     runtime-cache-wasm-file?
+     (build-path runtime-cache-dir "split-runtime-core-v3")))
+  (when (null? runtime-cache-files)
+    (error 'prewarm-split-runtime!
+           "split-runtime prewarm did not create a cached runtime wasm in ~a"
+           runtime-cache-dir))
+  (delete-directory/files work-dir))
 
 ;; prewarm-staged-providers! : path-string? path-string? symbol? boolean? boolean? -> void?
 ;;   Build staged provider artifacts into the selected provider-cache roots.
@@ -80,11 +169,16 @@
                               #:owner 'prewarm-expander-read)
        (read-provider-forms #:public-aliases? #t
                             #:owner 'prewarm-expander-read)]
+      ['split-runtime
+       (prewarm-split-runtime! cache-dir
+                               runtime-cache-dir
+                               force?
+                               verbose?)]
       [_
        (error 'prewarm-staged-providers!
               "unsupported mode: ~a"
               mode)]))
-  (printf "prewarmed staged providers: mode=~a cache=~a runtime-cache=~a\n"
+  (printf "prewarmed caches: mode=~a cache=~a runtime-cache=~a\n"
           mode
           cache-dir
           runtime-cache-dir))
@@ -100,10 +194,10 @@
 (define (parse-mode s)
   (define mode
     (string->symbol s))
-  (unless (memq mode '(regexp read all))
+  (unless (memq mode '(regexp read all split-runtime))
     (raise-user-error
      'prewarm-staged-providers
-     (format "expected mode regexp, read, or all; got ~a" s)))
+     (format "expected mode regexp, read, split-runtime, or all; got ~a" s)))
   mode)
 
 
@@ -129,7 +223,7 @@
     "Write stable runtime-provider artifacts to <dir>."
     (set! runtime-provider-cache-dir dir)]
    [("--mode") which
-    "Prewarm one of: regexp, read, all."
+    "Prewarm one of: regexp, read, split-runtime, all."
     (set! mode (parse-mode which))]
    [("--force")
     "Force staged provider cache refresh."

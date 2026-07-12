@@ -168,6 +168,23 @@ Use `--include-cache-reference` to also measure Node output generated with
 `--split-runtime-cache-reference`, where warm runs read the cached runtime wasm
 directly instead of materializing a sidecar next to the program.
 
+prewarm-staged-providers.rkt
+----------------------------
+Prebuilds cache artifacts before an example compile needs them. Existing modes
+prewarm staged provider artifacts such as regexp and expander/read. The
+`split-runtime` mode compiles and runs a tiny no-stdlib split-runtime program
+through the normal driver so the stable runtime wasm is already in the runtime
+provider cache before a real user program compile.
+
+Run:
+
+```sh
+racket -S pkgs tools/prewarm-staged-providers.rkt \
+  --provider-cache-dir /tmp/webracket-provider-cache \
+  --runtime-provider-cache-dir /tmp/webracket-runtime-cache \
+  --mode split-runtime
+```
+
 fetch-html-element-attributes.mjs
 ---------------------------------
 Generator for a machine-readable HTML element/attribute snapshot.
