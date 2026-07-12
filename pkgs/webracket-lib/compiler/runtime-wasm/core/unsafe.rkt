@@ -1,6 +1,7 @@
 #lang racket
 
-(provide unsafe-runtime-only-helpers
+(provide unsafe-core-runtime-helpers
+         unsafe-runtime-only-helpers
          unsafe-runtime-helper-names
          unsafe-runtime-helper-forms)
 
@@ -60,9 +61,9 @@
     $unsafe-bytes-ref
     $unsafe-bytes-set!))
 
-;; unsafe-runtime-only-helper-names : (listof symbol?)
-;;   Name the unsafe operation helpers implemented in this module.
-(define unsafe-runtime-only-helper-names
+;; unsafe-core-runtime-helper-names : (listof symbol?)
+;;   Name unsafe operation helpers available in the standalone core runtime.
+(define unsafe-core-runtime-helper-names
   '($unsafe-fx+/2
     $unsafe-fx+
     $unsafe-fx-
@@ -80,8 +81,6 @@
     $unsafe-fx-/wraparound
     $unsafe-car
     $unsafe-cdr
-    $unsafe-struct?
-    $unsafe-sealed-struct?
     $unsafe-struct-ref
     $unsafe-struct*-ref
     $unsafe-vector-ref
@@ -90,12 +89,6 @@
     $unsafe-vector*-length
     $unsafe-vector-set!
     $unsafe-vector*-set!
-    $unsafe-stencil-vector
-    $unsafe-stencil-vector-length
-    $unsafe-stencil-vector-mask
-    $unsafe-stencil-vector-ref
-    $unsafe-stencil-vector-set!
-    $unsafe-stencil-vector-update
     $unsafe-struct-set!
     $unsafe-struct*-set!
     $unsafe-struct*-cas!
@@ -103,6 +96,18 @@
     $unsafe-bytes-length
     $unsafe-bytes-ref
     $unsafe-bytes-set!))
+
+;; unsafe-runtime-only-helper-names : (listof symbol?)
+;;   Name unsafe helpers that still depend on non-core runtime helpers.
+(define unsafe-runtime-only-helper-names
+  '($unsafe-struct?
+    $unsafe-sealed-struct?
+    $unsafe-stencil-vector
+    $unsafe-stencil-vector-length
+    $unsafe-stencil-vector-mask
+    $unsafe-stencil-vector-ref
+    $unsafe-stencil-vector-set!
+    $unsafe-stencil-vector-update))
 
 ;; unsafe-runtime-only-forms : (listof datum?)
 ;;   Enumerate unsafe operation helpers implemented in this module.
@@ -749,10 +754,27 @@
 
     ))
 
+(define (unsafe-helper-forms names)
+  (define name-set
+    (for/hasheq ([name (in-list names)])
+      (values name #t)))
+  (for/list ([form (in-list unsafe-runtime-only-forms)]
+             #:when (hash-ref name-set (second form) #f))
+    form))
+
+;; unsafe-core-runtime-helpers : (listof core-runtime-helper?)
+;;   Enumerate unsafe helpers available in the standalone core runtime.
+(define unsafe-core-runtime-helpers
+  (function-forms->runtime-helpers
+   'unsafe-core-runtime-helpers
+   (unsafe-helper-forms unsafe-core-runtime-helper-names)))
+
+;; unsafe-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate unsafe helpers that still need the monolithic runtime.
 (define unsafe-runtime-only-helpers
   (function-forms->runtime-helpers
    'unsafe-runtime-only-helpers
-   unsafe-runtime-only-forms))
+   (unsafe-helper-forms unsafe-runtime-only-helper-names)))
 
 ;; unsafe-runtime-helper-forms : hasheq? -> (listof datum?)
 ;;   Render unsafe operation helpers in runtime assembly order.

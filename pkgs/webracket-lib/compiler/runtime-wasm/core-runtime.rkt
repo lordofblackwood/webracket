@@ -2,6 +2,8 @@
 
 (provide core-runtime-helpers
          core-runtime-helper-index
+         core-runtime-global-names
+         core-runtime-global-name-set
          generate-core-runtime)
 
 (require "core-helper.rkt"
@@ -21,6 +23,7 @@
          "core/procedures.rkt"
          "core/strings.rkt"
          "core/structs.rkt"
+         "core/unsafe.rkt"
          "core/vectors.rkt"
          "shared-types.rkt")
 
@@ -45,6 +48,7 @@
    procedure-core-runtime-helpers
    string-core-runtime-helpers
    struct-core-runtime-helpers
+   unsafe-core-runtime-helpers
    vector-core-runtime-helpers))
 
 ;; core-runtime-helper-index : hasheq?
@@ -52,11 +56,23 @@
 (define core-runtime-helper-index
   (make-core-runtime-helper-index core-runtime-helpers))
 
+;; core-runtime-global-names : (listof symbol?)
+;;   Enumerate stable globals declared by the standalone core runtime.
+(define core-runtime-global-names
+  singleton-global-names)
+
+;; core-runtime-global-name-set : hasheq?
+;;   Index stable core runtime globals by Wasm name.
+(define core-runtime-global-name-set
+  (for/hasheq ([name (in-list core-runtime-global-names)])
+    (values name #t)))
+
 ;; generate-core-runtime : -> datum?
 ;;   Build the standalone core runtime module tree used by split-runtime experiments.
 (define (generate-core-runtime)
   `(module
      ,@(generate-shared-types)
+     ,@singleton-global-forms
      ,@(core-runtime-helper-forms core-runtime-helpers #:export? #t)))
 
 (module+ test
@@ -595,13 +611,15 @@
     (check-equal? (core-runtime-helper-dependency-problems
                    (core-runtime-helper-form core-runtime-helper-index name)
                    core-helper-names
-                   shared-type-names)
+                   shared-type-names
+                   core-runtime-global-name-set)
                   '()))
   (check-equal? (core-runtime-helper-dependency-problems
                  '(func $ok (param (ref eq)) (result i32)
                         (call $fx?/i32 (local.get $v)))
                  core-helper-names
-                 shared-type-names)
+                 shared-type-names
+                 core-runtime-global-name-set)
                 '())
   (check-equal? (core-runtime-helper-dependency-problems
                  '(func $bad (result i32)
@@ -609,13 +627,21 @@
                  core-helper-names
                  shared-type-names)
                 (list (helper-dependency-problem
-                       'runtime-dependency
-                       'global.get)))
+                       'runtime-global
+                       '$false)))
+  (check-equal? (core-runtime-helper-dependency-problems
+                 '(func $ok (result (ref eq))
+                        (global.get $false))
+                 core-helper-names
+                 shared-type-names
+                 core-runtime-global-name-set)
+                '())
   (check-equal? (core-runtime-helper-dependency-problems
                  '(func $bad (param (ref eq)) (result i32)
                         (call $other (local.get $v)))
                  core-helper-names
-                 shared-type-names)
+                 shared-type-names
+                 core-runtime-global-name-set)
                 (list (helper-dependency-problem
                        'runtime-call
                        '$other)))
@@ -623,7 +649,8 @@
                  '(func $bad (param (ref $NotShared)) (result i32)
                         (i32.const 0))
                  core-helper-names
-                 shared-type-names)
+                 shared-type-names
+                 core-runtime-global-name-set)
                 (list (helper-dependency-problem
                        'unshared-type
                        '$NotShared)))
@@ -631,7 +658,8 @@
                  '(func $bad (type $NotShared)
                         (i32.const 0))
                  core-helper-names
-                 shared-type-names)
+                 shared-type-names
+                 core-runtime-global-name-set)
                 (list (helper-dependency-problem
                        'unshared-type
                        '$NotShared)))

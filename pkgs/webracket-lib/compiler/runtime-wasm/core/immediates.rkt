@@ -4,6 +4,7 @@
          immediate-ref
          false-ref
          true-ref
+         singleton-global-names
          singleton-global-forms
          void-runtime-helper-forms
          eof-object-runtime-helper-forms
@@ -29,6 +30,20 @@
 ;; true-ref : datum?
 ;;   Return the WebRacket true immediate expression.
 (define true-ref (immediate-ref #t))
+
+;; singleton-global-names : (listof symbol?)
+;;   Name stable singleton globals that can also live in the core runtime.
+(define singleton-global-names
+  '($null
+    $undefined
+    $unsafe-undefined
+    $void
+    $false
+    $true
+    $eof
+    $error
+    $missing
+    $tombstone))
 
 ;; singleton-global-forms : (listof datum?)
 ;;   Declare globals for singleton and internal immediate values.

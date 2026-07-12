@@ -73,15 +73,17 @@
     call_ref
     data
     elem
-    global.get
     global.set
     import
     memory
     table))
 
-;; runtime-dependency-problems : datum? hasheq? -> (listof helper-dependency-problem?)
+;; runtime-dependency-problems :
+;;   datum? hasheq? [hasheq?] -> (listof helper-dependency-problem?)
 ;;   Report runtime dependencies that standalone helpers must not have.
-(define (runtime-dependency-problems form core-helper-names)
+(define (runtime-dependency-problems form
+                                     core-helper-names
+                                     [core-global-names (hasheq)])
   (match form
     [`(call ,(? symbol? target) ,body ...)
      (append
@@ -89,17 +91,27 @@
           '()
           (list (helper-dependency-problem 'runtime-call target)))
       (append-map (lambda (body-form)
-                    (runtime-dependency-problems body-form core-helper-names))
+                    (runtime-dependency-problems body-form
+                                                 core-helper-names
+                                                 core-global-names))
                   body))]
+    [`(global.get ,(? symbol? target))
+     (if (hash-has-key? core-global-names target)
+         '()
+         (list (helper-dependency-problem 'runtime-global target)))]
     [`(,(? (lambda (head) (memq head disallowed-core-helper-heads)) head)
        ,body ...)
      (cons (helper-dependency-problem 'runtime-dependency head)
            (append-map (lambda (body-form)
-                         (runtime-dependency-problems body-form core-helper-names))
+                         (runtime-dependency-problems body-form
+                                                      core-helper-names
+                                                      core-global-names))
                        body))]
     [(? list?)
      (append-map (lambda (body-form)
-                   (runtime-dependency-problems body-form core-helper-names))
+                   (runtime-dependency-problems body-form
+                                                core-helper-names
+                                                core-global-names))
                  form)]
     [_ '()]))
 
@@ -112,11 +124,13 @@
              #:unless (hash-has-key? shared-types type-name))
     (helper-dependency-problem 'unshared-type type-name)))
 
-;; core-runtime-helper-dependency-problems : datum? hasheq? [hasheq?] -> (listof helper-dependency-problem?)
+;; core-runtime-helper-dependency-problems :
+;;   datum? hasheq? [hasheq?] [hasheq?] -> (listof helper-dependency-problem?)
 ;;   Report dependencies that prevent a helper from living in core runtime.
 (define (core-runtime-helper-dependency-problems
          form
          core-helper-names
-         [shared-types (shared-type-name-set)])
-  (append (runtime-dependency-problems form core-helper-names)
+         [shared-types (shared-type-name-set)]
+         [core-global-names (hasheq)])
+  (append (runtime-dependency-problems form core-helper-names core-global-names)
           (type-dependency-problems form shared-types)))

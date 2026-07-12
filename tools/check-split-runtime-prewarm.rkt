@@ -233,6 +233,26 @@ RKT
   (+ (vector-ref v 0) (vector-ref v 1)))
 RKT
     expect
+    reject)
+   (write-generated-case!
+    source-dir
+    "unsafe-core-helpers"
+    #<<RKT
+(let* ([p (cons 39 3)]
+       [v (vector 40 2)]
+       [b (bytes 97 98 99)]
+       [s "abcd"])
+  (unsafe-bytes-set! b 1 100)
+  (if (and (unsafe-fx= (unsafe-fx+ (unsafe-car p) (unsafe-cdr p)) 42)
+           (unsafe-fx= (unsafe-vector-length v) 2)
+           (unsafe-fx= (unsafe-vector-ref v 1) 2)
+           (unsafe-fx= (unsafe-string-length s) 4)
+           (unsafe-fx= (unsafe-bytes-length b) 3)
+           (unsafe-fx= (unsafe-bytes-ref b 1) 100))
+      42
+      0))
+RKT
+    expect
     reject)))
 
 ;; record-failure! : string? any/c ... -> void?
