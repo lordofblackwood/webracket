@@ -889,6 +889,11 @@
                 (cons form remaining-forms)
                 imported-names))))
 
+;; remove-core-owned-constant-global-sets : datum? hasheq? -> (or/c datum? #f)
+;;   Remove program-side initializer writes for constants imported from the core runtime.
+(define (remove-core-owned-constant-global-sets form core-owned-global-names)
+  (remove-dead-constant-global-sets form core-owned-global-names))
+
 ;; collect-constant-global-gets : datum? -> (listof symbol?)
 ;;   Collect generated constant globals whose values are read.
 (define (collect-constant-global-gets form)
@@ -1008,14 +1013,27 @@
           helper)))
   (check-helper-definitions! selected-helpers counts)
   (define forms-without-helpers (remove-helper-definitions forms names))
+  (define core-owned-constant-global-name-set
+    (for/hasheq ([name (in-list core-runtime-program-import-constant-global-names)])
+      (values name #t)))
+  (define forms-without-core-owned-constant-initializers
+    (for/list ([form (in-list forms-without-helpers)]
+               #:do [(define rewritten
+                       (remove-core-owned-constant-global-sets
+                        form
+                        core-owned-constant-global-name-set))]
+               #:when rewritten)
+      rewritten))
   (define pruned-program-forms
-    (prune-unreferenced-constant-forms forms-without-helpers))
+    (prune-unreferenced-constant-forms
+     forms-without-core-owned-constant-initializers))
   (define-values (global-import-forms/reversed
                   forms-without-core-globals/reversed
                   imported-global-names/reversed)
     (split-core-runtime-shared-global-imports
      pruned-program-forms
-     core-runtime-program-import-global-names
+     (append core-runtime-program-import-global-names
+             core-runtime-program-import-constant-global-names)
      import-module-name))
   (define global-import-forms (reverse global-import-forms/reversed))
   (define forms-without-core-globals (reverse forms-without-core-globals/reversed))
@@ -1727,6 +1745,48 @@
   (check-not-false
    (for/or ([form (in-list constant-prune-program-forms)])
      (form-contains-global-set? '$string:live form)))
+
+  (define core-symbol-constant-import-split
+    (split-core-runtime-module
+     `(module
+        (type $I8Array (array (mut i8)))
+        (data $symbol-data:racket "racket")
+        (global $symbol:racket (mut (ref eq)) (ref.i31 (i32.const 0)))
+        (func $initialize-symbol-racket
+              (global.set $symbol:racket
+                          (array.new_data $I8Array
+                                          $symbol-data:racket
+                                          (i32.const 0)
+                                          (i32.const 6))))
+        (func $entry
+              (export "entry")
+              (result i32)
+              (call $initialize-symbol-racket)
+              (drop (global.get $symbol:racket))
+              (i32.const 42)))
+     #:helpers '()))
+  (define core-symbol-constant-import-program-forms
+    (module-forms (split-runtime-modules-program
+                   core-symbol-constant-import-split)))
+  (check-not-false
+   (member '$symbol:racket
+           (split-runtime-modules-imported-names
+            core-symbol-constant-import-split)))
+  (check-not-false
+   (member '(global $symbol:racket
+                    (import "core" "global:$symbol:racket")
+                    (mut (ref eq)))
+           core-symbol-constant-import-program-forms))
+  (check-false
+   (member '(data $symbol-data:racket "racket")
+           core-symbol-constant-import-program-forms))
+  (check-false
+   (for/or ([form (in-list core-symbol-constant-import-program-forms)])
+     (and (global-definition-form? form)
+          (eq? (module-global-name form) '$symbol:racket))))
+  (check-false
+   (for/or ([form (in-list core-symbol-constant-import-program-forms)])
+     (form-contains-global-set? '$symbol:racket form)))
 
   (define intern-table-import-split
     (split-core-runtime-module

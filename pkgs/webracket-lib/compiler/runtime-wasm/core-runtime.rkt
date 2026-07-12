@@ -4,6 +4,7 @@
          core-runtime-helper-index
          core-runtime-global-names
          core-runtime-global-name-set
+         core-runtime-program-import-constant-global-names
          core-runtime-program-import-global-names
          generate-core-runtime)
 
@@ -243,6 +244,11 @@
   '($the-symbol-table
     $the-keyword-table))
 
+;; core-runtime-program-import-constant-global-names : (listof symbol?)
+;;   Name immutable-by-convention core constants that split-core programs should import.
+(define core-runtime-program-import-constant-global-names
+  core-runtime-symbol-constant-global-names)
+
 ;; core-runtime-global-names : (listof symbol?)
 ;;   Enumerate stable globals declared by the standalone core runtime.
 (define core-runtime-global-names
@@ -251,6 +257,11 @@
           core-runtime-symbol-constant-global-names
           core-runtime-program-import-global-names
           thread-current-core-global-names))
+
+;; core-runtime-global-export-form : symbol? -> datum?
+;;   Export a core global using the split-runtime global export namespace.
+(define (core-runtime-global-export-form name)
+  `(export ,(format "global:~a" (symbol->string name)) (global ,name)))
 
 ;; core-runtime-global-name-set : hasheq?
 ;;   Index stable core runtime globals by Wasm name.
@@ -281,6 +292,8 @@
      (start $initialize-core-runtime!)
      (export "global:$the-symbol-table" (global $the-symbol-table))
      (export "global:$the-keyword-table" (global $the-keyword-table))
+     ,@(map core-runtime-global-export-form
+            core-runtime-program-import-constant-global-names)
      ,@(core-runtime-helper-forms core-runtime-helpers #:export? #t)))
 
 (module+ test
@@ -936,6 +949,10 @@
   (check-true (for/or ([form (in-list core-forms)])
                 (global-export-form-named? "global:$the-keyword-table"
                                            '$the-keyword-table
+                                           form)))
+  (check-true (for/or ([form (in-list core-forms)])
+                (global-export-form-named? "global:$symbol:racket"
+                                           '$symbol:racket
                                            form)))
   (check-not-false (member '(start $initialize-core-runtime!) core-forms))
   (define string-converter-functions
