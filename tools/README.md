@@ -168,6 +168,10 @@ Use `--include-cache-reference` to also measure Node output generated with
 `--split-runtime-cache-reference`, where warm runs read the cached runtime wasm
 directly instead of materializing a sidecar next to the program.
 
+Use `--split-runtime-core-only` to benchmark the helper-only split strategy,
+where only registered core-runtime helpers move into the shared runtime module
+and the rest of the program/provider graph remains in the program module.
+
 Use `--prewarm-runtime-first --include-cache-reference` to benchmark the
 compile-once workflow: first populate the stable runtime cache through
 `prewarm-staged-providers.rkt`, then measure user compiles against that cache:
@@ -175,6 +179,7 @@ compile-once workflow: first populate the stable runtime cache through
 ```sh
 racket -S pkgs tools/measure-split-runtime.rkt \
   --prewarm-runtime-first \
+  --split-runtime-core-only \
   --include-cache-reference
 ```
 
@@ -187,6 +192,7 @@ into a fresh isolated compiled root:
 racket -S pkgs tools/measure-split-runtime.rkt \
   --precompile-compiler-first \
   --prewarm-runtime-first \
+  --split-runtime-core-only \
   --include-cache-reference
 ```
 

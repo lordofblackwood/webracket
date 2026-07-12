@@ -83,6 +83,7 @@
 (define include-cache-reference? #f)
 (define prewarm-runtime-first? #f)
 (define precompile-compiler-first? #f)
+(define core-only? #f)
 
 ;; resolve-source-path : string? -> path?
 ;;   Resolve a user-provided source path relative to the repository root.
@@ -116,7 +117,10 @@
   (set! prewarm-runtime-first? #t)]
  [("--precompile-compiler-first")
   "Run raco make for the compiler into the isolated compiled root before measuring"
-  (set! precompile-compiler-first? #t)])
+  (set! precompile-compiler-first? #t)]
+ [("--split-runtime-core-only")
+  "Measure the core-helper-only split runtime strategy"
+  (set! core-only? #t)])
 
 
 ;;; Subprocess Helpers
@@ -189,10 +193,14 @@
 ;;   Populate the runtime cache through the standalone prewarm tool.
 (define (prewarm-split-runtime-cache! racket-exe temp-root provider-cache runtime-cache)
   (define prewarm-args
-    (list "-S" "pkgs" "tools/prewarm-staged-providers.rkt"
-          "--provider-cache-dir" (path->string provider-cache)
-          "--runtime-provider-cache-dir" (path->string runtime-cache)
-          "--mode" "split-runtime"))
+    (append
+     (list "-S" "pkgs" "tools/prewarm-staged-providers.rkt"
+           "--provider-cache-dir" (path->string provider-cache)
+           "--runtime-provider-cache-dir" (path->string runtime-cache)
+           "--mode" "split-runtime")
+     (if core-only?
+         '("--split-runtime-core-only")
+         '())))
   (define-values (ok? stdout stderr wall-ms)
     (run-command/capture repo-root racket-exe prewarm-args))
   (write-log! (build-path temp-root "prewarm-split-runtime.log")
@@ -280,14 +288,22 @@
    (case mode
      [(monolithic) '("--no-split-runtime")]
      [(split-cold split-warm)
-      (list "--split-runtime"
-            "--runtime-provider-cache-dir"
-            (path->string runtime-cache))]
+      (append
+       (list "--split-runtime"
+             "--runtime-provider-cache-dir"
+             (path->string runtime-cache))
+       (if core-only?
+           '("--split-runtime-core-only")
+           '()))]
      [(split-cache-reference-warm)
-      (list "--split-runtime"
-            "--split-runtime-cache-reference"
-            "--runtime-provider-cache-dir"
-            (path->string runtime-cache))]
+      (append
+       (list "--split-runtime"
+             "--split-runtime-cache-reference"
+             "--runtime-provider-cache-dir"
+             (path->string runtime-cache))
+       (if core-only?
+           '("--split-runtime-core-only")
+           '()))]
      [else
       (error 'mode-flags "unknown mode: ~a" mode)])))
 
@@ -467,6 +483,7 @@
           (if precompile-compiler-first?
               "raco make"
               "not precompiled by benchmark"))
+  (printf "  split mode:    ~a\n" (if core-only? "core-only" "classified"))
   (printf "  runtime warm:  ~a\n\n"
           (if prewarm-runtime-first?
               "prewarm-staged-providers"
