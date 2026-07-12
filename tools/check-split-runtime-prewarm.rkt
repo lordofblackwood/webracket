@@ -340,6 +340,8 @@ RKT
        [p (string->path "/tmp/name.rkt")]
        [tl (treelist 1 2 3)]
        [tlv (treelist->vector tl)]
+       [sv (stencil-vector #b101 'a 'b)]
+       [sys-sv ($system-stencil-vector #b11 'x 'y)]
        [linklet-info (linklet-summarize-target-machine-info 42)])
   (if (and (eq? 'cached 'cached)
            (not (eq? (box 1) (box 1)))
@@ -413,6 +415,15 @@ RKT
            (= (vector-length tlv) 3)
            (= (vector-ref tlv 0) 1)
            (= (vector-ref tlv 2) 3)
+           (= (stencil-vector-mask-width) 26)
+           (stencil-vector? sv)
+           ($stencil-vector? sv)
+           ($system-stencil-vector? sys-sv)
+           (not (stencil-vector? sys-sv))
+           (= (stencil-vector-length sv) 2)
+           (= (stencil-vector-mask sv) #b101)
+           (eq? (stencil-vector-ref sv 0) 'a)
+           (eq? (stencil-vector-ref sv 1) 'b)
            (not (struct? 42))
            (not (struct-type? 42))
            (not (struct-type-property? 42))

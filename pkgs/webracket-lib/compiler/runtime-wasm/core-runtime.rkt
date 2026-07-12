@@ -38,6 +38,7 @@
          "core/regexps.rkt"
          "core/security.rkt"
          "core/semaphores.rkt"
+         "core/stencil-vectors.rkt"
          "core/strings.rkt"
          "core/structs.rkt"
          "core/symbols.rkt"
@@ -84,6 +85,7 @@
    regexp-core-runtime-helpers
    security-core-runtime-helpers
    semaphore-core-runtime-helpers
+   stencil-vector-core-runtime-helpers
    string-core-runtime-helpers
    struct-core-runtime-helpers
    symbol-core-runtime-helpers

@@ -324,6 +324,7 @@
                   semaphore-core-runtime-helper-forms
                   semaphore-runtime-helper-forms)
          (only-in "runtime-wasm/core/stencil-vectors.rkt"
+                  stencil-vector-core-runtime-helper-forms
                   stencil-vector-runtime-helper-forms)
          (only-in "runtime-wasm/core/strings.rkt"
                   string-buffer-runtime-helper-forms
@@ -1115,6 +1116,7 @@
          ;;;
 
          ;; Stencil-vector helpers are implemented in runtime-wasm/core/stencil-vectors.rkt.
+         ,@(stencil-vector-core-runtime-helper-forms core-runtime-helper-index)
          ,@(stencil-vector-runtime-helper-forms runtime-helper-index)
 
          ;; Vector copy, conversion, slicing, search, and sorting helpers

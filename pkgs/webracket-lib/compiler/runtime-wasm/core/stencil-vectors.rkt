@@ -2,6 +2,8 @@
 
 (provide stencil-vector-runtime-string-constants
          stencil-vector-runtime-symbol-constants
+         stencil-vector-core-runtime-helpers
+         stencil-vector-core-runtime-helper-forms
          stencil-vector-runtime-helper-forms
          stencil-vector-runtime-only-helpers)
 
@@ -31,9 +33,9 @@
     $system-stencil-vector-update
     $system-stencil-vector-truncate!))
 
-;; stencil-vector-runtime-only-helper-names : (listof symbol?)
-;;   Preserve the runtime emission order for stencil-vector helpers.
-(define stencil-vector-runtime-only-helper-names
+;; stencil-vector-all-runtime-helper-names : (listof symbol?)
+;;   Preserve the full stencil-vector helper emission order.
+(define stencil-vector-all-runtime-helper-names
   '($stencil-vector-mask-width
     $$stencil-vector-mask-valid?/i32
     $$stencil-vector-mask/i32
@@ -58,9 +60,26 @@
     $$system-stencil-vector-update
     $$system-stencil-vector-truncate!))
 
-;; stencil-vector-runtime-only-helpers : (listof core-runtime-helper?)
-;;   Enumerate stencil-vector helpers that still depend on monolithic runtime globals.
-(define stencil-vector-runtime-only-helpers
+;; stencil-vector-core-runtime-helper-names : (listof symbol?)
+;;   Name stencil-vector helpers available in the standalone core runtime.
+(define stencil-vector-core-runtime-helper-names
+  '($stencil-vector-mask-width
+    $$stencil-vector-mask-valid?/i32
+    $$stencil-vector-popcount/i32
+    $$make-stencil-vector/checked
+    $stencil-vector?
+    $$stencil-vector?
+    $$system-stencil-vector?))
+
+;; stencil-vector-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime-only stencil-vector helper emission order.
+(define stencil-vector-runtime-only-helper-names
+  (remove* stencil-vector-core-runtime-helper-names
+           stencil-vector-all-runtime-helper-names))
+
+;; stencil-vector-all-runtime-helpers : (listof core-runtime-helper?)
+;;   Enumerate all stencil-vector helpers.
+(define stencil-vector-all-runtime-helpers
   (list
    ;; stencil-vector-mask-width : -> exact-nonnegative-integer?
    ;;   WebRacket uses the 32-bit Racket/BC-compatible width. Racket CS
@@ -716,10 +735,28 @@
              (global.get $void))))
 ))
 
+;; stencil-vector-core-runtime-helpers : (listof core-runtime-helper?)
+;;   Enumerate stencil-vector helpers available in the standalone core runtime.
+(define stencil-vector-core-runtime-helpers
+  (select-runtime-helpers stencil-vector-all-runtime-helpers
+                          stencil-vector-core-runtime-helper-names))
+
+;; stencil-vector-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate stencil-vector helpers that still depend on monolithic runtime definitions.
+(define stencil-vector-runtime-only-helpers
+  (remove-runtime-helpers stencil-vector-all-runtime-helpers
+                          stencil-vector-core-runtime-helper-names))
+
 ;; stencil-vector-runtime-helper-forms : hasheq? -> (listof datum?)
 ;;   Render stencil-vector helpers in runtime assembly order.
 (define (stencil-vector-runtime-helper-forms helper-index)
   (for/list ([name (in-list stencil-vector-runtime-only-helper-names)])
+    (core-runtime-helper-form helper-index name)))
+
+;; stencil-vector-core-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render promoted stencil-vector helpers in runtime assembly order.
+(define (stencil-vector-core-runtime-helper-forms helper-index)
+  (for/list ([name (in-list stencil-vector-core-runtime-helper-names)])
     (core-runtime-helper-form helper-index name)))
 
 (module+ test
@@ -731,7 +768,21 @@
     (second form))
 
   (define stencil-vector-helper-index
-    (make-core-runtime-helper-index stencil-vector-runtime-only-helpers))
+    (make-core-runtime-helper-index
+     (append stencil-vector-core-runtime-helpers
+             stencil-vector-runtime-only-helpers)))
+
+  (define stencil-vector-core-helper-index
+    (make-core-runtime-helper-index stencil-vector-core-runtime-helpers))
+
+  (check-equal?
+   (map core-runtime-helper-name stencil-vector-core-runtime-helpers)
+   stencil-vector-core-runtime-helper-names)
+
+  (check-equal?
+   (map form-name
+        (stencil-vector-core-runtime-helper-forms stencil-vector-core-helper-index))
+   stencil-vector-core-runtime-helper-names)
 
   (check-equal?
    (map form-name
