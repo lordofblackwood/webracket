@@ -76,6 +76,8 @@
     global.set
     import
     memory
+    return_call_indirect
+    return_call_ref
     table))
 
 ;; runtime-dependency-problems :
@@ -85,7 +87,9 @@
                                      core-helper-names
                                      [core-global-names (hasheq)])
   (match form
-    [`(call ,(? symbol? target) ,body ...)
+    [`(,(? (lambda (head) (memq head '(call return_call))) _)
+       ,(? symbol? target)
+       ,body ...)
      (append
       (if (hash-has-key? core-helper-names target)
           '()

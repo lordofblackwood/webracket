@@ -1,6 +1,7 @@
 #lang racket
 
 (provide box-runtime-string-constants
+         box-core-runtime-helpers
          box-runtime-helper-forms
          box-mutability-runtime-helper-forms
          box-runtime-only-helpers)
@@ -19,9 +20,9 @@
     (weak-box?                 "weak-box?")
     (use-before-initialization "undefined; cannot use before initialization")))
 
-;; box-base-runtime-only-helpers : (listof core-runtime-helper?)
-;;   Enumerate box helpers that still depend on monolithic runtime globals.
-(define box-base-runtime-only-helpers
+;; box-base-runtime-helpers : (listof core-runtime-helper?)
+;;   Enumerate compiler-box and box helpers.
+(define box-base-runtime-helpers
   (list
    (core-runtime-helper
     '$raise-letrec-placeholder-access
@@ -419,11 +420,11 @@
                            (unreachable))))))
 ))
 
-;; box-base-runtime-only-helper-names : (listof symbol?)
+;; box-base-runtime-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for compiler-box and box helpers.
 ;;   We use `boxed`, `set-boxed!`, and `unboxed` for assignable variables.
 ;;   These boxes are not the same as the Racket datatype `box`.
-(define box-base-runtime-only-helper-names
+(define box-base-runtime-helper-names
   '($raise-letrec-placeholder-access
     $boxed
     $unboxed
@@ -448,10 +449,43 @@
     $weak-box?
     $weak-box-value))
 
+;; box-core-runtime-helper-names : (listof symbol?)
+;;   Name box helpers available in the standalone core runtime.
+(define box-core-runtime-helper-names
+  '($boxed
+    $boxed?
+    $box?
+    $box
+    $box-immutable
+    $make-weak-box
+    $weak-box?
+    $mutable-box?
+    $immutable-box?))
+
+;; box-base-runtime-only-helper-names : (listof symbol?)
+;;   Name box helpers that still depend on non-core runtime helpers or globals.
+(define box-base-runtime-only-helper-names
+  '($raise-letrec-placeholder-access
+    $unboxed
+    $set-boxed!
+    $initialize-boxed!
+    $raise-box-expected/who
+    $raise-unbox*:box-expected
+    $raise-mutable-box-expected/who
+    $raise-set-box*!:mutable-box-expected
+    $raise-weak-box-expected/who
+    $unbox
+    $unbox*
+    $set-box!
+    $set-box*!
+    $box-cas!
+    $unsafe-box*-cas!
+    $weak-box-value))
+
 ;; box-runtime-helper-forms : hasheq? -> (listof datum?)
 ;;   Render compiler-box and box helpers in runtime assembly order.
 (define (box-runtime-helper-forms helper-index)
-  (for/list ([name (in-list box-base-runtime-only-helper-names)])
+  (for/list ([name (in-list box-base-runtime-helper-names)])
     (core-runtime-helper-form helper-index name)))
 
 ;; box-helper-forms : hasheq? (listof symbol?) -> (listof datum?)
@@ -460,22 +494,22 @@
   (for/list ([name (in-list names)])
     (core-runtime-helper-form helper-index name)))
 
-;; box-mutability-runtime-only-helper-names : (listof symbol?)
+;; box-mutability-runtime-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for box mutability predicates.
-(define box-mutability-runtime-only-helper-names
+(define box-mutability-runtime-helper-names
   '($mutable-box?
     $immutable-box?))
 
 ;; box-mutability-runtime-helper-forms : hasheq? -> (listof datum?)
 ;;   Render box mutability predicates in runtime assembly order.
 (define (box-mutability-runtime-helper-forms helper-index)
-  (box-helper-forms helper-index box-mutability-runtime-only-helper-names))
+  (box-helper-forms helper-index box-mutability-runtime-helper-names))
 
-;; box-mutability-runtime-only-helpers : (listof core-runtime-helper?)
+;; box-mutability-runtime-helpers : (listof core-runtime-helper?)
 ;;   Enumerate box mutability predicates.
-(define box-mutability-runtime-only-helpers
+(define box-mutability-runtime-helpers
   (function-forms->runtime-helpers
-   'box-mutability-runtime-only-helpers
+   'box-mutability-runtime-helpers
    '(
          (func $mutable-box? (type $Prim1) (param $v (ref eq)) (result (ref eq))
                (if (result (ref eq))
@@ -502,11 +536,29 @@
 
      )))
 
+;; select-box-helpers : (listof core-runtime-helper?) (listof symbol?) -> (listof core-runtime-helper?)
+;;   Select helpers by name while preserving the order of the source list.
+(define (select-box-helpers helpers names)
+  (define name-set
+    (for/hasheq ([name (in-list names)])
+      (values name #t)))
+  (for/list ([helper (in-list helpers)]
+             #:when (hash-ref name-set (core-runtime-helper-name helper) #f))
+    helper))
+
+;; box-core-runtime-helpers : (listof core-runtime-helper?)
+;;   Enumerate box helpers available in the standalone core runtime.
+(define box-core-runtime-helpers
+  (select-box-helpers
+   (append box-base-runtime-helpers
+           box-mutability-runtime-helpers)
+   box-core-runtime-helper-names))
+
 ;; box-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate box helpers that still depend on monolithic runtime globals.
 (define box-runtime-only-helpers
-  (append box-base-runtime-only-helpers
-          box-mutability-runtime-only-helpers))
+  (select-box-helpers box-base-runtime-helpers
+                      box-base-runtime-only-helper-names))
 
 (module+ test
   (require rackunit)
@@ -517,12 +569,22 @@
     (second form))
 
   (define box-helper-index
-    (make-core-runtime-helper-index box-runtime-only-helpers))
+    (make-core-runtime-helper-index
+     (append box-core-runtime-helpers
+             box-runtime-only-helpers)))
 
   (check-equal?
-   (map form-name (box-runtime-helper-forms box-helper-index))
+   (map core-runtime-helper-name box-core-runtime-helpers)
+   box-core-runtime-helper-names)
+
+  (check-equal?
+   (map core-runtime-helper-name box-runtime-only-helpers)
    box-base-runtime-only-helper-names)
 
   (check-equal?
+   (map form-name (box-runtime-helper-forms box-helper-index))
+   box-base-runtime-helper-names)
+
+  (check-equal?
    (map form-name (box-mutability-runtime-helper-forms box-helper-index))
-   box-mutability-runtime-only-helper-names))
+   box-mutability-runtime-helper-names))

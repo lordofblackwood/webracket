@@ -253,6 +253,30 @@ RKT
       0))
 RKT
     expect
+    reject)
+   (write-generated-case!
+    source-dir
+    "box-core-helpers"
+    #<<RKT
+(let ([x 40])
+  (set! x (+ x 2))
+  (let ([b  (box x)]
+        [ib (box-immutable x)]
+        [wb (make-weak-box 'cached)])
+    (if (and (= x 42)
+             (box? b)
+             (box? ib)
+             (not (box? 1))
+             (mutable-box? b)
+             (not (mutable-box? ib))
+             (immutable-box? ib)
+             (not (immutable-box? b))
+             (weak-box? wb)
+             (not (weak-box? 'cached)))
+        x
+        0)))
+RKT
+    expect
     reject)))
 
 ;; record-failure! : string? any/c ... -> void?

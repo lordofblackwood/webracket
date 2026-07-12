@@ -9,6 +9,7 @@
 (require "core-helper.rkt"
          "core/arrays.rkt"
          "core/booleans.rkt"
+         "core/boxes.rkt"
          "core/fixnums.rkt"
          "core/flonums.rkt"
          "core/growable-arrays.rkt"
@@ -33,6 +34,7 @@
   (append
    array-core-runtime-helpers
    boolean-core-runtime-helpers
+   box-core-runtime-helpers
    fixnum-core-runtime-helpers
    flonum-core-runtime-helpers
    growable-array-core-runtime-helpers
@@ -639,6 +641,15 @@
   (check-equal? (core-runtime-helper-dependency-problems
                  '(func $bad (param (ref eq)) (result i32)
                         (call $other (local.get $v)))
+                 core-helper-names
+                 shared-type-names
+                 core-runtime-global-name-set)
+                (list (helper-dependency-problem
+                       'runtime-call
+                       '$other)))
+  (check-equal? (core-runtime-helper-dependency-problems
+                 '(func $bad (param (ref eq)) (result i32)
+                        (return_call $other (local.get $v)))
                  core-helper-names
                  shared-type-names
                  core-runtime-global-name-set)
