@@ -197,6 +197,7 @@
   (check-true (hash? runtime-helper-index))
 
   (for ([name (in-list '($cons $fx+ $string? $symbol?
+                         $eqv?
                          $external? $impersonator? $date?
                          $hash? $mutable-hash?
                          $current-thread

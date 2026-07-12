@@ -2,14 +2,15 @@
 
 (provide equality-core-runtime-helpers
          equality-runtime-only-helpers
+         equality-core-runtime-helper-forms
          immutable-predicate-runtime-helper-forms
          equality-runtime-helper-forms)
 
 (require "../core-helper.rkt")
 
-;; equality-runtime-only-helper-names : (listof symbol?)
-;;   Preserve the runtime emission order for equality helpers.
-(define equality-runtime-only-helper-names
+;; equality-all-runtime-helper-names : (listof symbol?)
+;;   Preserve the full runtime emission order for equality helpers.
+(define equality-all-runtime-helper-names
   '($eq?
     $eqv?
     $equal?
@@ -39,7 +40,14 @@
 ;;   Name equality helpers available in the standalone core runtime.
 (define equality-core-runtime-helper-names
   '($eq?
+    $eqv?
     $equal-always?/bytes))
+
+;; equality-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime-only emission order for equality helpers.
+(define equality-runtime-only-helper-names
+  (remove* equality-core-runtime-helper-names
+           equality-all-runtime-helper-names))
 
 ;; equality-runtime-only-forms : (listof datum?)
 ;;   Enumerate equality helpers used by the monolithic runtime.
@@ -793,8 +801,13 @@
   (for/list ([name (in-list names)])
     (core-runtime-helper-form helper-index name)))
 
+;; equality-core-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render promoted equality helpers in runtime assembly order.
+(define (equality-core-runtime-helper-forms helper-index)
+  (equality-helper-forms helper-index equality-core-runtime-helper-names))
+
 ;; equality-runtime-helper-forms : hasheq? -> (listof datum?)
-;;   Render equality helpers in runtime assembly order.
+;;   Render runtime-only equality helpers in runtime assembly order.
 (define (equality-runtime-helper-forms helper-index)
   (equality-helper-forms helper-index equality-runtime-only-helper-names))
 
@@ -881,6 +894,10 @@
 
   (check-equal?
    (map core-runtime-helper-name equality-core-runtime-helpers)
+   equality-core-runtime-helper-names)
+
+  (check-equal?
+   (map form-name (equality-core-runtime-helper-forms equality-helper-index))
    equality-core-runtime-helper-names)
 
   (check-equal?

@@ -92,6 +92,7 @@
                   multiple-value-runtime-helper-forms
                   value-expectation-runtime-helper-forms)
          (only-in "runtime-wasm/core/equality.rkt"
+                  equality-core-runtime-helper-forms
                   immutable-predicate-runtime-helper-forms
                   equality-runtime-helper-forms)
          (only-in "runtime-wasm/core/exceptions.rkt"
@@ -838,6 +839,7 @@
          ;;;
 
          ;;   Implemented in runtime-wasm/core/equality.rkt.
+         ,@(equality-core-runtime-helper-forms core-runtime-helper-index)
          ,@(equality-runtime-helper-forms runtime-helper-index)
 
          ;;;
