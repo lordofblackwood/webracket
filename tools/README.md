@@ -216,13 +216,44 @@ The same representative check is available as:
 make smoke-split-runtime-prewarm
 ```
 
+check-split-runtime-browser.rkt
+-------------------------------
+Regression-style browser check for the compile-once split-runtime workflow. It
+creates private provider/runtime caches, prewarms the stable split-runtime wasm
+cache, compiles a tiny no-stdlib browser program with `--split-runtime`, serves
+the generated directory, then uses Playwright to verify that the browser fetches
+both the program wasm and the runtime sidecar wasm and that the program prints
+the expected result.
+
+Run:
+
+```sh
+racket -S pkgs tools/check-split-runtime-browser.rkt
+```
+
+Useful options:
+
+```sh
+racket -S pkgs tools/check-split-runtime-browser.rkt \
+  --source test/test-trivial.rkt \
+  --expect '(^|\n)42(\n|$)'
+```
+
+The same guarded check is available as:
+
+```sh
+make smoke-split-runtime-browser
+```
+
 prewarm-staged-providers.rkt
 ----------------------------
 Prebuilds cache artifacts before an example compile needs them. Existing modes
 prewarm staged provider artifacts such as regexp and expander/read. The
 `split-runtime` mode compiles and runs a tiny no-stdlib split-runtime program
 through the normal driver so the stable runtime wasm is already in the runtime
-provider cache before a real user program compile.
+provider cache before a real user program compile. By default, split-runtime
+prewarm targets Node output; use `--host browser` when warming the browser
+runtime sidecar cache.
 
 Run:
 
@@ -230,7 +261,8 @@ Run:
 racket -S pkgs tools/prewarm-staged-providers.rkt \
   --provider-cache-dir /tmp/webracket-provider-cache \
   --runtime-provider-cache-dir /tmp/webracket-runtime-cache \
-  --mode split-runtime
+  --mode split-runtime \
+  --host browser
 ```
 
 fetch-html-element-attributes.mjs

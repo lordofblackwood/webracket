@@ -60,9 +60,9 @@
         (string->path dir)))
   (path->complete-path p))
 
-;; prewarm-split-runtime! : path? path? boolean? boolean? -> void?
+;; prewarm-split-runtime! : path? path? symbol? boolean? boolean? -> void?
 ;;   Populate the stable split-runtime wasm cache through the normal driver.
-(define (prewarm-split-runtime! cache-dir runtime-cache-dir force? verbose?)
+(define (prewarm-split-runtime! cache-dir runtime-cache-dir host force? verbose?)
   (define work-dir
     (make-temporary-file "webracket-split-runtime-prewarm-~a" 'directory))
   (define source-path
@@ -91,8 +91,8 @@
        #:simplify-profile? #f
        #:pretty-wat? #f
        #:verbose? verbose?
-       #:browser? #f
-       #:node? #t
+       #:browser? (eq? host 'browser)
+       #:node? (eq? host 'node)
        #:letrec-strategy 'waddell
        #:enable-cc-analysis? #f
        #:enable-simplify? #f
@@ -100,14 +100,14 @@
        #:tree-shake? #t
        #:tree-shake-report #f
        #:split-runtime? #t
-       #:split-runtime-cache-reference? #t
+       #:split-runtime-cache-reference? (eq? host 'node)
        #:print-top-level-results? #f
        #:internal-bind-treelist-debug-shape? #f
        #:internal-bind-immutable-hash-debug-shape? #f
        #:console-bridge? #f
        #:vfs-preloads '()
        #:vfs-mounts '()
-       #:run-after? #t
+       #:run-after? (eq? host 'node)
        #:exec-path-from-shell? #t
        #:ffi-files '()
        #:stdlib? #f
@@ -140,9 +140,9 @@
            runtime-cache-dir))
   (delete-directory/files work-dir))
 
-;; prewarm-staged-providers! : path-string? path-string? symbol? boolean? boolean? -> void?
+;; prewarm-staged-providers! : path-string? path-string? symbol? symbol? boolean? boolean? -> void?
 ;;   Build staged provider artifacts into the selected provider-cache roots.
-(define (prewarm-staged-providers! provider-cache-dir runtime-provider-cache-dir mode force? verbose?)
+(define (prewarm-staged-providers! provider-cache-dir runtime-provider-cache-dir mode host force? verbose?)
   (define cache-dir
     (cache-dir->complete-path provider-cache-dir))
   (define runtime-cache-dir
@@ -172,14 +172,16 @@
       ['split-runtime
        (prewarm-split-runtime! cache-dir
                                runtime-cache-dir
+                               host
                                force?
                                verbose?)]
       [_
        (error 'prewarm-staged-providers!
               "unsupported mode: ~a"
               mode)]))
-  (printf "prewarmed caches: mode=~a cache=~a runtime-cache=~a\n"
+  (printf "prewarmed caches: mode=~a host=~a cache=~a runtime-cache=~a\n"
           mode
+          host
           cache-dir
           runtime-cache-dir))
 
@@ -200,6 +202,17 @@
      (format "expected mode regexp, read, split-runtime, or all; got ~a" s)))
   mode)
 
+;; parse-host : string? -> symbol?
+;;   Parse a command-line split-runtime target host.
+(define (parse-host s)
+  (define host
+    (string->symbol s))
+  (unless (memq host '(node browser))
+    (raise-user-error
+     'prewarm-staged-providers
+     (format "expected host node or browser; got ~a" s)))
+  host)
+
 
 ;;; Command-Line Entry Point
 
@@ -211,6 +224,7 @@
     (build-path (find-system-path 'temp-dir) "webracket-provider-cache"))
   (define runtime-provider-cache-dir #f)
   (define mode 'all)
+  (define host 'node)
   (define force? #f)
   (define verbose? #f)
   (command-line
@@ -225,6 +239,9 @@
    [("--mode") which
     "Prewarm one of: regexp, read, split-runtime, all."
     (set! mode (parse-mode which))]
+   [("--host") which
+    "Split-runtime target host: node or browser. Defaults to node."
+    (set! host (parse-host which))]
    [("--force")
     "Force staged provider cache refresh."
     (set! force? #t)]
@@ -234,5 +251,6 @@
   (prewarm-staged-providers! provider-cache-dir
                               (or runtime-provider-cache-dir provider-cache-dir)
                               mode
+                              host
                               force?
                               verbose?))
