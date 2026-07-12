@@ -975,9 +975,25 @@
                          (br $loop)))
             (local.get $best)))))
 
-;; fixnum-runtime-only-helpers : (listof core-runtime-helper?)
-;;   Enumerate fixnum helpers that depend on monolithic runtime errors.
-(define fixnum-runtime-only-helpers
+;; fixnum-promoted-runtime-helper-names : (listof symbol?)
+;;   Name runtime fixnum helpers that are available in the standalone core runtime.
+(define fixnum-promoted-runtime-helper-names
+  '($fixnum?
+    $fxvector?
+    $fxzero?
+    $unsafe-fxquotient
+    $unsafe-fxremainder
+    $unsafe-fxmodulo
+    $unsafe-fxabs
+    $fxabs
+    $most-positive-fixnum
+    $most-negative-fixnum
+    $fxand
+    $fixnum-for-every-system?))
+
+;; fixnum-all-runtime-helpers : (listof core-runtime-helper?)
+;;   Enumerate fixnum helpers in monolithic runtime order.
+(define fixnum-all-runtime-helpers
   (append
    fixnum-predicate-runtime-only-helpers
    fixnum-arithmetic-runtime-only-helpers
@@ -992,9 +1008,9 @@
      (fixnum-minmax-runtime-helper name cmp))
    fixnum-conversion-runtime-only-helpers))
 
-;; fixnum-core-runtime-helpers : (listof core-runtime-helper?)
-;;   Enumerate fixnum helpers that can be emitted in core runtime.
-(define fixnum-core-runtime-helpers
+;; fixnum-base-core-runtime-helpers : (listof core-runtime-helper?)
+;;   Enumerate manually defined fixnum helpers that originated in core runtime.
+(define fixnum-base-core-runtime-helpers
   (list
    ;; $fx?/i32 : any/c -> i32
    ;;   Return 1 when v is an i31 fixnum value, otherwise 0.
@@ -1288,6 +1304,19 @@
                         `(i32.shr_u ,(local-fixnum-payload-u '$x)
                                     ,(local-fixnum-payload-u '$k)))))))))
 
+;; fixnum-core-runtime-helpers : (listof core-runtime-helper?)
+;;   Enumerate fixnum helpers available in the standalone core runtime.
+(define fixnum-core-runtime-helpers
+  (append fixnum-base-core-runtime-helpers
+          (select-runtime-helpers fixnum-all-runtime-helpers
+                                  fixnum-promoted-runtime-helper-names)))
+
+;; fixnum-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate fixnum helpers that still depend on monolithic runtime globals.
+(define fixnum-runtime-only-helpers
+  (remove-runtime-helpers fixnum-all-runtime-helpers
+                          fixnum-promoted-runtime-helper-names))
+
 ;; fixnum-helper-forms : hasheq? (listof symbol?) -> (listof datum?)
 ;;   Render the given fixnum helper names from the runtime helper index.
 (define (fixnum-helper-forms helper-index names)
@@ -1343,10 +1372,18 @@
     (second form))
 
   (define fixnum-helper-index
-    (make-core-runtime-helper-index fixnum-runtime-only-helpers))
+    (make-core-runtime-helper-index
+     (append fixnum-core-runtime-helpers
+             fixnum-runtime-only-helpers)))
 
   (define fixnum-core-helper-index
     (make-core-runtime-helper-index fixnum-core-runtime-helpers))
+
+  (check-equal?
+   (map core-runtime-helper-name
+        (select-runtime-helpers fixnum-core-runtime-helpers
+                                fixnum-promoted-runtime-helper-names))
+   fixnum-promoted-runtime-helper-names)
 
   (check-equal?
    (map form-name

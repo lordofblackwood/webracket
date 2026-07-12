@@ -881,9 +881,25 @@
             (local.set $result/i32 (i32.wrap_i64 (local.get $result64)))
             (ref.i31 (i32.shl (local.get $result/i32) (i32.const 1))))))))
 
-;; flonum-runtime-only-helpers : (listof core-runtime-helper?)
-;;   Enumerate flonum helpers that depend on monolithic runtime errors.
-(define flonum-runtime-only-helpers
+;; flonum-promoted-runtime-helper-names : (listof symbol?)
+;;   Name runtime flonum helpers that are available in the standalone core runtime.
+(define flonum-promoted-runtime-helper-names
+  '($i32->flonum
+    $flonum?
+    $unsafe-fl/
+    $fl//checked
+    $unsafe-flabs
+    $unsafe-flround
+    $unsafe-flfloor
+    $unsafe-flceiling
+    $unsafe-fltruncate
+    $unsafe-flsingle
+    $unsafe-flmin/2
+    $unsafe-flmax/2))
+
+;; flonum-all-runtime-helpers : (listof core-runtime-helper?)
+;;   Enumerate flonum helpers in monolithic runtime order.
+(define flonum-all-runtime-helpers
   (append
    flonum-constructor-runtime-only-helpers
    flonum-predicate-runtime-only-helpers
@@ -906,9 +922,9 @@
      (flonum-minmax-runtime-helper name cmp #t))
    flonum-utility-runtime-only-helpers))
 
-;; flonum-core-runtime-helpers : (listof core-runtime-helper?)
-;;   Enumerate flonum helpers that can be emitted in core runtime.
-(define flonum-core-runtime-helpers
+;; flonum-base-core-runtime-helpers : (listof core-runtime-helper?)
+;;   Enumerate manually defined flonum helpers that originated in core runtime.
+(define flonum-base-core-runtime-helpers
   (list
    ;; fl?/i32 : (ref eq) -> i32
    ;;   Return 1 if the value is a flonum, 0 otherwise.
@@ -918,6 +934,19 @@
     (lambda ()
       `(func $fl?/i32 (param $a (ref eq)) (result i32)
              (ref.test (ref $Flonum) (local.get $a)))))))
+
+;; flonum-core-runtime-helpers : (listof core-runtime-helper?)
+;;   Enumerate flonum helpers available in the standalone core runtime.
+(define flonum-core-runtime-helpers
+  (append flonum-base-core-runtime-helpers
+          (select-runtime-helpers flonum-all-runtime-helpers
+                                  flonum-promoted-runtime-helper-names)))
+
+;; flonum-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate flonum helpers that still depend on monolithic runtime globals.
+(define flonum-runtime-only-helpers
+  (remove-runtime-helpers flonum-all-runtime-helpers
+                          flonum-promoted-runtime-helper-names))
 
 ;; flonum-helper-forms : hasheq? (listof symbol?) -> (listof datum?)
 ;;   Render the given flonum helper names from the runtime helper index.
@@ -948,10 +977,18 @@
     (second form))
 
   (define flonum-helper-index
-    (make-core-runtime-helper-index flonum-runtime-only-helpers))
+    (make-core-runtime-helper-index
+     (append flonum-core-runtime-helpers
+             flonum-runtime-only-helpers)))
 
   (define flonum-core-helper-index
     (make-core-runtime-helper-index flonum-core-runtime-helpers))
+
+  (check-equal?
+   (map core-runtime-helper-name
+        (select-runtime-helpers flonum-core-runtime-helpers
+                                flonum-promoted-runtime-helper-names))
+   flonum-promoted-runtime-helper-names)
 
   (check-equal?
    (map form-name
