@@ -210,6 +210,12 @@ racket -S pkgs tools/check-split-runtime-prewarm.rkt \
   --reject '#f'
 ```
 
+The same representative check is available as:
+
+```sh
+make smoke-split-runtime-prewarm
+```
+
 prewarm-staged-providers.rkt
 ----------------------------
 Prebuilds cache artifacts before an example compile needs them. Existing modes

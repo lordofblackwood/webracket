@@ -5,7 +5,7 @@ SMOKE_DIR := lib/web-easy/smoke
 SINGLE_COMPILE ?= run-browser-parity-profile-compile.sh
 SINGLE_PAGE ?= test-browser-parity-profile.html
 
-.PHONY: help goal1-fast smoke-ci smoke-headless-lite smoke-style smoke-theme smoke-theme-contracts smoke-theme-core smoke-theme-visual smoke-verify smoke-quick smoke-release smoke-one smoke-list smoke-commands smoke-compare-navbars smoke-compare-buttons smoke-compare-all smoke-solar-parity smoke-solar-sections smoke-solar-sections-gate smoke-treelist-shape dom-headless measure-letrec-test-basics
+.PHONY: help goal1-fast smoke-ci smoke-headless-lite smoke-style smoke-theme smoke-theme-contracts smoke-theme-core smoke-theme-visual smoke-verify smoke-quick smoke-release smoke-one smoke-list smoke-commands smoke-compare-navbars smoke-compare-buttons smoke-compare-all smoke-solar-parity smoke-solar-sections smoke-solar-sections-gate smoke-split-runtime-prewarm smoke-treelist-shape dom-headless measure-letrec-test-basics
 
 help:
 	@echo "Available targets:"
@@ -30,6 +30,7 @@ help:
 	@echo "  smoke-solar-parity    Run full Solar2 parity sweep (accordion/navbar/forms/tables/list/progress)."
 	@echo "  smoke-solar-sections  Run per-section Solar2 parity report (with RMSE per section)."
 	@echo "  smoke-solar-sections-gate  Run quick per-section Solar2 RMSE threshold gate."
+	@echo "  smoke-split-runtime-prewarm  Run representative cached split-runtime compile/run fixtures."
 	@echo "  smoke-treelist-shape  Run the compiler-private treelist shape validation smoke."
 	@echo "  dom-headless          Run the DOM browser wrapper suite."
 	@echo "  measure-letrec-test-basics  Run test-letrec first, then compare letrec strategies on test-basics."
@@ -106,6 +107,7 @@ smoke-list:
 	@echo "smoke-solar-parity"
 	@echo "smoke-solar-sections"
 	@echo "smoke-solar-sections-gate"
+	@echo "smoke-split-runtime-prewarm"
 	@echo "smoke-treelist-shape"
 	@echo "dom-headless"
 
@@ -138,6 +140,9 @@ smoke-solar-sections:
 
 smoke-solar-sections-gate:
 	cd $(SMOKE_DIR) && SOLAR_SECTIONS_GATE_ONLY=1 ./check-solar-section-parity.sh
+
+smoke-split-runtime-prewarm:
+	python3 tools/run-guarded.py --timeout-sec 540 --rss-limit-mb 1800 -- racket -S pkgs tools/check-split-runtime-prewarm.rkt --source test/test-lambda-variadic.rkt --extra-source test/test-values-errors.rkt --no-expect --reject '#f'
 
 smoke-treelist-shape:
 	racket tools/check-treelist-shape-smoke.rkt
