@@ -1,6 +1,8 @@
 #lang racket
 
 (provide semaphore-runtime-string-constants
+         semaphore-core-runtime-helpers
+         semaphore-core-runtime-helper-forms
          semaphore-runtime-helper-forms
          semaphore-runtime-only-helpers)
 
@@ -12,9 +14,15 @@
   '((semaphore? "semaphore?")
     (try-fail-thunk-or-false "(or/c (procedure-arity-includes/c 0) #f)")))
 
-;; semaphore-runtime-only-helpers : (listof core-runtime-helper?)
-;;   Enumerate semaphore helpers that still depend on monolithic runtime globals.
-(define semaphore-runtime-only-helpers
+;; semaphore-promoted-runtime-helper-names : (listof symbol?)
+;;   Name semaphore helpers that are available in the standalone core runtime.
+(define semaphore-promoted-runtime-helper-names
+  '($semaphore?
+    $semaphore-peek-evt?))
+
+;; semaphore-all-runtime-helpers : (listof core-runtime-helper?)
+;;   Enumerate semaphore helpers in monolithic runtime order.
+(define semaphore-all-runtime-helpers
   (list
    ;; make-semaphore : [exact-nonnegative-integer? = 0] -> semaphore?
    ;;   Create a lightweight single-threaded semaphore.
@@ -283,16 +291,32 @@
                          (ref.cast (ref $Semaphore) (local.get $sema-raw))))))
 ))
 
+;; semaphore-core-runtime-helpers : (listof core-runtime-helper?)
+;;   Enumerate semaphore helpers available in the standalone core runtime.
+(define semaphore-core-runtime-helpers
+  (select-runtime-helpers semaphore-all-runtime-helpers
+                          semaphore-promoted-runtime-helper-names))
+
+;; semaphore-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate semaphore helpers that still depend on monolithic runtime globals.
+(define semaphore-runtime-only-helpers
+  (remove-runtime-helpers semaphore-all-runtime-helpers
+                          semaphore-promoted-runtime-helper-names))
+
 ;; semaphore-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for semaphore helpers.
 (define semaphore-runtime-only-helper-names
   '($make-semaphore
-    $semaphore?
-    $semaphore-peek-evt?
     $semaphore-post
     $semaphore-try-wait?
     $call-with-semaphore
     $semaphore-peek-evt))
+
+;; semaphore-core-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render promoted semaphore helpers in runtime assembly order.
+(define (semaphore-core-runtime-helper-forms helper-index)
+  (for/list ([name (in-list semaphore-promoted-runtime-helper-names)])
+    (core-runtime-helper-form helper-index name)))
 
 ;; semaphore-runtime-helper-forms : hasheq? -> (listof datum?)
 ;;   Render semaphore helpers in runtime assembly order.
@@ -308,8 +332,21 @@
   (define (form-name form)
     (second form))
 
+  (define semaphore-core-helper-index
+    (make-core-runtime-helper-index semaphore-core-runtime-helpers))
+
   (define semaphore-helper-index
-    (make-core-runtime-helper-index semaphore-runtime-only-helpers))
+    (make-core-runtime-helper-index
+     (append semaphore-core-runtime-helpers
+             semaphore-runtime-only-helpers)))
+
+  (check-equal?
+   (map core-runtime-helper-name semaphore-core-runtime-helpers)
+   semaphore-promoted-runtime-helper-names)
+
+  (check-equal?
+   (map form-name (semaphore-core-runtime-helper-forms semaphore-core-helper-index))
+   semaphore-promoted-runtime-helper-names)
 
   (check-equal?
    (map form-name (semaphore-runtime-helper-forms semaphore-helper-index))

@@ -4,6 +4,8 @@
          event-runtime-string-constants
          event-runtime-symbol-constants
          event-initializer-forms
+         event-core-runtime-helpers
+         event-core-runtime-helper-forms
          event-channel-runtime-helper-forms
          event-sync-runtime-helper-forms
          event-runtime-only-helpers)
@@ -51,9 +53,17 @@
                      (global.set $never-evt
                                  (struct.new $NeverEvt (i32.const 0)))))
 
-;; event-runtime-only-helpers : (listof core-runtime-helper?)
-;;   Enumerate event and channel helpers that still depend on monolithic runtime globals.
-(define event-runtime-only-helpers
+;; event-promoted-runtime-helper-names : (listof symbol?)
+;;   Name event helpers that are available in the standalone core runtime.
+(define event-promoted-runtime-helper-names
+  '($make-channel
+    $channel?
+    $channel-put-evt?
+    $evt?))
+
+;; event-all-runtime-helpers : (listof core-runtime-helper?)
+;;   Enumerate event and channel helpers in monolithic runtime order.
+(define event-all-runtime-helpers
   (list
    ;; make-channel : -> channel?
    ;;   Create a single-threaded one-slot channel. Real Racket channels
@@ -489,14 +499,22 @@
              (global.get $false))))
 ))
 
+;; event-core-runtime-helpers : (listof core-runtime-helper?)
+;;   Enumerate event helpers available in the standalone core runtime.
+(define event-core-runtime-helpers
+  (select-runtime-helpers event-all-runtime-helpers
+                          event-promoted-runtime-helper-names))
+
+;; event-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate event and channel helpers that still depend on monolithic runtime globals.
+(define event-runtime-only-helpers
+  (remove-runtime-helpers event-all-runtime-helpers
+                          event-promoted-runtime-helper-names))
+
 ;; event-channel-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for channel and event helpers.
 (define event-channel-runtime-only-helper-names
-  '($make-channel
-    $channel?
-    $channel-put-evt?
-    $handle-evt?
-    $evt?
+  '($handle-evt?
     $channel-put
     $channel-try-get
     $channel-get
@@ -516,6 +534,11 @@
   (for/list ([name (in-list names)])
     (core-runtime-helper-form helper-index name)))
 
+;; event-core-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render promoted event helpers in runtime assembly order.
+(define (event-core-runtime-helper-forms helper-index)
+  (event-helper-forms helper-index event-promoted-runtime-helper-names))
+
 ;; event-channel-runtime-helper-forms : hasheq? -> (listof datum?)
 ;;   Render channel and event helpers in runtime assembly order.
 (define (event-channel-runtime-helper-forms helper-index)
@@ -534,8 +557,21 @@
   (define (form-name form)
     (second form))
 
+  (define event-core-helper-index
+    (make-core-runtime-helper-index event-core-runtime-helpers))
+
   (define event-helper-index
-    (make-core-runtime-helper-index event-runtime-only-helpers))
+    (make-core-runtime-helper-index
+     (append event-core-runtime-helpers
+             event-runtime-only-helpers)))
+
+  (check-equal?
+   (map core-runtime-helper-name event-core-runtime-helpers)
+   event-promoted-runtime-helper-names)
+
+  (check-equal?
+   (map form-name (event-core-runtime-helper-forms event-core-helper-index))
+   event-promoted-runtime-helper-names)
 
   (check-equal?
    (map form-name (event-channel-runtime-helper-forms event-helper-index))

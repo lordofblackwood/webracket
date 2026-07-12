@@ -13,6 +13,7 @@
          "core/bytes.rkt"
          "core/characters.rkt"
          "core/equality.rkt"
+         "core/events.rkt"
          "core/fixnums.rkt"
          "core/flonums.rkt"
          "core/growable-arrays.rkt"
@@ -25,17 +26,22 @@
          "core/immutable-hashes.rkt"
          "core/keywords.rkt"
          "core/lists.rkt"
+         "core/loggers.rkt"
          "core/mlists.rkt"
          "core/mutable-hashes.rkt"
          "core/numbers.rkt"
          "core/procedures.rkt"
          "core/reflection.rkt"
          "core/regexps.rkt"
+         "core/security.rkt"
+         "core/semaphores.rkt"
          "core/strings.rkt"
          "core/structs.rkt"
          "core/symbols.rkt"
+         "core/threads.rkt"
          "core/unsafe.rkt"
          "core/vectors.rkt"
+         "core/wills.rkt"
          "shared-types.rkt")
 
 ;; core-runtime-helpers : (listof core-runtime-helper?)
@@ -48,6 +54,7 @@
    bytes-core-runtime-helpers
    character-core-runtime-helpers
    equality-core-runtime-helpers
+   event-core-runtime-helpers
    fixnum-core-runtime-helpers
    flonum-core-runtime-helpers
    growable-array-core-runtime-helpers
@@ -61,17 +68,22 @@
    immutable-hash-core-runtime-helpers
    keyword-core-runtime-helpers
    list-core-runtime-helpers
+   logger-core-runtime-helpers
    mlist-core-runtime-helpers
    mutable-hash-core-runtime-helpers
    number-core-runtime-helpers
    procedure-core-runtime-helpers
    reflection-core-runtime-helpers
    regexp-core-runtime-helpers
+   security-core-runtime-helpers
+   semaphore-core-runtime-helpers
    string-core-runtime-helpers
    struct-core-runtime-helpers
    symbol-core-runtime-helpers
+   thread-core-runtime-helpers
    unsafe-core-runtime-helpers
-   vector-core-runtime-helpers))
+   vector-core-runtime-helpers
+   will-core-runtime-helpers))
 
 ;; core-runtime-helper-index : hasheq?
 ;;   Index core runtime helpers by Wasm function name.

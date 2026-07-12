@@ -4,6 +4,8 @@
          logger-runtime-string-constants
          logger-runtime-symbol-constants
          logger-current-initializer-forms
+         logger-core-runtime-helpers
+         logger-core-runtime-helper-forms
          logger-runtime-helper-forms
          logger-runtime-only-helpers)
 
@@ -53,9 +55,15 @@
                                              (i32.const 0)
                                              (global.get $false)))))
 
-;; logger-runtime-only-helpers : (listof core-runtime-helper?)
-;;   Enumerate logger helpers that still depend on monolithic runtime globals.
-(define logger-runtime-only-helpers
+;; logger-promoted-runtime-helper-names : (listof symbol?)
+;;   Name logger helpers that are available in the standalone core runtime.
+(define logger-promoted-runtime-helper-names
+  '($logger?
+    $log-receiver?))
+
+;; logger-all-runtime-helpers : (listof core-runtime-helper?)
+;;   Enumerate logger helpers in monolithic runtime order.
+(define logger-all-runtime-helpers
   (list
    ;; logger? : any/c -> boolean?
    ;;   Predicate for WebRacket's minimal logger objects.
@@ -380,12 +388,22 @@
              (global.get $void))))
 ))
 
+;; logger-core-runtime-helpers : (listof core-runtime-helper?)
+;;   Enumerate logger helpers available in the standalone core runtime.
+(define logger-core-runtime-helpers
+  (select-runtime-helpers logger-all-runtime-helpers
+                          logger-promoted-runtime-helper-names))
+
+;; logger-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate logger helpers that still depend on monolithic runtime globals.
+(define logger-runtime-only-helpers
+  (remove-runtime-helpers logger-all-runtime-helpers
+                          logger-promoted-runtime-helper-names))
+
 ;; logger-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for logger helpers.
 (define logger-runtime-only-helper-names
-  '($logger?
-    $log-receiver?
-    $log-level?/i32
+  '($log-level?/i32
     $check-log-level
     $check-log-topic
     $check-log-topics
@@ -397,6 +415,12 @@
     $log-level?
     $log-max-level
     $log-message))
+
+;; logger-core-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render promoted logger helpers in runtime assembly order.
+(define (logger-core-runtime-helper-forms helper-index)
+  (for/list ([name (in-list logger-promoted-runtime-helper-names)])
+    (core-runtime-helper-form helper-index name)))
 
 ;; logger-runtime-helper-forms : hasheq? -> (listof datum?)
 ;;   Render logger helpers in runtime assembly order.
@@ -412,8 +436,21 @@
   (define (form-name form)
     (second form))
 
+  (define logger-core-helper-index
+    (make-core-runtime-helper-index logger-core-runtime-helpers))
+
   (define logger-helper-index
-    (make-core-runtime-helper-index logger-runtime-only-helpers))
+    (make-core-runtime-helper-index
+     (append logger-core-runtime-helpers
+             logger-runtime-only-helpers)))
+
+  (check-equal?
+   (map core-runtime-helper-name logger-core-runtime-helpers)
+   logger-promoted-runtime-helper-names)
+
+  (check-equal?
+   (map form-name (logger-core-runtime-helper-forms logger-core-helper-index))
+   logger-promoted-runtime-helper-names)
 
   (check-equal?
    (map form-name (logger-runtime-helper-forms logger-helper-index))

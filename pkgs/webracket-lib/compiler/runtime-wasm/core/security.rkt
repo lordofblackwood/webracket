@@ -11,6 +11,8 @@
          custodian-runtime-helper-forms
          inspector-runtime-only-helper-names
          inspector-runtime-helper-forms
+         security-core-runtime-helpers
+         security-core-runtime-helper-forms
          security-current-global-forms
          security-guard-current-initializer-forms
          security-runtime-only-helpers)
@@ -80,18 +82,26 @@
         (then (global.get $true))
         (else (global.get $false)))))
 
+;; security-promoted-runtime-helper-names : (listof symbol?)
+;;   Name security helpers that are available in the standalone core runtime.
+(define security-promoted-runtime-helper-names
+  '($subprocess?
+    $security-guard?
+    $custodian?
+    $custodian-box?
+    $inspector?
+    $current-inspector
+    $current-code-inspector))
+
 ;; security-pre-parameter-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve helpers emitted before current-security-guard.
 (define security-pre-parameter-runtime-only-helper-names
-  '($subprocess?
-    $security-guard?
-    $security-guard-procedure/arity))
+  '($security-guard-procedure/arity))
 
 ;; security-post-parameter-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve helpers emitted between current-security-guard and current-custodian.
 (define security-post-parameter-runtime-only-helper-names
-  '($make-security-guard
-    $custodian?))
+  '($make-security-guard))
 
 ;; custodian-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve custodian helper emission order.
@@ -100,16 +110,12 @@
     $custodian-shutdown-all
     $custodian-shut-down?
     $make-custodian-box
-    $custodian-box?
     $custodian-box-value))
 
 ;; inspector-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve inspector and object-name helper emission order.
 (define inspector-runtime-only-helper-names
-  '($inspector?
-    $current-inspector
-    $current-code-inspector
-    $make-inspector
+  '($make-inspector
     $inspector-superior?
     $object-name))
 
@@ -475,18 +481,35 @@
                (global.get $false))
      ))
 
-;; security-runtime-only-helpers : (listof core-runtime-helper?)
+;; security-all-runtime-helpers : (listof core-runtime-helper?)
 ;;   Register security guard, custodian, inspector, and object-name helpers.
-(define security-runtime-only-helpers
+(define security-all-runtime-helpers
   (function-forms->runtime-helpers
    'security-runtime-only-helpers
    security-runtime-only-forms))
+
+;; security-core-runtime-helpers : (listof core-runtime-helper?)
+;;   Enumerate security helpers available in the standalone core runtime.
+(define security-core-runtime-helpers
+  (select-runtime-helpers security-all-runtime-helpers
+                          security-promoted-runtime-helper-names))
+
+;; security-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate security helpers that still depend on monolithic runtime globals.
+(define security-runtime-only-helpers
+  (remove-runtime-helpers security-all-runtime-helpers
+                          security-promoted-runtime-helper-names))
 
 ;; security-helper-forms : hasheq? (listof symbol?) -> (listof datum?)
 ;;   Render the given security helper names from the runtime helper index.
 (define (security-helper-forms helper-index names)
   (for/list ([name (in-list names)])
     (core-runtime-helper-form helper-index name)))
+
+;; security-core-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render promoted security helpers in runtime assembly order.
+(define (security-core-runtime-helper-forms helper-index)
+  (security-helper-forms helper-index security-promoted-runtime-helper-names))
 
 ;; security-pre-parameter-runtime-helper-forms : hasheq? -> (listof datum?)
 ;;   Render helpers emitted before current-security-guard.
@@ -516,8 +539,21 @@
   (define (form-name form)
     (second form))
 
+  (define security-core-helper-index
+    (make-core-runtime-helper-index security-core-runtime-helpers))
+
   (define security-helper-index
-    (make-core-runtime-helper-index security-runtime-only-helpers))
+    (make-core-runtime-helper-index
+     (append security-core-runtime-helpers
+             security-runtime-only-helpers)))
+
+  (check-equal?
+   (map core-runtime-helper-name security-core-runtime-helpers)
+   security-promoted-runtime-helper-names)
+
+  (check-equal?
+   (map form-name (security-core-runtime-helper-forms security-core-helper-index))
+   security-promoted-runtime-helper-names)
 
   (check-equal?
    (map form-name

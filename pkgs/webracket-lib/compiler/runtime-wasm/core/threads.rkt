@@ -5,6 +5,8 @@
          thread-runtime-symbol-constants
          thread-current-initializer-forms
          thread-group-current-global-forms
+         thread-core-runtime-helpers
+         thread-core-runtime-helper-forms
          thread-runtime-helper-forms
          thread-runtime-only-helpers)
 
@@ -52,9 +54,17 @@
                                              (i32.const 0)
                                              (global.get $false)))))
 
-;; thread-runtime-only-helpers : (listof core-runtime-helper?)
-;;   Enumerate thread helpers that still depend on monolithic runtime globals.
-(define thread-runtime-only-helpers
+;; thread-promoted-runtime-helper-names : (listof symbol?)
+;;   Name thread helpers that are available in the standalone core runtime.
+(define thread-promoted-runtime-helper-names
+  '($make-thread-cell
+    $thread-cell?
+    $thread?
+    $thread-group?))
+
+;; thread-all-runtime-helpers : (listof core-runtime-helper?)
+;;   Enumerate thread helpers in monolithic runtime order.
+(define thread-all-runtime-helpers
   (list
    ;;;
    ;;; 4.15 Thread Cells
@@ -281,21 +291,35 @@
                          (local.get $parent-raw)))))
 ))
 
+;; thread-core-runtime-helpers : (listof core-runtime-helper?)
+;;   Enumerate thread helpers available in the standalone core runtime.
+(define thread-core-runtime-helpers
+  (select-runtime-helpers thread-all-runtime-helpers
+                          thread-promoted-runtime-helper-names))
+
+;; thread-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate thread helpers that still depend on monolithic runtime globals.
+(define thread-runtime-only-helpers
+  (remove-runtime-helpers thread-all-runtime-helpers
+                          thread-promoted-runtime-helper-names))
+
 ;; thread-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for thread and thread-cell helpers.
 (define thread-runtime-only-helper-names
-  '($make-thread-cell
-    $thread-cell?
-    $ensure-thread-cell
+  '($ensure-thread-cell
     $thread-cell-ref
     $thread-cell-set!
     $current-thread
-    $thread?
     $thread-dead?
     $thread-running?
-    $thread-group?
     $current-thread-group
     $make-thread-group))
+
+;; thread-core-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render promoted thread helpers in runtime assembly order.
+(define (thread-core-runtime-helper-forms helper-index)
+  (for/list ([name (in-list thread-promoted-runtime-helper-names)])
+    (core-runtime-helper-form helper-index name)))
 
 ;; thread-runtime-helper-forms : hasheq? -> (listof datum?)
 ;;   Render thread and thread-cell helpers in runtime assembly order.
@@ -311,8 +335,21 @@
   (define (form-name form)
     (second form))
 
+  (define thread-core-helper-index
+    (make-core-runtime-helper-index thread-core-runtime-helpers))
+
   (define thread-helper-index
-    (make-core-runtime-helper-index thread-runtime-only-helpers))
+    (make-core-runtime-helper-index
+     (append thread-core-runtime-helpers
+             thread-runtime-only-helpers)))
+
+  (check-equal?
+   (map core-runtime-helper-name thread-core-runtime-helpers)
+   thread-promoted-runtime-helper-names)
+
+  (check-equal?
+   (map form-name (thread-core-runtime-helper-forms thread-core-helper-index))
+   thread-promoted-runtime-helper-names)
 
   (check-equal?
    (map form-name (thread-runtime-helper-forms thread-helper-index))

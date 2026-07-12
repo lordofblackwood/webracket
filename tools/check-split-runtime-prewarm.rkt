@@ -323,7 +323,17 @@ RKT
 (let* ([mh (make-hasheq)]
        [un (string->uninterned-symbol "cached")]
        [s  (string #\a #\b #\c)]
-       [v  (vector 40 2)])
+       [v  (vector 40 2)]
+       [ch (make-channel)]
+       [put-evt (channel-put-evt ch 42)]
+       [thread-cell (make-thread-cell 42 #f)]
+       [sema (make-semaphore)]
+       [peek-evt (semaphore-peek-evt sema)]
+       [logger (current-logger)]
+       [receiver (make-log-receiver logger 'info)]
+       [will (make-will-executor)]
+       [cust (current-custodian)]
+       [cust-box (make-custodian-box cust 42)])
   (if (and (eq? 'cached 'cached)
            (not (eq? (box 1) (box 1)))
            (char? #\a)
@@ -389,7 +399,29 @@ RKT
            (not (liberal-define-context? 42))
            (not (module-path-index? 42))
            (not (resolved-module-path? 42))
-           (not (variable-reference? 42)))
+           (not (variable-reference? 42))
+           (channel? ch)
+           (channel-put-evt? put-evt)
+           (evt? ch)
+           (evt? put-evt)
+           (thread-cell? thread-cell)
+           (thread? (current-thread))
+           (thread-group? (current-thread-group))
+           (semaphore? sema)
+           (semaphore-peek-evt? peek-evt)
+           (evt? sema)
+           (evt? peek-evt)
+           (logger? logger)
+           (log-receiver? receiver)
+           (evt? receiver)
+           (will-executor? will)
+           (evt? will)
+           (not (subprocess? 42))
+           (security-guard? (current-security-guard))
+           (custodian? cust)
+           (custodian-box? cust-box)
+           (inspector? (current-inspector))
+           (inspector? (current-code-inspector)))
       42
       0))
 RKT

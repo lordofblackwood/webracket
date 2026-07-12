@@ -105,6 +105,7 @@
          (only-in "runtime-wasm/core/events.rkt"
                   event-global-forms
                   event-initializer-forms
+                  event-core-runtime-helper-forms
                   event-channel-runtime-helper-forms
                   event-sync-runtime-helper-forms)
          (only-in "runtime-wasm/core/fasl.rkt"
@@ -196,6 +197,7 @@
          (only-in "runtime-wasm/core/loggers.rkt"
                   logger-current-global-forms
                   logger-current-initializer-forms
+                  logger-core-runtime-helper-forms
                   logger-runtime-helper-forms)
          (only-in "runtime-wasm/core/memory-map.rkt"
                   memory-import-forms
@@ -307,11 +309,13 @@
                   custodian-current-initializer-forms
                   custodian-runtime-helper-forms
                   inspector-runtime-helper-forms
+                  security-core-runtime-helper-forms
                   security-current-global-forms
                   security-guard-current-initializer-forms
                   security-post-parameter-runtime-helper-forms
                   security-pre-parameter-runtime-helper-forms)
          (only-in "runtime-wasm/core/semaphores.rkt"
+                  semaphore-core-runtime-helper-forms
                   semaphore-runtime-helper-forms)
          (only-in "runtime-wasm/core/stencil-vectors.rkt"
                   stencil-vector-runtime-helper-forms)
@@ -351,6 +355,7 @@
                   thread-current-global-forms
                   thread-current-initializer-forms
                   thread-group-current-global-forms
+                  thread-core-runtime-helper-forms
                   thread-runtime-helper-forms)
          (only-in "runtime-wasm/core/time.rkt"
                   time-runtime-helper-forms)
@@ -368,6 +373,7 @@
                   vector-mutability-runtime-helper-forms
                   vector-post-stencil-runtime-helper-forms)
          (only-in "runtime-wasm/core/wills.rkt"
+                  will-core-runtime-helper-forms
                   will-runtime-helper-forms)
          "runtime-wasm/core-runtime.rkt"
          "runtime-wasm/shared-types.rkt"
@@ -1109,18 +1115,23 @@
          ,@(box-runtime-helper-forms runtime-helper-index)
 
          ;; Thread helpers are implemented in runtime-wasm/core/threads.rkt.
+         ,@(thread-core-runtime-helper-forms core-runtime-helper-index)
          ,@(thread-runtime-helper-forms runtime-helper-index)
 
          ;; Logger helpers are implemented in runtime-wasm/core/loggers.rkt.
+         ,@(logger-core-runtime-helper-forms core-runtime-helper-index)
          ,@(logger-runtime-helper-forms runtime-helper-index)
 
          ;; Event and channel helpers are implemented in runtime-wasm/core/events.rkt.
+         ,@(event-core-runtime-helper-forms core-runtime-helper-index)
          ,@(event-channel-runtime-helper-forms runtime-helper-index)
 
          ;; Semaphore helpers are implemented in runtime-wasm/core/semaphores.rkt.
+         ,@(semaphore-core-runtime-helper-forms core-runtime-helper-index)
          ,@(semaphore-runtime-helper-forms runtime-helper-index)
 
          ;; Will-executor helpers are implemented in runtime-wasm/core/wills.rkt.
+         ,@(will-core-runtime-helper-forms core-runtime-helper-index)
          ,@(will-runtime-helper-forms runtime-helper-index)
 
          ;; Event synchronization helpers are implemented in runtime-wasm/core/events.rkt.
@@ -1603,6 +1614,7 @@
          ;; 14.7 Custodians
 
          ;;   Security guard helpers are implemented in runtime-wasm/core/security.rkt.
+         ,@(security-core-runtime-helper-forms core-runtime-helper-index)
          ,@(security-pre-parameter-runtime-helper-forms runtime-helper-index)
 
          ;;   Implemented in runtime-wasm/core/parameters.rkt.

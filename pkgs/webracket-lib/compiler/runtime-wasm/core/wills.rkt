@@ -2,6 +2,8 @@
 
 (provide will-runtime-string-constants
          will-runtime-symbol-constants
+         will-core-runtime-helpers
+         will-core-runtime-helper-forms
          will-runtime-helper-forms
          will-runtime-only-helpers)
 
@@ -22,9 +24,15 @@
     will-execute
     will-try-execute))
 
-;; will-runtime-only-helpers : (listof core-runtime-helper?)
-;;   Enumerate will-executor helpers that still depend on monolithic runtime globals.
-(define will-runtime-only-helpers
+;; will-promoted-runtime-helper-names : (listof symbol?)
+;;   Name will-executor helpers that are available in the standalone core runtime.
+(define will-promoted-runtime-helper-names
+  '($make-will-executor
+    $will-executor?))
+
+;; will-all-runtime-helpers : (listof core-runtime-helper?)
+;;   Enumerate will-executor helpers in monolithic runtime order.
+(define will-all-runtime-helpers
   (list
    ;; make-will-executor : -> will-executor?
    ;;   Create an inert will executor. Registrations are retained, but
@@ -147,14 +155,30 @@
                    (global.get $false)))))
 ))
 
+;; will-core-runtime-helpers : (listof core-runtime-helper?)
+;;   Enumerate will-executor helpers available in the standalone core runtime.
+(define will-core-runtime-helpers
+  (select-runtime-helpers will-all-runtime-helpers
+                          will-promoted-runtime-helper-names))
+
+;; will-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate will-executor helpers that still depend on monolithic runtime globals.
+(define will-runtime-only-helpers
+  (remove-runtime-helpers will-all-runtime-helpers
+                          will-promoted-runtime-helper-names))
+
 ;; will-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for will-executor helpers.
 (define will-runtime-only-helper-names
-  '($make-will-executor
-    $will-executor?
-    $will-register
+  '($will-register
     $will-try-execute
     $will-execute))
+
+;; will-core-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render promoted will-executor helpers in runtime assembly order.
+(define (will-core-runtime-helper-forms helper-index)
+  (for/list ([name (in-list will-promoted-runtime-helper-names)])
+    (core-runtime-helper-form helper-index name)))
 
 ;; will-runtime-helper-forms : hasheq? -> (listof datum?)
 ;;   Render will-executor helpers in runtime assembly order.
@@ -170,8 +194,21 @@
   (define (form-name form)
     (second form))
 
+  (define will-core-helper-index
+    (make-core-runtime-helper-index will-core-runtime-helpers))
+
   (define will-helper-index
-    (make-core-runtime-helper-index will-runtime-only-helpers))
+    (make-core-runtime-helper-index
+     (append will-core-runtime-helpers
+             will-runtime-only-helpers)))
+
+  (check-equal?
+   (map core-runtime-helper-name will-core-runtime-helpers)
+   will-promoted-runtime-helper-names)
+
+  (check-equal?
+   (map form-name (will-core-runtime-helper-forms will-core-helper-index))
+   will-promoted-runtime-helper-names)
 
   (check-equal?
    (map form-name (will-runtime-helper-forms will-helper-index))
