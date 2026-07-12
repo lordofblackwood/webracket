@@ -247,7 +247,8 @@
 ;; core-runtime-program-import-constant-global-names : (listof symbol?)
 ;;   Name immutable-by-convention core constants that split-core programs should import.
 (define core-runtime-program-import-constant-global-names
-  core-runtime-symbol-constant-global-names)
+  (append core-runtime-string-constant-global-names
+          core-runtime-symbol-constant-global-names))
 
 ;; core-runtime-global-names : (listof symbol?)
 ;;   Enumerate stable globals declared by the standalone core runtime.
@@ -949,6 +950,10 @@
   (check-true (for/or ([form (in-list core-forms)])
                 (global-export-form-named? "global:$the-keyword-table"
                                            '$the-keyword-table
+                                           form)))
+  (check-true (for/or ([form (in-list core-forms)])
+                (global-export-form-named? "global:$string:empty"
+                                           '$string:empty
                                            form)))
   (check-true (for/or ([form (in-list core-forms)])
                 (global-export-form-named? "global:$symbol:racket"

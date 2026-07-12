@@ -1746,6 +1746,48 @@
    (for/or ([form (in-list constant-prune-program-forms)])
      (form-contains-global-set? '$string:live form)))
 
+  (define core-string-constant-import-split
+    (split-core-runtime-module
+     `(module
+        (type $I8Array (array (mut i8)))
+        (data $string-data:empty "")
+        (global $string:empty (mut (ref eq)) (ref.i31 (i32.const 0)))
+        (func $initialize-string-empty
+              (global.set $string:empty
+                          (array.new_data $I8Array
+                                          $string-data:empty
+                                          (i32.const 0)
+                                          (i32.const 0))))
+        (func $entry
+              (export "entry")
+              (result i32)
+              (call $initialize-string-empty)
+              (drop (global.get $string:empty))
+              (i32.const 42)))
+     #:helpers '()))
+  (define core-string-constant-import-program-forms
+    (module-forms (split-runtime-modules-program
+                   core-string-constant-import-split)))
+  (check-not-false
+   (member '$string:empty
+           (split-runtime-modules-imported-names
+            core-string-constant-import-split)))
+  (check-not-false
+   (member '(global $string:empty
+                    (import "core" "global:$string:empty")
+                    (mut (ref eq)))
+           core-string-constant-import-program-forms))
+  (check-false
+   (member '(data $string-data:empty "")
+           core-string-constant-import-program-forms))
+  (check-false
+   (for/or ([form (in-list core-string-constant-import-program-forms)])
+     (and (global-definition-form? form)
+          (eq? (module-global-name form) '$string:empty))))
+  (check-false
+   (for/or ([form (in-list core-string-constant-import-program-forms)])
+     (form-contains-global-set? '$string:empty form)))
+
   (define core-symbol-constant-import-split
     (split-core-runtime-module
      `(module
