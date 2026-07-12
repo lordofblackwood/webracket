@@ -62,6 +62,7 @@
          "core/stencil-vectors.rkt"
          "core/strings.rkt"
          "core/structs.rkt"
+         "core/syntax.rkt"
          "core/symbols.rkt"
          "core/threads.rkt"
          "core/time.rkt"
@@ -259,6 +260,8 @@
      $the-racket/primitive-realm)
    ffi-debug-global-names
    struct-property-identity-global-names
+   procedure-global-names
+   syntax-global-names
    exception-struct-type-cache-global-names))
 
 ;; core-runtime-program-import-tag-names : (listof symbol?)
@@ -334,6 +337,8 @@
      ,@treelist-empty-global-forms
      ,@realm-global-forms
      ,@struct-property-identity-global-forms
+     ,@procedure-global-forms
+     ,@syntax-global-forms
      ,@exception-struct-type-cache-global-forms
      ,@symbol-table-global-forms
      ,@keyword-table-global-forms
@@ -363,6 +368,10 @@
             ffi-debug-global-names)
      ,@(map core-runtime-global-export-form
             struct-property-identity-global-names)
+     ,@(map core-runtime-global-export-form
+            procedure-global-names)
+     ,@(map core-runtime-global-export-form
+            syntax-global-names)
      ,@(map core-runtime-global-export-form
             exception-struct-type-cache-global-names)
      ,@(map core-runtime-tag-export-form
@@ -942,6 +951,8 @@
   (check-true (hash-has-key? core-runtime-global-name-set '$memory-map:callback-buffer-length))
   (check-true (hash-has-key? core-runtime-global-name-set '$prop:procedure))
   (check-true (hash-has-key? core-runtime-global-name-set '$prop:checked-procedure))
+  (check-true (hash-has-key? core-runtime-global-name-set '$arity-at-least-type))
+  (check-true (hash-has-key? core-runtime-global-name-set '$syntax-type))
   (check-true (hash-has-key? core-runtime-global-name-set '$dummy-treelist-node))
   (check-true (hash-has-key? core-runtime-global-name-set '$empty-treelist))
   (check-true (hash-has-key? core-runtime-global-name-set '$treelist:BITS))
@@ -1033,6 +1044,20 @@
                  core-runtime-global-name-set)
                 '())
   (check-equal? (core-runtime-helper-dependency-problems
+                 '(func $ok (result (ref null $StructType))
+                        (global.get $arity-at-least-type))
+                 core-helper-names
+                 shared-type-names
+                 core-runtime-global-name-set)
+                '())
+  (check-equal? (core-runtime-helper-dependency-problems
+                 '(func $ok (param $v (ref $StructType))
+                        (global.set $syntax-type (local.get $v)))
+                 core-helper-names
+                 shared-type-names
+                 core-runtime-global-name-set)
+                '())
+  (check-equal? (core-runtime-helper-dependency-problems
                  '(func $bad (param (ref eq)) (result i32)
                         (call $other (local.get $v)))
                  core-helper-names
@@ -1095,6 +1120,10 @@
   (check-true (for/or ([form (in-list core-forms)])
                 (global-form-named? '$prop:checked-procedure form)))
   (check-true (for/or ([form (in-list core-forms)])
+                (global-form-named? '$arity-at-least-type form)))
+  (check-true (for/or ([form (in-list core-forms)])
+                (global-form-named? '$syntax-type form)))
+  (check-true (for/or ([form (in-list core-forms)])
                 (tag-form-named? '$exn form)))
   (check-true (for/or ([form (in-list core-forms)])
                 (global-form-named? '$the-symbol-table form)))
@@ -1147,6 +1176,14 @@
   (check-true (for/or ([form (in-list core-forms)])
                 (global-export-form-named? "global:$prop:checked-procedure"
                                            '$prop:checked-procedure
+                                           form)))
+  (check-true (for/or ([form (in-list core-forms)])
+                (global-export-form-named? "global:$arity-at-least-type"
+                                           '$arity-at-least-type
+                                           form)))
+  (check-true (for/or ([form (in-list core-forms)])
+                (global-export-form-named? "global:$syntax-type"
+                                           '$syntax-type
                                            form)))
   (check-true (for/or ([form (in-list core-forms)])
                 (tag-export-form-named? "tag:$exn" '$exn form)))

@@ -1986,6 +1986,45 @@
    (for/or ([form (in-list core-struct-property-import-program-forms)])
      (form-contains-global-set? '$equal+hash-recur/equal form)))
 
+  (define core-type-cache-import-split
+    (split-core-runtime-module
+     `(module
+        (global $arity-at-least-type
+                (mut (ref null $StructType))
+                (ref.null $StructType))
+        (global $syntax-type
+                (mut (ref null $StructType))
+                (ref.null $StructType))
+        (func $initialize-type-caches
+              (global.set $arity-at-least-type (ref.null $StructType))
+              (global.set $syntax-type (ref.null $StructType)))
+        (func $entry
+              (export "entry")
+              (result i32)
+              (call $initialize-type-caches)
+              (ref.is_null (global.get $arity-at-least-type))))
+     #:helpers '()))
+  (define core-type-cache-import-program-forms
+    (module-forms (split-runtime-modules-program
+                   core-type-cache-import-split)))
+  (for ([name (in-list '($arity-at-least-type $syntax-type))])
+    (check-not-false
+     (member name
+             (split-runtime-modules-imported-names
+              core-type-cache-import-split)))
+    (check-not-false
+     (member `(global ,name
+                      (import "core" ,(runtime-global-export-name name))
+                      (mut (ref null $StructType)))
+             core-type-cache-import-program-forms))
+    (check-false
+     (for/or ([form (in-list core-type-cache-import-program-forms)])
+       (and (global-definition-form? form)
+            (eq? (module-global-name form) name))))
+    (check-not-false
+     (for/or ([form (in-list core-type-cache-import-program-forms)])
+       (form-contains-global-set? name form))))
+
   (define intern-table-import-split
     (split-core-runtime-module
      `(module

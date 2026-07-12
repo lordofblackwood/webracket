@@ -4,6 +4,7 @@
          procedure-runtime-string-constants
          procedure-runtime-symbol-constants
          procedure-global-forms
+         procedure-global-names
          procedure-basic-runtime-only-helper-names
          procedure-arity-at-least-runtime-only-helper-names
          procedure-arity-field-runtime-only-helper-names
@@ -113,6 +114,16 @@
   '(
          ;; Cached arity-at-least struct type descriptor
          (global $arity-at-least-type (mut (ref null $StructType)) (ref.null $StructType))))
+
+;; procedure-global-names : (listof symbol?)
+;;   Enumerate cached procedure-related global names.
+(define procedure-global-names
+  (for/list ([form (in-list procedure-global-forms)])
+    (match form
+      [`(global ,name . ,_) name]
+      [_ (error 'procedure-global-names
+                "expected global form, got: ~s"
+                form)])))
 
 ;; arity-range? : any/c exact-nonnegative-integer? exact-nonnegative-integer? -> boolean?
 ;;   Check whether a list arity contains exactly the closed integer range.
@@ -4143,6 +4154,9 @@
 
   (define procedure-core-helper-index
     (make-core-runtime-helper-index procedure-core-runtime-helpers))
+
+  (check-equal? procedure-global-names
+                '($arity-at-least-type))
 
   (define (tree-member? needle tree)
     (cond

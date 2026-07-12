@@ -1,6 +1,7 @@
 #lang racket
 
 (provide syntax-global-forms
+         syntax-global-names
          syntax-runtime-string-constants
          syntax-runtime-symbol-constants
          syntax-runtime-only-helpers
@@ -94,6 +95,16 @@
          (global $syntax-type (mut (ref null $StructType)) (ref.null $StructType))
          ;; Shared empty syntax properties table
          (global $syntax-empty-props (mut (ref eq)) ,(Undefined))))
+
+;; syntax-global-names : (listof symbol?)
+;;   Enumerate cached syntax and correlated syntax global names.
+(define syntax-global-names
+  (for/list ([form (in-list syntax-global-forms)])
+    (match form
+      [`(global ,name . ,_) name]
+      [_ (error 'syntax-global-names
+                "expected global form, got: ~s"
+                form)])))
 
 ;; syntax-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for syntax-object helpers.
@@ -2493,6 +2504,12 @@
 
   (define syntax-helper-index
     (make-core-runtime-helper-index syntax-runtime-only-helpers))
+
+  (check-equal? syntax-global-names
+                '($correlated-type
+                  $correlated-empty-props
+                  $syntax-type
+                  $syntax-empty-props))
 
   (check-equal?
    (map form-name
