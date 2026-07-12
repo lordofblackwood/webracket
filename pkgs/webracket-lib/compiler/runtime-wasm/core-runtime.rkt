@@ -109,7 +109,8 @@
 ;; core-runtime-global-names : (listof symbol?)
 ;;   Enumerate stable globals declared by the standalone core runtime.
 (define core-runtime-global-names
-  singleton-global-names)
+  (append singleton-global-names
+          thread-current-core-global-names))
 
 ;; core-runtime-global-name-set : hasheq?
 ;;   Index stable core runtime globals by Wasm name.
@@ -123,6 +124,7 @@
   `(module
      ,@(generate-shared-types)
      ,@singleton-global-forms
+     ,@thread-current-core-global-forms
      ,@(core-runtime-helper-forms core-runtime-helpers #:export? #t)))
 
 (module+ test

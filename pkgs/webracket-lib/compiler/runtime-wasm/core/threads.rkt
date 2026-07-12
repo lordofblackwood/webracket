@@ -1,6 +1,8 @@
 #lang racket
 
 (provide thread-current-global-forms
+         thread-current-core-global-forms
+         thread-current-core-global-names
          thread-runtime-string-constants
          thread-runtime-symbol-constants
          thread-current-initializer-forms
@@ -43,6 +45,17 @@
   '(
                (global $current-thread-value     (mut (ref eq)) (global.get $false))))
 
+;; thread-current-core-global-names : (listof symbol?)
+;;   Name stable thread globals that can live in the standalone core runtime.
+(define thread-current-core-global-names
+  '($current-thread-value))
+
+;; thread-current-core-global-forms : (listof datum?)
+;;   Declare the standalone core runtime's stable current thread token.
+(define thread-current-core-global-forms
+  '(
+               (global $current-thread-value     (ref eq) (struct.new $Thread (i32.const 0)))))
+
 ;; thread-current-initializer-forms : (listof datum?)
 ;;   Initialize WebRacket's single thread and initial thread group.
 (define thread-current-initializer-forms
@@ -59,6 +72,7 @@
 (define thread-promoted-runtime-helper-names
   '($make-thread-cell
     $thread-cell?
+    $current-thread
     $thread?
     $thread-group?))
 
@@ -309,7 +323,6 @@
   '($ensure-thread-cell
     $thread-cell-ref
     $thread-cell-set!
-    $current-thread
     $thread-dead?
     $thread-running?
     $current-thread-group
