@@ -865,6 +865,30 @@
                            (hash-ref names (module-func-name form) #f)))
     form))
 
+;; split-core-runtime-shared-global-imports :
+;;   (listof datum?) (listof symbol?) string? -> (values (listof datum?) (listof datum?) (listof symbol?))
+;;   Replace core-owned program global definitions with imports from the core runtime.
+(define (split-core-runtime-shared-global-imports forms names import-module-name)
+  (define name-set
+    (for/hasheq ([name (in-list names)])
+      (values name #t)))
+  (for/fold ([import-forms '()]
+             [remaining-forms '()]
+             [imported-names '()])
+            ([form (in-list forms)])
+    (define name (and (global-definition-form? form)
+                      (module-global-name form)))
+    (if (and name
+             (hash-ref name-set name #f))
+        (values (cons (runtime-global-import-form form
+                                                  #:module import-module-name)
+                      import-forms)
+                remaining-forms
+                (cons name imported-names))
+        (values import-forms
+                (cons form remaining-forms)
+                imported-names))))
+
 ;; collect-constant-global-gets : datum? -> (listof symbol?)
 ;;   Collect generated constant globals whose values are read.
 (define (collect-constant-global-gets form)
@@ -986,14 +1010,28 @@
   (define forms-without-helpers (remove-helper-definitions forms names))
   (define pruned-program-forms
     (prune-unreferenced-constant-forms forms-without-helpers))
-  (define import-forms
+  (define-values (global-import-forms/reversed
+                  forms-without-core-globals/reversed
+                  imported-global-names/reversed)
+    (split-core-runtime-shared-global-imports
+     pruned-program-forms
+     core-runtime-program-import-global-names
+     import-module-name))
+  (define global-import-forms (reverse global-import-forms/reversed))
+  (define forms-without-core-globals (reverse forms-without-core-globals/reversed))
+  (define imported-global-names (reverse imported-global-names/reversed))
+  (define helper-import-forms
     (core-runtime-helper-import-forms selected-helpers #:module import-module-name))
+  (define import-forms
+    (append helper-import-forms
+            global-import-forms))
   (define-values (prefix rest)
-    (splitf-at pruned-program-forms import-insertion-prefix-form?))
+    (splitf-at forms-without-core-globals import-insertion-prefix-form?))
   (split-runtime-modules
    effective-core-module
    `(module ,@prefix ,@import-forms ,@rest)
-   (map core-runtime-helper-name selected-helpers)
+   (append (map core-runtime-helper-name selected-helpers)
+           imported-global-names)
    import-forms
    core-cache-key))
 
@@ -1689,6 +1727,36 @@
   (check-not-false
    (for/or ([form (in-list constant-prune-program-forms)])
      (form-contains-global-set? '$string:live form)))
+
+  (define symbol-table-import-split
+    (split-core-runtime-module
+     `(module
+        ,@(generate-shared-types)
+        (global $the-symbol-table
+                (mut (ref null $SymbolTable))
+                (ref.null $SymbolTable))
+        (func $entry
+              (export "entry")
+              (result i32)
+              (if (result i32)
+                  (ref.is_null (global.get $the-symbol-table))
+                  (then (i32.const 0))
+                  (else (i32.const 42)))))
+     #:helpers '()))
+  (define symbol-table-import-program-forms
+    (module-forms (split-runtime-modules-program symbol-table-import-split)))
+  (check-not-false
+   (member '$the-symbol-table
+           (split-runtime-modules-imported-names symbol-table-import-split)))
+  (check-not-false
+   (member '(global $the-symbol-table
+                    (import "core" "global:$the-symbol-table")
+                    (mut (ref null $SymbolTable)))
+           symbol-table-import-program-forms))
+  (check-false
+   (for/or ([form (in-list symbol-table-import-program-forms)])
+     (and (global-definition-form? form)
+          (eq? (module-global-name form) '$the-symbol-table))))
 
   (when (find-executable-path "wasm-tools")
     (define core-wat-path

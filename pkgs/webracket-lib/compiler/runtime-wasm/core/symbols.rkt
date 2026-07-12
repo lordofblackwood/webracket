@@ -8,8 +8,10 @@
          symbol-gensym-runtime-only-helper-names
          symbol-gensym-runtime-helper-forms
          symbol-gensym-global-forms
-         symbol-table-type-forms
          symbol-table-global-forms
+         symbol-table-core-runtime-helper-forms
+         core-runtime-symbol-constant-converter-name
+         core-runtime-symbol-constant-converter-form
          symbol-table-initializer-runtime-only-helper-names
          symbol-table-initializer-runtime-helper-forms
          symbol-table-runtime-helper-forms
@@ -25,29 +27,6 @@
     (symbol-or-string? "(or/c symbol? string?)")
     (symbol-table-full "WebRacket symbol table insertion failed")
     (g       "g")))
-
-;; symbol-table-type-forms : (listof datum?)
-;;   Declare the open-addressing table type used for symbol interning.
-(define symbol-table-type-forms
-  '(
-         ; We'll use an open-addressing hash table with linear probing for simplicity.
-         ; A load of 50% leads to fast lookup - but uses some more memory.
-
-         ; Theory: https://thenumb.at/Hashtables/
-
-         ; We do not support deleting symbols from the symbol table, so we do not
-         ; need to handle tombstones.
-
-         (type $SymbolTable
-               (struct
-                 (field $entries (mut (ref $Array))) ;; flat array: key0, val0, key1, val1, ...
-                 (field $count   (mut i32))))        ;; number of symbols currently stored
-
-         ; The $Array is a flat array: [key0 val0 key1 val1 ...].
-         ; Capacity is half the array length (since entries are key-value pairs).
-         ; Keys are (ref $String), values are (ref $Symbol).
-         ; Count is number of active entries (not tombstones).
-         ))
 
 ;; symbol-table-global-forms : (listof datum?)
 ;;   Declare the global symbol interning table.
@@ -274,6 +253,25 @@
            ;; Otherwise return unchanged
            (local.get $table)))))
 
+;; symbol-table-core-runtime-helpers : (listof core-runtime-helper?)
+;;   Enumerate symbol table helpers available to the standalone core runtime.
+(define symbol-table-core-runtime-helpers
+  (append
+   (select-runtime-helpers symbol-table-runtime-only-helpers
+                           '($make-symbol-table
+                             $symbol-table-find))
+   (list
+    (core-runtime-helper
+     '$raise-symbol-table-insert:table-full
+     "$raise-symbol-table-insert:table-full"
+     (lambda ()
+       '(func $raise-symbol-table-insert:table-full
+              (unreachable)))))
+   (select-runtime-helpers symbol-table-runtime-only-helpers
+                           '($symbol-table-insert
+                             $symbol-table-resize
+                             $maybe-resize-symbol-table))))
+
 ;; symbol-table-initializer-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate symbol table initializer helpers used by the monolithic runtime.
 (define symbol-table-initializer-runtime-only-helpers
@@ -283,6 +281,44 @@
      (func $initialize-the-symbol-table
            (if (ref.is_null (global.get $the-symbol-table))
                (then (global.set $the-symbol-table (call $make-symbol-table))))))))
+
+;; core-runtime-symbol-constant-converter-name : symbol?
+;;   Name the private core helper used to intern runtime-owned symbol constants.
+(define core-runtime-symbol-constant-converter-name
+  '$core-runtime-string->symbol/checked)
+
+;; core-runtime-symbol-constant-converter-form : datum?
+;;   Intern an immutable string in the core symbol table without public argument checks.
+(define core-runtime-symbol-constant-converter-form
+  '(func $core-runtime-string->symbol/checked
+         (param $str (ref $String))
+         (result     (ref $Symbol))
+
+         (local $existing (ref eq))
+         (local $sym      (ref $Symbol))
+
+         (local.set $existing (call $symbol-table-find
+                                    (ref.as_non_null (global.get $the-symbol-table))
+                                    (local.get $str)))
+         (if (ref.test (ref $Symbol) (local.get $existing))
+             (then (return (ref.cast (ref $Symbol) (local.get $existing)))))
+         (local.set $sym (struct.new $Symbol
+                                     (i32.const 0)
+                                     (local.get $str)
+                                     (i32.const 0)
+                                     (global.get $null)))
+         (call $symbol-table-insert
+               (ref.as_non_null (global.get $the-symbol-table))
+               (local.get $str)
+               (local.get $sym))
+         (local.get $sym)))
+
+;; symbol-table-core-runtime-helper-forms : -> (listof datum?)
+;;   Render private symbol table helpers for the standalone core runtime.
+(define (symbol-table-core-runtime-helper-forms)
+  (core-runtime-helper-forms
+   (append symbol-table-core-runtime-helpers
+           symbol-table-initializer-runtime-only-helpers)))
 
 ;; symbol-public-runtime-only-forms : (listof datum?)
 ;;   Enumerate public symbol helpers used by the monolithic runtime.
@@ -743,9 +779,6 @@
     (make-core-runtime-helper-index
      (append symbol-core-runtime-helpers
              symbol-runtime-only-helpers)))
-
-  (check-equal? (map first symbol-table-type-forms) '(type))
-  (check-equal? (second (first symbol-table-type-forms)) '$SymbolTable)
 
   (check-equal?
    (map core-runtime-helper-name symbol-core-runtime-helpers)

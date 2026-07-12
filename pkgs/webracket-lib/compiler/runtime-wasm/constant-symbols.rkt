@@ -70,9 +70,14 @@
      (list `(data ,$symbol-data:name ,string)
            `(global ,$symbol:name (mut (ref eq)) ,(Imm #f))))))
 
-;; runtime-constant-registry-initialize-symbols! : runtime-constant-registry? -> list?
+;; runtime-constant-registry-initialize-symbols! :
+;;   runtime-constant-registry? [#:string-converter symbol?] [#:symbol-converter symbol?] -> list?
 ;;   Emit WAT initialization forms for registered symbol constants.
-(define (runtime-constant-registry-initialize-symbols! registry)
+(define (runtime-constant-registry-initialize-symbols! registry
+                                                       #:string-converter
+                                                       [string-converter '$i8array->string]
+                                                       #:symbol-converter
+                                                       [symbol-converter '$string->symbol])
   (runtime-constant-registry-normalize-symbols! registry)
   (for/list ([ns (in-list (runtime-constant-registry-symbols registry))])
     (define name (first ns))
@@ -82,7 +87,7 @@
     (define $symbol:name (symbol-global-name name))
     (define n (bytes-length (string->bytes/utf-8 string)))
     `(global.set ,$symbol:name
-                 (call $string->symbol
-                       (call $i8array->string
+                 (call ,symbol-converter
+                       (call ,string-converter
                              (array.new_data $I8Array ,$symbol-data:name
                                              (i32.const 0) (i32.const ,n)))))))

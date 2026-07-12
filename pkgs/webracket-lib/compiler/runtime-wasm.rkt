@@ -354,7 +354,6 @@
                   symbol-gensym-global-forms
                   symbol-gensym-runtime-helper-forms
                   symbol-public-runtime-helper-forms
-                  symbol-table-type-forms
                   symbol-table-global-forms
                   symbol-table-runtime-helper-forms
                   symbol-table-initializer-runtime-helper-forms)
@@ -1270,8 +1269,6 @@
          ;;;
          ;;; SYMBOL TABLE
          ;;;
-
-         ,@symbol-table-type-forms
 
          ;;   Implemented in runtime-wasm/core/symbols.rkt.
          ,@(symbol-table-runtime-helper-forms runtime-helper-index)

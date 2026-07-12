@@ -4,14 +4,18 @@
          core-runtime-helper-index
          core-runtime-global-names
          core-runtime-global-name-set
+         core-runtime-program-import-global-names
          generate-core-runtime)
 
 (require "core-helper.rkt"
          (only-in "constants.rkt"
                   make-runtime-constant-registry
                   runtime-constant-registry-declare-strings
+                  runtime-constant-registry-declare-symbols!
                   runtime-constant-registry-initialize-strings
-                  string-global-name)
+                  runtime-constant-registry-initialize-symbols!
+                  string-global-name
+                  symbol-global-name)
          "core/arrays.rkt"
          "core/booleans.rkt"
          "core/boxes.rkt"
@@ -44,6 +48,7 @@
          "core/reflection.rkt"
          "core/regexps.rkt"
          "core/runtime-string-constants.rkt"
+         "core/runtime-symbol-constants.rkt"
          "core/security.rkt"
          "core/semaphores.rkt"
          "core/stencil-vectors.rkt"
@@ -202,11 +207,48 @@
    core-runtime-string-constant-registry
    #:converter core-runtime-string-constant-converter-name))
 
+;; core-runtime-symbol-constant-registry : runtime-constant-registry?
+;;   Register runtime symbol constants owned by the standalone core runtime.
+(define core-runtime-symbol-constant-registry
+  (make-runtime-constant-registry
+   '()
+   '()
+   (for/list ([symbol (in-list core-runtime-symbol-constants)])
+     (list symbol symbol))))
+
+;; core-runtime-symbol-constant-global-names : (listof symbol?)
+;;   Enumerate stable symbol globals declared by the standalone core runtime.
+(define core-runtime-symbol-constant-global-names
+  (for/list ([symbol (in-list (sort (remove-duplicates core-runtime-symbol-constants eq?)
+                                    symbol<?))])
+    (symbol-global-name symbol)))
+
+;; core-runtime-symbol-constant-declaration-forms : (listof datum?)
+;;   Declare data segments and globals for core-owned symbol constants.
+(define core-runtime-symbol-constant-declaration-forms
+  (runtime-constant-registry-declare-symbols!
+   core-runtime-symbol-constant-registry))
+
+;; core-runtime-symbol-constant-initializer-forms : (listof datum?)
+;;   Initialize core-owned symbol constants when the core runtime instantiates.
+(define core-runtime-symbol-constant-initializer-forms
+  (runtime-constant-registry-initialize-symbols!
+   core-runtime-symbol-constant-registry
+   #:string-converter core-runtime-string-constant-converter-name
+   #:symbol-converter core-runtime-symbol-constant-converter-name))
+
+;; core-runtime-program-import-global-names : (listof symbol?)
+;;   Name mutable core globals that split-core program modules must share.
+(define core-runtime-program-import-global-names
+  '($the-symbol-table))
+
 ;; core-runtime-global-names : (listof symbol?)
 ;;   Enumerate stable globals declared by the standalone core runtime.
 (define core-runtime-global-names
   (append singleton-global-names
           core-runtime-string-constant-global-names
+          core-runtime-symbol-constant-global-names
+          core-runtime-program-import-global-names
           thread-current-core-global-names))
 
 ;; core-runtime-global-name-set : hasheq?
@@ -221,12 +263,19 @@
   `(module
      ,@(generate-shared-types)
      ,@core-runtime-string-constant-declaration-forms
+     ,@core-runtime-symbol-constant-declaration-forms
      ,@singleton-global-forms
+     ,@symbol-table-global-forms
      ,@thread-current-core-global-forms
      ,core-runtime-string-constant-converter-form
+     ,@(symbol-table-core-runtime-helper-forms)
+     ,core-runtime-symbol-constant-converter-form
      (func $initialize-core-runtime!
-           ,@core-runtime-string-constant-initializer-forms)
+           ,@core-runtime-string-constant-initializer-forms
+           (call $initialize-the-symbol-table)
+           ,@core-runtime-symbol-constant-initializer-forms)
      (start $initialize-core-runtime!)
+     (export "global:$the-symbol-table" (global $the-symbol-table))
      ,@(core-runtime-helper-forms core-runtime-helpers #:export? #t)))
 
 (module+ test
@@ -261,6 +310,15 @@
   (define (global-form-named? name form)
     (match form
       [`(global ,global-name . ,_) (eq? global-name name)]
+      [_ #f]))
+
+  ;; export-form-named? : string? symbol? datum? -> boolean?
+  ;;   Check whether form exports the given global name.
+  (define (global-export-form-named? export-name global-name form)
+    (match form
+      [`(export ,name (global ,target))
+       (and (string=? name export-name)
+            (eq? target global-name))]
       [_ #f]))
 
   ;; function-export-names : datum? -> (listof string?)
@@ -740,7 +798,10 @@
   (check-pred list? shared-types)
   (check-true (hash-has-key? shared-type-names '$Array))
   (check-true (hash-has-key? shared-type-names '$Pair))
+  (check-true (hash-has-key? shared-type-names '$SymbolTable))
   (check-true (hash-has-key? core-runtime-global-name-set '$string:empty))
+  (check-true (hash-has-key? core-runtime-global-name-set '$symbol:racket))
+  (check-true (hash-has-key? core-runtime-global-name-set '$the-symbol-table))
   (check-true (for/or ([form (in-list shared-types)])
                 (type-form-named? '$Array form)))
   (check-true (for/or ([form (in-list shared-types)])
@@ -806,6 +867,13 @@
                  core-runtime-global-name-set)
                 '())
   (check-equal? (core-runtime-helper-dependency-problems
+                 '(func $ok (result (ref eq))
+                        (global.get $symbol:racket))
+                 core-helper-names
+                 shared-type-names
+                 core-runtime-global-name-set)
+                '())
+  (check-equal? (core-runtime-helper-dependency-problems
                  '(func $bad (param (ref eq)) (result i32)
                         (call $other (local.get $v)))
                  core-helper-names
@@ -849,6 +917,14 @@
                 (type-form-named? '$Array form)))
   (check-true (for/or ([form (in-list core-forms)])
                 (global-form-named? '$string:empty form)))
+  (check-true (for/or ([form (in-list core-forms)])
+                (global-form-named? '$symbol:racket form)))
+  (check-true (for/or ([form (in-list core-forms)])
+                (global-form-named? '$the-symbol-table form)))
+  (check-true (for/or ([form (in-list core-forms)])
+                (global-export-form-named? "global:$the-symbol-table"
+                                           '$the-symbol-table
+                                           form)))
   (check-not-false (member '(start $initialize-core-runtime!) core-forms))
   (define string-converter-functions
     (for/list ([form (in-list core-forms)]

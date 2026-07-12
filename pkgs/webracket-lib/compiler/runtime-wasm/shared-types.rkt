@@ -33,6 +33,10 @@
                  (field $cap (mut i32))             ;; capacity
                  (field $i   (mut i32))))           ;; current size
 
+         (type $SymbolTable
+               (struct
+                 (field $entries (mut (ref $Array))) ;; flat array: key0, val0, key1, val1, ...
+                 (field $count   (mut i32))))        ;; number of symbols currently stored
 
          ; The type $Boxed is used for assignable variables.
          ; They are not exposed, so they do not need to carry a hash code.
