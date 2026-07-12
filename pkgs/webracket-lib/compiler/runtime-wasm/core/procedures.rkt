@@ -29,6 +29,7 @@
          procedure-primitive-initializer-forms
          procedure-ffi-primitive-initializer-forms
          procedure-primitive-invoker-forms
+         procedure-primitive-error-core-runtime-helper-forms
          procedure-rest-argument-core-runtime-helper-forms
          procedure-bootstrap-runtime-helper-forms
          procedure-post-primitive-invoker-runtime-helper-forms
@@ -1172,13 +1173,154 @@
                          (local.get $args)
                          (local.get $n)
                          (local.get $count))
-             (local.get $res))))))
+             (local.get $res))))
+
+   ;; procedure-name->error-string : any/c -> string?
+   ;;   Convert the stored procedure name to a compact error-message string.
+   (core-runtime-helper
+    '$procedure-name->error-string
+    "$procedure-name->error-string"
+    (lambda ()
+      `(func $procedure-name->error-string
+             (param $name (ref eq))
+             (result      (ref $String))
+
+             (if (ref.test (ref $String) (local.get $name))
+                 (then (return (ref.cast (ref $String) (local.get $name)))))
+             (if (ref.test (ref $Symbol) (local.get $name))
+                 (then (return (struct.get $Symbol $name
+                                (ref.cast (ref $Symbol) (local.get $name))))))
+             (ref.cast (ref $String) (global.get $string:procedure?)))))
+
+   ;; arity-marker->expected-string : i32 -> string?
+   ;;   Convert one arity marker to an expected-argument-count string.
+   (core-runtime-helper
+    '$arity-marker->expected-string
+    "$arity-marker->expected-string"
+    (lambda ()
+      `(func $arity-marker->expected-string
+             (param $marker i32)
+             (result        (ref $String))
+
+             (local $n   i32)
+             (local $out (ref $I32GrowableArray))
+
+             (if (i32.ge_s (local.get $marker) (i32.const 0))
+                 (then (return (call $i32->string (local.get $marker)))))
+             (local.set $n (i32.sub (i32.const -1) (local.get $marker)))
+             (local.set $out (call $make-i32growable-array (i32.const 16)))
+             (call $i32growable-array-add-string!
+                   (local.get $out)
+                   (ref.cast (ref $String)
+                             (global.get $string:arity-error:at-least)))
+             (call $i32growable-array-add-string!
+                   (local.get $out)
+                   (call $i32->string (local.get $n)))
+             (call $i32growable-array->string (local.get $out)))))
+
+   ;; procedure-arity-field->expected-string : any/c -> string?
+   ;;   Convert a compact procedure arity field into an error-message fragment.
+   (core-runtime-helper
+    '$procedure-arity-field->expected-string
+    "$procedure-arity-field->expected-string"
+    (lambda ()
+      `(func $procedure-arity-field->expected-string
+             (param $arity-field (ref eq))
+             (result             (ref $String))
+
+             (local $markers (ref $I32Array))
+             (local $out     (ref $I32GrowableArray))
+             (local $len     i32)
+             (local $i       i32)
+
+             (if (ref.test (ref i31) (local.get $arity-field))
+                 (then
+                  (return
+                   (call $arity-marker->expected-string
+                         (i32.shr_s
+                          (i31.get_s (ref.cast (ref i31) (local.get $arity-field)))
+                          (i32.const 1))))))
+             (local.set $markers (ref.cast (ref $I32Array) (local.get $arity-field)))
+             (local.set $len (array.len (local.get $markers)))
+             (local.set $out (call $make-i32growable-array (i32.const 32)))
+             (block $done
+                    (loop $loop
+                          (br_if $done (i32.ge_u (local.get $i) (local.get $len)))
+                          (if (i32.ne (local.get $i) (i32.const 0))
+                              (then (call $i32growable-array-add-string!
+                                          (local.get $out)
+                                          (ref.cast (ref $String)
+                                                    (global.get $string:arity-error:or)))))
+                          (call $i32growable-array-add-string!
+                                (local.get $out)
+                                (call $arity-marker->expected-string
+                                      (array.get $I32Array
+                                                 (local.get $markers)
+                                                 (local.get $i))))
+                          (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                          (br $loop)))
+             (call $i32growable-array->string (local.get $out)))))
+
+   ;; primitive-invoke:raise-arity-error : primitive-procedure? i32 -> none
+   ;;   Raise a catchable primitive application arity mismatch.
+   (core-runtime-helper
+    '$primitive-invoke:raise-arity-error
+    "$primitive-invoke:raise-arity-error"
+    (lambda ()
+      `(func $primitive-invoke:raise-arity-error
+             (param $pproc (ref $PrimitiveProcedure))
+             (param $argc  i32)
+             (result       (ref eq))
+
+             (local $name-str     (ref $String))
+             (local $expected-str (ref $String))
+             (local $received-str (ref $String))
+             (local $out          (ref $I32GrowableArray))
+             (local $message      (ref $String))
+
+             (local.set $name-str
+                        (call $procedure-name->error-string
+                              (struct.get $Procedure $name (local.get $pproc))))
+             (local.set $expected-str
+                        (call $procedure-arity-field->expected-string
+                              (struct.get $Procedure $arity (local.get $pproc))))
+             (local.set $received-str
+                        (call $i32->string (local.get $argc)))
+
+             (local.set $out (call $make-i32growable-array (i32.const 80)))
+             (call $i32growable-array-add-string! (local.get $out) (local.get $name-str))
+             (call $i32growable-array-add-string!
+                   (local.get $out)
+                   (ref.cast (ref $String)
+                             (global.get $string:arity-error:start)))
+             (call $i32growable-array-add-string! (local.get $out) (local.get $expected-str))
+             (call $i32growable-array-add-string!
+                   (local.get $out)
+                   (ref.cast (ref $String)
+                             (global.get $string:arity-error:given)))
+             (call $i32growable-array-add-string! (local.get $out) (local.get $received-str))
+             (local.set $message (call $i32growable-array->string (local.get $out)))
+
+             (call $raise
+                   (call $exn:fail:contract:arity/make
+                         (local.get $message)
+                         (call $current-continuation-marks (global.get $missing)))
+                   (global.get $true))
+             (unreachable))))))
 
 ;; procedure-rest-argument-core-runtime-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for rest-argument core helpers.
 (define procedure-rest-argument-core-runtime-helper-names
   '($rest-arguments->list
     $rest-arguments->args))
+
+;; procedure-primitive-error-core-runtime-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for core primitive invocation errors.
+(define procedure-primitive-error-core-runtime-helper-names
+  '($procedure-name->error-string
+    $arity-marker->expected-string
+    $procedure-arity-field->expected-string
+    $primitive-invoke:raise-arity-error))
 
 ;; procedure-basic-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for basic procedure helpers.
@@ -1289,7 +1431,6 @@
 (define primitive-invocation-error-runtime-only-helper-names
   '($raise-no-code
     $raise-code-type-mismatch
-    $primitive-invoke:raise-arity-error
     $raise-primitive-invoke:unhandled-shape))
 
 ;; procedure-case-lambda-runtime-only-helper-names : (listof symbol?)
@@ -1887,9 +2028,10 @@
 ;; primitive-invocation-error-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate primitive invocation error helpers used by the monolithic runtime.
 (define primitive-invocation-error-runtime-only-helpers
-  (function-forms->runtime-helpers
-   'primitive-invocation-error-runtime-only-helpers
-   '(
+  (remove-runtime-helpers
+   (function-forms->runtime-helpers
+    'primitive-invocation-error-runtime-only-helpers
+    '(
         (func $raise-no-code
               (param $pproc (ref $PrimitiveProcedure))
               (result (ref eq))
@@ -1950,7 +2092,8 @@
                           (call $current-continuation-marks (global.get $missing)))
                     (global.get $true))
               (unreachable))
-     )))
+     ))
+   procedure-primitive-error-core-runtime-helper-names))
 
 ;; primitive-dispatch-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for primitive dispatch helpers.
@@ -3805,6 +3948,11 @@
 (define (procedure-rest-argument-core-runtime-helper-forms helper-index)
   (procedure-helper-forms helper-index procedure-rest-argument-core-runtime-helper-names))
 
+;; procedure-primitive-error-core-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render primitive invocation error helpers that are shared with core runtime.
+(define (procedure-primitive-error-core-runtime-helper-forms helper-index)
+  (procedure-helper-forms helper-index procedure-primitive-error-core-runtime-helper-names))
+
 ;; procedure-bootstrap-runtime-helper-forms : hasheq? -> (listof datum?)
 ;;   Render procedure bootstrap helpers before generated primitive invokers.
 (define (procedure-bootstrap-runtime-helper-forms helper-index)
@@ -3945,6 +4093,11 @@
    (map form-name
         (procedure-rest-argument-core-runtime-helper-forms procedure-core-helper-index))
    procedure-rest-argument-core-runtime-helper-names)
+
+  (check-equal?
+   (map form-name
+        (procedure-primitive-error-core-runtime-helper-forms procedure-core-helper-index))
+   procedure-primitive-error-core-runtime-helper-names)
 
   (check-equal?
    (map form-name

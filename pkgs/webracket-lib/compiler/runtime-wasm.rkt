@@ -293,6 +293,7 @@
                   procedure-bootstrap-runtime-helper-forms
                   procedure-main-runtime-helper-forms
                   procedure-post-primitive-invoker-runtime-helper-forms
+                  procedure-primitive-error-core-runtime-helper-forms
                   procedure-rest-argument-core-runtime-helper-forms
                   primitive-shapes
                   procedure-primitive-invoker-forms)
@@ -701,6 +702,7 @@
 
          ;; Procedure and primitive invocation helpers
          ;;   Implemented in runtime-wasm/core/procedures.rkt.
+         ,@(procedure-primitive-error-core-runtime-helper-forms core-runtime-helper-index)
          ,@(procedure-bootstrap-runtime-helper-forms runtime-helper-index)
 
          ,@(procedure-primitive-invoker-forms primitive-shapes)
