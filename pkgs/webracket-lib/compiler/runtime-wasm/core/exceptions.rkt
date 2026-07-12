@@ -4,6 +4,7 @@
          exception-core-runtime-helpers
          exception-tag-forms
          exception-struct-type-bindings
+         exception-struct-type-cache-global-names
          exception-struct-type-cache-global-forms
          exception-struct-type-global-forms
          exception-struct-type-initializer-forms
@@ -234,6 +235,16 @@
          (global $exn:fail:syntax-type                  (mut (ref null $StructType)) (ref.null $StructType))
          (global $exn:fail:syntax:missing-module-type   (mut (ref null $StructType)) (ref.null $StructType))
          (global $exn:fail:syntax:unbound-type          (mut (ref null $StructType)) (ref.null $StructType))))
+
+;; exception-struct-type-cache-global-names : (listof symbol?)
+;;   Enumerate cached kernel exception struct type descriptor globals.
+(define exception-struct-type-cache-global-names
+  (for/list ([form (in-list exception-struct-type-cache-global-forms)])
+    (match form
+      [`(global ,name . ,_) name]
+      [_ (error 'exception-struct-type-cache-global-names
+                "expected global form, got: ~s"
+                form)])))
 
 ;; exception-struct-type-global-forms : (listof datum?)
 ;;   Declare exported exception struct type descriptor value globals.
@@ -728,6 +739,45 @@
          ;;; Exception Structires
          ;;;
 
+         ;; kernel-exn-struct-type : symbol? (or/c struct-type? #f) i32 list? list? symbol? -> struct-type?
+         ;;   Construct trusted kernel exception struct type descriptors without public validation.
+         (func $kernel-exn-struct-type
+               (param $name             (ref $Symbol))
+               (param $super            (ref eq))
+               (param $field-count      i32)
+               (param $init-indices     (ref eq))
+               (param $immutables       (ref eq))
+               (param $constructor-name (ref $Symbol))
+               (result                  (ref $StructType))
+
+               (struct.new $StructType
+                           (i32.const 0)
+                           (local.get $name)
+                           (local.get $super)
+                           (local.get $field-count)
+                           (local.get $init-indices)
+                           (global.get $null)
+                           (global.get $null)
+                           (ref.cast (ref eq) (call $struct-type-property-table-empty))
+                           (global.get $false)
+                           (local.get $immutables)
+                           (global.get $false)
+                           (local.get $constructor-name)))
+
+         ;; invoke-kernel-exn-struct : procedure? args-array? -> none
+         ;;   Raise a catchable exception if a core-created exception struct is applied.
+         (func $invoke-kernel-exn-struct (type $ProcedureInvoker)
+               (param $proc (ref $Procedure))
+               (param $args (ref $Args))
+               (result      (ref eq))
+
+               (call $raise
+                     (call $exn:fail:contract/make
+                           (global.get $string:application:not-procedure)
+                           (call $current-continuation-marks (global.get $missing)))
+                     (global.get $true))
+               (unreachable))
+
          ;; Exception base struct type descriptor cache
          (func $ensure-exn-type
                (result (ref $StructType))
@@ -739,19 +789,19 @@
                (local.set $existing (global.get $exn-type))
                (if (ref.is_null (local.get $existing))
                    (then
-                    (local.set $indices (call $list-from-range/checked (i32.const 0) (i32.const 2)))
+                    (local.set $indices
+                               (call $cons
+                                     (ref.i31 (i32.const 0))
+                                     (call $cons
+                                           (ref.i31 (i32.const 2))
+                                           (global.get $null))))
                     (local.set $std
-                               (call $make-struct-type-descriptor/checked
+                               (call $kernel-exn-struct-type
                                      (ref.cast (ref $Symbol) (global.get $symbol:exn))
                                      (global.get $false)
                                      (i32.const 2)
-                                     (i32.const 0)
-                                     (global.get $false)
-                                     (global.get $null)
-                                     (global.get $false)
-                                     (global.get $false)
                                      (local.get $indices)
-                                     (global.get $false)
+                                     (local.get $indices)
                                      (ref.cast (ref $Symbol) (global.get $symbol:exn))))
                     (global.set $exn-type (local.get $std))
                     (local.set $existing (local.get $std))))
@@ -874,17 +924,12 @@
                     (local.set $super (call $ensure-exn-type))
                     (local.set $immut (struct.get $StructType $immutables (local.get $super)))
                     (local.set $std
-                               (call $make-struct-type-descriptor/checked
+                               (call $kernel-exn-struct-type
                                      (ref.cast (ref $Symbol) (global.get $symbol:exn:fail))
                                      (ref.cast (ref eq) (local.get $super))
-                                     (i32.const 0)
-                                     (i32.const 0)
-                                     (global.get $false)
-                                     (global.get $null)
-                                     (global.get $false)
-                                     (global.get $false)
+                                     (struct.get $StructType $field-count (local.get $super))
+                                     (struct.get $StructType $init-indices (local.get $super))
                                      (local.get $immut)
-                                     (global.get $false)
                                      (ref.cast (ref $Symbol) (global.get $symbol:exn:fail))))
                     (global.set $exn:fail-type (local.get $std))
                     (local.set $existing (local.get $std))))
@@ -1382,17 +1427,12 @@
                     (local.set $super (call $ensure-exn:fail-type))
                     (local.set $immut (struct.get $StructType $immutables (local.get $super)))
                     (local.set $std
-                               (call $make-struct-type-descriptor/checked
+                               (call $kernel-exn-struct-type
                                      (ref.cast (ref $Symbol) (global.get $symbol:exn:fail:contract))
                                      (ref.cast (ref eq) (local.get $super))
-                                     (i32.const 0)
-                                     (i32.const 0)
-                                     (global.get $false)
-                                     (global.get $null)
-                                     (global.get $false)
-                                     (global.get $false)
+                                     (struct.get $StructType $field-count (local.get $super))
+                                     (struct.get $StructType $init-indices (local.get $super))
                                      (local.get $immut)
-                                     (global.get $false)
                                      (ref.cast (ref $Symbol) (global.get $symbol:exn:fail:contract))))
                     (global.set $exn:fail:contract-type (local.get $std))
                     (local.set $existing (local.get $std))))
@@ -1413,17 +1453,12 @@
                     (local.set $super (call $ensure-exn:fail:contract-type))
                     (local.set $immut (struct.get $StructType $immutables (local.get $super)))
                     (local.set $std
-                               (call $make-struct-type-descriptor/checked
+                               (call $kernel-exn-struct-type
                                      (ref.cast (ref $Symbol) (global.get $symbol:exn:fail:contract:arity))
                                      (ref.cast (ref eq) (local.get $super))
-                                     (i32.const 0)
-                                     (i32.const 0)
-                                     (global.get $false)
-                                     (global.get $null)
-                                     (global.get $false)
-                                     (global.get $false)
+                                     (struct.get $StructType $field-count (local.get $super))
+                                     (struct.get $StructType $init-indices (local.get $super))
                                      (local.get $immut)
-                                     (global.get $false)
                                      (ref.cast (ref $Symbol) (global.get $symbol:exn:fail:contract:arity))))
                     (global.set $exn:fail:contract:arity-type (local.get $std))
                     (local.set $existing (local.get $std))))
@@ -1653,7 +1688,7 @@
                            (global.get $false)
                            (ref.i31 (i32.const 0))
                            (global.get $false)
-                           (ref.func $invoke-struct)
+                           (ref.func $invoke-kernel-exn-struct)
                            (local.get $std)
                            (local.get $fields)))
 
@@ -1676,7 +1711,7 @@
                            (global.get $false)
                            (ref.i31 (i32.const 0))
                            (global.get $false)
-                           (ref.func $invoke-struct)
+                           (ref.func $invoke-kernel-exn-struct)
                            (local.get $std)
                            (local.get $fields)))
 
@@ -4764,7 +4799,15 @@
 ;; exception-core-runtime-helper-names : (listof symbol?)
 ;;   Name exception helpers available in the standalone core runtime.
 (define exception-core-runtime-helper-names
-  '($raise))
+  '($raise
+    $kernel-exn-struct-type
+    $invoke-kernel-exn-struct
+    $ensure-exn-type
+    $ensure-exn:fail-type
+    $ensure-exn:fail:contract-type
+    $ensure-exn:fail:contract:arity-type
+    $exn:fail:contract/make
+    $exn:fail:contract:arity/make))
 
 ;; exception-core-runtime-helpers : (listof core-runtime-helper?)
 ;;   Enumerate exception helpers available in the standalone core runtime.

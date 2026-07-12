@@ -24,6 +24,7 @@
     (ref.func $equal+hash-recur/hash)             ; closure body
     (ref.func $equal+hash-recur/hash-always)      ; closure body
     (ref.func $invoke-struct)
+    (ref.func $invoke-kernel-exn-struct)
     (ref.func $primitive-invoke)
     (ref.func $invoke-reduced-procedure)
     (ref.func $invoke-composed-procedure)
@@ -73,6 +74,8 @@
   (check-equal? (take declaration 3)
                 '(elem declare funcref))
   (check-not-false (member '(ref.func $struct-constructor/no-guard)
+                           declaration))
+  (check-not-false (member '(ref.func $invoke-kernel-exn-struct)
                            declaration))
   (check-not-false (member '(ref.func $primitive-invoke:shape-0)
                            declaration))

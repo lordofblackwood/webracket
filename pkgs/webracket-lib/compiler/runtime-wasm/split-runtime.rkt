@@ -1946,6 +1946,36 @@
        (and (global-definition-form? form)
             (eq? (module-global-name form) name)))))
 
+  (define exn-type-cache-import-split
+    (split-core-runtime-module
+     `(module
+        ,@(generate-shared-types)
+        (global $exn-type
+                (mut (ref null $StructType))
+                (ref.null $StructType))
+        (func $entry
+              (export "entry")
+              (result i32)
+              (if (result i32)
+                  (ref.is_null (global.get $exn-type))
+                  (then (i32.const 42))
+                  (else (i32.const 0)))))
+     #:helpers '()))
+  (define exn-type-cache-import-program-forms
+    (module-forms (split-runtime-modules-program exn-type-cache-import-split)))
+  (check-not-false
+   (member '$exn-type
+           (split-runtime-modules-imported-names exn-type-cache-import-split)))
+  (check-not-false
+   (member '(global $exn-type
+                    (import "core" "global:$exn-type")
+                    (mut (ref null $StructType)))
+           exn-type-cache-import-program-forms))
+  (check-false
+   (for/or ([form (in-list exn-type-cache-import-program-forms)])
+     (and (global-definition-form? form)
+          (eq? (module-global-name form) '$exn-type))))
+
   (define exn-tag-import-split
     (split-core-runtime-module
      `(module

@@ -248,10 +248,12 @@
 ;; core-runtime-program-import-global-names : (listof symbol?)
 ;;   Name mutable core globals that split-core program modules must share.
 (define core-runtime-program-import-global-names
-  '($the-symbol-table
-    $the-keyword-table
-    $the-racket-realm
-    $the-racket/primitive-realm))
+  (append
+   '($the-symbol-table
+     $the-keyword-table
+     $the-racket-realm
+     $the-racket/primitive-realm)
+   exception-struct-type-cache-global-names))
 
 ;; core-runtime-program-import-tag-names : (listof symbol?)
 ;;   Name core tags that split-core program modules must share for catch/throw identity.
@@ -305,6 +307,7 @@
      ,@core-runtime-symbol-constant-declaration-forms
      ,@singleton-global-forms
      ,@realm-global-forms
+     ,@exception-struct-type-cache-global-forms
      ,@symbol-table-global-forms
      ,@keyword-table-global-forms
      ,@thread-current-core-global-forms
@@ -324,6 +327,8 @@
      ,@(map core-runtime-global-export-form
             '($the-racket-realm
               $the-racket/primitive-realm))
+     ,@(map core-runtime-global-export-form
+            exception-struct-type-cache-global-names)
      ,@(map core-runtime-tag-export-form
             core-runtime-program-import-tag-names)
      ,@(map core-runtime-global-export-form
@@ -873,6 +878,7 @@
   (check-true (hash-has-key? core-runtime-global-name-set '$the-keyword-table))
   (check-true (hash-has-key? core-runtime-global-name-set '$the-racket-realm))
   (check-true (hash-has-key? core-runtime-global-name-set '$the-racket/primitive-realm))
+  (check-true (hash-has-key? core-runtime-global-name-set '$exn-type))
   (check-equal? core-runtime-program-import-tag-names '($exn))
   (check-true (for/or ([form (in-list shared-types)])
                 (type-form-named? '$Array form)))
@@ -998,6 +1004,8 @@
   (check-true (for/or ([form (in-list core-forms)])
                 (global-form-named? '$the-racket/primitive-realm form)))
   (check-true (for/or ([form (in-list core-forms)])
+                (global-form-named? '$exn-type form)))
+  (check-true (for/or ([form (in-list core-forms)])
                 (tag-form-named? '$exn form)))
   (check-true (for/or ([form (in-list core-forms)])
                 (global-form-named? '$the-symbol-table form)))
@@ -1030,6 +1038,10 @@
   (check-true (for/or ([form (in-list core-forms)])
                 (global-export-form-named? "global:$the-racket/primitive-realm"
                                            '$the-racket/primitive-realm
+                                           form)))
+  (check-true (for/or ([form (in-list core-forms)])
+                (global-export-form-named? "global:$exn-type"
+                                           '$exn-type
                                            form)))
   (check-true (for/or ([form (in-list core-forms)])
                 (tag-export-form-named? "tag:$exn" '$exn form)))
