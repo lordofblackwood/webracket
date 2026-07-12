@@ -1,6 +1,7 @@
 #lang racket
 
-(provide equality-runtime-only-helpers
+(provide equality-core-runtime-helpers
+         equality-runtime-only-helpers
          immutable-predicate-runtime-helper-forms
          equality-runtime-helper-forms)
 
@@ -32,6 +33,12 @@
     $equal-always?/box
     $equal-always?/vector
     $equal-always?/string
+    $equal-always?/bytes))
+
+;; equality-core-runtime-helper-names : (listof symbol?)
+;;   Name equality helpers available in the standalone core runtime.
+(define equality-core-runtime-helper-names
+  '($eq?
     $equal-always?/bytes))
 
 ;; equality-runtime-only-forms : (listof datum?)
@@ -841,11 +848,23 @@
                (global.get $false))
      )))
 
-(define equality-runtime-only-helpers
+(define equality-all-runtime-helpers
   (append (function-forms->runtime-helpers
-           'equality-runtime-only-helpers
+           'equality-all-runtime-helpers
            equality-runtime-only-forms)
           immutable-predicate-runtime-only-helpers))
+
+;; equality-core-runtime-helpers : (listof core-runtime-helper?)
+;;   Enumerate equality helpers available in the standalone core runtime.
+(define equality-core-runtime-helpers
+  (select-runtime-helpers equality-all-runtime-helpers
+                          equality-core-runtime-helper-names))
+
+;; equality-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate equality helpers that still depend on monolithic runtime globals.
+(define equality-runtime-only-helpers
+  (remove-runtime-helpers equality-all-runtime-helpers
+                          equality-core-runtime-helper-names))
 
 (module+ test
   (require rackunit)
@@ -856,7 +875,13 @@
     (second form))
 
   (define equality-helper-index
-    (make-core-runtime-helper-index equality-runtime-only-helpers))
+    (make-core-runtime-helper-index
+     (append equality-core-runtime-helpers
+             equality-runtime-only-helpers)))
+
+  (check-equal?
+   (map core-runtime-helper-name equality-core-runtime-helpers)
+   equality-core-runtime-helper-names)
 
   (check-equal?
    (map form-name (equality-runtime-helper-forms equality-helper-index))

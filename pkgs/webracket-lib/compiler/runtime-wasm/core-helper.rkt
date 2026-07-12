@@ -6,7 +6,9 @@
          core-runtime-helper->form
          core-runtime-helper-form
          core-runtime-helper-forms
-         function-forms->runtime-helpers)
+         function-forms->runtime-helpers
+         select-runtime-helpers
+         remove-runtime-helpers)
 
 ;; A core runtime helper is a runtime function that can be emitted in the
 ;; monolithic runtime or exported from the experimental core runtime module.
@@ -88,3 +90,25 @@
 (define (core-runtime-helper-forms helpers #:export? [export? #f])
   (for/list ([helper (in-list helpers)])
     (core-runtime-helper->form helper #:export? export?)))
+
+;; runtime-helper-name-set : (listof symbol?) -> hasheq?
+;;   Build a membership table for helper names.
+(define (runtime-helper-name-set names)
+  (for/hasheq ([name (in-list names)])
+    (values name #t)))
+
+;; select-runtime-helpers : (listof core-runtime-helper?) (listof symbol?) -> (listof core-runtime-helper?)
+;;   Select named helpers while preserving the source helper order.
+(define (select-runtime-helpers helpers names)
+  (define name-set (runtime-helper-name-set names))
+  (for/list ([helper (in-list helpers)]
+             #:when (hash-ref name-set (core-runtime-helper-name helper) #f))
+    helper))
+
+;; remove-runtime-helpers : (listof core-runtime-helper?) (listof symbol?) -> (listof core-runtime-helper?)
+;;   Drop named helpers while preserving the remaining source helper order.
+(define (remove-runtime-helpers helpers names)
+  (define name-set (runtime-helper-name-set names))
+  (for/list ([helper (in-list helpers)]
+             #:unless (hash-ref name-set (core-runtime-helper-name helper) #f))
+    helper))

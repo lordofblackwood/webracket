@@ -11,21 +11,28 @@
          "core/booleans.rkt"
          "core/boxes.rkt"
          "core/bytes.rkt"
+         "core/characters.rkt"
+         "core/equality.rkt"
          "core/fixnums.rkt"
          "core/flonums.rkt"
          "core/growable-arrays.rkt"
          "core/growable-bytes.rkt"
          "core/growable-i32-arrays.rkt"
+         "core/hashes.rkt"
          "core/i32-arrays.rkt"
          "core/i8-arrays.rkt"
          "core/immediates.rkt"
+         "core/immutable-hashes.rkt"
          "core/keywords.rkt"
          "core/lists.rkt"
          "core/mlists.rkt"
+         "core/mutable-hashes.rkt"
+         "core/numbers.rkt"
          "core/procedures.rkt"
          "core/regexps.rkt"
          "core/strings.rkt"
          "core/structs.rkt"
+         "core/symbols.rkt"
          "core/unsafe.rkt"
          "core/vectors.rkt"
          "shared-types.rkt")
@@ -38,22 +45,29 @@
    boolean-core-runtime-helpers
    box-core-runtime-helpers
    bytes-core-runtime-helpers
+   character-core-runtime-helpers
+   equality-core-runtime-helpers
    fixnum-core-runtime-helpers
    flonum-core-runtime-helpers
    growable-array-core-runtime-helpers
    growable-bytes-core-runtime-helpers
+   hash-core-runtime-helpers
    i32-array-core-runtime-helpers
    growable-i32-array-core-runtime-helpers
    i8-array-core-runtime-helpers
    i8-array-byte-core-runtime-helpers
    immediate-core-runtime-helpers
+   immutable-hash-core-runtime-helpers
    keyword-core-runtime-helpers
    list-core-runtime-helpers
    mlist-core-runtime-helpers
+   mutable-hash-core-runtime-helpers
+   number-core-runtime-helpers
    procedure-core-runtime-helpers
    regexp-core-runtime-helpers
    string-core-runtime-helpers
    struct-core-runtime-helpers
+   symbol-core-runtime-helpers
    unsafe-core-runtime-helpers
    vector-core-runtime-helpers))
 

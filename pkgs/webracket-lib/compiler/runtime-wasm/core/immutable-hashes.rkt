@@ -9,6 +9,7 @@
          immutable-hash-public-update-runtime-helper-forms
          immutable-hash-public-clear-runtime-helper-forms
          immutable-hash-iteration-runtime-helper-forms
+         immutable-hash-core-runtime-helpers
          immutable-hash-runtime-symbol-constants
          immutable-hash-runtime-only-helpers)
 
@@ -5918,9 +5919,36 @@
                    (global.get $symbol:make-weak-hashalw)
                    (local.get $assocs)))))))
 
-;; immutable-hash-runtime-only-helpers : (listof core-runtime-helper?)
-;;   Enumerate immutable hash helpers that still depend on monolithic runtime globals.
-(define immutable-hash-runtime-only-helpers
+;; immutable-hash-core-runtime-helper-names : (listof symbol?)
+;;   Name immutable hash helpers available in the standalone core runtime.
+(define immutable-hash-core-runtime-helper-names
+  '($make-empty-immutable-hasheq
+    $make-empty-immutable-hasheqv
+    $make-empty-immutable-hash
+    $make-empty-immutable-hashalw
+    $hash-placeholder?
+    $placeholder?
+    $make-placeholder
+    $immutable-hasheqv-bucket-index
+    $immutable-hamt-packed-group-index
+    $immutable-hamt-slot-kind
+    $immutable-hamt-bnode-metadata
+    $immutable-hamt-packed-bnode?
+    $immutable-hamt-packed-index
+    $immutable-hamt-store-packed-bnode-metadata
+    $immutable-hamt-wrap-inline-key/kind
+    $immutable-hamt-inline-key-unwrap
+    $immutable-hamt-inline-key-cached-hash
+    $immutable-hasheq-bucket-has-key?
+    $immutable-hamt-bucket-length
+    $immutable-hamt-bucket-first-entry
+    $immutable-hamt-bucket->cnode
+    $make-ephemeron
+    $ephemeron?))
+
+;; immutable-hash-all-runtime-helpers : (listof core-runtime-helper?)
+;;   Enumerate immutable hash helpers in monolithic runtime order.
+(define immutable-hash-all-runtime-helpers
   (append immutable-hash-prelude-runtime-only-helpers
           immutable-hash-hamt-bit-runtime-only-helpers
           immutable-hash-hamt-metadata-runtime-only-helpers
@@ -5943,6 +5971,18 @@
           immutable-hash-iteration-runtime-only-helpers
           weak-ephemeron-hash-runtime-only-helpers))
 
+;; immutable-hash-core-runtime-helpers : (listof core-runtime-helper?)
+;;   Enumerate immutable hash helpers available in the standalone core runtime.
+(define immutable-hash-core-runtime-helpers
+  (select-runtime-helpers immutable-hash-all-runtime-helpers
+                          immutable-hash-core-runtime-helper-names))
+
+;; immutable-hash-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate immutable hash helpers that still depend on monolithic runtime globals.
+(define immutable-hash-runtime-only-helpers
+  (remove-runtime-helpers immutable-hash-all-runtime-helpers
+                          immutable-hash-core-runtime-helper-names))
+
 (module+ test
   (require rackunit)
 
@@ -5952,7 +5992,13 @@
     (second form))
 
   (define immutable-hash-helper-index
-    (make-core-runtime-helper-index immutable-hash-runtime-only-helpers))
+    (make-core-runtime-helper-index
+     (append immutable-hash-core-runtime-helpers
+             immutable-hash-runtime-only-helpers)))
+
+  (check-equal?
+   (map core-runtime-helper-name immutable-hash-core-runtime-helpers)
+   immutable-hash-core-runtime-helper-names)
 
   (check-equal?
    (map form-name

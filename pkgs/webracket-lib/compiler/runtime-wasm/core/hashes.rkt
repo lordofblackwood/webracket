@@ -1,6 +1,7 @@
 #lang racket
 
 (provide hash-runtime-only-helpers
+         hash-core-runtime-helpers
          hash-seed-global-forms
          hash-runtime-string-constants
          hash-runtime-symbol-constants
@@ -2863,9 +2864,28 @@
                             (struct.get ,type $count   (local.get $ht))
                             (i32.const ,salt))))))))
 
-;; hash-runtime-only-helpers : (listof core-runtime-helper?)
+;; hash-core-runtime-helper-names : (listof symbol?)
+;;   Name generic hash helpers available in the standalone core runtime.
+(define hash-core-runtime-helper-names
+  '($mutable-hash-leaf?/i32
+    $immutable-hash-leaf?/i32
+    $hasheq->list/plain/checked
+    $hasheqv->list/plain/checked
+    $hashequal->list/plain/checked
+    $hashalw->list/plain/checked
+    $hasheq-keys/plain/checked
+    $hasheqv-keys/plain/checked
+    $hashequal-keys/plain/checked
+    $hashalw-keys/plain/checked
+    $hasheq-values/plain/checked
+    $hasheqv-values/plain/checked
+    $hashequal-values/plain/checked
+    $hashalw-values/plain/checked
+    $bytes-hash/i32))
+
+;; hash-all-runtime-helpers : (listof core-runtime-helper?)
 ;;   Enumerate generic hash helpers that span mutable and immutable hash kinds.
-(define hash-runtime-only-helpers
+(define hash-all-runtime-helpers
   (append hash-predicate-runtime-only-helpers
           hash-table-predicate-runtime-only-helpers
           hash-count-runtime-only-helpers
@@ -2879,6 +2899,18 @@
           hash-equal-code-runtime-only-helpers
           hash-equal-worker-runtime-only-helpers))
 
+;; hash-core-runtime-helpers : (listof core-runtime-helper?)
+;;   Enumerate generic hash helpers available in the standalone core runtime.
+(define hash-core-runtime-helpers
+  (select-runtime-helpers hash-all-runtime-helpers
+                          hash-core-runtime-helper-names))
+
+;; hash-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate generic hash helpers that still depend on monolithic runtime globals.
+(define hash-runtime-only-helpers
+  (remove-runtime-helpers hash-all-runtime-helpers
+                          hash-core-runtime-helper-names))
+
 (module+ test
   (require rackunit)
 
@@ -2888,7 +2920,13 @@
     (second form))
 
   (define hash-helper-index
-    (make-core-runtime-helper-index hash-runtime-only-helpers))
+    (make-core-runtime-helper-index
+     (append hash-core-runtime-helpers
+             hash-runtime-only-helpers)))
+
+  (check-equal?
+   (map core-runtime-helper-name hash-core-runtime-helpers)
+   hash-core-runtime-helper-names)
 
   (check-equal?
    (map form-name (hash-predicate-runtime-helper-forms hash-helper-index))

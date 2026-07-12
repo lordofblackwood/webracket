@@ -9,6 +9,7 @@
          mutable-hash-update-runtime-helper-forms
          mutable-hash-remove-membership-clear-runtime-helper-forms
          mutable-hash-empty-iteration-runtime-helper-forms
+         mutable-hash-core-runtime-helpers
          mutable-hash-runtime-only-helpers)
 
 (require "../core-helper.rkt")
@@ -3447,9 +3448,27 @@
                                          (local.get $bad-index)
                                          (local.get $bad-index))))))))))
 
-;; mutable-hash-runtime-only-helpers : (listof core-runtime-helper?)
-;;   Enumerate mutable hash helpers that still depend on monolithic runtime globals.
-(define mutable-hash-runtime-only-helpers
+;; mutable-hash-core-runtime-helper-names : (listof symbol?)
+;;   Name mutable hash helpers available in the standalone core runtime.
+(define mutable-hash-core-runtime-helper-names
+  '($make-empty-hasheq
+    $make-empty-hasheqv
+    $make-empty-hash
+    $make-empty-hashalw
+    $hash-kind/i32
+    $hash-mutable?/i32
+    $hasheq-clear!/mutable/checked
+    $hasheqv-clear!/mutable/checked
+    $hash-clear!/mutable/checked
+    $hashalw-clear!/mutable/checked
+    $hasheq-empty?/mutable/checked
+    $hasheqv-empty?/mutable/checked
+    $hash-empty?/mutable/checked
+    $hashalw-empty?/mutable/checked))
+
+;; mutable-hash-all-runtime-helpers : (listof core-runtime-helper?)
+;;   Enumerate mutable hash helpers in monolithic runtime order.
+(define mutable-hash-all-runtime-helpers
   (append mutable-hash-constructor-runtime-only-helpers
           mutable-hash-read-runtime-only-helpers
           mutable-hash-ref-key-runtime-only-helpers
@@ -3466,6 +3485,18 @@
           mutable-hash-iteration-accessor-dispatch-runtime-only-helpers
           mutable-hash-iteration-accessor-runtime-only-helpers))
 
+;; mutable-hash-core-runtime-helpers : (listof core-runtime-helper?)
+;;   Enumerate mutable hash helpers available in the standalone core runtime.
+(define mutable-hash-core-runtime-helpers
+  (select-runtime-helpers mutable-hash-all-runtime-helpers
+                          mutable-hash-core-runtime-helper-names))
+
+;; mutable-hash-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate mutable hash helpers that still depend on monolithic runtime globals.
+(define mutable-hash-runtime-only-helpers
+  (remove-runtime-helpers mutable-hash-all-runtime-helpers
+                          mutable-hash-core-runtime-helper-names))
+
 (module+ test
   (require rackunit)
 
@@ -3475,7 +3506,13 @@
     (second form))
 
   (define mutable-hash-helper-index
-    (make-core-runtime-helper-index mutable-hash-runtime-only-helpers))
+    (make-core-runtime-helper-index
+     (append mutable-hash-core-runtime-helpers
+             mutable-hash-runtime-only-helpers)))
+
+  (check-equal?
+   (map core-runtime-helper-name mutable-hash-core-runtime-helpers)
+   mutable-hash-core-runtime-helper-names)
 
   (check-equal?
    (map form-name

@@ -315,6 +315,37 @@ RKT
     0)
 RKT
     expect
+    reject)
+   (write-generated-case!
+    source-dir
+    "predicate-core-helpers"
+    #<<RKT
+(let* ([mh (make-hasheq)]
+       [un (string->uninterned-symbol "cached")])
+  (if (and (eq? 'cached 'cached)
+           (not (eq? (box 1) (box 1)))
+           (char? #\a)
+           (char-blank? #\space)
+           (char-whitespace? #\newline)
+           (symbol? un)
+           (symbol? 'cached)
+           (number? 42)
+           (real? 42)
+           (rational? 42)
+           (exact? 42)
+           (not (inexact? 42))
+           (exact-integer? 42)
+           (exact-nonnegative-integer? 42)
+           (exact-positive-integer? 42)
+           (integer? (string->number "42"))
+           (string? (number->string 42))
+           (hash? mh)
+           (mutable-hash? mh)
+           (hash-empty? mh))
+      42
+      0))
+RKT
+    expect
     reject)))
 
 ;; record-failure! : string? any/c ... -> void?

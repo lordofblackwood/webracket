@@ -5,6 +5,7 @@
          character-general-category-runtime-symbol-constants
          character-runtime-string-constants
          character-runtime-symbol-constants
+         character-core-runtime-helpers
          character-runtime-helper-forms
          character-runtime-only-helper-names
          character-runtime-only-helpers)
@@ -953,17 +954,36 @@
 
      ))
 
-;; character-runtime-only-helpers : (listof core-runtime-helper?)
+;; character-core-runtime-helper-names : (listof symbol?)
+;;   Name character helpers available in the standalone core runtime.
+(define character-core-runtime-helper-names
+  '($char?
+    $char-blank?/ucs
+    $char-whitespace?/ucs))
+
+;; character-all-runtime-helpers : (listof core-runtime-helper?)
 ;;   Register character helpers used by the monolithic runtime.
-(define character-runtime-only-helpers
+(define character-all-runtime-helpers
   (function-forms->runtime-helpers
-   'character-runtime-only-helpers
+   'character-all-runtime-helpers
    character-runtime-only-forms))
 
 ;; character-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for character helpers.
 (define character-runtime-only-helper-names
-  (map core-runtime-helper-name character-runtime-only-helpers))
+  (map core-runtime-helper-name character-all-runtime-helpers))
+
+;; character-core-runtime-helpers : (listof core-runtime-helper?)
+;;   Enumerate character helpers available in the standalone core runtime.
+(define character-core-runtime-helpers
+  (select-runtime-helpers character-all-runtime-helpers
+                          character-core-runtime-helper-names))
+
+;; character-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate character helpers that still depend on monolithic runtime globals.
+(define character-runtime-only-helpers
+  (remove-runtime-helpers character-all-runtime-helpers
+                          character-core-runtime-helper-names))
 
 ;; character-runtime-helper-forms : hasheq? -> (listof datum?)
 ;;   Render character helpers in runtime assembly order.
@@ -980,7 +1000,13 @@
     (second form))
 
   (define character-helper-index
-    (make-core-runtime-helper-index character-runtime-only-helpers))
+    (make-core-runtime-helper-index
+     (append character-core-runtime-helpers
+             character-runtime-only-helpers)))
+
+  (check-equal?
+   (map core-runtime-helper-name character-core-runtime-helpers)
+   character-core-runtime-helper-names)
 
   (check-equal?
    (map form-name (character-runtime-helper-forms character-helper-index))

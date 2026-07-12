@@ -1,6 +1,7 @@
 #lang racket
 
 (provide symbol-runtime-string-constants
+         symbol-core-runtime-helpers
          symbol-runtime-only-helpers
          symbol-public-runtime-only-helper-names
          symbol-public-runtime-helper-forms
@@ -667,13 +668,32 @@
    'symbol-gensym-runtime-only-helpers
    symbol-gensym-runtime-only-forms))
 
-;; symbol-runtime-only-helpers : (listof core-runtime-helper?)
+;; symbol-core-runtime-helper-names : (listof symbol?)
+;;   Name symbol helpers available in the standalone core runtime.
+(define symbol-core-runtime-helper-names
+  '($symbol?
+    $symbol=?/i32
+    $string->uninterned-symbol/checked))
+
+;; symbol-all-runtime-helpers : (listof core-runtime-helper?)
 ;;   Register symbol table, public symbol, and gensym helpers.
-(define symbol-runtime-only-helpers
+(define symbol-all-runtime-helpers
   (append symbol-table-runtime-only-helpers
           symbol-table-initializer-runtime-only-helpers
           symbol-public-runtime-only-helpers
           symbol-gensym-runtime-only-helpers))
+
+;; symbol-core-runtime-helpers : (listof core-runtime-helper?)
+;;   Enumerate symbol helpers available in the standalone core runtime.
+(define symbol-core-runtime-helpers
+  (select-runtime-helpers symbol-all-runtime-helpers
+                          symbol-core-runtime-helper-names))
+
+;; symbol-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate symbol helpers that still depend on monolithic runtime globals.
+(define symbol-runtime-only-helpers
+  (remove-runtime-helpers symbol-all-runtime-helpers
+                          symbol-core-runtime-helper-names))
 
 ;; symbol-public-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for public symbol helpers.
@@ -720,10 +740,16 @@
     (second form))
 
   (define symbol-helper-index
-    (make-core-runtime-helper-index symbol-runtime-only-helpers))
+    (make-core-runtime-helper-index
+     (append symbol-core-runtime-helpers
+             symbol-runtime-only-helpers)))
 
   (check-equal? (map first symbol-table-type-forms) '(type))
   (check-equal? (second (first symbol-table-type-forms)) '$SymbolTable)
+
+  (check-equal?
+   (map core-runtime-helper-name symbol-core-runtime-helpers)
+   symbol-core-runtime-helper-names)
 
   (check-equal?
    (map form-name

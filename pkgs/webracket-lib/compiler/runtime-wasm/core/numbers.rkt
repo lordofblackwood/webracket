@@ -6,6 +6,7 @@
          generic-bitwise-runtime-helper-forms
          generic-numeric-runtime-helper-forms
          number-error-runtime-helper-forms
+         number-core-runtime-helpers
          number-runtime-only-helpers
          number-string-conversion-runtime-helper-forms
          floating-point-byte-conversion-runtime-helper-forms
@@ -4805,9 +4806,33 @@
            (local.get $arr)))))
 
 
-;; number-runtime-only-helpers : (listof core-runtime-helper?)
-;;   Enumerate number helpers that still depend on monolithic runtime globals.
-(define number-runtime-only-helpers
+;; number-core-runtime-helper-names : (listof symbol?)
+;;   Name number helpers available in the standalone core runtime.
+(define number-core-runtime-helper-names
+  '($number?
+    $real?
+    $rational?
+    $exact?
+    $inexact?
+    $single-flonum?
+    $single-flonum-available?
+    $flvector?
+    $inexact-real?
+    $exact-integer?
+    $exact-nonnegative-integer?
+    $exact-positive-integer?
+    $integer?
+    $number->string:check-radix
+    $number->string:max-length
+    $string->number:parse-fractional-part
+    $string->number:parse-integer
+    $real->floating-point-bytes/checked
+    $i32->string/pad6
+    $i32->codepoints))
+
+;; number-all-runtime-helpers : (listof core-runtime-helper?)
+;;   Enumerate number helpers in monolithic runtime order.
+(define number-all-runtime-helpers
   (append number-type-runtime-only-helpers
           generic-numeric-runtime-only-helpers
           number-error-runtime-only-helpers
@@ -4818,6 +4843,18 @@
           floating-point-byte-conversion-runtime-only-helpers
           numeric-formatting-runtime-only-helpers))
 
+;; number-core-runtime-helpers : (listof core-runtime-helper?)
+;;   Enumerate number helpers available in the standalone core runtime.
+(define number-core-runtime-helpers
+  (select-runtime-helpers number-all-runtime-helpers
+                          number-core-runtime-helper-names))
+
+;; number-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate number helpers that still depend on monolithic runtime globals.
+(define number-runtime-only-helpers
+  (remove-runtime-helpers number-all-runtime-helpers
+                          number-core-runtime-helper-names))
+
 (module+ test
   (require rackunit)
 
@@ -4827,7 +4864,13 @@
     (second form))
 
   (define number-helper-index
-    (make-core-runtime-helper-index number-runtime-only-helpers))
+    (make-core-runtime-helper-index
+     (append number-core-runtime-helpers
+             number-runtime-only-helpers)))
+
+  (check-equal?
+   (map core-runtime-helper-name number-core-runtime-helpers)
+   number-core-runtime-helper-names)
 
   (check-equal?
    (map form-name (number-type-runtime-helper-forms number-helper-index))
