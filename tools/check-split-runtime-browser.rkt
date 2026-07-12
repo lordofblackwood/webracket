@@ -6,8 +6,8 @@
 ;; This regression-style check verifies the browser half of the compile-once
 ;; split-runtime workflow. It prewarms the stable runtime cache, compiles a
 ;; tiny browser program with `--split-runtime`, serves the generated directory,
-;; and uses Playwright to prove that both the program wasm and runtime sidecar
-;; are fetched and the program actually runs.
+;; and uses Playwright to prove that both the program wasm and runtime wasm are
+;; fetched and the program actually runs.
 
 
 ;;; Imports
@@ -43,6 +43,8 @@
 (define expected-output-pattern "(^|\\n)42(\\n|$)")
 (define keep-temp? #f)
 (define force-prewarm? #f)
+(define shared-runtime-url? #f)
+(define shared-runtime-url "runtime.wasm")
 (define node-command "node")
 (define node-modules #f)
 (define chrome-executable #f)
@@ -86,6 +88,9 @@
  [("--force-prewarm")
   "Force refresh of the staged provider/runtime cache during prewarm."
   (set! force-prewarm? #t)]
+ [("--shared-runtime-url")
+  "Compile with --split-runtime-core-url runtime.wasm and verify no per-program sidecar is produced."
+  (set! shared-runtime-url? #t)]
  [("--keep-temp")
   "Keep the temporary check directory after a successful run."
   (set! keep-temp? #t)]
@@ -211,6 +216,17 @@
                                   (path->string (file-name-from-path p))))))
        cache-root)
       '()))
+
+;; first-cached-runtime-wasm : (listof path?) -> (or/c path? #f)
+;;   Return a deterministic cached runtime wasm candidate.
+(define (first-cached-runtime-wasm paths)
+  (and (pair? paths)
+       (first (sort paths string<? #:key path->string))))
+
+;; copy-file/replace! : path-string? path-string? -> void?
+;;   Copy src to dest, replacing an existing file.
+(define (copy-file/replace! src dest)
+  (copy-file src dest #t))
 
 ;; record-failure! : string? any/c ... -> void?
 ;;   Accumulate a formatted check failure.
@@ -603,6 +619,10 @@ JS
   (printf "  source:        ~a\n" (path->string source-file))
   (printf "  temp:          ~a\n" (path->string temp-root))
   (printf "  compiled root: ~a\n" (path->string compiled-root))
+  (printf "  runtime mode:  ~a\n"
+          (if shared-runtime-url?
+              (format "shared url (~a)" shared-runtime-url)
+              "sidecar"))
   (printf "  node:          ~a\n" (path->string node-path))
   (printf "  node_modules:  ~a\n" node-modules)
   (printf "  chrome:        ~a\n\n" (if (string=? chrome-executable "")
@@ -629,15 +649,27 @@ JS
   (when (null? cached-wasms-after-prewarm)
     (record-failure! "prewarm did not create a cached split-runtime wasm in ~a"
                      runtime-cache))
+  (define shared-runtime-wasm
+    (build-path dest-dir shared-runtime-url))
+  (when shared-runtime-url?
+    (define cached-runtime-wasm
+      (first-cached-runtime-wasm cached-wasms-after-prewarm))
+    (if cached-runtime-wasm
+        (copy-file/replace! cached-runtime-wasm shared-runtime-wasm)
+        (record-failure! "cannot create shared runtime url file without a cached runtime wasm")))
 
   (define compile-args
-    (list "-S" "pkgs" "webracket.rkt"
-          "--browser" "--split-runtime" "--timings"
-          "--no-stdlib"
-          "--provider-cache-dir" (path->string provider-cache)
-          "--runtime-provider-cache-dir" (path->string runtime-cache)
-          "--dest" (path->string dest-dir)
-          (path->string source-file)))
+    (append
+     (list "-S" "pkgs" "webracket.rkt"
+           "--browser" "--split-runtime" "--timings"
+           "--no-stdlib"
+           "--provider-cache-dir" (path->string provider-cache)
+           "--runtime-provider-cache-dir" (path->string runtime-cache))
+     (if shared-runtime-url?
+         (list "--split-runtime-core-url" shared-runtime-url)
+         '())
+     (list "--dest" (path->string dest-dir)
+           (path->string source-file))))
   (define compile-result
     (run-command/capture repo-root racket-exe compile-args))
   (define compile-log (build-path temp-root "compile.log"))
@@ -645,22 +677,41 @@ JS
 
   (unless (command-result-ok? compile-result)
     (record-failure! "browser compile command failed; see ~a" compile-log))
-  (unless (transcript-contains? compile-result
-                                #rx"split-runtime-core:materialize-wasm-hit")
-    (record-failure! "browser compile did not materialize the runtime wasm from cache"))
+  (cond
+    [shared-runtime-url?
+     (unless (transcript-contains? compile-result
+                                   #rx"split-runtime-core:reference-wasm-hit")
+       (record-failure! "browser shared-url compile did not reference the cached runtime wasm"))]
+    [else
+     (unless (transcript-contains? compile-result
+                                   #rx"split-runtime-core:materialize-wasm-hit")
+       (record-failure! "browser compile did not materialize the runtime wasm from cache"))])
   (when (transcript-contains? compile-result
                               #rx"split-runtime-core:assemble-wasm")
     (record-failure! "browser compile assembled the split runtime instead of using the cache"))
-  (when (transcript-contains? compile-result
-                              #rx"split-runtime-core:reference-wasm-hit")
-    (record-failure! "browser compile used Node-only cache-reference mode"))
+  (when (and (not shared-runtime-url?)
+             (transcript-contains? compile-result
+                                   #rx"split-runtime-core:reference-wasm-hit"))
+    (record-failure! "browser sidecar compile used reference mode"))
+  (when (and shared-runtime-url?
+             (transcript-contains? compile-result
+                                   #rx"split-runtime-core:materialize-wasm-hit"))
+    (record-failure! "browser shared-url compile materialized a runtime sidecar"))
 
   (define html-path (generated-path dest-dir source-file ".html"))
   (define program-wasm (generated-path dest-dir source-file ".wasm"))
-  (define runtime-wasm (split-runtime-generated-path dest-dir source-file ".wasm"))
+  (define runtime-sidecar-wasm (split-runtime-generated-path dest-dir source-file ".wasm"))
+  (define runtime-wasm
+    (if shared-runtime-url?
+        shared-runtime-wasm
+        runtime-sidecar-wasm))
   (for ([artifact (in-list (list html-path program-wasm runtime-wasm))])
     (unless (file-exists? artifact)
       (record-failure! "missing generated artifact: ~a" artifact)))
+  (when (and shared-runtime-url?
+             (file-exists? runtime-sidecar-wasm))
+    (record-failure! "shared-url compile unexpectedly produced runtime sidecar: ~a"
+                     runtime-sidecar-wasm))
   (unless (wasm-magic? program-wasm)
     (record-failure! "program wasm is missing WebAssembly magic bytes: ~a" program-wasm))
   (unless (wasm-magic? runtime-wasm)
@@ -671,7 +722,7 @@ JS
       (record-failure! "generated HTML does not contain the split runtime loader"))
     (unless (regexp-match? (regexp-quote (path->string (file-name-from-path runtime-wasm)))
                            html)
-      (record-failure! "generated HTML does not reference runtime sidecar ~a"
+      (record-failure! "generated HTML does not reference runtime wasm ~a"
                        (file-name-from-path runtime-wasm))))
 
   (define node-script (write-node-script!))

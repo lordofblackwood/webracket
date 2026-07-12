@@ -251,10 +251,26 @@ racket -S pkgs tools/check-split-runtime-browser.rkt \
   --expect '(^|\n)42(\n|$)'
 ```
 
+Use `--shared-runtime-url` to exercise the compile-once browser workflow where
+the generated page fetches a prewarmed shared `runtime.wasm` URL via
+`--split-runtime-core-url` instead of materializing a per-program
+`.runtime.wasm` sidecar:
+
+```sh
+racket -S pkgs tools/check-split-runtime-browser.rkt \
+  --shared-runtime-url
+```
+
 The same guarded check is available as:
 
 ```sh
 make smoke-split-runtime-browser
+```
+
+The shared runtime URL variant is available as:
+
+```sh
+make smoke-split-runtime-browser-url
 ```
 
 prewarm-staged-providers.rkt

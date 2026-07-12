@@ -5,7 +5,7 @@ SMOKE_DIR := lib/web-easy/smoke
 SINGLE_COMPILE ?= run-browser-parity-profile-compile.sh
 SINGLE_PAGE ?= test-browser-parity-profile.html
 
-.PHONY: help goal1-fast smoke-ci smoke-headless-lite smoke-style smoke-theme smoke-theme-contracts smoke-theme-core smoke-theme-visual smoke-verify smoke-quick smoke-release smoke-one smoke-list smoke-commands smoke-compare-navbars smoke-compare-buttons smoke-compare-all smoke-solar-parity smoke-solar-sections smoke-solar-sections-gate smoke-split-runtime-browser smoke-split-runtime-prewarm smoke-treelist-shape dom-headless measure-letrec-test-basics
+.PHONY: help goal1-fast smoke-ci smoke-headless-lite smoke-style smoke-theme smoke-theme-contracts smoke-theme-core smoke-theme-visual smoke-verify smoke-quick smoke-release smoke-one smoke-list smoke-commands smoke-compare-navbars smoke-compare-buttons smoke-compare-all smoke-solar-parity smoke-solar-sections smoke-solar-sections-gate smoke-split-runtime-browser smoke-split-runtime-browser-url smoke-split-runtime-prewarm smoke-treelist-shape dom-headless measure-letrec-test-basics
 
 help:
 	@echo "Available targets:"
@@ -31,6 +31,7 @@ help:
 	@echo "  smoke-solar-sections  Run per-section Solar2 parity report (with RMSE per section)."
 	@echo "  smoke-solar-sections-gate  Run quick per-section Solar2 RMSE threshold gate."
 	@echo "  smoke-split-runtime-browser  Run cached split-runtime browser sidecar smoke."
+	@echo "  smoke-split-runtime-browser-url  Run cached split-runtime browser shared runtime URL smoke."
 	@echo "  smoke-split-runtime-prewarm  Run representative cached split-runtime compile/run fixtures."
 	@echo "  smoke-treelist-shape  Run the compiler-private treelist shape validation smoke."
 	@echo "  dom-headless          Run the DOM browser wrapper suite."
@@ -109,6 +110,7 @@ smoke-list:
 	@echo "smoke-solar-sections"
 	@echo "smoke-solar-sections-gate"
 	@echo "smoke-split-runtime-browser"
+	@echo "smoke-split-runtime-browser-url"
 	@echo "smoke-split-runtime-prewarm"
 	@echo "smoke-treelist-shape"
 	@echo "dom-headless"
@@ -145,6 +147,9 @@ smoke-solar-sections-gate:
 
 smoke-split-runtime-browser:
 	python3 tools/run-guarded.py --timeout-sec 540 --rss-limit-mb 1800 -- racket -S pkgs tools/check-split-runtime-browser.rkt
+
+smoke-split-runtime-browser-url:
+	python3 tools/run-guarded.py --timeout-sec 540 --rss-limit-mb 1800 -- racket -S pkgs tools/check-split-runtime-browser.rkt --shared-runtime-url
 
 smoke-split-runtime-prewarm:
 	python3 tools/run-guarded.py --timeout-sec 540 --rss-limit-mb 1800 -- racket -S pkgs tools/check-split-runtime-prewarm.rkt --source test/test-lambda-variadic.rkt --extra-source test/test-values-errors.rkt --no-expect --reject '#f'

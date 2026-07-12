@@ -2910,6 +2910,7 @@
 ;;   (list? path-string? path-string? -> boolean?)
 ;;   [#:cache-key any/c]
 ;;   [#:materialize-cache-hit? boolean?]
+;;   [#:assemble-cache-miss? boolean?]
 ;;   [#:record-timing! (string? real? -> any/c)]
 ;;   -> (values boolean? (or/c path-string? #f))
 ;;   Assemble or locate the core runtime, reusing a fingerprinted Wasm cache hit.
@@ -2921,6 +2922,8 @@
                                              #:cache-key [cache-key #f]
                                              #:materialize-cache-hit?
                                              [materialize-cache-hit? #t]
+                                             #:assemble-cache-miss?
+                                             [assemble-cache-miss? #t]
                                              #:record-timing!
                                              [record-timing! void])
   (define (time-core-cache-step label thunk)
@@ -3006,6 +3009,14 @@
            (provider-cache-log "split runtime core wasm hit: ~a"
                                cache-wasm-path)
            (cached-runtime-hit!)]
+          [(not assemble-cache-miss?)
+           (time-core-cache-step
+            "split-runtime-core:cache-miss-not-assembled"
+            (lambda ()
+              (error 'assemble-split-runtime-core/cached!
+                     (string-append
+                      "split-runtime core wasm cache miss for reference-only output; "
+                      "prewarm the runtime cache first"))))]
           [else
            (provider-cache-log "split runtime core wasm miss; assembling: ~a"
                                cache-wasm-path)
@@ -3071,6 +3082,7 @@
          #:tree-shake-report tree-shake-report
          #:split-runtime?    [split-runtime? #f]
          #:split-runtime-cache-reference? [split-runtime-cache-reference? #f]
+         #:split-runtime-core-url [split-runtime-core-url #f]
          ;; Program Debug
          #:print-top-level-results? print-top-level-results?
          #:internal-bind-treelist-debug-shape? internal-bind-treelist-debug-shape?
@@ -3369,6 +3381,15 @@
   (when (and split-runtime-cache-reference? browser?)
     (error 'drive-compilation
            "`--split-runtime-cache-reference` is only supported for Node output"))
+  (when (and split-runtime-core-url (not split-runtime?))
+    (error 'drive-compilation
+           "`--split-runtime-core-url` requires `--split-runtime`"))
+  (when (and split-runtime-core-url (not browser?))
+    (error 'drive-compilation
+           "`--split-runtime-core-url` is only supported for browser output"))
+  (when (and split-runtime-core-url split-runtime-cache-reference?)
+    (error 'drive-compilation
+           "`--split-runtime-core-url` cannot be combined with `--split-runtime-cache-reference`"))
 
   ; Preflight: `-r` in Node mode requires a Node.js executable.
   (when (and node? run-after?)
@@ -3397,7 +3418,7 @@
           (cons "Wasm output file"      out-wasm)
           (cons "label-map output file" out-map)
           (cons "host output file"      out-host))
-    (if split-runtime?
+    (if (and split-runtime? (not split-runtime-core-url))
         (list (cons "split runtime WAT output file" runtime-wat)
               (cons "split runtime Wasm output file" runtime-wasm))
         '())))
@@ -3407,7 +3428,7 @@
   (ensure-output-path-writable! 'drive-compilation out-wasm "Wasm output file")
   (ensure-output-path-writable! 'drive-compilation out-map  "label-map output file")
   (ensure-output-path-writable! 'drive-compilation out-host "host output file")
-  (when split-runtime?
+  (when (and split-runtime? (not split-runtime-core-url))
     (ensure-output-path-writable! 'drive-compilation runtime-wat "split runtime WAT output file")
     (ensure-output-path-writable! 'drive-compilation runtime-wasm "split runtime Wasm output file"))
   
@@ -3492,7 +3513,11 @@
          pretty-wat?
          assemble-module!
          #:cache-key (split-runtime-modules-core-cache-key split-modules)
-         #:materialize-cache-hit? (not split-runtime-cache-reference?)
+         #:materialize-cache-hit?
+         (not (or split-runtime-cache-reference?
+                  split-runtime-core-url))
+         #:assemble-cache-miss?
+         (not split-runtime-core-url)
          #:record-timing!
          (lambda (label elapsed-ms)
            (set! split-runtime-core-timing-rows
@@ -3506,7 +3531,9 @@
     (error 'drive-compilation
            (~a "wat->wasm failed to produce bytecode for " filename)))
   (ensure-generated-file-exists! 'drive-compilation out-wasm "Wasm bytecode file")
-  (when (and split-runtime? (not split-runtime-cache-reference?))
+  (when (and split-runtime?
+             (not split-runtime-cache-reference?)
+             (not split-runtime-core-url))
     (ensure-generated-file-exists! 'drive-compilation runtime-wasm "split runtime Wasm bytecode file"))
   (define t-assemble-end (now-ms))
 
@@ -3524,10 +3551,11 @@
     (host-wasm-reference browser? out-host out-wasm))
   (define split-runtime-wasm-reference
     (and split-runtime?
-         (host-wasm-reference
-          browser?
-          out-host
-          (or split-runtime-core-reference-path runtime-wasm))))
+         (or split-runtime-core-url
+             (host-wasm-reference
+              browser?
+              out-host
+              (or split-runtime-core-reference-path runtime-wasm)))))
   (with-output-to-file out-host
     (λ () (displayln
            (runtime #:out runtime-wasm-reference
