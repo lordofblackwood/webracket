@@ -411,13 +411,15 @@
 
 ;; classified-runtime-import/export-forms :
 ;;   (listof datum?) (listof datum?) [#:module string?]
-;;   [#:export-all? boolean?]
-;;   -> (values (listof symbol?) (listof datum?) (listof datum?))
+;;   [#:export-all? boolean?] [#:build-export-forms? boolean?]
+;;   -> (values (listof symbol?) (listof datum?) (or/c (listof datum?) #f))
 ;;   Build import and export declarations for runtime definitions used by program forms.
 (define (classified-runtime-import/export-forms runtime-forms
                                                 program-forms
                                                 #:module [module-name "core"]
                                                 #:export-all? [export-all? #f]
+                                                #:build-export-forms?
+                                                [build-export-forms? #t]
                                                 #:runtime-index
                                                 [runtime-index #f])
   (define effective-runtime-index
@@ -445,18 +447,6 @@
   (define referenced-tag-names
     (filter (lambda (name) (hash-ref tag-form-by-name name #f))
             referenced-names))
-  (define exported-function-names
-    (if export-all?
-        (sort (hash-keys function-form-by-name) symbol<?)
-        referenced-function-names))
-  (define exported-global-names
-    (if export-all?
-        (sort (hash-keys global-form-by-name) symbol<?)
-        referenced-global-names))
-  (define exported-tag-names
-    (if export-all?
-        (sort (hash-keys tag-form-by-name) symbol<?)
-        referenced-tag-names))
   (define import-forms
     (append
      (for/list ([name (in-list referenced-function-names)])
@@ -469,15 +459,43 @@
        (runtime-tag-import-form (hash-ref tag-form-by-name name)
                                 #:module module-name))))
   (define export-forms
-    (append
-     (map runtime-function-export-form exported-function-names)
-     (map runtime-global-export-form exported-global-names)
-     (map runtime-tag-export-form exported-tag-names)))
+    (and build-export-forms?
+         (runtime-index-export-forms
+          effective-runtime-index
+          #:function-names (if export-all? #f referenced-function-names)
+          #:global-names   (if export-all? #f referenced-global-names)
+          #:tag-names      (if export-all? #f referenced-tag-names))))
   (values (append referenced-function-names
                   referenced-global-names
                   referenced-tag-names)
           import-forms
           export-forms))
+
+;; runtime-index-export-forms :
+;;   split-form-indexes? [#:function-names (or/c (listof symbol?) #f)]
+;;                       [#:global-names (or/c (listof symbol?) #f)]
+;;                       [#:tag-names (or/c (listof symbol?) #f)] -> (listof datum?)
+;;   Build export declarations from a runtime form index.
+(define (runtime-index-export-forms runtime-index
+                                    #:function-names [function-names #f]
+                                    #:global-names [global-names #f]
+                                    #:tag-names [tag-names #f])
+  (define function-form-by-name
+    (split-form-indexes-function-defs runtime-index))
+  (define global-form-by-name
+    (split-form-indexes-global-defs runtime-index))
+  (define tag-form-by-name
+    (split-form-indexes-tag-defs runtime-index))
+  (define effective-function-names
+    (or function-names (sort (hash-keys function-form-by-name) symbol<?)))
+  (define effective-global-names
+    (or global-names (sort (hash-keys global-form-by-name) symbol<?)))
+  (define effective-tag-names
+    (or tag-names (sort (hash-keys tag-form-by-name) symbol<?)))
+  (append
+   (map runtime-function-export-form effective-function-names)
+   (map runtime-global-export-form effective-global-names)
+   (map runtime-tag-export-form effective-tag-names)))
 
 ;; type-prefix-form? : any/c -> boolean?
 ;;   Check whether form declares types that must be duplicated across modules.
@@ -545,6 +563,18 @@
       (filter-declare-elem-form form program-function-names))
     (values (if runtime-form (cons runtime-form runtime-forms) runtime-forms)
             (if program-form (cons program-form program-forms) program-forms))))
+
+;; declare-elem-forms-for-names : (listof datum?) hasheq? -> (listof datum?)
+;;   Keep declared function refs that are present in names.
+(define (declare-elem-forms-for-names forms names)
+  (for/fold ([kept-forms '()])
+            ([form (in-list forms)]
+             #:when (declare-elem-form? form))
+    (define kept-form
+      (filter-declare-elem-form form names))
+    (if kept-form
+        (cons kept-form kept-forms)
+        kept-forms)))
 
 ;; elem-form-ref-names : datum? -> (listof symbol?)
 ;;   Return function names referenced by an `elem declare funcref` form.
@@ -904,22 +934,30 @@
          (null? pulled-runtime-data-forms)
          (null? pulled-runtime-global-forms)
          core-cache-key))
-  (define runtime-body-forms
-    (canonicalize-runtime-constant-declarations
-     (append
-      (for/list ([form (in-list runtime-forms)]
-                 #:unless (declare-elem-form? form))
-        form)
-      pulled-runtime-data-forms
-      pulled-runtime-global-forms)))
+  (define runtime-body-forms-cache #f)
+  (define (runtime-body-forms!)
+    (or runtime-body-forms-cache
+        (let ([body-forms
+               (canonicalize-runtime-constant-declarations
+                (append
+                 (for/list ([form (in-list runtime-forms)]
+                            #:unless (declare-elem-form? form))
+                   form)
+                 pulled-runtime-data-forms
+                 pulled-runtime-global-forms))])
+          (set! runtime-body-forms-cache body-forms)
+          body-forms)))
   (define runtime-index
-    (build-split-form-indexes runtime-body-forms))
+    (if effective-core-cache-key
+        runtime-source-index
+        (build-split-form-indexes (runtime-body-forms!))))
   (define-values (imported-names import-forms export-forms)
     (classified-runtime-import/export-forms
-     runtime-body-forms
+     runtime-forms
      program-forms
      #:module import-module-name
      #:export-all? #t
+     #:build-export-forms? (not effective-core-cache-key)
      #:runtime-index runtime-index))
   (define runtime-function-names
     (split-form-indexes-function-names runtime-index))
@@ -931,19 +969,12 @@
                #:when name)
       (hash-set! names name #t)
       names))
-  (define-values (runtime-elem-forms/reversed program-elem-forms/reversed)
-    (split-declare-elem-forms (split-form-indexes-declare-elem-forms
-                               runtime-source-index)
-                              runtime-function-names
-                              program-available-function-names))
-  (define runtime-elem-forms
-    (reverse runtime-elem-forms/reversed))
+  (define declare-elem-forms
+    (split-form-indexes-declare-elem-forms runtime-source-index))
   (define program-elem-forms
-    (reverse program-elem-forms/reversed))
-  (define runtime-supplemental-elem-forms
-    (supplemental-declare-elem-forms
-     runtime-elem-forms
-     (direct-ref-func-names runtime-body-forms runtime-function-names)))
+    (reverse
+     (declare-elem-forms-for-names declare-elem-forms
+                                   program-available-function-names)))
   (define program-supplemental-elem-forms
     (supplemental-declare-elem-forms
      program-elem-forms
@@ -951,16 +982,30 @@
   (define program-prefix-forms
     (split-form-indexes-shared-prefix-forms runtime-index))
   (define program-data-forms
-    (program-referenced-runtime-data-forms runtime-body-forms
-                                           program-forms
-                                           #:runtime-index runtime-index
-                                           #:program-index program-index))
+    (program-referenced-runtime-data-forms
+     (if effective-core-cache-key
+         runtime-forms
+         (runtime-body-forms!))
+     program-forms
+     #:runtime-index runtime-index
+     #:program-index program-index))
   (define (runtime-core-module)
+    (define runtime-body-forms
+      (runtime-body-forms!))
+    (define runtime-elem-forms
+      (reverse
+       (declare-elem-forms-for-names declare-elem-forms
+                                     runtime-function-names)))
+    (define runtime-supplemental-elem-forms
+      (supplemental-declare-elem-forms
+       runtime-elem-forms
+       (direct-ref-func-names runtime-body-forms runtime-function-names)))
     `(module
        ,@runtime-body-forms
        ,@runtime-elem-forms
        ,@runtime-supplemental-elem-forms
-       ,@export-forms))
+       ,@(or export-forms
+             (runtime-index-export-forms runtime-index))))
   (split-runtime-modules
    (if effective-core-cache-key
        (delay (runtime-core-module))
