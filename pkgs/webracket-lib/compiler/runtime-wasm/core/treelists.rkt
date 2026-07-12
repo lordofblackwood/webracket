@@ -3,6 +3,8 @@
 (provide treelist-constant-global-forms
          treelist-empty-global-forms
          treelist-runtime-string-constants
+         treelist-core-runtime-helpers
+         treelist-core-runtime-helper-forms
          treelist-runtime-helper-forms
          treelist-runtime-only-helpers)
 
@@ -329,16 +331,42 @@
     $list->treelist
     $treelist->list))
 
-;; treelist-runtime-helper-names : (listof symbol?)
+;; treelist-promoted-runtime-helper-names : (listof symbol?)
+;;   Name treelist helpers available in the standalone core runtime.
+(define treelist-promoted-runtime-helper-names
+  '($treelist-node-children
+    $treelist-node-sizes
+    $treelist-node-leftwise-dense?/i32
+    $treelist-node-child-count
+    $treelist-node-find-child-index/relaxed
+    $treelist-leaf
+    $treelist-node-copy-into!
+    $treelist->array/checked
+    $treelist-length/checked/i32
+    $treelist-node-count/checked
+    $treelist-node-relaxed-count/checked
+    $treelist-node-max-child-count/checked
+    $treelist-node-unary-start-depth/checked
+    $treelist-node-max-unary-depth/checked
+    $treelist->vector/checked
+    $treelist?))
+
+;; treelist-all-runtime-helper-names : (listof symbol?)
 ;;   Preserve the full treelist helper emission order.
-(define treelist-runtime-helper-names
+(define treelist-all-runtime-helper-names
   (append treelist-internal-runtime-only-helper-names
           treelist-error-runtime-only-helper-names
           treelist-public-runtime-only-helper-names))
 
+;; treelist-runtime-helper-names : (listof symbol?)
+;;   Preserve the runtime-only treelist helper emission order.
+(define treelist-runtime-helper-names
+  (remove* treelist-promoted-runtime-helper-names
+           treelist-all-runtime-helper-names))
+
 ;; treelist-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate treelist helpers that still depend on monolithic runtime globals.
-(define treelist-runtime-only-helpers
+(define treelist-all-runtime-helpers
   (append
    treelist-error-runtime-only-helpers
    (list
@@ -5705,10 +5733,28 @@
                  (else (global.get $false))))))
 )))
 
+;; treelist-core-runtime-helpers : (listof core-runtime-helper?)
+;;   Enumerate treelist helpers available in the standalone core runtime.
+(define treelist-core-runtime-helpers
+  (select-runtime-helpers treelist-all-runtime-helpers
+                          treelist-promoted-runtime-helper-names))
+
+;; treelist-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate treelist helpers that still depend on monolithic runtime definitions.
+(define treelist-runtime-only-helpers
+  (remove-runtime-helpers treelist-all-runtime-helpers
+                          treelist-promoted-runtime-helper-names))
+
 ;; treelist-runtime-helper-forms : hasheq? -> (listof datum?)
 ;;   Render treelist helpers in runtime assembly order.
 (define (treelist-runtime-helper-forms helper-index)
   (for/list ([name (in-list treelist-runtime-helper-names)])
+    (core-runtime-helper-form helper-index name)))
+
+;; treelist-core-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render promoted treelist helpers in runtime assembly order.
+(define (treelist-core-runtime-helper-forms helper-index)
+  (for/list ([name (in-list treelist-promoted-runtime-helper-names)])
     (core-runtime-helper-form helper-index name)))
 
 (module+ test
@@ -5720,7 +5766,20 @@
     (second form))
 
   (define treelist-helper-index
-    (make-core-runtime-helper-index treelist-runtime-only-helpers))
+    (make-core-runtime-helper-index
+     (append treelist-core-runtime-helpers
+             treelist-runtime-only-helpers)))
+
+  (define treelist-core-helper-index
+    (make-core-runtime-helper-index treelist-core-runtime-helpers))
+
+  (check-equal?
+   (map core-runtime-helper-name treelist-core-runtime-helpers)
+   treelist-promoted-runtime-helper-names)
+
+  (check-equal?
+   (map form-name (treelist-core-runtime-helper-forms treelist-core-helper-index))
+   treelist-promoted-runtime-helper-names)
 
   (check-equal?
    (map form-name (treelist-runtime-helper-forms treelist-helper-index))

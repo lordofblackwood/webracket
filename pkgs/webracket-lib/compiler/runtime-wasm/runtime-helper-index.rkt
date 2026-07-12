@@ -196,5 +196,5 @@
 
   (check-true (hash? runtime-helper-index))
 
-  (for ([name (in-list '($cons $fx+ $string? $symbol? $current-print))])
+  (for ([name (in-list '($cons $fx+ $string? $symbol? $treelist? $current-print))])
     (check-helper-name name)))

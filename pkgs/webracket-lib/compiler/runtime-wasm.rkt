@@ -368,6 +368,7 @@
          (only-in "runtime-wasm/core/treelists.rkt"
                   treelist-constant-global-forms
                   treelist-empty-global-forms
+                  treelist-core-runtime-helper-forms
                   treelist-runtime-helper-forms)
          (only-in "runtime-wasm/core/unsafe.rkt"
                   unsafe-runtime-helper-forms)
@@ -1102,6 +1103,7 @@
          ,@(vector-error-runtime-helper-forms runtime-helper-index)
 
          ;; Treelist helpers are implemented in runtime-wasm/core/treelists.rkt.
+         ,@(treelist-core-runtime-helper-forms core-runtime-helper-index)
          ,@(treelist-runtime-helper-forms runtime-helper-index)
 
          ;; Vector helpers

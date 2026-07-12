@@ -338,6 +338,8 @@ RKT
        [ih (hasheqv 'a 1 'b 2)]
        [ih-pos (hash-iterate-first ih)]
        [p (string->path "/tmp/name.rkt")]
+       [tl (treelist 1 2 3)]
+       [tlv (treelist->vector tl)]
        [linklet-info (linklet-summarize-target-machine-info 42)])
   (if (and (eq? 'cached 'cached)
            (not (eq? (box 1) (box 1)))
@@ -405,6 +407,12 @@ RKT
            (bytes=? (filename-extension p) #"rkt")
            (path-has-extension? p #".rkt")
            (string=? (path->string (file-name-from-path p)) "name.rkt")
+           (treelist? tl)
+           (= (treelist-length tl) 3)
+           (vector? tlv)
+           (= (vector-length tlv) 3)
+           (= (vector-ref tlv 0) 1)
+           (= (vector-ref tlv 2) 3)
            (not (struct? 42))
            (not (struct-type? 42))
            (not (struct-type-property? 42))

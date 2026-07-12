@@ -42,6 +42,7 @@
          "core/structs.rkt"
          "core/symbols.rkt"
          "core/threads.rkt"
+         "core/treelists.rkt"
          "core/unsafe.rkt"
          "core/vectors.rkt"
          "core/wills.rkt"
@@ -87,6 +88,7 @@
    struct-core-runtime-helpers
    symbol-core-runtime-helpers
    thread-core-runtime-helpers
+   treelist-core-runtime-helpers
    unsafe-core-runtime-helpers
    vector-core-runtime-helpers
    will-core-runtime-helpers))
