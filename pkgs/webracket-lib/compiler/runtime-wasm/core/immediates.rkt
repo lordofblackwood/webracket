@@ -7,7 +7,7 @@
          singleton-global-forms
          void-runtime-helper-forms
          eof-object-runtime-helper-forms
-         immediate-runtime-only-helpers)
+         immediate-core-runtime-helpers)
 
 (require "../core-helper.rkt"
          "../../private/immediates.rkt")
@@ -77,46 +77,46 @@
 (define (eof-object-runtime-helper-forms helper-index)
   (immediate-helper-forms helper-index eof-object-runtime-only-helper-names))
 
-;; eof-object-runtime-only-helpers : (listof core-runtime-helper?)
-;;   Enumerate EOF object helpers used by the monolithic runtime.
-(define eof-object-runtime-only-helpers
+;; eof-object-core-runtime-helpers : (listof core-runtime-helper?)
+;;   Enumerate EOF object helpers available in the standalone core runtime.
+(define eof-object-core-runtime-helpers
   (function-forms->runtime-helpers
-   'eof-object-runtime-only-helpers
-   '(
+   'eof-object-core-runtime-helpers
+   `(
      (func $eof-object? (type $Prim1)
            (param $v (ref eq))
            (result   (ref eq))
 
            (if (result (ref eq))
-               (ref.eq (local.get $v) (global.get $eof))
-               (then (global.get $true))
-               (else (global.get $false)))))))
+               (ref.eq (local.get $v) ,(immediate-ref eof))
+               (then ,true-ref)
+               (else ,false-ref))))))
 
-;; immediate-runtime-only-helpers : (listof core-runtime-helper?)
-;;   Enumerate immediate-value helpers used by the monolithic runtime.
-(define immediate-runtime-only-helpers
+;; immediate-core-runtime-helpers : (listof core-runtime-helper?)
+;;   Enumerate immediate-value helpers available in the standalone core runtime.
+(define immediate-core-runtime-helpers
   (append
-   eof-object-runtime-only-helpers
+   eof-object-core-runtime-helpers
    (function-forms->runtime-helpers
-    'immediate-runtime-only-helpers
-    '(
+    'immediate-core-runtime-helpers
+    `(
       (func $void? (type $Prim1)
             (param $v (ref eq))
             (result   (ref eq))
 
             (if (result (ref eq))
-                (ref.eq (local.get $v) (global.get $void))
-                (then (global.get $true))
-                (else (global.get $false))))
+                (ref.eq (local.get $v) ,(immediate-ref (void)))
+                (then ,true-ref)
+                (else ,false-ref)))
 
       (func $void (type $Prim>=0)
             (param $xs (ref eq))
             (result    (ref eq))
 
-            (global.get $void))
+            ,(immediate-ref (void)))
 
       (func $make-void (type $Prim0) (result (ref eq)) ; no arguments
-            (return (global.get $void)))))))
+            (return ,(immediate-ref (void))))))))
 
 (module+ test
   (require rackunit)
@@ -127,7 +127,7 @@
     (second form))
 
   (define immediate-helper-index
-    (make-core-runtime-helper-index immediate-runtime-only-helpers))
+    (make-core-runtime-helper-index immediate-core-runtime-helpers))
 
   (check-equal?
    (map form-name (void-runtime-helper-forms immediate-helper-index))

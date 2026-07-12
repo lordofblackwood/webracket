@@ -44,8 +44,6 @@
                   i32-array-runtime-only-helpers)
          (only-in "core/i8-arrays.rkt"
                   i8-array-runtime-only-helpers)
-         (only-in "core/immediates.rkt"
-                  immediate-runtime-only-helpers)
          (only-in "core/immutable-hashes.rkt"
                   immutable-hash-runtime-only-helpers)
          (only-in "core/impersonators.rkt"
@@ -144,7 +142,6 @@
           immutable-hash-runtime-only-helpers
           i32-array-runtime-only-helpers
           i8-array-runtime-only-helpers
-          immediate-runtime-only-helpers
           impersonator-runtime-only-helpers
           io-handler-runtime-only-helpers
           keyword-runtime-only-helpers

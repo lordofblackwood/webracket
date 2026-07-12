@@ -1,6 +1,7 @@
 #lang racket
 
 (provide boolean-runtime-string-constants
+         boolean-core-runtime-helpers
          boolean-runtime-helper-forms
          boolean-runtime-only-helpers
          boolean-runtime-only-helper-names)
@@ -14,8 +15,21 @@
   '((boolean? "boolean?")))
 
 ;; boolean-runtime-only-helper-names : (listof symbol?)
-;;   Preserve the runtime emission order for boolean helpers.
+;;   Preserve the runtime-only emission order for boolean helpers.
 (define boolean-runtime-only-helper-names
+  '($boolean=?))
+
+;; boolean-core-runtime-helper-names : (listof symbol?)
+;;   Preserve the core-runtime emission order for standalone boolean helpers.
+(define boolean-core-runtime-helper-names
+  '($boolean?
+    $false?
+    $not
+    $xor))
+
+;; boolean-runtime-helper-names : (listof symbol?)
+;;   Preserve the full monolithic runtime emission order for boolean helpers.
+(define boolean-runtime-helper-names
   '($boolean?
     $boolean=?
     $false?
@@ -31,24 +45,28 @@
 ;; boolean-runtime-helper-forms : hasheq? -> (listof datum?)
 ;;   Render boolean helpers in runtime assembly order.
 (define (boolean-runtime-helper-forms helper-index)
-  (boolean-helper-forms helper-index boolean-runtime-only-helper-names))
+  (boolean-helper-forms helper-index boolean-runtime-helper-names))
 
-;; boolean-runtime-only-helpers : (listof core-runtime-helper?)
-;;   Enumerate concrete boolean helpers.
-(define boolean-runtime-only-helpers
+;; boolean-core-runtime-helpers : (listof core-runtime-helper?)
+;;   Enumerate boolean helpers available in the standalone core runtime.
+(define boolean-core-runtime-helpers
   (function-forms->runtime-helpers
-   'boolean-runtime-only-helpers
+   'boolean-core-runtime-helpers
    `(
          ; todo: Benchmark the two implementations of $boolean? below
 
          (func $boolean? (type $Prim1) (param $v (ref eq)) (result (ref eq))
                (if (result (ref eq))
-                   (ref.eq (local.get $v) (global.get $true))
-                   (then (global.get $true))
-                   (else (if (result (ref eq))
-                             (ref.eq (local.get $v) (global.get $false))
-                             (then (global.get $true))
-                             (else (global.get $false))))))
+                   (ref.test (ref i31) (local.get $v))
+                   (then (if (result (ref eq))
+                             (i32.eq (i32.and
+                                      (i31.get_s
+                                       (ref.cast (ref i31) (local.get $v)))
+                                      (i32.const ,boolean-mask))
+                                     (i32.const ,boolean-tag))
+                             (then (ref.i31 (i32.const ,(immediate-rep #t))))
+                             (else (ref.i31 (i32.const ,(immediate-rep #f))))))
+                   (else (ref.i31 (i32.const ,(immediate-rep #f))))))
          ; see comment above
          #;(func $boolean? (type $Prim1) (param $v (ref eq)) (result (ref eq))
                (if (result (ref eq))
@@ -61,6 +79,37 @@
                              (else (global.get $false))))
                    (else (global.get $false))))
 
+        (func $false? (type $Prim1) (param $v (ref eq)) (result (ref eq))
+              (if (result (ref eq))
+                  (ref.eq (local.get $v) (ref.i31 (i32.const ,(immediate-rep #f))))
+                  (then (ref.i31 (i32.const ,(immediate-rep #t))))
+                  (else (ref.i31 (i32.const ,(immediate-rep #f))))))
+
+        (func $not (type $Prim1) (param $v (ref eq)) (result (ref eq))
+              (if (result (ref eq))
+                  (ref.eq (local.get $v) (ref.i31 (i32.const ,(immediate-rep #f))))
+                  (then (ref.i31 (i32.const ,(immediate-rep #t))))
+                  (else (ref.i31 (i32.const ,(immediate-rep #f))))))
+
+        (func $xor (type $Prim2) (param $b1 (ref eq)) (param $b2 (ref eq)) (result (ref eq))
+               (if (result (ref eq))
+                   (ref.eq (local.get $b1) (ref.i31 (i32.const ,(immediate-rep #f))))
+                   (then (if (result (ref eq))
+                             (ref.eq (local.get $b2) (ref.i31 (i32.const ,(immediate-rep #f))))
+                             (then (ref.i31 (i32.const ,(immediate-rep #f))))
+                             (else (local.get $b2))))
+                   (else (if (result (ref eq))
+                             (ref.eq (local.get $b2) (ref.i31 (i32.const ,(immediate-rep #f))))
+                             (then (local.get $b1))
+                             (else (ref.i31 (i32.const ,(immediate-rep #f))))))))
+     )))
+
+;; boolean-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate boolean helpers that depend on runtime error machinery.
+(define boolean-runtime-only-helpers
+  (function-forms->runtime-helpers
+   'boolean-runtime-only-helpers
+   `(
          (func $boolean=? (type $Prim2)
                (param $x (ref eq)) (param $y (ref eq))
                (result (ref eq))
@@ -84,32 +133,6 @@
                    (ref.eq (local.get $x) (local.get $y))
                    (then (global.get $true))
                    (else (global.get $false))))
-
-        (func $false? (type $Prim1) (param $v (ref eq)) (result (ref eq))
-              (if (result (ref eq))
-                  (ref.eq (local.get $v) (global.get $false))
-                  (then (global.get $true))
-                  (else (global.get $false))))
-
-        (func $not (type $Prim1) (param $v (ref eq)) (result (ref eq))
-              (if (result (ref eq))
-                  (ref.eq (local.get $v) (global.get $false))
-                  (then (global.get $true))
-                   (else (global.get $false))))
-
-        (func $xor (type $Prim2) (param $b1 (ref eq)) (param $b2 (ref eq)) (result (ref eq))
-               (if (result (ref eq))
-                   (ref.eq (local.get $b1) (global.get $false))
-                   (then (if (result (ref eq))
-                             (ref.eq (local.get $b2) (global.get $false))
-                             (then (global.get $false))
-                             (else (local.get $b2))))
-                   (else (if (result (ref eq))
-                             (ref.eq (local.get $b2) (global.get $false))
-                             (then (local.get $b1))
-                             (else (global.get $false))))))
-
-
      )))
 
 (module+ test
@@ -121,8 +144,10 @@
     (second form))
 
   (define boolean-helper-index
-    (make-core-runtime-helper-index boolean-runtime-only-helpers))
+    (make-core-runtime-helper-index
+     (append boolean-core-runtime-helpers
+             boolean-runtime-only-helpers)))
 
   (check-equal?
    (map form-name (boolean-runtime-helper-forms boolean-helper-index))
-   boolean-runtime-only-helper-names))
+   boolean-runtime-helper-names))

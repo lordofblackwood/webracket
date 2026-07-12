@@ -6,6 +6,7 @@
 
 (require "core-helper.rkt"
          "core/arrays.rkt"
+         "core/booleans.rkt"
          "core/fixnums.rkt"
          "core/flonums.rkt"
          "core/growable-arrays.rkt"
@@ -13,6 +14,7 @@
          "core/growable-i32-arrays.rkt"
          "core/i32-arrays.rkt"
          "core/i8-arrays.rkt"
+         "core/immediates.rkt"
          "core/keywords.rkt"
          "core/lists.rkt"
          "core/mlists.rkt"
@@ -27,6 +29,7 @@
 (define core-runtime-helpers
   (append
    array-core-runtime-helpers
+   boolean-core-runtime-helpers
    fixnum-core-runtime-helpers
    flonum-core-runtime-helpers
    growable-array-core-runtime-helpers
@@ -35,6 +38,7 @@
    growable-i32-array-core-runtime-helpers
    i8-array-core-runtime-helpers
    i8-array-byte-core-runtime-helpers
+   immediate-core-runtime-helpers
    keyword-core-runtime-helpers
    list-core-runtime-helpers
    mlist-core-runtime-helpers
