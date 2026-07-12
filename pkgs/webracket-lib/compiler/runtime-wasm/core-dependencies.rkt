@@ -103,6 +103,10 @@
      (if (hash-has-key? core-global-names target)
          '()
          (list (helper-dependency-problem 'runtime-global target)))]
+    [`(ref.func ,(? symbol? target))
+     (if (hash-has-key? core-helper-names target)
+         '()
+         (list (helper-dependency-problem 'runtime-func-ref target)))]
     [`(,(? (lambda (head) (memq head disallowed-core-helper-heads)) head)
        ,body ...)
      (cons (helper-dependency-problem 'runtime-dependency head)
@@ -138,3 +142,25 @@
          [core-global-names (hasheq)])
   (append (runtime-dependency-problems form core-helper-names core-global-names)
           (type-dependency-problems form shared-types)))
+
+(module+ test
+  (require rackunit)
+
+  (define helper-names
+    (hasheq '$known #t))
+
+  (check-equal?
+   (core-runtime-helper-dependency-problems
+    '(func $uses-known
+           (drop (ref.func $known)))
+    helper-names
+    (hasheq))
+   '())
+
+  (check-equal?
+   (core-runtime-helper-dependency-problems
+    '(func $uses-missing
+           (drop (ref.func $missing)))
+    helper-names
+    (hasheq))
+   (list (helper-dependency-problem 'runtime-func-ref '$missing))))

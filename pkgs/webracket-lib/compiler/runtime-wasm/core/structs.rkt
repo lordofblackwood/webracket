@@ -390,9 +390,9 @@
          ;; Simple prefab struct types are interned by prefab key.
          (global $prefab-struct-type-registry (mut (ref null $HashEqMutable)) (ref.null $HashEqMutable))))
 
-;; struct-core-runtime-helpers : (listof core-runtime-helper?)
-;;   Enumerate struct helpers that can be emitted in core runtime.
-(define struct-core-runtime-helpers
+;; struct-base-core-runtime-helpers : (listof core-runtime-helper?)
+;;   Enumerate manually defined struct helpers that originated in core runtime.
+(define struct-base-core-runtime-helpers
   (list
    ;; struct?/i32 : (ref eq) -> i32
    ;;   Return 1 if the value is a struct, 0 otherwise.
@@ -416,6 +416,26 @@
 (define struct-core-predicate-runtime-helper-names
   '($struct?/i32
     $struct-type?/i32))
+
+;; struct-promoted-runtime-helper-names : (listof symbol?)
+;;   Name runtime struct helpers that are available in the standalone core runtime.
+(define struct-promoted-runtime-helper-names
+  '($struct?
+    $struct-type?
+    $struct-type-is-a?/i32
+    $simple-prefab-public-key
+    $simple-prefab-mutable-mask-valid?/i32
+    $simple-prefab-empty-mutable-mask
+    $simple-prefab-zero-auto-spec
+    $simple-prefab-mutable-mask-member?/i32
+    $struct-constructor-procedure?
+    $struct-predicate-procedure?
+    $struct-accessor-procedure?
+    $struct-mutator-procedure?
+    $struct-type-property-predicate->descriptor
+    $struct-type-property?
+    $make-struct-type-property-descriptor/checked
+    $struct-type-property-table-empty))
 
 ;; struct-helper-forms : hasheq? (listof symbol?) -> (listof datum?)
 ;;   Render the given struct helper names from a helper index.
@@ -7713,9 +7733,9 @@
                (else (local.get $extracted))))
      )))
 
-;; struct-runtime-only-helpers : (listof core-runtime-helper?)
-;;   Enumerate struct helpers that depend on monolithic runtime globals.
-(define struct-runtime-only-helpers
+;; struct-all-runtime-helpers : (listof core-runtime-helper?)
+;;   Enumerate struct helpers in monolithic runtime order.
+(define struct-all-runtime-helpers
   (append
    struct-basic-runtime-only-helpers
    struct-conversion-runtime-only-helpers
@@ -7762,6 +7782,19 @@
                                (ref.cast (ref $HashEqMutable)
                                          (call $make-empty-hasheq)))))))))))
 
+;; struct-core-runtime-helpers : (listof core-runtime-helper?)
+;;   Enumerate struct helpers available in the standalone core runtime.
+(define struct-core-runtime-helpers
+  (append struct-base-core-runtime-helpers
+          (select-runtime-helpers struct-all-runtime-helpers
+                                  struct-promoted-runtime-helper-names)))
+
+;; struct-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate struct helpers that still depend on monolithic runtime globals.
+(define struct-runtime-only-helpers
+  (remove-runtime-helpers struct-all-runtime-helpers
+                          struct-promoted-runtime-helper-names))
+
 (module+ test
   (require rackunit)
 
@@ -7774,7 +7807,15 @@
     (make-core-runtime-helper-index struct-core-runtime-helpers))
 
   (define struct-helper-index
-    (make-core-runtime-helper-index struct-runtime-only-helpers))
+    (make-core-runtime-helper-index
+     (append struct-core-runtime-helpers
+             struct-runtime-only-helpers)))
+
+  (check-equal?
+   (map core-runtime-helper-name
+        (select-runtime-helpers struct-core-runtime-helpers
+                                struct-promoted-runtime-helper-names))
+   struct-promoted-runtime-helper-names)
 
   (check-equal?
    (map form-name (struct-core-predicate-runtime-helper-forms struct-core-helper-index))

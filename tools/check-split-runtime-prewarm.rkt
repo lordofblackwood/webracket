@@ -369,7 +369,14 @@ RKT
            (fl= (flmax 7.0 3.0) 7.0)
            (hash? mh)
            (mutable-hash? mh)
-           (hash-empty? mh))
+           (hash-empty? mh)
+           (not (struct? 42))
+           (not (struct-type? 42))
+           (not (struct-type-property? 42))
+           (not (struct-constructor-procedure? (lambda (x) x)))
+           (not (struct-predicate-procedure? (lambda (x) x)))
+           (not (struct-accessor-procedure? (lambda (x) x)))
+           (not (struct-mutator-procedure? (lambda (x) x))))
       42
       0))
 RKT
