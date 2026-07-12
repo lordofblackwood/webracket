@@ -43,10 +43,12 @@
     array.new_default
     array.new_fixed
     array.set
+    call_ref
     struct.get
     struct.new
     struct.new_default
-    struct.set))
+    struct.set
+    return_call_ref))
 
 ;; named-type-reference-names : datum? -> (listof symbol?)
 ;;   Collect references to named types from a WAT form.
@@ -70,13 +72,11 @@
 ;;   Forms that mean a helper depends on monolithic runtime definitions.
 (define disallowed-core-helper-heads
   '(call_indirect
-    call_ref
     data
     elem
     import
     memory
     return_call_indirect
-    return_call_ref
     table))
 
 ;; runtime-dependency-problems :
@@ -190,4 +190,22 @@
     helper-names
     (hasheq)
     (hasheq '$known-global #t))
-   (list (helper-dependency-problem 'runtime-global '$missing-global))))
+   (list (helper-dependency-problem 'runtime-global '$missing-global)))
+
+  (check-equal?
+   (core-runtime-helper-dependency-problems
+    '(func $calls-ref
+           (return_call_ref $Prim0
+                            (ref.func $known)))
+    helper-names
+    (hasheq '$Prim0 #t))
+   '())
+
+  (check-equal?
+   (core-runtime-helper-dependency-problems
+    '(func $calls-ref
+           (return_call_ref $Prim0
+                            (ref.func $known)))
+    helper-names
+    (hasheq))
+   (list (helper-dependency-problem 'unshared-type '$Prim0))))

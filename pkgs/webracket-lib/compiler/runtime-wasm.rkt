@@ -294,9 +294,9 @@
                   procedure-main-runtime-helper-forms
                   procedure-post-primitive-invoker-runtime-helper-forms
                   procedure-primitive-error-core-runtime-helper-forms
+                  procedure-primitive-invoker-core-runtime-helper-forms
                   procedure-rest-argument-core-runtime-helper-forms
-                  primitive-shapes
-                  procedure-primitive-invoker-forms)
+                  primitive-shapes)
          (only-in "runtime-wasm/core/random.rkt"
                   random-current-global-forms
                   random-current-initializer-forms
@@ -705,7 +705,7 @@
          ,@(procedure-primitive-error-core-runtime-helper-forms core-runtime-helper-index)
          ,@(procedure-bootstrap-runtime-helper-forms runtime-helper-index)
 
-         ,@(procedure-primitive-invoker-forms primitive-shapes)
+         ,@(procedure-primitive-invoker-core-runtime-helper-forms core-runtime-helper-index)
 
          ;;   Procedure case-lambda helpers are implemented in runtime-wasm/core/procedures.rkt.
          ,@(procedure-post-primitive-invoker-runtime-helper-forms runtime-helper-index)

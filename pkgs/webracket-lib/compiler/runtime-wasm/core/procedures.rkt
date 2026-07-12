@@ -30,6 +30,7 @@
          procedure-ffi-primitive-initializer-forms
          procedure-primitive-invoker-forms
          procedure-primitive-error-core-runtime-helper-forms
+         procedure-primitive-invoker-core-runtime-helper-forms
          procedure-rest-argument-core-runtime-helper-forms
          procedure-bootstrap-runtime-helper-forms
          procedure-post-primitive-invoker-runtime-helper-forms
@@ -1102,9 +1103,9 @@
   (for/list ([shape (in-list shapes)])
     (primitive-invoker shape)))
 
-;; procedure-core-runtime-helpers : (listof core-runtime-helper?)
-;;   Enumerate procedure-call helpers that can be emitted in core runtime.
-(define procedure-core-runtime-helpers
+;; procedure-base-core-runtime-helpers : (listof core-runtime-helper?)
+;;   Enumerate hand-written procedure helpers that can be emitted in core runtime.
+(define procedure-base-core-runtime-helpers
   (list
    ;; rest-arguments->list : (ref $Args) i32 -> (ref eq)
    ;;   Copy arguments from index n onward into a freshly allocated list.
@@ -1306,7 +1307,56 @@
                          (local.get $message)
                          (call $current-continuation-marks (global.get $missing)))
                    (global.get $true))
+             (unreachable))))
+
+   ;; raise-no-code : primitive-procedure? -> none
+   ;;   Raise a catchable internal error for a primitive with no code pointer.
+   (core-runtime-helper
+    '$raise-no-code
+    "$raise-no-code"
+    (lambda ()
+      `(func $raise-no-code
+             (param $pproc (ref $PrimitiveProcedure))
+             (result       (ref eq))
+
+             (call $raise
+                   (call $exn:fail:contract/make
+                         (ref.cast (ref $String)
+                                   (global.get $string:primitive-invoke:no-code))
+                         (call $current-continuation-marks (global.get $missing)))
+                   (global.get $true))
+             (unreachable))))
+
+   ;; raise-code-type-mismatch : primitive-procedure? -> none
+   ;;   Raise a catchable internal error for a primitive code-shape mismatch.
+   (core-runtime-helper
+    '$raise-code-type-mismatch
+    "$raise-code-type-mismatch"
+    (lambda ()
+      `(func $raise-code-type-mismatch
+             (param $pproc (ref $PrimitiveProcedure))
+             (result       (ref eq))
+
+             (call $raise
+                   (call $exn:fail:contract/make
+                         (ref.cast (ref $String)
+                                   (global.get $string:primitive-invoke:code-type-mismatch))
+                         (call $current-continuation-marks (global.get $missing)))
+                   (global.get $true))
              (unreachable))))))
+
+;; procedure-primitive-invoker-core-runtime-helpers : (listof core-runtime-helper?)
+;;   Enumerate stable primitive shape invokers available in core runtime.
+(define procedure-primitive-invoker-core-runtime-helpers
+  (function-forms->runtime-helpers
+   'procedure-primitive-invoker-core-runtime-helpers
+   (procedure-primitive-invoker-forms primitive-shapes)))
+
+;; procedure-core-runtime-helpers : (listof core-runtime-helper?)
+;;   Enumerate procedure-call helpers that can be emitted in core runtime.
+(define procedure-core-runtime-helpers
+  (append procedure-base-core-runtime-helpers
+          procedure-primitive-invoker-core-runtime-helpers))
 
 ;; procedure-rest-argument-core-runtime-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for rest-argument core helpers.
@@ -1320,7 +1370,9 @@
   '($procedure-name->error-string
     $arity-marker->expected-string
     $procedure-arity-field->expected-string
-    $primitive-invoke:raise-arity-error))
+    $primitive-invoke:raise-arity-error
+    $raise-no-code
+    $raise-code-type-mismatch))
 
 ;; procedure-basic-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for basic procedure helpers.
@@ -1429,9 +1481,7 @@
 ;; primitive-invocation-error-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for primitive invocation error helpers.
 (define primitive-invocation-error-runtime-only-helper-names
-  '($raise-no-code
-    $raise-code-type-mismatch
-    $raise-primitive-invoke:unhandled-shape))
+  '($raise-primitive-invoke:unhandled-shape))
 
 ;; procedure-case-lambda-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for procedure case-lambda helpers.
@@ -3953,6 +4003,13 @@
 (define (procedure-primitive-error-core-runtime-helper-forms helper-index)
   (procedure-helper-forms helper-index procedure-primitive-error-core-runtime-helper-names))
 
+;; procedure-primitive-invoker-core-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render primitive shape invokers from the shared core helper registry.
+(define (procedure-primitive-invoker-core-runtime-helper-forms helper-index)
+  (procedure-helper-forms
+   helper-index
+   (map core-runtime-helper-name procedure-primitive-invoker-core-runtime-helpers)))
+
 ;; procedure-bootstrap-runtime-helper-forms : hasheq? -> (listof datum?)
 ;;   Render procedure bootstrap helpers before generated primitive invokers.
 (define (procedure-bootstrap-runtime-helper-forms helper-index)
@@ -4098,6 +4155,12 @@
    (map form-name
         (procedure-primitive-error-core-runtime-helper-forms procedure-core-helper-index))
    procedure-primitive-error-core-runtime-helper-names)
+
+  (check-equal?
+   (map form-name
+        (procedure-primitive-invoker-core-runtime-helper-forms procedure-core-helper-index))
+   (for/list ([shape (in-list primitive-shapes)])
+     (string->symbol (format "$~a" (shape->invoker shape)))))
 
   (check-equal?
    (map form-name
