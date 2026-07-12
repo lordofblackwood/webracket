@@ -200,6 +200,7 @@
                          $eqv?
                          $external? $impersonator? $date?
                          $hash? $mutable-hash?
+                         $immutable?
                          $current-thread
                          $treelist? $stencil-vector? $current-print))])
     (check-helper-name name)))

@@ -3,6 +3,7 @@
 (provide equality-core-runtime-helpers
          equality-runtime-only-helpers
          equality-core-runtime-helper-forms
+         immutable-predicate-core-runtime-helper-forms
          immutable-predicate-runtime-helper-forms
          equality-runtime-helper-forms)
 
@@ -793,7 +794,18 @@
 ;; immutable-predicate-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for generic immutability predicates.
 (define immutable-predicate-runtime-only-helper-names
+  '())
+
+;; immutable-predicate-core-runtime-helper-names : (listof symbol?)
+;;   Name generic immutability predicates available in the standalone core runtime.
+(define immutable-predicate-core-runtime-helper-names
   '($immutable?))
+
+;; equality-promoted-runtime-helper-names : (listof symbol?)
+;;   Name helpers from this module available in the standalone core runtime.
+(define equality-promoted-runtime-helper-names
+  (append equality-core-runtime-helper-names
+          immutable-predicate-core-runtime-helper-names))
 
 ;; equality-helper-forms : hasheq? (listof symbol?) -> (listof datum?)
 ;;   Render the given equality helper names from a helper index.
@@ -815,6 +827,11 @@
 ;;   Render generic immutability predicates in runtime assembly order.
 (define (immutable-predicate-runtime-helper-forms helper-index)
   (equality-helper-forms helper-index immutable-predicate-runtime-only-helper-names))
+
+;; immutable-predicate-core-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render promoted generic immutability predicates in runtime assembly order.
+(define (immutable-predicate-core-runtime-helper-forms helper-index)
+  (equality-helper-forms helper-index immutable-predicate-core-runtime-helper-names))
 
 ;; immutable-predicate-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate generic immutability predicates used by the monolithic runtime.
@@ -871,13 +888,13 @@
 ;;   Enumerate equality helpers available in the standalone core runtime.
 (define equality-core-runtime-helpers
   (select-runtime-helpers equality-all-runtime-helpers
-                          equality-core-runtime-helper-names))
+                          equality-promoted-runtime-helper-names))
 
 ;; equality-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate equality helpers that still depend on monolithic runtime globals.
 (define equality-runtime-only-helpers
   (remove-runtime-helpers equality-all-runtime-helpers
-                          equality-core-runtime-helper-names))
+                          equality-promoted-runtime-helper-names))
 
 (module+ test
   (require rackunit)
@@ -894,11 +911,15 @@
 
   (check-equal?
    (map core-runtime-helper-name equality-core-runtime-helpers)
-   equality-core-runtime-helper-names)
+   equality-promoted-runtime-helper-names)
 
   (check-equal?
    (map form-name (equality-core-runtime-helper-forms equality-helper-index))
    equality-core-runtime-helper-names)
+
+  (check-equal?
+   (map form-name (immutable-predicate-core-runtime-helper-forms equality-helper-index))
+   immutable-predicate-core-runtime-helper-names)
 
   (check-equal?
    (map form-name (equality-runtime-helper-forms equality-helper-index))

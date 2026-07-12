@@ -93,6 +93,7 @@
                   value-expectation-runtime-helper-forms)
          (only-in "runtime-wasm/core/equality.rkt"
                   equality-core-runtime-helper-forms
+                  immutable-predicate-core-runtime-helper-forms
                   immutable-predicate-runtime-helper-forms
                   equality-runtime-helper-forms)
          (only-in "runtime-wasm/core/exceptions.rkt"
@@ -868,6 +869,7 @@
          ,@(boolean-runtime-helper-forms runtime-helper-index)
 
          ;;   Generic immutability predicates are implemented in runtime-wasm/core/equality.rkt.
+         ,@(immutable-predicate-core-runtime-helper-forms core-runtime-helper-index)
          ,@(immutable-predicate-runtime-helper-forms runtime-helper-index)
 
          ;;;
