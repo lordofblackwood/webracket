@@ -301,6 +301,7 @@
          (only-in "runtime-wasm/constants.rkt"
                   make-runtime-constant-registry)
          (only-in "runtime-wasm/core/reflection.rkt"
+                  reflection-core-runtime-helper-forms
                   reflection-runtime-helper-forms)
          (only-in "runtime-wasm/core/security.rkt"
                   custodian-current-initializer-forms
@@ -1592,6 +1593,7 @@
         ;; 14.1 Namespaces
 
         ;;   Reflection helpers are implemented in runtime-wasm/core/reflection.rkt.
+        ,@(reflection-core-runtime-helper-forms core-runtime-helper-index)
         ,@(reflection-runtime-helper-forms runtime-helper-index)
          ;; 14.2 Evaluation and compilation
          ;; 14.3 The racket/load language

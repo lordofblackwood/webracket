@@ -1,6 +1,8 @@
 #lang racket
 
-(provide reflection-runtime-only-helper-names
+(provide reflection-core-runtime-helpers
+         reflection-core-runtime-helper-forms
+         reflection-runtime-only-helper-names
          reflection-runtime-helper-forms
          reflection-runtime-string-constants
          reflection-runtime-symbol-constants
@@ -23,6 +25,23 @@
 ;;   Declare symbols used by reflection and module-path helpers.
 (define reflection-runtime-symbol-constants
   '(namespace))
+
+;; reflection-promoted-runtime-helper-names : (listof symbol?)
+;;   Name reflection helpers that are available in the standalone core runtime.
+(define reflection-promoted-runtime-helper-names
+  '($compiled-expression?
+    $compiled-module-expression?
+    $readtable?
+    $rename-transformer?
+    $set!-transformer?
+    $special-comment?
+    $syntax-original?
+    $syntax-tainted?
+    $internal-definition-context?
+    $liberal-define-context?
+    $module-path-index?
+    $resolved-module-path?
+    $variable-reference?))
 
 ;; make-predicate-body : symbol? -> (listof datum?)
 ;;   Generate a standard WebRacket predicate body for ref-type.
@@ -533,12 +552,30 @@
 	              (unreachable))
      ))
 
-;; reflection-runtime-only-helpers : (listof core-runtime-helper?)
+;; reflection-all-runtime-helpers : (listof core-runtime-helper?)
 ;;   Register reflection, module-path, and variable-reference helpers.
-(define reflection-runtime-only-helpers
+(define reflection-all-runtime-helpers
   (function-forms->runtime-helpers
    'reflection-runtime-only-helpers
    reflection-runtime-only-forms))
+
+;; reflection-core-runtime-helpers : (listof core-runtime-helper?)
+;;   Enumerate reflection helpers available in the standalone core runtime.
+(define reflection-core-runtime-helpers
+  (select-runtime-helpers reflection-all-runtime-helpers
+                          reflection-promoted-runtime-helper-names))
+
+;; reflection-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate reflection helpers that still depend on monolithic runtime state.
+(define reflection-runtime-only-helpers
+  (remove-runtime-helpers reflection-all-runtime-helpers
+                          reflection-promoted-runtime-helper-names))
+
+;; reflection-core-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render promoted reflection helpers in runtime assembly order.
+(define (reflection-core-runtime-helper-forms helper-index)
+  (for/list ([name (in-list reflection-promoted-runtime-helper-names)])
+    (core-runtime-helper-form helper-index name)))
 
 ;; reflection-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for reflection helpers.
@@ -559,8 +596,21 @@
   (define (form-name form)
     (second form))
 
+  (define reflection-core-helper-index
+    (make-core-runtime-helper-index reflection-core-runtime-helpers))
+
   (define reflection-helper-index
-    (make-core-runtime-helper-index reflection-runtime-only-helpers))
+    (make-core-runtime-helper-index
+     (append reflection-core-runtime-helpers
+             reflection-runtime-only-helpers)))
+
+  (check-equal?
+   (map core-runtime-helper-name reflection-core-runtime-helpers)
+   reflection-promoted-runtime-helper-names)
+
+  (check-equal?
+   (map form-name (reflection-core-runtime-helper-forms reflection-core-helper-index))
+   reflection-promoted-runtime-helper-names)
 
   (check-equal?
    (map form-name (reflection-runtime-helper-forms reflection-helper-index))

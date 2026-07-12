@@ -29,6 +29,7 @@
          "core/mutable-hashes.rkt"
          "core/numbers.rkt"
          "core/procedures.rkt"
+         "core/reflection.rkt"
          "core/regexps.rkt"
          "core/strings.rkt"
          "core/structs.rkt"
@@ -64,6 +65,7 @@
    mutable-hash-core-runtime-helpers
    number-core-runtime-helpers
    procedure-core-runtime-helpers
+   reflection-core-runtime-helpers
    regexp-core-runtime-helpers
    string-core-runtime-helpers
    struct-core-runtime-helpers
