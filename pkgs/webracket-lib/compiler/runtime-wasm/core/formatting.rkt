@@ -1,6 +1,7 @@
 #lang racket
 
 (provide printer-extension-runtime-helper-forms
+         formatting-core-runtime-helpers
          printer-prefix-formatting-runtime-string-constants
          immediate-value-formatting-runtime-string-constants
          opaque-value-formatting-runtime-string-constants
@@ -10,7 +11,9 @@
          formatting-runtime-symbol-constants
          formatting-runtime-string-constants
          struct-type-property-formatting-runtime-string-constants
+         unquoted-printing-string-core-runtime-helper-forms
          unquoted-printing-string-runtime-helper-forms
+         display-formatting-core-runtime-helper-forms
          formatting-runtime-helper-forms
          numeric-display-formatting-runtime-helper-forms
          formatting-runtime-only-helpers)
@@ -427,10 +430,33 @@
                (struct.get $UnquotedPrintingString $value (local.get $wrapped)))
      )))
 
+;; unquoted-printing-string-promoted-runtime-helper-names : (listof symbol?)
+;;   Name unquoted-printing-string helpers available in the standalone core runtime.
+(define unquoted-printing-string-promoted-runtime-helper-names
+  '($unquoted-printing-string?))
+
+;; unquoted-printing-string-core-runtime-helpers : (listof core-runtime-helper?)
+;;   Enumerate unquoted-printing-string helpers available in standalone core runtime.
+(define unquoted-printing-string-core-runtime-helpers
+  (select-runtime-helpers unquoted-printing-string-runtime-only-helpers
+                          unquoted-printing-string-promoted-runtime-helper-names))
+
+;; unquoted-printing-string-runtime-only-helpers* : (listof core-runtime-helper?)
+;;   Enumerate unquoted-printing-string helpers that still depend on monolithic runtime globals.
+(define unquoted-printing-string-runtime-only-helpers*
+  (remove-runtime-helpers unquoted-printing-string-runtime-only-helpers
+                          unquoted-printing-string-promoted-runtime-helper-names))
+
 ;; unquoted-printing-string-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for unquoted printing string helpers.
 (define unquoted-printing-string-runtime-only-helper-names
-  (map core-runtime-helper-name unquoted-printing-string-runtime-only-helpers))
+  (map core-runtime-helper-name unquoted-printing-string-runtime-only-helpers*))
+
+;; unquoted-printing-string-core-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render promoted unquoted-printing-string helpers in runtime assembly order.
+(define (unquoted-printing-string-core-runtime-helper-forms helper-index)
+  (formatting-helper-forms helper-index
+                           unquoted-printing-string-promoted-runtime-helper-names))
 
 ;; unquoted-printing-string-runtime-helper-forms : hasheq? -> (listof datum?)
 ;;   Render unquoted printing string helpers in runtime assembly order.
@@ -2609,10 +2635,40 @@
    'display-formatting-runtime-only-helpers
    display-formatting-runtime-only-forms))
 
+;; display-formatting-promoted-runtime-helper-names : (listof symbol?)
+;;   Name display-formatting helpers available in the standalone core runtime.
+(define display-formatting-promoted-runtime-helper-names
+  '($format/write:string
+    $format/display:unquoted-printing-string
+    $str-number
+    $is-blank
+    $is-graphic
+    $get-special-escape
+    $utf8-size
+    $write-utf8
+    $write-hex))
+
+;; display-formatting-core-runtime-helpers : (listof core-runtime-helper?)
+;;   Enumerate display-formatting helpers available in standalone core runtime.
+(define display-formatting-core-runtime-helpers
+  (select-runtime-helpers display-formatting-runtime-only-helpers
+                          display-formatting-promoted-runtime-helper-names))
+
+;; display-formatting-runtime-only-helpers* : (listof core-runtime-helper?)
+;;   Enumerate display-formatting helpers that still depend on monolithic runtime globals.
+(define display-formatting-runtime-only-helpers*
+  (remove-runtime-helpers display-formatting-runtime-only-helpers
+                          display-formatting-promoted-runtime-helper-names))
+
 ;; formatting-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for formatting and display helpers.
 (define formatting-runtime-only-helper-names
-  (map core-runtime-helper-name display-formatting-runtime-only-helpers))
+  (map core-runtime-helper-name display-formatting-runtime-only-helpers*))
+
+;; display-formatting-core-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render promoted display-formatting helpers in runtime assembly order.
+(define (display-formatting-core-runtime-helper-forms helper-index)
+  (formatting-helper-forms helper-index display-formatting-promoted-runtime-helper-names))
 
 ;; formatting-runtime-helper-forms : hasheq? -> (listof datum?)
 ;;   Render formatting and display helpers in runtime assembly order.
@@ -2623,9 +2679,15 @@
 ;;   Register printer-extension and display-formatting helpers for runtime emission.
 (define formatting-runtime-only-helpers
   (append printer-extension-runtime-only-helpers
-          unquoted-printing-string-runtime-only-helpers
+          unquoted-printing-string-runtime-only-helpers*
           numeric-display-formatting-runtime-only-helpers
-          display-formatting-runtime-only-helpers))
+          display-formatting-runtime-only-helpers*))
+
+;; formatting-core-runtime-helpers : (listof core-runtime-helper?)
+;;   Enumerate formatting helpers available in the standalone core runtime.
+(define formatting-core-runtime-helpers
+  (append unquoted-printing-string-core-runtime-helpers
+          display-formatting-core-runtime-helpers))
 
 (module+ test
   (require rackunit)
@@ -2635,8 +2697,31 @@
   (define (form-name form)
     (second form))
 
+  (define formatting-core-helper-index
+    (make-core-runtime-helper-index formatting-core-runtime-helpers))
+
   (define formatting-helper-index
-    (make-core-runtime-helper-index formatting-runtime-only-helpers))
+    (make-core-runtime-helper-index
+     (append formatting-core-runtime-helpers
+             formatting-runtime-only-helpers)))
+
+  (check-equal?
+   (map core-runtime-helper-name unquoted-printing-string-core-runtime-helpers)
+   unquoted-printing-string-promoted-runtime-helper-names)
+
+  (check-equal?
+   (map form-name
+        (unquoted-printing-string-core-runtime-helper-forms formatting-core-helper-index))
+   unquoted-printing-string-promoted-runtime-helper-names)
+
+  (check-equal?
+   (map core-runtime-helper-name display-formatting-core-runtime-helpers)
+   display-formatting-promoted-runtime-helper-names)
+
+  (check-equal?
+   (map form-name
+        (display-formatting-core-runtime-helper-forms formatting-core-helper-index))
+   display-formatting-promoted-runtime-helper-names)
 
   (check-equal?
    (map form-name (printer-extension-runtime-helper-forms formatting-helper-index))

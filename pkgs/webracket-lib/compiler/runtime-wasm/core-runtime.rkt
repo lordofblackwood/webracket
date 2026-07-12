@@ -16,6 +16,7 @@
          "core/events.rkt"
          "core/fixnums.rkt"
          "core/flonums.rkt"
+         "core/formatting.rkt"
          "core/growable-arrays.rkt"
          "core/growable-bytes.rkt"
          "core/growable-i32-arrays.rkt"
@@ -57,6 +58,7 @@
    event-core-runtime-helpers
    fixnum-core-runtime-helpers
    flonum-core-runtime-helpers
+   formatting-core-runtime-helpers
    growable-array-core-runtime-helpers
    growable-bytes-core-runtime-helpers
    hash-core-runtime-helpers

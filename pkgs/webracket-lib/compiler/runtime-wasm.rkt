@@ -124,7 +124,9 @@
                   flonum-runtime-helper-forms)
          (only-in "runtime-wasm/core/formatting.rkt"
                   printer-extension-runtime-helper-forms
+                  unquoted-printing-string-core-runtime-helper-forms
                   unquoted-printing-string-runtime-helper-forms
+                  display-formatting-core-runtime-helper-forms
                   formatting-runtime-helper-forms
                   numeric-display-formatting-runtime-helper-forms)
          (only-in "runtime-wasm/core/growable-arrays.rkt"
@@ -648,6 +650,7 @@
          ,@(value-expectation-runtime-helper-forms runtime-helper-index)
 
          ;;   Unquoted printing string helpers are implemented in runtime-wasm/core/formatting.rkt.
+         ,@(unquoted-printing-string-core-runtime-helper-forms core-runtime-helper-index)
          ,@(unquoted-printing-string-runtime-helper-forms runtime-helper-index)
 
          ,@singleton-global-forms
@@ -1672,6 +1675,7 @@
          ,@(i8-array-string-conversion-runtime-helper-forms runtime-helper-index)
 
          ;;   Implemented in runtime-wasm/core/formatting.rkt.
+         ,@(display-formatting-core-runtime-helper-forms core-runtime-helper-index)
          ,@(formatting-runtime-helper-forms runtime-helper-index)
 
                ;;;

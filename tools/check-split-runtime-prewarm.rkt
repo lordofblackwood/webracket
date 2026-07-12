@@ -333,7 +333,8 @@ RKT
        [receiver (make-log-receiver logger 'info)]
        [will (make-will-executor)]
        [cust (current-custodian)]
-       [cust-box (make-custodian-box cust 42)])
+       [cust-box (make-custodian-box cust 42)]
+       [ups (unquoted-printing-string "raw")])
   (if (and (eq? 'cached 'cached)
            (not (eq? (box 1) (box 1)))
            (char? #\a)
@@ -421,7 +422,10 @@ RKT
            (custodian? cust)
            (custodian-box? cust-box)
            (inspector? (current-inspector))
-           (inspector? (current-code-inspector)))
+           (inspector? (current-code-inspector))
+           (unquoted-printing-string? ups)
+           (string=? (format "~a" ups) "raw")
+           (string=? (format "~s" "a\n") "\"a\\n\""))
       42
       0))
 RKT
