@@ -1,13 +1,16 @@
 #lang racket
 
-(provide linklet-bootstrap-runtime-only-helper-names
+(provide linklet-bootstrap-core-runtime-helper-forms
+         linklet-bootstrap-runtime-only-helper-names
          linklet-bootstrap-runtime-helper-forms
          linklet-body-core-reserved-symbols
+         linklet-core-runtime-helpers
          primitive-table-module-symbols
          linklet-runtime-string-constants
          linklet-runtime-symbol-constants
          linklet-runtime-bytes-constants
          linklet-bootstrap-runtime-only-helpers
+         linklet-interpreter-core-runtime-helper-forms
          linklet-interpreter-runtime-only-helper-names
          linklet-interpreter-runtime-helper-forms
          linklet-interpreter-runtime-only-helpers
@@ -127,50 +130,37 @@
         (then (global.get $true))
         (else (global.get $false)))))
 
-;; linklet-bootstrap-runtime-only-helper-names : (listof symbol?)
-;;   Preserve the runtime emission order for source-linklet bootstrap helpers.
-(define linklet-bootstrap-runtime-only-helper-names
+;; linklet-bootstrap-promoted-runtime-helper-names : (listof symbol?)
+;;   Name source-linklet bootstrap helpers available in the standalone core runtime.
+(define linklet-bootstrap-promoted-runtime-helper-names
   '($primitive->compiled-position
     $compiled-position->primitive
     $primitive-in-category?
     $primitive-lookup
-    $compile-linklet/placeholder-result
-    $compile-linklet
     $recompile-linklet
     $eval-linklet
     $linklet-add-target-machine-info
     $linklet-summarize-target-machine-info
-    $linklet-virtual-machine-bytes
     $linklet-cross-machine-type
     $write-linklet-bundle-hash
     $read-linklet-bundle-hash))
 
-;; linklet-interpreter-runtime-only-helper-names : (listof symbol?)
-;;   Preserve the runtime emission order for source-linklet interpreter helpers.
-(define linklet-interpreter-runtime-only-helper-names
+;; linklet-interpreter-promoted-runtime-helper-names : (listof symbol?)
+;;   Name source-linklet interpreter helpers available in the standalone core runtime.
+(define linklet-interpreter-promoted-runtime-helper-names
   '($dummy-code
-    $placeholder-linklet-code
-    $linklet-datum-body-list
-    $linklet-normalize-id
-    $linklet-import-group-contains?/i32
-    $linklet-import-instance-for-id
-    $linklet-eval-sequence
-    $linklet-eval-expr-list
-    $linklet-apply-primitive
-    $linklet-define-values!
-    $linklet-eval-expr
-    $interpreted-linklet-code))
+    $linklet-datum-body-list))
 
 ;; linklet-primitive-table-initializer-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for primitive-table initializer helpers.
 (define linklet-primitive-table-initializer-runtime-only-helper-names
   '($initialize-primitive-table-user-installed))
 
-;; linklet-bootstrap-runtime-only-helpers : (listof core-runtime-helper?)
+;; linklet-bootstrap-all-runtime-helpers : (listof core-runtime-helper?)
 ;;   Enumerate source-linklet bootstrap and placeholder helpers.
-(define linklet-bootstrap-runtime-only-helpers
+(define linklet-bootstrap-all-runtime-helpers
   (function-forms->runtime-helpers
-   'linklet-bootstrap-runtime-only-helpers
+   'linklet-bootstrap-all-runtime-helpers
    '(
          ;; primitive->compiled-position : any/c -> #f
          ;;   WebRacket has no bytecode primitive-position table yet. This
@@ -384,11 +374,28 @@
                (result               (ref eq))
                (global.get $false)))))
 
-;; linklet-interpreter-runtime-only-helpers : (listof core-runtime-helper?)
+;; linklet-bootstrap-core-runtime-helpers : (listof core-runtime-helper?)
+;;   Enumerate source-linklet bootstrap helpers available in standalone core runtime.
+(define linklet-bootstrap-core-runtime-helpers
+  (select-runtime-helpers linklet-bootstrap-all-runtime-helpers
+                          linklet-bootstrap-promoted-runtime-helper-names))
+
+;; linklet-bootstrap-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate source-linklet bootstrap helpers that still depend on monolithic runtime definitions.
+(define linklet-bootstrap-runtime-only-helpers
+  (remove-runtime-helpers linklet-bootstrap-all-runtime-helpers
+                          linklet-bootstrap-promoted-runtime-helper-names))
+
+;; linklet-bootstrap-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime-only emission order for source-linklet bootstrap helpers.
+(define linklet-bootstrap-runtime-only-helper-names
+  (map core-runtime-helper-name linklet-bootstrap-runtime-only-helpers))
+
+;; linklet-interpreter-all-runtime-helpers : (listof core-runtime-helper?)
 ;;   Enumerate source-linklet interpreter helpers used by runtime linklets.
-(define linklet-interpreter-runtime-only-helpers
+(define linklet-interpreter-all-runtime-helpers
   (function-forms->runtime-helpers
-   'linklet-interpreter-runtime-only-helpers
+   'linklet-interpreter-all-runtime-helpers
    '(
          ;; Variable used by `closedapp` to hold the closure during construction.
          (func $dummy-code (type $ClosureCode) (param $clos (ref $Closure))
@@ -921,6 +928,29 @@
                      (local.get $forms)))
      )))
 
+;; linklet-interpreter-core-runtime-helpers : (listof core-runtime-helper?)
+;;   Enumerate source-linklet interpreter helpers available in standalone core runtime.
+(define linklet-interpreter-core-runtime-helpers
+  (select-runtime-helpers linklet-interpreter-all-runtime-helpers
+                          linklet-interpreter-promoted-runtime-helper-names))
+
+;; linklet-interpreter-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate source-linklet interpreter helpers that still depend on monolithic runtime definitions.
+(define linklet-interpreter-runtime-only-helpers
+  (remove-runtime-helpers linklet-interpreter-all-runtime-helpers
+                          linklet-interpreter-promoted-runtime-helper-names))
+
+;; linklet-interpreter-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime-only emission order for source-linklet interpreter helpers.
+(define linklet-interpreter-runtime-only-helper-names
+  (map core-runtime-helper-name linklet-interpreter-runtime-only-helpers))
+
+;; linklet-core-runtime-helpers : (listof core-runtime-helper?)
+;;   Enumerate linklet helpers available in the standalone core runtime.
+(define linklet-core-runtime-helpers
+  (append linklet-bootstrap-core-runtime-helpers
+          linklet-interpreter-core-runtime-helpers))
+
 ;; linklet-primitive-table-initializer-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate primitive-table initializer helpers used by the monolithic runtime.
 (define linklet-primitive-table-initializer-runtime-only-helpers
@@ -941,6 +971,12 @@
   (for/list ([name (in-list names)])
     (core-runtime-helper-form helper-index name)))
 
+;; linklet-interpreter-core-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render promoted source-linklet interpreter helpers in runtime assembly order.
+(define (linklet-interpreter-core-runtime-helper-forms helper-index)
+  (linklet-registered-helper-forms helper-index
+                                   linklet-interpreter-promoted-runtime-helper-names))
+
 ;; linklet-interpreter-runtime-helper-forms : hasheq? -> (listof datum?)
 ;;   Render source-linklet interpreter helpers in runtime assembly order.
 (define (linklet-interpreter-runtime-helper-forms helper-index)
@@ -957,6 +993,12 @@
 ;;   Render source-linklet bootstrap helpers in runtime assembly order.
 (define (linklet-bootstrap-runtime-helper-forms helper-index)
   (linklet-registered-helper-forms helper-index linklet-bootstrap-runtime-only-helper-names))
+
+;; linklet-bootstrap-core-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render promoted source-linklet bootstrap helpers in runtime assembly order.
+(define (linklet-bootstrap-core-runtime-helper-forms helper-index)
+  (linklet-registered-helper-forms helper-index
+                                   linklet-bootstrap-promoted-runtime-helper-names))
 
 ;; linklet-primitive-table-runtime-only-helper-forms : (listof symbol?) (listof symbol?) -> (listof datum?)
 ;;   Generate primitive-table bridge helpers for the active primitive set.
@@ -1821,11 +1863,33 @@
   (define (form-name form)
     (second form))
 
+  (define linklet-core-helper-index
+    (make-core-runtime-helper-index linklet-core-runtime-helpers))
+
   (define linklet-helper-index
     (make-core-runtime-helper-index
-     (append linklet-bootstrap-runtime-only-helpers
+     (append linklet-core-runtime-helpers
+             linklet-bootstrap-runtime-only-helpers
              linklet-interpreter-runtime-only-helpers
              linklet-primitive-table-initializer-runtime-only-helpers)))
+
+  (check-equal?
+   (map core-runtime-helper-name linklet-bootstrap-core-runtime-helpers)
+   linklet-bootstrap-promoted-runtime-helper-names)
+
+  (check-equal?
+   (map form-name
+        (linklet-bootstrap-core-runtime-helper-forms linklet-core-helper-index))
+   linklet-bootstrap-promoted-runtime-helper-names)
+
+  (check-equal?
+   (map core-runtime-helper-name linklet-interpreter-core-runtime-helpers)
+   linklet-interpreter-promoted-runtime-helper-names)
+
+  (check-equal?
+   (map form-name
+        (linklet-interpreter-core-runtime-helper-forms linklet-core-helper-index))
+   linklet-interpreter-promoted-runtime-helper-names)
 
   (check-equal?
    (map form-name

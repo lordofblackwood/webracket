@@ -183,7 +183,9 @@
          (only-in "runtime-wasm/core/linklet-instances.rkt"
                   linklet-instance-runtime-helper-forms)
          (only-in "runtime-wasm/core/linklets.rkt"
+                  linklet-bootstrap-core-runtime-helper-forms
                   linklet-bootstrap-runtime-helper-forms
+                  linklet-interpreter-core-runtime-helper-forms
                   linklet-interpreter-runtime-helper-forms
                   primitive-table-module-symbols
                   linklet-primitive-table-global-forms
@@ -703,6 +705,7 @@
          ,@(procedure-rest-argument-core-runtime-helper-forms core-runtime-helper-index)
 
          ;;   Source-linklet interpreter helpers are implemented in runtime-wasm/core/linklets.rkt.
+         ,@(linklet-interpreter-core-runtime-helper-forms core-runtime-helper-index)
          ,@(linklet-interpreter-runtime-helper-forms runtime-helper-index)
 
          ,@closure-runtime-global-forms
@@ -1183,6 +1186,7 @@
 
          ;; Source-linklet bootstrap helpers
          ;;   Implemented in runtime-wasm/core/linklets.rkt.
+         ,@(linklet-bootstrap-core-runtime-helper-forms core-runtime-helper-index)
          ,@(linklet-bootstrap-runtime-helper-forms runtime-helper-index)
 
          ;; Primitive-table bridge helpers

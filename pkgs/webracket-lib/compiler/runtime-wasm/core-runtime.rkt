@@ -27,6 +27,7 @@
          "core/immutable-hashes.rkt"
          "core/keywords.rkt"
          "core/lists.rkt"
+         "core/linklets.rkt"
          "core/loggers.rkt"
          "core/mlists.rkt"
          "core/mutable-hashes.rkt"
@@ -70,6 +71,7 @@
    immutable-hash-core-runtime-helpers
    keyword-core-runtime-helpers
    list-core-runtime-helpers
+   linklet-core-runtime-helpers
    logger-core-runtime-helpers
    mlist-core-runtime-helpers
    mutable-hash-core-runtime-helpers

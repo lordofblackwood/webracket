@@ -334,7 +334,8 @@ RKT
        [will (make-will-executor)]
        [cust (current-custodian)]
        [cust-box (make-custodian-box cust 42)]
-       [ups (unquoted-printing-string "raw")])
+       [ups (unquoted-printing-string "raw")]
+       [linklet-info (linklet-summarize-target-machine-info 42)])
   (if (and (eq? 'cached 'cached)
            (not (eq? (box 1) (box 1)))
            (char? #\a)
@@ -425,7 +426,19 @@ RKT
            (inspector? (current-code-inspector))
            (unquoted-printing-string? ups)
            (string=? (format "~a" ups) "raw")
-           (string=? (format "~s" "a\n") "\"a\\n\""))
+           (string=? (format "~s" "a\n") "\"a\\n\"")
+           (not (primitive->compiled-position 'car))
+           (not (compiled-position->primitive #f))
+           (not (primitive-in-category? 'car 'unsafe))
+           (not (primitive-lookup 'car))
+           (eq? (recompile-linklet 42 #f) 42)
+           (eq? (eval-linklet 42) 42)
+           (eq? (linklet-add-target-machine-info 42 0) 42)
+           (hash? linklet-info)
+           (hash-empty? linklet-info)
+           (not (linklet-cross-machine-type linklet-info))
+           (eq? (write-linklet-bundle-hash linklet-info 0) (void))
+           (not (read-linklet-bundle-hash 0 #f)))
       42
       0))
 RKT
