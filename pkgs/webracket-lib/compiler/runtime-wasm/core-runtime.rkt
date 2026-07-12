@@ -28,6 +28,7 @@
          "core/equality.rkt"
          "core/exceptions.rkt"
          "core/events.rkt"
+         "core/fasl.rkt"
          "core/ffi.rkt"
          "core/fixnums.rkt"
          "core/flonums.rkt"
@@ -278,8 +279,9 @@
             $zero
             $one
             $two
-            $three
-            $treelist:BITS
+            $three)
+          fasl-tag-global-names
+          '($treelist:BITS
             $treelist:MAX_WIDTH
             $treelist:MASK
             $dummy-treelist-node
@@ -320,6 +322,7 @@
      ,@singleton-global-forms
      ,@ffi-debug-global-forms
      ,@fixnum-global-forms
+     ,@fasl-tag-global-forms
      ,@treelist-constant-global-forms
      ,@vector-dummy-array-global-forms
      ,@treelist-empty-global-forms
@@ -910,6 +913,8 @@
   (check-true (hash-has-key? core-runtime-global-name-set '$one))
   (check-true (hash-has-key? core-runtime-global-name-set '$two))
   (check-true (hash-has-key? core-runtime-global-name-set '$three))
+  (check-true (hash-has-key? core-runtime-global-name-set '$fasl-fixnum))
+  (check-true (hash-has-key? core-runtime-global-name-set '$fasl-keyword))
   (check-true (hash-has-key? core-runtime-global-name-set '$dummy-treelist-node))
   (check-true (hash-has-key? core-runtime-global-name-set '$empty-treelist))
   (check-true (hash-has-key? core-runtime-global-name-set '$treelist:BITS))

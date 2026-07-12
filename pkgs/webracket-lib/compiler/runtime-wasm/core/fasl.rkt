@@ -1,6 +1,8 @@
 #lang racket
 
-(provide fasl-tag-runtime-only-helper-names
+(provide fasl-tag-global-forms
+         fasl-tag-global-names
+         fasl-tag-runtime-only-helper-names
          fasl-tag-runtime-helper-forms
          fasl-runtime-string-constants
          fasl-runtime-symbol-constants
@@ -23,9 +25,9 @@
                   eof-value
                   void-value))
 
-;; fasl-tag-runtime-only-helper-specs : (listof (list symbol? exact-integer?))
+;; fasl-tag-global-specs : (listof (list symbol? exact-integer?))
 ;;   Describe the FASL tag globals and their encoded numeric tag values.
-(define fasl-tag-runtime-only-helper-specs
+(define fasl-tag-global-specs
   '(($fasl-fixnum    0)
     ($fasl-character 1)
     ($fasl-symbol    2)
@@ -41,10 +43,15 @@
     ($fasl-external  12)
     ($fasl-keyword   13)))
 
-;; fasl-tag-runtime-only-helper-names : (listof symbol?)
+;; fasl-tag-global-names : (listof symbol?)
 ;;   Preserve the runtime emission order for FASL tag globals.
+(define fasl-tag-global-names
+  (map first fasl-tag-global-specs))
+
+;; fasl-tag-runtime-only-helper-names : (listof symbol?)
+;;   Backward-compatible name for FASL tag globals.
 (define fasl-tag-runtime-only-helper-names
-  (map first fasl-tag-runtime-only-helper-specs))
+  fasl-tag-global-names)
 
 ;; fasl-runtime-symbol-constants : (listof symbol?)
 ;;   Declare symbols used by FASL helpers.
@@ -60,17 +67,13 @@
     (s-exp->fasl-unsupported-prefix
      "s-exp->fasl: unsupported value\n  value: ")))
 
-;; fasl-tag-runtime-only-helpers : (listof core-runtime-helper?)
-;;   Enumerate FASL tag globals used by the monolithic runtime.
-(define fasl-tag-runtime-only-helpers
-  (for/list ([spec (in-list fasl-tag-runtime-only-helper-specs)])
+;; fasl-tag-global-forms : (listof datum?)
+;;   Enumerate FASL tag globals used by the runtime.
+(define fasl-tag-global-forms
+  (for/list ([spec (in-list fasl-tag-global-specs)])
     (define name  (first spec))
     (define value (second spec))
-    (core-runtime-helper
-     name
-     (symbol->string name)
-     (lambda ()
-       `(global ,name (ref i31) ,(Imm value))))))
+    `(global ,name (ref i31) ,(Imm value))))
 
 ;; fasl-encoding-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for FASL encoding helpers.
@@ -1072,10 +1075,9 @@
    fasl-runtime-only-forms))
 
 ;; fasl-runtime-only-helpers : (listof core-runtime-helper?)
-;;   Enumerate all FASL helpers used by the monolithic runtime.
+;;   Enumerate all FASL function helpers used by the monolithic runtime.
 (define fasl-runtime-only-helpers
-  (append fasl-tag-runtime-only-helpers
-          fasl-encoding-runtime-only-helpers
+  (append fasl-encoding-runtime-only-helpers
           fasl-decoding-runtime-only-helpers))
 
 ;; fasl-helper-forms : hasheq? (listof symbol?) -> (listof datum?)
@@ -1087,7 +1089,7 @@
 ;; fasl-tag-runtime-helper-forms : hasheq? -> (listof datum?)
 ;;   Render FASL tag globals in runtime assembly order.
 (define (fasl-tag-runtime-helper-forms helper-index)
-  (fasl-helper-forms helper-index fasl-tag-runtime-only-helper-names))
+  fasl-tag-global-forms)
 
 ;; fasl-encoding-runtime-helper-forms : hasheq? -> (listof datum?)
 ;;   Render FASL encoding helpers in runtime assembly order.
@@ -1112,7 +1114,7 @@
 
   (check-equal?
    (map form-name (fasl-tag-runtime-helper-forms fasl-helper-index))
-   fasl-tag-runtime-only-helper-names)
+   fasl-tag-global-names)
 
   (check-equal?
    (map form-name (fasl-encoding-runtime-helper-forms fasl-helper-index))
