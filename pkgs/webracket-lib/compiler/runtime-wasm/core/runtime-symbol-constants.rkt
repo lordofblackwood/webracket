@@ -1,10 +1,14 @@
 #lang racket
 
 (provide core-runtime-symbol-constants
+         core-runtime-primitive-symbol-constants
          runtime-linklet-body-reserved-symbols/registration
          runtime-linklet-body-reserved-symbols)
 
-(require (only-in "bytes.rkt"
+(require (only-in "../../private/primitives-db.rkt"
+                  primitive-db
+                  primitive-info-name)
+         (only-in "bytes.rkt"
                   byte-predicate-runtime-symbol-constants
                   bytes-runtime-symbol-constants)
          (only-in "characters.rkt"
@@ -96,6 +100,12 @@
          (only-in "wills.rkt"
                   will-runtime-symbol-constants))
 
+;; core-runtime-primitive-symbol-constants : (listof symbol?)
+;;   Declare compiler primitive names owned by the standalone core runtime.
+(define core-runtime-primitive-symbol-constants
+  (for/list ([info (in-list primitive-db)])
+    (primitive-info-name info)))
+
 ;; core-runtime-symbol-constants : (listof symbol?)
 ;;   Declare all domain-owned runtime symbol constants in assembly order.
 (define core-runtime-symbol-constants
@@ -147,7 +157,8 @@
           filesystem-runtime-symbol-constants
           reflection-runtime-symbol-constants
           lock-runtime-symbol-constants
-          linklet-instance-runtime-symbol-constants))
+          linklet-instance-runtime-symbol-constants
+          core-runtime-primitive-symbol-constants))
 
 ;; runtime-linklet-body-reserved-symbols/registration : (listof symbol?) -> (listof symbol?)
 ;;   Return source-linklet body symbols registered as runtime constants.
@@ -167,6 +178,8 @@
   (check-not-false (memq 'racket core-runtime-symbol-constants))
   (check-not-false (memq 'exn core-runtime-symbol-constants))
   (check-not-false (memq 'current-logger core-runtime-symbol-constants))
+  (check-not-false (memq 'append core-runtime-primitive-symbol-constants))
+  (check-not-false (memq 'append core-runtime-symbol-constants))
   (check-equal?
    (runtime-linklet-body-reserved-symbols/registration '(lambda custom))
    (append linklet-body-core-reserved-symbols '(custom)))

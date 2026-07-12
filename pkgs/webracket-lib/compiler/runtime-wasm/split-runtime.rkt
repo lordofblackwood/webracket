@@ -1830,6 +1830,48 @@
    (for/or ([form (in-list core-symbol-constant-import-program-forms)])
      (form-contains-global-set? '$symbol:racket form)))
 
+  (define core-primitive-symbol-constant-import-split
+    (split-core-runtime-module
+     `(module
+        (type $I8Array (array (mut i8)))
+        (data $symbol-data:append "append")
+        (global $symbol:append (mut (ref eq)) (ref.i31 (i32.const 0)))
+        (func $initialize-symbol-append
+              (global.set $symbol:append
+                          (array.new_data $I8Array
+                                          $symbol-data:append
+                                          (i32.const 0)
+                                          (i32.const 6))))
+        (func $entry
+              (export "entry")
+              (result i32)
+              (call $initialize-symbol-append)
+              (drop (global.get $symbol:append))
+              (i32.const 42)))
+     #:helpers '()))
+  (define core-primitive-symbol-constant-import-program-forms
+    (module-forms (split-runtime-modules-program
+                   core-primitive-symbol-constant-import-split)))
+  (check-not-false
+   (member '$symbol:append
+           (split-runtime-modules-imported-names
+            core-primitive-symbol-constant-import-split)))
+  (check-not-false
+   (member '(global $symbol:append
+                    (import "core" "global:$symbol:append")
+                    (mut (ref eq)))
+           core-primitive-symbol-constant-import-program-forms))
+  (check-false
+   (member '(data $symbol-data:append "append")
+           core-primitive-symbol-constant-import-program-forms))
+  (check-false
+   (for/or ([form (in-list core-primitive-symbol-constant-import-program-forms)])
+     (and (global-definition-form? form)
+          (eq? (module-global-name form) '$symbol:append))))
+  (check-false
+   (for/or ([form (in-list core-primitive-symbol-constant-import-program-forms)])
+     (form-contains-global-set? '$symbol:append form)))
+
   (define intern-table-import-split
     (split-core-runtime-module
      `(module

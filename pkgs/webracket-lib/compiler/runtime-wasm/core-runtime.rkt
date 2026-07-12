@@ -940,6 +940,8 @@
   (check-true (for/or ([form (in-list core-forms)])
                 (global-form-named? '$symbol:racket form)))
   (check-true (for/or ([form (in-list core-forms)])
+                (global-form-named? '$symbol:append form)))
+  (check-true (for/or ([form (in-list core-forms)])
                 (global-form-named? '$the-symbol-table form)))
   (check-true (for/or ([form (in-list core-forms)])
                 (global-form-named? '$the-keyword-table form)))
@@ -958,6 +960,10 @@
   (check-true (for/or ([form (in-list core-forms)])
                 (global-export-form-named? "global:$symbol:racket"
                                            '$symbol:racket
+                                           form)))
+  (check-true (for/or ([form (in-list core-forms)])
+                (global-export-form-named? "global:$symbol:append"
+                                           '$symbol:append
                                            form)))
   (check-not-false (member '(start $initialize-core-runtime!) core-forms))
   (define string-converter-functions
