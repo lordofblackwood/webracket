@@ -37,7 +37,9 @@
 ;;; Command-Line Configuration
 
 (define source-file default-source-file)
+(define extra-source-files '())
 (define expected-output-regexp #rx"(^|\n)42(\n|$)")
+(define rejected-output-regexp #f)
 (define suite? #f)
 (define keep-temp? #f)
 (define force-prewarm? #f)
@@ -63,6 +65,9 @@
  [("--no-expect")
   "Do not validate generated program output."
   (set! expected-output-regexp #f)]
+ [("--reject") pattern
+  "Regular expression that must not appear in compiler/run stdout."
+  (set! rejected-output-regexp (regexp pattern))]
  [("--suite")
   "Also run generated no-stdlib fixtures against the same prewarmed runtime cache."
   (set! suite? #t)]
@@ -71,7 +76,13 @@
   (set! force-prewarm? #t)]
  [("--keep-temp")
   "Keep the temporary check directory after a successful run."
-  (set! keep-temp? #t)])
+  (set! keep-temp? #t)]
+ #:multi
+ [("--extra-source") path
+  "Additional source file to compile/run against the same prewarmed runtime cache."
+  (set! extra-source-files
+        (append extra-source-files
+                (list (resolve-source-path path))))])
 
 
 ;;; Subprocess Helpers
@@ -158,9 +169,9 @@
 (define (format-seconds ms)
   (~r (/ ms 1000.0) #:precision '(= 1)))
 
-;; check-case : string? path? (or/c regexp? #f) -> check-case?
+;; check-case : string? path? (or/c regexp? #f) (or/c regexp? #f) -> check-case?
 ;;   One source program compiled against the prewarmed split runtime cache.
-(struct check-case (name source expect) #:transparent)
+(struct check-case (name source expect reject) #:transparent)
 
 ;; safe-case-name : string? -> string?
 ;;   Keep generated directories and logs readable.
@@ -173,9 +184,10 @@
   (safe-case-name
    (path->string (path-replace-extension (file-name-from-path source) #""))))
 
-;; write-generated-case! : path-string? string? string? (or/c regexp? #f) -> check-case?
+;; write-generated-case! :
+;;   path-string? string? string? (or/c regexp? #f) (or/c regexp? #f) -> check-case?
 ;;   Write a generated suite source under `source-dir`.
-(define (write-generated-case! source-dir name body expect)
+(define (write-generated-case! source-dir name body expect reject)
   (define source
     (build-path source-dir (format "~a.rkt" name)))
   (call-with-output-file source
@@ -184,11 +196,12 @@
       (unless (string-suffix? body "\n")
         (newline out)))
     #:exists 'truncate/replace)
-  (check-case name source expect))
+  (check-case name source expect reject))
 
-;; generated-suite-cases : path-string? (or/c regexp? #f) -> (listof check-case?)
+;; generated-suite-cases :
+;;   path-string? (or/c regexp? #f) (or/c regexp? #f) -> (listof check-case?)
 ;;   Build small no-stdlib programs that exercise several program/runtime edges.
-(define (generated-suite-cases temp-root expect)
+(define (generated-suite-cases temp-root expect reject)
   (define source-dir
     (build-path temp-root "sources"))
   (make-directory* source-dir)
@@ -205,7 +218,8 @@
        [v (vector 0 2)])
   (f p v "cached-runtime"))
 RKT
-    expect)
+    expect
+    reject)
    (write-generated-case!
     source-dir
     "vector-mutation"
@@ -214,7 +228,8 @@ RKT
   (vector-set! v 1 2)
   (+ (vector-ref v 0) (vector-ref v 1)))
 RKT
-    expect)))
+    expect
+    reject)))
 
 ;; record-failure! : string? any/c ... -> void?
 ;;   Accumulate a formatted check failure.
@@ -258,6 +273,12 @@ RKT
     (record-failure! "~a: stdout did not match expected output regexp ~s"
                      (check-case-name case)
                      (check-case-expect case)))
+  (when (and (check-case-reject case)
+             (regexp-match? (check-case-reject case)
+                            (command-result-stdout compile-result)))
+    (record-failure! "~a: stdout matched rejected output regexp ~s"
+                     (check-case-name case)
+                     (check-case-reject case)))
   (unless (transcript-contains? compile-result
                                 #rx"split-runtime-core:reference-wasm-hit")
     (record-failure! "~a: did not report split-runtime-core:reference-wasm-hit"
@@ -292,10 +313,6 @@ RKT
 ;;   Prewarm the split-runtime cache, compile/run a program by cache reference,
 ;;   and validate the observed cache behavior.
 (define (run-check!)
-  (unless (file-exists? source-file)
-    (error 'check-split-runtime-prewarm
-           "source file does not exist: ~a"
-           source-file))
   (define racket-exe (ensure-executable "racket"))
   (ensure-executable "node")
   (define temp-root
@@ -311,14 +328,25 @@ RKT
   (putenv "PLTCOMPILEDROOTS" (path->string compiled-root))
 
   (printf "Split runtime prewarm check\n")
+  (define source-files
+    (cons source-file extra-source-files))
   (define cases
     (append
-     (list (check-case (source-case-name source-file)
-                       source-file
-                       expected-output-regexp))
+     (for/list ([source (in-list source-files)])
+       (check-case (source-case-name source)
+                   source
+                   expected-output-regexp
+                   rejected-output-regexp))
      (if suite?
-         (generated-suite-cases temp-root expected-output-regexp)
+         (generated-suite-cases temp-root
+                                expected-output-regexp
+                                rejected-output-regexp)
          '())))
+  (for ([case (in-list cases)])
+    (unless (file-exists? (check-case-source case))
+      (error 'check-split-runtime-prewarm
+             "source file does not exist: ~a"
+             (check-case-source case))))
 
   (printf "  sources:       ~a\n" (length cases))
   (for ([case (in-list cases)])

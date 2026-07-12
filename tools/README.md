@@ -199,6 +199,17 @@ against the same prewarmed runtime cache:
 racket -S pkgs tools/check-split-runtime-prewarm.rkt --suite
 ```
 
+Use `--extra-source` and `--reject` to check multiple committed fixtures with
+one prewarmed runtime cache. This is useful for tests that print pass tables:
+
+```sh
+racket -S pkgs tools/check-split-runtime-prewarm.rkt \
+  --source test/test-lambda-variadic.rkt \
+  --extra-source test/test-values-errors.rkt \
+  --no-expect \
+  --reject '#f'
+```
+
 prewarm-staged-providers.rkt
 ----------------------------
 Prebuilds cache artifacts before an example compile needs them. Existing modes
