@@ -865,6 +865,93 @@
                            (hash-ref names (module-func-name form) #f)))
     form))
 
+;; collect-constant-global-gets : datum? -> (listof symbol?)
+;;   Collect generated constant globals whose values are read.
+(define (collect-constant-global-gets form)
+  (match form
+    [`(global.get ,(? constant-global-name? name))
+     (list name)]
+    [(? list?)
+     (append-map collect-constant-global-gets form)]
+    [_ '()]))
+
+;; collect-constant-data-refs : datum? -> (listof symbol?)
+;;   Collect generated constant data segments referenced by instructions.
+(define (collect-constant-data-refs form)
+  (match form
+    [`(array.new_data ,_ ,(? constant-data-name? name) ,body ...)
+     (cons name (append-map collect-constant-data-refs body))]
+    [(? list?)
+     (append-map collect-constant-data-refs form)]
+    [_ '()]))
+
+;; constant-global-definition-name : datum? -> (or/c symbol? #f)
+;;   Return a generated constant global definition name.
+(define (constant-global-definition-name form)
+  (define name (and (global-definition-form? form)
+                    (module-global-name form)))
+  (and name
+       (constant-global-name? name)
+       name))
+
+;; constant-data-definition-name : datum? -> (or/c symbol? #f)
+;;   Return a generated constant data definition name.
+(define (constant-data-definition-name form)
+  (define name (module-data-name form))
+  (and name
+       (constant-data-name? name)
+       name))
+
+;; remove-dead-constant-global-sets : datum? hasheq? -> (or/c datum? #f)
+;;   Remove initializer writes to generated constants that no remaining code reads.
+(define (remove-dead-constant-global-sets form dead-global-names)
+  (match form
+    [`(global.set ,(? (lambda (name)
+                        (hash-ref dead-global-names name #f)))
+                  ,_ ...)
+     #f]
+    [(? list?)
+     (for/list ([part (in-list form)]
+                #:do [(define rewritten
+                        (remove-dead-constant-global-sets part
+                                                          dead-global-names))]
+                #:when rewritten)
+       rewritten)]
+    [_ form]))
+
+;; prune-unreferenced-constant-forms : (listof datum?) -> (listof datum?)
+;;   Drop generated constants left dead after split-core helper extraction.
+(define (prune-unreferenced-constant-forms forms)
+  (define used-global-names
+    (for*/hasheq ([form (in-list forms)]
+                  [name (in-list (collect-constant-global-gets form))])
+      (values name #t)))
+  (define dead-global-names
+    (for/hasheq ([form (in-list forms)]
+                 #:do [(define name (constant-global-definition-name form))]
+                 #:when (and name
+                             (not (hash-ref used-global-names name #f))))
+      (values name #t)))
+  (define forms-without-dead-globals
+    (for/list ([form (in-list forms)]
+               #:unless (let ([name (constant-global-definition-name form)])
+                           (and name
+                                (hash-ref dead-global-names name #f)))
+               #:do [(define rewritten
+                       (remove-dead-constant-global-sets form
+                                                         dead-global-names))]
+               #:when rewritten)
+      rewritten))
+  (define used-data-names
+    (for*/hasheq ([form (in-list forms-without-dead-globals)]
+                  [name (in-list (collect-constant-data-refs form))])
+      (values name #t)))
+  (for/list ([form (in-list forms-without-dead-globals)]
+             #:unless (let ([name (constant-data-definition-name form)])
+                         (and name
+                              (not (hash-ref used-data-names name #f)))))
+    form))
+
 ;; split-core-runtime-module :
 ;;   datum? [#:helpers (listof core-runtime-helper?)]
 ;;          [#:require-all? boolean?] [#:import-module string?]
@@ -897,10 +984,12 @@
           helper)))
   (check-helper-definitions! selected-helpers counts)
   (define forms-without-helpers (remove-helper-definitions forms names))
+  (define pruned-program-forms
+    (prune-unreferenced-constant-forms forms-without-helpers))
   (define import-forms
     (core-runtime-helper-import-forms selected-helpers #:module import-module-name))
   (define-values (prefix rest)
-    (splitf-at forms-without-helpers import-insertion-prefix-form?))
+    (splitf-at pruned-program-forms import-insertion-prefix-form?))
   (split-runtime-modules
    effective-core-module
    `(module ,@prefix ,@import-forms ,@rest)
@@ -1521,6 +1610,85 @@
      (for/or ([form (in-list (module-forms core-link-program))])
        (and (function-definition-form? form)
             (eq? (module-func-name form) name)))))
+
+  ;; form-contains-global-set? : symbol? datum? -> boolean?
+  ;;   Check whether a form writes to the given global.
+  (define (form-contains-global-set? name form)
+    (match form
+      [`(global.set ,target . ,body)
+       (or (eq? target name)
+           (for/or ([part (in-list body)])
+             (form-contains-global-set? name part)))]
+      [(? list?)
+       (for/or ([part (in-list form)])
+         (form-contains-global-set? name part))]
+      [_ #f]))
+
+  (define constant-prune-helper
+    (core-runtime-helper
+     '$dead-constant-helper
+     "$dead-constant-helper"
+     (lambda ()
+       '(func $dead-constant-helper
+              (drop (global.get $string:dead-helper-only))))))
+  (define constant-prune-module
+    `(module
+       (type $I8Array (array (mut i8)))
+       (data $string-data:dead-helper-only "dead")
+       (global $string:dead-helper-only (mut (ref eq)) (ref.i31 (i32.const 0)))
+       (data $string-data:init-only "init-only")
+       (global $string:init-only (mut (ref eq)) (ref.i31 (i32.const 0)))
+       (data $string-data:live "live")
+       (global $string:live (mut (ref eq)) (ref.i31 (i32.const 0)))
+       ,(core-runtime-helper->form constant-prune-helper)
+       (func $init-dead-constant
+             (global.set $string:init-only
+                         (array.new_data $I8Array
+                                         $string-data:init-only
+                                         (i32.const 0)
+                                         (i32.const 9))))
+       (func $init-live-constant
+             (global.set $string:live
+                         (array.new_data $I8Array
+                                         $string-data:live
+                                         (i32.const 0)
+                                         (i32.const 4))))
+       (func $entry
+             (export "entry")
+             (result i32)
+             (call $init-dead-constant)
+             (call $init-live-constant)
+             (drop (global.get $string:live))
+             (i32.const 42))))
+  (define constant-prune-program-forms
+    (module-forms
+     (split-runtime-modules-program
+      (split-core-runtime-module constant-prune-module
+                                 #:helpers (list constant-prune-helper)))))
+  (check-false (member '(data $string-data:dead-helper-only "dead")
+                       constant-prune-program-forms))
+  (check-false (member '(global $string:dead-helper-only
+                                (mut (ref eq))
+                                (ref.i31 (i32.const 0)))
+                       constant-prune-program-forms))
+  (check-false (member '(data $string-data:init-only "init-only")
+                       constant-prune-program-forms))
+  (check-false (member '(global $string:init-only
+                                (mut (ref eq))
+                                (ref.i31 (i32.const 0)))
+                       constant-prune-program-forms))
+  (check-false
+   (for/or ([form (in-list constant-prune-program-forms)])
+     (form-contains-global-set? '$string:init-only form)))
+  (check-not-false (member '(data $string-data:live "live")
+                           constant-prune-program-forms))
+  (check-not-false (member '(global $string:live
+                                    (mut (ref eq))
+                                    (ref.i31 (i32.const 0)))
+                           constant-prune-program-forms))
+  (check-not-false
+   (for/or ([form (in-list constant-prune-program-forms)])
+     (form-contains-global-set? '$string:live form)))
 
   (when (find-executable-path "wasm-tools")
     (define core-wat-path
