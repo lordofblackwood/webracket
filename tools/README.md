@@ -164,6 +164,10 @@ racket -S pkgs tools/measure-split-runtime.rkt \
   --expect '(^|\n)42(\n|$)'
 ```
 
+Use `--include-cache-reference` to also measure Node output generated with
+`--split-runtime-cache-reference`, where warm runs read the cached runtime wasm
+directly instead of materializing a sidecar next to the program.
+
 fetch-html-element-attributes.mjs
 ---------------------------------
 Generator for a machine-readable HTML element/attribute snapshot.

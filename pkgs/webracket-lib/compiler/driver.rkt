@@ -2909,14 +2909,18 @@
 ;;   (-> list?) path-string? path-string? boolean?
 ;;   (list? path-string? path-string? -> boolean?)
 ;;   [#:cache-key any/c]
-;;   [#:record-timing! (string? real? -> any/c)] -> boolean?
-;;   Assemble the core runtime sidecar, reusing a fingerprinted Wasm cache hit.
+;;   [#:materialize-cache-hit? boolean?]
+;;   [#:record-timing! (string? real? -> any/c)]
+;;   -> (values boolean? (or/c path-string? #f))
+;;   Assemble or locate the core runtime, reusing a fingerprinted Wasm cache hit.
 (define (assemble-split-runtime-core/cached! core-module-thunk
                                              runtime-wat
                                              runtime-wasm
                                              pretty-wat?
                                              assemble-module!
                                              #:cache-key [cache-key #f]
+                                             #:materialize-cache-hit?
+                                             [materialize-cache-hit? #t]
                                              #:record-timing!
                                              [record-timing! void])
   (define (time-core-cache-step label thunk)
@@ -2979,11 +2983,20 @@
      (lambda ()
        (copy-file/replace! cache-wasm-path runtime-wasm)))
     (materialize-runtime-wat!)
-    #t)
+    (values #t runtime-wasm))
+  (define (reference-cached-runtime!)
+    (time-core-cache-step
+     "split-runtime-core:reference-wasm-hit"
+     (lambda () (void)))
+    (values #t cache-wasm-path))
+  (define (cached-runtime-hit!)
+    (if materialize-cache-hit?
+        (copy-cached-runtime!)
+        (reference-cached-runtime!)))
   (cond
     [(cache-hit? cache-wasm-path)
      (provider-cache-log "split runtime core wasm hit: ~a" cache-wasm-path)
-     (copy-cached-runtime!)]
+     (cached-runtime-hit!)]
     [else
      (call-with-provider-cache-lock
       cache-wasm-path
@@ -2992,7 +3005,7 @@
           [(cache-hit? cache-wasm-path)
            (provider-cache-log "split runtime core wasm hit: ~a"
                                cache-wasm-path)
-           (copy-cached-runtime!)]
+           (cached-runtime-hit!)]
           [else
            (provider-cache-log "split runtime core wasm miss; assembling: ~a"
                                cache-wasm-path)
@@ -3011,7 +3024,11 @@
               (lambda ()
                 (copy-file/replace! runtime-wasm cache-wasm-path)))
              (cache-runtime-wat!))
-           assembled?])))]))
+           (values assembled?
+                   (and assembled?
+                        (if materialize-cache-hit?
+                            runtime-wasm
+                            cache-wasm-path)))])))]))
 
 ;; host-wasm-reference : boolean? path-string? path-string? -> path-string?
 ;;   Return the Wasm path as the generated host should reference it.
@@ -3053,6 +3070,7 @@
          #:tree-shake?       tree-shake?        ; remove dead code from the wat-file
          #:tree-shake-report tree-shake-report
          #:split-runtime?    [split-runtime? #f]
+         #:split-runtime-cache-reference? [split-runtime-cache-reference? #f]
          ;; Program Debug
          #:print-top-level-results? print-top-level-results?
          #:internal-bind-treelist-debug-shape? internal-bind-treelist-debug-shape?
@@ -3345,6 +3363,12 @@
   (when (and run-after? browser?)
     (error 'drive-compilation
            "cannot use `-r` in browser mode; use Node mode or omit `-r`."))
+  (when (and split-runtime-cache-reference? (not split-runtime?))
+    (error 'drive-compilation
+           "`--split-runtime-cache-reference` requires `--split-runtime`"))
+  (when (and split-runtime-cache-reference? browser?)
+    (error 'drive-compilation
+           "`--split-runtime-cache-reference` is only supported for Node output"))
 
   ; Preflight: `-r` in Node mode requires a Node.js executable.
   (when (and node? run-after?)
@@ -3457,27 +3481,32 @@
                  #:wasm wasm-path
                  #:write-wat? #f
                  #:exec-path-from-shell? exec-path-from-shell?)))
+  (define-values (split-runtime-core-success?
+                  split-runtime-core-reference-path)
+    (if split-runtime?
+        (assemble-split-runtime-core/cached!
+         (lambda ()
+           (split-runtime-modules-core-module split-modules))
+         runtime-wat
+         runtime-wasm
+         pretty-wat?
+         assemble-module!
+         #:cache-key (split-runtime-modules-core-cache-key split-modules)
+         #:materialize-cache-hit? (not split-runtime-cache-reference?)
+         #:record-timing!
+         (lambda (label elapsed-ms)
+           (set! split-runtime-core-timing-rows
+                 (cons (list label elapsed-ms)
+                       split-runtime-core-timing-rows))))
+        (values #t #f)))
   (define wat->wasm-success?
-    (and (or (not split-runtime?)
-             (assemble-split-runtime-core/cached!
-              (lambda ()
-                (split-runtime-modules-core-module split-modules))
-              runtime-wat
-              runtime-wasm
-              pretty-wat?
-              assemble-module!
-              #:cache-key (split-runtime-modules-core-cache-key split-modules)
-              #:record-timing!
-              (lambda (label elapsed-ms)
-                (set! split-runtime-core-timing-rows
-                      (cons (list label elapsed-ms)
-                            split-runtime-core-timing-rows)))))
+    (and split-runtime-core-success?
          (assemble-module! program-wat out-wat out-wasm)))
   (unless wat->wasm-success?
     (error 'drive-compilation
            (~a "wat->wasm failed to produce bytecode for " filename)))
   (ensure-generated-file-exists! 'drive-compilation out-wasm "Wasm bytecode file")
-  (when split-runtime?
+  (when (and split-runtime? (not split-runtime-cache-reference?))
     (ensure-generated-file-exists! 'drive-compilation runtime-wasm "split runtime Wasm bytecode file"))
   (define t-assemble-end (now-ms))
 
@@ -3495,7 +3524,10 @@
     (host-wasm-reference browser? out-host out-wasm))
   (define split-runtime-wasm-reference
     (and split-runtime?
-         (host-wasm-reference browser? out-host runtime-wasm)))
+         (host-wasm-reference
+          browser?
+          out-host
+          (or split-runtime-core-reference-path runtime-wasm))))
   (with-output-to-file out-host
     (λ () (displayln
            (runtime #:out runtime-wasm-reference

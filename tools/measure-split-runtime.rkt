@@ -79,6 +79,7 @@
 (define source-file default-source-file)
 (define expected-output-regexp #rx"(^|\n)42(\n|$)")
 (define keep-temp? #t)
+(define include-cache-reference? #f)
 
 ;; resolve-source-path : string? -> path?
 ;;   Resolve a user-provided source path relative to the repository root.
@@ -103,7 +104,10 @@
   (set! expected-output-regexp #f)]
  [("--delete-temp")
   "Delete the temporary benchmark directory after a successful run"
-  (set! keep-temp? #f)])
+  (set! keep-temp? #f)]
+ [("--include-cache-reference")
+  "Also measure Node output that references cached split-runtime wasm directly"
+  (set! include-cache-reference? #t)])
 
 
 ;;; Subprocess Helpers
@@ -191,6 +195,8 @@
 ;;   Classify the split-runtime core cache behavior visible in a transcript.
 (define (transcript-split-cache-status transcript)
   (cond
+    [(regexp-match? #rx"split-runtime-core:reference-wasm-hit" transcript)
+     'wasm-reference-hit]
     [(regexp-match? #rx"split-runtime-core:materialize-wasm-hit" transcript)
      'wasm-hit]
     [(regexp-match? #rx"split-runtime-core:assemble-wasm" transcript)
@@ -224,6 +230,11 @@
      [(monolithic) '("--no-split-runtime")]
      [(split-cold split-warm)
       (list "--split-runtime"
+            "--runtime-provider-cache-dir"
+            (path->string runtime-cache))]
+     [(split-cache-reference-warm)
+      (list "--split-runtime"
+            "--split-runtime-cache-reference"
             "--runtime-provider-cache-dir"
             (path->string runtime-cache))]
      [else
@@ -263,6 +274,7 @@
     (case mode
       [(split-cold) (eq? split-status 'miss-assembled)]
       [(split-warm) (eq? split-status 'wasm-hit)]
+      [(split-cache-reference-warm) (eq? split-status 'wasm-reference-hit)]
       [else #t]))
   (mode-result mode
                ok?
@@ -334,7 +346,8 @@
 ;; print-delta : mode-result? mode-result? -> void?
 ;;   Print warm split deltas against monolithic output.
 (define (print-delta monolithic split-warm)
-  (printf "\nDelta split-warm vs monolithic (seconds)\n")
+  (printf "\nDelta ~a vs monolithic (seconds)\n"
+          (mode-result-name split-warm))
   (printf "  driver total:      ~a\n"
           (format-seconds
            (delta-seconds (mode-result-driver-total split-warm)
@@ -420,15 +433,29 @@
                   provider-cache
                   runtime-cache
                   expected-output-regexp))
+  (define split-cache-reference-warm
+    (and include-cache-reference?
+         (compile-mode 'split-cache-reference-warm
+                       racket-exe
+                       temp-root
+                       provider-cache
+                       runtime-cache
+                       expected-output-regexp)))
   (printf "mode\tstatus\twall\tdriver-total\tcompile-pipeline\tcompile\tassemble\tgenerate-runtime\tcore-cache\tprogram-wasm-mb\truntime-wasm-mb\n")
-  (for ([r (in-list (list split-cold monolithic split-warm))])
+  (define results
+    (append (list split-cold monolithic split-warm)
+            (if split-cache-reference-warm
+                (list split-cache-reference-warm)
+                '())))
+  (for ([r (in-list results)])
     (print-row r))
   (print-delta monolithic split-warm)
-  (for ([r (in-list (list split-cold monolithic split-warm))])
+  (when split-cache-reference-warm
+    (print-delta monolithic split-cache-reference-warm))
+  (for ([r (in-list results)])
     (print-failure-details r temp-root))
   (define ok?
-    (andmap successful-result?
-            (list split-cold monolithic split-warm)))
+    (andmap successful-result? results))
   (when (and ok? (not keep-temp?))
     (delete-directory/files temp-root))
   (unless ok?

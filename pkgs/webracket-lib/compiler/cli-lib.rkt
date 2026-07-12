@@ -47,6 +47,7 @@
    tree-shake?                            ; remove unused runtime primitives
    tree-shake-report                      ; optional runtime primitive reachability report path
    split-runtime?                         ; emit an experimental core-runtime/program Wasm split
+   split-runtime-cache-reference?         ; Node split mode references cached runtime wasm directly
    letrec-strategy                        ; letrec lowering strategy symbol
    print-top-level-results?               ; print top-level results for script-style runs
    internal-bind-treelist-debug-shape?    ; internal treelist shape debug hook
@@ -96,6 +97,7 @@
     (tree-shake? . ,(webracket-compile-config-tree-shake? cfg))
     (tree-shake-report . ,(webracket-compile-config-tree-shake-report cfg))
     (split-runtime? . ,(webracket-compile-config-split-runtime? cfg))
+    (split-runtime-cache-reference? . ,(webracket-compile-config-split-runtime-cache-reference? cfg))
     (letrec-strategy . ,(webracket-compile-config-letrec-strategy cfg))
     (print-top-level-results? . ,(webracket-compile-config-print-top-level-results? cfg))
     (internal-bind-treelist-debug-shape? . ,(webracket-compile-config-internal-bind-treelist-debug-shape? cfg))
@@ -152,6 +154,7 @@
    (ref 'tree-shake?)
    (ref 'tree-shake-report)
    (ref/default 'split-runtime? #f)
+   (ref/default 'split-runtime-cache-reference? #f)
    (ref 'letrec-strategy)
    (ref 'print-top-level-results?)
    (ref 'internal-bind-treelist-debug-shape?)
@@ -201,6 +204,7 @@
   (define tree-shake? #t)
   (define tree-shake-report #f)
   (define split-runtime? #f)
+  (define split-runtime-cache-reference? #f)
   (define letrec-strategy 'waddell)
   (define print-top-level-results? #f)
   (define internal-bind-treelist-debug-shape? #f)
@@ -388,6 +392,12 @@
                           (set! split-runtime? #t)]
      [("--no-split-runtime") "Emit the normal monolithic Wasm module (default)"
                              (set! split-runtime? #f)]
+     [("--split-runtime-cache-reference")
+      "In Node split-runtime mode, read the stable runtime wasm directly from cache"
+      (set! split-runtime-cache-reference? #t)]
+     [("--no-split-runtime-cache-reference")
+      "Materialize the split runtime wasm sidecar next to the program output (default)"
+      (set! split-runtime-cache-reference? #f)]
      [("--letrec-basic") "Use the basic letrec lowering strategy"
                          (set! letrec-strategy 'basic)]
      [("--letrec-waddell") "Use the Waddell letrec lowering strategy"
@@ -545,6 +555,7 @@
        tree-shake?
        tree-shake-report
        split-runtime?
+       split-runtime-cache-reference?
        letrec-strategy
        print-top-level-results?
        internal-bind-treelist-debug-shape?
@@ -606,6 +617,8 @@
                        #:tree-shake? (webracket-compile-config-tree-shake? cfg)
                        #:tree-shake-report (webracket-compile-config-tree-shake-report cfg)
                        #:split-runtime? (webracket-compile-config-split-runtime? cfg)
+                       #:split-runtime-cache-reference?
+                       (webracket-compile-config-split-runtime-cache-reference? cfg)
                        #:print-top-level-results? (webracket-compile-config-print-top-level-results? cfg)
                        #:internal-bind-treelist-debug-shape?
                        (webracket-compile-config-internal-bind-treelist-debug-shape? cfg)
