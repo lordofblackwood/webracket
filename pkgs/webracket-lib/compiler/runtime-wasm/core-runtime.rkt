@@ -83,6 +83,7 @@
    exception-core-runtime-helpers
    event-core-runtime-helpers
    external-value-core-runtime-helpers
+   ffi-core-runtime-helpers
    fixnum-core-runtime-helpers
    flonum-core-runtime-helpers
    formatting-core-runtime-helpers
@@ -254,6 +255,7 @@
      $prefab-struct-type-registry
      $the-racket-realm
      $the-racket/primitive-realm)
+   ffi-debug-global-names
    exception-struct-type-cache-global-names))
 
 ;; core-runtime-program-import-tag-names : (listof symbol?)
@@ -316,6 +318,7 @@
      ,@core-runtime-string-constant-declaration-forms
      ,@core-runtime-symbol-constant-declaration-forms
      ,@singleton-global-forms
+     ,@ffi-debug-global-forms
      ,@fixnum-global-forms
      ,@treelist-constant-global-forms
      ,@vector-dummy-array-global-forms
@@ -345,6 +348,8 @@
      ,@(map core-runtime-global-export-form
             '($the-racket-realm
               $the-racket/primitive-realm))
+     ,@(map core-runtime-global-export-form
+            ffi-debug-global-names)
      ,@(map core-runtime-global-export-form
             exception-struct-type-cache-global-names)
      ,@(map core-runtime-tag-export-form
@@ -897,6 +902,8 @@
   (check-true (hash-has-key? core-runtime-global-name-set '$the-racket-realm))
   (check-true (hash-has-key? core-runtime-global-name-set '$the-racket/primitive-realm))
   (check-true (hash-has-key? core-runtime-global-name-set '$prefab-struct-type-registry))
+  (check-true (hash-has-key? core-runtime-global-name-set '$debug-allocation-budget))
+  (check-true (hash-has-key? core-runtime-global-name-set '$debug-invoke-budget))
   (check-true (hash-has-key? core-runtime-global-name-set '$exn-type))
   (check-true (hash-has-key? core-runtime-global-name-set '$dummy-array))
   (check-true (hash-has-key? core-runtime-global-name-set '$zero))

@@ -4,6 +4,7 @@
          external-value-core-runtime-helper-forms
          external-value-core-runtime-helpers
          external-value-runtime-helper-forms
+         ffi-core-runtime-helper-forms
          ffi-callback-global-forms
          ffi-entry-global-forms
          ffi-runtime-only-helper-forms
@@ -30,6 +31,7 @@
                   external-value-core-runtime-helper-forms
                   external-value-core-runtime-helpers
                   external-value-runtime-helper-forms
+                  ffi-core-runtime-helper-forms
                   ffi-callback-global-forms
                   ffi-entry-global-forms
                   ffi-runtime-only-helper-forms

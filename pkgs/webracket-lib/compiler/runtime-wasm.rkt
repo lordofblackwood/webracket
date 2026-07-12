@@ -38,6 +38,7 @@
                   external-value-core-runtime-helper-forms
                   external-value-runtime-helper-forms
                   ffi-import-name
+                  ffi-core-runtime-helper-forms
                   ffi-callback-global-forms
                   ffi-entry-global-forms
                   ffi-runtime-only-helper-forms
@@ -1395,6 +1396,7 @@
          ;;;
 
          ;;   Implemented in runtime-wasm/core/ffi.rkt.
+         ,@(ffi-core-runtime-helper-forms core-runtime-helper-index)
          ,@(ffi-runtime-only-helper-forms console-bridge-bindings)
 
          ;;;

@@ -5,7 +5,12 @@
          external-value-runtime-only-helper-names
          external-value-runtime-helper-forms
          ffi-callback-global-forms
+         ffi-core-runtime-helper-forms
+         ffi-core-runtime-helpers
+         ffi-debug-global-forms
+         ffi-debug-global-names
          ffi-entry-global-forms
+         ffi-result-global-forms
          ffi-runtime-string-constants
          ffi-runtime-symbol-constants
          ffi-runtime-only-helpers
@@ -93,11 +98,16 @@
                              (i32.const 4)
                              (i32.const 0)))))
 
-;; ffi-entry-global-forms : (listof datum?)
-;;   Declare entry result and probe-only FFI debug globals.
-(define ffi-entry-global-forms
+;; ffi-result-global-forms : (listof datum?)
+;;   Declare the program entry result bytes global.
+(define ffi-result-global-forms
   '(
-               (global $result-bytes             (mut (ref eq)) (ref.i31 (i32.const 0)))
+               (global $result-bytes             (mut (ref eq)) (ref.i31 (i32.const 0)))))
+
+;; ffi-debug-global-forms : (listof datum?)
+;;   Declare probe-only FFI debug globals shared by split runtime and program modules.
+(define ffi-debug-global-forms
+  '(
                (global $debug-allocation-budget        (mut i32)      (i32.const 0))
                (global $debug-allocation-pairs         (mut i32)      (i32.const 0))
                (global $debug-allocation-vectors       (mut i32)      (i32.const 0))
@@ -115,6 +125,22 @@
                (global $debug-current-procedure        (mut (ref eq)) (global.get $false))
                (global $debug-current-procedure-name   (mut (ref eq)) (global.get $false))))
 
+;; ffi-debug-global-names : (listof symbol?)
+;;   Enumerate FFI debug globals that split-core program modules import from core.
+(define ffi-debug-global-names
+  (for/list ([form (in-list ffi-debug-global-forms)])
+    (match form
+      [`(global ,name . ,_) name]
+      [_ (error 'ffi-debug-global-names
+                "expected global form, got: ~s"
+                form)])))
+
+;; ffi-entry-global-forms : (listof datum?)
+;;   Declare entry result and probe-only FFI debug globals for monolithic output.
+(define ffi-entry-global-forms
+  (append ffi-result-global-forms
+          ffi-debug-global-forms))
+
 ;; unsafe-ffi-primitive-table-global-forms : (listof datum?)
 ;;   Declare the generated unsafe FFI primitive table.
 (define unsafe-ffi-primitive-table-global-forms
@@ -122,9 +148,9 @@
          ;; Symbol -> primitive procedure table for generated unsafe FFI modules.
          (global $unsafe-ffi-primitive-table (mut (ref null $HashEqMutable)) (ref.null $HashEqMutable))))
 
-;; ffi-runtime-only-helper-names : (listof symbol?)
+;; ffi-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for FFI, callback, and browser bridge helpers.
-(define ffi-runtime-only-helper-names
+(define ffi-helper-names
   '($js-log
     $webracket-debug-allocation-counters
     $webracket-debug-allocation-budget!
@@ -163,6 +189,20 @@
     $callback-name
     $callback-debug-id
     $procedure->external))
+
+;; ffi-core-runtime-helper-names : (listof symbol?)
+;;   Name FFI helpers available in the standalone core runtime.
+(define ffi-core-runtime-helper-names
+  '($webracket-debug-allocation-counters))
+
+;; ffi-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the program/runtime-local FFI helper emission order.
+(define ffi-runtime-only-helper-names
+  (let ([core-name-set (for/hasheq ([name (in-list ffi-core-runtime-helper-names)])
+                         (values name #t))])
+    (for/list ([name (in-list ffi-helper-names)]
+               #:unless (hash-ref core-name-set name #f))
+      name)))
 
 ;; external-value-all-runtime-helper-names : (listof symbol?)
 ;;   Preserve the full runtime emission order for external host value helpers.
@@ -1451,10 +1491,17 @@
     ))
 
 ;; ffi-runtime-only-helper-forms : list? -> (listof datum?)
-;;   Render all FFI helpers for the given program-specific console bridge bindings.
+;;   Render program/runtime-local FFI helpers for the given console bridge bindings.
 (define (ffi-runtime-only-helper-forms console-bridge-bindings)
   (parameterize ([current-ffi-console-bridge-bindings console-bridge-bindings])
-    (ffi-runtime-only-forms)))
+    (define runtime-only-name-set
+      (for/hasheq ([name (in-list ffi-runtime-only-helper-names)])
+        (values name #t)))
+    (for/list ([form (in-list (ffi-runtime-only-forms))]
+               #:when (and (pair? form)
+                            (eq? 'func (car form))
+                            (hash-ref runtime-only-name-set (cadr form) #f)))
+      form)))
 
 ;; external-value-runtime-helper-forms : hasheq? -> (listof datum?)
 ;;   Render external host value helpers in runtime assembly order.
@@ -1466,6 +1513,12 @@
 ;;   Render promoted external host value helpers in runtime assembly order.
 (define (external-value-core-runtime-helper-forms helper-index)
   (for/list ([name (in-list external-value-core-runtime-helper-names)])
+    (core-runtime-helper-form helper-index name)))
+
+;; ffi-core-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render promoted FFI helpers in runtime assembly order.
+(define (ffi-core-runtime-helper-forms helper-index)
+  (for/list ([name (in-list ffi-core-runtime-helper-names)])
     (core-runtime-helper-form helper-index name)))
 
 ;; unsafe-ffi-runtime-only-helper-forms : (listof foreign?) -> (listof datum?)
@@ -1518,13 +1571,23 @@
              "unknown FFI runtime helper: ~a"
              name)))
 
+(define ffi-helpers
+  (for/list ([name (in-list ffi-helper-names)])
+    (core-runtime-helper name
+                         (symbol->string name)
+                         (lambda ()
+                           (ffi-runtime-only-form-ref name)))))
+
+;; ffi-core-runtime-helpers : (listof core-runtime-helper?)
+;;   Enumerate promoted FFI helpers available in the standalone core runtime.
+(define ffi-core-runtime-helpers
+  (select-runtime-helpers ffi-helpers ffi-core-runtime-helper-names))
+
+;; ffi-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate FFI helpers that remain program/runtime-local.
 (define ffi-runtime-only-helpers
   (append external-value-runtime-only-helpers
-          (for/list ([name (in-list ffi-runtime-only-helper-names)])
-            (core-runtime-helper name
-                                 (symbol->string name)
-                                 (lambda ()
-                                   (ffi-runtime-only-form-ref name))))))
+          (remove-runtime-helpers ffi-helpers ffi-core-runtime-helper-names)))
 
 (module+ test
   (require rackunit)
@@ -1537,10 +1600,13 @@
   (define ffi-helper-index
     (make-core-runtime-helper-index
      (append external-value-core-runtime-helpers
+             ffi-core-runtime-helpers
              ffi-runtime-only-helpers)))
 
-  (define external-value-core-helper-index
-    (make-core-runtime-helper-index external-value-core-runtime-helpers))
+  (define core-ffi-helper-index
+    (make-core-runtime-helper-index
+     (append external-value-core-runtime-helpers
+             ffi-core-runtime-helpers)))
 
   (check-equal?
    (map core-runtime-helper-name external-value-core-runtime-helpers)
@@ -1548,8 +1614,20 @@
 
   (check-equal?
    (map form-name
-        (external-value-core-runtime-helper-forms external-value-core-helper-index))
+        (external-value-core-runtime-helper-forms core-ffi-helper-index))
    external-value-core-runtime-helper-names)
+
+  (check-equal?
+   (map core-runtime-helper-name ffi-core-runtime-helpers)
+   ffi-core-runtime-helper-names)
+
+  (check-equal?
+   (map form-name (ffi-core-runtime-helper-forms core-ffi-helper-index))
+   ffi-core-runtime-helper-names)
+
+  (check-false
+   (member '$webracket-debug-allocation-counters
+           (map form-name (ffi-runtime-only-helper-forms '()))))
 
   (check-equal?
    (map form-name (external-value-runtime-helper-forms ffi-helper-index))
