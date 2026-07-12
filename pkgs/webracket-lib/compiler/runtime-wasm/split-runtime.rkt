@@ -267,6 +267,65 @@
                #:when name)
     (values name form)))
 
+;; split-form-indexes :
+;;   hasheq? hasheq? hasheq? hasheq? hasheq? hasheq? list? list?
+;;   -> split-form-indexes?
+;;   Precomputed indexes for repeated split-runtime module-form queries.
+(struct split-form-indexes
+  (function-defs
+   global-defs
+   tag-defs
+   data-forms
+   function-names
+   data-names
+   declare-elem-forms
+   shared-prefix-forms)
+  #:transparent)
+
+;; build-split-form-indexes : (listof datum?) -> split-form-indexes?
+;;   Build reusable indexes for split-runtime module body forms.
+(define (build-split-form-indexes forms)
+  (define function-defs (make-hasheq))
+  (define global-defs (make-hasheq))
+  (define tag-defs (make-hasheq))
+  (define data-forms (make-hasheq))
+  (define function-names (make-hasheq))
+  (define data-names (make-hasheq))
+  (define declare-elem-forms/reversed '())
+  (define shared-prefix-forms/reversed '())
+  (for ([form (in-list forms)])
+    (define func-name (module-func-name form))
+    (when func-name
+      (hash-set! function-names func-name #t)
+      (unless (function-import-form? form)
+        (hash-set! function-defs func-name form)))
+    (define global-name (module-global-name form))
+    (when global-name
+      (unless (global-import-form? form)
+        (hash-set! global-defs global-name form)))
+    (define tag-name (module-tag-name form))
+    (when tag-name
+      (unless (tag-import-form? form)
+        (hash-set! tag-defs tag-name form)))
+    (define data-name (module-data-name form))
+    (when data-name
+      (hash-set! data-forms data-name form)
+      (hash-set! data-names data-name #t))
+    (when (declare-elem-form? form)
+      (set! declare-elem-forms/reversed
+            (cons form declare-elem-forms/reversed)))
+    (when (shared-program-prefix-form? form)
+      (set! shared-prefix-forms/reversed
+            (cons form shared-prefix-forms/reversed))))
+  (split-form-indexes function-defs
+                      global-defs
+                      tag-defs
+                      data-forms
+                      function-names
+                      data-names
+                      (reverse declare-elem-forms/reversed)
+                      (reverse shared-prefix-forms/reversed)))
+
 ;; walk-symbol-refs : any/c hasheq? -> (listof symbol?)
 ;;   Find symbolic references represented by keys in `available-names`.
 (define (walk-symbol-refs x available-names)
@@ -358,19 +417,18 @@
 (define (classified-runtime-import/export-forms runtime-forms
                                                 program-forms
                                                 #:module [module-name "core"]
-                                                #:export-all? [export-all? #f])
+                                                #:export-all? [export-all? #f]
+                                                #:runtime-index
+                                                [runtime-index #f])
+  (define effective-runtime-index
+    (or runtime-index
+        (build-split-form-indexes runtime-forms)))
   (define function-form-by-name
-    (named-form-index
-     (filter function-definition-form? runtime-forms)
-     module-func-name))
+    (split-form-indexes-function-defs effective-runtime-index))
   (define global-form-by-name
-    (named-form-index
-     (filter global-definition-form? runtime-forms)
-     module-global-name))
+    (split-form-indexes-global-defs effective-runtime-index))
   (define tag-form-by-name
-    (named-form-index
-     (filter tag-definition-form? runtime-forms)
-     module-tag-name))
+    (split-form-indexes-tag-defs effective-runtime-index))
   (define available-names
     (for/hasheq ([name (in-list (append (hash-keys function-form-by-name)
                                         (hash-keys global-form-by-name)
@@ -607,16 +665,32 @@
              sorted-constant-forms
              (drop non-constant-forms insertion-index))]))
 
-;; runtime-referenced-program-global-names : (listof datum?) (listof datum?) -> (listof symbol?)
+;; constant-global-definition-index : split-form-indexes? -> hasheq?
+;;   Return constant global definitions from a program-side form index.
+(define (constant-global-definition-index program-index)
+  (for/hasheq ([(name form) (in-hash (split-form-indexes-global-defs program-index))]
+               #:when (constant-global-name? name))
+    (values name form)))
+
+;; constant-data-form-index : split-form-indexes? -> hasheq?
+;;   Return constant passive data forms from a program-side form index.
+(define (constant-data-form-index program-index)
+  (for/hasheq ([(name form) (in-hash (split-form-indexes-data-forms program-index))]
+               #:when (constant-data-name? name))
+    (values name form)))
+
+;; runtime-referenced-program-global-names :
+;;   (listof datum?) (listof datum?) [#:program-index split-form-indexes?]
+;;   -> (listof symbol?)
 ;;   Return program-owned globals that are referenced by runtime-side forms.
-(define (runtime-referenced-program-global-names runtime-forms program-forms)
+(define (runtime-referenced-program-global-names
+         runtime-forms
+         program-forms
+         #:program-index [program-index #f])
   (define program-global-form-by-name
-    (named-form-index
-     (filter (lambda (form)
-               (and (global-definition-form? form)
-                    (constant-global-name? (module-global-name form))))
-             program-forms)
-     module-global-name))
+    (constant-global-definition-index
+     (or program-index
+         (build-split-form-indexes program-forms))))
   (define available-names
     (for/hasheq ([name (in-list (hash-keys program-global-form-by-name))])
       (values name #t)))
@@ -640,16 +714,26 @@
         (values runtime-global-forms
                 (cons form remaining-program-forms)))))
 
-;; program-referenced-runtime-data-forms : (listof datum?) (listof datum?) -> (listof datum?)
+;; program-referenced-runtime-data-forms :
+;;   (listof datum?) (listof datum?) [#:runtime-index split-form-indexes?]
+;;   [#:program-index split-form-indexes?]
+;;   -> (listof datum?)
 ;;   Return runtime-owned passive data forms that program-side forms reference.
-(define (program-referenced-runtime-data-forms runtime-forms program-forms)
+(define (program-referenced-runtime-data-forms
+         runtime-forms
+         program-forms
+         #:runtime-index [runtime-index #f]
+         #:program-index [program-index #f])
+  (define effective-runtime-index
+    (or runtime-index
+        (build-split-form-indexes runtime-forms)))
+  (define effective-program-index
+    (or program-index
+        (build-split-form-indexes program-forms)))
   (define runtime-data-form-by-name
-    (named-form-index runtime-forms module-data-name))
+    (split-form-indexes-data-forms effective-runtime-index))
   (define program-data-name-set
-    (for/hasheq ([form (in-list program-forms)]
-                 #:do [(define name (module-data-name form))]
-                 #:when name)
-      (values name #t)))
+    (split-form-indexes-data-names effective-program-index))
   (define available-names
     (for/hasheq ([name (in-list (hash-keys runtime-data-form-by-name))])
       (values name #t)))
@@ -664,16 +748,18 @@
                          (not (hash-ref program-data-name-set name #f))))
     form))
 
-;; runtime-referenced-program-data-forms : (listof datum?) (listof datum?) -> (listof datum?)
+;; runtime-referenced-program-data-forms :
+;;   (listof datum?) (listof datum?) [#:program-index split-form-indexes?]
+;;   -> (listof datum?)
 ;;   Return program-owned passive data forms that runtime-side forms reference.
-(define (runtime-referenced-program-data-forms runtime-forms program-forms)
+(define (runtime-referenced-program-data-forms
+         runtime-forms
+         program-forms
+         #:program-index [program-index #f])
   (define program-data-form-by-name
-    (named-form-index
-     (filter (lambda (form)
-               (and (module-data-name form)
-                    (constant-data-name? (module-data-name form))))
-             program-forms)
-     module-data-name))
+    (constant-data-form-index
+     (or program-index
+         (build-split-form-indexes program-forms))))
   (define available-names
     (for/hasheq ([name (in-list (hash-keys program-data-form-by-name))])
       (values name #t)))
@@ -784,9 +870,15 @@
          initial-program-forms
          #:import-module [import-module-name "core"]
          #:core-cache-key [core-cache-key #f])
+  (define runtime-source-index
+    (build-split-form-indexes runtime-forms))
+  (define initial-program-index
+    (build-split-form-indexes initial-program-forms))
   (define pulled-runtime-global-names
     (runtime-referenced-program-global-names runtime-forms
-                                             initial-program-forms))
+                                             initial-program-forms
+                                             #:program-index
+                                             initial-program-index))
   (define-values (pulled-runtime-global-forms/reversed
                   remaining-program-forms/reversed)
     (split-runtime-referenced-program-globals
@@ -794,10 +886,14 @@
      pulled-runtime-global-names))
   (define program-forms
     (reverse remaining-program-forms/reversed))
+  (define program-index
+    (build-split-form-indexes program-forms))
   (define pulled-runtime-data-forms
     (sorted-named-forms
      (runtime-referenced-program-data-forms runtime-forms
-                                           initial-program-forms)
+                                           initial-program-forms
+                                           #:program-index
+                                           initial-program-index)
      module-data-name))
   (define pulled-runtime-global-forms
     (sorted-named-forms
@@ -816,18 +912,28 @@
         form)
       pulled-runtime-data-forms
       pulled-runtime-global-forms)))
+  (define runtime-index
+    (build-split-form-indexes runtime-body-forms))
   (define-values (imported-names import-forms export-forms)
     (classified-runtime-import/export-forms
      runtime-body-forms
      program-forms
      #:module import-module-name
-     #:export-all? #t))
+     #:export-all? #t
+     #:runtime-index runtime-index))
   (define runtime-function-names
-    (form-function-name-set runtime-body-forms))
+    (split-form-indexes-function-names runtime-index))
   (define program-available-function-names
-    (form-function-name-set (append import-forms program-forms)))
+    (for/fold ([names (hash-copy (split-form-indexes-function-names
+                                  program-index))])
+              ([form (in-list import-forms)]
+               #:do [(define name (module-func-name form))]
+               #:when name)
+      (hash-set! names name #t)
+      names))
   (define-values (runtime-elem-forms/reversed program-elem-forms/reversed)
-    (split-declare-elem-forms runtime-forms
+    (split-declare-elem-forms (split-form-indexes-declare-elem-forms
+                               runtime-source-index)
                               runtime-function-names
                               program-available-function-names))
   (define runtime-elem-forms
@@ -843,11 +949,12 @@
      program-elem-forms
      (direct-ref-func-names program-forms program-available-function-names)))
   (define program-prefix-forms
-    (for/list ([form (in-list runtime-body-forms)]
-               #:when (shared-program-prefix-form? form))
-      form))
+    (split-form-indexes-shared-prefix-forms runtime-index))
   (define program-data-forms
-    (program-referenced-runtime-data-forms runtime-body-forms program-forms))
+    (program-referenced-runtime-data-forms runtime-body-forms
+                                           program-forms
+                                           #:runtime-index runtime-index
+                                           #:program-index program-index))
   (define (runtime-core-module)
     `(module
        ,@runtime-body-forms
@@ -1014,6 +1121,19 @@
     (classified-runtime-import/export-forms
      boundary-runtime-forms
      boundary-program-forms))
+  (define boundary-runtime-index
+    (build-split-form-indexes boundary-runtime-forms))
+  (check-equal?
+   (call-with-values
+    (lambda ()
+      (classified-runtime-import/export-forms
+       boundary-runtime-forms
+       boundary-program-forms
+       #:runtime-index boundary-runtime-index))
+    list)
+   (list boundary-imported-names
+         boundary-import-forms
+         boundary-export-forms))
 
   (check-equal? boundary-imported-names
                 '($runtime-add-state $runtime-state $boundary-exn))
