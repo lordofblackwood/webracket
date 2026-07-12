@@ -7,10 +7,13 @@
          path-runtime-string-constants
          path-runtime-symbol-constants
          path-runtime-bytes-constants
+         path-core-runtime-helpers
+         path-core-runtime-helper-forms
          path-runtime-only-helpers
          path-runtime-only-helper-names
          path-runtime-helper-forms
          path-manipulation-runtime-only-helper-names
+         path-manipulation-core-runtime-helper-forms
          path-manipulation-runtime-helper-forms)
 
 (require "../core-helper.rkt")
@@ -159,9 +162,17 @@
                                (global.get $string:->)))
                (call $growable-array-of-strings->string (local.get $out)))))
 
-;; path-runtime-only-helper-names : (listof symbol?)
+;; path-promoted-runtime-helper-names : (listof symbol?)
+;;   Name basic path helpers available in the standalone core runtime.
+(define path-promoted-runtime-helper-names
+  '($path-for-some-system?
+    $non-empty-bytes-without-nuls
+    $non-empty-string-without-nuls
+    $path-bytes-absolute?))
+
+;; path-all-runtime-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for basic path helpers.
-(define path-runtime-only-helper-names
+(define path-all-runtime-helper-names
   '($path?
     $path-for-some-system?
     $unix-or-windows
@@ -203,9 +214,26 @@
     $find-executable-path
     $current-drive))
 
-;; path-manipulation-runtime-only-helper-names : (listof symbol?)
+;; path-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime-only emission order for basic path helpers.
+(define path-runtime-only-helper-names
+  (remove* path-promoted-runtime-helper-names
+           path-all-runtime-helper-names))
+
+;; path-manipulation-promoted-runtime-helper-names : (listof symbol?)
+;;   Name path manipulation helpers available in the standalone core runtime.
+(define path-manipulation-promoted-runtime-helper-names
+  '($path-part-equal?
+    $path-parts-suffix-diff-size
+    $path-parts-equal?
+    $bytes-slice/unchecked
+    $path-extension-start
+    $path-suffix-start
+    $path-final-element-start))
+
+;; path-manipulation-all-runtime-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for path manipulation helpers.
-(define path-manipulation-runtime-only-helper-names
+(define path-manipulation-all-runtime-helper-names
   '($path->complete-path
     $path->directory-path
     $cleanse-path
@@ -245,6 +273,12 @@
     $path-element->bytes
     $path-element->string
     $path-only))
+
+;; path-manipulation-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime-only emission order for path manipulation helpers.
+(define path-manipulation-runtime-only-helper-names
+  (remove* path-manipulation-promoted-runtime-helper-names
+           path-manipulation-all-runtime-helper-names))
 
 ;; path-runtime-only-forms : (listof datum?)
 ;;   Enumerate basic and path manipulation helpers used by the monolithic runtime.
@@ -3163,12 +3197,28 @@
                       (local.get $elem-start))
                 (local.get $conv)))))
 
-;; path-runtime-only-helpers : (listof core-runtime-helper?)
+;; path-all-runtime-helpers : (listof core-runtime-helper?)
 ;;   Enumerate basic and path manipulation helpers used by the monolithic runtime.
-(define path-runtime-only-helpers
+(define path-all-runtime-helpers
   (function-forms->runtime-helpers
-   'path-runtime-only-helpers
+   'path-all-runtime-helpers
    path-runtime-only-forms))
+
+;; path-core-runtime-helpers : (listof core-runtime-helper?)
+;;   Enumerate path helpers available in the standalone core runtime.
+(define path-core-runtime-helpers
+  (select-runtime-helpers
+   path-all-runtime-helpers
+   (append path-promoted-runtime-helper-names
+           path-manipulation-promoted-runtime-helper-names)))
+
+;; path-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate path helpers that still depend on monolithic runtime definitions.
+(define path-runtime-only-helpers
+  (remove-runtime-helpers
+   path-all-runtime-helpers
+   (append path-promoted-runtime-helper-names
+           path-manipulation-promoted-runtime-helper-names)))
 
 ;; path-helper-forms : hasheq? (listof symbol?) -> (listof datum?)
 ;;   Render the given path helper names from the runtime helper index.
@@ -3181,10 +3231,20 @@
 (define (path-runtime-helper-forms helper-index)
   (path-helper-forms helper-index path-runtime-only-helper-names))
 
+;; path-core-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render promoted basic path helpers in runtime assembly order.
+(define (path-core-runtime-helper-forms helper-index)
+  (path-helper-forms helper-index path-promoted-runtime-helper-names))
+
 ;; path-manipulation-runtime-helper-forms : hasheq? -> (listof datum?)
 ;;   Render path manipulation helpers in runtime assembly order.
 (define (path-manipulation-runtime-helper-forms helper-index)
   (path-helper-forms helper-index path-manipulation-runtime-only-helper-names))
+
+;; path-manipulation-core-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render promoted path manipulation helpers in runtime assembly order.
+(define (path-manipulation-core-runtime-helper-forms helper-index)
+  (path-helper-forms helper-index path-manipulation-promoted-runtime-helper-names))
 
 (module+ test
   (require rackunit)
@@ -3199,7 +3259,25 @@
    '($format/display:path))
 
   (define path-helper-index
-    (make-core-runtime-helper-index path-runtime-only-helpers))
+    (make-core-runtime-helper-index
+     (append path-core-runtime-helpers
+             path-runtime-only-helpers)))
+
+  (define path-core-helper-index
+    (make-core-runtime-helper-index path-core-runtime-helpers))
+
+  (check-equal?
+   (map core-runtime-helper-name path-core-runtime-helpers)
+   (append path-promoted-runtime-helper-names
+           path-manipulation-promoted-runtime-helper-names))
+
+  (check-equal?
+   (map form-name (path-core-runtime-helper-forms path-core-helper-index))
+   path-promoted-runtime-helper-names)
+
+  (check-equal?
+   (map form-name (path-manipulation-core-runtime-helper-forms path-core-helper-index))
+   path-manipulation-promoted-runtime-helper-names)
 
   (check-equal?
    (map form-name (path-runtime-helper-forms path-helper-index))

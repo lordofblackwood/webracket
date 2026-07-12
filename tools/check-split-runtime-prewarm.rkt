@@ -337,6 +337,7 @@ RKT
        [ups (unquoted-printing-string "raw")]
        [ih (hasheqv 'a 1 'b 2)]
        [ih-pos (hash-iterate-first ih)]
+       [p (string->path "/tmp/name.rkt")]
        [linklet-info (linklet-summarize-target-machine-info 42)])
   (if (and (eq? 'cached 'cached)
            (not (eq? (box 1) (box 1)))
@@ -399,6 +400,11 @@ RKT
            ih-pos
            (symbol? (hash-iterate-key ih ih-pos))
            (number? (hash-iterate-value ih ih-pos))
+           (path-for-some-system? p)
+           (bytes=? (path-get-extension p) #".rkt")
+           (bytes=? (filename-extension p) #"rkt")
+           (path-has-extension? p #".rkt")
+           (string=? (path->string (file-name-from-path p)) "name.rkt")
            (not (struct? 42))
            (not (struct-type? 42))
            (not (struct-type-property? 42))

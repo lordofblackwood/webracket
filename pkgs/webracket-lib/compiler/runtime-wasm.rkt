@@ -264,7 +264,9 @@
          (only-in "runtime-wasm/core/paths.rkt"
                   path-current-global-forms
                   path-current-initializer-forms
+                  path-core-runtime-helper-forms
                   path-runtime-helper-forms
+                  path-manipulation-core-runtime-helper-forms
                   path-manipulation-runtime-helper-forms)
          (only-in "runtime-wasm/core/ports.rkt"
                   port-call-with-output-string-runtime-helper-forms
@@ -1714,6 +1716,7 @@
                ;;; 15.1 Paths
 
                ;;   Basic path helpers are implemented in runtime-wasm/core/paths.rkt.
+               ,@(path-core-runtime-helper-forms core-runtime-helper-index)
                ,@(path-runtime-helper-forms runtime-helper-index)
 
                ;;   Environment variable helpers are implemented in runtime-wasm/core/io-handlers.rkt.
@@ -1763,6 +1766,7 @@
                ,@(current-load-relative-directory-runtime-helper-forms runtime-helper-index)
 
                ;;   Path manipulation helpers are implemented in runtime-wasm/core/paths.rkt.
+               ,@(path-manipulation-core-runtime-helper-forms core-runtime-helper-index)
                ,@(path-manipulation-runtime-helper-forms runtime-helper-index)
 
                ;;   VFS and file-operation helpers are implemented in runtime-wasm/core/filesystem.rkt.

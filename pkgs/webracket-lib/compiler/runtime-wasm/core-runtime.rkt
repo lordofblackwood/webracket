@@ -32,6 +32,7 @@
          "core/mlists.rkt"
          "core/mutable-hashes.rkt"
          "core/numbers.rkt"
+         "core/paths.rkt"
          "core/procedures.rkt"
          "core/reflection.rkt"
          "core/regexps.rkt"
@@ -76,6 +77,7 @@
    mlist-core-runtime-helpers
    mutable-hash-core-runtime-helpers
    number-core-runtime-helpers
+   path-core-runtime-helpers
    procedure-core-runtime-helpers
    reflection-core-runtime-helpers
    regexp-core-runtime-helpers
