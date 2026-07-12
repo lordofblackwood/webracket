@@ -258,6 +258,7 @@
      $the-racket-realm
      $the-racket/primitive-realm)
    ffi-debug-global-names
+   struct-property-identity-global-names
    exception-struct-type-cache-global-names))
 
 ;; core-runtime-program-import-tag-names : (listof symbol?)
@@ -268,8 +269,10 @@
 ;; core-runtime-program-preinitialized-global-names : (listof symbol?)
 ;;   Name core-owned globals whose program-side initialization should be removed.
 (define core-runtime-program-preinitialized-global-names
-  '($the-racket-realm
-    $the-racket/primitive-realm))
+  (append
+   '($the-racket-realm
+     $the-racket/primitive-realm)
+   struct-property-identity-global-names))
 
 ;; core-runtime-program-import-constant-global-names : (listof symbol?)
 ;;   Name immutable-by-convention core constants that split-core programs should import.
@@ -330,6 +333,7 @@
      ,@vector-dummy-array-global-forms
      ,@treelist-empty-global-forms
      ,@realm-global-forms
+     ,@struct-property-identity-global-forms
      ,@exception-struct-type-cache-global-forms
      ,@symbol-table-global-forms
      ,@keyword-table-global-forms
@@ -345,6 +349,7 @@
            (call $initialize-the-keyword-table)
            (call $initialize-prefab-struct-type-registry)
            ,@core-runtime-symbol-constant-initializer-forms
+           ,@struct-property-identity-initializer-forms
            ,@realm-initializer-forms)
      (start $initialize-core-runtime!)
      (export "global:$the-symbol-table" (global $the-symbol-table))
@@ -356,6 +361,8 @@
               $the-racket/primitive-realm))
      ,@(map core-runtime-global-export-form
             ffi-debug-global-names)
+     ,@(map core-runtime-global-export-form
+            struct-property-identity-global-names)
      ,@(map core-runtime-global-export-form
             exception-struct-type-cache-global-names)
      ,@(map core-runtime-tag-export-form
@@ -421,6 +428,19 @@
       [`(export ,name (tag ,target))
        (and (string=? name export-name)
             (eq? target tag-name))]
+      [_ #f]))
+
+  ;; form-contains-global-set? : symbol? datum? -> boolean?
+  ;;   Check whether a form writes to the given global.
+  (define (form-contains-global-set? name form)
+    (match form
+      [`(global.set ,target . ,body)
+       (or (eq? target name)
+           (for/or ([part (in-list body)])
+             (form-contains-global-set? name part)))]
+      [(? list?)
+       (for/or ([part (in-list form)])
+         (form-contains-global-set? name part))]
       [_ #f]))
 
   ;; function-export-names : datum? -> (listof string?)
@@ -920,6 +940,8 @@
   (check-true (hash-has-key? core-runtime-global-name-set '$fasl-keyword))
   (check-true (hash-has-key? core-runtime-global-name-set '$memory-map:callback-buffer-base))
   (check-true (hash-has-key? core-runtime-global-name-set '$memory-map:callback-buffer-length))
+  (check-true (hash-has-key? core-runtime-global-name-set '$prop:procedure))
+  (check-true (hash-has-key? core-runtime-global-name-set '$prop:checked-procedure))
   (check-true (hash-has-key? core-runtime-global-name-set '$dummy-treelist-node))
   (check-true (hash-has-key? core-runtime-global-name-set '$empty-treelist))
   (check-true (hash-has-key? core-runtime-global-name-set '$treelist:BITS))
@@ -1004,6 +1026,13 @@
                  core-runtime-global-name-set)
                 '())
   (check-equal? (core-runtime-helper-dependency-problems
+                 '(func $ok (result (ref eq))
+                        (global.get $prop:procedure))
+                 core-helper-names
+                 shared-type-names
+                 core-runtime-global-name-set)
+                '())
+  (check-equal? (core-runtime-helper-dependency-problems
                  '(func $bad (param (ref eq)) (result i32)
                         (call $other (local.get $v)))
                  core-helper-names
@@ -1062,6 +1091,10 @@
   (check-true (for/or ([form (in-list core-forms)])
                 (global-form-named? '$memory-map:callback-buffer-length form)))
   (check-true (for/or ([form (in-list core-forms)])
+                (global-form-named? '$prop:procedure form)))
+  (check-true (for/or ([form (in-list core-forms)])
+                (global-form-named? '$prop:checked-procedure form)))
+  (check-true (for/or ([form (in-list core-forms)])
                 (tag-form-named? '$exn form)))
   (check-true (for/or ([form (in-list core-forms)])
                 (global-form-named? '$the-symbol-table form)))
@@ -1108,7 +1141,22 @@
                                            '$memory-map:callback-buffer-length
                                            form)))
   (check-true (for/or ([form (in-list core-forms)])
+                (global-export-form-named? "global:$prop:procedure"
+                                           '$prop:procedure
+                                           form)))
+  (check-true (for/or ([form (in-list core-forms)])
+                (global-export-form-named? "global:$prop:checked-procedure"
+                                           '$prop:checked-procedure
+                                           form)))
+  (check-true (for/or ([form (in-list core-forms)])
                 (tag-export-form-named? "tag:$exn" '$exn form)))
+  (check-not-false
+   (for/or ([form (in-list core-forms)])
+     (match form
+       [`(func $initialize-core-runtime! ,body ...)
+        (for/or ([part (in-list body)])
+          (form-contains-global-set? '$prop:procedure part))]
+       [_ #f])))
   (check-not-false (member '(start $initialize-core-runtime!) core-forms))
   (define string-converter-functions
     (for/list ([form (in-list core-forms)]

@@ -12,7 +12,10 @@
          struct-type-property-runtime-helper-forms
          struct-procedure-runtime-helper-forms
          struct-property-global-forms
+         struct-property-identity-global-forms
+         struct-property-identity-global-names
          struct-property-initializer-forms
+         struct-property-identity-initializer-forms
          struct-prefab-registry-global-forms
          struct-core-runtime-helpers
          struct-runtime-only-helpers)
@@ -151,6 +154,37 @@
     ...
     procedure-struct-type?))
 
+;; struct-equal+hash-recur-global-names : (listof symbol?)
+;;   Name equal+hash closure globals that remain runtime-only for now.
+(define struct-equal+hash-recur-global-names
+  '($equal+hash-recur/equal
+    $equal+hash-recur/equal-always
+    $equal+hash-recur/hash
+    $equal+hash-recur/hash-always))
+
+;; struct-global-form-name : datum? -> symbol?
+;;   Return the Wasm global name declared by a struct global form.
+(define (struct-global-form-name form)
+  (match form
+    [`(global ,name . ,_) name]
+    [_ (error 'struct-global-form-name
+              "expected global form, got: ~s"
+              form)]))
+
+;; struct-global-set-target : datum? -> symbol?
+;;   Return the Wasm global name assigned by a struct initializer form.
+(define (struct-global-set-target form)
+  (match form
+    [`(global.set ,name . ,_) name]
+    [_ (error 'struct-global-set-target
+              "expected global.set form, got: ~s"
+              form)]))
+
+;; equal+hash-recur-global-name? : symbol? -> boolean?
+;;   Check whether name belongs to an equal+hash recursion closure global.
+(define (equal+hash-recur-global-name? name)
+  (memq name struct-equal+hash-recur-global-names))
+
 ;; struct-property-global-forms : (listof datum?)
 ;;   Declare runtime struct-type property and equal+hash recursion closure globals.
 (define struct-property-global-forms
@@ -177,6 +211,18 @@
                (global $equal+hash-recur/equal-always (mut (ref eq)) (global.get $void))
                (global $equal+hash-recur/hash         (mut (ref eq)) (global.get $void))
                (global $equal+hash-recur/hash-always  (mut (ref eq)) (global.get $void))))
+
+;; struct-property-identity-global-forms : (listof datum?)
+;;   Declare runtime struct-type property identity globals, excluding recur closures.
+(define struct-property-identity-global-forms
+  (for/list ([form (in-list struct-property-global-forms)]
+             #:unless (equal+hash-recur-global-name? (struct-global-form-name form)))
+    form))
+
+;; struct-property-identity-global-names : (listof symbol?)
+;;   Enumerate struct-type property identity globals shared by split runtime modules.
+(define struct-property-identity-global-names
+  (map struct-global-form-name struct-property-identity-global-forms))
 
 ;; struct-property-initializer-forms : (listof datum?)
 ;;   Initialize runtime struct-type properties and equal+hash recursion closures.
@@ -382,6 +428,13 @@
                                              (global.get $false)
                                              (ref.func $equal+hash-recur/hash-always)
                                              (array.new_fixed $Free 0)))))
+
+;; struct-property-identity-initializer-forms : (listof datum?)
+;;   Initialize runtime struct-type property identities, excluding recur closures.
+(define struct-property-identity-initializer-forms
+  (for/list ([form (in-list struct-property-initializer-forms)]
+             #:unless (equal+hash-recur-global-name? (struct-global-set-target form)))
+    form))
 
 ;; struct-prefab-registry-global-forms : (listof datum?)
 ;;   Declare the prefab struct type registry.
@@ -7811,6 +7864,18 @@
     (make-core-runtime-helper-index
      (append struct-core-runtime-helpers
              struct-runtime-only-helpers)))
+
+  (check-not-false (member '$prop:procedure
+                           struct-property-identity-global-names))
+  (check-not-false (member '$prop:checked-procedure
+                           struct-property-identity-global-names))
+  (for ([name (in-list struct-equal+hash-recur-global-names)])
+    (check-false (member name struct-property-identity-global-names)))
+  (check-equal? (length struct-property-identity-global-forms)
+                (length struct-property-identity-initializer-forms))
+  (check-true
+   (for/and ([form (in-list struct-property-identity-initializer-forms)])
+     (not (equal+hash-recur-global-name? (struct-global-set-target form)))))
 
   (check-equal?
    (map core-runtime-helper-name

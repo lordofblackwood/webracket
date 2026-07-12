@@ -1945,6 +1945,47 @@
        (and (global-definition-form? form)
             (eq? (module-global-name form) name)))))
 
+  (define core-struct-property-import-split
+    (split-core-runtime-module
+     `(module
+        (global $prop:procedure (mut (ref eq)) (ref.i31 (i32.const 0)))
+        (global $equal+hash-recur/equal (mut (ref eq)) (ref.i31 (i32.const 0)))
+        (func $initialize-struct-properties
+              (global.set $prop:procedure (ref.i31 (i32.const 1)))
+              (global.set $equal+hash-recur/equal (ref.i31 (i32.const 2))))
+        (func $entry
+              (export "entry")
+              (result (ref eq))
+              (call $initialize-struct-properties)
+              (global.get $prop:procedure)))
+     #:helpers '()))
+  (define core-struct-property-import-program-forms
+    (module-forms (split-runtime-modules-program
+                   core-struct-property-import-split)))
+  (check-not-false
+   (member '$prop:procedure
+           (split-runtime-modules-imported-names
+            core-struct-property-import-split)))
+  (check-not-false
+   (member '(global $prop:procedure
+                    (import "core" "global:$prop:procedure")
+                    (mut (ref eq)))
+           core-struct-property-import-program-forms))
+  (check-false
+   (for/or ([form (in-list core-struct-property-import-program-forms)])
+     (and (global-definition-form? form)
+          (eq? (module-global-name form) '$prop:procedure))))
+  (check-false
+   (for/or ([form (in-list core-struct-property-import-program-forms)])
+     (form-contains-global-set? '$prop:procedure form)))
+  (check-not-false
+   (for/or ([form (in-list core-struct-property-import-program-forms)])
+     (and (global-definition-form? form)
+          (eq? (module-global-name form) '$equal+hash-recur/equal))))
+  (check-not-false
+   (for/or ([form (in-list core-struct-property-import-program-forms)])
+     (form-contains-global-set? '$equal+hash-recur/equal form)))
+
   (define intern-table-import-split
     (split-core-runtime-module
      `(module
