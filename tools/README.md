@@ -168,6 +168,20 @@ Use `--include-cache-reference` to also measure Node output generated with
 `--split-runtime-cache-reference`, where warm runs read the cached runtime wasm
 directly instead of materializing a sidecar next to the program.
 
+check-split-runtime-prewarm.rkt
+-------------------------------
+Regression-style check for the compile-once split-runtime workflow. It creates
+private provider/runtime caches, prewarms the stable split-runtime wasm cache,
+then compiles and runs a tiny no-stdlib program with
+`--split-runtime-cache-reference`. The check fails if the user compile rebuilds
+or materializes the runtime wasm instead of referencing the cached artifact.
+
+Run:
+
+```sh
+racket -S pkgs tools/check-split-runtime-prewarm.rkt
+```
+
 prewarm-staged-providers.rkt
 ----------------------------
 Prebuilds cache artifacts before an example compile needs them. Existing modes
