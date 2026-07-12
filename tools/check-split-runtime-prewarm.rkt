@@ -400,6 +400,8 @@ RKT
            (hash-empty? mh)
            (hash? ih)
            (not (mutable-hash? ih))
+           (immutable-hash? ih)
+           (not (hash? 42))
            (hash-eqv? ih)
            (hash-has-key? ih 'a)
            (= (hash-ref ih 'b) 2)

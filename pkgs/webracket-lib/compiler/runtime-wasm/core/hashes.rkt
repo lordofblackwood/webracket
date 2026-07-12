@@ -5,7 +5,9 @@
          hash-seed-global-forms
          hash-runtime-string-constants
          hash-runtime-symbol-constants
+         hash-predicate-core-runtime-helper-forms
          hash-predicate-runtime-helper-forms
+         hash-table-predicate-core-runtime-helper-forms
          hash-table-predicate-runtime-helper-forms
          hash-table-operation-runtime-helper-forms
          hash-code-runtime-helper-forms
@@ -81,14 +83,25 @@
   '(
          (global $next-hash-state (mut i32) (i32.const 0x9e3779b9)))) ;; initial seed, can be randomized or fixed
 
-;; hash-predicate-runtime-only-helper-names : (listof symbol?)
-;;   Preserve the runtime emission order for hash predicate helpers.
-(define hash-predicate-runtime-only-helper-names
+;; hash-predicate-all-runtime-helper-names : (listof symbol?)
+;;   Preserve the full runtime emission order for hash predicate helpers.
+(define hash-predicate-all-runtime-helper-names
   '($hash-leaf?/i32
     $mutable-hash-leaf?/i32
     $immutable-hash-leaf?/i32
     $mutable-hash?
     $immutable-hash?))
+
+;; hash-predicate-core-runtime-helper-names : (listof symbol?)
+;;   Name pure hash predicate helpers available in the standalone core runtime.
+(define hash-predicate-core-runtime-helper-names
+  hash-predicate-all-runtime-helper-names)
+
+;; hash-predicate-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime-only emission order for hash predicate helpers.
+(define hash-predicate-runtime-only-helper-names
+  (remove* hash-predicate-core-runtime-helper-names
+           hash-predicate-all-runtime-helper-names))
 
 ;; hash-count-list-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for hash count and list conversion helpers.
@@ -259,8 +272,13 @@
   (for/list ([name (in-list names)])
     (core-runtime-helper-form helper-index name)))
 
+;; hash-predicate-core-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render promoted hash predicate helpers in runtime assembly order.
+(define (hash-predicate-core-runtime-helper-forms helper-index)
+  (hash-helper-forms helper-index hash-predicate-core-runtime-helper-names))
+
 ;; hash-predicate-runtime-helper-forms : hasheq? -> (listof datum?)
-;;   Render hash predicate helpers in runtime assembly order.
+;;   Render runtime-only hash predicate helpers in runtime assembly order.
 (define (hash-predicate-runtime-helper-forms helper-index)
   (hash-helper-forms helper-index hash-predicate-runtime-only-helper-names))
 
@@ -376,14 +394,30 @@
 
      )))
 
-;; hash-table-predicate-runtime-only-helper-names : (listof symbol?)
-;;   Preserve the runtime emission order for public hash table predicates.
-(define hash-table-predicate-runtime-only-helper-names
+;; hash-table-predicate-all-runtime-helper-names : (listof symbol?)
+;;   Preserve the full runtime emission order for public hash table predicates.
+(define hash-table-predicate-all-runtime-helper-names
   '($hash?
     $hash-eq?
     $hash-eqv?
     $hash-equal?
     $hash-equal-always?))
+
+;; hash-table-predicate-core-runtime-helper-names : (listof symbol?)
+;;   Name pure public hash predicates available in the standalone core runtime.
+(define hash-table-predicate-core-runtime-helper-names
+  '($hash?))
+
+;; hash-table-predicate-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime-only emission order for public hash table predicates.
+(define hash-table-predicate-runtime-only-helper-names
+  (remove* hash-table-predicate-core-runtime-helper-names
+           hash-table-predicate-all-runtime-helper-names))
+
+;; hash-table-predicate-core-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render promoted public hash predicates in runtime assembly order.
+(define (hash-table-predicate-core-runtime-helper-forms helper-index)
+  (hash-helper-forms helper-index hash-table-predicate-core-runtime-helper-names))
 
 ;; hash-table-predicate-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate public hash table predicate helpers.
@@ -2867,8 +2901,12 @@
 ;; hash-core-runtime-helper-names : (listof symbol?)
 ;;   Name generic hash helpers available in the standalone core runtime.
 (define hash-core-runtime-helper-names
-  '($mutable-hash-leaf?/i32
+  '($hash-leaf?/i32
+    $mutable-hash-leaf?/i32
     $immutable-hash-leaf?/i32
+    $mutable-hash?
+    $immutable-hash?
+    $hash?
     $hasheq->list/plain/checked
     $hasheqv->list/plain/checked
     $hashequal->list/plain/checked
@@ -2929,8 +2967,18 @@
    hash-core-runtime-helper-names)
 
   (check-equal?
+   (map form-name
+        (hash-predicate-core-runtime-helper-forms hash-helper-index))
+   hash-predicate-core-runtime-helper-names)
+
+  (check-equal?
    (map form-name (hash-predicate-runtime-helper-forms hash-helper-index))
    hash-predicate-runtime-only-helper-names)
+
+  (check-equal?
+   (map form-name
+        (hash-table-predicate-core-runtime-helper-forms hash-helper-index))
+   hash-table-predicate-core-runtime-helper-names)
 
   (check-equal?
    (map form-name (hash-table-predicate-runtime-helper-forms hash-helper-index))

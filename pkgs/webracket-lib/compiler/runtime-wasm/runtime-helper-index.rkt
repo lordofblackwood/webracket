@@ -198,5 +198,6 @@
 
   (for ([name (in-list '($cons $fx+ $string? $symbol?
                          $external? $impersonator? $date?
+                         $hash? $mutable-hash?
                          $treelist? $stencil-vector? $current-print))])
     (check-helper-name name)))

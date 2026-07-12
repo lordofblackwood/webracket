@@ -139,7 +139,9 @@
          (only-in "runtime-wasm/core/hashes.rkt"
                   hash-code-runtime-helper-forms
                   hash-seed-global-forms
+                  hash-predicate-core-runtime-helper-forms
                   hash-predicate-runtime-helper-forms
+                  hash-table-predicate-core-runtime-helper-forms
                   hash-table-predicate-runtime-helper-forms
                   hash-table-operation-runtime-helper-forms)
          (only-in "runtime-wasm/core/immutable-hashes.rkt"
@@ -857,6 +859,7 @@
          ,@(box-mutability-runtime-helper-forms runtime-helper-index)
 
          ;;   Hash predicates are implemented in runtime-wasm/core/hashes.rkt.
+         ,@(hash-predicate-core-runtime-helper-forms core-runtime-helper-index)
          ,@(hash-predicate-runtime-helper-forms runtime-helper-index)
 
          ;;   Boolean helpers are implemented in runtime-wasm/core/booleans.rkt.
@@ -1179,6 +1182,7 @@
 
          ;; Hash table predicates
          ;;   Implemented in runtime-wasm/core/hashes.rkt.
+         ,@(hash-table-predicate-core-runtime-helper-forms core-runtime-helper-index)
          ,@(hash-table-predicate-runtime-helper-forms runtime-helper-index)
 
 
