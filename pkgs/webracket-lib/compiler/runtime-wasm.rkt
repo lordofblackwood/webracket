@@ -243,6 +243,7 @@
                   number-type-runtime-helper-forms)
          (only-in "runtime-wasm/core/parameters.rkt"
                   compile-parameter-global-forms
+                  compile-parameter-core-runtime-helper-forms
                   compile-parameter-runtime-helper-forms
                   current-security-guard-runtime-helper-forms
                   current-custodian-runtime-helper-forms
@@ -250,6 +251,7 @@
                   current-pseudo-random-generator-runtime-helper-forms
                   current-environment-variables-runtime-helper-forms
                   current-print-runtime-helper-forms
+                  current-readtable-core-runtime-helper-forms
                   current-readtable-runtime-helper-forms
                   current-read-interaction-runtime-helper-forms
                   current-load-relative-directory-runtime-helper-forms
@@ -262,6 +264,7 @@
                   parameterization-global-forms
                   parameterization-initializer-forms
                   parameterization-runtime-helper-forms
+                  parameter-width-core-runtime-helper-forms
                   parameter-width-runtime-helper-forms
                   error-rendering-handler-global-forms
                   error-value-handler-late-initializer-forms
@@ -969,6 +972,7 @@
          ,@(system-runtime-helper-forms runtime-helper-index)
 
          ;;   Implemented in runtime-wasm/core/parameters.rkt.
+         ,@(compile-parameter-core-runtime-helper-forms core-runtime-helper-index)
          ,@(compile-parameter-runtime-helper-forms runtime-helper-index)
 
          ;;;
@@ -1779,6 +1783,7 @@
                ,@(io-handler-reader-printer-runtime-helper-forms runtime-helper-index)
 
                ;;   Implemented in runtime-wasm/core/parameters.rkt.
+               ,@(current-readtable-core-runtime-helper-forms core-runtime-helper-index)
                ,@(current-readtable-runtime-helper-forms runtime-helper-index)
 
                ;;   Port handler helpers are implemented in runtime-wasm/core/io-handlers.rkt.
@@ -1795,6 +1800,7 @@
                ,@(reader-printer-policy-parameter-helper-forms runtime-helper-index)
 
                ;;   Implemented in runtime-wasm/core/parameters.rkt.
+               ,@(parameter-width-core-runtime-helper-forms core-runtime-helper-index)
                ,@(parameter-width-runtime-helper-forms runtime-helper-index)
 
                ;;   Error rendering defaults are implemented in runtime-wasm/core/io-handlers.rkt.

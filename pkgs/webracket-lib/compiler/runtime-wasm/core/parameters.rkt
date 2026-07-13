@@ -2,8 +2,11 @@
 
 (provide compile-parameter-global-forms
          compile-parameter-global-names
+         promoted-parameter-primitive-global-forms
+         promoted-parameter-primitive-global-names
          parameter-runtime-string-constants
          parameter-runtime-symbol-constants
+         compile-parameter-core-runtime-helper-forms
          compile-parameter-runtime-helper-forms
          current-security-guard-runtime-helper-forms
          current-custodian-runtime-helper-forms
@@ -11,6 +14,7 @@
          current-pseudo-random-generator-runtime-helper-forms
          current-environment-variables-runtime-helper-forms
          current-print-runtime-helper-forms
+         current-readtable-core-runtime-helper-forms
          current-readtable-runtime-helper-forms
          current-read-interaction-runtime-helper-forms
          current-load-relative-directory-runtime-helper-forms
@@ -24,6 +28,7 @@
          parameterization-global-names
          parameterization-initializer-forms
          parameter-runtime-only-helpers
+         parameter-width-core-runtime-helper-forms
          parameter-width-runtime-helper-forms
          parameter-error-rendering-runtime-helper-forms
          parameter-directory-runtime-helper-forms
@@ -413,6 +418,21 @@
 (define compile-parameter-global-names
   (map parameter-global-form-name compile-parameter-global-forms))
 
+;; promoted-parameter-primitive-global-forms : (listof datum?)
+;;   Declare primitive procedure globals needed by promoted parameter helpers.
+(define promoted-parameter-primitive-global-forms
+  '(
+               (global $prim:current-compile-target-machine (mut (ref eq)) (global.get $undefined))
+               (global $prim:current-compile-realm          (mut (ref eq)) (global.get $undefined))
+               (global $prim:current-readtable              (mut (ref eq)) (global.get $undefined))
+               (global $prim:print-syntax-width             (mut (ref eq)) (global.get $undefined))
+               (global $prim:error-print-width              (mut (ref eq)) (global.get $undefined))))
+
+;; promoted-parameter-primitive-global-names : (listof symbol?)
+;;   Enumerate primitive procedure globals needed by promoted parameter helpers.
+(define promoted-parameter-primitive-global-names
+  (map parameter-global-form-name promoted-parameter-primitive-global-forms))
+
 ;; parameterization-global-forms : (listof datum?)
 ;;   Declare the current parameterization backing global and #%paramz support state.
 (define parameterization-global-forms
@@ -448,15 +468,27 @@
                                              (global.get $false)
                                              (global.get $null)))))
 
-;; compile-parameter-runtime-only-helper-names : (listof symbol?)
+;; compile-parameter-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for compile metadata parameters.
-(define compile-parameter-runtime-only-helper-names
+(define compile-parameter-helper-names
   '($current-compile-target-machine/get
     $current-compile-target-machine/set
     $current-compile-target-machine
     $current-compile-realm/get
     $current-compile-realm/set
     $current-compile-realm))
+
+;; compile-parameter-core-runtime-helper-names : (listof symbol?)
+;;   Name compile metadata parameter helpers available in core runtime.
+(define compile-parameter-core-runtime-helper-names
+  compile-parameter-helper-names)
+
+;; compile-parameter-runtime-only-helper-names : (listof symbol?)
+;;   Preserve runtime-only compile metadata parameter emission order.
+(define compile-parameter-runtime-only-helper-names
+  (remove* compile-parameter-core-runtime-helper-names
+           compile-parameter-helper-names
+           eq?))
 
 ;; parameterization-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for parameterization predicates and accessors.
@@ -504,11 +536,23 @@
   '($call-with-parameterization
     $cache-configuration))
 
-;; parameter-width-runtime-only-helper-names : (listof symbol?)
+;; parameter-width-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for printer width parameters.
-(define parameter-width-runtime-only-helper-names
+(define parameter-width-helper-names
   '($print-syntax-width
     $error-print-width))
+
+;; parameter-width-core-runtime-helper-names : (listof symbol?)
+;;   Name printer width parameters available in core runtime.
+(define parameter-width-core-runtime-helper-names
+  parameter-width-helper-names)
+
+;; parameter-width-runtime-only-helper-names : (listof symbol?)
+;;   Preserve runtime-only printer width parameter emission order.
+(define parameter-width-runtime-only-helper-names
+  (remove* parameter-width-core-runtime-helper-names
+           parameter-width-helper-names
+           eq?))
 
 ;; parameter-error-rendering-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for error rendering parameters.
@@ -561,10 +605,22 @@
 (define current-print-runtime-only-helper-names
   '($current-print))
 
-;; current-readtable-runtime-only-helper-names : (listof symbol?)
+;; current-readtable-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for current-readtable.
-(define current-readtable-runtime-only-helper-names
+(define current-readtable-helper-names
   '($current-readtable))
+
+;; current-readtable-core-runtime-helper-names : (listof symbol?)
+;;   Name current-readtable helpers available in core runtime.
+(define current-readtable-core-runtime-helper-names
+  current-readtable-helper-names)
+
+;; current-readtable-runtime-only-helper-names : (listof symbol?)
+;;   Preserve runtime-only current-readtable emission order.
+(define current-readtable-runtime-only-helper-names
+  (remove* current-readtable-core-runtime-helper-names
+           current-readtable-helper-names
+           eq?))
 
 ;; current-read-interaction-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for current-read-interaction.
@@ -586,6 +642,11 @@
 ;;   Render compile metadata parameter helpers in runtime assembly order.
 (define (compile-parameter-runtime-helper-forms helper-index)
   (parameter-helper-forms helper-index compile-parameter-runtime-only-helper-names))
+
+;; compile-parameter-core-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render compile metadata parameter helpers shared with core runtime.
+(define (compile-parameter-core-runtime-helper-forms helper-index)
+  (parameter-helper-forms helper-index compile-parameter-core-runtime-helper-names))
 
 ;; current-security-guard-runtime-helper-forms : hasheq? -> (listof datum?)
 ;;   Render current-security-guard in runtime assembly order.
@@ -621,6 +682,11 @@
 ;;   Render current-readtable in runtime assembly order.
 (define (current-readtable-runtime-helper-forms helper-index)
   (parameter-helper-forms helper-index current-readtable-runtime-only-helper-names))
+
+;; current-readtable-core-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render current-readtable helpers shared with core runtime.
+(define (current-readtable-core-runtime-helper-forms helper-index)
+  (parameter-helper-forms helper-index current-readtable-core-runtime-helper-names))
 
 ;; current-read-interaction-runtime-helper-forms : hasheq? -> (listof datum?)
 ;;   Render current-read-interaction in runtime assembly order.
@@ -662,6 +728,11 @@
 ;;   Render printer width parameter helpers in runtime assembly order.
 (define (parameter-width-runtime-helper-forms helper-index)
   (parameter-helper-forms helper-index parameter-width-runtime-only-helper-names))
+
+;; parameter-width-core-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render printer width parameter helpers shared with core runtime.
+(define (parameter-width-core-runtime-helper-forms helper-index)
+  (parameter-helper-forms helper-index parameter-width-core-runtime-helper-names))
 
 ;; parameter-error-rendering-runtime-helper-forms : hasheq? -> (listof datum?)
 ;;   Render error rendering parameter helpers in runtime assembly order.
@@ -1687,14 +1758,20 @@
 (define parameter-core-runtime-helpers
   (select-runtime-helpers parameter-runtime-helpers
                           (append parameterization-binding-promoted-runtime-helper-names
-                                  current-pseudo-random-generator-core-runtime-helper-names)))
+                                  current-pseudo-random-generator-core-runtime-helper-names
+                                  compile-parameter-core-runtime-helper-names
+                                  current-readtable-core-runtime-helper-names
+                                  parameter-width-core-runtime-helper-names)))
 
 ;; parameter-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate parameterization helpers used only by the monolithic runtime.
 (define parameter-runtime-only-helpers
   (remove-runtime-helpers parameter-runtime-helpers
                           (append parameterization-binding-promoted-runtime-helper-names
-                                  current-pseudo-random-generator-core-runtime-helper-names)))
+                                  current-pseudo-random-generator-core-runtime-helper-names
+                                  compile-parameter-core-runtime-helper-names
+                                  current-readtable-core-runtime-helper-names
+                                  parameter-width-core-runtime-helper-names)))
 
 (module+ test
   (require rackunit)
@@ -1705,7 +1782,9 @@
     (second form))
 
   (define parameter-helper-index
-    (make-core-runtime-helper-index parameter-runtime-only-helpers))
+    (make-core-runtime-helper-index
+     (append parameter-core-runtime-helpers
+             parameter-runtime-only-helpers)))
 
   (check-equal?
    (map form-name (compile-parameter-runtime-helper-forms parameter-helper-index))
@@ -1759,9 +1838,24 @@
     (make-core-runtime-helper-index parameter-core-runtime-helpers))
 
   (check-equal?
+   (map form-name (compile-parameter-core-runtime-helper-forms
+                   parameter-core-helper-index))
+   compile-parameter-core-runtime-helper-names)
+
+  (check-equal?
    (map form-name (current-pseudo-random-generator-core-runtime-helper-forms
                    parameter-core-helper-index))
    current-pseudo-random-generator-core-runtime-helper-names)
+
+  (check-equal?
+   (map form-name (current-readtable-core-runtime-helper-forms
+                   parameter-core-helper-index))
+   current-readtable-core-runtime-helper-names)
+
+  (check-equal?
+   (map form-name (parameter-width-core-runtime-helper-forms
+                   parameter-core-helper-index))
+   parameter-width-core-runtime-helper-names)
 
   (check-equal?
    (map form-name (parameterization-binding-core-runtime-helper-forms

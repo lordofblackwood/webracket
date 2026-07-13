@@ -345,6 +345,7 @@
    reader-printer-policy-parameter-global-names
    reader-printer-policy-parameter-primitive-global-names
    compile-parameter-global-names
+   promoted-parameter-primitive-global-names
    parameterization-global-names
    random-state-global-names
    random-current-global-names
@@ -452,6 +453,7 @@
      ,@reader-printer-policy-parameter-global-forms
      ,@reader-printer-policy-parameter-primitive-global-forms
      ,@compile-parameter-global-forms
+     ,@promoted-parameter-primitive-global-forms
      ,@parameterization-global-forms
      ,@random-state-global-forms
      ,@random-current-global-forms
@@ -522,6 +524,8 @@
             reader-printer-policy-parameter-primitive-global-names)
      ,@(map core-runtime-global-export-form
             compile-parameter-global-names)
+     ,@(map core-runtime-global-export-form
+            promoted-parameter-primitive-global-names)
      ,@(map core-runtime-global-export-form
             parameterization-global-names)
      ,@(map core-runtime-global-export-form
@@ -1139,6 +1143,10 @@
   (check-true (hash-has-key? core-runtime-global-name-set '$prim:print-as-expression))
   (check-true (hash-has-key? core-runtime-global-name-set '$prim:print-mpair-curly-braces))
   (check-true (hash-has-key? core-runtime-global-name-set '$current-compile-realm-value))
+  (check-true (hash-has-key? core-runtime-global-name-set '$prim:current-compile-realm))
+  (check-true (hash-has-key? core-runtime-global-name-set '$prim:current-readtable))
+  (check-true (hash-has-key? core-runtime-global-name-set '$prim:print-syntax-width))
+  (check-true (hash-has-key? core-runtime-global-name-set '$prim:error-print-width))
   (check-true (hash-has-key? core-runtime-global-name-set '$current-parameterization-value))
   (check-true (hash-has-key? core-runtime-global-name-set '$random-state))
   (check-true (hash-has-key? core-runtime-global-name-set '$current-pseudo-random-generator-value))
@@ -1405,6 +1413,14 @@
   (check-true (for/or ([form (in-list core-forms)])
                 (global-form-named? '$current-compile-realm-value form)))
   (check-true (for/or ([form (in-list core-forms)])
+                (global-form-named? '$prim:current-compile-realm form)))
+  (check-true (for/or ([form (in-list core-forms)])
+                (global-form-named? '$prim:current-readtable form)))
+  (check-true (for/or ([form (in-list core-forms)])
+                (global-form-named? '$prim:print-syntax-width form)))
+  (check-true (for/or ([form (in-list core-forms)])
+                (global-form-named? '$prim:error-print-width form)))
+  (check-true (for/or ([form (in-list core-forms)])
                 (global-form-named? '$current-parameterization-value form)))
   (check-true (for/or ([form (in-list core-forms)])
                 (global-form-named? '$random-state form)))
@@ -1541,6 +1557,22 @@
   (check-true (for/or ([form (in-list core-forms)])
                 (global-export-form-named? "global:$current-compile-realm-value"
                                            '$current-compile-realm-value
+                                           form)))
+  (check-true (for/or ([form (in-list core-forms)])
+                (global-export-form-named? "global:$prim:current-compile-realm"
+                                           '$prim:current-compile-realm
+                                           form)))
+  (check-true (for/or ([form (in-list core-forms)])
+                (global-export-form-named? "global:$prim:current-readtable"
+                                           '$prim:current-readtable
+                                           form)))
+  (check-true (for/or ([form (in-list core-forms)])
+                (global-export-form-named? "global:$prim:print-syntax-width"
+                                           '$prim:print-syntax-width
+                                           form)))
+  (check-true (for/or ([form (in-list core-forms)])
+                (global-export-form-named? "global:$prim:error-print-width"
+                                           '$prim:error-print-width
                                            form)))
   (check-true (for/or ([form (in-list core-forms)])
                 (global-export-form-named? "global:$current-parameterization-value"
