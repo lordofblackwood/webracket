@@ -203,6 +203,7 @@
          (only-in "runtime-wasm/core/locations.rkt"
                   location-global-forms
                   location-initial-runtime-helper-forms
+                  source-location-core-runtime-helper-forms
                   source-location-runtime-helper-forms)
          (only-in "runtime-wasm/core/locks.rkt"
                   lock-runtime-helper-forms)
@@ -294,6 +295,9 @@
                   primitive-reflection-runtime-helper-forms
                   procedure-arity-mask-runtime-helper-forms
                   procedure-bootstrap-runtime-helper-forms
+                  procedure-case-lambda-core-runtime-helper-forms
+                  procedure-invocation-error-core-runtime-helper-forms
+                  procedure-invoker-core-runtime-helper-forms
                   procedure-main-runtime-helper-forms
                   procedure-post-primitive-invoker-runtime-helper-forms
                   procedure-primitive-dispatch-core-runtime-helper-forms
@@ -708,12 +712,15 @@
          ;; Procedure and primitive invocation helpers
          ;;   Implemented in runtime-wasm/core/procedures.rkt.
          ,@(procedure-primitive-error-core-runtime-helper-forms core-runtime-helper-index)
+         ,@(procedure-invocation-error-core-runtime-helper-forms core-runtime-helper-index)
          ,@(procedure-primitive-dispatch-core-runtime-helper-forms core-runtime-helper-index)
+         ,@(procedure-invoker-core-runtime-helper-forms core-runtime-helper-index)
          ,@(procedure-bootstrap-runtime-helper-forms runtime-helper-index)
 
          ,@(procedure-primitive-invoker-core-runtime-helper-forms core-runtime-helper-index)
 
          ;;   Procedure case-lambda helpers are implemented in runtime-wasm/core/procedures.rkt.
+         ,@(procedure-case-lambda-core-runtime-helper-forms core-runtime-helper-index)
          ,@(procedure-post-primitive-invoker-runtime-helper-forms runtime-helper-index)
 
          ;;   Struct procedure invoker is implemented in runtime-wasm/core/structs.rkt.
@@ -1730,6 +1737,7 @@
                ;;;
 
                ;;   Implemented in runtime-wasm/core/locations.rkt.
+               ,@(source-location-core-runtime-helper-forms core-runtime-helper-index)
                ,@(source-location-runtime-helper-forms runtime-helper-index)
 
                ;;;

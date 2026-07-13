@@ -30,6 +30,9 @@
          procedure-primitive-initializer-forms
          procedure-ffi-primitive-initializer-forms
          procedure-primitive-invoker-forms
+         procedure-invocation-error-core-runtime-helper-forms
+         procedure-invoker-core-runtime-helper-forms
+         procedure-case-lambda-core-runtime-helper-forms
          procedure-primitive-error-core-runtime-helper-forms
          procedure-primitive-dispatch-core-runtime-helper-forms
          procedure-primitive-invoker-core-runtime-helper-forms
@@ -4184,6 +4187,21 @@
 (define (procedure-primitive-error-core-runtime-helper-forms helper-index)
   (procedure-helper-forms helper-index procedure-primitive-error-core-runtime-helper-names))
 
+;; procedure-invocation-error-core-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render procedure invocation error helpers that are shared with core runtime.
+(define (procedure-invocation-error-core-runtime-helper-forms helper-index)
+  (procedure-helper-forms helper-index procedure-invocation-error-core-runtime-helper-names))
+
+;; procedure-invoker-core-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render procedure invokers that are shared with core runtime.
+(define (procedure-invoker-core-runtime-helper-forms helper-index)
+  (procedure-helper-forms helper-index procedure-invoker-core-runtime-helper-names))
+
+;; procedure-case-lambda-core-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render case-lambda helpers that are shared with core runtime.
+(define (procedure-case-lambda-core-runtime-helper-forms helper-index)
+  (procedure-helper-forms helper-index procedure-case-lambda-core-runtime-helper-names))
+
 ;; procedure-primitive-dispatch-core-runtime-helper-forms : hasheq? -> (listof datum?)
 ;;   Render primitive dispatch helpers from the shared core helper registry.
 (define (procedure-primitive-dispatch-core-runtime-helper-forms helper-index)
@@ -4347,6 +4365,21 @@
    (map form-name
         (procedure-primitive-error-core-runtime-helper-forms procedure-core-helper-index))
    procedure-primitive-error-core-runtime-helper-names)
+
+  (check-equal?
+   (map form-name
+        (procedure-invocation-error-core-runtime-helper-forms procedure-core-helper-index))
+   procedure-invocation-error-core-runtime-helper-names)
+
+  (check-equal?
+   (map form-name
+        (procedure-invoker-core-runtime-helper-forms procedure-core-helper-index))
+   procedure-invoker-core-runtime-helper-names)
+
+  (check-equal?
+   (map form-name
+        (procedure-case-lambda-core-runtime-helper-forms procedure-core-helper-index))
+   procedure-case-lambda-core-runtime-helper-names)
 
   (check-equal?
    (map form-name

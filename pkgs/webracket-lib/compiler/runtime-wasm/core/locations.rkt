@@ -3,6 +3,7 @@
 (provide location-global-forms
          location-global-names
          source-location-core-runtime-helpers
+         source-location-core-runtime-helper-forms
          location-initial-runtime-helper-forms
          location-runtime-string-constants
          location-runtime-symbol-constants
@@ -487,6 +488,11 @@
 (define (location-initial-runtime-helper-forms helper-index)
   (location-helper-forms helper-index location-initial-runtime-only-helper-names))
 
+;; source-location-core-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render source-location helpers that are shared with core runtime.
+(define (source-location-core-runtime-helper-forms helper-index)
+  (location-helper-forms helper-index source-location-core-runtime-helper-names))
+
 ;; source-location-runtime-helper-forms : hasheq? -> (listof datum?)
 ;;   Render source-location helpers in runtime assembly order.
 (define (source-location-runtime-helper-forms helper-index)
@@ -510,6 +516,10 @@
 
   (check-equal?
    (map form-name (core-runtime-helper-forms source-location-core-runtime-helpers))
+   source-location-core-runtime-helper-names)
+
+  (check-equal?
+   (map form-name (source-location-core-runtime-helper-forms location-helper-index))
    source-location-core-runtime-helper-names)
 
   (check-equal?
