@@ -2926,6 +2926,7 @@
     $hasheqv-for-each/checked
     $hashequal-for-each/checked
     $hashalw-for-each/checked
+    $hash-filter/generic
     $hasheq-keys/plain/checked
     $hasheqv-keys/plain/checked
     $hashequal-keys/plain/checked

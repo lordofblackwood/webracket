@@ -203,6 +203,7 @@
     $flush-output
     $close-output-port
     $raise-port-bytes-index-expected
+    $raise-bad-port-bytes-range
     $raise-port-range-index-expected))
 
 ;; port-location-runtime-only-helper-names : (listof symbol?)

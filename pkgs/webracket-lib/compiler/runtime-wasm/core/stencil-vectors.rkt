@@ -65,6 +65,7 @@
 (define stencil-vector-core-runtime-helper-names
   '($stencil-vector-mask-width
     $$stencil-vector-mask-valid?/i32
+    $$stencil-vector-mask/i32
     $$stencil-vector-popcount/i32
     $$make-stencil-vector/checked
     $stencil-vector?

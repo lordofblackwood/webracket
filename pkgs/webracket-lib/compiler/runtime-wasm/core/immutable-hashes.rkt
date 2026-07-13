@@ -5982,6 +5982,13 @@
     $immutable-hash-bucket-ref-key
     $immutable-hashalw-bucket-has-key?
     $immutable-hashalw-bucket-ref-key
+    $immutable-hasheqv-set
+    $immutable-hasheq-set
+    $immutable-hash-set
+    $immutable-hashalw-set
+    $hash-set
+    $hash-clear
+    $raise-hash-constructor-odd-arguments
     $immutable-hamt-packed-node->entries
     $immutable-hamt-packed-node-entry-count
     $immutable-hamt-packed-node-child-count

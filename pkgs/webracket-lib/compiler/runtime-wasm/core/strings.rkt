@@ -4614,6 +4614,7 @@
     $string</i32
     $string</i32/checked
     $string-ci-compare/checked
+    $raise-string-utf-8-length:bad-argument
     $array-of-strings->string
     $growable-array-of-strings->string
     $string-take/checked

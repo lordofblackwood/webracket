@@ -185,12 +185,15 @@
     $raise-bytes->path:bad-type
     $raise-path-argument-error1/write
     $raise-path-string-expected/who
+    $raise-path-part-expected/who
     $raise-absolute-path-cannot-be-added
     $bytes->path
     $string->path
     $path-string->path/checked
     $path-bytes-absolute?
     $path-join-bytes
+    $path-part->path/convention
+    $path-join-bytes/convention
     $find-system-path))
 
 ;; path-all-runtime-helper-names : (listof symbol?)
@@ -253,7 +256,8 @@
     $path-extension-start
     $path-suffix-start
     $path-final-element-start
-    $path-byte-separator?))
+    $path-byte-separator?
+    $explode-path))
 
 ;; path-manipulation-all-runtime-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for path manipulation helpers.

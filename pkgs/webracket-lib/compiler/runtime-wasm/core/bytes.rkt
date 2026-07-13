@@ -95,6 +95,7 @@
 ;;   Name byte-string helpers available in the standalone core runtime.
 (define bytes-core-runtime-helper-names
   '($raise-check-bytes/who
+    $raise-check-mutable-bytes/who
     $bytes-index/i32
     $raise-bad-bytes-range
     $bytes->immutable-bytes
@@ -107,6 +108,8 @@
     $subbytes
     $bytes-converter?
     $bytes-append/2
+    $raise-bytes-utf-8-length:bad-argument
+    $raise-bytes->string/latin-1
     $bytes->string/utf-8:determine-utf-8-sequence
     $mutable-bytes?
     $immutable-bytes?))
