@@ -3608,8 +3608,16 @@
                             (local.set $total (i32.add (local.get $total) (local.get $len)))
                             (local.set $i     (i32.add (local.get $i) (i32.const 1)))
                             (br $count-loop)))
-               ;; Allocate destination string
-               (local.set $dst (call $make-string/checked (local.get $total) (i32.const 0)))
+               ;; Allocate destination string directly. The inputs are already
+               ;; known strings, and the copy ranges below are derived from
+               ;; their lengths, so the public checked helpers are unnecessary.
+               (local.set $dst
+                          (struct.new $String
+                                      (i32.const 0)
+                                      (i32.const 0)
+                                      (array.new $I32Array
+                                                 (i32.const 0)
+                                                 (local.get $total))))
                ;; Pass 2: copy individual strings into destination
                (local.set $i   (i32.const 0))
                (local.set $pos (i32.const 0))
@@ -3618,7 +3626,12 @@
                             (br_if $copy-done (i32.ge_u (local.get $i) (local.get $n)))
                             (local.set $s   (ref.cast (ref $String) (array.get $Array (local.get $arr) (local.get $i))))
                             (local.set $len (call $string-length/checked/i32 (local.get $s)))
-                            (call $string-copy!/checked (local.get $dst) (local.get $pos) (local.get $s) (i32.const 0) (local.get $len))
+                            (call $i32array-copy!
+                                  (struct.get $String $codepoints (local.get $dst))
+                                  (local.get $pos)
+                                  (struct.get $String $codepoints (local.get $s))
+                                  (i32.const 0)
+                                  (local.get $len))
                             (local.set $pos (i32.add (local.get $pos) (local.get $len)))
                             (local.set $i   (i32.add (local.get $i) (i32.const 1)))
                             (br $copy-loop)))
@@ -4587,6 +4600,8 @@
     $string>=?/2
     $string</i32
     $string</i32/checked
+    $array-of-strings->string
+    $growable-array-of-strings->string
     $string-take/checked
     $string-take-right/checked
     $string-drop/checked
