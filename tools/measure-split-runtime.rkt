@@ -30,7 +30,8 @@
          racket/port
          racket/runtime-path
          racket/string
-         racket/system)
+         racket/system
+         "../pkgs/webracket-lib/compiler/cli-lib.rkt")
 
 
 ;;; Result Records
@@ -74,6 +75,13 @@
 (define default-source-file
   (build-path repo-root "test" "test-trivial.rkt"))
 
+;; benchmark-temp-dir : -> path?
+;;   Return the repo-local parent for temporary benchmark directories.
+(define (benchmark-temp-dir)
+  (define dir (build-path repo-root "tmp"))
+  (make-directory* dir)
+  dir)
+
 
 ;;; Command-Line Configuration
 
@@ -84,6 +92,7 @@
 (define prewarm-runtime-first? #f)
 (define precompile-compiler-first? #f)
 (define core-only? #f)
+(define in-process? #f)
 
 ;; resolve-source-path : string? -> path?
 ;;   Resolve a user-provided source path relative to the repository root.
@@ -120,7 +129,10 @@
   (set! precompile-compiler-first? #t)]
  [("--split-runtime-core-only")
   "Measure the core-helper-only split runtime strategy"
-  (set! core-only? #t)])
+  (set! core-only? #t)]
+ [("--in-process")
+  "Run measured compiles in this Racket process instead of fresh subprocesses"
+  (set! in-process? #t)])
 
 
 ;;; Subprocess Helpers
@@ -145,6 +157,42 @@
                    [current-output-port out]
                    [current-error-port err])
       (apply system* exe args)))
+  (define end-ms (current-inexact-milliseconds))
+  (values ok?
+          (get-output-string out)
+          (get-output-string err)
+          (- end-ms start-ms)))
+
+;; compile-config-from-args : (listof string?) -> webracket-compile-config?
+;;   Parse a WebRacket compiler config from ordinary user-facing CLI arguments.
+(define (compile-config-from-args args)
+  (parameterize ([current-command-line-arguments (list->vector args)])
+    (match (parse-webracket-cli)
+      [(webracket-cli-command 'compile cfg) cfg]
+      [command
+       (error 'measure-split-runtime
+              "expected compile command, got: ~a"
+              (webracket-cli-command-kind command))])))
+
+;; run-compile-in-process/capture :
+;;   (listof string?) -> (values boolean? string? string? real?)
+;;   Run one compile in the current Racket process while capturing output.
+(define (run-compile-in-process/capture args)
+  (define out (open-output-string))
+  (define err (open-output-string))
+  (define start-ms (current-inexact-milliseconds))
+  (define-values (ok? maybe-exn)
+    (with-handlers ([exn:fail?
+                     (lambda (exn)
+                       (values #f exn))])
+      (parameterize ([current-output-port out]
+                     [current-error-port err])
+        (define cfg (compile-config-from-args args))
+        (define-values (exit-code _compile-timings _output-paths)
+          (run-webracket-compile cfg))
+        (values (zero? exit-code) #f))))
+  (when maybe-exn
+    (displayln (exn-message maybe-exn) err))
   (define end-ms (current-inexact-milliseconds))
   (values ok?
           (get-output-string out)
@@ -316,15 +364,19 @@
   (when (directory-exists? dest-dir)
     (delete-directory/files dest-dir))
   (make-directory* dest-dir)
-  (define compile-args
+  (define webracket-args
     (append
-     (list "-S" "pkgs" "webracket.rkt")
      (mode-flags mode provider-cache runtime-cache)
      (list "--dest"
            (path->string dest-dir)
            (path->string source-file))))
   (define-values (ok? stdout stderr wall-ms)
-    (run-command/capture repo-root racket-exe compile-args))
+    (if in-process?
+        (run-compile-in-process/capture webracket-args)
+        (run-command/capture repo-root
+                             racket-exe
+                             (append (list "-S" "pkgs" "webracket.rkt")
+                                     webracket-args))))
   (write-log! (build-path temp-root (format "~a.log" mode)) stdout stderr)
   (define transcript (string-append stdout "\n" stderr))
   (define program-wasm
@@ -467,7 +519,9 @@
   (define racket-exe (ensure-executable "racket"))
   (ensure-executable "node")
   (define temp-root
-    (make-temporary-file "webracket-split-runtime-bench-~a" 'directory))
+    (make-temporary-file "webracket-split-runtime-bench-~a"
+                         'directory
+                         (benchmark-temp-dir)))
   (define provider-cache (build-path temp-root "provider-cache"))
   (define runtime-cache  (build-path temp-root "runtime-provider-cache"))
   (define compiled-root  (build-path temp-root "compiled-root"))
@@ -483,6 +537,10 @@
           (if precompile-compiler-first?
               "raco make"
               "not precompiled by benchmark"))
+  (printf "  compile runner: ~a\n"
+          (if in-process?
+              "in-process"
+              "fresh subprocess per mode"))
   (printf "  split mode:    ~a\n" (if core-only? "core-only" "classified"))
   (printf "  runtime warm:  ~a\n\n"
           (if prewarm-runtime-first?

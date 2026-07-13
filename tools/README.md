@@ -196,6 +196,18 @@ racket -S pkgs tools/measure-split-runtime.rkt \
   --include-cache-reference
 ```
 
+Use `--in-process` to run the measured compile modes in the benchmark's already
+loaded Racket process instead of launching a fresh `racket webracket.rkt`
+subprocess for each row. This is useful for estimating the payoff from a warm
+compiler process or compile-server workflow:
+
+```sh
+racket -S pkgs tools/measure-split-runtime.rkt \
+  --prewarm-runtime-first \
+  --include-cache-reference \
+  --in-process
+```
+
 check-split-runtime-prewarm.rkt
 -------------------------------
 Regression-style check for the compile-once split-runtime workflow. It creates
