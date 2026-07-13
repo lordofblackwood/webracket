@@ -152,7 +152,7 @@ smoke-split-runtime-browser-url:
 	python3 tools/run-guarded.py --timeout-sec 540 --rss-limit-mb 1800 -- racket -S pkgs tools/check-split-runtime-browser.rkt --shared-runtime-url
 
 smoke-split-runtime-prewarm:
-	python3 tools/run-guarded.py --timeout-sec 540 --rss-limit-mb 1800 -- racket -S pkgs tools/check-split-runtime-prewarm.rkt --source test/test-lambda-variadic.rkt --extra-source test/test-values-errors.rkt --no-expect --reject '#f'
+	python3 tools/run-guarded.py --timeout-sec 600 --rss-limit-mb 4000 -- racket -S pkgs tools/check-split-runtime-prewarm.rkt --source test/test-lambda-variadic.rkt --extra-source test/test-values-errors.rkt --suite --jobs 4 --no-expect --reject '#f'
 
 smoke-treelist-shape:
 	racket tools/check-treelist-shape-smoke.rkt

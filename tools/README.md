@@ -201,8 +201,10 @@ check-split-runtime-prewarm.rkt
 Regression-style check for the compile-once split-runtime workflow. It creates
 private provider/runtime caches, prewarms the stable split-runtime wasm cache,
 then compiles and runs a tiny no-stdlib program with
-`--split-runtime-cache-reference`. The check fails if the user compile rebuilds
-or materializes the runtime wasm instead of referencing the cached artifact.
+`--split-runtime-cache-reference`. Reference-compatible user compiles must use
+the cached runtime wasm directly; programs that need a different runtime core
+are allowed to fall back to a per-program runtime sidecar, but still have to
+compile and run correctly.
 
 Run:
 
@@ -215,6 +217,13 @@ against the same prewarmed runtime cache:
 
 ```sh
 racket -S pkgs tools/check-split-runtime-prewarm.rkt --suite
+```
+
+Use `--jobs` to run the post-prewarm compile/run cases with bounded
+parallelism. Four jobs is the current guarded smoke setting:
+
+```sh
+racket -S pkgs tools/check-split-runtime-prewarm.rkt --suite --jobs 4
 ```
 
 Use `--extra-source` and `--reject` to check multiple committed fixtures with
@@ -242,6 +251,9 @@ The same representative check is available as:
 ```sh
 make smoke-split-runtime-prewarm
 ```
+
+That target runs the generated suite and selected committed fixtures with
+`--jobs 4` under `tools/run-guarded.py`.
 
 check-split-runtime-browser.rkt
 -------------------------------
