@@ -1084,7 +1084,8 @@
          ;;   Implemented in runtime-wasm/core/exceptions.rkt.
          ,@(exception-contract-runtime-helper-forms runtime-helper-index)
 
-         ,@(list-post-contract-runtime-helper-forms runtime-helper-index)
+         ,@(list-post-contract-runtime-helper-forms runtime-helper-index
+                                                    core-runtime-helper-index)
 
          ;;;
          ;;; 4.11 Mutable Pairs and lists

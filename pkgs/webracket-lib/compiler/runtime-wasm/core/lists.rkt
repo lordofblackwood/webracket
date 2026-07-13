@@ -7603,7 +7603,9 @@
      $append
      $append/2
      $reverse
-     $alt-reverse)
+     $alt-reverse
+     $validate-list-args
+     $seed-list-args)
    pair-accessor-runtime-only-helper-names
    list-ordinal-accessor-runtime-only-helper-names))
 
@@ -7796,22 +7798,41 @@
      $sort:merge/cached-key
      $sort:merge-sort/cached-key)))
 
-;; list-pre-contract-runtime-helper-forms : hasheq? hasheq? -> (listof datum?)
-;;   Render list helpers that appear before generic contract helpers.
-(define (list-pre-contract-runtime-helper-forms runtime-helper-index
-                                                core-runtime-helper-index)
-  (for/list ([spec (in-list list-pre-contract-runtime-helper-specs)])
+;; list-post-contract-runtime-helper-specs : (listof (list/c symbol? symbol?))
+;;   Preserve post-contract list helper order while selecting core/runtime sources.
+(define list-post-contract-runtime-helper-specs
+  (map list-helper-spec list-post-contract-runtime-helper-names))
+
+;; list-source-helper-forms : hasheq? hasheq? (listof (list/c symbol? symbol?)) symbol? -> (listof datum?)
+;;   Render helper specs from either runtime-local or standalone core indexes.
+(define (list-source-helper-forms runtime-helper-index
+                                  core-runtime-helper-index
+                                  specs
+                                  who)
+  (for/list ([spec (in-list specs)])
     (match-define (list source name) spec)
     (case source
       [(core)    (core-runtime-helper-form core-runtime-helper-index name)]
       [(runtime) (core-runtime-helper-form runtime-helper-index name)]
-      [else      (error 'list-pre-contract-runtime-helper-forms
-                        "unknown helper source: ~a" source)])))
+      [else      (error who "unknown helper source: ~a" source)])))
 
-;; list-post-contract-runtime-helper-forms : hasheq? -> (listof datum?)
+;; list-pre-contract-runtime-helper-forms : hasheq? hasheq? -> (listof datum?)
+;;   Render list helpers that appear before generic contract helpers.
+(define (list-pre-contract-runtime-helper-forms runtime-helper-index
+                                                core-runtime-helper-index)
+  (list-source-helper-forms runtime-helper-index
+                            core-runtime-helper-index
+                            list-pre-contract-runtime-helper-specs
+                            'list-pre-contract-runtime-helper-forms))
+
+;; list-post-contract-runtime-helper-forms : hasheq? hasheq? -> (listof datum?)
 ;;   Render list helpers that appear after generic contract helpers.
-(define (list-post-contract-runtime-helper-forms runtime-helper-index)
-  (list-helper-forms runtime-helper-index list-post-contract-runtime-helper-names))
+(define (list-post-contract-runtime-helper-forms runtime-helper-index
+                                                 core-runtime-helper-index)
+  (list-source-helper-forms runtime-helper-index
+                            core-runtime-helper-index
+                            list-post-contract-runtime-helper-specs
+                            'list-post-contract-runtime-helper-forms))
 
 (module+ test
   (require rackunit)
@@ -7834,5 +7855,6 @@
    (map second list-pre-contract-runtime-helper-specs))
 
   (check-equal?
-   (map form-name (list-post-contract-runtime-helper-forms list-helper-index))
+   (map form-name (list-post-contract-runtime-helper-forms list-helper-index
+                                                           list-core-helper-index))
    list-post-contract-runtime-helper-names))
