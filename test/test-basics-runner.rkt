@@ -3,9 +3,41 @@
 (require rackunit
          "no-stdlib-result-tree-support.rkt")
 
-(test-case "test-basics has no false leaves"
-  (check-no-stdlib-result-tree/chunked "test/test-basics.rkt"
-                                       #:timeout-seconds 240))
+;; Slow-runner selection knobs:
+;;   WEBRACKET_TEST_BASICS_PART=result-tree|fixtures|all
+;;   WEBRACKET_RESULT_TREE_CHUNKS=1,3-5
+;;   WEBRACKET_RESULT_TREE_SHARD=1/4
+;;   WEBRACKET_RESULT_TREE_CHUNK_JOBS=2
+;;   WEBRACKET_FIXTURE_CHUNKS=1-4
+;;   WEBRACKET_FIXTURE_SHARD=2/4
+;;   WEBRACKET_FIXTURE_JOBS=4
+
+;; test-basics-part : -> symbol?
+;;   Return which part of the slow cadence runner to execute.
+(define (test-basics-part)
+  (define raw (getenv "WEBRACKET_TEST_BASICS_PART"))
+  (define part (if raw (string-downcase raw) "all"))
+  (cond
+    [(member part '("all" "both")) 'all]
+    [(member part '("result-tree" "tree" "chunks")) 'result-tree]
+    [(member part '("fixtures" "fixture")) 'fixtures]
+    [else
+     (error 'test-basics-part
+            "expected all, result-tree, or fixtures; got: ~a"
+            raw)]))
+
+(define selected-part (test-basics-part))
+
+(when (memq selected-part '(all result-tree))
+  (test-case "test-basics has no false leaves"
+    (check-no-stdlib-result-tree/chunked
+     "test/test-basics.rkt"
+     #:timeout-seconds 240
+     #:jobs (env-positive-integer/default
+             "WEBRACKET_RESULT_TREE_CHUNK_JOBS"
+             1)
+     #:chunk-spec (getenv "WEBRACKET_RESULT_TREE_CHUNKS")
+     #:shard-spec (getenv "WEBRACKET_RESULT_TREE_SHARD"))))
 
 (define focused-fixtures
   (list
@@ -63,18 +95,22 @@
    (make-no-stdlib-result-tree-fixture "test/test-hash.rkt"
                                        #:timeout-seconds 240)))
 
-;; fixture-jobs : -> exact-positive-integer?
-;;   Return the requested fixture parallelism, defaulting to four workers.
-(define (fixture-jobs)
-  (define raw (getenv "WEBRACKET_FIXTURE_JOBS"))
-  (define n (and raw (string->number raw)))
-  (if (and (exact-integer? n) (positive? n))
-      n
-      4))
+;; selected-focused-fixtures : -> (listof no-stdlib-result-tree-fixture?)
+;;   Return focused fixtures selected by optional index/range or K/N shard env vars.
+(define (selected-focused-fixtures)
+  (map cdr
+       (select-indexed-items focused-fixtures
+                             #:index-spec (getenv "WEBRACKET_FIXTURE_CHUNKS")
+                             #:shard-spec (getenv "WEBRACKET_FIXTURE_SHARD"))))
 
-(test-case "focused no-stdlib result-tree fixtures have no false leaves"
-  (check-no-stdlib-result-tree-fixtures/parallel focused-fixtures
-                                                 #:jobs (fixture-jobs)))
+(when (memq selected-part '(all fixtures))
+  (test-case "focused no-stdlib result-tree fixtures have no false leaves"
+    (define fixtures (selected-focused-fixtures))
+    (when (null? fixtures)
+      (fail "selected no focused fixtures"))
+    (check-no-stdlib-result-tree-fixtures/parallel
+     fixtures
+     #:jobs (env-positive-integer/default "WEBRACKET_FIXTURE_JOBS" 4))))
 
 (module+ main
   (void))

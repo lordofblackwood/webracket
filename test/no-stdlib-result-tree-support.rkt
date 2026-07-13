@@ -2,7 +2,9 @@
 
 (provide check-no-stdlib-result-tree
          check-no-stdlib-result-tree/chunked
+         env-positive-integer/default
          make-no-stdlib-result-tree-fixture
+         select-indexed-items
          check-no-stdlib-result-tree-fixtures/parallel
          (struct-out no-stdlib-result-tree-fixture))
 
@@ -26,6 +28,14 @@
   (index fixture ok? message)
   #:transparent)
 
+(struct chunk-job
+  (index count path name)
+  #:transparent)
+
+(struct chunk-result
+  (index name ok? message)
+  #:transparent)
+
 ;; make-no-stdlib-result-tree-fixture : path-string? [#:timeout-seconds exact-positive-integer?] [#:chunked? boolean?] [#:max-datum-bytes exact-positive-integer?] -> no-stdlib-result-tree-fixture?
 ;;   Build a generated-output fixture description for the parallel checker.
 (define (make-no-stdlib-result-tree-fixture path
@@ -33,6 +43,101 @@
                                             #:chunked? [chunked? #f]
                                             #:max-datum-bytes [max-datum-bytes 160000])
   (no-stdlib-result-tree-fixture path timeout-seconds chunked? max-datum-bytes))
+
+;; env-positive-integer/default : string? exact-positive-integer? -> exact-positive-integer?
+;;   Read a positive integer environment variable, falling back to default.
+(define (env-positive-integer/default name default)
+  (define raw (getenv name))
+  (define n (and raw (string->number raw)))
+  (if (and (exact-integer? n) (positive? n))
+      n
+      default))
+
+;; parse-positive-index : symbol? string? -> exact-positive-integer?
+;;   Parse one positive one-based index.
+(define (parse-positive-index who s)
+  (define n (string->number s))
+  (unless (and (exact-integer? n) (positive? n))
+    (error who "expected a positive integer index, got: ~a" s))
+  n)
+
+;; parse-index-spec : (or/c string? #f) -> (or/c hash? #f)
+;;   Parse an index/range selection such as "1", "1-4", or "1,3-5".
+(define (parse-index-spec spec)
+  (define who 'parse-index-spec)
+  (define trimmed (and spec (string-trim spec)))
+  (cond
+    [(or (not trimmed)
+         (string=? trimmed "")
+         (string-ci=? trimmed "all")
+         (string=? trimmed "*"))
+     #f]
+    [else
+     (define selected (make-hash))
+     (for ([piece (in-list (string-split trimmed ","))])
+       (define p (string-trim piece))
+       (cond
+         [(regexp-match #px"^([0-9]+)$" p)
+          => (lambda (m)
+               (hash-set! selected
+                          (parse-positive-index who (second m))
+                          #t))]
+         [(regexp-match #px"^([0-9]+)-([0-9]+)$" p)
+          => (lambda (m)
+               (define start (parse-positive-index who (second m)))
+               (define end (parse-positive-index who (third m)))
+               (when (> start end)
+                 (error who "range start is greater than end: ~a" p))
+               (for ([index (in-range start (add1 end))])
+                 (hash-set! selected index #t)))]
+         [else
+          (error who
+                 "expected comma-separated indexes/ranges, got: ~a"
+                 spec)]))
+     selected]))
+
+;; parse-shard-spec : (or/c string? #f) -> (or/c (cons/c exact-positive-integer? exact-positive-integer?) #f)
+;;   Parse a one-based shard spec of the form K/N.
+(define (parse-shard-spec spec)
+  (define who 'parse-shard-spec)
+  (define trimmed (and spec (string-trim spec)))
+  (cond
+    [(or (not trimmed) (string=? trimmed ""))
+     #f]
+    [(regexp-match #px"^([0-9]+)/([0-9]+)$" trimmed)
+     => (lambda (m)
+          (define shard-index (parse-positive-index who (second m)))
+          (define shard-count (parse-positive-index who (third m)))
+          (when (> shard-index shard-count)
+            (error who
+                   "shard index must be <= shard count, got: ~a"
+                   trimmed))
+          (cons shard-index shard-count))]
+    [else
+     (error who "expected shard spec K/N, got: ~a" spec)]))
+
+;; shard-selected-index? : exact-positive-integer? (cons/c exact-positive-integer? exact-positive-integer?) -> boolean?
+;;   Check whether one-based index belongs to a one-based K/N shard.
+(define (shard-selected-index? index shard)
+  (= (modulo (sub1 index) (cdr shard))
+     (sub1 (car shard))))
+
+;; select-indexed-items :
+;;   list? [#:index-spec (or/c string? #f)] [#:shard-spec (or/c string? #f)]
+;;   -> (listof pair?)
+;;   Select one-based indexed items, preserving original indexes in the result.
+(define (select-indexed-items items
+                              #:index-spec [index-spec #f]
+                              #:shard-spec [shard-spec #f])
+  (define selected-indexes (parse-index-spec index-spec))
+  (define shard (parse-shard-spec shard-spec))
+  (for/list ([item (in-list items)]
+             [index (in-naturals 1)]
+             #:when (and (or (not selected-indexes)
+                             (hash-ref selected-indexes index #f))
+                         (or (not shard)
+                             (shard-selected-index? index shard))))
+    (cons index item)))
 
 ;; read-single-datum : string? -> any/c
 ;;   Read the one result tree that a no-stdlib test program prints.
@@ -168,37 +273,148 @@
   (check-equal? status 0 output)
   (check-result-tree-output test-path output))
 
-;; check-no-stdlib-result-tree/chunked : path-string? [#:timeout-seconds exact-positive-integer?] [#:max-datum-bytes exact-positive-integer?] -> void?
+;; repo-tmp-root : -> path?
+;;   Return the repository-local temporary directory for generated chunk files.
+(define (repo-tmp-root)
+  (define root (build-path repo-root "tmp"))
+  (make-directory* root)
+  root)
+
+;; write-chunk-jobs! : path-string? path-string? (listof pair?) exact-nonnegative-integer? -> (listof chunk-job?)
+;;   Materialize selected chunk programs and describe runnable chunk jobs.
+(define (write-chunk-jobs! test-path tmp-dir indexed-chunks chunk-count)
+  (for/list ([indexed-chunk (in-list indexed-chunks)])
+    (define index (car indexed-chunk))
+    (define chunk (cdr indexed-chunk))
+    (define chunk-path
+      (build-path tmp-dir
+                  (format "chunk-~a.rkt" index)))
+    (write-datum-program! chunk-path chunk)
+    (chunk-job index
+               chunk-count
+               chunk-path
+               (format "~a chunk ~a/~a" test-path index chunk-count))))
+
+;; run-chunk-job! : chunk-job? exact-positive-integer? -> void?
+;;   Run one generated no-stdlib chunk program and check its result tree.
+(define (run-chunk-job! job timeout-seconds)
+  (define-values (status output)
+    (run-webracket (list "--no-stdlib"
+                         "--internal-bind-immutable-hash-debug-shape"
+                         "-r"
+                         (path->string (chunk-job-path job)))
+                   repo-root
+                   #:timeout-seconds timeout-seconds
+                   #:memory-mb 4096))
+  (check-equal? status 0 (format "~a\n~a" (chunk-job-name job) output))
+  (check-result-tree-output (chunk-job-name job) output))
+
+;; run-chunk-job/capture : chunk-job? exact-positive-integer? -> chunk-result?
+;;   Run one chunk job and capture any rackunit failure for parallel reporting.
+(define (run-chunk-job/capture job timeout-seconds)
+  (with-handlers ([exn:fail?
+                   (lambda (exn)
+                     (chunk-result (chunk-job-index job)
+                                   (chunk-job-name job)
+                                   #f
+                                   (exn-message exn)))])
+    (run-chunk-job! job timeout-seconds)
+    (chunk-result (chunk-job-index job)
+                  (chunk-job-name job)
+                  #t
+                  "")))
+
+;; chunk-result<? : chunk-result? chunk-result? -> boolean?
+;;   Compare chunk results by original chunk index.
+(define (chunk-result<? a b)
+  (< (chunk-result-index a) (chunk-result-index b)))
+
+;; chunk-failure-message : chunk-result? -> string?
+;;   Render one failed chunk for a combined rackunit failure.
+(define (chunk-failure-message result)
+  (format "~a failed:\n~a"
+          (chunk-result-name result)
+          (chunk-result-message result)))
+
+;; check-no-stdlib-result-tree-chunks/parallel :
+;;   (listof chunk-job?) exact-positive-integer? [#:jobs exact-positive-integer?] -> void?
+;;   Run selected generated result-tree chunks with a bounded worker pool.
+(define (check-no-stdlib-result-tree-chunks/parallel chunk-jobs
+                                                     timeout-seconds
+                                                     #:jobs [jobs 1])
+  (define chunk-count (length chunk-jobs))
+  (define worker-count (if (zero? chunk-count)
+                           0
+                           (max 1 (min jobs chunk-count))))
+  (define done (gensym 'done))
+  (define job-ch (make-async-channel))
+  (define result-ch (make-async-channel))
+  (define workers
+    (for/list ([_ (in-range worker-count)])
+      (thread
+       (lambda ()
+         (let loop ()
+           (define job (async-channel-get job-ch))
+           (unless (eq? job done)
+             (async-channel-put
+              result-ch
+              (run-chunk-job/capture job timeout-seconds))
+             (loop)))))))
+  (for ([job (in-list chunk-jobs)])
+    (async-channel-put job-ch job))
+  (for ([_ (in-range worker-count)])
+    (async-channel-put job-ch done))
+  (define results
+    (for/list ([_ (in-range chunk-count)])
+      (async-channel-get result-ch)))
+  (for ([worker (in-list workers)])
+    (thread-wait worker))
+  (define failures
+    (filter (lambda (result)
+              (not (chunk-result-ok? result)))
+            (sort results chunk-result<?)))
+  (unless (null? failures)
+    (fail (string-join (map chunk-failure-message failures) "\n\n"))))
+
+;; check-no-stdlib-result-tree/chunked :
+;;   path-string? [#:timeout-seconds exact-positive-integer?]
+;;                [#:max-datum-bytes exact-positive-integer?]
+;;                [#:jobs exact-positive-integer?]
+;;                [#:chunk-spec (or/c string? #f)]
+;;                [#:shard-spec (or/c string? #f)]
+;;   -> void?
 ;;   Run an oversized no-stdlib result-tree program as temporary chunks.
 (define (check-no-stdlib-result-tree/chunked test-path
                                             #:timeout-seconds [timeout-seconds 180]
-                                            #:max-datum-bytes [max-datum-bytes 160000])
+                                            #:max-datum-bytes [max-datum-bytes 160000]
+                                            #:jobs [jobs 1]
+                                            #:chunk-spec [chunk-spec #f]
+                                            #:shard-spec [shard-spec #f])
   (define source-path (resolve-test-path test-path))
   (define datum (call-with-input-file source-path read))
   (define chunks (result-tree-datum-chunks datum max-datum-bytes))
   (define chunk-count (length chunks))
-  (define tmp-dir (make-temporary-file "webracket-result-tree-chunks-~a" 'directory))
+  (define indexed-chunks
+    (select-indexed-items chunks
+                          #:index-spec chunk-spec
+                          #:shard-spec shard-spec))
+  (when (null? indexed-chunks)
+    (fail (format "~a selected no result-tree chunks out of ~a total chunks"
+                  test-path
+                  chunk-count)))
+  (define tmp-dir
+    (make-temporary-file "webracket-result-tree-chunks-~a"
+                         'directory
+                         (repo-tmp-root)))
   (dynamic-wind
     void
     (lambda ()
-      (for ([chunk (in-list chunks)]
-            [index (in-naturals 1)])
-        (define chunk-path
-          (build-path tmp-dir
-                      (format "chunk-~a.rkt" index)))
-        (write-datum-program! chunk-path chunk)
-        (define-values (status output)
-          (run-webracket (list "--no-stdlib"
-                               "--internal-bind-immutable-hash-debug-shape"
-                               "-r"
-                               (path->string chunk-path))
-                         repo-root
-                         #:timeout-seconds timeout-seconds
-                         #:memory-mb 4096))
-        (define chunk-name
-          (format "~a chunk ~a/~a" test-path index chunk-count))
-        (check-equal? status 0 (format "~a\n~a" chunk-name output))
-        (check-result-tree-output chunk-name output)))
+      (define chunk-jobs
+        (write-chunk-jobs! test-path tmp-dir indexed-chunks chunk-count))
+      (check-no-stdlib-result-tree-chunks/parallel
+       chunk-jobs
+       timeout-seconds
+       #:jobs jobs))
     (lambda ()
       (with-handlers ([exn:fail? void])
         (delete-directory/files tmp-dir)))))
@@ -212,7 +428,12 @@
       (check-no-stdlib-result-tree/chunked
        test-path
        #:timeout-seconds timeout-seconds
-       #:max-datum-bytes (no-stdlib-result-tree-fixture-max-datum-bytes fixture))
+       #:max-datum-bytes (no-stdlib-result-tree-fixture-max-datum-bytes fixture)
+       #:jobs (env-positive-integer/default
+               "WEBRACKET_RESULT_TREE_CHUNK_JOBS"
+               1)
+       #:chunk-spec (getenv "WEBRACKET_RESULT_TREE_CHUNKS")
+       #:shard-spec (getenv "WEBRACKET_RESULT_TREE_SHARD"))
       (check-no-stdlib-result-tree
        test-path
        #:timeout-seconds timeout-seconds)))
@@ -275,3 +496,22 @@
             (sort results fixture-result<?)))
   (unless (null? failures)
     (fail (string-join (map fixture-failure-message failures) "\n\n"))))
+
+(module+ test
+  (check-equal? (map car (select-indexed-items '(a b c d e)
+                                               #:index-spec "1,3-4"))
+                '(1 3 4))
+  (check-equal? (map cdr (select-indexed-items '(a b c d e)
+                                               #:index-spec "2-3"))
+                '(b c))
+  (check-equal? (map car (select-indexed-items '(a b c d e)
+                                               #:shard-spec "2/3"))
+                '(2 5))
+  (check-equal? (map car (select-indexed-items '(a b c d e)
+                                               #:index-spec "2-5"
+                                               #:shard-spec "1/2"))
+                '(3 5))
+  (check-equal? (env-positive-integer/default
+                 "WEBRACKET_NO_SUCH_POSITIVE_INTEGER_ENV"
+                 7)
+                7))
