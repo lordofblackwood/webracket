@@ -2912,43 +2912,16 @@
 ;; hash-core-runtime-helper-names : (listof symbol?)
 ;;   Name generic hash helpers available in the standalone core runtime.
 (define hash-core-runtime-helper-names
-  '($hash-leaf?/i32
-    $mutable-hash-leaf?/i32
-    $immutable-hash-leaf?/i32
-    $mutable-hash?
-    $immutable-hash?
-    $hash?
-    $hasheq->list/plain/checked
-    $hasheqv->list/plain/checked
-    $hashequal->list/plain/checked
-    $hashalw->list/plain/checked
-    $hasheq-for-each/checked
-    $hasheqv-for-each/checked
-    $hashequal-for-each/checked
-    $hashalw-for-each/checked
-    $hash-filter/generic
-    $hasheq-filter
-    $hasheqv-filter
-    $hashequal-filter
-    $hashalw-filter
-    $hasheq-filter/plain
-    $hasheqv-filter/plain
-    $hashequal-filter/plain
-    $hashalw-filter/plain
-    $hasheq-filter/plain/checked
-    $hasheqv-filter/plain/checked
-    $hashequal-filter/plain/checked
-    $hashalw-filter/plain/checked
-    $hasheq-keys/plain/checked
-    $hasheqv-keys/plain/checked
-    $hashequal-keys/plain/checked
-    $hashalw-keys/plain/checked
-    $hasheq-values/plain/checked
-    $hasheqv-values/plain/checked
-    $hashequal-values/plain/checked
-    $hashalw-values/plain/checked
-    $equal-hash/hash-core
-    $bytes-hash/i32))
+  (append hash-predicate-core-runtime-helper-names
+          hash-table-predicate-core-runtime-helper-names
+          hash-count-list-runtime-only-helper-names
+          hash-for-each-runtime-only-helper-names
+          hash-map-runtime-only-helper-names
+          hash-map-copy-runtime-only-helper-names
+          hash-filter-runtime-only-helper-names
+          hash-key-value-runtime-only-helper-names
+          '($equal-hash/hash-core
+            $bytes-hash/i32)))
 
 ;; hash-all-runtime-helpers : (listof core-runtime-helper?)
 ;;   Enumerate generic hash helpers that span mutable and immutable hash kinds.
