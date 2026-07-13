@@ -4579,6 +4579,7 @@
 (define string-promoted-runtime-helper-names
   '($mutable-string?
     $immutable-string?
+    $raise-string-index-out-of-range/who/i32
     $make-dummy-string
     $string?
     $non-empty-string?
@@ -4587,11 +4588,22 @@
     $string-length/checked/i32
     $string-ref/checked
     $string-ref/checked/i32
+    $raise-string-set!:string-expected
+    $raise-string-set!:fixnum-expected
+    $raise-string-set!:char-expected
+    $raise-string-set!:string-immutable
+    $string-set!
     $string-split:matches?
     $string-split:trim-left
     $string-split:trim-right
     $string-split:find-match
     $string-split:skip-repeats
+    $string-upcase
+    $string-downcase
+    $string-foldcase
+    $string-titlecase
+    $string->list
+    $list->string
     $string=?/2
     $string=?/i32
     $string=?/i32/checked
@@ -4609,8 +4621,17 @@
     $string-drop/checked
     $string-drop-right/checked
     $raise-argument-error:string-expected/who
+    $raise-racket-string:string-expected
+    $string-suffix?
+    $string-suffix?/i32
     $string-suffix?/i32/checked
-    $string-prefix?/i32/checked))
+    $string-prefix?
+    $string-prefix?/i32
+    $string-prefix?/i32/checked
+    $string-contains?
+    $string-find/who
+    $string-find
+    $string-replace))
 
 ;; string-helper-forms : hasheq? (listof symbol?) -> (listof datum?)
 ;;   Render the given string helper names from the runtime helper index.

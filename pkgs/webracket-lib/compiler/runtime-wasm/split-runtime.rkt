@@ -2031,6 +2031,42 @@
    (for/or ([form (in-list core-struct-property-import-program-forms)])
      (form-contains-global-set? '$equal+hash-recur/equal form)))
 
+  (define core-char-category-import-split
+    (split-core-runtime-module
+     `(module
+        (global $char-general-category-symbols
+                (mut (ref null $Array))
+                (ref.null $Array))
+        (func $initialize-char-category
+              (global.set $char-general-category-symbols
+                          (array.new_fixed $Array 1
+                                           (ref.i31 (i32.const 2)))))
+        (func $entry
+              (export "entry")
+              (result i32)
+              (call $initialize-char-category)
+              (ref.is_null (global.get $char-general-category-symbols))))
+     #:helpers '()))
+  (define core-char-category-import-program-forms
+    (module-forms (split-runtime-modules-program
+                   core-char-category-import-split)))
+  (check-not-false
+   (member '$char-general-category-symbols
+           (split-runtime-modules-imported-names
+            core-char-category-import-split)))
+  (check-not-false
+   (member `(global $char-general-category-symbols
+                    (import "core" ,(runtime-global-export-name '$char-general-category-symbols))
+                    (mut (ref null $Array)))
+           core-char-category-import-program-forms))
+  (check-false
+   (for/or ([form (in-list core-char-category-import-program-forms)])
+     (and (global-definition-form? form)
+          (eq? (module-global-name form) '$char-general-category-symbols))))
+  (check-false
+   (for/or ([form (in-list core-char-category-import-program-forms)])
+     (form-contains-global-set? '$char-general-category-symbols form)))
+
   (define core-type-cache-import-split
     (split-core-runtime-module
      `(module

@@ -335,6 +335,7 @@
    port-current-global-names
    path-current-global-names
    hash-seed-global-names
+   character-general-category-global-names
    environment-parameter-global-names
    print-read-parameter-global-names
    reader-printer-policy-parameter-global-names
@@ -357,6 +358,7 @@
   (append
    '($the-racket-realm
      $the-racket/primitive-realm)
+   character-general-category-global-names
    struct-property-identity-global-names))
 
 ;; core-runtime-program-import-constant-global-names : (listof symbol?)
@@ -434,6 +436,7 @@
      ,@port-current-global-forms
      ,@path-current-global-forms
      ,@hash-seed-global-forms
+     ,@character-general-category-global-forms
      ,@environment-parameter-global-forms
      ,@print-read-parameter-global-forms
      ,@reader-printer-policy-parameter-global-forms
@@ -459,6 +462,7 @@
            (call $initialize-the-keyword-table)
            (call $initialize-prefab-struct-type-registry)
            ,@core-runtime-symbol-constant-initializer-forms
+           ,@character-general-category-initializer-forms
            ,@struct-property-identity-initializer-forms
            ,@realm-initializer-forms)
      (start $initialize-core-runtime!)
@@ -487,6 +491,8 @@
             path-current-global-names)
      ,@(map core-runtime-global-export-form
             hash-seed-global-names)
+     ,@(map core-runtime-global-export-form
+            character-general-category-global-names)
      ,@(map core-runtime-global-export-form
             environment-parameter-global-names)
      ,@(map core-runtime-global-export-form
@@ -1095,6 +1101,7 @@
   (check-true (hash-has-key? core-runtime-global-name-set '$current-output-port-value))
   (check-true (hash-has-key? core-runtime-global-name-set '$system-path-convention))
   (check-true (hash-has-key? core-runtime-global-name-set '$next-hash-state))
+  (check-true (hash-has-key? core-runtime-global-name-set '$char-general-category-symbols))
   (check-true (hash-has-key? core-runtime-global-name-set '$current-environment-variables-value))
   (check-true (hash-has-key? core-runtime-global-name-set '$current-print-value))
   (check-true (hash-has-key? core-runtime-global-name-set '$print-as-expression-value))
@@ -1347,6 +1354,8 @@
   (check-true (for/or ([form (in-list core-forms)])
                 (global-form-named? '$next-hash-state form)))
   (check-true (for/or ([form (in-list core-forms)])
+                (global-form-named? '$char-general-category-symbols form)))
+  (check-true (for/or ([form (in-list core-forms)])
                 (global-form-named? '$current-environment-variables-value form)))
   (check-true (for/or ([form (in-list core-forms)])
                 (global-form-named? '$current-print-value form)))
@@ -1459,6 +1468,10 @@
                                            '$next-hash-state
                                            form)))
   (check-true (for/or ([form (in-list core-forms)])
+                (global-export-form-named? "global:$char-general-category-symbols"
+                                           '$char-general-category-symbols
+                                           form)))
+  (check-true (for/or ([form (in-list core-forms)])
                 (global-export-form-named? "global:$current-environment-variables-value"
                                            '$current-environment-variables-value
                                            form)))
@@ -1510,6 +1523,13 @@
        [`(func $initialize-core-runtime! ,body ...)
         (for/or ([part (in-list body)])
           (form-contains-global-set? '$prop:procedure part))]
+       [_ #f])))
+  (check-not-false
+   (for/or ([form (in-list core-forms)])
+     (match form
+       [`(func $initialize-core-runtime! ,body ...)
+        (for/or ([part (in-list body)])
+          (form-contains-global-set? '$char-general-category-symbols part))]
        [_ #f])))
   (check-not-false (member '(start $initialize-core-runtime!) core-forms))
   (define string-converter-functions

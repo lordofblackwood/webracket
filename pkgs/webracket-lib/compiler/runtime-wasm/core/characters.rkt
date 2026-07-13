@@ -1,6 +1,7 @@
 #lang racket
 
 (provide character-general-category-global-forms
+         character-general-category-global-names
          character-general-category-initializer-forms
          character-general-category-runtime-symbol-constants
          character-runtime-string-constants
@@ -95,6 +96,11 @@
          ;; The function $char-general-category returns symbols from this array,
          ;; based on an index computed on the host.
          (global $char-general-category-symbols (mut (ref null $Array)) (ref.null $Array))))
+
+;; character-general-category-global-names : (listof symbol?)
+;;   Enumerate character category table globals shared by split modules.
+(define character-general-category-global-names
+  '($char-general-category-symbols))
 
 ;; character-general-category-initializer-forms : (listof datum?)
 ;;   Initialize the char-general-category result symbol table.
@@ -958,8 +964,16 @@
 ;;   Name character helpers available in the standalone core runtime.
 (define character-core-runtime-helper-names
   '($char?
+    $char-lower-case?
+    $char-upper-case?
+    $char-title-case?
     $char-blank?/ucs
-    $char-whitespace?/ucs))
+    $char-whitespace?/ucs
+    $char-general-category
+    $char-upcase
+    $char-downcase
+    $char-titlecase
+    $char-foldcase))
 
 ;; character-all-runtime-helpers : (listof core-runtime-helper?)
 ;;   Register character helpers used by the monolithic runtime.
@@ -1007,6 +1021,9 @@
   (check-equal?
    (map core-runtime-helper-name character-core-runtime-helpers)
    character-core-runtime-helper-names)
+
+  (check-equal? character-general-category-global-names
+                '($char-general-category-symbols))
 
   (check-equal?
    (map form-name (character-runtime-helper-forms character-helper-index))
