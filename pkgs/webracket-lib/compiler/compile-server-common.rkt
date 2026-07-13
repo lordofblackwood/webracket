@@ -26,6 +26,9 @@
 (define path-list-separator
   (if (eq? (system-type 'os) 'windows) ";" ":"))
 
+(define compile-server-state-dir-envvar
+  "WEBRACKET_COMPILE_SERVER_STATE_DIR")
+
 ;; call-with-webracket-collection-paths : (-> any/c) -> any/c
 ;;   Run thunk with the checkout-local pkgs directory exposed as a collection root.
 (define (call-with-webracket-collection-paths thunk)
@@ -43,10 +46,15 @@
 ;; default-compile-server-state-dir : -> path?
 ;;   Return the shared temp directory for this checkout's compile server.
 (define (default-compile-server-state-dir)
-  (build-path "/private/tmp"
-              (format "webracket-compile-server-~a"
-                      (abs (equal-hash-code
-                            (path->string (simplify-path repo-root)))))))
+  (define override
+    (getenv compile-server-state-dir-envvar))
+  (if (and override (not (string=? override "")))
+      (path->complete-path override)
+      (build-path repo-root
+                  "tmp"
+                  (format "webracket-compile-server-~a"
+                          (abs (equal-hash-code
+                                (path->string (simplify-path repo-root))))))))
 
 ;; webracket-collection-env-value : -> string?
 ;;   Build a PLTCOLLECTS value that exposes this checkout's packages.

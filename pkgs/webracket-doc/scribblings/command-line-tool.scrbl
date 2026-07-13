@@ -306,11 +306,14 @@ Experimental compiler options:
 
 Local server options:
 
-The local compile server was an experiment in reducing compiler startup
-costs by keeping one Racket process warm across repeated compiles.  In
-practice the measured savings are small enough that this is not a
-recommended performance lever for normal use; provider-cache reuse and
-staged-provider prewarming matter much more.
+The local compile server reduces compiler startup costs by keeping one
+Racket process warm across repeated compiles.  It is especially useful
+with prewarmed split-runtime caches, where the user program can avoid
+both rebuilding the shared runtime and reloading the compiler process.
+Set @tt{WEBRACKET_COMPILE_SERVER=1} to route ordinary compile commands
+through the server.  Server state defaults to a checkout-local
+@filepath{tmp/webracket-compile-server-...} directory; set
+@tt{WEBRACKET_COMPILE_SERVER_STATE_DIR} to choose a different location.
 
 @itemlist[
   @item{@(flag "--server-start"): Run the local compile server in the foreground.}
