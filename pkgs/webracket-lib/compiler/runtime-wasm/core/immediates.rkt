@@ -4,6 +4,8 @@
          immediate-ref
          false-ref
          true-ref
+         void-primitive-global-forms
+         void-primitive-global-names
          singleton-global-names
          singleton-global-forms
          void-runtime-helper-forms
@@ -63,6 +65,26 @@
          (global $error             (ref eq) ,(i31-ref 77))
          (global $missing           (ref eq) ,(i31-ref missing-value))   ; #x7fffffff
          (global $tombstone         (ref eq) ,(i31-ref tombstone-value)))) ; #x3fffffff"
+
+;; immediate-global-form-name : datum? -> symbol?
+;;   Return the Wasm global name declared by an immediate support global form.
+(define (immediate-global-form-name form)
+  (match form
+    [`(global ,name . ,_) name]
+    [_ (error 'immediate-global-form-name
+              "expected global form, got: ~s"
+              form)]))
+
+;; void-primitive-global-forms : (listof datum?)
+;;   Declare the primitive procedure global needed by core security helpers.
+(define void-primitive-global-forms
+  '(
+               (global $prim:void (mut (ref eq)) (global.get $undefined))))
+
+;; void-primitive-global-names : (listof symbol?)
+;;   Enumerate void primitive procedure globals shared by split modules.
+(define void-primitive-global-names
+  (map immediate-global-form-name void-primitive-global-forms))
 
 ;; void-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for void helpers.

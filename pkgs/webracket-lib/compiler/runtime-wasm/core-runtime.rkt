@@ -346,6 +346,7 @@
    namespace-current-global-names
    logger-current-global-names
    security-current-global-names
+   void-primitive-global-names
    reader-printer-policy-parameter-global-names
    reader-printer-policy-parameter-primitive-global-names
    compile-parameter-global-names
@@ -458,6 +459,7 @@
      ,@namespace-current-global-forms
      ,@logger-current-global-forms
      ,@security-current-global-forms
+     ,@void-primitive-global-forms
      ,@reader-printer-policy-parameter-global-forms
      ,@reader-printer-policy-parameter-primitive-global-forms
      ,@compile-parameter-global-forms
@@ -536,6 +538,8 @@
             logger-current-global-names)
      ,@(map core-runtime-global-export-form
             security-current-global-names)
+     ,@(map core-runtime-global-export-form
+            void-primitive-global-names)
      ,@(map core-runtime-global-export-form
             reader-printer-policy-parameter-global-names)
      ,@(map core-runtime-global-export-form
@@ -1161,6 +1165,7 @@
   (check-true (hash-has-key? core-runtime-global-name-set '$current-logger-value))
   (check-true (hash-has-key? core-runtime-global-name-set '$current-security-guard-value))
   (check-true (hash-has-key? core-runtime-global-name-set '$current-custodian-value))
+  (check-true (hash-has-key? core-runtime-global-name-set '$prim:void))
   (check-true (hash-has-key? core-runtime-global-name-set '$print-as-expression-value))
   (check-true (hash-has-key? core-runtime-global-name-set '$print-mpair-curly-braces-value))
   (check-true (hash-has-key? core-runtime-global-name-set '$prim:print-as-expression))
@@ -1441,6 +1446,8 @@
   (check-true (for/or ([form (in-list core-forms)])
                 (global-form-named? '$current-custodian-value form)))
   (check-true (for/or ([form (in-list core-forms)])
+                (global-form-named? '$prim:void form)))
+  (check-true (for/or ([form (in-list core-forms)])
                 (global-form-named? '$print-as-expression-value form)))
   (check-true (for/or ([form (in-list core-forms)])
                 (global-form-named? '$prim:print-as-expression form)))
@@ -1605,6 +1612,10 @@
   (check-true (for/or ([form (in-list core-forms)])
                 (global-export-form-named? "global:$current-custodian-value"
                                            '$current-custodian-value
+                                           form)))
+  (check-true (for/or ([form (in-list core-forms)])
+                (global-export-form-named? "global:$prim:void"
+                                           '$prim:void
                                            form)))
   (check-true (for/or ([form (in-list core-forms)])
                 (global-export-form-named? "global:$print-as-expression-value"

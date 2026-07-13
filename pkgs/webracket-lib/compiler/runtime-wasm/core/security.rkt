@@ -102,6 +102,8 @@
 (define security-promoted-runtime-helper-names
   '($subprocess?
     $security-guard?
+    $security-guard-procedure/arity
+    $make-security-guard
     $custodian?
     $make-custodian
     $custodian-shutdown-all
@@ -114,15 +116,29 @@
     $current-code-inspector
     $object-name))
 
-;; security-pre-parameter-runtime-only-helper-names : (listof symbol?)
+;; security-pre-parameter-helper-names : (listof symbol?)
 ;;   Preserve helpers emitted before current-security-guard.
-(define security-pre-parameter-runtime-only-helper-names
+(define security-pre-parameter-helper-names
   '($security-guard-procedure/arity))
 
-;; security-post-parameter-runtime-only-helper-names : (listof symbol?)
+;; security-pre-parameter-runtime-only-helper-names : (listof symbol?)
+;;   Preserve runtime-only helpers emitted before current-security-guard.
+(define security-pre-parameter-runtime-only-helper-names
+  (remove* security-promoted-runtime-helper-names
+           security-pre-parameter-helper-names
+           eq?))
+
+;; security-post-parameter-helper-names : (listof symbol?)
 ;;   Preserve helpers emitted between current-security-guard and current-custodian.
-(define security-post-parameter-runtime-only-helper-names
+(define security-post-parameter-helper-names
   '($make-security-guard))
+
+;; security-post-parameter-runtime-only-helper-names : (listof symbol?)
+;;   Preserve runtime-only helpers emitted between current-security-guard and current-custodian.
+(define security-post-parameter-runtime-only-helper-names
+  (remove* security-promoted-runtime-helper-names
+           security-post-parameter-helper-names
+           eq?))
 
 ;; custodian-helper-names : (listof symbol?)
 ;;   Preserve custodian helper emission order.
