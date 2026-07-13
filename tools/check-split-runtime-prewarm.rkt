@@ -44,6 +44,7 @@
 (define keep-temp? #f)
 (define force-prewarm? #f)
 (define core-only? #f)
+(define jobs 1)
 
 ;; resolve-source-path : string? -> path?
 ;;   Resolve a user-provided source path relative to the repository root.
@@ -53,6 +54,12 @@
    (if (absolute-path? p)
        p
        (build-path repo-root p))))
+
+;; positive-integer-string? : string? -> boolean?
+;;   Check whether s is a positive exact integer in decimal notation.
+(define (positive-integer-string? s)
+  (define n (string->number s))
+  (and (exact-integer? n) (positive? n)))
 
 (command-line
  #:program "check-split-runtime-prewarm"
@@ -81,6 +88,13 @@
  [("--keep-temp")
   "Keep the temporary check directory after a successful run."
   (set! keep-temp? #t)]
+ [("--jobs") n
+  "Compile/run up to N cases in parallel after prewarm; defaults to 1."
+  (unless (positive-integer-string? n)
+    (raise-user-error 'check-split-runtime-prewarm
+                      "expected positive integer jobs, got ~a"
+                      n))
+  (set! jobs (string->number n))]
  #:multi
  [("--extra-source") path
   "Additional source file to compile/run against the same prewarmed runtime cache."
@@ -512,13 +526,64 @@ RKT
 ;; record-failure! : string? any/c ... -> void?
 ;;   Accumulate a formatted check failure.
 (define failures '())
+(define failure-lock (make-semaphore 1))
 (define (record-failure! fmt . args)
-  (set! failures (cons (apply format fmt args) failures)))
+  (semaphore-wait failure-lock)
+  (dynamic-wind
+    void
+    (lambda ()
+      (set! failures (cons (apply format fmt args) failures)))
+    (lambda ()
+      (semaphore-post failure-lock))))
+
+;; compile-cases! :
+;;   (listof check-case?) path-string? path-string? path-string? path-string?
+;;   path-string? -> (listof command-result?)
+;;   Compile/run cases with bounded parallelism, preserving result order.
+(define (compile-cases! cases racket-exe provider-cache runtime-cache dest-root temp-root)
+  (define worker-limit (make-semaphore jobs))
+  (define result-channel (make-channel))
+  (define case-count (length cases))
+  (define threads
+    (for/list ([case (in-list cases)]
+               [index (in-naturals 1)])
+      (thread
+       (lambda ()
+         (semaphore-wait worker-limit)
+         (define result
+           (dynamic-wind
+             void
+             (lambda ()
+               (with-handlers ([exn:fail?
+                                (lambda (exn)
+                                  (record-failure!
+                                   "~a: compile/run raised exception: ~a"
+                                   (check-case-name case)
+                                   (exn-message exn))
+                                  (command-result #f "" "" 0.0))])
+                 (compile-case! case
+                                index
+                                racket-exe
+                                provider-cache
+                                runtime-cache
+                                dest-root
+                                temp-root)))
+             (lambda ()
+               (semaphore-post worker-limit))))
+         (channel-put result-channel (list index result))))))
+  (define indexed-results
+    (for/list ([_ (in-range case-count)])
+      (channel-get result-channel)))
+  (for ([worker (in-list threads)])
+    (thread-wait worker))
+  (for/list ([indexed-result (in-list
+                              (sort indexed-results < #:key first))])
+    (second indexed-result)))
 
 ;; compile-case! :
 ;;   check-case? exact-positive-integer? path-string? path-string? path-string?
 ;;   path-string? path-string? -> command-result?
-;;   Compile/run one source by directly referencing the prewarmed runtime wasm.
+;;   Compile/run one source against the prewarmed runtime cache.
 (define (compile-case! case index racket-exe provider-cache runtime-cache dest-root temp-root)
   (define case-name
     (safe-case-name (check-case-name case)))
@@ -561,18 +626,22 @@ RKT
     (record-failure! "~a: stdout matched rejected output regexp ~s"
                      (check-case-name case)
                      (check-case-reject case)))
-  (unless (transcript-contains? compile-result
-                                #rx"split-runtime-core:reference-wasm-hit")
-    (record-failure! "~a: did not report split-runtime-core:reference-wasm-hit"
-                     (check-case-name case)))
-  (when (transcript-contains? compile-result
-                              #rx"split-runtime-core:assemble-wasm")
-    (record-failure! "~a: assembled the split runtime instead of using the cache"
-                     (check-case-name case)))
-  (when (transcript-contains? compile-result
-                              #rx"split-runtime-core:materialize-wasm-hit")
-    (record-failure! "~a: materialized a runtime wasm sidecar instead of referencing cache"
-                     (check-case-name case)))
+  (define reference-compatible?
+    (not (transcript-contains? compile-result
+                               #rx"split-reference-compatible\\? *: *no")))
+  (when reference-compatible?
+    (unless (transcript-contains? compile-result
+                                  #rx"split-runtime-core:reference-wasm-hit")
+      (record-failure! "~a: did not report split-runtime-core:reference-wasm-hit"
+                       (check-case-name case)))
+    (when (transcript-contains? compile-result
+                                #rx"split-runtime-core:assemble-wasm")
+      (record-failure! "~a: assembled the split runtime instead of using the cache"
+                       (check-case-name case)))
+    (when (transcript-contains? compile-result
+                                #rx"split-runtime-core:materialize-wasm-hit")
+      (record-failure! "~a: materialized a runtime wasm sidecar instead of referencing cache"
+                       (check-case-name case))))
 
   (define program-wasm
     (generated-path dest-dir (check-case-source case) ".wasm"))
@@ -582,7 +651,8 @@ RKT
     (record-failure! "~a: did not produce program wasm: ~a"
                      (check-case-name case)
                      program-wasm))
-  (when (file-exists? runtime-sidecar-wasm)
+  (when (and reference-compatible?
+             (file-exists? runtime-sidecar-wasm))
     (record-failure! "~a: cache-reference compile unexpectedly produced runtime sidecar: ~a"
                      (check-case-name case)
                      runtime-sidecar-wasm))
@@ -631,6 +701,7 @@ RKT
              (check-case-source case))))
 
   (printf "  sources:       ~a\n" (length cases))
+  (printf "  jobs:          ~a\n" jobs)
   (for ([case (in-list cases)])
     (printf "    ~a: ~a\n"
             (check-case-name case)
@@ -663,15 +734,12 @@ RKT
                      runtime-cache))
 
   (define compile-results
-    (for/list ([case (in-list cases)]
-               [index (in-naturals 1)])
-      (compile-case! case
-                     index
-                     racket-exe
-                     provider-cache
-                     runtime-cache
-                     dest-dir
-                     temp-root)))
+    (compile-cases! cases
+                    racket-exe
+                    provider-cache
+                    runtime-cache
+                    dest-dir
+                    temp-root))
 
   (cond
     [(null? failures)

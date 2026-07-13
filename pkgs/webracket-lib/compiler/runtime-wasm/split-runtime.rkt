@@ -7,6 +7,7 @@
          core-runtime-helper-import-forms
          classified-runtime-import/export-forms
          read-split-runtime-boundary-metadata/cache
+         split-runtime-reference-compatible?
          runtime-tag-export-form
          runtime-tag-import-form
          runtime-function-export-form
@@ -1227,6 +1228,21 @@
              #:when form)
     form))
 
+;; split-runtime-reference-compatible? :
+;;   split-runtime-boundary-metadata? (listof datum?) -> boolean?
+;;   Check whether program forms can link against an unchanged cached core.
+(define (split-runtime-reference-compatible? boundary-metadata program-forms)
+  (define runtime-symbol-refs
+    (split-runtime-boundary-metadata-runtime-symbol-refs boundary-metadata))
+  (define program-index
+    (build-split-form-indexes program-forms))
+  (and (null? (runtime-referenced-program-global-names/from-refs
+               runtime-symbol-refs
+               program-index))
+       (null? (runtime-referenced-program-data-forms/from-refs
+               runtime-symbol-refs
+               program-index))))
+
 ;; module-forms : datum? -> (listof datum?)
 ;;   Return a WAT module's body forms.
 (define (module-forms module)
@@ -2071,6 +2087,9 @@
        cached-boundary-program-forms
        #:core-cache-key cached-boundary-core-cache-key
        #:boundary-metadata cached-boundary-metadata))
+    (check-true
+     (split-runtime-reference-compatible? cached-boundary-metadata
+                                          cached-boundary-program-forms))
     (check-true (promise? (split-runtime-modules-core cached-boundary-program-only-split)))
     (check-equal? (split-runtime-modules-program cached-boundary-program-only-split)
                   (split-runtime-modules-program cached-boundary-split))
@@ -2095,6 +2114,23 @@
        (func $program)
        (func $entry))
      #:core-cache-key '(stable-core-key)))
+  (define pulled-constant-boundary-metadata
+    (build-split-runtime-boundary-metadata
+     '((type $I8Array (array (mut i8)))
+       (func $runtime-symbol
+             (drop
+              (array.new_data $I8Array
+                              $symbol-data:program-symbol
+                              (i32.const 0)
+                              (i32.const 1)))
+             (drop (global.get $symbol:program-symbol))))))
+  (check-false
+   (split-runtime-reference-compatible?
+    pulled-constant-boundary-metadata
+    '((data $symbol-data:program-symbol "program-symbol")
+      (global $symbol:program-symbol (mut (ref eq)) (ref.i31 (i32.const 0)))
+      (func $program)
+      (func $entry))))
   (check-false (split-runtime-modules-core-cache-key pulled-constant-split))
   (check-false (promise? (split-runtime-modules-core pulled-constant-split)))
 

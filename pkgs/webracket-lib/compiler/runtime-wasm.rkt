@@ -2014,33 +2014,61 @@
                split-runtime-core-cache-key)))))
     (runtime-metric-add! "runtime:split-boundary-cache-preflight-hit?"
                          (if split-runtime-boundary-metadata "yes" "no"))
+    (define split-runtime-program-forms-cache #f)
+    (define (split-runtime-program-forms!)
+      (or split-runtime-program-forms-cache
+          (let ([forms (time-runtime-step
+                        "runtime:build-split-program-forms"
+                        build-split-program-forms)])
+            (set! split-runtime-program-forms-cache forms)
+            forms)))
+    (define split-runtime-reference-compatible-now?
+      (and (current-split-runtime-reference-only?)
+           split-runtime-boundary-metadata
+           (time-runtime-step
+            "runtime:split-reference-compatibility"
+            (lambda ()
+              (split-runtime-reference-compatible?
+               split-runtime-boundary-metadata
+               (split-runtime-program-forms!))))))
+    (runtime-metric-add! "runtime:split-reference-compatible?"
+                         (if (current-split-runtime-reference-only?)
+                             (if split-runtime-reference-compatible-now? "yes" "no")
+                             "n/a"))
     (define split-runtime-program-only-fast-path?
       (and (current-split-runtime?)
            (current-split-runtime-reference-only?)
            split-runtime-boundary-metadata
+           split-runtime-reference-compatible-now?
            (or (split-direct-ffi-program-side?)
                (and (null? (runtime-ffi-state-active-foreigns ffi-state))
                     (null? (runtime-ffi-state-active-imports-wat ffi-state))
                     (null? (runtime-ffi-state-active-funcs-wat ffi-state))))))
     (runtime-metric-add! "runtime:split-program-only-fast-path?"
                          (if split-runtime-program-only-fast-path? "yes" "no"))
-    (if split-runtime-program-only-fast-path?
-        (time-runtime-step
-         "runtime:split-program-only-fast-path"
-         (lambda ()
-           (define program-forms
-             (time-runtime-step
-              "runtime:build-split-program-forms"
-              build-split-program-forms))
-           (time-runtime-step
-            "runtime:split-classified-runtime-forms"
-            (lambda ()
-              (split-classified-runtime-forms
-               #f
-               program-forms
-               #:core-cache-key split-runtime-core-cache-key
-               #:boundary-metadata split-runtime-boundary-metadata)))))
-        (let ()
+    (cond
+      [split-runtime-program-only-fast-path?
+       (time-runtime-step
+        "runtime:split-program-only-fast-path"
+        (lambda ()
+          (define program-forms (split-runtime-program-forms!))
+          (time-runtime-step
+           "runtime:split-classified-runtime-forms"
+           (lambda ()
+             (split-classified-runtime-forms
+              #f
+              program-forms
+              #:core-cache-key split-runtime-core-cache-key
+              #:boundary-metadata split-runtime-boundary-metadata)))))]
+      [(and (current-split-runtime?)
+            (current-split-runtime-reference-only?)
+            (current-browser?)
+            split-runtime-boundary-metadata
+            (not split-runtime-reference-compatible-now?))
+       (error 'generate-runtime
+              "program requires a split runtime core different from the supplied core URL")]
+      [else
+       (let ()
           (define full-module
             (time-runtime-step "runtime:build-runtime-module" build-runtime-module))
           (define analyzed-module
@@ -2085,5 +2113,5 @@
                   (analyzed-runtime-module-program-forms analyzed-module)
                   #:core-cache-key split-runtime-core-cache-key
                   #:boundary-metadata split-runtime-boundary-metadata)))
-              final-module)))
+              final-module))])
     ))
