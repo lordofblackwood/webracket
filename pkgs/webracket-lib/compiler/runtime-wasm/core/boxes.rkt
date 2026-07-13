@@ -462,9 +462,11 @@
 (define box-core-runtime-helper-names
   '($boxed
     $boxed?
+    $raise-mutable-box-expected/who
     $box?
     $box
     $box-immutable
+    $set-box!
     $make-weak-box
     $weak-box?
     $mutable-box?
@@ -479,12 +481,10 @@
     $initialize-boxed!
     $raise-box-expected/who
     $raise-unbox*:box-expected
-    $raise-mutable-box-expected/who
     $raise-set-box*!:mutable-box-expected
     $raise-weak-box-expected/who
     $unbox
     $unbox*
-    $set-box!
     $set-box*!
     $box-cas!
     $unsafe-box*-cas!

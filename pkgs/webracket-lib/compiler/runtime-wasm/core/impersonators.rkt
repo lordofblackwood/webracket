@@ -65,8 +65,7 @@
 ;; chaperone-procedure-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for chaperone procedure helpers.
 (define chaperone-procedure-runtime-only-helper-names
-  '($check-procedure-arity
-    $check-procedure-arity-or-false
+  '($check-procedure-arity-or-false
     $check-chaperone-hash-required-callbacks
     $chaperone-procedure
     $chaperone-struct
@@ -85,7 +84,8 @@
     $make-impersonator-property
     $impersonator-property?
     $impersonator-property-accessor-procedure?
-    $webracket-impersonator-property-predicate))
+    $webracket-impersonator-property-predicate
+    $check-procedure-arity))
 
 ;; impersonator-basic-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime-only emission order for basic impersonator helpers.

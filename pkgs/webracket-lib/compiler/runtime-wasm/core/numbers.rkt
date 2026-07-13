@@ -4837,6 +4837,12 @@
     $raise-expected-exact-nonnegative-integer
     $raise-expected-rational
     $raise-expected-real
+    $+/2
+    $-/2
+    $*/2
+    $+
+    $*
+    $-
     $min/2
     $max/2
     $bitwise-and/2

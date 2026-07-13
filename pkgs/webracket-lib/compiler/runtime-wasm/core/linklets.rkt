@@ -165,7 +165,16 @@
 (define linklet-interpreter-promoted-runtime-helper-names
   '($dummy-code
     $placeholder-linklet-code
-    $linklet-datum-body-list))
+    $linklet-datum-body-list
+    $linklet-normalize-id
+    $linklet-import-group-contains?/i32
+    $linklet-import-instance-for-id
+    $linklet-eval-sequence
+    $linklet-eval-expr-list
+    $linklet-apply-primitive
+    $linklet-define-values!
+    $linklet-eval-expr
+    $interpreted-linklet-code))
 
 ;; linklet-primitive-table-initializer-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime-only emission order for primitive-table initializer helpers.

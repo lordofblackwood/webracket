@@ -872,7 +872,16 @@
 ;; linklet-instance-promoted-runtime-helper-names : (listof symbol?)
 ;;   Name linklet instance helpers available in the standalone core runtime.
 (define linklet-instance-promoted-runtime-helper-names
-  '($raise-argument-error:module-variable-expected
+  '($raise-argument-error:instance-expected
+    $raise-linklet-variable-error
+    $raise-instance-variable-box-missing-binding
+    $raise-instance-variable-not-found
+    $raise-instance-variable-constant
+    $raise-instance-optional-argument
+    $instance-variable-box
+    $instance-set-variable-value!
+    $instance-variable-value
+    $raise-argument-error:module-variable-expected
     $module-variable-cast
     $module-variable?
     $module-variable-name
