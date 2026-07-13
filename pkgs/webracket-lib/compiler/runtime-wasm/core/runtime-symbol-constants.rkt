@@ -11,6 +11,8 @@
          (only-in "bytes.rkt"
                   byte-predicate-runtime-symbol-constants
                   bytes-runtime-symbol-constants)
+         (only-in "boxes.rkt"
+                  box-runtime-symbol-constants)
          (only-in "characters.rkt"
                   character-general-category-runtime-symbol-constants
                   character-runtime-symbol-constants)
@@ -141,6 +143,7 @@
           multiple-value-runtime-symbol-constants
           number-runtime-symbol-constants
           list-runtime-symbol-constants
+          box-runtime-symbol-constants
           fixnum-runtime-symbol-constants
           flonum-runtime-symbol-constants
           regexp-runtime-symbol-constants
@@ -178,6 +181,7 @@
   (check-not-false (memq 'racket core-runtime-symbol-constants))
   (check-not-false (memq 'exn core-runtime-symbol-constants))
   (check-not-false (memq 'current-logger core-runtime-symbol-constants))
+  (check-not-false (memq 'set-boxed! core-runtime-symbol-constants))
   (check-not-false (memq 'append core-runtime-primitive-symbol-constants))
   (check-not-false (memq 'append core-runtime-symbol-constants))
   (check-equal?

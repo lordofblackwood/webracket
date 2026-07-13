@@ -1,6 +1,7 @@
 #lang racket
 
 (provide box-runtime-string-constants
+         box-runtime-symbol-constants
          box-core-runtime-helpers
          box-runtime-helper-forms
          box-mutability-runtime-helper-forms
@@ -19,6 +20,13 @@
      "(and/c box? (not immutable?) (not impersonator?))")
     (weak-box?                 "weak-box?")
     (use-before-initialization "undefined; cannot use before initialization")))
+
+;; box-runtime-symbol-constants : (listof symbol?)
+;;   Declare symbols used by compiler-box helpers.
+(define box-runtime-symbol-constants
+  '(unboxed
+    set-boxed!
+    initialize-boxed!))
 
 ;; box-base-runtime-helpers : (listof core-runtime-helper?)
 ;;   Enumerate compiler-box and box helpers.
@@ -572,6 +580,10 @@
     (make-core-runtime-helper-index
      (append box-core-runtime-helpers
              box-runtime-only-helpers)))
+
+  (check-equal?
+   box-runtime-symbol-constants
+   '(unboxed set-boxed! initialize-boxed!))
 
   (check-equal?
    (map core-runtime-helper-name box-core-runtime-helpers)
