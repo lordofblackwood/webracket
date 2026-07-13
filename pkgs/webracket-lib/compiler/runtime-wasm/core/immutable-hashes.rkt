@@ -5961,10 +5961,12 @@
     $immutable-hamt-bit
     $immutable-hamt-bucket-ref-key/kind
     $immutable-hamt-bucket-has-key?/kind
+    $immutable-hamt-packed-node-ref-key/kind
     $immutable-hamt-packed-node-has-key?/kind
     $immutable-hamt-packed-node-set/kind
     $immutable-hamt-packed-bnode-collapse-if-single/kind
     $immutable-hamt-packed-node-remove/kind
+    $immutable-hamt-node-ref-key/kind
     $immutable-hamt-node-has-key?/kind
     $immutable-hamt-empty-node
     $immutable-hamt-bnode-collapse-if-single
@@ -5972,6 +5974,7 @@
     $immutable-hamt-bucket-first-entry
     $immutable-hamt-collapse-small-bucket
     $immutable-hamt-bucket-remove/kind
+    $immutable-hamt-cnode-ref-key/kind
     $immutable-hamt-cnode-has-key?/kind
     $immutable-hamt-cnode-set/kind
     $immutable-hamt-cnode-remove/kind

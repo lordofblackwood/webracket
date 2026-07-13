@@ -189,7 +189,9 @@
 (define correlated-syntax-promoted-runtime-helper-names
   '($ensure-correlated-type
     $raise-argument-error:correlated-expected
+    $correlated?
     $correlated-unwrap
+    $correlated->datum/convert
     $ensure-syntax-empty-props
     $syntax/make
     $syntax-build

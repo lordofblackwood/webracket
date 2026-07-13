@@ -2935,6 +2935,7 @@
     $hasheqv-values/plain/checked
     $hashequal-values/plain/checked
     $hashalw-values/plain/checked
+    $equal-hash/hash-core
     $bytes-hash/i32))
 
 ;; hash-all-runtime-helpers : (listof core-runtime-helper?)

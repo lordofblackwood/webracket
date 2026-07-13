@@ -4597,6 +4597,10 @@
     $raise-string-set!:string-immutable
     $string-set!
     $raise-substring:index-expected
+    $raise-string-append*:list-expected
+    $string-append/who
+    $string-append
+    $string-append*
     $string-split:matches?
     $string-split:trim-left
     $string-split:trim-right

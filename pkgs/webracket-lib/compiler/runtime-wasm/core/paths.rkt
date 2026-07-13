@@ -180,6 +180,7 @@
     $unix-or-windows
     $non-empty-bytes-without-nuls
     $non-empty-string-without-nuls
+    $path->string
     $raise-bytes->path:nul
     $raise-string->path:nul
     $raise-bytes->path:bad-type
@@ -249,9 +250,12 @@
 ;; path-manipulation-promoted-runtime-helper-names : (listof symbol?)
 ;;   Name path manipulation helpers available in the standalone core runtime.
 (define path-manipulation-promoted-runtime-helper-names
-  '($path-part-equal?
+  '($path->complete-path
+    $path-part-equal?
     $path-parts-suffix-diff-size
     $path-parts-equal?
+    $find-relative-path
+    $normal-case-path
     $string-or-bytes->bytes/checked
     $bytes-slice/unchecked
     $path-extension-start

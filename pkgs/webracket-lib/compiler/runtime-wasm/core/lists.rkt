@@ -7624,7 +7624,8 @@
    pair-accessor-runtime-only-helper-names
    list-ordinal-accessor-runtime-only-helper-names
    list-remove-runtime-only-helper-names
-   list-remove-star-runtime-only-helper-names))
+   list-remove-star-runtime-only-helper-names
+   '($add-between)))
 
 ;; list-core-runtime-helpers : (listof core-runtime-helper?)
 ;;   Enumerate list helpers available in the standalone core runtime.

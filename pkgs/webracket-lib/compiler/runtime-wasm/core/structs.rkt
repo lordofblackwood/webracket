@@ -525,6 +525,7 @@
     $struct-type-property?
     $make-struct-type-property-descriptor/checked
     $struct-type-property-table-empty
+    $raise-make-struct-type-property:supers
     $initialize-prefab-struct-type-registry))
 
 ;; struct-helper-forms : hasheq? (listof symbol?) -> (listof datum?)

@@ -4825,6 +4825,7 @@
     $pow-special
     $integer?
     $natural?
+    $abs
     $raise-expected-number/common
     $raise-expected-number/who
     $raise-expected-number
@@ -4837,6 +4838,7 @@
     $raise-expected-exact-nonnegative-integer
     $raise-expected-rational
     $raise-expected-real
+    $raise-inexact->exact:no-exact-representation
     $+/2
     $-/2
     $*/2
@@ -4861,6 +4863,7 @@
     $number->string:convert
     $string->number:parse-fractional-part
     $string->number:parse-integer
+    $raise-floating-point-bytes->real:bad-index
     $real->floating-point-bytes/checked
     $i32->string/pad6
     $i32->string

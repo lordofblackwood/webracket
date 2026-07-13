@@ -223,6 +223,8 @@
     $callback-result->bridge-payload
     $callback-result->bridge-vector
     $callback-non-fasl-return-message
+    $wr-result->bridge-vector
+    $wr-failure
     $callback-register
     $callback
     $callback-accepts-argc

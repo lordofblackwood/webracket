@@ -4152,7 +4152,8 @@
 ;; procedure-promoted-runtime-helper-names : (listof symbol?)
 ;;   Name procedure helpers available in the standalone core runtime.
 (define procedure-promoted-runtime-helper-names
-  '($procedure-arity-includes?/checked/i32))
+  '($arity-at-least?
+    $procedure-arity-includes?/checked/i32))
 
 ;; procedure-promoted-runtime-helpers : (listof core-runtime-helper?)
 ;;   Enumerate promoted procedure helpers selected from monolithic runtime order.

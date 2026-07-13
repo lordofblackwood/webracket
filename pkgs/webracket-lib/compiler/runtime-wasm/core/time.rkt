@@ -499,6 +499,7 @@
     $date*?
     $exact-fixnum-in-range?
     $ensure-date-range-field
+    $ensure-date-exact-integer-field
     $ensure-date))
 
 ;; time-runtime-only-helper-names : (listof symbol?)

@@ -4837,6 +4837,7 @@
     $exn:fail:filesystem/make
     $make-exn:fail:filesystem
     $raise-vfs-file-error
+    $exn:fail:filesystem:errno-ensure-errno
     $ensure-exn:fail:read-type
     $ensure-exn:fail:read:eof-type
     $ensure-exn:fail:read:non-char-type
