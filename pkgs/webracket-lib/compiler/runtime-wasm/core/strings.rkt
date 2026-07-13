@@ -4582,6 +4582,7 @@
     $make-dummy-string
     $string?
     $non-empty-string?
+    $make-string/checked
     $make-immutable-string/checked
     $string-length/checked/i32
     $string-ref/checked

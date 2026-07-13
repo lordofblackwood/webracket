@@ -341,6 +341,19 @@ for its dependency on byte/string UTF-8 decoding support.
 
 ## Performance Notes
 
+### Core Allocation Ticks Cannot Depend On JS Logging
+
+`$debug-allocation-tick` is now standalone-core-safe. It still updates the
+shared debug allocation counters and traps when an explicit allocation budget is
+exhausted, but it no longer calls `$js-log` to print the budget-exhausted marker
+and counter list.
+
+That logging path depends on the full FASL/JS callback bridge and would keep
+otherwise-simple constructors pinned to the program/runtime-local module. If the
+allocation-budget probe needs formatted output in split mode, add a runtime-only
+wrapper or host-side inspector that logs before/after enabling the budget; do
+not put `$js-log` back into the hot tick helper.
+
 ### Module Fingerprints Should Not Serialize And Throw Away WAT Repeatedly
 
 Location:

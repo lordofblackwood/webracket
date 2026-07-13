@@ -193,7 +193,8 @@
 ;; ffi-core-runtime-helper-names : (listof symbol?)
 ;;   Name FFI helpers available in the standalone core runtime.
 (define ffi-core-runtime-helper-names
-  '($webracket-debug-allocation-counters))
+  '($webracket-debug-allocation-counters
+    $debug-allocation-tick))
 
 ;; ffi-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the program/runtime-local FFI helper emission order.
@@ -540,6 +541,9 @@
 
          ;; debug-allocation-tick : i32 -> void
          ;;   Count selected allocations while an explicit probe budget is active.
+         ;;   This core-safe helper traps when the budget is exhausted. Runtime-only
+         ;;   debug wrappers can format/log counters before enabling the budget, but
+         ;;   the tick itself cannot depend on JS/FASL logging and remain movable.
          (func $debug-allocation-tick
                (param $kind i32)
                (if (i32.gt_u (global.get $debug-allocation-budget) (i32.const 0))
@@ -577,10 +581,7 @@
                     (global.set $debug-allocation-budget
                                 (i32.sub (global.get $debug-allocation-budget) (i32.const 1)))
                     (if (i32.eqz (global.get $debug-allocation-budget))
-                        (then
-                         (drop (call $js-log (global.get $symbol:allocation-budget-exhausted)))
-                         (drop (call $js-log (call $webracket-debug-allocation-counters)))
-                         (unreachable))))))
+                        (then (unreachable))))))
 
          ;; debug-invoke-tick : -> void
          ;;   Count procedure invocations while an explicit probe budget is active.

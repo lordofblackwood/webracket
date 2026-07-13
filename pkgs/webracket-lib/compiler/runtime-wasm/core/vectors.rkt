@@ -3285,7 +3285,8 @@
 ;; vector-promoted-runtime-helper-names : (listof symbol?)
 ;;   Name runtime vector helpers that are available in the standalone core runtime.
 (define vector-promoted-runtime-helper-names
-  '($vector-length/checked/i32
+  '($make-vector/checked
+    $vector-length/checked/i32
     $vector?
     $vector->list/checked
     $vector-sort!:swap!
