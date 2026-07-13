@@ -33,6 +33,49 @@
                   arr `(i32.const 0)
                   old-size)))
 
+;; list->array-runtime-helper : core-runtime-helper?
+;;   Convert a proper list to a generic array while preserving runtime order.
+(define list->array-runtime-helper
+  (first
+   (function-forms->runtime-helpers
+    'array-runtime-only-helpers
+    '(
+     (func $list->array
+           (param $xs   (ref eq))
+           (result      (ref $Array))
+
+           (local $len  i32)
+           (local $arr  (ref $Array))
+           (local $idx  i32)
+           (local $x    (ref eq))
+           (local $node (ref eq))
+
+           ;; Step 1: compute length of list
+           (local.set $len (call $length/i32 (local.get $xs)))
+           ;; Step 2: allocate array of given length
+           (local.set $arr (call $make-array (local.get $len) (global.get $null)))
+           ;; Step 3: initialize traversal variables
+           (local.set $node (local.get $xs))
+           (local.set $idx  (i32.const 0))
+           ;; Step 4: fill array
+           (block $done
+                  (loop $fill
+                        ;; Stop at null
+                        (br_if $done (ref.eq (local.get $node) (global.get $null)))
+                        ;; Check that it's a pair
+                        (if (ref.test (ref $Pair) (local.get $node))
+                            (then
+                             (local.set $x (struct.get $Pair $a (ref.cast (ref $Pair) (local.get $node))))
+                             (call $array-set! (local.get $arr) (local.get $idx) (local.get $x))
+                             (local.set $idx (i32.add (local.get $idx) (i32.const 1)))
+                             (local.set $node (struct.get $Pair $d (ref.cast (ref $Pair) (local.get $node))))
+                             (br $fill))
+                            (else
+                             (call $raise-pair-expected (local.get $node))
+                             (unreachable)))))
+           ;; Return the filled array
+           (local.get $arr))))))
+
 ;; array-core-runtime-helpers : (listof core-runtime-helper?)
 ;;   Enumerate generic array helpers that can be emitted in core runtime.
 (define array-core-runtime-helpers
@@ -323,7 +366,9 @@
              (local.set $old-size (array.len (local.get $arr)))
              (local.set $res (call $make-array (local.get $new-size) (local.get $val)))
              (call $array-copy! (local.get $res) (i32.const 0) (local.get $arr) (i32.const 0) (local.get $old-size))
-             (local.get $res))))))
+             (local.get $res))))
+
+   list->array-runtime-helper))
 
 ;; array-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for generic array conversion helpers.
@@ -333,44 +378,7 @@
 ;; array-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate generic array helpers that depend on full runtime support.
 (define array-runtime-only-helpers
-  (function-forms->runtime-helpers
-   'array-runtime-only-helpers
-   '(
-     (func $list->array
-           (param $xs   (ref eq))
-           (result      (ref $Array))
-
-           (local $len  i32)
-           (local $arr  (ref $Array))
-           (local $idx  i32)
-           (local $x    (ref eq))
-           (local $node (ref eq))
-
-           ;; Step 1: compute length of list
-           (local.set $len (call $length/i32 (local.get $xs)))
-           ;; Step 2: allocate array of given length
-           (local.set $arr (call $make-array (local.get $len) (global.get $null)))
-           ;; Step 3: initialize traversal variables
-           (local.set $node (local.get $xs))
-           (local.set $idx  (i32.const 0))
-           ;; Step 4: fill array
-           (block $done
-                  (loop $fill
-                        ;; Stop at null
-                        (br_if $done (ref.eq (local.get $node) (global.get $null)))
-                        ;; Check that it's a pair
-                        (if (ref.test (ref $Pair) (local.get $node))
-                            (then
-                             (local.set $x (struct.get $Pair $a (ref.cast (ref $Pair) (local.get $node))))
-                             (call $array-set! (local.get $arr) (local.get $idx) (local.get $x))
-                             (local.set $idx (i32.add (local.get $idx) (i32.const 1)))
-                             (local.set $node (struct.get $Pair $d (ref.cast (ref $Pair) (local.get $node))))
-                             (br $fill))
-                            (else
-                             (call $raise-pair-expected (local.get $node))
-                             (unreachable)))))
-           ;; Return the filled array
-           (local.get $arr)))))
+  (list list->array-runtime-helper))
 
 ;; array-core-runtime-helper-specs : (listof (list/c symbol? (or/c string? #f)))
 ;;   Preserve the core runtime emission order and public exports for generic array helpers.
