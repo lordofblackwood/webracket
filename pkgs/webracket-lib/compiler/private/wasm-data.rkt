@@ -1,5 +1,5 @@
 #lang racket
-(provide wasm-data)
+(provide (struct-out wasm-data))
 
 ;;;
 ;;; Pretty Write and Byte Strings
@@ -77,4 +77,3 @@
 ;; (pretty-write (wasm-data #"hé"))
 ;; (data-print "bar" (current-output-port) #t)
 #;(data-print "hé" (current-output-port) #t)
-

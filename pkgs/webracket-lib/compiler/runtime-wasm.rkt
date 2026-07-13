@@ -1960,6 +1960,21 @@
                #:active-ffi-foreigns stable-runtime-active-ffi-foreigns
                #:active-ffi-imports-wat stable-runtime-active-ffi-imports-wat
                #:active-ffi-funcs-wat stable-runtime-active-ffi-funcs-wat)))))
+    (define split-runtime-core-cache-key
+      (and (current-split-runtime?)
+           `(split-runtime-core-cache
+             2
+             ,(if (current-tree-shake?) 'tree-shake 'no-tree-shake)
+             ,split-runtime-request-fingerprint)))
+    (define split-runtime-boundary-metadata
+      (and split-runtime-core-cache-key
+           (time-runtime-step
+            "runtime:split-boundary-cache-preflight"
+            (lambda ()
+              (read-split-runtime-boundary-metadata/cache
+               split-runtime-core-cache-key)))))
+    (runtime-metric-add! "runtime:split-boundary-cache-preflight-hit?"
+                         (if split-runtime-boundary-metadata "yes" "no"))
     (define full-module
       (time-runtime-step "runtime:build-runtime-module" build-runtime-module))
     (define analyzed-module
@@ -2002,10 +2017,7 @@
            (split-classified-runtime-forms
             (analyzed-runtime-module-runtime-forms analyzed-module)
             (analyzed-runtime-module-program-forms analyzed-module)
-            #:core-cache-key
-            `(split-runtime-core-cache
-              2
-              ,(if (current-tree-shake?) 'tree-shake 'no-tree-shake)
-              ,split-runtime-request-fingerprint))))
+            #:core-cache-key split-runtime-core-cache-key
+            #:boundary-metadata split-runtime-boundary-metadata)))
         final-module)
     ))

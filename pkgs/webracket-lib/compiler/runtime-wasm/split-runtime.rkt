@@ -1,10 +1,12 @@
 #lang racket
 
 (provide (struct-out split-runtime-modules)
+         (struct-out split-runtime-boundary-metadata)
          split-runtime-modules-core-module
          core-runtime-helper-import-form
          core-runtime-helper-import-forms
          classified-runtime-import/export-forms
+         read-split-runtime-boundary-metadata/cache
          runtime-tag-export-form
          runtime-tag-import-form
          runtime-function-export-form
@@ -17,6 +19,10 @@
 
 (require (only-in "../private/parameters.rkt"
                   current-runtime-cache-dir)
+         (only-in "../private/wasm-data.rkt"
+                  wasm-data
+                  wasm-data?
+                  wasm-data-ref)
          "core-helper.rkt"
          (only-in "constants.rkt"
                   constant-data-name?
@@ -26,6 +32,7 @@
          (only-in "runtime-analysis.rkt"
                   split-module-forms)
          (only-in "runtime-metrics.rkt"
+                  runtime-metric-add!
                   time-runtime-step)
          "shared-types.rkt"
          racket/fasl
@@ -350,6 +357,11 @@
 (define split-runtime-boundary-cache-version
   1)
 
+;; wasm-data-cache-tag : symbol?
+;;   Tags custom WAT data fragments in the boundary metadata cache.
+(define wasm-data-cache-tag
+  'webracket:wasm-data)
+
 ;; sorted-hash-symbol-keys : hash? -> (listof symbol?)
 ;;   Return hash keys in stable symbol order.
 (define (sorted-hash-symbol-keys ht)
@@ -361,6 +373,8 @@
   (cond
     [(syntax? v)
      (cacheable-datum (syntax->datum v))]
+    [(wasm-data? v)
+     `(,wasm-data-cache-tag ,(bytes-copy (wasm-data-ref v)))]
     [(pair? v)
      (cons (cacheable-datum (car v))
            (cacheable-datum (cdr v)))]
@@ -370,10 +384,41 @@
         (cacheable-datum x)))]
     [(box? v)
      (box (cacheable-datum (unbox v)))]
+    [(hash? v)
+     (for/hash ([(key value) (in-hash v)])
+       (values (cacheable-datum key)
+               (cacheable-datum value)))]
+    [(path? v)
+     (path->string v)]
     [(string? v)
-     (string->immutable-string v)]
+     (string-copy v)]
     [(bytes? v)
-     (bytes->immutable-bytes v)]
+     (bytes-copy v)]
+    [else v]))
+
+;; cached-datum->value : any/c -> any/c
+;;   Restore custom values encoded by `cacheable-datum`.
+(define (cached-datum->value v)
+  (cond
+    [(and (pair? v)
+          (eq? (car v) wasm-data-cache-tag)
+          (pair? (cdr v))
+          (bytes? (cadr v))
+          (null? (cddr v)))
+     (wasm-data (bytes-copy (cadr v)))]
+    [(pair? v)
+     (cons (cached-datum->value (car v))
+           (cached-datum->value (cdr v)))]
+    [(vector? v)
+     (list->vector
+      (for/list ([x (in-vector v)])
+        (cached-datum->value x)))]
+    [(box? v)
+     (box (cached-datum->value (unbox v)))]
+    [(hash? v)
+     (for/hash ([(key value) (in-hash v)])
+       (values (cached-datum->value key)
+               (cached-datum->value value)))]
     [else v]))
 
 ;; function-boundary-form : datum? -> datum?
@@ -418,7 +463,7 @@
   (for/hasheq ([entry (in-list assocs)])
     (match entry
       [(list key value)
-       (values key value)]
+       (values key (cached-datum->value value))]
       [_
        (error 'split-runtime-boundary-cache
               "bad serialized hash entry: ~s"
@@ -460,8 +505,8 @@
       (sorted-assocs->hasheq data-forms)
       (for/hasheq ([name (in-list function-names)]) (values name #t))
       (for/hasheq ([name (in-list data-names)]) (values name #t))
-      declare-elem-forms
-      shared-prefix-forms)]
+      (cached-datum->value declare-elem-forms)
+      (cached-datum->value shared-prefix-forms))]
     [_
      (error 'split-runtime-boundary-cache
             "bad serialized split form indexes: ~s"
@@ -519,13 +564,24 @@
                  (datum->split-runtime-boundary-metadata payload))]
            [_ #f]))))
 
+;; read-split-runtime-boundary-metadata/cache :
+;;   any/c -> (or/c split-runtime-boundary-metadata? #f)
+;;   Read prewarmed split-boundary metadata by stable split-runtime cache key.
+(define (read-split-runtime-boundary-metadata/cache core-cache-key)
+  (read-split-runtime-boundary-cache
+   (split-runtime-boundary-cache-path core-cache-key)
+   core-cache-key))
+
 ;; write-split-runtime-boundary-cache! :
 ;;   (or/c path? #f) any/c split-runtime-boundary-metadata? -> void?
 ;;   Write split-boundary metadata to the runtime cache.
 (define (write-split-runtime-boundary-cache! cache-path core-cache-key metadata)
   (when cache-path
     (with-handlers ([exn:fail?
-                     (lambda (_exn)
+                     (lambda (exn)
+                       (runtime-metric-add!
+                        "split-boundary-cache-write-failed"
+                        (exn-message exn))
                        (with-handlers ([exn:fail? void])
                          (when (file-exists? cache-path)
                            (delete-file cache-path))))])
@@ -631,6 +687,8 @@
 ;;   Reuse stable runtime-side split metadata when a split-runtime cache key exists.
 (define (split-runtime-boundary-metadata/cached runtime-forms core-cache-key)
   (define cache-path (split-runtime-boundary-cache-path core-cache-key))
+  (runtime-metric-add! "split-boundary-cache-enabled?"
+                       (if cache-path "yes" "no"))
   (or (and cache-path
            (time-runtime-step
             "runtime:split-boundary-cache-lookup"
@@ -1452,9 +1510,11 @@
          runtime-forms
          initial-program-forms
          #:import-module [import-module-name "core"]
-         #:core-cache-key [core-cache-key #f])
+         #:core-cache-key [core-cache-key #f]
+         #:boundary-metadata [cached-boundary-metadata #f])
   (define boundary-metadata
-    (split-runtime-boundary-metadata/cached runtime-forms core-cache-key))
+    (or cached-boundary-metadata
+        (split-runtime-boundary-metadata/cached runtime-forms core-cache-key)))
   (define runtime-source-index
     (split-runtime-boundary-metadata-runtime-index boundary-metadata))
   (define runtime-symbol-refs
@@ -1917,7 +1977,7 @@
         0))
   (parameterize ([current-runtime-cache-dir split-boundary-cache-test-root])
     (define cached-boundary-runtime-forms
-      (list (list 'data '$runtime-data (string-copy "runtime"))
+      (list (list 'data '$runtime-data (wasm-data #"runtime"))
             (list 'func #'$runtime-helper
                   '(param $x i32)
                   '(result i32)
@@ -1936,11 +1996,21 @@
        #:core-cache-key cached-boundary-core-cache-key))
     (check-equal? (split-boundary-cache-file-count split-boundary-cache-test-root)
                   1)
+    (define cached-boundary-metadata
+      (read-split-runtime-boundary-metadata/cache
+       cached-boundary-core-cache-key))
+    (check-true (split-runtime-boundary-metadata? cached-boundary-metadata))
+    (check-true
+     (hash-has-key?
+      (split-form-indexes-function-defs
+       (split-runtime-boundary-metadata-runtime-index cached-boundary-metadata))
+      '$runtime-helper))
     (define cached-boundary-split-again
       (split-classified-runtime-forms
        cached-boundary-runtime-forms
        cached-boundary-program-forms
-       #:core-cache-key cached-boundary-core-cache-key))
+       #:core-cache-key cached-boundary-core-cache-key
+       #:boundary-metadata cached-boundary-metadata))
     (check-true (promise? (split-runtime-modules-core cached-boundary-split-again)))
     (check-equal? (split-runtime-modules-core-module cached-boundary-split-again)
                   (split-runtime-modules-core-module cached-boundary-split))
