@@ -2642,7 +2642,9 @@
     $format/display:variable-reference
     $format/display:namespace
     $format/display:external
+    $format/display:bytes
     $format/display:unquoted-printing-string
+    $make-oct-string
     $str-number
     $is-blank
     $is-graphic
