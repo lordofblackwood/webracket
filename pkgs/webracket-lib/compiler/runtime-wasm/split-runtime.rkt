@@ -1119,15 +1119,39 @@
   (referenced-runtime-names runtime-forms available-names))
 
 ;; runtime-referenced-program-global-names/from-refs :
-;;   (listof symbol?) split-form-indexes? -> (listof symbol?)
-;;   Return program-owned globals referenced by cached runtime-side refs.
+;;   (listof symbol?) split-form-indexes? [#:runtime-index split-form-indexes?]
+;;   -> (listof symbol?)
+;;   Return program-owned globals that cached runtime-side refs still need.
 (define (runtime-referenced-program-global-names/from-refs runtime-symbol-refs
-                                                           program-index)
+                                                           program-index
+                                                           #:runtime-index
+                                                           [runtime-index #f])
   (define program-global-form-by-name
     (constant-global-definition-index program-index))
+  (define runtime-global-form-by-name
+    (and runtime-index
+         (constant-global-definition-index runtime-index)))
   (for/list ([name (in-list runtime-symbol-refs)]
-             #:when (hash-ref program-global-form-by-name name #f))
+             #:when (and (hash-ref program-global-form-by-name name #f)
+                         (not (and runtime-global-form-by-name
+                                   (hash-ref runtime-global-form-by-name
+                                             name
+                                             #f)))))
     name))
+
+;; runtime-owned-program-constant-global-names :
+;;   split-form-indexes? split-form-indexes? -> (listof symbol?)
+;;   Return program constant globals that duplicate runtime-owned constants.
+(define (runtime-owned-program-constant-global-names runtime-index program-index)
+  (define runtime-global-form-by-name
+    (constant-global-definition-index runtime-index))
+  (define program-global-form-by-name
+    (constant-global-definition-index program-index))
+  (sort
+   (for/list ([name (in-list (hash-keys program-global-form-by-name))]
+              #:when (hash-ref runtime-global-form-by-name name #f))
+     name)
+   symbol<?))
 
 ;; split-runtime-referenced-program-globals : (listof datum?) (listof symbol?)
 ;;   -> (values (listof datum?) (listof datum?))
@@ -1217,15 +1241,25 @@
     form))
 
 ;; runtime-referenced-program-data-forms/from-refs :
-;;   (listof symbol?) split-form-indexes? -> (listof datum?)
-;;   Return program-owned passive data forms referenced by cached runtime-side refs.
+;;   (listof symbol?) split-form-indexes? [#:runtime-index split-form-indexes?]
+;;   -> (listof datum?)
+;;   Return program-owned passive data forms that cached runtime refs still need.
 (define (runtime-referenced-program-data-forms/from-refs runtime-symbol-refs
-                                                        program-index)
+                                                        program-index
+                                                        #:runtime-index
+                                                        [runtime-index #f])
   (define program-data-form-by-name
     (constant-data-form-index program-index))
+  (define runtime-data-form-by-name
+    (and runtime-index
+         (constant-data-form-index runtime-index)))
   (for/list ([name (in-list runtime-symbol-refs)]
              #:do [(define form (hash-ref program-data-form-by-name name #f))]
-             #:when form)
+             #:when (and form
+                         (not (and runtime-data-form-by-name
+                                   (hash-ref runtime-data-form-by-name
+                                             name
+                                             #f)))))
     form))
 
 ;; split-runtime-reference-compatible? :
@@ -1234,14 +1268,18 @@
 (define (split-runtime-reference-compatible? boundary-metadata program-forms)
   (define runtime-symbol-refs
     (split-runtime-boundary-metadata-runtime-symbol-refs boundary-metadata))
+  (define runtime-index
+    (split-runtime-boundary-metadata-runtime-index boundary-metadata))
   (define program-index
     (build-split-form-indexes program-forms))
   (and (null? (runtime-referenced-program-global-names/from-refs
                runtime-symbol-refs
-               program-index))
+               program-index
+               #:runtime-index runtime-index))
        (null? (runtime-referenced-program-data-forms/from-refs
                runtime-symbol-refs
-               program-index))))
+               program-index
+               #:runtime-index runtime-index))))
 
 ;; module-forms : datum? -> (listof datum?)
 ;;   Return a WAT module's body forms.
@@ -1564,14 +1602,43 @@
     (build-split-form-indexes initial-program-forms))
   (define pulled-runtime-global-names
     (runtime-referenced-program-global-names/from-refs runtime-symbol-refs
-                                                       initial-program-index))
+                                                       initial-program-index
+                                                       #:runtime-index
+                                                       runtime-source-index))
   (define-values (pulled-runtime-global-forms/reversed
                   remaining-program-forms/reversed)
     (split-runtime-referenced-program-globals
      initial-program-forms
      pulled-runtime-global-names))
-  (define program-forms
+  (define program-forms-before-runtime-owned-constant-prune
     (reverse remaining-program-forms/reversed))
+  (define program-index-before-runtime-owned-constant-prune
+    (build-split-form-indexes
+     program-forms-before-runtime-owned-constant-prune))
+  (define runtime-owned-program-constant-global-name-set
+    (for/hasheq ([name (in-list
+                        (runtime-owned-program-constant-global-names
+                         runtime-source-index
+                         program-index-before-runtime-owned-constant-prune))])
+      (values name #t)))
+  (define program-forms-without-runtime-owned-constant-globals
+    (for/list ([form (in-list
+                      program-forms-before-runtime-owned-constant-prune)]
+               #:unless (let ([name (constant-global-definition-name form)])
+                           (and name
+                                (hash-ref
+                                 runtime-owned-program-constant-global-name-set
+                                 name
+                                 #f)))
+               #:do [(define rewritten
+                       (remove-core-owned-constant-global-sets
+                        form
+                        runtime-owned-program-constant-global-name-set))]
+               #:when rewritten)
+      rewritten))
+  (define program-forms
+    (prune-unreferenced-constant-forms
+     program-forms-without-runtime-owned-constant-globals))
   (define program-index
     (build-split-form-indexes program-forms))
   (define program-owned-prefix-forms
@@ -1583,7 +1650,9 @@
   (define pulled-runtime-data-forms
     (sorted-named-forms
      (runtime-referenced-program-data-forms/from-refs runtime-symbol-refs
-                                                      initial-program-index)
+                                                      initial-program-index
+                                                      #:runtime-index
+                                                      runtime-source-index)
      module-data-name))
   (define pulled-runtime-global-forms
     (sorted-named-forms
@@ -2133,6 +2202,54 @@
       (func $entry))))
   (check-false (split-runtime-modules-core-cache-key pulled-constant-split))
   (check-false (promise? (split-runtime-modules-core pulled-constant-split)))
+  (define duplicate-constant-runtime-forms
+    '((type $I8Array (array (mut i8)))
+      (data $symbol-data:shared-symbol "shared-symbol")
+      (global $symbol:shared-symbol (mut (ref eq)) (ref.i31 (i32.const 0)))
+      (func $runtime-symbol
+            (drop
+             (array.new_data $I8Array
+                             $symbol-data:shared-symbol
+                             (i32.const 0)
+                             (i32.const 1)))
+            (drop (global.get $symbol:shared-symbol)))))
+  (define duplicate-constant-program-forms
+    '((data $symbol-data:shared-symbol "shared-symbol")
+      (global $symbol:shared-symbol (mut (ref eq)) (ref.i31 (i32.const 0)))
+      (func $program
+            (result i32)
+            (global.get $symbol:shared-symbol)
+            (drop)
+            (i32.const 42))
+      (func $entry)))
+  (define duplicate-constant-boundary-metadata
+    (build-split-runtime-boundary-metadata duplicate-constant-runtime-forms))
+  (check-true
+   (split-runtime-reference-compatible?
+    duplicate-constant-boundary-metadata
+    duplicate-constant-program-forms))
+  (define duplicate-constant-program-only-split
+    (split-classified-runtime-forms
+     #f
+     duplicate-constant-program-forms
+     #:core-cache-key '(stable-core-key)
+     #:boundary-metadata duplicate-constant-boundary-metadata))
+  (define duplicate-constant-program-module
+    (split-runtime-modules-program duplicate-constant-program-only-split))
+  (check-true (promise? (split-runtime-modules-core
+                         duplicate-constant-program-only-split)))
+  (check-equal? (split-runtime-modules-core-cache-key
+                 duplicate-constant-program-only-split)
+                '(stable-core-key))
+  (check-not-false
+   (member '(global $symbol:shared-symbol
+                    (import "core" "global:$symbol:shared-symbol")
+                    (mut (ref eq)))
+           (module-forms duplicate-constant-program-module)))
+  (check-false
+   (for/or ([form (in-list (module-forms duplicate-constant-program-module))])
+     (and (global-definition-form? form)
+          (eq? (module-global-name form) '$symbol:shared-symbol))))
 
   (check-equal?
    (split-runtime-modules-imported-names classified-split)
@@ -2156,7 +2273,7 @@
   (check-not-false
    (member '(data $symbol-data:check-list "check-list")
            classified-core-forms))
-  (check-not-false
+  (check-false
    (member '(data $symbol-data:check-list "check-list")
            classified-program-forms))
   (check-not-false
