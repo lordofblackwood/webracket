@@ -431,7 +431,7 @@
        #:max-datum-bytes (no-stdlib-result-tree-fixture-max-datum-bytes fixture)
        #:jobs (env-positive-integer/default
                "WEBRACKET_RESULT_TREE_CHUNK_JOBS"
-               1)
+               4)
        #:chunk-spec (getenv "WEBRACKET_RESULT_TREE_CHUNKS")
        #:shard-spec (getenv "WEBRACKET_RESULT_TREE_SHARD"))
       (check-no-stdlib-result-tree

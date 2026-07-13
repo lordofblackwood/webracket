@@ -5,6 +5,8 @@
 (require racket/runtime-path)
 
 (define-runtime-path runtime-wasm-path "../runtime-wasm.rkt")
+(define-runtime-path runtime-wasm-module-dir ".")
+(define-runtime-path core-runtime-dir "core")
 (define-runtime-path priminfo-path "../private/priminfo.rkt")
 (define-runtime-path parameters-path "../private/parameters.rkt")
 (define-runtime-path structs-path "../private/structs.rkt")
@@ -88,91 +90,116 @@
 (define-runtime-path core-vectors-path "core/vectors.rkt")
 (define-runtime-path core-wills-path "core/wills.rkt")
 
+;; rkt-source-files-in : path? -> (listof path?)
+;;   Return direct Racket source files in dir in stable path order.
+(define (rkt-source-files-in dir)
+  (sort
+   (for/list ([path (in-list (directory-list dir #:build? #t))]
+              #:when (and (file-exists? path)
+                          (equal? (path-get-extension path) #".rkt")))
+     path)
+   string<?
+   #:key path->string))
+
+;; dedupe-source-paths : (listof path?) -> (listof path?)
+;;   Remove duplicate paths while preserving the first occurrence.
+(define (dedupe-source-paths paths)
+  (define seen (make-hash))
+  (for/list ([path (in-list paths)]
+             #:do [(define key (path->string path))]
+             #:unless (hash-ref seen key #f))
+    (hash-set! seen key #t)
+    path))
+
 ;; runtime-source-paths : (listof path?)
 ;;   Enumerate source files that can affect generated runtime WAT.
 (define runtime-source-paths
-  (list runtime-wasm-path
-        priminfo-path
-        parameters-path
-        structs-path
-        wasm-data-path
-        wasm-utils-path
-        immediates-path
-        constant-bytes-path
-        constant-registry-path
-        constant-strings-path
-        constant-symbols-path
-        constants-path
-        core-helper-path
-        core-runtime-path
-        entry-support-path
-        function-declarations-path
-        js-imports-path
-        module-forms-path
-        runtime-analysis-path
-        runtime-ffi-path
-        runtime-helper-index-path
-        runtime-metrics-path
-        runtime-primitives-path
-        runtime-source-path
-        shared-types-path
-        core-booleans-path
-        core-boxes-path
-        core-bytes-path
-        core-characters-path
-        core-checkers-path
-        core-closures-path
-        core-control-flow-path
-        core-equality-path
-        core-exceptions-path
-        core-events-path
-        core-fasl-path
-        core-ffi-path
-        core-filesystem-path
-        core-fixnums-path
-        core-flonums-path
-        core-formatting-path
-        core-hashes-path
-        core-immutable-hashes-path
-        core-immediates-path
-        core-impersonators-path
-        core-io-handlers-path
-        core-keywords-path
-        core-lists-path
-        core-linklet-instances-path
-        core-linklets-path
-        core-locations-path
-        core-locks-path
-        core-loggers-path
-        core-memory-map-path
-        core-mlists-path
-        core-mutable-hashes-path
-        core-namespaces-path
-        core-numbers-path
-        core-parameters-path
-        core-paths-path
-        core-ports-path
-        core-procedures-path
-        core-random-path
-        core-realms-path
-        core-regexps-path
-        core-runtime-bytes-constants-path
-        core-runtime-constants-path
-        core-runtime-string-constants-path
-        core-runtime-symbol-constants-path
-        core-reflection-path
-        core-security-path
-        core-semaphores-path
-        core-stencil-vectors-path
-        core-strings-path
-        core-symbols-path
-        core-syntax-path
-        core-threads-path
-        core-time-path
-        core-treelists-path
-        core-unsafe-path
-        core-vectors-path
-        core-wills-path))
+  (dedupe-source-paths
+   (append
+    (list runtime-wasm-path
+          priminfo-path
+          parameters-path
+          structs-path
+          wasm-data-path
+          wasm-utils-path
+          immediates-path
+          constant-bytes-path
+          constant-registry-path
+          constant-strings-path
+          constant-symbols-path
+          constants-path
+          core-helper-path
+          core-runtime-path
+          entry-support-path
+          function-declarations-path
+          js-imports-path
+          module-forms-path
+          runtime-analysis-path
+          runtime-ffi-path
+          runtime-helper-index-path
+          runtime-metrics-path
+          runtime-primitives-path
+          runtime-source-path
+          shared-types-path
+          core-booleans-path
+          core-boxes-path
+          core-bytes-path
+          core-characters-path
+          core-checkers-path
+          core-closures-path
+          core-control-flow-path
+          core-equality-path
+          core-exceptions-path
+          core-events-path
+          core-fasl-path
+          core-ffi-path
+          core-filesystem-path
+          core-fixnums-path
+          core-flonums-path
+          core-formatting-path
+          core-hashes-path
+          core-immutable-hashes-path
+          core-immediates-path
+          core-impersonators-path
+          core-io-handlers-path
+          core-keywords-path
+          core-lists-path
+          core-linklet-instances-path
+          core-linklets-path
+          core-locations-path
+          core-locks-path
+          core-loggers-path
+          core-memory-map-path
+          core-mlists-path
+          core-mutable-hashes-path
+          core-namespaces-path
+          core-numbers-path
+          core-parameters-path
+          core-paths-path
+          core-ports-path
+          core-procedures-path
+          core-random-path
+          core-realms-path
+          core-regexps-path
+          core-runtime-bytes-constants-path
+          core-runtime-constants-path
+          core-runtime-string-constants-path
+          core-runtime-symbol-constants-path
+          core-reflection-path
+          core-security-path
+          core-semaphores-path
+          core-stencil-vectors-path
+          core-strings-path
+          core-symbols-path
+          core-syntax-path
+          core-threads-path
+          core-time-path
+          core-treelists-path
+          core-unsafe-path
+          core-vectors-path
+          core-wills-path)
+    (rkt-source-files-in runtime-wasm-module-dir)
+    (rkt-source-files-in core-runtime-dir))))
 
 ;; path-fingerprint : path? -> list?
 ;;   Return stable metadata used to invalidate runtime analysis caches.
@@ -185,7 +212,7 @@
 ;;   Fingerprint runtime generator source files for stable-analysis caching.
 (define (runtime-source-fingerprint)
   `(runtime-source
-    2
+    3
     ,@(for/list ([path (in-list runtime-source-paths)])
         (path-fingerprint path))))
 
@@ -205,8 +232,9 @@
   (define fingerprint (runtime-source-fingerprint))
 
   (check-match fingerprint
-    `(runtime-source 2 ,_ ...))
+    `(runtime-source 3 ,_ ...))
   (check-true (contains-path-suffix? fingerprint "runtime-wasm.rkt"))
+  (check-true (contains-path-suffix? fingerprint "split-runtime.rkt"))
   (check-true (contains-path-suffix? fingerprint "entry-support.rkt"))
   (check-true (contains-path-suffix? fingerprint "js-imports.rkt"))
   (check-true (contains-path-suffix? fingerprint "runtime-ffi.rkt"))
@@ -218,4 +246,12 @@
   (check-true (contains-path-suffix? fingerprint "constant-registry.rkt"))
   (check-true (contains-path-suffix? fingerprint "constant-strings.rkt"))
   (check-true (contains-path-suffix? fingerprint "constant-symbols.rkt"))
+  (check-true (contains-path-suffix? fingerprint "core/arrays.rkt"))
+  (check-true (contains-path-suffix? fingerprint "core/formatter-error-closure.rkt"))
+  (check-true (contains-path-suffix? fingerprint "core/growable-arrays.rkt"))
+  (check-true (contains-path-suffix? fingerprint "core/growable-bytes.rkt"))
+  (check-true (contains-path-suffix? fingerprint "core/growable-i32-arrays.rkt"))
+  (check-true (contains-path-suffix? fingerprint "core/i32-arrays.rkt"))
+  (check-true (contains-path-suffix? fingerprint "core/i8-arrays.rkt"))
+  (check-true (contains-path-suffix? fingerprint "core/structs.rkt"))
   (check-true (contains-path-suffix? fingerprint "core/strings.rkt")))

@@ -7,7 +7,8 @@
 ;;   WEBRACKET_TEST_BASICS_PART=result-tree|fixtures|all
 ;;   WEBRACKET_RESULT_TREE_CHUNKS=1,3-5
 ;;   WEBRACKET_RESULT_TREE_SHARD=1/4
-;;   WEBRACKET_RESULT_TREE_CHUNK_JOBS=2
+;;   WEBRACKET_RESULT_TREE_MAX_DATUM_BYTES=80000
+;;   WEBRACKET_RESULT_TREE_CHUNK_JOBS=4
 ;;   WEBRACKET_FIXTURE_CHUNKS=1-4
 ;;   WEBRACKET_FIXTURE_SHARD=2/4
 ;;   WEBRACKET_FIXTURE_JOBS=4
@@ -33,9 +34,12 @@
     (check-no-stdlib-result-tree/chunked
      "test/test-basics.rkt"
      #:timeout-seconds 240
+     #:max-datum-bytes (env-positive-integer/default
+                        "WEBRACKET_RESULT_TREE_MAX_DATUM_BYTES"
+                        80000)
      #:jobs (env-positive-integer/default
              "WEBRACKET_RESULT_TREE_CHUNK_JOBS"
-             1)
+             4)
      #:chunk-spec (getenv "WEBRACKET_RESULT_TREE_CHUNKS")
      #:shard-spec (getenv "WEBRACKET_RESULT_TREE_SHARD"))))
 
