@@ -11,6 +11,7 @@
          ffi-debug-global-names
          ffi-entry-global-forms
          ffi-result-global-forms
+         ffi-result-global-names
          ffi-runtime-string-constants
          ffi-runtime-symbol-constants
          ffi-runtime-only-helpers
@@ -103,6 +104,16 @@
 (define ffi-result-global-forms
   '(
                (global $result-bytes             (mut (ref eq)) (ref.i31 (i32.const 0)))))
+
+;; ffi-result-global-names : (listof symbol?)
+;;   Enumerate FFI result globals shared by split runtime modules.
+(define ffi-result-global-names
+  (for/list ([form (in-list ffi-result-global-forms)])
+    (match form
+      [`(global ,name . ,_) name]
+      [_ (error 'ffi-result-global-names
+                "expected global form, got: ~s"
+                form)])))
 
 ;; ffi-debug-global-forms : (listof datum?)
 ;;   Declare probe-only FFI debug globals shared by split runtime and program modules.

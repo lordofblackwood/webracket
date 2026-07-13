@@ -11,6 +11,8 @@
          struct-constructor-access-runtime-helper-forms
          struct-type-property-runtime-helper-forms
          struct-procedure-runtime-helper-forms
+         struct-equal+hash-recur-global-forms
+         struct-equal+hash-recur-global-names
          struct-property-global-forms
          struct-property-identity-global-forms
          struct-property-identity-global-names
@@ -211,6 +213,13 @@
                (global $equal+hash-recur/equal-always (mut (ref eq)) (global.get $void))
                (global $equal+hash-recur/hash         (mut (ref eq)) (global.get $void))
                (global $equal+hash-recur/hash-always  (mut (ref eq)) (global.get $void))))
+
+;; struct-equal+hash-recur-global-forms : (listof datum?)
+;;   Declare equal+hash recursion closure globals shared by split runtime modules.
+(define struct-equal+hash-recur-global-forms
+  (for/list ([form (in-list struct-property-global-forms)]
+             #:when (equal+hash-recur-global-name? (struct-global-form-name form)))
+    form))
 
 ;; struct-property-identity-global-forms : (listof datum?)
 ;;   Declare runtime struct-type property identity globals, excluding recur closures.
@@ -7871,6 +7880,9 @@
                            struct-property-identity-global-names))
   (for ([name (in-list struct-equal+hash-recur-global-names)])
     (check-false (member name struct-property-identity-global-names)))
+  (check-equal? (map struct-global-form-name
+                     struct-equal+hash-recur-global-forms)
+                struct-equal+hash-recur-global-names)
   (check-equal? (length struct-property-identity-global-forms)
                 (length struct-property-identity-initializer-forms))
   (check-true

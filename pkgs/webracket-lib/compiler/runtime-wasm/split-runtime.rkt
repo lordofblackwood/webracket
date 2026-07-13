@@ -1979,6 +1979,15 @@
    (for/or ([form (in-list core-struct-property-import-program-forms)])
      (form-contains-global-set? '$prop:procedure form)))
   (check-not-false
+   (member '$equal+hash-recur/equal
+           (split-runtime-modules-imported-names
+            core-struct-property-import-split)))
+  (check-not-false
+   (member '(global $equal+hash-recur/equal
+                    (import "core" "global:$equal+hash-recur/equal")
+                    (mut (ref eq)))
+           core-struct-property-import-program-forms))
+  (check-false
    (for/or ([form (in-list core-struct-property-import-program-forms)])
      (and (global-definition-form? form)
           (eq? (module-global-name form) '$equal+hash-recur/equal))))

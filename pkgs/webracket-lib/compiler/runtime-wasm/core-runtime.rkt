@@ -279,8 +279,10 @@
      $prefab-struct-type-registry
      $the-racket-realm
      $the-racket/primitive-realm)
+   ffi-result-global-names
    ffi-debug-global-names
    struct-property-identity-global-names
+   struct-equal+hash-recur-global-names
    procedure-global-names
    syntax-global-names
    port-current-global-names
@@ -361,6 +363,7 @@
      ,@core-runtime-string-constant-declaration-forms
      ,@core-runtime-symbol-constant-declaration-forms
      ,@singleton-global-forms
+     ,@ffi-result-global-forms
      ,@ffi-debug-global-forms
      ,@memory-map-global-forms
      ,@fixnum-global-forms
@@ -370,6 +373,7 @@
      ,@treelist-empty-global-forms
      ,@realm-global-forms
      ,@struct-property-identity-global-forms
+     ,@struct-equal+hash-recur-global-forms
      ,@procedure-global-forms
      ,@syntax-global-forms
      ,@port-current-global-forms
@@ -410,7 +414,11 @@
      ,@(map core-runtime-global-export-form
             ffi-debug-global-names)
      ,@(map core-runtime-global-export-form
+            ffi-result-global-names)
+     ,@(map core-runtime-global-export-form
             struct-property-identity-global-names)
+     ,@(map core-runtime-global-export-form
+            struct-equal+hash-recur-global-names)
      ,@(map core-runtime-global-export-form
             procedure-global-names)
      ,@(map core-runtime-global-export-form
@@ -1002,6 +1010,7 @@
   (check-true (hash-has-key? core-runtime-global-name-set '$prefab-struct-type-registry))
   (check-true (hash-has-key? core-runtime-global-name-set '$debug-allocation-budget))
   (check-true (hash-has-key? core-runtime-global-name-set '$debug-invoke-budget))
+  (check-true (hash-has-key? core-runtime-global-name-set '$result-bytes))
   (check-true (hash-has-key? core-runtime-global-name-set '$exn-type))
   (check-true (hash-has-key? core-runtime-global-name-set '$dummy-array))
   (check-true (hash-has-key? core-runtime-global-name-set '$zero))
@@ -1014,6 +1023,8 @@
   (check-true (hash-has-key? core-runtime-global-name-set '$memory-map:callback-buffer-length))
   (check-true (hash-has-key? core-runtime-global-name-set '$prop:procedure))
   (check-true (hash-has-key? core-runtime-global-name-set '$prop:checked-procedure))
+  (check-true (hash-has-key? core-runtime-global-name-set '$equal+hash-recur/equal))
+  (check-true (hash-has-key? core-runtime-global-name-set '$equal+hash-recur/hash-always))
   (check-true (hash-has-key? core-runtime-global-name-set '$arity-at-least-type))
   (check-true (hash-has-key? core-runtime-global-name-set '$syntax-type))
   (check-true (hash-has-key? core-runtime-global-name-set '$current-output-port-value))
@@ -1234,9 +1245,15 @@
   (check-true (for/or ([form (in-list core-forms)])
                 (global-form-named? '$memory-map:callback-buffer-length form)))
   (check-true (for/or ([form (in-list core-forms)])
+                (global-form-named? '$result-bytes form)))
+  (check-true (for/or ([form (in-list core-forms)])
                 (global-form-named? '$prop:procedure form)))
   (check-true (for/or ([form (in-list core-forms)])
                 (global-form-named? '$prop:checked-procedure form)))
+  (check-true (for/or ([form (in-list core-forms)])
+                (global-form-named? '$equal+hash-recur/equal form)))
+  (check-true (for/or ([form (in-list core-forms)])
+                (global-form-named? '$equal+hash-recur/hash-always form)))
   (check-true (for/or ([form (in-list core-forms)])
                 (global-form-named? '$arity-at-least-type form)))
   (check-true (for/or ([form (in-list core-forms)])
@@ -1312,12 +1329,24 @@
                                            '$memory-map:callback-buffer-length
                                            form)))
   (check-true (for/or ([form (in-list core-forms)])
+                (global-export-form-named? "global:$result-bytes"
+                                           '$result-bytes
+                                           form)))
+  (check-true (for/or ([form (in-list core-forms)])
                 (global-export-form-named? "global:$prop:procedure"
                                            '$prop:procedure
                                            form)))
   (check-true (for/or ([form (in-list core-forms)])
                 (global-export-form-named? "global:$prop:checked-procedure"
                                            '$prop:checked-procedure
+                                           form)))
+  (check-true (for/or ([form (in-list core-forms)])
+                (global-export-form-named? "global:$equal+hash-recur/equal"
+                                           '$equal+hash-recur/equal
+                                           form)))
+  (check-true (for/or ([form (in-list core-forms)])
+                (global-export-form-named? "global:$equal+hash-recur/hash-always"
+                                           '$equal+hash-recur/hash-always
                                            form)))
   (check-true (for/or ([form (in-list core-forms)])
                 (global-export-form-named? "global:$arity-at-least-type"
