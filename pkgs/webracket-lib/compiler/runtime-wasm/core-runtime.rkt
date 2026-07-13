@@ -2,8 +2,10 @@
 
 (provide core-runtime-helpers
          core-runtime-helper-index
+         core-runtime-callable-name-set
          core-runtime-global-names
          core-runtime-global-name-set
+         core-runtime-import-function-names
          core-runtime-program-import-tag-names
          core-runtime-program-preinitialized-global-names
          core-runtime-program-import-constant-global-names
@@ -19,6 +21,9 @@
                   runtime-constant-registry-initialize-symbols!
                   string-global-name
                   symbol-global-name)
+         (only-in "js-imports.rkt"
+                  js-host-import-forms
+                  js-host-import-function-names)
          "core/arrays.rkt"
          "core/booleans.rkt"
          "core/boxes.rkt"
@@ -131,6 +136,19 @@
 ;;   Index core runtime helpers by Wasm function name.
 (define core-runtime-helper-index
   (make-core-runtime-helper-index core-runtime-helpers))
+
+;; core-runtime-import-function-names : (listof symbol?)
+;;   Name imported host functions that standalone core helpers may call.
+(define core-runtime-import-function-names
+  js-host-import-function-names)
+
+;; core-runtime-callable-name-set : hasheq?
+;;   Index functions callable by standalone core helpers.
+(define core-runtime-callable-name-set
+  (for/hasheq ([name (in-list (append (map core-runtime-helper-name
+                                           core-runtime-helpers)
+                                      core-runtime-import-function-names))])
+    (values name #t)))
 
 ;; core-runtime-string-constant-registry : runtime-constant-registry?
 ;;   Register runtime string constants owned by the standalone core runtime.
@@ -337,6 +355,8 @@
 (define (generate-core-runtime)
   `(module
      ,@(generate-shared-types)
+     ,@memory-import-forms
+     ,@js-host-import-forms
      ,@exception-tag-forms
      ,@core-runtime-string-constant-declaration-forms
      ,@core-runtime-symbol-constant-declaration-forms
@@ -1045,21 +1065,28 @@
     (define name (core-runtime-helper-name helper))
     (check-equal? (core-runtime-helper-dependency-problems
                    (core-runtime-helper-form core-runtime-helper-index name)
-                   core-helper-names
+                   core-runtime-callable-name-set
                    shared-type-names
                    core-runtime-global-name-set)
                   '()))
   (check-equal? (core-runtime-helper-dependency-problems
                  '(func $ok (param (ref eq)) (result i32)
                         (call $fx?/i32 (local.get $v)))
-                 core-helper-names
+                 core-runtime-callable-name-set
+                 shared-type-names
+                 core-runtime-global-name-set)
+                '())
+  (check-equal? (core-runtime-helper-dependency-problems
+                 '(func $ok (result i32)
+                        (call $js-flonum->string (f64.const 0.0)))
+                 core-runtime-callable-name-set
                  shared-type-names
                  core-runtime-global-name-set)
                 '())
   (check-equal? (core-runtime-helper-dependency-problems
                  '(func $bad (result i32)
                         (global.get $false))
-                 core-helper-names
+                 core-runtime-callable-name-set
                  shared-type-names)
                 (list (helper-dependency-problem
                        'runtime-global
@@ -1067,91 +1094,91 @@
   (check-equal? (core-runtime-helper-dependency-problems
                  '(func $ok (result (ref eq))
                         (global.get $false))
-                 core-helper-names
+                 core-runtime-callable-name-set
                  shared-type-names
                  core-runtime-global-name-set)
                 '())
   (check-equal? (core-runtime-helper-dependency-problems
                  '(func $ok (result (ref eq))
                         (global.get $string:empty))
-                 core-helper-names
+                 core-runtime-callable-name-set
                  shared-type-names
                  core-runtime-global-name-set)
                 '())
   (check-equal? (core-runtime-helper-dependency-problems
                  '(func $ok (result (ref eq))
                         (global.get $symbol:racket))
-                 core-helper-names
+                 core-runtime-callable-name-set
                  shared-type-names
                  core-runtime-global-name-set)
                 '())
   (check-equal? (core-runtime-helper-dependency-problems
                  '(func $ok (result i32)
                         (global.get $memory-map:callback-buffer-base))
-                 core-helper-names
+                 core-runtime-callable-name-set
                  shared-type-names
                  core-runtime-global-name-set)
                 '())
   (check-equal? (core-runtime-helper-dependency-problems
                  '(func $ok (result (ref eq))
                         (global.get $prop:procedure))
-                 core-helper-names
+                 core-runtime-callable-name-set
                  shared-type-names
                  core-runtime-global-name-set)
                 '())
   (check-equal? (core-runtime-helper-dependency-problems
                  '(func $ok (result (ref null $StructType))
                         (global.get $arity-at-least-type))
-                 core-helper-names
+                 core-runtime-callable-name-set
                  shared-type-names
                  core-runtime-global-name-set)
                 '())
   (check-equal? (core-runtime-helper-dependency-problems
                  '(func $ok (param $v (ref $StructType))
                         (global.set $syntax-type (local.get $v)))
-                 core-helper-names
+                 core-runtime-callable-name-set
                  shared-type-names
                  core-runtime-global-name-set)
                 '())
   (check-equal? (core-runtime-helper-dependency-problems
                  '(func $ok (result (ref eq))
                         (global.get $current-output-port-value))
-                 core-helper-names
+                 core-runtime-callable-name-set
                  shared-type-names
                  core-runtime-global-name-set)
                 '())
   (check-equal? (core-runtime-helper-dependency-problems
                  '(func $ok (result i32)
                         (global.get $next-hash-state))
-                 core-helper-names
+                 core-runtime-callable-name-set
                  shared-type-names
                  core-runtime-global-name-set)
                 '())
   (check-equal? (core-runtime-helper-dependency-problems
                  '(func $ok (result (ref eq))
                         (global.get $current-parameterization-value))
-                 core-helper-names
+                 core-runtime-callable-name-set
                  shared-type-names
                  core-runtime-global-name-set)
                 '())
   (check-equal? (core-runtime-helper-dependency-problems
                  '(func $ok (result (ref eq))
                         (global.get $print-as-expression-value))
-                 core-helper-names
+                 core-runtime-callable-name-set
                  shared-type-names
                  core-runtime-global-name-set)
                 '())
   (check-equal? (core-runtime-helper-dependency-problems
                  '(func $ok (result (ref eq))
                         (global.get $prim:print-as-expression))
-                 core-helper-names
+                 core-runtime-callable-name-set
                  shared-type-names
                  core-runtime-global-name-set)
                 '())
   (check-equal? (core-runtime-helper-dependency-problems
                  '(func $bad (param (ref eq)) (result i32)
                         (call $other (local.get $v)))
-                 core-helper-names
+                 core-runtime-callable-name-set
                  shared-type-names
                  core-runtime-global-name-set)
                 (list (helper-dependency-problem
@@ -1160,7 +1187,7 @@
   (check-equal? (core-runtime-helper-dependency-problems
                  '(func $bad (param (ref eq)) (result i32)
                         (return_call $other (local.get $v)))
-                 core-helper-names
+                 core-runtime-callable-name-set
                  shared-type-names
                  core-runtime-global-name-set)
                 (list (helper-dependency-problem
@@ -1169,7 +1196,7 @@
   (check-equal? (core-runtime-helper-dependency-problems
                  '(func $bad (param (ref $NotShared)) (result i32)
                         (i32.const 0))
-                 core-helper-names
+                 core-runtime-callable-name-set
                  shared-type-names
                  core-runtime-global-name-set)
                 (list (helper-dependency-problem
@@ -1178,7 +1205,7 @@
   (check-equal? (core-runtime-helper-dependency-problems
                  '(func $bad (type $NotShared)
                         (i32.const 0))
-                 core-helper-names
+                 core-runtime-callable-name-set
                  shared-type-names
                  core-runtime-global-name-set)
                 (list (helper-dependency-problem
@@ -2122,10 +2149,27 @@ import fs from "node:fs/promises";
 const [corePath, consumerPath] = process.argv.slice(2);
 const coreBytes = await fs.readFile(corePath);
 const consumerBytes = await fs.readFile(consumerPath);
-const core = await WebAssembly.instantiate(coreBytes, {});
+const coreModule = await WebAssembly.compile(coreBytes);
+const imports = {};
+for (const spec of WebAssembly.Module.imports(coreModule)) {
+  imports[spec.module] ??= {};
+  if (spec.kind === "memory") {
+    imports[spec.module][spec.name] = new WebAssembly.Memory({ initial: 1024 });
+  } else if (spec.kind === "tag") {
+    imports[spec.module][spec.name] = new WebAssembly.Tag({ parameters: ["externref"] });
+  } else if (spec.kind === "function") {
+    imports[spec.module][spec.name] = (..._args) => {
+      if (spec.module === "math" && typeof Math[spec.name] === "function") {
+        return Math[spec.name](..._args);
+      }
+      return 0;
+    };
+  }
+}
+const core = await WebAssembly.instantiate(coreModule, imports);
 const consumer = await WebAssembly.instantiate(
   consumerBytes,
-  { core: core.instance.exports },
+  { ...imports, core: core.exports },
 );
 
 const expected = new Map([

@@ -1,6 +1,7 @@
 #lang racket
 
-(provide js-host-import-forms)
+(provide js-host-import-forms
+         js-host-import-function-names)
 
 ;; js-host-import-forms : (listof datum?)
 ;;   Declare static JavaScript host imports, grouped by runtime theme.
@@ -299,3 +300,12 @@
         (tag $ffi-host-exn
              (import "primitives" "foreign_error_tag")
              (param externref))))
+
+;; js-host-import-function-names : (listof symbol?)
+;;   Enumerate static JavaScript host function imports.
+(define js-host-import-function-names
+  (for/list ([form (in-list js-host-import-forms)]
+             #:when (match form
+                      [`(func ,(? symbol?) . ,_) #t]
+                      [_ #f]))
+    (second form)))

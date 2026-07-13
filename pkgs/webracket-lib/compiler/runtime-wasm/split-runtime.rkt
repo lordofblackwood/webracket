@@ -2375,10 +2375,30 @@ import fs from "node:fs/promises";
 const [corePath, programPath] = process.argv.slice(2);
 const coreBytes = await fs.readFile(corePath);
 const programBytes = await fs.readFile(programPath);
-const core = await WebAssembly.instantiate(coreBytes, {});
+async function instantiateCore(bytes) {
+  const module = await WebAssembly.compile(bytes);
+  const imports = {};
+  for (const spec of WebAssembly.Module.imports(module)) {
+    imports[spec.module] ??= {};
+    if (spec.kind === "memory") {
+      imports[spec.module][spec.name] = new WebAssembly.Memory({ initial: 1024 });
+    } else if (spec.kind === "tag") {
+      imports[spec.module][spec.name] = new WebAssembly.Tag({ parameters: ["externref"] });
+    } else if (spec.kind === "function") {
+      imports[spec.module][spec.name] = (..._args) => {
+        if (spec.module === "math" && typeof Math[spec.name] === "function") {
+          return Math[spec.name](..._args);
+        }
+        return 0;
+      };
+    }
+  }
+  return { instance: await WebAssembly.instantiate(module, imports), imports };
+}
+const core = await instantiateCore(coreBytes);
 const program = await WebAssembly.instantiate(
   programBytes,
-  { core: core.instance.exports },
+  { ...core.imports, core: core.instance.exports },
 );
 
 const expected = new Map([
@@ -2412,10 +2432,30 @@ import fs from "node:fs/promises";
 const [corePath, programPath] = process.argv.slice(2);
 const coreBytes = await fs.readFile(corePath);
 const programBytes = await fs.readFile(programPath);
-const core = await WebAssembly.instantiate(coreBytes, {});
+async function instantiateCore(bytes) {
+  const module = await WebAssembly.compile(bytes);
+  const imports = {};
+  for (const spec of WebAssembly.Module.imports(module)) {
+    imports[spec.module] ??= {};
+    if (spec.kind === "memory") {
+      imports[spec.module][spec.name] = new WebAssembly.Memory({ initial: 1024 });
+    } else if (spec.kind === "tag") {
+      imports[spec.module][spec.name] = new WebAssembly.Tag({ parameters: ["externref"] });
+    } else if (spec.kind === "function") {
+      imports[spec.module][spec.name] = (..._args) => {
+        if (spec.module === "math" && typeof Math[spec.name] === "function") {
+          return Math[spec.name](..._args);
+        }
+        return 0;
+      };
+    }
+  }
+  return { instance: await WebAssembly.instantiate(module, imports), imports };
+}
+const core = await instantiateCore(coreBytes);
 const program = await WebAssembly.instantiate(
   programBytes,
-  { core: core.instance.exports },
+  { ...core.imports, core: core.instance.exports },
 );
 
 const actual = program.instance.exports.probe();
@@ -2442,11 +2482,30 @@ import fs from "node:fs/promises";
 const [corePath, programPath] = process.argv.slice(2);
 const coreBytes = await fs.readFile(corePath);
 const programBytes = await fs.readFile(programPath);
-const imports = { env: { memory: new WebAssembly.Memory({ initial: 1 }) } };
-const core = await WebAssembly.instantiate(coreBytes, imports);
+async function instantiateCore(bytes) {
+  const module = await WebAssembly.compile(bytes);
+  const imports = {};
+  for (const spec of WebAssembly.Module.imports(module)) {
+    imports[spec.module] ??= {};
+    if (spec.kind === "memory") {
+      imports[spec.module][spec.name] = new WebAssembly.Memory({ initial: 1024 });
+    } else if (spec.kind === "tag") {
+      imports[spec.module][spec.name] = new WebAssembly.Tag({ parameters: ["externref"] });
+    } else if (spec.kind === "function") {
+      imports[spec.module][spec.name] = (..._args) => {
+        if (spec.module === "math" && typeof Math[spec.name] === "function") {
+          return Math[spec.name](..._args);
+        }
+        return 0;
+      };
+    }
+  }
+  return { instance: await WebAssembly.instantiate(module, imports), imports };
+}
+const core = await instantiateCore(coreBytes);
 const program = await WebAssembly.instantiate(
   programBytes,
-  { ...imports, core: core.instance.exports },
+  { ...core.imports, core: core.instance.exports },
 );
 
 const actual = program.instance.exports.probe();
