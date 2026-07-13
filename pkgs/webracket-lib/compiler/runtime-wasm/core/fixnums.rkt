@@ -981,9 +981,20 @@
   '($fixnum?
     $fxvector?
     $fxzero?
+    $fx+
+    $fx-
+    $fx/
+    $raise-fx-overflow
+    $ensure-fixnum-argument
+    $fx*
+    $raise-division-by-zero/who
+    $raise-division-by-zero
     $unsafe-fxquotient
+    $fxquotient
     $unsafe-fxremainder
+    $fxremainder
     $unsafe-fxmodulo
+    $fxmodulo
     $unsafe-fxabs
     $fxabs
     $most-positive-fixnum

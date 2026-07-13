@@ -4818,10 +4818,12 @@
     $ensure-exn:fail-type
     $ensure-exn:fail:contract-type
     $ensure-exn:fail:contract:arity-type
+    $ensure-exn:fail:contract:non-fixnum-result-type
     $ensure-exn:fail:contract:variable-type
     $ensure-exn:fail:filesystem-type
     $exn:fail:contract/make
     $exn:fail:contract:arity/make
+    $exn:fail:contract:non-fixnum-result/make
     $exn:fail:contract:variable-ensure
     $exn:fail:contract:variable-ensure-id
     $exn:fail:contract:variable/make
