@@ -245,7 +245,9 @@
                   compile-parameter-global-forms
                   compile-parameter-core-runtime-helper-forms
                   compile-parameter-runtime-helper-forms
+                  current-security-guard-core-runtime-helper-forms
                   current-security-guard-runtime-helper-forms
+                  current-custodian-core-runtime-helper-forms
                   current-custodian-runtime-helper-forms
                   current-pseudo-random-generator-core-runtime-helper-forms
                   current-pseudo-random-generator-runtime-helper-forms
@@ -1672,12 +1674,14 @@
          ,@(security-pre-parameter-runtime-helper-forms runtime-helper-index)
 
          ;;   Implemented in runtime-wasm/core/parameters.rkt.
+         ,@(current-security-guard-core-runtime-helper-forms core-runtime-helper-index)
          ,@(current-security-guard-runtime-helper-forms runtime-helper-index)
 
          ;;   Security guard and custodian predicate helpers are implemented in runtime-wasm/core/security.rkt.
          ,@(security-post-parameter-runtime-helper-forms runtime-helper-index)
 
          ;;   Implemented in runtime-wasm/core/parameters.rkt.
+         ,@(current-custodian-core-runtime-helper-forms core-runtime-helper-index)
          ,@(current-custodian-runtime-helper-forms runtime-helper-index)
 
          ;;   Custodian helpers are implemented in runtime-wasm/core/security.rkt.

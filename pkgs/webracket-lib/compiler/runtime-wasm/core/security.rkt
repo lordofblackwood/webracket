@@ -14,6 +14,7 @@
          security-core-runtime-helpers
          security-core-runtime-helper-forms
          security-current-global-forms
+         security-current-global-names
          security-guard-current-initializer-forms
          security-runtime-only-helpers)
 
@@ -50,6 +51,20 @@
   '(
                (global $current-security-guard-value (mut (ref eq)) (global.get $false))
                (global $current-custodian-value   (mut (ref eq)) (global.get $false))))
+
+;; security-global-form-name : datum? -> symbol?
+;;   Return the Wasm global name declared by a security global form.
+(define (security-global-form-name form)
+  (match form
+    [`(global ,name . ,_) name]
+    [_ (error 'security-global-form-name
+              "expected global form, got: ~s"
+              form)]))
+
+;; security-current-global-names : (listof symbol?)
+;;   Enumerate security and custodian current globals shared by split modules.
+(define security-current-global-names
+  (map security-global-form-name security-current-global-forms))
 
 ;; custodian-current-initializer-forms : (listof datum?)
 ;;   Initialize the root custodian.
@@ -88,7 +103,12 @@
   '($subprocess?
     $security-guard?
     $custodian?
+    $make-custodian
+    $custodian-shutdown-all
+    $custodian-shut-down?
+    $make-custodian-box
     $custodian-box?
+    $custodian-box-value
     $inspector?
     $current-inspector
     $current-code-inspector
@@ -104,14 +124,21 @@
 (define security-post-parameter-runtime-only-helper-names
   '($make-security-guard))
 
-;; custodian-runtime-only-helper-names : (listof symbol?)
+;; custodian-helper-names : (listof symbol?)
 ;;   Preserve custodian helper emission order.
-(define custodian-runtime-only-helper-names
+(define custodian-helper-names
   '($make-custodian
     $custodian-shutdown-all
     $custodian-shut-down?
     $make-custodian-box
     $custodian-box-value))
+
+;; custodian-runtime-only-helper-names : (listof symbol?)
+;;   Preserve runtime-only custodian helper emission order.
+(define custodian-runtime-only-helper-names
+  (remove* security-promoted-runtime-helper-names
+           custodian-helper-names
+           eq?))
 
 ;; inspector-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve inspector and object-name helper emission order.

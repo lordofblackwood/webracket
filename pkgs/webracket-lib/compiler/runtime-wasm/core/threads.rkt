@@ -7,6 +7,8 @@
          thread-runtime-symbol-constants
          thread-current-initializer-forms
          thread-group-current-global-forms
+         thread-group-current-global-names
+         thread-group-current-initializer-forms
          thread-core-runtime-helpers
          thread-core-runtime-helper-forms
          thread-runtime-helper-forms
@@ -39,6 +41,20 @@
   '(
                (global $current-thread-group-value (mut (ref eq)) (global.get $false))))
 
+;; thread-global-form-name : datum? -> symbol?
+;;   Return the Wasm global name declared by a thread global form.
+(define (thread-global-form-name form)
+  (match form
+    [`(global ,name . ,_) name]
+    [_ (error 'thread-global-form-name
+              "expected global form, got: ~s"
+              form)]))
+
+;; thread-group-current-global-names : (listof symbol?)
+;;   Enumerate current-thread-group globals shared by split modules.
+(define thread-group-current-global-names
+  (map thread-global-form-name thread-group-current-global-forms))
+
 ;; thread-current-global-forms : (listof datum?)
 ;;   Declare the current thread global at its monolithic runtime position.
 (define thread-current-global-forms
@@ -67,14 +83,35 @@
                                              (i32.const 0)
                                              (global.get $false)))))
 
+;; thread-group-current-initializer-forms : (listof datum?)
+;;   Initialize the current thread group without touching current-thread.
+(define thread-group-current-initializer-forms
+  '(
+                    (global.set $current-thread-group-value
+                                (struct.new $ThreadGroup
+                                            (i32.const 0)
+                                            (global.get $false)))))
+
+;; thread-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for thread and thread-cell helpers.
+(define thread-helper-names
+  '($make-thread-cell
+    $thread-cell?
+    $ensure-thread-cell
+    $thread-cell-ref
+    $thread-cell-set!
+    $current-thread
+    $thread?
+    $thread-dead?
+    $thread-running?
+    $thread-group?
+    $current-thread-group
+    $make-thread-group))
+
 ;; thread-promoted-runtime-helper-names : (listof symbol?)
 ;;   Name thread helpers that are available in the standalone core runtime.
 (define thread-promoted-runtime-helper-names
-  '($make-thread-cell
-    $thread-cell?
-    $current-thread
-    $thread?
-    $thread-group?))
+  thread-helper-names)
 
 ;; thread-all-runtime-helpers : (listof core-runtime-helper?)
 ;;   Enumerate thread helpers in monolithic runtime order.
@@ -320,13 +357,9 @@
 ;; thread-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for thread and thread-cell helpers.
 (define thread-runtime-only-helper-names
-  '($ensure-thread-cell
-    $thread-cell-ref
-    $thread-cell-set!
-    $thread-dead?
-    $thread-running?
-    $current-thread-group
-    $make-thread-group))
+  (remove* thread-promoted-runtime-helper-names
+           thread-helper-names
+           eq?))
 
 ;; thread-core-runtime-helper-forms : hasheq? -> (listof datum?)
 ;;   Render promoted thread helpers in runtime assembly order.

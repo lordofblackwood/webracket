@@ -342,6 +342,8 @@
    character-general-category-global-names
    environment-parameter-global-names
    print-read-parameter-global-names
+   logger-current-global-names
+   security-current-global-names
    reader-printer-policy-parameter-global-names
    reader-printer-policy-parameter-primitive-global-names
    compile-parameter-global-names
@@ -349,6 +351,7 @@
    parameterization-global-names
    random-state-global-names
    random-current-global-names
+   thread-group-current-global-names
    error-rendering-handler-global-names
    location-global-names
    exception-read-primitive-global-names
@@ -450,6 +453,8 @@
      ,@character-general-category-global-forms
      ,@environment-parameter-global-forms
      ,@print-read-parameter-global-forms
+     ,@logger-current-global-forms
+     ,@security-current-global-forms
      ,@reader-printer-policy-parameter-global-forms
      ,@reader-printer-policy-parameter-primitive-global-forms
      ,@compile-parameter-global-forms
@@ -457,6 +462,7 @@
      ,@parameterization-global-forms
      ,@random-state-global-forms
      ,@random-current-global-forms
+     ,@thread-group-current-global-forms
      ,@error-rendering-handler-global-forms
      ,@location-global-forms
      ,@exception-read-primitive-global-forms
@@ -481,6 +487,9 @@
            ,@character-general-category-initializer-forms
            ,@struct-property-identity-initializer-forms
            ,@random-current-initializer-forms
+           ,@thread-group-current-initializer-forms
+           ,@logger-current-initializer-forms
+           ,@custodian-current-initializer-forms
            ,@realm-initializer-forms)
      (start $initialize-core-runtime!)
      (export "global:$the-symbol-table" (global $the-symbol-table))
@@ -519,6 +528,10 @@
      ,@(map core-runtime-global-export-form
             print-read-parameter-global-names)
      ,@(map core-runtime-global-export-form
+            logger-current-global-names)
+     ,@(map core-runtime-global-export-form
+            security-current-global-names)
+     ,@(map core-runtime-global-export-form
             reader-printer-policy-parameter-global-names)
      ,@(map core-runtime-global-export-form
             reader-printer-policy-parameter-primitive-global-names)
@@ -532,6 +545,8 @@
             random-state-global-names)
      ,@(map core-runtime-global-export-form
             random-current-global-names)
+     ,@(map core-runtime-global-export-form
+            thread-group-current-global-names)
      ,@(map core-runtime-global-export-form
             error-rendering-handler-global-names)
      ,@(map core-runtime-global-export-form
@@ -1138,11 +1153,18 @@
   (check-true (hash-has-key? core-runtime-global-name-set '$char-general-category-symbols))
   (check-true (hash-has-key? core-runtime-global-name-set '$current-environment-variables-value))
   (check-true (hash-has-key? core-runtime-global-name-set '$current-print-value))
+  (check-true (hash-has-key? core-runtime-global-name-set '$current-logger-value))
+  (check-true (hash-has-key? core-runtime-global-name-set '$current-security-guard-value))
+  (check-true (hash-has-key? core-runtime-global-name-set '$current-custodian-value))
   (check-true (hash-has-key? core-runtime-global-name-set '$print-as-expression-value))
   (check-true (hash-has-key? core-runtime-global-name-set '$print-mpair-curly-braces-value))
   (check-true (hash-has-key? core-runtime-global-name-set '$prim:print-as-expression))
   (check-true (hash-has-key? core-runtime-global-name-set '$prim:print-mpair-curly-braces))
   (check-true (hash-has-key? core-runtime-global-name-set '$current-compile-realm-value))
+  (check-true (hash-has-key? core-runtime-global-name-set '$prim:current-logger))
+  (check-true (hash-has-key? core-runtime-global-name-set '$prim:current-thread-group))
+  (check-true (hash-has-key? core-runtime-global-name-set '$prim:current-security-guard))
+  (check-true (hash-has-key? core-runtime-global-name-set '$prim:current-custodian))
   (check-true (hash-has-key? core-runtime-global-name-set '$prim:current-compile-realm))
   (check-true (hash-has-key? core-runtime-global-name-set '$prim:current-readtable))
   (check-true (hash-has-key? core-runtime-global-name-set '$prim:print-syntax-width))
@@ -1150,6 +1172,7 @@
   (check-true (hash-has-key? core-runtime-global-name-set '$current-parameterization-value))
   (check-true (hash-has-key? core-runtime-global-name-set '$random-state))
   (check-true (hash-has-key? core-runtime-global-name-set '$current-pseudo-random-generator-value))
+  (check-true (hash-has-key? core-runtime-global-name-set '$current-thread-group-value))
   (check-true (hash-has-key? core-runtime-global-name-set '$cache-configuration-values))
   (check-true (hash-has-key? core-runtime-global-name-set '$error-value->string-handler-value))
   (check-true (hash-has-key? core-runtime-global-name-set '$srcloc-type))
@@ -1405,6 +1428,12 @@
   (check-true (for/or ([form (in-list core-forms)])
                 (global-form-named? '$current-print-value form)))
   (check-true (for/or ([form (in-list core-forms)])
+                (global-form-named? '$current-logger-value form)))
+  (check-true (for/or ([form (in-list core-forms)])
+                (global-form-named? '$current-security-guard-value form)))
+  (check-true (for/or ([form (in-list core-forms)])
+                (global-form-named? '$current-custodian-value form)))
+  (check-true (for/or ([form (in-list core-forms)])
                 (global-form-named? '$print-as-expression-value form)))
   (check-true (for/or ([form (in-list core-forms)])
                 (global-form-named? '$prim:print-as-expression form)))
@@ -1412,6 +1441,14 @@
                 (global-form-named? '$prim:print-mpair-curly-braces form)))
   (check-true (for/or ([form (in-list core-forms)])
                 (global-form-named? '$current-compile-realm-value form)))
+  (check-true (for/or ([form (in-list core-forms)])
+                (global-form-named? '$prim:current-logger form)))
+  (check-true (for/or ([form (in-list core-forms)])
+                (global-form-named? '$prim:current-thread-group form)))
+  (check-true (for/or ([form (in-list core-forms)])
+                (global-form-named? '$prim:current-security-guard form)))
+  (check-true (for/or ([form (in-list core-forms)])
+                (global-form-named? '$prim:current-custodian form)))
   (check-true (for/or ([form (in-list core-forms)])
                 (global-form-named? '$prim:current-compile-realm form)))
   (check-true (for/or ([form (in-list core-forms)])
@@ -1426,6 +1463,8 @@
                 (global-form-named? '$random-state form)))
   (check-true (for/or ([form (in-list core-forms)])
                 (global-form-named? '$current-pseudo-random-generator-value form)))
+  (check-true (for/or ([form (in-list core-forms)])
+                (global-form-named? '$current-thread-group-value form)))
   (check-true (for/or ([form (in-list core-forms)])
                 (global-form-named? '$cache-configuration-values form)))
   (check-true (for/or ([form (in-list core-forms)])
@@ -1543,6 +1582,18 @@
                                            '$current-print-value
                                            form)))
   (check-true (for/or ([form (in-list core-forms)])
+                (global-export-form-named? "global:$current-logger-value"
+                                           '$current-logger-value
+                                           form)))
+  (check-true (for/or ([form (in-list core-forms)])
+                (global-export-form-named? "global:$current-security-guard-value"
+                                           '$current-security-guard-value
+                                           form)))
+  (check-true (for/or ([form (in-list core-forms)])
+                (global-export-form-named? "global:$current-custodian-value"
+                                           '$current-custodian-value
+                                           form)))
+  (check-true (for/or ([form (in-list core-forms)])
                 (global-export-form-named? "global:$print-as-expression-value"
                                            '$print-as-expression-value
                                            form)))
@@ -1557,6 +1608,22 @@
   (check-true (for/or ([form (in-list core-forms)])
                 (global-export-form-named? "global:$current-compile-realm-value"
                                            '$current-compile-realm-value
+                                           form)))
+  (check-true (for/or ([form (in-list core-forms)])
+                (global-export-form-named? "global:$prim:current-logger"
+                                           '$prim:current-logger
+                                           form)))
+  (check-true (for/or ([form (in-list core-forms)])
+                (global-export-form-named? "global:$prim:current-thread-group"
+                                           '$prim:current-thread-group
+                                           form)))
+  (check-true (for/or ([form (in-list core-forms)])
+                (global-export-form-named? "global:$prim:current-security-guard"
+                                           '$prim:current-security-guard
+                                           form)))
+  (check-true (for/or ([form (in-list core-forms)])
+                (global-export-form-named? "global:$prim:current-custodian"
+                                           '$prim:current-custodian
                                            form)))
   (check-true (for/or ([form (in-list core-forms)])
                 (global-export-form-named? "global:$prim:current-compile-realm"
@@ -1585,6 +1652,10 @@
   (check-true (for/or ([form (in-list core-forms)])
                 (global-export-form-named? "global:$current-pseudo-random-generator-value"
                                            '$current-pseudo-random-generator-value
+                                           form)))
+  (check-true (for/or ([form (in-list core-forms)])
+                (global-export-form-named? "global:$current-thread-group-value"
+                                           '$current-thread-group-value
                                            form)))
   (check-true (for/or ([form (in-list core-forms)])
                 (global-export-form-named? "global:$cache-configuration-values"

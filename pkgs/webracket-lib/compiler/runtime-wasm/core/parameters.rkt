@@ -8,7 +8,9 @@
          parameter-runtime-symbol-constants
          compile-parameter-core-runtime-helper-forms
          compile-parameter-runtime-helper-forms
+         current-security-guard-core-runtime-helper-forms
          current-security-guard-runtime-helper-forms
+         current-custodian-core-runtime-helper-forms
          current-custodian-runtime-helper-forms
          current-pseudo-random-generator-core-runtime-helper-forms
          current-pseudo-random-generator-runtime-helper-forms
@@ -424,6 +426,10 @@
   '(
                (global $prim:current-compile-target-machine (mut (ref eq)) (global.get $undefined))
                (global $prim:current-compile-realm          (mut (ref eq)) (global.get $undefined))
+               (global $prim:current-logger                 (mut (ref eq)) (global.get $undefined))
+               (global $prim:current-thread-group           (mut (ref eq)) (global.get $undefined))
+               (global $prim:current-security-guard         (mut (ref eq)) (global.get $undefined))
+               (global $prim:current-custodian              (mut (ref eq)) (global.get $undefined))
                (global $prim:current-readtable              (mut (ref eq)) (global.get $undefined))
                (global $prim:print-syntax-width             (mut (ref eq)) (global.get $undefined))
                (global $prim:error-print-width              (mut (ref eq)) (global.get $undefined))))
@@ -568,15 +574,39 @@
   '($current-directory
     $current-directory-for-user))
 
-;; current-security-guard-runtime-only-helper-names : (listof symbol?)
+;; current-security-guard-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for current-security-guard.
-(define current-security-guard-runtime-only-helper-names
+(define current-security-guard-helper-names
   '($current-security-guard))
 
-;; current-custodian-runtime-only-helper-names : (listof symbol?)
+;; current-security-guard-core-runtime-helper-names : (listof symbol?)
+;;   Name current-security-guard helpers available in core runtime.
+(define current-security-guard-core-runtime-helper-names
+  current-security-guard-helper-names)
+
+;; current-security-guard-runtime-only-helper-names : (listof symbol?)
+;;   Preserve runtime-only current-security-guard emission order.
+(define current-security-guard-runtime-only-helper-names
+  (remove* current-security-guard-core-runtime-helper-names
+           current-security-guard-helper-names
+           eq?))
+
+;; current-custodian-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for current-custodian.
-(define current-custodian-runtime-only-helper-names
+(define current-custodian-helper-names
   '($current-custodian))
+
+;; current-custodian-core-runtime-helper-names : (listof symbol?)
+;;   Name current-custodian helpers available in core runtime.
+(define current-custodian-core-runtime-helper-names
+  current-custodian-helper-names)
+
+;; current-custodian-runtime-only-helper-names : (listof symbol?)
+;;   Preserve runtime-only current-custodian emission order.
+(define current-custodian-runtime-only-helper-names
+  (remove* current-custodian-core-runtime-helper-names
+           current-custodian-helper-names
+           eq?))
 
 ;; current-pseudo-random-generator-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for current-pseudo-random-generator.
@@ -653,10 +683,20 @@
 (define (current-security-guard-runtime-helper-forms helper-index)
   (parameter-helper-forms helper-index current-security-guard-runtime-only-helper-names))
 
+;; current-security-guard-core-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render current-security-guard helpers shared with core runtime.
+(define (current-security-guard-core-runtime-helper-forms helper-index)
+  (parameter-helper-forms helper-index current-security-guard-core-runtime-helper-names))
+
 ;; current-custodian-runtime-helper-forms : hasheq? -> (listof datum?)
 ;;   Render current-custodian in runtime assembly order.
 (define (current-custodian-runtime-helper-forms helper-index)
   (parameter-helper-forms helper-index current-custodian-runtime-only-helper-names))
+
+;; current-custodian-core-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render current-custodian helpers shared with core runtime.
+(define (current-custodian-core-runtime-helper-forms helper-index)
+  (parameter-helper-forms helper-index current-custodian-core-runtime-helper-names))
 
 ;; current-pseudo-random-generator-runtime-helper-forms : hasheq? -> (listof datum?)
 ;;   Render current-pseudo-random-generator in runtime assembly order.
@@ -1760,6 +1800,8 @@
                           (append parameterization-binding-promoted-runtime-helper-names
                                   current-pseudo-random-generator-core-runtime-helper-names
                                   compile-parameter-core-runtime-helper-names
+                                  current-security-guard-core-runtime-helper-names
+                                  current-custodian-core-runtime-helper-names
                                   current-readtable-core-runtime-helper-names
                                   parameter-width-core-runtime-helper-names)))
 
@@ -1770,6 +1812,8 @@
                           (append parameterization-binding-promoted-runtime-helper-names
                                   current-pseudo-random-generator-core-runtime-helper-names
                                   compile-parameter-core-runtime-helper-names
+                                  current-security-guard-core-runtime-helper-names
+                                  current-custodian-core-runtime-helper-names
                                   current-readtable-core-runtime-helper-names
                                   parameter-width-core-runtime-helper-names)))
 
@@ -1841,6 +1885,16 @@
    (map form-name (compile-parameter-core-runtime-helper-forms
                    parameter-core-helper-index))
    compile-parameter-core-runtime-helper-names)
+
+  (check-equal?
+   (map form-name (current-security-guard-core-runtime-helper-forms
+                   parameter-core-helper-index))
+   current-security-guard-core-runtime-helper-names)
+
+  (check-equal?
+   (map form-name (current-custodian-core-runtime-helper-forms
+                   parameter-core-helper-index))
+   current-custodian-core-runtime-helper-names)
 
   (check-equal?
    (map form-name (current-pseudo-random-generator-core-runtime-helper-forms

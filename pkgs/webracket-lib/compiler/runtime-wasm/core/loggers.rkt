@@ -1,6 +1,7 @@
 #lang racket
 
 (provide logger-current-global-forms
+         logger-current-global-names
          logger-runtime-string-constants
          logger-runtime-symbol-constants
          logger-current-initializer-forms
@@ -46,6 +47,20 @@
   '(
                (global $current-logger-value      (mut (ref eq)) (global.get $false))))
 
+;; logger-global-form-name : datum? -> symbol?
+;;   Return the Wasm global name declared by a logger global form.
+(define (logger-global-form-name form)
+  (match form
+    [`(global ,name . ,_) name]
+    [_ (error 'logger-global-form-name
+              "expected global form, got: ~s"
+              form)]))
+
+;; logger-current-global-names : (listof symbol?)
+;;   Enumerate logger current globals shared by split modules.
+(define logger-current-global-names
+  (map logger-global-form-name logger-current-global-forms))
+
 ;; logger-current-initializer-forms : (listof datum?)
 ;;   Initialize the root logger.
 (define logger-current-initializer-forms
@@ -55,11 +70,28 @@
                                              (i32.const 0)
                                              (global.get $false)))))
 
+;; logger-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for logger helpers.
+(define logger-helper-names
+  '($logger?
+    $log-receiver?
+    $log-level?/i32
+    $check-log-level
+    $check-log-topic
+    $check-log-topics
+    $check-log-message
+    $make-logger
+    $make-log-receiver
+    $logger-name
+    $current-logger
+    $log-level?
+    $log-max-level
+    $log-message))
+
 ;; logger-promoted-runtime-helper-names : (listof symbol?)
 ;;   Name logger helpers that are available in the standalone core runtime.
 (define logger-promoted-runtime-helper-names
-  '($logger?
-    $log-receiver?))
+  logger-helper-names)
 
 ;; logger-all-runtime-helpers : (listof core-runtime-helper?)
 ;;   Enumerate logger helpers in monolithic runtime order.
@@ -403,18 +435,9 @@
 ;; logger-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for logger helpers.
 (define logger-runtime-only-helper-names
-  '($log-level?/i32
-    $check-log-level
-    $check-log-topic
-    $check-log-topics
-    $check-log-message
-    $make-logger
-    $make-log-receiver
-    $logger-name
-    $current-logger
-    $log-level?
-    $log-max-level
-    $log-message))
+  (remove* logger-promoted-runtime-helper-names
+           logger-helper-names
+           eq?))
 
 ;; logger-core-runtime-helper-forms : hasheq? -> (listof datum?)
 ;;   Render promoted logger helpers in runtime assembly order.
