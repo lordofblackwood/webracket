@@ -129,6 +129,7 @@
    logger-core-runtime-helpers
    mlist-core-runtime-helpers
    mutable-hash-core-runtime-helpers
+   namespace-core-runtime-helpers
    number-core-runtime-helpers
    parameter-core-runtime-helpers
    path-core-runtime-helpers
@@ -352,6 +353,7 @@
    print-read-parameter-global-names
    io-handler-default-port-global-names
    namespace-current-global-names
+   namespace-top-level-global-names
    logger-current-global-names
    security-current-global-names
    void-primitive-global-names
@@ -405,7 +407,8 @@
             $treelist:MAX_WIDTH
             $treelist:MASK
             $dummy-treelist-node
-            $empty-treelist)))
+            $empty-treelist)
+          namespace-module-registry-global-names))
 
 ;; core-runtime-global-names : (listof symbol?)
 ;;   Enumerate stable globals declared by the standalone core runtime.
@@ -473,6 +476,8 @@
      ,@print-read-parameter-global-forms
      ,@io-handler-default-port-global-forms
      ,@namespace-current-global-forms
+     ,@namespace-top-level-global-forms
+     ,@namespace-module-registry-global-forms
      ,@logger-current-global-forms
      ,@security-current-global-forms
      ,@void-primitive-global-forms
@@ -513,7 +518,8 @@
            ,@thread-group-current-initializer-forms
            ,@logger-current-initializer-forms
            ,@custodian-current-initializer-forms
-           ,@realm-initializer-forms)
+           ,@realm-initializer-forms
+           ,@namespace-initializer-forms)
      (start $initialize-core-runtime!)
      (export "global:$the-symbol-table" (global $the-symbol-table))
      (export "global:$the-keyword-table" (global $the-keyword-table))
@@ -564,6 +570,8 @@
             io-handler-default-port-global-names)
      ,@(map core-runtime-global-export-form
             namespace-current-global-names)
+     ,@(map core-runtime-global-export-form
+            namespace-top-level-global-names)
      ,@(map core-runtime-global-export-form
             logger-current-global-names)
      ,@(map core-runtime-global-export-form
@@ -1229,6 +1237,8 @@
   (check-true (hash-has-key? core-runtime-global-name-set '$current-environment-variables-value))
   (check-true (hash-has-key? core-runtime-global-name-set '$current-print-value))
   (check-true (hash-has-key? core-runtime-global-name-set '$current-logger-value))
+  (check-true (hash-has-key? core-runtime-global-name-set '$top-level-namespace))
+  (check-true (hash-has-key? core-runtime-global-name-set '$empty-module-registry))
   (check-true (hash-has-key? core-runtime-global-name-set '$current-security-guard-value))
   (check-true (hash-has-key? core-runtime-global-name-set '$current-custodian-value))
   (check-true (hash-has-key? core-runtime-global-name-set '$prim:void))
@@ -1520,6 +1530,10 @@
   (check-true (for/or ([form (in-list core-forms)])
                 (global-form-named? '$current-namespace-value form)))
   (check-true (for/or ([form (in-list core-forms)])
+                (global-form-named? '$top-level-namespace form)))
+  (check-true (for/or ([form (in-list core-forms)])
+                (global-form-named? '$empty-module-registry form)))
+  (check-true (for/or ([form (in-list core-forms)])
                 (global-form-named? '$current-logger-value form)))
   (check-true (for/or ([form (in-list core-forms)])
                 (global-form-named? '$current-security-guard-value form)))
@@ -1706,6 +1720,10 @@
                                            '$current-namespace-value
                                            form)))
   (check-true (for/or ([form (in-list core-forms)])
+                (global-export-form-named? "global:$top-level-namespace"
+                                           '$top-level-namespace
+                                           form)))
+  (check-true (for/or ([form (in-list core-forms)])
                 (global-export-form-named? "global:$current-logger-value"
                                            '$current-logger-value
                                            form)))
@@ -1813,6 +1831,10 @@
                 (global-export-form-named? "global:$primitive-table-user-installed"
                                            '$primitive-table-user-installed
                                            form)))
+  (check-true (for/or ([form (in-list core-forms)])
+                (global-export-form-named? "global:$empty-module-registry"
+                                           '$empty-module-registry
+                                           form)))
   (for ([name (in-list closure-core-global-names)])
     (check-true (for/or ([form (in-list core-forms)])
                   (global-export-form-named?
@@ -1852,6 +1874,20 @@
        [`(func $initialize-core-runtime! ,body ...)
         (for/or ([part (in-list body)])
           (form-contains-global-set? '$char-general-category-symbols part))]
+       [_ #f])))
+  (check-not-false
+   (for/or ([form (in-list core-forms)])
+     (match form
+       [`(func $initialize-core-runtime! ,body ...)
+        (for/or ([part (in-list body)])
+          (form-contains-global-set? '$top-level-namespace part))]
+       [_ #f])))
+  (check-not-false
+   (for/or ([form (in-list core-forms)])
+     (match form
+       [`(func $initialize-core-runtime! ,body ...)
+        (for/or ([part (in-list body)])
+          (form-contains-global-set? '$current-namespace-value part))]
        [_ #f])))
   (check-not-false (member '(start $initialize-core-runtime!) core-forms))
   (define string-converter-functions

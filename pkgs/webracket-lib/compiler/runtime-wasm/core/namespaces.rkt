@@ -4,12 +4,15 @@
          namespace-current-global-names
          namespace-initializer-forms
          namespace-module-registry-global-forms
+         namespace-module-registry-global-names
+         namespace-core-runtime-helpers
          namespace-runtime-string-constants
          namespace-runtime-symbol-constants
          namespace-runtime-only-helpers
          namespace-runtime-only-helper-names
          namespace-runtime-helper-forms
-         namespace-top-level-global-forms)
+         namespace-top-level-global-forms
+         namespace-top-level-global-names)
 
 (require "../core-helper.rkt")
 
@@ -54,6 +57,11 @@
   '(
          (global $top-level-namespace (mut (ref null $Namespace)) (ref.null $Namespace))))
 
+;; namespace-top-level-global-names : (listof symbol?)
+;;   Enumerate top-level namespace globals shared by split modules.
+(define namespace-top-level-global-names
+  (map namespace-global-form-name namespace-top-level-global-forms))
+
 ;; namespace-module-registry-global-forms : (listof datum?)
 ;;   Declare the empty namespace module registry value.
 (define namespace-module-registry-global-forms
@@ -63,6 +71,11 @@
                  (struct.new $ModuleRegistry
                              (i32.const 0)
                              (array.new $Array (global.get $null) (i32.const 0))))))
+
+;; namespace-module-registry-global-names : (listof symbol?)
+;;   Enumerate namespace registry constants shared by split modules.
+(define namespace-module-registry-global-names
+  (map namespace-global-form-name namespace-module-registry-global-forms))
 
 ;; namespace-initializer-forms : (listof datum?)
 ;;   Initialize the top-level and current namespaces.
@@ -88,6 +101,11 @@
     $namespace-undefine-variable!/checked
     $namespace-has-key?
     $namespace-has-key?/checked))
+
+;; namespace-core-runtime-helper-names : (listof symbol?)
+;;   Name namespace helpers available in the standalone core runtime.
+(define namespace-core-runtime-helper-names
+  '($make-empty-namespace))
 
 ;; namespace-runtime-only-forms : (listof datum?)
 ;;   Enumerate namespace helpers used by the monolithic runtime.
@@ -326,6 +344,12 @@
    'namespace-runtime-only-helpers
    namespace-runtime-only-forms))
 
+;; namespace-core-runtime-helpers : (listof core-runtime-helper?)
+;;   Enumerate namespace helpers owned by the standalone core runtime.
+(define namespace-core-runtime-helpers
+  (select-runtime-helpers namespace-runtime-only-helpers
+                          namespace-core-runtime-helper-names))
+
 ;; namespace-runtime-helper-forms : hasheq? -> (listof datum?)
 ;;   Render namespace helpers in runtime assembly order.
 (define (namespace-runtime-helper-forms helper-index)
@@ -343,6 +367,14 @@
   (define namespace-helper-index
     (make-core-runtime-helper-index namespace-runtime-only-helpers))
 
+  (check-equal? namespace-current-global-names
+                '($current-namespace-value))
+  (check-equal? namespace-top-level-global-names
+                '($top-level-namespace))
+  (check-equal? namespace-module-registry-global-names
+                '($empty-module-registry))
+  (check-equal? (map core-runtime-helper-name namespace-core-runtime-helpers)
+                namespace-core-runtime-helper-names)
   (check-equal?
    (map form-name (namespace-runtime-helper-forms namespace-helper-index))
    namespace-runtime-only-helper-names))
