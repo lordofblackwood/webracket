@@ -2,6 +2,8 @@
 
 (provide list-core-runtime-helpers
          pair-global-forms
+         list-higher-order-primitive-global-forms
+         list-higher-order-primitive-global-names
          list-pre-contract-runtime-helper-forms
          list-post-contract-runtime-helper-forms
          list-runtime-string-constants
@@ -10,6 +12,15 @@
 
 (require "../core-helper.rkt"
          "../../private/wasm-utils.rkt")
+
+;; list-global-form-name : datum? -> symbol?
+;;   Return the Wasm global name declared by a list support global form.
+(define (list-global-form-name form)
+  (match form
+    [`(global ,name . ,_) name]
+    [_ (error 'list-global-form-name
+              "expected global form, got: ~s"
+              form)]))
 
 ;; list-runtime-string-constants : (listof (list/c symbol? string?))
 ;;   Declare string constants used by pair/list predicates and list errors.
@@ -76,6 +87,24 @@
                              (i32.const 0)            ;; hash = 0
                              (global.get $false)      ;; a = null
                              (global.get $false)))))  ;; d = null
+
+;; list-higher-order-primitive-global-forms : (listof datum?)
+;;   Declare primitive globals used by higher-order list helpers for error reporting.
+(define list-higher-order-primitive-global-forms
+  '(
+               (global $prim:map        (mut (ref eq)) (global.get $undefined))
+               (global $prim:andmap     (mut (ref eq)) (global.get $undefined))
+               (global $prim:ormap      (mut (ref eq)) (global.get $undefined))
+               (global $prim:for-each   (mut (ref eq)) (global.get $undefined))
+               (global $prim:append-map (mut (ref eq)) (global.get $undefined))
+               (global $prim:count      (mut (ref eq)) (global.get $undefined))
+               (global $prim:foldl      (mut (ref eq)) (global.get $undefined))
+               (global $prim:foldr      (mut (ref eq)) (global.get $undefined))))
+
+;; list-higher-order-primitive-global-names : (listof symbol?)
+;;   Enumerate higher-order list primitive globals shared by split modules.
+(define list-higher-order-primitive-global-names
+  (map list-global-form-name list-higher-order-primitive-global-forms))
 
 ;; list-base-core-runtime-helpers : (listof core-runtime-helper?)
 ;;   Enumerate manually defined list helpers that originated in core runtime.
@@ -7834,6 +7863,17 @@
 
   (define list-helper-index
     (make-core-runtime-helper-index list-runtime-only-helpers))
+
+  (check-equal?
+   list-higher-order-primitive-global-names
+   '($prim:map
+     $prim:andmap
+     $prim:ormap
+     $prim:for-each
+     $prim:append-map
+     $prim:count
+     $prim:foldl
+     $prim:foldr))
 
   (check-equal?
    (map form-name

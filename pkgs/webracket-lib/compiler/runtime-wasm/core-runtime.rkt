@@ -340,6 +340,7 @@
    impersonator-primitive-global-names
    closure-core-global-names
    procedure-global-names
+   list-higher-order-primitive-global-names
    syntax-global-names
    flonum-global-names
    port-current-global-names
@@ -460,6 +461,7 @@
      ,@impersonator-primitive-global-forms
      ,@closure-core-global-forms
      ,@procedure-global-forms
+     ,@list-higher-order-primitive-global-forms
      ,@syntax-global-forms
      ,@port-current-global-forms
      ,@path-current-global-forms
@@ -536,6 +538,8 @@
             closure-core-global-names)
      ,@(map core-runtime-global-export-form
             procedure-global-names)
+     ,@(map core-runtime-global-export-form
+            list-higher-order-primitive-global-names)
      ,@(map core-runtime-global-export-form
             syntax-global-names)
      ,@(map core-runtime-global-export-form
@@ -1191,6 +1195,14 @@
   (check-true (hash-has-key? core-runtime-global-name-set '$escape-continuation-closure))
   (check-true (hash-has-key? core-runtime-global-name-set '$closedapp-clos))
   (check-true (hash-has-key? core-runtime-global-name-set '$arity-at-least-type))
+  (check-true (hash-has-key? core-runtime-global-name-set '$prim:map))
+  (check-true (hash-has-key? core-runtime-global-name-set '$prim:andmap))
+  (check-true (hash-has-key? core-runtime-global-name-set '$prim:ormap))
+  (check-true (hash-has-key? core-runtime-global-name-set '$prim:for-each))
+  (check-true (hash-has-key? core-runtime-global-name-set '$prim:append-map))
+  (check-true (hash-has-key? core-runtime-global-name-set '$prim:count))
+  (check-true (hash-has-key? core-runtime-global-name-set '$prim:foldl))
+  (check-true (hash-has-key? core-runtime-global-name-set '$prim:foldr))
   (check-true (hash-has-key? core-runtime-global-name-set '$syntax-type))
   (check-true (hash-has-key? core-runtime-global-name-set '$current-output-port-value))
   (check-true (hash-has-key? core-runtime-global-name-set '$system-path-convention))
@@ -1784,6 +1796,12 @@
                                            '$primitive-table-user-installed
                                            form)))
   (for ([name (in-list closure-core-global-names)])
+    (check-true (for/or ([form (in-list core-forms)])
+                  (global-export-form-named?
+                   (format "global:~a" name)
+                   name
+                   form))))
+  (for ([name (in-list list-higher-order-primitive-global-names)])
     (check-true (for/or ([form (in-list core-forms)])
                   (global-export-form-named?
                    (format "global:~a" name)
