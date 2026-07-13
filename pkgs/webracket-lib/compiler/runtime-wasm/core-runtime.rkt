@@ -32,6 +32,7 @@
          "core/boxes.rkt"
          "core/bytes.rkt"
          "core/characters.rkt"
+         "core/closures.rkt"
          "core/control-flow.rkt"
          "core/equality.rkt"
          "core/exceptions.rkt"
@@ -337,6 +338,7 @@
    struct-equal+hash-recur-global-names
    equality-primitive-global-names
    impersonator-primitive-global-names
+   closure-core-global-names
    procedure-global-names
    syntax-global-names
    flonum-global-names
@@ -456,6 +458,7 @@
      ,@struct-equal+hash-recur-global-forms
      ,@equality-primitive-global-forms
      ,@impersonator-primitive-global-forms
+     ,@closure-core-global-forms
      ,@procedure-global-forms
      ,@syntax-global-forms
      ,@port-current-global-forms
@@ -529,6 +532,8 @@
             equality-primitive-global-names)
      ,@(map core-runtime-global-export-form
             impersonator-primitive-global-names)
+     ,@(map core-runtime-global-export-form
+            closure-core-global-names)
      ,@(map core-runtime-global-export-form
             procedure-global-names)
      ,@(map core-runtime-global-export-form
@@ -1181,6 +1186,10 @@
   (check-true (hash-has-key? core-runtime-global-name-set '$prim:equal-always?))
   (check-true (hash-has-key? core-runtime-global-name-set '$prim:webracket-impersonator-property-predicate))
   (check-true (hash-has-key? core-runtime-global-name-set '$prim:webracket-impersonator-property-accessor))
+  (check-true (hash-has-key? core-runtime-global-name-set '$dummy-closure))
+  (check-true (hash-has-key? core-runtime-global-name-set '$placeholder-linklet-closure))
+  (check-true (hash-has-key? core-runtime-global-name-set '$escape-continuation-closure))
+  (check-true (hash-has-key? core-runtime-global-name-set '$closedapp-clos))
   (check-true (hash-has-key? core-runtime-global-name-set '$arity-at-least-type))
   (check-true (hash-has-key? core-runtime-global-name-set '$syntax-type))
   (check-true (hash-has-key? core-runtime-global-name-set '$current-output-port-value))
@@ -1774,6 +1783,12 @@
                 (global-export-form-named? "global:$primitive-table-user-installed"
                                            '$primitive-table-user-installed
                                            form)))
+  (for ([name (in-list closure-core-global-names)])
+    (check-true (for/or ([form (in-list core-forms)])
+                  (global-export-form-named?
+                   (format "global:~a" name)
+                   name
+                   form))))
   (for ([name (in-list io-handler-default-port-global-names)])
     (check-true (for/or ([form (in-list core-forms)])
                   (global-export-form-named?

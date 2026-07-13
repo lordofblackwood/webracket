@@ -164,6 +164,7 @@
 ;;   Name source-linklet interpreter helpers available in the standalone core runtime.
 (define linklet-interpreter-promoted-runtime-helper-names
   '($dummy-code
+    $placeholder-linklet-code
     $linklet-datum-body-list))
 
 ;; linklet-primitive-table-initializer-runtime-only-helper-names : (listof symbol?)
