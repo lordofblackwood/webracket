@@ -4894,7 +4894,8 @@
     $exn:fail:syntax-ensure-exprs
     $exn?
     $exn-message
-    $raise-arguments-error))
+    $raise-arguments-error
+    $raise-expected-fixnum))
 
 ;; exception-core-runtime-helpers : (listof core-runtime-helper?)
 ;;   Enumerate exception helpers available in the standalone core runtime.

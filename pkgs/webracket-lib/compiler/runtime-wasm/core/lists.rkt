@@ -7588,15 +7588,80 @@
                           (br $rev)))
              (local.get $res)))))))
 
+;; list-post-contract-runtime-helper-names : (listof symbol?)
+;;   Preserve list helper emission order after generic contract helpers.
+(define list-post-contract-runtime-helper-names
+  (append
+   '($list-from-range
+     $list-from-range/checked
+     $map
+     $andmap
+     $ormap
+     $validate-list-args
+     $seed-list-args
+     $append-map
+     $count
+     $for-each
+     $foldl
+     $foldl/1
+     $foldl/2
+     $foldl/n
+     $foldr
+     $foldr/1-loop
+     $foldr/1
+     $foldr/2-loop
+     $foldr/2
+     $foldr/n-loop
+     $foldr/n
+     $filter
+     $filter-map
+     $filter-not
+     $shuffle
+     $partition
+     $remove
+     $remf
+     $remf*
+     $remf/impl)
+   list-remove-runtime-only-helper-names
+   '($remove*
+     $remove*/checked
+     $remove*/checked/1)
+   list-remove-star-runtime-only-helper-names
+   '($raise-take:bad-length
+     $raise-take:bad-length/who
+     $raise-take-right:bad-length
+     $raise-take-right:bad-length/who
+     $take/who
+     $take
+     $take-right/who
+     $take-right
+     $takef
+     $takef-right
+     $list-prefix?
+     $take-common-prefix
+     $drop-common-prefix
+     $split-common-prefix
+     $add-between
+     $sort
+     $sort/expanded-keywords
+     $sort/keyword-apply
+     $sort:merge
+     $sort:merge/key
+     $sort:split
+     $sort:merge-sort
+     $sort:merge-sort/key
+     $sort:cache-key-pairs
+     $sort:extract-cached-values
+     $sort:merge/cached-key
+     $sort:merge-sort/cached-key)))
+
 ;; list-promoted-runtime-helper-names : (listof symbol?)
 ;;   Name runtime list helpers that are available in the standalone core runtime.
 (define list-promoted-runtime-helper-names
-  (append
-   '($raise-bad-list-ref-index
-     $raise-bad-list-ref-index/who
-     $raise-list-expected/who
-     $raise-list-not-enough-elements/who
-     $car
+  (remove-duplicates
+   (append
+    list-error-runtime-only-helper-names
+    '($car
      $cdr
      $length/i32
      $length
@@ -7614,33 +7679,56 @@
      $append/2
      $reverse
      $alt-reverse
+     $list-set/checked
+     $list-set
+     $drop-right/who
+     $drop-right
+     $dropf
+     $dropf-right
+     $split-at
+     $split-at-right
+     $splitf-at
+     $splitf-at-right
+     $qq-append
+     $append*
+     $flatten
+     $memf
+     $assf
+     $findf
+     $index-of
+     $index-where
+     $indexes-of
+     $indexes-where
      $raise-range:real-expected
      $validate-list-args
      $seed-list-args
-	     $remove
-	     $remove*
-	     $remove*/checked
-	     $remove*/checked/1
-	     $foldr/1-loop
-	     $foldr/2-loop
-	     $foldr/n-loop)
-   pair-accessor-runtime-only-helper-names
-   list-ordinal-accessor-runtime-only-helper-names
-   list-remove-runtime-only-helper-names
-   list-remove-star-runtime-only-helper-names
-   '($add-between
-     $sort
-     $sort/expanded-keywords
-     $sort/keyword-apply
-     $sort:merge
-     $sort:merge/key
-     $sort:split
-     $sort:merge-sort
-     $sort:merge-sort/key
-     $sort:cache-key-pairs
-     $sort:extract-cached-values
-     $sort:merge/cached-key
-     $sort:merge-sort/cached-key)))
+     $cartesian-product
+     $permutations
+     $make-list
+     $build-list
+     $build-list/checked
+     $raise-range:zero-step
+     $range-proc
+     $range
+     $range/fixnum
+     $range/flonum
+     $inclusive-range-proc
+     $inclusive-range
+     $inclusive-range/fixnum
+     $inclusive-range/flonum
+     $list-update/checked/who
+     $list-update/checked
+     $list-update
+     $argmax
+     $argmin)
+    pair-accessor-runtime-only-helper-names
+    list-ordinal-accessor-runtime-only-helper-names
+    list-member-runtime-only-helper-names
+    list-association-runtime-only-helper-names
+    list-group-by-runtime-only-helper-names
+    list-remove-runtime-only-helper-names
+    list-remove-star-runtime-only-helper-names
+    list-post-contract-runtime-helper-names)))
 
 ;; list-core-runtime-helpers : (listof core-runtime-helper?)
 ;;   Enumerate list helpers available in the standalone core runtime.
@@ -7710,126 +7798,59 @@
      (core    $list-tail/checked/who)
      (core    $list-tail/checked)
      (core    $list-tail)
-     (runtime $list-set/checked)
-     (runtime $list-set)
+     (core    $list-set/checked)
+     (core    $list-set)
      (core    $drop/who)
      (core    $drop)
-     (runtime $drop-right/who)
-     (runtime $drop-right)
-     (runtime $dropf)
-     (runtime $dropf-right)
-     (runtime $split-at)
-     (runtime $split-at-right)
-     (runtime $splitf-at)
-     (runtime $splitf-at-right)
+     (core    $drop-right/who)
+     (core    $drop-right)
+     (core    $dropf)
+     (core    $dropf-right)
+     (core    $split-at)
+     (core    $split-at-right)
+     (core    $splitf-at)
+     (core    $splitf-at-right)
      (core    $append)
      (core    $append/2)
-     (runtime $qq-append)
-     (runtime $append*)
-     (runtime $flatten)
+     (core    $qq-append)
+     (core    $append*)
+     (core    $flatten)
      (core    $reverse)
      (core    $alt-reverse))
    (for/list ([name (in-list list-member-runtime-only-helper-names)])
-     (list 'runtime name))
-   '((runtime $memf))
+     (list-helper-spec name))
+   '((core    $memf))
    (for/list ([name (in-list list-association-runtime-only-helper-names)])
-     (list 'runtime name))
-   '((runtime $assf)
-     (runtime $findf)
-     (runtime $index-of)
-     (runtime $index-where)
-     (runtime $indexes-of)
-     (runtime $indexes-where))
+     (list-helper-spec name))
+   '((core    $assf)
+     (core    $findf)
+     (core    $index-of)
+     (core    $index-where)
+     (core    $indexes-of)
+     (core    $indexes-where))
    (for/list ([name (in-list list-group-by-runtime-only-helper-names)])
-     (list 'runtime name))
-   '((runtime $cartesian-product)
-     (runtime $permutations)
-     (runtime $make-list)
+     (list-helper-spec name))
+   '((core    $cartesian-product)
+     (core    $permutations)
+     (core    $make-list)
      (core    $make-list/checked)
-     (runtime $build-list)
-     (runtime $build-list/checked)
+     (core    $build-list)
+     (core    $build-list/checked)
      (core    $raise-range:real-expected)
-     (runtime $raise-range:zero-step)
-     (runtime $range-proc)
-     (runtime $range)
-     (runtime $range/fixnum)
-     (runtime $range/flonum)
-     (runtime $inclusive-range-proc)
-     (runtime $inclusive-range)
-     (runtime $inclusive-range/fixnum)
-     (runtime $inclusive-range/flonum)
-     (runtime $list-update/checked/who)
-     (runtime $list-update/checked)
-     (runtime $list-update)
-     (runtime $argmax)
-     (runtime $argmin))))
-
-;; list-post-contract-runtime-helper-names : (listof symbol?)
-;;   Preserve list helper emission order after generic contract helpers.
-(define list-post-contract-runtime-helper-names
-  (append
-   '($list-from-range
-     $list-from-range/checked
-     $map
-     $andmap
-     $ormap
-     $validate-list-args
-     $seed-list-args
-     $append-map
-     $count
-     $for-each
-     $foldl
-     $foldl/1
-     $foldl/2
-     $foldl/n
-     $foldr
-     $foldr/1-loop
-     $foldr/1
-     $foldr/2-loop
-     $foldr/2
-     $foldr/n-loop
-     $foldr/n
-     $filter
-     $filter-map
-     $filter-not
-     $shuffle
-     $partition
-     $remove
-     $remf
-     $remf*
-     $remf/impl)
-   list-remove-runtime-only-helper-names
-   '($remove*
-     $remove*/checked
-     $remove*/checked/1)
-   list-remove-star-runtime-only-helper-names
-   '($raise-take:bad-length
-     $raise-take:bad-length/who
-     $raise-take-right:bad-length
-     $raise-take-right:bad-length/who
-     $take/who
-     $take
-     $take-right/who
-     $take-right
-     $takef
-     $takef-right
-     $list-prefix?
-     $take-common-prefix
-     $drop-common-prefix
-     $split-common-prefix
-     $add-between
-     $sort
-     $sort/expanded-keywords
-     $sort/keyword-apply
-     $sort:merge
-     $sort:merge/key
-     $sort:split
-     $sort:merge-sort
-     $sort:merge-sort/key
-     $sort:cache-key-pairs
-     $sort:extract-cached-values
-     $sort:merge/cached-key
-     $sort:merge-sort/cached-key)))
+     (core    $raise-range:zero-step)
+     (core    $range-proc)
+     (core    $range)
+     (core    $range/fixnum)
+     (core    $range/flonum)
+     (core    $inclusive-range-proc)
+     (core    $inclusive-range)
+     (core    $inclusive-range/fixnum)
+     (core    $inclusive-range/flonum)
+     (core    $list-update/checked/who)
+     (core    $list-update/checked)
+     (core    $list-update)
+     (core    $argmax)
+     (core    $argmin))))
 
 ;; list-post-contract-runtime-helper-specs : (listof (list/c symbol? symbol?))
 ;;   Preserve post-contract list helper order while selecting core/runtime sources.
