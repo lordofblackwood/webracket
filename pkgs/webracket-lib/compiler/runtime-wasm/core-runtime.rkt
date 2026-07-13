@@ -362,7 +362,8 @@
    exception-read-primitive-global-names
    exception-struct-type-cache-global-names
    filesystem-temporary-global-names
-   symbol-gensym-global-names))
+   symbol-gensym-global-names
+   linklet-primitive-table-global-names))
 
 ;; core-runtime-program-import-tag-names : (listof symbol?)
 ;;   Name core tags that split-core program modules must share for catch/throw identity.
@@ -479,6 +480,7 @@
      ,@exception-struct-type-cache-global-forms
      ,@filesystem-temporary-global-forms
      ,@symbol-gensym-global-forms
+     ,@linklet-primitive-table-global-forms
      ,@symbol-table-global-forms
      ,@keyword-table-global-forms
      ,@struct-prefab-registry-global-forms
@@ -578,6 +580,8 @@
             filesystem-temporary-global-names)
      ,@(map core-runtime-global-export-form
             symbol-gensym-global-names)
+     ,@(map core-runtime-global-export-form
+            linklet-primitive-table-global-names)
      ,@(map core-runtime-tag-export-form
             core-runtime-program-import-tag-names)
      ,@(map core-runtime-global-export-form
@@ -1207,6 +1211,7 @@
   (check-true (hash-has-key? core-runtime-global-name-set '$prim:exn:fail:read-srclocs))
   (check-true (hash-has-key? core-runtime-global-name-set '$temporary-file-counter))
   (check-true (hash-has-key? core-runtime-global-name-set '$gensym-counter))
+  (check-true (hash-has-key? core-runtime-global-name-set '$primitive-table-user-installed))
   (check-true (hash-has-key? core-runtime-global-name-set '$dummy-treelist-node))
   (check-true (hash-has-key? core-runtime-global-name-set '$empty-treelist))
   (check-true (hash-has-key? core-runtime-global-name-set '$treelist:BITS))
@@ -1755,6 +1760,10 @@
   (check-true (for/or ([form (in-list core-forms)])
                 (global-export-form-named? "global:$gensym-counter"
                                            '$gensym-counter
+                                           form)))
+  (check-true (for/or ([form (in-list core-forms)])
+                (global-export-form-named? "global:$primitive-table-user-installed"
+                                           '$primitive-table-user-installed
                                            form)))
   (check-true (for/or ([form (in-list core-forms)])
                 (tag-export-form-named? "tag:$exn" '$exn form)))

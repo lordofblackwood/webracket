@@ -15,6 +15,7 @@
          linklet-interpreter-runtime-helper-forms
          linklet-interpreter-runtime-only-helpers
          linklet-primitive-table-global-forms
+         linklet-primitive-table-global-names
          linklet-primitive-table-initializer-runtime-only-helper-names
          linklet-primitive-table-initializer-runtime-helper-forms
          linklet-primitive-table-initializer-runtime-only-helpers
@@ -24,6 +25,15 @@
 
 (require "../core-helper.rkt"
          "../../private/wasm-utils.rkt")
+
+;; linklet-global-form-name : datum? -> symbol?
+;;   Return the Wasm global name declared by a linklet support global form.
+(define (linklet-global-form-name form)
+  (match form
+    [`(global ,name . ,_) name]
+    [_ (error 'linklet-global-form-name
+              "expected global form, got: ~s"
+              form)]))
 
 ;; linklet-runtime-string-constants : (listof (list/c symbol? string?))
 ;;   Declare strings used by source-linklet and compiled-linklet helpers.
@@ -120,6 +130,11 @@
          ;; path needed by the expander startup path.
          (global $primitive-table-user-installed (mut (ref null $HashEqMutable)) (ref.null $HashEqMutable))))
 
+;; linklet-primitive-table-global-names : (listof symbol?)
+;;   Enumerate primitive-table bridge globals shared by split modules.
+(define linklet-primitive-table-global-names
+  (map linklet-global-form-name linklet-primitive-table-global-forms))
+
 ;; make-predicate-body : symbol? -> (listof datum?)
 ;;   Generate a standard WebRacket predicate body for ref-type.
 (define (make-predicate-body ref-type)
@@ -152,7 +167,7 @@
     $linklet-datum-body-list))
 
 ;; linklet-primitive-table-initializer-runtime-only-helper-names : (listof symbol?)
-;;   Preserve the runtime emission order for primitive-table initializer helpers.
+;;   Preserve the runtime-only emission order for primitive-table initializer helpers.
 (define linklet-primitive-table-initializer-runtime-only-helper-names
   '($initialize-primitive-table-user-installed))
 
@@ -945,14 +960,8 @@
 (define linklet-interpreter-runtime-only-helper-names
   (map core-runtime-helper-name linklet-interpreter-runtime-only-helpers))
 
-;; linklet-core-runtime-helpers : (listof core-runtime-helper?)
-;;   Enumerate linklet helpers available in the standalone core runtime.
-(define linklet-core-runtime-helpers
-  (append linklet-bootstrap-core-runtime-helpers
-          linklet-interpreter-core-runtime-helpers))
-
 ;; linklet-primitive-table-initializer-runtime-only-helpers : (listof core-runtime-helper?)
-;;   Enumerate primitive-table initializer helpers used by the monolithic runtime.
+;;   Enumerate primitive-table initializer helpers.
 (define linklet-primitive-table-initializer-runtime-only-helpers
   (function-forms->runtime-helpers
    'linklet-primitive-table-initializer-runtime-only-helpers
@@ -964,6 +973,12 @@
                                 (ref.cast (ref $HashEqMutable)
                                           (call $make-empty-hasheq))))))
      )))
+
+;; linklet-core-runtime-helpers : (listof core-runtime-helper?)
+;;   Enumerate linklet helpers available in the standalone core runtime.
+(define linklet-core-runtime-helpers
+  (append linklet-bootstrap-core-runtime-helpers
+          linklet-interpreter-core-runtime-helpers))
 
 ;; linklet-registered-helper-forms : hasheq? (listof symbol?) -> (listof datum?)
 ;;   Render the given registered linklet helper names from the runtime helper index.
@@ -1878,6 +1893,10 @@
    linklet-bootstrap-promoted-runtime-helper-names)
 
   (check-equal?
+   linklet-primitive-table-global-names
+   '($primitive-table-user-installed))
+
+  (check-equal?
    (map form-name
         (linklet-bootstrap-core-runtime-helper-forms linklet-core-helper-index))
    linklet-bootstrap-promoted-runtime-helper-names)
@@ -1900,6 +1919,10 @@
    (map form-name
         (linklet-primitive-table-initializer-runtime-helper-forms linklet-helper-index))
    linklet-primitive-table-initializer-runtime-only-helper-names)
+
+  (check-equal?
+   linklet-primitive-table-initializer-runtime-only-helper-names
+   '($initialize-primitive-table-user-installed))
 
   (check-equal?
    (map form-name
