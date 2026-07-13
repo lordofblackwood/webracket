@@ -19,6 +19,7 @@
          retained-function-set
          retained-runtime-sets
          split-module-forms
+         split-runtime-request-cache-fingerprint
          stable-runtime-analysis-cache-fingerprint
          stable-runtime-analysis-cache-path
          stable-runtime-analysis-module
@@ -231,6 +232,25 @@
     ,(if browser? 'browser 'node)
     ,runtime-source-fingerprint
     ,(stable-runtime-module-signature runtime-module)
+    ,(sort (map foreign-racket-name active-ffi-foreigns) symbol<?)
+    ,(equal-hash-code active-ffi-imports-wat)
+    ,(equal-hash-code active-ffi-funcs-wat)))
+
+;; split-runtime-request-cache-fingerprint :
+;;   #:browser? boolean? #:runtime-source-fingerprint any/c
+;;   #:active-ffi-foreigns list? #:active-ffi-imports-wat list?
+;;   #:active-ffi-funcs-wat list? -> list?
+;;   Fingerprint the stable split-runtime build request without a generated module.
+(define (split-runtime-request-cache-fingerprint
+         #:browser? browser?
+         #:runtime-source-fingerprint runtime-source-fingerprint
+         #:active-ffi-foreigns active-ffi-foreigns
+         #:active-ffi-imports-wat active-ffi-imports-wat
+         #:active-ffi-funcs-wat active-ffi-funcs-wat)
+  `(split-runtime-request-cache
+    1
+    ,(if browser? 'browser 'node)
+    ,runtime-source-fingerprint
     ,(sort (map foreign-racket-name active-ffi-foreigns) symbol<?)
     ,(equal-hash-code active-ffi-imports-wat)
     ,(equal-hash-code active-ffi-funcs-wat)))
@@ -1179,6 +1199,51 @@
   (check-equal? cache-fingerprint-same-shape cache-fingerprint-a)
   (check-not-equal? cache-fingerprint-different-shape cache-fingerprint-a)
   (check-not-equal? cache-fingerprint-different-source cache-fingerprint-a)
+
+  (define split-request-fingerprint-a
+    (split-runtime-request-cache-fingerprint
+     #:browser? #f
+     #:runtime-source-fingerprint '(source a)
+     #:active-ffi-foreigns '()
+     #:active-ffi-imports-wat '((func $ffi/imported))
+     #:active-ffi-funcs-wat '((func $ffi))))
+  (define split-request-fingerprint-same
+    (split-runtime-request-cache-fingerprint
+     #:browser? #f
+     #:runtime-source-fingerprint '(source a)
+     #:active-ffi-foreigns '()
+     #:active-ffi-imports-wat '((func $ffi/imported))
+     #:active-ffi-funcs-wat '((func $ffi))))
+  (define split-request-fingerprint-different-host
+    (split-runtime-request-cache-fingerprint
+     #:browser? #t
+     #:runtime-source-fingerprint '(source a)
+     #:active-ffi-foreigns '()
+     #:active-ffi-imports-wat '((func $ffi/imported))
+     #:active-ffi-funcs-wat '((func $ffi))))
+  (define split-request-fingerprint-different-source
+    (split-runtime-request-cache-fingerprint
+     #:browser? #f
+     #:runtime-source-fingerprint '(source b)
+     #:active-ffi-foreigns '()
+     #:active-ffi-imports-wat '((func $ffi/imported))
+     #:active-ffi-funcs-wat '((func $ffi))))
+  (define split-request-fingerprint-different-ffi
+    (split-runtime-request-cache-fingerprint
+     #:browser? #f
+     #:runtime-source-fingerprint '(source a)
+     #:active-ffi-foreigns '()
+     #:active-ffi-imports-wat '((func $other/imported))
+     #:active-ffi-funcs-wat '((func $ffi))))
+  (check-match split-request-fingerprint-a
+    `(split-runtime-request-cache 1 node ,_ ,_ ,_ ,_))
+  (check-equal? split-request-fingerprint-same split-request-fingerprint-a)
+  (check-not-equal? split-request-fingerprint-different-host
+                    split-request-fingerprint-a)
+  (check-not-equal? split-request-fingerprint-different-source
+                    split-request-fingerprint-a)
+  (check-not-equal? split-request-fingerprint-different-ffi
+                    split-request-fingerprint-a)
 
   (define primitive-func->symbol
     (hasheq '$p 'p '$q 'q))

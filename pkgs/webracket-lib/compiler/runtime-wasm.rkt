@@ -31,7 +31,7 @@
                   analyzed-runtime-module-module
                   analyzed-runtime-module-program-forms
                   analyzed-runtime-module-runtime-forms
-                  analyzed-runtime-module-stable-runtime-cache-fingerprint)
+                  split-runtime-request-cache-fingerprint)
          (only-in "runtime-wasm/runtime-helper-index.rkt"
                   runtime-helper-index)
          (only-in "runtime-wasm/runtime-ffi.rkt"
@@ -67,6 +67,8 @@
                   runtime-primitive-state-initializer-forms
                   runtime-primitive-state-primitive-func->symbol
                   runtime-primitive-state-primitive-global->symbol)
+         (only-in "runtime-wasm/runtime-source.rkt"
+                  runtime-source-fingerprint)
          (only-in "runtime-wasm/core/arrays.rkt"
                   array-core-runtime-helper-forms
                   array-runtime-helper-forms)
@@ -1935,6 +1937,29 @@
     (runtime-ffi-state-record-metrics! ffi-state)
     (runtime-metric-add! "runtime:program-primitive-count"
                          (length used-primitives))
+    (define stable-runtime-active-ffi-foreigns
+      (if (split-direct-ffi-program-side?)
+          '()
+          (runtime-ffi-state-active-foreigns ffi-state)))
+    (define stable-runtime-active-ffi-imports-wat
+      (if (split-direct-ffi-program-side?)
+          '()
+          (runtime-ffi-state-active-imports-wat ffi-state)))
+    (define stable-runtime-active-ffi-funcs-wat
+      (if (split-direct-ffi-program-side?)
+          '()
+          (runtime-ffi-state-active-funcs-wat ffi-state)))
+    (define split-runtime-request-fingerprint
+      (and (current-split-runtime?)
+           (time-runtime-step
+            "runtime:split-runtime-request-cache-fingerprint"
+            (lambda ()
+              (split-runtime-request-cache-fingerprint
+               #:browser? (current-browser?)
+               #:runtime-source-fingerprint (runtime-source-fingerprint)
+               #:active-ffi-foreigns stable-runtime-active-ffi-foreigns
+               #:active-ffi-imports-wat stable-runtime-active-ffi-imports-wat
+               #:active-ffi-funcs-wat stable-runtime-active-ffi-funcs-wat)))))
     (define full-module
       (time-runtime-step "runtime:build-runtime-module" build-runtime-module))
     (define analyzed-module
@@ -1953,17 +1978,11 @@
        #:active-ffi-imports-wat (runtime-ffi-state-active-imports-wat ffi-state)
        #:active-ffi-funcs-wat (runtime-ffi-state-active-funcs-wat ffi-state)
        #:stable-runtime-active-ffi-foreigns
-       (if (split-direct-ffi-program-side?)
-           '()
-           (runtime-ffi-state-active-foreigns ffi-state))
+       stable-runtime-active-ffi-foreigns
        #:stable-runtime-active-ffi-imports-wat
-       (if (split-direct-ffi-program-side?)
-           '()
-           (runtime-ffi-state-active-imports-wat ffi-state))
+       stable-runtime-active-ffi-imports-wat
        #:stable-runtime-active-ffi-funcs-wat
-       (if (split-direct-ffi-program-side?)
-           '()
-           (runtime-ffi-state-active-funcs-wat ffi-state))
+       stable-runtime-active-ffi-funcs-wat
        #:extra-program-function-names (split-program-ffi-function-names)
        #:extra-program-global-names (split-program-ffi-global-names)
        #:described-primitives described-primitives
@@ -1985,9 +2004,8 @@
             (analyzed-runtime-module-program-forms analyzed-module)
             #:core-cache-key
             `(split-runtime-core-cache
-              1
+              2
               ,(if (current-tree-shake?) 'tree-shake 'no-tree-shake)
-              ,(analyzed-runtime-module-stable-runtime-cache-fingerprint
-                analyzed-module)))))
+              ,split-runtime-request-fingerprint))))
         final-module)
     ))
