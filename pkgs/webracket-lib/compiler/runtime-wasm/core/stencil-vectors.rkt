@@ -63,15 +63,7 @@
 ;; stencil-vector-core-runtime-helper-names : (listof symbol?)
 ;;   Name stencil-vector helpers available in the standalone core runtime.
 (define stencil-vector-core-runtime-helper-names
-  '($stencil-vector-mask-width
-    $$stencil-vector-mask-valid?/i32
-    $$stencil-vector-mask/i32
-    $$stencil-vector-popcount/i32
-    $$make-stencil-vector/checked
-    $stencil-vector?
-    $$stencil-vector?
-    $$system-stencil-vector?
-    $$stencil-vector-update/core))
+  stencil-vector-all-runtime-helper-names)
 
 ;; stencil-vector-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime-only stencil-vector helper emission order.
