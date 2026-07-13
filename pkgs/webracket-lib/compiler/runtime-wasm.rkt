@@ -257,6 +257,7 @@
                   current-readtable-runtime-helper-forms
                   current-read-interaction-runtime-helper-forms
                   current-load-relative-directory-runtime-helper-forms
+                  namespace-parameter-core-runtime-helper-forms
                   namespace-parameter-runtime-helper-forms
                   parameterization-binding-core-runtime-helper-forms
                   parameterization-binding-runtime-helper-forms
@@ -1612,6 +1613,9 @@
 
          ;;   Implemented in runtime-wasm/core/parameters.rkt.
          ,@(parameterization-runtime-helper-forms runtime-helper-index)
+
+         ;;   Implemented in runtime-wasm/core/parameters.rkt.
+         ,@(namespace-parameter-core-runtime-helper-forms core-runtime-helper-index)
 
          ;;   Implemented in runtime-wasm/core/parameters.rkt.
          ,@(namespace-parameter-runtime-helper-forms runtime-helper-index)

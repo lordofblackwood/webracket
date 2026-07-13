@@ -61,6 +61,7 @@
          "core/memory-map.rkt"
          "core/mlists.rkt"
          "core/mutable-hashes.rkt"
+         "core/namespaces.rkt"
          "core/numbers.rkt"
          "core/parameters.rkt"
          "core/paths.rkt"
@@ -342,6 +343,7 @@
    character-general-category-global-names
    environment-parameter-global-names
    print-read-parameter-global-names
+   namespace-current-global-names
    logger-current-global-names
    security-current-global-names
    reader-printer-policy-parameter-global-names
@@ -453,6 +455,7 @@
      ,@character-general-category-global-forms
      ,@environment-parameter-global-forms
      ,@print-read-parameter-global-forms
+     ,@namespace-current-global-forms
      ,@logger-current-global-forms
      ,@security-current-global-forms
      ,@reader-printer-policy-parameter-global-forms
@@ -527,6 +530,8 @@
             environment-parameter-global-names)
      ,@(map core-runtime-global-export-form
             print-read-parameter-global-names)
+     ,@(map core-runtime-global-export-form
+            namespace-current-global-names)
      ,@(map core-runtime-global-export-form
             logger-current-global-names)
      ,@(map core-runtime-global-export-form
@@ -1428,6 +1433,8 @@
   (check-true (for/or ([form (in-list core-forms)])
                 (global-form-named? '$current-print-value form)))
   (check-true (for/or ([form (in-list core-forms)])
+                (global-form-named? '$current-namespace-value form)))
+  (check-true (for/or ([form (in-list core-forms)])
                 (global-form-named? '$current-logger-value form)))
   (check-true (for/or ([form (in-list core-forms)])
                 (global-form-named? '$current-security-guard-value form)))
@@ -1453,6 +1460,8 @@
                 (global-form-named? '$prim:current-compile-realm form)))
   (check-true (for/or ([form (in-list core-forms)])
                 (global-form-named? '$prim:current-readtable form)))
+  (check-true (for/or ([form (in-list core-forms)])
+                (global-form-named? '$prim:current-namespace form)))
   (check-true (for/or ([form (in-list core-forms)])
                 (global-form-named? '$prim:print-syntax-width form)))
   (check-true (for/or ([form (in-list core-forms)])
@@ -1582,6 +1591,10 @@
                                            '$current-print-value
                                            form)))
   (check-true (for/or ([form (in-list core-forms)])
+                (global-export-form-named? "global:$current-namespace-value"
+                                           '$current-namespace-value
+                                           form)))
+  (check-true (for/or ([form (in-list core-forms)])
                 (global-export-form-named? "global:$current-logger-value"
                                            '$current-logger-value
                                            form)))
@@ -1632,6 +1645,10 @@
   (check-true (for/or ([form (in-list core-forms)])
                 (global-export-form-named? "global:$prim:current-readtable"
                                            '$prim:current-readtable
+                                           form)))
+  (check-true (for/or ([form (in-list core-forms)])
+                (global-export-form-named? "global:$prim:current-namespace"
+                                           '$prim:current-namespace
                                            form)))
   (check-true (for/or ([form (in-list core-forms)])
                 (global-export-form-named? "global:$prim:print-syntax-width"

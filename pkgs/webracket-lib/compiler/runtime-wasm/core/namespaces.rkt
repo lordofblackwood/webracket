@@ -1,6 +1,7 @@
 #lang racket
 
 (provide namespace-current-global-forms
+         namespace-current-global-names
          namespace-initializer-forms
          namespace-module-registry-global-forms
          namespace-runtime-string-constants
@@ -32,6 +33,20 @@
 (define namespace-current-global-forms
   '(
                (global $current-namespace-value (mut (ref eq)) (global.get $false))))
+
+;; namespace-global-form-name : datum? -> symbol?
+;;   Return the Wasm global name declared by a namespace global form.
+(define (namespace-global-form-name form)
+  (match form
+    [`(global ,name . ,_) name]
+    [_ (error 'namespace-global-form-name
+              "expected global form, got: ~s"
+              form)]))
+
+;; namespace-current-global-names : (listof symbol?)
+;;   Enumerate current namespace globals shared by split modules.
+(define namespace-current-global-names
+  (map namespace-global-form-name namespace-current-global-forms))
 
 ;; namespace-top-level-global-forms : (listof datum?)
 ;;   Declare the top-level namespace global.

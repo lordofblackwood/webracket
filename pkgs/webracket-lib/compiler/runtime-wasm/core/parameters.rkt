@@ -21,6 +21,7 @@
          current-read-interaction-runtime-helper-forms
          current-load-relative-directory-runtime-helper-forms
          parameterization-runtime-helper-forms
+         namespace-parameter-core-runtime-helper-forms
          namespace-parameter-runtime-helper-forms
          parameterization-binding-runtime-helper-forms
          parameterization-binding-core-runtime-helper-forms
@@ -431,6 +432,7 @@
                (global $prim:current-security-guard         (mut (ref eq)) (global.get $undefined))
                (global $prim:current-custodian              (mut (ref eq)) (global.get $undefined))
                (global $prim:current-readtable              (mut (ref eq)) (global.get $undefined))
+               (global $prim:current-namespace              (mut (ref eq)) (global.get $undefined))
                (global $prim:print-syntax-width             (mut (ref eq)) (global.get $undefined))
                (global $prim:error-print-width              (mut (ref eq)) (global.get $undefined))))
 
@@ -504,12 +506,24 @@
     $parameter?
     $reparameterize))
 
-;; namespace-parameter-runtime-only-helper-names : (listof symbol?)
+;; namespace-parameter-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for current-namespace parameter helpers.
-(define namespace-parameter-runtime-only-helper-names
+(define namespace-parameter-helper-names
   '($current-namespace/get
     $current-namespace/set
     $current-namespace))
+
+;; namespace-parameter-core-runtime-helper-names : (listof symbol?)
+;;   Name current-namespace parameter helpers available in core runtime.
+(define namespace-parameter-core-runtime-helper-names
+  namespace-parameter-helper-names)
+
+;; namespace-parameter-runtime-only-helper-names : (listof symbol?)
+;;   Preserve runtime-only current-namespace parameter emission order.
+(define namespace-parameter-runtime-only-helper-names
+  (remove* namespace-parameter-core-runtime-helper-names
+           namespace-parameter-helper-names
+           eq?))
 
 ;; parameterization-binding-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for parameterization binding helpers.
@@ -747,6 +761,11 @@
 ;;   Render current-namespace parameter helpers in runtime assembly order.
 (define (namespace-parameter-runtime-helper-forms helper-index)
   (parameter-helper-forms helper-index namespace-parameter-runtime-only-helper-names))
+
+;; namespace-parameter-core-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render current-namespace parameter helpers shared with core runtime.
+(define (namespace-parameter-core-runtime-helper-forms helper-index)
+  (parameter-helper-forms helper-index namespace-parameter-core-runtime-helper-names))
 
 ;; parameterization-binding-runtime-helper-forms : hasheq? -> (listof datum?)
 ;;   Render parameterization binding helpers in runtime assembly order.
@@ -1803,6 +1822,7 @@
                                   current-security-guard-core-runtime-helper-names
                                   current-custodian-core-runtime-helper-names
                                   current-readtable-core-runtime-helper-names
+                                  namespace-parameter-core-runtime-helper-names
                                   parameter-width-core-runtime-helper-names)))
 
 ;; parameter-runtime-only-helpers : (listof core-runtime-helper?)
@@ -1815,6 +1835,7 @@
                                   current-security-guard-core-runtime-helper-names
                                   current-custodian-core-runtime-helper-names
                                   current-readtable-core-runtime-helper-names
+                                  namespace-parameter-core-runtime-helper-names
                                   parameter-width-core-runtime-helper-names)))
 
 (module+ test
@@ -1905,6 +1926,11 @@
    (map form-name (current-readtable-core-runtime-helper-forms
                    parameter-core-helper-index))
    current-readtable-core-runtime-helper-names)
+
+  (check-equal?
+   (map form-name (namespace-parameter-core-runtime-helper-forms
+                   parameter-core-helper-index))
+   namespace-parameter-core-runtime-helper-names)
 
   (check-equal?
    (map form-name (parameter-width-core-runtime-helper-forms

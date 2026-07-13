@@ -41,6 +41,8 @@
     $liberal-define-context?
     $module-path-index?
     $resolved-module-path?
+    $expander-namespace-struct?/i32
+    $namespace?
     $variable-reference?
     $raise-unbound-variable-reference))
 
