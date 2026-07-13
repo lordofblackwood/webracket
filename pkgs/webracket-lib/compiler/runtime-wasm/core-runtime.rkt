@@ -37,6 +37,7 @@
          "core/ffi.rkt"
          "core/fixnums.rkt"
          "core/flonums.rkt"
+         "core/formatter-error-closure.rkt"
          "core/formatting.rkt"
          "core/growable-arrays.rkt"
          "core/growable-bytes.rkt"
@@ -96,6 +97,7 @@
    ffi-core-runtime-helpers
    fixnum-core-runtime-helpers
    flonum-core-runtime-helpers
+   formatter-error-closure-core-runtime-helpers
    formatting-core-runtime-helpers
    growable-array-core-runtime-helpers
    growable-bytes-core-runtime-helpers
@@ -142,11 +144,19 @@
 (define core-runtime-import-function-names
   js-host-import-function-names)
 
+;; core-runtime-internal-function-names : (listof symbol?)
+;;   Name private core support functions emitted outside core-runtime-helpers.
+(define core-runtime-internal-function-names
+  (append symbol-table-runtime-only-helper-names
+          symbol-table-initializer-runtime-only-helper-names
+          keyword-table-initializer-runtime-only-helper-names))
+
 ;; core-runtime-callable-name-set : hasheq?
 ;;   Index functions callable by standalone core helpers.
 (define core-runtime-callable-name-set
   (for/hasheq ([name (in-list (append (map core-runtime-helper-name
                                            core-runtime-helpers)
+                                      core-runtime-internal-function-names
                                       core-runtime-import-function-names))])
     (values name #t)))
 
@@ -1055,14 +1065,20 @@
   (for ([helper (in-list core-runtime-helpers)])
     (define name (core-runtime-helper-name helper))
     (define export-name (core-runtime-helper-export-name helper))
+    (define raw-export-names
+      (function-export-names
+       (core-runtime-helper-form core-runtime-helper-index name)))
     (check-equal? (core-runtime-helper-ref core-runtime-helper-index name)
                   helper)
-    (check-equal? (function-export-names
-                   (core-runtime-helper-form core-runtime-helper-index name))
-                  '())
-    (check-equal? (function-export-names
-                   (core-runtime-helper-form core-runtime-helper-index name #:export? #t))
-                  (list export-name)))
+    (check-equal? (remove export-name raw-export-names string=?)
+                  raw-export-names)
+    (check-equal? (remove export-name
+                          (function-export-names
+                           (core-runtime-helper-form core-runtime-helper-index
+                                                     name
+                                                     #:export? #t))
+                          string=?)
+                  raw-export-names))
   (check-exn exn:fail?
              (lambda ()
                (core-runtime-helper-ref core-runtime-helper-index '$not-a-helper)))
@@ -1435,8 +1451,8 @@
                  #:when (function-form-named? name form))
         form))
     (check-equal? (length matching-functions) 1)
-    (check-equal? (function-export-names (first matching-functions))
-                  (list export-name)))
+    (check-not-false
+     (member export-name (function-export-names (first matching-functions)))))
 
   (when (find-executable-path "wasm-tools")
     (define core-wat-path

@@ -119,65 +119,80 @@
 
 ;; runtime-helpers : (listof core-runtime-helper?)
 ;;   Enumerate the helpers available to the monolithic runtime generator.
+;; core-runtime-helper-name-set : hasheq?
+;;   Index helper names already promoted to the standalone core runtime.
+(define core-runtime-helper-name-set
+  (for/hasheq ([helper (in-list core-runtime-helpers)])
+    (values (core-runtime-helper-name helper) #t)))
+
+;; runtime-only-minus-core : (listof core-runtime-helper?) -> (listof core-runtime-helper?)
+;;   Drop runtime-only helpers that are now supplied by core-runtime-helpers.
+(define (runtime-only-minus-core helpers)
+  (for/list ([helper (in-list helpers)]
+             #:unless (hash-ref core-runtime-helper-name-set
+                                (core-runtime-helper-name helper)
+                                #f))
+    helper))
+
 (define runtime-helpers
   (append core-runtime-helpers
-          array-runtime-only-helpers
-          boolean-runtime-only-helpers
-          box-runtime-only-helpers
-          bytes-runtime-only-helpers
-          character-runtime-only-helpers
-          checker-runtime-only-helpers
-          control-flow-runtime-only-helpers
-          equality-runtime-only-helpers
-          exception-contract-runtime-only-helpers
-          exception-runtime-only-helpers
-          event-runtime-only-helpers
-          fasl-runtime-only-helpers
-          ffi-runtime-only-helpers
-          filesystem-runtime-only-helpers
-          fixnum-runtime-only-helpers
-          flonum-runtime-only-helpers
-          formatting-runtime-only-helpers
-          hash-runtime-only-helpers
-          immutable-hash-runtime-only-helpers
-          i32-array-runtime-only-helpers
-          i8-array-runtime-only-helpers
-          impersonator-runtime-only-helpers
-          io-handler-runtime-only-helpers
-          keyword-runtime-only-helpers
-          list-runtime-only-helpers
-          linklet-bootstrap-runtime-only-helpers
-          linklet-interpreter-runtime-only-helpers
-          linklet-primitive-table-initializer-runtime-only-helpers
-          linklet-instance-runtime-only-helpers
-          location-runtime-only-helpers
-          lock-runtime-only-helpers
-          logger-runtime-only-helpers
-          mutable-hash-runtime-only-helpers
-          mlist-runtime-only-helpers
-          namespace-runtime-only-helpers
-          number-runtime-only-helpers
-          parameter-runtime-only-helpers
-          path-runtime-only-helpers
-          port-runtime-only-helpers
-          procedure-runtime-only-helpers
-          random-runtime-only-helpers
-          regexp-runtime-only-helpers
-          reflection-runtime-only-helpers
-          security-runtime-only-helpers
-          semaphore-runtime-only-helpers
-          stencil-vector-runtime-only-helpers
-          string-runtime-only-helpers
-          struct-runtime-only-helpers
-          symbol-runtime-only-helpers
-          system-runtime-only-helpers
-          syntax-runtime-only-helpers
-          thread-runtime-only-helpers
-          time-runtime-only-helpers
-          treelist-runtime-only-helpers
-          unsafe-runtime-only-helpers
-          vector-runtime-only-helpers
-          will-runtime-only-helpers))
+          (runtime-only-minus-core array-runtime-only-helpers)
+          (runtime-only-minus-core boolean-runtime-only-helpers)
+          (runtime-only-minus-core box-runtime-only-helpers)
+          (runtime-only-minus-core bytes-runtime-only-helpers)
+          (runtime-only-minus-core character-runtime-only-helpers)
+          (runtime-only-minus-core checker-runtime-only-helpers)
+          (runtime-only-minus-core control-flow-runtime-only-helpers)
+          (runtime-only-minus-core equality-runtime-only-helpers)
+          (runtime-only-minus-core exception-contract-runtime-only-helpers)
+          (runtime-only-minus-core exception-runtime-only-helpers)
+          (runtime-only-minus-core event-runtime-only-helpers)
+          (runtime-only-minus-core fasl-runtime-only-helpers)
+          (runtime-only-minus-core ffi-runtime-only-helpers)
+          (runtime-only-minus-core filesystem-runtime-only-helpers)
+          (runtime-only-minus-core fixnum-runtime-only-helpers)
+          (runtime-only-minus-core flonum-runtime-only-helpers)
+          (runtime-only-minus-core formatting-runtime-only-helpers)
+          (runtime-only-minus-core hash-runtime-only-helpers)
+          (runtime-only-minus-core immutable-hash-runtime-only-helpers)
+          (runtime-only-minus-core i32-array-runtime-only-helpers)
+          (runtime-only-minus-core i8-array-runtime-only-helpers)
+          (runtime-only-minus-core impersonator-runtime-only-helpers)
+          (runtime-only-minus-core io-handler-runtime-only-helpers)
+          (runtime-only-minus-core keyword-runtime-only-helpers)
+          (runtime-only-minus-core list-runtime-only-helpers)
+          (runtime-only-minus-core linklet-bootstrap-runtime-only-helpers)
+          (runtime-only-minus-core linklet-interpreter-runtime-only-helpers)
+          (runtime-only-minus-core linklet-primitive-table-initializer-runtime-only-helpers)
+          (runtime-only-minus-core linklet-instance-runtime-only-helpers)
+          (runtime-only-minus-core location-runtime-only-helpers)
+          (runtime-only-minus-core lock-runtime-only-helpers)
+          (runtime-only-minus-core logger-runtime-only-helpers)
+          (runtime-only-minus-core mutable-hash-runtime-only-helpers)
+          (runtime-only-minus-core mlist-runtime-only-helpers)
+          (runtime-only-minus-core namespace-runtime-only-helpers)
+          (runtime-only-minus-core number-runtime-only-helpers)
+          (runtime-only-minus-core parameter-runtime-only-helpers)
+          (runtime-only-minus-core path-runtime-only-helpers)
+          (runtime-only-minus-core port-runtime-only-helpers)
+          (runtime-only-minus-core procedure-runtime-only-helpers)
+          (runtime-only-minus-core random-runtime-only-helpers)
+          (runtime-only-minus-core regexp-runtime-only-helpers)
+          (runtime-only-minus-core reflection-runtime-only-helpers)
+          (runtime-only-minus-core security-runtime-only-helpers)
+          (runtime-only-minus-core semaphore-runtime-only-helpers)
+          (runtime-only-minus-core stencil-vector-runtime-only-helpers)
+          (runtime-only-minus-core string-runtime-only-helpers)
+          (runtime-only-minus-core struct-runtime-only-helpers)
+          (runtime-only-minus-core symbol-runtime-only-helpers)
+          (runtime-only-minus-core system-runtime-only-helpers)
+          (runtime-only-minus-core syntax-runtime-only-helpers)
+          (runtime-only-minus-core thread-runtime-only-helpers)
+          (runtime-only-minus-core time-runtime-only-helpers)
+          (runtime-only-minus-core treelist-runtime-only-helpers)
+          (runtime-only-minus-core unsafe-runtime-only-helpers)
+          (runtime-only-minus-core vector-runtime-only-helpers)
+          (runtime-only-minus-core will-runtime-only-helpers)))
 
 ;; runtime-helper-index : hasheq?
 ;;   Index helpers available to the monolithic runtime generator.
