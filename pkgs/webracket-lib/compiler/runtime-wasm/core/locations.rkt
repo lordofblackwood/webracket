@@ -1,6 +1,8 @@
 #lang racket
 
 (provide location-global-forms
+         location-global-names
+         source-location-core-runtime-helpers
          location-initial-runtime-helper-forms
          location-runtime-string-constants
          location-runtime-symbol-constants
@@ -37,9 +39,14 @@
          ;; Cached srcloc struct type descriptor
          (global $srcloc-type (mut (ref null $StructType)) (ref.null $StructType))))
 
+;; location-global-names : (listof symbol?)
+;;   Enumerate cached source-location struct type descriptor globals.
+(define location-global-names
+  '($srcloc-type))
+
 ;; source-location-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for source-location helpers.
-(define source-location-runtime-only-helper-names
+(define source-location-all-runtime-helper-names
   '($ensure-srcloc-type
     $srcloc/make
     $srcloc-check-positive
@@ -56,6 +63,24 @@
     $srcloc-position
     $srcloc-span
     $srcloc->string))
+
+;; source-location-core-runtime-helper-names : (listof symbol?)
+;;   Name source-location helpers available in the standalone core runtime.
+(define source-location-core-runtime-helper-names
+  '($ensure-srcloc-type
+    $srcloc/make
+    $srcloc-check-positive
+    $srcloc-check-nonnegative
+    $srcloc-build
+    $srcloc
+    $make-srcloc
+    $srcloc?))
+
+;; source-location-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime-only emission order for source-location helpers.
+(define source-location-runtime-only-helper-names
+  (remove* source-location-core-runtime-helper-names
+           source-location-all-runtime-helper-names))
 
 ;; location-initial-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for reader location bootstrap helpers.
@@ -432,12 +457,24 @@
                                       (global.get $string:colon)))
           (call $string-append* (local.get $with-seps) (global.get $null)))))
 
-;; location-runtime-only-helpers : (listof core-runtime-helper?)
+;; location-all-runtime-helpers : (listof core-runtime-helper?)
 ;;   Enumerate reader and source-location helpers used by the monolithic runtime.
-(define location-runtime-only-helpers
+(define location-all-runtime-helpers
   (function-forms->runtime-helpers
-   'location-runtime-only-helpers
+   'location-all-runtime-helpers
    location-runtime-only-forms))
+
+;; source-location-core-runtime-helpers : (listof core-runtime-helper?)
+;;   Enumerate source-location helpers available in the standalone core runtime.
+(define source-location-core-runtime-helpers
+  (select-runtime-helpers location-all-runtime-helpers
+                          source-location-core-runtime-helper-names))
+
+;; location-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate source-location helpers that remain program/runtime-local.
+(define location-runtime-only-helpers
+  (remove-runtime-helpers location-all-runtime-helpers
+                          source-location-core-runtime-helper-names))
 
 ;; location-helper-forms : hasheq? (listof symbol?) -> (listof datum?)
 ;;   Render the given location helper names from the runtime helper index.
@@ -464,7 +501,16 @@
     (second form))
 
   (define location-helper-index
-    (make-core-runtime-helper-index location-runtime-only-helpers))
+    (make-core-runtime-helper-index
+     (append source-location-core-runtime-helpers
+             location-runtime-only-helpers)))
+
+  (check-equal? location-global-names
+                '($srcloc-type))
+
+  (check-equal?
+   (map form-name (core-runtime-helper-forms source-location-core-runtime-helpers))
+   source-location-core-runtime-helper-names)
 
   (check-equal?
    (map form-name (location-initial-runtime-helper-forms location-helper-index))

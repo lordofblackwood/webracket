@@ -56,6 +56,7 @@
          "core/lists.rkt"
          "core/linklet-instances.rkt"
          "core/linklets.rkt"
+         "core/locations.rkt"
          "core/loggers.rkt"
          "core/memory-map.rkt"
          "core/mlists.rkt"
@@ -120,6 +121,7 @@
    list-core-runtime-helpers
    linklet-instance-core-runtime-helpers
    linklet-core-runtime-helpers
+   source-location-core-runtime-helpers
    logger-core-runtime-helpers
    mlist-core-runtime-helpers
    mutable-hash-core-runtime-helpers
@@ -340,6 +342,8 @@
    compile-parameter-global-names
    parameterization-global-names
    error-rendering-handler-global-names
+   location-global-names
+   exception-read-primitive-global-names
    exception-struct-type-cache-global-names))
 
 ;; core-runtime-program-import-tag-names : (listof symbol?)
@@ -437,6 +441,8 @@
      ,@compile-parameter-global-forms
      ,@parameterization-global-forms
      ,@error-rendering-handler-global-forms
+     ,@location-global-forms
+     ,@exception-read-primitive-global-forms
      ,@exception-struct-type-cache-global-forms
      ,@symbol-table-global-forms
      ,@keyword-table-global-forms
@@ -495,6 +501,10 @@
             parameterization-global-names)
      ,@(map core-runtime-global-export-form
             error-rendering-handler-global-names)
+     ,@(map core-runtime-global-export-form
+            location-global-names)
+     ,@(map core-runtime-global-export-form
+            exception-read-primitive-global-names)
      ,@(map core-runtime-global-export-form
             exception-struct-type-cache-global-names)
      ,@(map core-runtime-tag-export-form
@@ -1095,6 +1105,8 @@
   (check-true (hash-has-key? core-runtime-global-name-set '$current-parameterization-value))
   (check-true (hash-has-key? core-runtime-global-name-set '$cache-configuration-values))
   (check-true (hash-has-key? core-runtime-global-name-set '$error-value->string-handler-value))
+  (check-true (hash-has-key? core-runtime-global-name-set '$srcloc-type))
+  (check-true (hash-has-key? core-runtime-global-name-set '$prim:exn:fail:read-srclocs))
   (check-true (hash-has-key? core-runtime-global-name-set '$dummy-treelist-node))
   (check-true (hash-has-key? core-runtime-global-name-set '$empty-treelist))
   (check-true (hash-has-key? core-runtime-global-name-set '$treelist:BITS))
@@ -1353,6 +1365,10 @@
   (check-true (for/or ([form (in-list core-forms)])
                 (global-form-named? '$error-value->string-handler-value form)))
   (check-true (for/or ([form (in-list core-forms)])
+                (global-form-named? '$srcloc-type form)))
+  (check-true (for/or ([form (in-list core-forms)])
+                (global-form-named? '$prim:exn:fail:read-srclocs form)))
+  (check-true (for/or ([form (in-list core-forms)])
                 (tag-form-named? '$exn form)))
   (check-true (for/or ([form (in-list core-forms)])
                 (global-form-named? '$the-symbol-table form)))
@@ -1473,6 +1489,14 @@
   (check-true (for/or ([form (in-list core-forms)])
                 (global-export-form-named? "global:$cache-configuration-values"
                                            '$cache-configuration-values
+                                           form)))
+  (check-true (for/or ([form (in-list core-forms)])
+                (global-export-form-named? "global:$srcloc-type"
+                                           '$srcloc-type
+                                           form)))
+  (check-true (for/or ([form (in-list core-forms)])
+                (global-export-form-named? "global:$prim:exn:fail:read-srclocs"
+                                           '$prim:exn:fail:read-srclocs
                                            form)))
   (check-true (for/or ([form (in-list core-forms)])
                 (global-export-form-named? "global:$error-value->string-handler-value"

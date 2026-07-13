@@ -8,6 +8,8 @@
          exception-struct-type-cache-global-forms
          exception-struct-type-global-forms
          exception-struct-type-initializer-forms
+         exception-read-primitive-global-forms
+         exception-read-primitive-global-names
          exception-runtime-string-constants
          exception-runtime-symbol-constants
          exception-fail-runtime-symbol-constants
@@ -263,6 +265,16 @@
     (define $name   (exception-struct-type->global-name name))
     (define $ensure (exception-struct-type->ensure-name ensure))
     `(global.set ,$name (call ,$ensure))))
+
+;; exception-read-primitive-global-forms : (listof datum?)
+;;   Declare primitive procedure globals needed by core read-exception metadata.
+(define exception-read-primitive-global-forms
+  '((global $prim:exn:fail:read-srclocs (mut (ref eq)) (global.get $undefined))))
+
+;; exception-read-primitive-global-names : (listof symbol?)
+;;   Enumerate primitive procedure globals needed by core read-exception metadata.
+(define exception-read-primitive-global-names
+  '($prim:exn:fail:read-srclocs))
 
 ;; bootstrap-error-runtime-only-forms : (listof datum?)
 ;;   Enumerate early error helpers used before the main exception section.
@@ -4820,6 +4832,29 @@
     $exn:fail:filesystem/make
     $make-exn:fail:filesystem
     $raise-vfs-file-error
+    $ensure-exn:fail:read-type
+    $ensure-exn:fail:read:eof-type
+    $ensure-exn:fail:read:non-char-type
+    $exn:srclocs-property-list
+    $exn:fail:read-ensure-srclocs
+    $exn:fail:read-ensure
+    $exn:fail:read/make
+    $exn:fail:read
+    $make-exn:fail:read
+    $exn:fail:read?
+    $exn:fail:read-srclocs
+    $exn:srclocs?
+    $exn:srclocs-accessor
+    $exn:fail:read:eof/make
+    $exn:fail:read:eof
+    $make-exn:fail:read:eof
+    $exn:fail:read:eof?
+    $exn:fail:read:non-char/make
+    $exn:fail:read:non-char
+    $make-exn:fail:read:non-char
+    $exn:fail:read:non-char?
+    $raise-read-error
+    $raise-read-eof-error
     $raise-arguments-error))
 
 ;; exception-core-runtime-helpers : (listof core-runtime-helper?)
@@ -4878,6 +4913,14 @@
 
   (check-equal? exception-tag-forms
                 '((tag $exn (param (ref eq)))))
+
+  (check-equal? exception-read-primitive-global-names
+                '($prim:exn:fail:read-srclocs))
+
+  (check-equal? exception-read-primitive-global-forms
+                '((global $prim:exn:fail:read-srclocs
+                         (mut (ref eq))
+                         (global.get $undefined))))
 
   (check-equal?
    (map form-name (exception-contract-runtime-helper-forms exception-helper-index))
