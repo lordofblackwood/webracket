@@ -49,6 +49,7 @@
          "core/hashes.rkt"
          "core/i32-arrays.rkt"
          "core/i8-arrays.rkt"
+         "core/io-handlers.rkt"
          "core/immediates.rkt"
          "core/immutable-hashes.rkt"
          "core/impersonators.rkt"
@@ -345,6 +346,7 @@
    character-general-category-global-names
    environment-parameter-global-names
    print-read-parameter-global-names
+   io-handler-default-port-global-names
    namespace-current-global-names
    logger-current-global-names
    security-current-global-names
@@ -462,6 +464,7 @@
      ,@character-general-category-global-forms
      ,@environment-parameter-global-forms
      ,@print-read-parameter-global-forms
+     ,@io-handler-default-port-global-forms
      ,@namespace-current-global-forms
      ,@logger-current-global-forms
      ,@security-current-global-forms
@@ -544,6 +547,8 @@
             environment-parameter-global-names)
      ,@(map core-runtime-global-export-form
             print-read-parameter-global-names)
+     ,@(map core-runtime-global-export-form
+            io-handler-default-port-global-names)
      ,@(map core-runtime-global-export-form
             namespace-current-global-names)
      ,@(map core-runtime-global-export-form
@@ -1190,6 +1195,10 @@
   (check-true (hash-has-key? core-runtime-global-name-set '$prim:void))
   (check-true (hash-has-key? core-runtime-global-name-set '$print-as-expression-value))
   (check-true (hash-has-key? core-runtime-global-name-set '$print-mpair-curly-braces-value))
+  (check-true (hash-has-key? core-runtime-global-name-set '$default-port-read-handler-value))
+  (check-true (hash-has-key? core-runtime-global-name-set '$default-port-write-handler-value))
+  (check-true (hash-has-key? core-runtime-global-name-set '$default-port-display-handler-value))
+  (check-true (hash-has-key? core-runtime-global-name-set '$default-port-print-handler-value))
   (check-true (hash-has-key? core-runtime-global-name-set '$prim:print-as-expression))
   (check-true (hash-has-key? core-runtime-global-name-set '$prim:print-mpair-curly-braces))
   (check-true (hash-has-key? core-runtime-global-name-set '$current-compile-realm-value))
@@ -1765,6 +1774,12 @@
                 (global-export-form-named? "global:$primitive-table-user-installed"
                                            '$primitive-table-user-installed
                                            form)))
+  (for ([name (in-list io-handler-default-port-global-names)])
+    (check-true (for/or ([form (in-list core-forms)])
+                  (global-export-form-named?
+                   (format "global:~a" name)
+                   name
+                   form))))
   (check-true (for/or ([form (in-list core-forms)])
                 (tag-export-form-named? "tag:$exn" '$exn form)))
   (check-not-false

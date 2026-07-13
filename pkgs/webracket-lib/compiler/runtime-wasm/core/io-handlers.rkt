@@ -5,6 +5,7 @@
          io-handler-environment-predicate-runtime-helper-forms
          io-handler-environment-ref-runtime-helper-forms
          io-handler-default-port-global-forms
+         io-handler-default-port-global-names
          io-handler-default-port-late-initializer-forms
          io-handler-runtime-string-constants
          io-handler-runtime-symbol-constants
@@ -34,6 +35,11 @@
                (global $default-port-write-handler-value (mut (ref eq)) (global.get $false))
                (global $default-port-display-handler-value (mut (ref eq)) (global.get $false))
                (global $default-port-print-handler-value (mut (ref eq)) (global.get $false))))
+
+;; io-handler-default-port-global-names : (listof symbol?)
+;;   Enumerate default port handler globals shared by split modules.
+(define io-handler-default-port-global-names
+  (map second io-handler-default-port-global-forms))
 
 ;; io-handler-default-port-late-initializer-forms : (listof datum?)
 ;;   Initialize default port handler globals after primitive support is ready.
@@ -631,6 +637,11 @@
       [else #f]))
 
   (check-equal? (map second io-handler-default-port-late-initializer-forms)
+                '($default-port-read-handler-value
+                  $default-port-write-handler-value
+                  $default-port-display-handler-value
+                  $default-port-print-handler-value))
+  (check-equal? io-handler-default-port-global-names
                 '($default-port-read-handler-value
                   $default-port-write-handler-value
                   $default-port-display-handler-value
