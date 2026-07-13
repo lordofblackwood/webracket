@@ -326,6 +326,8 @@
   (append core-runtime-string-constant-global-names
           core-runtime-symbol-constant-global-names
           '($dummy-array
+            $dummy-pair
+            $dummy-vector
             $zero
             $one
             $two
@@ -380,6 +382,8 @@
      ,@fasl-tag-global-forms
      ,@treelist-constant-global-forms
      ,@vector-dummy-array-global-forms
+     ,@pair-global-forms
+     ,@vector-dummy-global-forms
      ,@treelist-empty-global-forms
      ,@realm-global-forms
      ,@struct-property-identity-global-forms
@@ -1023,6 +1027,8 @@
   (check-true (hash-has-key? core-runtime-global-name-set '$result-bytes))
   (check-true (hash-has-key? core-runtime-global-name-set '$exn-type))
   (check-true (hash-has-key? core-runtime-global-name-set '$dummy-array))
+  (check-true (hash-has-key? core-runtime-global-name-set '$dummy-pair))
+  (check-true (hash-has-key? core-runtime-global-name-set '$dummy-vector))
   (check-true (hash-has-key? core-runtime-global-name-set '$zero))
   (check-true (hash-has-key? core-runtime-global-name-set '$one))
   (check-true (hash-has-key? core-runtime-global-name-set '$two))

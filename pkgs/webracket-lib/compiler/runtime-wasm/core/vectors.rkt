@@ -3285,10 +3285,25 @@
 ;; vector-promoted-runtime-helper-names : (listof symbol?)
 ;;   Name runtime vector helpers that are available in the standalone core runtime.
 (define vector-promoted-runtime-helper-names
-  '($make-vector/checked
+  '($raise-check-vector/who
+    $vector-index/i32
+    $raise-bad-vector-copy-range/who
+    $raise-vector-range-index-out-of-range/who
+    $raise-vector-start-index-out-of-range/who
+    $raise-vector-end-index-out-of-range/who
+    $raise-vector-end-before-start/who
+    $raise-vector-target-too-small/who
+    $make-vector/checked
     $build-vector/checked
     $vector-length/checked/i32
     $vector?
+    $vector-ref/who
+    $vector-set!/who
+    $vector*-length
+    $vector-copy/who
+    $vector-copy
+    $vector-append
+    $vector->list
     $vector->list/checked
     $vector-sort!:swap!
     $vector-sort!:lt-idx?

@@ -77,9 +77,9 @@
                              (global.get $false)      ;; a = null
                              (global.get $false)))))  ;; d = null
 
-;; list-core-runtime-helpers : (listof core-runtime-helper?)
-;;   Enumerate list helpers that can be emitted in core runtime.
-(define list-core-runtime-helpers
+;; list-base-core-runtime-helpers : (listof core-runtime-helper?)
+;;   Enumerate manually defined list helpers that originated in core runtime.
+(define list-base-core-runtime-helpers
   (list
    ;; pair? : (ref eq) -> (ref eq)
    ;;   Return #t if the value is a pair, #f otherwise.
@@ -799,10 +799,9 @@
 (define list-error-runtime-only-helper-names
   (map core-runtime-helper-name list-error-runtime-only-helpers))
 
-;; list-runtime-only-helpers : (listof core-runtime-helper?)
-;;   Enumerate list helpers that are sourced from this file but still depend on
-;;   monolithic runtime error services or globals.
-(define list-runtime-only-helpers
+;; list-all-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate list helpers originally sourced from the monolithic runtime.
+(define list-all-runtime-only-helpers
   (append
    list-error-runtime-only-helpers
    (list
@@ -7579,6 +7578,66 @@
                           (br $rev)))
              (local.get $res)))))))
 
+;; list-promoted-runtime-helper-names : (listof symbol?)
+;;   Name runtime list helpers that are available in the standalone core runtime.
+(define list-promoted-runtime-helper-names
+  (append
+   '($raise-bad-list-ref-index
+     $raise-bad-list-ref-index/who
+     $raise-list-expected/who
+     $raise-list-not-enough-elements/who
+     $car
+     $cdr
+     $length/i32
+     $length
+     $list-ref/checked
+     $list-ref
+     $rest
+     $last
+     $last-pair
+     $list-tail/checked/who
+     $list-tail/checked
+     $list-tail
+     $drop/who
+     $drop
+     $append
+     $append/2
+     $reverse
+     $alt-reverse)
+   pair-accessor-runtime-only-helper-names
+   list-ordinal-accessor-runtime-only-helper-names))
+
+;; list-core-runtime-helpers : (listof core-runtime-helper?)
+;;   Enumerate list helpers available in the standalone core runtime.
+(define list-core-runtime-helpers
+  (append list-base-core-runtime-helpers
+          (select-runtime-helpers list-all-runtime-only-helpers
+                                  list-promoted-runtime-helper-names)))
+
+;; list-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate list helpers that still depend on monolithic runtime globals.
+(define list-runtime-only-helpers
+  (remove-runtime-helpers list-all-runtime-only-helpers
+                          list-promoted-runtime-helper-names))
+
+;; list-promoted-runtime-helper-name-set : hasheq?
+;;   Index promoted list helper names for emission-source selection.
+(define list-promoted-runtime-helper-name-set
+  (for/hasheq ([name (in-list list-promoted-runtime-helper-names)])
+    (values name #t)))
+
+;; list-helper-source : symbol? -> symbol?
+;;   Return the helper source used when preserving monolithic list order.
+(define (list-helper-source name)
+  (if (hash-ref list-promoted-runtime-helper-name-set name #f)
+      'core
+      'runtime))
+
+;; list-helper-spec : symbol? -> (list/c symbol? symbol?)
+;;   Build a list helper emission spec for the given helper.
+(define (list-helper-spec name)
+  (list (list-helper-source name) name))
+
 ;; list-helper-forms : hasheq? (listof symbol?) -> (listof datum?)
 ;;   Render list helpers from the monolithic runtime helper index.
 (define (list-helper-forms runtime-helper-index names)
@@ -7590,36 +7649,36 @@
 (define list-pre-contract-runtime-helper-specs
   (append
    (for/list ([name (in-list list-error-runtime-only-helper-names)])
-     (list 'runtime name))
+     (list-helper-spec name))
    '((core    $pair?)
      (core    $cons?)
      (core    $null?)
      (core    $empty?)
      (core    $cons)
      (core    $list*)
-     (runtime $car)
-     (runtime $cdr))
+     (core    $car)
+     (core    $cdr))
    (for/list ([name (in-list pair-accessor-runtime-only-helper-names)])
-     (list 'runtime name))
+     (list-helper-spec name))
    '((core    $list?)
      (core    $list)
-     (runtime $length/i32)
-     (runtime $length)
-     (runtime $list-ref/checked)
-     (runtime $list-ref))
+     (core    $length/i32)
+     (core    $length)
+     (core    $list-ref/checked)
+     (core    $list-ref))
    (for/list ([name (in-list list-ordinal-accessor-runtime-only-helper-names)])
-     (list 'runtime name))
-   '((runtime $rest)
+     (list-helper-spec name))
+   '((core    $rest)
      (core    $last-pair/checked)
-     (runtime $last)
-     (runtime $last-pair)
-     (runtime $list-tail/checked/who)
-     (runtime $list-tail/checked)
-     (runtime $list-tail)
+     (core    $last)
+     (core    $last-pair)
+     (core    $list-tail/checked/who)
+     (core    $list-tail/checked)
+     (core    $list-tail)
      (runtime $list-set/checked)
      (runtime $list-set)
-     (runtime $drop/who)
-     (runtime $drop)
+     (core    $drop/who)
+     (core    $drop)
      (runtime $drop-right/who)
      (runtime $drop-right)
      (runtime $dropf)
@@ -7628,13 +7687,13 @@
      (runtime $split-at-right)
      (runtime $splitf-at)
      (runtime $splitf-at-right)
-     (runtime $append)
-     (runtime $append/2)
+     (core    $append)
+     (core    $append/2)
      (runtime $qq-append)
      (runtime $append*)
      (runtime $flatten)
-     (runtime $reverse)
-     (runtime $alt-reverse))
+     (core    $reverse)
+     (core    $alt-reverse))
    (for/list ([name (in-list list-member-runtime-only-helper-names)])
      (list 'runtime name))
    '((runtime $memf))
