@@ -498,6 +498,7 @@
   '($date?
     $date*?
     $exact-fixnum-in-range?
+    $ensure-date-range-field
     $ensure-date))
 
 ;; time-runtime-only-helper-names : (listof symbol?)

@@ -201,7 +201,9 @@
   '($input-port-like?/i32
     $current-input-port
     $flush-output
-    $close-output-port))
+    $close-output-port
+    $raise-port-bytes-index-expected
+    $raise-port-range-index-expected))
 
 ;; port-location-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for port location helpers.

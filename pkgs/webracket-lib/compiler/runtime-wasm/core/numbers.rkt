@@ -4835,6 +4835,7 @@
     $raise-expected-integer
     $raise-expected-exact-integer
     $raise-expected-exact-nonnegative-integer
+    $raise-expected-rational
     $raise-expected-real
     $min/2
     $max/2
