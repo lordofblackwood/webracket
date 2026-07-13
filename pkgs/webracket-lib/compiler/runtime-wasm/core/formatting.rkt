@@ -2639,6 +2639,9 @@
 ;;   Name display-formatting helpers available in the standalone core runtime.
 (define display-formatting-promoted-runtime-helper-names
   '($format/write:string
+    $format/display:variable-reference
+    $format/display:namespace
+    $format/display:external
     $format/display:unquoted-printing-string
     $str-number
     $is-blank
@@ -2646,7 +2649,8 @@
     $get-special-escape
     $utf8-size
     $write-utf8
-    $write-hex))
+    $write-hex
+    $string->bytes:display))
 
 ;; display-formatting-core-runtime-helpers : (listof core-runtime-helper?)
 ;;   Enumerate display-formatting helpers available in standalone core runtime.
