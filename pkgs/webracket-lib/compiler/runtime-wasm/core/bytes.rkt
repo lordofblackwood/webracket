@@ -94,7 +94,9 @@
 ;; bytes-core-runtime-helper-names : (listof symbol?)
 ;;   Name byte-string helpers available in the standalone core runtime.
 (define bytes-core-runtime-helper-names
-  '($bytes?
+  '($raise-check-bytes/who
+    $bytes->immutable-bytes
+    $bytes?
     $bytes=?/2/checked
     $bytes<?/2/checked
     $bytes>?/2/checked

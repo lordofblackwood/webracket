@@ -177,8 +177,17 @@
 ;;   Name basic path helpers available in the standalone core runtime.
 (define path-promoted-runtime-helper-names
   '($path-for-some-system?
+    $unix-or-windows
     $non-empty-bytes-without-nuls
     $non-empty-string-without-nuls
+    $raise-bytes->path:nul
+    $raise-string->path:nul
+    $raise-bytes->path:bad-type
+    $raise-path-argument-error1/write
+    $raise-path-string-expected/who
+    $bytes->path
+    $string->path
+    $path-string->path/checked
     $path-bytes-absolute?))
 
 ;; path-all-runtime-helper-names : (listof symbol?)
@@ -240,7 +249,8 @@
     $bytes-slice/unchecked
     $path-extension-start
     $path-suffix-start
-    $path-final-element-start))
+    $path-final-element-start
+    $path-byte-separator?))
 
 ;; path-manipulation-all-runtime-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for path manipulation helpers.

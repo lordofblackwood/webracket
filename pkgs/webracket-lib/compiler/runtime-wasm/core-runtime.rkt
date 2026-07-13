@@ -15,10 +15,13 @@
 (require "core-helper.rkt"
          (only-in "constants.rkt"
                   make-runtime-constant-registry
+                  runtime-constant-registry-declare-bytes
                   runtime-constant-registry-declare-strings
                   runtime-constant-registry-declare-symbols!
+                  runtime-constant-registry-initialize-bytes
                   runtime-constant-registry-initialize-strings
                   runtime-constant-registry-initialize-symbols!
+                  bytes-global-name
                   string-global-name
                   symbol-global-name)
          (only-in "js-imports.rkt"
@@ -63,6 +66,7 @@
          "core/realms.rkt"
          "core/reflection.rkt"
          "core/regexps.rkt"
+         "core/runtime-bytes-constants.rkt"
          "core/runtime-string-constants.rkt"
          "core/runtime-symbol-constants.rkt"
          "core/security.rkt"
@@ -250,6 +254,31 @@
    core-runtime-string-constant-registry
    #:converter core-runtime-string-constant-converter-name))
 
+;; core-runtime-bytes-constant-registry : runtime-constant-registry?
+;;   Register runtime byte-string constants owned by the standalone core runtime.
+(define core-runtime-bytes-constant-registry
+  (make-runtime-constant-registry '()
+                                  core-runtime-bytes-constants
+                                  '()))
+
+;; core-runtime-bytes-constant-global-names : (listof symbol?)
+;;   Enumerate stable byte-string globals declared by the standalone core runtime.
+(define core-runtime-bytes-constant-global-names
+  (for/list ([constant (in-list core-runtime-bytes-constants)])
+    (bytes-global-name (first constant))))
+
+;; core-runtime-bytes-constant-declaration-forms : (listof datum?)
+;;   Declare data segments and globals for core-owned byte-string constants.
+(define core-runtime-bytes-constant-declaration-forms
+  (runtime-constant-registry-declare-bytes
+   core-runtime-bytes-constant-registry))
+
+;; core-runtime-bytes-constant-initializer-forms : (listof datum?)
+;;   Initialize core-owned byte-string constants when the core runtime instantiates.
+(define core-runtime-bytes-constant-initializer-forms
+  (runtime-constant-registry-initialize-bytes
+   core-runtime-bytes-constant-registry))
+
 ;; core-runtime-symbol-constant-registry : runtime-constant-registry?
 ;;   Register runtime symbol constants owned by the standalone core runtime.
 (define core-runtime-symbol-constant-registry
@@ -324,6 +353,7 @@
 ;;   Name immutable-by-convention core constants that split-core programs should import.
 (define core-runtime-program-import-constant-global-names
   (append core-runtime-string-constant-global-names
+          core-runtime-bytes-constant-global-names
           core-runtime-symbol-constant-global-names
           '($dummy-array
             $dummy-pair
@@ -373,6 +403,7 @@
      ,@js-host-import-forms
      ,@exception-tag-forms
      ,@core-runtime-string-constant-declaration-forms
+     ,@core-runtime-bytes-constant-declaration-forms
      ,@core-runtime-symbol-constant-declaration-forms
      ,@singleton-global-forms
      ,@ffi-result-global-forms
@@ -411,6 +442,7 @@
      ,core-runtime-symbol-constant-converter-form
      (func $initialize-core-runtime!
            ,@core-runtime-string-constant-initializer-forms
+           ,@core-runtime-bytes-constant-initializer-forms
            (call $initialize-the-symbol-table)
            (call $initialize-the-keyword-table)
            (call $initialize-prefab-struct-type-registry)
@@ -1016,6 +1048,7 @@
   (check-true (hash-has-key? shared-type-names '$Pair))
   (check-true (hash-has-key? shared-type-names '$SymbolTable))
   (check-true (hash-has-key? core-runtime-global-name-set '$string:empty))
+  (check-true (hash-has-key? core-runtime-global-name-set '$bytes:empty))
   (check-true (hash-has-key? core-runtime-global-name-set '$symbol:racket))
   (check-true (hash-has-key? core-runtime-global-name-set '$the-symbol-table))
   (check-true (hash-has-key? core-runtime-global-name-set '$the-keyword-table))
@@ -1140,6 +1173,13 @@
                 '())
   (check-equal? (core-runtime-helper-dependency-problems
                  '(func $ok (result (ref eq))
+                        (global.get $bytes:empty))
+                 core-runtime-callable-name-set
+                 shared-type-names
+                 core-runtime-global-name-set)
+                '())
+  (check-equal? (core-runtime-helper-dependency-problems
+                 '(func $ok (result (ref eq))
                         (global.get $symbol:racket))
                  core-runtime-callable-name-set
                  shared-type-names
@@ -1253,6 +1293,8 @@
   (check-true (for/or ([form (in-list core-forms)])
                 (global-form-named? '$string:empty form)))
   (check-true (for/or ([form (in-list core-forms)])
+                (global-form-named? '$bytes:empty form)))
+  (check-true (for/or ([form (in-list core-forms)])
                 (global-form-named? '$symbol:racket form)))
   (check-true (for/or ([form (in-list core-forms)])
                 (global-form-named? '$symbol:append form)))
@@ -1321,6 +1363,10 @@
   (check-true (for/or ([form (in-list core-forms)])
                 (global-export-form-named? "global:$string:empty"
                                            '$string:empty
+                                           form)))
+  (check-true (for/or ([form (in-list core-forms)])
+                (global-export-form-named? "global:$bytes:empty"
+                                           '$bytes:empty
                                            form)))
   (check-true (for/or ([form (in-list core-forms)])
                 (global-export-form-named? "global:$symbol:racket"
