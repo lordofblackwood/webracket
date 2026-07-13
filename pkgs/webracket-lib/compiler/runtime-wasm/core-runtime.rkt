@@ -270,6 +270,7 @@
    environment-parameter-global-names
    print-read-parameter-global-names
    reader-printer-policy-parameter-global-names
+   reader-printer-policy-parameter-primitive-global-names
    compile-parameter-global-names
    parameterization-global-names
    error-rendering-handler-global-names
@@ -356,6 +357,7 @@
      ,@environment-parameter-global-forms
      ,@print-read-parameter-global-forms
      ,@reader-printer-policy-parameter-global-forms
+     ,@reader-printer-policy-parameter-primitive-global-forms
      ,@compile-parameter-global-forms
      ,@parameterization-global-forms
      ,@error-rendering-handler-global-forms
@@ -404,6 +406,8 @@
             print-read-parameter-global-names)
      ,@(map core-runtime-global-export-form
             reader-printer-policy-parameter-global-names)
+     ,@(map core-runtime-global-export-form
+            reader-printer-policy-parameter-primitive-global-names)
      ,@(map core-runtime-global-export-form
             compile-parameter-global-names)
      ,@(map core-runtime-global-export-form
@@ -998,6 +1002,8 @@
   (check-true (hash-has-key? core-runtime-global-name-set '$current-print-value))
   (check-true (hash-has-key? core-runtime-global-name-set '$print-as-expression-value))
   (check-true (hash-has-key? core-runtime-global-name-set '$print-mpair-curly-braces-value))
+  (check-true (hash-has-key? core-runtime-global-name-set '$prim:print-as-expression))
+  (check-true (hash-has-key? core-runtime-global-name-set '$prim:print-mpair-curly-braces))
   (check-true (hash-has-key? core-runtime-global-name-set '$current-compile-realm-value))
   (check-true (hash-has-key? core-runtime-global-name-set '$current-parameterization-value))
   (check-true (hash-has-key? core-runtime-global-name-set '$cache-configuration-values))
@@ -1135,6 +1141,13 @@
                  core-runtime-global-name-set)
                 '())
   (check-equal? (core-runtime-helper-dependency-problems
+                 '(func $ok (result (ref eq))
+                        (global.get $prim:print-as-expression))
+                 core-helper-names
+                 shared-type-names
+                 core-runtime-global-name-set)
+                '())
+  (check-equal? (core-runtime-helper-dependency-problems
                  '(func $bad (param (ref eq)) (result i32)
                         (call $other (local.get $v)))
                  core-helper-names
@@ -1212,6 +1225,10 @@
                 (global-form-named? '$current-print-value form)))
   (check-true (for/or ([form (in-list core-forms)])
                 (global-form-named? '$print-as-expression-value form)))
+  (check-true (for/or ([form (in-list core-forms)])
+                (global-form-named? '$prim:print-as-expression form)))
+  (check-true (for/or ([form (in-list core-forms)])
+                (global-form-named? '$prim:print-mpair-curly-braces form)))
   (check-true (for/or ([form (in-list core-forms)])
                 (global-form-named? '$current-compile-realm-value form)))
   (check-true (for/or ([form (in-list core-forms)])
@@ -1305,6 +1322,14 @@
   (check-true (for/or ([form (in-list core-forms)])
                 (global-export-form-named? "global:$print-as-expression-value"
                                            '$print-as-expression-value
+                                           form)))
+  (check-true (for/or ([form (in-list core-forms)])
+                (global-export-form-named? "global:$prim:print-as-expression"
+                                           '$prim:print-as-expression
+                                           form)))
+  (check-true (for/or ([form (in-list core-forms)])
+                (global-export-form-named? "global:$prim:print-mpair-curly-braces"
+                                           '$prim:print-mpair-curly-braces
                                            form)))
   (check-true (for/or ([form (in-list core-forms)])
                 (global-export-form-named? "global:$current-compile-realm-value"

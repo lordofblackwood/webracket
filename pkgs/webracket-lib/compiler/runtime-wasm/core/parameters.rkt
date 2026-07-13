@@ -36,6 +36,8 @@
          print-read-parameter-late-initializer-forms
          reader-printer-policy-parameter-global-forms
          reader-printer-policy-parameter-global-names
+         reader-printer-policy-parameter-primitive-global-forms
+         reader-printer-policy-parameter-primitive-global-names
          reader-printer-policy-parameter-helper-forms)
 
 (require "../core-helper.rkt")
@@ -377,6 +379,19 @@
 ;;   Enumerate reader/printer policy parameter globals shared by split modules.
 (define reader-printer-policy-parameter-global-names
   (map parameter-global-form-name reader-printer-policy-parameter-global-forms))
+
+;; reader-printer-policy-parameter-primitive-global-forms : (listof datum?)
+;;   Declare primitive procedure globals used by reader/printer policy parameters.
+(define reader-printer-policy-parameter-primitive-global-forms
+  (for/list ([spec (in-list reader-printer-policy-parameter-specs)])
+    (match-define (list _name _symbol _global primitive) spec)
+    `(global ,primitive (mut (ref eq)) (global.get $undefined))))
+
+;; reader-printer-policy-parameter-primitive-global-names : (listof symbol?)
+;;   Enumerate reader/printer policy primitive procedure globals shared by split modules.
+(define reader-printer-policy-parameter-primitive-global-names
+  (map parameter-global-form-name
+       reader-printer-policy-parameter-primitive-global-forms))
 
 ;; reader-printer-policy-parameter-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for generated policy parameters.
@@ -1735,6 +1750,15 @@
   (check-not-false
    (member '$current-readtable-value
            reader-printer-policy-parameter-global-names))
+  (check-not-false
+   (member '$prim:print-as-expression
+           reader-printer-policy-parameter-primitive-global-names))
+  (check-not-false
+   (member '$prim:print-mpair-curly-braces
+           reader-printer-policy-parameter-primitive-global-names))
+  (check-equal?
+   (length reader-printer-policy-parameter-primitive-global-names)
+   (length reader-printer-policy-parameter-specs))
 
   (check-equal?
    parameterization-global-names

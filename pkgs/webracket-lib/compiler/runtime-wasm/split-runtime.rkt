@@ -2103,6 +2103,12 @@
         (global $print-mpair-curly-braces-value
                 (mut (ref eq))
                 (ref.i31 (i32.const 0)))
+        (global $prim:print-as-expression
+                (mut (ref eq))
+                (ref.i31 (i32.const 0)))
+        (global $prim:print-mpair-curly-braces
+                (mut (ref eq))
+                (ref.i31 (i32.const 0)))
         (global $current-compile-realm-value
                 (mut (ref eq))
                 (ref.i31 (i32.const 0)))
@@ -2115,8 +2121,10 @@
               (global.set $current-read-interaction-value (ref.i31 (i32.const 6)))
               (global.set $print-as-expression-value (ref.i31 (i32.const 8)))
               (global.set $print-mpair-curly-braces-value (ref.i31 (i32.const 10)))
-              (global.set $current-compile-realm-value (ref.i31 (i32.const 12)))
-              (global.set $error-value->string-handler-value (ref.i31 (i32.const 14))))
+              (global.set $prim:print-as-expression (ref.i31 (i32.const 12)))
+              (global.set $prim:print-mpair-curly-braces (ref.i31 (i32.const 14)))
+              (global.set $current-compile-realm-value (ref.i31 (i32.const 16)))
+              (global.set $error-value->string-handler-value (ref.i31 (i32.const 18))))
         (func $entry
               (export "entry")
               (result (ref eq))
@@ -2131,6 +2139,8 @@
                          $current-read-interaction-value
                          $print-as-expression-value
                          $print-mpair-curly-braces-value
+                         $prim:print-as-expression
+                         $prim:print-mpair-curly-braces
                          $current-compile-realm-value
                          $error-value->string-handler-value))])
     (check-not-false
