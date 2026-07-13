@@ -3298,12 +3298,7 @@
           vector-map-count-runtime-only-helper-names
           vector-argminmax-runtime-only-helper-names
           vector-filter-search-runtime-only-helper-names
-          '($vector-sort!:swap!
-            $vector-sort!:lt-idx?
-            $vector-sort!:median-of-three->end!
-            $vector-sort!:partition!
-            $vector-sort!:insertion-sort!
-            $vector-sort!:qs!)
+          vector-sort-runtime-only-helper-names
           vector-mutability-runtime-only-helper-names))
 
 ;; vector-mutability-runtime-only-helpers : (listof core-runtime-helper?)

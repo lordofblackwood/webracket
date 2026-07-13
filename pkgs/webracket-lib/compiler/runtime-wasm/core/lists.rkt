@@ -7621,7 +7621,6 @@
 	     $remove*
 	     $remove*/checked
 	     $remove*/checked/1
-	     $sort:split
 	     $foldr/1-loop
 	     $foldr/2-loop
 	     $foldr/n-loop)
@@ -7629,7 +7628,19 @@
    list-ordinal-accessor-runtime-only-helper-names
    list-remove-runtime-only-helper-names
    list-remove-star-runtime-only-helper-names
-   '($add-between)))
+   '($add-between
+     $sort
+     $sort/expanded-keywords
+     $sort/keyword-apply
+     $sort:merge
+     $sort:merge/key
+     $sort:split
+     $sort:merge-sort
+     $sort:merge-sort/key
+     $sort:cache-key-pairs
+     $sort:extract-cached-values
+     $sort:merge/cached-key
+     $sort:merge-sort/cached-key)))
 
 ;; list-core-runtime-helpers : (listof core-runtime-helper?)
 ;;   Enumerate list helpers available in the standalone core runtime.
