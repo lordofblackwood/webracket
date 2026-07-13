@@ -69,7 +69,8 @@
     $$make-stencil-vector/checked
     $stencil-vector?
     $$stencil-vector?
-    $$system-stencil-vector?))
+    $$system-stencil-vector?
+    $$stencil-vector-update/core))
 
 ;; stencil-vector-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime-only stencil-vector helper emission order.

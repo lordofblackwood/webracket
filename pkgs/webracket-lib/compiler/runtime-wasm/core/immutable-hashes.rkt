@@ -5945,24 +5945,43 @@
     $immutable-hamt-packed-child-slot
     $immutable-hamt-packed-key-slot
     $immutable-hamt-packed-value-slot
+    $immutable-hamt-empty-packed-node
     $immutable-hamt-store-packed-bnode-metadata
+    $immutable-hamt-key-hash/kind
     $immutable-hamt-wrap-inline-key/kind
     $immutable-hamt-inline-key-unwrap
     $immutable-hamt-inline-key-cached-hash
+    $immutable-hamt-entry-for-key/kind
     $immutable-hamt-packed-metadata-present?/i32
     $immutable-hasheqv-bucket-has-key?
+    $immutable-hasheqv-bucket-ref-key
     $immutable-hasheq-bucket-has-key?
+    $immutable-hasheq-bucket-ref-key
     $immutable-hamt-bit
+    $immutable-hamt-bucket-ref-key/kind
     $immutable-hamt-bucket-has-key?/kind
     $immutable-hamt-packed-node-has-key?/kind
+    $immutable-hamt-packed-node-set/kind
+    $immutable-hamt-packed-bnode-collapse-if-single/kind
+    $immutable-hamt-packed-node-remove/kind
     $immutable-hamt-node-has-key?/kind
+    $immutable-hamt-empty-node
+    $immutable-hamt-bnode-collapse-if-single
     $immutable-hamt-bucket-length
     $immutable-hamt-bucket-first-entry
     $immutable-hamt-collapse-small-bucket
+    $immutable-hamt-bucket-remove/kind
     $immutable-hamt-cnode-has-key?/kind
+    $immutable-hamt-cnode-set/kind
+    $immutable-hamt-cnode-remove/kind
     $immutable-hamt-bucket->cnode
+    $immutable-hamt-bucket->node/kind
+    $immutable-hamt-node-set/kind
+    $immutable-hamt-node-remove/kind
     $immutable-hash-bucket-has-key?
+    $immutable-hash-bucket-ref-key
     $immutable-hashalw-bucket-has-key?
+    $immutable-hashalw-bucket-ref-key
     $immutable-hamt-packed-node->entries
     $immutable-hamt-packed-node-entry-count
     $immutable-hamt-packed-node-child-count

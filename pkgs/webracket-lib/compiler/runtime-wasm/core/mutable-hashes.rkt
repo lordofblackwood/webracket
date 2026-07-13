@@ -3457,6 +3457,15 @@
     $make-empty-hashalw
     $hash-kind/i32
     $hash-mutable?/i32
+    $hasheqv-set!/mutable/checked
+    $hash-set!/mutable/checked
+    $hashalw-set!/mutable/checked
+    $hasheqv-resize
+    $hashequal-resize
+    $hashalw-resize
+    $maybe-resize-hasheqv
+    $maybe-resize-hashequal
+    $maybe-resize-hashalw
     $hasheq-clear!/mutable/checked
     $hasheqv-clear!/mutable/checked
     $hash-clear!/mutable/checked
