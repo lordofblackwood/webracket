@@ -267,7 +267,12 @@
    port-current-global-names
    path-current-global-names
    hash-seed-global-names
+   environment-parameter-global-names
+   print-read-parameter-global-names
+   reader-printer-policy-parameter-global-names
+   compile-parameter-global-names
    parameterization-global-names
+   error-rendering-handler-global-names
    exception-struct-type-cache-global-names))
 
 ;; core-runtime-program-import-tag-names : (listof symbol?)
@@ -348,7 +353,12 @@
      ,@port-current-global-forms
      ,@path-current-global-forms
      ,@hash-seed-global-forms
+     ,@environment-parameter-global-forms
+     ,@print-read-parameter-global-forms
+     ,@reader-printer-policy-parameter-global-forms
+     ,@compile-parameter-global-forms
      ,@parameterization-global-forms
+     ,@error-rendering-handler-global-forms
      ,@exception-struct-type-cache-global-forms
      ,@symbol-table-global-forms
      ,@keyword-table-global-forms
@@ -389,7 +399,17 @@
      ,@(map core-runtime-global-export-form
             hash-seed-global-names)
      ,@(map core-runtime-global-export-form
+            environment-parameter-global-names)
+     ,@(map core-runtime-global-export-form
+            print-read-parameter-global-names)
+     ,@(map core-runtime-global-export-form
+            reader-printer-policy-parameter-global-names)
+     ,@(map core-runtime-global-export-form
+            compile-parameter-global-names)
+     ,@(map core-runtime-global-export-form
             parameterization-global-names)
+     ,@(map core-runtime-global-export-form
+            error-rendering-handler-global-names)
      ,@(map core-runtime-global-export-form
             exception-struct-type-cache-global-names)
      ,@(map core-runtime-tag-export-form
@@ -974,8 +994,14 @@
   (check-true (hash-has-key? core-runtime-global-name-set '$current-output-port-value))
   (check-true (hash-has-key? core-runtime-global-name-set '$system-path-convention))
   (check-true (hash-has-key? core-runtime-global-name-set '$next-hash-state))
+  (check-true (hash-has-key? core-runtime-global-name-set '$current-environment-variables-value))
+  (check-true (hash-has-key? core-runtime-global-name-set '$current-print-value))
+  (check-true (hash-has-key? core-runtime-global-name-set '$print-as-expression-value))
+  (check-true (hash-has-key? core-runtime-global-name-set '$print-mpair-curly-braces-value))
+  (check-true (hash-has-key? core-runtime-global-name-set '$current-compile-realm-value))
   (check-true (hash-has-key? core-runtime-global-name-set '$current-parameterization-value))
   (check-true (hash-has-key? core-runtime-global-name-set '$cache-configuration-values))
+  (check-true (hash-has-key? core-runtime-global-name-set '$error-value->string-handler-value))
   (check-true (hash-has-key? core-runtime-global-name-set '$dummy-treelist-node))
   (check-true (hash-has-key? core-runtime-global-name-set '$empty-treelist))
   (check-true (hash-has-key? core-runtime-global-name-set '$treelist:BITS))
@@ -1102,6 +1128,13 @@
                  core-runtime-global-name-set)
                 '())
   (check-equal? (core-runtime-helper-dependency-problems
+                 '(func $ok (result (ref eq))
+                        (global.get $print-as-expression-value))
+                 core-helper-names
+                 shared-type-names
+                 core-runtime-global-name-set)
+                '())
+  (check-equal? (core-runtime-helper-dependency-problems
                  '(func $bad (param (ref eq)) (result i32)
                         (call $other (local.get $v)))
                  core-helper-names
@@ -1174,9 +1207,19 @@
   (check-true (for/or ([form (in-list core-forms)])
                 (global-form-named? '$next-hash-state form)))
   (check-true (for/or ([form (in-list core-forms)])
+                (global-form-named? '$current-environment-variables-value form)))
+  (check-true (for/or ([form (in-list core-forms)])
+                (global-form-named? '$current-print-value form)))
+  (check-true (for/or ([form (in-list core-forms)])
+                (global-form-named? '$print-as-expression-value form)))
+  (check-true (for/or ([form (in-list core-forms)])
+                (global-form-named? '$current-compile-realm-value form)))
+  (check-true (for/or ([form (in-list core-forms)])
                 (global-form-named? '$current-parameterization-value form)))
   (check-true (for/or ([form (in-list core-forms)])
                 (global-form-named? '$cache-configuration-values form)))
+  (check-true (for/or ([form (in-list core-forms)])
+                (global-form-named? '$error-value->string-handler-value form)))
   (check-true (for/or ([form (in-list core-forms)])
                 (tag-form-named? '$exn form)))
   (check-true (for/or ([form (in-list core-forms)])
@@ -1252,12 +1295,32 @@
                                            '$next-hash-state
                                            form)))
   (check-true (for/or ([form (in-list core-forms)])
+                (global-export-form-named? "global:$current-environment-variables-value"
+                                           '$current-environment-variables-value
+                                           form)))
+  (check-true (for/or ([form (in-list core-forms)])
+                (global-export-form-named? "global:$current-print-value"
+                                           '$current-print-value
+                                           form)))
+  (check-true (for/or ([form (in-list core-forms)])
+                (global-export-form-named? "global:$print-as-expression-value"
+                                           '$print-as-expression-value
+                                           form)))
+  (check-true (for/or ([form (in-list core-forms)])
+                (global-export-form-named? "global:$current-compile-realm-value"
+                                           '$current-compile-realm-value
+                                           form)))
+  (check-true (for/or ([form (in-list core-forms)])
                 (global-export-form-named? "global:$current-parameterization-value"
                                            '$current-parameterization-value
                                            form)))
   (check-true (for/or ([form (in-list core-forms)])
                 (global-export-form-named? "global:$cache-configuration-values"
                                            '$cache-configuration-values
+                                           form)))
+  (check-true (for/or ([form (in-list core-forms)])
+                (global-export-form-named? "global:$error-value->string-handler-value"
+                                           '$error-value->string-handler-value
                                            form)))
   (check-true (for/or ([form (in-list core-forms)])
                 (tag-export-form-named? "tag:$exn" '$exn form)))

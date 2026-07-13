@@ -1,6 +1,7 @@
 #lang racket
 
 (provide compile-parameter-global-forms
+         compile-parameter-global-names
          parameter-runtime-string-constants
          parameter-runtime-symbol-constants
          compile-parameter-runtime-helper-forms
@@ -24,13 +25,17 @@
          parameter-error-rendering-runtime-helper-forms
          parameter-directory-runtime-helper-forms
          environment-parameter-global-forms
+         environment-parameter-global-names
          environment-parameter-initializer-forms
          error-rendering-handler-global-forms
+         error-rendering-handler-global-names
          error-value-handler-late-initializer-forms
          error-syntax-handler-late-initializer-forms
          print-read-parameter-global-forms
+         print-read-parameter-global-names
          print-read-parameter-late-initializer-forms
          reader-printer-policy-parameter-global-forms
+         reader-printer-policy-parameter-global-names
          reader-printer-policy-parameter-helper-forms)
 
 (require "../core-helper.rkt")
@@ -214,11 +219,25 @@
       $error-print-source-location-value
       $prim:error-print-source-location)))
 
+;; parameter-global-form-name : datum? -> symbol?
+;;   Return the Wasm global name declared by a parameter backing-cell form.
+(define (parameter-global-form-name form)
+  (match form
+    [`(global ,name . ,_) name]
+    [_ (error 'parameter-global-form-name
+              "expected global form, got: ~s"
+              form)]))
+
 ;; environment-parameter-global-forms : (listof datum?)
 ;;   Declare the global backing cell for current-environment-variables.
 (define environment-parameter-global-forms
   '(
                (global $current-environment-variables-value (mut (ref eq)) (ref.i31 (i32.const 0)))))
+
+;; environment-parameter-global-names : (listof symbol?)
+;;   Enumerate current-environment-variables globals shared by split modules.
+(define environment-parameter-global-names
+  (map parameter-global-form-name environment-parameter-global-forms))
 
 ;; environment-parameter-initializer-forms : (listof datum?)
 ;;   Initialize the current-environment-variables backing value.
@@ -234,6 +253,11 @@
   '(
                (global $current-print-value       (mut (ref eq)) (global.get $false))
                (global $current-read-interaction-value (mut (ref eq)) (global.get $false))))
+
+;; print-read-parameter-global-names : (listof symbol?)
+;;   Enumerate current-print/current-read-interaction globals shared by split modules.
+(define print-read-parameter-global-names
+  (map parameter-global-form-name print-read-parameter-global-forms))
 
 ;; print-read-parameter-late-initializer-forms : (listof datum?)
 ;;   Initialize current-read-interaction after primitive globals are ready.
@@ -257,6 +281,11 @@
                (global $error-syntax->string-handler-value (mut (ref eq)) (global.get $false))
                (global $error-syntax->name-handler-value (mut (ref eq)) (global.get $false))
                (global $error-module-path->string-handler-value (mut (ref eq)) (global.get $false))))
+
+;; error-rendering-handler-global-names : (listof symbol?)
+;;   Enumerate error-rendering handler globals shared by split modules.
+(define error-rendering-handler-global-names
+  (map parameter-global-form-name error-rendering-handler-global-forms))
 
 ;; error-value-handler-late-initializer-forms : (listof datum?)
 ;;   Initialize error-value->string-handler after primitive globals are ready.
@@ -344,6 +373,11 @@
                (global $error-print-width-value        (mut (ref eq)) (ref.i31 (i32.const 512)))
                (global $error-print-source-location-value (mut (ref eq)) (global.get $true))))
 
+;; reader-printer-policy-parameter-global-names : (listof symbol?)
+;;   Enumerate reader/printer policy parameter globals shared by split modules.
+(define reader-printer-policy-parameter-global-names
+  (map parameter-global-form-name reader-printer-policy-parameter-global-forms))
+
 ;; reader-printer-policy-parameter-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for generated policy parameters.
 (define reader-printer-policy-parameter-helper-names
@@ -355,6 +389,11 @@
   '(
                (global $current-compile-target-machine-value (mut (ref eq)) (global.get $false))
                (global $current-compile-realm-value (mut (ref eq)) (global.get $false))))
+
+;; compile-parameter-global-names : (listof symbol?)
+;;   Enumerate compile metadata parameter globals shared by split modules.
+(define compile-parameter-global-names
+  (map parameter-global-form-name compile-parameter-global-forms))
 
 ;; parameterization-global-forms : (listof datum?)
 ;;   Declare the current parameterization backing global and #%paramz support state.
@@ -1665,6 +1704,37 @@
   (check-equal?
    (map form-name (parameter-directory-runtime-helper-forms parameter-helper-index))
    parameter-directory-runtime-only-helper-names)
+
+  (check-equal?
+   environment-parameter-global-names
+   '($current-environment-variables-value))
+
+  (check-equal?
+   print-read-parameter-global-names
+   '($current-print-value
+     $current-read-interaction-value))
+
+  (check-equal?
+   error-rendering-handler-global-names
+   '($error-value->string-handler-value
+     $error-syntax->string-handler-value
+     $error-syntax->name-handler-value
+     $error-module-path->string-handler-value))
+
+  (check-equal?
+   compile-parameter-global-names
+   '($current-compile-target-machine-value
+     $current-compile-realm-value))
+
+  (check-not-false
+   (member '$print-as-expression-value
+           reader-printer-policy-parameter-global-names))
+  (check-not-false
+   (member '$print-mpair-curly-braces-value
+           reader-printer-policy-parameter-global-names))
+  (check-not-false
+   (member '$current-readtable-value
+           reader-printer-policy-parameter-global-names))
 
   (check-equal?
    parameterization-global-names

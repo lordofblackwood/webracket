@@ -2085,6 +2085,71 @@
    (for/or ([form (in-list core-state-cell-import-program-forms)])
      (form-contains-global-set? '$next-hash-state form)))
 
+  (define core-parameter-cell-import-split
+    (split-core-runtime-module
+     `(module
+        (global $current-environment-variables-value
+                (mut (ref eq))
+                (ref.i31 (i32.const 0)))
+        (global $current-print-value
+                (mut (ref eq))
+                (ref.i31 (i32.const 0)))
+        (global $current-read-interaction-value
+                (mut (ref eq))
+                (ref.i31 (i32.const 0)))
+        (global $print-as-expression-value
+                (mut (ref eq))
+                (ref.i31 (i32.const 0)))
+        (global $print-mpair-curly-braces-value
+                (mut (ref eq))
+                (ref.i31 (i32.const 0)))
+        (global $current-compile-realm-value
+                (mut (ref eq))
+                (ref.i31 (i32.const 0)))
+        (global $error-value->string-handler-value
+                (mut (ref eq))
+                (ref.i31 (i32.const 0)))
+        (func $initialize-parameter-cells
+              (global.set $current-environment-variables-value (ref.i31 (i32.const 2)))
+              (global.set $current-print-value (ref.i31 (i32.const 4)))
+              (global.set $current-read-interaction-value (ref.i31 (i32.const 6)))
+              (global.set $print-as-expression-value (ref.i31 (i32.const 8)))
+              (global.set $print-mpair-curly-braces-value (ref.i31 (i32.const 10)))
+              (global.set $current-compile-realm-value (ref.i31 (i32.const 12)))
+              (global.set $error-value->string-handler-value (ref.i31 (i32.const 14))))
+        (func $entry
+              (export "entry")
+              (result (ref eq))
+              (call $initialize-parameter-cells)
+              (global.get $print-as-expression-value)))
+     #:helpers '()))
+  (define core-parameter-cell-import-program-forms
+    (module-forms (split-runtime-modules-program
+                   core-parameter-cell-import-split)))
+  (for ([name (in-list '($current-environment-variables-value
+                         $current-print-value
+                         $current-read-interaction-value
+                         $print-as-expression-value
+                         $print-mpair-curly-braces-value
+                         $current-compile-realm-value
+                         $error-value->string-handler-value))])
+    (check-not-false
+     (member name
+             (split-runtime-modules-imported-names
+              core-parameter-cell-import-split)))
+    (check-not-false
+     (member `(global ,name
+                      (import "core" ,(runtime-global-export-name name))
+                      (mut (ref eq)))
+             core-parameter-cell-import-program-forms))
+    (check-false
+     (for/or ([form (in-list core-parameter-cell-import-program-forms)])
+       (and (global-definition-form? form)
+            (eq? (module-global-name form) name))))
+    (check-not-false
+     (for/or ([form (in-list core-parameter-cell-import-program-forms)])
+       (form-contains-global-set? name form))))
+
   (define core-parameterization-state-import-split
     (split-core-runtime-module
      `(module
