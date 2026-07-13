@@ -1,11 +1,15 @@
 #lang racket
 
 (provide random-current-global-forms
+         random-current-global-names
          random-runtime-string-constants
          random-current-initializer-forms
+         random-core-runtime-helper-forms
+         random-core-runtime-helpers
          random-generator-runtime-helper-forms
          random-public-runtime-helper-forms
          random-state-global-forms
+         random-state-global-names
          random-runtime-only-helpers)
 
 (require "../core-helper.rkt")
@@ -49,11 +53,31 @@
         ;; entry initialization.
         (global $random-state (mut i32) (i32.const 0x9E3779B9))))
 
+;; random-state-global-names : (listof symbol?)
+;;   Enumerate fallback pseudo-random state globals.
+(define random-state-global-names
+  (for/list ([form (in-list random-state-global-forms)])
+    (match form
+      [`(global ,name . ,_) name]
+      [_ (error 'random-state-global-names
+                "expected global form, got: ~s"
+                form)])))
+
 ;; random-current-global-forms : (listof datum?)
 ;;   Declare the current pseudo-random generator backing global.
 (define random-current-global-forms
   '(
                (global $current-pseudo-random-generator-value (mut (ref eq)) (global.get $false))))
+
+;; random-current-global-names : (listof symbol?)
+;;   Enumerate current pseudo-random generator globals.
+(define random-current-global-names
+  (for/list ([form (in-list random-current-global-forms)])
+    (match form
+      [`(global ,name . ,_) name]
+      [_ (error 'random-current-global-names
+                "expected global form, got: ~s"
+                form)])))
 
 ;; random-current-initializer-forms : (listof datum?)
 ;;   Initialize the current pseudo-random generator backing value.
@@ -64,18 +88,18 @@
                                              (i32.const 0)
                                              (i32.const 0x9E3779B9)))))
 
-;; random-generator-runtime-only-helper-names : (listof symbol?)
+;; random-generator-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for random generator helpers.
-(define random-generator-runtime-only-helper-names
+(define random-generator-helper-names
   '($random-u32/generator
     $current-random-generator
     $random-u32
     $make-pseudo-random-generator
     $pseudo-random-generator?))
 
-;; random-public-runtime-only-helper-names : (listof symbol?)
+;; random-public-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for public random helpers.
-(define random-public-runtime-only-helper-names
+(define random-public-helper-names
   '($raise-random-seed:contract
     $raise-random:single-argument-contract
     $raise-random:generator-count-contract
@@ -86,11 +110,36 @@
     $random-seed
     $random))
 
+;; random-core-runtime-helper-names : (listof symbol?)
+;;   Name random helpers available in the standalone core runtime.
+(define random-core-runtime-helper-names
+  (append random-generator-helper-names
+          random-public-helper-names))
+
+;; random-generator-runtime-only-helper-names : (listof symbol?)
+;;   Preserve runtime-only random generator helper emission order.
+(define random-generator-runtime-only-helper-names
+  (remove* random-core-runtime-helper-names
+           random-generator-helper-names
+           eq?))
+
+;; random-public-runtime-only-helper-names : (listof symbol?)
+;;   Preserve runtime-only public random helper emission order.
+(define random-public-runtime-only-helper-names
+  (remove* random-core-runtime-helper-names
+           random-public-helper-names
+           eq?))
+
 ;; random-helper-forms : hasheq? (listof symbol?) -> (listof datum?)
 ;;   Render the given random helper names from a helper index.
 (define (random-helper-forms helper-index names)
   (for/list ([name (in-list names)])
     (core-runtime-helper-form helper-index name)))
+
+;; random-core-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render random helpers shared with the standalone core runtime.
+(define (random-core-runtime-helper-forms helper-index)
+  (random-helper-forms helper-index random-core-runtime-helper-names))
 
 ;; random-generator-runtime-helper-forms : hasheq? -> (listof datum?)
 ;;   Render random generator helpers in runtime assembly order.
@@ -102,11 +151,11 @@
 (define (random-public-runtime-helper-forms helper-index)
   (random-helper-forms helper-index random-public-runtime-only-helper-names))
 
-;; random-generator-runtime-only-helpers : (listof core-runtime-helper?)
-;;   Enumerate random generator helpers that still depend on monolithic runtime globals.
-(define random-generator-runtime-only-helpers
+;; random-generator-helpers : (listof core-runtime-helper?)
+;;   Enumerate random generator helpers.
+(define random-generator-helpers
   (function-forms->runtime-helpers
-   'random-generator-runtime-only-helpers
+   'random-generator-helpers
    `(
         (func $random-u32/generator
               (param $gen (ref $PseudoRandomGenerator)) ;; pseudo-random-generator?
@@ -161,11 +210,11 @@
 
      )))
 
-;; random-public-runtime-only-helpers : (listof core-runtime-helper?)
-;;   Enumerate public random helpers that still depend on monolithic runtime globals.
-(define random-public-runtime-only-helpers
+;; random-public-helpers : (listof core-runtime-helper?)
+;;   Enumerate public random helpers.
+(define random-public-helpers
   (function-forms->runtime-helpers
-   'random-public-runtime-only-helpers
+   'random-public-helpers
    `(
         (func $raise-random-seed:contract
               (param $x (ref eq))
@@ -399,11 +448,23 @@
 
      )))
 
+;; random-all-runtime-helpers : (listof core-runtime-helper?)
+;;   Enumerate all random helpers in runtime emission order.
+(define random-all-runtime-helpers
+  (append random-generator-helpers
+          random-public-helpers))
+
+;; random-core-runtime-helpers : (listof core-runtime-helper?)
+;;   Enumerate random helpers available in the standalone core runtime.
+(define random-core-runtime-helpers
+  (select-runtime-helpers random-all-runtime-helpers
+                          random-core-runtime-helper-names))
+
 ;; random-runtime-only-helpers : (listof core-runtime-helper?)
-;;   Enumerate random helpers that still depend on monolithic runtime globals.
+;;   Enumerate random helpers still owned by the program/runtime module.
 (define random-runtime-only-helpers
-  (append random-generator-runtime-only-helpers
-          random-public-runtime-only-helpers))
+  (remove-runtime-helpers random-all-runtime-helpers
+                          random-core-runtime-helper-names))
 
 (module+ test
   (require rackunit)
@@ -414,7 +475,20 @@
     (second form))
 
   (define random-helper-index
-    (make-core-runtime-helper-index random-runtime-only-helpers))
+    (make-core-runtime-helper-index
+     (append random-core-runtime-helpers
+             random-runtime-only-helpers)))
+
+  (define random-core-helper-index
+    (make-core-runtime-helper-index random-core-runtime-helpers))
+
+  (check-equal?
+   (map core-runtime-helper-name random-core-runtime-helpers)
+   random-core-runtime-helper-names)
+
+  (check-equal?
+   (map form-name (random-core-runtime-helper-forms random-core-helper-index))
+   random-core-runtime-helper-names)
 
   (check-equal?
    (map form-name (random-generator-runtime-helper-forms random-helper-index))

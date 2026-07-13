@@ -246,6 +246,7 @@
                   compile-parameter-runtime-helper-forms
                   current-security-guard-runtime-helper-forms
                   current-custodian-runtime-helper-forms
+                  current-pseudo-random-generator-core-runtime-helper-forms
                   current-pseudo-random-generator-runtime-helper-forms
                   current-environment-variables-runtime-helper-forms
                   current-print-runtime-helper-forms
@@ -308,6 +309,7 @@
          (only-in "runtime-wasm/core/random.rkt"
                   random-current-global-forms
                   random-current-initializer-forms
+                  random-core-runtime-helper-forms
                   random-generator-runtime-helper-forms
                   random-public-runtime-helper-forms
                   random-state-global-forms)
@@ -953,9 +955,11 @@
         ,@random-state-global-forms
 
         ;;   Random generator helpers are implemented in runtime-wasm/core/random.rkt.
+        ,@(random-core-runtime-helper-forms core-runtime-helper-index)
         ,@(random-generator-runtime-helper-forms runtime-helper-index)
 
         ;;   Implemented in runtime-wasm/core/parameters.rkt.
+        ,@(current-pseudo-random-generator-core-runtime-helper-forms core-runtime-helper-index)
         ,@(current-pseudo-random-generator-runtime-helper-forms runtime-helper-index)
 
         ;;   Public random helpers are implemented in runtime-wasm/core/random.rkt.

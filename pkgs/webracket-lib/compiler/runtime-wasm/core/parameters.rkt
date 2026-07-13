@@ -7,6 +7,7 @@
          compile-parameter-runtime-helper-forms
          current-security-guard-runtime-helper-forms
          current-custodian-runtime-helper-forms
+         current-pseudo-random-generator-core-runtime-helper-forms
          current-pseudo-random-generator-runtime-helper-forms
          current-environment-variables-runtime-helper-forms
          current-print-runtime-helper-forms
@@ -533,10 +534,22 @@
 (define current-custodian-runtime-only-helper-names
   '($current-custodian))
 
-;; current-pseudo-random-generator-runtime-only-helper-names : (listof symbol?)
+;; current-pseudo-random-generator-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for current-pseudo-random-generator.
-(define current-pseudo-random-generator-runtime-only-helper-names
+(define current-pseudo-random-generator-helper-names
   '($current-pseudo-random-generator))
+
+;; current-pseudo-random-generator-core-runtime-helper-names : (listof symbol?)
+;;   Name current-pseudo-random-generator helpers available in core runtime.
+(define current-pseudo-random-generator-core-runtime-helper-names
+  current-pseudo-random-generator-helper-names)
+
+;; current-pseudo-random-generator-runtime-only-helper-names : (listof symbol?)
+;;   Preserve runtime-only current-pseudo-random-generator emission order.
+(define current-pseudo-random-generator-runtime-only-helper-names
+  (remove* current-pseudo-random-generator-core-runtime-helper-names
+           current-pseudo-random-generator-helper-names
+           eq?))
 
 ;; current-environment-variables-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for current-environment-variables.
@@ -588,6 +601,11 @@
 ;;   Render current-pseudo-random-generator in runtime assembly order.
 (define (current-pseudo-random-generator-runtime-helper-forms helper-index)
   (parameter-helper-forms helper-index current-pseudo-random-generator-runtime-only-helper-names))
+
+;; current-pseudo-random-generator-core-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render current-pseudo-random-generator helpers shared with core runtime.
+(define (current-pseudo-random-generator-core-runtime-helper-forms helper-index)
+  (parameter-helper-forms helper-index current-pseudo-random-generator-core-runtime-helper-names))
 
 ;; current-environment-variables-runtime-helper-forms : hasheq? -> (listof datum?)
 ;;   Render current-environment-variables in runtime assembly order.
@@ -1668,13 +1686,15 @@
 ;;   Enumerate parameterization helpers available in the standalone core runtime.
 (define parameter-core-runtime-helpers
   (select-runtime-helpers parameter-runtime-helpers
-                          parameterization-binding-promoted-runtime-helper-names))
+                          (append parameterization-binding-promoted-runtime-helper-names
+                                  current-pseudo-random-generator-core-runtime-helper-names)))
 
 ;; parameter-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate parameterization helpers used only by the monolithic runtime.
 (define parameter-runtime-only-helpers
   (remove-runtime-helpers parameter-runtime-helpers
-                          parameterization-binding-promoted-runtime-helper-names))
+                          (append parameterization-binding-promoted-runtime-helper-names
+                                  current-pseudo-random-generator-core-runtime-helper-names)))
 
 (module+ test
   (require rackunit)
@@ -1737,6 +1757,11 @@
 
   (define parameter-core-helper-index
     (make-core-runtime-helper-index parameter-core-runtime-helpers))
+
+  (check-equal?
+   (map form-name (current-pseudo-random-generator-core-runtime-helper-forms
+                   parameter-core-helper-index))
+   current-pseudo-random-generator-core-runtime-helper-names)
 
   (check-equal?
    (map form-name (parameterization-binding-core-runtime-helper-forms

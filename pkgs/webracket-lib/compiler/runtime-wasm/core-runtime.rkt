@@ -66,6 +66,7 @@
          "core/paths.rkt"
          "core/ports.rkt"
          "core/procedures.rkt"
+         "core/random.rkt"
          "core/realms.rkt"
          "core/reflection.rkt"
          "core/regexps.rkt"
@@ -130,6 +131,7 @@
    path-core-runtime-helpers
    port-core-runtime-helpers
    procedure-core-runtime-helpers
+   random-core-runtime-helpers
    reflection-core-runtime-helpers
    regexp-core-runtime-helpers
    security-core-runtime-helpers
@@ -344,6 +346,8 @@
    reader-printer-policy-parameter-primitive-global-names
    compile-parameter-global-names
    parameterization-global-names
+   random-state-global-names
+   random-current-global-names
    error-rendering-handler-global-names
    location-global-names
    exception-read-primitive-global-names
@@ -449,6 +453,8 @@
      ,@reader-printer-policy-parameter-primitive-global-forms
      ,@compile-parameter-global-forms
      ,@parameterization-global-forms
+     ,@random-state-global-forms
+     ,@random-current-global-forms
      ,@error-rendering-handler-global-forms
      ,@location-global-forms
      ,@exception-read-primitive-global-forms
@@ -472,6 +478,7 @@
            ,@flonum-initializer-forms
            ,@character-general-category-initializer-forms
            ,@struct-property-identity-initializer-forms
+           ,@random-current-initializer-forms
            ,@realm-initializer-forms)
      (start $initialize-core-runtime!)
      (export "global:$the-symbol-table" (global $the-symbol-table))
@@ -517,6 +524,10 @@
             compile-parameter-global-names)
      ,@(map core-runtime-global-export-form
             parameterization-global-names)
+     ,@(map core-runtime-global-export-form
+            random-state-global-names)
+     ,@(map core-runtime-global-export-form
+            random-current-global-names)
      ,@(map core-runtime-global-export-form
             error-rendering-handler-global-names)
      ,@(map core-runtime-global-export-form
@@ -1129,6 +1140,8 @@
   (check-true (hash-has-key? core-runtime-global-name-set '$prim:print-mpair-curly-braces))
   (check-true (hash-has-key? core-runtime-global-name-set '$current-compile-realm-value))
   (check-true (hash-has-key? core-runtime-global-name-set '$current-parameterization-value))
+  (check-true (hash-has-key? core-runtime-global-name-set '$random-state))
+  (check-true (hash-has-key? core-runtime-global-name-set '$current-pseudo-random-generator-value))
   (check-true (hash-has-key? core-runtime-global-name-set '$cache-configuration-values))
   (check-true (hash-has-key? core-runtime-global-name-set '$error-value->string-handler-value))
   (check-true (hash-has-key? core-runtime-global-name-set '$srcloc-type))
@@ -1394,6 +1407,10 @@
   (check-true (for/or ([form (in-list core-forms)])
                 (global-form-named? '$current-parameterization-value form)))
   (check-true (for/or ([form (in-list core-forms)])
+                (global-form-named? '$random-state form)))
+  (check-true (for/or ([form (in-list core-forms)])
+                (global-form-named? '$current-pseudo-random-generator-value form)))
+  (check-true (for/or ([form (in-list core-forms)])
                 (global-form-named? '$cache-configuration-values form)))
   (check-true (for/or ([form (in-list core-forms)])
                 (global-form-named? '$error-value->string-handler-value form)))
@@ -1528,6 +1545,14 @@
   (check-true (for/or ([form (in-list core-forms)])
                 (global-export-form-named? "global:$current-parameterization-value"
                                            '$current-parameterization-value
+                                           form)))
+  (check-true (for/or ([form (in-list core-forms)])
+                (global-export-form-named? "global:$random-state"
+                                           '$random-state
+                                           form)))
+  (check-true (for/or ([form (in-list core-forms)])
+                (global-export-form-named? "global:$current-pseudo-random-generator-value"
+                                           '$current-pseudo-random-generator-value
                                            form)))
   (check-true (for/or ([form (in-list core-forms)])
                 (global-export-form-named? "global:$cache-configuration-values"
