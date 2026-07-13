@@ -335,6 +335,7 @@
    struct-property-identity-global-names
    struct-equal+hash-recur-global-names
    equality-primitive-global-names
+   impersonator-primitive-global-names
    procedure-global-names
    syntax-global-names
    flonum-global-names
@@ -360,7 +361,8 @@
    location-global-names
    exception-read-primitive-global-names
    exception-struct-type-cache-global-names
-   filesystem-temporary-global-names))
+   filesystem-temporary-global-names
+   symbol-gensym-global-names))
 
 ;; core-runtime-program-import-tag-names : (listof symbol?)
 ;;   Name core tags that split-core program modules must share for catch/throw identity.
@@ -450,6 +452,7 @@
      ,@struct-property-identity-global-forms
      ,@struct-equal+hash-recur-global-forms
      ,@equality-primitive-global-forms
+     ,@impersonator-primitive-global-forms
      ,@procedure-global-forms
      ,@syntax-global-forms
      ,@port-current-global-forms
@@ -475,6 +478,7 @@
      ,@exception-read-primitive-global-forms
      ,@exception-struct-type-cache-global-forms
      ,@filesystem-temporary-global-forms
+     ,@symbol-gensym-global-forms
      ,@symbol-table-global-forms
      ,@keyword-table-global-forms
      ,@struct-prefab-registry-global-forms
@@ -518,6 +522,8 @@
             struct-equal+hash-recur-global-names)
      ,@(map core-runtime-global-export-form
             equality-primitive-global-names)
+     ,@(map core-runtime-global-export-form
+            impersonator-primitive-global-names)
      ,@(map core-runtime-global-export-form
             procedure-global-names)
      ,@(map core-runtime-global-export-form
@@ -570,6 +576,8 @@
             exception-struct-type-cache-global-names)
      ,@(map core-runtime-global-export-form
             filesystem-temporary-global-names)
+     ,@(map core-runtime-global-export-form
+            symbol-gensym-global-names)
      ,@(map core-runtime-tag-export-form
             core-runtime-program-import-tag-names)
      ,@(map core-runtime-global-export-form
@@ -1162,6 +1170,8 @@
   (check-true (hash-has-key? core-runtime-global-name-set '$prim:eqv?))
   (check-true (hash-has-key? core-runtime-global-name-set '$prim:equal?))
   (check-true (hash-has-key? core-runtime-global-name-set '$prim:equal-always?))
+  (check-true (hash-has-key? core-runtime-global-name-set '$prim:webracket-impersonator-property-predicate))
+  (check-true (hash-has-key? core-runtime-global-name-set '$prim:webracket-impersonator-property-accessor))
   (check-true (hash-has-key? core-runtime-global-name-set '$arity-at-least-type))
   (check-true (hash-has-key? core-runtime-global-name-set '$syntax-type))
   (check-true (hash-has-key? core-runtime-global-name-set '$current-output-port-value))
@@ -1196,6 +1206,7 @@
   (check-true (hash-has-key? core-runtime-global-name-set '$srcloc-type))
   (check-true (hash-has-key? core-runtime-global-name-set '$prim:exn:fail:read-srclocs))
   (check-true (hash-has-key? core-runtime-global-name-set '$temporary-file-counter))
+  (check-true (hash-has-key? core-runtime-global-name-set '$gensym-counter))
   (check-true (hash-has-key? core-runtime-global-name-set '$dummy-treelist-node))
   (check-true (hash-has-key? core-runtime-global-name-set '$empty-treelist))
   (check-true (hash-has-key? core-runtime-global-name-set '$treelist:BITS))
@@ -1598,6 +1609,14 @@
                                            '$prim:equal-always?
                                            form)))
   (check-true (for/or ([form (in-list core-forms)])
+                (global-export-form-named? "global:$prim:webracket-impersonator-property-predicate"
+                                           '$prim:webracket-impersonator-property-predicate
+                                           form)))
+  (check-true (for/or ([form (in-list core-forms)])
+                (global-export-form-named? "global:$prim:webracket-impersonator-property-accessor"
+                                           '$prim:webracket-impersonator-property-accessor
+                                           form)))
+  (check-true (for/or ([form (in-list core-forms)])
                 (global-export-form-named? "global:$arity-at-least-type"
                                            '$arity-at-least-type
                                            form)))
@@ -1732,6 +1751,10 @@
   (check-true (for/or ([form (in-list core-forms)])
                 (global-export-form-named? "global:$error-value->string-handler-value"
                                            '$error-value->string-handler-value
+                                           form)))
+  (check-true (for/or ([form (in-list core-forms)])
+                (global-export-form-named? "global:$gensym-counter"
+                                           '$gensym-counter
                                            form)))
   (check-true (for/or ([form (in-list core-forms)])
                 (tag-export-form-named? "tag:$exn" '$exn form)))

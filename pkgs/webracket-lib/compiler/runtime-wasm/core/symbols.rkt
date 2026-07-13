@@ -6,8 +6,10 @@
          symbol-public-runtime-only-helper-names
          symbol-public-runtime-helper-forms
          symbol-gensym-runtime-only-helper-names
+         symbol-gensym-core-runtime-helper-forms
          symbol-gensym-runtime-helper-forms
          symbol-gensym-global-forms
+         symbol-gensym-global-names
          symbol-table-global-forms
          symbol-table-core-runtime-helper-forms
          core-runtime-symbol-constant-converter-name
@@ -19,6 +21,15 @@
 
 (require "../core-helper.rkt"
          "../../private/wasm-utils.rkt")
+
+;; symbol-global-form-name : datum? -> symbol?
+;;   Return the Wasm global name declared by a symbol support global form.
+(define (symbol-global-form-name form)
+  (match form
+    [`(global ,name . ,_) name]
+    [_ (error 'symbol-global-form-name
+              "expected global form, got: ~s"
+              form)]))
 
 ;; symbol-runtime-string-constants : (listof (list/c symbol? string?))
 ;;   Declare string constants used by symbol helpers and symbol contract checks.
@@ -41,6 +52,11 @@
 (define symbol-gensym-global-forms
   '(
          (global $gensym-counter (mut i32) (i32.const 0))))
+
+;; symbol-gensym-global-names : (listof symbol?)
+;;   Enumerate gensym globals shared by split modules.
+(define symbol-gensym-global-names
+  (map symbol-global-form-name symbol-gensym-global-forms))
 
 ;; symbol-table-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for symbol table helpers.
@@ -707,10 +723,12 @@
 ;; symbol-core-runtime-helper-names : (listof symbol?)
 ;;   Name symbol helpers available in the standalone core runtime.
 (define symbol-core-runtime-helper-names
-  '($symbol?
-    $symbol=?/i32
-    $symbol->immutable-string
-    $string->uninterned-symbol/checked))
+  (append
+   '($symbol?
+     $symbol=?/i32
+     $symbol->immutable-string
+     $string->uninterned-symbol/checked)
+   (map core-runtime-helper-name symbol-gensym-runtime-only-helpers)))
 
 ;; symbol-all-runtime-helpers : (listof core-runtime-helper?)
 ;;   Register symbol table, public symbol, and gensym helpers.
@@ -740,7 +758,9 @@
 ;; symbol-gensym-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for gensym helpers.
 (define symbol-gensym-runtime-only-helper-names
-  (map core-runtime-helper-name symbol-gensym-runtime-only-helpers))
+  (map core-runtime-helper-name
+       (remove-runtime-helpers symbol-gensym-runtime-only-helpers
+                               symbol-core-runtime-helper-names)))
 
 ;; symbol-helper-forms : hasheq? (listof symbol?) -> (listof datum?)
 ;;   Render the given symbol helper names from the runtime helper index.
@@ -763,6 +783,12 @@
 (define (symbol-public-runtime-helper-forms helper-index)
   (symbol-helper-forms helper-index symbol-public-runtime-only-helper-names))
 
+;; symbol-gensym-core-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render promoted gensym helpers in runtime assembly order.
+(define (symbol-gensym-core-runtime-helper-forms helper-index)
+  (symbol-helper-forms helper-index
+                       (map core-runtime-helper-name symbol-gensym-runtime-only-helpers)))
+
 ;; symbol-gensym-runtime-helper-forms : hasheq? -> (listof datum?)
 ;;   Render gensym helpers in runtime assembly order.
 (define (symbol-gensym-runtime-helper-forms helper-index)
@@ -781,6 +807,9 @@
      (append symbol-core-runtime-helpers
              symbol-runtime-only-helpers)))
 
+  (define symbol-core-helper-index
+    (make-core-runtime-helper-index symbol-core-runtime-helpers))
+
   (check-equal?
    (map core-runtime-helper-name symbol-core-runtime-helpers)
    symbol-core-runtime-helper-names)
@@ -797,6 +826,10 @@
   (check-equal?
    (map form-name (symbol-public-runtime-helper-forms symbol-helper-index))
    symbol-public-runtime-only-helper-names)
+
+  (check-equal?
+   (map form-name (symbol-gensym-core-runtime-helper-forms symbol-core-helper-index))
+   (map core-runtime-helper-name symbol-gensym-runtime-only-helpers))
 
   (check-equal?
    (map form-name (symbol-gensym-runtime-helper-forms symbol-helper-index))

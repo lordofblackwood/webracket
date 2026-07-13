@@ -369,6 +369,7 @@
                   struct-prefab-registry-global-forms)
          (only-in "runtime-wasm/core/symbols.rkt"
                   symbol-gensym-global-forms
+                  symbol-gensym-core-runtime-helper-forms
                   symbol-gensym-runtime-helper-forms
                   symbol-public-runtime-helper-forms
                   symbol-table-global-forms
@@ -1069,6 +1070,7 @@
          ,@symbol-gensym-global-forms
 
          ;;   Gensym helpers are implemented in runtime-wasm/core/symbols.rkt.
+         ,@(symbol-gensym-core-runtime-helper-forms core-runtime-helper-index)
          ,@(symbol-gensym-runtime-helper-forms runtime-helper-index)
 
          ;;;

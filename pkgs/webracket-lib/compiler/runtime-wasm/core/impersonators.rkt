@@ -2,6 +2,8 @@
 
 (provide impersonator-runtime-string-constants
          impersonator-runtime-symbol-constants
+         impersonator-primitive-global-forms
+         impersonator-primitive-global-names
          impersonator-core-runtime-helpers
          impersonator-core-runtime-helper-forms
          impersonator-basic-runtime-only-helper-names
@@ -11,6 +13,15 @@
          impersonator-runtime-only-helpers)
 
 (require "../core-helper.rkt")
+
+;; impersonator-global-form-name : datum? -> symbol?
+;;   Return the Wasm global name declared by an impersonator support global form.
+(define (impersonator-global-form-name form)
+  (match form
+    [`(global ,name . ,_) name]
+    [_ (error 'impersonator-global-form-name
+              "expected global form, got: ~s"
+              form)]))
 
 ;; impersonator-runtime-string-constants : (listof (list/c symbol? string?))
 ;;   Declare string constants used by impersonator and chaperone helpers.
@@ -25,6 +36,18 @@
 ;;   Declare symbols used by impersonator and chaperone helpers.
 (define impersonator-runtime-symbol-constants
   '(chaperone?))
+
+;; impersonator-primitive-global-forms : (listof datum?)
+;;   Declare primitive procedure globals used by inert impersonator-property helpers.
+(define impersonator-primitive-global-forms
+  '(
+    (global $prim:webracket-impersonator-property-predicate (mut (ref eq)) (global.get $undefined))
+    (global $prim:webracket-impersonator-property-accessor  (mut (ref eq)) (global.get $undefined))))
+
+;; impersonator-primitive-global-names : (listof symbol?)
+;;   Enumerate impersonator primitive procedure globals shared by split modules.
+(define impersonator-primitive-global-names
+  (map impersonator-global-form-name impersonator-primitive-global-forms))
 
 ;; impersonator-basic-all-runtime-helper-names : (listof symbol?)
 ;;   Preserve the full runtime emission order for basic impersonator helpers.
@@ -59,7 +82,9 @@
   '($impersonator?
     $procedure-impersonator*?
     $chaperone?
+    $make-impersonator-property
     $impersonator-property?
+    $impersonator-property-accessor-procedure?
     $webracket-impersonator-property-predicate))
 
 ;; impersonator-basic-runtime-only-helper-names : (listof symbol?)
@@ -484,6 +509,11 @@
   (check-equal?
    (map core-runtime-helper-name impersonator-core-runtime-helpers)
    impersonator-core-runtime-helper-names)
+
+  (check-equal?
+   impersonator-primitive-global-names
+   '($prim:webracket-impersonator-property-predicate
+     $prim:webracket-impersonator-property-accessor))
 
   (check-equal?
    (map form-name
