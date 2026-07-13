@@ -1029,14 +1029,27 @@
   (define forms (module-forms module))
   (define names (helper-name-set helpers))
   (define counts (helper-definition-counts forms names))
+  (define forms-without-helpers (remove-helper-definitions forms names))
+  (define referenced-helper-name-set
+    (for/hasheq ([name (in-list (referenced-runtime-names forms-without-helpers names))])
+      (values name #t)))
   (define selected-helpers
     (if require-all?
         helpers
         (for/list ([helper (in-list helpers)]
-                   #:when (positive? (hash-ref counts (core-runtime-helper-name helper) 0)))
+                   #:do [(define name (core-runtime-helper-name helper))]
+                   #:when (or (positive? (hash-ref counts name 0))
+                              (hash-ref referenced-helper-name-set name #f)))
           helper)))
-  (check-helper-definitions! selected-helpers counts)
-  (define forms-without-helpers (remove-helper-definitions forms names))
+  (define helpers-selected-from-definitions
+    (if require-all?
+        selected-helpers
+        (for/list ([helper (in-list selected-helpers)]
+                   #:when (positive? (hash-ref counts
+                                                (core-runtime-helper-name helper)
+                                                0)))
+          helper)))
+  (check-helper-definitions! helpers-selected-from-definitions counts)
   (define core-owned-preinitialized-global-name-set
     (for/hasheq ([name (in-list
                         (append core-runtime-program-import-constant-global-names
@@ -1322,6 +1335,29 @@
               #:when (function-import-form? form))
      (module-func-name form))
    '($sample-add $sample-id))
+
+  (define sample-reference-only-module
+    `(module
+       (type $SampleId (func (param i32) (result i32)))
+       (func $probe (export "probe") (result i32)
+             (call $sample-add
+                   (i32.const 20)
+                   (i32.const 22)))))
+  (define sample-reference-only-split
+    (split-core-runtime-module
+     sample-reference-only-module
+     #:helpers sample-helpers
+     #:require-all? #f
+     #:core-module '(module)))
+  (define sample-reference-only-program-forms
+    (module-forms (split-runtime-modules-program sample-reference-only-split)))
+  (check-equal? (split-runtime-modules-imported-names sample-reference-only-split)
+                '($sample-add))
+  (check-equal?
+   (for/list ([form (in-list sample-reference-only-program-forms)]
+              #:when (function-import-form? form))
+     (module-func-name form))
+   '($sample-add))
 
   (define sample-lazy-core-split
     (split-core-runtime-module

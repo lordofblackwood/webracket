@@ -1371,9 +1371,9 @@
                    (global.get $true))
              (unreachable))))))
 
-;; primitive-invoke-debug-form? : datum? -> boolean?
+;; procedure-invocation-debug-form? : datum? -> boolean?
 ;;   Recognize probe-only instructions that would pull JS logging into core runtime.
-(define (primitive-invoke-debug-form? form)
+(define (procedure-invocation-debug-form? form)
   (or (equal? form '(global.set $debug-current-procedure (local.get $proc)))
       (equal? form '(call $debug-invoke-tick))))
 
@@ -1384,11 +1384,25 @@
     [`(func $primitive-invoke ,parts ...)
      `(func $primitive-invoke
             ,@(for/list ([part (in-list parts)]
-                         #:unless (primitive-invoke-debug-form? part))
+                         #:unless (procedure-invocation-debug-form? part))
                 part))]
     [_
      (error 'primitive-invoke-core-form
             "expected $primitive-invoke function form, got: ~s"
+            form)]))
+
+;; invoke-closure-core-form : datum? -> datum?
+;;   Return the closure invoker without program-side debug probes.
+(define (invoke-closure-core-form form)
+  (match form
+    [`(func $invoke-closure ,parts ...)
+     `(func $invoke-closure
+            ,@(for/list ([part (in-list parts)]
+                         #:unless (procedure-invocation-debug-form? part))
+                part))]
+    [_
+     (error 'invoke-closure-core-form
+            "expected $invoke-closure function form, got: ~s"
             form)]))
 
 ;; procedure-primitive-invoker-core-runtime-helpers : (listof core-runtime-helper?)
@@ -1492,9 +1506,9 @@
     $primitive-result-arity
     $primitive-closure?))
 
-;; procedure-invocation-error-runtime-only-helper-names : (listof symbol?)
+;; procedure-invocation-error-all-runtime-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for procedure invocation error helpers.
-(define procedure-invocation-error-runtime-only-helper-names
+(define procedure-invocation-error-all-runtime-helper-names
   '($raise-arity-mismatch
     $procedure-arity->expected-string
     $raise-arity-mismatch/proc
@@ -1504,6 +1518,17 @@
     $raise-binding-result-arity-error
     $raise-definition-result-arity-error))
 
+;; procedure-invocation-error-core-runtime-helper-names : (listof symbol?)
+;;   Name invocation error helpers available in the standalone core runtime.
+(define procedure-invocation-error-core-runtime-helper-names
+  '($raise-arity-mismatch/proc))
+
+;; procedure-invocation-error-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime-only invocation error helper emission order.
+(define procedure-invocation-error-runtime-only-helper-names
+  (remove* procedure-invocation-error-core-runtime-helper-names
+           procedure-invocation-error-all-runtime-helper-names))
+
 ;; procedure-application-error-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for procedure application error helpers.
 (define procedure-application-error-runtime-only-helper-names
@@ -1511,31 +1536,53 @@
     $raise-apply-final-arg-not-list
     $raise-struct-type-property-accessor-contract))
 
-;; procedure-invoker-runtime-only-helper-names : (listof symbol?)
+;; procedure-invoker-all-runtime-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for procedure invoker helpers.
-(define procedure-invoker-runtime-only-helper-names
+(define procedure-invoker-all-runtime-helper-names
   '($invoke-closure
     $invoke-reduced-procedure
     $invoke-composed-procedure
     $invoke-case-closure))
+
+;; procedure-invoker-core-runtime-helper-names : (listof symbol?)
+;;   Name procedure invokers available in the standalone core runtime.
+(define procedure-invoker-core-runtime-helper-names
+  '($invoke-closure))
+
+;; procedure-invoker-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime-only procedure invoker emission order.
+(define procedure-invoker-runtime-only-helper-names
+  (remove* procedure-invoker-core-runtime-helper-names
+           procedure-invoker-all-runtime-helper-names))
 
 ;; primitive-invocation-error-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for primitive invocation error helpers.
 (define primitive-invocation-error-runtime-only-helper-names
   '())
 
-;; procedure-case-lambda-runtime-only-helper-names : (listof symbol?)
+;; procedure-case-lambda-all-runtime-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for procedure case-lambda helpers.
-(define procedure-case-lambda-runtime-only-helper-names
+(define procedure-case-lambda-all-runtime-helper-names
   '($repack-arguments
     $raise-arity-error/case-lambda/arities
     $code:case-lambda-dispatch))
 
-;; procedure-invocation-error-runtime-only-helpers : (listof core-runtime-helper?)
-;;   Enumerate procedure invocation error helpers used by the monolithic runtime.
-(define procedure-invocation-error-runtime-only-helpers
+;; procedure-case-lambda-core-runtime-helper-names : (listof symbol?)
+;;   Name case-lambda helpers available in the standalone core runtime.
+(define procedure-case-lambda-core-runtime-helper-names
+  '($repack-arguments))
+
+;; procedure-case-lambda-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime-only case-lambda helper emission order.
+(define procedure-case-lambda-runtime-only-helper-names
+  (remove* procedure-case-lambda-core-runtime-helper-names
+           procedure-case-lambda-all-runtime-helper-names))
+
+;; procedure-invocation-error-all-runtime-helpers : (listof core-runtime-helper?)
+;;   Enumerate all procedure invocation error helpers.
+(define procedure-invocation-error-all-runtime-helpers
   (function-forms->runtime-helpers
-   'procedure-invocation-error-runtime-only-helpers
+   'procedure-invocation-error-all-runtime-helpers
    '(
         (func $raise-arity-mismatch
               (call $raise
@@ -1780,6 +1827,18 @@
                     (local.get $args)))
      )))
 
+;; procedure-invocation-error-core-runtime-helpers : (listof core-runtime-helper?)
+;;   Register invocation error helpers available in the standalone core runtime.
+(define procedure-invocation-error-core-runtime-helpers
+  (select-runtime-helpers procedure-invocation-error-all-runtime-helpers
+                          procedure-invocation-error-core-runtime-helper-names))
+
+;; procedure-invocation-error-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Register invocation error helpers that still depend on monolithic runtime definitions.
+(define procedure-invocation-error-runtime-only-helpers
+  (remove-runtime-helpers procedure-invocation-error-all-runtime-helpers
+                          procedure-invocation-error-core-runtime-helper-names))
+
 ;; procedure-application-error-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate procedure application error helpers used by the monolithic runtime.
 (define procedure-application-error-runtime-only-helpers
@@ -1933,11 +1992,11 @@
               (unreachable))
      )))
 
-;; procedure-invoker-runtime-only-helpers : (listof core-runtime-helper?)
-;;   Enumerate procedure invoker helpers used by the monolithic runtime.
-(define procedure-invoker-runtime-only-helpers
+;; procedure-invoker-all-runtime-helpers : (listof core-runtime-helper?)
+;;   Enumerate all procedure invoker helpers.
+(define procedure-invoker-all-runtime-helpers
   (function-forms->runtime-helpers
-   'procedure-invoker-runtime-only-helpers
+   'procedure-invoker-all-runtime-helpers
    '(
          (func $invoke-closure
                (type $ProcedureInvoker)
@@ -2115,6 +2174,24 @@
                                 (local.get $args)
                                 (local.get $code)))
      )))
+
+;; procedure-invoker-core-runtime-helpers : (listof core-runtime-helper?)
+;;   Register procedure invokers available in the standalone core runtime.
+(define procedure-invoker-core-runtime-helpers
+  (for/list ([helper (in-list
+                      (select-runtime-helpers procedure-invoker-all-runtime-helpers
+                                              procedure-invoker-core-runtime-helper-names))])
+    (core-runtime-helper
+     (core-runtime-helper-name helper)
+     (core-runtime-helper-export-name helper)
+     (lambda ()
+       (invoke-closure-core-form (core-runtime-helper->form helper))))))
+
+;; procedure-invoker-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Register procedure invokers that still depend on monolithic runtime definitions.
+(define procedure-invoker-runtime-only-helpers
+  (remove-runtime-helpers procedure-invoker-all-runtime-helpers
+                          procedure-invoker-core-runtime-helper-names))
 
 ;; primitive-invocation-error-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate primitive invocation error helpers used by the monolithic runtime.
@@ -2616,11 +2693,11 @@
   (remove-runtime-helpers primitive-dispatch-all-runtime-helpers
                           primitive-dispatch-core-runtime-helper-names))
 
-;; procedure-case-lambda-runtime-only-helpers : (listof core-runtime-helper?)
-;;   Enumerate procedure case-lambda helpers used by the monolithic runtime.
-(define procedure-case-lambda-runtime-only-helpers
+;; procedure-case-lambda-all-runtime-helpers : (listof core-runtime-helper?)
+;;   Enumerate all procedure case-lambda helpers.
+(define procedure-case-lambda-all-runtime-helpers
   (function-forms->runtime-helpers
-   'procedure-case-lambda-runtime-only-helpers
+   'procedure-case-lambda-all-runtime-helpers
    '(
         (func $repack-arguments
               ; Returns new $Args suitable for calling both fixed and variadic procedures.
@@ -2786,6 +2863,18 @@
                        (br $scan))))
                (unreachable))
      )))
+
+;; procedure-case-lambda-core-runtime-helpers : (listof core-runtime-helper?)
+;;   Register case-lambda helpers available in the standalone core runtime.
+(define procedure-case-lambda-core-runtime-helpers
+  (select-runtime-helpers procedure-case-lambda-all-runtime-helpers
+                          procedure-case-lambda-core-runtime-helper-names))
+
+;; procedure-case-lambda-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Register case-lambda helpers that still depend on monolithic runtime definitions.
+(define procedure-case-lambda-runtime-only-helpers
+  (remove-runtime-helpers procedure-case-lambda-all-runtime-helpers
+                          procedure-case-lambda-core-runtime-helper-names))
 
 ;; procedure-basic-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate basic procedure helpers used by the monolithic runtime.
@@ -4074,6 +4163,9 @@
   (append procedure-base-core-runtime-helpers
           primitive-dispatch-core-runtime-helpers
           procedure-primitive-invoker-core-runtime-helpers
+          procedure-invocation-error-core-runtime-helpers
+          procedure-invoker-core-runtime-helpers
+          procedure-case-lambda-core-runtime-helpers
           procedure-promoted-runtime-helpers))
 
 ;; procedure-helper-forms : hasheq? (listof symbol?) -> (listof datum?)
@@ -4269,6 +4361,20 @@
    (tree-member? '(global.set $debug-current-procedure (local.get $proc))
                  (first (procedure-primitive-dispatch-core-runtime-helper-forms
                          procedure-core-helper-index))))
+
+  (define invoke-closure-form
+    (core-runtime-helper-form procedure-core-helper-index '$invoke-closure))
+  (check-false
+   (tree-member? '(call $debug-invoke-tick)
+                 invoke-closure-form))
+  (check-false
+   (tree-member? '(global.set $debug-current-procedure (local.get $proc))
+                 invoke-closure-form))
+  (check-true
+   (tree-member? '(call $raise-arity-mismatch/proc
+                        (local.get $clos)
+                        (local.get $arg-count))
+                 invoke-closure-form))
 
   (check-equal?
    (map form-name
