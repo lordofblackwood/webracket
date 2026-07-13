@@ -15,7 +15,9 @@
          split-classified-runtime-module
          split-core-runtime-module)
 
-(require "core-helper.rkt"
+(require (only-in "../private/parameters.rkt"
+                  current-runtime-cache-dir)
+         "core-helper.rkt"
          (only-in "constants.rkt"
                   constant-data-name?
                   constant-global-name?)
@@ -23,7 +25,11 @@
          "module-forms.rkt"
          (only-in "runtime-analysis.rkt"
                   split-module-forms)
-         "shared-types.rkt")
+         (only-in "runtime-metrics.rkt"
+                  time-runtime-step)
+         "shared-types.rkt"
+         racket/fasl
+         racket/file)
 
 ;; A split runtime result contains the standalone runtime module and the
 ;; rewritten program module that imports selected helper functions from it.
@@ -330,6 +336,318 @@
                       data-names
                       (reverse declare-elem-forms/reversed)
                       (reverse shared-prefix-forms/reversed)))
+
+;; split-runtime-boundary-metadata :
+;;   split-form-indexes? (listof symbol?) -> split-runtime-boundary-metadata?
+;;   Cached runtime-side indexes and references needed at the split boundary.
+(struct split-runtime-boundary-metadata
+  (runtime-index
+   runtime-symbol-refs)
+  #:transparent)
+
+;; split-runtime-boundary-cache-version : exact-integer?
+;;   Bump when the serialized split-boundary metadata layout changes.
+(define split-runtime-boundary-cache-version
+  1)
+
+;; sorted-hash-symbol-keys : hash? -> (listof symbol?)
+;;   Return hash keys in stable symbol order.
+(define (sorted-hash-symbol-keys ht)
+  (sort (hash-keys ht) symbol<?))
+
+;; cacheable-datum : any/c -> any/c
+;;   Convert syntax objects inside WAT fragments to FASL-writable datum values.
+(define (cacheable-datum v)
+  (cond
+    [(syntax? v)
+     (cacheable-datum (syntax->datum v))]
+    [(pair? v)
+     (cons (cacheable-datum (car v))
+           (cacheable-datum (cdr v)))]
+    [(vector? v)
+     (list->vector
+      (for/list ([x (in-vector v)])
+        (cacheable-datum x)))]
+    [(box? v)
+     (box (cacheable-datum (unbox v)))]
+    [(string? v)
+     (string->immutable-string v)]
+    [(bytes? v)
+     (bytes->immutable-bytes v)]
+    [else v]))
+
+;; function-boundary-form : datum? -> datum?
+;;   Keep only the function signature needed for split-runtime imports.
+(define (function-boundary-form form)
+  (define name (module-func-name form))
+  (unless name
+    (error 'function-boundary-form
+           "expected a named function form, got: ~s"
+           form))
+  `(func ,name ,@(function-import-signature-forms form)))
+
+;; global-boundary-form : datum? -> datum?
+;;   Keep only the global type needed for split-runtime imports.
+(define (global-boundary-form form)
+  (define name (module-global-name form))
+  (unless name
+    (error 'global-boundary-form
+           "expected a named global form, got: ~s"
+           form))
+  `(global ,name ,(global-type-form form)))
+
+;; tag-boundary-form : datum? -> datum?
+;;   Keep only the tag signature needed for split-runtime imports.
+(define (tag-boundary-form form)
+  (define name (module-tag-name form))
+  (unless name
+    (error 'tag-boundary-form
+           "expected a named tag form, got: ~s"
+           form))
+  `(tag ,name ,@(tag-import-signature-forms form)))
+
+;; hash->sorted-assocs : hash? [(any/c -> any/c)] -> (listof list?)
+;;   Serialize a symbol-keyed hash table as sorted association pairs.
+(define (hash->sorted-assocs ht [value->datum values])
+  (for/list ([key (in-list (sorted-hash-symbol-keys ht))])
+    (list key (cacheable-datum (value->datum (hash-ref ht key))))))
+
+;; sorted-assocs->hasheq : (listof list?) -> hasheq?
+;;   Deserialize sorted association pairs to an eq-keyed hash table.
+(define (sorted-assocs->hasheq assocs)
+  (for/hasheq ([entry (in-list assocs)])
+    (match entry
+      [(list key value)
+       (values key value)]
+      [_
+       (error 'split-runtime-boundary-cache
+              "bad serialized hash entry: ~s"
+              entry)])))
+
+;; split-form-indexes->datum : split-form-indexes? -> list?
+;;   Serialize split form indexes for the runtime boundary cache.
+(define (split-form-indexes->datum indexes)
+  `(split-form-indexes
+    ,(hash->sorted-assocs (split-form-indexes-function-defs indexes)
+                          function-boundary-form)
+    ,(hash->sorted-assocs (split-form-indexes-global-defs indexes)
+                          global-boundary-form)
+    ,(hash->sorted-assocs (split-form-indexes-tag-defs indexes)
+                          tag-boundary-form)
+    ,(hash->sorted-assocs (split-form-indexes-data-forms indexes))
+    ,(sorted-hash-symbol-keys (split-form-indexes-function-names indexes))
+    ,(sorted-hash-symbol-keys (split-form-indexes-data-names indexes))
+    ,(cacheable-datum (split-form-indexes-declare-elem-forms indexes))
+    ,(cacheable-datum (split-form-indexes-shared-prefix-forms indexes))))
+
+;; datum->split-form-indexes : any/c -> split-form-indexes?
+;;   Deserialize split form indexes from the runtime boundary cache.
+(define (datum->split-form-indexes v)
+  (match v
+    [`(split-form-indexes
+       ,function-defs
+       ,global-defs
+       ,tag-defs
+       ,data-forms
+       ,function-names
+       ,data-names
+       ,declare-elem-forms
+       ,shared-prefix-forms)
+     (split-form-indexes
+      (sorted-assocs->hasheq function-defs)
+      (sorted-assocs->hasheq global-defs)
+      (sorted-assocs->hasheq tag-defs)
+      (sorted-assocs->hasheq data-forms)
+      (for/hasheq ([name (in-list function-names)]) (values name #t))
+      (for/hasheq ([name (in-list data-names)]) (values name #t))
+      declare-elem-forms
+      shared-prefix-forms)]
+    [_
+     (error 'split-runtime-boundary-cache
+            "bad serialized split form indexes: ~s"
+            v)]))
+
+;; split-runtime-boundary-metadata->datum : split-runtime-boundary-metadata? -> list?
+;;   Serialize split-boundary metadata.
+(define (split-runtime-boundary-metadata->datum metadata)
+  `(split-runtime-boundary-metadata
+    ,(split-form-indexes->datum
+      (split-runtime-boundary-metadata-runtime-index metadata))
+    ,(split-runtime-boundary-metadata-runtime-symbol-refs metadata)))
+
+;; datum->split-runtime-boundary-metadata : any/c -> split-runtime-boundary-metadata?
+;;   Deserialize split-boundary metadata.
+(define (datum->split-runtime-boundary-metadata v)
+  (match v
+    [`(split-runtime-boundary-metadata ,runtime-index ,runtime-symbol-refs)
+     (split-runtime-boundary-metadata
+      (datum->split-form-indexes runtime-index)
+      runtime-symbol-refs)]
+    [_
+     (error 'split-runtime-boundary-cache
+            "bad serialized boundary metadata: ~s"
+            v)]))
+
+;; split-runtime-boundary-cache-path : any/c -> (or/c path? #f)
+;;   Return the cache path for split-runtime boundary metadata.
+(define (split-runtime-boundary-cache-path core-cache-key)
+  (define cache-root (current-runtime-cache-dir))
+  (and core-cache-key
+       cache-root
+       (build-path cache-root
+                   "split-runtime-boundary-v1"
+                   (format "~x.fasl"
+                           (abs (equal-hash-code core-cache-key))))))
+
+;; read-split-runtime-boundary-cache : (or/c path? #f) any/c
+;;   -> (or/c split-runtime-boundary-metadata? #f)
+;;   Read cached split-boundary metadata when present and current.
+(define (read-split-runtime-boundary-cache cache-path core-cache-key)
+  (define cacheable-core-cache-key (cacheable-datum core-cache-key))
+  (and cache-path
+       (file-exists? cache-path)
+       (with-handlers ([exn:fail? (lambda (_exn) #f)])
+         (match (call-with-input-file cache-path
+                  (lambda (in)
+                    (fasl->s-exp (port->bytes in))))
+           [(list 'split-runtime-boundary-cache
+                  version
+                  cached-core-cache-key
+                  payload)
+            (and (= version split-runtime-boundary-cache-version)
+                 (equal? cached-core-cache-key cacheable-core-cache-key)
+                 (datum->split-runtime-boundary-metadata payload))]
+           [_ #f]))))
+
+;; write-split-runtime-boundary-cache! :
+;;   (or/c path? #f) any/c split-runtime-boundary-metadata? -> void?
+;;   Write split-boundary metadata to the runtime cache.
+(define (write-split-runtime-boundary-cache! cache-path core-cache-key metadata)
+  (when cache-path
+    (with-handlers ([exn:fail?
+                     (lambda (_exn)
+                       (with-handlers ([exn:fail? void])
+                         (when (file-exists? cache-path)
+                           (delete-file cache-path))))])
+      (make-directory* (path-only cache-path))
+      (call-with-output-file cache-path
+        (lambda (out)
+          (write-bytes
+           (s-exp->fasl
+            `(split-runtime-boundary-cache
+              ,split-runtime-boundary-cache-version
+              ,(cacheable-datum core-cache-key)
+              ,(split-runtime-boundary-metadata->datum metadata)))
+           out))
+        #:exists 'truncate/replace))))
+
+;; walk-symbol-reference-positions : any/c (symbol? -> any/c) -> void?
+;;   Walk only WAT positions that refer to functions, globals, tags, or data.
+(define (walk-symbol-reference-positions x record!)
+  (define (walk-list xs)
+    (for ([x (in-list xs)])
+      (walk x)))
+  (define (walk x)
+    (cond
+      [(pair? x)
+       (match x
+         [`(func ,(? symbol?) ,parts ...)
+          (walk-list parts)]
+         [`(global ,(? symbol?) ,parts ...)
+          (walk-list parts)]
+         [`(tag ,(? symbol?) ,parts ...)
+          (walk-list parts)]
+         [`(data ,(? symbol?) ,parts ...)
+          (walk-list parts)]
+         [`(type ,(? symbol?) ,parts ...)
+          (walk-list parts)]
+         [`(param ,(? symbol?) ,parts ...)
+          (walk-list parts)]
+         [`(local ,(? symbol?) ,parts ...)
+          (walk-list parts)]
+         [`(local.get ,_) (void)]
+         [`(local.set ,_ ,parts ...)
+          (walk-list parts)]
+         [`(local.tee ,_ ,parts ...)
+          (walk-list parts)]
+         [`(block ,(? symbol?) ,parts ...)
+          (walk-list parts)]
+         [`(loop ,(? symbol?) ,parts ...)
+          (walk-list parts)]
+         [`(br ,_) (void)]
+         [`(br_if ,_ ,parts ...)
+          (walk-list parts)]
+         [`(br_table ,_labels ... ,_default)
+          (void)]
+         [`(catch ,tag ,_)
+          (record! tag)]
+         [`(catch_ref ,tag ,_)
+          (record! tag)]
+         [`(catch_all ,_) (void)]
+         [`(call ,name ,parts ...)
+          (record! name)
+          (walk-list parts)]
+         [`(return_call ,name ,parts ...)
+          (record! name)
+          (walk-list parts)]
+         [`(ref.func ,name)
+          (record! name)]
+         [`(global.get ,name)
+          (record! name)]
+         [`(global.set ,name ,parts ...)
+          (record! name)
+          (walk-list parts)]
+         [`(throw ,tag ,parts ...)
+          (record! tag)
+          (walk-list parts)]
+         [`(array.new_data ,_type ,data-name ,parts ...)
+          (record! data-name)
+          (walk-list parts)]
+         [_ (walk-list x)])]
+      [else (void)]))
+  (walk x))
+
+;; runtime-symbol-reference-names : (listof datum?) -> (listof symbol?)
+;;   Return runtime-side function/global/tag/data references in stable order.
+(define (runtime-symbol-reference-names runtime-forms)
+  (define refs (make-hasheq))
+  (for ([form (in-list runtime-forms)])
+    (walk-symbol-reference-positions
+     form
+     (lambda (name)
+       (hash-set! refs name #t))))
+  (sort (hash-keys refs) symbol<?))
+
+;; build-split-runtime-boundary-metadata :
+;;   (listof datum?) -> split-runtime-boundary-metadata?
+;;   Build runtime-side indexes and references used while splitting programs.
+(define (build-split-runtime-boundary-metadata runtime-forms)
+  (split-runtime-boundary-metadata
+   (build-split-form-indexes runtime-forms)
+   (runtime-symbol-reference-names runtime-forms)))
+
+;; split-runtime-boundary-metadata/cached :
+;;   (listof datum?) any/c -> split-runtime-boundary-metadata?
+;;   Reuse stable runtime-side split metadata when a split-runtime cache key exists.
+(define (split-runtime-boundary-metadata/cached runtime-forms core-cache-key)
+  (define cache-path (split-runtime-boundary-cache-path core-cache-key))
+  (or (and cache-path
+           (time-runtime-step
+            "runtime:split-boundary-cache-lookup"
+            (lambda ()
+              (read-split-runtime-boundary-cache cache-path core-cache-key))))
+      (let ([metadata
+             (time-runtime-step
+              "runtime:split-boundary-cache-build"
+              (lambda ()
+                (build-split-runtime-boundary-metadata runtime-forms)))])
+        (time-runtime-step
+         "runtime:split-boundary-cache-write"
+         (lambda ()
+           (write-split-runtime-boundary-cache! cache-path
+                                                core-cache-key
+                                                metadata)))
+        metadata)))
 
 ;; walk-symbol-refs : any/c hasheq? -> (listof symbol?)
 ;;   Find symbolic references represented by keys in `available-names`.
@@ -731,6 +1049,17 @@
       (values name #t)))
   (referenced-runtime-names runtime-forms available-names))
 
+;; runtime-referenced-program-global-names/from-refs :
+;;   (listof symbol?) split-form-indexes? -> (listof symbol?)
+;;   Return program-owned globals referenced by cached runtime-side refs.
+(define (runtime-referenced-program-global-names/from-refs runtime-symbol-refs
+                                                           program-index)
+  (define program-global-form-by-name
+    (constant-global-definition-index program-index))
+  (for/list ([name (in-list runtime-symbol-refs)]
+             #:when (hash-ref program-global-form-by-name name #f))
+    name))
+
 ;; split-runtime-referenced-program-globals : (listof datum?) (listof symbol?)
 ;;   -> (values (listof datum?) (listof datum?))
 ;;   Pull program-owned globals back to the runtime when runtime forms use them.
@@ -805,6 +1134,18 @@
   (for/list ([form (in-list program-forms)]
              #:do [(define name (module-data-name form))]
              #:when (and name (hash-ref referenced-name-set name #f)))
+    form))
+
+;; runtime-referenced-program-data-forms/from-refs :
+;;   (listof symbol?) split-form-indexes? -> (listof datum?)
+;;   Return program-owned passive data forms referenced by cached runtime-side refs.
+(define (runtime-referenced-program-data-forms/from-refs runtime-symbol-refs
+                                                        program-index)
+  (define program-data-form-by-name
+    (constant-data-form-index program-index))
+  (for/list ([name (in-list runtime-symbol-refs)]
+             #:do [(define form (hash-ref program-data-form-by-name name #f))]
+             #:when form)
     form))
 
 ;; module-forms : datum? -> (listof datum?)
@@ -1112,15 +1453,17 @@
          initial-program-forms
          #:import-module [import-module-name "core"]
          #:core-cache-key [core-cache-key #f])
+  (define boundary-metadata
+    (split-runtime-boundary-metadata/cached runtime-forms core-cache-key))
   (define runtime-source-index
-    (build-split-form-indexes runtime-forms))
+    (split-runtime-boundary-metadata-runtime-index boundary-metadata))
+  (define runtime-symbol-refs
+    (split-runtime-boundary-metadata-runtime-symbol-refs boundary-metadata))
   (define initial-program-index
     (build-split-form-indexes initial-program-forms))
   (define pulled-runtime-global-names
-    (runtime-referenced-program-global-names runtime-forms
-                                             initial-program-forms
-                                             #:program-index
-                                             initial-program-index))
+    (runtime-referenced-program-global-names/from-refs runtime-symbol-refs
+                                                       initial-program-index))
   (define-values (pulled-runtime-global-forms/reversed
                   remaining-program-forms/reversed)
     (split-runtime-referenced-program-globals
@@ -1132,10 +1475,8 @@
     (build-split-form-indexes program-forms))
   (define pulled-runtime-data-forms
     (sorted-named-forms
-     (runtime-referenced-program-data-forms runtime-forms
-                                           initial-program-forms
-                                           #:program-index
-                                           initial-program-index)
+     (runtime-referenced-program-data-forms/from-refs runtime-symbol-refs
+                                                      initial-program-index)
      module-data-name))
   (define pulled-runtime-global-forms
     (sorted-named-forms
@@ -1540,6 +1881,75 @@
   (check-true (promise? (split-runtime-modules-core lazy-core-split)))
   (check-equal? (car (split-runtime-modules-core-module lazy-core-split))
                 'module)
+  (check-equal?
+   (runtime-symbol-reference-names
+    '((func $runtime-helper
+            (param $local-fn (ref func))
+            (local $runtime-helper i32)
+            (local.get $runtime-helper)
+            (call $called-helper)
+            (return_call $tail-helper)
+            (ref.func $funcref-helper)
+            (global.get $global-helper)
+            (global.set $set-global-helper (i32.const 1))
+            (throw $exn-tag (i32.const 2))
+            (try (do (i32.const 3))
+                 (catch $caught-tag $handler-block))
+            (array.new_data $I8Array $data-helper (i32.const 0) (i32.const 1)))))
+   '($called-helper
+     $caught-tag
+     $data-helper
+     $exn-tag
+     $funcref-helper
+     $global-helper
+     $set-global-helper
+     $tail-helper))
+  (define split-boundary-cache-test-root
+    (let ([tmp-root (build-path (current-directory) "tmp")])
+      (make-directory* tmp-root)
+      (make-temporary-file "webracket-split-boundary-cache-~a"
+                           'directory
+                           tmp-root)))
+  (define (split-boundary-cache-file-count root)
+    (define cache-dir (build-path root "split-runtime-boundary-v1"))
+    (if (directory-exists? cache-dir)
+        (length (directory-list cache-dir))
+        0))
+  (parameterize ([current-runtime-cache-dir split-boundary-cache-test-root])
+    (define cached-boundary-runtime-forms
+      (list (list 'data '$runtime-data (string-copy "runtime"))
+            (list 'func #'$runtime-helper
+                  '(param $x i32)
+                  '(result i32)
+                  '(local.get $x))))
+    (define cached-boundary-program-forms
+      '((func $program
+              (result i32)
+              (call $runtime-helper (i32.const 42)))
+        (func $entry)))
+    (define cached-boundary-core-cache-key
+      (list 'stable-core-key (string-copy "/app/")))
+    (define cached-boundary-split
+      (split-classified-runtime-forms
+       cached-boundary-runtime-forms
+       cached-boundary-program-forms
+       #:core-cache-key cached-boundary-core-cache-key))
+    (check-equal? (split-boundary-cache-file-count split-boundary-cache-test-root)
+                  1)
+    (define cached-boundary-split-again
+      (split-classified-runtime-forms
+       cached-boundary-runtime-forms
+       cached-boundary-program-forms
+       #:core-cache-key cached-boundary-core-cache-key))
+    (check-true (promise? (split-runtime-modules-core cached-boundary-split-again)))
+    (check-equal? (split-runtime-modules-core-module cached-boundary-split-again)
+                  (split-runtime-modules-core-module cached-boundary-split))
+    (check-equal? (split-runtime-modules-program cached-boundary-split-again)
+                  (split-runtime-modules-program cached-boundary-split))
+    (check-equal? (split-runtime-modules-imported-names cached-boundary-split-again)
+                  (split-runtime-modules-imported-names cached-boundary-split))
+    (check-equal? (split-runtime-modules-core-cache-key cached-boundary-split-again)
+                  cached-boundary-core-cache-key))
   (define pulled-constant-split
     (split-classified-runtime-forms
      '((type $I8Array (array (mut i8)))
