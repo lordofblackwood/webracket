@@ -238,6 +238,14 @@ parallelism. Four jobs is the current guarded smoke setting:
 racket -S pkgs tools/check-split-runtime-prewarm.rkt --suite --jobs 4
 ```
 
+Use `--in-process` to run the post-prewarm compile/run cases serially in the
+already loaded checker process. This verifies the cached-runtime path under a
+warm compiler process, which approximates the compile-server workflow:
+
+```sh
+racket -S pkgs tools/check-split-runtime-prewarm.rkt --suite --in-process
+```
+
 Use `--extra-source` and `--reject` to check multiple committed fixtures with
 one prewarmed runtime cache. This is useful for tests that print pass tables:
 

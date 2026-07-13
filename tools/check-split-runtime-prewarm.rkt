@@ -14,10 +14,12 @@
          racket/file
          racket/format
          racket/list
+         racket/match
          racket/path
          racket/runtime-path
          racket/string
-         racket/system)
+         racket/system
+         "../pkgs/webracket-lib/compiler/cli-lib.rkt")
 
 
 ;;; Repository Paths
@@ -33,6 +35,13 @@
 (define default-source-file
   (build-path repo-root "test" "test-trivial.rkt"))
 
+;; check-temp-dir : -> path?
+;;   Return the repo-local parent for temporary check directories.
+(define (check-temp-dir)
+  (define dir (build-path repo-root "tmp"))
+  (make-directory* dir)
+  dir)
+
 
 ;;; Command-Line Configuration
 
@@ -44,6 +53,7 @@
 (define keep-temp? #f)
 (define force-prewarm? #f)
 (define core-only? #f)
+(define in-process? #f)
 (define jobs 1)
 
 ;; resolve-source-path : string? -> path?
@@ -88,6 +98,9 @@
  [("--keep-temp")
   "Keep the temporary check directory after a successful run."
   (set! keep-temp? #t)]
+ [("--in-process")
+  "Compile/run cases in this Racket process after prewarm; serial warm-compiler check."
+  (set! in-process? #t)]
  [("--jobs") n
   "Compile/run up to N cases in parallel after prewarm; defaults to 1."
   (unless (positive-integer-string? n)
@@ -134,13 +147,56 @@
                   (get-output-string err)
                   (- end-ms start-ms)))
 
+;; compile-config-from-args : (listof string?) -> webracket-compile-config?
+;;   Parse a WebRacket compiler config from ordinary user-facing CLI arguments.
+(define (compile-config-from-args args)
+  (parameterize ([current-command-line-arguments (list->vector args)])
+    (match (parse-webracket-cli)
+      [(webracket-cli-command 'compile cfg) cfg]
+      [command
+       (error 'check-split-runtime-prewarm
+              "expected compile command, got: ~a"
+              (webracket-cli-command-kind command))])))
+
+;; run-compile-in-process/capture : (listof string?) -> command-result?
+;;   Run one compile in the current Racket process while capturing output.
+(define (run-compile-in-process/capture args)
+  (define out (open-output-string))
+  (define err (open-output-string))
+  (define start-ms (current-inexact-milliseconds))
+  (define-values (ok? maybe-exn)
+    (with-handlers ([exn:fail?
+                     (lambda (exn)
+                       (values #f exn))])
+      (parameterize ([current-directory repo-root]
+                     [current-output-port out]
+                     [current-error-port err])
+        (define cfg (compile-config-from-args args))
+        (define-values (exit-code _compile-timings _output-paths)
+          (run-webracket-compile cfg))
+        (values (zero? exit-code) #f))))
+  (when maybe-exn
+    (displayln (exn-message maybe-exn) err))
+  (define end-ms (current-inexact-milliseconds))
+  (command-result ok?
+                  (get-output-string out)
+                  (get-output-string err)
+                  (- end-ms start-ms)))
+
+;; executable-label : path-string? -> string?
+;;   Format a path or synthetic runner name for command transcripts.
+(define (executable-label exe)
+  (if (path? exe)
+      (path->string exe)
+      exe))
+
 ;; write-log! : path-string? path-string? (listof string?) command-result? -> void?
 ;;   Save a command transcript for later inspection.
 (define (write-log! path exe args result)
   (call-with-output-file path
     (lambda (out)
       (fprintf out "$ ~a\n\n"
-               (string-join (cons (path->string exe) args) " "))
+               (string-join (cons (executable-label exe) args) " "))
       (displayln ";;; stdout" out)
       (display (command-result-stdout result) out)
       (unless (or (string=? (command-result-stdout result) "")
@@ -541,44 +597,52 @@ RKT
 ;;   path-string? -> (listof command-result?)
 ;;   Compile/run cases with bounded parallelism, preserving result order.
 (define (compile-cases! cases racket-exe provider-cache runtime-cache dest-root temp-root)
-  (define worker-limit (make-semaphore jobs))
-  (define result-channel (make-channel))
-  (define case-count (length cases))
-  (define threads
-    (for/list ([case (in-list cases)]
-               [index (in-naturals 1)])
-      (thread
-       (lambda ()
-         (semaphore-wait worker-limit)
-         (define result
-           (dynamic-wind
-             void
-             (lambda ()
-               (with-handlers ([exn:fail?
-                                (lambda (exn)
-                                  (record-failure!
-                                   "~a: compile/run raised exception: ~a"
-                                   (check-case-name case)
-                                   (exn-message exn))
-                                  (command-result #f "" "" 0.0))])
-                 (compile-case! case
-                                index
-                                racket-exe
-                                provider-cache
-                                runtime-cache
-                                dest-root
-                                temp-root)))
-             (lambda ()
-               (semaphore-post worker-limit))))
-         (channel-put result-channel (list index result))))))
-  (define indexed-results
-    (for/list ([_ (in-range case-count)])
-      (channel-get result-channel)))
-  (for ([worker (in-list threads)])
-    (thread-wait worker))
-  (for/list ([indexed-result (in-list
-                              (sort indexed-results < #:key first))])
-    (second indexed-result)))
+  (define (compile-one case index)
+    (with-handlers ([exn:fail?
+                     (lambda (exn)
+                       (record-failure!
+                        "~a: compile/run raised exception: ~a"
+                        (check-case-name case)
+                        (exn-message exn))
+                       (command-result #f "" "" 0.0))])
+      (compile-case! case
+                     index
+                     racket-exe
+                     provider-cache
+                     runtime-cache
+                     dest-root
+                     temp-root)))
+  (cond
+    [in-process?
+     (for/list ([case (in-list cases)]
+                [index (in-naturals 1)])
+       (compile-one case index))]
+    [else
+     (define worker-limit (make-semaphore jobs))
+     (define result-channel (make-channel))
+     (define case-count (length cases))
+     (define threads
+       (for/list ([case (in-list cases)]
+                  [index (in-naturals 1)])
+         (thread
+          (lambda ()
+            (semaphore-wait worker-limit)
+            (define result
+              (dynamic-wind
+                void
+                (lambda ()
+                  (compile-one case index))
+                (lambda ()
+                  (semaphore-post worker-limit))))
+            (channel-put result-channel (list index result))))))
+     (define indexed-results
+       (for/list ([_ (in-range case-count)])
+         (channel-get result-channel)))
+     (for ([worker (in-list threads)])
+       (thread-wait worker))
+     (for/list ([indexed-result (in-list
+                                 (sort indexed-results < #:key first))])
+       (second indexed-result))]))
 
 ;; compile-case! :
 ;;   check-case? exact-positive-integer? path-string? path-string? path-string?
@@ -590,10 +654,9 @@ RKT
   (define dest-dir
     (build-path dest-root (format "~a-~a" index case-name)))
   (make-directory* dest-dir)
-  (define compile-args
+  (define webracket-args
     (append
-     (list "-S" "pkgs" "webracket.rkt"
-           "--node" "--run" "--timings"
+     (list "--node" "--run" "--timings"
            "--split-runtime"
            "--split-runtime-cache-reference"
            "--no-stdlib")
@@ -605,10 +668,21 @@ RKT
            "--dest" (path->string dest-dir)
            (path->string (check-case-source case)))))
   (define compile-result
-    (run-command/capture repo-root racket-exe compile-args))
+    (if in-process?
+        (run-compile-in-process/capture webracket-args)
+        (run-command/capture repo-root
+                             racket-exe
+                             (append (list "-S" "pkgs" "webracket.rkt")
+                                     webracket-args))))
   (define compile-log
     (build-path temp-root (format "compile-~a-~a.log" index case-name)))
-  (write-log! compile-log racket-exe compile-args compile-result)
+  (write-log! compile-log
+              (if in-process? "in-process-webracket" racket-exe)
+              (if in-process?
+                  webracket-args
+                  (append (list "-S" "pkgs" "webracket.rkt")
+                          webracket-args))
+              compile-result)
 
   (unless (command-result-ok? compile-result)
     (record-failure! "~a: compile/run command failed; see ~a"
@@ -668,7 +742,9 @@ RKT
   (define racket-exe (ensure-executable "racket"))
   (ensure-executable "node")
   (define temp-root
-    (make-temporary-file "webracket-split-runtime-prewarm-check-~a" 'directory))
+    (make-temporary-file "webracket-split-runtime-prewarm-check-~a"
+                         'directory
+                         (check-temp-dir)))
   (define provider-cache (build-path temp-root "provider-cache"))
   (define runtime-cache  (build-path temp-root "runtime-provider-cache"))
   (define compiled-root  (build-path temp-root "compiled-root"))
@@ -701,7 +777,12 @@ RKT
              (check-case-source case))))
 
   (printf "  sources:       ~a\n" (length cases))
-  (printf "  jobs:          ~a\n" jobs)
+  (printf "  runner:        ~a\n"
+          (if in-process? "in-process" "fresh subprocess"))
+  (printf "  jobs:          ~a\n"
+          (if in-process?
+              "1 (serial in-process)"
+              jobs))
   (for ([case (in-list cases)])
     (printf "    ~a: ~a\n"
             (check-case-name case)
