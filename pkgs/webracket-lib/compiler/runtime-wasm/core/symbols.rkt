@@ -709,6 +709,7 @@
 (define symbol-core-runtime-helper-names
   '($symbol?
     $symbol=?/i32
+    $symbol->immutable-string
     $string->uninterned-symbol/checked))
 
 ;; symbol-all-runtime-helpers : (listof core-runtime-helper?)

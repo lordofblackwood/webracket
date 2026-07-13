@@ -4807,12 +4807,14 @@
     $ensure-exn:fail:contract-type
     $ensure-exn:fail:contract:arity-type
     $exn:fail:contract/make
-    $exn:fail:contract:arity/make))
+    $exn:fail:contract:arity/make
+    $raise-arguments-error))
 
 ;; exception-core-runtime-helpers : (listof core-runtime-helper?)
 ;;   Enumerate exception helpers available in the standalone core runtime.
 (define exception-core-runtime-helpers
-  (select-runtime-helpers exception-all-runtime-helpers
+  (select-runtime-helpers (append exception-contract-runtime-only-helpers
+                                  exception-all-runtime-helpers)
                           exception-core-runtime-helper-names))
 
 ;; exception-runtime-only-helpers : (listof core-runtime-helper?)
@@ -4857,8 +4859,9 @@
 
   (define exception-helper-index
     (make-core-runtime-helper-index
-     (append exception-contract-runtime-only-helpers
-             exception-core-runtime-helpers
+     (append exception-core-runtime-helpers
+             (remove-runtime-helpers exception-contract-runtime-only-helpers
+                                     exception-core-runtime-helper-names)
              exception-runtime-only-helpers)))
 
   (check-equal? exception-tag-forms

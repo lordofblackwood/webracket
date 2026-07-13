@@ -4607,6 +4607,7 @@
     $string-take-right/checked
     $string-drop/checked
     $string-drop-right/checked
+    $raise-argument-error:string-expected/who
     $string-suffix?/i32/checked
     $string-prefix?/i32/checked))
 

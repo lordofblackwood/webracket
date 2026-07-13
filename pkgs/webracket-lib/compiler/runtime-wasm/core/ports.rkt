@@ -18,6 +18,7 @@
          port-current-global-forms
          port-current-global-names
          port-output-runtime-helper-forms
+         port-core-runtime-helpers
          port-runtime-only-helpers)
 
 (require "../core-helper.rkt"
@@ -172,6 +173,12 @@
     $reset-current-error-port!
     $flush-output
     $close-output-port))
+
+;; port-core-runtime-helper-names : (listof symbol?)
+;;   Name port helpers available in the standalone core runtime.
+(define port-core-runtime-helper-names
+  '($input-port-like?/i32
+    $current-input-port))
 
 ;; port-location-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for port location helpers.
@@ -5174,9 +5181,9 @@
            ;; --- Report number of characters written ---
            (ref.i31 (i32.shl (local.get $count) (i32.const 1)))))))
 
-;; port-runtime-only-helpers : (listof core-runtime-helper?)
+;; port-all-runtime-helpers : (listof core-runtime-helper?)
 ;;   Enumerate port helpers used by the monolithic runtime.
-(define port-runtime-only-helpers
+(define port-all-runtime-helpers
   (append port-predicate-runtime-only-helpers
           port-state-runtime-only-helpers
           port-location-runtime-only-helpers
@@ -5198,6 +5205,18 @@
           port-byte-char-output-runtime-only-helpers
           port-byte-string-output-runtime-only-helpers))
 
+;; port-core-runtime-helpers : (listof core-runtime-helper?)
+;;   Enumerate port helpers available in the standalone core runtime.
+(define port-core-runtime-helpers
+  (select-runtime-helpers port-all-runtime-helpers
+                          port-core-runtime-helper-names))
+
+;; port-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate port helpers that still depend on monolithic runtime definitions.
+(define port-runtime-only-helpers
+  (remove-runtime-helpers port-all-runtime-helpers
+                          port-core-runtime-helper-names))
+
 (module+ test
   (require rackunit)
 
@@ -5207,12 +5226,18 @@
     (second form))
 
   (define port-helper-index
-    (make-core-runtime-helper-index port-runtime-only-helpers))
+    (make-core-runtime-helper-index
+     (append port-core-runtime-helpers
+             port-runtime-only-helpers)))
 
   (check-equal? port-current-global-names
                 '($current-input-port-value
                   $current-output-port-value
                   $current-error-port-value))
+
+  (check-equal?
+   (map core-runtime-helper-name port-core-runtime-helpers)
+   port-core-runtime-helper-names)
 
   (check-equal?
    (map form-name (port-predicate-runtime-helper-forms port-helper-index))

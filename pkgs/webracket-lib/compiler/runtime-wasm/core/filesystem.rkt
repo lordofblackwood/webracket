@@ -4,6 +4,7 @@
          filesystem-runtime-string-constants
          filesystem-runtime-symbol-constants
          filesystem-runtime-bytes-constants
+         filesystem-core-runtime-helpers
          filesystem-runtime-only-helpers
          filesystem-runtime-only-helper-names
          filesystem-runtime-helper-forms)
@@ -133,6 +134,11 @@
     $call-with-output-file*
     $with-input-from-file
     $with-output-to-file))
+
+;; filesystem-core-runtime-helper-names : (listof symbol?)
+;;   Name filesystem helpers available in the standalone core runtime.
+(define filesystem-core-runtime-helper-names
+  '($raise-vfs-path-too-long))
 
 ;; filesystem-runtime-only-forms : (listof datum?)
 ;;   Enumerate VFS and file-operation helpers used by the monolithic runtime.
@@ -2864,12 +2870,24 @@
           (drop (call $close-output-port (local.get $port)))
           (local.get $res))))
 
-;; filesystem-runtime-only-helpers : (listof core-runtime-helper?)
+;; filesystem-all-runtime-helpers : (listof core-runtime-helper?)
 ;;   Enumerate VFS and file-operation helpers used by the monolithic runtime.
-(define filesystem-runtime-only-helpers
+(define filesystem-all-runtime-helpers
   (function-forms->runtime-helpers
    'filesystem-runtime-only-helpers
    filesystem-runtime-only-forms))
+
+;; filesystem-core-runtime-helpers : (listof core-runtime-helper?)
+;;   Enumerate filesystem helpers available in the standalone core runtime.
+(define filesystem-core-runtime-helpers
+  (select-runtime-helpers filesystem-all-runtime-helpers
+                          filesystem-core-runtime-helper-names))
+
+;; filesystem-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate filesystem helpers that still depend on monolithic runtime definitions.
+(define filesystem-runtime-only-helpers
+  (remove-runtime-helpers filesystem-all-runtime-helpers
+                          filesystem-core-runtime-helper-names))
 
 ;; filesystem-runtime-helper-forms : hasheq? -> (listof datum?)
 ;;   Render VFS and file-operation helpers in runtime assembly order.
@@ -2886,7 +2904,13 @@
     (second form))
 
   (define filesystem-helper-index
-    (make-core-runtime-helper-index filesystem-runtime-only-helpers))
+    (make-core-runtime-helper-index
+     (append filesystem-core-runtime-helpers
+             filesystem-runtime-only-helpers)))
+
+  (check-equal?
+   (map core-runtime-helper-name filesystem-core-runtime-helpers)
+   filesystem-core-runtime-helper-names)
 
   (check-equal?
    (map form-name (filesystem-runtime-helper-forms filesystem-helper-index))

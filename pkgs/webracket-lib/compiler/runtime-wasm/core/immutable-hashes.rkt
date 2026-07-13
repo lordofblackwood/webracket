@@ -5950,12 +5950,19 @@
     $immutable-hamt-inline-key-unwrap
     $immutable-hamt-inline-key-cached-hash
     $immutable-hamt-packed-metadata-present?/i32
+    $immutable-hasheqv-bucket-has-key?
     $immutable-hasheq-bucket-has-key?
     $immutable-hamt-bit
+    $immutable-hamt-bucket-has-key?/kind
+    $immutable-hamt-packed-node-has-key?/kind
+    $immutable-hamt-node-has-key?/kind
     $immutable-hamt-bucket-length
     $immutable-hamt-bucket-first-entry
     $immutable-hamt-collapse-small-bucket
+    $immutable-hamt-cnode-has-key?/kind
     $immutable-hamt-bucket->cnode
+    $immutable-hash-bucket-has-key?
+    $immutable-hashalw-bucket-has-key?
     $immutable-hamt-packed-node->entries
     $immutable-hamt-packed-node-entry-count
     $immutable-hamt-packed-node-child-count

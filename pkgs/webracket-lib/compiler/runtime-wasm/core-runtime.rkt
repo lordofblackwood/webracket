@@ -38,6 +38,7 @@
          "core/events.rkt"
          "core/fasl.rkt"
          "core/ffi.rkt"
+         "core/filesystem.rkt"
          "core/fixnums.rkt"
          "core/flonums.rkt"
          "core/formatter-error-closure.rkt"
@@ -99,6 +100,7 @@
    event-core-runtime-helpers
    external-value-core-runtime-helpers
    ffi-core-runtime-helpers
+   filesystem-core-runtime-helpers
    fixnum-core-runtime-helpers
    flonum-core-runtime-helpers
    formatter-error-closure-core-runtime-helpers
@@ -122,6 +124,7 @@
    number-core-runtime-helpers
    parameter-core-runtime-helpers
    path-core-runtime-helpers
+   port-core-runtime-helpers
    procedure-core-runtime-helpers
    reflection-core-runtime-helpers
    regexp-core-runtime-helpers
