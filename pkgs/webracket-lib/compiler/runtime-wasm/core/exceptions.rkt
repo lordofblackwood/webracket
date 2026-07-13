@@ -4802,100 +4802,130 @@
    'exception-runtime-only-helpers
    exception-runtime-only-forms))
 
+;; exception-main-runtime-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for exception helpers.
+(define exception-main-runtime-helper-names
+  (map core-runtime-helper-name exception-main-runtime-only-helpers))
+
 ;; exception-all-runtime-helpers : (listof core-runtime-helper?)
 ;;   Register exception, exception-structure, and reader-error helpers.
 (define exception-all-runtime-helpers
   (append bootstrap-error-runtime-only-helpers
           exception-main-runtime-only-helpers))
 
+;; exception-control-runtime-only-helper-names : (listof symbol?)
+;;   Keep compiler-special exception control operators runtime-local for now.
+(define exception-control-runtime-only-helper-names
+  '($call-with-exception-handler:procedure-expected-as-handler
+    $call-with-exception-handler:procedure-expected-as-thunk
+    $call-with-exception-handler
+    $catch:procedure-expected-for-predicate
+    $catch:procedure-expected-for-handler
+    $catch:procedure-expected-for-thunk
+    $catch
+    $catch*:procedure-expected-for-predicate
+    $catch*:procedure-expected-for-handler
+    $catch*:procedure-expected-for-thunk
+    $catch*))
+
+;; exception-promoted-main-runtime-helper-names : (listof symbol?)
+;;   Promote ordinary exception helpers while leaving special control operators local.
+(define exception-promoted-main-runtime-helper-names
+  (remove* exception-control-runtime-only-helper-names
+           exception-main-runtime-helper-names))
+
 ;; exception-core-runtime-helper-names : (listof symbol?)
 ;;   Name exception helpers available in the standalone core runtime.
 (define exception-core-runtime-helper-names
-  '($raise-input-port-closed
-    $raise
-    $kernel-exn-struct-type
-    $invoke-kernel-exn-struct
-    $ensure-exn-type
-    $exn-ensure
-    $ensure-exn:break-type
-    $ensure-exn:break:hang-up-type
-    $ensure-exn:break:terminate-type
-    $exn/make
-    $exn:break/make
-    $exn:break:hang-up/make
-    $exn:break:terminate/make
-    $ensure-exn:fail-type
-    $ensure-exn:fail:contract-type
-    $ensure-exn:fail:contract:arity-type
-    $ensure-exn:fail:contract:continuation-type
-    $ensure-exn:fail:contract:divide-by-zero-type
-    $ensure-exn:fail:contract:non-fixnum-result-type
-    $ensure-exn:fail:contract:variable-type
-    $ensure-exn:fail:filesystem-type
-    $exn:fail:contract/make
-    $exn:fail:contract:arity/make
-    $exn:fail:contract:continuation/make
-    $exn:fail:contract:divide-by-zero/make
-    $exn:fail:contract:non-fixnum-result/make
-    $exn:fail:contract:variable-ensure
-    $exn:fail:contract:variable-ensure-id
-    $exn:fail:contract:variable/make
-    $exn:fail:contract:variable
-    $make-exn:fail:contract:variable
-    $exn:fail:contract:variable?
-    $exn:fail:contract:variable-id
-    $exn:fail:filesystem/make
-    $ensure-exn:fail:filesystem:exists-type
-    $exn:fail:filesystem:exists/make
-    $ensure-exn:fail:filesystem:version-type
-    $exn:fail:filesystem:version/make
-    $ensure-exn:fail:filesystem:errno-type
-    $exn:fail:filesystem:errno/make
-    $ensure-exn:fail:filesystem:missing-module-type
-    $exn:fail:filesystem:missing-module/make
-    $ensure-exn:fail:network-type
-    $exn:fail:network/make
-    $ensure-exn:fail:network:errno-type
-    $exn:fail:network:errno/make
-    $ensure-exn:fail:user-type
-    $exn:fail:user/make
-    $make-exn:fail:filesystem
-    $raise-vfs-file-error
-    $exn:fail:filesystem:errno-ensure-errno
-    $ensure-exn:fail:read-type
-    $ensure-exn:fail:read:eof-type
-    $ensure-exn:fail:read:non-char-type
-    $exn:srclocs-property-list
-    $exn:fail:read-ensure-srclocs
-    $exn:fail:read-ensure
-    $exn:fail:read/make
-    $exn:fail:read
-    $make-exn:fail:read
-    $exn:fail:read?
-    $exn:fail:read-srclocs
-    $exn:srclocs?
-    $exn:srclocs-accessor
-    $exn:fail:read:eof/make
-    $exn:fail:read:eof
-    $make-exn:fail:read:eof
-    $exn:fail:read:eof?
-    $exn:fail:read:non-char/make
-    $exn:fail:read:non-char
-    $make-exn:fail:read:non-char
-    $exn:fail:read:non-char?
-    $raise-read-error
-    $raise-read-eof-error
-    $ensure-exn:fail:syntax-type
-    $ensure-exn:fail:syntax:missing-module-type
-    $ensure-exn:fail:syntax:unbound-type
-    $exn:fail:syntax/make
-    $exn:fail:syntax:missing-module/make
-    $exn:fail:syntax:unbound/make
-    $exn:fail:syntax-ensure-exprs
-    $exn?
-    $exn-message
-    $raise-arguments-error
-    $raise-expected-fixnum))
+  (remove-duplicates
+   (append
+    '($raise-input-port-closed
+      $raise
+      $kernel-exn-struct-type
+      $invoke-kernel-exn-struct
+      $ensure-exn-type
+      $exn-ensure
+      $ensure-exn:break-type
+      $ensure-exn:break:hang-up-type
+      $ensure-exn:break:terminate-type
+      $exn/make
+      $exn:break/make
+      $exn:break:hang-up/make
+      $exn:break:terminate/make
+      $ensure-exn:fail-type
+      $ensure-exn:fail:contract-type
+      $ensure-exn:fail:contract:arity-type
+      $ensure-exn:fail:contract:continuation-type
+      $ensure-exn:fail:contract:divide-by-zero-type
+      $ensure-exn:fail:contract:non-fixnum-result-type
+      $ensure-exn:fail:contract:variable-type
+      $ensure-exn:fail:filesystem-type
+      $exn:fail:contract/make
+      $exn:fail:contract:arity/make
+      $exn:fail:contract:continuation/make
+      $exn:fail:contract:divide-by-zero/make
+      $exn:fail:contract:non-fixnum-result/make
+      $exn:fail:contract:variable-ensure
+      $exn:fail:contract:variable-ensure-id
+      $exn:fail:contract:variable/make
+      $exn:fail:contract:variable
+      $make-exn:fail:contract:variable
+      $exn:fail:contract:variable?
+      $exn:fail:contract:variable-id
+      $exn:fail:filesystem/make
+      $ensure-exn:fail:filesystem:exists-type
+      $exn:fail:filesystem:exists/make
+      $ensure-exn:fail:filesystem:version-type
+      $exn:fail:filesystem:version/make
+      $ensure-exn:fail:filesystem:errno-type
+      $exn:fail:filesystem:errno/make
+      $ensure-exn:fail:filesystem:missing-module-type
+      $exn:fail:filesystem:missing-module/make
+      $ensure-exn:fail:network-type
+      $exn:fail:network/make
+      $ensure-exn:fail:network:errno-type
+      $exn:fail:network:errno/make
+      $ensure-exn:fail:user-type
+      $exn:fail:user/make
+      $make-exn:fail:filesystem
+      $raise-vfs-file-error
+      $exn:fail:filesystem:errno-ensure-errno
+      $ensure-exn:fail:read-type
+      $ensure-exn:fail:read:eof-type
+      $ensure-exn:fail:read:non-char-type
+      $exn:srclocs-property-list
+      $exn:fail:read-ensure-srclocs
+      $exn:fail:read-ensure
+      $exn:fail:read/make
+      $exn:fail:read
+      $make-exn:fail:read
+      $exn:fail:read?
+      $exn:fail:read-srclocs
+      $exn:srclocs?
+      $exn:srclocs-accessor
+      $exn:fail:read:eof/make
+      $exn:fail:read:eof
+      $make-exn:fail:read:eof
+      $exn:fail:read:eof?
+      $exn:fail:read:non-char/make
+      $exn:fail:read:non-char
+      $make-exn:fail:read:non-char
+      $exn:fail:read:non-char?
+      $raise-read-error
+      $raise-read-eof-error
+      $ensure-exn:fail:syntax-type
+      $ensure-exn:fail:syntax:missing-module-type
+      $ensure-exn:fail:syntax:unbound-type
+      $exn:fail:syntax/make
+      $exn:fail:syntax:missing-module/make
+      $exn:fail:syntax:unbound/make
+      $exn:fail:syntax-ensure-exprs
+      $exn?
+      $exn-message
+      $raise-arguments-error
+      $raise-expected-fixnum)
+    bootstrap-error-runtime-only-helper-names
+    exception-promoted-main-runtime-helper-names)))
 
 ;; exception-core-runtime-helpers : (listof core-runtime-helper?)
 ;;   Enumerate exception helpers available in the standalone core runtime.
@@ -4913,7 +4943,7 @@
 ;; exception-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for exception helpers.
 (define exception-runtime-only-helper-names
-  (map core-runtime-helper-name exception-main-runtime-only-helpers))
+  exception-main-runtime-helper-names)
 
 ;; exception-helper-forms : hasheq? (listof symbol?) -> (listof datum?)
 ;;   Render the given exception helper names from a helper index.
