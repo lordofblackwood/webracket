@@ -17,6 +17,8 @@
          port-input-runtime-helper-forms
          port-current-global-forms
          port-current-global-names
+         port-primitive-global-forms
+         port-primitive-global-names
          port-output-runtime-helper-forms
          port-core-runtime-helpers
          port-runtime-only-helpers)
@@ -141,6 +143,25 @@
     (match form
       [`(global ,name . ,_) name]
       [_ (error 'port-current-global-names
+                "expected global form, got: ~s"
+                form)])))
+
+;; port-primitive-global-forms : (listof datum?)
+;;   Declare primitive globals used by port helpers for arity/error reporting.
+(define port-primitive-global-forms
+  '(
+               (global $prim:make-input-port       (mut (ref eq)) (global.get $undefined))
+               (global $prim:make-output-port      (mut (ref eq)) (global.get $undefined))
+               (global $prim:peek-bytes-avail!     (mut (ref eq)) (global.get $undefined))
+               (global $prim:peek-bytes-avail!*    (mut (ref eq)) (global.get $undefined))))
+
+;; port-primitive-global-names : (listof symbol?)
+;;   Enumerate port primitive globals shared by split modules.
+(define port-primitive-global-names
+  (for/list ([form (in-list port-primitive-global-forms)])
+    (match form
+      [`(global ,name . ,_) name]
+      [_ (error 'port-primitive-global-names
                 "expected global form, got: ~s"
                 form)])))
 
@@ -5236,6 +5257,12 @@
                 '($current-input-port-value
                   $current-output-port-value
                   $current-error-port-value))
+
+  (check-equal? port-primitive-global-names
+                '($prim:make-input-port
+                  $prim:make-output-port
+                  $prim:peek-bytes-avail!
+                  $prim:peek-bytes-avail!*))
 
   (check-equal?
    (map core-runtime-helper-name port-core-runtime-helpers)

@@ -344,6 +344,7 @@
    syntax-global-names
    flonum-global-names
    port-current-global-names
+   port-primitive-global-names
    path-current-global-names
    hash-seed-global-names
    character-general-category-global-names
@@ -464,6 +465,7 @@
      ,@list-higher-order-primitive-global-forms
      ,@syntax-global-forms
      ,@port-current-global-forms
+     ,@port-primitive-global-forms
      ,@path-current-global-forms
      ,@hash-seed-global-forms
      ,@character-general-category-global-forms
@@ -546,6 +548,8 @@
             flonum-global-names)
      ,@(map core-runtime-global-export-form
             port-current-global-names)
+     ,@(map core-runtime-global-export-form
+            port-primitive-global-names)
      ,@(map core-runtime-global-export-form
             path-current-global-names)
      ,@(map core-runtime-global-export-form
@@ -1205,6 +1209,20 @@
   (check-true (hash-has-key? core-runtime-global-name-set '$prim:foldr))
   (check-true (hash-has-key? core-runtime-global-name-set '$syntax-type))
   (check-true (hash-has-key? core-runtime-global-name-set '$current-output-port-value))
+  (check-true (hash-has-key? core-runtime-global-name-set '$current-input-port-value))
+  (check-true (hash-has-key? core-runtime-global-name-set '$current-error-port-value))
+  (check-true (hash-has-key? core-runtime-global-name-set '$prim:current-input-port))
+  (check-true (hash-has-key? core-runtime-global-name-set '$prim:current-output-port))
+  (check-true (hash-has-key? core-runtime-global-name-set '$prim:current-error-port))
+  (check-true (hash-has-key? core-runtime-global-name-set '$prim:current-print))
+  (check-true (hash-has-key? core-runtime-global-name-set '$prim:current-read-interaction))
+  (check-true (hash-has-key? core-runtime-global-name-set '$prim:error-value->string-handler))
+  (check-true (hash-has-key? core-runtime-global-name-set '$prim:error-syntax->string-handler))
+  (check-true (hash-has-key? core-runtime-global-name-set '$prim:error-module-path->string-handler))
+  (check-true (hash-has-key? core-runtime-global-name-set '$prim:make-input-port))
+  (check-true (hash-has-key? core-runtime-global-name-set '$prim:make-output-port))
+  (check-true (hash-has-key? core-runtime-global-name-set '$prim:peek-bytes-avail!))
+  (check-true (hash-has-key? core-runtime-global-name-set '$prim:peek-bytes-avail!*))
   (check-true (hash-has-key? core-runtime-global-name-set '$system-path-convention))
   (check-true (hash-has-key? core-runtime-global-name-set '$next-hash-state))
   (check-true (hash-has-key? core-runtime-global-name-set '$char-general-category-symbols))
@@ -1802,6 +1820,12 @@
                    name
                    form))))
   (for ([name (in-list list-higher-order-primitive-global-names)])
+    (check-true (for/or ([form (in-list core-forms)])
+                  (global-export-form-named?
+                   (format "global:~a" name)
+                   name
+                   form))))
+  (for ([name (in-list port-primitive-global-names)])
     (check-true (for/or ([form (in-list core-forms)])
                   (global-export-form-named?
                    (format "global:~a" name)

@@ -425,6 +425,14 @@
 ;;   Declare primitive procedure globals needed by promoted parameter helpers.
 (define promoted-parameter-primitive-global-forms
   '(
+               (global $prim:current-input-port           (mut (ref eq)) (global.get $undefined))
+               (global $prim:current-output-port          (mut (ref eq)) (global.get $undefined))
+               (global $prim:current-error-port           (mut (ref eq)) (global.get $undefined))
+               (global $prim:current-print                (mut (ref eq)) (global.get $undefined))
+               (global $prim:current-read-interaction     (mut (ref eq)) (global.get $undefined))
+               (global $prim:error-value->string-handler  (mut (ref eq)) (global.get $undefined))
+               (global $prim:error-syntax->string-handler (mut (ref eq)) (global.get $undefined))
+               (global $prim:error-module-path->string-handler (mut (ref eq)) (global.get $undefined))
                (global $prim:current-compile-target-machine (mut (ref eq)) (global.get $undefined))
                (global $prim:current-compile-realm          (mut (ref eq)) (global.get $undefined))
                (global $prim:current-logger                 (mut (ref eq)) (global.get $undefined))
@@ -1982,6 +1990,17 @@
    compile-parameter-global-names
    '($current-compile-target-machine-value
      $current-compile-realm-value))
+
+  (for ([name (in-list '($prim:current-input-port
+                         $prim:current-output-port
+                         $prim:current-error-port
+                         $prim:current-print
+                         $prim:current-read-interaction
+                         $prim:error-value->string-handler
+                         $prim:error-syntax->string-handler
+                         $prim:error-module-path->string-handler))])
+    (check-not-false
+     (member name promoted-parameter-primitive-global-names)))
 
   (check-not-false
    (member '$print-as-expression-value
