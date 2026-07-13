@@ -486,12 +486,37 @@
     $struct-type?
     $struct-type-is-a?/i32
     $simple-prefab-auto-value-supported?/i32
+    $simple-prefab-auto-value-registry-fragment
+    $simple-prefab-registry-key
     $simple-prefab-public-key
+    $simple-prefab-type-metadata
+    $prefab-key?
     $simple-prefab-mutable-mask-valid?/i32
     $simple-prefab-key?/i32
+    $simple-prefab-key-name/checked
+    $simple-prefab-key-init-count-or-minus-one/checked
+    $simple-prefab-key-auto-count/checked
+    $simple-prefab-key-auto-value/checked
+    $simple-prefab-key-mutables/checked
+    $simple-prefab-key-has-super?/i32
+    $simple-prefab-key-parent-name/checked
+    $simple-prefab-key-parent-init-count/checked
+    $simple-prefab-key-parent-auto-count/checked
+    $simple-prefab-key-parent-auto-value/checked
+    $simple-prefab-key-parent-mutables/checked
+    $simple-prefab-super-key-registry-key/checked
     $simple-prefab-empty-mutable-mask
     $simple-prefab-zero-auto-spec
+    $simple-prefab-chain-alias-parent-total/checked
+    $simple-prefab-chain-alias->explicit-key/checked
+    $simple-prefab-chain-alias-top->explicit-key/checked
     $simple-prefab-mutable-mask-member?/i32
+    $simple-prefab-struct-type/checked
+    $simple-prefab-super-struct-type/checked
+    $simple-prefab-substruct-type/checked
+    $simple-prefab-struct-type-for-key/checked
+    $raise-make-prefab-struct:key
+    $make-prefab-struct
     $struct-constructor-procedure?
     $struct-predicate-procedure?
     $struct-accessor-procedure?
