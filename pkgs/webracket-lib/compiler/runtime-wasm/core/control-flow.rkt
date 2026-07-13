@@ -83,31 +83,51 @@
     call-with-escape-continuation
     call-with-immediate-continuation-mark))
 
-;; control-flow-helper-forms : hasheq? (listof symbol?) -> (listof datum?)
-;;   Render the given control-flow helper names from a helper index.
-(define (control-flow-helper-forms helper-index names)
+;; control-flow-helper-source : symbol? -> symbol?
+;;   Return the helper source used when preserving monolithic control-flow order.
+(define (control-flow-helper-source name)
+  (if (hash-ref control-flow-core-runtime-helper-name-set name #f)
+      'core
+      'runtime))
+
+;; control-flow-helper-forms : hasheq? hasheq? (listof symbol?) -> (listof datum?)
+;;   Render the given control-flow helper names from runtime-local or core indexes.
+(define (control-flow-helper-forms runtime-helper-index core-runtime-helper-index names)
   (for/list ([name (in-list names)])
-    (core-runtime-helper-form helper-index name)))
+    (case (control-flow-helper-source name)
+      [(core)    (core-runtime-helper-form core-runtime-helper-index name)]
+      [(runtime) (core-runtime-helper-form runtime-helper-index name)]
+      [else      (error 'control-flow-helper-forms
+                        "unknown helper source for: ~a"
+                        name)])))
 
-;; value-expectation-runtime-helper-forms : hasheq? -> (listof datum?)
+;; value-expectation-runtime-helper-forms : hasheq? hasheq? -> (listof datum?)
 ;;   Render multiple-value expectation helpers in runtime assembly order.
-(define (value-expectation-runtime-helper-forms helper-index)
-  (control-flow-helper-forms helper-index value-expectation-runtime-only-helper-names))
+(define (value-expectation-runtime-helper-forms runtime-helper-index core-runtime-helper-index)
+  (control-flow-helper-forms runtime-helper-index
+                             core-runtime-helper-index
+                             value-expectation-runtime-only-helper-names))
 
-;; multiple-value-runtime-helper-forms : hasheq? -> (listof datum?)
+;; multiple-value-runtime-helper-forms : hasheq? hasheq? -> (listof datum?)
 ;;   Render multiple-value helpers in runtime assembly order.
-(define (multiple-value-runtime-helper-forms helper-index)
-  (control-flow-helper-forms helper-index multiple-value-runtime-only-helper-names))
+(define (multiple-value-runtime-helper-forms runtime-helper-index core-runtime-helper-index)
+  (control-flow-helper-forms runtime-helper-index
+                             core-runtime-helper-index
+                             multiple-value-runtime-only-helper-names))
 
-;; continuation-runtime-helper-forms : hasheq? -> (listof datum?)
+;; continuation-runtime-helper-forms : hasheq? hasheq? -> (listof datum?)
 ;;   Render continuation helpers in runtime assembly order.
-(define (continuation-runtime-helper-forms helper-index)
-  (control-flow-helper-forms helper-index continuation-runtime-only-helper-names))
+(define (continuation-runtime-helper-forms runtime-helper-index core-runtime-helper-index)
+  (control-flow-helper-forms runtime-helper-index
+                             core-runtime-helper-index
+                             continuation-runtime-only-helper-names))
 
-;; continuation-mark-runtime-helper-forms : hasheq? -> (listof datum?)
+;; continuation-mark-runtime-helper-forms : hasheq? hasheq? -> (listof datum?)
 ;;   Render continuation-mark helpers in runtime assembly order.
-(define (continuation-mark-runtime-helper-forms helper-index)
-  (control-flow-helper-forms helper-index continuation-mark-runtime-only-helper-names))
+(define (continuation-mark-runtime-helper-forms runtime-helper-index core-runtime-helper-index)
+  (control-flow-helper-forms runtime-helper-index
+                             core-runtime-helper-index
+                             continuation-mark-runtime-only-helper-names))
 
 ;; value-expectation-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate multiple-value expectation helpers used by compiler output.
@@ -692,7 +712,23 @@
 ;; control-flow-core-runtime-helper-names : (listof symbol?)
 ;;   Name control-flow helpers available in the standalone core runtime.
 (define control-flow-core-runtime-helper-names
-  '($current-continuation-marks))
+  (append value-expectation-runtime-only-helper-names
+          multiple-value-runtime-only-helper-names
+          '($invoke-escape-continuation
+            $check-procedure-arity/who
+            $call-thunk/who
+            $call-thunk
+            $dynamic-wind
+            $dynamic-require
+            $call-with-continuation-barrier
+            $unsafe-root-continuation-prompt-tag)
+          continuation-mark-runtime-only-helper-names))
+
+;; control-flow-core-runtime-helper-name-set : hasheq?
+;;   Index control-flow helpers available in the standalone core runtime.
+(define control-flow-core-runtime-helper-name-set
+  (for/hasheq ([name (in-list control-flow-core-runtime-helper-names)])
+    (values name #t)))
 
 ;; control-flow-core-runtime-helpers : (listof core-runtime-helper?)
 ;;   Enumerate control-flow helpers available in the standalone core runtime.
@@ -720,17 +756,25 @@
              control-flow-runtime-only-helpers)))
 
   (check-equal?
-   (map form-name (value-expectation-runtime-helper-forms control-flow-helper-index))
+   (map form-name
+        (value-expectation-runtime-helper-forms control-flow-helper-index
+                                                control-flow-helper-index))
    value-expectation-runtime-only-helper-names)
 
   (check-equal?
-   (map form-name (multiple-value-runtime-helper-forms control-flow-helper-index))
+   (map form-name
+        (multiple-value-runtime-helper-forms control-flow-helper-index
+                                             control-flow-helper-index))
    multiple-value-runtime-only-helper-names)
 
   (check-equal?
-   (map form-name (continuation-runtime-helper-forms control-flow-helper-index))
+   (map form-name
+        (continuation-runtime-helper-forms control-flow-helper-index
+                                           control-flow-helper-index))
    continuation-runtime-only-helper-names)
 
   (check-equal?
-   (map form-name (continuation-mark-runtime-helper-forms control-flow-helper-index))
+   (map form-name
+        (continuation-mark-runtime-helper-forms control-flow-helper-index
+                                                control-flow-helper-index))
    continuation-mark-runtime-only-helper-names))

@@ -664,7 +664,8 @@
          ,@(bootstrap-error-runtime-helper-forms runtime-helper-index)
 
          ;;   Multiple-value expectation helpers are implemented in runtime-wasm/core/control-flow.rkt.
-         ,@(value-expectation-runtime-helper-forms runtime-helper-index)
+         ,@(value-expectation-runtime-helper-forms runtime-helper-index
+                                                   core-runtime-helper-index)
 
          ;;   Unquoted printing string helpers are implemented in runtime-wasm/core/formatting.rkt.
          ,@(unquoted-printing-string-core-runtime-helper-forms core-runtime-helper-index)
@@ -1572,7 +1573,8 @@
          ;; 10.1 Multiple Values
 
          ;;   Implemented in runtime-wasm/core/control-flow.rkt.
-         ,@(multiple-value-runtime-helper-forms runtime-helper-index)
+         ,@(multiple-value-runtime-helper-forms runtime-helper-index
+                                                core-runtime-helper-index)
 
 
 
@@ -1582,12 +1584,14 @@
          ;; 10.4 Continuations
 
          ;;   Implemented in runtime-wasm/core/control-flow.rkt.
-         ,@(continuation-runtime-helper-forms runtime-helper-index)
+         ,@(continuation-runtime-helper-forms runtime-helper-index
+                                              core-runtime-helper-index)
 
          ;; 10.5 Continuation Marks
 
          ;;   Implemented in runtime-wasm/core/control-flow.rkt.
-         ,@(continuation-mark-runtime-helper-forms runtime-helper-index)
+         ,@(continuation-mark-runtime-helper-forms runtime-helper-index
+                                                   core-runtime-helper-index)
 
          ;;   Implemented in runtime-wasm/core/parameters.rkt.
          ,@(parameterization-runtime-helper-forms runtime-helper-index)
