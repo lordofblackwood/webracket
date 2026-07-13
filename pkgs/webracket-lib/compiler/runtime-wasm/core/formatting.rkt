@@ -433,7 +433,7 @@
 ;; unquoted-printing-string-promoted-runtime-helper-names : (listof symbol?)
 ;;   Name unquoted-printing-string helpers available in the standalone core runtime.
 (define unquoted-printing-string-promoted-runtime-helper-names
-  '($unquoted-printing-string?))
+  (map core-runtime-helper-name unquoted-printing-string-runtime-only-helpers))
 
 ;; unquoted-printing-string-core-runtime-helpers : (listof core-runtime-helper?)
 ;;   Enumerate unquoted-printing-string helpers available in standalone core runtime.
@@ -2638,21 +2638,7 @@
 ;; display-formatting-promoted-runtime-helper-names : (listof symbol?)
 ;;   Name display-formatting helpers available in the standalone core runtime.
 (define display-formatting-promoted-runtime-helper-names
-  '($format/write:string
-    $format/display:variable-reference
-    $format/display:namespace
-    $format/display:external
-    $format/display:bytes
-    $format/display:unquoted-printing-string
-    $make-oct-string
-    $str-number
-    $is-blank
-    $is-graphic
-    $get-special-escape
-    $utf8-size
-    $write-utf8
-    $write-hex
-    $string->bytes:display))
+  (map core-runtime-helper-name display-formatting-runtime-only-helpers))
 
 ;; display-formatting-core-runtime-helpers : (listof core-runtime-helper?)
 ;;   Enumerate display-formatting helpers available in standalone core runtime.
@@ -2684,15 +2670,14 @@
 ;; formatting-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Register printer-extension and display-formatting helpers for runtime emission.
 (define formatting-runtime-only-helpers
-  (append printer-extension-runtime-only-helpers
-          unquoted-printing-string-runtime-only-helpers*
-          numeric-display-formatting-runtime-only-helpers
-          display-formatting-runtime-only-helpers*))
+  '())
 
 ;; formatting-core-runtime-helpers : (listof core-runtime-helper?)
 ;;   Enumerate formatting helpers available in the standalone core runtime.
 (define formatting-core-runtime-helpers
-  (append unquoted-printing-string-core-runtime-helpers
+  (append printer-extension-runtime-only-helpers
+          unquoted-printing-string-core-runtime-helpers
+          numeric-display-formatting-runtime-only-helpers
           display-formatting-core-runtime-helpers))
 
 (module+ test

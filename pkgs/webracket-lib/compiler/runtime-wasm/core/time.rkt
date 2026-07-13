@@ -495,12 +495,7 @@
 ;; time-core-runtime-helper-names : (listof symbol?)
 ;;   Name time helpers available in the standalone core runtime.
 (define time-core-runtime-helper-names
-  '($date?
-    $date*?
-    $exact-fixnum-in-range?
-    $ensure-date-range-field
-    $ensure-date-exact-integer-field
-    $ensure-date))
+  time-all-runtime-helper-names)
 
 ;; time-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime-only time helper emission order.

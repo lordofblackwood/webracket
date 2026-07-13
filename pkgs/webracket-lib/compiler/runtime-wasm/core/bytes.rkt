@@ -91,42 +91,6 @@
   '($mutable-bytes?
     $immutable-bytes?))
 
-;; bytes-core-runtime-helper-names : (listof symbol?)
-;;   Name byte-string helpers available in the standalone core runtime.
-(define bytes-core-runtime-helper-names
-  '($raise-check-bytes/who
-    $raise-check-mutable-bytes/who
-    $raise-check-byte/who
-    $bytes-index/i32
-    $byte-value/i32/who
-    $raise-bad-bytes-range
-    $make-bytes
-    $bytes->immutable-bytes
-    $bytes?
-    $bytes=?/2/checked
-    $bytes<?/2/checked
-    $bytes>?/2/checked
-    $byte?
-    $bytes-set!/checked
-    $subbytes
-    $bytes-copy
-    $bytes-converter?
-    $raise-listof-bytes/who
-    $raise-listof-byte/who
-    $bytes-append-args-length/i32/who
-    $listof-bytes-length/i32/who
-    $listof-byte-length/i32/who
-    $bytes-append/who
-    $bytes-append
-    $bytes-append/1
-    $bytes-append/2
-    $bytes-append*
-    $raise-bytes-utf-8-length:bad-argument
-    $raise-bytes->string/latin-1
-    $bytes->string/utf-8:determine-utf-8-sequence
-    $mutable-bytes?
-    $immutable-bytes?))
-
 ;; bytes-basic-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for basic byte-string helpers.
 (define bytes-basic-runtime-only-helper-names
@@ -2485,6 +2449,17 @@
    byte-sequence-runtime-only-helpers
    byte-text-decoding-runtime-only-helpers
    bytes-mutability-runtime-helpers))
+
+;; bytes-core-runtime-helper-names : (listof symbol?)
+;;   Name byte-string helpers available in the standalone core runtime.
+(define bytes-core-runtime-helper-names
+  (append bytes-basic-runtime-only-helper-names
+          byte-comparison-runtime-only-helper-names
+          byte-indexing-runtime-only-helper-names
+          byte-converter-runtime-only-helper-names
+          byte-sequence-runtime-only-helper-names
+          byte-text-decoding-runtime-only-helper-names
+          bytes-mutability-runtime-only-helper-names))
 
 ;; select-bytes-helpers : (listof core-runtime-helper?) (listof symbol?) -> (listof core-runtime-helper?)
 ;;   Select helpers by name while preserving the order of the source list.
