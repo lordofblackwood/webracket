@@ -91,7 +91,8 @@
     $custodian-box?
     $inspector?
     $current-inspector
-    $current-code-inspector))
+    $current-code-inspector
+    $object-name))
 
 ;; security-pre-parameter-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve helpers emitted before current-security-guard.
@@ -116,8 +117,7 @@
 ;;   Preserve inspector and object-name helper emission order.
 (define inspector-runtime-only-helper-names
   '($make-inspector
-    $inspector-superior?
-    $object-name))
+    $inspector-superior?))
 
 ;; security-runtime-only-forms : (listof datum?)
 ;;   Enumerate security guard, custodian, inspector, and object-name helpers.

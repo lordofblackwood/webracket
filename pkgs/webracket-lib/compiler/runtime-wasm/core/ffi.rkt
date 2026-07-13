@@ -5,6 +5,7 @@
          external-value-runtime-only-helper-names
          external-value-runtime-helper-forms
          ffi-callback-global-forms
+         ffi-callback-global-names
          ffi-core-runtime-helper-forms
          ffi-core-runtime-helpers
          ffi-debug-global-forms
@@ -98,6 +99,16 @@
                              (array.new $Array (global.get $false) (i32.const 4))
                              (i32.const 4)
                              (i32.const 0)))))
+
+;; ffi-callback-global-names : (listof symbol?)
+;;   Enumerate callback bridge globals shared by split runtime modules.
+(define ffi-callback-global-names
+  (for/list ([form (in-list ffi-callback-global-forms)])
+    (match form
+      [`(global ,name . ,_) name]
+      [_ (error 'ffi-callback-global-names
+                "expected global form, got: ~s"
+                form)])))
 
 ;; ffi-result-global-forms : (listof datum?)
 ;;   Declare the program entry result bytes global.
@@ -206,7 +217,16 @@
 (define ffi-core-runtime-helper-names
   '($webracket-debug-allocation-counters
     $debug-allocation-tick
-    $memory-range->immutable-bytes))
+    $memory-range->immutable-bytes
+    $callback-result->bridge-payload
+    $callback-result->bridge-vector
+    $callback-non-fasl-return-message
+    $callback-register
+    $callback
+    $callback-accepts-argc
+    $callback-expected-arity
+    $callback-name
+    $callback-debug-id))
 
 ;; ffi-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the program/runtime-local FFI helper emission order.

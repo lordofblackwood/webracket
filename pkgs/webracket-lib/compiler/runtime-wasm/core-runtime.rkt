@@ -328,6 +328,7 @@
      $the-racket/primitive-realm)
    ffi-result-global-names
    ffi-debug-global-names
+   ffi-callback-global-names
    struct-property-identity-global-names
    struct-equal+hash-recur-global-names
    procedure-global-names
@@ -423,6 +424,7 @@
      ,@singleton-global-forms
      ,@ffi-result-global-forms
      ,@ffi-debug-global-forms
+     ,@ffi-callback-global-forms
      ,@memory-map-global-forms
      ,@fixnum-global-forms
      ,@flonum-global-forms
@@ -483,6 +485,8 @@
             ffi-debug-global-names)
      ,@(map core-runtime-global-export-form
             ffi-result-global-names)
+     ,@(map core-runtime-global-export-form
+            ffi-callback-global-names)
      ,@(map core-runtime-global-export-form
             struct-property-identity-global-names)
      ,@(map core-runtime-global-export-form
@@ -1090,6 +1094,7 @@
   (check-true (hash-has-key? core-runtime-global-name-set '$debug-allocation-budget))
   (check-true (hash-has-key? core-runtime-global-name-set '$debug-invoke-budget))
   (check-true (hash-has-key? core-runtime-global-name-set '$result-bytes))
+  (check-true (hash-has-key? core-runtime-global-name-set '$callback-registry))
   (check-true (hash-has-key? core-runtime-global-name-set '$exn-type))
   (check-true (hash-has-key? core-runtime-global-name-set '$dummy-array))
   (check-true (hash-has-key? core-runtime-global-name-set '$dummy-pair))
@@ -1353,6 +1358,8 @@
   (check-true (for/or ([form (in-list core-forms)])
                 (global-form-named? '$result-bytes form)))
   (check-true (for/or ([form (in-list core-forms)])
+                (global-form-named? '$callback-registry form)))
+  (check-true (for/or ([form (in-list core-forms)])
                 (global-form-named? '$prop:procedure form)))
   (check-true (for/or ([form (in-list core-forms)])
                 (global-form-named? '$prop:checked-procedure form)))
@@ -1449,6 +1456,10 @@
   (check-true (for/or ([form (in-list core-forms)])
                 (global-export-form-named? "global:$result-bytes"
                                            '$result-bytes
+                                           form)))
+  (check-true (for/or ([form (in-list core-forms)])
+                (global-export-form-named? "global:$callback-registry"
+                                           '$callback-registry
                                            form)))
   (check-true (for/or ([form (in-list core-forms)])
                 (global-export-form-named? "global:$prop:procedure"

@@ -4815,6 +4815,7 @@
     $kernel-exn-struct-type
     $invoke-kernel-exn-struct
     $ensure-exn-type
+    $exn-ensure
     $ensure-exn:fail-type
     $ensure-exn:fail:contract-type
     $ensure-exn:fail:contract:arity-type
@@ -4857,6 +4858,8 @@
     $exn:fail:read:non-char?
     $raise-read-error
     $raise-read-eof-error
+    $exn?
+    $exn-message
     $raise-arguments-error))
 
 ;; exception-core-runtime-helpers : (listof core-runtime-helper?)
