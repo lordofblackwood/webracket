@@ -1,6 +1,7 @@
 #lang racket
 
 (provide filesystem-temporary-global-forms
+         filesystem-temporary-global-names
          filesystem-runtime-string-constants
          filesystem-runtime-symbol-constants
          filesystem-runtime-bytes-constants
@@ -79,6 +80,16 @@
   '(
                (global $temporary-file-counter   (mut i32)      (i32.const 0))))
 
+;; filesystem-temporary-global-names : (listof symbol?)
+;;   Enumerate filesystem globals used for temporary file name generation.
+(define filesystem-temporary-global-names
+  (for/list ([form (in-list filesystem-temporary-global-forms)])
+    (match form
+      [`(global ,name . ,_) name]
+      [_ (error 'filesystem-temporary-global-names
+                "expected global form, got: ~s"
+                form)])))
+
 ;; filesystem-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for VFS and file-operation helpers.
 (define filesystem-runtime-only-helper-names
@@ -139,7 +150,24 @@
 ;;   Name filesystem helpers available in the standalone core runtime.
 (define filesystem-core-runtime-helper-names
   '($raise-vfs-file-error/path
-    $raise-vfs-path-too-long))
+    $raise-vfs-file-error/two-paths
+    $raise-vfs-file-error/who-path
+    $raise-vfs-path-too-long
+    $raise-vfs-file-buffer-too-small
+    $vfs-path-stat-kind
+    $file-exists?
+    $directory-exists?
+    $vfs-read-file-bytes
+    $webracket-vfs-write-file
+    $make-directory
+    $copy-file
+    $make-temporary-candidate
+    $make-temporary-file
+    $make-temporary-candidate*
+    $make-temporary-file*
+    $make-temporary-directory
+    $make-temporary-directory*
+    $open-output-file))
 
 ;; filesystem-runtime-only-forms : (listof datum?)
 ;;   Enumerate VFS and file-operation helpers used by the monolithic runtime.

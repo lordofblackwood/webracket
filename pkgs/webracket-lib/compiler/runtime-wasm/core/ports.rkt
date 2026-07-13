@@ -178,7 +178,9 @@
 ;;   Name port helpers available in the standalone core runtime.
 (define port-core-runtime-helper-names
   '($input-port-like?/i32
-    $current-input-port))
+    $current-input-port
+    $flush-output
+    $close-output-port))
 
 ;; port-location-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for port location helpers.

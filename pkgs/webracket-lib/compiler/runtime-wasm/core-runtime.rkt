@@ -346,7 +346,8 @@
    error-rendering-handler-global-names
    location-global-names
    exception-read-primitive-global-names
-   exception-struct-type-cache-global-names))
+   exception-struct-type-cache-global-names
+   filesystem-temporary-global-names))
 
 ;; core-runtime-program-import-tag-names : (listof symbol?)
 ;;   Name core tags that split-core program modules must share for catch/throw identity.
@@ -450,6 +451,7 @@
      ,@location-global-forms
      ,@exception-read-primitive-global-forms
      ,@exception-struct-type-cache-global-forms
+     ,@filesystem-temporary-global-forms
      ,@symbol-table-global-forms
      ,@keyword-table-global-forms
      ,@struct-prefab-registry-global-forms
@@ -519,6 +521,8 @@
             exception-read-primitive-global-names)
      ,@(map core-runtime-global-export-form
             exception-struct-type-cache-global-names)
+     ,@(map core-runtime-global-export-form
+            filesystem-temporary-global-names)
      ,@(map core-runtime-tag-export-form
             core-runtime-program-import-tag-names)
      ,@(map core-runtime-global-export-form
@@ -1124,6 +1128,7 @@
   (check-true (hash-has-key? core-runtime-global-name-set '$error-value->string-handler-value))
   (check-true (hash-has-key? core-runtime-global-name-set '$srcloc-type))
   (check-true (hash-has-key? core-runtime-global-name-set '$prim:exn:fail:read-srclocs))
+  (check-true (hash-has-key? core-runtime-global-name-set '$temporary-file-counter))
   (check-true (hash-has-key? core-runtime-global-name-set '$dummy-treelist-node))
   (check-true (hash-has-key? core-runtime-global-name-set '$empty-treelist))
   (check-true (hash-has-key? core-runtime-global-name-set '$treelist:BITS))
@@ -1389,6 +1394,8 @@
                 (global-form-named? '$srcloc-type form)))
   (check-true (for/or ([form (in-list core-forms)])
                 (global-form-named? '$prim:exn:fail:read-srclocs form)))
+  (check-true (for/or ([form (in-list core-forms)])
+                (global-form-named? '$temporary-file-counter form)))
   (check-true (for/or ([form (in-list core-forms)])
                 (tag-form-named? '$exn form)))
   (check-true (for/or ([form (in-list core-forms)])

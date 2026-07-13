@@ -205,7 +205,8 @@
 ;;   Name FFI helpers available in the standalone core runtime.
 (define ffi-core-runtime-helper-names
   '($webracket-debug-allocation-counters
-    $debug-allocation-tick))
+    $debug-allocation-tick
+    $memory-range->immutable-bytes))
 
 ;; ffi-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the program/runtime-local FFI helper emission order.
