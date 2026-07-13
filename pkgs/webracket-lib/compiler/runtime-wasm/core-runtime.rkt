@@ -83,6 +83,7 @@
          "core/structs.rkt"
          "core/syntax.rkt"
          "core/symbols.rkt"
+         "core/system.rkt"
          "core/threads.rkt"
          "core/time.rkt"
          "core/treelists.rkt"
@@ -146,6 +147,7 @@
    struct-core-runtime-helpers
    syntax-core-runtime-helpers
    symbol-core-runtime-helpers
+   system-core-runtime-helpers
    thread-core-runtime-helpers
    time-core-runtime-helpers
    treelist-core-runtime-helpers

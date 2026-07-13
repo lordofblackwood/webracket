@@ -2,6 +2,7 @@
 
 (provide system-runtime-string-constants
          system-runtime-symbol-constants
+         system-core-runtime-helpers
          system-runtime-helper-forms
          system-runtime-only-helpers)
 
@@ -49,6 +50,11 @@
     $version
     $get-installation-name))
 
+;; system-promoted-runtime-helper-names : (listof symbol?)
+;;   Name system helpers available in the standalone core runtime.
+(define system-promoted-runtime-helper-names
+  '($system-big-endian?))
+
 ;; system-helper-forms : hasheq? (listof symbol?) -> (listof datum?)
 ;;   Render the given system helper names from a helper index.
 (define (system-helper-forms helper-index names)
@@ -60,9 +66,9 @@
 (define (system-runtime-helper-forms helper-index)
   (system-helper-forms helper-index system-runtime-only-helper-names))
 
-;; system-runtime-only-helpers : (listof core-runtime-helper?)
-;;   Enumerate system/runtime information helpers used by the monolithic runtime.
-(define system-runtime-only-helpers
+;; system-all-runtime-helpers : (listof core-runtime-helper?)
+;;   Enumerate all system/runtime information helpers used by the monolithic runtime.
+(define system-all-runtime-helpers
   (function-forms->runtime-helpers
    'system-runtime-only-helpers
    `(
@@ -150,6 +156,18 @@
                  (global.get $symbol:installation-name)
                  (global.get $string:racket-version))))))
 
+;; system-core-runtime-helpers : (listof core-runtime-helper?)
+;;   Enumerate system helpers available in the standalone core runtime.
+(define system-core-runtime-helpers
+  (select-runtime-helpers system-all-runtime-helpers
+                          system-promoted-runtime-helper-names))
+
+;; system-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate system helpers that still remain runtime-local.
+(define system-runtime-only-helpers
+  (remove-runtime-helpers system-all-runtime-helpers
+                          system-promoted-runtime-helper-names))
+
 (module+ test
   (require rackunit)
 
@@ -159,8 +177,14 @@
     (second form))
 
   (define system-helper-index
-    (make-core-runtime-helper-index system-runtime-only-helpers))
+    (make-core-runtime-helper-index
+     (append system-core-runtime-helpers
+             system-runtime-only-helpers)))
 
   (check-equal?
    (map form-name (system-runtime-helper-forms system-helper-index))
-   system-runtime-only-helper-names))
+   system-runtime-only-helper-names)
+
+  (check-equal?
+   (map core-runtime-helper-name system-core-runtime-helpers)
+   system-promoted-runtime-helper-names))

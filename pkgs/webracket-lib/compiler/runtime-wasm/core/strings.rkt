@@ -4630,6 +4630,7 @@
     $string-drop/checked
     $string-drop-right/checked
     $raise-argument-error:string-expected/who
+    $string-trim-right
     $raise-racket-string:string-expected
     $string-suffix?
     $string-suffix?/i32

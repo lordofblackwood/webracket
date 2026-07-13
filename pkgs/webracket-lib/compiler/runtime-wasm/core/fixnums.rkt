@@ -1002,6 +1002,8 @@
     $fx=/2
     $fx</2
     $fx>/2
+    $fx<=/2
+    $fx>=/2
     $fxand
     $fxior
     $fxxor
