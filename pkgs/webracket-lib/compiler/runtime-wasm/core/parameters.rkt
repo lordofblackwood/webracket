@@ -425,6 +425,7 @@
 ;;   Declare primitive procedure globals needed by promoted parameter helpers.
 (define promoted-parameter-primitive-global-forms
   '(
+               (global $prim:js-log                       (mut (ref eq)) (global.get $undefined))
                (global $prim:current-input-port           (mut (ref eq)) (global.get $undefined))
                (global $prim:current-output-port          (mut (ref eq)) (global.get $undefined))
                (global $prim:current-error-port           (mut (ref eq)) (global.get $undefined))
@@ -652,10 +653,20 @@
 (define current-environment-variables-runtime-only-helper-names
   '($current-environment-variables))
 
-;; current-print-runtime-only-helper-names : (listof symbol?)
+;; current-print-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for current-print.
-(define current-print-runtime-only-helper-names
+(define current-print-helper-names
   '($current-print))
+
+;; current-print-core-runtime-helper-names : (listof symbol?)
+;;   Name current-print helpers available in core runtime.
+(define current-print-core-runtime-helper-names
+  current-print-helper-names)
+
+;; current-print-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the monolithic runtime emission order for current-print.
+(define current-print-runtime-only-helper-names
+  current-print-helper-names)
 
 ;; current-readtable-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for current-readtable.
@@ -1829,6 +1840,7 @@
                                   compile-parameter-core-runtime-helper-names
                                   current-security-guard-core-runtime-helper-names
                                   current-custodian-core-runtime-helper-names
+                                  current-print-core-runtime-helper-names
                                   current-readtable-core-runtime-helper-names
                                   namespace-parameter-core-runtime-helper-names
                                   parameter-width-core-runtime-helper-names)))
@@ -1842,6 +1854,7 @@
                                   compile-parameter-core-runtime-helper-names
                                   current-security-guard-core-runtime-helper-names
                                   current-custodian-core-runtime-helper-names
+                                  current-print-core-runtime-helper-names
                                   current-readtable-core-runtime-helper-names
                                   namespace-parameter-core-runtime-helper-names
                                   parameter-width-core-runtime-helper-names)))
@@ -1994,6 +2007,7 @@
   (for ([name (in-list '($prim:current-input-port
                          $prim:current-output-port
                          $prim:current-error-port
+                         $prim:js-log
                          $prim:current-print
                          $prim:current-read-interaction
                          $prim:error-value->string-handler

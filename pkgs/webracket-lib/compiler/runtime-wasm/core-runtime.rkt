@@ -1222,6 +1222,7 @@
   (check-true (hash-has-key? core-runtime-global-name-set '$prim:current-input-port))
   (check-true (hash-has-key? core-runtime-global-name-set '$prim:current-output-port))
   (check-true (hash-has-key? core-runtime-global-name-set '$prim:current-error-port))
+  (check-true (hash-has-key? core-runtime-global-name-set '$prim:js-log))
   (check-true (hash-has-key? core-runtime-global-name-set '$prim:current-print))
   (check-true (hash-has-key? core-runtime-global-name-set '$prim:current-read-interaction))
   (check-true (hash-has-key? core-runtime-global-name-set '$prim:error-value->string-handler))
@@ -1518,6 +1519,8 @@
   (check-true (for/or ([form (in-list core-forms)])
                 (global-form-named? '$current-output-port-value form)))
   (check-true (for/or ([form (in-list core-forms)])
+                (global-form-named? '$prim:js-log form)))
+  (check-true (for/or ([form (in-list core-forms)])
                 (global-form-named? '$system-path-convention form)))
   (check-true (for/or ([form (in-list core-forms)])
                 (global-form-named? '$next-hash-state form)))
@@ -1714,6 +1717,10 @@
   (check-true (for/or ([form (in-list core-forms)])
                 (global-export-form-named? "global:$current-print-value"
                                            '$current-print-value
+                                           form)))
+  (check-true (for/or ([form (in-list core-forms)])
+                (global-export-form-named? "global:$prim:js-log"
+                                           '$prim:js-log
                                            form)))
   (check-true (for/or ([form (in-list core-forms)])
                 (global-export-form-named? "global:$current-namespace-value"

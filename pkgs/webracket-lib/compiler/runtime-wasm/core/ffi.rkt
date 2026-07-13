@@ -215,9 +215,11 @@
 ;; ffi-core-runtime-helper-names : (listof symbol?)
 ;;   Name FFI helpers available in the standalone core runtime.
 (define ffi-core-runtime-helper-names
-  '($webracket-debug-allocation-counters
+  '($js-log
+    $webracket-debug-allocation-counters
     $debug-allocation-tick
     $memory-range->immutable-bytes
+    $copy-bytes-to-callback-buffer
     $callback-result->bridge-payload
     $callback-result->bridge-vector
     $callback-non-fasl-return-message
