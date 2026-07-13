@@ -16,6 +16,8 @@
          parameterization-runtime-helper-forms
          namespace-parameter-runtime-helper-forms
          parameterization-binding-runtime-helper-forms
+         parameterization-binding-core-runtime-helper-forms
+         parameter-core-runtime-helpers
          parameterization-call-runtime-helper-forms
          parameterization-global-forms
          parameterization-global-names
@@ -470,15 +472,30 @@
     $current-namespace/set
     $current-namespace))
 
-;; parameterization-binding-runtime-only-helper-names : (listof symbol?)
+;; parameterization-binding-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for parameterization binding helpers.
-(define parameterization-binding-runtime-only-helper-names
+(define parameterization-binding-helper-names
   '($build-parameterization-bindings
     $extend-parameterization
     $parameterization-ref
     $parameter-value-or-global
     $parameterization-set!
     $extend-current-parameterization!))
+
+;; parameterization-binding-promoted-runtime-helper-names : (listof symbol?)
+;;   Name standalone parameterization binding helpers promoted to core runtime.
+(define parameterization-binding-promoted-runtime-helper-names
+  '($parameterization-ref
+    $parameter-value-or-global
+    $parameterization-set!
+    $extend-current-parameterization!))
+
+;; parameterization-binding-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the runtime emission order for parameterization binding helpers.
+(define parameterization-binding-runtime-only-helper-names
+  (remove* parameterization-binding-promoted-runtime-helper-names
+           parameterization-binding-helper-names
+           eq?))
 
 ;; parameterization-call-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for parameterization call/configuration helpers.
@@ -612,6 +629,12 @@
 (define (parameterization-binding-runtime-helper-forms helper-index)
   (parameter-helper-forms helper-index parameterization-binding-runtime-only-helper-names))
 
+;; parameterization-binding-core-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render promoted parameterization binding helpers in runtime assembly order.
+(define (parameterization-binding-core-runtime-helper-forms helper-index)
+  (parameter-helper-forms helper-index
+                          parameterization-binding-promoted-runtime-helper-names))
+
 ;; parameterization-call-runtime-helper-forms : hasheq? -> (listof datum?)
 ;;   Render parameterization call and configuration helpers in runtime assembly order.
 (define (parameterization-call-runtime-helper-forms helper-index)
@@ -668,9 +691,9 @@
   (for/list ([spec (in-list reader-printer-policy-parameter-specs)])
     (apply reader-printer-policy-parameter-form spec)))
 
-;; parameter-runtime-only-helpers : (listof core-runtime-helper?)
-;;   Enumerate parameterization helpers used by the monolithic runtime.
-(define parameter-runtime-only-helpers
+;; parameter-runtime-helpers : (listof core-runtime-helper?)
+;;   Enumerate parameterization helpers shared by core and monolithic runtime.
+(define parameter-runtime-helpers
   (append
    (function-forms->runtime-helpers
     'parameter-runtime-only-helpers
@@ -1641,6 +1664,18 @@
     'reader-printer-policy-parameter-forms
     reader-printer-policy-parameter-forms)))
 
+;; parameter-core-runtime-helpers : (listof core-runtime-helper?)
+;;   Enumerate parameterization helpers available in the standalone core runtime.
+(define parameter-core-runtime-helpers
+  (select-runtime-helpers parameter-runtime-helpers
+                          parameterization-binding-promoted-runtime-helper-names))
+
+;; parameter-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate parameterization helpers used only by the monolithic runtime.
+(define parameter-runtime-only-helpers
+  (remove-runtime-helpers parameter-runtime-helpers
+                          parameterization-binding-promoted-runtime-helper-names))
+
 (module+ test
   (require rackunit)
 
@@ -1699,6 +1734,14 @@
   (check-equal?
    (map form-name (parameterization-binding-runtime-helper-forms parameter-helper-index))
    parameterization-binding-runtime-only-helper-names)
+
+  (define parameter-core-helper-index
+    (make-core-runtime-helper-index parameter-core-runtime-helpers))
+
+  (check-equal?
+   (map form-name (parameterization-binding-core-runtime-helper-forms
+                   parameter-core-helper-index))
+   parameterization-binding-promoted-runtime-helper-names)
 
   (check-equal?
    (map form-name (parameterization-call-runtime-helper-forms parameter-helper-index))

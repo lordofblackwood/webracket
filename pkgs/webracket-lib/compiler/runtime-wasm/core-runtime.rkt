@@ -109,6 +109,7 @@
    mlist-core-runtime-helpers
    mutable-hash-core-runtime-helpers
    number-core-runtime-helpers
+   parameter-core-runtime-helpers
    path-core-runtime-helpers
    procedure-core-runtime-helpers
    reflection-core-runtime-helpers
