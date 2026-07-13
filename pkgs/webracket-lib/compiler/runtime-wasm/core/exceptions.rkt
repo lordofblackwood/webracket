@@ -4806,8 +4806,12 @@
     $ensure-exn:fail-type
     $ensure-exn:fail:contract-type
     $ensure-exn:fail:contract:arity-type
+    $ensure-exn:fail:filesystem-type
     $exn:fail:contract/make
     $exn:fail:contract:arity/make
+    $exn:fail:filesystem/make
+    $make-exn:fail:filesystem
+    $raise-vfs-file-error
     $raise-arguments-error))
 
 ;; exception-core-runtime-helpers : (listof core-runtime-helper?)

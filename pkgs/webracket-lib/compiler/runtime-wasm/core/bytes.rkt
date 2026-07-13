@@ -103,6 +103,7 @@
     $byte?
     $bytes-set!/checked
     $bytes-converter?
+    $bytes-append/2
     $bytes->string/utf-8:determine-utf-8-sequence
     $mutable-bytes?
     $immutable-bytes?))

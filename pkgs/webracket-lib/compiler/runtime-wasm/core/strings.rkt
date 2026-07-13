@@ -4601,6 +4601,7 @@
     $string>=?/2
     $string</i32
     $string</i32/checked
+    $string-ci-compare/checked
     $array-of-strings->string
     $growable-array-of-strings->string
     $string-take/checked

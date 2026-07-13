@@ -133,6 +133,7 @@
    stencil-vector-core-runtime-helpers
    string-core-runtime-helpers
    struct-core-runtime-helpers
+   syntax-core-runtime-helpers
    symbol-core-runtime-helpers
    thread-core-runtime-helpers
    time-core-runtime-helpers

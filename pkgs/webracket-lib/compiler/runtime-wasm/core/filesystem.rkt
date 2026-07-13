@@ -138,7 +138,8 @@
 ;; filesystem-core-runtime-helper-names : (listof symbol?)
 ;;   Name filesystem helpers available in the standalone core runtime.
 (define filesystem-core-runtime-helper-names
-  '($raise-vfs-path-too-long))
+  '($raise-vfs-file-error/path
+    $raise-vfs-path-too-long))
 
 ;; filesystem-runtime-only-forms : (listof datum?)
 ;;   Enumerate VFS and file-operation helpers used by the monolithic runtime.

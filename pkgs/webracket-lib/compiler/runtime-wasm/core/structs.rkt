@@ -485,8 +485,10 @@
   '($struct?
     $struct-type?
     $struct-type-is-a?/i32
+    $simple-prefab-auto-value-supported?/i32
     $simple-prefab-public-key
     $simple-prefab-mutable-mask-valid?/i32
+    $simple-prefab-key?/i32
     $simple-prefab-empty-mutable-mask
     $simple-prefab-zero-auto-spec
     $simple-prefab-mutable-mask-member?/i32

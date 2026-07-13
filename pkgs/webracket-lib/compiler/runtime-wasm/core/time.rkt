@@ -497,7 +497,8 @@
 (define time-core-runtime-helper-names
   '($date?
     $date*?
-    $exact-fixnum-in-range?))
+    $exact-fixnum-in-range?
+    $ensure-date))
 
 ;; time-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime-only time helper emission order.

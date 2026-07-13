@@ -2616,13 +2616,6 @@
   (remove-runtime-helpers primitive-dispatch-all-runtime-helpers
                           primitive-dispatch-core-runtime-helper-names))
 
-;; procedure-core-runtime-helpers : (listof core-runtime-helper?)
-;;   Enumerate procedure-call helpers that can be emitted in core runtime.
-(define procedure-core-runtime-helpers
-  (append procedure-base-core-runtime-helpers
-          primitive-dispatch-core-runtime-helpers
-          procedure-primitive-invoker-core-runtime-helpers))
-
 ;; procedure-case-lambda-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate procedure case-lambda helpers used by the monolithic runtime.
 (define procedure-case-lambda-runtime-only-helpers
@@ -4064,6 +4057,25 @@
                (then (global.get $true))
                (else (global.get $false)))))))
 
+;; procedure-promoted-runtime-helper-names : (listof symbol?)
+;;   Name procedure helpers available in the standalone core runtime.
+(define procedure-promoted-runtime-helper-names
+  '($procedure-arity-includes?/checked/i32))
+
+;; procedure-promoted-runtime-helpers : (listof core-runtime-helper?)
+;;   Enumerate promoted procedure helpers selected from monolithic runtime order.
+(define procedure-promoted-runtime-helpers
+  (select-runtime-helpers procedure-arity-and-reflection-runtime-only-helpers
+                          procedure-promoted-runtime-helper-names))
+
+;; procedure-core-runtime-helpers : (listof core-runtime-helper?)
+;;   Enumerate procedure-call helpers that can be emitted in core runtime.
+(define procedure-core-runtime-helpers
+  (append procedure-base-core-runtime-helpers
+          primitive-dispatch-core-runtime-helpers
+          procedure-primitive-invoker-core-runtime-helpers
+          procedure-promoted-runtime-helpers))
+
 ;; procedure-helper-forms : hasheq? (listof symbol?) -> (listof datum?)
 ;;   Render the given procedure helper names from the runtime helper index.
 (define (procedure-helper-forms helper-index names)
@@ -4139,7 +4151,8 @@
           primitive-dispatch-runtime-only-helpers
           procedure-case-lambda-runtime-only-helpers
           procedure-basic-runtime-only-helpers
-          procedure-arity-and-reflection-runtime-only-helpers))
+          (remove-runtime-helpers procedure-arity-and-reflection-runtime-only-helpers
+                                  procedure-promoted-runtime-helper-names)))
 
 (module+ test
   (require rackunit)
@@ -4150,7 +4163,9 @@
     (second form))
 
   (define procedure-helper-index
-    (make-core-runtime-helper-index procedure-runtime-only-helpers))
+    (make-core-runtime-helper-index
+     (append procedure-core-runtime-helpers
+             procedure-runtime-only-helpers)))
 
   (define procedure-core-helper-index
     (make-core-runtime-helper-index procedure-core-runtime-helpers))

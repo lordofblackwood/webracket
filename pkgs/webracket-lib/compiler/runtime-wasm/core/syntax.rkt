@@ -4,6 +4,7 @@
          syntax-global-names
          syntax-runtime-string-constants
          syntax-runtime-symbol-constants
+         syntax-core-runtime-helpers
          syntax-runtime-only-helpers
          syntax-runtime-only-helper-names
          syntax-runtime-helper-forms
@@ -182,6 +183,13 @@
     $datum->correlated
     $correlated-property
     $correlated-property-symbol-keys))
+
+;; correlated-syntax-promoted-runtime-helper-names : (listof symbol?)
+;;   Name correlated syntax helpers available in the standalone core runtime.
+(define correlated-syntax-promoted-runtime-helper-names
+  '($ensure-correlated-type
+    $raise-argument-error:correlated-expected
+    $correlated-unwrap))
 
 ;; correlated-syntax-runtime-only-forms : (listof datum?)
 ;;   Enumerate correlated syntax helpers used by the monolithic runtime.
@@ -2470,13 +2478,25 @@
           (local.set $e (array.get $Array (local.get $fields) (i32.const 0)))
           (call $syntax->datum/convert (global.get $symbol:syntax->datum) (local.get $e)))))
 
-;; syntax-runtime-only-helpers : (listof core-runtime-helper?)
+;; syntax-all-runtime-helpers : (listof core-runtime-helper?)
 ;;   Enumerate syntax-object helpers used by the monolithic runtime.
-(define syntax-runtime-only-helpers
+(define syntax-all-runtime-helpers
   (function-forms->runtime-helpers
    'syntax-runtime-only-helpers
    (append correlated-syntax-runtime-only-forms
            syntax-runtime-only-forms)))
+
+;; syntax-core-runtime-helpers : (listof core-runtime-helper?)
+;;   Enumerate syntax helpers available in the standalone core runtime.
+(define syntax-core-runtime-helpers
+  (select-runtime-helpers syntax-all-runtime-helpers
+                          correlated-syntax-promoted-runtime-helper-names))
+
+;; syntax-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate syntax helpers that still depend on monolithic runtime definitions.
+(define syntax-runtime-only-helpers
+  (remove-runtime-helpers syntax-all-runtime-helpers
+                          correlated-syntax-promoted-runtime-helper-names))
 
 ;; syntax-helper-forms : hasheq? (listof symbol?) -> (listof datum?)
 ;;   Render the given syntax helper names from the runtime helper index.
@@ -2503,13 +2523,19 @@
     (second form))
 
   (define syntax-helper-index
-    (make-core-runtime-helper-index syntax-runtime-only-helpers))
+    (make-core-runtime-helper-index
+     (append syntax-core-runtime-helpers
+             syntax-runtime-only-helpers)))
 
   (check-equal? syntax-global-names
                 '($correlated-type
                   $correlated-empty-props
                   $syntax-type
                   $syntax-empty-props))
+
+  (check-equal?
+   (map core-runtime-helper-name syntax-core-runtime-helpers)
+   correlated-syntax-promoted-runtime-helper-names)
 
   (check-equal?
    (map form-name
