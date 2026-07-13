@@ -4836,6 +4836,8 @@
     $raise-expected-exact-integer
     $raise-expected-exact-nonnegative-integer
     $raise-expected-real
+    $min/2
+    $max/2
     $bitwise-and/2
     $bitwise-and
     $bitwise-ior/2

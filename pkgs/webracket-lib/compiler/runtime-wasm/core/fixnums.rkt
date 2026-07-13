@@ -1003,6 +1003,8 @@
     $fxand
     $fxior
     $fxxor
+    $fxmin/2
+    $fxmax/2
     $fixnum-for-every-system?))
 
 ;; fixnum-all-runtime-helpers : (listof core-runtime-helper?)

@@ -2,6 +2,7 @@
 
 (provide flonum-core-runtime-helpers
          flonum-global-forms
+         flonum-global-names
          flonum-initializer-forms
          flonum-runtime-helper-forms
          flonum-runtime-string-constants
@@ -71,11 +72,21 @@
 (define flonum-global-forms
   `(
          ;; Commonly used flonums
-         ;; - initialized in $entry
+         ;; - initialized during runtime startup
          (global $flzero  (mut (ref eq)) ,(Undefined))
          (global $flone   (mut (ref eq)) ,(Undefined))
          (global $fltwo   (mut (ref eq)) ,(Undefined))
          (global $flthree (mut (ref eq)) ,(Undefined))))
+
+;; flonum-global-names : (listof symbol?)
+;;   Enumerate globals for commonly used flonum constants.
+(define flonum-global-names
+  (for/list ([form (in-list flonum-global-forms)])
+    (match form
+      [`(global ,name . ,_) name]
+      [_ (error 'flonum-global-names
+                "expected global form, got: ~s"
+                form)])))
 
 ;; flonum-initializer-forms : (listof datum?)
 ;;   Initialize globals for commonly used flonum constants.

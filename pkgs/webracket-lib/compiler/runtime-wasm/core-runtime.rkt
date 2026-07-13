@@ -332,6 +332,7 @@
    struct-equal+hash-recur-global-names
    procedure-global-names
    syntax-global-names
+   flonum-global-names
    port-current-global-names
    path-current-global-names
    hash-seed-global-names
@@ -358,6 +359,7 @@
   (append
    '($the-racket-realm
      $the-racket/primitive-realm)
+   flonum-global-names
    character-general-category-global-names
    struct-property-identity-global-names))
 
@@ -422,6 +424,7 @@
      ,@ffi-debug-global-forms
      ,@memory-map-global-forms
      ,@fixnum-global-forms
+     ,@flonum-global-forms
      ,@fasl-tag-global-forms
      ,@treelist-constant-global-forms
      ,@vector-dummy-array-global-forms
@@ -462,6 +465,7 @@
            (call $initialize-the-keyword-table)
            (call $initialize-prefab-struct-type-registry)
            ,@core-runtime-symbol-constant-initializer-forms
+           ,@flonum-initializer-forms
            ,@character-general-category-initializer-forms
            ,@struct-property-identity-initializer-forms
            ,@realm-initializer-forms)
@@ -485,6 +489,8 @@
             procedure-global-names)
      ,@(map core-runtime-global-export-form
             syntax-global-names)
+     ,@(map core-runtime-global-export-form
+            flonum-global-names)
      ,@(map core-runtime-global-export-form
             port-current-global-names)
      ,@(map core-runtime-global-export-form
@@ -1084,6 +1090,10 @@
   (check-true (hash-has-key? core-runtime-global-name-set '$dummy-array))
   (check-true (hash-has-key? core-runtime-global-name-set '$dummy-pair))
   (check-true (hash-has-key? core-runtime-global-name-set '$dummy-vector))
+  (check-true (hash-has-key? core-runtime-global-name-set '$flzero))
+  (check-true (hash-has-key? core-runtime-global-name-set '$flone))
+  (check-true (hash-has-key? core-runtime-global-name-set '$fltwo))
+  (check-true (hash-has-key? core-runtime-global-name-set '$flthree))
   (check-true (hash-has-key? core-runtime-global-name-set '$zero))
   (check-true (hash-has-key? core-runtime-global-name-set '$one))
   (check-true (hash-has-key? core-runtime-global-name-set '$two))
@@ -1321,6 +1331,8 @@
                 (global-form-named? '$bytes:empty form)))
   (check-true (for/or ([form (in-list core-forms)])
                 (global-form-named? '$symbol:racket form)))
+  (check-true (for/or ([form (in-list core-forms)])
+                (global-form-named? '$flzero form)))
   (check-true (for/or ([form (in-list core-forms)])
                 (global-form-named? '$symbol:append form)))
   (check-true (for/or ([form (in-list core-forms)])
