@@ -17,6 +17,7 @@
          parameterization-binding-runtime-helper-forms
          parameterization-call-runtime-helper-forms
          parameterization-global-forms
+         parameterization-global-names
          parameterization-initializer-forms
          parameter-runtime-only-helpers
          parameter-width-runtime-helper-forms
@@ -364,6 +365,15 @@
                (global $exception-handler-key         (mut (ref eq)) (global.get $void))
                (global $parameterization-key          (mut (ref eq)) (global.get $void))
                (global $cache-configuration-values    (mut (ref eq)) (global.get $void))))
+
+;; parameterization-global-names : (listof symbol?)
+;;   Enumerate parameterization state globals shared by split core/program modules.
+(define parameterization-global-names
+  '($current-parameterization-value
+    $break-enabled-key
+    $exception-handler-key
+    $parameterization-key
+    $cache-configuration-values))
 
 ;; parameterization-initializer-forms : (listof datum?)
 ;;   Initialize #%paramz keys and the current parameterization backing value.
@@ -1654,4 +1664,12 @@
 
   (check-equal?
    (map form-name (parameter-directory-runtime-helper-forms parameter-helper-index))
-   parameter-directory-runtime-only-helper-names))
+   parameter-directory-runtime-only-helper-names)
+
+  (check-equal?
+   parameterization-global-names
+   '($current-parameterization-value
+     $break-enabled-key
+     $exception-handler-key
+     $parameterization-key
+     $cache-configuration-values)))

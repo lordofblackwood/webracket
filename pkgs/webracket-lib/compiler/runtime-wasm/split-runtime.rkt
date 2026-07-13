@@ -2085,6 +2085,61 @@
    (for/or ([form (in-list core-state-cell-import-program-forms)])
      (form-contains-global-set? '$next-hash-state form)))
 
+  (define core-parameterization-state-import-split
+    (split-core-runtime-module
+     `(module
+        (global $current-parameterization-value
+                (mut (ref eq))
+                (ref.i31 (i32.const 0)))
+        (global $break-enabled-key
+                (mut (ref eq))
+                (ref.i31 (i32.const 0)))
+        (global $exception-handler-key
+                (mut (ref eq))
+                (ref.i31 (i32.const 0)))
+        (global $parameterization-key
+                (mut (ref eq))
+                (ref.i31 (i32.const 0)))
+        (global $cache-configuration-values
+                (mut (ref eq))
+                (ref.i31 (i32.const 0)))
+        (func $initialize-parameterization-state
+              (global.set $current-parameterization-value (ref.i31 (i32.const 2)))
+              (global.set $break-enabled-key (ref.i31 (i32.const 4)))
+              (global.set $exception-handler-key (ref.i31 (i32.const 6)))
+              (global.set $parameterization-key (ref.i31 (i32.const 8)))
+              (global.set $cache-configuration-values (ref.i31 (i32.const 10))))
+        (func $entry
+              (export "entry")
+              (result (ref eq))
+              (call $initialize-parameterization-state)
+              (global.get $current-parameterization-value)))
+     #:helpers '()))
+  (define core-parameterization-state-import-program-forms
+    (module-forms (split-runtime-modules-program
+                   core-parameterization-state-import-split)))
+  (for ([name (in-list '($current-parameterization-value
+                         $break-enabled-key
+                         $exception-handler-key
+                         $parameterization-key
+                         $cache-configuration-values))])
+    (check-not-false
+     (member name
+             (split-runtime-modules-imported-names
+              core-parameterization-state-import-split)))
+    (check-not-false
+     (member `(global ,name
+                      (import "core" ,(runtime-global-export-name name))
+                      (mut (ref eq)))
+             core-parameterization-state-import-program-forms))
+    (check-false
+     (for/or ([form (in-list core-parameterization-state-import-program-forms)])
+       (and (global-definition-form? form)
+            (eq? (module-global-name form) name))))
+    (check-not-false
+     (for/or ([form (in-list core-parameterization-state-import-program-forms)])
+       (form-contains-global-set? name form))))
+
   (define intern-table-import-split
     (split-core-runtime-module
      `(module

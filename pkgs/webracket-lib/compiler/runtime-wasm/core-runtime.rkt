@@ -50,6 +50,7 @@
          "core/mlists.rkt"
          "core/mutable-hashes.rkt"
          "core/numbers.rkt"
+         "core/parameters.rkt"
          "core/paths.rkt"
          "core/ports.rkt"
          "core/procedures.rkt"
@@ -266,6 +267,7 @@
    port-current-global-names
    path-current-global-names
    hash-seed-global-names
+   parameterization-global-names
    exception-struct-type-cache-global-names))
 
 ;; core-runtime-program-import-tag-names : (listof symbol?)
@@ -346,6 +348,7 @@
      ,@port-current-global-forms
      ,@path-current-global-forms
      ,@hash-seed-global-forms
+     ,@parameterization-global-forms
      ,@exception-struct-type-cache-global-forms
      ,@symbol-table-global-forms
      ,@keyword-table-global-forms
@@ -385,6 +388,8 @@
             path-current-global-names)
      ,@(map core-runtime-global-export-form
             hash-seed-global-names)
+     ,@(map core-runtime-global-export-form
+            parameterization-global-names)
      ,@(map core-runtime-global-export-form
             exception-struct-type-cache-global-names)
      ,@(map core-runtime-tag-export-form
@@ -969,6 +974,8 @@
   (check-true (hash-has-key? core-runtime-global-name-set '$current-output-port-value))
   (check-true (hash-has-key? core-runtime-global-name-set '$system-path-convention))
   (check-true (hash-has-key? core-runtime-global-name-set '$next-hash-state))
+  (check-true (hash-has-key? core-runtime-global-name-set '$current-parameterization-value))
+  (check-true (hash-has-key? core-runtime-global-name-set '$cache-configuration-values))
   (check-true (hash-has-key? core-runtime-global-name-set '$dummy-treelist-node))
   (check-true (hash-has-key? core-runtime-global-name-set '$empty-treelist))
   (check-true (hash-has-key? core-runtime-global-name-set '$treelist:BITS))
@@ -1088,6 +1095,13 @@
                  core-runtime-global-name-set)
                 '())
   (check-equal? (core-runtime-helper-dependency-problems
+                 '(func $ok (result (ref eq))
+                        (global.get $current-parameterization-value))
+                 core-helper-names
+                 shared-type-names
+                 core-runtime-global-name-set)
+                '())
+  (check-equal? (core-runtime-helper-dependency-problems
                  '(func $bad (param (ref eq)) (result i32)
                         (call $other (local.get $v)))
                  core-helper-names
@@ -1159,6 +1173,10 @@
                 (global-form-named? '$system-path-convention form)))
   (check-true (for/or ([form (in-list core-forms)])
                 (global-form-named? '$next-hash-state form)))
+  (check-true (for/or ([form (in-list core-forms)])
+                (global-form-named? '$current-parameterization-value form)))
+  (check-true (for/or ([form (in-list core-forms)])
+                (global-form-named? '$cache-configuration-values form)))
   (check-true (for/or ([form (in-list core-forms)])
                 (tag-form-named? '$exn form)))
   (check-true (for/or ([form (in-list core-forms)])
@@ -1232,6 +1250,14 @@
   (check-true (for/or ([form (in-list core-forms)])
                 (global-export-form-named? "global:$next-hash-state"
                                            '$next-hash-state
+                                           form)))
+  (check-true (for/or ([form (in-list core-forms)])
+                (global-export-form-named? "global:$current-parameterization-value"
+                                           '$current-parameterization-value
+                                           form)))
+  (check-true (for/or ([form (in-list core-forms)])
+                (global-export-form-named? "global:$cache-configuration-values"
+                                           '$cache-configuration-values
                                            form)))
   (check-true (for/or ([form (in-list core-forms)])
                 (tag-export-form-named? "tag:$exn" '$exn form)))
