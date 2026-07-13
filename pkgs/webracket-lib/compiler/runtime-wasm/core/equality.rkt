@@ -1,6 +1,8 @@
 #lang racket
 
 (provide equality-core-runtime-helpers
+         equality-primitive-global-forms
+         equality-primitive-global-names
          equality-runtime-only-helpers
          equality-core-runtime-helper-forms
          immutable-predicate-core-runtime-helper-forms
@@ -8,6 +10,29 @@
          equality-runtime-helper-forms)
 
 (require "../core-helper.rkt")
+
+;; equality-global-form-name : datum? -> symbol?
+;;   Return the Wasm global name declared by an equality support global form.
+(define (equality-global-form-name form)
+  (match form
+    [`(global ,name . ,_) name]
+    [_ (error 'equality-global-form-name
+              "expected global form, got: ~s"
+              form)]))
+
+;; equality-primitive-global-forms : (listof datum?)
+;;   Declare primitive procedure globals used as first-class comparators.
+(define equality-primitive-global-forms
+  '(
+               (global $prim:eq?           (mut (ref eq)) (global.get $undefined))
+               (global $prim:eqv?          (mut (ref eq)) (global.get $undefined))
+               (global $prim:equal?        (mut (ref eq)) (global.get $undefined))
+               (global $prim:equal-always? (mut (ref eq)) (global.get $undefined))))
+
+;; equality-primitive-global-names : (listof symbol?)
+;;   Enumerate equality primitive procedure globals shared by split modules.
+(define equality-primitive-global-names
+  (map equality-global-form-name equality-primitive-global-forms))
 
 ;; equality-all-runtime-helper-names : (listof symbol?)
 ;;   Preserve the full runtime emission order for equality helpers.

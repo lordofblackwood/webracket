@@ -3798,11 +3798,12 @@
              (local $r        (ref eq))
              (local $tail     (ref eq))
              (local $args     (ref $Args))
-             (local $use-proc i32)
+             (local $f        (ref $Procedure))
+             (local $finv     (ref $ProcedureInvoker))
 
-             ;; 1) Handle optional comparator (fail early + flag)
+             ;; 1) Handle optional comparator.
              (if (ref.eq (local.get $proc) (global.get $missing))
-                 (then (local.set $use-proc (i32.const 0)))
+                 (then (local.set $proc (global.get $prim:equal?)))
                  (else
                   ;; Type check $proc
                   (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
@@ -3811,8 +3812,11 @@
                              (global.get $symbol:remove)
                              (local.get $proc))
                        (unreachable))
-                      (else))
-                  (local.set $use-proc (i32.const 1))))
+                      (else))))
+             (local.set $f    (ref.cast (ref $Procedure) (local.get $proc)))
+             (local.set $finv (struct.get $Procedure $invoke (local.get $f)))
+             (local.set $args (array.new $Args (global.get $null) (i32.const 2)))
+             (array.set $Args (local.get $args) (i32.const 0) (local.get $v))
 
              ;; 2) Iterate through list until match found
              (local.set $cur  (local.get $lst))
@@ -3833,43 +3837,20 @@
                    (local.set $tail (struct.get $Pair $d (local.get $pair)))
 
                    (block $found
-                          (if (i32.eqz (local.get $use-proc))
+                          ;; args := [v, elem]
+                          (array.set $Args (local.get $args) (i32.const 1) (local.get $elem))
+                          (local.set $r
+                                     (call_ref $ProcedureInvoker
+                                               (local.get $f)
+                                               (local.get $args)
+                                               (local.get $finv)))
+                          (if (ref.eq (local.get $r) (global.get $false))
                               (then
-                               ;; No comparator: use equal?
-                               (if (ref.eq (call $equal? (local.get $v) (local.get $elem))
-                                           (global.get $false))
-                                   (then
-                                    (local.set $acc
-                                               (call $cons (local.get $elem) (local.get $acc)))
-                                    (local.set $cur (local.get $tail))
-                                    (br $loop))
-                                   (else (br $found))))
-                              (else
-                               ;; With comparator: build args and call via invoker, all on the stack.
-                               ;; args := [v, elem]
-                               (local.set $r
-                                          (call_ref $ProcedureInvoker
-                                                    ;; f : (ref $Procedure)
-                                                    (ref.cast (ref $Procedure) (local.get $proc))
-                                                    ;; call args : (ref $Args)  (size 2)
-                                                    (block (result (ref $Args))
-                                                           (local.set $args
-                                                                      (array.new $Args (global.get $null) (i32.const 2)))
-                                                           (array.set $Args (local.get $args) (i32.const 0)
-                                                                      (local.get $v))
-                                                           (array.set $Args (local.get $args) (i32.const 1)
-                                                                      (local.get $elem))
-                                                           (local.get $args))
-                                                    ;; finv : (ref $ProcedureInvoker)
-                                                    (struct.get $Procedure $invoke
-                                                                (ref.cast (ref $Procedure) (local.get $proc)))))
-                               (if (ref.eq (local.get $r) (global.get $false))
-                                   (then
-                                    (local.set $acc
-                                               (call $cons (local.get $elem) (local.get $acc)))
-                                    (local.set $cur (local.get $tail))
-                                    (br $loop))
-                                   (else (br $found))))))
+                               (local.set $acc
+                                          (call $cons (local.get $elem) (local.get $acc)))
+                               (local.set $cur (local.get $tail))
+                               (br $loop))
+                              (else (br $found))))
 
                    ;; found match, fallthrough: rebuild with accumulator
                    (local.set $cur (local.get $tail))
@@ -7605,9 +7586,15 @@
      $reverse
      $alt-reverse
      $validate-list-args
-     $seed-list-args)
+     $seed-list-args
+     $remove
+     $remove*
+     $remove*/checked
+     $remove*/checked/1)
    pair-accessor-runtime-only-helper-names
-   list-ordinal-accessor-runtime-only-helper-names))
+   list-ordinal-accessor-runtime-only-helper-names
+   list-remove-runtime-only-helper-names
+   list-remove-star-runtime-only-helper-names))
 
 ;; list-core-runtime-helpers : (listof core-runtime-helper?)
 ;;   Enumerate list helpers available in the standalone core runtime.

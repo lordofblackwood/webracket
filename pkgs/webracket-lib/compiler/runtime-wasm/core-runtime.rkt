@@ -334,6 +334,7 @@
    ffi-callback-global-names
    struct-property-identity-global-names
    struct-equal+hash-recur-global-names
+   equality-primitive-global-names
    procedure-global-names
    syntax-global-names
    flonum-global-names
@@ -448,6 +449,7 @@
      ,@realm-global-forms
      ,@struct-property-identity-global-forms
      ,@struct-equal+hash-recur-global-forms
+     ,@equality-primitive-global-forms
      ,@procedure-global-forms
      ,@syntax-global-forms
      ,@port-current-global-forms
@@ -514,6 +516,8 @@
             struct-property-identity-global-names)
      ,@(map core-runtime-global-export-form
             struct-equal+hash-recur-global-names)
+     ,@(map core-runtime-global-export-form
+            equality-primitive-global-names)
      ,@(map core-runtime-global-export-form
             procedure-global-names)
      ,@(map core-runtime-global-export-form
@@ -1154,6 +1158,10 @@
   (check-true (hash-has-key? core-runtime-global-name-set '$prop:checked-procedure))
   (check-true (hash-has-key? core-runtime-global-name-set '$equal+hash-recur/equal))
   (check-true (hash-has-key? core-runtime-global-name-set '$equal+hash-recur/hash-always))
+  (check-true (hash-has-key? core-runtime-global-name-set '$prim:eq?))
+  (check-true (hash-has-key? core-runtime-global-name-set '$prim:eqv?))
+  (check-true (hash-has-key? core-runtime-global-name-set '$prim:equal?))
+  (check-true (hash-has-key? core-runtime-global-name-set '$prim:equal-always?))
   (check-true (hash-has-key? core-runtime-global-name-set '$arity-at-least-type))
   (check-true (hash-has-key? core-runtime-global-name-set '$syntax-type))
   (check-true (hash-has-key? core-runtime-global-name-set '$current-output-port-value))
@@ -1422,6 +1430,14 @@
   (check-true (for/or ([form (in-list core-forms)])
                 (global-form-named? '$equal+hash-recur/hash-always form)))
   (check-true (for/or ([form (in-list core-forms)])
+                (global-form-named? '$prim:eq? form)))
+  (check-true (for/or ([form (in-list core-forms)])
+                (global-form-named? '$prim:eqv? form)))
+  (check-true (for/or ([form (in-list core-forms)])
+                (global-form-named? '$prim:equal? form)))
+  (check-true (for/or ([form (in-list core-forms)])
+                (global-form-named? '$prim:equal-always? form)))
+  (check-true (for/or ([form (in-list core-forms)])
                 (global-form-named? '$arity-at-least-type form)))
   (check-true (for/or ([form (in-list core-forms)])
                 (global-form-named? '$syntax-type form)))
@@ -1564,6 +1580,22 @@
   (check-true (for/or ([form (in-list core-forms)])
                 (global-export-form-named? "global:$equal+hash-recur/hash-always"
                                            '$equal+hash-recur/hash-always
+                                           form)))
+  (check-true (for/or ([form (in-list core-forms)])
+                (global-export-form-named? "global:$prim:eq?"
+                                           '$prim:eq?
+                                           form)))
+  (check-true (for/or ([form (in-list core-forms)])
+                (global-export-form-named? "global:$prim:eqv?"
+                                           '$prim:eqv?
+                                           form)))
+  (check-true (for/or ([form (in-list core-forms)])
+                (global-export-form-named? "global:$prim:equal?"
+                                           '$prim:equal?
+                                           form)))
+  (check-true (for/or ([form (in-list core-forms)])
+                (global-export-form-named? "global:$prim:equal-always?"
+                                           '$prim:equal-always?
                                            form)))
   (check-true (for/or ([form (in-list core-forms)])
                 (global-export-form-named? "global:$arity-at-least-type"
