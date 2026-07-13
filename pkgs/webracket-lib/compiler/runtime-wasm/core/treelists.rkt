@@ -338,6 +338,7 @@
     $treelist-index/i32
     $raise-treelist-index-out-of-range/who/i32
     $raise-bad-treelist-ref-index
+    $raise-treelist-empty
     $raise-bad-treelist-split-index
     $treelist-node-children
     $treelist-node-sizes

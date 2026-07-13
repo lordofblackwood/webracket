@@ -4152,7 +4152,19 @@
 ;; procedure-promoted-runtime-helper-names : (listof symbol?)
 ;;   Name procedure helpers available in the standalone core runtime.
 (define procedure-promoted-runtime-helper-names
-  '($arity-at-least?
+  '($ensure-arity-at-least-type
+    $arity-at-least/make
+    $make-arity-at-least
+    $arity-at-least
+    $raise-argument-error:arity-at-least-expected
+    $arity-at-least-unwrap
+    $arity-at-least?
+    $arity-at-least-value
+    $procedure-arity-entry->marker/i32
+    $procedure-arity?
+    $procedure-arity-value->field
+    $procedure-arity-field->mask/i32
+    $procedure-arity-mask-value->field
     $procedure-arity-includes?/checked/i32))
 
 ;; procedure-promoted-runtime-helpers : (listof core-runtime-helper?)

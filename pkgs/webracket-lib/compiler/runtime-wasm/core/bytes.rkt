@@ -109,8 +109,18 @@
     $byte?
     $bytes-set!/checked
     $subbytes
+    $bytes-copy
     $bytes-converter?
+    $raise-listof-bytes/who
+    $raise-listof-byte/who
+    $bytes-append-args-length/i32/who
+    $listof-bytes-length/i32/who
+    $listof-byte-length/i32/who
+    $bytes-append/who
+    $bytes-append
+    $bytes-append/1
     $bytes-append/2
+    $bytes-append*
     $raise-bytes-utf-8-length:bad-argument
     $raise-bytes->string/latin-1
     $bytes->string/utf-8:determine-utf-8-sequence
