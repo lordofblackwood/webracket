@@ -41,7 +41,8 @@
     $liberal-define-context?
     $module-path-index?
     $resolved-module-path?
-    $variable-reference?))
+    $variable-reference?
+    $raise-unbound-variable-reference))
 
 ;; make-predicate-body : symbol? -> (listof datum?)
 ;;   Generate a standard WebRacket predicate body for ref-type.

@@ -54,6 +54,7 @@
          "core/impersonators.rkt"
          "core/keywords.rkt"
          "core/lists.rkt"
+         "core/linklet-instances.rkt"
          "core/linklets.rkt"
          "core/loggers.rkt"
          "core/memory-map.rkt"
@@ -117,6 +118,7 @@
    impersonator-core-runtime-helpers
    keyword-core-runtime-helpers
    list-core-runtime-helpers
+   linklet-instance-core-runtime-helpers
    linklet-core-runtime-helpers
    logger-core-runtime-helpers
    mlist-core-runtime-helpers

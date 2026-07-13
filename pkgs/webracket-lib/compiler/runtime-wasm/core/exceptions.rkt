@@ -4806,9 +4806,17 @@
     $ensure-exn:fail-type
     $ensure-exn:fail:contract-type
     $ensure-exn:fail:contract:arity-type
+    $ensure-exn:fail:contract:variable-type
     $ensure-exn:fail:filesystem-type
     $exn:fail:contract/make
     $exn:fail:contract:arity/make
+    $exn:fail:contract:variable-ensure
+    $exn:fail:contract:variable-ensure-id
+    $exn:fail:contract:variable/make
+    $exn:fail:contract:variable
+    $make-exn:fail:contract:variable
+    $exn:fail:contract:variable?
+    $exn:fail:contract:variable-id
     $exn:fail:filesystem/make
     $make-exn:fail:filesystem
     $raise-vfs-file-error

@@ -1,6 +1,8 @@
 #lang racket
 
 (provide linklet-instance-runtime-only-helper-names
+         linklet-instance-core-runtime-helpers
+         linklet-instance-core-runtime-helper-forms
          linklet-instance-runtime-helper-forms
          linklet-instance-runtime-string-constants
          linklet-instance-runtime-symbol-constants
@@ -860,17 +862,58 @@
 	               (unreachable))
      ))
 
-;; linklet-instance-runtime-only-helpers : (listof core-runtime-helper?)
+;; linklet-instance-all-runtime-helpers : (listof core-runtime-helper?)
 ;;   Register linklet instance and module-variable helpers.
-(define linklet-instance-runtime-only-helpers
+(define linklet-instance-all-runtime-helpers
   (function-forms->runtime-helpers
    'linklet-instance-runtime-only-helpers
    linklet-instance-runtime-only-forms))
+
+;; linklet-instance-promoted-runtime-helper-names : (listof symbol?)
+;;   Name linklet instance helpers available in the standalone core runtime.
+(define linklet-instance-promoted-runtime-helper-names
+  '($raise-argument-error:module-variable-expected
+    $module-variable-cast
+    $module-variable?
+    $module-variable-name
+    $module-variable-constance
+    $module-variable-initialized?
+    $module-variable-make
+    $module-variable-ref
+    $module-variable-ref/no-check
+    $module-variable-set!
+    $module-variable-set!/check-undefined!
+    $module-variable-define!
+    $module-variables-define-consistent!
+    $module-variable-reference?
+    $raise-argument-error:module-variable-reference-expected
+    $module-variable-reference-cast
+    $module-variable-reference
+    $module-variable-reference-instance
+    $module-variable-reference-variable))
+
+;; linklet-instance-core-runtime-helpers : (listof core-runtime-helper?)
+;;   Enumerate linklet instance helpers available in the standalone core runtime.
+(define linklet-instance-core-runtime-helpers
+  (select-runtime-helpers linklet-instance-all-runtime-helpers
+                          linklet-instance-promoted-runtime-helper-names))
+
+;; linklet-instance-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate linklet instance helpers that still depend on monolithic runtime state.
+(define linklet-instance-runtime-only-helpers
+  (remove-runtime-helpers linklet-instance-all-runtime-helpers
+                          linklet-instance-promoted-runtime-helper-names))
 
 ;; linklet-instance-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for linklet instance helpers.
 (define linklet-instance-runtime-only-helper-names
   (map core-runtime-helper-name linklet-instance-runtime-only-helpers))
+
+;; linklet-instance-core-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render promoted linklet instance helpers in runtime assembly order.
+(define (linklet-instance-core-runtime-helper-forms helper-index)
+  (for/list ([name (in-list linklet-instance-promoted-runtime-helper-names)])
+    (core-runtime-helper-form helper-index name)))
 
 ;; linklet-instance-runtime-helper-forms : hasheq? -> (listof datum?)
 ;;   Render linklet instance and module-variable helpers in runtime assembly order.
@@ -887,7 +930,21 @@
     (second form))
 
   (define linklet-instance-helper-index
-    (make-core-runtime-helper-index linklet-instance-runtime-only-helpers))
+    (make-core-runtime-helper-index
+     (append linklet-instance-core-runtime-helpers
+             linklet-instance-runtime-only-helpers)))
+
+  (define linklet-instance-core-helper-index
+    (make-core-runtime-helper-index linklet-instance-core-runtime-helpers))
+
+  (check-equal?
+   (map core-runtime-helper-name linklet-instance-core-runtime-helpers)
+   linklet-instance-promoted-runtime-helper-names)
+
+  (check-equal?
+   (map form-name
+        (linklet-instance-core-runtime-helper-forms linklet-instance-core-helper-index))
+   linklet-instance-promoted-runtime-helper-names)
 
   (check-equal?
    (map form-name

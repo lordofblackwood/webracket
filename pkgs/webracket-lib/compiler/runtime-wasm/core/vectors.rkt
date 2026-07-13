@@ -3286,6 +3286,7 @@
 ;;   Name runtime vector helpers that are available in the standalone core runtime.
 (define vector-promoted-runtime-helper-names
   '($raise-check-vector/who
+    $raise-check-vector
     $vector-index/i32
     $raise-bad-vector-copy-range/who
     $raise-vector-range-index-out-of-range/who

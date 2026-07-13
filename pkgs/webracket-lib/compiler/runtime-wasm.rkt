@@ -188,6 +188,7 @@
                   list-post-contract-runtime-helper-forms
                   pair-global-forms)
          (only-in "runtime-wasm/core/linklet-instances.rkt"
+                  linklet-instance-core-runtime-helper-forms
                   linklet-instance-runtime-helper-forms)
          (only-in "runtime-wasm/core/linklets.rkt"
                   linklet-bootstrap-core-runtime-helper-forms
@@ -1683,6 +1684,7 @@
 
 
          ;;   Linklet instance helpers are implemented in runtime-wasm/core/linklet-instances.rkt.
+         ,@(linklet-instance-core-runtime-helper-forms core-runtime-helper-index)
          ,@(linklet-instance-runtime-helper-forms runtime-helper-index)
 
          ;;   Linklet helpers are implemented in runtime-wasm/core/linklets.rkt.
