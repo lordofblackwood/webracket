@@ -3285,39 +3285,26 @@
 ;; vector-promoted-runtime-helper-names : (listof symbol?)
 ;;   Name runtime vector helpers that are available in the standalone core runtime.
 (define vector-promoted-runtime-helper-names
-  '($raise-check-vector/who
-    $raise-check-vector
-    $vector-index/i32
-    $raise-bad-vector-copy-range/who
-    $raise-vector-range-index-out-of-range/who
-    $raise-vector-start-index-out-of-range/who
-    $raise-vector-end-index-out-of-range/who
-    $raise-vector-end-before-start/who
-    $raise-vector-target-too-small/who
-    $raise-bad-vector-take-index/who
-    $raise-vector-argument-error/who
-    $make-vector/checked
-    $build-vector/checked
-    $vector-length/checked/i32
-    $vector?
-    $vector-ref/checked
-    $vector-ref/who
-    $vector-set!/who
-    $vector*-length
-    $vector-copy/who
-    $vector-copy
-    $vector-append
-    $list->vector
-    $vector->list
-    $vector->list/checked
-    $vector-sort!:swap!
-    $vector-sort!:lt-idx?
-    $vector-sort!:median-of-three->end!
-    $vector-sort!:partition!
-    $vector-sort!:insertion-sort!
-    $vector-sort!:qs!
-    $mutable-vector?
-    $immutable-vector?))
+  (append vector-error-runtime-only-helper-names
+          vector-make-runtime-only-helper-names
+          vector-constructor-runtime-only-helper-names
+          vector-build-runtime-only-helper-names
+          vector-operation-runtime-only-helper-names
+          vector-copy-runtime-only-helper-names
+          vector-extend-runtime-only-helper-names
+          vector-append-runtime-only-helper-names
+          vector-slice-runtime-only-helper-names
+          vector-list-conversion-runtime-only-helper-names
+          vector-map-count-runtime-only-helper-names
+          vector-argminmax-runtime-only-helper-names
+          vector-filter-search-runtime-only-helper-names
+          '($vector-sort!:swap!
+            $vector-sort!:lt-idx?
+            $vector-sort!:median-of-three->end!
+            $vector-sort!:partition!
+            $vector-sort!:insertion-sort!
+            $vector-sort!:qs!)
+          vector-mutability-runtime-only-helper-names))
 
 ;; vector-mutability-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate vector mutability predicates used by the monolithic runtime.
