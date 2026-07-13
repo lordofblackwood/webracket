@@ -3286,10 +3286,16 @@
 ;;   Name runtime vector helpers that are available in the standalone core runtime.
 (define vector-promoted-runtime-helper-names
   '($make-vector/checked
+    $build-vector/checked
     $vector-length/checked/i32
     $vector?
     $vector->list/checked
     $vector-sort!:swap!
+    $vector-sort!:lt-idx?
+    $vector-sort!:median-of-three->end!
+    $vector-sort!:partition!
+    $vector-sort!:insertion-sort!
+    $vector-sort!:qs!
     $mutable-vector?
     $immutable-vector?))
 
