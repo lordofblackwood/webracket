@@ -3294,6 +3294,7 @@
     $raise-vector-end-index-out-of-range/who
     $raise-vector-end-before-start/who
     $raise-vector-target-too-small/who
+    $raise-bad-vector-take-index/who
     $raise-vector-argument-error/who
     $make-vector/checked
     $build-vector/checked

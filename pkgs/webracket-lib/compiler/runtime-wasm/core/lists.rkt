@@ -7614,6 +7614,7 @@
      $append/2
      $reverse
      $alt-reverse
+     $raise-range:real-expected
      $validate-list-args
      $seed-list-args
      $remove
@@ -7731,7 +7732,7 @@
      (core    $make-list/checked)
      (runtime $build-list)
      (runtime $build-list/checked)
-     (runtime $raise-range:real-expected)
+     (core    $raise-range:real-expected)
      (runtime $raise-range:zero-step)
      (runtime $range-proc)
      (runtime $range)

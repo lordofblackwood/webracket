@@ -75,7 +75,8 @@
     $srcloc-build
     $srcloc
     $make-srcloc
-    $srcloc?))
+    $srcloc?
+    $raise-argument-error:srcloc-expected))
 
 ;; source-location-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime-only emission order for source-location helpers.

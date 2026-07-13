@@ -96,8 +96,11 @@
 (define bytes-core-runtime-helper-names
   '($raise-check-bytes/who
     $raise-check-mutable-bytes/who
+    $raise-check-byte/who
     $bytes-index/i32
+    $byte-value/i32/who
     $raise-bad-bytes-range
+    $make-bytes
     $bytes->immutable-bytes
     $bytes?
     $bytes=?/2/checked

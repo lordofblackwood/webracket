@@ -9,6 +9,7 @@
          fasl-encoding-runtime-only-helper-names
          fasl-encoding-runtime-helper-forms
          fasl-decoding-runtime-helper-forms
+         fasl-core-runtime-helpers
          fasl-runtime-only-helpers
          fasl-runtime-only-helper-names)
 
@@ -408,6 +409,16 @@
     $copy-memory-to-i8array
     $linear-memory->value
     $linear-memory->string))
+
+;; fasl-core-runtime-helper-names : (listof symbol?)
+;;   Name closed FASL decoding helpers available in the standalone core runtime.
+(define fasl-core-runtime-helper-names
+  '($fasl:read-u32
+    $fasl:read-bytes
+    $fasl:read-string
+    $fasl:read-symbol
+    $fasl:read-f64
+    $fasl:read-s-exp))
 
 ;; fasl-runtime-only-forms : (listof datum?)
 ;;   Enumerate FASL decoding helpers used by the monolithic runtime.
@@ -1073,6 +1084,12 @@
   (function-forms->runtime-helpers
    'fasl-decoding-runtime-only-helpers
    fasl-runtime-only-forms))
+
+;; fasl-core-runtime-helpers : (listof core-runtime-helper?)
+;;   Enumerate FASL helpers available in the standalone core runtime.
+(define fasl-core-runtime-helpers
+  (select-runtime-helpers fasl-decoding-runtime-only-helpers
+                          fasl-core-runtime-helper-names))
 
 ;; fasl-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate all FASL function helpers used by the monolithic runtime.

@@ -252,6 +252,7 @@
   '($path-part-equal?
     $path-parts-suffix-diff-size
     $path-parts-equal?
+    $string-or-bytes->bytes/checked
     $bytes-slice/unchecked
     $path-extension-start
     $path-suffix-start

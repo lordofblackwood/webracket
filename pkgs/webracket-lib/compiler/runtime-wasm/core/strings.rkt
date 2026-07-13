@@ -4580,9 +4580,12 @@
   '($mutable-string?
     $immutable-string?
     $raise-string-index-out-of-range/who/i32
+    $codepoint->string
     $make-dummy-string
     $string?
     $non-empty-string?
+    $raise-argument-error:char-expected/who
+    $raise-argument-error:char-expected
     $make-string/checked
     $make-immutable-string/checked
     $string-length/checked/i32
@@ -4593,6 +4596,7 @@
     $raise-string-set!:char-expected
     $raise-string-set!:string-immutable
     $string-set!
+    $raise-substring:index-expected
     $string-split:matches?
     $string-split:trim-left
     $string-split:trim-right

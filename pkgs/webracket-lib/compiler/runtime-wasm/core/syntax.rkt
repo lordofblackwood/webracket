@@ -185,11 +185,17 @@
     $correlated-property-symbol-keys))
 
 ;; correlated-syntax-promoted-runtime-helper-names : (listof symbol?)
-;;   Name correlated syntax helpers available in the standalone core runtime.
+;;   Name syntax helpers available in the standalone core runtime.
 (define correlated-syntax-promoted-runtime-helper-names
   '($ensure-correlated-type
     $raise-argument-error:correlated-expected
-    $correlated-unwrap))
+    $correlated-unwrap
+    $ensure-syntax-empty-props
+    $syntax/make
+    $syntax-build
+    $identifier?
+    $datum->syntax/convert
+    $syntax->datum/convert))
 
 ;; correlated-syntax-runtime-only-forms : (listof datum?)
 ;;   Enumerate correlated syntax helpers used by the monolithic runtime.

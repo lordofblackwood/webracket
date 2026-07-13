@@ -105,6 +105,7 @@
    exception-core-runtime-helpers
    event-core-runtime-helpers
    external-value-core-runtime-helpers
+   fasl-core-runtime-helpers
    ffi-core-runtime-helpers
    filesystem-core-runtime-helpers
    fixnum-core-runtime-helpers

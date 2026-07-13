@@ -5929,6 +5929,7 @@
     $hash-placeholder?
     $placeholder?
     $make-placeholder
+    $reader-graph-resolve
     $immutable-hasheqv-bucket-index
     $immutable-hamt-packed-group-index
     $immutable-hamt-packed-child-bit

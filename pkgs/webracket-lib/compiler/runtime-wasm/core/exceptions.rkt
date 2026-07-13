@@ -4811,11 +4811,13 @@
 ;; exception-core-runtime-helper-names : (listof symbol?)
 ;;   Name exception helpers available in the standalone core runtime.
 (define exception-core-runtime-helper-names
-  '($raise
+  '($raise-input-port-closed
+    $raise
     $kernel-exn-struct-type
     $invoke-kernel-exn-struct
     $ensure-exn-type
     $exn-ensure
+    $ensure-exn:break-type
     $ensure-exn:fail-type
     $ensure-exn:fail:contract-type
     $ensure-exn:fail:contract:arity-type
@@ -4858,6 +4860,8 @@
     $exn:fail:read:non-char?
     $raise-read-error
     $raise-read-eof-error
+    $ensure-exn:fail:syntax-type
+    $exn:fail:syntax-ensure-exprs
     $exn?
     $exn-message
     $raise-arguments-error))
