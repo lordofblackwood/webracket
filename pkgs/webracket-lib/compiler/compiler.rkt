@@ -3,6 +3,7 @@
 (provide (all-defined-out))
 (require racket/set
          racket/list
+         racket/promise
          racket/runtime-path
          syntax/id-set
          syntax/id-table)
@@ -21629,8 +21630,11 @@
   (cond
     [(variable? x) (variable-id x)]
     [(split-runtime-modules? x)
+     (define core (split-runtime-modules-core x))
      (struct-copy split-runtime-modules x
-                  [core (strip (split-runtime-modules-core-module x))]
+                  [core (if (promise? core)
+                            (delay (strip (force core)))
+                            (strip core))]
                   [program (strip (split-runtime-modules-program x))]
                   [import-forms (strip (split-runtime-modules-import-forms x))])]
     [(pair? x)     (cons (strip (car x))

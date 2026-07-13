@@ -97,7 +97,8 @@
                                     current-tree-shake?
                                     current-runtime-cache-dir
                                     current-runtime-primitive-report-path
-                                    current-split-runtime?)
+                                    current-split-runtime?
+                                    current-split-runtime-reference-only?)
          (only-in "private/timings.rkt"
                   now-ms
                   format-metric-table
@@ -3474,7 +3475,12 @@
                      [current-provider-owned-primitive-aliases
                       provider-owned-primitive-aliases]
                      [current-split-runtime?
-                      (and split-runtime? (not split-runtime-core-only?))])
+                      (and split-runtime? (not split-runtime-core-only?))]
+                     [current-split-runtime-reference-only?
+                      (and split-runtime?
+                           (not split-runtime-core-only?)
+                           (or split-runtime-cache-reference?
+                               split-runtime-core-url))])
         (comp stx-with-stdlib))))
   (define t-compile-end (now-ms))
 

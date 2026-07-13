@@ -899,6 +899,16 @@
       (global-import-form? form)
       (tag-import-form? form)))
 
+;; append-unique-forms : (listof datum?) ... -> (listof datum?)
+;;   Append form lists while preserving the first occurrence of each form.
+(define (append-unique-forms . form-lists)
+  (define seen (make-hash))
+  (for*/list ([forms (in-list form-lists)]
+              [form (in-list forms)]
+              #:unless (hash-ref seen form #f))
+    (hash-set! seen form #t)
+    form))
+
 ;; declare-elem-form? : any/c -> boolean?
 ;;   Check whether form is an `elem declare funcref` declaration.
 (define (declare-elem-form? form)
@@ -1137,7 +1147,7 @@
                 (cons form remaining-program-forms)))))
 
 ;; program-referenced-runtime-data-forms :
-;;   (listof datum?) (listof datum?) [#:runtime-index split-form-indexes?]
+;;   (or/c (listof datum?) #f) (listof datum?) [#:runtime-index split-form-indexes?]
 ;;   [#:program-index split-form-indexes?]
 ;;   -> (listof datum?)
 ;;   Return runtime-owned passive data forms that program-side forms reference.
@@ -1163,12 +1173,23 @@
     (for/hasheq ([name (in-list (referenced-runtime-names program-forms
                                                            available-names))])
       (values name #t)))
-  (for/list ([form (in-list runtime-forms)]
-             #:do [(define name (module-data-name form))]
-             #:when (and name
-                         (hash-ref referenced-name-set name #f)
-                         (not (hash-ref program-data-name-set name #f))))
-    form))
+  (cond
+    [runtime-forms
+     (for/list ([form (in-list runtime-forms)]
+                #:do [(define name (module-data-name form))]
+                #:when (and name
+                            (hash-ref referenced-name-set name #f)
+                            (not (hash-ref program-data-name-set name #f))))
+       form)]
+    [runtime-index
+     (for/list ([name (in-list
+                       (sort (hash-keys runtime-data-form-by-name) symbol<?))]
+                #:when (and (hash-ref referenced-name-set name #f)
+                            (not (hash-ref program-data-name-set name #f))))
+       (hash-ref runtime-data-form-by-name name))]
+    [else
+     (error 'program-referenced-runtime-data-forms
+            "runtime forms or runtime index required")]))
 
 ;; runtime-referenced-program-data-forms :
 ;;   (listof datum?) (listof datum?) [#:program-index split-form-indexes?]
@@ -1504,7 +1525,8 @@
    core-cache-key))
 
 ;; split-classified-runtime-forms :
-;;   (listof datum?) (listof datum?) [#:import-module string?] -> split-runtime-modules?
+;;   (or/c (listof datum?) #f) (listof datum?) [#:import-module string?]
+;;   -> split-runtime-modules?
 ;;   Build runtime/program modules from already-classified module body forms.
 (define (split-classified-runtime-forms
          runtime-forms
@@ -1514,7 +1536,10 @@
          #:boundary-metadata [cached-boundary-metadata #f])
   (define boundary-metadata
     (or cached-boundary-metadata
-        (split-runtime-boundary-metadata/cached runtime-forms core-cache-key)))
+        (if runtime-forms
+            (split-runtime-boundary-metadata/cached runtime-forms core-cache-key)
+            (error 'split-classified-runtime-forms
+                   "runtime forms required when boundary metadata is absent"))))
   (define runtime-source-index
     (split-runtime-boundary-metadata-runtime-index boundary-metadata))
   (define runtime-symbol-refs
@@ -1533,6 +1558,12 @@
     (reverse remaining-program-forms/reversed))
   (define program-index
     (build-split-form-indexes program-forms))
+  (define program-owned-prefix-forms
+    (split-form-indexes-shared-prefix-forms program-index))
+  (define program-body-forms
+    (for/list ([form (in-list program-forms)]
+               #:unless (shared-program-prefix-form? form))
+      form))
   (define pulled-runtime-data-forms
     (sorted-named-forms
      (runtime-referenced-program-data-forms/from-refs runtime-symbol-refs
@@ -1549,6 +1580,9 @@
          core-cache-key))
   (define runtime-body-forms-cache #f)
   (define (runtime-body-forms!)
+    (unless runtime-forms
+      (error 'split-classified-runtime-forms
+             "runtime forms required to materialize split runtime module"))
     (or runtime-body-forms-cache
         (let ([body-forms
                (canonicalize-runtime-constant-declarations
@@ -1567,7 +1601,7 @@
   (define-values (imported-names import-forms export-forms)
     (classified-runtime-import/export-forms
      runtime-forms
-     program-forms
+     program-body-forms
      #:module import-module-name
      #:export-all? #t
      #:build-export-forms? (not effective-core-cache-key)
@@ -1593,13 +1627,15 @@
      program-elem-forms
      (direct-ref-func-names program-forms program-available-function-names)))
   (define program-prefix-forms
-    (split-form-indexes-shared-prefix-forms runtime-index))
+    (append-unique-forms
+     (split-form-indexes-shared-prefix-forms runtime-index)
+     program-owned-prefix-forms))
   (define program-data-forms
     (program-referenced-runtime-data-forms
      (if effective-core-cache-key
          runtime-forms
          (runtime-body-forms!))
-     program-forms
+     program-body-forms
      #:runtime-index runtime-index
      #:program-index program-index))
   (define (runtime-core-module)
@@ -1627,7 +1663,7 @@
       ,@program-prefix-forms
       ,@import-forms
       ,@program-data-forms
-      ,@program-forms
+      ,@program-body-forms
       ,@program-elem-forms
       ,@program-supplemental-elem-forms)
    imported-names
@@ -1708,6 +1744,15 @@
    '(func $sample-id
           (import "core" "$sample-id")
           (type $SampleId)))
+  (check-equal?
+   (append-unique-forms
+    '((type $T (func))
+      (func $host (import "env" "host")))
+    '((func $host (import "env" "host"))
+      (func $other (import "env" "other"))))
+   '((type $T (func))
+     (func $host (import "env" "host"))
+     (func $other (import "env" "other"))))
 
   (define sample-full-module
     `(module
@@ -2019,6 +2064,21 @@
     (check-equal? (split-runtime-modules-imported-names cached-boundary-split-again)
                   (split-runtime-modules-imported-names cached-boundary-split))
     (check-equal? (split-runtime-modules-core-cache-key cached-boundary-split-again)
+                  cached-boundary-core-cache-key)
+    (define cached-boundary-program-only-split
+      (split-classified-runtime-forms
+       #f
+       cached-boundary-program-forms
+       #:core-cache-key cached-boundary-core-cache-key
+       #:boundary-metadata cached-boundary-metadata))
+    (check-true (promise? (split-runtime-modules-core cached-boundary-program-only-split)))
+    (check-equal? (split-runtime-modules-program cached-boundary-program-only-split)
+                  (split-runtime-modules-program cached-boundary-split))
+    (check-equal? (split-runtime-modules-imported-names
+                   cached-boundary-program-only-split)
+                  (split-runtime-modules-imported-names cached-boundary-split))
+    (check-equal? (split-runtime-modules-core-cache-key
+                   cached-boundary-program-only-split)
                   cached-boundary-core-cache-key))
   (define pulled-constant-split
     (split-classified-runtime-forms

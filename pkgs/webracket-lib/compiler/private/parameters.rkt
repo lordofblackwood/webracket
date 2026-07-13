@@ -22,6 +22,7 @@
          current-runtime-cache-dir
          current-runtime-primitive-report-path
          current-split-runtime?
+         current-split-runtime-reference-only?
          current-runtime-timing-rows
          current-runtime-metric-rows)
 
@@ -70,6 +71,8 @@
   (make-parameter #f))                                 ; path-string? or #f
 (define current-split-runtime?
   (make-parameter #f))                                 ; boolean? generate split runtime module data
+(define current-split-runtime-reference-only?
+  (make-parameter #f))                                 ; boolean? split runtime core will not be materialized
 (define current-runtime-timing-rows
   (make-parameter #f))                                 ; (or/c #f (listof (list/c string? real?)))
 (define current-runtime-metric-rows

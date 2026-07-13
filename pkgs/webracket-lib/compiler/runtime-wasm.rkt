@@ -11,7 +11,8 @@
          (only-in "private/parameters.rkt"
                   current-browser?
                   current-tree-shake?
-                  current-split-runtime?)
+                  current-split-runtime?
+                  current-split-runtime-reference-only?)
          (only-in "private/wasm-utils.rkt"
                   $
                   prim:)
@@ -24,6 +25,7 @@
          (only-in "runtime-wasm/js-imports.rkt"
                   js-host-import-forms)
          (only-in "runtime-wasm/module-forms.rkt"
+                  module-func-name
                   module-func-names)
          (only-in "runtime-wasm/runtime-analysis.rkt"
                   analyze-and-prune-runtime-module
@@ -31,6 +33,7 @@
                   analyzed-runtime-module-module
                   analyzed-runtime-module-program-forms
                   analyzed-runtime-module-runtime-forms
+                  program-driver-function-names
                   split-runtime-request-cache-fingerprint)
          (only-in "runtime-wasm/runtime-helper-index.rkt"
                   runtime-helper-index)
@@ -640,6 +643,90 @@
       (if (current-split-runtime?) '() io-handler-default-port-late-initializer-forms))
     (define entry-error-syntax-handler-late-initializer-forms
       (if (current-split-runtime?) '() error-syntax-handler-late-initializer-forms))
+
+    ;; build-entry-ffi-primitive-initializer-forms : -> (listof datum?)
+    ;;   Return FFI primitive initializers for the entry currently being built.
+    (define (build-entry-ffi-primitive-initializer-forms)
+      (if (and (current-split-runtime?)
+               (current-split-runtime-reference-only?))
+          (runtime-ffi-state-primitive-initializer-forms ffi-state)
+          entry-ffi-primitive-initializer-forms))
+
+    ;; build-entry-function-form : -> datum?
+    ;;   Build the program entry function using the current split/monolithic
+    ;;   initializer choices.
+    (define (build-entry-function-form)
+      (entry-function-form
+       entry-locals
+       entry-body
+       result
+       #:flonum-initializer-forms entry-flonum-initializer-forms
+       #:global-state-initializer-forms
+       entry-global-state-initializer-forms
+       #:runtime-constant-initializer-forms
+       entry-runtime-constant-initializer-forms
+       #:parameterization-initializer-forms
+       entry-parameterization-initializer-forms
+       #:random-current-initializer-forms
+       entry-random-current-initializer-forms
+       #:thread-current-initializer-forms
+       entry-thread-current-initializer-forms
+       #:logger-current-initializer-forms
+       entry-logger-current-initializer-forms
+       #:custodian-current-initializer-forms
+       entry-custodian-current-initializer-forms
+       #:event-initializer-forms entry-event-initializer-forms
+       #:struct-property-initializer-forms
+       entry-struct-property-initializer-forms
+       #:path-current-initializer-forms
+       entry-path-current-initializer-forms
+       #:environment-parameter-initializer-forms
+       entry-environment-parameter-initializer-forms
+       #:character-general-category-initializer-forms
+       entry-character-general-category-initializer-forms
+       #:realm-initializer-forms entry-realm-initializer-forms
+       #:primitive-initializer-forms
+       entry-primitive-initializer-forms
+       #:ffi-primitive-initializer-forms
+       (build-entry-ffi-primitive-initializer-forms)
+       #:unsafe-ffi-primitive-table-initializer-forms
+       entry-unsafe-ffi-primitive-table-initializer-forms
+       #:security-guard-current-initializer-forms
+       entry-security-guard-current-initializer-forms
+       #:error-value-handler-late-initializer-forms
+       entry-error-value-handler-late-initializer-forms
+       #:print-read-parameter-late-initializer-forms
+       entry-print-read-parameter-late-initializer-forms
+       #:io-handler-default-port-late-initializer-forms
+       entry-io-handler-default-port-late-initializer-forms
+       #:error-syntax-handler-late-initializer-forms
+       entry-error-syntax-handler-late-initializer-forms
+       #:top-vars top-vars
+       #:exception-struct-type-initializer-forms
+       exception-struct-type-initializer-forms
+       #:namespace-initializer-forms namespace-initializer-forms))
+
+    ;; split-program-entry-support-form? : datum? -> boolean?
+    ;;   Keep only entry support functions that belong in the program module.
+    (define (split-program-entry-support-form? form)
+      (define name (module-func-name form))
+      (and name (memq name program-driver-function-names)))
+
+    ;; build-split-program-forms : -> (listof datum?)
+    ;;   Build only program-owned forms for a warm reference-only split compile.
+    (define (build-split-program-forms)
+      (append
+       js-host-import-forms
+       (runtime-ffi-state-active-imports-wat ffi-state)
+       (runtime-ffi-state-active-funcs-wat ffi-state)
+       (runtime-constant-declaration-forms program-only-constant-registry)
+       top-level-variable-declarations
+       (runtime-ffi-state-primitive-global-forms ffi-state)
+       dls
+       (for/list ([form (in-list entry-support-forms)]
+                  #:when (split-program-entry-support-form? form))
+         form)
+       (list (build-entry-function-form))))
 
     ;;;
     ;;; WEB-ASSEMBLY
@@ -1876,55 +1963,7 @@
                ,@split-runtime-constant-initializer-helper-forms
                ,@split-runtime-entry-initializer-helper-forms
 
-               ,(entry-function-form
-                 entry-locals
-                 entry-body
-                 result
-                 #:flonum-initializer-forms entry-flonum-initializer-forms
-                 #:global-state-initializer-forms
-                 entry-global-state-initializer-forms
-                 #:runtime-constant-initializer-forms
-                 entry-runtime-constant-initializer-forms
-                 #:parameterization-initializer-forms
-                 entry-parameterization-initializer-forms
-                 #:random-current-initializer-forms
-                 entry-random-current-initializer-forms
-                 #:thread-current-initializer-forms
-                 entry-thread-current-initializer-forms
-                 #:logger-current-initializer-forms
-                 entry-logger-current-initializer-forms
-                 #:custodian-current-initializer-forms
-                 entry-custodian-current-initializer-forms
-                 #:event-initializer-forms entry-event-initializer-forms
-                 #:struct-property-initializer-forms
-                 entry-struct-property-initializer-forms
-                 #:path-current-initializer-forms
-                 entry-path-current-initializer-forms
-                 #:environment-parameter-initializer-forms
-                 entry-environment-parameter-initializer-forms
-                 #:character-general-category-initializer-forms
-                 entry-character-general-category-initializer-forms
-                 #:realm-initializer-forms entry-realm-initializer-forms
-                 #:primitive-initializer-forms
-                 entry-primitive-initializer-forms
-                 #:ffi-primitive-initializer-forms
-                 entry-ffi-primitive-initializer-forms
-                 #:unsafe-ffi-primitive-table-initializer-forms
-                 entry-unsafe-ffi-primitive-table-initializer-forms
-                 #:security-guard-current-initializer-forms
-                 entry-security-guard-current-initializer-forms
-                 #:error-value-handler-late-initializer-forms
-                 entry-error-value-handler-late-initializer-forms
-                 #:print-read-parameter-late-initializer-forms
-                 entry-print-read-parameter-late-initializer-forms
-                 #:io-handler-default-port-late-initializer-forms
-                 entry-io-handler-default-port-late-initializer-forms
-                 #:error-syntax-handler-late-initializer-forms
-                 entry-error-syntax-handler-late-initializer-forms
-                 #:top-vars top-vars
-                 #:exception-struct-type-initializer-forms
-                 exception-struct-type-initializer-forms
-                 #:namespace-initializer-forms namespace-initializer-forms)
+               ,(build-entry-function-form)
 
                ))
 
@@ -1975,49 +2014,76 @@
                split-runtime-core-cache-key)))))
     (runtime-metric-add! "runtime:split-boundary-cache-preflight-hit?"
                          (if split-runtime-boundary-metadata "yes" "no"))
-    (define full-module
-      (time-runtime-step "runtime:build-runtime-module" build-runtime-module))
-    (define analyzed-module
-      (analyze-and-prune-runtime-module
-       full-module
-       #:program-function-names program-function-names
-       #:result-global result
-       #:top-level-variable-declarations top-level-variable-declarations
-       #:string-constants string-constants
-       #:bytes-constants bytes-constants
-       #:symbol-constants symbol-constants
-       #:primitive-func->symbol primitive-func->symbol
-       #:primitive-global->symbol primitive-global->symbol
-       #:ffi-global->symbol ffi-global->symbol
-       #:active-ffi-foreigns (runtime-ffi-state-active-foreigns ffi-state)
-       #:active-ffi-imports-wat (runtime-ffi-state-active-imports-wat ffi-state)
-       #:active-ffi-funcs-wat (runtime-ffi-state-active-funcs-wat ffi-state)
-       #:stable-runtime-active-ffi-foreigns
-       stable-runtime-active-ffi-foreigns
-       #:stable-runtime-active-ffi-imports-wat
-       stable-runtime-active-ffi-imports-wat
-       #:stable-runtime-active-ffi-funcs-wat
-       stable-runtime-active-ffi-funcs-wat
-       #:extra-program-function-names (split-program-ffi-function-names)
-       #:extra-program-global-names (split-program-ffi-global-names)
-       #:described-primitives described-primitives
-       #:used-primitives used-primitives
-       #:console-bridge-primitive-names console-bridge-primitive-names
-       #:primitive-description? primitive->description
-       #:time-runtime-step time-runtime-step
-       #:include-classified? (current-split-runtime?)))
-    (define final-module
-      (if (analyzed-runtime-module? analyzed-module)
-          (analyzed-runtime-module-module analyzed-module)
-          analyzed-module))
-    (if (current-split-runtime?)
+    (define split-runtime-program-only-fast-path?
+      (and (current-split-runtime?)
+           (current-split-runtime-reference-only?)
+           split-runtime-boundary-metadata
+           (or (split-direct-ffi-program-side?)
+               (and (null? (runtime-ffi-state-active-foreigns ffi-state))
+                    (null? (runtime-ffi-state-active-imports-wat ffi-state))
+                    (null? (runtime-ffi-state-active-funcs-wat ffi-state))))))
+    (runtime-metric-add! "runtime:split-program-only-fast-path?"
+                         (if split-runtime-program-only-fast-path? "yes" "no"))
+    (if split-runtime-program-only-fast-path?
         (time-runtime-step
-         "runtime:split-classified-runtime-forms"
+         "runtime:split-program-only-fast-path"
          (lambda ()
-           (split-classified-runtime-forms
-            (analyzed-runtime-module-runtime-forms analyzed-module)
-            (analyzed-runtime-module-program-forms analyzed-module)
-            #:core-cache-key split-runtime-core-cache-key
-            #:boundary-metadata split-runtime-boundary-metadata)))
-        final-module)
+           (define program-forms
+             (time-runtime-step
+              "runtime:build-split-program-forms"
+              build-split-program-forms))
+           (time-runtime-step
+            "runtime:split-classified-runtime-forms"
+            (lambda ()
+              (split-classified-runtime-forms
+               #f
+               program-forms
+               #:core-cache-key split-runtime-core-cache-key
+               #:boundary-metadata split-runtime-boundary-metadata)))))
+        (let ()
+          (define full-module
+            (time-runtime-step "runtime:build-runtime-module" build-runtime-module))
+          (define analyzed-module
+            (analyze-and-prune-runtime-module
+             full-module
+             #:program-function-names program-function-names
+             #:result-global result
+             #:top-level-variable-declarations top-level-variable-declarations
+             #:string-constants string-constants
+             #:bytes-constants bytes-constants
+             #:symbol-constants symbol-constants
+             #:primitive-func->symbol primitive-func->symbol
+             #:primitive-global->symbol primitive-global->symbol
+             #:ffi-global->symbol ffi-global->symbol
+             #:active-ffi-foreigns (runtime-ffi-state-active-foreigns ffi-state)
+             #:active-ffi-imports-wat (runtime-ffi-state-active-imports-wat ffi-state)
+             #:active-ffi-funcs-wat (runtime-ffi-state-active-funcs-wat ffi-state)
+             #:stable-runtime-active-ffi-foreigns
+             stable-runtime-active-ffi-foreigns
+             #:stable-runtime-active-ffi-imports-wat
+             stable-runtime-active-ffi-imports-wat
+             #:stable-runtime-active-ffi-funcs-wat
+             stable-runtime-active-ffi-funcs-wat
+             #:extra-program-function-names (split-program-ffi-function-names)
+             #:extra-program-global-names (split-program-ffi-global-names)
+             #:described-primitives described-primitives
+             #:used-primitives used-primitives
+             #:console-bridge-primitive-names console-bridge-primitive-names
+             #:primitive-description? primitive->description
+             #:time-runtime-step time-runtime-step
+             #:include-classified? (current-split-runtime?)))
+          (define final-module
+            (if (analyzed-runtime-module? analyzed-module)
+                (analyzed-runtime-module-module analyzed-module)
+                analyzed-module))
+          (if (current-split-runtime?)
+              (time-runtime-step
+               "runtime:split-classified-runtime-forms"
+               (lambda ()
+                 (split-classified-runtime-forms
+                  (analyzed-runtime-module-runtime-forms analyzed-module)
+                  (analyzed-runtime-module-program-forms analyzed-module)
+                  #:core-cache-key split-runtime-core-cache-key
+                  #:boundary-metadata split-runtime-boundary-metadata)))
+              final-module)))
     ))
