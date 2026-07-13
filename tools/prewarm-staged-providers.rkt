@@ -44,13 +44,20 @@
 (define repo-root
   (simplify-path repo-dir))
 
+;; tool-temp-dir : -> path?
+;;   Return the repo-local parent for temporary prewarm work directories.
+(define (tool-temp-dir)
+  (define dir (build-path repo-root "tmp"))
+  (make-directory* dir)
+  dir)
+
 
 ;;; Provider Prewarming
 
 ;; This section drives staged provider builders and split-runtime prebuilds
 ;; under the requested cache settings. The modes mirror the practical compile
 ;; needs: regexp alone, read plus its regexp dependency, split-runtime core
-;; wasm, or all currently known staged providers.
+;; wasm, io/format, or all currently known staged providers.
 
 ;; cache-dir->complete-path : path-string? -> path?
 ;;   Normalize a cache root argument to an absolute path.
@@ -91,6 +98,33 @@
     (make-directory* parent))
   (copy-file runtime-wasm out-path #t))
 
+;; prewarm-regexp-provider! : -> any/c
+;;   Populate the public regexp provider cache used by script compiles.
+(define (prewarm-regexp-provider!)
+  (regexp-provider-forms #:public-aliases? #t
+                         #:owner 'prewarm))
+
+;; prewarm-read-provider! : -> any/c
+;;   Populate expander/read plus its regexp dependency.
+(define (prewarm-read-provider!)
+  ;; The staged reader needs the staged regexp provider as part of its
+  ;; dependency closure, so prewarm both artifacts together.
+  (regexp-provider-forms #:public-aliases? #t
+                         #:owner 'prewarm-expander-read)
+  (read-provider-forms #:public-aliases? #t
+                       #:owner 'prewarm-expander-read))
+
+;; prewarm-io-format-provider! : -> any/c
+;;   Populate the public io/format provider cache used by script compiles.
+(define (prewarm-io-format-provider!)
+  (io-format-provider-forms #:public-aliases? #t))
+
+;; prewarm-all-staged-providers! : -> any/c
+;;   Populate all staged provider artifacts used by ordinary warm compiles.
+(define (prewarm-all-staged-providers!)
+  (prewarm-read-provider!)
+  (prewarm-io-format-provider!))
+
 ;; prewarm-split-runtime! :
 ;;   path? path? symbol? boolean? boolean? boolean? (or/c path-string? #f) -> void?
 ;;   Populate the stable split-runtime wasm cache through the normal driver.
@@ -102,7 +136,9 @@
                                 core-only?
                                 runtime-wasm-out)
   (define work-dir
-    (make-temporary-file "webracket-split-runtime-prewarm-~a" 'directory))
+    (make-temporary-file "webracket-split-runtime-prewarm-~a"
+                         'directory
+                         (tool-temp-dir)))
   (define source-path
     (build-path work-dir "split-runtime-prewarm.rkt"))
   (define dest-dir
@@ -202,20 +238,13 @@
                  [current-runtime-cache-dir runtime-cache-dir])
     (match mode
       ['regexp
-       (regexp-provider-forms #:public-aliases? #t
-                              #:owner 'prewarm)]
+       (prewarm-regexp-provider!)]
       ['read
-       ;; The staged reader needs the staged regexp provider as part of its
-       ;; dependency closure, so prewarm both artifacts together.
-       (regexp-provider-forms #:public-aliases? #t
-                              #:owner 'prewarm-expander-read)
-       (read-provider-forms #:public-aliases? #t
-                            #:owner 'prewarm-expander-read)]
+       (prewarm-read-provider!)]
+      ['io-format
+       (prewarm-io-format-provider!)]
       ['all
-       (regexp-provider-forms #:public-aliases? #t
-                              #:owner 'prewarm-expander-read)
-       (read-provider-forms #:public-aliases? #t
-                            #:owner 'prewarm-expander-read)]
+       (prewarm-all-staged-providers!)]
       ['split-runtime
        (prewarm-split-runtime! cache-dir
                                runtime-cache-dir
@@ -250,10 +279,10 @@
 (define (parse-mode s)
   (define mode
     (string->symbol s))
-  (unless (memq mode '(regexp read all split-runtime))
+  (unless (memq mode '(regexp read io-format all split-runtime))
     (raise-user-error
      'prewarm-staged-providers
-     (format "expected mode regexp, read, split-runtime, or all; got ~a" s)))
+     (format "expected mode regexp, read, io-format, split-runtime, or all; got ~a" s)))
   mode)
 
 ;; parse-host : string? -> symbol?
@@ -293,7 +322,7 @@
     "Write stable runtime-provider artifacts to <dir>."
     (set! runtime-provider-cache-dir dir)]
    [("--mode") which
-    "Prewarm one of: regexp, read, split-runtime, all."
+    "Prewarm one of: regexp, read, io-format, split-runtime, all."
     (set! mode (parse-mode which))]
    [("--host") which
     "Split-runtime target host: node or browser. Defaults to node."

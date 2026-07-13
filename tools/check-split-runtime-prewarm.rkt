@@ -54,6 +54,7 @@
 (define force-prewarm? #f)
 (define core-only? #f)
 (define in-process? #f)
+(define staged-provider-prewarm? #f)
 (define jobs 1)
 
 ;; resolve-source-path : string? -> path?
@@ -92,6 +93,9 @@
  [("--force-prewarm")
   "Force refresh of the staged provider/runtime cache during prewarm."
   (set! force-prewarm? #t)]
+ [("--prewarm-staged-providers")
+  "Prewarm staged regexp/read/io-format provider caches before runtime prewarm."
+  (set! staged-provider-prewarm? #t)]
  [("--split-runtime-core-only")
   "Use the core-helper-only split runtime strategy for prewarm and compile."
   (set! core-only? #t)]
@@ -779,6 +783,8 @@ RKT
   (printf "  sources:       ~a\n" (length cases))
   (printf "  runner:        ~a\n"
           (if in-process? "in-process" "fresh subprocess"))
+  (printf "  provider warm: ~a\n"
+          (if staged-provider-prewarm? "regexp/read/io-format" "runtime only"))
   (printf "  jobs:          ~a\n"
           (if in-process?
               "1 (serial in-process)"
@@ -789,6 +795,28 @@ RKT
             (path->string (check-case-source case))))
   (printf "  temp:          ~a\n" (path->string temp-root))
   (printf "  compiled root: ~a\n\n" (path->string compiled-root))
+
+  (define staged-provider-prewarm-args
+    (append
+     (list "-S" "pkgs" "tools/prewarm-staged-providers.rkt"
+           "--provider-cache-dir" (path->string provider-cache)
+           "--runtime-provider-cache-dir" (path->string runtime-cache)
+           "--mode" "all")
+     (if force-prewarm? '("--force") '())))
+  (define staged-provider-prewarm-result
+    (if staged-provider-prewarm?
+        (run-command/capture repo-root racket-exe staged-provider-prewarm-args)
+        (command-result #t "" "" 0.0)))
+  (when staged-provider-prewarm?
+    (define staged-provider-prewarm-log
+      (build-path temp-root "prewarm-staged-providers.log"))
+    (write-log! staged-provider-prewarm-log
+                racket-exe
+                staged-provider-prewarm-args
+                staged-provider-prewarm-result)
+    (unless (command-result-ok? staged-provider-prewarm-result)
+      (record-failure! "staged-provider prewarm command failed; see ~a"
+                       staged-provider-prewarm-log)))
 
   (define prewarm-args
     (append
@@ -824,7 +852,13 @@ RKT
 
   (cond
     [(null? failures)
-     (printf "ok: prewarm=~as compile/runs=[~a] cached-runtime-wasms=~a\n"
+     (printf "ok: ~aprewarm=~as compile/runs=[~a] cached-runtime-wasms=~a\n"
+             (if staged-provider-prewarm?
+                 (format "provider-prewarm=~as "
+                         (format-seconds
+                          (command-result-wall-ms
+                           staged-provider-prewarm-result)))
+                 "")
              (format-seconds (command-result-wall-ms prewarm-result))
              (string-join
               (for/list ([result (in-list compile-results)])

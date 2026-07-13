@@ -246,6 +246,18 @@ warm compiler process, which approximates the compile-server workflow:
 racket -S pkgs tools/check-split-runtime-prewarm.rkt --suite --in-process
 ```
 
+Use `--prewarm-staged-providers` when the workload exercises staged provider
+code such as regexp/read/io-format. This checks the intended fully warm path:
+staged providers are cached first, then the split runtime is cached, then user
+programs compile against those caches:
+
+```sh
+racket -S pkgs tools/check-split-runtime-prewarm.rkt \
+  --suite \
+  --in-process \
+  --prewarm-staged-providers
+```
+
 Use `--extra-source` and `--reject` to check multiple committed fixtures with
 one prewarmed runtime cache. This is useful for tests that print pass tables:
 
@@ -336,12 +348,13 @@ make smoke-split-runtime-browser-url
 prewarm-staged-providers.rkt
 ----------------------------
 Prebuilds cache artifacts before an example compile needs them. Existing modes
-prewarm staged provider artifacts such as regexp and expander/read. The
-`split-runtime` mode compiles a tiny no-stdlib split-runtime program through
-the normal driver so the stable runtime wasm is already in the runtime provider
-cache before a real user program compile. By default, split-runtime prewarm
-targets Node output and runs the generated program; use `--host browser` when
-warming the browser runtime cache.
+prewarm staged provider artifacts such as regexp, expander/read, and io/format;
+`--mode all` warms that ordinary staged-provider set. The `split-runtime` mode
+compiles a tiny no-stdlib split-runtime program through the normal driver so
+the stable runtime wasm is already in the runtime provider cache before a real
+user program compile. By default, split-runtime prewarm targets Node output and
+runs the generated program; use `--host browser` when warming the browser
+runtime cache.
 
 Run:
 
