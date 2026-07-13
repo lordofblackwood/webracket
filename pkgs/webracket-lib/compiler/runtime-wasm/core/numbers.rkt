@@ -4810,6 +4810,7 @@
 ;;   Name number helpers available in the standalone core runtime.
 (define number-core-runtime-helper-names
   '($number?
+    $complex?
     $real?
     $rational?
     $exact?
@@ -4822,8 +4823,10 @@
     $exact-nonnegative-integer?
     $exact-positive-integer?
     $integer?
+    $natural?
     $number->string:check-radix
     $number->string:max-length
+    $number->string:convert
     $string->number:parse-fractional-part
     $string->number:parse-integer
     $real->floating-point-bytes/checked

@@ -988,7 +988,10 @@
     $fxabs
     $most-positive-fixnum
     $most-negative-fixnum
+    $fx=/2
     $fxand
+    $fxior
+    $fxxor
     $fixnum-for-every-system?))
 
 ;; fixnum-all-runtime-helpers : (listof core-runtime-helper?)

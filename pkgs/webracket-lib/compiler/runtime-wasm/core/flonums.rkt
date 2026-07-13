@@ -886,6 +886,7 @@
 (define flonum-promoted-runtime-helper-names
   '($i32->flonum
     $flonum?
+    $double-flonum?
     $unsafe-fl/
     $fl//checked
     $unsafe-flabs
@@ -895,7 +896,9 @@
     $unsafe-fltruncate
     $unsafe-flsingle
     $unsafe-flmin/2
-    $unsafe-flmax/2))
+    $unsafe-flmax/2
+    $unsafe-flmin
+    $unsafe-flmax))
 
 ;; flonum-all-runtime-helpers : (listof core-runtime-helper?)
 ;;   Enumerate flonum helpers in monolithic runtime order.

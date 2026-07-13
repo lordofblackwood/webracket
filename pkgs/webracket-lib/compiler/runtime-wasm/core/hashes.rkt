@@ -2922,6 +2922,10 @@
     $hasheqv->list/plain/checked
     $hashequal->list/plain/checked
     $hashalw->list/plain/checked
+    $hasheq-for-each/checked
+    $hasheqv-for-each/checked
+    $hashequal-for-each/checked
+    $hashalw-for-each/checked
     $hasheq-keys/plain/checked
     $hasheqv-keys/plain/checked
     $hashequal-keys/plain/checked
