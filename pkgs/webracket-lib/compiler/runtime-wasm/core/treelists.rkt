@@ -334,7 +334,12 @@
 ;; treelist-promoted-runtime-helper-names : (listof symbol?)
 ;;   Name treelist helpers available in the standalone core runtime.
 (define treelist-promoted-runtime-helper-names
-  '($treelist-node-children
+  '($raise-check-treelist/who
+    $treelist-index/i32
+    $raise-treelist-index-out-of-range/who/i32
+    $raise-bad-treelist-ref-index
+    $raise-bad-treelist-split-index
+    $treelist-node-children
     $treelist-node-sizes
     $treelist-node-leftwise-dense?/i32
     $treelist-node-child-count
@@ -370,12 +375,15 @@
     $treelist-node-split/checked
     $treelist-length/checked/i32
     $treelist-ref-node/checked
+    $treelist-ref/checked
     $treelist-node-set/checked
     $treelist-node-can-add-right-fast?/i32
     $treelist-node-can-add-left-fast?/i32
     $treelist-node-add-right/checked
     $treelist-node-add-left/checked
     $treelist-add/checked
+    $treelist-slice/checked
+    $treelist-split-at/checked
     $treelist-node-reverse/checked
     $treelist-reverse/checked
     $treelist-node-size/check
@@ -395,8 +403,12 @@
     $treelist-node-find/checked
     $treelist-append/checked
     $treelist-cons/checked
+    $treelist-ref
+    $treelist-take
+    $treelist-drop
     $make-treelist/checked
     $treelist->vector/checked
+    $treelist->list
     $treelist?))
 
 ;; treelist-all-runtime-helper-names : (listof symbol?)

@@ -887,16 +887,49 @@
   '($i32->flonum
     $flonum?
     $double-flonum?
+    $fx->fl/precise
+    $raise-argument-error:flonum-expected
+    $fl+
+    $fl-
+    $fl*
     $unsafe-fl/
     $fl//checked
+    $raise-check-flonum
+    $fl/
+    $flabs
+    $flround
+    $flfloor
+    $flceiling
+    $fltruncate
+    $flsingle
+    $flsin
+    $flcos
+    $fltan
+    $flasin
+    $flacos
+    $flatan
+    $flsinh
+    $flcosh
+    $fltanh
+    $flasinh
+    $flacosh
+    $flatanh
+    $fllog
+    $flexp
+    $flsqrt
     $unsafe-flabs
     $unsafe-flround
     $unsafe-flfloor
     $unsafe-flceiling
     $unsafe-fltruncate
     $unsafe-flsingle
+    $flexpt
+    $flmin/2
+    $flmax/2
     $unsafe-flmin/2
     $unsafe-flmax/2
+    $flmin
+    $flmax
     $unsafe-flmin
     $unsafe-flmax))
 

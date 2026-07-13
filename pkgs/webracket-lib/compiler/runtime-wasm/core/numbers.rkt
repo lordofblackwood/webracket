@@ -4822,8 +4822,31 @@
     $exact-integer?
     $exact-nonnegative-integer?
     $exact-positive-integer?
+    $pow-special
     $integer?
     $natural?
+    $raise-expected-number/common
+    $raise-expected-number/who
+    $raise-expected-number
+    $raise-expected-number1
+    $raise-expected-number2
+    $raise-expected-number3
+    $raise-expected-number4
+    $raise-expected-integer
+    $raise-expected-exact-integer
+    $raise-expected-exact-nonnegative-integer
+    $raise-expected-real
+    $bitwise-and/2
+    $bitwise-and
+    $bitwise-ior/2
+    $bitwise-ior
+    $bitwise-xor/2
+    $bitwise-xor
+    $bitwise-not
+    $bitwise-bit-set?
+    $bitwise-first-bit-set
+    $arithmetic-shift
+    $integer-length
     $number->string:check-radix
     $number->string:max-length
     $number->string:convert
