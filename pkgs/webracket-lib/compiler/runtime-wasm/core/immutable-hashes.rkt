@@ -5930,6 +5930,11 @@
     $placeholder?
     $make-placeholder
     $reader-graph-resolve
+    $make-hash-placeholder/kind
+    $make-hash-placeholder
+    $make-hasheq-placeholder
+    $make-hasheqv-placeholder
+    $make-hashalw-placeholder
     $immutable-hasheqv-bucket-index
     $immutable-hamt-packed-group-index
     $immutable-hamt-packed-child-bit
@@ -6006,6 +6011,19 @@
     $immutable-hamt-node-slot-count
     $immutable-hamt-node-max-depth
     $immutable-hasheqv-iterate-first
+    $immutable-hash-iterate-index->entry/public
+    $immutable-hash-iterate-first/public
+    $immutable-hash-iterate-next/public
+    $immutable-hash-iterate-key/public
+    $immutable-hash-iterate-value/public
+    $immutable-hash-iterate-pair/public
+    $immutable-hash-iterate-key+value/public
+    $unsafe-immutable-hash-iterate-first
+    $unsafe-immutable-hash-iterate-next
+    $unsafe-immutable-hash-iterate-key
+    $unsafe-immutable-hash-iterate-value
+    $unsafe-immutable-hash-iterate-pair
+    $unsafe-immutable-hash-iterate-key+value
     $make-ephemeron
     $ephemeron?))
 

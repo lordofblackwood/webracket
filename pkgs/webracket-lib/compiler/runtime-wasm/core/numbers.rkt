@@ -4822,7 +4822,9 @@
     $exact-integer?
     $exact-nonnegative-integer?
     $exact-positive-integer?
+    $zero?
     $pow-special
+    $negative?
     $integer?
     $natural?
     $abs
@@ -4845,6 +4847,9 @@
     $+
     $*
     $-
+    $/2
+    $</2
+    $>/2
     $min/2
     $max/2
     $bitwise-and/2

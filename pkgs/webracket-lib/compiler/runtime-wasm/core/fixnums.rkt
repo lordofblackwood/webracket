@@ -1000,6 +1000,8 @@
     $most-positive-fixnum
     $most-negative-fixnum
     $fx=/2
+    $fx</2
+    $fx>/2
     $fxand
     $fxior
     $fxxor

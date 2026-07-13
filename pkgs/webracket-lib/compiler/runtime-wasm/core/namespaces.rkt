@@ -105,7 +105,8 @@
 ;; namespace-core-runtime-helper-names : (listof symbol?)
 ;;   Name namespace helpers available in the standalone core runtime.
 (define namespace-core-runtime-helper-names
-  '($make-empty-namespace))
+  '($make-empty-namespace
+    $raise-argument-error:namespace-expected))
 
 ;; namespace-runtime-only-forms : (listof datum?)
 ;;   Enumerate namespace helpers used by the monolithic runtime.

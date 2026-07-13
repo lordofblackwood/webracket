@@ -3300,12 +3300,14 @@
     $build-vector/checked
     $vector-length/checked/i32
     $vector?
+    $vector-ref/checked
     $vector-ref/who
     $vector-set!/who
     $vector*-length
     $vector-copy/who
     $vector-copy
     $vector-append
+    $list->vector
     $vector->list
     $vector->list/checked
     $vector-sort!:swap!

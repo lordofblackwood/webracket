@@ -942,7 +942,9 @@
     $flmin
     $flmax
     $unsafe-flmin
-    $unsafe-flmax))
+    $unsafe-flmax
+    $fl<
+    $fl>))
 
 ;; flonum-all-runtime-helpers : (listof core-runtime-helper?)
 ;;   Enumerate flonum helpers in monolithic runtime order.

@@ -16,9 +16,9 @@
   '((mpair? "mpair?")
     (mpair-or-null "(or/c mpair? null?)")))
 
-;; mlist-core-runtime-helpers : (listof core-runtime-helper?)
-;;   Enumerate mutable-pair helpers that can be emitted in core runtime.
-(define mlist-core-runtime-helpers
+;; mlist-base-core-runtime-helpers : (listof core-runtime-helper?)
+;;   Enumerate mutable-pair helpers that originated in core runtime.
+(define mlist-base-core-runtime-helpers
   (list
    ;; mpair? : any/c -> boolean?
    ;;   Return #t if the value is a mutable pair, #f otherwise.
@@ -141,7 +141,25 @@
 ;;   Preserve the runtime emission order for mutable-list core helpers.
 (define mlist-core-runtime-helper-names
   '($mpair?
-    $mcons))
+    $mcons
+    $raise-mpair-expected/who))
+
+;; select-mlist-helpers : (listof core-runtime-helper?) (listof symbol?) -> (listof core-runtime-helper?)
+;;   Select helpers by name while preserving the order of the source list.
+(define (select-mlist-helpers helpers names)
+  (define name-set
+    (for/hasheq ([name (in-list names)])
+      (values name #t)))
+  (for/list ([helper (in-list helpers)]
+             #:when (hash-ref name-set (core-runtime-helper-name helper) #f))
+    helper))
+
+;; mlist-core-runtime-helpers : (listof core-runtime-helper?)
+;;   Enumerate mutable-pair helpers that can be emitted in core runtime.
+(define mlist-core-runtime-helpers
+  (append mlist-base-core-runtime-helpers
+          (select-mlist-helpers mlist-runtime-only-helpers
+                                mlist-core-runtime-helper-names)))
 
 ;; mlist-core-runtime-helper-forms : hasheq? -> (listof datum?)
 ;;   Render mutable-list core helpers in runtime assembly order.
@@ -152,7 +170,8 @@
 ;; mlist-runtime-helper-forms : hasheq? -> (listof datum?)
 ;;   Render mutable-pair runtime helpers in runtime assembly order.
 (define (mlist-runtime-helper-forms helper-index)
-  (for/list ([name (in-list mlist-runtime-only-helper-names)])
+  (for/list ([name (in-list (remove* mlist-core-runtime-helper-names
+                                      mlist-runtime-only-helper-names))])
     (core-runtime-helper-form helper-index name)))
 
 (module+ test
@@ -175,4 +194,5 @@
 
   (check-equal?
    (map form-name (mlist-runtime-helper-forms mlist-runtime-helper-index))
-   mlist-runtime-only-helper-names))
+   (remove* mlist-core-runtime-helper-names
+            mlist-runtime-only-helper-names)))

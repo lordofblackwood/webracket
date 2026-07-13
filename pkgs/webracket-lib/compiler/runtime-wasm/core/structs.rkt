@@ -515,8 +515,10 @@
     $simple-prefab-super-struct-type/checked
     $simple-prefab-substruct-type/checked
     $simple-prefab-struct-type-for-key/checked
+    $prefab-metadata?/i32
     $raise-make-prefab-struct:key
     $make-prefab-struct
+    $struct-type-predicate-name-string
     $struct-constructor-procedure?
     $struct-predicate-procedure?
     $struct-accessor-procedure?
