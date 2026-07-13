@@ -204,12 +204,20 @@
     $current-input-port
     $flush-output
     $close-output-port
+    $open-input-bytes
     $read-byte/custom
+    $peek-byte/custom
     $read-byte
     $read-char
+    $check-read-special-wrap/who
     $raise-port-bytes-index-expected
     $raise-bad-port-bytes-range
+    $read-bytes!/who
     $raise-port-range-index-expected
+    $raise-read-line:bad-mode
+    $read-line-mode-code
+    $peek-byte
+    $check-peek-special-wrap/who
     $write-bytes/custom
     $write-bytes
     $raise-bad-string-range

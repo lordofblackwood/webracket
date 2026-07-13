@@ -167,7 +167,8 @@
     $make-temporary-file*
     $make-temporary-directory
     $make-temporary-directory*
-    $open-output-file))
+    $open-output-file
+    $open-input-file))
 
 ;; filesystem-runtime-only-forms : (listof datum?)
 ;;   Enumerate VFS and file-operation helpers used by the monolithic runtime.

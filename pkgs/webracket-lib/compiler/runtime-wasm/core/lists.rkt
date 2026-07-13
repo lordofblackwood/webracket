@@ -7617,10 +7617,14 @@
      $raise-range:real-expected
      $validate-list-args
      $seed-list-args
-     $remove
-     $remove*
-     $remove*/checked
-     $remove*/checked/1)
+	     $remove
+	     $remove*
+	     $remove*/checked
+	     $remove*/checked/1
+	     $sort:split
+	     $foldr/1-loop
+	     $foldr/2-loop
+	     $foldr/n-loop)
    pair-accessor-runtime-only-helper-names
    list-ordinal-accessor-runtime-only-helper-names
    list-remove-runtime-only-helper-names

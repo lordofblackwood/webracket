@@ -188,7 +188,9 @@
 ;;   Name syntax helpers available in the standalone core runtime.
 (define correlated-syntax-promoted-runtime-helper-names
   '($ensure-correlated-type
+    $correlated/make
     $raise-argument-error:correlated-expected
+    $correlated-build
     $correlated?
     $correlated-unwrap
     $correlated->datum/convert
@@ -196,6 +198,7 @@
     $syntax/make
     $syntax-build
     $identifier?
+    $free-identifier=?
     $datum->syntax/convert
     $syntax->datum/convert))
 

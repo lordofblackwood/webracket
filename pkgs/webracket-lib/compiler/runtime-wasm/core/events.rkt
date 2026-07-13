@@ -59,7 +59,9 @@
   '($make-channel
     $channel?
     $channel-put-evt?
-    $evt?))
+    $evt?
+    $channel-put
+    $sync-one))
 
 ;; event-all-runtime-helpers : (listof core-runtime-helper?)
 ;;   Enumerate event and channel helpers in monolithic runtime order.
@@ -511,9 +513,9 @@
   (remove-runtime-helpers event-all-runtime-helpers
                           event-promoted-runtime-helper-names))
 
-;; event-channel-runtime-only-helper-names : (listof symbol?)
-;;   Preserve the runtime emission order for channel and event helpers.
-(define event-channel-runtime-only-helper-names
+;; event-channel-runtime-helper-names : (listof symbol?)
+;;   Preserve the full runtime emission order for channel and event helpers.
+(define event-channel-runtime-helper-names
   '($handle-evt?
     $channel-put
     $channel-try-get
@@ -521,12 +523,24 @@
     $channel-put-evt
     $handle-evt))
 
-;; event-sync-runtime-only-helper-names : (listof symbol?)
-;;   Preserve the runtime emission order for synchronization helpers.
-(define event-sync-runtime-only-helper-names
+;; event-channel-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the program/runtime-local emission order for channel and event helpers.
+(define event-channel-runtime-only-helper-names
+  (remove* event-promoted-runtime-helper-names
+           event-channel-runtime-helper-names))
+
+;; event-sync-runtime-helper-names : (listof symbol?)
+;;   Preserve the full runtime emission order for synchronization helpers.
+(define event-sync-runtime-helper-names
   '($sync-one
     $sync
     $sync/timeout))
+
+;; event-sync-runtime-only-helper-names : (listof symbol?)
+;;   Preserve the program/runtime-local emission order for synchronization helpers.
+(define event-sync-runtime-only-helper-names
+  (remove* event-promoted-runtime-helper-names
+           event-sync-runtime-helper-names))
 
 ;; event-helper-forms : hasheq? (listof symbol?) -> (listof datum?)
 ;;   Render the given event helper names from the runtime helper index.

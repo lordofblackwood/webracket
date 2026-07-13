@@ -4818,14 +4818,24 @@
     $ensure-exn-type
     $exn-ensure
     $ensure-exn:break-type
+    $ensure-exn:break:hang-up-type
+    $ensure-exn:break:terminate-type
+    $exn/make
+    $exn:break/make
+    $exn:break:hang-up/make
+    $exn:break:terminate/make
     $ensure-exn:fail-type
     $ensure-exn:fail:contract-type
     $ensure-exn:fail:contract:arity-type
+    $ensure-exn:fail:contract:continuation-type
+    $ensure-exn:fail:contract:divide-by-zero-type
     $ensure-exn:fail:contract:non-fixnum-result-type
     $ensure-exn:fail:contract:variable-type
     $ensure-exn:fail:filesystem-type
     $exn:fail:contract/make
     $exn:fail:contract:arity/make
+    $exn:fail:contract:continuation/make
+    $exn:fail:contract:divide-by-zero/make
     $exn:fail:contract:non-fixnum-result/make
     $exn:fail:contract:variable-ensure
     $exn:fail:contract:variable-ensure-id
@@ -4835,6 +4845,20 @@
     $exn:fail:contract:variable?
     $exn:fail:contract:variable-id
     $exn:fail:filesystem/make
+    $ensure-exn:fail:filesystem:exists-type
+    $exn:fail:filesystem:exists/make
+    $ensure-exn:fail:filesystem:version-type
+    $exn:fail:filesystem:version/make
+    $ensure-exn:fail:filesystem:errno-type
+    $exn:fail:filesystem:errno/make
+    $ensure-exn:fail:filesystem:missing-module-type
+    $exn:fail:filesystem:missing-module/make
+    $ensure-exn:fail:network-type
+    $exn:fail:network/make
+    $ensure-exn:fail:network:errno-type
+    $exn:fail:network:errno/make
+    $ensure-exn:fail:user-type
+    $exn:fail:user/make
     $make-exn:fail:filesystem
     $raise-vfs-file-error
     $exn:fail:filesystem:errno-ensure-errno
@@ -4862,6 +4886,11 @@
     $raise-read-error
     $raise-read-eof-error
     $ensure-exn:fail:syntax-type
+    $ensure-exn:fail:syntax:missing-module-type
+    $ensure-exn:fail:syntax:unbound-type
+    $exn:fail:syntax/make
+    $exn:fail:syntax:missing-module/make
+    $exn:fail:syntax:unbound/make
     $exn:fail:syntax-ensure-exprs
     $exn?
     $exn-message

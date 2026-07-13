@@ -2927,6 +2927,18 @@
     $hashequal-for-each/checked
     $hashalw-for-each/checked
     $hash-filter/generic
+    $hasheq-filter
+    $hasheqv-filter
+    $hashequal-filter
+    $hashalw-filter
+    $hasheq-filter/plain
+    $hasheqv-filter/plain
+    $hashequal-filter/plain
+    $hashalw-filter/plain
+    $hasheq-filter/plain/checked
+    $hasheqv-filter/plain/checked
+    $hashequal-filter/plain/checked
+    $hashalw-filter/plain/checked
     $hasheq-keys/plain/checked
     $hasheqv-keys/plain/checked
     $hashequal-keys/plain/checked

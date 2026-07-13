@@ -725,6 +725,7 @@
 (define symbol-core-runtime-helper-names
   (append
    '($symbol?
+     $symbol=?
      $symbol=?/i32
      $symbol->immutable-string
      $string->uninterned-symbol/checked)

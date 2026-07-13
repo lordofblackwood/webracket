@@ -518,11 +518,21 @@
     $prefab-metadata?/i32
     $raise-make-prefab-struct:key
     $make-prefab-struct
+    $make-struct-accessor/checked
+    $struct-type-accessor-name
     $struct-type-predicate-name-string
+    $struct-type->display-string
+    $raise-struct-accessor:target
+    $raise-struct-accessor:index
+    $raise-struct-accessor:index-too-large
+    $struct-accessor
+    $raise-struct-mutator:index-too-large
     $struct-constructor-procedure?
     $struct-predicate-procedure?
     $struct-accessor-procedure?
     $struct-mutator-procedure?
+    $fill-fields-from-args
+    $fill-fields-from-values
     $struct-type-property-predicate->descriptor
     $struct-type-property?
     $make-struct-type-property-descriptor/checked

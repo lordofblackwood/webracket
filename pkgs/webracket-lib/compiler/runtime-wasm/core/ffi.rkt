@@ -224,6 +224,7 @@
     $callback-result->bridge-vector
     $callback-non-fasl-return-message
     $wr-result->bridge-vector
+    $wr-copy-result
     $wr-failure
     $callback-register
     $callback
