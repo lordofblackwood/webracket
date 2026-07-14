@@ -72,8 +72,9 @@
 (define (split-runtime-boundary-cache-path cache-root core-cache-key)
   (build-path cache-root
               split-runtime-boundary-cache-directory
-              (format "~x.fasl"
-                      (abs (equal-hash-code core-cache-key)))))
+              (format "~a.fasl"
+                      (split-runtime-core-cache-key-fingerprint
+                       core-cache-key))))
 
 ;; split-runtime-boundary-cache-current? : path-string? any/c -> boolean?
 ;;   Check whether cached split-boundary metadata exists for this core key.
@@ -162,6 +163,8 @@
    (split-runtime-boundary-cache-path "/tmp/cache" sample-core-cache-key)
    (build-path "/tmp/cache"
                split-runtime-boundary-cache-directory
-               (format "~x.fasl" (abs (equal-hash-code sample-core-cache-key)))))
+               (format "~a.fasl"
+                       (split-runtime-core-cache-key-fingerprint
+                        sample-core-cache-key))))
   (check-false
    (split-runtime-boundary-cache-current? "/tmp/cache" sample-core-cache-key)))
