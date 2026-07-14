@@ -38,6 +38,13 @@
 (define default-source-file
   (build-path repo-root "test" "test-trivial.rkt"))
 
+;; check-temp-dir : -> path?
+;;   Return the repo-local parent for temporary check directories.
+(define (check-temp-dir)
+  (define dir (build-path repo-root "tmp"))
+  (make-directory* dir)
+  dir)
+
 
 ;;; Command-Line Configuration
 
@@ -520,11 +527,13 @@ main();
 JS
 )
 
-;; write-node-script! : -> path?
+;; write-node-script! : path-string? -> path?
 ;;   Materialize the embedded Node browser runner.
-(define (write-node-script!)
+(define (write-node-script! temp-root)
   (define path
-    (make-temporary-file "webracket-split-runtime-browser-~a.mjs"))
+    (make-temporary-file "webracket-split-runtime-browser-~a.mjs"
+                         #f
+                         temp-root))
   (call-with-output-file path
     (lambda (out)
       (display browser-run-script out))
@@ -636,7 +645,9 @@ JS
            source-file))
 
   (define temp-root
-    (make-temporary-file "webracket-split-runtime-browser-check-~a" 'directory))
+    (make-temporary-file "webracket-split-runtime-browser-check-~a"
+                         'directory
+                         (check-temp-dir)))
   (define provider-cache (build-path temp-root "provider-cache"))
   (define runtime-cache  (build-path temp-root "runtime-provider-cache"))
   (define compiled-root  (build-path temp-root "compiled-root"))
@@ -761,7 +772,7 @@ JS
       (record-failure! "generated HTML does not reference runtime wasm ~a"
                        (file-name-from-path runtime-wasm))))
 
-  (define node-script (write-node-script!))
+  (define node-script (write-node-script! temp-root))
   (define browser-result
     (dynamic-wind
       void
