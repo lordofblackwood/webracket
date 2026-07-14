@@ -57,6 +57,7 @@
 (define core-only? #f)
 (define in-process? #f)
 (define staged-provider-prewarm? #f)
+(define module-bridge-result-cache-check? #f)
 (define jobs 1)
 
 ;; resolve-source-path : string? -> path?
@@ -98,6 +99,9 @@
  [("--prewarm-staged-providers")
   "Prewarm staged regexp/read/io-format provider caches before runtime prewarm."
   (set! staged-provider-prewarm? #t)]
+ [("--check-module-bridge-result-cache")
+  "Compile module sources once to warm the module-bridge result cache, then require cache hits."
+  (set! module-bridge-result-cache-check? #t)]
  [("--split-runtime-core-only")
   "Use the core-helper-only split runtime strategy for prewarm and compile."
   (set! core-only? #t)]
@@ -254,6 +258,18 @@
                  (string-append (command-result-stdout result)
                                 "\n"
                                 (command-result-stderr result))))
+
+;; webracket-module-source? : path-string? -> boolean?
+;;   Check whether source uses the module bridge path.
+(define (webracket-module-source? source)
+  (with-handlers ([exn:fail? (lambda (_exn) #f)])
+    (call-with-input-file source
+      (lambda (in)
+        (define first-line
+          (read-line in 'any))
+        (and (string? first-line)
+             (regexp-match? #px"^#lang[ \t]+webracket/(base|full)([ \t].*)?$"
+                            first-line))))))
 
 ;; format-seconds : real? -> string?
 ;;   Format milliseconds as seconds.
@@ -611,9 +627,20 @@ RKT
 
 ;; compile-cases! :
 ;;   (listof check-case?) path-string? path-string? path-string? path-string?
-;;   path-string? -> (listof command-result?)
+;;   path-string?
+;;   [#:expect-module-bridge-result-cache-hit? boolean?]
+;;   [#:log-prefix string?] -> (listof command-result?)
 ;;   Compile/run cases with bounded parallelism, preserving result order.
-(define (compile-cases! cases racket-exe provider-cache runtime-cache dest-root temp-root)
+(define (compile-cases! cases
+                        racket-exe
+                        provider-cache
+                        runtime-cache
+                        dest-root
+                        temp-root
+                        #:expect-module-bridge-result-cache-hit?
+                        [expect-module-bridge-result-cache-hit? #f]
+                        #:log-prefix
+                        [log-prefix "compile"])
   (define (compile-one case index)
     (with-handlers ([exn:fail?
                      (lambda (exn)
@@ -628,7 +655,10 @@ RKT
                      provider-cache
                      runtime-cache
                      dest-root
-                     temp-root)))
+                     temp-root
+                     #:expect-module-bridge-result-cache-hit?
+                     expect-module-bridge-result-cache-hit?
+                     #:log-prefix log-prefix)))
   (cond
     [in-process?
      (for/list ([case (in-list cases)]
@@ -663,9 +693,21 @@ RKT
 
 ;; compile-case! :
 ;;   check-case? exact-positive-integer? path-string? path-string? path-string?
-;;   path-string? path-string? -> command-result?
+;;   path-string? path-string?
+;;   [#:expect-module-bridge-result-cache-hit? boolean?]
+;;   [#:log-prefix string?] -> command-result?
 ;;   Compile/run one source against the prewarmed runtime cache.
-(define (compile-case! case index racket-exe provider-cache runtime-cache dest-root temp-root)
+(define (compile-case! case
+                       index
+                       racket-exe
+                       provider-cache
+                       runtime-cache
+                       dest-root
+                       temp-root
+                       #:expect-module-bridge-result-cache-hit?
+                       [expect-module-bridge-result-cache-hit? #f]
+                       #:log-prefix
+                       [log-prefix "compile"])
   (define case-name
     (safe-case-name (check-case-name case)))
   (define dest-dir
@@ -692,7 +734,7 @@ RKT
                              (append (list "-S" "pkgs" "webracket.rkt")
                                      webracket-args))))
   (define compile-log
-    (build-path temp-root (format "compile-~a-~a.log" index case-name)))
+    (build-path temp-root (format "~a-~a-~a.log" log-prefix index case-name)))
   (write-log! compile-log
               (if in-process? "in-process-webracket" racket-exe)
               (if in-process?
@@ -717,6 +759,12 @@ RKT
     (record-failure! "~a: stdout matched rejected output regexp ~s"
                      (check-case-name case)
                      (check-case-reject case)))
+  (when (and expect-module-bridge-result-cache-hit?
+             (webracket-module-source? (check-case-source case))
+             (not (transcript-contains? compile-result
+                                        #rx"module-bridge-result-cache-hit")))
+    (record-failure! "~a: did not report module-bridge-result-cache-hit"
+                     (check-case-name case)))
   (define reference-compatible?
     (not (transcript-contains? compile-result
                                #rx"split-reference-compatible\\? *: *no")))
@@ -883,22 +931,54 @@ RKT
                   cached-wasm-snapshot-after-prewarm)
     (record-failure! "second prewarm changed cached runtime wasm artifacts"))
 
+  (define module-bridge-cache-warm-results
+    (if module-bridge-result-cache-check?
+        (let ([module-cases
+               (filter (lambda (case)
+                         (webracket-module-source? (check-case-source case)))
+                       cases)])
+          (cond
+            [(null? module-cases)
+             (record-failure!
+              "module-bridge result cache check requested, but no module sources were selected")
+             '()]
+            [else
+             (printf "  warming module-bridge result cache for ~a module source(s)\n"
+                     (length module-cases))
+             (compile-cases! module-cases
+                             racket-exe
+                             provider-cache
+                             runtime-cache
+                             (build-path temp-root "module-bridge-cache-warmup-dest")
+                             temp-root
+                             #:log-prefix "module-bridge-warmup")]))
+        '()))
+
   (define compile-results
     (compile-cases! cases
                     racket-exe
                     provider-cache
                     runtime-cache
                     dest-dir
-                    temp-root))
+                    temp-root
+                    #:expect-module-bridge-result-cache-hit?
+                    module-bridge-result-cache-check?))
 
   (cond
     [(null? failures)
-     (printf "ok: ~aprewarm=~as cache-hit-prewarm=~as compile/runs=[~a] cached-runtime-wasms=~a\n"
+     (printf "ok: ~a~aprewarm=~as cache-hit-prewarm=~as compile/runs=[~a] cached-runtime-wasms=~a\n"
              (if staged-provider-prewarm?
                  (format "provider-prewarm=~as "
                          (format-seconds
                           (command-result-wall-ms
                            staged-provider-prewarm-result)))
+                 "")
+             (if module-bridge-result-cache-check?
+                 (format "module-bridge-warmup=[~a] "
+                         (string-join
+                          (for/list ([result (in-list module-bridge-cache-warm-results)])
+                            (format "~as" (format-seconds (command-result-wall-ms result))))
+                          ", "))
                  "")
              (format-seconds (command-result-wall-ms prewarm-result))
              (format-seconds (command-result-wall-ms prewarm-cache-hit-result))

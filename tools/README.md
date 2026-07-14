@@ -269,6 +269,17 @@ racket -S pkgs tools/check-split-runtime-prewarm.rkt \
   --prewarm-staged-providers
 ```
 
+Use `--check-module-bridge-result-cache` with module-language sources to warm
+the module-bridge result cache with one compile, then require the next
+compile/run to report a `module-bridge-result-cache-hit` while still producing
+correct output:
+
+```sh
+racket -S pkgs tools/check-split-runtime-prewarm.rkt \
+  --source examples/minischeme/repro-local-mini-42.rkt \
+  --check-module-bridge-result-cache
+```
+
 Use `--extra-source` and `--reject` to check multiple committed fixtures with
 one prewarmed runtime cache. This is useful for tests that print pass tables:
 

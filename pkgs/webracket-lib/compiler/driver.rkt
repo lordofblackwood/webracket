@@ -51,7 +51,8 @@
          (only-in racket/system     system*)
          (only-in racket/string     string-join
                                     string-prefix?)
-         (only-in racket/set        set-member?
+         (only-in racket/set        set->list
+                                    set-member?
                                     seteq)
          racket/unsafe/undefined
          #;(only-in "lang/reader.rkt" read-syntax)
@@ -1845,6 +1846,177 @@
    cache-path
    (local-module-graph-fingerprint local-source-paths)
    (local-module-graph->cache-datum root reports local-source-paths)))
+
+;; module-bridge-result-cache-path : path-string? -> path?
+;;   Cache one fully composed module-bridge result per root source file.
+(define (module-bridge-result-cache-path filename)
+  (define resolved (simplify-path (path->complete-path filename)))
+  (provider-cache-path
+   "module-bridge-results"
+   (string-append
+    (provider-cache-string-segment (path->string resolved))
+    ".rktd")))
+
+;; current-provider-owned-primitive-alias-fingerprint : -> (listof symbol?)
+;;   Return provider-owned primitive aliases in stable fingerprint order.
+(define (current-provider-owned-primitive-alias-fingerprint)
+  (sort (set->list (current-provider-owned-primitive-aliases)) symbol<?))
+
+;; module-bridge-result-provider-fingerprints : hash? -> (listof list?)
+;;   Fingerprint non-local provider modules that influence bridge composition.
+(define (module-bridge-result-provider-fingerprints module-kinds)
+  (for/list ([name (in-list (sort (hash-keys module-kinds) symbol<?))]
+             #:do [(define kind (hash-ref module-kinds name))]
+             #:unless (eq? kind 'local-user))
+    (list name kind (provider-module-source-fingerprint name))))
+
+;; module-bridge-result-fingerprint : (listof path?) hash? -> any/c
+;;   Fingerprint a composed bridge result using source, provider, and policy state.
+(define (module-bridge-result-fingerprint local-source-paths module-kinds)
+  `(module-bridge-result-cache
+    1
+    ,(version)
+    ,(current-webracket/base-provider-substitutions?)
+    ,(current-module-bridge-elide-public-cells?)
+    ,(current-provider-owned-primitive-alias-fingerprint)
+    ,(local-module-graph-extractor-fingerprint)
+    ,(path-fingerprint
+      'module-bridge-result-local-sources
+      1
+      local-source-paths)
+    ,(module-bridge-result-provider-fingerprints module-kinds)))
+
+;; module-bridge-result->cache-datum :
+;;   (listof path?) (listof symbol?) hash? (or/c #f (listof symbol?))
+;;   any/c any/c any/c boolean? any/c -> datum?
+;;   Serialize the side metadata and lowered top-level datum produced by the bridge.
+(define (module-bridge-result->cache-datum local-source-paths
+                                           provider-names
+                                           module-kinds
+                                           elidable-module-names
+                                           root-export-bindings
+                                           root-source-path
+                                           metric-rows
+                                           needs-regexp-provider?
+                                           lowered-datum)
+  `(module-bridge-result
+    (local-source-paths
+     ,@(for/list ([path (in-list local-source-paths)])
+         (cache-readable-datum path)))
+    (provider-names ,provider-names)
+    (module-kinds ,(cache-readable-datum module-kinds))
+    (elidable-module-names ,(cache-readable-datum elidable-module-names))
+    (console-root-export-bindings ,(cache-readable-datum root-export-bindings))
+    (console-root-source-path ,(cache-readable-datum root-source-path))
+    (metric-rows ,(cache-readable-datum metric-rows))
+    (needs-regexp-provider? ,needs-regexp-provider?)
+    (lowered-top-level-datum ,(cache-readable-datum lowered-datum))))
+
+;; cache-datum->module-bridge-result-payload : any/c -> (or/c vector? #f)
+;;   Rehydrate one cached bridge result and its validation metadata.
+(define (cache-datum->module-bridge-result-payload datum)
+  (match datum
+    [`(module-bridge-result
+       (local-source-paths ,path-data ...)
+       (provider-names ,provider-names)
+       (module-kinds ,module-kinds-datum)
+       (elidable-module-names ,elidable-module-names-datum)
+       (console-root-export-bindings ,root-export-bindings-datum)
+       (console-root-source-path ,root-source-path-datum)
+       (metric-rows ,metric-rows-datum)
+       (needs-regexp-provider? ,needs-regexp-provider?)
+       (lowered-top-level-datum ,lowered-datum))
+     (define local-source-paths
+       (for/list ([path-datum (in-list path-data)])
+         (cache-readable->datum path-datum)))
+     (define module-kinds
+       (cache-readable->datum module-kinds-datum))
+     (define elidable-module-names
+       (cache-readable->datum elidable-module-names-datum))
+     (define root-export-bindings
+       (cache-readable->datum root-export-bindings-datum))
+     (define root-source-path
+       (cache-readable->datum root-source-path-datum))
+     (define metric-rows
+       (cache-readable->datum metric-rows-datum))
+     (and (andmap path? local-source-paths)
+          (symbol-list? provider-names)
+          (hash? module-kinds)
+          (or (not elidable-module-names)
+              (symbol-list? elidable-module-names))
+          (boolean? needs-regexp-provider?)
+          (vector
+           (sort (map simplify-path local-source-paths)
+                 string<?
+                 #:key path->string)
+           provider-names
+           module-kinds
+           elidable-module-names
+           root-export-bindings
+           root-source-path
+           metric-rows
+           needs-regexp-provider?
+           (cache-readable->datum lowered-datum)))]
+    [_ #f]))
+
+;; read-module-bridge-result-cache : path? -> (or/c vector? #f)
+;;   Read a cached bridge result when its source/provider fingerprint still matches.
+(define (read-module-bridge-result-cache cache-path)
+  (and (not (current-provider-cache-force?))
+       (file-exists? cache-path)
+       (with-handlers ([exn:fail? (lambda (_exn) #f)])
+         (match (call-with-input-file cache-path read)
+           [`(,cached-fingerprint ,payload)
+            (define decoded
+              (cache-datum->module-bridge-result-payload payload))
+            (and decoded
+                 (equal? cached-fingerprint
+                         (module-bridge-result-fingerprint
+                          (vector-ref decoded 0)
+                          (vector-ref decoded 2)))
+                 decoded)]
+           [_ #f]))))
+
+;; write-module-bridge-result-cache! :
+;;   path? (listof path?) (listof symbol?) hash? (or/c #f (listof symbol?))
+;;   any/c any/c any/c boolean? any/c -> void?
+;;   Persist one fully composed bridge result under its dynamic fingerprint.
+(define (write-module-bridge-result-cache! cache-path
+                                           local-source-paths
+                                           provider-names
+                                           module-kinds
+                                           elidable-module-names
+                                           root-export-bindings
+                                           root-source-path
+                                           metric-rows
+                                           needs-regexp-provider?
+                                           lowered-datum)
+  (write-provider-cache!
+   cache-path
+   (module-bridge-result-fingerprint local-source-paths module-kinds)
+   (module-bridge-result->cache-datum local-source-paths
+                                      provider-names
+                                      module-kinds
+                                      elidable-module-names
+                                      root-export-bindings
+                                      root-source-path
+                                      metric-rows
+                                      needs-regexp-provider?
+                                      lowered-datum)))
+
+;; module-bridge-result-cache-payload->syntax : vector? -> syntax?
+;;   Restore bridge side channels and return the cached lowered top-level syntax.
+(define (module-bridge-result-cache-payload->syntax payload)
+  (current-source-module-provider-names (vector-ref payload 1))
+  (current-module-bridge-module-kinds (vector-ref payload 2))
+  (current-module-bridge-elidable-module-names (vector-ref payload 3))
+  (current-console-bridge-root-export-bindings (vector-ref payload 4))
+  (current-console-bridge-root-source-path (vector-ref payload 5))
+  (hash-set! (current-webify-bridge-stats)
+             'module-bridge-metric-rows
+             (vector-ref payload 6))
+  (current-module-bridge-needs-regexp-provider? (vector-ref payload 7))
+  (datum->syntax #f (vector-ref payload 8)))
 
 ;; local-module-report-cache-path : path-string? -> path?
 ;;   Cache one extracted local module report per source file.
@@ -5346,9 +5518,10 @@
                    [else 'installed-provider]))))))
   (webracket/base-local-module-graph bridge-root bridge-reports registry module-kinds))
 
-;; webracket/base-file->local-module-graph : path-string? -> webracket/base-local-module-graph?
-;;   Build a local root graph plus demanded provider reports for the module bridge.
-(define (webracket/base-file->local-module-graph filename)
+;; webracket/base-file->local-module-graph+sources :
+;;   path-string? -> (values webracket/base-local-module-graph? (listof path?))
+;;   Build a local root graph plus the source paths that validate its caches.
+(define (webracket/base-file->local-module-graph+sources filename)
   (define resolved (simplify-path (path->complete-path filename)))
   (define cache-path (local-module-graph-cache-path resolved))
   (define cached
@@ -5396,13 +5569,22 @@
                                               reports
                                               local-source-paths)
              (values root reports local-source-paths)])))]))
-  (with-module-bridge-timing
-   'local-module-graph-reports->graph
-   (lambda ()
-     (webracket/base-reports->module-graph
-      root
-      reports
-      #:local-source-paths local-source-paths))))
+  (define graph
+    (with-module-bridge-timing
+     'local-module-graph-reports->graph
+     (lambda ()
+       (webracket/base-reports->module-graph
+        root
+        reports
+        #:local-source-paths local-source-paths))))
+  (values graph local-source-paths))
+
+;; webracket/base-file->local-module-graph : path-string? -> webracket/base-local-module-graph?
+;;   Build a local root graph plus demanded provider reports for the module bridge.
+(define (webracket/base-file->local-module-graph filename)
+  (define-values (graph _local-source-paths)
+    (webracket/base-file->local-module-graph+sources filename))
+  graph)
 
 ;; module-bridge-root-export-bindings : webracket/base-local-module-graph? webify-module-composition? -> (listof hash?)
 ;;   Collect authoritative public export bindings for the root user module.
@@ -5441,67 +5623,114 @@
 (define (module-file->module-bridge-top-level filename)
   (define resolved-filename
     (path->string (simplify-path (path->complete-path filename))))
-  (define graph
-    (with-driver-timing
-     'module-bridge-extract
+  (define cache-path
+    (module-bridge-result-cache-path resolved-filename))
+  (define (read-cache)
+    (with-module-bridge-timing
+     'module-bridge-result-cache-lookup
      (lambda ()
-       (with-handlers ([exn:fail?
-                        (lambda (e)
-                         (raise-arguments-error
-                           'read-top-level-from-file
-                           "#lang webracket/base module bridge graph extraction failed"
-                           "file" filename
-                           "message" (exn-message e)))])
-         (webracket/base-file->local-module-graph filename)))))
-  (current-source-module-provider-names
-   (module-reports->provider-names (webracket/base-local-module-graph-reports graph)))
-  (current-module-bridge-module-kinds
-   (webracket/base-local-module-graph-module-kinds graph))
-  (current-module-bridge-elidable-module-names
-   (bridge-module-elidable-public-modules graph))
-  (define composition
-    (with-driver-timing
-     'module-bridge-compose
+       (read-module-bridge-result-cache cache-path))))
+  (define (cache-hit->syntax cached)
+    (provider-cache-log "#lang webracket/base module bridge result hit: ~a"
+                        resolved-filename)
+    (with-module-bridge-timing
+     'module-bridge-result-cache-hit
      (lambda ()
-       (with-handlers ([exn:fail?
-                        (lambda (e)
-                          (raise-arguments-error
-                           'read-top-level-from-file
-                           "#lang webracket/base module bridge composition failed"
-                           "root" (webracket/base-local-module-graph-root graph)
-                           "message" (exn-message e)))])
-         (parameterize ([current-composer-primitive-import-cell-overrides
-                         (module-composer-primitive-overrides)])
-           (webify-compose-module-registry/roots/composition
-            (webracket/base-local-module-graph-registry graph)
-            (list (webracket/base-local-module-graph-root graph))
-            #:define-export-aliases? #f
-            #:serializable?-box     #f
-            #:datum-intern?         #f
-            #:target                #f
-            #:allow-set!-undefined? #f
-            #:unsafe-mode?          #f
-            #:enforce-constant?     #t
-            #:allow-inline?         #t
-            #:no-prompt?            #f
-            #:prim-knowns           (hasheq)
-            #:primitives            (hasheq)
-            #:compiler-query        (lambda (v) #f)
-            #:get-import-knowns     (lambda (key) (values #f #f #f))
-            #:import-keys           #f))))))
-  (current-console-bridge-root-export-bindings
-   (module-bridge-root-export-bindings graph composition))
-  (current-console-bridge-root-source-path resolved-filename)
-  (hash-set! (current-webify-bridge-stats)
-             'module-bridge-metric-rows
-             (module-bridge-graph-metric-rows graph composition))
-  (define bridge-datum
-    (webify-module-composition-datum composition))
-  (current-module-bridge-needs-regexp-provider?
-   (module-bridge-datum-needs-regexp-provider? bridge-datum))
-  (datum->syntax
-   #f
-   (webify-module-composition-with-tail composition '((void)))))
+       (module-bridge-result-cache-payload->syntax cached))))
+  (define (compose-and-cache)
+    (provider-cache-log "#lang webracket/base module bridge result miss: ~a"
+                        resolved-filename)
+    (define-values (graph local-source-paths)
+      (with-driver-timing
+       'module-bridge-extract
+       (lambda ()
+         (with-handlers ([exn:fail?
+                          (lambda (e)
+                            (raise-arguments-error
+                             'read-top-level-from-file
+                             "#lang webracket/base module bridge graph extraction failed"
+                             "file" filename
+                             "message" (exn-message e)))])
+           (webracket/base-file->local-module-graph+sources filename)))))
+    (define provider-names
+      (module-reports->provider-names
+       (webracket/base-local-module-graph-reports graph)))
+    (define module-kinds
+      (webracket/base-local-module-graph-module-kinds graph))
+    (define elidable-module-names
+      (bridge-module-elidable-public-modules graph))
+    (current-source-module-provider-names provider-names)
+    (current-module-bridge-module-kinds module-kinds)
+    (current-module-bridge-elidable-module-names elidable-module-names)
+    (define composition
+      (with-driver-timing
+       'module-bridge-compose
+       (lambda ()
+         (with-handlers ([exn:fail?
+                          (lambda (e)
+                            (raise-arguments-error
+                             'read-top-level-from-file
+                             "#lang webracket/base module bridge composition failed"
+                             "root" (webracket/base-local-module-graph-root graph)
+                             "message" (exn-message e)))])
+           (parameterize ([current-composer-primitive-import-cell-overrides
+                           (module-composer-primitive-overrides)])
+             (webify-compose-module-registry/roots/composition
+              (webracket/base-local-module-graph-registry graph)
+              (list (webracket/base-local-module-graph-root graph))
+              #:define-export-aliases? #f
+              #:serializable?-box     #f
+              #:datum-intern?         #f
+              #:target                #f
+              #:allow-set!-undefined? #f
+              #:unsafe-mode?          #f
+              #:enforce-constant?     #t
+              #:allow-inline?         #t
+              #:no-prompt?            #f
+              #:prim-knowns           (hasheq)
+              #:primitives            (hasheq)
+              #:compiler-query        (lambda (v) #f)
+              #:get-import-knowns     (lambda (key) (values #f #f #f))
+              #:import-keys           #f))))))
+    (define root-export-bindings
+      (module-bridge-root-export-bindings graph composition))
+    (current-console-bridge-root-export-bindings root-export-bindings)
+    (current-console-bridge-root-source-path resolved-filename)
+    (define metric-rows
+      (module-bridge-graph-metric-rows graph composition))
+    (hash-set! (current-webify-bridge-stats)
+               'module-bridge-metric-rows
+               metric-rows)
+    (define bridge-datum
+      (webify-module-composition-datum composition))
+    (define needs-regexp-provider?
+      (module-bridge-datum-needs-regexp-provider? bridge-datum))
+    (current-module-bridge-needs-regexp-provider? needs-regexp-provider?)
+    (define lowered-datum
+      (webify-module-composition-with-tail composition '((void))))
+    (write-module-bridge-result-cache! cache-path
+                                       local-source-paths
+                                       provider-names
+                                       module-kinds
+                                       elidable-module-names
+                                       root-export-bindings
+                                       resolved-filename
+                                       metric-rows
+                                       needs-regexp-provider?
+                                       lowered-datum)
+    (datum->syntax #f lowered-datum))
+  (define cached-before-lock
+    (read-cache))
+  (if cached-before-lock
+      (cache-hit->syntax cached-before-lock)
+      (call-with-provider-cache-lock
+       cache-path
+       (lambda ()
+         (define cached-after-lock
+           (read-cache))
+         (if cached-after-lock
+             (cache-hit->syntax cached-after-lock)
+             (compose-and-cache))))))
 
 ;; module-file->module-bridge-top-level/local-only : path-string? -> (or/c syntax? #f)
 ;;   Use the default bridge only for local or explicitly staged provider graphs.
