@@ -341,7 +341,7 @@ for its dependency on byte/string UTF-8 decoding support.
 
 ## Performance Notes
 
-### Split Sidecar Program-Only Fast Path Needs FFI Initializer Cleanup
+### Split Sidecar Program-Only Fast Path Depends On Filtered FFI Initializers
 
 An attempted optimization extended the split-runtime program-only fast path from
 `--split-runtime-cache-reference` to ordinary sidecar `--split-runtime` builds
@@ -352,18 +352,19 @@ compatible with that boundary.
 The resulting sidecar program failed to assemble with an unknown `$js-global-this`
 function. The generated program module still contained FFI primitive procedure
 initialization for globals such as `$prim:js-global-this`, but the corresponding
-host import/function was not present in that program-only sidecar shape. The
-reference-only path does not emit those stale primitive globals for the same
-tiny fixture.
+host import/function was not present in that program-only sidecar shape.
 
-Keep the program-only fast path restricted to reference-only output until the
-program-only builder and sidecar initializer shape agree about where FFI
-primitive globals and host imports live. A safe follow-up should either:
+The root cause was that normal entry generation captured
+`entry-ffi-primitive-initializer-forms` before
+`runtime-ffi-state-filter-current-bindings!` had selected the active FFI
+bindings. The existing reference-only fast path avoided the stale initializer
+list by recomputing FFI primitive initializer forms from the filtered
+`ffi-state`. Program-only sidecar generation now uses that filtered initializer
+shape too.
 
-- make sidecar program-only forms use the same FFI/global ownership shape as
-  reference-only forms, or
-- prove a narrower sidecar fast path that only fires when no program-side FFI
-  primitive globals or initializers can be emitted.
+The sidecar fast path still must be guarded by a stable core wasm cache hit.
+If the stable core wasm is missing or provider-cache forcing is enabled, the
+compiler has to build the full runtime module so the sidecar can be assembled.
 
 ### Core Allocation Ticks Cannot Depend On JS Logging
 

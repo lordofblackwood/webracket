@@ -651,18 +651,19 @@
     (define entry-error-syntax-handler-late-initializer-forms
       (if (current-split-runtime?) '() error-syntax-handler-late-initializer-forms))
 
-    ;; build-entry-ffi-primitive-initializer-forms : -> (listof datum?)
+    ;; build-entry-ffi-primitive-initializer-forms : boolean? -> (listof datum?)
     ;;   Return FFI primitive initializers for the entry currently being built.
-    (define (build-entry-ffi-primitive-initializer-forms)
+    (define (build-entry-ffi-primitive-initializer-forms program-only?)
       (if (and (current-split-runtime?)
-               (current-split-runtime-reference-only?))
+               (or program-only?
+                   (current-split-runtime-reference-only?)))
           (runtime-ffi-state-primitive-initializer-forms ffi-state)
           entry-ffi-primitive-initializer-forms))
 
-    ;; build-entry-function-form : -> datum?
+    ;; build-entry-function-form : [#:program-only? boolean?] -> datum?
     ;;   Build the program entry function using the current split/monolithic
     ;;   initializer choices.
-    (define (build-entry-function-form)
+    (define (build-entry-function-form #:program-only? [program-only? #f])
       (entry-function-form
        entry-locals
        entry-body
@@ -695,7 +696,7 @@
        #:primitive-initializer-forms
        entry-primitive-initializer-forms
        #:ffi-primitive-initializer-forms
-       (build-entry-ffi-primitive-initializer-forms)
+       (build-entry-ffi-primitive-initializer-forms program-only?)
        #:unsafe-ffi-primitive-table-initializer-forms
        entry-unsafe-ffi-primitive-table-initializer-forms
        #:security-guard-current-initializer-forms
@@ -733,7 +734,7 @@
        (for/list ([form (in-list entry-support-forms)]
                   #:when (split-program-entry-support-form? form))
          form)
-       (list (build-entry-function-form))))
+       (list (build-entry-function-form #:program-only? #t))))
 
     ;;;
     ;;; WEB-ASSEMBLY
@@ -2051,7 +2052,8 @@
     (define split-runtime-program-only-candidate?
       (and (current-split-runtime?)
            split-runtime-boundary-metadata
-           (current-split-runtime-reference-only?)))
+           (or (current-split-runtime-reference-only?)
+               split-runtime-core-wasm-cache-hit-now?)))
     (define split-runtime-reference-compatible-now?
       (and split-runtime-program-only-candidate?
            (time-runtime-step
