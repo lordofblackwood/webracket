@@ -2126,6 +2126,10 @@
              stable-runtime-active-ffi-imports-wat
              #:stable-runtime-active-ffi-funcs-wat
              stable-runtime-active-ffi-funcs-wat
+             #:runtime-owned-constant-global-names
+             core-runtime-program-import-constant-global-names
+             #:runtime-owned-constant-data-names
+             core-runtime-program-import-constant-data-names
              #:extra-program-function-names (split-program-ffi-function-names)
              #:extra-program-global-names (split-program-ffi-global-names)
              #:described-primitives described-primitives

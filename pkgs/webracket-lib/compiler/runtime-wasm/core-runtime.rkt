@@ -8,6 +8,7 @@
          core-runtime-import-function-names
          core-runtime-program-import-tag-names
          core-runtime-program-preinitialized-global-names
+         core-runtime-program-import-constant-data-names
          core-runtime-program-import-constant-global-names
          core-runtime-program-import-global-names
          generate-core-runtime)
@@ -22,7 +23,10 @@
                   runtime-constant-registry-initialize-strings
                   runtime-constant-registry-initialize-symbols!
                   bytes-global-name
+                  bytes-data-name
                   string-global-name
+                  string-data-name
+                  symbol-data-name
                   symbol-global-name)
          (only-in "js-imports.rkt"
                   js-host-import-forms
@@ -194,6 +198,12 @@
   (for/list ([constant (in-list core-runtime-string-constants)])
     (string-global-name (first constant))))
 
+;; core-runtime-string-constant-data-names : (listof symbol?)
+;;   Enumerate stable string data segments declared by the standalone core runtime.
+(define core-runtime-string-constant-data-names
+  (for/list ([constant (in-list core-runtime-string-constants)])
+    (string-data-name (first constant))))
+
 ;; core-runtime-string-constant-declaration-forms : (listof datum?)
 ;;   Declare data segments and globals for core-owned string constants.
 (define core-runtime-string-constant-declaration-forms
@@ -284,6 +294,12 @@
   (for/list ([constant (in-list core-runtime-bytes-constants)])
     (bytes-global-name (first constant))))
 
+;; core-runtime-bytes-constant-data-names : (listof symbol?)
+;;   Enumerate stable byte-string data segments declared by the standalone core runtime.
+(define core-runtime-bytes-constant-data-names
+  (for/list ([constant (in-list core-runtime-bytes-constants)])
+    (bytes-data-name (first constant))))
+
 ;; core-runtime-bytes-constant-declaration-forms : (listof datum?)
 ;;   Declare data segments and globals for core-owned byte-string constants.
 (define core-runtime-bytes-constant-declaration-forms
@@ -311,6 +327,13 @@
   (for/list ([symbol (in-list (sort (remove-duplicates core-runtime-symbol-constants eq?)
                                     symbol<?))])
     (symbol-global-name symbol)))
+
+;; core-runtime-symbol-constant-data-names : (listof symbol?)
+;;   Enumerate stable symbol data segments declared by the standalone core runtime.
+(define core-runtime-symbol-constant-data-names
+  (for/list ([symbol (in-list (sort (remove-duplicates core-runtime-symbol-constants eq?)
+                                    symbol<?))])
+    (symbol-data-name symbol)))
 
 ;; core-runtime-symbol-constant-declaration-forms : (listof datum?)
 ;;   Declare data segments and globals for core-owned symbol constants.
@@ -412,6 +435,13 @@
             $dummy-treelist-node
             $empty-treelist)
           namespace-module-registry-global-names))
+
+;; core-runtime-program-import-constant-data-names : (listof symbol?)
+;;   Name core constant data segments that must stay on the runtime side.
+(define core-runtime-program-import-constant-data-names
+  (append core-runtime-string-constant-data-names
+          core-runtime-bytes-constant-data-names
+          core-runtime-symbol-constant-data-names))
 
 ;; core-runtime-global-names : (listof symbol?)
 ;;   Enumerate stable globals declared by the standalone core runtime.

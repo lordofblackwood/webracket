@@ -1070,6 +1070,34 @@
             [a-name #t]
             [else #f]))))
 
+;; split-runtime-top-name-summary : (listof symbol?) -> string?
+;;   Render a short stable list of names for runtime boundary diagnostics.
+(define (split-runtime-top-name-summary names)
+  (if (null? names)
+      "-"
+      (string-join
+       (for/list ([name (in-list (take (sort names symbol<?)
+                                       (min 8 (length names))))])
+         (symbol->string name))
+       ", ")))
+
+;; record-split-runtime-boundary-blocker-metrics! :
+;;   (listof symbol?) (listof symbol?) boolean? -> void?
+;;   Record program-owned names that force a non-cacheable runtime core.
+(define (record-split-runtime-boundary-blocker-metrics! global-names
+                                                        data-names
+                                                        stable-core?)
+  (runtime-metric-add! "runtime:split-stable-core-cache-key-eligible?"
+                       (if stable-core? "yes" "no"))
+  (runtime-metric-add! "runtime:split-runtime-pulled-program-global-count"
+                       (length global-names))
+  (runtime-metric-add! "runtime:split-runtime-pulled-program-data-count"
+                       (length data-names))
+  (runtime-metric-add! "runtime:split-runtime-pulled-program-global-top-names"
+                       (split-runtime-top-name-summary global-names))
+  (runtime-metric-add! "runtime:split-runtime-pulled-program-data-top-names"
+                       (split-runtime-top-name-summary data-names)))
+
 ;; constant-declaration-form? : datum? -> boolean?
 ;;   Check whether a form declares a generated runtime/program constant.
 (define (constant-declaration-form? form)
@@ -1707,6 +1735,11 @@
                                                       #:runtime-index
                                                       runtime-source-index)
      module-data-name))
+  (define pulled-runtime-data-names
+    (for/list ([form (in-list pulled-runtime-data-forms)]
+               #:do [(define name (module-data-name form))]
+               #:when name)
+      name))
   (define pulled-runtime-global-forms
     (sorted-named-forms
      (reverse pulled-runtime-global-forms/reversed)
@@ -1716,6 +1749,10 @@
          (null? pulled-runtime-data-forms)
          (null? pulled-runtime-global-forms)
          core-cache-key))
+  (record-split-runtime-boundary-blocker-metrics!
+   pulled-runtime-global-names
+   pulled-runtime-data-names
+   (and effective-core-cache-key #t))
   (define runtime-body-forms-cache #f)
   (define (runtime-body-forms!)
     (unless runtime-forms
@@ -1895,6 +1932,22 @@
    '((type $T (func))
      (func $host (import "env" "host"))
      (func $other (import "env" "other"))))
+
+  (parameterize ([current-runtime-metric-rows '()])
+    (record-split-runtime-boundary-blocker-metrics!
+     '($program:global-b $program:global-a)
+     '($program:data-a)
+     #f)
+    (define rows (current-runtime-metric-rows))
+    (check-equal?
+     (second (assoc "runtime:split-stable-core-cache-key-eligible?" rows))
+     "no")
+    (check-equal?
+     (second (assoc "runtime:split-runtime-pulled-program-global-count" rows))
+     "2")
+    (check-equal?
+     (second (assoc "runtime:split-runtime-pulled-program-global-top-names" rows))
+     "$program:global-a, $program:global-b"))
 
   (define sample-full-module
     `(module

@@ -99,6 +99,8 @@
 ;;   #:program-function-names list? #:result-global symbol?
 ;;   #:top-level-variable-declarations list? #:string-constants list?
 ;;   #:bytes-constants list? #:symbol-constants list?
+;;   [#:runtime-owned-constant-global-names list?]
+;;   [#:runtime-owned-constant-data-names list?]
 ;;   [#:extra-program-function-names list?] [#:extra-program-global-names list?]
 ;;   -> (datum? -> boolean?)
 ;;   Build a classifier for program-specific generated module forms.
@@ -109,8 +111,16 @@
          #:string-constants string-constants
          #:bytes-constants bytes-constants
          #:symbol-constants symbol-constants
+         #:runtime-owned-constant-global-names
+         [runtime-owned-constant-global-names '()]
+         #:runtime-owned-constant-data-names
+         [runtime-owned-constant-data-names '()]
          #:extra-program-function-names [extra-program-function-names '()]
          #:extra-program-global-names [extra-program-global-names '()])
+  (define runtime-owned-constant-global-name-set
+    (list->eq-set runtime-owned-constant-global-names))
+  (define runtime-owned-constant-data-name-set
+    (list->eq-set runtime-owned-constant-data-names))
   (define program-function-name-set
     (list->eq-set
      (append program-function-names
@@ -125,13 +135,24 @@
                  #:do [(define name (module-global-name form))]
                  #:when name)
         name)
-      (program-constant-global-names string-constants
-                                     bytes-constants
-                                     symbol-constants))))
+      (for/list ([name (in-list (program-constant-global-names
+                                  string-constants
+                                  bytes-constants
+                                  symbol-constants))]
+                 #:unless (hash-ref runtime-owned-constant-global-name-set
+                                     name
+                                     #f))
+        name))))
   (define program-data-name-set
-    (list->eq-set (program-constant-data-names string-constants
-                                               bytes-constants
-                                               symbol-constants)))
+    (list->eq-set
+     (for/list ([name (in-list (program-constant-data-names
+                                 string-constants
+                                 bytes-constants
+                                 symbol-constants))]
+                #:unless (hash-ref runtime-owned-constant-data-name-set
+                                    name
+                                    #f))
+       name)))
   (lambda (form)
     (define func-name (module-func-name form))
     (define global-name (module-global-name form))
@@ -147,6 +168,8 @@
 ;;   list? #:program-function-names list? #:result-global symbol?
 ;;         #:top-level-variable-declarations list? #:string-constants list?
 ;;         #:bytes-constants list? #:symbol-constants list?
+;;         [#:runtime-owned-constant-global-names list?]
+;;         [#:runtime-owned-constant-data-names list?]
 ;;         [#:extra-program-function-names list?] [#:extra-program-global-names list?]
 ;;         -> (values list? list?)
 ;;   Split a module body into runtime-specific and program-specific forms.
@@ -158,6 +181,10 @@
          #:string-constants string-constants
          #:bytes-constants bytes-constants
          #:symbol-constants symbol-constants
+         #:runtime-owned-constant-global-names
+         [runtime-owned-constant-global-names '()]
+         #:runtime-owned-constant-data-names
+         [runtime-owned-constant-data-names '()]
          #:extra-program-function-names [extra-program-function-names '()]
          #:extra-program-global-names [extra-program-global-names '()])
   (define program-module-form?
@@ -168,6 +195,8 @@
      #:string-constants string-constants
      #:bytes-constants bytes-constants
      #:symbol-constants symbol-constants
+     #:runtime-owned-constant-global-names runtime-owned-constant-global-names
+     #:runtime-owned-constant-data-names runtime-owned-constant-data-names
      #:extra-program-function-names extra-program-function-names
      #:extra-program-global-names extra-program-global-names))
   (for/fold ([runtime-forms '()]
@@ -377,6 +406,8 @@
 ;;         [#:stable-runtime-active-ffi-foreigns list?]
 ;;         [#:stable-runtime-active-ffi-imports-wat list?]
 ;;         [#:stable-runtime-active-ffi-funcs-wat list?]
+;;         [#:runtime-owned-constant-global-names list?]
+;;         [#:runtime-owned-constant-data-names list?]
 ;;         [#:extra-program-function-names list?] [#:extra-program-global-names list?]
 ;;         #:described-primitives (listof symbol?) #:used-primitives (listof symbol?)
 ;;         #:console-bridge-primitive-names (listof symbol?)
@@ -404,6 +435,10 @@
          [stable-runtime-active-ffi-imports-wat active-ffi-imports-wat]
          #:stable-runtime-active-ffi-funcs-wat
          [stable-runtime-active-ffi-funcs-wat active-ffi-funcs-wat]
+         #:runtime-owned-constant-global-names
+         [runtime-owned-constant-global-names '()]
+         #:runtime-owned-constant-data-names
+         [runtime-owned-constant-data-names '()]
          #:extra-program-function-names [extra-program-function-names '()]
          #:extra-program-global-names [extra-program-global-names '()]
          #:described-primitives described-primitives
@@ -425,6 +460,8 @@
      #:string-constants string-constants
      #:bytes-constants bytes-constants
      #:symbol-constants symbol-constants
+     #:runtime-owned-constant-global-names runtime-owned-constant-global-names
+     #:runtime-owned-constant-data-names runtime-owned-constant-data-names
      #:extra-program-function-names extra-program-function-names
      #:extra-program-global-names extra-program-global-names))
   (runtime-record-split-module-metrics! runtime-forms-before-prune
@@ -1116,6 +1153,41 @@
                   (global $program-global (mut (ref eq)) (ref.null eq))
                   (func $entry)
                   (func $program)))
+
+  (define runtime-owned-constant-sample-module
+    '(module
+      (func $runtime
+            (drop (global.get $symbol:check-list)))
+      (func $entry
+            (drop (global.get $symbol:check-list)))
+      (data $symbol-data:check-list "check-list")
+      (global $symbol:check-list (mut (ref eq)) (ref.i31 (i32.const 0)))))
+
+  (define-values (runtime-owned-constant-runtime-forms
+                  runtime-owned-constant-program-forms)
+    (split-module-forms
+     runtime-owned-constant-sample-module
+     #:program-function-names '()
+     #:result-global '$result
+     #:top-level-variable-declarations '()
+     #:string-constants '()
+     #:bytes-constants '()
+     #:symbol-constants '((check-list check-list))
+     #:runtime-owned-constant-global-names '($symbol:check-list)
+     #:runtime-owned-constant-data-names '($symbol-data:check-list)))
+
+  (check-not-false
+   (member '(data $symbol-data:check-list "check-list")
+           runtime-owned-constant-runtime-forms))
+  (check-not-false
+   (member '(global $symbol:check-list (mut (ref eq)) (ref.i31 (i32.const 0)))
+           runtime-owned-constant-runtime-forms))
+  (check-false
+   (member '(data $symbol-data:check-list "check-list")
+           runtime-owned-constant-program-forms))
+  (check-false
+   (member '(global $symbol:check-list (mut (ref eq)) (ref.i31 (i32.const 0)))
+           runtime-owned-constant-program-forms))
 
   (define split-extra-program-sample-module
     '(module
