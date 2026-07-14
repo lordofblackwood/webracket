@@ -215,6 +215,24 @@
           (get-output-string err)
           (- end-ms start-ms)))
 
+;; compiler-timing-heading-line? : string? -> boolean?
+;;   Check whether a stdout line starts a compiler timing/report section.
+(define (compiler-timing-heading-line? line)
+  (and (string-prefix? line "=== ")
+       (string-suffix? line " ===")))
+
+;; compiler-stdout->program-output : string? -> string?
+;;   Return only the program-output prefix before compiler timing sections.
+(define (compiler-stdout->program-output stdout)
+  (string-join
+   (let loop ([lines (string-split stdout "\n" #:trim? #f)]
+              [acc '()])
+     (cond
+       [(null? lines) (reverse acc)]
+       [(compiler-timing-heading-line? (car lines)) (reverse acc)]
+       [else (loop (cdr lines) (cons (car lines) acc))]))
+   "\n"))
+
 ;; write-log! : path-string? string? string? -> void?
 ;;   Save a captured subprocess transcript.
 (define (write-log! path stdout stderr)
@@ -316,7 +334,8 @@
               stderr)
   (values (and ok?
                (or (not expect-rx)
-                   (regexp-match? expect-rx stdout)))
+                   (regexp-match? expect-rx
+                                  (compiler-stdout->program-output stdout))))
           wall-ms))
 
 
@@ -453,7 +472,8 @@
   (define expect-ok?
     (and ok?
          (or (not expect-rx)
-             (regexp-match? expect-rx stdout))))
+             (regexp-match? expect-rx
+                            (compiler-stdout->program-output stdout)))))
   (define split-status
     (transcript-split-cache-status transcript))
   (define cache-ok?

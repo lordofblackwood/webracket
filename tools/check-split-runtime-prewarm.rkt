@@ -218,6 +218,24 @@
                   (get-output-string err)
                   (- end-ms start-ms)))
 
+;; compiler-timing-heading-line? : string? -> boolean?
+;;   Check whether a stdout line starts a compiler timing/report section.
+(define (compiler-timing-heading-line? line)
+  (and (string-prefix? line "=== ")
+       (string-suffix? line " ===")))
+
+;; compiler-stdout->program-output : string? -> string?
+;;   Return only the program-output prefix before compiler timing sections.
+(define (compiler-stdout->program-output stdout)
+  (string-join
+   (let loop ([lines (string-split stdout "\n" #:trim? #f)]
+              [acc '()])
+     (cond
+       [(null? lines) (reverse acc)]
+       [(compiler-timing-heading-line? (car lines)) (reverse acc)]
+       [else (loop (cdr lines) (cons (car lines) acc))]))
+   "\n"))
+
 ;; executable-label : path-string? -> string?
 ;;   Format a path or synthetic runner name for command transcripts.
 (define (executable-label exe)
@@ -827,14 +845,16 @@ RKT
                      compile-log))
   (when (and (check-case-expect case)
              (not (regexp-match? (check-case-expect case)
-                                 (command-result-stdout compile-result))))
-    (record-failure! "~a: stdout did not match expected output regexp ~s"
+                                  (compiler-stdout->program-output
+                                   (command-result-stdout compile-result)))))
+    (record-failure! "~a: program stdout did not match expected output regexp ~s"
                      (check-case-name case)
                      (check-case-expect case)))
   (when (and (check-case-reject case)
              (regexp-match? (check-case-reject case)
-                            (command-result-stdout compile-result)))
-    (record-failure! "~a: stdout matched rejected output regexp ~s"
+                            (compiler-stdout->program-output
+                             (command-result-stdout compile-result))))
+    (record-failure! "~a: program stdout matched rejected output regexp ~s"
                      (check-case-name case)
                      (check-case-reject case)))
   (when (and expect-module-bridge-result-cache-hit?
