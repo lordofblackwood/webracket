@@ -40,7 +40,8 @@
 ;;   symbol? boolean? boolean? boolean? real? string? string? path?
 ;;   (or/c real? #f) (or/c real? #f) (or/c real? #f) (or/c real? #f)
 ;;   (or/c real? #f) exact-nonnegative-integer? exact-nonnegative-integer?
-;;   symbol? -> mode-result?
+;;   symbol? (or/c string? #f) (or/c string? #f) (or/c string? #f)
+;;   -> mode-result?
 ;;   Summary of one compile/run mode.
 (struct mode-result
   (name
@@ -58,7 +59,10 @@
    generate-runtime
    program-wasm-size
    runtime-wasm-size
-   split-cache-status)
+   split-cache-status
+   split-imported-name-count
+   split-program-form-count
+   split-program-function-count)
   #:transparent)
 
 
@@ -305,17 +309,33 @@
               stderr)
   (values ok? wall-ms))
 
-;; prewarm-module-bridge-cache! : path? path? path? (or/c regexp? #f)
+;; prewarm-module-bridge-cache! : path? path? path? path? (or/c regexp? #f)
 ;;   -> (values boolean? real?)
 ;;   Compile the source once to populate source-specific module-bridge caches.
-(define (prewarm-module-bridge-cache! racket-exe temp-root provider-cache expect-rx)
+(define (prewarm-module-bridge-cache! racket-exe
+                                      temp-root
+                                      provider-cache
+                                      runtime-cache
+                                      expect-rx)
   (define dest-dir
     (build-path temp-root "dest" "module-bridge-prewarm"))
   (make-directory* dest-dir)
+  (define split-shape-flags
+    (if prewarm-runtime-first?
+        (append
+         (list "--split-runtime"
+               "--split-runtime-cache-reference"
+               "--runtime-provider-cache-dir"
+               (path->string runtime-cache))
+         (if core-only?
+             '("--split-runtime-core-only")
+             '()))
+        '("--no-split-runtime")))
   (define webracket-args
     (append
      (append
-      '("--node" "--run" "--timings" "--no-stdlib" "--no-split-runtime")
+      '("--node" "--run" "--timings" "--no-stdlib")
+      split-shape-flags
       (if frontend-cache?
           '("--frontend-cache")
           '()))
@@ -379,6 +399,17 @@
                       (timing-line->label+seconds line))]
               #:when (and row-label (string=? row-label label)))
     seconds))
+
+;; section-row-value : string? string? string? -> (or/c string? #f)
+;;   Return the raw value for a row in a named report section.
+(define (section-row-value transcript heading label)
+  (for/first ([line (in-list (section-lines transcript heading))]
+              #:do [(define match
+                      (regexp-match #px"^\\s*(.+?)\\s+:\\s+(.+?)\\s*$"
+                                    line))]
+              #:when (and match
+                          (string=? (string-trim (second match)) label)))
+    (string-trim (third match))))
 
 ;; transcript-split-cache-status : string? -> symbol?
 ;;   Classify the split-runtime core cache behavior visible in a transcript.
@@ -497,7 +528,16 @@
                (section-row-seconds transcript "Generate-Code Phases" "generate-runtime")
                (file-size/zero program-wasm)
                (file-size/zero runtime-wasm)
-               split-status))
+               split-status
+               (section-row-value transcript
+                                  "Runtime Generation Metrics"
+                                  "split-imported-name-count")
+               (section-row-value transcript
+                                  "Runtime Generation Metrics"
+                                  "split-program-form-count")
+               (section-row-value transcript
+                                  "Runtime Generation Metrics"
+                                  "split-program-function-count")))
 
 
 ;;; Reporting
@@ -528,10 +568,15 @@
 (define (format-bytes->mb n)
   (~r (/ n 1000000.0) #:precision '(= 3)))
 
+;; format-maybe : (or/c string? #f) -> string?
+;;   Render an optional table value.
+(define (format-maybe v)
+  (or v "-"))
+
 ;; print-row : mode-result? -> void?
 ;;   Print one benchmark table row.
 (define (print-row r)
-  (printf "~a\t~a\t~a\t~a\t~a\t~a\t~a\t~a\t~a\t~a\t~a\n"
+  (printf "~a\t~a\t~a\t~a\t~a\t~a\t~a\t~a\t~a\t~a\t~a\t~a\t~a\t~a\n"
           (mode-result-name r)
           (result-status r)
           (format-duration-ms (mode-result-wall-ms r))
@@ -542,7 +587,10 @@
           (format-seconds (mode-result-generate-runtime r))
           (mode-result-split-cache-status r)
           (format-bytes->mb (mode-result-program-wasm-size r))
-          (format-bytes->mb (mode-result-runtime-wasm-size r))))
+          (format-bytes->mb (mode-result-runtime-wasm-size r))
+          (format-maybe (mode-result-split-imported-name-count r))
+          (format-maybe (mode-result-split-program-form-count r))
+          (format-maybe (mode-result-split-program-function-count r))))
 
 ;; delta-seconds : (or/c real? #f) (or/c real? #f) -> (or/c real? #f)
 ;;   Return `other - base` when both values are available.
@@ -676,20 +724,6 @@
   (when prewarm-staged-providers-first?
     (printf "provider-prewarm\tok\t~a\n"
             (format-duration-ms provider-prewarm-wall-ms)))
-  (define-values (module-bridge-prewarm-ok? module-bridge-prewarm-wall-ms)
-    (if prewarm-module-bridge-first?
-        (prewarm-module-bridge-cache! racket-exe
-                                      temp-root
-                                      provider-cache
-                                      expected-output-regexp)
-        (values #t 0.0)))
-  (unless module-bridge-prewarm-ok?
-    (printf "module bridge prewarm failed; log: ~a\n"
-            (path->string (build-path temp-root "prewarm-module-bridge.log")))
-    (exit 1))
-  (when prewarm-module-bridge-first?
-    (printf "module-bridge-prewarm\tok\t~a\n"
-            (format-duration-ms module-bridge-prewarm-wall-ms)))
   (define-values (prewarm-ok? prewarm-wall-ms)
     (if prewarm-runtime-first?
         (prewarm-split-runtime-cache! racket-exe
@@ -703,6 +737,21 @@
     (exit 1))
   (when prewarm-runtime-first?
     (printf "prewarm\tok\t~a\n" (format-duration-ms prewarm-wall-ms)))
+  (define-values (module-bridge-prewarm-ok? module-bridge-prewarm-wall-ms)
+    (if prewarm-module-bridge-first?
+        (prewarm-module-bridge-cache! racket-exe
+                                      temp-root
+                                      provider-cache
+                                      runtime-cache
+                                      expected-output-regexp)
+        (values #t 0.0)))
+  (unless module-bridge-prewarm-ok?
+    (printf "module bridge prewarm failed; log: ~a\n"
+            (path->string (build-path temp-root "prewarm-module-bridge.log")))
+    (exit 1))
+  (when prewarm-module-bridge-first?
+    (printf "module-bridge-prewarm\tok\t~a\n"
+            (format-duration-ms module-bridge-prewarm-wall-ms)))
   (when (or precompile-compiler-first?
             prewarm-staged-providers-first?
             prewarm-module-bridge-first?
@@ -738,7 +787,7 @@
                        provider-cache
                        runtime-cache
                        expected-output-regexp)))
-  (printf "mode\tstatus\twall\tdriver-total\tcompile-pipeline\tcompile\tassemble\tgenerate-runtime\tcore-cache\tprogram-wasm-mb\truntime-wasm-mb\n")
+  (printf "mode\tstatus\twall\tdriver-total\tcompile-pipeline\tcompile\tassemble\tgenerate-runtime\tcore-cache\tprogram-wasm-mb\truntime-wasm-mb\tsplit-imports\tsplit-program-forms\tsplit-program-funcs\n")
   (define results
     (append (if split-cold (list split-cold) '())
             (list monolithic split-warm)

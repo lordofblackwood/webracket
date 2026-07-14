@@ -20,7 +20,8 @@
          split-core-runtime-module)
 
 (require (only-in "../private/parameters.rkt"
-                  current-runtime-cache-dir)
+                  current-runtime-cache-dir
+                  current-runtime-metric-rows)
          (only-in "../private/wasm-data.rkt"
                   wasm-data
                   wasm-data?
@@ -349,6 +350,34 @@
                       data-names
                       (reverse declare-elem-forms/reversed)
                       (reverse shared-prefix-forms/reversed)))
+
+;; record-split-program-metrics! :
+;;   (listof datum?) (listof symbol?) (listof datum?) [#:program-index split-form-indexes?]
+;;   -> void?
+;;   Record low-cost split-program shape metrics for warm-cache benchmarks.
+(define (record-split-program-metrics! program-forms
+                                       imported-names
+                                       import-forms
+                                       #:program-index [program-index #f])
+  (when (current-runtime-metric-rows)
+    (define effective-program-index
+      (or program-index
+          (build-split-form-indexes program-forms)))
+    (runtime-metric-add! "runtime:split-imported-name-count"
+                         (length imported-names))
+    (runtime-metric-add! "runtime:split-import-form-count"
+                         (length import-forms))
+    (runtime-metric-add! "runtime:split-program-form-count"
+                         (length program-forms))
+    (runtime-metric-add! "runtime:split-program-function-count"
+                         (hash-count (split-form-indexes-function-names
+                                      effective-program-index)))
+    (runtime-metric-add! "runtime:split-program-global-count"
+                         (hash-count (split-form-indexes-global-defs
+                                      effective-program-index)))
+    (runtime-metric-add! "runtime:split-program-data-count"
+                         (hash-count (split-form-indexes-data-forms
+                                      effective-program-index)))))
 
 ;; split-runtime-boundary-metadata :
 ;;   split-form-indexes? (listof symbol?) -> split-runtime-boundary-metadata?
@@ -1584,9 +1613,16 @@
             tag-import-forms))
   (define-values (prefix rest)
     (splitf-at forms-without-core-tags import-insertion-prefix-form?))
+  (define program-forms
+    (append prefix import-forms rest))
+  (record-split-program-metrics! program-forms
+                                 (append (map core-runtime-helper-name selected-helpers)
+                                         imported-global-names
+                                         imported-tag-names)
+                                 import-forms)
   (split-runtime-modules
    effective-core-module
-   `(module ,@prefix ,@import-forms ,@rest)
+   `(module ,@program-forms)
    (append (map core-runtime-helper-name selected-helpers)
            imported-global-names
            imported-tag-names)
@@ -1740,6 +1776,16 @@
      program-body-forms
      #:runtime-index runtime-index
      #:program-index program-index))
+  (define final-program-forms
+    (append program-prefix-forms
+            import-forms
+            program-data-forms
+            program-body-forms
+            program-elem-forms
+            program-supplemental-elem-forms))
+  (record-split-program-metrics! final-program-forms
+                                 imported-names
+                                 import-forms)
   (define (runtime-core-module)
     (define runtime-body-forms
       (runtime-body-forms!))
@@ -1761,13 +1807,7 @@
    (if effective-core-cache-key
        (delay (runtime-core-module))
        (runtime-core-module))
-   `(module
-      ,@program-prefix-forms
-      ,@import-forms
-      ,@program-data-forms
-      ,@program-body-forms
-      ,@program-elem-forms
-      ,@program-supplemental-elem-forms)
+   `(module ,@final-program-forms)
    imported-names
    import-forms
    effective-core-cache-key))
