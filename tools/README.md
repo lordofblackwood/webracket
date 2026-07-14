@@ -207,10 +207,15 @@ racket -S pkgs tools/measure-split-runtime.rkt \
   --include-cache-reference
 ```
 
-Use `--precompile-compiler-first` when you want the benchmark's wall-clock
-columns to reflect warm user compiles instead of also including the cost of
-loading/byte-compiling the compiler entry modules and their dependency graph
-into a fresh isolated compiled root:
+By default, the split-runtime benchmark leaves the normal Racket compiled-file
+roots alone, matching ordinary user invocations. Use
+`--isolate-compiled-root` only when you deliberately want fresh subprocess
+timings to include a private cold compiled root.
+
+Use `--precompile-compiler-first` when you want an isolated-root benchmark's
+wall-clock columns to reflect warm user compiles instead of also including the
+cost of loading/byte-compiling the compiler entry modules and their dependency
+graph into that private root:
 
 ```sh
 racket -S pkgs tools/measure-split-runtime.rkt \
@@ -293,11 +298,14 @@ racket -S pkgs tools/check-split-runtime-prewarm.rkt \
   --check-module-bridge-result-cache
 ```
 
-Use `--precompile-compiler` when you want fresh subprocess timings to reflect a
-private compiled root where the compiler and prewarm tools have already been
-`raco make`d. Without this flag, the checker intentionally starts from an empty
-private `PLTCOMPILEDROOTS`, so command wall time includes compiler module
-compilation/loading outside the driver timing table:
+By default, this checker leaves the normal Racket compiled-file roots alone,
+matching ordinary user invocations. Use `--isolate-compiled-root` only when you
+deliberately want fresh subprocess checks to include a private cold compiled
+root.
+
+Use `--precompile-compiler` when you want an isolated-root check where the
+compiler and prewarm tools have already been `raco make`d. This flag implies a
+private compiled root:
 
 ```sh
 racket -S pkgs tools/check-split-runtime-prewarm.rkt \
@@ -343,6 +351,10 @@ cache, compiles a tiny no-stdlib browser program with `--split-runtime`, serves
 the generated directory, then uses Playwright to verify that the browser fetches
 both the program wasm and the runtime sidecar wasm and that the program prints
 the expected result.
+
+By default, this checker leaves the normal Racket compiled-file roots alone.
+Use `--isolate-compiled-root` only when checking behavior under a private cold
+compiled root.
 
 Run:
 

@@ -63,6 +63,7 @@
 (define shared-runtime-url? #f)
 (define shared-runtime-url "runtime.wasm")
 (define core-only? #f)
+(define isolate-compiled-root? #f)
 (define node-command "node")
 (define node-modules #f)
 (define chrome-executable #f)
@@ -112,6 +113,9 @@
  [("--split-runtime-core-only")
   "Use the core-helper-only split runtime strategy for prewarm and compile."
   (set! core-only? #t)]
+ [("--isolate-compiled-root")
+  "Run subprocesses with a private PLTCOMPILEDROOTS; useful for cold-root checks."
+  (set! isolate-compiled-root? #t)]
  [("--keep-temp")
   "Keep the temporary check directory after a successful run."
   (set! keep-temp? #t)]
@@ -693,14 +697,18 @@ JS
   (define dest-dir       (build-path temp-root "dest"))
   (make-directory* provider-cache)
   (make-directory* runtime-cache)
-  (make-directory* compiled-root)
   (make-directory* dest-dir)
-  (putenv "PLTCOMPILEDROOTS" (path->string compiled-root))
+  (when isolate-compiled-root?
+    (make-directory* compiled-root)
+    (putenv "PLTCOMPILEDROOTS" (path->string compiled-root)))
 
   (printf "Split runtime browser check\n")
   (printf "  source:        ~a\n" (path->string source-file))
   (printf "  temp:          ~a\n" (path->string temp-root))
-  (printf "  compiled root: ~a\n" (path->string compiled-root))
+  (printf "  compiled root: ~a\n"
+          (if isolate-compiled-root?
+              (path->string compiled-root)
+              "normal environment"))
   (printf "  runtime mode:  ~a\n"
           (if shared-runtime-url?
               (format "shared url (~a)" shared-runtime-url)

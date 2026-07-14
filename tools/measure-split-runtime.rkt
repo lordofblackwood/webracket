@@ -93,6 +93,7 @@
 (define prewarm-staged-providers-first? #f)
 (define prewarm-module-bridge-first? #f)
 (define precompile-compiler-first? #f)
+(define isolate-compiled-root? #f)
 (define core-only? #f)
 (define in-process? #f)
 
@@ -135,6 +136,9 @@
  [("--precompile-compiler-first")
   "Run raco make for the compiler into the isolated compiled root before measuring"
   (set! precompile-compiler-first? #t)]
+ [("--isolate-compiled-root")
+  "Run subprocesses with a private PLTCOMPILEDROOTS; useful for cold-root measurements"
+  (set! isolate-compiled-root? #t)]
  [("--split-runtime-core-only")
   "Measure the core-helper-only split runtime strategy"
   (set! core-only? #t)]
@@ -576,14 +580,21 @@
   (define provider-cache (build-path temp-root "provider-cache"))
   (define runtime-cache  (build-path temp-root "runtime-provider-cache"))
   (define compiled-root  (build-path temp-root "compiled-root"))
+  (define private-compiled-root?
+    (or isolate-compiled-root?
+        precompile-compiler-first?))
   (make-directory* provider-cache)
   (make-directory* runtime-cache)
-  (make-directory* compiled-root)
-  (putenv "PLTCOMPILEDROOTS" (path->string compiled-root))
+  (when private-compiled-root?
+    (make-directory* compiled-root)
+    (putenv "PLTCOMPILEDROOTS" (path->string compiled-root)))
   (printf "Split runtime benchmark\n")
   (printf "  source:        ~a\n" (path->string source-file))
   (printf "  temp:          ~a\n" (path->string temp-root))
-  (printf "  compiled root: ~a\n" (path->string compiled-root))
+  (printf "  compiled root: ~a\n"
+          (if private-compiled-root?
+              (path->string compiled-root)
+              "normal environment"))
   (printf "  compiler warm: ~a\n"
           (if precompile-compiler-first?
               "raco make"

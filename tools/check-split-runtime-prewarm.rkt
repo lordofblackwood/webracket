@@ -67,6 +67,7 @@
 (define staged-provider-prewarm? #f)
 (define module-bridge-result-cache-check? #f)
 (define precompile-compiler? #f)
+(define isolate-compiled-root? #f)
 (define jobs 1)
 
 ;; resolve-source-path : string? -> path?
@@ -114,6 +115,9 @@
  [("--precompile-compiler")
   "Run raco make for the compiler/tool entry points in the private compiled root before measuring."
   (set! precompile-compiler? #t)]
+ [("--isolate-compiled-root")
+  "Run subprocesses with a private PLTCOMPILEDROOTS; useful for cold-root checks."
+  (set! isolate-compiled-root? #t)]
  [("--split-runtime-core-only")
   "Use the core-helper-only split runtime strategy for prewarm and compile."
   (set! core-only? #t)]
@@ -849,11 +853,15 @@ RKT
   (define runtime-cache  (build-path temp-root "runtime-provider-cache"))
   (define compiled-root  (build-path temp-root "compiled-root"))
   (define dest-dir       (build-path temp-root "dest"))
+  (define private-compiled-root?
+    (or isolate-compiled-root?
+        precompile-compiler?))
   (make-directory* provider-cache)
   (make-directory* runtime-cache)
-  (make-directory* compiled-root)
   (make-directory* dest-dir)
-  (putenv "PLTCOMPILEDROOTS" (path->string compiled-root))
+  (when private-compiled-root?
+    (make-directory* compiled-root)
+    (putenv "PLTCOMPILEDROOTS" (path->string compiled-root)))
 
   (printf "Split runtime prewarm check\n")
   (define source-files
@@ -892,7 +900,10 @@ RKT
             (check-case-name case)
             (path->string (check-case-source case))))
   (printf "  temp:          ~a\n" (path->string temp-root))
-  (printf "  compiled root: ~a\n\n" (path->string compiled-root))
+  (printf "  compiled root: ~a\n\n"
+          (if private-compiled-root?
+              (path->string compiled-root)
+              "normal environment"))
 
   (define compiler-precompile-args
     (list "-S" "pkgs" "-l" "raco" "make"
