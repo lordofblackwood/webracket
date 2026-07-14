@@ -20,7 +20,9 @@
          racket/path
          racket/runtime-path
          racket/string
-         racket/system)
+         racket/system
+         (only-in "../pkgs/webracket-lib/compiler/runtime-wasm/split-runtime-cache.rkt"
+                  split-runtime-core-cache-directory))
 
 
 ;;; Repository Paths
@@ -210,15 +212,18 @@
 ;;   Return non-lock runtime wasm files in the stable split-runtime cache.
 (define (cached-runtime-wasm-files runtime-cache)
   (define cache-root
-    (build-path runtime-cache "split-runtime-core-v3"))
+    (build-path runtime-cache split-runtime-core-cache-directory))
   (if (directory-exists? cache-root)
-      (find-files
-       (lambda (p)
-         (and (file-exists? p)
-              (equal? (path-get-extension p) #".wasm")
-              (not (regexp-match? #rx"^\\.LOCK"
-                                  (path->string (file-name-from-path p))))))
-       cache-root)
+      (sort
+       (find-files
+        (lambda (p)
+          (and (file-exists? p)
+               (equal? (path-get-extension p) #".wasm")
+               (not (regexp-match? #rx"^\\.LOCK"
+                                   (path->string (file-name-from-path p))))))
+        cache-root)
+       string<?
+       #:key path->string)
       '()))
 
 ;; record-failure! : string? any/c ... -> void?
