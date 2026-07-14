@@ -341,6 +341,30 @@ for its dependency on byte/string UTF-8 decoding support.
 
 ## Performance Notes
 
+### Split Sidecar Program-Only Fast Path Needs FFI Initializer Cleanup
+
+An attempted optimization extended the split-runtime program-only fast path from
+`--split-runtime-cache-reference` to ordinary sidecar `--split-runtime` builds
+when the stable core wasm cache was warm. The cache preconditions were good:
+boundary metadata existed, the stable core wasm existed, and the program was
+compatible with that boundary.
+
+The resulting sidecar program failed to assemble with an unknown `$js-global-this`
+function. The generated program module still contained FFI primitive procedure
+initialization for globals such as `$prim:js-global-this`, but the corresponding
+host import/function was not present in that program-only sidecar shape. The
+reference-only path does not emit those stale primitive globals for the same
+tiny fixture.
+
+Keep the program-only fast path restricted to reference-only output until the
+program-only builder and sidecar initializer shape agree about where FFI
+primitive globals and host imports live. A safe follow-up should either:
+
+- make sidecar program-only forms use the same FFI/global ownership shape as
+  reference-only forms, or
+- prove a narrower sidecar fast path that only fires when no program-side FFI
+  primitive globals or initializers can be emitted.
+
 ### Core Allocation Ticks Cannot Depend On JS Logging
 
 `$debug-allocation-tick` is now standalone-core-safe. It still updates the

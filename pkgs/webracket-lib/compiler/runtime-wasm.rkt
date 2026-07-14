@@ -10,6 +10,7 @@
                   primitive->description)
          (only-in "private/parameters.rkt"
                   current-browser?
+                  current-runtime-cache-dir
                   current-tree-shake?
                   current-split-runtime?
                   current-split-runtime-reference-only?)
@@ -73,7 +74,11 @@
          (only-in "runtime-wasm/runtime-source.rkt"
                   runtime-source-fingerprint)
          (only-in "runtime-wasm/split-runtime-cache.rkt"
-                  make-split-runtime-core-cache-key)
+                  make-split-runtime-core-cache-key
+                  split-runtime-core-cache-key-fingerprint
+                  split-runtime-core-cache-wasm-path)
+         (only-in "webify/provider-cache.rkt"
+                  current-provider-cache-force?)
          (only-in "runtime-wasm/core/arrays.rkt"
                   array-core-runtime-helper-forms
                   array-runtime-helper-forms)
@@ -2006,6 +2011,25 @@
            (make-split-runtime-core-cache-key
             (current-tree-shake?)
             split-runtime-request-fingerprint)))
+    ;; split-runtime-core-wasm-cache-hit? : any/c -> boolean?
+    ;;   Check whether the stable split core wasm is already materialized.
+    (define (split-runtime-core-wasm-cache-hit? core-cache-key)
+      (define cache-root (current-runtime-cache-dir))
+      (and cache-root
+           (not (current-provider-cache-force?))
+           (file-exists?
+            (split-runtime-core-cache-wasm-path
+             cache-root
+             (split-runtime-core-cache-key-fingerprint core-cache-key)))))
+    (define split-runtime-core-wasm-cache-hit-now?
+      (and split-runtime-core-cache-key
+           (time-runtime-step
+            "runtime:split-core-wasm-cache-preflight"
+            (lambda ()
+              (split-runtime-core-wasm-cache-hit?
+               split-runtime-core-cache-key)))))
+    (runtime-metric-add! "runtime:split-core-wasm-cache-preflight-hit?"
+                         (if split-runtime-core-wasm-cache-hit-now? "yes" "no"))
     (define split-runtime-boundary-metadata
       (and split-runtime-core-cache-key
            (time-runtime-step
@@ -2024,9 +2048,12 @@
             (set! split-runtime-program-forms-cache forms)
             forms)))
     (define split-runtime-program-index-cache #f)
-    (define split-runtime-reference-compatible-now?
-      (and (current-split-runtime-reference-only?)
+    (define split-runtime-program-only-candidate?
+      (and (current-split-runtime?)
            split-runtime-boundary-metadata
+           (current-split-runtime-reference-only?)))
+    (define split-runtime-reference-compatible-now?
+      (and split-runtime-program-only-candidate?
            (time-runtime-step
             "runtime:split-reference-compatibility"
             (lambda ()
@@ -2037,13 +2064,12 @@
               (set! split-runtime-program-index-cache program-index)
               compatible?))))
     (runtime-metric-add! "runtime:split-reference-compatible?"
-                         (if (current-split-runtime-reference-only?)
+                         (if split-runtime-program-only-candidate?
                              (if split-runtime-reference-compatible-now? "yes" "no")
                              "n/a"))
     (define split-runtime-program-only-fast-path?
       (and (current-split-runtime?)
-           (current-split-runtime-reference-only?)
-           split-runtime-boundary-metadata
+           split-runtime-program-only-candidate?
            split-runtime-reference-compatible-now?
            (or (split-direct-ffi-program-side?)
                (and (null? (runtime-ffi-state-active-foreigns ffi-state))
