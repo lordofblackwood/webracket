@@ -58,6 +58,7 @@
 (define in-process? #f)
 (define staged-provider-prewarm? #f)
 (define module-bridge-result-cache-check? #f)
+(define precompile-compiler? #f)
 (define jobs 1)
 
 ;; resolve-source-path : string? -> path?
@@ -102,6 +103,9 @@
  [("--check-module-bridge-result-cache")
   "Compile module sources once to warm the module-bridge result cache, then require cache hits."
   (set! module-bridge-result-cache-check? #t)]
+ [("--precompile-compiler")
+  "Run raco make for the compiler/tool entry points in the private compiled root before measuring."
+  (set! precompile-compiler? #t)]
  [("--split-runtime-core-only")
   "Use the core-helper-only split runtime strategy for prewarm and compile."
   (set! core-only? #t)]
@@ -846,6 +850,8 @@ RKT
           (if in-process? "in-process" "fresh subprocess"))
   (printf "  provider warm: ~a\n"
           (if staged-provider-prewarm? "regexp/read/io-format" "runtime only"))
+  (printf "  precompile:    ~a\n"
+          (if precompile-compiler? "compiler/tools" "no"))
   (printf "  jobs:          ~a\n"
           (if in-process?
               "1 (serial in-process)"
@@ -856,6 +862,26 @@ RKT
             (path->string (check-case-source case))))
   (printf "  temp:          ~a\n" (path->string temp-root))
   (printf "  compiled root: ~a\n\n" (path->string compiled-root))
+
+  (define compiler-precompile-args
+    (list "-S" "pkgs" "-l" "raco" "make"
+          "webracket.rkt"
+          "tools/prewarm-staged-providers.rkt"
+          "tools/check-split-runtime-prewarm.rkt"))
+  (define compiler-precompile-result
+    (if precompile-compiler?
+        (run-command/capture repo-root racket-exe compiler-precompile-args)
+        (command-result #t "" "" 0.0)))
+  (when precompile-compiler?
+    (define compiler-precompile-log
+      (build-path temp-root "precompile-compiler.log"))
+    (write-log! compiler-precompile-log
+                racket-exe
+                compiler-precompile-args
+                compiler-precompile-result)
+    (unless (command-result-ok? compiler-precompile-result)
+      (record-failure! "compiler precompile command failed; see ~a"
+                       compiler-precompile-log)))
 
   (define staged-provider-prewarm-args
     (append
@@ -966,7 +992,12 @@ RKT
 
   (cond
     [(null? failures)
-     (printf "ok: ~a~aprewarm=~as cache-hit-prewarm=~as compile/runs=[~a] cached-runtime-wasms=~a\n"
+     (printf "ok: ~a~a~aprewarm=~as cache-hit-prewarm=~as compile/runs=[~a] cached-runtime-wasms=~a\n"
+             (if precompile-compiler?
+                 (format "compiler-precompile=~as "
+                         (format-seconds
+                          (command-result-wall-ms compiler-precompile-result)))
+                 "")
              (if staged-provider-prewarm?
                  (format "provider-prewarm=~as "
                          (format-seconds

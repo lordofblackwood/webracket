@@ -280,6 +280,19 @@ racket -S pkgs tools/check-split-runtime-prewarm.rkt \
   --check-module-bridge-result-cache
 ```
 
+Use `--precompile-compiler` when you want fresh subprocess timings to reflect a
+private compiled root where the compiler and prewarm tools have already been
+`raco make`d. Without this flag, the checker intentionally starts from an empty
+private `PLTCOMPILEDROOTS`, so command wall time includes compiler module
+compilation/loading outside the driver timing table:
+
+```sh
+racket -S pkgs tools/check-split-runtime-prewarm.rkt \
+  --source examples/minischeme/repro-local-mini-42.rkt \
+  --check-module-bridge-result-cache \
+  --precompile-compiler
+```
+
 Use `--extra-source` and `--reject` to check multiple committed fixtures with
 one prewarmed runtime cache. This is useful for tests that print pass tables:
 
