@@ -33,6 +33,10 @@
          "module-forms.rkt"
          (only-in "runtime-analysis.rkt"
                   split-module-forms)
+         (only-in "split-runtime-cache.rkt"
+                  split-runtime-boundary-cache-version
+                  [split-runtime-boundary-cache-path
+                   split-runtime-boundary-cache-path/cache-root])
          (only-in "runtime-metrics.rkt"
                   runtime-metric-add!
                   time-runtime-step)
@@ -354,11 +358,6 @@
    runtime-symbol-refs)
   #:transparent)
 
-;; split-runtime-boundary-cache-version : exact-integer?
-;;   Bump when the serialized split-boundary metadata layout changes.
-(define split-runtime-boundary-cache-version
-  1)
-
 ;; wasm-data-cache-tag : symbol?
 ;;   Tags custom WAT data fragments in the boundary metadata cache.
 (define wasm-data-cache-tag
@@ -541,10 +540,8 @@
   (define cache-root (current-runtime-cache-dir))
   (and core-cache-key
        cache-root
-       (build-path cache-root
-                   "split-runtime-boundary-v1"
-                   (format "~x.fasl"
-                           (abs (equal-hash-code core-cache-key))))))
+       (split-runtime-boundary-cache-path/cache-root cache-root
+                                                     core-cache-key)))
 
 ;; read-split-runtime-boundary-cache : (or/c path? #f) any/c
 ;;   -> (or/c split-runtime-boundary-metadata? #f)

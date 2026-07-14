@@ -44,6 +44,8 @@
                   runtime-record-tree-shake-retention-metrics!)
          (only-in "runtime-source.rkt"
                   runtime-source-fingerprint)
+         (only-in "split-runtime-cache.rkt"
+                  split-runtime-request-cache-fingerprint)
          racket/fasl
          racket/file)
 
@@ -232,25 +234,6 @@
     ,(if browser? 'browser 'node)
     ,runtime-source-fingerprint
     ,(stable-runtime-module-signature runtime-module)
-    ,(sort (map foreign-racket-name active-ffi-foreigns) symbol<?)
-    ,(equal-hash-code active-ffi-imports-wat)
-    ,(equal-hash-code active-ffi-funcs-wat)))
-
-;; split-runtime-request-cache-fingerprint :
-;;   #:browser? boolean? #:runtime-source-fingerprint any/c
-;;   #:active-ffi-foreigns list? #:active-ffi-imports-wat list?
-;;   #:active-ffi-funcs-wat list? -> list?
-;;   Fingerprint the stable split-runtime build request without a generated module.
-(define (split-runtime-request-cache-fingerprint
-         #:browser? browser?
-         #:runtime-source-fingerprint runtime-source-fingerprint
-         #:active-ffi-foreigns active-ffi-foreigns
-         #:active-ffi-imports-wat active-ffi-imports-wat
-         #:active-ffi-funcs-wat active-ffi-funcs-wat)
-  `(split-runtime-request-cache
-    1
-    ,(if browser? 'browser 'node)
-    ,runtime-source-fingerprint
     ,(sort (map foreign-racket-name active-ffi-foreigns) symbol<?)
     ,(equal-hash-code active-ffi-imports-wat)
     ,(equal-hash-code active-ffi-funcs-wat)))

@@ -72,6 +72,8 @@
                   runtime-primitive-state-primitive-global->symbol)
          (only-in "runtime-wasm/runtime-source.rkt"
                   runtime-source-fingerprint)
+         (only-in "runtime-wasm/split-runtime-cache.rkt"
+                  make-split-runtime-core-cache-key)
          (only-in "runtime-wasm/core/arrays.rkt"
                   array-core-runtime-helper-forms
                   array-runtime-helper-forms)
@@ -2001,10 +2003,9 @@
                #:active-ffi-funcs-wat stable-runtime-active-ffi-funcs-wat)))))
     (define split-runtime-core-cache-key
       (and (current-split-runtime?)
-           `(split-runtime-core-cache
-             2
-             ,(if (current-tree-shake?) 'tree-shake 'no-tree-shake)
-             ,split-runtime-request-fingerprint)))
+           (make-split-runtime-core-cache-key
+            (current-tree-shake?)
+            split-runtime-request-fingerprint)))
     (define split-runtime-boundary-metadata
       (and split-runtime-core-cache-key
            (time-runtime-step

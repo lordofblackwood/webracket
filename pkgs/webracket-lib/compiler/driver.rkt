@@ -53,8 +53,6 @@
                                     string-prefix?)
          (only-in racket/set        set-member?
                                     seteq)
-         (only-in file/sha1         bytes->hex-string
-                                    sha1-bytes)
          racket/unsafe/undefined
          #;(only-in "lang/reader.rkt" read-syntax)
          (only-in "assembler.rkt"
@@ -69,8 +67,14 @@
                   split-runtime-modules-core-cache-key
                   split-runtime-modules-imported-names
                   split-runtime-modules-program)
-         (only-in "runtime-wasm/module-forms.rkt"
-                  module-write-sha1)
+         (only-in "runtime-wasm/split-runtime-cache.rkt"
+                  split-runtime-core-fingerprint
+                  split-runtime-core-cache-key-fingerprint
+                  [split-runtime-core-cache-wasm-path
+                   split-runtime-core-cache-wasm-path/cache-root]
+                  [split-runtime-core-cache-wat-path
+                   split-runtime-core-cache-wat-path/cache-root]
+                  make-split-runtime-core-only-cache-key)
          (only-in "runtime-wasm/runtime-source.rkt"
                   runtime-source-fingerprint)
          (only-in racket/list       append* append-map remove-duplicates second take)
@@ -2875,33 +2879,20 @@
 (define (split-runtime-wasm-path out-wasm)
   (path-replace-extension+suffix out-wasm ".runtime" ".wasm"))
 
-;; split-runtime-core-fingerprint : list? -> string?
-;;   Fingerprint the generated core runtime module tree for Wasm cache reuse.
-(define (split-runtime-core-fingerprint core-module)
-  (module-write-sha1 core-module))
-
-;; split-runtime-core-cache-key-fingerprint : any/c -> string?
-;;   Fingerprint a compiler-provided stable split runtime cache key.
-(define (split-runtime-core-cache-key-fingerprint cache-key)
-  (bytes->hex-string
-   (sha1-bytes
-    (s-exp->fasl cache-key))))
-
 ;; split-runtime-core-cache-wasm-path : string? -> path?
 ;;   Return the stable cache path for an assembled split core runtime module.
 (define (split-runtime-core-cache-wasm-path fingerprint)
-  (runtime-provider-cache-path
-   "split-runtime-core-v3"
-   (format "~a.wasm" fingerprint)))
+  (split-runtime-core-cache-wasm-path/cache-root
+   (current-runtime-cache-dir)
+   fingerprint))
 
 ;; split-runtime-core-cache-wat-path : string? boolean? -> path?
 ;;   Return the stable cache path for a rendered split core runtime WAT module.
 (define (split-runtime-core-cache-wat-path fingerprint pretty-wat?)
-  (runtime-provider-cache-path
-   "split-runtime-core-v3"
-   (format "~a.~a.wat"
-           fingerprint
-           (if pretty-wat? "pretty" "compact"))))
+  (split-runtime-core-cache-wat-path/cache-root
+   (current-runtime-cache-dir)
+   fingerprint
+   pretty-wat?))
 
 ;; copy-file/replace! : path-string? path-string? -> void?
 ;;   Copy src to dest, replacing an existing file.
@@ -3495,9 +3486,8 @@
               compiled-module
               #:require-all? #f
               #:core-cache-key
-              `(split-runtime-core-only-cache
-                1
-                ,(runtime-source-fingerprint))))))
+              (make-split-runtime-core-only-cache-key
+               (runtime-source-fingerprint))))))
   (define program-wat
     (if split-runtime?
         (split-runtime-modules-program split-modules)

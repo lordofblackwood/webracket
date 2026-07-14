@@ -37,11 +37,16 @@
          racket/path
          racket/port
          racket/runtime-path
-         (only-in file/sha1
-                  bytes->hex-string
-                  sha1-bytes)
          (only-in "../pkgs/webracket-lib/compiler/private/parameters.rkt"
                   current-runtime-cache-dir)
+         (only-in "../pkgs/webracket-lib/compiler/runtime-wasm/split-runtime-cache.rkt"
+                  split-runtime-boundary-cache-path
+                  split-runtime-boundary-cache-version
+                  split-runtime-core-cache-key-fingerprint
+                  split-runtime-core-cache-wasm-path
+                  split-runtime-request-cache-fingerprint
+                  make-split-runtime-core-cache-key
+                  make-split-runtime-core-only-cache-key)
          (only-in "../pkgs/webracket-lib/compiler/runtime-wasm/runtime-source.rkt"
                   runtime-source-fingerprint))
 
@@ -146,41 +151,16 @@
 ;;   Build the split-runtime cache key produced by the prewarm compile.
 (define (split-runtime-prewarm-core-cache-key host core-only?)
   (if core-only?
-      `(split-runtime-core-only-cache
-        1
-        ,(runtime-source-fingerprint))
-      `(split-runtime-core-cache
-        2
-        tree-shake
-        (split-runtime-request-cache
-         1
-         ,(if (eq? host 'browser) 'browser 'node)
-         ,(runtime-source-fingerprint)
-         ()
-         ,(equal-hash-code '())
-         ,(equal-hash-code '())))))
-
-;; split-runtime-core-cache-key-fingerprint : any/c -> string?
-;;   Fingerprint a compiler-provided stable split runtime cache key.
-(define (split-runtime-core-cache-key-fingerprint cache-key)
-  (bytes->hex-string
-   (sha1-bytes
-    (s-exp->fasl cache-key))))
-
-;; split-runtime-core-cache-wasm-path : path? string? -> path?
-;;   Return the stable cache path for an assembled split core runtime module.
-(define (split-runtime-core-cache-wasm-path runtime-cache-dir fingerprint)
-  (build-path runtime-cache-dir
-              "split-runtime-core-v3"
-              (format "~a.wasm" fingerprint)))
-
-;; split-runtime-boundary-cache-path : path? any/c -> path?
-;;   Return the cache path for split-runtime boundary metadata.
-(define (split-runtime-boundary-cache-path runtime-cache-dir core-cache-key)
-  (build-path runtime-cache-dir
-              "split-runtime-boundary-v1"
-              (format "~x.fasl"
-                      (abs (equal-hash-code core-cache-key)))))
+      (make-split-runtime-core-only-cache-key
+       (runtime-source-fingerprint))
+      (make-split-runtime-core-cache-key
+       #t
+       (split-runtime-request-cache-fingerprint
+        #:browser? (eq? host 'browser)
+        #:runtime-source-fingerprint (runtime-source-fingerprint)
+        #:active-ffi-foreigns '()
+        #:active-ffi-imports-wat '()
+        #:active-ffi-funcs-wat '()))))
 
 ;; split-runtime-boundary-cache-hit? : path? any/c -> boolean?
 ;;   Check whether the matching split-boundary metadata cache entry exists.
@@ -193,10 +173,11 @@
                   (lambda (in)
                     (fasl->s-exp (port->bytes in))))
            [(list 'split-runtime-boundary-cache
-                  1
+                  version
                   cached-core-cache-key
                   _payload)
-            (equal? cached-core-cache-key core-cache-key)]
+            (and (= version split-runtime-boundary-cache-version)
+                 (equal? cached-core-cache-key core-cache-key))]
            [_ #f]))))
 
 ;; split-runtime-prewarm-cache-hit :
@@ -226,8 +207,8 @@
                                 host
                                 force?
                                 verbose?
-                                 core-only?
-                                 runtime-wasm-out)
+                                core-only?
+                                runtime-wasm-out)
   (define-values (_cache-key cached-runtime-wasm)
     (split-runtime-prewarm-cache-hit runtime-cache-dir host core-only? force?))
   (cond
