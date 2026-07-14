@@ -809,6 +809,18 @@ RKT
                           webracket-args))
               compile-result)
 
+  (when frontend-cache?
+    (define module-source? (webracket-module-source? (check-case-source case)))
+    (define expected-frontend-cache-mode
+      (if module-source?
+          #rx"frontend-cache-mode +: +disabled-module-input"
+          #rx"frontend-cache-mode +: +enabled"))
+    (unless (transcript-contains? compile-result expected-frontend-cache-mode)
+      (record-failure! "~a: frontend cache mode did not match expected regexp ~s; see ~a"
+                       (check-case-name case)
+                       expected-frontend-cache-mode
+                       compile-log)))
+
   (unless (command-result-ok? compile-result)
     (record-failure! "~a: compile/run command failed; see ~a"
                      (check-case-name case)

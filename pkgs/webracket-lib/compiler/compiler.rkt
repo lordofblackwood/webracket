@@ -21710,7 +21710,7 @@
 
 ;; frontend-cache-version : exact-positive-integer?
 ;;   Bump when the serialized post-unexpand frontend cache payload changes.
-(define frontend-cache-version 1)
+(define frontend-cache-version 2)
 
 ;; frontend-cache-source-paths : (listof path?)
 ;;   Source files that influence expansion/unexpansion before Nanopass parsing.
@@ -21816,7 +21816,9 @@
         `(frontend-unexpand-cache
           ,frontend-cache-version
           ,fingerprint
-          ,(syntax-serialize stx)))
+          ;; This cache is read in fresh compiler processes, so do not rely on
+          ;; bulk bindings supplied by the serialize-time namespace.
+          ,(syntax-serialize stx #:provides-namespace #f)))
        out))
     #:exists 'truncate/replace))
 

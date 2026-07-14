@@ -190,6 +190,7 @@
                   make-webify-module-provider-cache
                   webify-compile-module-report
                   webify-module-import-map-required-module-candidates
+                  webify-module-import-map-unresolved-import-groups
                   webify-module-path->report
                   webify-module-provider-cache-hit-count
                   webify-module-provider-cache-miss-count
@@ -476,6 +477,9 @@
 
 (define current-module-bridge-needs-regexp-provider?
   (make-parameter #t))
+
+(define current-module-bridge-needs-expander-read-provider?
+  (make-parameter #f))
 
 ;; module-bridge-datum-needs-regexp-provider? : any/c -> boolean?
 ;;   Detect whether the composed bridge datum refers to staged regexp bindings.
@@ -3330,13 +3334,21 @@
     (provider-cache-log "runtime provider cache directory: ~a" runtime-provider-cache-root-path)
     (when force-provider-cache-refresh?
       (provider-cache-log "force refresh enabled")))
-  (define provider-owned-primitive-aliases/pre-read
-    (provider-owned-primitive-alias-symbols
-     #:expander-read-provider? expander-read-provider?
-     #:io-format-provider? #f))
 
   ; 0. Check that `filename` exists and is a source file.
   (ensure-source-file! 'drive-compilation filename)
+  (define source-file-module-input?/pre-read
+    (and webracket-module-bridge?
+         (with-handlers ([exn:fail? (lambda (_e) #f)])
+           (call-with-input-file filename
+             (lambda (in)
+               (webracket-module-lang-line? (read-line in 'any)))))))
+  (define provider-owned-primitive-aliases/pre-read
+    (provider-owned-primitive-alias-symbols
+     #:expander-read-provider? (or expander-read-provider?
+                                   source-file-module-input?/pre-read)
+     #:io-format-provider? #f))
+  (current-module-bridge-needs-expander-read-provider? #f)
 
   ; 1. Read the top-level forms from `filename`.
   (define t-read-source-start (now-ms))
@@ -3356,12 +3368,22 @@
         (add-print-top-level-results-sentinel stx)
         stx))
   (define module-input? (and (current-source-module-language) #t))
+  (define effective-frontend-cache?
+    (and frontend-cache?
+         ;; Module-bridge input contains generated binding identities. The
+         ;; current frontend syntax cache replays those identities from disk,
+         ;; which is not safe for module compilations yet.
+         (not module-input?)))
   (define effective-legacy-stdlib?
     (and (not module-input?) stdlib?))
   (define effective-io-format-provider?
     (and (not module-input?) stdlib-io-format-provider?))
+  (define source-needs-expander-read-provider?
+    (and module-input?
+         (current-module-bridge-needs-expander-read-provider?)))
   (define effective-expander-read-provider?
-    expander-read-provider?)
+    (or expander-read-provider?
+        source-needs-expander-read-provider?))
   (define effective-expander-read-syntax-provider?
     expander-read-syntax-provider?)
   (define source-needs-regexp-provider?
@@ -3377,6 +3399,14 @@
     (list
      (stdlib-decision-note "input-mode"
                            (if module-input? "module" "script"))
+     (stdlib-decision-note "frontend-cache-mode"
+                           (cond
+                             [effective-frontend-cache?
+                              "enabled"]
+                             [(and frontend-cache? module-input?)
+                              "disabled-module-input"]
+                             [else
+                              "disabled"]))
      (stdlib-decision-note "legacy-stdlib-mode"
                            (cond
                              [module-input?
@@ -3398,9 +3428,13 @@
                              [else
                               "disabled-script-input"]))
      (stdlib-decision-note "expander-read-provider-mode"
-                           (if effective-expander-read-provider?
-                               "enabled"
-                               "disabled"))
+                           (cond
+                             [expander-read-provider?
+                              "enabled-flag"]
+                             [source-needs-expander-read-provider?
+                              "enabled-module-demand"]
+                             [else
+                              "disabled"]))
      (stdlib-decision-note "expander-read-syntax-provider-mode"
                            (if effective-expander-read-syntax-provider?
                                "enabled"
@@ -3631,7 +3665,7 @@
                      [current-enable-cc-analysis? enable-cc-analysis?]
                      [current-letrec-strategy letrec-strategy]
                      [current-enable-simplify? enable-simplify?]
-                     [current-frontend-cache-enabled? frontend-cache?]
+                     [current-frontend-cache-enabled? effective-frontend-cache?]
                      [current-module-bridge-elide-public-cells?
                       module-bridge-elide-public-cells?]
                      [current-print-top-level-results? print-top-level-results?]
@@ -4865,6 +4899,25 @@
 (define (webracket/base-reports-demand-external-providers? reports)
   (pair? (webracket/base-external-provider-names reports)))
 
+;; module-report-imports-expander-read-alias? : webify-module-report? -> boolean?
+;;   Check whether one report imports a public name owned by staged expander/read.
+(define (module-report-imports-expander-read-alias? report)
+  (define read-aliases (list->seteq webify-read-public-alias-symbols))
+  (define import-map (webify-module-report-import-map report))
+  (for*/or ([group (in-list (webify-module-import-map-unresolved-import-groups
+                              import-map))]
+            [binding (in-list group)])
+    (match binding
+      [(list _local (? symbol? external))
+       (set-member? read-aliases external)]
+      [_ #f])))
+
+;; module-reports-import-expander-read-alias? : (listof webify-module-report?) -> boolean?
+;;   Check whether any report needs staged expander/read public aliases.
+(define (module-reports-import-expander-read-alias? reports)
+  (for/or ([report (in-list reports)])
+    (module-report-imports-expander-read-alias? report)))
+
 ;; webracket/base-external-provider-names : (listof webify-module-report?) -> (listof symbol?)
 ;;   List required providers outside local reports and the language root.
 (define (webracket/base-external-provider-names reports)
@@ -5042,8 +5095,9 @@
     (with-module-bridge-timing
      'module-graph-read-support-demand
      (lambda ()
-       (for/or ([name (in-list webify-read-public-alias-symbols)])
-         (set-member? (current-provider-owned-primitive-aliases) name)))))
+       (module-reports-import-expander-read-alias? bridge-reports))))
+  (current-module-bridge-needs-expander-read-provider?
+   needs-expander-read-support?)
   (define needs-io-format-support?
     (with-module-bridge-timing
      'module-graph-io-format-support-demand
