@@ -20,7 +20,15 @@
          racket/string
          racket/system
          (only-in "../pkgs/webracket-lib/compiler/runtime-wasm/split-runtime-cache.rkt"
-                  split-runtime-core-cache-directory)
+                  split-runtime-boundary-cache-current?
+                  split-runtime-core-cache-directory
+                  split-runtime-core-cache-key-fingerprint
+                  split-runtime-core-cache-wasm-path
+                  split-runtime-request-cache-fingerprint
+                  make-split-runtime-core-cache-key
+                  make-split-runtime-core-only-cache-key)
+         (only-in "../pkgs/webracket-lib/compiler/runtime-wasm/runtime-source.rkt"
+                  runtime-source-fingerprint)
          "../pkgs/webracket-lib/compiler/cli-lib.rkt")
 
 
@@ -254,6 +262,29 @@
     (list (path->string p)
           (file-size p)
           (file-or-directory-modify-seconds p))))
+
+;; expected-split-runtime-core-cache-key : -> any/c
+;;   Build the cache key that Node split-runtime prewarm should populate.
+(define (expected-split-runtime-core-cache-key)
+  (define runtime-fingerprint
+    (runtime-source-fingerprint))
+  (if core-only?
+      (make-split-runtime-core-only-cache-key runtime-fingerprint)
+      (make-split-runtime-core-cache-key
+       #t
+       (split-runtime-request-cache-fingerprint
+        #:browser? #f
+        #:runtime-source-fingerprint runtime-fingerprint
+        #:active-ffi-foreigns '()
+        #:active-ffi-imports-wat '()
+        #:active-ffi-funcs-wat '()))))
+
+;; expected-split-runtime-core-wasm-path : path-string? any/c -> path?
+;;   Return the exact cache wasm path implied by a split-runtime cache key.
+(define (expected-split-runtime-core-wasm-path runtime-cache core-cache-key)
+  (split-runtime-core-cache-wasm-path
+   runtime-cache
+   (split-runtime-core-cache-key-fingerprint core-cache-key)))
 
 ;; transcript-contains? : command-result? regexp? -> boolean?
 ;;   Check stdout and stderr for a regexp.
@@ -931,6 +962,19 @@ RKT
   (when (null? cached-wasms-after-prewarm)
     (record-failure! "prewarm did not create a cached split-runtime wasm in ~a"
                      runtime-cache))
+  (define expected-core-cache-key
+    (expected-split-runtime-core-cache-key))
+  (define expected-runtime-wasm
+    (expected-split-runtime-core-wasm-path runtime-cache
+                                           expected-core-cache-key))
+  (unless (file-exists? expected-runtime-wasm)
+    (record-failure! "prewarm did not create expected cached split-runtime wasm: ~a"
+                     expected-runtime-wasm))
+  (when (and (not core-only?)
+             (not (split-runtime-boundary-cache-current?
+                   runtime-cache
+                   expected-core-cache-key)))
+    (record-failure! "prewarm did not create current split-boundary metadata for expected runtime key"))
   (define cached-wasm-snapshot-after-prewarm
     (cached-runtime-wasm-snapshot runtime-cache))
 
