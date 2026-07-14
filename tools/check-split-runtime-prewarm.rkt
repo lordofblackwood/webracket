@@ -19,6 +19,8 @@
          racket/runtime-path
          racket/string
          racket/system
+         (only-in "../pkgs/webracket-lib/compiler/runtime-wasm/split-runtime-cache.rkt"
+                  split-runtime-core-cache-directory)
          "../pkgs/webracket-lib/compiler/cli-lib.rkt")
 
 
@@ -223,7 +225,7 @@
 ;;   Return non-lock runtime wasm files in the stable split-runtime cache.
 (define (cached-runtime-wasm-files runtime-cache)
   (define cache-root
-    (build-path runtime-cache "split-runtime-core-v3"))
+    (build-path runtime-cache split-runtime-core-cache-directory))
   (if (directory-exists? cache-root)
       (sort
        (find-files

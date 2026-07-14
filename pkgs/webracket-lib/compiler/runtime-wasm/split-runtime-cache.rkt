@@ -8,6 +8,7 @@
          split-runtime-core-cache-wasm-path
          split-runtime-core-cache-wat-path
          split-runtime-boundary-cache-path
+         split-runtime-boundary-cache-current?
          split-runtime-request-cache-fingerprint
          make-split-runtime-core-cache-key
          make-split-runtime-core-only-cache-key)
@@ -19,6 +20,8 @@
          (only-in file/sha1
                   bytes->hex-string
                   sha1-bytes)
+         racket/match
+         racket/port
          racket/fasl)
 
 ;; split-runtime-core-cache-directory : string?
@@ -71,6 +74,24 @@
               split-runtime-boundary-cache-directory
               (format "~x.fasl"
                       (abs (equal-hash-code core-cache-key)))))
+
+;; split-runtime-boundary-cache-current? : path-string? any/c -> boolean?
+;;   Check whether cached split-boundary metadata exists for this core key.
+(define (split-runtime-boundary-cache-current? cache-root core-cache-key)
+  (define cache-path
+    (split-runtime-boundary-cache-path cache-root core-cache-key))
+  (and (file-exists? cache-path)
+       (with-handlers ([exn:fail? (lambda (_exn) #f)])
+         (match (call-with-input-file cache-path
+                  (lambda (in)
+                    (fasl->s-exp (port->bytes in))))
+           [(list 'split-runtime-boundary-cache
+                  version
+                  cached-core-cache-key
+                  _payload)
+            (and (= version split-runtime-boundary-cache-version)
+                 (equal? cached-core-cache-key core-cache-key))]
+           [_ #f]))))
 
 ;; split-runtime-request-cache-fingerprint :
 ;;   #:browser? boolean? #:runtime-source-fingerprint any/c
@@ -141,4 +162,6 @@
    (split-runtime-boundary-cache-path "/tmp/cache" sample-core-cache-key)
    (build-path "/tmp/cache"
                split-runtime-boundary-cache-directory
-               (format "~x.fasl" (abs (equal-hash-code sample-core-cache-key))))))
+               (format "~x.fasl" (abs (equal-hash-code sample-core-cache-key)))))
+  (check-false
+   (split-runtime-boundary-cache-current? "/tmp/cache" sample-core-cache-key)))

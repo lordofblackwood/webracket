@@ -30,7 +30,6 @@
 
 (require racket/cmdline
          racket/file
-         racket/fasl
          racket/format
          racket/list
          racket/match
@@ -40,8 +39,8 @@
          (only-in "../pkgs/webracket-lib/compiler/private/parameters.rkt"
                   current-runtime-cache-dir)
          (only-in "../pkgs/webracket-lib/compiler/runtime-wasm/split-runtime-cache.rkt"
-                  split-runtime-boundary-cache-path
-                  split-runtime-boundary-cache-version
+                  split-runtime-boundary-cache-current?
+                  split-runtime-core-cache-directory
                   split-runtime-core-cache-key-fingerprint
                   split-runtime-core-cache-wasm-path
                   split-runtime-request-cache-fingerprint
@@ -102,7 +101,7 @@
 ;;   Return cached split-runtime wasm artifacts in deterministic order.
 (define (cached-runtime-wasm-files runtime-cache-dir)
   (define runtime-cache-root
-    (build-path runtime-cache-dir "split-runtime-core-v3"))
+    (build-path runtime-cache-dir split-runtime-core-cache-directory))
   (if (directory-exists? runtime-cache-root)
       (sort (find-files runtime-cache-wasm-file? runtime-cache-root)
             string<?
@@ -162,24 +161,6 @@
         #:active-ffi-imports-wat '()
         #:active-ffi-funcs-wat '()))))
 
-;; split-runtime-boundary-cache-hit? : path? any/c -> boolean?
-;;   Check whether the matching split-boundary metadata cache entry exists.
-(define (split-runtime-boundary-cache-hit? runtime-cache-dir core-cache-key)
-  (define cache-path
-    (split-runtime-boundary-cache-path runtime-cache-dir core-cache-key))
-  (and (file-exists? cache-path)
-       (with-handlers ([exn:fail? (lambda (_exn) #f)])
-         (match (call-with-input-file cache-path
-                  (lambda (in)
-                    (fasl->s-exp (port->bytes in))))
-           [(list 'split-runtime-boundary-cache
-                  version
-                  cached-core-cache-key
-                  _payload)
-            (and (= version split-runtime-boundary-cache-version)
-                 (equal? cached-core-cache-key core-cache-key))]
-           [_ #f]))))
-
 ;; split-runtime-prewarm-cache-hit :
 ;;   path? symbol? boolean? boolean? -> (values (or/c any/c #f) (or/c path? #f))
 ;;   Return the cached runtime wasm when direct prewarm can skip compilation.
@@ -192,7 +173,8 @@
      (split-runtime-core-cache-key-fingerprint core-cache-key)))
   (define boundary-cache-hit?
     (or core-only?
-        (split-runtime-boundary-cache-hit? runtime-cache-dir core-cache-key)))
+        (split-runtime-boundary-cache-current? runtime-cache-dir
+                                               core-cache-key)))
   (if (and (not force?)
            boundary-cache-hit?
            (file-exists? cache-wasm-path))
