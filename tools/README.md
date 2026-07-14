@@ -367,6 +367,10 @@ user program compile. By default, split-runtime prewarm targets Node output and
 runs the generated program; use `--host browser` when warming the browser
 runtime cache.
 
+Repeated split-runtime prewarm first checks the cached runtime wasm and
+split-boundary metadata directly; when both match, it skips the dummy compile.
+Use `--force` to rebuild the cached artifact anyway.
+
 Run:
 
 ```sh

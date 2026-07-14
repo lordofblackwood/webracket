@@ -225,14 +225,25 @@
   (define cache-root
     (build-path runtime-cache "split-runtime-core-v3"))
   (if (directory-exists? cache-root)
-      (find-files
-       (lambda (p)
-         (and (file-exists? p)
-              (equal? (path-get-extension p) #".wasm")
-              (not (regexp-match? #rx"^\\.LOCK"
-                                  (path->string (file-name-from-path p))))))
-       cache-root)
+      (sort
+       (find-files
+        (lambda (p)
+          (and (file-exists? p)
+               (equal? (path-get-extension p) #".wasm")
+               (not (regexp-match? #rx"^\\.LOCK"
+                                   (path->string (file-name-from-path p))))))
+        cache-root)
+       string<?
+       #:key path->string)
       '()))
+
+;; cached-runtime-wasm-snapshot : path-string? -> list?
+;;   Return stable file metadata for cached runtime wasm artifacts.
+(define (cached-runtime-wasm-snapshot runtime-cache)
+  (for/list ([p (in-list (cached-runtime-wasm-files runtime-cache))])
+    (list (path->string p)
+          (file-size p)
+          (file-or-directory-modify-seconds p))))
 
 ;; transcript-contains? : command-result? regexp? -> boolean?
 ;;   Check stdout and stderr for a regexp.
@@ -818,7 +829,7 @@ RKT
       (record-failure! "staged-provider prewarm command failed; see ~a"
                        staged-provider-prewarm-log)))
 
-  (define prewarm-args
+  (define base-prewarm-args
     (append
      (list "-S" "pkgs" "tools/prewarm-staged-providers.rkt"
            "--provider-cache-dir" (path->string provider-cache)
@@ -826,7 +837,10 @@ RKT
            "--mode" "split-runtime")
      (if core-only?
          '("--split-runtime-core-only")
-         '())
+         '())))
+  (define prewarm-args
+    (append
+     base-prewarm-args
      (if force-prewarm? '("--force") '())))
   (define prewarm-result
     (run-command/capture repo-root racket-exe prewarm-args))
@@ -841,6 +855,31 @@ RKT
   (when (null? cached-wasms-after-prewarm)
     (record-failure! "prewarm did not create a cached split-runtime wasm in ~a"
                      runtime-cache))
+  (define cached-wasm-snapshot-after-prewarm
+    (cached-runtime-wasm-snapshot runtime-cache))
+
+  (define prewarm-cache-hit-result
+    (if (and (command-result-ok? prewarm-result)
+             (pair? cached-wasms-after-prewarm))
+        (run-command/capture repo-root racket-exe base-prewarm-args)
+        (command-result #f "" "" 0.0)))
+  (define prewarm-cache-hit-log
+    (build-path temp-root "prewarm-cache-hit.log"))
+  (write-log! prewarm-cache-hit-log
+              racket-exe
+              base-prewarm-args
+              prewarm-cache-hit-result)
+  (unless (command-result-ok? prewarm-cache-hit-result)
+    (record-failure! "second prewarm command failed; see ~a"
+                     prewarm-cache-hit-log))
+  (unless (transcript-contains? prewarm-cache-hit-result
+                                #rx"split-runtime prewarm cache hit")
+    (record-failure! "second prewarm did not report a direct split-runtime cache hit"))
+  (define cached-wasm-snapshot-after-cache-hit
+    (cached-runtime-wasm-snapshot runtime-cache))
+  (unless (equal? cached-wasm-snapshot-after-cache-hit
+                  cached-wasm-snapshot-after-prewarm)
+    (record-failure! "second prewarm changed cached runtime wasm artifacts"))
 
   (define compile-results
     (compile-cases! cases
@@ -852,7 +891,7 @@ RKT
 
   (cond
     [(null? failures)
-     (printf "ok: ~aprewarm=~as compile/runs=[~a] cached-runtime-wasms=~a\n"
+     (printf "ok: ~aprewarm=~as cache-hit-prewarm=~as compile/runs=[~a] cached-runtime-wasms=~a\n"
              (if staged-provider-prewarm?
                  (format "provider-prewarm=~as "
                          (format-seconds
@@ -860,6 +899,7 @@ RKT
                            staged-provider-prewarm-result)))
                  "")
              (format-seconds (command-result-wall-ms prewarm-result))
+             (format-seconds (command-result-wall-ms prewarm-cache-hit-result))
              (string-join
               (for/list ([result (in-list compile-results)])
                 (format "~as" (format-seconds (command-result-wall-ms result))))

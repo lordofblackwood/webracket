@@ -30,19 +30,36 @@
 
 (require racket/cmdline
          racket/file
+         racket/fasl
          racket/format
          racket/list
          racket/match
          racket/path
          racket/port
          racket/runtime-path
-         "../pkgs/webracket-lib/compiler/driver.rkt"
+         (only-in file/sha1
+                  bytes->hex-string
+                  sha1-bytes)
          (only-in "../pkgs/webracket-lib/compiler/private/parameters.rkt"
-                  current-runtime-cache-dir))
+                  current-runtime-cache-dir)
+         (only-in "../pkgs/webracket-lib/compiler/runtime-wasm/runtime-source.rkt"
+                  runtime-source-fingerprint))
 
 (define-runtime-path repo-dir "..")
 (define repo-root
   (simplify-path repo-dir))
+(define-runtime-path driver-module-path
+  "../pkgs/webracket-lib/compiler/driver.rkt")
+
+;; driver-ref : symbol? -> any/c
+;;   Lazily load the heavy compiler driver only on paths that need it.
+(define driver-ref
+  (let ([cache (make-hasheq)])
+    (lambda (name)
+      (hash-ref! cache
+                 name
+                 (lambda ()
+                   (dynamic-require driver-module-path name))))))
 
 ;; tool-temp-dir : -> path?
 ;;   Return the repo-local parent for temporary prewarm work directories.
@@ -101,29 +118,105 @@
 ;; prewarm-regexp-provider! : -> any/c
 ;;   Populate the public regexp provider cache used by script compiles.
 (define (prewarm-regexp-provider!)
-  (regexp-provider-forms #:public-aliases? #t
-                         #:owner 'prewarm))
+  ((driver-ref 'regexp-provider-forms) #:public-aliases? #t
+                                      #:owner 'prewarm))
 
 ;; prewarm-read-provider! : -> any/c
 ;;   Populate expander/read plus its regexp dependency.
 (define (prewarm-read-provider!)
   ;; The staged reader needs the staged regexp provider as part of its
   ;; dependency closure, so prewarm both artifacts together.
-  (regexp-provider-forms #:public-aliases? #t
-                         #:owner 'prewarm-expander-read)
-  (read-provider-forms #:public-aliases? #t
-                       #:owner 'prewarm-expander-read))
+  ((driver-ref 'regexp-provider-forms) #:public-aliases? #t
+                                      #:owner 'prewarm-expander-read)
+  ((driver-ref 'read-provider-forms) #:public-aliases? #t
+                                    #:owner 'prewarm-expander-read))
 
 ;; prewarm-io-format-provider! : -> any/c
 ;;   Populate the public io/format provider cache used by script compiles.
 (define (prewarm-io-format-provider!)
-  (io-format-provider-forms #:public-aliases? #t))
+  ((driver-ref 'io-format-provider-forms) #:public-aliases? #t))
 
 ;; prewarm-all-staged-providers! : -> any/c
 ;;   Populate all staged provider artifacts used by ordinary warm compiles.
 (define (prewarm-all-staged-providers!)
   (prewarm-read-provider!)
   (prewarm-io-format-provider!))
+
+;; split-runtime-prewarm-core-cache-key : symbol? boolean? -> any/c
+;;   Build the split-runtime cache key produced by the prewarm compile.
+(define (split-runtime-prewarm-core-cache-key host core-only?)
+  (if core-only?
+      `(split-runtime-core-only-cache
+        1
+        ,(runtime-source-fingerprint))
+      `(split-runtime-core-cache
+        2
+        tree-shake
+        (split-runtime-request-cache
+         1
+         ,(if (eq? host 'browser) 'browser 'node)
+         ,(runtime-source-fingerprint)
+         ()
+         ,(equal-hash-code '())
+         ,(equal-hash-code '())))))
+
+;; split-runtime-core-cache-key-fingerprint : any/c -> string?
+;;   Fingerprint a compiler-provided stable split runtime cache key.
+(define (split-runtime-core-cache-key-fingerprint cache-key)
+  (bytes->hex-string
+   (sha1-bytes
+    (s-exp->fasl cache-key))))
+
+;; split-runtime-core-cache-wasm-path : path? string? -> path?
+;;   Return the stable cache path for an assembled split core runtime module.
+(define (split-runtime-core-cache-wasm-path runtime-cache-dir fingerprint)
+  (build-path runtime-cache-dir
+              "split-runtime-core-v3"
+              (format "~a.wasm" fingerprint)))
+
+;; split-runtime-boundary-cache-path : path? any/c -> path?
+;;   Return the cache path for split-runtime boundary metadata.
+(define (split-runtime-boundary-cache-path runtime-cache-dir core-cache-key)
+  (build-path runtime-cache-dir
+              "split-runtime-boundary-v1"
+              (format "~x.fasl"
+                      (abs (equal-hash-code core-cache-key)))))
+
+;; split-runtime-boundary-cache-hit? : path? any/c -> boolean?
+;;   Check whether the matching split-boundary metadata cache entry exists.
+(define (split-runtime-boundary-cache-hit? runtime-cache-dir core-cache-key)
+  (define cache-path
+    (split-runtime-boundary-cache-path runtime-cache-dir core-cache-key))
+  (and (file-exists? cache-path)
+       (with-handlers ([exn:fail? (lambda (_exn) #f)])
+         (match (call-with-input-file cache-path
+                  (lambda (in)
+                    (fasl->s-exp (port->bytes in))))
+           [(list 'split-runtime-boundary-cache
+                  1
+                  cached-core-cache-key
+                  _payload)
+            (equal? cached-core-cache-key core-cache-key)]
+           [_ #f]))))
+
+;; split-runtime-prewarm-cache-hit :
+;;   path? symbol? boolean? boolean? -> (values (or/c any/c #f) (or/c path? #f))
+;;   Return the cached runtime wasm when direct prewarm can skip compilation.
+(define (split-runtime-prewarm-cache-hit runtime-cache-dir host core-only? force?)
+  (define core-cache-key
+    (split-runtime-prewarm-core-cache-key host core-only?))
+  (define cache-wasm-path
+    (split-runtime-core-cache-wasm-path
+     runtime-cache-dir
+     (split-runtime-core-cache-key-fingerprint core-cache-key)))
+  (define boundary-cache-hit?
+    (or core-only?
+        (split-runtime-boundary-cache-hit? runtime-cache-dir core-cache-key)))
+  (if (and (not force?)
+           boundary-cache-hit?
+           (file-exists? cache-wasm-path))
+      (values core-cache-key cache-wasm-path)
+      (values #f #f)))
 
 ;; prewarm-split-runtime! :
 ;;   path? path? symbol? boolean? boolean? boolean? (or/c path-string? #f) -> void?
@@ -133,82 +226,90 @@
                                 host
                                 force?
                                 verbose?
-                                core-only?
-                                runtime-wasm-out)
-  (define work-dir
-    (make-temporary-file "webracket-split-runtime-prewarm-~a"
-                         'directory
-                         (tool-temp-dir)))
-  (define source-path
-    (build-path work-dir "split-runtime-prewarm.rkt"))
-  (define dest-dir
-    (build-path work-dir "out"))
-  (call-with-output-file source-path
-    (lambda (out)
-      (displayln "(void)" out))
-    #:exists 'truncate/replace)
-  (make-directory* dest-dir)
-  (define-values (exit-code _compile-timings)
-    (parameterize ([current-directory repo-root]
-                   [current-output-port (open-output-nowhere)])
-      (drive-compilation
-       #:filename source-path
-       #:wat-filename #f
-       #:wasm-filename #f
-       #:host-filename #f
-       #:dest-dir dest-dir
-       #:label-map-forms? #f
-       #:dump-passes-dir #f
-       #:dump-passes-limit #f
-       #:timings? #f
-       #:alpha-rename-profile? #f
-       #:simplify-profile? #f
-       #:pretty-wat? #f
-       #:verbose? verbose?
-       #:browser? (eq? host 'browser)
-       #:node? (eq? host 'node)
-       #:letrec-strategy 'waddell
-       #:enable-cc-analysis? #f
-       #:enable-simplify? #f
-       #:module-bridge-elide-public-cells? #f
-       #:tree-shake? #t
-       #:tree-shake-report #f
-       #:split-runtime? #t
-       #:split-runtime-cache-reference? (eq? host 'node)
-       #:split-runtime-core-only? core-only?
-       #:print-top-level-results? #f
-       #:internal-bind-treelist-debug-shape? #f
-       #:internal-bind-immutable-hash-debug-shape? #f
-       #:console-bridge? #f
-       #:vfs-preloads '()
-       #:vfs-mounts '()
-       #:run-after? (eq? host 'node)
-       #:exec-path-from-shell? #t
-       #:ffi-files '()
-       #:stdlib? #f
-       #:stdlib-io-format-provider? #f
-       #:expander-read-provider? #f
-       #:expander-read-syntax-provider? #f
-       #:webracket-module-bridge? #f
-       #:provider-substitutions? #t
-       #:provider-cache-dir cache-dir
-       #:runtime-provider-cache-dir runtime-cache-dir
-       #:clear-provider-cache? #f
-       #:clear-runtime-provider-cache? #f
-       #:force-provider-cache-refresh? force?)))
-  (unless (zero? exit-code)
-    (error 'prewarm-split-runtime!
-           "split-runtime prewarm compile exited with code ~a"
-           exit-code))
-  (define runtime-cache-files
-    (cached-runtime-wasm-files runtime-cache-dir))
-  (when (null? runtime-cache-files)
-    (error 'prewarm-split-runtime!
-           "split-runtime prewarm did not create a cached runtime wasm in ~a"
-           runtime-cache-dir))
-  (when runtime-wasm-out
-    (copy-runtime-wasm-out! (first runtime-cache-files) runtime-wasm-out))
-  (delete-directory/files work-dir))
+                                 core-only?
+                                 runtime-wasm-out)
+  (define-values (_cache-key cached-runtime-wasm)
+    (split-runtime-prewarm-cache-hit runtime-cache-dir host core-only? force?))
+  (cond
+    [cached-runtime-wasm
+     (printf "split-runtime prewarm cache hit: ~a\n" cached-runtime-wasm)
+     (when runtime-wasm-out
+       (copy-runtime-wasm-out! cached-runtime-wasm runtime-wasm-out))]
+    [else
+     (define work-dir
+       (make-temporary-file "webracket-split-runtime-prewarm-~a"
+                            'directory
+                            (tool-temp-dir)))
+     (define source-path
+       (build-path work-dir "split-runtime-prewarm.rkt"))
+     (define dest-dir
+       (build-path work-dir "out"))
+     (call-with-output-file source-path
+       (lambda (out)
+         (displayln "(void)" out))
+       #:exists 'truncate/replace)
+     (make-directory* dest-dir)
+     (define-values (exit-code _compile-timings)
+       (parameterize ([current-directory repo-root]
+                      [current-output-port (open-output-nowhere)])
+         ((driver-ref 'drive-compilation)
+          #:filename source-path
+          #:wat-filename #f
+          #:wasm-filename #f
+          #:host-filename #f
+          #:dest-dir dest-dir
+          #:label-map-forms? #f
+          #:dump-passes-dir #f
+          #:dump-passes-limit #f
+          #:timings? #f
+          #:alpha-rename-profile? #f
+          #:simplify-profile? #f
+          #:pretty-wat? #f
+          #:verbose? verbose?
+          #:browser? (eq? host 'browser)
+          #:node? (eq? host 'node)
+          #:letrec-strategy 'waddell
+          #:enable-cc-analysis? #f
+          #:enable-simplify? #f
+          #:module-bridge-elide-public-cells? #f
+          #:tree-shake? #t
+          #:tree-shake-report #f
+          #:split-runtime? #t
+          #:split-runtime-cache-reference? (eq? host 'node)
+          #:split-runtime-core-only? core-only?
+          #:print-top-level-results? #f
+          #:internal-bind-treelist-debug-shape? #f
+          #:internal-bind-immutable-hash-debug-shape? #f
+          #:console-bridge? #f
+          #:vfs-preloads '()
+          #:vfs-mounts '()
+          #:run-after? (eq? host 'node)
+          #:exec-path-from-shell? #t
+          #:ffi-files '()
+          #:stdlib? #f
+          #:stdlib-io-format-provider? #f
+          #:expander-read-provider? #f
+          #:expander-read-syntax-provider? #f
+          #:webracket-module-bridge? #f
+          #:provider-substitutions? #t
+          #:provider-cache-dir cache-dir
+          #:runtime-provider-cache-dir runtime-cache-dir
+          #:clear-provider-cache? #f
+          #:clear-runtime-provider-cache? #f
+          #:force-provider-cache-refresh? force?)))
+     (unless (zero? exit-code)
+       (error 'prewarm-split-runtime!
+              "split-runtime prewarm compile exited with code ~a"
+              exit-code))
+     (define-values (_post-cache-key post-cache-runtime-wasm)
+       (split-runtime-prewarm-cache-hit runtime-cache-dir host core-only? #f))
+     (unless post-cache-runtime-wasm
+       (error 'prewarm-split-runtime!
+              "split-runtime prewarm did not create a reusable cached runtime wasm in ~a"
+              runtime-cache-dir))
+     (when runtime-wasm-out
+       (copy-runtime-wasm-out! post-cache-runtime-wasm runtime-wasm-out))
+     (delete-directory/files work-dir)]))
 
 ;; prewarm-staged-providers! :
 ;;   path-string? path-string? symbol? symbol? boolean? boolean? boolean? (or/c path-string? #f)
@@ -232,19 +333,8 @@
     (cache-dir->complete-path runtime-provider-cache-dir))
   (make-directory* cache-dir)
   (make-directory* runtime-cache-dir)
-  (parameterize ([current-provider-cache-dir cache-dir]
-                 [current-provider-cache-force? force?]
-                 [current-provider-cache-verbose? verbose?]
-                 [current-runtime-cache-dir runtime-cache-dir])
+  (parameterize ([current-runtime-cache-dir runtime-cache-dir])
     (match mode
-      ['regexp
-       (prewarm-regexp-provider!)]
-      ['read
-       (prewarm-read-provider!)]
-      ['io-format
-       (prewarm-io-format-provider!)]
-      ['all
-       (prewarm-all-staged-providers!)]
       ['split-runtime
        (prewarm-split-runtime! cache-dir
                                runtime-cache-dir
@@ -253,6 +343,26 @@
                                verbose?
                                core-only?
                                runtime-wasm-out)]
+      ['regexp
+       (parameterize ([(driver-ref 'current-provider-cache-dir) cache-dir]
+                      [(driver-ref 'current-provider-cache-force?) force?]
+                      [(driver-ref 'current-provider-cache-verbose?) verbose?])
+         (prewarm-regexp-provider!))]
+      ['read
+       (parameterize ([(driver-ref 'current-provider-cache-dir) cache-dir]
+                      [(driver-ref 'current-provider-cache-force?) force?]
+                      [(driver-ref 'current-provider-cache-verbose?) verbose?])
+         (prewarm-read-provider!))]
+      ['io-format
+       (parameterize ([(driver-ref 'current-provider-cache-dir) cache-dir]
+                      [(driver-ref 'current-provider-cache-force?) force?]
+                      [(driver-ref 'current-provider-cache-verbose?) verbose?])
+         (prewarm-io-format-provider!))]
+      ['all
+       (parameterize ([(driver-ref 'current-provider-cache-dir) cache-dir]
+                      [(driver-ref 'current-provider-cache-force?) force?]
+                      [(driver-ref 'current-provider-cache-verbose?) verbose?])
+         (prewarm-all-staged-providers!))]
       [_
        (error 'prewarm-staged-providers!
               "unsupported mode: ~a"
