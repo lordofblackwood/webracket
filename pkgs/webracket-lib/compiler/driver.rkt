@@ -163,7 +163,9 @@
                   first-slice-top-level-export-cell-ids
                   webify-linklet-first-slice-top-level)
          (only-in "webify/module-composer.rkt"
-                  current-composer-primitive-import-cell-overrides)
+                  current-composer-primitive-import-cell-overrides
+                  webify-module-fragment-datum
+                  webify-module-fragment-instance)
          (only-in "webify/bridge-stats.rkt"
                   current-webify-bridge-stats)
          (only-in "webify/module-registry.rkt"
@@ -182,6 +184,7 @@
                   webify-module-linklet-inputs->registry
                   webify-module-linklet-manifest->registry)
          (only-in "webify/module-instance.rkt"
+                  webify-module-instance-name
                   webify-module-instance-exports
                   webify-module-instance-export-entry)
          (only-in "webify/module-extractor.rkt"
@@ -224,6 +227,8 @@
                   webify-module-protocol-input
                   webify-module-protocol-report
                   webify-module-protocol-dependency)
+         (only-in "webify/primitive-modules.rkt"
+                  kernel-provider-name?)
          (only-in "webify/provider-trials.rkt"
                   webify-provider-trial-default-bridge-module-allowed?
                   webify-provider-trial-module-allowed?
@@ -1218,6 +1223,46 @@
                                  (racket-installed-provider-elision-allowed-module? name)))))
     name))
 
+;; module-bridge-fragment-body : any/c -> (listof any/c)
+;;   Return the top-level forms generated for one composed module fragment.
+(define (module-bridge-fragment-body datum)
+  (match datum
+    [`(begin ,body ...) body]
+    [_ '()]))
+
+;; module-bridge-fragment-provider-kind : hash? symbol? -> symbol?
+;;   Classify one composed fragment using the bridge graph module-kind table.
+(define (module-bridge-fragment-provider-kind module-kinds module-name)
+  (cond
+    [(kernel-provider-name? module-name) 'kernel-provider]
+    [(hash-has-key? module-kinds module-name)
+     (hash-ref module-kinds module-name)]
+    [else 'unknown-provider]))
+
+;; module-bridge-fragment-counts :
+;;   webify-module-composition? hash?
+;;   -> (values hasheq? hasheq? hasheq? exact-nonnegative-integer?)
+;;   Count composed fragment bodies by module kind and module name.
+(define (module-bridge-fragment-counts composition module-kinds)
+  (for/fold ([kind-form-counts (hasheq)]
+             [kind-fragment-counts (hasheq)]
+             [module-form-counts (hasheq)]
+             [total-form-count 0])
+            ([fragment (in-list (webify-module-composition-fragments composition))])
+    (define instance
+      (webify-module-fragment-instance fragment))
+    (define module-name
+      (webify-module-instance-name instance))
+    (define kind
+      (module-bridge-fragment-provider-kind module-kinds module-name))
+    (define body-count
+      (length (module-bridge-fragment-body
+               (webify-module-fragment-datum fragment))))
+    (values (hash-update kind-form-counts kind (lambda (n) (+ n body-count)) 0)
+            (hash-update kind-fragment-counts kind add1 0)
+            (hash-update module-form-counts module-name (lambda (n) (+ n body-count)) 0)
+            (+ total-form-count body-count))))
+
 ;; module-bridge-graph-metric-rows : graph composition -> (listof (list/c string? any/c))
 ;;   Summarize bridge scaffolding and graph shape before the main compiler pipeline.
 (define (module-bridge-graph-metric-rows graph composition)
@@ -1245,6 +1290,13 @@
   (define direct-provider-names (webracket/base-external-provider-names reports))
   (define graph-module-count
     (hash-count (webify-module-composition-instances composition)))
+  (define module-kinds
+    (webracket/base-local-module-graph-module-kinds graph))
+  (define-values (fragment-kind-form-counts
+                  fragment-kind-counts
+                  fragment-module-form-counts
+                  fragment-form-count)
+    (module-bridge-fragment-counts composition module-kinds))
   (define total-export-count
     (for/sum ([report (in-list reports)])
       (length (webify-module-report-phase0-exports report))))
@@ -1570,6 +1622,31 @@
    (list "provider-count" (length direct-provider-names))
    (list "local-module-count" local-module-count)
    (list "graph-module-count" graph-module-count)
+   (list "bridge-fragment-count"
+         (length (webify-module-composition-fragments composition)))
+   (list "bridge-fragment-form-count" fragment-form-count)
+   (list "bridge-fragment-local-user-count"
+         (hash-ref fragment-kind-counts 'local-user 0))
+   (list "bridge-fragment-support-provider-count"
+         (hash-ref fragment-kind-counts 'support-provider 0))
+   (list "bridge-fragment-installed-provider-count"
+         (hash-ref fragment-kind-counts 'installed-provider 0))
+   (list "bridge-fragment-kernel-provider-count"
+         (hash-ref fragment-kind-counts 'kernel-provider 0))
+   (list "bridge-fragment-unknown-provider-count"
+         (hash-ref fragment-kind-counts 'unknown-provider 0))
+   (list "bridge-fragment-local-user-form-count"
+         (hash-ref fragment-kind-form-counts 'local-user 0))
+   (list "bridge-fragment-support-provider-form-count"
+         (hash-ref fragment-kind-form-counts 'support-provider 0))
+   (list "bridge-fragment-installed-provider-form-count"
+         (hash-ref fragment-kind-form-counts 'installed-provider 0))
+   (list "bridge-fragment-kernel-provider-form-count"
+         (hash-ref fragment-kind-form-counts 'kernel-provider 0))
+   (list "bridge-fragment-unknown-provider-form-count"
+         (hash-ref fragment-kind-form-counts 'unknown-provider 0))
+   (list "bridge-fragment-top-modules"
+         (bridge-top-count-summary fragment-module-form-counts))
    (list "export-count" total-export-count)
    (list "import-count" total-import-count)
    (list "reexport-count" reexport-count)
