@@ -293,6 +293,8 @@ Experimental compiler options:
   @item{@(flag "--simplify-profile"): Print simplify-LFE rule and shape diagnostics.}
   @item{@(flag "--enable-cc-analysis"): Enable the new closure-conversion analysis.}
   @item{@(flag "--enable-simplify"): Run the early simplify-LFE pass.}
+  @item{@(flag "--frontend-cache"): Cache serialized post-unexpand frontend syntax in the project provider cache. This is experimental and opt-in.}
+  @item{@(flag "--no-frontend-cache"): Disable frontend syntax caching (default).}
   @item{@(flag "--module-bridge-elide-public-cells"): Expose safe module-bridge public exports as plain values.}
   @item{@(flag "--tree-shake"): Tree-shake runtime primitives (default).}
   @item{@(flag "--no-tree-shake"): Do not tree-shake runtime primitives.}

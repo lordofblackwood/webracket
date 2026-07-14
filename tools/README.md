@@ -237,6 +237,18 @@ racket -S pkgs tools/measure-split-runtime.rkt \
   --in-process
 ```
 
+Use `--frontend-cache` to pass the experimental compiler frontend cache through
+to measured compiles. The cache stores serialized post-unexpand syntax in the
+project provider cache, so repeated identical frontend inputs can skip
+`topexpand` and `unexpand`:
+
+```sh
+racket -S pkgs tools/measure-split-runtime.rkt \
+  --prewarm-runtime-first \
+  --include-cache-reference \
+  --frontend-cache
+```
+
 check-split-runtime-prewarm.rkt
 -------------------------------
 Regression-style check for the compile-once split-runtime workflow. It creates
@@ -296,6 +308,14 @@ correct output:
 racket -S pkgs tools/check-split-runtime-prewarm.rkt \
   --source examples/minischeme/repro-local-mini-42.rkt \
   --check-module-bridge-result-cache
+```
+
+Use `--frontend-cache` to pass the experimental frontend cache through to the
+post-prewarm compile/run cases:
+
+```sh
+racket -S pkgs tools/check-split-runtime-prewarm.rkt \
+  --frontend-cache
 ```
 
 By default, this checker leaves the normal Racket compiled-file roots alone,

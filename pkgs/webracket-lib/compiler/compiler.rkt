@@ -5,6 +5,9 @@
          racket/list
          racket/promise
          racket/runtime-path
+         racket/path
+         racket/fasl
+         file/sha1
          syntax/id-set
          syntax/id-table)
 
@@ -67,10 +70,17 @@
                   current-enable-simplify?
                   current-letrec-strategy
                   current-provider-owned-primitive-aliases
+                  current-frontend-cache-enabled?
                   current-tree-shake?
                   current-runtime-primitive-report-path
                   current-runtime-timing-rows
                   current-runtime-metric-rows)
+         (only-in "webify/provider-cache.rkt"
+                  current-provider-cache-force?
+                  provider-cache-path
+                  call-with-provider-cache-lock
+                  path-fingerprint
+                  provider-cache-log)
          (only-in "private/timings.rkt"
                   with-timing
                   format-timing-table
@@ -930,6 +940,11 @@
 (define primitive-info-cache #f)
 (define primitive-value-cache (make-hasheq))
 (define-runtime-path primitives-module-path "../../webracket/primitives.rkt")
+(define-runtime-path compiler-source-path "compiler.rkt")
+(define-runtime-path expander-source-path "expander.rkt")
+(define-runtime-path private-parameters-source-path "private/parameters.rkt")
+(define-runtime-path webracket-main-source-path "../../webracket/main.rkt")
+(define-runtime-path webracket-primitives-source-path "../../webracket/primitives.rkt")
 
 (define (console-bridge-primitive-normalize sym)
   (case sym
@@ -21693,6 +21708,165 @@
 (define current-console-bridge-module-cell-bindings (make-parameter (make-hasheq)))
 (define current-console-bridge-program-source-path (make-parameter #f))
 
+;; frontend-cache-version : exact-positive-integer?
+;;   Bump when the serialized post-unexpand frontend cache payload changes.
+(define frontend-cache-version 1)
+
+;; frontend-cache-source-paths : (listof path?)
+;;   Source files that influence expansion/unexpansion before Nanopass parsing.
+(define frontend-cache-source-paths
+  (list compiler-source-path
+        expander-source-path
+        private-parameters-source-path
+        webracket-main-source-path
+        webracket-primitives-source-path))
+
+;; frontend-cache-implementation-fingerprint : -> any/c
+;;   Fingerprint the implementation that produces cached unexpanded syntax.
+(define (frontend-cache-implementation-fingerprint)
+  (path-fingerprint 'frontend-cache-implementation 1 frontend-cache-source-paths))
+
+;; syntax-source-label : any/c -> (or/c string? #f)
+;;   Convert a syntax source label to a stable cache-key component.
+(define (syntax-source-label src)
+  (cond
+    [(path? src) (path->string (simplify-path (path->complete-path src)))]
+    [(string? src) src]
+    [(symbol? src) (symbol->string src)]
+    [else #f]))
+
+;; syntax-source-labels : syntax? -> (listof string?)
+;;   Collect source labels embedded in a syntax object for cache separation.
+(define (syntax-source-labels stx)
+  (define seen (make-hash))
+  (define labels '())
+  (define (record! src)
+    (define label (syntax-source-label src))
+    (when (and label (not (hash-ref seen label #f)))
+      (hash-set! seen label #t)
+      (set! labels (cons label labels))))
+  (define (walk v)
+    (cond
+      [(syntax? v)
+       (record! (syntax-source v))
+       (walk (syntax-e v))]
+      [(pair? v)
+       (walk (car v))
+       (walk (cdr v))]
+      [(vector? v)
+       (for ([elem (in-vector v)])
+         (walk elem))]
+      [(box? v)
+       (walk (unbox v))]
+      [else
+       (void)]))
+  (walk stx)
+  (sort labels string<?))
+
+;; frontend-cache-key : syntax? -> any/c
+;;   Build the cache key for post-unexpand syntax derived from stx.
+(define (frontend-cache-key stx)
+  `(frontend-unexpand-cache-key
+    ,frontend-cache-version
+    ,(version)
+    ,(system-type 'vm)
+    ,(frontend-cache-implementation-fingerprint)
+    ,(syntax-source-labels stx)
+    ,(syntax->datum stx)))
+
+;; frontend-cache-key-fingerprint : any/c -> string?
+;;   Fingerprint a frontend cache key for file naming and payload validation.
+(define (frontend-cache-key-fingerprint key)
+  (bytes->hex-string
+   (sha1-bytes
+    (s-exp->fasl key))))
+
+;; frontend-cache-path : string? -> path?
+;;   Return the cache path for serialized post-unexpand syntax.
+(define (frontend-cache-path fingerprint)
+  (provider-cache-path "frontend-unexpand"
+                       (string-append fingerprint ".fasl")))
+
+;; read-frontend-unexpand-cache : path? string? -> (or/c syntax? #f)
+;;   Read serialized post-unexpand syntax when the cache payload matches.
+(define (read-frontend-unexpand-cache cache-path fingerprint)
+  (and (not (current-provider-cache-force?))
+       (file-exists? cache-path)
+       (with-handlers ([exn:fail? (lambda (_exn) #f)])
+         (match (call-with-input-file cache-path
+                  (lambda (in)
+                    (fasl->s-exp (port->bytes in))))
+           [`(frontend-unexpand-cache
+              ,version
+              ,cached-fingerprint
+              ,serialized-syntax)
+            (and (= version frontend-cache-version)
+                 (equal? cached-fingerprint fingerprint)
+                 (syntax-deserialize serialized-syntax))]
+           [_ #f]))))
+
+;; write-frontend-unexpand-cache! : path? string? syntax? -> void?
+;;   Persist serialized post-unexpand syntax for later frontend cache hits.
+(define (write-frontend-unexpand-cache! cache-path fingerprint stx)
+  (make-directory* (path-only cache-path))
+  (call-with-output-file cache-path
+    (lambda (out)
+      (write-bytes
+       (s-exp->fasl
+        `(frontend-unexpand-cache
+          ,frontend-cache-version
+          ,fingerprint
+          ,(syntax-serialize stx)))
+       out))
+    #:exists 'truncate/replace))
+
+;; cached-unexpanded-syntax : syntax? (-> syntax?) (string? (-> any/c) any/c any/c -> any/c) -> syntax?
+;;   Return cached post-unexpand syntax, computing and caching it on a miss.
+(define (cached-unexpanded-syntax stx compute-unexpanded time-pass)
+  (define key
+    (time-pass "frontend-cache-key"
+               (lambda () (frontend-cache-key stx))))
+  (define fingerprint
+    (time-pass "frontend-cache-fingerprint"
+               (lambda () (frontend-cache-key-fingerprint key))))
+  (define cache-path (frontend-cache-path fingerprint))
+  (define (read-cache)
+    (time-pass "frontend-cache-lookup"
+               (lambda ()
+                 (read-frontend-unexpand-cache cache-path fingerprint))
+               #f
+               (lambda (v) (and v (syntax->datum v)))))
+  (define cached (read-cache))
+  (cond
+    [cached
+     (provider-cache-log "frontend unexpand cache hit: ~a" cache-path)
+     (time-pass "frontend-cache-hit"
+                (lambda () cached)
+                #f
+                (lambda (v) (syntax->datum v)))]
+    [else
+     (provider-cache-log "frontend unexpand cache miss: ~a" cache-path)
+     (call-with-provider-cache-lock
+      cache-path
+      (lambda ()
+        (define cached-after-lock (read-cache))
+        (cond
+          [cached-after-lock
+           (provider-cache-log "frontend unexpand cache hit after lock: ~a"
+                               cache-path)
+           (time-pass "frontend-cache-hit"
+                      (lambda () cached-after-lock)
+                      #f
+                      (lambda (v) (syntax->datum v)))]
+          [else
+           (define unexpanded (compute-unexpanded))
+           (time-pass "frontend-cache-write"
+                      (lambda ()
+                        (write-frontend-unexpand-cache! cache-path
+                                                        fingerprint
+                                                        unexpanded)))
+           unexpanded])))]))
+
 (define (format-alpha-rename-profile-report stats)
   (define (ref key [default 0]) (hash-ref stats key default))
   (string-join
@@ -22031,20 +22205,25 @@
           (finish-pass v ms))
         (finish-pass (thunk) #f)))
 
-  (define t
-    (time-pass "topexpand"
-      (λ ()
-        (define t (topexpand stx))
-        (when debug:print-passes?
-          (displayln "--- topexpand ---")
-          (displayln (pretty-print (syntax->datum t)) (current-error-port)))
-        t)
-      #f
-      (λ (v) (if (syntax? v) (syntax->datum v) v))))
+  (define (expand+unexpand)
+    (define t
+      (time-pass "topexpand"
+        (λ ()
+          (define t (topexpand stx))
+          (when debug:print-passes?
+            (displayln "--- topexpand ---")
+            (displayln (pretty-print (syntax->datum t)) (current-error-port)))
+          t)
+        #f
+        (λ (v) (if (syntax? v) (syntax->datum v) v))))
+    (time-pass "unexpand"             (λ () (unexpand t))
+               #f
+               (λ (v) (if (syntax? v) (syntax->datum v) v))))
 
-  (define u   (time-pass "unexpand"             (λ () (unexpand t))
-                         #f
-                         (λ (v) (if (syntax? v) (syntax->datum v) v))))
+  (define u
+    (if (current-frontend-cache-enabled?)
+        (cached-unexpanded-syntax stx expand+unexpand time-pass)
+        (expand+unexpand)))
   (define p0  (time-pass "parse"                (λ () (parse u))
                          (λ (v) (count-unparsed unparse-LFE v))
                          (λ (v) (unparse-all (unparse-LFE v)))))

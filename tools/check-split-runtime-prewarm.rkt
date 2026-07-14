@@ -68,6 +68,7 @@
 (define module-bridge-result-cache-check? #f)
 (define precompile-compiler? #f)
 (define isolate-compiled-root? #f)
+(define frontend-cache? #f)
 (define jobs 1)
 
 ;; resolve-source-path : string? -> path?
@@ -121,6 +122,9 @@
  [("--split-runtime-core-only")
   "Use the core-helper-only split runtime strategy for prewarm and compile."
   (set! core-only? #t)]
+ [("--frontend-cache")
+  "Pass --frontend-cache to post-prewarm compiles."
+  (set! frontend-cache? #t)]
  [("--keep-temp")
   "Keep the temporary check directory after a successful run."
   (set! keep-temp? #t)]
@@ -758,6 +762,9 @@ RKT
            "--split-runtime"
            "--split-runtime-cache-reference"
            "--no-stdlib")
+     (if frontend-cache?
+         '("--frontend-cache")
+         '())
      (if core-only?
          '("--split-runtime-core-only")
          '())
@@ -891,6 +898,8 @@ RKT
           (if staged-provider-prewarm? "regexp/read/io-format" "runtime only"))
   (printf "  precompile:    ~a\n"
           (if precompile-compiler? "compiler/tools" "no"))
+  (printf "  frontend cache: ~a\n"
+          (if frontend-cache? "enabled" "disabled"))
   (printf "  jobs:          ~a\n"
           (if in-process?
               "1 (serial in-process)"

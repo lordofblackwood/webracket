@@ -43,6 +43,7 @@
    exec-path-from-shell?                   ; import PATH/MANPATH from login shell before assembler preflight
    enable-cc-analysis?                    ; enable the new closure-conversion analysis
    enable-simplify?                       ; enable the early simplify pass
+   frontend-cache?                        ; cache post-unexpand frontend syntax
    module-bridge-elide-public-cells?      ; expose safe public bridge exports as plain values
    tree-shake?                            ; remove unused runtime primitives
    tree-shake-report                      ; optional runtime primitive reachability report path
@@ -95,6 +96,7 @@
     (exec-path-from-shell? . ,(webracket-compile-config-exec-path-from-shell? cfg))
     (enable-cc-analysis? . ,(webracket-compile-config-enable-cc-analysis? cfg))
     (enable-simplify? . ,(webracket-compile-config-enable-simplify? cfg))
+    (frontend-cache? . ,(webracket-compile-config-frontend-cache? cfg))
     (module-bridge-elide-public-cells? . ,(webracket-compile-config-module-bridge-elide-public-cells? cfg))
     (tree-shake? . ,(webracket-compile-config-tree-shake? cfg))
     (tree-shake-report . ,(webracket-compile-config-tree-shake-report cfg))
@@ -154,6 +156,7 @@
    (ref/default 'exec-path-from-shell? #t)
    (ref 'enable-cc-analysis?)
    (ref 'enable-simplify?)
+   (ref/default 'frontend-cache? #f)
    (ref 'module-bridge-elide-public-cells?)
    (ref 'tree-shake?)
    (ref 'tree-shake-report)
@@ -206,6 +209,7 @@
   (define list-provider-slices? #f)
   (define enable-cc-analysis? #f)
   (define enable-simplify? #f)
+  (define frontend-cache? #f)
   (define module-bridge-elide-public-cells? #f)
   (define tree-shake? #t)
   (define tree-shake-report #f)
@@ -386,6 +390,12 @@
                                (set! enable-cc-analysis? #t)]
      [("--enable-simplify") "Run the early simplify-LFE pass"
                             (set! enable-simplify? #t)]
+     [("--frontend-cache")
+      "Cache post-unexpand frontend syntax in the project provider cache"
+      (set! frontend-cache? #t)]
+     [("--no-frontend-cache")
+      "Disable post-unexpand frontend syntax caching (default)"
+      (set! frontend-cache? #f)]
      [("--module-bridge-elide-public-cells")
       "Expose safe module-bridge public exports as plain values"
       (set! module-bridge-elide-public-cells? #t)]
@@ -571,6 +581,7 @@
        exec-path-from-shell?
        enable-cc-analysis?
        enable-simplify?
+       frontend-cache?
        module-bridge-elide-public-cells?
        tree-shake?
        tree-shake-report
@@ -634,6 +645,7 @@
                        #:letrec-strategy (webracket-compile-config-letrec-strategy cfg)
                        #:enable-cc-analysis? (webracket-compile-config-enable-cc-analysis? cfg)
                        #:enable-simplify? (webracket-compile-config-enable-simplify? cfg)
+                       #:frontend-cache? (webracket-compile-config-frontend-cache? cfg)
                        #:module-bridge-elide-public-cells?
                        (webracket-compile-config-module-bridge-elide-public-cells? cfg)
                        #:tree-shake? (webracket-compile-config-tree-shake? cfg)

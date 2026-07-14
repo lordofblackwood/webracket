@@ -96,6 +96,7 @@
 (define isolate-compiled-root? #f)
 (define core-only? #f)
 (define in-process? #f)
+(define frontend-cache? #f)
 
 ;; resolve-source-path : string? -> path?
 ;;   Resolve a user-provided source path relative to the repository root.
@@ -144,7 +145,10 @@
   (set! core-only? #t)]
  [("--in-process")
   "Run measured compiles in this Racket process instead of fresh subprocesses"
-  (set! in-process? #t)])
+  (set! in-process? #t)]
+ [("--frontend-cache")
+  "Pass --frontend-cache to measured compiles"
+  (set! frontend-cache? #t)])
 
 
 ;;; Subprocess Helpers
@@ -292,7 +296,11 @@
   (make-directory* dest-dir)
   (define webracket-args
     (append
-     '("--node" "--run" "--timings" "--no-stdlib" "--no-split-runtime")
+     (append
+      '("--node" "--run" "--timings" "--no-stdlib" "--no-split-runtime")
+      (if frontend-cache?
+          '("--frontend-cache")
+          '()))
      (list "--provider-cache-dir" (path->string provider-cache)
            "--dest" (path->string dest-dir)
            (path->string source-file))))
@@ -386,7 +394,11 @@
 ;;   Return WebRacket flags for one benchmark mode.
 (define (mode-flags mode provider-cache runtime-cache)
   (append
-   '("--node" "--run" "--timings" "--no-stdlib")
+   (append
+    '("--node" "--run" "--timings" "--no-stdlib")
+    (if frontend-cache?
+        '("--frontend-cache")
+        '()))
    (list "--provider-cache-dir" (path->string provider-cache))
    (case mode
      [(monolithic) '("--no-split-runtime")]
@@ -612,6 +624,10 @@
           (if prewarm-module-bridge-first?
               "module-bridge prewarm"
               "not prewarmed by benchmark"))
+  (printf "  frontend cache: ~a\n"
+          (if frontend-cache?
+              "enabled"
+              "disabled"))
   (printf "  runtime warm:  ~a\n\n"
           (if prewarm-runtime-first?
               "split-runtime prewarm"

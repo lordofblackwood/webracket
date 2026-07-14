@@ -101,6 +101,7 @@
                                     current-letrec-strategy
                                     current-tree-shake?
                                     current-runtime-cache-dir
+                                    current-frontend-cache-enabled?
                                     current-runtime-primitive-report-path
                                     current-split-runtime?
                                     current-split-runtime-reference-only?)
@@ -3243,6 +3244,7 @@
          ;; Optimization
          #:enable-cc-analysis? enable-cc-analysis?
          #:enable-simplify?  enable-simplify?
+         #:frontend-cache?   [frontend-cache? #f]
          #:module-bridge-elide-public-cells? [module-bridge-elide-public-cells? #f]
          #:tree-shake?       tree-shake?        ; remove dead code from the wat-file
          #:tree-shake-report tree-shake-report
@@ -3297,6 +3299,7 @@
   (current-enable-cc-analysis? enable-cc-analysis?)
   (current-console-bridge? console-bridge?)
   (current-tree-shake? tree-shake?)
+  (current-frontend-cache-enabled? frontend-cache?)
   (current-module-bridge-elide-public-cells? module-bridge-elide-public-cells?)
   (define (cache-dir->complete-path cache-dir)
     (let ([p (if (path? cache-dir)
@@ -3628,6 +3631,7 @@
                      [current-enable-cc-analysis? enable-cc-analysis?]
                      [current-letrec-strategy letrec-strategy]
                      [current-enable-simplify? enable-simplify?]
+                     [current-frontend-cache-enabled? frontend-cache?]
                      [current-module-bridge-elide-public-cells?
                       module-bridge-elide-public-cells?]
                      [current-print-top-level-results? print-top-level-results?]

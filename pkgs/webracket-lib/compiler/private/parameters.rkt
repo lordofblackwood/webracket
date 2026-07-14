@@ -19,6 +19,7 @@
          current-letrec-strategy
          current-tree-shake?
          current-provider-owned-primitive-aliases
+         current-frontend-cache-enabled?
          current-runtime-cache-dir
          current-runtime-primitive-report-path
          current-split-runtime?
@@ -65,6 +66,8 @@
          (raise-argument-error 'current-provider-owned-primitive-aliases
                                "(or/c set? (listof symbol?))"
                                aliases)]))))          ; provider-owned public names that must resolve through staged providers
+(define current-frontend-cache-enabled?
+  (make-parameter #f))                                 ; boolean? cache post-unexpand frontend syntax
 (define current-runtime-cache-dir
   (make-parameter #f))                                 ; path-string? or #f
 (define current-runtime-primitive-report-path
