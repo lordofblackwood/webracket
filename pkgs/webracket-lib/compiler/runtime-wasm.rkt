@@ -2022,15 +2022,19 @@
                         build-split-program-forms)])
             (set! split-runtime-program-forms-cache forms)
             forms)))
+    (define split-runtime-program-index-cache #f)
     (define split-runtime-reference-compatible-now?
       (and (current-split-runtime-reference-only?)
            split-runtime-boundary-metadata
            (time-runtime-step
             "runtime:split-reference-compatibility"
             (lambda ()
-              (split-runtime-reference-compatible?
-               split-runtime-boundary-metadata
-               (split-runtime-program-forms!))))))
+              (define-values (compatible? program-index)
+                (split-runtime-reference-compatible+index
+                 split-runtime-boundary-metadata
+                 (split-runtime-program-forms!)))
+              (set! split-runtime-program-index-cache program-index)
+              compatible?))))
     (runtime-metric-add! "runtime:split-reference-compatible?"
                          (if (current-split-runtime-reference-only?)
                              (if split-runtime-reference-compatible-now? "yes" "no")
@@ -2059,7 +2063,8 @@
               #f
               program-forms
               #:core-cache-key split-runtime-core-cache-key
-              #:boundary-metadata split-runtime-boundary-metadata)))))]
+              #:boundary-metadata split-runtime-boundary-metadata
+              #:initial-program-index split-runtime-program-index-cache)))))]
       [(and (current-split-runtime?)
             (current-split-runtime-reference-only?)
             (current-browser?)

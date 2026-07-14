@@ -8,6 +8,7 @@
          classified-runtime-import/export-forms
          read-split-runtime-boundary-metadata/cache
          split-runtime-reference-compatible?
+         split-runtime-reference-compatible+index
          runtime-tag-export-form
          runtime-tag-import-form
          runtime-function-export-form
@@ -1262,16 +1263,14 @@
                                              #f)))))
     form))
 
-;; split-runtime-reference-compatible? :
-;;   split-runtime-boundary-metadata? (listof datum?) -> boolean?
-;;   Check whether program forms can link against an unchanged cached core.
-(define (split-runtime-reference-compatible? boundary-metadata program-forms)
+;; split-runtime-reference-compatible?/index :
+;;   split-runtime-boundary-metadata? split-form-indexes? -> boolean?
+;;   Check compatibility using an already-built program form index.
+(define (split-runtime-reference-compatible?/index boundary-metadata program-index)
   (define runtime-symbol-refs
     (split-runtime-boundary-metadata-runtime-symbol-refs boundary-metadata))
   (define runtime-index
     (split-runtime-boundary-metadata-runtime-index boundary-metadata))
-  (define program-index
-    (build-split-form-indexes program-forms))
   (and (null? (runtime-referenced-program-global-names/from-refs
                runtime-symbol-refs
                program-index
@@ -1280,6 +1279,25 @@
                runtime-symbol-refs
                program-index
                #:runtime-index runtime-index))))
+
+;; split-runtime-reference-compatible+index :
+;;   split-runtime-boundary-metadata? (listof datum?)
+;;   -> (values boolean? split-form-indexes?)
+;;   Check compatibility and return the program index built during the check.
+(define (split-runtime-reference-compatible+index boundary-metadata program-forms)
+  (define program-index
+    (build-split-form-indexes program-forms))
+  (values (split-runtime-reference-compatible?/index boundary-metadata
+                                                     program-index)
+          program-index))
+
+;; split-runtime-reference-compatible? :
+;;   split-runtime-boundary-metadata? (listof datum?) -> boolean?
+;;   Check whether program forms can link against an unchanged cached core.
+(define (split-runtime-reference-compatible? boundary-metadata program-forms)
+  (define-values (compatible? _program-index)
+    (split-runtime-reference-compatible+index boundary-metadata program-forms))
+  compatible?)
 
 ;; module-forms : datum? -> (listof datum?)
 ;;   Return a WAT module's body forms.
@@ -1587,7 +1605,8 @@
          initial-program-forms
          #:import-module [import-module-name "core"]
          #:core-cache-key [core-cache-key #f]
-         #:boundary-metadata [cached-boundary-metadata #f])
+         #:boundary-metadata [cached-boundary-metadata #f]
+         #:initial-program-index [cached-initial-program-index #f])
   (define boundary-metadata
     (or cached-boundary-metadata
         (if runtime-forms
@@ -1599,7 +1618,8 @@
   (define runtime-symbol-refs
     (split-runtime-boundary-metadata-runtime-symbol-refs boundary-metadata))
   (define initial-program-index
-    (build-split-form-indexes initial-program-forms))
+    (or cached-initial-program-index
+        (build-split-form-indexes initial-program-forms)))
   (define pulled-runtime-global-names
     (runtime-referenced-program-global-names/from-refs runtime-symbol-refs
                                                        initial-program-index
@@ -2150,12 +2170,18 @@
                   (split-runtime-modules-imported-names cached-boundary-split))
     (check-equal? (split-runtime-modules-core-cache-key cached-boundary-split-again)
                   cached-boundary-core-cache-key)
+    (define-values (cached-boundary-compatible?
+                    cached-boundary-program-index)
+      (split-runtime-reference-compatible+index cached-boundary-metadata
+                                                cached-boundary-program-forms))
+    (check-true cached-boundary-compatible?)
     (define cached-boundary-program-only-split
       (split-classified-runtime-forms
        #f
        cached-boundary-program-forms
        #:core-cache-key cached-boundary-core-cache-key
-       #:boundary-metadata cached-boundary-metadata))
+       #:boundary-metadata cached-boundary-metadata
+       #:initial-program-index cached-boundary-program-index))
     (check-true
      (split-runtime-reference-compatible? cached-boundary-metadata
                                           cached-boundary-program-forms))
