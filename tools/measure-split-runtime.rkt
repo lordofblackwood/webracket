@@ -91,6 +91,7 @@
 (define include-cache-reference? #f)
 (define prewarm-runtime-first? #f)
 (define prewarm-staged-providers-first? #f)
+(define prewarm-module-bridge-first? #f)
 (define precompile-compiler-first? #f)
 (define core-only? #f)
 (define in-process? #f)
@@ -128,6 +129,9 @@
  [("--prewarm-staged-providers-first")
   "Prewarm staged regexp/read/io-format provider caches before measured user compiles"
   (set! prewarm-staged-providers-first? #t)]
+ [("--prewarm-module-bridge-first")
+  "Compile the source once before measuring so module-bridge result caches are warm"
+  (set! prewarm-module-bridge-first? #t)]
  [("--precompile-compiler-first")
   "Run raco make for the compiler into the isolated compiled root before measuring"
   (set! precompile-compiler-first? #t)]
@@ -274,6 +278,34 @@
               stdout
               stderr)
   (values ok? wall-ms))
+
+;; prewarm-module-bridge-cache! : path? path? path? (or/c regexp? #f)
+;;   -> (values boolean? real?)
+;;   Compile the source once to populate source-specific module-bridge caches.
+(define (prewarm-module-bridge-cache! racket-exe temp-root provider-cache expect-rx)
+  (define dest-dir
+    (build-path temp-root "dest" "module-bridge-prewarm"))
+  (make-directory* dest-dir)
+  (define webracket-args
+    (append
+     '("--node" "--run" "--timings" "--no-stdlib" "--no-split-runtime")
+     (list "--provider-cache-dir" (path->string provider-cache)
+           "--dest" (path->string dest-dir)
+           (path->string source-file))))
+  (define-values (ok? stdout stderr wall-ms)
+    (if in-process?
+        (run-compile-in-process/capture webracket-args)
+        (run-command/capture repo-root
+                             racket-exe
+                             (append (list "-S" "pkgs" "webracket.rkt")
+                                     webracket-args))))
+  (write-log! (build-path temp-root "prewarm-module-bridge.log")
+              stdout
+              stderr)
+  (values (and ok?
+               (or (not expect-rx)
+                   (regexp-match? expect-rx stdout)))
+          wall-ms))
 
 
 ;;; Timing Parsing
@@ -565,6 +597,10 @@
           (if prewarm-staged-providers-first?
               "regexp/read/io-format"
               "not prewarmed by benchmark"))
+  (printf "  bridge warm:   ~a\n"
+          (if prewarm-module-bridge-first?
+              "module-bridge prewarm"
+              "not prewarmed by benchmark"))
   (printf "  runtime warm:  ~a\n\n"
           (if prewarm-runtime-first?
               "split-runtime prewarm"
@@ -593,6 +629,20 @@
   (when prewarm-staged-providers-first?
     (printf "provider-prewarm\tok\t~a\n"
             (format-duration-ms provider-prewarm-wall-ms)))
+  (define-values (module-bridge-prewarm-ok? module-bridge-prewarm-wall-ms)
+    (if prewarm-module-bridge-first?
+        (prewarm-module-bridge-cache! racket-exe
+                                      temp-root
+                                      provider-cache
+                                      expected-output-regexp)
+        (values #t 0.0)))
+  (unless module-bridge-prewarm-ok?
+    (printf "module bridge prewarm failed; log: ~a\n"
+            (path->string (build-path temp-root "prewarm-module-bridge.log")))
+    (exit 1))
+  (when prewarm-module-bridge-first?
+    (printf "module-bridge-prewarm\tok\t~a\n"
+            (format-duration-ms module-bridge-prewarm-wall-ms)))
   (define-values (prewarm-ok? prewarm-wall-ms)
     (if prewarm-runtime-first?
         (prewarm-split-runtime-cache! racket-exe
@@ -608,6 +658,7 @@
     (printf "prewarm\tok\t~a\n" (format-duration-ms prewarm-wall-ms)))
   (when (or precompile-compiler-first?
             prewarm-staged-providers-first?
+            prewarm-module-bridge-first?
             prewarm-runtime-first?)
     (newline))
   (define split-cold

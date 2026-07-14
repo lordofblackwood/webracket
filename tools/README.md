@@ -194,6 +194,19 @@ racket -S pkgs tools/measure-split-runtime.rkt \
   --include-cache-reference
 ```
 
+Use `--prewarm-module-bridge-first` for module-language sources when the
+source-specific module-bridge result cache should also be warm before comparing
+monolithic and split rows. This keeps bridge extraction/composition out of both
+measured rows:
+
+```sh
+racket -S pkgs tools/measure-split-runtime.rkt \
+  --source examples/minischeme/repro-local-mini-42.rkt \
+  --prewarm-module-bridge-first \
+  --prewarm-runtime-first \
+  --include-cache-reference
+```
+
 Use `--precompile-compiler-first` when you want the benchmark's wall-clock
 columns to reflect warm user compiles instead of also including the cost of
 loading/byte-compiling the compiler entry modules and their dependency graph
