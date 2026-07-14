@@ -183,6 +183,17 @@ racket -S pkgs tools/measure-split-runtime.rkt \
   --include-cache-reference
 ```
 
+Use `--prewarm-staged-providers-first` when the source exercises staged
+providers such as regexp/read/io-format. This moves provider construction into
+the prewarm phase, so measured rows show the fully warm user-compile path:
+
+```sh
+racket -S pkgs tools/measure-split-runtime.rkt \
+  --prewarm-staged-providers-first \
+  --prewarm-runtime-first \
+  --include-cache-reference
+```
+
 Use `--precompile-compiler-first` when you want the benchmark's wall-clock
 columns to reflect warm user compiles instead of also including the cost of
 loading/byte-compiling the compiler entry modules and their dependency graph

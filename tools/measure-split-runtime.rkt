@@ -90,6 +90,7 @@
 (define keep-temp? #t)
 (define include-cache-reference? #f)
 (define prewarm-runtime-first? #f)
+(define prewarm-staged-providers-first? #f)
 (define precompile-compiler-first? #f)
 (define core-only? #f)
 (define in-process? #f)
@@ -124,6 +125,9 @@
  [("--prewarm-runtime-first")
   "Prewarm the split runtime cache before measured user compiles; skips split-cold"
   (set! prewarm-runtime-first? #t)]
+ [("--prewarm-staged-providers-first")
+  "Prewarm staged regexp/read/io-format provider caches before measured user compiles"
+  (set! prewarm-staged-providers-first? #t)]
  [("--precompile-compiler-first")
   "Run raco make for the compiler into the isolated compiled root before measuring"
   (set! precompile-compiler-first? #t)]
@@ -252,6 +256,21 @@
   (define-values (ok? stdout stderr wall-ms)
     (run-command/capture repo-root racket-exe prewarm-args))
   (write-log! (build-path temp-root "prewarm-split-runtime.log")
+              stdout
+              stderr)
+  (values ok? wall-ms))
+
+;; prewarm-staged-provider-cache! : path? path? path? path? -> (values boolean? real?)
+;;   Populate staged provider caches through the standalone prewarm tool.
+(define (prewarm-staged-provider-cache! racket-exe temp-root provider-cache runtime-cache)
+  (define prewarm-args
+    (list "-S" "pkgs" "tools/prewarm-staged-providers.rkt"
+          "--provider-cache-dir" (path->string provider-cache)
+          "--runtime-provider-cache-dir" (path->string runtime-cache)
+          "--mode" "all"))
+  (define-values (ok? stdout stderr wall-ms)
+    (run-command/capture repo-root racket-exe prewarm-args))
+  (write-log! (build-path temp-root "prewarm-staged-providers.log")
               stdout
               stderr)
   (values ok? wall-ms))
@@ -542,9 +561,13 @@
               "in-process"
               "fresh subprocess per mode"))
   (printf "  split mode:    ~a\n" (if core-only? "core-only" "classified"))
+  (printf "  provider warm: ~a\n"
+          (if prewarm-staged-providers-first?
+              "regexp/read/io-format"
+              "not prewarmed by benchmark"))
   (printf "  runtime warm:  ~a\n\n"
           (if prewarm-runtime-first?
-              "prewarm-staged-providers"
+              "split-runtime prewarm"
               "split-cold"))
   (define-values (precompile-ok? precompile-wall-ms)
     (if precompile-compiler-first?
@@ -556,6 +579,20 @@
     (exit 1))
   (when precompile-compiler-first?
     (printf "precompile\tok\t~a\n" (format-duration-ms precompile-wall-ms)))
+  (define-values (provider-prewarm-ok? provider-prewarm-wall-ms)
+    (if prewarm-staged-providers-first?
+        (prewarm-staged-provider-cache! racket-exe
+                                        temp-root
+                                        provider-cache
+                                        runtime-cache)
+        (values #t 0.0)))
+  (unless provider-prewarm-ok?
+    (printf "staged provider prewarm failed; log: ~a\n"
+            (path->string (build-path temp-root "prewarm-staged-providers.log")))
+    (exit 1))
+  (when prewarm-staged-providers-first?
+    (printf "provider-prewarm\tok\t~a\n"
+            (format-duration-ms provider-prewarm-wall-ms)))
   (define-values (prewarm-ok? prewarm-wall-ms)
     (if prewarm-runtime-first?
         (prewarm-split-runtime-cache! racket-exe
@@ -569,7 +606,9 @@
     (exit 1))
   (when prewarm-runtime-first?
     (printf "prewarm\tok\t~a\n" (format-duration-ms prewarm-wall-ms)))
-  (when (or precompile-compiler-first? prewarm-runtime-first?)
+  (when (or precompile-compiler-first?
+            prewarm-staged-providers-first?
+            prewarm-runtime-first?)
     (newline))
   (define split-cold
     (and (not prewarm-runtime-first?)
