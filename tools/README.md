@@ -279,6 +279,18 @@ parallelism. Four jobs is the current guarded smoke setting:
 racket -S pkgs tools/check-split-runtime-prewarm.rkt --suite --jobs 4
 ```
 
+By default, each post-prewarm case is checked in both warm runtime modes:
+cache-reference output, where the generated Node host reads the cached
+`runtime.wasm` directly, and sidecar output, where the compiler materializes a
+warm `.runtime.wasm` next to the program. Use `--no-sidecar-check` for faster
+cache-reference-only runs:
+
+```sh
+racket -S pkgs tools/check-split-runtime-prewarm.rkt \
+  --suite \
+  --no-sidecar-check
+```
+
 Use `--in-process` to run the post-prewarm compile/run cases serially in the
 already loaded checker process. This verifies the cached-runtime path under a
 warm compiler process, which approximates the compile-server workflow:

@@ -4,8 +4,9 @@
 ;;;
 
 ;; This regression-style check verifies the compile-once split-runtime workflow:
-;; prewarm the stable runtime cache, then compile and run a user program whose
-;; generated Node host references the cached runtime wasm directly.
+;; prewarm the stable runtime cache, then compile and run user programs whose
+;; generated Node hosts either reference the cached runtime wasm directly or
+;; materialize a warm runtime sidecar next to the program wasm.
 
 
 ;;; Imports
@@ -69,6 +70,7 @@
 (define precompile-compiler? #f)
 (define isolate-compiled-root? #f)
 (define frontend-cache? #f)
+(define sidecar-check? #t)
 (define jobs 1)
 
 ;; resolve-source-path : string? -> path?
@@ -125,6 +127,9 @@
  [("--frontend-cache")
   "Pass --frontend-cache to post-prewarm compiles."
   (set! frontend-cache? #t)]
+ [("--no-sidecar-check")
+  "Skip warm sidecar compile/run checks; only check cache-reference output."
+  (set! sidecar-check? #f)]
  [("--keep-temp")
   "Keep the temporary check directory after a successful run."
   (set! keep-temp? #t)]
@@ -672,6 +677,7 @@ RKT
 ;;   (listof check-case?) path-string? path-string? path-string? path-string?
 ;;   path-string?
 ;;   [#:expect-module-bridge-result-cache-hit? boolean?]
+;;   [#:runtime-mode (or/c 'cache-reference 'sidecar)]
 ;;   [#:log-prefix string?] -> (listof command-result?)
 ;;   Compile/run cases with bounded parallelism, preserving result order.
 (define (compile-cases! cases
@@ -682,15 +688,17 @@ RKT
                         temp-root
                         #:expect-module-bridge-result-cache-hit?
                         [expect-module-bridge-result-cache-hit? #f]
+                        #:runtime-mode
+                        [runtime-mode 'cache-reference]
                         #:log-prefix
                         [log-prefix "compile"])
   (define (compile-one case index)
     (with-handlers ([exn:fail?
                      (lambda (exn)
                        (record-failure!
-                        "~a: compile/run raised exception: ~a"
-                        (check-case-name case)
-                        (exn-message exn))
+                       "~a: compile/run raised exception: ~a"
+                       (check-case-name case)
+                       (exn-message exn))
                        (command-result #f "" "" 0.0))])
       (compile-case! case
                      index
@@ -701,6 +709,7 @@ RKT
                      temp-root
                      #:expect-module-bridge-result-cache-hit?
                      expect-module-bridge-result-cache-hit?
+                     #:runtime-mode runtime-mode
                      #:log-prefix log-prefix)))
   (cond
     [in-process?
@@ -738,6 +747,7 @@ RKT
 ;;   check-case? exact-positive-integer? path-string? path-string? path-string?
 ;;   path-string? path-string?
 ;;   [#:expect-module-bridge-result-cache-hit? boolean?]
+;;   [#:runtime-mode (or/c 'cache-reference 'sidecar)]
 ;;   [#:log-prefix string?] -> command-result?
 ;;   Compile/run one source against the prewarmed runtime cache.
 (define (compile-case! case
@@ -749,8 +759,16 @@ RKT
                        temp-root
                        #:expect-module-bridge-result-cache-hit?
                        [expect-module-bridge-result-cache-hit? #f]
+                       #:runtime-mode
+                       [runtime-mode 'cache-reference]
                        #:log-prefix
                        [log-prefix "compile"])
+  (unless (memq runtime-mode '(cache-reference sidecar))
+    (error 'compile-case!
+           "unknown split runtime check mode: ~s"
+           runtime-mode))
+  (define cache-reference-mode? (eq? runtime-mode 'cache-reference))
+  (define sidecar-mode? (eq? runtime-mode 'sidecar))
   (define case-name
     (safe-case-name (check-case-name case)))
   (define dest-dir
@@ -760,8 +778,10 @@ RKT
     (append
      (list "--node" "--run" "--timings"
            "--split-runtime"
-           "--split-runtime-cache-reference"
            "--no-stdlib")
+     (if cache-reference-mode?
+         '("--split-runtime-cache-reference")
+         '())
      (if frontend-cache?
          '("--frontend-cache")
          '())
@@ -814,7 +834,10 @@ RKT
   (define reference-compatible?
     (not (transcript-contains? compile-result
                                #rx"split-reference-compatible\\? *: *no")))
-  (when reference-compatible?
+  (define program-only-fast-path?
+    (transcript-contains? compile-result
+                          #rx"split-program-only-fast-path\\? *: *yes"))
+  (when (and cache-reference-mode? reference-compatible?)
     (unless (transcript-contains? compile-result
                                   #rx"split-runtime-core:reference-wasm-hit")
       (record-failure! "~a: did not report split-runtime-core:reference-wasm-hit"
@@ -827,6 +850,27 @@ RKT
                                 #rx"split-runtime-core:materialize-wasm-hit")
       (record-failure! "~a: materialized a runtime wasm sidecar instead of referencing cache"
                        (check-case-name case))))
+  (when (and sidecar-mode? reference-compatible?)
+    (unless (transcript-contains? compile-result
+                                  #rx"split-runtime-core:materialize-wasm-hit")
+      (record-failure! "~a: did not report split-runtime-core:materialize-wasm-hit"
+                       (check-case-name case)))
+    (when (transcript-contains? compile-result
+                                #rx"split-runtime-core:reference-wasm-hit")
+      (record-failure! "~a: referenced cached runtime wasm instead of materializing sidecar"
+                       (check-case-name case)))
+    (when (transcript-contains? compile-result
+                                #rx"split-runtime-core:assemble-wasm")
+      (record-failure! "~a: assembled the split runtime instead of using the cache"
+                       (check-case-name case)))
+    (when (and (not core-only?)
+               (transcript-contains? compile-result
+                                     #rx"split-core-wasm-cache-preflight-hit\\? *: *yes")
+               (transcript-contains? compile-result
+                                     #rx"split-boundary-cache-preflight-hit\\? *: *yes")
+               (not program-only-fast-path?))
+      (record-failure! "~a: warm sidecar compile did not take the program-only fast path"
+                       (check-case-name case))))
 
   (define program-wasm
     (generated-path dest-dir (check-case-source case) ".wasm"))
@@ -837,8 +881,15 @@ RKT
                      (check-case-name case)
                      program-wasm))
   (when (and reference-compatible?
+             cache-reference-mode?
              (file-exists? runtime-sidecar-wasm))
     (record-failure! "~a: cache-reference compile unexpectedly produced runtime sidecar: ~a"
+                     (check-case-name case)
+                     runtime-sidecar-wasm))
+  (when (and reference-compatible?
+             sidecar-mode?
+             (not (file-exists? runtime-sidecar-wasm)))
+    (record-failure! "~a: sidecar compile did not produce runtime sidecar: ~a"
                      (check-case-name case)
                      runtime-sidecar-wasm))
   compile-result)
@@ -900,6 +951,8 @@ RKT
           (if precompile-compiler? "compiler/tools" "no"))
   (printf "  frontend cache: ~a\n"
           (if frontend-cache? "enabled" "disabled"))
+  (printf "  sidecar check: ~a\n"
+          (if sidecar-check? "enabled" "disabled"))
   (printf "  jobs:          ~a\n"
           (if in-process?
               "1 (serial in-process)"
@@ -1044,19 +1097,35 @@ RKT
                              #:log-prefix "module-bridge-warmup")]))
         '()))
 
-  (define compile-results
+  (define cache-reference-results
     (compile-cases! cases
                     racket-exe
                     provider-cache
                     runtime-cache
-                    dest-dir
+                    (build-path dest-dir "cache-reference")
                     temp-root
                     #:expect-module-bridge-result-cache-hit?
-                    module-bridge-result-cache-check?))
+                    module-bridge-result-cache-check?
+                    #:runtime-mode 'cache-reference
+                    #:log-prefix "compile-cache-reference"))
+
+  (define sidecar-results
+    (if sidecar-check?
+        (compile-cases! cases
+                        racket-exe
+                        provider-cache
+                        runtime-cache
+                        (build-path dest-dir "sidecar")
+                        temp-root
+                        #:expect-module-bridge-result-cache-hit?
+                        module-bridge-result-cache-check?
+                        #:runtime-mode 'sidecar
+                        #:log-prefix "compile-sidecar")
+        '()))
 
   (cond
     [(null? failures)
-     (printf "ok: ~a~a~aprewarm=~as cache-hit-prewarm=~as compile/runs=[~a] cached-runtime-wasms=~a\n"
+     (printf "ok: ~a~a~aprewarm=~as cache-hit-prewarm=~as cache-reference=[~a]~a cached-runtime-wasms=~a\n"
              (if precompile-compiler?
                  (format "compiler-precompile=~as "
                          (format-seconds
@@ -1078,9 +1147,17 @@ RKT
              (format-seconds (command-result-wall-ms prewarm-result))
              (format-seconds (command-result-wall-ms prewarm-cache-hit-result))
              (string-join
-              (for/list ([result (in-list compile-results)])
+              (for/list ([result (in-list cache-reference-results)])
                 (format "~as" (format-seconds (command-result-wall-ms result))))
               ", ")
+             (if sidecar-check?
+                 (format " sidecar=[~a]"
+                         (string-join
+                          (for/list ([result (in-list sidecar-results)])
+                            (format "~as" (format-seconds
+                                           (command-result-wall-ms result))))
+                          ", "))
+                 "")
              (length cached-wasms-after-prewarm))
      (when keep-temp?
        (printf "kept temp: ~a\n" (path->string temp-root)))
