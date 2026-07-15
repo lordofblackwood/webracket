@@ -20,7 +20,7 @@ help:
 	@echo "  smoke-theme-visual    Run theme visual-diff lane headless."
 	@echo "  smoke-verify          Run local headless verify preflight."
 	@echo "  smoke-quick           Run smoke-verify + smoke-headless-lite."
-	@echo "  smoke-release         Run smoke-commands + smoke-quick + smoke-ci."
+	@echo "  smoke-release         Run smoke-commands + smoke-quick + smoke-ci + split-runtime readiness."
 	@echo "  smoke-list            Print canonical smoke/headless commands."
 	@echo "  smoke-commands        Regenerate smoke/COMMANDS.tsv."
 	@echo "  smoke-one             Run one headless smoke page (set SINGLE_COMPILE, SINGLE_PAGE)."
@@ -91,7 +91,7 @@ smoke-verify:
 
 smoke-quick: smoke-verify smoke-headless-lite
 
-smoke-release: smoke-commands smoke-quick smoke-ci
+smoke-release: smoke-commands smoke-quick smoke-ci smoke-split-runtime-readiness
 
 smoke-list:
 	@echo "Canonical headless modes:"

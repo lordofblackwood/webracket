@@ -184,6 +184,22 @@ Or through the smoke target:
 make smoke-split-runtime-default
 ```
 
+split-runtime readiness gate
+----------------------------
+`make smoke-split-runtime-readiness` is the focused gate for changes that touch
+the split-runtime default, runtime cache lookup, provider-runtime merge path, or
+browser shared-runtime URL path. It runs the default output-shape check, the
+browser shared-runtime URL smoke, the provider-runtime browser URL smoke, and
+the provider-runtime Node cache-reference/sidecar smoke. It is intentionally
+part of `make smoke-release`, not `make smoke-quick`, because it compiles
+provider-runtime fixtures and usually takes minutes rather than seconds.
+
+Run:
+
+```sh
+make smoke-split-runtime-readiness
+```
+
 measure-split-runtime.rkt
 -------------------------
 Benchmarks the default split-runtime path against explicit monolithic output on
