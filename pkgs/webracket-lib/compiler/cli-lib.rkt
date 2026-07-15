@@ -47,10 +47,11 @@
    module-bridge-elide-public-cells?      ; expose safe public bridge exports as plain values
    tree-shake?                            ; remove unused runtime primitives
    tree-shake-report                      ; optional runtime primitive reachability report path
-   split-runtime?                         ; emit an experimental core-runtime/program Wasm split
+   split-runtime?                         ; emit core-runtime/program Wasm split
    split-runtime-cache-reference?         ; Node split mode references cached runtime wasm directly
    split-runtime-core-url                  ; browser URL for a prewarmed split runtime wasm, or #f
    split-runtime-core-only?                ; split only registered core-runtime helpers
+   split-runtime-provider-runtime?         ; merge module-bridge providers into the split runtime
    letrec-strategy                        ; letrec lowering strategy symbol
    print-top-level-results?               ; print top-level results for script-style runs
    internal-bind-treelist-debug-shape?    ; internal treelist shape debug hook
@@ -104,6 +105,7 @@
     (split-runtime-cache-reference? . ,(webracket-compile-config-split-runtime-cache-reference? cfg))
     (split-runtime-core-url . ,(webracket-compile-config-split-runtime-core-url cfg))
     (split-runtime-core-only? . ,(webracket-compile-config-split-runtime-core-only? cfg))
+    (split-runtime-provider-runtime? . ,(webracket-compile-config-split-runtime-provider-runtime? cfg))
     (letrec-strategy . ,(webracket-compile-config-letrec-strategy cfg))
     (print-top-level-results? . ,(webracket-compile-config-print-top-level-results? cfg))
     (internal-bind-treelist-debug-shape? . ,(webracket-compile-config-internal-bind-treelist-debug-shape? cfg))
@@ -160,10 +162,11 @@
    (ref 'module-bridge-elide-public-cells?)
    (ref 'tree-shake?)
    (ref 'tree-shake-report)
-   (ref/default 'split-runtime? #f)
+   (ref/default 'split-runtime? #t)
    (ref/default 'split-runtime-cache-reference? #f)
    (ref/default 'split-runtime-core-url #f)
    (ref/default 'split-runtime-core-only? #f)
+   (ref/default 'split-runtime-provider-runtime? #f)
    (ref 'letrec-strategy)
    (ref 'print-top-level-results?)
    (ref 'internal-bind-treelist-debug-shape?)
@@ -213,10 +216,11 @@
   (define module-bridge-elide-public-cells? #f)
   (define tree-shake? #t)
   (define tree-shake-report #f)
-  (define split-runtime? #f)
+  (define split-runtime? #t)
   (define split-runtime-cache-reference? #f)
   (define split-runtime-core-url #f)
   (define split-runtime-core-only? #f)
+  (define split-runtime-provider-runtime? #f)
   (define letrec-strategy 'waddell)
   (define print-top-level-results? #f)
   (define internal-bind-treelist-debug-shape? #f)
@@ -406,9 +410,9 @@
      [("--tree-shake-report") filename
                               "Write the runtime primitive report to <filename>"
                               (set! tree-shake-report filename)]
-     [("--split-runtime") "Emit experimental split core-runtime/program Wasm modules"
+     [("--split-runtime") "Emit split core-runtime/program Wasm modules (default)"
                           (set! split-runtime? #t)]
-     [("--no-split-runtime") "Emit the normal monolithic Wasm module (default)"
+     [("--no-split-runtime") "Emit the normal monolithic Wasm module"
                              (set! split-runtime? #f)]
      [("--split-runtime-cache-reference")
       "In Node split-runtime mode, read the stable runtime wasm directly from cache"
@@ -428,6 +432,12 @@
      [("--no-split-runtime-core-only")
       "Use the classified runtime/program split strategy (default)"
       (set! split-runtime-core-only? #f)]
+     [("--split-runtime-provider-runtime")
+      "In module split-runtime mode, merge cached provider fragments into runtime.wasm"
+      (set! split-runtime-provider-runtime? #t)]
+     [("--no-split-runtime-provider-runtime")
+      "Keep module-bridge provider fragments in the program module (default)"
+      (set! split-runtime-provider-runtime? #f)]
      [("--letrec-basic") "Use the basic letrec lowering strategy"
                          (set! letrec-strategy 'basic)]
      [("--letrec-waddell") "Use the Waddell letrec lowering strategy"
@@ -589,6 +599,7 @@
        split-runtime-cache-reference?
        split-runtime-core-url
        split-runtime-core-only?
+       split-runtime-provider-runtime?
        letrec-strategy
        print-top-level-results?
        internal-bind-treelist-debug-shape?
@@ -657,6 +668,8 @@
                        (webracket-compile-config-split-runtime-core-url cfg)
                        #:split-runtime-core-only?
                        (webracket-compile-config-split-runtime-core-only? cfg)
+                       #:split-runtime-provider-runtime?
+                       (webracket-compile-config-split-runtime-provider-runtime? cfg)
                        #:print-top-level-results? (webracket-compile-config-print-top-level-results? cfg)
                        #:internal-bind-treelist-debug-shape?
                        (webracket-compile-config-internal-bind-treelist-debug-shape? cfg)
@@ -721,3 +734,85 @@
      (error 'run-webracket-cli-command
             "unsupported command kind: ~a"
             (webracket-cli-command-kind command))]))
+
+(module+ test
+  (require rackunit)
+
+  ;; parse-compile-config : (listof string?) -> webracket-compile-config?
+  ;;   Parse argv and return the compile payload.
+  (define (parse-compile-config argv)
+    (match (parse-webracket-cli (list->vector argv))
+      [(webracket-cli-command 'compile cfg) cfg]
+      [other
+       (fail-check (format "expected compile command, got: ~v" other))]))
+
+  ;; check-split-runtime-sidecar-defaults : webracket-compile-config? -> void?
+  ;;   Check that split runtime is enabled without prewarmed-cache modes.
+  (define (check-split-runtime-sidecar-defaults cfg)
+    (check-true (webracket-compile-config-split-runtime? cfg))
+    (check-false (webracket-compile-config-split-runtime-cache-reference? cfg))
+    (check-false (webracket-compile-config-split-runtime-core-url cfg))
+    (check-false (webracket-compile-config-split-runtime-core-only? cfg))
+    (check-false (webracket-compile-config-split-runtime-provider-runtime? cfg)))
+
+  ;; check-split-runtime-disabled : webracket-compile-config? -> void?
+  ;;   Check that split runtime is fully disabled.
+  (define (check-split-runtime-disabled cfg)
+    (check-false (webracket-compile-config-split-runtime? cfg))
+    (check-false (webracket-compile-config-split-runtime-cache-reference? cfg))
+    (check-false (webracket-compile-config-split-runtime-core-url cfg))
+    (check-false (webracket-compile-config-split-runtime-core-only? cfg))
+    (check-false (webracket-compile-config-split-runtime-provider-runtime? cfg)))
+
+  (test-case "compile mode is split-runtime sidecar by default"
+    (define cfg (parse-compile-config '("source.rkt")))
+    (check-split-runtime-sidecar-defaults cfg))
+
+  (test-case "explicit no-split-runtime keeps monolithic mode"
+    (define cfg (parse-compile-config '("--no-split-runtime" "source.rkt")))
+    (check-split-runtime-disabled cfg)
+    (define round-tripped (datum->compile-config (compile-config->datum cfg)))
+    (check-split-runtime-disabled round-tripped))
+
+  (test-case "split-runtime flags parse and round trip"
+    (define cfg
+      (parse-compile-config
+       '("--split-runtime"
+         "--split-runtime-cache-reference"
+         "--split-runtime-core-url" "/runtime.wasm"
+         "--split-runtime-core-only"
+         "--split-runtime-provider-runtime"
+         "source.rkt")))
+    (check-true (webracket-compile-config-split-runtime? cfg))
+    (check-true (webracket-compile-config-split-runtime-cache-reference? cfg))
+    (check-equal? (webracket-compile-config-split-runtime-core-url cfg)
+                  "/runtime.wasm")
+    (check-true (webracket-compile-config-split-runtime-core-only? cfg))
+    (check-true (webracket-compile-config-split-runtime-provider-runtime? cfg))
+
+    (define round-tripped (datum->compile-config (compile-config->datum cfg)))
+    (check-true (webracket-compile-config-split-runtime? round-tripped))
+    (check-true (webracket-compile-config-split-runtime-cache-reference?
+                 round-tripped))
+    (check-equal? (webracket-compile-config-split-runtime-core-url
+                   round-tripped)
+                  "/runtime.wasm")
+    (check-true (webracket-compile-config-split-runtime-core-only?
+                 round-tripped))
+    (check-true (webracket-compile-config-split-runtime-provider-runtime?
+                 round-tripped)))
+
+  (test-case "legacy compile-config datums default split-runtime fields"
+    (define cfg (parse-compile-config '("source.rkt")))
+    (define split-runtime-keys
+      '(split-runtime?
+        split-runtime-cache-reference?
+        split-runtime-core-url
+        split-runtime-core-only?
+        split-runtime-provider-runtime?))
+    (define legacy-datum
+      (for/list ([entry (in-list (compile-config->datum cfg))]
+                 #:unless (memq (car entry) split-runtime-keys))
+        entry))
+    (check-split-runtime-sidecar-defaults
+     (datum->compile-config legacy-datum))))

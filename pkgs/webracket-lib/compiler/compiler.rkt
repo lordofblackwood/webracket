@@ -73,6 +73,9 @@
                   current-frontend-cache-enabled?
                   current-tree-shake?
                   current-runtime-primitive-report-path
+                  current-imported-top-level-global-module-name
+                  current-imported-top-level-globals
+                  current-exported-top-level-globals
                   current-runtime-timing-rows
                   current-runtime-metric-rows)
          (only-in "webify/provider-cache.rkt"
@@ -440,6 +443,22 @@
 (define (top-symbol-needs-defined-check? x)
   (hash-has-key? (current-top-symbols-needing-defined-check)
                  (syntax-e (variable-id x))))
+
+;; imported-top-level-global-symbol? : (or/c variable? symbol?) -> boolean?
+;;   Check whether a top-level box is supplied by an external provider module.
+(define (imported-top-level-global-symbol? x)
+  (define sym
+    (cond
+      [(variable? x) (syntax-e (variable-id x))]
+      [else x]))
+  (and (symbol? sym)
+       (set-member? (current-imported-top-level-globals) sym)))
+
+;; top-level-global-interface-variables : set? -> (listof variable?)
+;;   Build compiler variables for imported/exported top-level box names.
+(define (top-level-global-interface-variables names)
+  (for/list ([sym (in-list (sort (set->list names) symbol<?))])
+    (variable (datum->syntax #'webracket-top-level-global sym))))
 
 ;;; Quick and dirty sets of variables represented as free-id sets
 (define (variable=? x y) (free-identifier=? (variable-id x) (variable-id y)))
@@ -8768,7 +8787,12 @@
 
 ; α-rename : LFE2 -> LFE2+
 (define (α-rename/prepare T)
-  (define top-bindings (collect-top-level-bindings T))
+  (define imported-top-bindings
+    (top-level-global-interface-variables
+     (current-imported-top-level-globals)))
+  (define top-bindings
+    (append imported-top-bindings
+            (collect-top-level-bindings T)))
   (define all-top-binding-names
     (for/list ([x (in-list top-bindings)]
                #:do [(define sym (syntax-e (variable-id x)))]
@@ -8859,8 +8883,13 @@
                    #:when (symbol? sym))
         (values sym top-binding)))
     (define top-bindings-set (ids->id-set top-bindings))
-    (define seen-top-bindings empty-set)
+    (define seen-top-bindings
+      (ids->id-set
+       (top-level-global-interface-variables
+        (current-imported-top-level-globals))))
     (define seen-top-binding-symbols (make-hasheq))
+    (for ([sym (in-list (set->list (current-imported-top-level-globals)))])
+      (hash-set! seen-top-binding-symbols sym #t))
     (define (seen-top-binding? x)
       (set-in? x seen-top-bindings))
     (define (seen-top-binding-symbol? sym)
@@ -12161,7 +12190,15 @@
               (cond
                 [(compiler-primitive? sym)   (values AE empty-set)]         ; immediate constants
                 [(provider-owned-primitive-alias? sym)
-                 (values AE empty-set)]         ; provider-published top-level alias
+                 ;; Provider aliases such as `read` can also be introduced as
+                 ;; lexical imports by the module bridge. Keep them visible to
+                 ;; the ordinary scope subtraction below so nested lambdas
+                 ;; capture local aliases instead of becoming unbound later.
+                 ;; Bare, unbound provider-owned names still fall back to the
+                 ;; runtime primitive path during code generation.
+                 (values AE (if (lexical-bound-variable? x)
+                                (make-id-set x)
+                                empty-set))]
                 [(and (syntax? sym)
                       (non-literal-constant? (syntax-e sym)))
                  (values AE empty-set)]         ; value stored in a global
@@ -12196,15 +12233,19 @@
 
   ;; 1. Find all top-level variables  
   (set! bound-at-top
-        (let loop ([T T])
-          (nanopass-case (LANF TopLevelForm) T
-            [(topbegin ,s ,t ...)
-             (set-union* (map loop t))]
-            [,g
-             (bound-at-top-level (list g))]
-            [else
-             ; #%expresion and topmodule
-             empty-set])))
+        (set-union
+         (ids->id-set
+          (top-level-global-interface-variables
+           (current-imported-top-level-globals)))
+         (let loop ([T T])
+           (nanopass-case (LANF TopLevelForm) T
+             [(topbegin ,s ,t ...)
+              (set-union* (map loop t))]
+             [,g
+              (bound-at-top-level (list g))]
+             [else
+              ; #%expresion and topmodule
+              empty-set]))))
   
   ;; 2. Compute free variables
   (letv ((T xs) (TopLevelForm T (make-id-set)))    
@@ -18406,7 +18447,9 @@
     (define (ClosureAllocation*    CAs) (for-each ClosureAllocation    CAs))
     (define (RawProvideSpec*      RPSs) (for-each RawProvideSpec      RPSs))
 
-    (define top '()) ; top     (outside modules)
+    (define top
+      (top-level-global-interface-variables
+       (current-imported-top-level-globals))) ; top (outside modules)
     (define mod '()) ; modules
     (define loc '()) ; locals  (argument or let/letrec bound
     (define lab '()) ; label
@@ -18944,6 +18987,11 @@
         [(top-variable?    v) 'top]
         [(module-variable? v) 'module]
         [(local-variable?  v) 'local]
+        ;; In support-provider glue, provider-owned names such as `read` can be
+        ;; bare primitive imports rather than staged provider aliases. If alpha
+        ;; renaming did not find a real top/module/local binding, keep the old
+        ;; primitive fallback.
+        [(provider-owned-primitive-alias? v) 'runtime-primitive]
         [(ffi-variable?    v) 'ffi]
         [else
          ;; (displayln (list 'top (map unparse-variable (id-set->list top-vars))))
@@ -21312,8 +21360,29 @@
 
   
   (define (generate-global-declarations-for-top-level-variables)
-    (for/list ([x (in-list (id-set->list top-vars))])
-      `(global ,(Var x) (mut (ref eq)) ,(Undefined))))
+    (define imported-names (current-imported-top-level-globals))
+    (define exported-names (current-exported-top-level-globals))
+    (define import-module-name
+      (current-imported-top-level-global-module-name))
+    (define (top-global-export-name x)
+      (symbol->string (Var x)))
+    (append*
+     (for/list ([x (in-list (id-set->list top-vars))])
+       (define sym (syntax-e (variable-id x)))
+       (define wasm-name (Var x))
+       (define exported? (and (symbol? sym)
+                              (set-member? exported-names sym)))
+       (define global-form
+         (if (and (symbol? sym)
+                  (set-member? imported-names sym))
+             `(global ,wasm-name
+                      (import ,import-module-name ,(top-global-export-name x))
+                      (mut (ref eq)))
+             `(global ,wasm-name (mut (ref eq)) ,(Undefined))))
+       (if exported?
+           (list global-form
+                 `(export ,(top-global-export-name x) (global ,wasm-name)))
+           (list global-form)))))
   
   (define result #'$result) ; holds result in $entry
 

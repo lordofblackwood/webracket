@@ -24,6 +24,10 @@
          current-runtime-primitive-report-path
          current-split-runtime?
          current-split-runtime-reference-only?
+         current-split-runtime-program-only-fast-path?
+         current-imported-top-level-global-module-name
+         current-imported-top-level-globals
+         current-exported-top-level-globals
          current-runtime-timing-rows
          current-runtime-metric-rows)
 
@@ -76,6 +80,30 @@
   (make-parameter #f))                                 ; boolean? generate split runtime module data
 (define current-split-runtime-reference-only?
   (make-parameter #f))                                 ; boolean? split runtime core will not be materialized
+(define current-split-runtime-program-only-fast-path?
+  (make-parameter #t))                                 ; boolean? allow warm split compiles to reuse boundary metadata only
+(define current-imported-top-level-global-module-name
+  (make-parameter "provider"))                         ; string? Wasm module for imported top-level boxes
+(define current-imported-top-level-globals
+  (make-parameter (seteq)
+    (lambda (names)
+      (cond
+        [(set? names) names]
+        [(list? names) (list->seteq names)]
+        [else
+         (raise-argument-error 'current-imported-top-level-globals
+                               "(or/c set? (listof symbol?))"
+                               names)]))))             ; top-level boxed globals imported from provider modules
+(define current-exported-top-level-globals
+  (make-parameter (seteq)
+    (lambda (names)
+      (cond
+        [(set? names) names]
+        [(list? names) (list->seteq names)]
+        [else
+         (raise-argument-error 'current-exported-top-level-globals
+                               "(or/c set? (listof symbol?))"
+                               names)]))))             ; top-level boxed globals exported for program modules
 (define current-runtime-timing-rows
   (make-parameter #f))                                 ; (or/c #f (listof (list/c string? real?)))
 (define current-runtime-metric-rows

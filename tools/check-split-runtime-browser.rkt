@@ -5,9 +5,9 @@
 
 ;; This regression-style check verifies the browser half of the compile-once
 ;; split-runtime workflow. It prewarms the stable runtime cache, compiles a
-;; tiny browser program with `--split-runtime`, serves the generated directory,
-;; and uses Playwright to prove that both the program wasm and runtime wasm are
-;; fetched and the program actually runs.
+;; tiny browser program in the default split-runtime mode, routes generated
+;; artifact requests through Playwright, and proves that both the program wasm
+;; and runtime wasm are fetched and the program actually runs.
 
 
 ;;; Imports
@@ -63,6 +63,7 @@
 (define shared-runtime-url? #f)
 (define shared-runtime-url "runtime.wasm")
 (define core-only? #f)
+(define provider-runtime? #f)
 (define isolate-compiled-root? #f)
 (define node-command "node")
 (define node-modules #f)
@@ -113,6 +114,9 @@
  [("--split-runtime-core-only")
   "Use the core-helper-only split runtime strategy for prewarm and compile."
   (set! core-only? #t)]
+ [("--split-runtime-provider-runtime")
+  "For module sources, check the provider-fragment-in-runtime split path."
+  (set! provider-runtime? #t)]
  [("--isolate-compiled-root")
   "Run subprocesses with a private PLTCOMPILEDROOTS; useful for cold-root checks."
   (set! isolate-compiled-root? #t)]
@@ -135,6 +139,10 @@
                       "expected positive integer timeout, got ~a"
                       ms))
   (set! timeout-ms (string->number ms))])
+
+(when (and provider-runtime? core-only?)
+  (raise-user-error 'check-split-runtime-browser
+                    "use --split-runtime-provider-runtime or --split-runtime-core-only, not both"))
 
 
 ;;; Subprocess Helpers
@@ -192,6 +200,23 @@
                                 "\n"
                                 (command-result-stderr result))))
 
+;; webracket-module-source? : path-string? -> boolean?
+;;   Check whether source uses the module bridge path.
+(define (webracket-module-source? source)
+  (with-handlers ([exn:fail? (lambda (_exn) #f)])
+    (call-with-input-file source
+      (lambda (in)
+        (define first-line
+          (read-line in 'any))
+        (and (string? first-line)
+             (regexp-match? #px"^#lang[ \t]+webracket/(base|full)([ \t].*)?$"
+                            first-line))))))
+
+;; copy-file/replace! : path-string? path-string? -> void?
+;;   Copy src to dest, replacing any existing file.
+(define (copy-file/replace! src dest)
+  (copy-file src dest #t))
+
 ;; format-seconds : real? -> string?
 ;;   Format milliseconds as seconds.
 (define (format-seconds ms)
@@ -245,6 +270,14 @@
        #:key path->string)
       '()))
 
+;; cached-runtime-wasm-snapshot : path-string? -> list?
+;;   Return stable file metadata for cached runtime wasm artifacts.
+(define (cached-runtime-wasm-snapshot runtime-cache)
+  (for/list ([p (in-list (cached-runtime-wasm-files runtime-cache))])
+    (list (path->string p)
+          (file-size p)
+          (file-or-directory-modify-seconds p))))
+
 ;; expected-split-runtime-core-cache-key : -> any/c
 ;;   Build the cache key that browser split-runtime prewarm should populate.
 (define (expected-split-runtime-core-cache-key)
@@ -291,9 +324,9 @@
   #<<JS
 import { createRequire } from "node:module";
 import fs from "node:fs";
-import http from "node:http";
 import path from "node:path";
 import process from "node:process";
+import { pathToFileURL } from "node:url";
 
 const config = JSON.parse(process.argv[2] || "{}");
 
@@ -331,40 +364,49 @@ function contentType(filePath) {
   }
 }
 
-function createStaticServer(rootDir, defaultPage) {
+async function fulfillStaticRequest(route, rootDir, defaultPage) {
   const root = path.resolve(rootDir);
   const rootPrefix = `${root}${path.sep}`;
-  return http.createServer((req, res) => {
-    let pathname = "/";
-    try {
-      pathname = decodeURIComponent(new URL(req.url, "http://127.0.0.1").pathname);
-    } catch (_err) {
-      res.writeHead(400, { "content-type": "text/plain; charset=utf-8" });
-      res.end("bad request");
-      return;
-    }
-
-    if (pathname === "/") {
-      pathname = `/${defaultPage}`;
-    }
-
-    const filePath = path.resolve(root, `.${pathname}`);
-    if (filePath !== root && !filePath.startsWith(rootPrefix)) {
-      res.writeHead(403, { "content-type": "text/plain; charset=utf-8" });
-      res.end("forbidden");
-      return;
-    }
-
-    fs.readFile(filePath, (err, bytes) => {
-      if (err) {
-        res.writeHead(404, { "content-type": "text/plain; charset=utf-8" });
-        res.end("not found");
-        return;
-      }
-      res.writeHead(200, { "content-type": contentType(filePath) });
-      res.end(bytes);
+  let pathname = "/";
+  try {
+    pathname = decodeURIComponent(new URL(route.request().url()).pathname);
+  } catch (_err) {
+    await route.fulfill({
+      status: 400,
+      contentType: "text/plain; charset=utf-8",
+      body: "bad request",
     });
-  });
+    return;
+  }
+
+  if (pathname === "/") {
+    pathname = `/${defaultPage}`;
+  }
+
+  const filePath = path.resolve(root, `.${pathname}`);
+  if (filePath !== root && !filePath.startsWith(rootPrefix)) {
+    await route.fulfill({
+      status: 403,
+      contentType: "text/plain; charset=utf-8",
+      body: "forbidden",
+    });
+    return;
+  }
+
+  try {
+    const bytes = await fs.promises.readFile(filePath);
+    await route.fulfill({
+      status: 200,
+      contentType: contentType(filePath),
+      body: bytes,
+    });
+  } catch (_err) {
+    await route.fulfill({
+      status: 404,
+      contentType: "text/plain; charset=utf-8",
+      body: "not found",
+    });
+  }
 }
 
 async function withTimeout(label, timeoutMs, thunk) {
@@ -472,19 +514,121 @@ async function waitForRequiredFetches(fetchedNames, pageErrors, requestFailures,
   });
 }
 
+function environmentBrowserLaunchFailure(err) {
+  const text = [
+    err && err.message,
+    err && err.stack,
+  ].filter(Boolean).join("\n");
+
+  return /MachPortRendezvous|bootstrap_check_in|Permission denied \(1100\)|No usable sandbox|Operation not permitted|EPERM|EACCES/i.test(text);
+}
+
+function extractInlineModuleScript(html) {
+  const match = html.match(/<script\b[^>]*\btype=["']module["'][^>]*>([\s\S]*?)<\/script>/i);
+  if (!match) {
+    fail("node-browser-shim-missing-script",
+         "generated HTML does not contain an inline module script");
+  }
+  return match[1];
+}
+
+function fileResponse(bytes, filePath) {
+  return new Response(bytes, {
+    status: 200,
+    statusText: "OK",
+    headers: { "content-type": contentType(filePath) },
+  });
+}
+
+async function runNodeBrowserShim() {
+  const root = path.resolve(config.destDir);
+  const rootPrefix = `${root}${path.sep}`;
+  const htmlPath = path.resolve(root, config.htmlName);
+  const html = await fs.promises.readFile(htmlPath, "utf8");
+  const moduleSource = extractInlineModuleScript(html);
+  const modulePath = path.join(root, ".webracket-browser-shim-entry.mjs");
+  const fetchedNames = [config.htmlName];
+  const consoleEntries = [];
+  const originalFetch = globalThis.fetch;
+  const originalLog = console.log;
+  const originalError = console.error;
+
+  globalThis.fetch = async (specifier) => {
+    const spec = String(specifier);
+    const url = new URL(spec, pathToFileURL(`${root}${path.sep}`).href);
+    if (url.protocol !== "file:") {
+      throw new Error(`node browser shim only supports local artifact fetches: ${spec}`);
+    }
+
+    const filePath = path.resolve(url.pathname);
+    if (filePath !== root && !filePath.startsWith(rootPrefix)) {
+      return new Response("forbidden", { status: 403, statusText: "Forbidden" });
+    }
+
+    try {
+      const bytes = await fs.promises.readFile(filePath);
+      fetchedNames.push(path.basename(filePath));
+      return fileResponse(bytes, filePath);
+    } catch (_err) {
+      return new Response("not found", { status: 404, statusText: "Not Found" });
+    }
+  };
+
+  console.log = (...args) => {
+    const text = args.map((arg) => String(arg)).join(" ");
+    consoleEntries.push({ type: "log", text });
+    originalLog(...args);
+  };
+  console.error = (...args) => {
+    const text = args.map((arg) => String(arg)).join(" ");
+    consoleEntries.push({ type: "error", text });
+    originalError(...args);
+  };
+
+  try {
+    await fs.promises.writeFile(modulePath, moduleSource);
+    await import(`${pathToFileURL(modulePath).href}?t=${Date.now()}`);
+  } finally {
+    globalThis.fetch = originalFetch;
+    console.log = originalLog;
+    console.error = originalError;
+  }
+
+  if (config.expectedOutput) {
+    const text = consoleEntries.map((entry) => entry.text).join("\n");
+    if (!(new RegExp(config.expectedOutput)).test(text)) {
+      fail("node-browser-shim-expected-output-missing",
+           "generated module output did not match expected output",
+           {
+             expected: config.expectedOutput,
+             console: consoleEntries.map((entry) => `${entry.type}: ${entry.text}`).join("\n"),
+           });
+    }
+  }
+
+  const fetched = new Set(fetchedNames);
+  for (const requiredName of [config.htmlName, config.programWasmName, config.runtimeWasmName]) {
+    if (!fetched.has(requiredName)) {
+      fail("node-browser-shim-missing-fetch",
+           "generated module did not fetch an expected artifact",
+           {
+             requiredName,
+             fetched: Array.from(fetched).sort().join(","),
+           });
+    }
+  }
+
+  report("PASS", "node-browser-shim-run", {
+    fetched: Array.from(fetched).sort().join(","),
+  });
+}
+
 async function main() {
   const timeoutMs = Number.isFinite(config.timeoutMs) ? config.timeoutMs : 45000;
   const { pkg: playwrightPkg, from: playwrightFrom } = await importPlaywright();
   report("PASS", "playwright-import", { from: playwrightFrom });
 
-  const server = createStaticServer(config.destDir, config.htmlName);
-  await new Promise((resolve, reject) => {
-    server.once("error", reject);
-    server.listen(0, "127.0.0.1", resolve);
-  });
-
-  const address = server.address();
-  const url = `http://127.0.0.1:${address.port}/${config.htmlName}`;
+  const url = `http://webracket.local/${config.htmlName}`;
   const fetchedNames = [];
   const requestFailures = [];
   const pageErrors = [];
@@ -500,6 +644,8 @@ async function main() {
     report("PASS", "browser-launch", { executablePath: config.chromeExecutable || "playwright-default" });
 
     const page = await browser.newPage();
+    await page.route("**/*", async (route) =>
+      fulfillStaticRequest(route, config.destDir, config.htmlName));
     page.setDefaultTimeout(timeoutMs);
     page.on("console", (msg) => {
       consoleEntries.push({ type: msg.type(), text: msg.text() });
@@ -537,6 +683,13 @@ async function main() {
                                  timeoutMs);
     await page.close();
   } catch (err) {
+    if (environmentBrowserLaunchFailure(err)) {
+      report("WARN", "browser-launch-unavailable", {
+        message: err && err.message ? err.message.split("\n")[0] : String(err),
+      });
+      await runNodeBrowserShim();
+      return;
+    }
     fail("browser-run-failed",
          err && err.message ? err.message : String(err),
          {
@@ -547,7 +700,6 @@ async function main() {
     if (browser) {
       await browser.close();
     }
-    await new Promise((resolve) => server.close(resolve));
   }
 
   const fetched = new Set(fetchedNames);
@@ -686,6 +838,12 @@ JS
     (error 'check-split-runtime-browser
            "source file does not exist: ~a"
            source-file))
+  (when (and provider-runtime?
+             (not (webracket-module-source? source-file)))
+    (raise-user-error
+     'check-split-runtime-browser
+     "--split-runtime-provider-runtime requires a #lang webracket/base or #lang webracket/full source: ~a"
+     source-file))
 
   (define temp-root
     (make-temporary-file "webracket-split-runtime-browser-check-~a"
@@ -713,7 +871,11 @@ JS
           (if shared-runtime-url?
               (format "shared url (~a)" shared-runtime-url)
               "sidecar"))
-  (printf "  split mode:    ~a\n" (if core-only? "core-only" "classified"))
+  (printf "  split mode:    ~a\n"
+          (cond
+            [provider-runtime? "provider-runtime"]
+            [core-only? "core-only"]
+            [else "classified"]))
   (printf "  node:          ~a\n" (path->string node-path))
   (printf "  node_modules:  ~a\n" node-modules)
   (printf "  chrome:        ~a\n\n" (if (string=? chrome-executable "")
@@ -722,26 +884,54 @@ JS
 
   (define shared-runtime-wasm
     (build-path dest-dir shared-runtime-url))
-  (define prewarm-args
-    (append
-     (list "-S" "pkgs" "tools/prewarm-staged-providers.rkt"
-           "--provider-cache-dir" (path->string provider-cache)
-           "--runtime-provider-cache-dir" (path->string runtime-cache)
-           "--mode" "split-runtime"
-           "--host" "browser")
-     (if core-only?
-         '("--split-runtime-core-only")
-         '())
-     (if shared-runtime-url?
-         (list "--runtime-wasm-out" (path->string shared-runtime-wasm))
-         '())
-     (if force-prewarm? '("--force") '())))
-  (define prewarm-result
-    (run-command/capture repo-root racket-exe prewarm-args))
+  (define provider-runtime-prewarm-dest
+    (build-path temp-root "provider-runtime-prewarm"))
+  (define provider-runtime-prewarm-wasm
+    (split-runtime-generated-path provider-runtime-prewarm-dest
+                                  source-file
+                                  ".wasm"))
+  (define-values (prewarm-result prewarm-args)
+    (cond
+      [provider-runtime?
+       (make-directory* provider-runtime-prewarm-dest)
+       (define args
+         (append
+          (list "-S" "pkgs" "tools/prewarm-staged-providers.rkt"
+                "--mode" "provider-runtime"
+                "--host" "browser"
+                "--provider-cache-dir" (path->string provider-cache)
+                "--runtime-provider-cache-dir" (path->string runtime-cache)
+                "--runtime-wasm-out" (path->string provider-runtime-prewarm-wasm))
+          (if force-prewarm? '("--force") '())
+          (list "--source" (path->string source-file))))
+       (values (run-command/capture repo-root racket-exe args) args)]
+      [else
+       (define args
+         (append
+          (list "-S" "pkgs" "tools/prewarm-staged-providers.rkt"
+                "--provider-cache-dir" (path->string provider-cache)
+                "--runtime-provider-cache-dir" (path->string runtime-cache)
+                "--mode" "split-runtime"
+                "--host" "browser")
+          (if core-only?
+              '("--split-runtime-core-only")
+              '())
+          (if shared-runtime-url?
+              (list "--runtime-wasm-out" (path->string shared-runtime-wasm))
+              '())
+          (if force-prewarm? '("--force") '())))
+       (values (run-command/capture repo-root racket-exe args) args)]))
   (define prewarm-log (build-path temp-root "prewarm.log"))
   (write-log! prewarm-log racket-exe prewarm-args prewarm-result)
   (unless (command-result-ok? prewarm-result)
     (record-failure! "prewarm command failed; see ~a" prewarm-log))
+  (when provider-runtime?
+    (unless (file-exists? provider-runtime-prewarm-wasm)
+      (record-failure! "provider-runtime prewarm did not produce runtime wasm sidecar: ~a"
+                       provider-runtime-prewarm-wasm))
+    (when (and shared-runtime-url?
+               (file-exists? provider-runtime-prewarm-wasm))
+      (copy-file/replace! provider-runtime-prewarm-wasm shared-runtime-wasm)))
 
   (define cached-wasms-after-prewarm
     (cached-runtime-wasm-files runtime-cache))
@@ -749,28 +939,90 @@ JS
     (record-failure! "prewarm did not create a cached split-runtime wasm in ~a"
                      runtime-cache))
   (define expected-core-cache-key
-    (expected-split-runtime-core-cache-key))
+    (and (not provider-runtime?)
+         (expected-split-runtime-core-cache-key)))
   (define expected-runtime-wasm
-    (expected-split-runtime-core-wasm-path runtime-cache
-                                           expected-core-cache-key))
-  (unless (file-exists? expected-runtime-wasm)
+    (and expected-core-cache-key
+         (expected-split-runtime-core-wasm-path runtime-cache
+                                                expected-core-cache-key)))
+  (when (and expected-runtime-wasm
+             (not (file-exists? expected-runtime-wasm)))
     (record-failure! "prewarm did not create expected cached split-runtime wasm: ~a"
                      expected-runtime-wasm))
-  (when (and (not core-only?)
+  (when (and expected-core-cache-key
+             (not core-only?)
              (not (split-runtime-boundary-cache-current?
                    runtime-cache
                    expected-core-cache-key)))
     (record-failure! "prewarm did not create current split-boundary metadata for expected runtime key"))
+  (define cached-wasm-snapshot-after-prewarm
+    (cached-runtime-wasm-snapshot runtime-cache))
+
+  (define provider-runtime-cache-hit-prewarm-result
+    (if provider-runtime?
+        (let ()
+          (define cache-hit-runtime-wasm
+            (split-runtime-generated-path
+             (build-path temp-root "provider-runtime-cache-hit-prewarm")
+             source-file
+             ".wasm"))
+          (make-directory* (path-only cache-hit-runtime-wasm))
+          (define cache-hit-args
+            (list "-S" "pkgs" "tools/prewarm-staged-providers.rkt"
+                  "--mode" "provider-runtime"
+                  "--host" "browser"
+                  "--provider-cache-dir" (path->string provider-cache)
+                  "--runtime-provider-cache-dir" (path->string runtime-cache)
+                  "--runtime-wasm-out" (path->string cache-hit-runtime-wasm)
+                  "--source" (path->string source-file)
+                  "--verbose"))
+          (define result
+            (run-command/capture repo-root racket-exe cache-hit-args))
+          (define log
+            (build-path temp-root "provider-runtime-prewarm-cache-hit.log"))
+          (write-log! log racket-exe cache-hit-args result)
+          (unless (command-result-ok? result)
+            (record-failure! "provider-runtime cache-hit prewarm command failed; see ~a"
+                             log))
+          (unless (wasm-magic? cache-hit-runtime-wasm)
+            (record-failure! "provider-runtime cache-hit prewarm did not export a valid runtime wasm: ~a"
+                             cache-hit-runtime-wasm))
+          (when (and (file-exists? provider-runtime-prewarm-wasm)
+                     (file-exists? cache-hit-runtime-wasm)
+                     (not (same-file-bytes? provider-runtime-prewarm-wasm
+                                            cache-hit-runtime-wasm)))
+            (record-failure! "provider-runtime cache-hit prewarm exported a different runtime wasm: ~a"
+                             cache-hit-runtime-wasm))
+          (unless (transcript-contains? result
+                                        #rx"split-runtime-core:materialize-wasm-hit")
+            (record-failure! "provider-runtime cache-hit prewarm did not report cached runtime materialization"))
+          (when (transcript-contains? result
+                                      #rx"split-runtime-core:assemble-wasm")
+            (record-failure! "provider-runtime cache-hit prewarm assembled runtime wasm"))
+          (when (transcript-contains? result
+                                      #rx"provider-runtime-merge|provider-fragment-cache")
+            (record-failure! "provider-runtime cache-hit prewarm rebuilt provider/runtime artifacts"))
+          result)
+        (command-result #t "" "" 0.0)))
+  (define cached-wasm-snapshot-after-provider-runtime-cache-hit-prewarm
+    (cached-runtime-wasm-snapshot runtime-cache))
+  (when (and provider-runtime?
+             (not (equal? cached-wasm-snapshot-after-provider-runtime-cache-hit-prewarm
+                          cached-wasm-snapshot-after-prewarm)))
+    (record-failure! "provider-runtime cache-hit prewarm changed cached runtime wasm artifacts"))
 
   (define compile-args
     (append
      (list "-S" "pkgs" "webracket.rkt"
-           "--browser" "--split-runtime" "--timings"
+           "--browser" "--timings"
            "--no-stdlib"
            "--provider-cache-dir" (path->string provider-cache)
            "--runtime-provider-cache-dir" (path->string runtime-cache))
      (if shared-runtime-url?
          (list "--split-runtime-core-url" shared-runtime-url)
+         '())
+     (if provider-runtime?
+         '("--split-runtime-provider-runtime")
          '())
      (if core-only?
          '("--split-runtime-core-only")
@@ -796,6 +1048,10 @@ JS
   (when (transcript-contains? compile-result
                               #rx"split-runtime-core:assemble-wasm")
     (record-failure! "browser compile assembled the split runtime instead of using the cache"))
+  (when (and provider-runtime?
+             (transcript-contains? compile-result
+                                   #rx"provider-runtime-merge|provider-fragment-cache"))
+    (record-failure! "browser provider-runtime warm compile rebuilt provider/runtime artifacts"))
   (when (and (not shared-runtime-url?)
              (transcript-contains? compile-result
                                    #rx"split-runtime-core:reference-wasm-hit"))
@@ -804,6 +1060,11 @@ JS
              (transcript-contains? compile-result
                                    #rx"split-runtime-core:materialize-wasm-hit"))
     (record-failure! "browser shared-url compile materialized a runtime sidecar"))
+  (define cached-wasm-snapshot-after-compile
+    (cached-runtime-wasm-snapshot runtime-cache))
+  (unless (equal? cached-wasm-snapshot-after-compile
+                  cached-wasm-snapshot-after-provider-runtime-cache-hit-prewarm)
+    (record-failure! "browser warm compile changed cached runtime wasm artifacts"))
 
   (define html-path (generated-path dest-dir source-file ".html"))
   (define program-wasm (generated-path dest-dir source-file ".wasm"))
@@ -823,10 +1084,17 @@ JS
     (record-failure! "program wasm is missing WebAssembly magic bytes: ~a" program-wasm))
   (unless (wasm-magic? runtime-wasm)
     (record-failure! "runtime wasm is missing WebAssembly magic bytes: ~a" runtime-wasm))
-  (when (and (file-exists? expected-runtime-wasm)
+  (when (and expected-runtime-wasm
+             (file-exists? expected-runtime-wasm)
              (file-exists? runtime-wasm)
              (not (same-file-bytes? expected-runtime-wasm runtime-wasm)))
     (record-failure! "runtime wasm served to browser does not match expected cached runtime wasm: ~a"
+                     runtime-wasm))
+  (when (and provider-runtime?
+             (file-exists? provider-runtime-prewarm-wasm)
+             (file-exists? runtime-wasm)
+             (not (same-file-bytes? provider-runtime-prewarm-wasm runtime-wasm)))
+    (record-failure! "provider-runtime wasm served to browser does not match prewarmed runtime wasm: ~a"
                      runtime-wasm))
   (when (file-exists? html-path)
     (define html (file->string html-path))
@@ -853,8 +1121,14 @@ JS
 
   (cond
     [(null? failures)
-     (printf "ok: prewarm=~as compile=~as browser=~as cached-runtime-wasms=~a\n"
+     (printf "ok: prewarm=~as~acompile=~as browser=~as cached-runtime-wasms=~a\n"
              (format-seconds (command-result-wall-ms prewarm-result))
+             (if provider-runtime?
+                 (format " provider-runtime-cache-hit-prewarm=~as "
+                         (format-seconds
+                          (command-result-wall-ms
+                           provider-runtime-cache-hit-prewarm-result)))
+                 " ")
              (format-seconds (command-result-wall-ms compile-result))
              (format-seconds (command-result-wall-ms browser-result))
              (length cached-wasms-after-prewarm))

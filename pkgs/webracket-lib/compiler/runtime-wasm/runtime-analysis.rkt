@@ -95,6 +95,17 @@
     $entry-uncaught-exception1
     $entry-uncaught-exception2))
 
+;; module-export-target : datum? -> (values (or/c 'func 'global 'tag #f) (or/c symbol? #f))
+;;   Return the exported definition kind/name for a standalone WAT export form.
+(define (module-export-target form)
+  (match form
+    [`(export ,(? string?) (,kind ,(? symbol? name)))
+     (case kind
+       [(func global tag) (values kind name)]
+       [else             (values #f #f)])]
+    [_
+     (values #f #f)]))
+
 ;; make-program-module-form? :
 ;;   #:program-function-names list? #:result-global symbol?
 ;;   #:top-level-variable-declarations list? #:string-constants list?
@@ -157,12 +168,20 @@
     (define func-name (module-func-name form))
     (define global-name (module-global-name form))
     (define data-name (module-data-name form))
+    (define-values (export-kind export-name)
+      (module-export-target form))
     (or (and func-name
              (hash-ref program-function-name-set func-name #f))
         (and global-name
              (hash-ref program-global-name-set global-name #f))
         (and data-name
-             (hash-ref program-data-name-set data-name #f)))))
+             (hash-ref program-data-name-set data-name #f))
+        (case export-kind
+          [(func)
+           (hash-ref program-function-name-set export-name #f)]
+          [(global)
+           (hash-ref program-global-name-set export-name #f)]
+          [else #f]))))
 
 ;; split-module-forms :
 ;;   list? #:program-function-names list? #:result-global symbol?

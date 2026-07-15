@@ -3,12 +3,13 @@
 ;;; Measure Split Runtime
 ;;;
 
-;; This benchmark checks the experimental split-runtime path against the
+;; This benchmark checks the default split-runtime path against explicit
 ;; monolithic compiler output on a tiny no-stdlib Node program. It first runs a
 ;; cold split compile to populate the stable runtime cache, then measures a
-;; monolithic compile/run and a warm split compile/run against the same private
-;; provider/runtime caches. With `--prewarm-runtime-first`, the runtime cache is
-;; populated by the prewarm tool before any measured user compile.
+;; `--no-split-runtime` compile/run and a warm split compile/run against the
+;; same private provider/runtime caches. With `--prewarm-runtime-first`, the
+;; runtime cache is populated by the prewarm tool before any measured user
+;; compile.
 ;;
 ;; Invoke it from the repository root:
 ;;
@@ -99,7 +100,9 @@
 (define precompile-compiler-first? #f)
 (define isolate-compiled-root? #f)
 (define core-only? #f)
+(define provider-runtime? #f)
 (define in-process? #f)
+(define compile-server? #f)
 (define frontend-cache? #f)
 
 ;; resolve-source-path : string? -> path?
@@ -147,12 +150,26 @@
  [("--split-runtime-core-only")
   "Measure the core-helper-only split runtime strategy"
   (set! core-only? #t)]
+ [("--split-runtime-provider-runtime")
+  "For module sources, measure the provider-fragment-in-runtime split strategy"
+  (set! provider-runtime? #t)]
  [("--in-process")
   "Run measured compiles in this Racket process instead of fresh subprocesses"
   (set! in-process? #t)]
+ [("--compile-server")
+  "Run measured compiles through the local WebRacket compile server client"
+  (set! compile-server? #t)]
  [("--frontend-cache")
   "Pass --frontend-cache to measured compiles"
   (set! frontend-cache? #t)])
+
+(when (and in-process? compile-server?)
+  (raise-user-error 'measure-split-runtime
+                    "use --in-process or --compile-server, not both"))
+
+(when (and provider-runtime? core-only?)
+  (raise-user-error 'measure-split-runtime
+                    "use --split-runtime-provider-runtime or --split-runtime-core-only, not both"))
 
 
 ;;; Subprocess Helpers
@@ -219,6 +236,49 @@
           (get-output-string err)
           (- end-ms start-ms)))
 
+;; call-with-compile-server-env : (-> any/c) -> any/c
+;;   Run thunk with the CLI routed through the local compile server.
+(define (call-with-compile-server-env thunk)
+  (define env
+    (environment-variables-copy (current-environment-variables)))
+  (environment-variables-set! env #"WEBRACKET_COMPILE_SERVER" #"1")
+  (parameterize ([current-environment-variables env])
+    (thunk)))
+
+;; run-compile-server/capture :
+;;   path-string? path-string? (listof string?) -> (values boolean? string? string? real?)
+;;   Run one compile through `webracket.rkt` with WEBRACKET_COMPILE_SERVER enabled.
+(define (run-compile-server/capture cwd racket-exe args)
+  (call-with-compile-server-env
+   (lambda ()
+     (run-command/capture cwd
+                          racket-exe
+                          (append (list "-S" "pkgs" "webracket.rkt")
+                                  args)))))
+
+;; run-webracket-compile-args/capture :
+;;   path-string? path-string? (listof string?) -> (values boolean? string? string? real?)
+;;   Run one WebRacket compile using the selected benchmark runner.
+(define (run-webracket-compile-args/capture cwd racket-exe args)
+  (cond
+    [in-process?
+     (run-compile-in-process/capture args)]
+    [compile-server?
+     (run-compile-server/capture cwd racket-exe args)]
+    [else
+     (run-command/capture cwd
+                          racket-exe
+                          (append (list "-S" "pkgs" "webracket.rkt")
+                                  args))]))
+
+;; compile-runner-label : -> string?
+;;   Return the user-facing name of the selected compile runner.
+(define (compile-runner-label)
+  (cond
+    [in-process? "in-process"]
+    [compile-server? "compile-server"]
+    [else "fresh subprocess per mode"]))
+
 ;; compiler-timing-heading-line? : string? -> boolean?
 ;;   Check whether a stdout line starts a compiler timing/report section.
 (define (compiler-timing-heading-line? line)
@@ -236,6 +296,18 @@
        [(compiler-timing-heading-line? (car lines)) (reverse acc)]
        [else (loop (cdr lines) (cons (car lines) acc))]))
    "\n"))
+
+;; webracket-module-source? : path-string? -> boolean?
+;;   Check whether source uses the module bridge path.
+(define (webracket-module-source? source)
+  (with-handlers ([exn:fail? (lambda (_exn) #f)])
+    (call-with-input-file source
+      (lambda (in)
+        (define first-line
+          (read-line in 'any))
+        (and (string? first-line)
+             (regexp-match? #px"^#lang[ \t]+webracket/(base|full)([ \t].*)?$"
+                            first-line))))))
 
 ;; write-log! : path-string? string? string? -> void?
 ;;   Save a captured subprocess transcript.
@@ -276,19 +348,30 @@
   (values ok? wall-ms))
 
 ;; prewarm-split-runtime-cache! : path? path? path? path? -> (values boolean? real?)
-;;   Populate the runtime cache through the standalone prewarm tool.
+;;   Populate the selected split runtime cache before measured user compiles.
 (define (prewarm-split-runtime-cache! racket-exe temp-root provider-cache runtime-cache)
-  (define prewarm-args
-    (append
-     (list "-S" "pkgs" "tools/prewarm-staged-providers.rkt"
-           "--provider-cache-dir" (path->string provider-cache)
-           "--runtime-provider-cache-dir" (path->string runtime-cache)
-           "--mode" "split-runtime")
-     (if core-only?
-         '("--split-runtime-core-only")
-         '())))
   (define-values (ok? stdout stderr wall-ms)
-    (run-command/capture repo-root racket-exe prewarm-args))
+    (cond
+      [provider-runtime?
+       (define prewarm-args
+         (list "-S" "pkgs" "tools/prewarm-staged-providers.rkt"
+               "--provider-cache-dir" (path->string provider-cache)
+               "--runtime-provider-cache-dir" (path->string runtime-cache)
+               "--mode" "provider-runtime"
+               "--host" "node"
+               "--source" (path->string source-file)))
+       (run-command/capture repo-root racket-exe prewarm-args)]
+      [else
+       (define prewarm-args
+         (append
+          (list "-S" "pkgs" "tools/prewarm-staged-providers.rkt"
+                "--provider-cache-dir" (path->string provider-cache)
+                "--runtime-provider-cache-dir" (path->string runtime-cache)
+                "--mode" "split-runtime")
+          (if core-only?
+              '("--split-runtime-core-only")
+              '())))
+       (run-command/capture repo-root racket-exe prewarm-args)]))
   (write-log! (build-path temp-root "prewarm-split-runtime.log")
               stdout
               stderr)
@@ -321,12 +404,14 @@
     (build-path temp-root "dest" "module-bridge-prewarm"))
   (make-directory* dest-dir)
   (define split-shape-flags
-    (if prewarm-runtime-first?
+      (if prewarm-runtime-first?
         (append
-         (list "--split-runtime"
-               "--split-runtime-cache-reference"
+         (list "--split-runtime-cache-reference"
                "--runtime-provider-cache-dir"
                (path->string runtime-cache))
+         (if provider-runtime?
+             '("--split-runtime-provider-runtime")
+             '())
          (if core-only?
              '("--split-runtime-core-only")
              '()))
@@ -343,12 +428,7 @@
            "--dest" (path->string dest-dir)
            (path->string source-file))))
   (define-values (ok? stdout stderr wall-ms)
-    (if in-process?
-        (run-compile-in-process/capture webracket-args)
-        (run-command/capture repo-root
-                             racket-exe
-                             (append (list "-S" "pkgs" "webracket.rkt")
-                                     webracket-args))))
+    (run-webracket-compile-args/capture repo-root racket-exe webracket-args))
   (write-log! (build-path temp-root "prewarm-module-bridge.log")
               stdout
               stderr)
@@ -426,6 +506,12 @@
     [else
      'none]))
 
+;; transcript-provider-runtime-cold-work? : string? -> boolean?
+;;   Check whether a provider-runtime compile rebuilt provider/runtime artifacts.
+(define (transcript-provider-runtime-cold-work? transcript)
+  (regexp-match? #rx"provider-runtime-merge|provider-fragment-cache"
+                 transcript))
+
 
 ;;; Compilation
 
@@ -454,18 +540,22 @@
      [(monolithic) '("--no-split-runtime")]
      [(split-cold split-warm)
       (append
-       (list "--split-runtime"
-             "--runtime-provider-cache-dir"
+       (list "--runtime-provider-cache-dir"
              (path->string runtime-cache))
+       (if provider-runtime?
+           '("--split-runtime-provider-runtime")
+           '())
        (if core-only?
            '("--split-runtime-core-only")
            '()))]
      [(split-cache-reference-warm)
       (append
-       (list "--split-runtime"
-             "--split-runtime-cache-reference"
+       (list "--split-runtime-cache-reference"
              "--runtime-provider-cache-dir"
              (path->string runtime-cache))
+       (if provider-runtime?
+           '("--split-runtime-provider-runtime")
+           '())
        (if core-only?
            '("--split-runtime-core-only")
            '()))]
@@ -488,12 +578,7 @@
            (path->string dest-dir)
            (path->string source-file))))
   (define-values (ok? stdout stderr wall-ms)
-    (if in-process?
-        (run-compile-in-process/capture webracket-args)
-        (run-command/capture repo-root
-                             racket-exe
-                             (append (list "-S" "pkgs" "webracket.rkt")
-                                     webracket-args))))
+    (run-webracket-compile-args/capture repo-root racket-exe webracket-args))
   (write-log! (build-path temp-root (format "~a.log" mode)) stdout stderr)
   (define transcript (string-append stdout "\n" stderr))
   (define program-wasm
@@ -508,11 +593,15 @@
   (define split-status
     (transcript-split-cache-status transcript))
   (define cache-ok?
-    (case mode
-      [(split-cold) (eq? split-status 'miss-assembled)]
-      [(split-warm) (eq? split-status 'wasm-hit)]
-      [(split-cache-reference-warm) (eq? split-status 'wasm-reference-hit)]
-      [else #t]))
+    (and
+     (case mode
+       [(split-cold) (eq? split-status 'miss-assembled)]
+       [(split-warm) (eq? split-status 'wasm-hit)]
+       [(split-cache-reference-warm) (eq? split-status 'wasm-reference-hit)]
+       [else #t])
+     (not (and provider-runtime?
+               (memq mode '(split-warm split-cache-reference-warm))
+               (transcript-provider-runtime-cold-work? transcript)))))
   (mode-result mode
                ok?
                expect-ok?
@@ -651,6 +740,12 @@
     (error 'measure-split-runtime
            "source file does not exist: ~a"
            source-file))
+  (when (and provider-runtime?
+             (not (webracket-module-source? source-file)))
+    (raise-user-error
+     'measure-split-runtime
+     "--split-runtime-provider-runtime requires a #lang webracket/base or #lang webracket/full source: ~a"
+     source-file))
   (define racket-exe (ensure-executable "racket"))
   (ensure-executable "node")
   (define temp-root
@@ -680,10 +775,12 @@
               "raco make"
               "not precompiled by benchmark"))
   (printf "  compile runner: ~a\n"
-          (if in-process?
-              "in-process"
-              "fresh subprocess per mode"))
-  (printf "  split mode:    ~a\n" (if core-only? "core-only" "classified"))
+          (compile-runner-label))
+  (printf "  split mode:    ~a\n"
+          (cond
+            [provider-runtime? "provider-runtime"]
+            [core-only? "core-only"]
+            [else "classified"]))
   (printf "  provider warm: ~a\n"
           (if prewarm-staged-providers-first?
               "regexp/read/io-format"
@@ -697,9 +794,12 @@
               "enabled"
               "disabled"))
   (printf "  runtime warm:  ~a\n\n"
-          (if prewarm-runtime-first?
-              "split-runtime prewarm"
-              "split-cold"))
+          (cond
+            [(and prewarm-runtime-first? provider-runtime?)
+             "provider-runtime prewarm"]
+            [prewarm-runtime-first?
+             "split-runtime prewarm"]
+            [else "split-cold"]))
   (define-values (precompile-ok? precompile-wall-ms)
     (if precompile-compiler-first?
         (precompile-compiler! racket-exe temp-root)

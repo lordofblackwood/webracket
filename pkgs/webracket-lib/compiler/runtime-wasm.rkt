@@ -13,7 +13,8 @@
                   current-runtime-cache-dir
                   current-tree-shake?
                   current-split-runtime?
-                  current-split-runtime-reference-only?)
+                  current-split-runtime-reference-only?
+                  current-split-runtime-program-only-fast-path?)
          (only-in "private/wasm-utils.rkt"
                   $
                   prim:)
@@ -45,6 +46,8 @@
                   ffi-core-runtime-helper-forms
                   ffi-callback-global-forms
                   ffi-entry-global-forms
+                  ffi-console-bridge-helper-names
+                  ffi-console-bridge-helper-forms
                   ffi-runtime-only-helper-forms
                   make-current-runtime-ffi-state
                   runtime-ffi-state-active-foreigns
@@ -342,7 +345,8 @@
                   runtime-constant-initializer-forms
                   runtime-linklet-body-reserved-symbols)
          (only-in "runtime-wasm/constants.rkt"
-                  make-runtime-constant-registry)
+                  make-runtime-constant-registry
+                  runtime-constant-registry-add-symbols!)
          (only-in "runtime-wasm/core/reflection.rkt"
                   reflection-core-runtime-helper-forms
                   reflection-runtime-helper-forms)
@@ -507,9 +511,17 @@
        (runtime-ffi-state-active-primitive-names ffi-state)
        all-primitives))
     (define program-only-constant-registry
-      (make-runtime-constant-registry string-constants
-                                      bytes-constants
-                                      symbol-constants))
+      (let ([registry (make-runtime-constant-registry string-constants
+                                                       bytes-constants
+                                                       symbol-constants)])
+        ;; Split program modules initialize FFI primitive procedure globals on
+        ;; the program side, so their procedure names must be declared as
+        ;; program-owned symbol constants too.
+        (when (current-split-runtime?)
+          (runtime-constant-registry-add-symbols!
+           registry
+           (runtime-ffi-state-active-primitive-names ffi-state)))
+        registry))
 
     (define primitive-initializer-forms
       (runtime-primitive-state-initializer-forms primitive-state))
@@ -530,6 +542,10 @@
                 [active-names (runtime-ffi-state-active-primitive-names ffi-state)])
             (append (map ffi-import-name active-foreigns)
                     (map $ active-names)))
+          '()))
+    (define (split-program-console-bridge-function-names)
+      (if console-bridge-enabled?
+          ffi-console-bridge-helper-names
           '()))
     (define (split-program-ffi-global-names)
       (for/list ([name (in-list (runtime-ffi-state-active-primitive-names ffi-state))]
@@ -731,6 +747,9 @@
        top-level-variable-declarations
        (runtime-ffi-state-primitive-global-forms ffi-state)
        dls
+       (if console-bridge-enabled?
+           (ffi-console-bridge-helper-forms console-bridge-bindings)
+           '())
        (for/list ([form (in-list entry-support-forms)]
                   #:when (split-program-entry-support-form? form))
          form)
@@ -2051,6 +2070,7 @@
     (define split-runtime-program-index-cache #f)
     (define split-runtime-program-only-candidate?
       (and (current-split-runtime?)
+           (current-split-runtime-program-only-fast-path?)
            split-runtime-boundary-metadata
            (or (current-split-runtime-reference-only?)
                split-runtime-core-wasm-cache-hit-now?)))
@@ -2130,7 +2150,9 @@
              core-runtime-program-import-constant-global-names
              #:runtime-owned-constant-data-names
              core-runtime-program-import-constant-data-names
-             #:extra-program-function-names (split-program-ffi-function-names)
+             #:extra-program-function-names
+             (append (split-program-ffi-function-names)
+                     (split-program-console-bridge-function-names))
              #:extra-program-global-names (split-program-ffi-global-names)
              #:described-primitives described-primitives
              #:used-primitives used-primitives

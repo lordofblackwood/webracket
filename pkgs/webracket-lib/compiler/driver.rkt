@@ -41,6 +41,7 @@
                                     path-only
                                     path-get-extension)
          (only-in racket/file       delete-directory/files
+                                    file->bytes
                                     find-files
                                     make-directory*
                                     make-temporary-file)
@@ -48,6 +49,8 @@
          (only-in racket/pretty     pretty-write)
          (only-in racket/format     ~a)
          (only-in racket/fasl       fasl->s-exp s-exp->fasl)
+         (only-in file/sha1         bytes->hex-string sha1-bytes)
+         (only-in racket/promise    delay)
          (only-in racket/system     system*)
          (only-in racket/string     string-join
                                     string-prefix?)
@@ -63,11 +66,32 @@
                   runtime)
          (only-in "runtime-wasm.rkt"
                   split-core-runtime-module
+                  split-runtime-modules
                   split-runtime-modules?
+                  split-runtime-modules-core
                   split-runtime-modules-core-module
                   split-runtime-modules-core-cache-key
+                  split-runtime-modules-import-forms
                   split-runtime-modules-imported-names
                   split-runtime-modules-program)
+         (only-in "runtime-wasm/provider-fragment-splice.rkt"
+                  provider-fragment-splice-info?
+                  provider-fragment-splice-info-colliding-program-names
+                  provider-fragment-splice-info-dropped-provider-global-import-count
+                  provider-fragment-splice-info-program-form-count
+                  provider-fragment-splice-info-provider-form-count
+                  provider-fragment-splice-info-spliced-form-count
+                  splice-provider+program-modules)
+         (only-in "runtime-wasm/provider-fragment-runtime.rkt"
+                  merge-provider-fragment-into-runtime
+                  provider-runtime-merge-info?
+                  provider-runtime-merge-info-core-form-count
+                  provider-runtime-merge-info-provider-form-count
+                  provider-runtime-merge-info-provider-import-count
+                  provider-runtime-merge-info-provider-colliding-definition-names
+                  provider-runtime-merge-info-merged-runtime-form-count)
+         (only-in "runtime-wasm/split-runtime.rkt"
+                  strip-split-runtime-program-entry-init)
          (only-in "runtime-wasm/split-runtime-cache.rkt"
                   split-runtime-core-fingerprint
                   split-runtime-core-cache-key-fingerprint
@@ -97,6 +121,8 @@
                                     current-module-bridge-support-provider-names
                                     current-module-bridge-module-kinds
                                     current-provider-owned-primitive-aliases
+                                    current-imported-top-level-globals
+                                    current-exported-top-level-globals
                                     current-webify-knowns-mode
                                     current-letrec-strategy
                                     current-tree-shake?
@@ -104,7 +130,8 @@
                                     current-frontend-cache-enabled?
                                     current-runtime-primitive-report-path
                                     current-split-runtime?
-                                    current-split-runtime-reference-only?)
+                                    current-split-runtime-reference-only?
+                                    current-split-runtime-program-only-fast-path?)
          (only-in "private/timings.rkt"
                   now-ms
                   format-metric-table
@@ -1230,6 +1257,10 @@
     [`(begin ,body ...) body]
     [_ '()]))
 
+(struct module-bridge-fragment-split
+  (provider-datum program-datum provider-records program-records tail-forms)
+  #:transparent)
+
 ;; module-bridge-fragment-provider-kind : hash? symbol? -> symbol?
 ;;   Classify one composed fragment using the bridge graph module-kind table.
 (define (module-bridge-fragment-provider-kind module-kinds module-name)
@@ -1239,29 +1270,570 @@
      (hash-ref module-kinds module-name)]
     [else 'unknown-provider]))
 
+;; module-bridge-fragment-manifest :
+;;   webify-module-composition? hash? -> (listof hash?)
+;;   Record the module/kind/span ownership of each composed bridge fragment.
+(define (module-bridge-fragment-manifest composition module-kinds)
+  (define-values (reverse-records _next-start)
+    (for/fold ([records '()]
+               [start 0])
+              ([fragment (in-list (webify-module-composition-fragments composition))])
+      (define instance
+        (webify-module-fragment-instance fragment))
+      (define module-name
+        (webify-module-instance-name instance))
+      (define kind
+        (module-bridge-fragment-provider-kind module-kinds module-name))
+      (define body-count
+        (length (module-bridge-fragment-body
+                 (webify-module-fragment-datum fragment))))
+      (values (cons (hasheq 'module-name module-name
+                            'kind kind
+                            'start start
+                            'count body-count)
+                    records)
+              (+ start body-count))))
+  (reverse reverse-records))
+
+;; module-bridge-fragment-record-counts :
+;;   (listof hash?) -> (values hasheq? hasheq? hasheq? exact-nonnegative-integer?)
+;;   Count composed fragment manifest records by module kind and module name.
+(define (module-bridge-fragment-record-counts fragment-manifest)
+  (for/fold ([kind-form-counts (hasheq)]
+             [kind-fragment-counts (hasheq)]
+             [module-form-counts (hasheq)]
+             [total-form-count 0])
+            ([record (in-list fragment-manifest)])
+    (define module-name (hash-ref record 'module-name))
+    (define kind (hash-ref record 'kind))
+    (define body-count
+      (hash-ref record 'count))
+    (values (hash-update kind-form-counts kind (lambda (n) (+ n body-count)) 0)
+            (hash-update kind-fragment-counts kind add1 0)
+            (hash-update module-form-counts module-name (lambda (n) (+ n body-count)) 0)
+            (+ total-form-count body-count))))
+
 ;; module-bridge-fragment-counts :
 ;;   webify-module-composition? hash?
 ;;   -> (values hasheq? hasheq? hasheq? exact-nonnegative-integer?)
 ;;   Count composed fragment bodies by module kind and module name.
 (define (module-bridge-fragment-counts composition module-kinds)
-  (for/fold ([kind-form-counts (hasheq)]
-             [kind-fragment-counts (hasheq)]
-             [module-form-counts (hasheq)]
-             [total-form-count 0])
-            ([fragment (in-list (webify-module-composition-fragments composition))])
-    (define instance
-      (webify-module-fragment-instance fragment))
-    (define module-name
-      (webify-module-instance-name instance))
-    (define kind
-      (module-bridge-fragment-provider-kind module-kinds module-name))
-    (define body-count
-      (length (module-bridge-fragment-body
-               (webify-module-fragment-datum fragment))))
-    (values (hash-update kind-form-counts kind (lambda (n) (+ n body-count)) 0)
-            (hash-update kind-fragment-counts kind add1 0)
-            (hash-update module-form-counts module-name (lambda (n) (+ n body-count)) 0)
-            (+ total-form-count body-count))))
+  (module-bridge-fragment-record-counts
+   (module-bridge-fragment-manifest composition module-kinds)))
+
+;; module-bridge-cacheable-provider-kind? : symbol? -> boolean?
+;;   Check whether a fragment kind can be separated into a cacheable provider side.
+(define (module-bridge-cacheable-provider-kind? kind)
+  (memq kind '(support-provider installed-provider kernel-provider)))
+
+;; module-bridge-lowered-datum-body : any/c -> (listof any/c)
+;;   Return the top-level body of a lowered bridge datum.
+(define (module-bridge-lowered-datum-body lowered-datum)
+  (match lowered-datum
+    [`(begin ,body ...) body]
+    [_
+     (raise-argument-error 'module-bridge-lowered-datum-body
+                           "(list/c 'begin ...)"
+                           lowered-datum)]))
+
+;; module-bridge-fragment-record-end : hash? -> exact-nonnegative-integer?
+;;   Return the exclusive form index at the end of one fragment record.
+(define (module-bridge-fragment-record-end record)
+  (+ (hash-ref record 'start)
+     (hash-ref record 'count)))
+
+;; module-bridge-fragment-manifest-covered-count :
+;;   (listof hash?) -> exact-nonnegative-integer?
+;;   Validate contiguous fragment spans and return the number of covered forms.
+(define (module-bridge-fragment-manifest-covered-count fragment-manifest)
+  (for/fold ([expected-start 0])
+            ([record (in-list fragment-manifest)])
+    (define start (hash-ref record 'start))
+    (define end (module-bridge-fragment-record-end record))
+    (unless (= start expected-start)
+      (raise-arguments-error
+       'module-bridge-fragment-manifest-covered-count
+       "fragment manifest is not contiguous"
+       "expected start" expected-start
+       "record" record))
+    end))
+
+;; module-bridge-fragment-record-forms :
+;;   vector? hash? -> (listof any/c)
+;;   Extract the lowered forms covered by one fragment record.
+(define (module-bridge-fragment-record-forms body-vector record)
+  (define start (hash-ref record 'start))
+  (define end (module-bridge-fragment-record-end record))
+  (when (> end (vector-length body-vector))
+    (raise-arguments-error
+     'module-bridge-fragment-record-forms
+     "fragment manifest extends past lowered datum body"
+     "body length" (vector-length body-vector)
+     "record" record))
+  (for/list ([i (in-range start end)])
+    (vector-ref body-vector i)))
+
+;; module-bridge-split-lowered-datum :
+;;   any/c (listof hash?) -> module-bridge-fragment-split?
+;;   Split a lowered bridge datum into cacheable provider forms and program forms.
+(define (module-bridge-split-lowered-datum lowered-datum fragment-manifest)
+  (unless (module-bridge-fragment-manifest? fragment-manifest)
+    (raise-argument-error 'module-bridge-split-lowered-datum
+                          "module-bridge-fragment-manifest?"
+                          fragment-manifest))
+  (define body (module-bridge-lowered-datum-body lowered-datum))
+  (define covered-count
+    (module-bridge-fragment-manifest-covered-count fragment-manifest))
+  (when (> covered-count (length body))
+    (raise-arguments-error
+     'module-bridge-split-lowered-datum
+     "fragment manifest covers more forms than the lowered datum contains"
+     "body length" (length body)
+     "covered count" covered-count))
+  (define body-vector (list->vector body))
+  (define-values (provider-chunks-reverse
+                  program-chunks-reverse
+                  provider-records-reverse
+                  program-records-reverse)
+    (for/fold ([provider-chunks '()]
+               [program-chunks '()]
+               [provider-records '()]
+               [program-records '()])
+              ([record (in-list fragment-manifest)])
+      (define forms
+        (module-bridge-fragment-record-forms body-vector record))
+      (if (module-bridge-cacheable-provider-kind? (hash-ref record 'kind))
+          (values (cons forms provider-chunks)
+                  program-chunks
+                  (cons record provider-records)
+                  program-records)
+          (values provider-chunks
+                  (cons forms program-chunks)
+                  provider-records
+                  (cons record program-records)))))
+  (define tail-forms
+    (for/list ([i (in-range covered-count (length body))])
+      (vector-ref body-vector i)))
+  (define provider-forms
+    (apply append (reverse provider-chunks-reverse)))
+  (define program-fragment-forms
+    (apply append (reverse program-chunks-reverse)))
+  (module-bridge-fragment-split
+   `(begin ,@provider-forms)
+   `(begin ,@program-fragment-forms ,@tail-forms)
+   (reverse provider-records-reverse)
+   (reverse program-records-reverse)
+   tail-forms))
+
+;; module-bridge-export-symbol? : any/c -> boolean?
+;;   Check whether a symbol names a generated module-bridge export box/value.
+(define (module-bridge-export-symbol? v)
+  (and (symbol? v)
+       (regexp-match? #rx"^webify-export-(value|cell)"
+                      (symbol->string v))))
+
+;; module-bridge-datum-symbols : any/c -> (set/c symbol?)
+;;   Collect every symbol appearing in a lowered bridge datum.
+(define (module-bridge-datum-symbols datum)
+  (define symbols (make-hasheq))
+  (define (walk v)
+    (cond
+      [(symbol? v)
+       (hash-set! symbols v #t)]
+      [(pair? v)
+       (walk (car v))
+       (walk (cdr v))]
+      [(vector? v)
+       (for ([item (in-vector v)])
+         (walk item))]
+      [else
+       (void)]))
+  (walk datum)
+  (list->seteq (hash-keys symbols)))
+
+;; module-bridge-top-define-symbols : any/c -> (set/c symbol?)
+;;   Collect top-level definition names in a lowered bridge fragment.
+(define (module-bridge-top-define-symbols datum)
+  (define names
+    (match datum
+      [`(begin ,forms ...)
+       (append*
+        (for/list ([form (in-list forms)])
+          (match form
+            [`(define ,(? symbol? name) ,_) (list name)]
+            [`(define-values (,names ...) ,_)
+             (filter symbol? names)]
+            [_ '()])))]
+      [_ '()]))
+  (list->seteq names))
+
+;; module-bridge-provider-program-interface-symbols :
+;;   any/c any/c (set/c symbol?) -> (set/c symbol?)
+;;   Return provider top-level boxes/values demanded by the program fragment.
+(define (module-bridge-provider-program-interface-symbols provider-datum
+                                                          program-datum
+                                                          provider-owned-aliases)
+  (define provider-defs (module-bridge-top-define-symbols provider-datum))
+  (define program-symbols (module-bridge-datum-symbols program-datum))
+  (define (interface-symbol? name)
+    (or (module-bridge-export-symbol? name)
+        ;; Staged providers can also expose public primitive aliases, such as
+        ;; `read`, as plain top-level definitions instead of generated export
+        ;; cells. Those aliases still have to cross the provider/program split.
+        (set-member? provider-owned-aliases name)))
+  (list->seteq
+   (sort
+    (for/list ([name (in-list (set->list program-symbols))]
+               #:when (and (interface-symbol? name)
+                           (set-member? provider-defs name)))
+      name)
+    symbol<?)))
+
+;; datum-sha1 : any/c -> string?
+;;   Compute a stable digest for a serialized datum.
+(define (datum-sha1 datum)
+  (define out (open-output-bytes))
+  (write datum out)
+  (bytes->hex-string
+   (sha1-bytes (get-output-bytes out))))
+
+;; module-bridge-provider-fragment-record-shape :
+;;   (listof hash?) -> (listof list?)
+;;   Keep the provider-fragment cache key readable without including local spans.
+(define (module-bridge-provider-fragment-record-shape records)
+  (for/list ([record (in-list records)])
+    (list (hash-ref record 'module-name)
+          (hash-ref record 'kind)
+          (hash-ref record 'count))))
+
+;; module-bridge-provider-fragment-fingerprint :
+;;   module-bridge-fragment-split? -> any/c
+;;   Fingerprint the provider-side fragment payload independent of local-user forms.
+(define (module-bridge-provider-fragment-fingerprint split)
+  `(module-bridge-provider-fragment-cache
+    1
+    ,(module-bridge-provider-fragment-record-shape
+      (module-bridge-fragment-split-provider-records split))
+    ,(datum-sha1 (module-bridge-fragment-split-provider-datum split))))
+
+;; module-bridge-provider-fragment-fingerprint-digest : any/c -> string?
+;;   Return the compact digest component used for the shared provider-fragment path.
+(define (module-bridge-provider-fragment-fingerprint-digest fingerprint)
+  (match fingerprint
+    [`(module-bridge-provider-fragment-cache 1 ,_shape ,(? string? digest))
+     digest]
+    [_
+     (datum-sha1 fingerprint)]))
+
+;; module-bridge-provider-fragment-cache-path : any/c -> path?
+;;   Cache one provider-side lowered fragment payload by its stable fingerprint.
+(define (module-bridge-provider-fragment-cache-path fingerprint)
+  (provider-cache-path
+   "module-bridge-provider-fragments"
+   (format "~a.rktd"
+           (provider-cache-string-segment
+            (module-bridge-provider-fragment-fingerprint-digest fingerprint)))))
+
+;; module-bridge-provider-fragment->cache-datum :
+;;   module-bridge-fragment-split? -> datum?
+;;   Serialize the cacheable provider-side bridge fragment.
+(define (module-bridge-provider-fragment->cache-datum split)
+  `(module-bridge-provider-fragment
+    (provider-records
+     ,(cache-readable-datum
+       (module-bridge-fragment-split-provider-records split)))
+    (provider-datum
+     ,(cache-readable-datum
+       (module-bridge-fragment-split-provider-datum split)))))
+
+;; cache-datum->module-bridge-provider-fragment-payload : any/c -> (or/c vector? #f)
+;;   Rehydrate one cached provider-fragment payload.
+(define (cache-datum->module-bridge-provider-fragment-payload datum)
+  (match datum
+    [`(module-bridge-provider-fragment
+       (provider-records ,provider-records-datum)
+       (provider-datum ,provider-datum-datum))
+     (define provider-records
+       (cache-readable->datum provider-records-datum))
+     (define provider-datum
+       (cache-readable->datum provider-datum-datum))
+     (and (list? provider-records)
+          (andmap module-bridge-fragment-record? provider-records)
+          (match provider-datum
+            [`(begin ,_ ...) #t]
+            [_ #f])
+          (vector provider-records provider-datum))]
+    [_ #f]))
+
+;; read-module-bridge-provider-fragment-cache : any/c -> (or/c vector? #f)
+;;   Read a shared provider-fragment cache payload when the fingerprint matches.
+(define (read-module-bridge-provider-fragment-cache fingerprint)
+  (define cache-path
+    (module-bridge-provider-fragment-cache-path fingerprint))
+  (define cached
+    (read-provider-cache cache-path fingerprint))
+  (and cached
+       (cache-datum->module-bridge-provider-fragment-payload cached)))
+
+;; write-module-bridge-provider-fragment-cache! :
+;;   any/c module-bridge-fragment-split? -> void?
+;;   Persist one shared provider-fragment payload.
+(define (write-module-bridge-provider-fragment-cache! fingerprint split)
+  (write-provider-cache!
+   (module-bridge-provider-fragment-cache-path fingerprint)
+   fingerprint
+   (module-bridge-provider-fragment->cache-datum split)))
+
+;; ensure-module-bridge-provider-fragment-cache! :
+;;   any/c module-bridge-fragment-split? -> (or/c 'hit 'write)
+;;   Materialize a shared provider-fragment payload if it is not already cached.
+(define (ensure-module-bridge-provider-fragment-cache! fingerprint split)
+  (define cache-path
+    (module-bridge-provider-fragment-cache-path fingerprint))
+  (cond
+    [(read-module-bridge-provider-fragment-cache fingerprint)
+     (provider-cache-log "#lang webracket/base provider fragment hit: ~a"
+                         cache-path)
+     'hit]
+    [else
+     (call-with-provider-cache-lock
+      cache-path
+      (lambda ()
+        (cond
+          [(read-module-bridge-provider-fragment-cache fingerprint)
+           (provider-cache-log "#lang webracket/base provider fragment hit: ~a"
+                               cache-path)
+           'hit]
+          [else
+           (provider-cache-log "#lang webracket/base provider fragment miss; writing: ~a"
+                               cache-path)
+           (write-module-bridge-provider-fragment-cache! fingerprint split)
+           'write])))]))
+
+;; module-bridge-provider-compiled-fragment-cache-version : exact-positive-integer?
+;;   Bump when compiled provider-fragment WAT cache semantics change.
+(define module-bridge-provider-compiled-fragment-cache-version 2)
+
+;; module-bridge-provider-compiled-fragment-cache-key :
+;;   any/c #:browser? boolean? #:enable-cc-analysis? boolean?
+;;   #:enable-simplify? boolean? #:split-runtime-reference? boolean?
+;;   #:letrec-strategy symbol?
+;;   #:provider-owned-primitive-aliases (listof symbol?) -> any/c
+;;   Fingerprint the compiler/runtime options that affect provider-fragment WAT.
+(define (module-bridge-provider-compiled-fragment-cache-key
+         provider-fragment-fingerprint
+         #:browser? [browser? #f]
+         #:enable-cc-analysis? [enable-cc-analysis? #f]
+         #:enable-simplify? [enable-simplify? #f]
+         #:split-runtime-reference? [split-runtime-reference? #f]
+         #:letrec-strategy [letrec-strategy 'scc]
+         #:provider-owned-primitive-aliases [provider-owned-primitive-aliases '()])
+  `(module-bridge-provider-compiled-fragment-wat-cache
+    ,module-bridge-provider-compiled-fragment-cache-version
+    (provider-fragment ,provider-fragment-fingerprint)
+    (runtime-source ,(runtime-source-fingerprint))
+    (browser? ,browser?)
+    (enable-cc-analysis? ,enable-cc-analysis?)
+    (enable-simplify? ,enable-simplify?)
+    (split-runtime-reference? ,split-runtime-reference?)
+    (letrec-strategy ,letrec-strategy)
+    (provider-owned-primitive-aliases
+     ,(sort provider-owned-primitive-aliases symbol<?))))
+
+;; module-bridge-provider-runtime-core-cache-key : any/c any/c -> any/c
+;;   Fingerprint a split runtime that embeds one compiled provider fragment.
+(define (module-bridge-provider-runtime-core-cache-key core-cache-key
+                                                       compiled-provider-cache-key)
+  `(module-bridge-provider-runtime-core-cache
+    1
+    (core ,core-cache-key)
+    (compiled-provider ,compiled-provider-cache-key)))
+
+;; module-bridge-provider-compiled-fragment-cache-digest : any/c -> string?
+;;   Return the compact digest used for compiled provider-fragment artifacts.
+(define (module-bridge-provider-compiled-fragment-cache-digest cache-key)
+  (datum-sha1 cache-key))
+
+;; module-bridge-provider-compiled-fragment-wat-cache-path : any/c -> path?
+;;   Cache compact WAT for one compiled provider-side bridge fragment.
+(define (module-bridge-provider-compiled-fragment-wat-cache-path cache-key)
+  (provider-cache-path
+   "module-bridge-provider-compiled-fragments"
+   (format "~a.wat"
+           (provider-cache-string-segment
+            (module-bridge-provider-compiled-fragment-cache-digest
+             cache-key)))))
+
+;; module-bridge-provider-compiled-fragment-fasl-cache-path : any/c -> path?
+;;   Cache binary FASL for one compiled provider-fragment artifact.
+(define (module-bridge-provider-compiled-fragment-fasl-cache-path cache-key)
+  (provider-cache-path
+   "module-bridge-provider-compiled-fragments"
+   (format "~a.fasl"
+           (provider-cache-string-segment
+            (module-bridge-provider-compiled-fragment-cache-digest
+             cache-key)))))
+
+;; module-bridge-provider-compiled-fragment-wat-cache-fingerprint-path : path? -> path?
+;;   Return the sidecar fingerprint path for a compiled provider WAT artifact.
+(define (module-bridge-provider-compiled-fragment-wat-cache-fingerprint-path
+         wat-path)
+  (string->path (string-append (path->string wat-path) ".fingerprint")))
+
+;; write-compiled-provider-fragment-fasl-cache! : path-string? any/c -> void?
+;;   Write the binary provider-fragment module cache used by warm driver runs.
+(define (write-compiled-provider-fragment-fasl-cache! fasl-path wat)
+  (make-directory* (or (path-only fasl-path) (current-directory)))
+  (define tmp-path
+    (make-temporary-file "compiled-provider-fragment-~a.fasl"
+                         #f
+                         (or (path-only fasl-path)
+                             (current-directory))))
+  (with-handlers ([exn:fail?
+                   (lambda (e)
+                     (with-handlers ([exn:fail? void])
+                       (when (file-exists? tmp-path)
+                         (delete-file tmp-path)))
+                     (raise e))])
+    (call-with-output-file tmp-path
+      (lambda (out)
+        (write-bytes (s-exp->fasl wat) out))
+      #:exists 'replace)
+    (when (file-exists? fasl-path)
+      (delete-file fasl-path))
+    (rename-file-or-directory tmp-path fasl-path)))
+
+;; module-bridge-provider-compiled-fragment-wat-cache-current? : any/c -> boolean?
+;;   Check whether the compiled provider-fragment WAT cache is current.
+(define (module-bridge-provider-compiled-fragment-wat-cache-current? cache-key)
+  (define wat-path
+    (module-bridge-provider-compiled-fragment-wat-cache-path cache-key))
+  (and (file-exists? wat-path)
+       (cached-fingerprint-valid?
+        (module-bridge-provider-compiled-fragment-wat-cache-fingerprint-path
+         wat-path)
+        cache-key)))
+
+;; write-module-bridge-provider-compiled-fragment-wat-cache! :
+;;   any/c any/c -> path?
+;;   Write compact WAT and its fingerprint for one compiled provider fragment.
+(define (write-module-bridge-provider-compiled-fragment-wat-cache!
+         cache-key compiled-provider-wat)
+  (define wat-path
+    (module-bridge-provider-compiled-fragment-wat-cache-path cache-key))
+  (define fasl-path
+    (module-bridge-provider-compiled-fragment-fasl-cache-path cache-key))
+  (write-wat-to-file wat-path compiled-provider-wat #:pretty? #f)
+  (with-handlers ([exn:fail?
+                   (lambda (_e)
+                     (write-compiled-provider-fragment-fasl-cache!
+                      fasl-path
+                      (read-wat-module-from-file
+                       wat-path
+                       'write-module-bridge-provider-compiled-fragment-wat-cache!)))])
+    (write-compiled-provider-fragment-fasl-cache! fasl-path compiled-provider-wat))
+  (write-cache-fingerprint!
+   (module-bridge-provider-compiled-fragment-wat-cache-fingerprint-path
+    wat-path)
+   cache-key)
+  wat-path)
+
+;; read-module-bridge-provider-compiled-fragment-cache :
+;;   any/c symbol? -> list?
+;;   Read compiled provider-fragment WAT, preferring the binary sidecar cache.
+(define (read-module-bridge-provider-compiled-fragment-cache cache-key who)
+  (define fasl-path
+    (module-bridge-provider-compiled-fragment-fasl-cache-path cache-key))
+  (define wat-path
+    (module-bridge-provider-compiled-fragment-wat-cache-path cache-key))
+  (define datum
+    (cond
+      [(file-exists? fasl-path)
+       (with-handlers ([exn:fail?
+                        (lambda (_e)
+                          (define wat
+                            (read-wat-module-from-file wat-path who))
+                          (with-handlers ([exn:fail? void])
+                            (when (file-exists? fasl-path)
+                              (delete-file fasl-path))
+                            (write-compiled-provider-fragment-fasl-cache!
+                             fasl-path
+                             wat))
+                          wat)])
+         (fasl->s-exp (file->bytes fasl-path)))]
+      [else
+       (define wat (read-wat-module-from-file wat-path who))
+       (with-handlers ([exn:fail? void])
+         (write-compiled-provider-fragment-fasl-cache! fasl-path wat))
+       wat]))
+  (match datum
+    [`(module ,_ ...) datum]
+    [_ (raise-arguments-error who
+                              "expected a compiled provider WAT module datum"
+                              "cache key" cache-key
+                              "datum" datum)]))
+
+;; ensure-module-bridge-provider-compiled-fragment-wat-cache! :
+;;   any/c (-> any/c) -> (values (or/c 'hit 'write) path?)
+;;   Materialize compiled provider-fragment WAT, compiling only on a cache miss.
+(define (ensure-module-bridge-provider-compiled-fragment-wat-cache!
+         cache-key compile-provider-thunk)
+  (define wat-path
+    (module-bridge-provider-compiled-fragment-wat-cache-path cache-key))
+  (cond
+    [(module-bridge-provider-compiled-fragment-wat-cache-current? cache-key)
+     (provider-cache-log "#lang webracket/base compiled provider fragment hit: ~a"
+                         wat-path)
+     (values 'hit wat-path)]
+    [else
+     (call-with-provider-cache-lock
+      wat-path
+      (lambda ()
+        (cond
+          [(module-bridge-provider-compiled-fragment-wat-cache-current?
+            cache-key)
+           (provider-cache-log "#lang webracket/base compiled provider fragment hit: ~a"
+                               wat-path)
+           (values 'hit wat-path)]
+          [else
+           (provider-cache-log "#lang webracket/base compiled provider fragment miss; writing: ~a"
+                               wat-path)
+           (define compiled-provider-wat
+             (compile-provider-thunk))
+           (define written-path
+             (write-module-bridge-provider-compiled-fragment-wat-cache!
+              cache-key
+              compiled-provider-wat))
+           (values 'write written-path)])))]))
+
+;; read-wat-module-from-file : path-string? symbol? -> list?
+;;   Read one generated WAT module datum from disk.
+(define (read-wat-module-from-file wat-path who)
+  (define datum (call-with-input-file wat-path read))
+  (match datum
+    [`(module ,_ ...) datum]
+    [_ (raise-arguments-error who
+                              "expected a WAT module datum"
+                              "path" wat-path
+                              "datum" datum)]))
+
+;; compiled-fragment->program-wat : any/c -> any/c
+;;   Extract the program-side WAT from a normal or split-runtime compile result.
+(define (compiled-fragment->program-wat compiled-fragment)
+  (if (split-runtime-modules? compiled-fragment)
+      (split-runtime-modules-program compiled-fragment)
+      compiled-fragment))
+
+;; split-runtime-modules-with-program :
+;;   split-runtime-modules? any/c -> split-runtime-modules?
+;;   Preserve split-runtime core/cache metadata while replacing the program module.
+(define (split-runtime-modules-with-program split-modules program-wat)
+  (split-runtime-modules
+   (split-runtime-modules-core split-modules)
+   program-wat
+   (split-runtime-modules-imported-names split-modules)
+   (split-runtime-modules-import-forms split-modules)
+   (split-runtime-modules-core-cache-key split-modules)))
 
 ;; module-bridge-graph-metric-rows : graph composition -> (listof (list/c string? any/c))
 ;;   Summarize bridge scaffolding and graph shape before the main compiler pipeline.
@@ -1292,11 +1864,14 @@
     (hash-count (webify-module-composition-instances composition)))
   (define module-kinds
     (webracket/base-local-module-graph-module-kinds graph))
+  (define fragment-manifest
+    (module-bridge-fragment-manifest composition module-kinds))
+  (hash-set! stats 'module-bridge-fragment-manifest fragment-manifest)
   (define-values (fragment-kind-form-counts
                   fragment-kind-counts
                   fragment-module-form-counts
                   fragment-form-count)
-    (module-bridge-fragment-counts composition module-kinds))
+    (module-bridge-fragment-record-counts fragment-manifest))
   (define total-export-count
     (for/sum ([report (in-list reports)])
       (length (webify-module-report-phase0-exports report))))
@@ -1956,7 +2531,7 @@
 ;;   Fingerprint a composed bridge result using source, provider, and policy state.
 (define (module-bridge-result-fingerprint local-source-paths module-kinds)
   `(module-bridge-result-cache
-    1
+    4
     ,(version)
     ,(current-webracket/base-provider-substitutions?)
     ,(current-module-bridge-elide-public-cells?)
@@ -1970,7 +2545,7 @@
 
 ;; module-bridge-result->cache-datum :
 ;;   (listof path?) (listof symbol?) hash? (or/c #f (listof symbol?))
-;;   any/c any/c any/c boolean? any/c -> datum?
+;;   any/c any/c any/c any/c any/c boolean? boolean? any/c -> datum?
 ;;   Serialize the side metadata and lowered top-level datum produced by the bridge.
 (define (module-bridge-result->cache-datum local-source-paths
                                            provider-names
@@ -1979,6 +2554,9 @@
                                            root-export-bindings
                                            root-source-path
                                            metric-rows
+                                           fragment-manifest
+                                           provider-fragment-fingerprint
+                                           needs-expander-read-provider?
                                            needs-regexp-provider?
                                            lowered-datum)
   `(module-bridge-result
@@ -1991,8 +2569,26 @@
     (console-root-export-bindings ,(cache-readable-datum root-export-bindings))
     (console-root-source-path ,(cache-readable-datum root-source-path))
     (metric-rows ,(cache-readable-datum metric-rows))
+    (fragment-manifest ,(cache-readable-datum fragment-manifest))
+    (provider-fragment-fingerprint ,(cache-readable-datum provider-fragment-fingerprint))
+    (needs-expander-read-provider? ,needs-expander-read-provider?)
     (needs-regexp-provider? ,needs-regexp-provider?)
     (lowered-top-level-datum ,(cache-readable-datum lowered-datum))))
+
+;; module-bridge-fragment-record? : any/c -> boolean?
+;;   Check one cached bridge fragment ownership/span record.
+(define (module-bridge-fragment-record? record)
+  (and (hash? record)
+       (symbol? (hash-ref record 'module-name #f))
+       (symbol? (hash-ref record 'kind #f))
+       (exact-nonnegative-integer? (hash-ref record 'start #f))
+       (exact-nonnegative-integer? (hash-ref record 'count #f))))
+
+;; module-bridge-fragment-manifest? : any/c -> boolean?
+;;   Check a cached bridge fragment manifest.
+(define (module-bridge-fragment-manifest? manifest)
+  (and (list? manifest)
+       (andmap module-bridge-fragment-record? manifest)))
 
 ;; cache-datum->module-bridge-result-payload : any/c -> (or/c vector? #f)
 ;;   Rehydrate one cached bridge result and its validation metadata.
@@ -2006,6 +2602,9 @@
        (console-root-export-bindings ,root-export-bindings-datum)
        (console-root-source-path ,root-source-path-datum)
        (metric-rows ,metric-rows-datum)
+       (fragment-manifest ,fragment-manifest-datum)
+       (provider-fragment-fingerprint ,provider-fragment-fingerprint-datum)
+       (needs-expander-read-provider? ,needs-expander-read-provider?)
        (needs-regexp-provider? ,needs-regexp-provider?)
        (lowered-top-level-datum ,lowered-datum))
      (define local-source-paths
@@ -2021,11 +2620,17 @@
        (cache-readable->datum root-source-path-datum))
      (define metric-rows
        (cache-readable->datum metric-rows-datum))
+     (define fragment-manifest
+       (cache-readable->datum fragment-manifest-datum))
+     (define provider-fragment-fingerprint
+       (cache-readable->datum provider-fragment-fingerprint-datum))
      (and (andmap path? local-source-paths)
           (symbol-list? provider-names)
           (hash? module-kinds)
           (or (not elidable-module-names)
               (symbol-list? elidable-module-names))
+          (module-bridge-fragment-manifest? fragment-manifest)
+          (boolean? needs-expander-read-provider?)
           (boolean? needs-regexp-provider?)
           (vector
            (sort (map simplify-path local-source-paths)
@@ -2037,9 +2642,189 @@
            root-export-bindings
            root-source-path
            metric-rows
+           fragment-manifest
+           provider-fragment-fingerprint
+           needs-expander-read-provider?
            needs-regexp-provider?
            (cache-readable->datum lowered-datum)))]
     [_ #f]))
+
+(module+ test
+  (require rackunit)
+
+  (define sample-fragment-manifest
+    (list (hasheq 'module-name 'user/main
+                  'kind 'local-user
+                  'start 0
+                  'count 2)
+          (hasheq 'module-name 'racket-src/expander/read/main
+                  'kind 'support-provider
+                  'start 2
+                  'count 57)))
+  (define sample-provider-fragment-fingerprint
+    '(module-bridge-provider-fragment-cache sample))
+  (define sample-module-bridge-cache-datum
+    (module-bridge-result->cache-datum
+     (list (build-path (current-directory) "sample.rkt"))
+     '(expander/read)
+     (hasheq 'user/main 'local-user
+             'racket-src/expander/read/main 'support-provider)
+     '(user/main)
+     '()
+     "sample.rkt"
+     '(("bridge-fragment-count" 2))
+     sample-fragment-manifest
+     sample-provider-fragment-fingerprint
+     #t
+     #f
+     '(begin (define x 1) (void))))
+  (define sample-module-bridge-cache-payload
+    (cache-datum->module-bridge-result-payload
+     sample-module-bridge-cache-datum))
+  (check-true (vector? sample-module-bridge-cache-payload))
+  (check-equal? (vector-ref sample-module-bridge-cache-payload 7)
+                sample-fragment-manifest)
+  (check-equal? (vector-ref sample-module-bridge-cache-payload 8)
+                sample-provider-fragment-fingerprint)
+  (define sample-split-fragment-manifest
+    (list (hasheq 'module-name 'provider/a
+                  'kind 'support-provider
+                  'start 0
+                  'count 2)
+          (hasheq 'module-name 'user/main
+                  'kind 'local-user
+                  'start 2
+                  'count 2)
+          (hasheq 'module-name 'provider/b
+                  'kind 'installed-provider
+                  'start 4
+                  'count 1)))
+  (define sample-fragment-split
+    (module-bridge-split-lowered-datum
+     '(begin provider-a provider-b user-a user-b provider-c tail)
+     sample-split-fragment-manifest))
+  (check-equal? (module-bridge-fragment-split-provider-datum
+                 sample-fragment-split)
+                '(begin provider-a provider-b provider-c))
+  (check-equal? (module-bridge-fragment-split-program-datum
+                 sample-fragment-split)
+                '(begin user-a user-b tail))
+  (check-equal? (map (lambda (record) (hash-ref record 'module-name))
+                     (module-bridge-fragment-split-provider-records
+                      sample-fragment-split))
+                '(provider/a provider/b))
+  (check-equal? (map (lambda (record) (hash-ref record 'module-name))
+                     (module-bridge-fragment-split-program-records
+                      sample-fragment-split))
+                '(user/main))
+  (check-equal? (module-bridge-fragment-split-tail-forms
+                 sample-fragment-split)
+                '(tail))
+  (define same-provider-fragment-split
+    (module-bridge-split-lowered-datum
+     '(begin provider-a provider-b changed-user-a changed-user-b provider-c changed-tail)
+     sample-split-fragment-manifest))
+  (check-equal? (module-bridge-provider-fragment-fingerprint sample-fragment-split)
+                (module-bridge-provider-fragment-fingerprint same-provider-fragment-split))
+  (define changed-provider-fragment-split
+    (module-bridge-split-lowered-datum
+     '(begin provider-a changed-provider-b user-a user-b provider-c tail)
+     sample-split-fragment-manifest))
+  (check-not-equal? (module-bridge-provider-fragment-fingerprint sample-fragment-split)
+                    (module-bridge-provider-fragment-fingerprint
+                     changed-provider-fragment-split))
+  (define sample-provider-fragment-cache-root
+    (let ([tmp-parent (build-path (current-directory) "tmp")])
+      (make-directory* tmp-parent)
+      (make-temporary-file "webracket-driver-provider-fragment-cache-~a"
+                           'directory
+                           tmp-parent)))
+  (parameterize ([current-provider-cache-dir sample-provider-fragment-cache-root]
+                 [current-provider-cache-force? #f])
+    (define fingerprint
+      (module-bridge-provider-fragment-fingerprint sample-fragment-split))
+    (check-equal? (ensure-module-bridge-provider-fragment-cache!
+                   fingerprint
+                   sample-fragment-split)
+                  'write)
+    (check-equal? (ensure-module-bridge-provider-fragment-cache!
+                   fingerprint
+                   sample-fragment-split)
+                  'hit)
+    (define cached-provider-fragment
+      (read-module-bridge-provider-fragment-cache fingerprint))
+    (check-true (vector? cached-provider-fragment))
+    (check-equal? (vector-ref cached-provider-fragment 0)
+                  (module-bridge-fragment-split-provider-records
+                   sample-fragment-split))
+    (check-equal? (vector-ref cached-provider-fragment 1)
+                  '(begin provider-a provider-b provider-c))
+    (define compiled-cache-key
+      (module-bridge-provider-compiled-fragment-cache-key
+       fingerprint
+       #:browser? #f
+       #:enable-cc-analysis? #f
+       #:enable-simplify? #f
+       #:letrec-strategy 'scc
+       #:provider-owned-primitive-aliases '(regexp? read)))
+    (define compile-count 0)
+    (define (compile-provider-stub)
+      (set! compile-count (+ compile-count 1))
+      '(module))
+    (define-values (compiled-cache-status compiled-cache-path)
+      (ensure-module-bridge-provider-compiled-fragment-wat-cache!
+       compiled-cache-key
+       compile-provider-stub))
+    (check-eq? compiled-cache-status 'write)
+    (check-true (file-exists? compiled-cache-path))
+    (check-true
+     (module-bridge-provider-compiled-fragment-wat-cache-current?
+      compiled-cache-key))
+    (check-true
+     (file-exists?
+      (module-bridge-provider-compiled-fragment-fasl-cache-path
+       compiled-cache-key)))
+    (check-equal?
+     (read-module-bridge-provider-compiled-fragment-cache
+      compiled-cache-key
+      'driver-test)
+     '(module))
+    (check-equal? compile-count 1)
+    (define-values (compiled-cache-status* compiled-cache-path*)
+      (ensure-module-bridge-provider-compiled-fragment-wat-cache!
+       compiled-cache-key
+       compile-provider-stub))
+    (check-eq? compiled-cache-status* 'hit)
+    (check-equal? compiled-cache-path* compiled-cache-path)
+    (check-equal? compile-count 1))
+  (delete-directory/files sample-provider-fragment-cache-root)
+  (check-exn exn:fail?
+             (lambda ()
+               (module-bridge-split-lowered-datum
+                '(begin a b c)
+                (list (hasheq 'module-name 'a
+                              'kind 'local-user
+                              'start 0
+                              'count 1)
+                      (hasheq 'module-name 'b
+                              'kind 'support-provider
+                              'start 2
+                              'count 1)))))
+  (check-false
+   (cache-datum->module-bridge-result-payload
+    `(module-bridge-result
+      (local-source-paths)
+      (provider-names ())
+      (module-kinds ,(cache-readable-datum (hasheq)))
+      (elidable-module-names #f)
+      (console-root-export-bindings ())
+      (console-root-source-path #f)
+      (metric-rows ())
+      (fragment-manifest ((not-a-valid-record)))
+      (provider-fragment-fingerprint (invalid))
+      (needs-expander-read-provider? #f)
+      (needs-regexp-provider? #f)
+      (lowered-top-level-datum (begin (void)))))))
 
 ;; read-module-bridge-result-cache : path? -> (or/c vector? #f)
 ;;   Read a cached bridge result when its source/provider fingerprint still matches.
@@ -2061,7 +2846,7 @@
 
 ;; write-module-bridge-result-cache! :
 ;;   path? (listof path?) (listof symbol?) hash? (or/c #f (listof symbol?))
-;;   any/c any/c any/c boolean? any/c -> void?
+;;   any/c any/c any/c any/c any/c boolean? boolean? any/c -> void?
 ;;   Persist one fully composed bridge result under its dynamic fingerprint.
 (define (write-module-bridge-result-cache! cache-path
                                            local-source-paths
@@ -2071,6 +2856,9 @@
                                            root-export-bindings
                                            root-source-path
                                            metric-rows
+                                           fragment-manifest
+                                           provider-fragment-fingerprint
+                                           needs-expander-read-provider?
                                            needs-regexp-provider?
                                            lowered-datum)
   (write-provider-cache!
@@ -2083,6 +2871,9 @@
                                       root-export-bindings
                                       root-source-path
                                       metric-rows
+                                      fragment-manifest
+                                      provider-fragment-fingerprint
+                                      needs-expander-read-provider?
                                       needs-regexp-provider?
                                       lowered-datum)))
 
@@ -2097,8 +2888,28 @@
   (hash-set! (current-webify-bridge-stats)
              'module-bridge-metric-rows
              (vector-ref payload 6))
-  (current-module-bridge-needs-regexp-provider? (vector-ref payload 7))
-  (datum->syntax #f (vector-ref payload 8)))
+  (hash-set! (current-webify-bridge-stats)
+             'module-bridge-fragment-manifest
+             (vector-ref payload 7))
+  (hash-set! (current-webify-bridge-stats)
+             'module-bridge-provider-fragment-fingerprint
+             (vector-ref payload 8))
+  (current-module-bridge-needs-expander-read-provider? (vector-ref payload 9))
+  (current-module-bridge-needs-regexp-provider? (vector-ref payload 10))
+  (datum->syntax #f (vector-ref payload 11)))
+
+;; module-bridge-result-cache-payload->fragment-split :
+;;   vector? -> module-bridge-fragment-split?
+;;   Reconstruct the provider/program fragment split from a cached bridge result.
+(define (module-bridge-result-cache-payload->fragment-split payload)
+  (module-bridge-split-lowered-datum (vector-ref payload 11)
+                                     (vector-ref payload 7)))
+
+;; module-bridge-result-cache-payload->provider-fragment-fingerprint :
+;;   vector? -> any/c
+;;   Return the cached provider-side fragment fingerprint.
+(define (module-bridge-result-cache-payload->provider-fragment-fingerprint payload)
+  (vector-ref payload 8))
 
 ;; local-module-report-cache-path : path-string? -> path?
 ;;   Cache one extracted local module report per source file.
@@ -3329,10 +4140,11 @@
          #:module-bridge-elide-public-cells? [module-bridge-elide-public-cells? #f]
          #:tree-shake?       tree-shake?        ; remove dead code from the wat-file
          #:tree-shake-report tree-shake-report
-         #:split-runtime?    [split-runtime? #f]
+         #:split-runtime?    [split-runtime? #t]
          #:split-runtime-cache-reference? [split-runtime-cache-reference? #f]
          #:split-runtime-core-url [split-runtime-core-url #f]
          #:split-runtime-core-only? [split-runtime-core-only? #f]
+         #:split-runtime-provider-runtime? [split-runtime-provider-runtime? #f]
          ;; Program Debug
          #:print-top-level-results? print-top-level-results?
          #:internal-bind-treelist-debug-shape? internal-bind-treelist-debug-shape?
@@ -3415,11 +4227,10 @@
   ; 0. Check that `filename` exists and is a source file.
   (ensure-source-file! 'drive-compilation filename)
   (define source-file-module-input?/pre-read
-    (and webracket-module-bridge?
-         (with-handlers ([exn:fail? (lambda (_e) #f)])
-           (call-with-input-file filename
-             (lambda (in)
-               (webracket-module-lang-line? (read-line in 'any)))))))
+    (with-handlers ([exn:fail? (lambda (_e) #f)])
+      (call-with-input-file filename
+        (lambda (in)
+          (webracket-module-lang-line? (read-line in 'any))))))
   (define provider-owned-primitive-aliases/pre-read
     (provider-owned-primitive-alias-symbols
      #:expander-read-provider? (or expander-read-provider?
@@ -3506,6 +4317,10 @@
                               "disabled-script-input"]))
      (stdlib-decision-note "expander-read-provider-mode"
                            (cond
+                             [(and module-input?
+                                   (or expander-read-provider?
+                                       source-needs-expander-read-provider?))
+                              "satisfied-module-bridge"]
                              [expander-read-provider?
                               "enabled-flag"]
                              [source-needs-expander-read-provider?
@@ -3513,23 +4328,32 @@
                              [else
                               "disabled"]))
      (stdlib-decision-note "expander-read-syntax-provider-mode"
-                           (if effective-expander-read-syntax-provider?
-                               "enabled"
-                               "disabled"))
+                           (cond
+                             [(and module-input?
+                                   effective-expander-read-syntax-provider?)
+                              "satisfied-module-bridge"]
+                             [effective-expander-read-syntax-provider?
+                              "enabled"]
+                             [else
+                              "disabled"]))
      (stdlib-decision-note "regexp-provider-top-level-mode"
                            (cond
                              [module-input?
                               (if (current-module-bridge-needs-regexp-provider?)
-                                  "enabled-module-demand"
+                                  "satisfied-module-bridge"
                                   "skipped-module-no-demand")]
                              [(current-module-bridge-needs-regexp-provider?)
                               "enabled-script-demand"]
                              [else
                               "skipped-script-no-demand"]))
      (stdlib-decision-note "regexp-provider-read-dependency-mode"
-                           (if effective-expander-read-provider?
-                               "enabled-via-expander-read"
-                               "disabled"))))
+                           (cond
+                             [(and module-input? effective-regexp-provider?)
+                              "satisfied-module-bridge"]
+                             [effective-expander-read-provider?
+                              "enabled-via-expander-read"]
+                             [else
+                              "disabled"]))))
 
   ; 2. Handle ffi-files.
   (define t-ffi-setup-start  (now-ms))
@@ -3573,26 +4397,14 @@
          (displayln
           "Skipping staged io/format provider for module-language input; module providers resolve racket/format directly"
           (current-error-port)))
-       (cond
-         [effective-expander-read-provider?
-          (add-expander-read-provider stx-for-compile
-                                      #:expander-read-syntax-provider?
-                                      effective-expander-read-syntax-provider?)]
-         [effective-expander-read-syntax-provider?
-          (with-syntax ([(provider-form ...)
-                         (map (lambda (form)
-                                (datum->syntax stx-for-compile form stx-for-compile))
-                              (append
-                               (regexp-provider-forms #:public-aliases? #t
-                                                      #:cache-context 'read-syntax)
-                               (provider-slice-forms 'expander/read-syntax)))])
-            #`(begin
-                provider-form ...
-                #,stx-for-compile))]
-         [else
-          (if (current-module-bridge-needs-regexp-provider?)
-              (add-regexp-provider stx-for-compile)
-              stx-for-compile)])]
+       (when (and verbose?
+                  (or effective-regexp-provider?
+                      effective-expander-read-provider?
+                      effective-expander-read-syntax-provider?))
+         (displayln
+          "Using module-bridge providers for module-language input; skipping staged top-level provider composition"
+          (current-error-port)))
+       stx-for-compile]
       [(and effective-legacy-stdlib? browser?)
        (when verbose?
          (displayln "Composing module stdlib root `legacy-stdlib/stdlib-for-browser.rkt`"
@@ -3674,6 +4486,15 @@
   (when (and split-runtime-core-only? (not split-runtime?))
     (error 'drive-compilation
            "`--split-runtime-core-only` requires `--split-runtime`"))
+  (when (and split-runtime-provider-runtime? (not split-runtime?))
+    (error 'drive-compilation
+           "`--split-runtime-provider-runtime` requires `--split-runtime`"))
+  (when (and split-runtime-provider-runtime? split-runtime-core-only?)
+    (error 'drive-compilation
+           "`--split-runtime-provider-runtime` cannot be combined with `--split-runtime-core-only`"))
+  (when (and split-runtime-provider-runtime? (not module-input?))
+    (error 'drive-compilation
+           "`--split-runtime-provider-runtime` requires #lang webracket/base or #lang webracket/full module input"))
 
   ; Preflight: `-r` in Node mode requires a Node.js executable.
   (when (and node? run-after?)
@@ -3729,37 +4550,214 @@
   (current-pass-timings?   timings?)
   (current-alpha-rename-profile? alpha-rename-profile?)
   (current-simplify-profile? simplify-profile?)
+  (define split-runtime-provider-fragment-timing-rows '())
+  (define split-runtime-provider-fragment-splice-info #f)
+  (define split-runtime-provider-runtime-merge-info #f)
   (define t-compile-start (now-ms))
   (define provider-owned-primitive-aliases
     (provider-owned-primitive-alias-symbols
      #:expander-read-provider? effective-expander-read-provider?
      #:io-format-provider? effective-io-format-provider?))
+  (define split-runtime-provider-fragment-cache?
+    (and split-runtime?
+         module-input?
+         (not split-runtime-core-only?)
+         (or split-runtime-cache-reference?
+             split-runtime-provider-runtime?)))
+  (define (record-provider-fragment-timing! label start-ms)
+    (set! split-runtime-provider-fragment-timing-rows
+          (cons (list label (- (now-ms) start-ms))
+                split-runtime-provider-fragment-timing-rows)))
+  (define (compile-top-level stx-to-compile
+                             #:imported-top-level-globals [imported-top-level-globals
+                                                           (seteq)]
+                             #:exported-top-level-globals [exported-top-level-globals
+                                                           (seteq)]
+                             #:allow-split-program-only-fast-path?
+                             [allow-split-program-only-fast-path? #t])
+    (parameterize ([current-browser? browser?]
+                   [current-enable-cc-analysis? enable-cc-analysis?]
+                   [current-letrec-strategy letrec-strategy]
+                   [current-enable-simplify? enable-simplify?]
+                   [current-frontend-cache-enabled? effective-frontend-cache?]
+                   [current-module-bridge-elide-public-cells?
+                    module-bridge-elide-public-cells?]
+                   [current-print-top-level-results? print-top-level-results?]
+                   [current-internal-treelist-debug-shape?
+                    internal-bind-treelist-debug-shape?]
+                   [current-internal-immutable-hash-debug-shape?
+                    internal-bind-immutable-hash-debug-shape?]
+                   [current-provider-owned-primitive-aliases
+                    provider-owned-primitive-aliases]
+                   [current-imported-top-level-globals
+                    imported-top-level-globals]
+                   [current-exported-top-level-globals
+                    exported-top-level-globals]
+                   [current-split-runtime?
+                    (and split-runtime? (not split-runtime-core-only?))]
+                   [current-split-runtime-reference-only?
+                    (and split-runtime?
+                         (not split-runtime-core-only?)
+                         (or split-runtime-cache-reference?
+                             split-runtime-core-url))]
+                   [current-split-runtime-program-only-fast-path?
+                    allow-split-program-only-fast-path?])
+      (comp stx-to-compile)))
+  (define (compile-with-provider-fragment-cache)
+    (define fragment-manifest
+      (hash-ref (current-webify-bridge-stats)
+                'module-bridge-fragment-manifest
+                #f))
+    (unless fragment-manifest
+      (raise-arguments-error
+       'drive-compilation
+       "module-bridge fragment manifest missing for split provider-fragment compile"
+       "source" filename))
+    (define fragment-split
+      (module-bridge-split-lowered-datum (syntax->datum stx-with-stdlib)
+                                         fragment-manifest))
+    (define provider-datum
+      (module-bridge-fragment-split-provider-datum fragment-split))
+    (define program-datum
+      (module-bridge-fragment-split-program-datum fragment-split))
+    (define interface-symbols
+      (module-bridge-provider-program-interface-symbols provider-datum
+                                                        program-datum
+                                                        provider-owned-primitive-aliases))
+    (define provider-fragment-fingerprint
+      (module-bridge-provider-fragment-fingerprint fragment-split))
+    (define compiled-cache-key
+      (module-bridge-provider-compiled-fragment-cache-key
+       provider-fragment-fingerprint
+       #:browser? browser?
+       #:enable-cc-analysis? enable-cc-analysis?
+       #:enable-simplify? enable-simplify?
+       #:split-runtime-reference? #t
+       #:letrec-strategy letrec-strategy
+       #:provider-owned-primitive-aliases provider-owned-primitive-aliases))
+    (define provider-wat/cache #f)
+    (define (compiled-provider-wat!)
+      (or provider-wat/cache
+          (let ()
+            (define provider-cache-start (now-ms))
+            (define-values (provider-cache-status _provider-wat-path)
+              (ensure-module-bridge-provider-compiled-fragment-wat-cache!
+               compiled-cache-key
+               (lambda ()
+                 (compiled-fragment->program-wat
+                  (compile-top-level
+                   (datum->syntax #f provider-datum)
+                   #:exported-top-level-globals interface-symbols)))))
+            (record-provider-fragment-timing! "provider-fragment-cache"
+                                              provider-cache-start)
+            (hash-set! (current-webify-bridge-stats)
+                       'module-bridge-compiled-provider-fragment-cache-status
+                       provider-cache-status)
+            (define provider-read-start (now-ms))
+            (define provider-wat
+              (read-module-bridge-provider-compiled-fragment-cache
+               compiled-cache-key
+               'drive-compilation))
+            (record-provider-fragment-timing! "provider-fragment-read-wat"
+                                              provider-read-start)
+            (set! provider-wat/cache provider-wat)
+            provider-wat)))
+    (define (provider-runtime-core-cache-hit? cache-key)
+      (and (not (current-provider-cache-force?))
+           (file-exists?
+            (split-runtime-core-cache-wasm-path
+             (split-runtime-core-cache-key-fingerprint cache-key)))))
+    (define program-compile-start (now-ms))
+    (define program-compiled
+      (compile-top-level
+       (datum->syntax #f program-datum)
+       #:imported-top-level-globals interface-symbols))
+    (record-provider-fragment-timing! "program-fragment-compile"
+                                      program-compile-start)
+    (hash-set! (current-webify-bridge-stats)
+               'module-bridge-provider-program-interface-symbol-count
+               (length (set->list interface-symbols)))
+    (cond
+      [split-runtime-provider-runtime?
+       (unless (split-runtime-modules? program-compiled)
+         (raise-arguments-error
+          'drive-compilation
+          "split provider-runtime compilation did not produce split modules"
+          "source" filename))
+       (define initial-merged-core-cache-key
+         (module-bridge-provider-runtime-core-cache-key
+          (split-runtime-modules-core-cache-key program-compiled)
+          compiled-cache-key))
+       (define effective-program-compiled
+         (if (provider-runtime-core-cache-hit? initial-merged-core-cache-key)
+             program-compiled
+             (let ()
+               (define full-core-compile-start (now-ms))
+               (define recompiled
+                 (compile-top-level
+                  (datum->syntax #f program-datum)
+                  #:imported-top-level-globals interface-symbols
+                  #:allow-split-program-only-fast-path? #f))
+               (record-provider-fragment-timing!
+                "program-fragment-compile-materializable-core"
+                full-core-compile-start)
+               recompiled)))
+       (unless (split-runtime-modules? effective-program-compiled)
+         (raise-arguments-error
+          'drive-compilation
+          "split provider-runtime materializable compile did not produce split modules"
+          "source" filename))
+       (define merged-core-cache-key
+         (module-bridge-provider-runtime-core-cache-key
+          (split-runtime-modules-core-cache-key effective-program-compiled)
+          compiled-cache-key))
+       (define strip-start (now-ms))
+       (define stripped-program-wat
+         (strip-split-runtime-program-entry-init
+          (compiled-fragment->program-wat effective-program-compiled)))
+       (record-provider-fragment-timing! "program-fragment-strip-runtime-init"
+                                         strip-start)
+       (define merged-core-promise
+         (delay
+           (define merge-start (now-ms))
+           (define-values (merged-runtime merge-info)
+             (merge-provider-fragment-into-runtime
+              (split-runtime-modules-core-module effective-program-compiled)
+              (compiled-provider-wat!)
+              #:who 'drive-compilation))
+           (set! split-runtime-provider-runtime-merge-info merge-info)
+           (record-provider-fragment-timing! "provider-runtime-merge"
+                                             merge-start)
+           merged-runtime))
+       (hash-set! (current-webify-bridge-stats)
+                  'module-bridge-provider-runtime-cache-key
+                  merged-core-cache-key)
+       (split-runtime-modules
+        merged-core-promise
+        stripped-program-wat
+        (split-runtime-modules-imported-names effective-program-compiled)
+        (split-runtime-modules-import-forms effective-program-compiled)
+        merged-core-cache-key)]
+      [else
+       (define splice-start (now-ms))
+       (define-values (spliced-program-wat splice-info)
+         (splice-provider+program-modules
+          (compiled-provider-wat!)
+          (compiled-fragment->program-wat program-compiled)
+          #:who 'drive-compilation))
+       (set! split-runtime-provider-fragment-splice-info splice-info)
+       (record-provider-fragment-timing! "provider-program-fragment-splice"
+                                         splice-start)
+       (if (split-runtime-modules? program-compiled)
+           (split-runtime-modules-with-program program-compiled spliced-program-wat)
+           spliced-program-wat)]))
   (define compiled-module
     (with-handlers (#;[exn:fail? (λ (e)
                                  (error 'drive-compilation
                                         (~a "compile failed: " (exn-message e))))])
-      (parameterize ([current-browser? browser?]
-                     [current-enable-cc-analysis? enable-cc-analysis?]
-                     [current-letrec-strategy letrec-strategy]
-                     [current-enable-simplify? enable-simplify?]
-                     [current-frontend-cache-enabled? effective-frontend-cache?]
-                     [current-module-bridge-elide-public-cells?
-                      module-bridge-elide-public-cells?]
-                     [current-print-top-level-results? print-top-level-results?]
-                     [current-internal-treelist-debug-shape?
-                      internal-bind-treelist-debug-shape?]
-                     [current-internal-immutable-hash-debug-shape?
-                      internal-bind-immutable-hash-debug-shape?]
-                     [current-provider-owned-primitive-aliases
-                      provider-owned-primitive-aliases]
-                     [current-split-runtime?
-                      (and split-runtime? (not split-runtime-core-only?))]
-                     [current-split-runtime-reference-only?
-                      (and split-runtime?
-                           (not split-runtime-core-only?)
-                           (or split-runtime-cache-reference?
-                               split-runtime-core-url))])
-        (comp stx-with-stdlib))))
+      (if split-runtime-provider-fragment-cache?
+          (compile-with-provider-fragment-cache)
+          (compile-top-level stx-with-stdlib))))
   (define t-compile-end (now-ms))
 
   ; 6. Save the resulting WAT module.
@@ -3857,6 +4855,11 @@
     (λ () (displayln
            (runtime #:out runtime-wasm-reference
                     #:core-out split-runtime-wasm-reference
+                    #:core-provider-imports-from-core?
+                    split-runtime-provider-runtime?
+                    #:core-initialize? split-runtime-provider-runtime?
+                    #:core-provider-entry
+                    (and split-runtime-provider-runtime? "provider-entry")
                     #:host (if node? 'node 'browser)
                     #:console-bridge? console-bridge?
                     #:vfs-preloads vfs-preloads
@@ -3969,6 +4972,56 @@
                 (list (list "total"
                             (for/sum ([row (in-list split-runtime-core-detail-rows)])
                               (second row))))))))
+    (when (pair? split-runtime-provider-fragment-timing-rows)
+      (displayln "=== Split Runtime Provider Fragment Details ===")
+      (displayln
+       (format-timing-table
+        (append (reverse split-runtime-provider-fragment-timing-rows)
+                (list (list "total"
+                            (for/sum ([row (in-list split-runtime-provider-fragment-timing-rows)])
+                              (second row)))))))
+      (when (provider-fragment-splice-info?
+             split-runtime-provider-fragment-splice-info)
+        (displayln
+         (format-metric-table
+          (list
+           (list "provider-fragment-forms"
+                 (~a (provider-fragment-splice-info-provider-form-count
+                      split-runtime-provider-fragment-splice-info)))
+           (list "program-fragment-forms"
+                 (~a (provider-fragment-splice-info-program-form-count
+                      split-runtime-provider-fragment-splice-info)))
+           (list "program-provider-global-imports-dropped"
+                 (~a (provider-fragment-splice-info-dropped-provider-global-import-count
+                      split-runtime-provider-fragment-splice-info)))
+           (list "program-colliding-definitions"
+                 (~a (length
+                      (provider-fragment-splice-info-colliding-program-names
+                       split-runtime-provider-fragment-splice-info))))
+           (list "spliced-program-forms"
+                 (~a (provider-fragment-splice-info-spliced-form-count
+                      split-runtime-provider-fragment-splice-info))))))))
+      (when (provider-runtime-merge-info?
+             split-runtime-provider-runtime-merge-info)
+        (displayln
+         (format-metric-table
+          (list
+           (list "provider-runtime-core-forms"
+                 (~a (provider-runtime-merge-info-core-form-count
+                      split-runtime-provider-runtime-merge-info)))
+           (list "provider-runtime-provider-forms"
+                 (~a (provider-runtime-merge-info-provider-form-count
+                      split-runtime-provider-runtime-merge-info)))
+           (list "provider-runtime-kept-imports"
+                 (~a (provider-runtime-merge-info-provider-import-count
+                      split-runtime-provider-runtime-merge-info)))
+           (list "provider-runtime-colliding-definitions"
+                 (~a (length
+                      (provider-runtime-merge-info-provider-colliding-definition-names
+                       split-runtime-provider-runtime-merge-info))))
+           (list "provider-runtime-merged-forms"
+                 (~a (provider-runtime-merge-info-merged-runtime-form-count
+                      split-runtime-provider-runtime-merge-info)))))))
     (displayln "=== Compile Pipeline ===")
     (displayln overall-table)
     (define pass-table (current-pass-timing-table))
@@ -5833,16 +6886,32 @@
     (current-console-bridge-root-source-path resolved-filename)
     (define metric-rows
       (module-bridge-graph-metric-rows graph composition))
+    (define fragment-manifest
+      (hash-ref (current-webify-bridge-stats)
+                'module-bridge-fragment-manifest
+                '()))
     (hash-set! (current-webify-bridge-stats)
                'module-bridge-metric-rows
                metric-rows)
     (define bridge-datum
       (webify-module-composition-datum composition))
+    (define needs-expander-read-provider?
+      (current-module-bridge-needs-expander-read-provider?))
     (define needs-regexp-provider?
       (module-bridge-datum-needs-regexp-provider? bridge-datum))
     (current-module-bridge-needs-regexp-provider? needs-regexp-provider?)
     (define lowered-datum
       (webify-module-composition-with-tail composition '((void))))
+    (define provider-fragment-split
+      (module-bridge-split-lowered-datum lowered-datum fragment-manifest))
+    (define provider-fragment-fingerprint
+      (module-bridge-provider-fragment-fingerprint provider-fragment-split))
+    (define provider-fragment-cache-status
+      (ensure-module-bridge-provider-fragment-cache! provider-fragment-fingerprint
+                                                     provider-fragment-split))
+    (hash-set! (current-webify-bridge-stats)
+               'module-bridge-provider-fragment-cache-status
+               provider-fragment-cache-status)
     (write-module-bridge-result-cache! cache-path
                                        local-source-paths
                                        provider-names
@@ -5851,6 +6920,9 @@
                                        root-export-bindings
                                        resolved-filename
                                        metric-rows
+                                       fragment-manifest
+                                       provider-fragment-fingerprint
+                                       needs-expander-read-provider?
                                        needs-regexp-provider?
                                        lowered-datum)
     (datum->syntax #f lowered-datum))
@@ -6001,16 +7073,31 @@
 ;;;
 
 (define (write-wat-to-file out-filename wat #:pretty? [pretty? #t])
-  (define wat-string
-    (with-output-to-string
-      (λ ()
-        (if pretty?
-            (pretty-write wat)
-            (write wat)))))
   (with-output-to-file out-filename
     (λ ()
       (displayln ";; This file was generated by `webracket`.")
-      (display (rewrite-wat-identifiers wat-string)))
+      (if pretty?
+          (let ()
+            (define-values (in out)
+              (make-pipe))
+            (define result-channel
+              (make-channel))
+            (thread
+             (lambda ()
+               (define result
+                 (with-handlers ([exn:fail? (lambda (exn) exn)])
+                   (pretty-write wat out)
+                   #t))
+               (with-handlers ([exn:fail? void])
+                 (close-output-port out))
+               (channel-put result-channel result)))
+            (rewrite-wat-identifiers-from-port in (current-output-port))
+            (close-input-port in)
+            (define result
+              (channel-get result-channel))
+            (when (exn:fail? result)
+              (raise result)))
+          (write-compact-wat wat (current-output-port))))
     #:exists 'replace))
 
 ;;;

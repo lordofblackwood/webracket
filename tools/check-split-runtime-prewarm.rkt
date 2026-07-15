@@ -64,7 +64,9 @@
 (define keep-temp? #f)
 (define force-prewarm? #f)
 (define core-only? #f)
+(define provider-runtime? #f)
 (define in-process? #f)
+(define compile-server? #f)
 (define staged-provider-prewarm? #f)
 (define module-bridge-result-cache-check? #f)
 (define precompile-compiler? #f)
@@ -124,6 +126,9 @@
  [("--split-runtime-core-only")
   "Use the core-helper-only split runtime strategy for prewarm and compile."
   (set! core-only? #t)]
+ [("--split-runtime-provider-runtime")
+  "For module sources, prewarm/check the provider-fragment-in-runtime split path."
+  (set! provider-runtime? #t)]
  [("--frontend-cache")
   "Pass --frontend-cache to post-prewarm compiles."
   (set! frontend-cache? #t)]
@@ -136,6 +141,9 @@
  [("--in-process")
   "Compile/run cases in this Racket process after prewarm; serial warm-compiler check."
   (set! in-process? #t)]
+ [("--compile-server")
+  "Compile/run cases through the local WebRacket compile server client."
+  (set! compile-server? #t)]
  [("--jobs") n
   "Compile/run up to N cases in parallel after prewarm; defaults to 1."
   (unless (positive-integer-string? n)
@@ -149,6 +157,14 @@
   (set! extra-source-files
         (append extra-source-files
                 (list (resolve-source-path path))))])
+
+(when (and in-process? compile-server?)
+  (raise-user-error 'check-split-runtime-prewarm
+                    "use --in-process or --compile-server, not both"))
+
+(when (and provider-runtime? core-only?)
+  (raise-user-error 'check-split-runtime-prewarm
+                    "use --split-runtime-provider-runtime or --split-runtime-core-only, not both"))
 
 
 ;;; Subprocess Helpers
@@ -218,6 +234,54 @@
                   (get-output-string err)
                   (- end-ms start-ms)))
 
+;; call-with-compile-server-env : (-> any/c) -> any/c
+;;   Run thunk with the CLI routed through the local compile server.
+(define (call-with-compile-server-env thunk)
+  (define env
+    (environment-variables-copy (current-environment-variables)))
+  (environment-variables-set! env #"WEBRACKET_COMPILE_SERVER" #"1")
+  (parameterize ([current-environment-variables env])
+    (thunk)))
+
+;; run-compile-server/capture :
+;;   path-string? path-string? (listof string?) -> command-result?
+;;   Run one compile through `webracket.rkt` with WEBRACKET_COMPILE_SERVER enabled.
+(define (run-compile-server/capture cwd racket-exe args)
+  (call-with-compile-server-env
+   (lambda ()
+     (run-command/capture cwd
+                          racket-exe
+                          (append (list "-S" "pkgs" "webracket.rkt")
+                                  args)))))
+
+;; run-webracket-compile-args/capture :
+;;   path-string? path-string? (listof string?) -> command-result?
+;;   Run one WebRacket compile using the selected checker runner.
+(define (run-webracket-compile-args/capture cwd racket-exe args)
+  (cond
+    [in-process?
+     (run-compile-in-process/capture args)]
+    [compile-server?
+     (run-compile-server/capture cwd racket-exe args)]
+    [else
+     (run-command/capture cwd
+                          racket-exe
+                          (append (list "-S" "pkgs" "webracket.rkt")
+                                  args))]))
+
+;; compile-runner-label : -> string?
+;;   Return the user-facing name of the selected compile runner.
+(define (compile-runner-label)
+  (cond
+    [in-process? "in-process"]
+    [compile-server? "compile-server"]
+    [else "fresh subprocess"]))
+
+;; compile-runner-serial? : -> boolean?
+;;   Check whether the selected runner should avoid parallel case dispatch.
+(define (compile-runner-serial?)
+  (or in-process? compile-server?))
+
 ;; compiler-timing-heading-line? : string? -> boolean?
 ;;   Check whether a stdout line starts a compiler timing/report section.
 (define (compiler-timing-heading-line? line)
@@ -267,6 +331,16 @@
 (define (generated-path dest-dir source ext)
   (build-path dest-dir
               (path-replace-extension (file-name-from-path source) ext)))
+
+;; wasm-magic? : path-string? -> boolean?
+;;   Check whether path starts with the WebAssembly magic bytes.
+(define (wasm-magic? path)
+  (and (file-exists? path)
+       (call-with-input-file path
+         (lambda (in)
+           (equal? (for/list ([_ (in-range 4)])
+                     (read-byte in))
+                   '(0 97 115 109))))))
 
 ;; cached-runtime-wasm-files : path-string? -> (listof path?)
 ;;   Return non-lock runtime wasm files in the stable split-runtime cache.
@@ -730,7 +804,7 @@ RKT
                      #:runtime-mode runtime-mode
                      #:log-prefix log-prefix)))
   (cond
-    [in-process?
+    [(compile-runner-serial?)
      (for/list ([case (in-list cases)]
                 [index (in-naturals 1)])
        (compile-one case index))]
@@ -765,7 +839,7 @@ RKT
 ;;   check-case? exact-positive-integer? path-string? path-string? path-string?
 ;;   path-string? path-string?
 ;;   [#:expect-module-bridge-result-cache-hit? boolean?]
-;;   [#:runtime-mode (or/c 'cache-reference 'sidecar)]
+;;   [#:runtime-mode (or/c 'cache-reference 'sidecar 'prewarm-sidecar)]
 ;;   [#:log-prefix string?] -> command-result?
 ;;   Compile/run one source against the prewarmed runtime cache.
 (define (compile-case! case
@@ -781,12 +855,14 @@ RKT
                        [runtime-mode 'cache-reference]
                        #:log-prefix
                        [log-prefix "compile"])
-  (unless (memq runtime-mode '(cache-reference sidecar))
+  (unless (memq runtime-mode '(cache-reference sidecar prewarm-sidecar))
     (error 'compile-case!
            "unknown split runtime check mode: ~s"
            runtime-mode))
   (define cache-reference-mode? (eq? runtime-mode 'cache-reference))
   (define sidecar-mode? (eq? runtime-mode 'sidecar))
+  (define prewarm-sidecar-mode? (eq? runtime-mode 'prewarm-sidecar))
+  (define sidecar-output-mode? (or sidecar-mode? prewarm-sidecar-mode?))
   (define case-name
     (safe-case-name (check-case-name case)))
   (define dest-dir
@@ -806,22 +882,23 @@ RKT
      (if core-only?
          '("--split-runtime-core-only")
          '())
+     (if provider-runtime?
+         '("--split-runtime-provider-runtime")
+         '())
      (list "--provider-cache-dir" (path->string provider-cache)
            "--runtime-provider-cache-dir" (path->string runtime-cache)
            "--dest" (path->string dest-dir)
            (path->string (check-case-source case)))))
   (define compile-result
-    (if in-process?
-        (run-compile-in-process/capture webracket-args)
-        (run-command/capture repo-root
-                             racket-exe
-                             (append (list "-S" "pkgs" "webracket.rkt")
-                                     webracket-args))))
+    (run-webracket-compile-args/capture repo-root racket-exe webracket-args))
   (define compile-log
     (build-path temp-root (format "~a-~a-~a.log" log-prefix index case-name)))
   (write-log! compile-log
-              (if in-process? "in-process-webracket" racket-exe)
-              (if in-process?
+              (cond
+                [in-process? "in-process-webracket"]
+                [compile-server? "compile-server-webracket"]
+                [else racket-exe])
+              (if (or in-process? compile-server?)
                   webracket-args
                   (append (list "-S" "pkgs" "webracket.rkt")
                           webracket-args))
@@ -903,6 +980,15 @@ RKT
                (not program-only-fast-path?))
       (record-failure! "~a: warm sidecar compile did not take the program-only fast path"
                        (check-case-name case))))
+  (when (and provider-runtime?
+             (or cache-reference-mode? sidecar-mode?)
+             reference-compatible?)
+    (when (transcript-contains? compile-result #rx"provider-runtime-merge")
+      (record-failure! "~a: warm provider-runtime compile merged provider code instead of using cache"
+                       (check-case-name case)))
+    (when (transcript-contains? compile-result #rx"provider-fragment-cache")
+      (record-failure! "~a: warm provider-runtime compile touched the compiled provider-fragment cache"
+                       (check-case-name case))))
 
   (define program-wasm
     (generated-path dest-dir (check-case-source case) ".wasm"))
@@ -919,12 +1005,93 @@ RKT
                      (check-case-name case)
                      runtime-sidecar-wasm))
   (when (and reference-compatible?
-             sidecar-mode?
+             sidecar-output-mode?
              (not (file-exists? runtime-sidecar-wasm)))
     (record-failure! "~a: sidecar compile did not produce runtime sidecar: ~a"
                      (check-case-name case)
                      runtime-sidecar-wasm))
   compile-result)
+
+;; prewarm-provider-runtime-case! :
+;;   check-case? exact-positive-integer? path-string? path-string? path-string?
+;;   path-string? [#:expect-cache-hit? boolean?] [#:log-prefix string?]
+;;   -> command-result?
+;;   Prewarm one module source's provider-augmented runtime cache via the public tool.
+(define (prewarm-provider-runtime-case! case
+                                        index
+                                        racket-exe
+                                        provider-cache
+                                        runtime-cache
+                                        temp-root
+                                        #:expect-cache-hit?
+                                        [expect-cache-hit? #f]
+                                        #:log-prefix
+                                        [log-prefix "provider-runtime-prewarm"])
+  (define case-name
+    (safe-case-name (check-case-name case)))
+  (define output-dir
+    (build-path temp-root "provider-runtime-prewarm-runtime-wasm"))
+  (make-directory* output-dir)
+  (define runtime-wasm-out
+    (generated-path output-dir (check-case-source case) ".runtime.wasm"))
+  (define args
+    (append
+     (list "-S" "pkgs" "tools/prewarm-staged-providers.rkt"
+           "--provider-cache-dir" (path->string provider-cache)
+           "--runtime-provider-cache-dir" (path->string runtime-cache)
+           "--mode" "provider-runtime"
+           "--host" "node"
+           "--source" (path->string (check-case-source case))
+           "--runtime-wasm-out" (path->string runtime-wasm-out))
+     (if expect-cache-hit?
+         '("--verbose")
+         '())))
+  (define previous-runtime-wasm-bytes
+    (and expect-cache-hit?
+         (file-exists? runtime-wasm-out)
+         (file->bytes runtime-wasm-out)))
+  (define result
+    (run-command/capture repo-root racket-exe args))
+  (define log
+    (build-path temp-root
+                (format "~a-~a-~a.log"
+                        log-prefix
+                        index
+                        case-name)))
+  (write-log! log racket-exe args result)
+  (unless (command-result-ok? result)
+    (record-failure! "~a: provider-runtime prewarm command failed; see ~a"
+                     (check-case-name case)
+                     log))
+  (unless (wasm-magic? runtime-wasm-out)
+    (record-failure! "~a: provider-runtime prewarm did not export a valid runtime wasm: ~a"
+                     (check-case-name case)
+                     runtime-wasm-out))
+  (when expect-cache-hit?
+    (unless previous-runtime-wasm-bytes
+      (record-failure! "~a: provider-runtime cache-hit prewarm had no previous runtime wasm to compare: ~a"
+                       (check-case-name case)
+                       runtime-wasm-out))
+    (when (and previous-runtime-wasm-bytes
+               (file-exists? runtime-wasm-out)
+               (not (equal? previous-runtime-wasm-bytes
+                            (file->bytes runtime-wasm-out))))
+      (record-failure! "~a: provider-runtime cache-hit prewarm exported a different runtime wasm: ~a"
+                       (check-case-name case)
+                       runtime-wasm-out))
+    (unless (transcript-contains? result
+                                  #rx"split-runtime-core:materialize-wasm-hit")
+      (record-failure! "~a: repeated provider-runtime prewarm did not report cached runtime materialization"
+                       (check-case-name case)))
+    (when (transcript-contains? result
+                                #rx"split-runtime-core:assemble-wasm")
+      (record-failure! "~a: repeated provider-runtime prewarm assembled runtime wasm"
+                       (check-case-name case)))
+    (when (transcript-contains? result
+                                #rx"provider-runtime-merge|provider-fragment-cache")
+      (record-failure! "~a: repeated provider-runtime prewarm rebuilt provider/runtime artifacts"
+                       (check-case-name case))))
+  result)
 
 
 ;;; Main Check
@@ -973,10 +1140,22 @@ RKT
       (error 'check-split-runtime-prewarm
              "source file does not exist: ~a"
              (check-case-source case))))
+  (when provider-runtime?
+    (define non-module-cases
+      (filter-not (lambda (case)
+                    (webracket-module-source? (check-case-source case)))
+                  cases))
+    (when (pair? non-module-cases)
+      (raise-user-error
+       'check-split-runtime-prewarm
+       "--split-runtime-provider-runtime requires module-language sources; non-module cases: ~a"
+       (string-join (map check-case-name non-module-cases) ", "))))
 
   (printf "  sources:       ~a\n" (length cases))
   (printf "  runner:        ~a\n"
-          (if in-process? "in-process" "fresh subprocess"))
+          (compile-runner-label))
+  (printf "  runtime mode:  ~a\n"
+          (if provider-runtime? "provider-runtime" "classified/core"))
   (printf "  provider warm: ~a\n"
           (if staged-provider-prewarm? "regexp/read/io-format" "runtime only"))
   (printf "  precompile:    ~a\n"
@@ -986,8 +1165,8 @@ RKT
   (printf "  sidecar check: ~a\n"
           (if sidecar-check? "enabled" "disabled"))
   (printf "  jobs:          ~a\n"
-          (if in-process?
-              "1 (serial in-process)"
+          (if (compile-runner-serial?)
+              "1 (serial runner)"
               jobs))
   (for ([case (in-list cases)])
     (printf "    ~a: ~a\n"
@@ -1106,8 +1285,51 @@ RKT
                   cached-wasm-snapshot-after-prewarm)
     (record-failure! "second prewarm changed cached runtime wasm artifacts"))
 
+  (define provider-runtime-prewarm-results
+    (if provider-runtime?
+        (let ()
+          (printf "  prewarming provider-runtime cache for ~a module source(s)\n"
+                  (length cases))
+          (for/list ([case (in-list cases)]
+                     [index (in-naturals 1)])
+            (prewarm-provider-runtime-case! case
+                                            index
+                                            racket-exe
+                                            provider-cache
+                                            runtime-cache
+                                            temp-root)))
+        '()))
+  (define cached-wasm-snapshot-after-provider-runtime-prewarm
+    (cached-runtime-wasm-snapshot runtime-cache))
+
+  (define provider-runtime-cache-hit-prewarm-results
+    (if (and provider-runtime?
+             (andmap command-result-ok? provider-runtime-prewarm-results))
+        (let ()
+          (printf "  checking provider-runtime prewarm cache hit for ~a module source(s)\n"
+                  (length cases))
+          (for/list ([case (in-list cases)]
+                     [index (in-naturals 1)])
+            (prewarm-provider-runtime-case! case
+                                            index
+                                            racket-exe
+                                            provider-cache
+                                            runtime-cache
+                                            temp-root
+                                            #:expect-cache-hit? #t
+                                            #:log-prefix
+                                            "provider-runtime-prewarm-cache-hit")))
+        '()))
+  (define cached-wasm-snapshot-after-provider-runtime-cache-hit-prewarm
+    (cached-runtime-wasm-snapshot runtime-cache))
+  (when (and provider-runtime?
+             (not (equal? cached-wasm-snapshot-after-provider-runtime-cache-hit-prewarm
+                          cached-wasm-snapshot-after-provider-runtime-prewarm)))
+    (record-failure! "repeated provider-runtime prewarm changed cached runtime wasm artifacts"))
+
   (define module-bridge-cache-warm-results
-    (if module-bridge-result-cache-check?
+    (if (and module-bridge-result-cache-check?
+             (not provider-runtime?))
         (let ([module-cases
                (filter (lambda (case)
                          (webracket-module-source? (check-case-source case)))
@@ -1155,9 +1377,15 @@ RKT
                         #:log-prefix "compile-sidecar")
         '()))
 
+  (define cached-wasm-snapshot-after-warm-checks
+    (cached-runtime-wasm-snapshot runtime-cache))
+  (unless (equal? cached-wasm-snapshot-after-warm-checks
+                  cached-wasm-snapshot-after-provider-runtime-cache-hit-prewarm)
+    (record-failure! "warm compile/run checks changed cached runtime wasm artifacts"))
+
   (cond
     [(null? failures)
-     (printf "ok: ~a~a~aprewarm=~as cache-hit-prewarm=~as cache-reference=[~a]~a cached-runtime-wasms=~a\n"
+     (printf "ok: ~a~a~a~a~aprewarm=~as cache-hit-prewarm=~as cache-reference=[~a]~a cached-runtime-wasms=~a\n"
              (if precompile-compiler?
                  (format "compiler-precompile=~as "
                          (format-seconds
@@ -1168,6 +1396,20 @@ RKT
                          (format-seconds
                           (command-result-wall-ms
                            staged-provider-prewarm-result)))
+                 "")
+             (if provider-runtime?
+                 (format "provider-runtime-prewarm=[~a] "
+                         (string-join
+                          (for/list ([result (in-list provider-runtime-prewarm-results)])
+                            (format "~as" (format-seconds (command-result-wall-ms result))))
+                          ", "))
+                 "")
+             (if provider-runtime?
+                 (format "provider-runtime-cache-hit-prewarm=[~a] "
+                         (string-join
+                          (for/list ([result (in-list provider-runtime-cache-hit-prewarm-results)])
+                            (format "~as" (format-seconds (command-result-wall-ms result))))
+                          ", "))
                  "")
              (if module-bridge-result-cache-check?
                  (format "module-bridge-warmup=[~a] "
@@ -1190,7 +1432,7 @@ RKT
                                            (command-result-wall-ms result))))
                           ", "))
                  "")
-             (length cached-wasms-after-prewarm))
+             (length (cached-runtime-wasm-files runtime-cache)))
      (when keep-temp?
        (printf "kept temp: ~a\n" (path->string temp-root)))
      (unless keep-temp?

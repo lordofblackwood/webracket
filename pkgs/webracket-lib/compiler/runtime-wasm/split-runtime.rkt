@@ -15,6 +15,7 @@
          runtime-function-import-form
          runtime-global-export-form
          runtime-global-import-form
+         strip-split-runtime-program-entry-init
          split-classified-runtime-forms
          split-classified-runtime-module
          split-core-runtime-module)
@@ -23,9 +24,7 @@
                   current-runtime-cache-dir
                   current-runtime-metric-rows)
          (only-in "../private/wasm-data.rkt"
-                  wasm-data
-                  wasm-data?
-                  wasm-data-ref)
+                  wasm-data)
          "core-helper.rkt"
          (only-in "constants.rkt"
                   constant-data-name?
@@ -35,6 +34,8 @@
          (only-in "runtime-analysis.rkt"
                   split-module-forms)
          (only-in "split-runtime-cache.rkt"
+                  cacheable-datum
+                  cached-datum->value
                   split-runtime-boundary-cache-version
                   [split-runtime-boundary-cache-path
                    split-runtime-boundary-cache-path/cache-root])
@@ -65,6 +66,40 @@
 (define (split-runtime-modules-core-module split)
   (define core (split-runtime-modules-core split))
   (if (promise? core) (force core) core))
+
+;; split-runtime-entry-init-form? : any/c -> boolean?
+;;   Check whether a top-level entry instruction reinitializes runtime-owned state.
+(define (split-runtime-entry-init-form? form)
+  (match form
+    [`(call $initialize-split-runtime-before-constants!) #t]
+    [`(call $initialize-split-runtime-constants!) #t]
+    [`(call $initialize-split-runtime-after-constants!) #t]
+    [`(call $initialize-unsafe-ffi-primitive-table) #t]
+    [`(call $initialize-split-runtime-after-ffi!) #t]
+    [`(drop (call $reset-current-input-port!)) #t]
+    [`(drop (call $reset-current-output-port!)) #t]
+    [`(drop (call $reset-current-error-port!)) #t]
+    [_ #f]))
+
+;; strip-split-runtime-entry-init-form : any/c -> any/c
+;;   Remove runtime-owned initializer calls from a generated program entry.
+(define (strip-split-runtime-entry-init-form form)
+  (match form
+    [`(func $entry ,parts ...)
+     `(func $entry ,@(filter-not split-runtime-entry-init-form? parts))]
+    [_ form]))
+
+;; strip-split-runtime-program-entry-init : datum? -> datum?
+;;   Return a program module whose entry assumes runtime initialization is loader-owned.
+(define (strip-split-runtime-program-entry-init module)
+  (match module
+    [`(module ,forms ...)
+     `(module ,@(for/list ([form (in-list forms)])
+                  (strip-split-runtime-entry-init-form form)))]
+    [_ (raise-argument-error
+        'strip-split-runtime-program-entry-init
+        "WAT module datum"
+        module)]))
 
 ;; function-import-form? : any/c -> boolean?
 ;;   Check whether form is a top-level imported function declaration.
@@ -387,69 +422,10 @@
    runtime-symbol-refs)
   #:transparent)
 
-;; wasm-data-cache-tag : symbol?
-;;   Tags custom WAT data fragments in the boundary metadata cache.
-(define wasm-data-cache-tag
-  'webracket:wasm-data)
-
 ;; sorted-hash-symbol-keys : hash? -> (listof symbol?)
 ;;   Return hash keys in stable symbol order.
 (define (sorted-hash-symbol-keys ht)
   (sort (hash-keys ht) symbol<?))
-
-;; cacheable-datum : any/c -> any/c
-;;   Convert syntax objects inside WAT fragments to FASL-writable datum values.
-(define (cacheable-datum v)
-  (cond
-    [(syntax? v)
-     (cacheable-datum (syntax->datum v))]
-    [(wasm-data? v)
-     `(,wasm-data-cache-tag ,(bytes-copy (wasm-data-ref v)))]
-    [(pair? v)
-     (cons (cacheable-datum (car v))
-           (cacheable-datum (cdr v)))]
-    [(vector? v)
-     (list->vector
-      (for/list ([x (in-vector v)])
-        (cacheable-datum x)))]
-    [(box? v)
-     (box (cacheable-datum (unbox v)))]
-    [(hash? v)
-     (for/hash ([(key value) (in-hash v)])
-       (values (cacheable-datum key)
-               (cacheable-datum value)))]
-    [(path? v)
-     (path->string v)]
-    [(string? v)
-     (string-copy v)]
-    [(bytes? v)
-     (bytes-copy v)]
-    [else v]))
-
-;; cached-datum->value : any/c -> any/c
-;;   Restore custom values encoded by `cacheable-datum`.
-(define (cached-datum->value v)
-  (cond
-    [(and (pair? v)
-          (eq? (car v) wasm-data-cache-tag)
-          (pair? (cdr v))
-          (bytes? (cadr v))
-          (null? (cddr v)))
-     (wasm-data (bytes-copy (cadr v)))]
-    [(pair? v)
-     (cons (cached-datum->value (car v))
-           (cached-datum->value (cdr v)))]
-    [(vector? v)
-     (list->vector
-      (for/list ([x (in-vector v)])
-        (cached-datum->value x)))]
-    [(box? v)
-     (box (cached-datum->value (unbox v)))]
-    [(hash? v)
-     (for/hash ([(key value) (in-hash v)])
-       (values (cached-datum->value key)
-               (cached-datum->value value)))]
-    [else v]))
 
 ;; function-boundary-form : datum? -> datum?
 ;;   Keep only the function signature needed for split-runtime imports.
@@ -735,10 +711,9 @@
                                                 metadata)))
         metadata)))
 
-;; walk-symbol-refs : any/c hasheq? -> (listof symbol?)
-;;   Find symbolic references represented by keys in `available-names`.
-(define (walk-symbol-refs x available-names)
-  (define refs (make-hasheq))
+;; walk-symbol-refs! : any/c hasheq? hasheq? -> void?
+;;   Add symbolic references represented by keys in `available-names` to `refs`.
+(define (walk-symbol-refs! x available-names refs)
   (define (record! name)
     (when (hash-ref available-names name #f)
       (hash-set! refs name #t)))
@@ -805,18 +780,22 @@
           (walk-list parts)]
          [_ (walk-list x)])]
       [else (void)]))
-  (walk x)
+  (walk x))
+
+;; walk-symbol-refs : any/c hasheq? -> (listof symbol?)
+;;   Find symbolic references represented by keys in `available-names`.
+(define (walk-symbol-refs x available-names)
+  (define refs (make-hasheq))
+  (walk-symbol-refs! x available-names refs)
   (hash-keys refs))
 
 ;; referenced-runtime-names : (listof datum?) hasheq? -> (listof symbol?)
 ;;   Return runtime names referenced by the program forms.
 (define (referenced-runtime-names program-forms available-names)
-  (sort
-   (remove-duplicates
-    (append*
-     (for/list ([form (in-list program-forms)])
-       (walk-symbol-refs form available-names))))
-   symbol<?))
+  (define refs (make-hasheq))
+  (for ([form (in-list program-forms)])
+    (walk-symbol-refs! form available-names refs))
+  (sort (hash-keys refs) symbol<?))
 
 ;; classified-runtime-import/export-forms :
 ;;   (listof datum?) (listof datum?) [#:module string?]
@@ -879,6 +858,78 @@
                   referenced-tag-names)
           import-forms
           export-forms))
+
+;; classified-runtime-import/export+data-forms :
+;;   split-form-indexes? (listof datum?) split-form-indexes?
+;;   [#:module string?] [#:export-all? boolean?] [#:build-export-forms? boolean?]
+;;   -> (values (listof symbol?) (listof datum?) (or/c (listof datum?) #f) (listof datum?))
+;;   Build runtime imports and referenced runtime data from one program reference walk.
+(define (classified-runtime-import/export+data-forms runtime-index
+                                                     program-forms
+                                                     program-index
+                                                     #:module [module-name "core"]
+                                                     #:export-all? [export-all? #f]
+                                                     #:build-export-forms?
+                                                     [build-export-forms? #t])
+  (define function-form-by-name
+    (split-form-indexes-function-defs runtime-index))
+  (define global-form-by-name
+    (split-form-indexes-global-defs runtime-index))
+  (define tag-form-by-name
+    (split-form-indexes-tag-defs runtime-index))
+  (define runtime-data-form-by-name
+    (split-form-indexes-data-forms runtime-index))
+  (define program-data-name-set
+    (split-form-indexes-data-names program-index))
+  (define available-names
+    (for/hasheq ([name (in-list (append (hash-keys function-form-by-name)
+                                        (hash-keys global-form-by-name)
+                                        (hash-keys tag-form-by-name)
+                                        (hash-keys runtime-data-form-by-name)))])
+      (values name #t)))
+  (define referenced-names
+    (referenced-runtime-names program-forms available-names))
+  (define referenced-function-names
+    (filter (lambda (name) (hash-ref function-form-by-name name #f))
+            referenced-names))
+  (define referenced-global-names
+    (filter (lambda (name) (hash-ref global-form-by-name name #f))
+            referenced-names))
+  (define referenced-tag-names
+    (filter (lambda (name) (hash-ref tag-form-by-name name #f))
+            referenced-names))
+  (define referenced-data-names
+    (filter (lambda (name)
+              (and (hash-ref runtime-data-form-by-name name #f)
+                   (not (hash-ref program-data-name-set name #f))))
+            referenced-names))
+  (define import-forms
+    (append
+     (for/list ([name (in-list referenced-function-names)])
+       (runtime-function-import-form (hash-ref function-form-by-name name)
+                                     #:module module-name))
+     (for/list ([name (in-list referenced-global-names)])
+       (runtime-global-import-form (hash-ref global-form-by-name name)
+                                   #:module module-name))
+     (for/list ([name (in-list referenced-tag-names)])
+       (runtime-tag-import-form (hash-ref tag-form-by-name name)
+                                #:module module-name))))
+  (define export-forms
+    (and build-export-forms?
+         (runtime-index-export-forms
+          runtime-index
+          #:function-names (if export-all? #f referenced-function-names)
+          #:global-names   (if export-all? #f referenced-global-names)
+          #:tag-names      (if export-all? #f referenced-tag-names))))
+  (define runtime-data-forms
+    (for/list ([name (in-list (sort referenced-data-names symbol<?))])
+      (hash-ref runtime-data-form-by-name name)))
+  (values (append referenced-function-names
+                  referenced-global-names
+                  referenced-tag-names)
+          import-forms
+          export-forms
+          runtime-data-forms))
 
 ;; runtime-index-export-forms :
 ;;   split-form-indexes? [#:function-names (or/c (listof symbol?) #f)]
@@ -1686,16 +1737,27 @@
                                                        initial-program-index
                                                        #:runtime-index
                                                        runtime-source-index))
-  (define-values (pulled-runtime-global-forms/reversed
-                  remaining-program-forms/reversed)
-    (split-runtime-referenced-program-globals
-     initial-program-forms
-     pulled-runtime-global-names))
-  (define program-forms-before-runtime-owned-constant-prune
-    (reverse remaining-program-forms/reversed))
-  (define program-index-before-runtime-owned-constant-prune
-    (build-split-form-indexes
-     program-forms-before-runtime-owned-constant-prune))
+  (define-values (pulled-runtime-global-forms
+                  program-forms-before-runtime-owned-constant-prune
+                  program-index-before-runtime-owned-constant-prune)
+    (cond
+      [(null? pulled-runtime-global-names)
+       (values '() initial-program-forms initial-program-index)]
+      [else
+       (define-values (pulled-runtime-global-forms/reversed
+                       remaining-program-forms/reversed)
+         (split-runtime-referenced-program-globals
+          initial-program-forms
+          pulled-runtime-global-names))
+       (define program-forms-before-runtime-owned-constant-prune
+         (reverse remaining-program-forms/reversed))
+       (values
+        (sorted-named-forms
+         (reverse pulled-runtime-global-forms/reversed)
+         module-global-name)
+        program-forms-before-runtime-owned-constant-prune
+        (build-split-form-indexes
+         program-forms-before-runtime-owned-constant-prune))]))
   (define runtime-owned-program-constant-global-name-set
     (for/hasheq ([name (in-list
                         (runtime-owned-program-constant-global-names
@@ -1703,20 +1765,22 @@
                          program-index-before-runtime-owned-constant-prune))])
       (values name #t)))
   (define program-forms-without-runtime-owned-constant-globals
-    (for/list ([form (in-list
-                      program-forms-before-runtime-owned-constant-prune)]
-               #:unless (let ([name (constant-global-definition-name form)])
-                           (and name
-                                (hash-ref
-                                 runtime-owned-program-constant-global-name-set
-                                 name
-                                 #f)))
-               #:do [(define rewritten
-                       (remove-core-owned-constant-global-sets
-                        form
-                        runtime-owned-program-constant-global-name-set))]
-               #:when rewritten)
-      rewritten))
+    (if (zero? (hash-count runtime-owned-program-constant-global-name-set))
+        program-forms-before-runtime-owned-constant-prune
+        (for/list ([form (in-list
+                          program-forms-before-runtime-owned-constant-prune)]
+                   #:unless (let ([name (constant-global-definition-name form)])
+                               (and name
+                                    (hash-ref
+                                     runtime-owned-program-constant-global-name-set
+                                     name
+                                     #f)))
+                   #:do [(define rewritten
+                           (remove-core-owned-constant-global-sets
+                            form
+                            runtime-owned-program-constant-global-name-set))]
+                   #:when rewritten)
+          rewritten)))
   (define program-forms
     (prune-unreferenced-constant-forms
      program-forms-without-runtime-owned-constant-globals))
@@ -1740,10 +1804,6 @@
                #:do [(define name (module-data-name form))]
                #:when name)
       name))
-  (define pulled-runtime-global-forms
-    (sorted-named-forms
-     (reverse pulled-runtime-global-forms/reversed)
-     module-global-name))
   (define effective-core-cache-key
     (and core-cache-key
          (null? pulled-runtime-data-forms)
@@ -1773,14 +1833,32 @@
     (if effective-core-cache-key
         runtime-source-index
         (build-split-form-indexes (runtime-body-forms!))))
-  (define-values (imported-names import-forms export-forms)
-    (classified-runtime-import/export-forms
-     runtime-forms
-     program-body-forms
-     #:module import-module-name
-     #:export-all? #t
-     #:build-export-forms? (not effective-core-cache-key)
-     #:runtime-index runtime-index))
+  (define-values (imported-names import-forms export-forms program-data-forms)
+    (if effective-core-cache-key
+        (classified-runtime-import/export+data-forms
+         runtime-index
+         program-body-forms
+         program-index
+         #:module import-module-name
+         #:export-all? #t
+         #:build-export-forms? #f)
+        (let-values ([(imported-names import-forms export-forms)
+                      (classified-runtime-import/export-forms
+                       runtime-forms
+                       program-body-forms
+                       #:module import-module-name
+                       #:export-all? #t
+                       #:build-export-forms? #t
+                       #:runtime-index runtime-index)])
+          (values
+           imported-names
+           import-forms
+           export-forms
+           (program-referenced-runtime-data-forms
+            (runtime-body-forms!)
+            program-body-forms
+            #:runtime-index runtime-index
+            #:program-index program-index)))))
   (define runtime-function-names
     (split-form-indexes-function-names runtime-index))
   (define program-available-function-names
@@ -1805,14 +1883,6 @@
     (append-unique-forms
      (split-form-indexes-shared-prefix-forms runtime-index)
      program-owned-prefix-forms))
-  (define program-data-forms
-    (program-referenced-runtime-data-forms
-     (if effective-core-cache-key
-         runtime-forms
-         (runtime-body-forms!))
-     program-body-forms
-     #:runtime-index runtime-index
-     #:program-index program-index))
   (define final-program-forms
     (append program-prefix-forms
             import-forms
@@ -1932,6 +2002,31 @@
    '((type $T (func))
      (func $host (import "env" "host"))
      (func $other (import "env" "other"))))
+
+  (check-equal?
+   (strip-split-runtime-program-entry-init
+    '(module
+      (func $entry
+            (export "entry")
+            (result i32)
+            (call $initialize-split-runtime-before-constants!)
+            (call $initialize-split-runtime-constants!)
+            (global.set $string:program (call $make-program-string))
+            (call $initialize-split-runtime-after-constants!)
+            (drop (call $reset-current-input-port!))
+            (drop (call $reset-current-output-port!))
+            (drop (call $reset-current-error-port!))
+            (call $initialize-unsafe-ffi-primitive-table)
+            (call $initialize-split-runtime-after-ffi!)
+            (block $entry-done (br $entry-done))
+            (i32.const 0))))
+   '(module
+     (func $entry
+           (export "entry")
+           (result i32)
+           (global.set $string:program (call $make-program-string))
+           (block $entry-done (br $entry-done))
+           (i32.const 0))))
 
   (parameterize ([current-runtime-metric-rows '()])
     (record-split-runtime-boundary-blocker-metrics!

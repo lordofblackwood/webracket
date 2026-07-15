@@ -9,18 +9,26 @@
          split-runtime-core-cache-wat-path
          split-runtime-boundary-cache-path
          split-runtime-boundary-cache-current?
+         cacheable-datum
+         cached-datum->value
          split-runtime-request-cache-fingerprint
          make-split-runtime-core-cache-key
          make-split-runtime-core-only-cache-key)
 
 (require (only-in "../private/structs.rkt"
                   foreign-racket-name)
+         (only-in "../private/wasm-data.rkt"
+                  wasm-data
+                  wasm-data?
+                  wasm-data-ref)
          (only-in "module-forms.rkt"
                   module-write-sha1)
          (only-in file/sha1
                   bytes->hex-string
                   sha1-bytes)
+         racket/file
          racket/match
+         racket/path
          racket/port
          racket/fasl)
 
@@ -38,6 +46,65 @@
 ;;   Bump when the serialized split-boundary metadata layout changes.
 (define split-runtime-boundary-cache-version
   1)
+
+;; wasm-data-cache-tag : symbol?
+;;   Tags custom WAT data fragments in split-runtime FASL caches.
+(define wasm-data-cache-tag
+  'webracket:wasm-data)
+
+;; cacheable-datum : any/c -> any/c
+;;   Convert syntax objects and custom values to FASL-writable datum values.
+(define (cacheable-datum v)
+  (cond
+    [(syntax? v)
+     (cacheable-datum (syntax->datum v))]
+    [(wasm-data? v)
+     `(,wasm-data-cache-tag ,(bytes-copy (wasm-data-ref v)))]
+    [(pair? v)
+     (cons (cacheable-datum (car v))
+           (cacheable-datum (cdr v)))]
+    [(vector? v)
+     (list->vector
+      (for/list ([x (in-vector v)])
+        (cacheable-datum x)))]
+    [(box? v)
+     (box (cacheable-datum (unbox v)))]
+    [(hash? v)
+     (for/hash ([(key value) (in-hash v)])
+       (values (cacheable-datum key)
+               (cacheable-datum value)))]
+    [(path? v)
+     (path->string v)]
+    [(string? v)
+     (string-copy v)]
+    [(bytes? v)
+     (bytes-copy v)]
+    [else v]))
+
+;; cached-datum->value : any/c -> any/c
+;;   Restore custom values encoded by `cacheable-datum`.
+(define (cached-datum->value v)
+  (cond
+    [(and (pair? v)
+          (eq? (car v) wasm-data-cache-tag)
+          (pair? (cdr v))
+          (bytes? (cadr v))
+          (null? (cddr v)))
+     (wasm-data (bytes-copy (cadr v)))]
+    [(pair? v)
+     (cons (cached-datum->value (car v))
+           (cached-datum->value (cdr v)))]
+    [(vector? v)
+     (list->vector
+      (for/list ([x (in-vector v)])
+        (cached-datum->value x)))]
+    [(box? v)
+     (box (cached-datum->value (unbox v)))]
+    [(hash? v)
+     (for/hash ([(key value) (in-hash v)])
+       (values (cached-datum->value key)
+               (cached-datum->value value)))]
+    [else v]))
 
 ;; split-runtime-core-fingerprint : list? -> string?
 ;;   Fingerprint the generated core runtime module tree for Wasm cache reuse.
@@ -81,6 +148,8 @@
 (define (split-runtime-boundary-cache-current? cache-root core-cache-key)
   (define cache-path
     (split-runtime-boundary-cache-path cache-root core-cache-key))
+  (define cacheable-core-cache-key
+    (cacheable-datum core-cache-key))
   (and (file-exists? cache-path)
        (with-handlers ([exn:fail? (lambda (_exn) #f)])
          (match (call-with-input-file cache-path
@@ -91,7 +160,7 @@
                   cached-core-cache-key
                   _payload)
             (and (= version split-runtime-boundary-cache-version)
-                 (equal? cached-core-cache-key core-cache-key))]
+                 (equal? cached-core-cache-key cacheable-core-cache-key))]
            [_ #f]))))
 
 ;; split-runtime-request-cache-fingerprint :
@@ -142,9 +211,39 @@
      #:active-ffi-funcs-wat '()))
   (define sample-core-cache-key
     (make-split-runtime-core-cache-key #t sample-request))
+  (define changed-runtime-source-request
+    (split-runtime-request-cache-fingerprint
+     #:browser? #f
+     #:runtime-source-fingerprint
+     '(runtime-source 3 ("runtime-wasm.rkt" 1 3))
+     #:active-ffi-foreigns '()
+     #:active-ffi-imports-wat '()
+     #:active-ffi-funcs-wat '()))
+  (define browser-request
+    (split-runtime-request-cache-fingerprint
+     #:browser? #t
+     #:runtime-source-fingerprint sample-runtime-source-fingerprint
+     #:active-ffi-foreigns '()
+     #:active-ffi-imports-wat '()
+     #:active-ffi-funcs-wat '()))
 
   (check-match sample-request
     `(split-runtime-request-cache 1 node ,_ () ,_ ,_))
+  (check-not-equal?
+   (split-runtime-core-cache-key-fingerprint
+    (make-split-runtime-core-cache-key #t sample-request))
+   (split-runtime-core-cache-key-fingerprint
+    (make-split-runtime-core-cache-key #t changed-runtime-source-request)))
+  (check-not-equal?
+   (split-runtime-core-cache-key-fingerprint
+    (make-split-runtime-core-cache-key #t sample-request))
+   (split-runtime-core-cache-key-fingerprint
+    (make-split-runtime-core-cache-key #t browser-request)))
+  (check-not-equal?
+   (split-runtime-core-cache-key-fingerprint
+    (make-split-runtime-core-cache-key #t sample-request))
+   (split-runtime-core-cache-key-fingerprint
+    (make-split-runtime-core-cache-key #f sample-request)))
   (check-equal? sample-core-cache-key
                 `(split-runtime-core-cache 2 tree-shake ,sample-request))
   (check-equal?
@@ -167,4 +266,35 @@
                        (split-runtime-core-cache-key-fingerprint
                         sample-core-cache-key))))
   (check-false
-   (split-runtime-boundary-cache-current? "/tmp/cache" sample-core-cache-key)))
+   (split-runtime-boundary-cache-current? "/tmp/cache" sample-core-cache-key))
+
+  (define boundary-current-test-root
+    (make-temporary-file "split-runtime-boundary-current-~a" 'directory))
+  (define nontrivial-core-cache-key
+    `(split-runtime-core-cache-test
+      ,(string->path "/tmp/webracket")
+      ,(box #"abc")))
+  (define nontrivial-cache-path
+    (split-runtime-boundary-cache-path boundary-current-test-root
+                                       nontrivial-core-cache-key))
+  (make-directory* (path-only nontrivial-cache-path))
+  (void
+   (call-with-output-file nontrivial-cache-path
+     (lambda (out)
+       (write-bytes
+        (s-exp->fasl
+         `(split-runtime-boundary-cache
+           ,split-runtime-boundary-cache-version
+           ,(cacheable-datum nontrivial-core-cache-key)
+           payload))
+        out))
+     #:exists 'truncate/replace))
+  (check-true
+   (split-runtime-boundary-cache-current? boundary-current-test-root
+                                          nontrivial-core-cache-key))
+  (check-false
+   (split-runtime-boundary-cache-current? boundary-current-test-root
+                                          `(split-runtime-core-cache-test
+                                            ,(string->path "/tmp/other")
+                                            ,(box #"abc"))))
+  (delete-directory/files boundary-current-test-root))

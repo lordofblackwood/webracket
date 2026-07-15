@@ -442,3 +442,84 @@ Follow-up:
 - A good shape for a later cleanup is to serialize each relevant module once,
   keep the serialized bytes/text together with its hash and byte count, and
   write that already-computed serialization when the `.wat` file is emitted.
+
+### Module-Bridge Frontend Syntax Cache Is Not A Useful Warm-Cache Shortcut Yet
+
+Location:
+
+- `pkgs/webracket-lib/compiler/driver.rkt`
+- `pkgs/webracket-lib/compiler/compiler.rkt`
+
+Concern:
+
+- A July 2026 experiment temporarily allowed `--frontend-cache` for module
+  inputs. The generated program still ran correctly on
+  `test/test-module-read-demand.rkt`, but the warm split-runtime
+  cache-reference compile got slower.
+- The cache-reference compile reported `frontend-cache-mode:
+  enabled-module-input`, missed the frontend cache, and then spent about 5.8s
+  in `frontend-cache-write`. That pushed the compile pipeline to about 21.6s,
+  compared with about 15.6s after the compact WAT writer and with the module
+  frontend cache disabled.
+- The existing guard in `driver.rkt` that disables the frontend cache for
+  module inputs should stay in place until the cache key is made stable and
+  cheap for module-bridge syntax.
+
+Follow-up:
+
+- If we revisit this, do not cache serialized post-unexpand syntax directly
+  for module-bridge inputs. Prefer a provider/object cache or a split-provider
+  Wasm boundary that avoids recompiling stable provider code instead of
+  serializing replayed generated binding identities.
+
+### Split Runtime Procedure Boundary Requires Identical Shared Types
+
+Location:
+
+- `tools/check-split-runtime-procedure-boundary.rkt`
+- `pkgs/webracket-lib/compiler/runtime-wasm/split-runtime.rkt`
+- `pkgs/webracket-lib/compiler/runtime-wasm/shared-types.rkt`
+
+Observation:
+
+- A minimal two-module Wasm-GC check now verifies that a procedure allocated in
+  a runtime module passes a program-side `(ref.test (ref $Procedure) ...)` when
+  both modules use identical shared type declarations.
+- The same check verifies that the program can pass the imported procedure
+  value back to a runtime-side apply shim and get the expected result.
+- This means the split-runtime design does not need to avoid cross-module
+  procedure values in principle. The important invariant is that runtime and
+  program modules keep the shared type prelude identical.
+
+Current generated-provider wrinkle:
+
+- A prototype that merged a cached read-provider fragment into the runtime core
+  and retargeted the program's provider imports to that merged core still failed
+  while running `test/test-module-read-demand.rkt`.
+- Sharper probes showed that the imported primitive globals, imported provider
+  boxes, and unboxed provider values all pass program-side `$Procedure` tests.
+- Site tracing narrowed the failure to `$invoke-struct`: the read-provider code
+  applies a struct named `procedure`, but `$struct-type-property-lookup` misses
+  the active `$prop:procedure` descriptor and raises "application: not a
+  procedure".
+- The provider value itself remains a `$Procedure`; the bad value appears inside
+  read-provider execution. This points at runtime-owned struct-property identity
+  and initialization order, not at cross-module Wasm-GC procedure identity.
+- A temporary no-entry-init program module works when the host initializes the
+  merged runtime/provider module once, runs the provider entry, and then calls a
+  program entry that does not re-run split-runtime initialization. The run
+  prints `42` and `#<void>`.
+- `tools/check-provider-runtime-split.rkt` now repeats this setup using
+  reusable merge/host logic instead of hand-patched WAT. On
+  `test/test-module-read-demand.rkt`, it emits a provider-augmented
+  `runtime.wasm`, a separate stripped `program.wasm`, initializes runtime once,
+  calls `"provider-entry"`, and the program output is `42` and `#<void>`.
+
+Follow-up:
+
+- Keep `tools/check-split-runtime-procedure-boundary.rkt` as the small ABI
+  guard before changing shared type generation or split-runtime import/export
+  shape.
+- For provider-fragment split work, preserve the invariant that runtime-owned
+  state is initialized exactly once before provider fragments build runtime
+  structs that carry properties such as `prop:procedure`.
