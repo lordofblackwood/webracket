@@ -2982,6 +2982,18 @@
 
   ;; 4.8 Regular Expressions
   datum-intern-literal
+  byte-pregexp
+  byte-pregexp?
+  byte-regexp
+  byte-regexp?
+  pregexp
+  pregexp?
+  regexp
+  regexp?
+  regexp-match
+  regexp-match?
+  regexp-replace
+  regexp-replace*
   webracket-literal-byte-pregexp
   webracket-literal-byte-regexp
   webracket-literal-pregexp

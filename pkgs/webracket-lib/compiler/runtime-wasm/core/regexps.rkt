@@ -134,6 +134,32 @@
                      (i32.const 3)
                      (ref.cast (ref $Bytes) (local.get $source))))
 
+         ;; regexp : string? -> regexp?
+         ;;   Construct a bootstrap regexp from a string pattern.
+         (func $regexp (type $Prim1)
+               (param $source (ref eq)) ;; pattern string
+               (result        (ref eq))
+               (if (i32.eqz (ref.test (ref $String) (local.get $source)))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:regexp)
+                               (global.get $string:string?)
+                               (local.get $source))
+                         (unreachable)))
+               (return_call $webracket-literal-regexp (local.get $source)))
+
+         ;; pregexp : string? -> pregexp?
+         ;;   Construct a bootstrap pregexp from a string pattern.
+         (func $pregexp (type $Prim1)
+               (param $source (ref eq)) ;; pattern string
+               (result        (ref eq))
+               (if (i32.eqz (ref.test (ref $String) (local.get $source)))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:pregexp)
+                               (global.get $string:string?)
+                               (local.get $source))
+                         (unreachable)))
+               (return_call $webracket-literal-pregexp (local.get $source)))
+
          ;; byte-regexp : bytes? -> byte-regexp?
          ;;   Construct a bootstrap byte regexp from a byte pattern.
          (func $byte-regexp (type $Prim1)

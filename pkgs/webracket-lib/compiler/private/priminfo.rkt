@@ -92,16 +92,27 @@
 ;; Full Racket reports `make-impersonator-property` as arity `(1 2 3 4)`, but
 ;; WebRacket currently implements only the documented one-argument constructor.
 ;; The optional fallback behavior lives on the returned accessor procedure.
+;;
+;; The bootstrap regexp runtime is intentionally a small startup subset. Keep
+;; reflected procedure arities aligned with the implemented Wasm entry points
+;; until the demodularized regexp provider supplies full Racket behavior.
 (define arity-overrides
   (hash 'date (arity-at-least 0)
         'date* (arity-at-least 0)
         'make-date (arity-at-least 0)
         'make-date* (arity-at-least 0)
+        'byte-pregexp 1
+        'byte-regexp 1
         'current-code-inspector 0
         'current-inspector 0
         'dynamic-require '(2 3)
         'make-impersonator-property 1
         'make-treelist '(1 2)
+        'pregexp 1
+        'regexp 1
+        'regexp-match 2
+        'regexp-match? 2
+        'regexp-replace* (arity-at-least 3)
         'vector-member '(2 3)))
 
 
