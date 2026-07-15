@@ -607,6 +607,12 @@ racket -S pkgs tools/check-split-runtime-browser.rkt \
   --shared-runtime-url
 ```
 
+By default, the checker also copies the generated HTML, program Wasm, and
+runtime Wasm into a deploy-shaped package directory, runs that copied page, and
+verifies that omitting the runtime Wasm fails on the runtime fetch. Use
+`--no-package-copy-check` only when debugging the compiler-side browser check
+itself and the extra package run is distracting.
+
 Use `--split-runtime-core-only` with `--shared-runtime-url` to exercise a more
 stable compile-once boundary. For example, this compiles a larger browser
 module graph against the same helper-only `runtime.wasm` and validates that the

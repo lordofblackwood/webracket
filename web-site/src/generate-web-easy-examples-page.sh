@@ -2,8 +2,8 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
-PAGE="$ROOT_DIR/web-site/public/web-easy-examples.html"
-INDEX_PAGE="$ROOT_DIR/web-site/public/web-easy-examples/index.html"
+PAGE="${WEB_EASY_EXAMPLES_INDEX_PAGE:-$ROOT_DIR/web-site/public/web-easy-examples.html}"
+INDEX_PAGE="${WEB_EASY_EXAMPLES_REDIRECT_PAGE:-$ROOT_DIR/web-site/public/web-easy-examples/index.html}"
 
 {
   cat <<'EOF'

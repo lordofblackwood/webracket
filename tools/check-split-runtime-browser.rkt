@@ -65,6 +65,7 @@
 (define core-only? #f)
 (define provider-runtime? #f)
 (define isolate-compiled-root? #f)
+(define package-copy-check? #t)
 (define node-command "node")
 (define node-modules #f)
 (define chrome-executable #f)
@@ -120,6 +121,9 @@
  [("--isolate-compiled-root")
   "Run subprocesses with a private PLTCOMPILEDROOTS; useful for cold-root checks."
   (set! isolate-compiled-root? #t)]
+ [("--no-package-copy-check")
+  "Skip the deploy-copy packaging regression check."
+  (set! package-copy-check? #f)]
  [("--keep-temp")
   "Keep the temporary check directory after a successful run."
   (set! keep-temp? #t)]
@@ -751,6 +755,63 @@ JS
              'timeoutMs timeout-ms)))
   (run-command/capture repo-root node-path (list (path->string node-script) config)))
 
+;; copy-artifact/filename! : path-string? path-string? -> path?
+;;   Copy artifact into package-dir under its own filename and return the copy.
+(define (copy-artifact/filename! artifact package-dir)
+  (define target
+    (build-path package-dir (file-name-from-path artifact)))
+  (copy-file/replace! artifact target)
+  target)
+
+;; check-packaged-runtime-copy! :
+;;   path-string? path-string? path-string? path-string? path-string? path-string? -> command-result?
+;;   Copy deployable artifacts to a package directory and run the copied page.
+(define (check-packaged-runtime-copy! node-path node-script temp-root html-path program-wasm runtime-wasm)
+  (define package-dir (build-path temp-root "packaged-browser-output"))
+  (make-directory* package-dir)
+  (define package-html (build-path package-dir "index.html"))
+  (copy-file/replace! html-path package-html)
+  (define package-program-wasm
+    (copy-artifact/filename! program-wasm package-dir))
+  (define package-runtime-wasm
+    (copy-artifact/filename! runtime-wasm package-dir))
+  (define html (file->string package-html))
+  (unless (regexp-match? (regexp-quote
+                          (path->string (file-name-from-path package-program-wasm)))
+                         html)
+    (record-failure! "packaged HTML does not reference program wasm ~a"
+                     (file-name-from-path package-program-wasm)))
+  (unless (regexp-match? (regexp-quote
+                          (path->string (file-name-from-path package-runtime-wasm)))
+                         html)
+    (record-failure! "packaged HTML does not reference runtime wasm ~a"
+                     (file-name-from-path package-runtime-wasm)))
+  (run-browser-check! node-path
+                      node-script
+                      package-dir
+                      package-html
+                      package-program-wasm
+                      package-runtime-wasm))
+
+;; check-missing-runtime-copy! :
+;;   path-string? path-string? path-string? path-string? path-string? path-string? -> command-result?
+;;   Prove that a package missing runtime.wasm fails on the runtime fetch.
+(define (check-missing-runtime-copy! node-path node-script temp-root html-path program-wasm runtime-wasm)
+  (define package-dir (build-path temp-root "packaged-missing-runtime"))
+  (make-directory* package-dir)
+  (define package-html (build-path package-dir "index.html"))
+  (copy-file/replace! html-path package-html)
+  (define package-program-wasm
+    (copy-artifact/filename! program-wasm package-dir))
+  (define package-runtime-wasm
+    (build-path package-dir (file-name-from-path runtime-wasm)))
+  (run-browser-check! node-path
+                      node-script
+                      package-dir
+                      package-html
+                      package-program-wasm
+                      package-runtime-wasm))
+
 
 ;;; Defaults
 
@@ -1107,21 +1168,61 @@ JS
 
   (define node-script (write-node-script! temp-root))
   (define browser-result
-    (dynamic-wind
-      void
-      (lambda ()
-        (run-browser-check! node-path node-script dest-dir html-path program-wasm runtime-wasm))
-      (lambda ()
-        (with-handlers ([exn:fail? void])
-          (delete-file node-script)))))
+    (run-browser-check! node-path node-script dest-dir html-path program-wasm runtime-wasm))
   (define browser-log (build-path temp-root "browser.log"))
   (write-log! browser-log node-path (list (path->string node-script) "<config-json>") browser-result)
   (unless (command-result-ok? browser-result)
     (record-failure! "browser run failed; see ~a" browser-log))
+  (define browser-artifacts-present?
+    (and (file-exists? html-path)
+         (file-exists? program-wasm)
+         (file-exists? runtime-wasm)))
+  (define package-result
+    (and package-copy-check?
+         browser-artifacts-present?
+         (check-packaged-runtime-copy! node-path
+                                       node-script
+                                       temp-root
+                                       html-path
+                                       program-wasm
+                                       runtime-wasm)))
+  (when (and package-copy-check? browser-artifacts-present?)
+    (define package-log (build-path temp-root "browser-packaged-copy.log"))
+    (write-log! package-log
+                node-path
+                (list (path->string node-script) "<config-json>")
+                package-result)
+    (unless (command-result-ok? package-result)
+      (record-failure! "packaged browser run failed; see ~a" package-log)))
+  (define missing-runtime-result
+    (and package-copy-check?
+         browser-artifacts-present?
+         (check-missing-runtime-copy! node-path
+                                      node-script
+                                      temp-root
+                                      html-path
+                                      program-wasm
+                                      runtime-wasm)))
+  (when (and package-copy-check? browser-artifacts-present?)
+    (define missing-runtime-log
+      (build-path temp-root "browser-packaged-missing-runtime.log"))
+    (write-log! missing-runtime-log
+                node-path
+                (list (path->string node-script) "<config-json>")
+                missing-runtime-result)
+    (when (command-result-ok? missing-runtime-result)
+      (record-failure! "packaged browser run unexpectedly succeeded without runtime wasm; see ~a"
+                       missing-runtime-log))
+    (unless (transcript-contains? missing-runtime-result
+                                  #rx"Failed to fetch core wasm")
+      (record-failure! "missing-runtime package did not fail on the runtime wasm fetch; see ~a"
+                       missing-runtime-log)))
+  (with-handlers ([exn:fail? void])
+    (delete-file node-script))
 
   (cond
     [(null? failures)
-     (printf "ok: prewarm=~as~acompile=~as browser=~as cached-runtime-wasms=~a\n"
+     (printf "ok: prewarm=~as~acompile=~as browser=~as~acached-runtime-wasms=~a\n"
              (format-seconds (command-result-wall-ms prewarm-result))
              (if provider-runtime?
                  (format " provider-runtime-cache-hit-prewarm=~as "
@@ -1131,6 +1232,11 @@ JS
                  " ")
              (format-seconds (command-result-wall-ms compile-result))
              (format-seconds (command-result-wall-ms browser-result))
+             (if package-copy-check?
+                 (format " packaged-browser=~as "
+                         (format-seconds
+                          (command-result-wall-ms package-result)))
+                 " ")
              (length cached-wasms-after-prewarm))
      (when keep-temp?
        (printf "kept temp: ~a\n" (path->string temp-root)))
