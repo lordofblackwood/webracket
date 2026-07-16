@@ -129,8 +129,10 @@
                                     current-runtime-cache-dir
                                     current-frontend-cache-enabled?
                                     current-runtime-primitive-report-path
+                                    current-runtime-extra-used-primitives
                                     current-split-runtime?
                                     current-split-runtime-reference-only?
+                                    current-split-runtime-ffi-in-core?
                                     current-split-runtime-program-only-fast-path?)
          (only-in "private/timings.rkt"
                   now-ms
@@ -1489,6 +1491,22 @@
       name)
     symbol<?)))
 
+;; module-bridge-provider-ffi-primitive-symbols : any/c -> (listof symbol?)
+;;   Return FFI primitive names referenced by the provider-side fragment.
+(define (module-bridge-provider-ffi-primitive-symbols provider-datum)
+  (define provider-symbols (module-bridge-datum-symbols provider-datum))
+  (sort
+   (remove-duplicates
+    (append
+     (if (set-member? provider-symbols 'unsafe-ffi-primitive)
+         '(unsafe-ffi-primitive)
+         '())
+     (for/list ([name (in-list (foreigns->primitive-names
+                                (current-ffi-foreigns)))]
+                #:when (set-member? provider-symbols name))
+       name)))
+   symbol<?))
+
 ;; datum-sha1 : any/c -> string?
 ;;   Compute a stable digest for a serialized datum.
 (define (datum-sha1 datum)
@@ -1612,11 +1630,12 @@
 
 ;; module-bridge-provider-compiled-fragment-cache-version : exact-positive-integer?
 ;;   Bump when compiled provider-fragment WAT cache semantics change.
-(define module-bridge-provider-compiled-fragment-cache-version 2)
+(define module-bridge-provider-compiled-fragment-cache-version 4)
 
 ;; module-bridge-provider-compiled-fragment-cache-key :
 ;;   any/c #:browser? boolean? #:enable-cc-analysis? boolean?
 ;;   #:enable-simplify? boolean? #:split-runtime-reference? boolean?
+;;   #:split-runtime-ffi-in-core? boolean?
 ;;   #:letrec-strategy symbol?
 ;;   #:provider-owned-primitive-aliases (listof symbol?) -> any/c
 ;;   Fingerprint the compiler/runtime options that affect provider-fragment WAT.
@@ -1626,6 +1645,7 @@
          #:enable-cc-analysis? [enable-cc-analysis? #f]
          #:enable-simplify? [enable-simplify? #f]
          #:split-runtime-reference? [split-runtime-reference? #f]
+         #:split-runtime-ffi-in-core? [split-runtime-ffi-in-core? #f]
          #:letrec-strategy [letrec-strategy 'scc]
          #:provider-owned-primitive-aliases [provider-owned-primitive-aliases '()])
   `(module-bridge-provider-compiled-fragment-wat-cache
@@ -1636,6 +1656,7 @@
     (enable-cc-analysis? ,enable-cc-analysis?)
     (enable-simplify? ,enable-simplify?)
     (split-runtime-reference? ,split-runtime-reference?)
+    (split-runtime-ffi-in-core? ,split-runtime-ffi-in-core?)
     (letrec-strategy ,letrec-strategy)
     (provider-owned-primitive-aliases
      ,(sort provider-owned-primitive-aliases symbol<?))))
@@ -4573,6 +4594,10 @@
                                                            (seteq)]
                              #:exported-top-level-globals [exported-top-level-globals
                                                            (seteq)]
+                             #:extra-used-primitives [extra-used-primitives
+                                                      '()]
+                             #:split-runtime-ffi-in-core?
+                             [split-runtime-ffi-in-core? #f]
                              #:allow-split-program-only-fast-path?
                              [allow-split-program-only-fast-path? #t])
     (parameterize ([current-browser? browser?]
@@ -4593,6 +4618,8 @@
                     imported-top-level-globals]
                    [current-exported-top-level-globals
                     exported-top-level-globals]
+                   [current-runtime-extra-used-primitives
+                    extra-used-primitives]
                    [current-split-runtime?
                     (and split-runtime? (not split-runtime-core-only?))]
                    [current-split-runtime-reference-only?
@@ -4600,6 +4627,8 @@
                          (not split-runtime-core-only?)
                          (or split-runtime-cache-reference?
                              split-runtime-core-url))]
+                   [current-split-runtime-ffi-in-core?
+                    split-runtime-ffi-in-core?]
                    [current-split-runtime-program-only-fast-path?
                     allow-split-program-only-fast-path?])
       (comp stx-to-compile)))
@@ -4624,6 +4653,10 @@
       (module-bridge-provider-program-interface-symbols provider-datum
                                                         program-datum
                                                         provider-owned-primitive-aliases))
+    (define provider-runtime-ffi-primitives
+      (if split-runtime-provider-runtime?
+          (module-bridge-provider-ffi-primitive-symbols provider-datum)
+          '()))
     (define provider-fragment-fingerprint
       (module-bridge-provider-fragment-fingerprint fragment-split))
     (define compiled-cache-key
@@ -4633,6 +4666,7 @@
        #:enable-cc-analysis? enable-cc-analysis?
        #:enable-simplify? enable-simplify?
        #:split-runtime-reference? #t
+       #:split-runtime-ffi-in-core? split-runtime-provider-runtime?
        #:letrec-strategy letrec-strategy
        #:provider-owned-primitive-aliases provider-owned-primitive-aliases))
     (define provider-wat/cache #f)
@@ -4647,7 +4681,10 @@
                  (compiled-fragment->program-wat
                   (compile-top-level
                    (datum->syntax #f provider-datum)
-                   #:exported-top-level-globals interface-symbols)))))
+                   #:exported-top-level-globals interface-symbols
+                   #:extra-used-primitives provider-runtime-ffi-primitives
+                   #:split-runtime-ffi-in-core?
+                   split-runtime-provider-runtime?)))))
             (record-provider-fragment-timing! "provider-fragment-cache"
                                               provider-cache-start)
             (hash-set! (current-webify-bridge-stats)
@@ -4671,7 +4708,10 @@
     (define program-compiled
       (compile-top-level
        (datum->syntax #f program-datum)
-       #:imported-top-level-globals interface-symbols))
+       #:imported-top-level-globals interface-symbols
+       #:extra-used-primitives provider-runtime-ffi-primitives
+       #:split-runtime-ffi-in-core?
+       split-runtime-provider-runtime?))
     (record-provider-fragment-timing! "program-fragment-compile"
                                       program-compile-start)
     (hash-set! (current-webify-bridge-stats)
@@ -4697,6 +4737,8 @@
                  (compile-top-level
                   (datum->syntax #f program-datum)
                   #:imported-top-level-globals interface-symbols
+                  #:extra-used-primitives provider-runtime-ffi-primitives
+                  #:split-runtime-ffi-in-core? #t
                   #:allow-split-program-only-fast-path? #f))
                (record-provider-fragment-timing!
                 "program-fragment-compile-materializable-core"
@@ -4857,7 +4899,7 @@
                     #:core-out split-runtime-wasm-reference
                     #:core-provider-imports-from-core?
                     split-runtime-provider-runtime?
-                    #:core-initialize? split-runtime-provider-runtime?
+                    #:core-initialize? #f
                     #:core-provider-entry
                     (and split-runtime-provider-runtime? "provider-entry")
                     #:host (if node? 'node 'browser)

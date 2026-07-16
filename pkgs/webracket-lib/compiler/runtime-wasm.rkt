@@ -14,6 +14,7 @@
                   current-tree-shake?
                   current-split-runtime?
                   current-split-runtime-reference-only?
+                  current-split-runtime-ffi-in-core?
                   current-split-runtime-program-only-fast-path?)
          (only-in "private/wasm-utils.rkt"
                   $
@@ -486,6 +487,11 @@
     (define ffi-global->symbol
       (runtime-primitive-state-ffi-global->symbol primitive-state))
 
+    (define (split-direct-ffi-program-side?)
+      (and (current-split-runtime?)
+           (not (current-split-runtime-ffi-in-core?))
+           (not (memq 'unsafe-ffi-primitive used-primitives))))
+
     (define program-function-names
       (module-func-names dls))
 
@@ -517,7 +523,7 @@
         ;; Split program modules initialize FFI primitive procedure globals on
         ;; the program side, so their procedure names must be declared as
         ;; program-owned symbol constants too.
-        (when (current-split-runtime?)
+        (when (split-direct-ffi-program-side?)
           (runtime-constant-registry-add-symbols!
            registry
            (runtime-ffi-state-active-primitive-names ffi-state)))
@@ -525,13 +531,8 @@
 
     (define primitive-initializer-forms
       (runtime-primitive-state-initializer-forms primitive-state))
-    (define ffi-primitive-initializer-forms
-      (runtime-ffi-state-primitive-initializer-forms ffi-state))
     (define unsafe-ffi-primitive-table-initializer-forms
       '((call $initialize-unsafe-ffi-primitive-table)))
-    (define (split-direct-ffi-program-side?)
-      (and (current-split-runtime?)
-           (not (memq 'unsafe-ffi-primitive used-primitives))))
     (define (split-program-ffi-foreigns)
       (if (split-direct-ffi-program-side?)
           (runtime-ffi-state-active-foreigns ffi-state)
@@ -650,8 +651,6 @@
       (if (current-split-runtime?)
           '()
           primitive-initializer-forms))
-    (define entry-ffi-primitive-initializer-forms
-      ffi-primitive-initializer-forms)
     (define entry-unsafe-ffi-primitive-table-initializer-forms
       unsafe-ffi-primitive-table-initializer-forms)
     (define entry-security-guard-current-initializer-forms
@@ -669,12 +668,8 @@
 
     ;; build-entry-ffi-primitive-initializer-forms : boolean? -> (listof datum?)
     ;;   Return FFI primitive initializers for the entry currently being built.
-    (define (build-entry-ffi-primitive-initializer-forms program-only?)
-      (if (and (current-split-runtime?)
-               (or program-only?
-                   (current-split-runtime-reference-only?)))
-          (runtime-ffi-state-primitive-initializer-forms ffi-state)
-          entry-ffi-primitive-initializer-forms))
+    (define (build-entry-ffi-primitive-initializer-forms _program-only?)
+      (runtime-ffi-state-primitive-initializer-forms ffi-state))
 
     ;; build-entry-function-form : [#:program-only? boolean?] -> datum?
     ;;   Build the program entry function using the current split/monolithic
@@ -741,11 +736,17 @@
     (define (build-split-program-forms)
       (append
        js-host-import-forms
-       (runtime-ffi-state-active-imports-wat ffi-state)
-       (runtime-ffi-state-active-funcs-wat ffi-state)
+       (if (split-direct-ffi-program-side?)
+           (runtime-ffi-state-active-imports-wat ffi-state)
+           '())
+       (if (split-direct-ffi-program-side?)
+           (runtime-ffi-state-active-funcs-wat ffi-state)
+           '())
        (runtime-constant-declaration-forms program-only-constant-registry)
        top-level-variable-declarations
-       (runtime-ffi-state-primitive-global-forms ffi-state)
+       (if (split-direct-ffi-program-side?)
+           (runtime-ffi-state-primitive-global-forms ffi-state)
+           '())
        dls
        (if console-bridge-enabled?
            (ffi-console-bridge-helper-forms console-bridge-bindings)
@@ -2094,6 +2095,7 @@
            split-runtime-program-only-candidate?
            split-runtime-reference-compatible-now?
            (or (split-direct-ffi-program-side?)
+               (current-split-runtime-ffi-in-core?)
                (and (null? (runtime-ffi-state-active-foreigns ffi-state))
                     (null? (runtime-ffi-state-active-imports-wat ffi-state))
                     (null? (runtime-ffi-state-active-funcs-wat ffi-state))))))

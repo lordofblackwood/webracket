@@ -73,6 +73,7 @@
                   current-frontend-cache-enabled?
                   current-tree-shake?
                   current-runtime-primitive-report-path
+                  current-runtime-extra-used-primitives
                   current-imported-top-level-global-module-name
                   current-imported-top-level-globals
                   current-exported-top-level-globals
@@ -21567,7 +21568,11 @@
              entry-locals                     ; variables that are local to $entry
              ; general
              primitives                       ; primitives (list of symbols)
-             (sort (hash-keys used-primitives-ht) symbol<?)
+             (sort
+              (remove-duplicates
+               (append (hash-keys used-primitives-ht)
+                       (current-runtime-extra-used-primitives)))
+              symbol<?)
              string-constants                 ; (list (list name string) ...)
              bytes-constants                  ; (list (list name bytes) ...)
              symbol-constants                 ; (list (list name symbol) ...)
