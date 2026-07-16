@@ -268,6 +268,22 @@
      #:active-ffi-foreigns '()
      #:active-ffi-imports-wat '()
      #:active-ffi-funcs-wat '()))
+  (define ffi-request-a
+    (split-runtime-request-cache-fingerprint
+     #:browser? #t
+     #:runtime-source-fingerprint sample-runtime-source-fingerprint
+     #:active-ffi-foreigns
+     (list (foreign 'js-a 'host 'a '() '()))
+     #:active-ffi-imports-wat '()
+     #:active-ffi-funcs-wat '()))
+  (define ffi-request-b
+    (split-runtime-request-cache-fingerprint
+     #:browser? #t
+     #:runtime-source-fingerprint sample-runtime-source-fingerprint
+     #:active-ffi-foreigns
+     (list (foreign 'js-b 'host 'b '() '()))
+     #:active-ffi-imports-wat '()
+     #:active-ffi-funcs-wat '()))
 
   (check-match sample-request
     `(split-runtime-request-cache 1 node ,_ () ,_ ,_))
@@ -286,6 +302,11 @@
     (make-split-runtime-core-cache-key #t sample-request))
    (split-runtime-core-cache-key-fingerprint
     (make-split-runtime-core-cache-key #f sample-request)))
+  (check-not-equal?
+   (split-runtime-core-cache-key-fingerprint
+    (make-split-runtime-core-cache-key #t ffi-request-a))
+   (split-runtime-core-cache-key-fingerprint
+    (make-split-runtime-core-cache-key #t ffi-request-b)))
   (check-equal? sample-core-cache-key
                 `(split-runtime-core-cache 2 tree-shake ,sample-request))
   (check-equal?

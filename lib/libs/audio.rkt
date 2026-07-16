@@ -40,6 +40,46 @@
      external]))
 
 ;;; -------------------------------------------------------------------
+;;; Wrapper Structs
+;;; -------------------------------------------------------------------
+
+;; audio-listener : external/raw -> audio-listener?
+;;   Wrap a browser AudioListener object.
+(struct audio-listener (raw) #:transparent)
+
+;; audio-listener-wrap : any/c -> any/c
+;;   Wrap a raw browser AudioListener object, leaving wrapped values alone.
+(define (audio-listener-wrap value)
+  (if (or (not value) (audio-listener? value))
+      value
+      (audio-listener value)))
+
+;; audio-listener-unwrap : any/c -> any/c
+;;   Unwrap an audio-listener struct to its raw browser object.
+(define (audio-listener-unwrap value)
+  (if (audio-listener? value)
+      (audio-listener-raw value)
+      value))
+
+;; audio-periodic-wave : external/raw -> audio-periodic-wave?
+;;   Wrap a browser PeriodicWave object.
+(struct audio-periodic-wave (raw) #:transparent)
+
+;; audio-periodic-wave-wrap : any/c -> any/c
+;;   Wrap a raw browser PeriodicWave object, leaving wrapped values alone.
+(define (audio-periodic-wave-wrap value)
+  (if (or (not value) (audio-periodic-wave? value))
+      value
+      (audio-periodic-wave value)))
+
+;; audio-periodic-wave-unwrap : any/c -> any/c
+;;   Unwrap an audio-periodic-wave struct to its raw browser object.
+(define (audio-periodic-wave-unwrap value)
+  (if (audio-periodic-wave? value)
+      (audio-periodic-wave-raw value)
+      value))
+
+;;; -------------------------------------------------------------------
 ;;; Predicates
 ;;; -------------------------------------------------------------------
 

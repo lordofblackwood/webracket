@@ -748,7 +748,11 @@
           split-program-primitive-initializer-forms
           primitive-initializer-forms))
     (define entry-unsafe-ffi-primitive-table-initializer-forms
-      unsafe-ffi-primitive-table-initializer-forms)
+      ;; Split program modules may not own the unsafe FFI lookup helper. The
+      ;; helper initializes the table lazily when it is actually called.
+      (if (current-split-runtime?)
+          '()
+          unsafe-ffi-primitive-table-initializer-forms))
     (define entry-security-guard-current-initializer-forms
       (if (current-split-runtime?)
           `((call ,split-runtime-post-ffi-initializer-name))
@@ -2115,10 +2119,12 @@
     (runtime-ffi-state-record-metrics! ffi-state)
     (runtime-metric-add! "runtime:program-primitive-count"
                          (length used-primitives))
+    ;; Even when wrappers live in the program or FFI sidecar, the core
+    ;; runtime still provides symbol constants imported by those wrappers.
+    ;; Keep the wrapper bodies out of the core key, but include the names
+    ;; that affect core constants/exports.
     (define stable-runtime-active-ffi-foreigns
-      (if (split-ffi-program-owned?)
-          '()
-          (runtime-ffi-state-active-foreigns ffi-state)))
+      (runtime-ffi-state-active-foreigns ffi-state))
     (define stable-runtime-active-ffi-imports-wat
       (if (split-ffi-program-owned?)
           '()
