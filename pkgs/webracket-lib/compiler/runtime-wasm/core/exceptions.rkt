@@ -48,6 +48,7 @@
     (argument-field-separator ": ")
     (raise-arguments-error-missing-value "missing value after field string")
     (raise-arguments-error-string "string")
+    (error-prefix "error: ")
     (uncaught-exception "uncaught exception: ")))
 
 ;; exception-runtime-symbol-constants : (listof symbol?)
@@ -4665,6 +4666,120 @@
                      (local.get $rest))
                (unreachable))
 
+         ;; error : (or/c symbol? string?) any/c ... -> none
+         ;;   Raise a catchable exn:fail using Racket's main error message
+         ;;   shapes for symbol and string initial arguments.
+         (func $error (type $Prim>=1)
+               (param $init (ref eq))
+               (param $args (ref eq))
+               (result      (ref eq))
+
+               (local $out       (ref $GrowableArray))
+               (local $message   (ref $String))
+               (local $args*     (ref eq))
+               (local $arg-pair  (ref $Pair))
+               (local $fmt       (ref eq))
+               (local $formatted (ref eq))
+
+               (local.set $message (ref.cast (ref $String) (global.get $string:empty)))
+
+               (if (ref.test (ref $Symbol) (local.get $init))
+                   (then
+                    (if (ref.eq (local.get $args) (global.get $null))
+                        (then
+                         (local.set $out (call $make-growable-array (i32.const 2)))
+                         (call $growable-array-add! (local.get $out)
+                               (global.get $string:error-prefix))
+                         (call $growable-array-add! (local.get $out)
+                               (call $symbol->string (local.get $init)))
+                         (local.set $message
+                                    (call $growable-array-of-strings->string
+                                          (local.get $out))))
+                        (else
+                         (if (i32.eqz (ref.test (ref $Pair) (local.get $args)))
+                             (then (call $raise-argument-error1
+                                         (global.get $symbol:error)
+                                         (global.get $string:list?)
+                                         (local.get $args))
+                                   (unreachable)))
+                         (local.set $arg-pair
+                                    (ref.cast (ref $Pair) (local.get $args)))
+                         (local.set $fmt
+                                    (struct.get $Pair $a (local.get $arg-pair)))
+                         (if (i32.eqz (ref.test (ref $String) (local.get $fmt)))
+                             (then (call $raise-argument-error1
+                                         (global.get $symbol:error)
+                                         (global.get $string:string?)
+                                         (local.get $fmt))
+                                   (unreachable)))
+                         (local.set $formatted
+                                    (call $format
+                                          (local.get $fmt)
+                                          (struct.get $Pair $d
+                                                      (local.get $arg-pair))))
+                         (local.set $out (call $make-growable-array (i32.const 3)))
+                         (call $growable-array-add! (local.get $out)
+                               (call $symbol->string (local.get $init)))
+                         (call $growable-array-add! (local.get $out)
+                               (global.get $string:argument-field-separator))
+                         (call $growable-array-add! (local.get $out)
+                               (local.get $formatted))
+                         (local.set $message
+                                    (call $growable-array-of-strings->string
+                                          (local.get $out)))))
+                    (drop (call $raise
+                                (call $make-exn:fail
+                                      (local.get $message)
+                                      (call $current-continuation-marks
+                                            (global.get $missing)))
+                                (global.get $true)))
+                    (unreachable)))
+
+               (if (i32.eqz (ref.test (ref $String) (local.get $init)))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:error)
+                               (global.get $string:symbol-or-string?)
+                               (local.get $init))
+                         (unreachable)))
+               (local.set $out (call $make-growable-array (i32.const 4)))
+               (call $growable-array-add! (local.get $out)
+                     (ref.cast (ref $String) (local.get $init)))
+               (local.set $args* (local.get $args))
+               (block $done
+                      (loop $loop
+                            (br_if $done
+                                   (ref.eq (local.get $args*)
+                                           (global.get $null)))
+                            (if (i32.eqz (ref.test (ref $Pair) (local.get $args*)))
+                                (then (call $raise-argument-error1
+                                            (global.get $symbol:error)
+                                            (global.get $string:list?)
+                                            (local.get $args*))
+                                      (unreachable)))
+                            (local.set $arg-pair
+                                       (ref.cast (ref $Pair) (local.get $args*)))
+                            (call $growable-array-add! (local.get $out)
+                                  (global.get $string:space))
+                            (call $growable-array-add! (local.get $out)
+                                  (call $format/print
+                                        (struct.get $Pair $a
+                                                    (local.get $arg-pair))
+                                        (global.get $missing)))
+                            (local.set $args*
+                                       (struct.get $Pair $d
+                                                   (local.get $arg-pair)))
+                            (br $loop)))
+               (local.set $message
+                          (call $growable-array-of-strings->string
+                                (local.get $out)))
+               (drop (call $raise
+                           (call $make-exn:fail
+                                 (local.get $message)
+                                 (call $current-continuation-marks
+                                       (global.get $missing)))
+                           (global.get $true)))
+               (unreachable))
+
          ;; raise-arguments-error : symbol? string? any/c ... -> none
          ;;   Report a multi-argument contract error with field/value details.
          (func $raise-arguments-error (type $Prim>=2)
@@ -4922,6 +5037,7 @@
       $exn:fail:syntax-ensure-exprs
       $exn?
       $exn-message
+      $error
       $raise-arguments-error
       $raise-expected-fixnum)
     bootstrap-error-runtime-only-helper-names

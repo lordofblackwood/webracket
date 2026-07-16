@@ -669,6 +669,7 @@
     racket/private/list
     racket/private/list-predicates
     racket/private/map
+    racket/private/member
     racket/private/more-scheme
     racket/private/pico
     racket/private/port

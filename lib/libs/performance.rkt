@@ -157,11 +157,23 @@
                           memory-info))
   (js-performance-memory-info-used-js-heap-size (performance-memory-info-raw memory-info)))
 
+;; performance-memory-info-exact? : external/raw -> boolean?
+;;   Check whether browser memory fields fit WebRacket exact integers.
+(define (performance-memory-info-exact? memory)
+  (and (exact-nonnegative-integer?
+        (js-performance-memory-info-js-heap-size-limit memory))
+       (exact-nonnegative-integer?
+        (js-performance-memory-info-total-js-heap-size memory))
+       (exact-nonnegative-integer?
+        (js-performance-memory-info-used-js-heap-size memory))))
+
 ;; performance-memory : -> (or/c #f performance-memory-info?)
 ;;   Read the browser-specific memory information object.
 (define (performance-memory)
   (define memory (js-performance-memory))
-  (and memory (performance-memory-info memory)))
+  (and memory
+       (and (performance-memory-info-exact? memory)
+            (performance-memory-info memory))))
 
 ;; performance-resolve-optional : any/c -> any/c
 ;;   Treat #f as omitted, and force thunks when a literal value is needed.

@@ -1309,7 +1309,8 @@
    (make-inline-specs/by-name
     ;; Variadic
     ;; - names
-    '(list*
+    '(error
+      list*
       symbol<? keyword<? path<?
       string=? string<?  string<=?  string>?  string>=?  string-ci=?
       string-ci<?  string-ci<=?  string-ci>?  string-ci>=?
@@ -1341,6 +1342,7 @@
     (λ (name)
       (case name
         [(+ * unsafe-fx+ unsafe-fx* compose compose1 cartesian-product string-append-immutable gcd lcm hash hasheq hasheqv hashalw) 0]
+        [(error) 1]
         [(- / unsafe-fx- fx-/wraparound unsafe-fx-/wraparound min max
              flmin flmax unsafe-flmin unsafe-flmax
              fxmin fxmax unsafe-fxmin unsafe-fxmax
@@ -1371,7 +1373,7 @@
     ; - rest-start-proc
     (λ (name)
       (case name
-        [(apply list*) 1]
+        [(error apply list*) 1]
         [(extend-parameterization) 1]
         [(vector-count map andmap ormap append-map count for-each vector-map vector-map! filter-map
                        instance-variable-value) 2]
@@ -2038,6 +2040,7 @@
 
   ; in-list
   
+  error
   catch   ; single predicate and handler
   catch*  ; multiple predicates and handlers
   call-with-exception-handler

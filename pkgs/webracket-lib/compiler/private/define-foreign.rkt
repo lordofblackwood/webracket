@@ -713,9 +713,14 @@
                [(list 'i32) ; to fixnum
                 `(return
                   (ref.i31 (i32.shl (local.get $results) (i32.const 1))))]
-               [(list 'u32) ; to fixnum
+               [(list 'u32) ; to exact fixnum when possible, otherwise flonum
                 `(return
-                  (ref.i31 (i32.shl (local.get $results) (i32.const 1))))]
+                  (if (result (ref eq))
+                      (i32.le_u (local.get $results) (i32.const #x1fffffff))
+                      (then (ref.i31 (i32.shl (local.get $results) (i32.const 1))))
+                      (else (struct.new $Flonum
+                                        (i32.const 0)
+                                        (f64.convert_i32_u (local.get $results))))))]
                [(list 'f64) ; to flonum
                 `(return
                   (struct.new $Flonum (i32.const 0) (local.get $results)))]
@@ -797,6 +802,17 @@
               '(extern f64 f64 f64 f64 f64 i32)
               '())))
 
+  (define u32-result-primitive
+    (foreign->primitive
+     (foreign 'test-u32 "m" "h" '() '(u32))))
+
+  (define (contains-subform? wat needle)
+    (let loop ([x wat])
+      (cond
+        [(equal? x needle) #t]
+        [(pair? x) (ormap loop x)]
+        [else #f])))
+
   (check-equal?
    (take (collect-local-set-indices wide-ffi-primitive) 7)
    '(3 4 5 6 7 8 9))
@@ -804,7 +820,19 @@
   (check-true
    (for/and ([idx (in-list '(10 11 12 13 14 15 16))])
      (and (member idx (collect-local-set-indices wide-ffi-primitive))
-          #t))))
+          #t)))
+
+  (check-true
+   (contains-subform?
+    u32-result-primitive
+    '(i32.le_u (local.get $results) (i32.const 536870911))))
+
+  (check-true
+   (contains-subform?
+    u32-result-primitive
+    '(struct.new $Flonum
+                 (i32.const 0)
+                 (f64.convert_i32_u (local.get $results))))))
 
 ;;;
 ;;; TEST
