@@ -7,6 +7,8 @@
          ffi-core-runtime-helper-forms
          ffi-callback-global-forms
          ffi-entry-global-forms
+         ffi-console-bridge-helper-names
+         ffi-console-bridge-helper-forms
          ffi-runtime-only-helper-forms
          (struct-out runtime-ffi-state)
          make-current-runtime-ffi-state
@@ -15,6 +17,7 @@
          runtime-ffi-state-import-wrapper-helper-forms
          runtime-ffi-state-primitive-global-forms
          runtime-ffi-state-primitive-initializer-forms
+         runtime-ffi-state-unsafe-primitive-helper-forms
          runtime-ffi-state-record-metrics!
          select-active-ffi-runtime-bindings
          select-current-ffi-runtime-bindings
@@ -34,6 +37,8 @@
                   ffi-core-runtime-helper-forms
                   ffi-callback-global-forms
                   ffi-entry-global-forms
+                  ffi-console-bridge-helper-names
+                  ffi-console-bridge-helper-forms
                   ffi-runtime-only-helper-forms
                   unsafe-ffi-primitive-table-global-forms
                   unsafe-ffi-runtime-only-helper-forms)
@@ -98,6 +103,13 @@
 ;;   Initialize active FFI primitive globals as procedure values.
 (define (runtime-ffi-state-primitive-initializer-forms state)
   (runtime-ffi-primitive-initializer-forms
+   (runtime-ffi-state-active-foreigns state)))
+
+;; runtime-ffi-state-unsafe-primitive-helper-forms :
+;;   runtime-ffi-state? -> (listof datum?)
+;;   Render unsafe FFI lookup helpers for the active FFI primitive set.
+(define (runtime-ffi-state-unsafe-primitive-helper-forms state)
+  (unsafe-ffi-runtime-only-helper-forms
    (runtime-ffi-state-active-foreigns state)))
 
 ;; active-ffi-primitive-names : (listof foreign?) (listof symbol?) boolean? -> (listof symbol?)

@@ -1738,6 +1738,7 @@
          #:boundary-metadata [cached-boundary-metadata #f]
          #:initial-program-index [cached-initial-program-index #f]
          #:ffi-sidecar-forms [ffi-sidecar-forms '()]
+         #:ffi-sidecar-extra-forms [ffi-sidecar-extra-forms '()]
          #:ffi-sidecar-function-names [ffi-sidecar-function-names '()]
          #:ffi-import-module [ffi-import-module-name "ffi"]
          #:ffi-cache-key [ffi-cache-key #f])
@@ -1857,11 +1858,13 @@
     (if effective-core-cache-key
         runtime-source-index
         (build-split-form-indexes (runtime-body-forms!))))
+  (define ffi-sidecar-all-forms
+    (append ffi-sidecar-forms ffi-sidecar-extra-forms))
   (define ffi-sidecar?
-    (pair? ffi-sidecar-forms))
+    (pair? ffi-sidecar-all-forms))
   (define ffi-sidecar-index
     (and ffi-sidecar?
-         (build-split-form-indexes ffi-sidecar-forms)))
+         (build-split-form-indexes ffi-sidecar-all-forms)))
   (define ffi-sidecar-import-forms
     (if ffi-sidecar?
         (for/list ([name (in-list ffi-sidecar-function-names)])
@@ -1962,7 +1965,7 @@
               (split-form-indexes-shared-prefix-forms runtime-index)
               (split-form-indexes-shared-prefix-forms ffi-sidecar-index)))
            (define ffi-body-forms
-             (for/list ([form (in-list ffi-sidecar-forms)]
+             (for/list ([form (in-list ffi-sidecar-all-forms)]
                         #:unless (shared-program-prefix-form? form))
                form))
            (define-values (_ffi-imported-names
@@ -2369,18 +2372,26 @@
             (drop (call $js-undefined/imported))
             (drop (call $runtime-helper))
             (ref.i31 (i32.const 3)))))
+  (define ffi-sidecar-extra-forms
+    '((global $prim:js-undefined (mut i32) (i32.const 0))
+      (func $initialize-split-ffi-sidecar-primitives!
+            (global.set $prim:js-undefined (i32.const 1)))))
   (define ffi-sidecar-program-forms
     `((type $Prim0 (func (result (ref eq))))
       ,@ffi-sidecar-owned-forms
+      (global $prim:js-undefined (mut i32) (i32.const 0))
       (func $entry
             (result (ref eq))
+            (call $initialize-split-ffi-sidecar-primitives!)
             (call $js-undefined))))
 	  (define ffi-sidecar-split
 	    (split-classified-runtime-forms
 	     ffi-sidecar-runtime-forms
 	     ffi-sidecar-program-forms
 	     #:ffi-sidecar-forms ffi-sidecar-owned-forms
-	     #:ffi-sidecar-function-names '($js-undefined)
+	     #:ffi-sidecar-extra-forms ffi-sidecar-extra-forms
+	     #:ffi-sidecar-function-names
+             '($js-undefined $initialize-split-ffi-sidecar-primitives!)
 	     #:ffi-cache-key '(ffi-cache-key)))
   (define ffi-sidecar-program-module-forms
     (module-forms (split-runtime-modules-program ffi-sidecar-split)))
@@ -2393,6 +2404,13 @@
    (member '(func $js-undefined
                   (import "ffi" "$js-undefined")
                   (type $Prim0))
+           ffi-sidecar-program-module-forms))
+  (check-not-false
+   (member '(func $initialize-split-ffi-sidecar-primitives!
+                  (import "ffi" "$initialize-split-ffi-sidecar-primitives!"))
+           ffi-sidecar-program-module-forms))
+  (check-not-false
+   (member '(global $prim:js-undefined (mut i32) (i32.const 0))
            ffi-sidecar-program-module-forms))
   (check-false
    (member '(func $js-undefined/imported
@@ -2415,6 +2433,13 @@
    (member '(func $js-undefined/imported
                   (import "standard" "undefined")
                   (result externref))
+           ffi-sidecar-module-forms))
+  (check-not-false
+   (member '(global $prim:js-undefined (mut i32) (i32.const 0))
+           ffi-sidecar-module-forms))
+  (check-not-false
+   (member '(export "$initialize-split-ffi-sidecar-primitives!"
+                   (func $initialize-split-ffi-sidecar-primitives!))
            ffi-sidecar-module-forms))
 
   (check-false (split-runtime-modules-core-cache-key classified-split))
