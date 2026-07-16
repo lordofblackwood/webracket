@@ -11,10 +11,13 @@ Covered standalone or focused FFI families:
 - `audio.ffi`
 - `console.ffi`
 - `js.ffi` through `array.ffi`
+- `jsxgraph.ffi` with a mock-backed board/point fixture
 - `math.ffi`
 - `performance.ffi`
 - `standard.ffi` through browser defaults and `array.ffi`
+- `temp.ffi`
 - `websocket.ffi`
+- `xtermjs.ffi` with a mock-backed terminal/addon fixture
 
 Covered through the DOM aggregate and focused browser wrapper pages:
 
@@ -30,6 +33,7 @@ Covered through the DOM aggregate and focused browser wrapper pages:
 
 Deferred from the default browser smoke:
 
-- `temp.ffi` is a temporary benchmark-only binding.
-- `jsxgraph.ffi` needs JSXGraph host-library setup or a deliberate mock.
-- `xtermjs.ffi` needs xterm.js host-library setup or a deliberate mock.
+- Full JSXGraph integration with the real host library is not covered by the
+  mock-backed fixture.
+- Full xterm.js integration with the real host library is not covered by the
+  mock-backed fixture.
