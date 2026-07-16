@@ -103,6 +103,7 @@ compile_test_dir_case test-array.html test-array.rkt \
 compile_root_case test-js-math-ffi.html test/test-js-math-ffi.rkt
 compile_root_case test-js-performance-ffi.html test/test-js-performance-ffi.rkt
 compile_root_case test-js-temp-ffi.html test/test-js-temp-ffi.rkt
+compile_root_case test-xtermjs-missing-host-ffi.html test/test-xtermjs-missing-host-ffi.rkt
 compile_root_case test-xtermjs-ffi.html test/test-xtermjs-ffi.rkt
 compile_root_case test-jsxgraph-ffi.html test/test-jsxgraph-ffi.rkt
 compile_test_dir_case test-fetch.html test-fetch.rkt \

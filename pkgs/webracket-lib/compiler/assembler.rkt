@@ -1837,9 +1837,21 @@ function testsuite(js_value_to_fasl, fasl_to_js_value, { log = true } = {}) {
 const hasDOM = typeof document !== 'undefined' && typeof document.createTextNode === 'function';
 const hasPerformance = typeof performance !== 'undefined';
 
-// hasXterm indicates whether XTermJS is available
-// const hasXterm = typeof Terminal !== 'undefined';
-const hasXterm = true;
+function require_xterm_terminal() {
+  const TerminalCtor = globalThis.Terminal;
+  if (typeof TerminalCtor !== 'function') {
+    throw new Error('xterm.js Terminal not available in this environment');
+  }
+  return TerminalCtor;
+}
+
+function require_xterm_fit_addon() {
+  const FitAddonCtor = globalThis.FitAddon;
+  if (typeof FitAddonCtor !== 'function') {
+    throw new Error('xterm.js FitAddon not available in this environment');
+  }
+  return FitAddonCtor;
+}
 
 const websocket = new Proxy({}, {
   get(_target, prop) {

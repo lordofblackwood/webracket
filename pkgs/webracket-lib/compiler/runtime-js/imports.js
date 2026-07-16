@@ -2052,10 +2052,11 @@ var imports = {
         'toggle-attribute!'()         { throw new Error('DOM not available in this environment'); },
         'toggle-attribute'()          { throw new Error('DOM not available in this environment'); },
     },
-    'xterm-terminal': hasXterm ? {
+    'xterm-terminal': {
         'create': (options => {
+            const TerminalCtor = require_xterm_terminal();
             const opts = from_fasl(options);
-            return opts === undefined ? new Terminal() : new Terminal(opts);
+            return opts === undefined ? new TerminalCtor() : new TerminalCtor(opts);
         }),
         'buffer': (term => term.buffer),
         'cols': (term => term.cols),
@@ -2145,11 +2146,13 @@ var imports = {
                 term.writeln(d, cb);
             }
         })
-    } : new Proxy({}, { get() { throw new Error('xterm.js not available in this environment'); } }),
-    // Fir AddOn for Xtermjs
-    'xterm-fit-addon': true // hasFitAddon
-                       ? {
-        'create':   (()                => new FitAddon()),
+    },
+    // Fit AddOn for xterm.js.
+    'xterm-fit-addon': {
+        'create':   (()                => {
+            const FitAddonCtor = require_xterm_fit_addon();
+            return new FitAddonCtor();
+        }),
         'activate': ((addon, terminal) => { addon.activate(terminal); }),
         'dispose':   (addon            => { addon.dispose(); }),
         'fit':       (addon            => { addon.fit(); }),
@@ -2167,7 +2170,7 @@ var imports = {
             };
             return to_fasl(alist);
         })
-    } : new Proxy({}, { get() { throw new Error('xterm.js fit addon not available in this environment'); } }),
+    },
     // JSXGraph Board
     'jsx-board': hasDOM ? {
         'init-board':                ((containerId, attrs) => JXG.JSXGraph.initBoard(from_fasl(containerId), from_fasl(attrs))),

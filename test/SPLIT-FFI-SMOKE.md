@@ -17,7 +17,7 @@ Covered standalone or focused FFI families:
 - `standard.ffi` through browser defaults and `array.ffi`
 - `temp.ffi`
 - `websocket.ffi`
-- `xtermjs.ffi` with a mock-backed terminal/addon fixture
+- `xtermjs.ffi` with missing-host and mock-backed terminal/addon fixtures
 
 Covered through the DOM aggregate and focused browser wrapper pages:
 
