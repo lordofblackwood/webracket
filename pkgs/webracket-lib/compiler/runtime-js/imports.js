@@ -17,6 +17,13 @@ function wrap_ffi_host_exceptions(fn) {
   };
 }
 
+const ffiExceptionBridgeSkipModules =
+  new Set(['env', 'primitives', 'math', 'char', 'core', 'provider', 'ffi']);
+
+function is_ffi_exception_bridge_module(moduleName) {
+  return !ffiExceptionBridgeSkipModules.has(moduleName);
+}
+
 function install_ffi_exception_bridge(imports) {
   // IMPORTANT:
   // Wrap only user FFI modules here (the modules loaded from `.ffi` files).
@@ -28,9 +35,8 @@ function install_ffi_exception_bridge(imports) {
   // with a `(catch $ffi-host-exn ...)` path. If we also wrapped core modules,
   // internal runtime errors would be rethrown as foreign-call exceptions and
   // could bypass the intended internal error handling/debug flow.
-  const skipModules = new Set(['env', 'primitives', 'math', 'char']);
   for (const [moduleName, table] of Object.entries(imports)) {
-    if (skipModules.has(moduleName)) {
+    if (!is_ffi_exception_bridge_module(moduleName)) {
       continue;
     }
     if (!table || typeof table !== 'object') {
@@ -40,6 +46,47 @@ function install_ffi_exception_bridge(imports) {
       const value = table[key];
       if (typeof value === 'function') {
         table[key] = wrap_ffi_host_exceptions(value);
+      }
+    }
+  }
+}
+
+function assert_ffi_exception_bridge_visible_imports(module, imports, label) {
+  const required = new Map();
+  for (const spec of WebAssembly.Module.imports(module)) {
+    if (spec.kind !== 'function' || !is_ffi_exception_bridge_module(spec.module)) {
+      continue;
+    }
+    if (!required.has(spec.module)) {
+      required.set(spec.module, new Set());
+    }
+    required.get(spec.module).add(spec.name);
+  }
+
+  for (const [moduleName, names] of required.entries()) {
+    const table = imports[moduleName];
+    if (!table || typeof table !== 'object') {
+      throw new Error(
+        `FFI import table '${moduleName}' required by ${label} must be an object`
+      );
+    }
+    const prototype = Object.getPrototypeOf(table);
+    if (prototype !== Object.prototype && prototype !== null) {
+      throw new Error(
+        `FFI import table '${moduleName}' required by ${label} must be a plain object`
+      );
+    }
+    for (const name of names) {
+      const descriptor = Object.getOwnPropertyDescriptor(table, name);
+      if (!descriptor || !descriptor.enumerable) {
+        throw new Error(
+          `FFI import '${moduleName}.${name}' required by ${label} must be an own enumerable function so host exceptions can be bridged`
+        );
+      }
+      if (typeof table[name] !== 'function') {
+        throw new Error(
+          `FFI import '${moduleName}.${name}' required by ${label} must be a function`
+        );
       }
     }
   }

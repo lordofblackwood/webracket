@@ -127,8 +127,10 @@
                                           [provider-entry #f])
   (cond
     [core-buffer-name
-     @~a{const coreRuntimeModule = await WebAssembly.instantiate(@|core-buffer-name|, imports);
-splitRuntimeCoreExports = coreRuntimeModule.instance.exports;
+     @~a{const coreRuntimeModule = await WebAssembly.compile(@|core-buffer-name|);
+assert_ffi_exception_bridge_visible_imports(coreRuntimeModule, imports, "split core runtime");
+const coreRuntimeInstance = await WebAssembly.instantiate(coreRuntimeModule, imports);
+splitRuntimeCoreExports = coreRuntimeInstance.exports;
 imports["core"] = splitRuntimeCoreExports;
 @|(if provider-imports-from-core?
       "imports[\"provider\"] = splitRuntimeCoreExports;\n"
@@ -152,8 +154,10 @@ splitRuntimeCoreExports["$initialize-split-runtime-after-ffi!"]();
 
 (define (split-ffi-runtime-instantiation ffi-buffer-name)
   (if ffi-buffer-name
-      @~a{const ffiRuntimeModule = await WebAssembly.instantiate(@|ffi-buffer-name|, imports);
-const splitRuntimeFfiExports = ffiRuntimeModule.instance.exports;
+      @~a{const ffiRuntimeModule = await WebAssembly.compile(@|ffi-buffer-name|);
+assert_ffi_exception_bridge_visible_imports(ffiRuntimeModule, imports, "split FFI runtime");
+const ffiRuntimeInstance = await WebAssembly.instantiate(ffiRuntimeModule, imports);
+const splitRuntimeFfiExports = ffiRuntimeInstance.exports;
 imports["ffi"] = splitRuntimeFfiExports;
 
 }
@@ -2237,10 +2241,12 @@ let splitRuntimeCoreExports = {};
    #:provider-entry core-provider-entry)|
 @|(split-ffi-runtime-instantiation ffi-buffer-name)|
 
+const programModule = await WebAssembly.compile(wasmBuffer);
+assert_ffi_exception_bridge_visible_imports(programModule, imports, "program module");
 const wasmModule
       = await WebAssembly
-      .instantiate(wasmBuffer, imports)
-      .then(results  => { const programExports = results.instance.exports;
+      .instantiate(programModule, imports)
+      .then(instance => { const programExports = instance.exports;
                           const { entry, get_bytes, copy_bytes_to_memory } = programExports;
                           const callback = programExports.callback ?? splitRuntimeCoreExports.callback;
                           const callback_accepts_argc =
