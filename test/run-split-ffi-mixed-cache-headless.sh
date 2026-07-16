@@ -100,6 +100,8 @@ compile_test_dir_case test-console.html test-console.rkt \
   --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/console.ffi"
 compile_test_dir_case test-array.html test-array.rkt \
   --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/array.ffi"
+compile_root_case test-js-math-ffi.html test/test-js-math-ffi.rkt
+compile_root_case test-js-performance-ffi.html test/test-js-performance-ffi.rkt
 compile_test_dir_case test-fetch.html test-fetch.rkt \
   --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/dom.ffi"
 compile_test_dir_case test-storage.html test-storage.rkt \
