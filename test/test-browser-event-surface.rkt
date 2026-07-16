@@ -2,7 +2,14 @@
 
 (require browser/event)
 
-(list
+(define (all-procedures? xs)
+  (cond
+    [(null? xs) #t]
+    [(procedure? (car xs)) (all-procedures? (cdr xs))]
+    [else #f]))
+
+(all-procedures?
+ (list
  event?
  message-event?
  close-event?
@@ -62,4 +69,4 @@
  touch-page-x
  touch-page-y
  touch-screen-x
- touch-screen-y)
+ touch-screen-y))

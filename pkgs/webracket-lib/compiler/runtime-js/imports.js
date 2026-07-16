@@ -45,6 +45,17 @@ function install_ffi_exception_bridge(imports) {
   }
 }
 
+function call_console_fallback(name, fallbackName, args) {
+  const method = typeof console[name] === 'function'
+    ? console[name]
+    : fallbackName && typeof console[fallbackName] === 'function'
+      ? console[fallbackName]
+      : null;
+  if (method) {
+    return method.apply(console, args);
+  }
+}
+
 var imports = {
     // Core Wasm runtime imports.
     'env': {
@@ -636,11 +647,11 @@ var imports = {
       'dir':                       (args => console.dir(...(from_fasl(args) || []))),
       'dirxml':                    (args => {
                                      const as = from_fasl(args) || [];
-                                     (console.dirxml || console.log)(...(as));
+                                     call_console_fallback('dirxml', 'log', as);
                                    }),
       'table':                     (args => {
                                      const as = from_fasl(args) || [];
-                                     (console.table || console.log)(...(as));
+                                     call_console_fallback('table', 'log', as);
                                    }),
       'group':                     (args => console.group(...(from_fasl(args) || []))),
       'group-collapsed':           (args => console.groupCollapsed(...(from_fasl(args) || []))),
@@ -648,16 +659,16 @@ var imports = {
       'count':                     (args => console.count(...(from_fasl(args) || []))),
       'count-reset':               (args => {
                                      const as = from_fasl(args) || [];
-                                     (console.countReset || console.count)(...(as));
+                                     call_console_fallback('countReset', 'count', as);
                                    }),
       'time':                      (args => console.time(...(from_fasl(args) || []))),
       'time-end':                  (args => console.timeEnd(...(from_fasl(args) || []))),
       'time-log':                  (args => console.timeLog(...(from_fasl(args) || []))),
-      'time-stamp':                (args => (console.timeStamp || (() => {}))(...(from_fasl(args) || []))),
+      'time-stamp':                (args => call_console_fallback('timeStamp', null, from_fasl(args) || [])),
       'trace':                     (args => console.trace(...(from_fasl(args) || []))),
-      'profile':                   (args => (console.profile || (() => {}))(...(from_fasl(args) || []))),
-      'profile-end':               (args => (console.profileEnd || (() => {}))(...(from_fasl(args) || []))),
-      'exception':                 (args => console.error(...(from_fasl(args) || []))),
+      'profile':                   (args => call_console_fallback('profile', null, from_fasl(args) || [])),
+      'profile-end':               (args => call_console_fallback('profileEnd', null, from_fasl(args) || [])),
+      'exception':                 (args => call_console_fallback('exception', 'error', from_fasl(args) || [])),
     },
 
     // Temporary/prototype FFI.

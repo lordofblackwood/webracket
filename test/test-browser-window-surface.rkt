@@ -2,7 +2,14 @@
 
 (require browser/window)
 
-(list
+(define (all-procedures? xs)
+  (cond
+    [(null? xs) #t]
+    [(procedure? (car xs)) (all-procedures? (cdr xs))]
+    [else #f]))
+
+(all-procedures?
+ (list
  Window
  dom-window?
  dom-window-raw
@@ -105,4 +112,4 @@
  window-get-selection
  window-match-media
  window-get-computed-style
- window-structured-clone)
+ window-structured-clone))

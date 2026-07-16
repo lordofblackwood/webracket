@@ -2,7 +2,14 @@
 
 (require browser/image)
 
-(list
+(define (all-procedures? xs)
+  (cond
+    [(null? xs) #t]
+    [(procedure? (car xs)) (all-procedures? (cdr xs))]
+    [else #f]))
+
+(all-procedures?
+ (list
  image-new
  image-alt
  image-set-alt!
@@ -19,4 +26,4 @@
  image-set-loading!
  image-complete?
  image-cross-origin
- image-set-cross-origin!)
+ image-set-cross-origin!))

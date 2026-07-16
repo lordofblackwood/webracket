@@ -16,6 +16,7 @@ BASE_URL=""
 LOCAL_NODE_MODULES="${DOM_HEADLESS_NODE_MODULES:-$ROOT_DIR/.local-tools/node_modules}"
 CHROME_EXECUTABLE="${DOM_HEADLESS_EXECUTABLE:-}"
 PLAYWRIGHT_CACHE_ROOT="${PLAYWRIGHT_BROWSERS_PATH:-$HOME/Library/Caches/ms-playwright}"
+SMOKE_PAGES=()
 
 mkdir -p "$OUT_DIR" "$PROVIDER_CACHE_DIR" "$RUNTIME_PROVIDER_CACHE_DIR"
 
@@ -71,24 +72,64 @@ compile_test_dir_test() {
   echo "PASS split-ffi compile test/$file"
 }
 
-compile_test_dir_test test-audio.rkt \
+compile_root_case() {
+  local page="$1"
+  local file="$2"
+  shift 2
+  compile_root_test "$file" "$@"
+  SMOKE_PAGES+=("$page")
+}
+
+compile_test_dir_case() {
+  local page="$1"
+  local file="$2"
+  shift 2
+  compile_test_dir_test "$file" "$@"
+  SMOKE_PAGES+=("$page")
+}
+
+join_smoke_pages() {
+  local IFS=,
+  echo "${SMOKE_PAGES[*]}"
+}
+
+compile_test_dir_case test-audio.html test-audio.rkt \
   --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/audio.ffi"
-compile_test_dir_test test-fetch.rkt \
+compile_test_dir_case test-console.html test-console.rkt \
+  --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/standard.ffi" \
+  --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/console.ffi"
+compile_test_dir_case test-array.html test-array.rkt \
+  --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/array.ffi"
+compile_test_dir_case test-fetch.html test-fetch.rkt \
   --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/dom.ffi"
-compile_test_dir_test test-storage.rkt \
+compile_test_dir_case test-storage.html test-storage.rkt \
   --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/dom.ffi"
-compile_test_dir_test test-websocket.rkt \
+compile_test_dir_case test-websocket.html test-websocket.rkt \
   --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/standard.ffi" \
   --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/websocket.ffi"
-compile_test_dir_test test-indexed-db.rkt \
+compile_test_dir_case test-indexed-db.html test-indexed-db.rkt \
   --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/dom.ffi"
-compile_root_test test/test-js-string-symbol-ffi.rkt \
+compile_test_dir_case test-dom-facade.html test-dom-facade.rkt \
   --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/dom.ffi"
-compile_root_test test/test-browser-canvas-draw-image-integers.rkt \
+compile_root_case test-js-string-symbol-ffi.html test/test-js-string-symbol-ffi.rkt \
   --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/dom.ffi"
-compile_root_test test/test-dom-window-document.rkt \
+compile_root_case test-browser-canvas-draw-image-integers.html test/test-browser-canvas-draw-image-integers.rkt \
   --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/dom.ffi"
-compile_root_test test/test-dom-canvas-media-image.rkt \
+compile_root_case test-browser-window-surface.html test/test-browser-window-surface.rkt \
+  --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/dom.ffi"
+compile_root_case test-browser-event-surface.html test/test-browser-event-surface.rkt \
+  --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/dom.ffi"
+compile_root_case test-browser-canvas-surface.html test/test-browser-canvas-surface.rkt \
+  --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/dom.ffi"
+compile_root_case test-browser-image-surface.html test/test-browser-image-surface.rkt \
+  --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/dom.ffi"
+compile_root_case test-dom-window-document.html test/test-dom-window-document.rkt \
+  --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/dom.ffi"
+compile_root_case test-dom-event.html test/test-dom-event.rkt \
+  --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/dom.ffi"
+compile_root_case test-dom-image.html test/test-dom-image.rkt \
+  --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/dom.ffi"
+compile_root_case test-dom-canvas-media-image.html test/test-dom-canvas-media-image.rkt \
   --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/dom.ffi"
 
 if ! command -v node >/dev/null 2>&1; then
@@ -151,7 +192,7 @@ fi
 SMOKE_BASE_URL="$BASE_URL" \
 SMOKE_NODE_MODULES="$LOCAL_NODE_MODULES" \
 SMOKE_CHROME_EXECUTABLE="$CHROME_EXECUTABLE" \
-SMOKE_TESTS="test-js-string-symbol-ffi.html,test-browser-canvas-draw-image-integers.html,test-dom-window-document.html,test-dom-canvas-media-image.html,test-audio.html,test-fetch.html,test-storage.html,test-websocket.html,test-indexed-db.html" \
+SMOKE_TESTS="$(join_smoke_pages)" \
 node "$SCRIPT_DIR/run-dom-headless.mjs"
 
 echo "PASS split-ffi mixed-cache browser smoke"
