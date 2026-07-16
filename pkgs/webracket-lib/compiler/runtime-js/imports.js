@@ -2173,7 +2173,7 @@ var imports = {
     },
     // JSXGraph Board
     'jsx-board': hasDOM ? {
-        'init-board':                ((containerId, attrs) => JXG.JSXGraph.initBoard(from_fasl(containerId), from_fasl(attrs))),
+        'init-board':                ((containerId, attrs) => require_jsxgraph_api().initBoard(from_fasl(containerId), from_fasl(attrs))),
         'create':                    ((board, elementType, parents, attrs) => board.create(from_fasl(elementType), from_fasl(parents), from_fasl(attrs))),
         'create-point':              ((board, parents, attrs) => board.create('point', from_fasl(parents), from_fasl(attrs))),
         'create-line':               ((board, parents, attrs) => board.create('line', from_fasl(parents), from_fasl(attrs))),
@@ -2887,7 +2887,7 @@ var imports = {
     },
     // JSXGraph Point
     'jsx-point': hasDOM ? {
-        'is-point':                    (v => boolean_to_i32(JXG.isPoint(v))),
+        'is-point':                    (v => boolean_to_i32(require_jsxgraph_is_point()(v))),
         'attractor-distance':          (pt => pt.attractorDistance),
         'set-attractor-distance!':     ((pt, d) => { pt.attractorDistance = d; }),
         'attractors':                  (pt => pt.attractors),

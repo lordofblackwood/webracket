@@ -1853,6 +1853,22 @@ function require_xterm_fit_addon() {
   return FitAddonCtor;
 }
 
+function require_jsxgraph_api() {
+  const JXGValue = globalThis.JXG;
+  if (!JXGValue || !JXGValue.JSXGraph || typeof JXGValue.JSXGraph.initBoard !== 'function') {
+    throw new Error('JSXGraph JXG.JSXGraph not available in this environment');
+  }
+  return JXGValue.JSXGraph;
+}
+
+function require_jsxgraph_is_point() {
+  const JXGValue = globalThis.JXG;
+  if (!JXGValue || typeof JXGValue.isPoint !== 'function') {
+    throw new Error('JSXGraph JXG.isPoint not available in this environment');
+  }
+  return JXGValue.isPoint.bind(JXGValue);
+}
+
 const websocket = new Proxy({}, {
   get(_target, prop) {
     if (typeof globalThis.WebSocket === 'undefined') {

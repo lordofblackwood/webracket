@@ -11,7 +11,7 @@ Covered standalone or focused FFI families:
 - `audio.ffi`
 - `console.ffi`
 - `js.ffi` through `array.ffi`
-- `jsxgraph.ffi` with a mock-backed board/point fixture
+- `jsxgraph.ffi` with missing-host and mock-backed board/point fixtures
 - `math.ffi`
 - `performance.ffi`
 - `standard.ffi` through browser defaults and `array.ffi`
