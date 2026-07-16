@@ -21737,7 +21737,9 @@
                             (delay (strip (force core)))
                             (strip core))]
                   [program (strip (split-runtime-modules-program x))]
-                  [import-forms (strip (split-runtime-modules-import-forms x))])]
+                  [import-forms (strip (split-runtime-modules-import-forms x))]
+                  [ffi-module (strip (split-runtime-modules-ffi-module x))]
+                  [ffi-cache-key (strip (split-runtime-modules-ffi-cache-key x))])]
     [(pair? x)     (cons (strip (car x))
                          (strip (cdr x)))]
     [(null? x)     '()]

@@ -52,6 +52,7 @@
    split-runtime-core-url                  ; browser URL for a prewarmed split runtime wasm, or #f
    split-runtime-core-only?                ; split only registered core-runtime helpers
    split-runtime-provider-runtime?         ; merge module-bridge providers into the split runtime
+   split-runtime-ffi-module?               ; place direct split FFI wrappers in an FFI Wasm sidecar
    letrec-strategy                        ; letrec lowering strategy symbol
    print-top-level-results?               ; print top-level results for script-style runs
    internal-bind-treelist-debug-shape?    ; internal treelist shape debug hook
@@ -106,6 +107,7 @@
     (split-runtime-core-url . ,(webracket-compile-config-split-runtime-core-url cfg))
     (split-runtime-core-only? . ,(webracket-compile-config-split-runtime-core-only? cfg))
     (split-runtime-provider-runtime? . ,(webracket-compile-config-split-runtime-provider-runtime? cfg))
+    (split-runtime-ffi-module? . ,(webracket-compile-config-split-runtime-ffi-module? cfg))
     (letrec-strategy . ,(webracket-compile-config-letrec-strategy cfg))
     (print-top-level-results? . ,(webracket-compile-config-print-top-level-results? cfg))
     (internal-bind-treelist-debug-shape? . ,(webracket-compile-config-internal-bind-treelist-debug-shape? cfg))
@@ -167,6 +169,7 @@
    (ref/default 'split-runtime-core-url #f)
    (ref/default 'split-runtime-core-only? #f)
    (ref/default 'split-runtime-provider-runtime? #f)
+   (ref/default 'split-runtime-ffi-module? #f)
    (ref 'letrec-strategy)
    (ref 'print-top-level-results?)
    (ref 'internal-bind-treelist-debug-shape?)
@@ -221,6 +224,7 @@
   (define split-runtime-core-url #f)
   (define split-runtime-core-only? #f)
   (define split-runtime-provider-runtime? #f)
+  (define split-runtime-ffi-module? #f)
   (define letrec-strategy 'waddell)
   (define print-top-level-results? #f)
   (define internal-bind-treelist-debug-shape? #f)
@@ -438,6 +442,12 @@
      [("--no-split-runtime-provider-runtime")
       "Keep module-bridge provider fragments in the program module (default)"
       (set! split-runtime-provider-runtime? #f)]
+     [("--split-runtime-ffi-module")
+      "In split-runtime mode, emit active direct FFI wrappers as an FFI Wasm sidecar"
+      (set! split-runtime-ffi-module? #t)]
+     [("--no-split-runtime-ffi-module")
+      "Keep active direct FFI wrappers in the program module (default)"
+      (set! split-runtime-ffi-module? #f)]
      [("--letrec-basic") "Use the basic letrec lowering strategy"
                          (set! letrec-strategy 'basic)]
      [("--letrec-waddell") "Use the Waddell letrec lowering strategy"
@@ -600,6 +610,7 @@
        split-runtime-core-url
        split-runtime-core-only?
        split-runtime-provider-runtime?
+       split-runtime-ffi-module?
        letrec-strategy
        print-top-level-results?
        internal-bind-treelist-debug-shape?
@@ -670,6 +681,8 @@
                        (webracket-compile-config-split-runtime-core-only? cfg)
                        #:split-runtime-provider-runtime?
                        (webracket-compile-config-split-runtime-provider-runtime? cfg)
+                       #:split-runtime-ffi-module?
+                       (webracket-compile-config-split-runtime-ffi-module? cfg)
                        #:print-top-level-results? (webracket-compile-config-print-top-level-results? cfg)
                        #:internal-bind-treelist-debug-shape?
                        (webracket-compile-config-internal-bind-treelist-debug-shape? cfg)
@@ -753,7 +766,8 @@
     (check-false (webracket-compile-config-split-runtime-cache-reference? cfg))
     (check-false (webracket-compile-config-split-runtime-core-url cfg))
     (check-false (webracket-compile-config-split-runtime-core-only? cfg))
-    (check-false (webracket-compile-config-split-runtime-provider-runtime? cfg)))
+    (check-false (webracket-compile-config-split-runtime-provider-runtime? cfg))
+    (check-false (webracket-compile-config-split-runtime-ffi-module? cfg)))
 
   ;; check-split-runtime-disabled : webracket-compile-config? -> void?
   ;;   Check that split runtime is fully disabled.
@@ -762,7 +776,8 @@
     (check-false (webracket-compile-config-split-runtime-cache-reference? cfg))
     (check-false (webracket-compile-config-split-runtime-core-url cfg))
     (check-false (webracket-compile-config-split-runtime-core-only? cfg))
-    (check-false (webracket-compile-config-split-runtime-provider-runtime? cfg)))
+    (check-false (webracket-compile-config-split-runtime-provider-runtime? cfg))
+    (check-false (webracket-compile-config-split-runtime-ffi-module? cfg)))
 
   (test-case "compile mode is split-runtime sidecar by default"
     (define cfg (parse-compile-config '("source.rkt")))
@@ -782,6 +797,7 @@
          "--split-runtime-core-url" "/runtime.wasm"
          "--split-runtime-core-only"
          "--split-runtime-provider-runtime"
+         "--split-runtime-ffi-module"
          "source.rkt")))
     (check-true (webracket-compile-config-split-runtime? cfg))
     (check-true (webracket-compile-config-split-runtime-cache-reference? cfg))
@@ -789,6 +805,7 @@
                   "/runtime.wasm")
     (check-true (webracket-compile-config-split-runtime-core-only? cfg))
     (check-true (webracket-compile-config-split-runtime-provider-runtime? cfg))
+    (check-true (webracket-compile-config-split-runtime-ffi-module? cfg))
 
     (define round-tripped (datum->compile-config (compile-config->datum cfg)))
     (check-true (webracket-compile-config-split-runtime? round-tripped))
@@ -800,6 +817,8 @@
     (check-true (webracket-compile-config-split-runtime-core-only?
                  round-tripped))
     (check-true (webracket-compile-config-split-runtime-provider-runtime?
+                 round-tripped))
+    (check-true (webracket-compile-config-split-runtime-ffi-module?
                  round-tripped)))
 
   (test-case "legacy compile-config datums default split-runtime fields"
@@ -809,7 +828,8 @@
         split-runtime-cache-reference?
         split-runtime-core-url
         split-runtime-core-only?
-        split-runtime-provider-runtime?))
+        split-runtime-provider-runtime?
+        split-runtime-ffi-module?))
     (define legacy-datum
       (for/list ([entry (in-list (compile-config->datum cfg))]
                  #:unless (memq (car entry) split-runtime-keys))

@@ -71,6 +71,8 @@
                   split-runtime-modules-core
                   split-runtime-modules-core-module
                   split-runtime-modules-core-cache-key
+                  split-runtime-modules-ffi-cache-key
+                  split-runtime-modules-ffi-module
                   split-runtime-modules-import-forms
                   split-runtime-modules-imported-names
                   split-runtime-modules-program)
@@ -99,6 +101,10 @@
                    split-runtime-core-cache-wasm-path/cache-root]
                   [split-runtime-core-cache-wat-path
                    split-runtime-core-cache-wat-path/cache-root]
+                  [split-runtime-ffi-cache-wasm-path
+                   split-runtime-ffi-cache-wasm-path/cache-root]
+                  [split-runtime-ffi-cache-wat-path
+                   split-runtime-ffi-cache-wat-path/cache-root]
                   make-split-runtime-core-only-cache-key)
          (only-in "runtime-wasm/runtime-source.rkt"
                   runtime-source-fingerprint)
@@ -133,6 +139,7 @@
                                     current-split-runtime?
                                     current-split-runtime-reference-only?
                                     current-split-runtime-ffi-in-core?
+                                    current-split-runtime-ffi-module?
                                     current-split-runtime-program-only-fast-path?)
          (only-in "private/timings.rkt"
                   now-ms
@@ -1854,7 +1861,9 @@
    program-wat
    (split-runtime-modules-imported-names split-modules)
    (split-runtime-modules-import-forms split-modules)
-   (split-runtime-modules-core-cache-key split-modules)))
+   (split-runtime-modules-core-cache-key split-modules)
+   (split-runtime-modules-ffi-module split-modules)
+   (split-runtime-modules-ffi-cache-key split-modules)))
 
 ;; module-bridge-graph-metric-rows : graph composition -> (listof (list/c string? any/c))
 ;;   Summarize bridge scaffolding and graph shape before the main compiler pipeline.
@@ -3965,6 +3974,16 @@
 (define (split-runtime-wasm-path out-wasm)
   (path-replace-extension+suffix out-wasm ".runtime" ".wasm"))
 
+;; split-runtime-ffi-wat-path : path-string? -> path?
+;;   Return the sidecar WAT path for a split FFI module.
+(define (split-runtime-ffi-wat-path out-wat)
+  (path-replace-extension+suffix out-wat ".ffi" ".wat"))
+
+;; split-runtime-ffi-wasm-path : path-string? -> path?
+;;   Return the sidecar Wasm path for a split FFI module.
+(define (split-runtime-ffi-wasm-path out-wasm)
+  (path-replace-extension+suffix out-wasm ".ffi" ".wasm"))
+
 ;; split-runtime-core-cache-wasm-path : string? -> path?
 ;;   Return the stable cache path for an assembled split core runtime module.
 (define (split-runtime-core-cache-wasm-path fingerprint)
@@ -3976,6 +3995,21 @@
 ;;   Return the stable cache path for a rendered split core runtime WAT module.
 (define (split-runtime-core-cache-wat-path fingerprint pretty-wat?)
   (split-runtime-core-cache-wat-path/cache-root
+   (current-runtime-cache-dir)
+   fingerprint
+   pretty-wat?))
+
+;; split-runtime-ffi-cache-wasm-path : string? -> path?
+;;   Return the stable cache path for an assembled split FFI sidecar module.
+(define (split-runtime-ffi-cache-wasm-path fingerprint)
+  (split-runtime-ffi-cache-wasm-path/cache-root
+   (current-runtime-cache-dir)
+   fingerprint))
+
+;; split-runtime-ffi-cache-wat-path : string? boolean? -> path?
+;;   Return the stable cache path for a rendered split FFI sidecar WAT module.
+(define (split-runtime-ffi-cache-wat-path fingerprint pretty-wat?)
+  (split-runtime-ffi-cache-wat-path/cache-root
    (current-runtime-cache-dir)
    fingerprint
    pretty-wat?))
@@ -4121,6 +4155,103 @@
                             runtime-wasm
                             cache-wasm-path)))])))]))
 
+;; assemble-split-runtime-ffi/cached! :
+;;   list? path-string? path-string? boolean?
+;;   (list? path-string? path-string? -> boolean?)
+;;   [#:cache-key any/c]
+;;   [#:record-timing! (string? real? -> any/c)]
+;;   -> boolean?
+;;   Assemble or materialize the split FFI sidecar using the runtime cache.
+(define (assemble-split-runtime-ffi/cached! ffi-module
+                                            ffi-wat
+                                            ffi-wasm
+                                            pretty-wat?
+                                            assemble-module!
+                                            #:cache-key [cache-key #f]
+                                            #:record-timing!
+                                            [record-timing! void])
+  (define (time-ffi-cache-step label thunk)
+    (define start-ms (now-ms))
+    (begin0
+      (thunk)
+      (record-timing! label (- (now-ms) start-ms))))
+  (define fingerprint
+    (if cache-key
+        (time-ffi-cache-step
+         "split-runtime-ffi:stable-cache-key"
+         (lambda ()
+           (split-runtime-core-cache-key-fingerprint cache-key)))
+        (time-ffi-cache-step
+         "split-runtime-ffi:fingerprint"
+         (lambda ()
+           (split-runtime-core-fingerprint ffi-module)))))
+  (define cache-wasm-path (split-runtime-ffi-cache-wasm-path fingerprint))
+  (define cache-wat-path (split-runtime-ffi-cache-wat-path fingerprint
+                                                           pretty-wat?))
+  (define (cache-hit? path)
+    (and (not (current-provider-cache-force?))
+         (file-exists? path)))
+  (define (cache-ffi-wat!)
+    (make-directory* (path-only cache-wat-path))
+    (time-ffi-cache-step
+     "split-runtime-ffi:cache-wat-copy"
+     (lambda ()
+       (copy-file/replace! ffi-wat cache-wat-path))))
+  (define (write-ffi-wat!)
+    (time-ffi-cache-step
+     "split-runtime-ffi:write-wat"
+     (lambda ()
+       (write-wat-to-file ffi-wat ffi-module #:pretty? pretty-wat?))))
+  (define (materialize-ffi-wat!)
+    (cond
+      [(cache-hit? cache-wat-path)
+       (time-ffi-cache-step
+        "split-runtime-ffi:materialize-wat-hit"
+        (lambda ()
+          (copy-file/replace! cache-wat-path ffi-wat)))]
+      [else
+       (provider-cache-log "split runtime ffi wat miss; writing: ~a"
+                           cache-wat-path)
+       (write-ffi-wat!)
+       (cache-ffi-wat!)]))
+  (define (cached-ffi-hit!)
+    (time-ffi-cache-step
+     "split-runtime-ffi:materialize-wasm-hit"
+     (lambda ()
+       (copy-file/replace! cache-wasm-path ffi-wasm)))
+    (materialize-ffi-wat!)
+    #t)
+  (cond
+    [(cache-hit? cache-wasm-path)
+     (provider-cache-log "split runtime ffi wasm hit: ~a" cache-wasm-path)
+     (cached-ffi-hit!)]
+    [else
+     (call-with-provider-cache-lock
+      cache-wasm-path
+      (lambda ()
+        (cond
+          [(cache-hit? cache-wasm-path)
+           (provider-cache-log "split runtime ffi wasm hit: ~a"
+                               cache-wasm-path)
+           (cached-ffi-hit!)]
+          [else
+           (provider-cache-log "split runtime ffi wasm miss; assembling: ~a"
+                               cache-wasm-path)
+           (write-ffi-wat!)
+           (define assembled?
+             (time-ffi-cache-step
+              "split-runtime-ffi:assemble-wasm"
+              (lambda ()
+                (assemble-module! ffi-module ffi-wat ffi-wasm))))
+           (when assembled?
+             (make-directory* (path-only cache-wasm-path))
+             (time-ffi-cache-step
+              "split-runtime-ffi:cache-wasm-copy"
+              (lambda ()
+                (copy-file/replace! ffi-wasm cache-wasm-path)))
+             (cache-ffi-wat!))
+           assembled?])))]))
+
 ;; host-wasm-reference : boolean? path-string? path-string? -> path-string?
 ;;   Return the Wasm path as the generated host should reference it.
 (define (host-wasm-reference browser? out-host out-wasm)
@@ -4166,6 +4297,7 @@
          #:split-runtime-core-url [split-runtime-core-url #f]
          #:split-runtime-core-only? [split-runtime-core-only? #f]
          #:split-runtime-provider-runtime? [split-runtime-provider-runtime? #f]
+         #:split-runtime-ffi-module? [split-runtime-ffi-module? #f]
          ;; Program Debug
          #:print-top-level-results? print-top-level-results?
          #:internal-bind-treelist-debug-shape? internal-bind-treelist-debug-shape?
@@ -4197,6 +4329,7 @@
   (define exit-code       0)
   (define compile-timings #f)
   (define split-runtime-core-timing-rows '())
+  (define split-runtime-ffi-timing-rows '())
   (define t-driver-start (now-ms))
   (current-source-module-language #f)
   (current-source-module-provider-names #f)
@@ -4516,6 +4649,15 @@
   (when (and split-runtime-provider-runtime? (not module-input?))
     (error 'drive-compilation
            "`--split-runtime-provider-runtime` requires #lang webracket/base or #lang webracket/full module input"))
+  (when (and split-runtime-ffi-module? (not split-runtime?))
+    (error 'drive-compilation
+           "`--split-runtime-ffi-module` requires `--split-runtime`"))
+  (when (and split-runtime-ffi-module? split-runtime-core-only?)
+    (error 'drive-compilation
+           "`--split-runtime-ffi-module` cannot be combined with `--split-runtime-core-only`"))
+  (when (and split-runtime-ffi-module? split-runtime-provider-runtime?)
+    (error 'drive-compilation
+           "`--split-runtime-ffi-module` cannot be combined with `--split-runtime-provider-runtime` yet"))
 
   ; Preflight: `-r` in Node mode requires a Node.js executable.
   (when (and node? run-after?)
@@ -4535,6 +4677,12 @@
   (define out-host (compilation-output-paths-host output-paths))
   (define runtime-wat  (and split-runtime? (split-runtime-wat-path out-wat)))
   (define runtime-wasm (and split-runtime? (split-runtime-wasm-path out-wasm)))
+  (define ffi-wat
+    (and split-runtime? split-runtime-ffi-module?
+         (split-runtime-ffi-wat-path out-wat)))
+  (define ffi-wasm
+    (and split-runtime? split-runtime-ffi-module?
+         (split-runtime-ffi-wasm-path out-wasm)))
 
   ; Preflight: ensure output files do not collide.
   (ensure-distinct-output-files!
@@ -4547,6 +4695,10 @@
     (if (and split-runtime? (not split-runtime-core-url))
         (list (cons "split runtime WAT output file" runtime-wat)
               (cons "split runtime Wasm output file" runtime-wasm))
+        '())
+    (if ffi-wat
+        (list (cons "split FFI WAT output file" ffi-wat)
+              (cons "split FFI Wasm output file" ffi-wasm))
         '())))
 
   ; Preflight: ensure output locations are writable.
@@ -4557,6 +4709,9 @@
   (when (and split-runtime? (not split-runtime-core-url))
     (ensure-output-path-writable! 'drive-compilation runtime-wat "split runtime WAT output file")
     (ensure-output-path-writable! 'drive-compilation runtime-wasm "split runtime Wasm output file"))
+  (when ffi-wat
+    (ensure-output-path-writable! 'drive-compilation ffi-wat "split FFI WAT output file")
+    (ensure-output-path-writable! 'drive-compilation ffi-wasm "split FFI Wasm output file"))
   
   ; Preflight: ensure wasm-tools exists and can run.
   (initialize-assembler-environment!
@@ -4629,6 +4784,8 @@
                              split-runtime-core-url))]
                    [current-split-runtime-ffi-in-core?
                     split-runtime-ffi-in-core?]
+                   [current-split-runtime-ffi-module?
+                    split-runtime-ffi-module?]
                    [current-split-runtime-program-only-fast-path?
                     allow-split-program-only-fast-path?])
       (comp stx-to-compile)))
@@ -4776,10 +4933,12 @@
                   merged-core-cache-key)
        (split-runtime-modules
         merged-core-promise
-        stripped-program-wat
-        (split-runtime-modules-imported-names effective-program-compiled)
-        (split-runtime-modules-import-forms effective-program-compiled)
-        merged-core-cache-key)]
+       stripped-program-wat
+       (split-runtime-modules-imported-names effective-program-compiled)
+       (split-runtime-modules-import-forms effective-program-compiled)
+        merged-core-cache-key
+        (split-runtime-modules-ffi-module effective-program-compiled)
+        (split-runtime-modules-ffi-cache-key effective-program-compiled))]
       [else
        (define splice-start (now-ms))
        (define-values (spliced-program-wat splice-info)
@@ -4819,6 +4978,9 @@
     (if split-runtime?
         (split-runtime-modules-program split-modules)
         compiled-module))
+  (define split-ffi-module
+    (and split-runtime?
+         (split-runtime-modules-ffi-module split-modules)))
   (when (and split-runtime? verbose?)
     (displayln
      (format "Split runtime imports: ~a runtime definitions"
@@ -4861,8 +5023,24 @@
                  (cons (list label elapsed-ms)
                        split-runtime-core-timing-rows))))
         (values #t #f)))
+  (define split-runtime-ffi-success?
+    (if split-ffi-module
+        (assemble-split-runtime-ffi/cached!
+         split-ffi-module
+         ffi-wat
+         ffi-wasm
+         pretty-wat?
+         assemble-module!
+         #:cache-key (split-runtime-modules-ffi-cache-key split-modules)
+         #:record-timing!
+         (lambda (label elapsed-ms)
+           (set! split-runtime-ffi-timing-rows
+                 (cons (list label elapsed-ms)
+                       split-runtime-ffi-timing-rows))))
+        #t))
   (define wat->wasm-success?
     (and split-runtime-core-success?
+         split-runtime-ffi-success?
          (assemble-module! program-wat out-wat out-wasm)))
   (unless wat->wasm-success?
     (error 'drive-compilation
@@ -4872,6 +5050,9 @@
              (not split-runtime-cache-reference?)
              (not split-runtime-core-url))
     (ensure-generated-file-exists! 'drive-compilation runtime-wasm "split runtime Wasm bytecode file"))
+  (when split-ffi-module
+    (ensure-generated-file-exists! 'drive-compilation ffi-wat "split FFI WAT output file")
+    (ensure-generated-file-exists! 'drive-compilation ffi-wasm "split FFI Wasm bytecode file"))
   (define t-assemble-end (now-ms))
 
   ; 7b. Write label map sidecar
@@ -4893,10 +5074,14 @@
               browser?
               out-host
               (or split-runtime-core-reference-path runtime-wasm)))))
+  (define split-runtime-ffi-wasm-reference
+    (and split-ffi-module
+         (host-wasm-reference browser? out-host ffi-wasm)))
   (with-output-to-file out-host
     (λ () (displayln
            (runtime #:out runtime-wasm-reference
                     #:core-out split-runtime-wasm-reference
+                    #:ffi-out split-runtime-ffi-wasm-reference
                     #:core-provider-imports-from-core?
                     split-runtime-provider-runtime?
                     #:core-initialize? #f
@@ -4959,6 +5144,8 @@
     (define module-bridge-detail-rows (reverse (current-module-bridge-detail-rows)))
     (define split-runtime-core-detail-rows
       (reverse split-runtime-core-timing-rows))
+    (define split-runtime-ffi-detail-rows
+      (reverse split-runtime-ffi-timing-rows))
     (define driver-rows
       (append
        (list (list "ffi-setup"        ffi-setup-ms)
@@ -5013,6 +5200,14 @@
         (append split-runtime-core-detail-rows
                 (list (list "total"
                             (for/sum ([row (in-list split-runtime-core-detail-rows)])
+                              (second row))))))))
+    (when (pair? split-runtime-ffi-detail-rows)
+      (displayln "=== Split Runtime FFI Cache Details ===")
+      (displayln
+       (format-timing-table
+        (append split-runtime-ffi-detail-rows
+                (list (list "total"
+                            (for/sum ([row (in-list split-runtime-ffi-detail-rows)])
                               (second row))))))))
     (when (pair? split-runtime-provider-fragment-timing-rows)
       (displayln "=== Split Runtime Provider Fragment Details ===")

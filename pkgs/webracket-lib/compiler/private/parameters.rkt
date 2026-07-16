@@ -26,6 +26,7 @@
          current-split-runtime?
          current-split-runtime-reference-only?
          current-split-runtime-ffi-in-core?
+         current-split-runtime-ffi-module?
          current-split-runtime-program-only-fast-path?
          current-imported-top-level-global-module-name
          current-imported-top-level-globals
@@ -86,6 +87,8 @@
   (make-parameter #f))                                 ; boolean? split runtime core will not be materialized
 (define current-split-runtime-ffi-in-core?
   (make-parameter #f))                                 ; boolean? keep direct split FFI wrappers in runtime
+(define current-split-runtime-ffi-module?
+  (make-parameter #f))                                 ; boolean? place direct split FFI wrappers in an FFI sidecar module
 (define current-split-runtime-program-only-fast-path?
   (make-parameter #t))                                 ; boolean? allow warm split compiles to reuse boundary metadata only
 (define current-imported-top-level-global-module-name

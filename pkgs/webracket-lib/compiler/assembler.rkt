@@ -118,17 +118,57 @@
 ;; The only difference is that Node uses `fs.readFile` to load the wasm
 ;; and the browser needs to fetch it.
 
-(define (split-core-runtime-instantiation core-buffer-name)
-  (if core-buffer-name
-      @~a{const coreRuntimeModule = await WebAssembly.instantiate(@|core-buffer-name|, imports);
-imports["core"] = coreRuntimeModule.instance.exports;
+(define (split-core-runtime-instantiation core-buffer-name
+                                          #:provider-imports-from-core?
+                                          [provider-imports-from-core? #f]
+                                          #:initialize-core?
+                                          [initialize-core? #f]
+                                          #:provider-entry
+                                          [provider-entry #f])
+  (cond
+    [core-buffer-name
+     @~a{const coreRuntimeModule = await WebAssembly.instantiate(@|core-buffer-name|, imports);
+splitRuntimeCoreExports = coreRuntimeModule.instance.exports;
+imports["core"] = splitRuntimeCoreExports;
+@|(if provider-imports-from-core?
+      "imports[\"provider\"] = splitRuntimeCoreExports;\n"
+      "")|@|(if initialize-core?
+              @~a{splitRuntimeCoreExports["$initialize-split-runtime-before-constants!"]();
+splitRuntimeCoreExports["$initialize-split-runtime-constants!"]();
+splitRuntimeCoreExports["$initialize-split-runtime-after-constants!"]();
+splitRuntimeCoreExports["$initialize-unsafe-ffi-primitive-table"]();
+splitRuntimeCoreExports["$initialize-split-runtime-after-ffi!"]();
+}
+              "")|@|(if provider-entry
+                       @~a{splitRuntimeCoreExports[@|(jsexpr->string provider-entry)|]();
+}
+                       "")|
+
+}]
+    [(or provider-imports-from-core? initialize-core? provider-entry)
+     (error 'runtime
+            "core provider options require a split runtime core output")]
+    [else ""]))
+
+(define (split-ffi-runtime-instantiation ffi-buffer-name)
+  (if ffi-buffer-name
+      @~a{const ffiRuntimeModule = await WebAssembly.instantiate(@|ffi-buffer-name|, imports);
+const splitRuntimeFfiExports = ffiRuntimeModule.instance.exports;
+imports["ffi"] = splitRuntimeFfiExports;
 
 }
       ""))
 
 (define (runtime-common #:console-bridge? [console-bridge? #f]
                         #:browser?        [browser? #f]
-                        #:core-buffer-name [core-buffer-name #f])
+                        #:core-buffer-name [core-buffer-name #f]
+                        #:ffi-buffer-name [ffi-buffer-name #f]
+                        #:core-provider-imports-from-core?
+                        [core-provider-imports-from-core? #f]
+                        #:core-initialize? [core-initialize? #f]
+                        #:core-provider-entry [core-provider-entry #f])
+  (when (and ffi-buffer-name (not core-buffer-name))
+    (error 'runtime "FFI sidecar output requires a split runtime core output"))
   @~a{
 var memory = new WebAssembly.Memory({initial:1024});
 // Static host bridge scratch map. Keep this in sync with runtime-wasm.rkt.
@@ -2174,21 +2214,39 @@ function install_console_bridge(exports) {
 }
 
 @|runtime-js-imports|
-@|(split-core-runtime-instantiation core-buffer-name)|
+let splitRuntimeCoreExports = {};
+@|(split-core-runtime-instantiation
+   core-buffer-name
+   #:provider-imports-from-core? core-provider-imports-from-core?
+   #:initialize-core? core-initialize?
+   #:provider-entry core-provider-entry)|
+@|(split-ffi-runtime-instantiation ffi-buffer-name)|
 
 const wasmModule
       = await WebAssembly
       .instantiate(wasmBuffer, imports)
-      .then(results  => { const { entry, get_bytes, copy_bytes_to_memory, callback,
-                                  ['callback-accepts-argc']: callback_accepts_argc,
-                                  ['callback-expected-arity']: callback_expected_arity,
-                                  ['callback-name']: callback_name,
-                                  ['callback-debug-id']: callback_debug_id,
-                                  ['wr-ref']: wr_ref,
-                                  ['wr-call']: wr_call,
-                                  ['wr-names']: wr_names,
-                                  ['wr-names-detailed']: wr_names_detailed,
-                                  ['wr-format']: wr_format } = results.instance.exports;
+      .then(results  => { const programExports = results.instance.exports;
+                          const { entry, get_bytes, copy_bytes_to_memory } = programExports;
+                          const callback = programExports.callback ?? splitRuntimeCoreExports.callback;
+                          const callback_accepts_argc =
+                            programExports['callback-accepts-argc'] ??
+                            splitRuntimeCoreExports['callback-accepts-argc'];
+                          const callback_expected_arity =
+                            programExports['callback-expected-arity'] ??
+                            splitRuntimeCoreExports['callback-expected-arity'];
+                          const callback_name =
+                            programExports['callback-name'] ??
+                            splitRuntimeCoreExports['callback-name'];
+                          const callback_debug_id =
+                            programExports['callback-debug-id'] ??
+                            splitRuntimeCoreExports['callback-debug-id'];
+                          const wr_ref = programExports['wr-ref'] ?? splitRuntimeCoreExports['wr-ref'];
+                          const wr_call = programExports['wr-call'] ?? splitRuntimeCoreExports['wr-call'];
+                          const wr_names = programExports['wr-names'] ?? splitRuntimeCoreExports['wr-names'];
+                          const wr_names_detailed =
+                            programExports['wr-names-detailed'] ??
+                            splitRuntimeCoreExports['wr-names-detailed'];
+                          const wr_format = programExports['wr-format'] ?? splitRuntimeCoreExports['wr-format'];
                           callback_export = callback;
                           callback_accepts_argc_export = callback_accepts_argc;
                           callback_expected_arity_export = callback_expected_arity;
@@ -2299,6 +2357,11 @@ const wasmModule
 
 (define (node-runtime out.wasm
                       #:core-out [core-out #f]
+                      #:ffi-out [ffi-out #f]
+                      #:core-provider-imports-from-core?
+                      [core-provider-imports-from-core? #f]
+                      #:core-initialize? [core-initialize? #f]
+                      #:core-provider-entry [core-provider-entry #f]
                       #:console-bridge? [console-bridge? #f]
                       #:vfs-preloads [vfs-preloads '()]
                       #:vfs-mounts [vfs-mounts '()])
@@ -2310,40 +2373,57 @@ const wasmModule
             @~a{const coreWasmBuffer = await fs.readFile("@|core-out|");
             }
             "")|
+      @|(if ffi-out
+            @~a{const ffiWasmBuffer = await fs.readFile("@|ffi-out|");
+            }
+            "")|
       @|(vfs-mount-manifest-assignment vfs-mounts)|
       @|(vfs-preload-manifest-assignment vfs-preloads)|
       
       @(runtime-common #:console-bridge? console-bridge? #:browser? #f
-                       #:core-buffer-name (and core-out "coreWasmBuffer"))
+                       #:core-buffer-name (and core-out "coreWasmBuffer")
+                       #:ffi-buffer-name (and ffi-out "ffiWasmBuffer")
+                       #:core-provider-imports-from-core?
+                       core-provider-imports-from-core?
+                       #:core-initialize? core-initialize?
+                       #:core-provider-entry core-provider-entry)
 })
 
-(define (browser-core-wasm-loader core-out)
-  (if core-out
-      @~a{const coreWasmUrl = "@|core-out|";
-       const coreWasmResponse = await fetch(coreWasmUrl);
-       if (!coreWasmResponse.ok) {
+(define (browser-sidecar-wasm-loader label out buffer-name)
+  (if out
+      @~a{const @|label|WasmUrl = "@|out|";
+       const @|label|WasmResponse = await fetch(@|label|WasmUrl);
+       if (!@|label|WasmResponse.ok) {
          throw new Error(
-           `Failed to fetch core wasm '${coreWasmUrl}' (HTTP ${coreWasmResponse.status} ${coreWasmResponse.statusText}).`
+           `Failed to fetch @|label| wasm '${@|label|WasmUrl}' (HTTP ${@|label|WasmResponse.status} ${@|label|WasmResponse.statusText}).`
          );
        }
-       const coreWasmBuffer = await coreWasmResponse.arrayBuffer();
-       const coreWasmBytes = new Uint8Array(coreWasmBuffer);
-       const isCoreWasmMagic =
-         coreWasmBytes.length >= 4 &&
-         coreWasmBytes[0] === 0x00 &&
-         coreWasmBytes[1] === 0x61 &&
-         coreWasmBytes[2] === 0x73 &&
-         coreWasmBytes[3] === 0x6d;
-       if (!isCoreWasmMagic) {
+       const @|buffer-name| = await @|label|WasmResponse.arrayBuffer();
+       const @|label|WasmBytes = new Uint8Array(@|buffer-name|);
+       const is@|label|WasmMagic =
+         @|label|WasmBytes.length >= 4 &&
+         @|label|WasmBytes[0] === 0x00 &&
+         @|label|WasmBytes[1] === 0x61 &&
+         @|label|WasmBytes[2] === 0x73 &&
+         @|label|WasmBytes[3] === 0x6d;
+       if (!is@|label|WasmMagic) {
          throw new Error(
-           `Fetched core wasm '${coreWasmUrl}' but content is not a WebAssembly binary (missing magic 00 61 73 6d).`
+           `Fetched @|label| wasm '${@|label|WasmUrl}' but content is not a WebAssembly binary (missing magic 00 61 73 6d).`
          );
        }
        }
       ""))
 
+(define (browser-core-wasm-loader core-out)
+  (browser-sidecar-wasm-loader "core" core-out "coreWasmBuffer"))
+
 (define (browser-runtime out.wasm
                          #:core-out [core-out #f]
+                         #:ffi-out [ffi-out #f]
+                         #:core-provider-imports-from-core?
+                         [core-provider-imports-from-core? #f]
+                         #:core-initialize? [core-initialize? #f]
+                         #:core-provider-entry [core-provider-entry #f]
                          #:console-bridge? [console-bridge? #f]
                          #:vfs-preloads [vfs-preloads '()]
                          #:vfs-mounts [vfs-mounts '()])
@@ -2380,10 +2460,16 @@ const wasmModule
          );
        }
        @|(browser-core-wasm-loader core-out)|
+       @|(browser-sidecar-wasm-loader "ffi" ffi-out "ffiWasmBuffer")|
        @|(vfs-mount-manifest-assignment vfs-mounts)|
        @|(vfs-preload-manifest-assignment vfs-preloads)|
        @(runtime-common #:console-bridge? console-bridge? #:browser? #t
-                        #:core-buffer-name (and core-out "coreWasmBuffer"))
+                        #:core-buffer-name (and core-out "coreWasmBuffer")
+                        #:ffi-buffer-name (and ffi-out "ffiWasmBuffer")
+                        #:core-provider-imports-from-core?
+                        core-provider-imports-from-core?
+                        #:core-initialize? core-initialize?
+                        #:core-provider-entry core-provider-entry)
        </script>
      </body>
      </html>
@@ -2391,14 +2477,39 @@ const wasmModule
 
 (define (runtime #:out  [out.wasm "out.wasm"]
                  #:core-out [core-out #f]
+                 #:ffi-out [ffi-out #f]
+                 #:core-provider-imports-from-core?
+                 [core-provider-imports-from-core? #f]
+                 #:core-initialize? [core-initialize? #f]
+                 #:core-provider-entry [core-provider-entry #f]
                  #:host [host 'node]
                  #:console-bridge? [console-bridge? #f]
                  #:vfs-preloads [vfs-preloads '()]
                  #:vfs-mounts [vfs-mounts '()])
   (validate-vfs-manifest-interactions! vfs-preloads vfs-mounts)
   (case host
-    [(node)    (node-runtime    out.wasm #:core-out core-out #:console-bridge? console-bridge? #:vfs-preloads vfs-preloads #:vfs-mounts vfs-mounts)]
-    [(browser) (browser-runtime out.wasm #:core-out core-out #:console-bridge? console-bridge? #:vfs-preloads vfs-preloads #:vfs-mounts vfs-mounts)]
+    [(node)
+     (node-runtime out.wasm
+                   #:core-out core-out
+                   #:ffi-out ffi-out
+                   #:core-provider-imports-from-core?
+                   core-provider-imports-from-core?
+                   #:core-initialize? core-initialize?
+                   #:core-provider-entry core-provider-entry
+                   #:console-bridge? console-bridge?
+                   #:vfs-preloads vfs-preloads
+                   #:vfs-mounts vfs-mounts)]
+    [(browser)
+     (browser-runtime out.wasm
+                      #:core-out core-out
+                      #:ffi-out ffi-out
+                      #:core-provider-imports-from-core?
+                      core-provider-imports-from-core?
+                      #:core-initialize? core-initialize?
+                      #:core-provider-entry core-provider-entry
+                      #:console-bridge? console-bridge?
+                      #:vfs-preloads vfs-preloads
+                      #:vfs-mounts vfs-mounts)]
     [else      (error 'runtime (format "unknown host ~a" host))]))
 
 (module+ test
@@ -2408,8 +2519,25 @@ const wasmModule
     (runtime #:out "out.wasm" #:host 'browser #:console-bridge? #f))
   (define node-runtime/split
     (runtime #:out "program.wasm" #:core-out "runtime.wasm" #:host 'node))
+  (define node-runtime/ffi-split
+    (runtime #:out "program.wasm"
+             #:core-out "runtime.wasm"
+             #:ffi-out "ffi.wasm"
+             #:host 'node))
+  (define node-runtime/provider-split
+    (runtime #:out "program.wasm"
+             #:core-out "runtime.wasm"
+             #:core-provider-imports-from-core? #t
+             #:core-initialize? #t
+             #:core-provider-entry "provider-entry"
+             #:host 'node))
   (define browser-runtime/split
     (runtime #:out "program.wasm" #:core-out "runtime.wasm" #:host 'browser))
+  (define browser-runtime/ffi-split
+    (runtime #:out "program.wasm"
+             #:core-out "runtime.wasm"
+             #:ffi-out "ffi.wasm"
+             #:host 'browser))
 
   (check-true  (regexp-match? #rx"globalThis\\.WR" browser-runtime/bridge))
   (check-true  (regexp-match? #rx"console_bridge_enabled = true" browser-runtime/bridge))
@@ -2422,9 +2550,19 @@ const wasmModule
   (check-true  (regexp-match? #rx"WebRacket console bridge ready" browser-runtime/bridge))
   (check-false (regexp-match? #rx"console_bridge_enabled = true" browser-runtime/plain))
   (check-true  (regexp-match? #rx"coreWasmBuffer = await fs\\.readFile\\(\"runtime\\.wasm\"\\)" node-runtime/split))
-  (check-true  (regexp-match? #rx"imports\\[\"core\"\\] = coreRuntimeModule\\.instance\\.exports" node-runtime/split))
+  (check-true  (regexp-match? #rx"splitRuntimeCoreExports = coreRuntimeModule\\.instance\\.exports" node-runtime/split))
+  (check-true  (regexp-match? #rx"imports\\[\"core\"\\] = splitRuntimeCoreExports" node-runtime/split))
+  (check-false (regexp-match? #rx"imports\\[\"provider\"\\]" node-runtime/split))
+  (check-true  (regexp-match? #rx"ffiWasmBuffer = await fs\\.readFile\\(\"ffi\\.wasm\"\\)" node-runtime/ffi-split))
+  (check-true  (regexp-match? #rx"imports\\[\"ffi\"\\] = splitRuntimeFfiExports" node-runtime/ffi-split))
+  (check-true  (regexp-match? #rx"imports\\[\"provider\"\\] = splitRuntimeCoreExports" node-runtime/provider-split))
+  (check-true  (regexp-match? #rx"\\$initialize-split-runtime-before-constants!" node-runtime/provider-split))
+  (check-true  (regexp-match? #rx"\\$initialize-unsafe-ffi-primitive-table" node-runtime/provider-split))
+  (check-true  (regexp-match? #rx"splitRuntimeCoreExports\\[\"provider-entry\"\\]\\(\\)" node-runtime/provider-split))
   (check-true  (regexp-match? #rx"const coreWasmUrl = \"runtime\\.wasm\"" browser-runtime/split))
   (check-true  (regexp-match? #rx"core wasm" browser-runtime/split))
+  (check-true  (regexp-match? #rx"const ffiWasmUrl = \"ffi\\.wasm\"" browser-runtime/ffi-split))
+  (check-true  (regexp-match? #rx"ffi wasm" browser-runtime/ffi-split))
 
   (define runtime/preload
     (runtime #:out "out.wasm"

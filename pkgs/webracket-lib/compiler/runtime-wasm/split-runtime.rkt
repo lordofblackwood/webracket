@@ -50,10 +50,13 @@
 ;; rewritten program module that imports selected helper functions from it.
 ;; core-cache-key is #f unless the producer can prove that the runtime side is
 ;; stable enough to cache without hashing the generated module tree.
+;; ffi-cache-key is #f unless the optional FFI sidecar module has a stable
+;; cache key.
 ;; When a cache key is present, `core` may be a promise so warm cache hits can
 ;; avoid constructing the runtime module tree.
 (struct split-runtime-modules
-  (core program imported-names import-forms core-cache-key)
+  (core program imported-names import-forms core-cache-key ffi-module
+        ffi-cache-key)
   #:transparent)
 
 ;; default-core-module-sentinel : symbol?
@@ -988,6 +991,19 @@
     (hash-set! seen form #t)
     form))
 
+;; remove-sidecar-owned-forms : (listof datum?) (listof datum?) -> (listof datum?)
+;;   Drop forms that are owned by a sidecar module.
+(define (remove-sidecar-owned-forms forms sidecar-forms)
+  (cond
+    [(null? sidecar-forms) forms]
+    [else
+     (define sidecar-form-set
+       (for/hash ([form (in-list sidecar-forms)])
+         (values form #t)))
+     (for/list ([form (in-list forms)]
+                #:unless (hash-ref sidecar-form-set form #f))
+       form)]))
+
 ;; declare-elem-form? : any/c -> boolean?
 ;;   Check whether form is an `elem declare funcref` declaration.
 (define (declare-elem-form? form)
@@ -1706,7 +1722,9 @@
            imported-global-names
            imported-tag-names)
    import-forms
-   core-cache-key))
+   core-cache-key
+   #f
+   #f))
 
 ;; split-classified-runtime-forms :
 ;;   (or/c (listof datum?) #f) (listof datum?) [#:import-module string?]
@@ -1718,7 +1736,11 @@
          #:import-module [import-module-name "core"]
          #:core-cache-key [core-cache-key #f]
          #:boundary-metadata [cached-boundary-metadata #f]
-         #:initial-program-index [cached-initial-program-index #f])
+         #:initial-program-index [cached-initial-program-index #f]
+         #:ffi-sidecar-forms [ffi-sidecar-forms '()]
+         #:ffi-sidecar-function-names [ffi-sidecar-function-names '()]
+         #:ffi-import-module [ffi-import-module-name "ffi"]
+         #:ffi-cache-key [ffi-cache-key #f])
   (define boundary-metadata
     (or cached-boundary-metadata
         (if runtime-forms
@@ -1784,12 +1806,14 @@
   (define program-forms
     (prune-unreferenced-constant-forms
      program-forms-without-runtime-owned-constant-globals))
+  (define sidecar-program-forms
+    (remove-sidecar-owned-forms program-forms ffi-sidecar-forms))
   (define program-index
-    (build-split-form-indexes program-forms))
+    (build-split-form-indexes sidecar-program-forms))
   (define program-owned-prefix-forms
     (split-form-indexes-shared-prefix-forms program-index))
   (define program-body-forms
-    (for/list ([form (in-list program-forms)]
+    (for/list ([form (in-list sidecar-program-forms)]
                #:unless (shared-program-prefix-form? form))
       form))
   (define pulled-runtime-data-forms
@@ -1833,6 +1857,24 @@
     (if effective-core-cache-key
         runtime-source-index
         (build-split-form-indexes (runtime-body-forms!))))
+  (define ffi-sidecar?
+    (pair? ffi-sidecar-forms))
+  (define ffi-sidecar-index
+    (and ffi-sidecar?
+         (build-split-form-indexes ffi-sidecar-forms)))
+  (define ffi-sidecar-import-forms
+    (if ffi-sidecar?
+        (for/list ([name (in-list ffi-sidecar-function-names)])
+          (define form
+            (hash-ref (split-form-indexes-function-defs ffi-sidecar-index)
+                      name
+                      #f))
+          (unless form
+            (error 'split-classified-runtime-forms
+                   "FFI sidecar function missing from sidecar forms: ~a"
+                   name))
+          (runtime-function-import-form form #:module ffi-import-module-name))
+        '()))
   (define-values (imported-names import-forms export-forms program-data-forms)
     (if effective-core-cache-key
         (classified-runtime-import/export+data-forms
@@ -1864,7 +1906,7 @@
   (define program-available-function-names
     (for/fold ([names (hash-copy (split-form-indexes-function-names
                                   program-index))])
-              ([form (in-list import-forms)]
+              ([form (in-list (append import-forms ffi-sidecar-import-forms))]
                #:do [(define name (module-func-name form))]
                #:when name)
       (hash-set! names name #t)
@@ -1878,7 +1920,8 @@
   (define program-supplemental-elem-forms
     (supplemental-declare-elem-forms
      program-elem-forms
-     (direct-ref-func-names program-forms program-available-function-names)))
+     (direct-ref-func-names sidecar-program-forms
+                            program-available-function-names)))
   (define program-prefix-forms
     (append-unique-forms
      (split-form-indexes-shared-prefix-forms runtime-index)
@@ -1886,6 +1929,7 @@
   (define final-program-forms
     (append program-prefix-forms
             import-forms
+            ffi-sidecar-import-forms
             program-data-forms
             program-body-forms
             program-elem-forms
@@ -1910,6 +1954,55 @@
        ,@runtime-supplemental-elem-forms
        ,@(or export-forms
              (runtime-index-export-forms runtime-index))))
+  (define (ffi-sidecar-module)
+    (and ffi-sidecar?
+         (let ()
+           (define ffi-prefix-forms
+             (append-unique-forms
+              (split-form-indexes-shared-prefix-forms runtime-index)
+              (split-form-indexes-shared-prefix-forms ffi-sidecar-index)))
+           (define ffi-body-forms
+             (for/list ([form (in-list ffi-sidecar-forms)]
+                        #:unless (shared-program-prefix-form? form))
+               form))
+           (define-values (_ffi-imported-names
+                           ffi-core-import-forms
+                           _ffi-export-forms
+                           ffi-data-forms)
+             (classified-runtime-import/export+data-forms
+              runtime-index
+              ffi-body-forms
+              ffi-sidecar-index
+              #:module import-module-name
+              #:export-all? #t
+              #:build-export-forms? #f))
+           (define ffi-available-function-names
+             (for/fold ([names (hash-copy
+                                (split-form-indexes-function-names
+                                 ffi-sidecar-index))])
+                       ([form (in-list ffi-core-import-forms)]
+                        #:do [(define name (module-func-name form))]
+                        #:when name)
+               (hash-set! names name #t)
+               names))
+           (define ffi-elem-forms
+             (reverse
+              (declare-elem-forms-for-names declare-elem-forms
+                                            ffi-available-function-names)))
+           (define ffi-supplemental-elem-forms
+             (supplemental-declare-elem-forms
+              ffi-elem-forms
+              (direct-ref-func-names ffi-body-forms
+                                     ffi-available-function-names)))
+           `(module
+              ,@ffi-prefix-forms
+              ,@ffi-core-import-forms
+              ,@ffi-data-forms
+              ,@ffi-body-forms
+              ,@ffi-elem-forms
+              ,@ffi-supplemental-elem-forms
+              ,@(map runtime-function-export-form
+                     ffi-sidecar-function-names)))))
   (split-runtime-modules
    (if effective-core-cache-key
        (delay (runtime-core-module))
@@ -1917,7 +2010,9 @@
    `(module ,@final-program-forms)
    imported-names
    import-forms
-   effective-core-cache-key))
+   effective-core-cache-key
+   (ffi-sidecar-module)
+   (and ffi-sidecar? ffi-cache-key)))
 
 ;; split-classified-runtime-module :
 ;;   datum? #:program-function-names (listof symbol?) #:result-global symbol?
@@ -2258,6 +2353,70 @@
     (reverse classified-runtime-forms/reversed)
     (reverse classified-program-forms/reversed))
    classified-split)
+
+  (define ffi-sidecar-runtime-forms
+    '((type $Prim0 (func (result (ref eq))))
+      (func $runtime-helper
+            (result i32)
+            (i32.const 42))))
+  (define ffi-sidecar-owned-forms
+    '((func $js-undefined/imported
+            (import "standard" "undefined")
+            (result externref))
+      (func $js-undefined
+            (type $Prim0)
+            (result (ref eq))
+            (drop (call $js-undefined/imported))
+            (drop (call $runtime-helper))
+            (ref.i31 (i32.const 3)))))
+  (define ffi-sidecar-program-forms
+    `((type $Prim0 (func (result (ref eq))))
+      ,@ffi-sidecar-owned-forms
+      (func $entry
+            (result (ref eq))
+            (call $js-undefined))))
+	  (define ffi-sidecar-split
+	    (split-classified-runtime-forms
+	     ffi-sidecar-runtime-forms
+	     ffi-sidecar-program-forms
+	     #:ffi-sidecar-forms ffi-sidecar-owned-forms
+	     #:ffi-sidecar-function-names '($js-undefined)
+	     #:ffi-cache-key '(ffi-cache-key)))
+  (define ffi-sidecar-program-module-forms
+    (module-forms (split-runtime-modules-program ffi-sidecar-split)))
+	  (define ffi-sidecar-module-forms
+	    (module-forms (split-runtime-modules-ffi-module ffi-sidecar-split)))
+	  (check-not-false (split-runtime-modules-ffi-module ffi-sidecar-split))
+	  (check-equal? (split-runtime-modules-ffi-cache-key ffi-sidecar-split)
+	                '(ffi-cache-key))
+  (check-not-false
+   (member '(func $js-undefined
+                  (import "ffi" "$js-undefined")
+                  (type $Prim0))
+           ffi-sidecar-program-module-forms))
+  (check-false
+   (member '(func $js-undefined/imported
+                  (import "standard" "undefined")
+                  (result externref))
+           ffi-sidecar-program-module-forms))
+  (check-false
+   (for/or ([form (in-list ffi-sidecar-program-module-forms)])
+     (and (equal? (module-func-name form) '$js-undefined)
+          (not (function-import-form? form)))))
+  (check-not-false
+   (member '(func $runtime-helper
+                  (import "core" "$runtime-helper")
+                  (result i32))
+           ffi-sidecar-module-forms))
+  (check-not-false
+   (member '(export "$js-undefined" (func $js-undefined))
+           ffi-sidecar-module-forms))
+  (check-not-false
+   (member '(func $js-undefined/imported
+                  (import "standard" "undefined")
+                  (result externref))
+           ffi-sidecar-module-forms))
+
   (check-false (split-runtime-modules-core-cache-key classified-split))
   (check-equal?
    (split-runtime-modules-core-cache-key

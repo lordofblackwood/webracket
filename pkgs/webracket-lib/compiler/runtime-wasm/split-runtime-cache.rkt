@@ -1,21 +1,26 @@
 #lang racket/base
 
 (provide split-runtime-core-cache-directory
+         split-runtime-ffi-cache-directory
          split-runtime-boundary-cache-directory
          split-runtime-boundary-cache-version
          split-runtime-core-fingerprint
          split-runtime-core-cache-key-fingerprint
          split-runtime-core-cache-wasm-path
          split-runtime-core-cache-wat-path
+         split-runtime-ffi-cache-wasm-path
+         split-runtime-ffi-cache-wat-path
          split-runtime-boundary-cache-path
          split-runtime-boundary-cache-current?
          cacheable-datum
          cached-datum->value
          split-runtime-request-cache-fingerprint
          make-split-runtime-core-cache-key
+         make-split-runtime-ffi-cache-key
          make-split-runtime-core-only-cache-key)
 
 (require (only-in "../private/structs.rkt"
+                  foreign
                   foreign-racket-name)
          (only-in "../private/wasm-data.rkt"
                   wasm-data
@@ -36,6 +41,11 @@
 ;;   Stable cache directory for assembled/rendered split runtime modules.
 (define split-runtime-core-cache-directory
   "split-runtime-core-v3")
+
+;; split-runtime-ffi-cache-directory : string?
+;;   Stable cache directory for assembled/rendered split FFI sidecar modules.
+(define split-runtime-ffi-cache-directory
+  "split-runtime-ffi-v1")
 
 ;; split-runtime-boundary-cache-directory : string?
 ;;   Stable cache directory for split-boundary metadata.
@@ -134,6 +144,22 @@
                       fingerprint
                       (if pretty-wat? "pretty" "compact"))))
 
+;; split-runtime-ffi-cache-wasm-path : path-string? string? -> path?
+;;   Return the stable cache path for an assembled split FFI sidecar module.
+(define (split-runtime-ffi-cache-wasm-path cache-root fingerprint)
+  (build-path cache-root
+              split-runtime-ffi-cache-directory
+              (format "~a.wasm" fingerprint)))
+
+;; split-runtime-ffi-cache-wat-path : path-string? string? boolean? -> path?
+;;   Return the stable cache path for a rendered split FFI sidecar WAT module.
+(define (split-runtime-ffi-cache-wat-path cache-root fingerprint pretty-wat?)
+  (build-path cache-root
+              split-runtime-ffi-cache-directory
+              (format "~a.~a.wat"
+                      fingerprint
+                      (if pretty-wat? "pretty" "compact"))))
+
 ;; split-runtime-boundary-cache-path : path-string? any/c -> path?
 ;;   Return the cache path for split-runtime boundary metadata.
 (define (split-runtime-boundary-cache-path cache-root core-cache-key)
@@ -189,6 +215,22 @@
     2
     ,(if tree-shake? 'tree-shake 'no-tree-shake)
     ,request-fingerprint))
+
+;; make-split-runtime-ffi-cache-key :
+;;   any/c (listof foreign?) list? list? (listof symbol?) -> list?
+;;   Build the stable cache key for the split FFI sidecar module.
+(define (make-split-runtime-ffi-cache-key core-cache-key
+                                          active-ffi-foreigns
+                                          active-ffi-imports-wat
+                                          active-ffi-funcs-wat
+                                          ffi-function-names)
+  `(split-runtime-ffi-cache
+    1
+    ,core-cache-key
+    ,(sort (map foreign-racket-name active-ffi-foreigns) symbol<?)
+    ,(cacheable-datum active-ffi-imports-wat)
+    ,(cacheable-datum active-ffi-funcs-wat)
+    ,(sort ffi-function-names symbol<?)))
 
 ;; make-split-runtime-core-only-cache-key : any/c -> list?
 ;;   Build the stable cache key for the core-helper-only split-runtime module.
@@ -258,6 +300,31 @@
   (check-equal?
    (split-runtime-core-cache-wat-path "/tmp/cache" "abc" #t)
    (build-path "/tmp/cache" split-runtime-core-cache-directory "abc.pretty.wat"))
+  (check-equal?
+   (split-runtime-ffi-cache-wasm-path "/tmp/cache" "abc")
+   (build-path "/tmp/cache" split-runtime-ffi-cache-directory "abc.wasm"))
+  (check-equal?
+   (split-runtime-ffi-cache-wat-path "/tmp/cache" "abc" #f)
+   (build-path "/tmp/cache" split-runtime-ffi-cache-directory "abc.compact.wat"))
+  (check-equal?
+   (make-split-runtime-ffi-cache-key
+    sample-core-cache-key
+    (list (foreign 'js-b 'host 'b '() '())
+          (foreign 'js-a 'host 'a '() '()))
+    '((func $js-b/imported (import "host" "b"))
+      (func $js-a/imported (import "host" "a")))
+    '((func $js-b)
+      (func $js-a))
+    '($js-b $js-a))
+   `(split-runtime-ffi-cache
+     1
+     ,sample-core-cache-key
+     (js-a js-b)
+     ((func $js-b/imported (import "host" "b"))
+      (func $js-a/imported (import "host" "a")))
+     ((func $js-b)
+      (func $js-a))
+     ($js-a $js-b)))
   (check-equal?
    (split-runtime-boundary-cache-path "/tmp/cache" sample-core-cache-key)
    (build-path "/tmp/cache"

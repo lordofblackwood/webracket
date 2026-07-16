@@ -15,7 +15,10 @@
                   current-split-runtime?
                   current-split-runtime-reference-only?
                   current-split-runtime-ffi-in-core?
+                  current-split-runtime-ffi-module?
                   current-split-runtime-program-only-fast-path?)
+         (only-in "private/structs.rkt"
+                  foreign-argument-types)
          (only-in "private/wasm-utils.rkt"
                   $
                   prim:)
@@ -61,6 +64,7 @@
                   runtime-ffi-state-primitive-global-forms
                   runtime-ffi-state-primitive-initializer-forms
                   runtime-ffi-state-record-metrics!
+                  select-current-ffi-runtime-bindings
                   unsafe-ffi-primitive-table-global-forms)
          (only-in "runtime-wasm/runtime-metrics.rkt"
                   runtime-metric-add!
@@ -79,6 +83,7 @@
                   runtime-source-fingerprint)
          (only-in "runtime-wasm/split-runtime-cache.rkt"
                   make-split-runtime-core-cache-key
+                  make-split-runtime-ffi-cache-key
                   split-runtime-core-cache-key-fingerprint
                   split-runtime-core-cache-wasm-path)
          (only-in "webify/provider-cache.rkt"
@@ -487,10 +492,30 @@
     (define ffi-global->symbol
       (runtime-primitive-state-ffi-global->symbol primitive-state))
 
+    (define split-ffi-sidecar-candidate-foreigns
+      (let-values ([(foreigns _imports _funcs)
+                    (select-current-ffi-runtime-bindings
+                     all-ffi-foreigns
+                     used-primitives)])
+        foreigns))
+    (define split-ffi-sidecar-enabled?
+      (and (current-split-runtime?)
+           (current-split-runtime-ffi-module?)
+           (not (current-split-runtime-ffi-in-core?))
+           (not (memq 'unsafe-ffi-primitive used-primitives))
+           (and (pair? split-ffi-sidecar-candidate-foreigns)
+                (for/and ([f (in-list split-ffi-sidecar-candidate-foreigns)])
+                  (<= (length (foreign-argument-types f)) 6)))))
+    (define (split-ffi-sidecar?)
+      split-ffi-sidecar-enabled?)
     (define (split-direct-ffi-program-side?)
       (and (current-split-runtime?)
            (not (current-split-runtime-ffi-in-core?))
+           (not (split-ffi-sidecar?))
            (not (memq 'unsafe-ffi-primitive used-primitives))))
+    (define (split-ffi-program-owned?)
+      (or (split-direct-ffi-program-side?)
+          (split-ffi-sidecar?)))
 
     (define program-function-names
       (module-func-names dls))
@@ -523,7 +548,7 @@
         ;; Split program modules initialize FFI primitive procedure globals on
         ;; the program side, so their procedure names must be declared as
         ;; program-owned symbol constants too.
-        (when (split-direct-ffi-program-side?)
+        (when (split-ffi-program-owned?)
           (runtime-constant-registry-add-symbols!
            registry
            (runtime-ffi-state-active-primitive-names ffi-state)))
@@ -538,7 +563,7 @@
           (runtime-ffi-state-active-foreigns ffi-state)
           '()))
     (define (split-program-ffi-function-names)
-      (if (split-direct-ffi-program-side?)
+      (if (split-ffi-program-owned?)
           (let ([active-foreigns (runtime-ffi-state-active-foreigns ffi-state)]
                 [active-names (runtime-ffi-state-active-primitive-names ffi-state)])
             (append (map ffi-import-name active-foreigns)
@@ -550,8 +575,17 @@
           '()))
     (define (split-program-ffi-global-names)
       (for/list ([name (in-list (runtime-ffi-state-active-primitive-names ffi-state))]
-                 #:when (split-direct-ffi-program-side?))
+                 #:when (split-ffi-program-owned?))
         ($ (prim: name))))
+    (define (split-ffi-sidecar-forms)
+      (if (split-ffi-sidecar?)
+          (append (runtime-ffi-state-active-imports-wat ffi-state)
+                  (runtime-ffi-state-active-funcs-wat ffi-state))
+          '()))
+    (define (split-ffi-sidecar-function-names)
+      (if (split-ffi-sidecar?)
+          (map $ (runtime-ffi-state-active-primitive-names ffi-state))
+          '()))
     ;; Symbol and keyword tables are initialized here for interning.
     (define global-state-initializer-forms
       '((call $initialize-the-symbol-table)
@@ -736,15 +770,15 @@
     (define (build-split-program-forms)
       (append
        js-host-import-forms
-       (if (split-direct-ffi-program-side?)
+       (if (split-ffi-program-owned?)
            (runtime-ffi-state-active-imports-wat ffi-state)
            '())
-       (if (split-direct-ffi-program-side?)
+       (if (split-ffi-program-owned?)
            (runtime-ffi-state-active-funcs-wat ffi-state)
            '())
        (runtime-constant-declaration-forms program-only-constant-registry)
        top-level-variable-declarations
-       (if (split-direct-ffi-program-side?)
+       (if (split-ffi-program-owned?)
            (runtime-ffi-state-primitive-global-forms ffi-state)
            '())
        dls
@@ -782,7 +816,7 @@
          ,@(runtime-ffi-state-import-wrapper-helper-forms
             ffi-state
             #:unsafe-ffi-foreigns
-            (if (split-direct-ffi-program-side?)
+            (if (split-ffi-program-owned?)
                 '()
                 (runtime-ffi-state-active-foreigns ffi-state)))
 
@@ -2005,15 +2039,15 @@
     (runtime-metric-add! "runtime:program-primitive-count"
                          (length used-primitives))
     (define stable-runtime-active-ffi-foreigns
-      (if (split-direct-ffi-program-side?)
+      (if (split-ffi-program-owned?)
           '()
           (runtime-ffi-state-active-foreigns ffi-state)))
     (define stable-runtime-active-ffi-imports-wat
-      (if (split-direct-ffi-program-side?)
+      (if (split-ffi-program-owned?)
           '()
           (runtime-ffi-state-active-imports-wat ffi-state)))
     (define stable-runtime-active-ffi-funcs-wat
-      (if (split-direct-ffi-program-side?)
+      (if (split-ffi-program-owned?)
           '()
           (runtime-ffi-state-active-funcs-wat ffi-state)))
     (define split-runtime-request-fingerprint
@@ -2032,6 +2066,20 @@
            (make-split-runtime-core-cache-key
             (current-tree-shake?)
             split-runtime-request-fingerprint)))
+    (define split-runtime-ffi-cache-key
+      (and (split-ffi-sidecar?)
+           split-runtime-core-cache-key
+           (time-runtime-step
+            "runtime:split-ffi-cache-key"
+            (lambda ()
+              (make-split-runtime-ffi-cache-key
+               split-runtime-core-cache-key
+               (runtime-ffi-state-active-foreigns ffi-state)
+               (runtime-ffi-state-active-imports-wat ffi-state)
+               (runtime-ffi-state-active-funcs-wat ffi-state)
+               (split-ffi-sidecar-function-names))))))
+    (runtime-metric-add! "runtime:split-ffi-sidecar-cache-key?"
+                         (if split-runtime-ffi-cache-key "yes" "no"))
     ;; split-runtime-core-wasm-cache-hit? : any/c -> boolean?
     ;;   Check whether the stable split core wasm is already materialized.
     (define (split-runtime-core-wasm-cache-hit? core-cache-key)
@@ -2094,7 +2142,7 @@
       (and (current-split-runtime?)
            split-runtime-program-only-candidate?
            split-runtime-reference-compatible-now?
-           (or (split-direct-ffi-program-side?)
+           (or (split-ffi-program-owned?)
                (current-split-runtime-ffi-in-core?)
                (and (null? (runtime-ffi-state-active-foreigns ffi-state))
                     (null? (runtime-ffi-state-active-imports-wat ffi-state))
@@ -2113,9 +2161,13 @@
              (split-classified-runtime-forms
               #f
               program-forms
-              #:core-cache-key split-runtime-core-cache-key
-              #:boundary-metadata split-runtime-boundary-metadata
-              #:initial-program-index split-runtime-program-index-cache)))))]
+             #:core-cache-key split-runtime-core-cache-key
+             #:boundary-metadata split-runtime-boundary-metadata
+             #:initial-program-index split-runtime-program-index-cache
+             #:ffi-sidecar-forms (split-ffi-sidecar-forms)
+             #:ffi-sidecar-function-names
+              (split-ffi-sidecar-function-names)
+              #:ffi-cache-key split-runtime-ffi-cache-key)))))]
       [(and (current-split-runtime?)
             (current-split-runtime-reference-only?)
             (current-browser?)
@@ -2174,6 +2226,10 @@
                   (analyzed-runtime-module-runtime-forms analyzed-module)
                   (analyzed-runtime-module-program-forms analyzed-module)
                   #:core-cache-key split-runtime-core-cache-key
-                  #:boundary-metadata split-runtime-boundary-metadata)))
+                  #:boundary-metadata split-runtime-boundary-metadata
+                  #:ffi-sidecar-forms (split-ffi-sidecar-forms)
+                  #:ffi-sidecar-function-names
+                  (split-ffi-sidecar-function-names)
+                  #:ffi-cache-key split-runtime-ffi-cache-key)))
               final-module))])
     ))
