@@ -73,6 +73,15 @@ compile_test_dir_test() {
 
 compile_test_dir_test test-audio.rkt \
   --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/audio.ffi"
+compile_test_dir_test test-fetch.rkt \
+  --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/dom.ffi"
+compile_test_dir_test test-storage.rkt \
+  --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/dom.ffi"
+compile_test_dir_test test-websocket.rkt \
+  --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/standard.ffi" \
+  --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/websocket.ffi"
+compile_test_dir_test test-indexed-db.rkt \
+  --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/dom.ffi"
 compile_root_test test/test-js-string-symbol-ffi.rkt \
   --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/dom.ffi"
 compile_root_test test/test-browser-canvas-draw-image-integers.rkt \
@@ -142,7 +151,7 @@ fi
 SMOKE_BASE_URL="$BASE_URL" \
 SMOKE_NODE_MODULES="$LOCAL_NODE_MODULES" \
 SMOKE_CHROME_EXECUTABLE="$CHROME_EXECUTABLE" \
-SMOKE_TESTS="test-js-string-symbol-ffi.html,test-browser-canvas-draw-image-integers.html,test-dom-window-document.html,test-dom-canvas-media-image.html,test-audio.html" \
+SMOKE_TESTS="test-js-string-symbol-ffi.html,test-browser-canvas-draw-image-integers.html,test-dom-window-document.html,test-dom-canvas-media-image.html,test-audio.html,test-fetch.html,test-storage.html,test-websocket.html,test-indexed-db.html" \
 node "$SCRIPT_DIR/run-dom-headless.mjs"
 
 echo "PASS split-ffi mixed-cache browser smoke"

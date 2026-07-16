@@ -22,7 +22,7 @@
        (let ()
          (define req (make-fetch-request "https://example.com/fetch-test"))
          (define hdrs (make-fetch-headers))
-         (fetch-headers-set! hdrs 'x-webracket '1)
+         (fetch-headers-set! hdrs 'x-webracket "1")
          (define resp
            (fetch-response
             (js-eval "new Response('ok', {status: 201, headers: {'x-webracket': '2'}})")))
