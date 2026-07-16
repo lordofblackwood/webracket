@@ -1,0 +1,149 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+PORT="${SPLIT_FFI_MIXED_CACHE_PORT:-10041}"
+TIMEOUT_SEC="${SPLIT_FFI_MIXED_CACHE_TIMEOUT_SEC:-720}"
+RSS_LIMIT_MB="${SPLIT_FFI_MIXED_CACHE_RSS_LIMIT_MB:-3500}"
+RUN_ID="$(date +%Y%m%d-%H%M%S)-$$"
+RUN_ROOT="${SPLIT_FFI_MIXED_CACHE_TMP:-$ROOT_DIR/tmp/split-ffi-mixed-cache-headless}/$RUN_ID"
+OUT_DIR="$RUN_ROOT/out"
+PROVIDER_CACHE_DIR="$RUN_ROOT/provider-cache"
+RUNTIME_PROVIDER_CACHE_DIR="$RUN_ROOT/runtime-provider-cache"
+SERVER_LOG="$RUN_ROOT/server.log"
+BASE_URL=""
+LOCAL_NODE_MODULES="${DOM_HEADLESS_NODE_MODULES:-$ROOT_DIR/.local-tools/node_modules}"
+CHROME_EXECUTABLE="${DOM_HEADLESS_EXECUTABLE:-}"
+PLAYWRIGHT_CACHE_ROOT="${PLAYWRIGHT_BROWSERS_PATH:-$HOME/Library/Caches/ms-playwright}"
+
+mkdir -p "$OUT_DIR" "$PROVIDER_CACHE_DIR" "$RUNTIME_PROVIDER_CACHE_DIR"
+
+if [[ -z "$CHROME_EXECUTABLE" && -d "$PLAYWRIGHT_CACHE_ROOT" ]]; then
+  CHROME_EXECUTABLE="$(
+    find "$PLAYWRIGHT_CACHE_ROOT" \
+      -type f \
+      -path '*/chrome-headless-shell' \
+      2>/dev/null \
+      | sort -V \
+      | tail -n 1
+  )"
+fi
+
+compile_root_test() {
+  local file="$1"
+  shift || true
+  echo "START split-ffi compile $file"
+  python3 "$ROOT_DIR/tools/run-guarded.py" \
+    --timeout-sec "$TIMEOUT_SEC" \
+    --rss-limit-mb "$RSS_LIMIT_MB" \
+    -- \
+    racket "$ROOT_DIR/webracket.rkt" \
+      --browser \
+      --split-runtime-ffi-module \
+      --dest "$OUT_DIR" \
+      --provider-cache-dir "$PROVIDER_CACHE_DIR" \
+      --runtime-provider-cache-dir "$RUNTIME_PROVIDER_CACHE_DIR" \
+      "$@" \
+      "$ROOT_DIR/$file"
+  echo "PASS split-ffi compile $file"
+}
+
+compile_test_dir_test() {
+  local file="$1"
+  shift || true
+  echo "START split-ffi compile test/$file"
+  (
+    cd "$SCRIPT_DIR"
+    python3 "$ROOT_DIR/tools/run-guarded.py" \
+      --timeout-sec "$TIMEOUT_SEC" \
+      --rss-limit-mb "$RSS_LIMIT_MB" \
+      -- \
+      racket "$ROOT_DIR/webracket.rkt" \
+        --browser \
+        --split-runtime-ffi-module \
+        --dest "$OUT_DIR" \
+        --provider-cache-dir "$PROVIDER_CACHE_DIR" \
+        --runtime-provider-cache-dir "$RUNTIME_PROVIDER_CACHE_DIR" \
+        "$@" \
+        "$file"
+  )
+  echo "PASS split-ffi compile test/$file"
+}
+
+compile_test_dir_test test-audio.rkt \
+  --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/audio.ffi"
+compile_root_test test/test-js-string-symbol-ffi.rkt \
+  --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/dom.ffi"
+compile_root_test test/test-browser-canvas-draw-image-integers.rkt \
+  --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/dom.ffi"
+compile_root_test test/test-dom-window-document.rkt \
+  --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/dom.ffi"
+compile_root_test test/test-dom-canvas-media-image.rkt \
+  --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/dom.ffi"
+
+if ! command -v node >/dev/null 2>&1; then
+  echo "node is required for the DOM browser runner."
+  exit 2
+fi
+
+if ! command -v python3 >/dev/null 2>&1; then
+  echo "python3 is required to serve split-FFI browser tests."
+  exit 2
+fi
+
+SERVER_PID=""
+for candidate in "$PORT" 10042 10043 10044 10045 10046 10047 10048 10049 9991 9992 9993 9994 9995 9996 9997 9998 9999; do
+  : >"$SERVER_LOG"
+  python3 -m http.server "$candidate" --directory "$OUT_DIR" >"$SERVER_LOG" 2>&1 &
+  SERVER_PID=$!
+  sleep 1
+  if ! kill -0 "$SERVER_PID" >/dev/null 2>&1; then
+    SERVER_PID=""
+    continue
+  fi
+  if grep -q "Address already in use" "$SERVER_LOG"; then
+    kill "$SERVER_PID" >/dev/null 2>&1 || true
+    SERVER_PID=""
+    continue
+  fi
+  PORT="$candidate"
+  BASE_URL="http://127.0.0.1:${PORT}"
+  break
+done
+
+trap 'kill "$SERVER_PID" >/dev/null 2>&1 || true' EXIT
+
+if [ -z "$SERVER_PID" ]; then
+  echo "Split-FFI browser server failed to bind an available port."
+  cat "$SERVER_LOG"
+  exit 1
+fi
+
+for _ in 1 2 3 4 5 6 7 8 9 10; do
+  if curl -sf "$BASE_URL/test-js-string-symbol-ffi.html" >/dev/null; then
+    break
+  fi
+  sleep 1
+done
+
+if grep -q "Address already in use" "$SERVER_LOG"; then
+  echo "Split-FFI browser server failed to bind port $PORT."
+  cat "$SERVER_LOG"
+  exit 1
+fi
+
+if ! curl -sf "$BASE_URL/test-js-string-symbol-ffi.html" >/dev/null; then
+  echo "Split-FFI browser server did not become ready at $BASE_URL."
+  cat "$SERVER_LOG"
+  exit 1
+fi
+
+SMOKE_BASE_URL="$BASE_URL" \
+SMOKE_NODE_MODULES="$LOCAL_NODE_MODULES" \
+SMOKE_CHROME_EXECUTABLE="$CHROME_EXECUTABLE" \
+SMOKE_TESTS="test-js-string-symbol-ffi.html,test-browser-canvas-draw-image-integers.html,test-dom-window-document.html,test-dom-canvas-media-image.html,test-audio.html" \
+node "$SCRIPT_DIR/run-dom-headless.mjs"
+
+echo "PASS split-ffi mixed-cache browser smoke"
+echo "OUTPUT $RUN_ROOT"

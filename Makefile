@@ -206,6 +206,9 @@ smoke-treelist-shape:
 dom-headless:
 	cd test && ./run-dom-headless.sh
 
+smoke-split-ffi-mixed-cache-browser:
+	bash test/run-split-ffi-mixed-cache-headless.sh
+
 measure-letrec-test-basics:
 	racket tools/measure-letrec-test-basics.rkt
 
