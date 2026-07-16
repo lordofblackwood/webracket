@@ -15,6 +15,8 @@
          ffi-result-global-names
          ffi-runtime-string-constants
          ffi-runtime-symbol-constants
+         ffi-console-bridge-helper-names
+         ffi-console-bridge-helper-forms
          ffi-runtime-only-helpers
          ffi-runtime-only-helper-names
          ffi-runtime-only-helper-forms
@@ -241,6 +243,24 @@
     (for/list ([name (in-list ffi-helper-names)]
                #:unless (hash-ref core-name-set name #f))
       name)))
+
+;; ffi-console-bridge-helper-names : (listof symbol?)
+;;   Name the program-specific console bridge helpers.
+(define ffi-console-bridge-helper-names
+  '($wr-bridge-error-message
+    $wr-success
+    $wr-procedure-info
+    $wr-procedure-success
+    $wr-binding-value
+    $wr-top-level-names
+    $wr-top-level-names-detailed
+    $wr-name->symbol
+    $wr-vector->args
+    $wr-ref
+    $wr-call
+    $wr-names
+    $wr-names-detailed
+    $wr-format))
 
 ;; external-value-all-runtime-helper-names : (listof symbol?)
 ;;   Preserve the full runtime emission order for external host value helpers.
@@ -1528,18 +1548,30 @@
 
     ))
 
-;; ffi-runtime-only-helper-forms : list? -> (listof datum?)
-;;   Render program/runtime-local FFI helpers for the given console bridge bindings.
-(define (ffi-runtime-only-helper-forms console-bridge-bindings)
+;; select-ffi-helper-forms : list? list? -> (listof datum?)
+;;   Render selected FFI helper forms for the given console bridge bindings.
+(define (select-ffi-helper-forms names console-bridge-bindings)
   (parameterize ([current-ffi-console-bridge-bindings console-bridge-bindings])
-    (define runtime-only-name-set
-      (for/hasheq ([name (in-list ffi-runtime-only-helper-names)])
+    (define name-set
+      (for/hasheq ([name (in-list names)])
         (values name #t)))
     (for/list ([form (in-list (ffi-runtime-only-forms))]
                #:when (and (pair? form)
                             (eq? 'func (car form))
-                            (hash-ref runtime-only-name-set (cadr form) #f)))
+                            (hash-ref name-set (cadr form) #f)))
       form)))
+
+;; ffi-console-bridge-helper-forms : list? -> (listof datum?)
+;;   Render program-specific console bridge helpers.
+(define (ffi-console-bridge-helper-forms console-bridge-bindings)
+  (select-ffi-helper-forms ffi-console-bridge-helper-names
+                           console-bridge-bindings))
+
+;; ffi-runtime-only-helper-forms : list? -> (listof datum?)
+;;   Render program/runtime-local FFI helpers for the given console bridge bindings.
+(define (ffi-runtime-only-helper-forms console-bridge-bindings)
+  (select-ffi-helper-forms ffi-runtime-only-helper-names
+                           console-bridge-bindings))
 
 ;; external-value-runtime-helper-forms : hasheq? -> (listof datum?)
 ;;   Render external host value helpers in runtime assembly order.
