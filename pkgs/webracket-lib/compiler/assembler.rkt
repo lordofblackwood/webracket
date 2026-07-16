@@ -1508,9 +1508,10 @@ function js_value_to_fasl(v) {
 
 const websocket_impl = {
   'new': ((url, protocols) => {
+    const WebSocketCtor = require_host_constructor('WebSocket', 'WebSocket', 'new');
     const u = from_fasl(url);
     const p = from_fasl(protocols);
-    return p === undefined ? new WebSocket(u) : new WebSocket(u, p);
+    return p === undefined ? new WebSocketCtor(u) : new WebSocketCtor(u, p);
   }),
   'send': ((ws, data) => ws.send(from_fasl(data))),
   'close': ((ws, code, reason) => {
@@ -1535,10 +1536,7 @@ const websocket_impl = {
 
 const audio_impl = {
   'context-new': (() => {
-    const ctor = globalThis.AudioContext;
-    if (typeof ctor === 'undefined') {
-      throw new Error('AudioContext not available in this environment: context-new');
-    }
+    const ctor = require_host_constructor('AudioContext', 'AudioContext', 'context-new');
     return new ctor();
   }),
   'context-close': (ctx => ctx.close()),
@@ -1837,20 +1835,21 @@ function testsuite(js_value_to_fasl, fasl_to_js_value, { log = true } = {}) {
 const hasDOM = typeof document !== 'undefined' && typeof document.createTextNode === 'function';
 const hasPerformance = typeof performance !== 'undefined';
 
-function require_xterm_terminal() {
-  const TerminalCtor = globalThis.Terminal;
-  if (typeof TerminalCtor !== 'function') {
-    throw new Error('xterm.js Terminal not available in this environment');
+function require_host_constructor(name, displayName, detail) {
+  const ctor = globalThis[name];
+  if (typeof ctor !== 'function') {
+    const suffix = detail === undefined ? '' : `: ${detail}`;
+    throw new Error(`${displayName} not available in this environment${suffix}`);
   }
-  return TerminalCtor;
+  return ctor;
+}
+
+function require_xterm_terminal() {
+  return require_host_constructor('Terminal', 'xterm.js Terminal');
 }
 
 function require_xterm_fit_addon() {
-  const FitAddonCtor = globalThis.FitAddon;
-  if (typeof FitAddonCtor !== 'function') {
-    throw new Error('xterm.js FitAddon not available in this environment');
-  }
-  return FitAddonCtor;
+  return require_host_constructor('FitAddon', 'xterm.js FitAddon');
 }
 
 function require_jsxgraph_api() {
@@ -1869,20 +1868,8 @@ function require_jsxgraph_is_point() {
   return JXGValue.isPoint.bind(JXGValue);
 }
 
-const websocket = new Proxy({}, {
-  get(_target, prop) {
-    if (typeof globalThis.WebSocket === 'undefined') {
-      return () => { throw new Error(`WebSocket not available in this environment: ${String(prop)}`); };
-    }
-    return websocket_impl[prop];
-  }
-});
-
-const audio = new Proxy({}, {
-  get(_target, prop) {
-    return audio_impl[prop];
-  }
-});
+const websocket = websocket_impl;
+const audio = audio_impl;
 
 function from_fasl(index) {
     return fasl_to_js_value(new Uint8Array(memory.buffer), index)[0]

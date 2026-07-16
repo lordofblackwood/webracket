@@ -1587,14 +1587,15 @@ var imports = {
     // Image
     'image': hasDOM ? {
         'new': ((width, height) => {
+            const ImageCtor = require_host_constructor('Image', 'Image', 'new');
             const w = from_fasl(width);
             const h = from_fasl(height);
             if (w === undefined && h === undefined) {
-                return new Image();
+                return new ImageCtor();
             } else if (h === undefined) {
-                return new Image(w);
+                return new ImageCtor(w);
             } else {
-                return new Image(w, h);
+                return new ImageCtor(w, h);
             }
         }),
         'alt': (img => img.alt),
