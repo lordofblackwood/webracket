@@ -902,13 +902,23 @@ var imports = {
     },
     // Canvas
     'canvas': hasDOM ? {
-        'capture-stream':                ((canvas, rate)                 => canvas.captureStream(rate)),
-        'get-context':                   ((canvas, type, opts)           => canvas.getContext(from_fasl(type), opts)),
+        'capture-stream':                ((canvas, rate)                 => require_host_function(canvas,
+                                                                                                    'captureStream',
+                                                                                                    'canvas.captureStream')(rate)),
+        'get-context':                   ((canvas, type, opts)           => require_host_function(canvas,
+                                                                                                    'getContext',
+                                                                                                    'canvas.getContext')(from_fasl(type), opts)),
         'height':                        ((canvas)                       => canvas.height),
         'set-height!':                   ((canvas, h)                    => { canvas.height = h; }),
-        'to-blob':                       ((canvas, cb, type, quality)    => canvas.toBlob(cb, from_fasl(type), quality)),
-        'to-data-url':                   ((canvas, type, quality)        => canvas.toDataURL(from_fasl(type), quality)),
-        'transfer-control-to-offscreen': ((canvas)                       => canvas.transferControlToOffscreen()),
+        'to-blob':                       ((canvas, cb, type, quality)    => require_host_function(canvas,
+                                                                                                    'toBlob',
+                                                                                                    'canvas.toBlob')(cb, from_fasl(type), quality)),
+        'to-data-url':                   ((canvas, type, quality)        => require_host_function(canvas,
+                                                                                                    'toDataURL',
+                                                                                                    'canvas.toDataURL')(from_fasl(type), quality)),
+        'transfer-control-to-offscreen': ((canvas)                       => require_host_function(canvas,
+                                                                                                    'transferControlToOffscreen',
+                                                                                                    'canvas.transferControlToOffscreen')()),
         'width':                         ((canvas)                       => canvas.width),
         'set-width!':                    ((canvas, w)                    => { canvas.width = w; })
     } : {
@@ -1016,9 +1026,15 @@ var imports = {
         'create-linear-gradient': ((ctx, x0, y0, x1, y1) => ctx.createLinearGradient(x0, y0, x1, y1)),
         'create-pattern': ((ctx, img, rep) => ctx.createPattern(img, from_fasl(rep))),
         'create-radial-gradient': ((ctx, x0, y0, r0, x1, y1, r1) => ctx.createRadialGradient(x0, y0, r0, x1, y1, r1)),
-        'create-conic-gradient': ((ctx, sa, x, y) => ctx.createConicGradient(sa, x, y)),
-        'draw-focus-if-needed!': ((ctx, elem) => ctx.drawFocusIfNeeded(elem)),
-        'draw-focus-if-needed-path!': ((ctx, path, elem) => ctx.drawFocusIfNeeded(path, elem)),
+        'create-conic-gradient': ((ctx, sa, x, y) => require_host_function(ctx,
+                                                                            'createConicGradient',
+                                                                            'CanvasRenderingContext2D.createConicGradient')(sa, x, y)),
+        'draw-focus-if-needed!': ((ctx, elem) => require_host_function(ctx,
+                                                                        'drawFocusIfNeeded',
+                                                                        'CanvasRenderingContext2D.drawFocusIfNeeded')(elem)),
+        'draw-focus-if-needed-path!': ((ctx, path, elem) => require_host_function(ctx,
+                                                                                   'drawFocusIfNeeded',
+                                                                                   'CanvasRenderingContext2D.drawFocusIfNeeded')(path, elem)),
         'draw-image': ((ctx, img, dx, dy) => ctx.drawImage(img, dx, dy)),
         'draw-image-5': ((ctx, img, dx, dy, dw, dh) => ctx.drawImage(img, dx, dy, dw, dh)),
         'draw-image-9': ((ctx, img, sx, sy, sw, sh, dx, dy, dw, dh) => ctx.drawImage(img, sx, sy, sw, sh, dx, dy, dw, dh)),
@@ -1093,16 +1109,23 @@ var imports = {
         }),
         'quadratic-curve-to': ((ctx, cpx, cpy, x, y) => ctx.quadraticCurveTo(cpx, cpy, x, y)),
         'rect': ((ctx, x, y, w, h) => ctx.rect(x, y, w, h)),
-        'reset': (ctx => ctx.reset()),
-        'reset-transform': (ctx => ctx.resetTransform()),
+        'reset': (ctx => require_host_function(ctx,
+                                                'reset',
+                                                'CanvasRenderingContext2D.reset')()),
+        'reset-transform': (ctx => require_host_function(ctx,
+                                                          'resetTransform',
+                                                          'CanvasRenderingContext2D.resetTransform')()),
         'restore': (ctx => ctx.restore()),
         'rotate': ((ctx, angle) => ctx.rotate(angle)),
         'round-rect': ((ctx, x, y, w, h, r) => {
+          const roundRect = require_host_function(ctx,
+                                                  'roundRect',
+                                                  'CanvasRenderingContext2D.roundRect');
           const rad = from_fasl(r);
           if (rad === undefined) {
-            ctx.roundRect(x, y, w, h);
+            roundRect(x, y, w, h);
           } else {
-            ctx.roundRect(x, y, w, h, rad);
+            roundRect(x, y, w, h, rad);
           }
         }),
         'save': (ctx => ctx.save()),
@@ -1581,19 +1604,28 @@ var imports = {
         }),
         'can-play-type': ((m, type) => m.canPlayType(from_fasl(type))),
         'capture-stream': ((m, rate) => {
+            const captureStream = require_host_function(m,
+                                                        'captureStream',
+                                                        'HTMLMediaElement.captureStream');
             const r = from_fasl(rate);
             if (r === undefined) {
-                return m.captureStream();
+                return captureStream();
             } else {
-                return m.captureStream(r);
+                return captureStream(r);
             }
         }),
-        'fast-seek!': ((m, t) => { m.fastSeek(t); }),
+        'fast-seek!': ((m, t) => { require_host_function(m,
+                                                          'fastSeek',
+                                                          'HTMLMediaElement.fastSeek')(t); }),
         'load!': (m => { m.load(); }),
         'pause': (m => m.pause()),
         'play': (m => m.play()),
-        'set-media-keys!': ((m, keys) => m.setMediaKeys(keys)),
-        'set-sink-id!': ((m, id) => m.setSinkId(from_fasl(id))),
+        'set-media-keys!': ((m, keys) => require_host_function(m,
+                                                                'setMediaKeys',
+                                                                'HTMLMediaElement.setMediaKeys')(keys)),
+        'set-sink-id!': ((m, id) => require_host_function(m,
+                                                           'setSinkId',
+                                                           'HTMLMediaElement.setSinkId')(from_fasl(id))),
     } : {
         'audio-tracks'() { throw new Error('DOM not available in this environment'); },
         'autoplay'() { throw new Error('DOM not available in this environment'); },
@@ -1702,7 +1734,9 @@ var imports = {
         'set-name!': ((img, n) => { img.name = from_fasl(n); }),
         'x': (img => img.x),
         'y': (img => img.y),
-        'decode': (img => img.decode())
+        'decode': (img => require_host_function(img,
+                                                 'decode',
+                                                 'HTMLImageElement.decode')())
     } : {
         'new'() { throw new Error('DOM not available in this environment'); },
         'alt'() { throw new Error('DOM not available in this environment'); },

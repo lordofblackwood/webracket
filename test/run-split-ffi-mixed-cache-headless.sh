@@ -115,6 +115,8 @@ compile_root_case test-window-missing-host-ffi.html test/test-window-missing-hos
   --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/dom.ffi"
 compile_root_case test-document-missing-host-ffi.html test/test-document-missing-host-ffi.rkt \
   --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/dom.ffi"
+compile_root_case test-object-method-missing-host-ffi.html test/test-object-method-missing-host-ffi.rkt \
+  --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/dom.ffi"
 compile_test_dir_case test-fetch.html test-fetch.rkt \
   --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/dom.ffi"
 compile_test_dir_case test-storage.html test-storage.rkt \
