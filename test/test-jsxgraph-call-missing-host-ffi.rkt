@@ -3,8 +3,14 @@
 ;; Browser smoke for dynamic JSXGraph method-call boundary errors.
 
 (require (only-in webracket/unsafe/jsxgraph
+                  js-jsx-board-add-grid!
                   js-jsx-board-create
                   js-jsx-board-create-point
+                  js-jsx-board-generate-id
+                  js-jsx-board-get-bounding-box
+                  js-jsx-board-remove-object!
+                  js-jsx-board-select
+                  js-jsx-board-update!
                   js-jsx-circle-call
                   js-jsx-circle-call/nullish
                   js-jsx-curve-call
@@ -58,6 +64,36 @@
   (catch-message
    (lambda ()
      (js-jsx-board-create-point board-without-create args args))))
+
+(define board-add-grid-message
+  (catch-message
+   (lambda ()
+     (js-jsx-board-add-grid! board-without-create))))
+
+(define board-generate-id-message
+  (catch-message
+   (lambda ()
+     (js-jsx-board-generate-id board-without-create))))
+
+(define board-get-bounding-box-message
+  (catch-message
+   (lambda ()
+     (js-jsx-board-get-bounding-box board-without-create))))
+
+(define board-select-message
+  (catch-message
+   (lambda ()
+     (js-jsx-board-select board-without-create "p1" #t))))
+
+(define board-update-message
+  (catch-message
+   (lambda ()
+     (js-jsx-board-update! board-without-create))))
+
+(define board-remove-object-message
+  (catch-message
+   (lambda ()
+     (js-jsx-board-remove-object! board-without-create target))))
 
 (define element-call-message
   (catch-message
@@ -115,6 +151,24 @@
 (check-message board-create-point-message
                "JSXGraph Board.create not available in this environment"
                "missing JSXGraph Board.create point message")
+(check-message board-add-grid-message
+               "JSXGraph Board.addGrid not available in this environment"
+               "missing JSXGraph Board.addGrid message")
+(check-message board-generate-id-message
+               "JSXGraph Board.generateId not available in this environment"
+               "missing JSXGraph Board.generateId message")
+(check-message board-get-bounding-box-message
+               "JSXGraph Board.getBoundingBox not available in this environment"
+               "missing JSXGraph Board.getBoundingBox message")
+(check-message board-select-message
+               "JSXGraph Board.select not available in this environment"
+               "missing JSXGraph Board.select message")
+(check-message board-update-message
+               "JSXGraph Board.update not available in this environment"
+               "missing JSXGraph Board.update message")
+(check-message board-remove-object-message
+               "JSXGraph Board.removeObject not available in this environment"
+               "missing JSXGraph Board.removeObject message")
 (check-message element-call-message
                "jsx-element.call: method missingMethod not available in this environment"
                "missing jsx-element call message")
