@@ -144,6 +144,8 @@ compile_test_dir_case test-websocket.html test-websocket.rkt \
   --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/websocket.ffi"
 compile_test_dir_case test-indexed-db.html test-indexed-db.rkt \
   --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/dom.ffi"
+compile_test_dir_case test-indexed-db-method-missing-host-ffi.html test-indexed-db-method-missing-host-ffi.rkt \
+  --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/dom.ffi"
 compile_test_dir_case test-dom-facade.html test-dom-facade.rkt \
   --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/dom.ffi"
 compile_root_case test-js-string-symbol-ffi.html test/test-js-string-symbol-ffi.rkt \

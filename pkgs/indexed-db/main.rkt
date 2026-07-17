@@ -45,16 +45,41 @@
 ;; indexed-db? : any/c -> boolean?
 ;;   Report whether v is a wrapped IndexedDB factory object.
 (define (indexed-db? v)
+  (indexed-db-host-value? v))
+
+;; indexed-db-host-value? : any/c -> boolean?
+;;   Report whether v wraps a browser IDBFactory object.
+(define (indexed-db-host-value? v)
   (and (indexed-db-info? v)
        (indexed-db-constructor-present?)
        (external? (indexed-db-raw v))
        (js-instanceof (indexed-db-raw v) (js-var "IDBFactory"))))
 
+;; indexed-db-method-present? : external/raw string? -> boolean?
+;;   Report whether raw exposes a callable IDBFactory method.
+(define (indexed-db-method-present? raw method-name)
+  (define method (js-ref/extern raw method-name))
+  (and (not (js-nullish? method))
+       (string=? (js-typeof method) "function")))
+
+;; check-indexed-db : symbol? any/c -> void?
+;;   Ensure value wraps an external IDBFactory host value.
+(define (check-indexed-db who value)
+  (unless (indexed-db-host-value? value)
+    (raise-argument-error who "indexed-db-info?" value)))
+
+;; check-indexed-db-method : symbol? indexed-db-info? string? -> void?
+;;   Ensure a required IDBFactory method is available.
+(define (check-indexed-db-method who value method-name)
+  (unless (indexed-db-method-present? (indexed-db-raw value) method-name)
+    (raise-arguments-error who
+                           (string-append "IDBFactory." method-name " is not available"))))
+
 ;; indexed-db-open : indexed-db-info? (or/c string? symbol?) [any/c] -> external/raw
 ;;   Open a database and return the request object.
 (define (indexed-db-open value name [version #f])
-  (unless (indexed-db? value)
-    (raise-argument-error 'indexed-db-open "indexed-db-info?" value))
+  (check-indexed-db 'indexed-db-open value)
+  (check-indexed-db-method 'indexed-db-open value "open")
   (define name* (indexed-db-stringish->string 'indexed-db-open name))
   (define args
     (if (eq? version #f)
@@ -65,21 +90,21 @@
 ;; indexed-db-delete-database! : indexed-db-info? (or/c string? symbol?) -> external/raw
 ;;   Request deletion of a database.
 (define (indexed-db-delete-database! value name)
-  (unless (indexed-db? value)
-    (raise-argument-error 'indexed-db-delete-database! "indexed-db-info?" value))
+  (check-indexed-db 'indexed-db-delete-database! value)
+  (check-indexed-db-method 'indexed-db-delete-database! value "deleteDatabase")
   (define name* (indexed-db-stringish->string 'indexed-db-delete-database! name))
   (js-send/extern (indexed-db-raw value) "deleteDatabase" (vector name*)))
 
 ;; indexed-db-cmp : indexed-db-info? any/c any/c -> integer?
 ;;   Compare two IndexedDB keys.
 (define (indexed-db-cmp value a b)
-  (unless (indexed-db? value)
-    (raise-argument-error 'indexed-db-cmp "indexed-db-info?" value))
+  (check-indexed-db 'indexed-db-cmp value)
+  (check-indexed-db-method 'indexed-db-cmp value "cmp")
   (js-send/value (indexed-db-raw value) "cmp" (vector a b)))
 
 ;; indexed-db-databases : indexed-db-info? -> external/raw
 ;;   Request the list of known databases.
 (define (indexed-db-databases value)
-  (unless (indexed-db? value)
-    (raise-argument-error 'indexed-db-databases "indexed-db-info?" value))
+  (check-indexed-db 'indexed-db-databases value)
+  (check-indexed-db-method 'indexed-db-databases value "databases")
   (js-send/extern (indexed-db-raw value) "databases" (vector)))
