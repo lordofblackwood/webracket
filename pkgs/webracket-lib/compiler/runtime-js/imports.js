@@ -1854,15 +1854,16 @@ var imports = {
     // Event
     'event': hasDOM ? {
         'new': ((type, init) => {
+            const EventCtor = require_host_constructor('Event', 'Event', 'new');
             const t = from_fasl(type);
             const i = from_fasl(init);
             if (i === undefined) {
-                return new Event(t);
+                return new EventCtor(t);
             } else {
-                return new Event(t, i);
+                return new EventCtor(t, i);
             }
         }),
-        'event?': (evt => evt instanceof Event),
+        'event?': (evt => (typeof Event !== 'undefined') && (evt instanceof Event)),
         'type': (evt => evt.type),
         'target': (evt => evt.target),
         'current-target': (evt => evt.currentTarget),
@@ -1889,10 +1890,10 @@ var imports = {
         'mouse-ctrl-key': (evt => evt.ctrlKey ? 1 : 0),
         'mouse-meta-key': (evt => evt.metaKey ? 1 : 0),
         'mouse-shift-key': (evt => evt.shiftKey ? 1 : 0),
-        'mouse-event?': (evt => evt instanceof MouseEvent),
+        'mouse-event?': (evt => (typeof MouseEvent !== 'undefined') && (evt instanceof MouseEvent)),
         'keyboard-key': (evt => evt.key),
         'keyboard-code': (evt => evt.code),
-        'keyboard-event?': (evt => evt instanceof KeyboardEvent),
+        'keyboard-event?': (evt => (typeof KeyboardEvent !== 'undefined') && (evt instanceof KeyboardEvent)),
         'alt-key': (evt => evt.altKey ? 1 : 0),
         'ctrl-key': (evt => evt.ctrlKey ? 1 : 0),
         'meta-key': (evt => evt.metaKey ? 1 : 0),
@@ -1961,7 +1962,7 @@ var imports = {
     },
     // MessageEvent
     'message-event': hasDOM ? {
-        'message-event?': (evt => evt instanceof MessageEvent),
+        'message-event?': (evt => (typeof MessageEvent !== 'undefined') && (evt instanceof MessageEvent)),
         'data': (evt => evt.data),
         'origin': (evt => evt.origin),
         'last-event-id': (evt => evt.lastEventId),
@@ -1977,7 +1978,7 @@ var imports = {
     },
     // CloseEvent
     'close-event': hasDOM ? {
-        'close-event?': (evt => evt instanceof CloseEvent),
+        'close-event?': (evt => (typeof CloseEvent !== 'undefined') && (evt instanceof CloseEvent)),
         'was-clean': (evt => evt.wasClean ? 1 : 0),
         'code': (evt => evt.code),
         'reason': (evt => evt.reason)
