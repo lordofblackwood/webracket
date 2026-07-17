@@ -67,6 +67,23 @@
     [(dom-attr? value) (dom-attr-raw value)]
     [else value]))
 
+;; shared-dom-host-method-present? : external/raw string? -> boolean?
+;;   Report whether raw exposes a callable DOM method.
+(define (shared-dom-host-method-present? raw method-name)
+  (define method (js-ref/extern raw method-name))
+  (and (not (js-nullish? method))
+       (string=? (js-typeof method) "function")))
+
+;; check-shared-dom-host-method : symbol? external/raw string? string? -> void?
+;;   Ensure a required shared DOM host method is available.
+(define (check-shared-dom-host-method who raw receiver-name method-name)
+  (unless (shared-dom-host-method-present? raw method-name)
+    (raise-arguments-error who
+                           (string-append receiver-name
+                                          "."
+                                          method-name
+                                          " not available in this environment"))))
+
 ;; dom-attr : external/raw -> dom-attr?
 ;;   Wrap a browser Attr node.
 (struct dom-attr (raw) #:transparent)
@@ -318,12 +335,16 @@
 ;; selection-to-string : dom-selection? -> string?
 ;;   Convert the current selection to text.
 (define (selection-to-string selection)
-  (js-send/value (dom-selection-unwrap selection) "toString" (vector)))
+  (define raw (dom-selection-unwrap selection))
+  (check-shared-dom-host-method 'selection-to-string raw "Selection" "toString")
+  (js-send/value raw "toString" (vector)))
 
 ;; selection-remove-all-ranges! : dom-selection? -> void?
 ;;   Clear all ranges from the current selection.
 (define (selection-remove-all-ranges! selection)
-  (js-send (dom-selection-unwrap selection) "removeAllRanges" (vector))
+  (define raw (dom-selection-unwrap selection))
+  (check-shared-dom-host-method 'selection-remove-all-ranges! raw "Selection" "removeAllRanges")
+  (js-send raw "removeAllRanges" (vector))
   (void))
 
 ;; media-query-list : external/raw -> media-query-list?
@@ -393,19 +414,31 @@
 ;; css-style-declaration-item : css-style-declaration? exact-nonnegative-integer? -> (or/c #f string?)
 ;;   Read the style property name at an index.
 (define (css-style-declaration-item decl index)
-  (js-send/value (css-style-declaration-unwrap decl) "item" (vector index)))
+  (define raw (css-style-declaration-unwrap decl))
+  (check-shared-dom-host-method 'css-style-declaration-item raw "CSSStyleDeclaration" "item")
+  (js-send/value raw "item" (vector index)))
 
 ;; css-style-declaration-get-property-value : css-style-declaration? (or/c string? symbol?) -> string?
 ;;   Read the value of a style property.
 (define (css-style-declaration-get-property-value decl name)
-  (js-send/value (css-style-declaration-unwrap decl)
+  (define raw (css-style-declaration-unwrap decl))
+  (check-shared-dom-host-method 'css-style-declaration-get-property-value
+                                raw
+                                "CSSStyleDeclaration"
+                                "getPropertyValue")
+  (js-send/value raw
                  "getPropertyValue"
                  (vector (if (symbol? name) (symbol->string name) name))))
 
 ;; css-style-declaration-set-property! : css-style-declaration? (or/c string? symbol?) (or/c string? symbol?) -> void?
 ;;   Set the value of a style property.
 (define (css-style-declaration-set-property! decl name value)
-  (js-send (css-style-declaration-unwrap decl)
+  (define raw (css-style-declaration-unwrap decl))
+  (check-shared-dom-host-method 'css-style-declaration-set-property!
+                                raw
+                                "CSSStyleDeclaration"
+                                "setProperty")
+  (js-send raw
            "setProperty"
            (vector (if (symbol? name) (symbol->string name) name)
                    (if (symbol? value) (symbol->string value) value)))
@@ -414,7 +447,12 @@
 ;; css-style-declaration-remove-property! : css-style-declaration? (or/c string? symbol?) -> string?
 ;;   Remove a style property and return its previous value.
 (define (css-style-declaration-remove-property! decl name)
-  (js-send/value (css-style-declaration-unwrap decl)
+  (define raw (css-style-declaration-unwrap decl))
+  (check-shared-dom-host-method 'css-style-declaration-remove-property!
+                                raw
+                                "CSSStyleDeclaration"
+                                "removeProperty")
+  (js-send/value raw
                  "removeProperty"
                  (vector (if (symbol? name) (symbol->string name) name))))
 
@@ -669,7 +707,9 @@
 ;; audio-track-list-item : audio-track-list? exact-nonnegative-integer? -> (or/c #f audio-track?)
 ;;   Read an audio track by index.
 (define (audio-track-list-item track-list index)
-  (audio-track-wrap (js-send/extern/nullish (audio-track-list-unwrap track-list) "item" (vector index))))
+  (define raw (audio-track-list-unwrap track-list))
+  (check-shared-dom-host-method 'audio-track-list-item raw "AudioTrackList" "item")
+  (audio-track-wrap (js-send/extern/nullish raw "item" (vector index))))
 
 ;; text-track-list : external/raw -> text-track-list?
 ;;   Wrap a browser TextTrackList object.
@@ -697,7 +737,9 @@
 ;; text-track-list-item : text-track-list? exact-nonnegative-integer? -> (or/c #f text-track?)
 ;;   Read a text track by index.
 (define (text-track-list-item track-list index)
-  (text-track-wrap (js-send/extern/nullish (text-track-list-unwrap track-list) "item" (vector index))))
+  (define raw (text-track-list-unwrap track-list))
+  (check-shared-dom-host-method 'text-track-list-item raw "TextTrackList" "item")
+  (text-track-wrap (js-send/extern/nullish raw "item" (vector index))))
 
 ;; video-track-list : external/raw -> video-track-list?
 ;;   Wrap a browser VideoTrackList object.
@@ -725,7 +767,9 @@
 ;; video-track-list-item : video-track-list? exact-nonnegative-integer? -> (or/c #f video-track?)
 ;;   Read a video track by index.
 (define (video-track-list-item track-list index)
-  (video-track-wrap (js-send/extern/nullish (video-track-list-unwrap track-list) "item" (vector index))))
+  (define raw (video-track-list-unwrap track-list))
+  (check-shared-dom-host-method 'video-track-list-item raw "VideoTrackList" "item")
+  (video-track-wrap (js-send/extern/nullish raw "item" (vector index))))
 
 ;; time-ranges : external/raw -> time-ranges?
 ;;   Wrap a browser TimeRanges object.
@@ -753,9 +797,13 @@
 ;; time-ranges-start : time-ranges? exact-nonnegative-integer? -> real?
 ;;   Read the start time for a range.
 (define (time-ranges-start time-ranges index)
-  (js-send/value (time-ranges-unwrap time-ranges) "start" (vector index)))
+  (define raw (time-ranges-unwrap time-ranges))
+  (check-shared-dom-host-method 'time-ranges-start raw "TimeRanges" "start")
+  (js-send/value raw "start" (vector index)))
 
 ;; time-ranges-end : time-ranges? exact-nonnegative-integer? -> real?
 ;;   Read the end time for a range.
 (define (time-ranges-end time-ranges index)
-  (js-send/value (time-ranges-unwrap time-ranges) "end" (vector index)))
+  (define raw (time-ranges-unwrap time-ranges))
+  (check-shared-dom-host-method 'time-ranges-end raw "TimeRanges" "end")
+  (js-send/value raw "end" (vector index)))
