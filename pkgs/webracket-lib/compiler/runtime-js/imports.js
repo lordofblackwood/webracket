@@ -1431,58 +1431,85 @@ var imports = {
         'interaction-count':   (() => performance.interactionCount),
         'memory':              (() => performance.memory),
         'time-origin':         (() => performance.timeOrigin),
-        'now':                 (() => performance.now()),
+        'now':                 (() => require_host_function(performance,
+                                                             'now',
+                                                             'performance.now')()),
         'clear-marks':         ((markName) => {
+            const clearMarks = require_host_function(performance,
+                                                     'clearMarks',
+                                                     'performance.clearMarks');
             const n = from_fasl(markName);
             if (n === undefined) {
-                performance.clearMarks();
+                clearMarks();
             } else {
-                performance.clearMarks(n);
+                clearMarks(n);
             }
         }),
         'clear-measures':      ((measureName) => {
+            const clearMeasures = require_host_function(performance,
+                                                        'clearMeasures',
+                                                        'performance.clearMeasures');
             const n = from_fasl(measureName);
             if (n === undefined) {
-                performance.clearMeasures();
+                clearMeasures();
             } else {
-                performance.clearMeasures(n);
+                clearMeasures(n);
             }
         }),
-        'clear-resource-timings': (() => performance.clearResourceTimings()),
-        'get-entries':         (() => performance.getEntries()),
+        'clear-resource-timings': (() => require_host_function(performance,
+                                                               'clearResourceTimings',
+                                                               'performance.clearResourceTimings')()),
+        'get-entries':         (() => require_host_function(performance,
+                                                            'getEntries',
+                                                            'performance.getEntries')()),
         'get-entries-by-name': ((name, entryType) => {
+            const getEntriesByName = require_host_function(performance,
+                                                           'getEntriesByName',
+                                                           'performance.getEntriesByName');
             const t = from_fasl(entryType);
             if (t === undefined) {
-                return performance.getEntriesByName(from_fasl(name));
+                return getEntriesByName(from_fasl(name));
             } else {
-                return performance.getEntriesByName(from_fasl(name), t);
+                return getEntriesByName(from_fasl(name), t);
             }
         }),
-        'get-entries-by-type':  ((entryType) => performance.getEntriesByType(from_fasl(entryType))),
+        'get-entries-by-type':  ((entryType) => require_host_function(performance,
+                                                                      'getEntriesByType',
+                                                                      'performance.getEntriesByType')(from_fasl(entryType))),
         'mark':                ((name, options) => {
+            const mark = require_host_function(performance,
+                                               'mark',
+                                               'performance.mark');
             const o = from_fasl(options);
             if (o === undefined) {
-                return performance.mark(from_fasl(name));
+                return mark(from_fasl(name));
             } else {
-                return performance.mark(from_fasl(name), o);
+                return mark(from_fasl(name), o);
             }
         }),
         'measure':             ((name, startOrOptions, endMark) => {
+            const measure = require_host_function(performance,
+                                                  'measure',
+                                                  'performance.measure');
             const s = from_fasl(startOrOptions);
             const e = from_fasl(endMark);
             if (s === undefined && e === undefined) {
-                return performance.measure(from_fasl(name));
+                return measure(from_fasl(name));
             } else if (e === undefined) {
-                return performance.measure(from_fasl(name), s);
+                return measure(from_fasl(name), s);
             } else {
-                return performance.measure(from_fasl(name), s, e);
+                return measure(from_fasl(name), s, e);
             }
         }),
         'measure-user-agent-specific-memory': (() => require_host_function(performance,
                                                                            'measureUserAgentSpecificMemory',
                                                                            'performance.measureUserAgentSpecificMemory')()),
-        'set-resource-timing-buffer-size': ((size) => performance.setResourceTimingBufferSize(size)),
-        'to-json':             (() => performance.toJSON())
+        'set-resource-timing-buffer-size': ((size) => require_host_function(performance,
+                                                                            'setResourceTimingBufferSize',
+                                                                            'performance.setResourceTimingBufferSize')(size)),
+        'to-json':             (() => require_host_function(performance,
+                                                            'toJSON',
+                                                            'performance.toJSON')())
     } : new Proxy({}, { get() { throw new Error('Performance API not available in this environment'); } }),
     'performance-event-count-map': hasPerformance ? {
         'size':                (list => list.length)
