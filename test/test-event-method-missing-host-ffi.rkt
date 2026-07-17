@@ -3,10 +3,12 @@
 ;; Browser smoke for optional Event method host-boundary errors.
 
 (require (only-in webracket/unsafe/event
+                  js-add-event-listener!
                   js-event-composed-path
                   js-event-prevent-default
                   js-event-stop-immediate-propagation
-                  js-event-stop-propagation)
+                  js-event-stop-propagation
+                  js-touch-list-ref)
          (only-in webracket/unsafe/standard
                   js-eval))
 
@@ -57,6 +59,14 @@
   }")
 
 (define event (js-eval "globalThis.__wrEventMethodBoundaryEvent"))
+(define event-target-without-listener (js-eval "({ addEventListener: undefined })"))
+(define touch-list-without-item (js-eval "({ item: undefined })"))
+(define listener (js-eval "(() => {})"))
+
+(define add-event-listener-message
+  (catch-message
+   (lambda ()
+     (js-add-event-listener! event-target-without-listener "click" listener))))
 
 (define composed-path-message
   (catch-message
@@ -78,6 +88,11 @@
    (lambda ()
      (js-event-stop-immediate-propagation event))))
 
+(define touch-list-ref-message
+  (catch-message
+   (lambda ()
+     (js-touch-list-ref touch-list-without-item 0))))
+
 (js-eval
  "for (const saved of globalThis.__wrEventMethodBoundary) {
     if (saved.hadOwn) {
@@ -91,6 +106,10 @@
   delete globalThis.__wrEventMethodBoundary;
   delete globalThis.__wrEventMethodBoundaryTargets;
   delete globalThis.__wrEventMethodBoundaryEvent;")
+
+(check-message add-event-listener-message
+               "EventTarget.addEventListener not available in this environment"
+               "missing addEventListener message")
 
 (check-message composed-path-message
                "Event.composedPath not available in this environment"
@@ -107,6 +126,10 @@
 (check-message stop-immediate-propagation-message
                "Event.stopImmediatePropagation not available in this environment"
                "missing stopImmediatePropagation message")
+
+(check-message touch-list-ref-message
+               "TouchList.item not available in this environment"
+               "missing TouchList.item message")
 
 (js-log "event-method-missing-host-ffi-ok")
 #t

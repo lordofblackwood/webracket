@@ -6,8 +6,13 @@
                   js-animate
                   js-attach-shadow!
                   js-computed-style-map
+                  js-dom-rect-list-item
+                  js-dom-token-list-item
                   js-get-animations
                   js-has-pointer-capture
+                  js-html-collection-item
+                  js-html-collection-named-item
+                  js-node-list-item
                   js-release-pointer-capture!
                   js-request-fullscreen
                   js-request-pointer-lock
@@ -55,6 +60,8 @@
 (define keyframes (js-eval "globalThis.__wrElementMethodBoundaryKeyframes"))
 (define options (js-eval "globalThis.__wrElementMethodBoundaryOptions"))
 (define shadow-init (js-eval "globalThis.__wrElementMethodBoundaryShadowInit"))
+(define item-list-without-item (js-eval "({ item: undefined })"))
+(define collection-without-methods (js-eval "({ item: undefined, namedItem: undefined })"))
 
 (js-eval
  "globalThis.__wrElementMethodBoundaryNames = [
@@ -164,6 +171,31 @@
    (lambda ()
      (js-toggle-attribute element "data-wr-test"))))
 
+(define dom-token-list-item-message
+  (catch-message
+   (lambda ()
+     (js-dom-token-list-item item-list-without-item 0))))
+
+(define node-list-item-message
+  (catch-message
+   (lambda ()
+     (js-node-list-item item-list-without-item 0))))
+
+(define html-collection-item-message
+  (catch-message
+   (lambda ()
+     (js-html-collection-item collection-without-methods 0))))
+
+(define html-collection-named-item-message
+  (catch-message
+   (lambda ()
+     (js-html-collection-named-item collection-without-methods "missing"))))
+
+(define dom-rect-list-item-message
+  (catch-message
+   (lambda ()
+     (js-dom-rect-list-item item-list-without-item 0))))
+
 (js-eval
  "for (const saved of globalThis.__wrElementMethodBoundary) {
     if (saved.hadOwn) {
@@ -224,6 +256,21 @@
 (check-message toggle-attribute-message
                "Element.toggleAttribute not available in this environment"
                "missing toggleAttribute message")
+(check-message dom-token-list-item-message
+               "DOMTokenList.item not available in this environment"
+               "missing DOMTokenList.item message")
+(check-message node-list-item-message
+               "NodeList.item not available in this environment"
+               "missing NodeList.item message")
+(check-message html-collection-item-message
+               "HTMLCollection.item not available in this environment"
+               "missing HTMLCollection.item message")
+(check-message html-collection-named-item-message
+               "HTMLCollection.namedItem not available in this environment"
+               "missing HTMLCollection.namedItem message")
+(check-message dom-rect-list-item-message
+               "DOMRectList.item not available in this environment"
+               "missing DOMRectList.item message")
 
 (js-log "element-method-missing-host-ffi-ok")
 #t

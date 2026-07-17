@@ -2038,7 +2038,9 @@ var imports = {
     'touch-list': hasDOM ? {
         'touch-list?': (xs => (typeof TouchList !== 'undefined') && (xs instanceof TouchList)),
         'length': (xs => xs.length),
-        'ref': ((xs, i) => xs.item(i))
+        'ref': ((xs, i) => require_host_function(xs,
+                                                  'item',
+                                                  'TouchList.item')(i))
     } : {
         'touch-list?'() { throw new Error('DOM not available in this environment'); },
         'length'() { throw new Error('DOM not available in this environment'); },
@@ -2078,7 +2080,9 @@ var imports = {
     },
     // EventTarget
     'event-target': hasDOM ? {
-        'add-event-listener!': ((target, type, listener) => target.addEventListener(from_fasl(type), listener))
+        'add-event-listener!': ((target, type, listener) => require_host_function(target,
+                                                                                  'addEventListener',
+                                                                                  'EventTarget.addEventListener')(from_fasl(type), listener))
     } : {
         'add-event-listener!'() { throw new Error('DOM not available in this environment'); }
     },
@@ -2120,17 +2124,27 @@ var imports = {
         'shadow-root':             (elem => elem.shadowRoot),
         'dom-token-list-value':    (list => list.value),
         'dom-token-list-length':   (list => list.length),
-        'dom-token-list-item':     ((list, index)         => list.item(index)),
+        'dom-token-list-item':     ((list, index)         => require_host_function(list,
+                                                                                   'item',
+                                                                                   'DOMTokenList.item')(index)),
         'node-list-length':       (list => list.length),
-        'node-list-item':         ((list, index)         => list.item(index)),
+        'node-list-item':         ((list, index)         => require_host_function(list,
+                                                                                 'item',
+                                                                                 'NodeList.item')(index)),
         'html-collection-length': (list => list.length),
-        'html-collection-item':   ((list, index)         => list.item(index)),
-        'html-collection-named-item': ((list, name)      => list.namedItem(from_fasl(name))),
+        'html-collection-item':   ((list, index)         => require_host_function(list,
+                                                                                 'item',
+                                                                                 'HTMLCollection.item')(index)),
+        'html-collection-named-item': ((list, name)      => require_host_function(list,
+                                                                                  'namedItem',
+                                                                                  'HTMLCollection.namedItem')(from_fasl(name))),
         'shadow-root-host':       (root => root.host),
         'shadow-root-mode':       (root => root.mode),
         'shadow-root-delegates-focus': (root => root.delegatesFocus ? 1 : 0),
         'dom-rect-list-length':   (list => list.length),
-        'dom-rect-list-item':     ((list, index)         => list.item(index)),
+        'dom-rect-list-item':     ((list, index)         => require_host_function(list,
+                                                                                 'item',
+                                                                                 'DOMRectList.item')(index)),
         'append-child!':           ((parent, child)          => parent.appendChild(child)),
         'set-attribute!':          ((elem, name, value)      => elem.setAttribute(from_fasl(name), from_fasl(value))),
         'after!':                  ((elem, node)            => elem.after(node)),
