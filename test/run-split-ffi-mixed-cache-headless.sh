@@ -115,6 +115,8 @@ compile_root_case test-browser-constructor-missing-host-ffi.html test/test-brows
   --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/websocket.ffi"
 compile_root_case test-window-missing-host-ffi.html test/test-window-missing-host-ffi.rkt \
   --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/dom.ffi"
+compile_root_case test-window-method-missing-host-ffi.html test/test-window-method-missing-host-ffi.rkt \
+  --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/dom.ffi"
 compile_root_case test-window-value-missing-host-ffi.html test/test-window-value-missing-host-ffi.rkt \
   --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/dom.ffi"
 compile_root_case test-document-missing-host-ffi.html test/test-document-missing-host-ffi.rkt \

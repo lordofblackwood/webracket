@@ -1253,17 +1253,25 @@ var imports = {
                                                             'window.speechSynthesis')),
         'style-media':          (() => require_window_value('styleMedia',
                                                             'window.styleMedia')),
-        'alert':                (msg => window.alert(from_fasl(msg))),
-        'atob':                 (s => window.atob(from_fasl(s))),
-        'btoa':                 (s => window.btoa(from_fasl(s))),
+        'alert':                (msg => require_window_function('alert',
+                                                                'window.alert')(from_fasl(msg))),
+        'atob':                 (s => require_window_function('atob',
+                                                              'window.atob')(from_fasl(s))),
+        'btoa':                 (s => require_window_function('btoa',
+                                                              'window.btoa')(from_fasl(s))),
         'blur':                 (() => window.blur()),
-        'cancel-animation-frame': (id => window.cancelAnimationFrame(id)),
+        'cancel-animation-frame': (id => require_window_function('cancelAnimationFrame',
+                                                                 'window.cancelAnimationFrame')(id)),
         'cancel-idle-callback': (id => require_window_function('cancelIdleCallback',
                                                               'window.cancelIdleCallback')(id)),
-        'clear-interval':       (id => window.clearInterval(id)),
-        'clear-timeout':        (id => window.clearTimeout(id)),
-        'close':                (() => window.close()),
-        'confirm':              (msg => window.confirm(from_fasl(msg)) ? 1 : 0),
+        'clear-interval':       (id => require_window_function('clearInterval',
+                                                              'window.clearInterval')(id)),
+        'clear-timeout':        (id => require_window_function('clearTimeout',
+                                                              'window.clearTimeout')(id)),
+        'close':                (() => require_window_function('close',
+                                                              'window.close')()),
+        'confirm':              (msg => require_window_function('confirm',
+                                                               'window.confirm')(from_fasl(msg)) ? 1 : 0),
         'create-image-bitmap':  ((image, sx, sy, sw, sh, opts) => {
             const createImageBitmap = require_window_function('createImageBitmap',
                                                               'window.createImageBitmap');
@@ -1290,41 +1298,54 @@ var imports = {
                 return windowFetch(inp, i);
             }
         }),
-        'focus':                (() => window.focus()),
+        'focus':                (() => require_window_function('focus',
+                                                              'window.focus')()),
         'get-computed-style':   ((elt, pseudo) => {
+            const getComputedStyle = require_window_function('getComputedStyle',
+                                                            'window.getComputedStyle');
             const p = from_fasl(pseudo);
-            return window.getComputedStyle(elt, p);
+            return getComputedStyle(elt, p);
         }),
-        'get-selection':        (() => window.getSelection()),
-        'match-media':          (q => window.matchMedia(from_fasl(q))),
-        'move-by':              ((x, y) => window.moveBy(x, y)),
-        'move-to':              ((x, y) => window.moveTo(x, y)),
+        'get-selection':        (() => require_window_function('getSelection',
+                                                              'window.getSelection')()),
+        'match-media':          (q => require_window_function('matchMedia',
+                                                             'window.matchMedia')(from_fasl(q))),
+        'move-by':              ((x, y) => require_window_function('moveBy',
+                                                                  'window.moveBy')(x, y)),
+        'move-to':              ((x, y) => require_window_function('moveTo',
+                                                                  'window.moveTo')(x, y)),
         'open':                 ((url, target, features, replace) => {
+            const windowOpen = require_window_function('open', 'window.open');
             const u = from_fasl(url);
             const t = from_fasl(target);
             const f = from_fasl(features);
             const r = from_fasl(replace);
             if (t === undefined && f === undefined && r === undefined) {
-                return window.open(u);
+                return windowOpen(u);
             } else if (f === undefined && r === undefined) {
-                return window.open(u, t);
+                return windowOpen(u, t);
             } else if (r === undefined) {
-                return window.open(u, t, f);
+                return windowOpen(u, t, f);
             } else {
-                return window.open(u, t, f, r);
+                return windowOpen(u, t, f, r);
             }
         }),
         'post-message':        ((msg, target, transfer) => {
+            const postMessage = require_window_function('postMessage',
+                                                       'window.postMessage');
             const t = from_fasl(transfer);
             if (t === undefined) {
-                window.postMessage(from_fasl(msg), from_fasl(target));
+                postMessage(from_fasl(msg), from_fasl(target));
             } else {
-                window.postMessage(from_fasl(msg), from_fasl(target), t);
+                postMessage(from_fasl(msg), from_fasl(target), t);
             }
         }),
-        'print':               (() => window.print()),
-        'prompt':              ((msg, def) => window.prompt(from_fasl(msg), from_fasl(def))),
-        'request-animation-frame': (cb => window.requestAnimationFrame(cb)),
+        'print':               (() => require_window_function('print',
+                                                             'window.print')()),
+        'prompt':              ((msg, def) => require_window_function('prompt',
+                                                                     'window.prompt')(from_fasl(msg), from_fasl(def))),
+        'request-animation-frame': (cb => require_window_function('requestAnimationFrame',
+                                                                  'window.requestAnimationFrame')(cb)),
         'request-idle-callback': ((cb, opts) => {
             const requestIdleCallback = require_window_function('requestIdleCallback',
                                                                'window.requestIdleCallback');
@@ -1335,36 +1356,45 @@ var imports = {
                 return requestIdleCallback(cb, o);
             }
         }),
-        'resize-by':           ((x, y) => window.resizeBy(x, y)),
-        'resize-to':           ((w, h) => window.resizeTo(w, h)),
+        'resize-by':           ((x, y) => require_window_function('resizeBy',
+                                                                 'window.resizeBy')(x, y)),
+        'resize-to':           ((w, h) => require_window_function('resizeTo',
+                                                                 'window.resizeTo')(w, h)),
         'scroll':              ((x, y, opts) => {
+            const scroll = require_window_function('scroll', 'window.scroll');
             const o = from_fasl(opts);
             if (o === undefined) {
-                window.scroll(x, y);
+                scroll(x, y);
             } else {
-                window.scroll(o);
+                scroll(o);
             }
         }),
         'scroll-by':           ((x, y, opts) => {
+            const scrollBy = require_window_function('scrollBy', 'window.scrollBy');
             const o = from_fasl(opts);
             if (o === undefined) {
-                window.scrollBy(x, y);
+                scrollBy(x, y);
             } else {
-                window.scrollBy(o);
+                scrollBy(o);
             }
         }),
         'scroll-to':           ((x, y, opts) => {
+            const scrollTo = require_window_function('scrollTo', 'window.scrollTo');
             const o = from_fasl(opts);
             if (o === undefined) {
-                window.scrollTo(x, y);
+                scrollTo(x, y);
             } else {
-                window.scrollTo(o);
+                scrollTo(o);
             }
         }),
-        'set-interval':        ((handler, delay) => window.setInterval(handler, delay)),
-        'set-timeout':         ((handler)        => window.setTimeout(handler)),
-        'set-timeout/delay':   ((handler, delay) => window.setTimeout(handler, delay)),
-        'stop':                (() => window.stop()),
+        'set-interval':        ((handler, delay) => require_window_function('setInterval',
+                                                                           'window.setInterval')(handler, delay)),
+        'set-timeout':         ((handler)        => require_window_function('setTimeout',
+                                                                           'window.setTimeout')(handler)),
+        'set-timeout/delay':   ((handler, delay) => require_window_function('setTimeout',
+                                                                           'window.setTimeout')(handler, delay)),
+        'stop':                (() => require_window_function('stop',
+                                                             'window.stop')()),
         'structured-clone':    ((value, options) => {
             const structuredClone = require_window_function('structuredClone',
                                                            'window.structuredClone');
