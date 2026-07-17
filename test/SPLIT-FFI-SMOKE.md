@@ -20,7 +20,7 @@ Covered standalone or focused FFI families:
 - `js.ffi` through `array.ffi`
 - `jsxgraph.ffi` with missing-host, dynamic-call boundary, and mock-backed board/point fixtures
 - `math.ffi`
-- `performance.ffi`
+- `performance.ffi` with optional method boundary checks
 - `standard.ffi` through browser defaults, `array.ffi`, generic JS send boundary checks,
   and generic JS property/new boundary checks
 - `temp.ffi`

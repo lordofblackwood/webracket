@@ -1478,7 +1478,9 @@ var imports = {
                 return performance.measure(from_fasl(name), s, e);
             }
         }),
-        'measure-user-agent-specific-memory': (() => performance.measureUserAgentSpecificMemory()),
+        'measure-user-agent-specific-memory': (() => require_host_function(performance,
+                                                                           'measureUserAgentSpecificMemory',
+                                                                           'performance.measureUserAgentSpecificMemory')()),
         'set-resource-timing-buffer-size': ((size) => performance.setResourceTimingBufferSize(size)),
         'to-json':             (() => performance.toJSON())
     } : new Proxy({}, { get() { throw new Error('Performance API not available in this environment'); } }),
