@@ -138,6 +138,13 @@ function call_jsxgraph_board_method(board, methodName, args = []) {
   return method(...args);
 }
 
+function call_jsxgraph_method(owner, ownerName, methodName, args = []) {
+  const method = require_host_function(owner,
+                                       methodName,
+                                       `JSXGraph ${ownerName}.${methodName}`);
+  return method(...args);
+}
+
 function construct_js_value(ctor, args) {
   if (ctor === null || ctor === undefined) {
     throw new Error('js-new: constructor is null or undefined');
@@ -3134,7 +3141,7 @@ var imports = {
     'jsx-element': hasDOM ? {
         'call': ((element, method, args) => call_js_method(element, method, args, 'jsx-element.call')),
         'call/nullish': ((element, method, args) => { call_js_method(element, method, args, 'jsx-element.call/nullish'); }),
-        'add-event': ((element, type, listener) => element.addEvent(from_fasl(type), listener))
+        'add-event': ((element, type, listener) => call_jsxgraph_method(element, 'GeometryElement', 'addEvent', [from_fasl(type), listener]))
     } : {
         'call'()                      { throw new Error('DOM not available in this environment'); },
         'call/nullish'()              { throw new Error('DOM not available in this environment'); },
@@ -3142,35 +3149,35 @@ var imports = {
     },
     // JSXGraph Text
     'jsx-text': hasDOM ? {
-        '_createFctUpdateText': ((text, args) => text._createFctUpdateText(...from_fasl(args))),
-        '_setText':              ((text, args) => text._setText(...from_fasl(args))),
-        'bounds':                ((text, args) => text.bounds(...from_fasl(args))),
-        'checkForSizeUpdate':    ((text, args) => text.checkForSizeUpdate(...from_fasl(args))),
-        'convertGeonext2CSS':    ((text, args) => text.convertGeonext2CSS(...from_fasl(args))),
-        'convertGeonextAndSketchometry2CSS': ((text, args) => text.convertGeonextAndSketchometry2CSS(...from_fasl(args))),
-        'convertSketchometry2CSS': ((text, args) => text.convertSketchometry2CSS(...from_fasl(args))),
-        'crudeSizeEstimate':     ((text, args) => text.crudeSizeEstimate(...from_fasl(args))),
-        'escapeTicks':           ((text, args) => text.escapeTicks(...from_fasl(args))),
-        'expandShortMath':       ((text, args) => text.expandShortMath(...from_fasl(args))),
-        'generateTerm':          ((text, args) => text.generateTerm(...from_fasl(args))),
-        'getAnchorX':            ((text, args) => text.getAnchorX(...from_fasl(args))),
-        'getAnchorY':            ((text, args) => text.getAnchorY(...from_fasl(args))),
-        'getNumberOfConflicts':  ((text, args) => text.getNumberOfConflicts(...from_fasl(args))),
-        'getSize':               ((text, args) => text.getSize(...from_fasl(args))),
-        'hasPoint':              ((text, args) => text.hasPoint(...from_fasl(args))),
-        'notifyParents':         ((text, args) => text.notifyParents(...from_fasl(args))),
-        'poorMansTeX':           ((text, args) => text.poorMansTeX(...from_fasl(args))),
-        'replaceSub':            ((text, args) => text.replaceSub(...from_fasl(args))),
-        'replaceSup':            ((text, args) => text.replaceSup(...from_fasl(args))),
-        'setAutoPosition':       ((text, args) => text.setAutoPosition(...from_fasl(args))),
-        'setCoords':             ((text, args) => text.setCoords(...from_fasl(args))),
-        'setText':               ((text, args) => text.setText(...from_fasl(args))),
-        'setTextJessieCode':     ((text, args) => text.setTextJessieCode(...from_fasl(args))),
-        'unescapeTicks':         ((text, args) => text.unescapeTicks(...from_fasl(args))),
-        'updateSize':            ((text, args) => text.updateSize(...from_fasl(args))),
-        'updateText':            ((text, args) => text.updateText(...from_fasl(args))),
-        'utf8_decode':           ((text, args) => text.utf8_decode(...from_fasl(args))),
-        'valueTagToJessieCode':  ((text, args) => text.valueTagToJessieCode(...from_fasl(args)))
+        '_createFctUpdateText': ((text, args) => call_jsxgraph_method(text, 'Text', '_createFctUpdateText', from_fasl(args))),
+        '_setText':              ((text, args) => call_jsxgraph_method(text, 'Text', '_setText', from_fasl(args))),
+        'bounds':                ((text, args) => call_jsxgraph_method(text, 'Text', 'bounds', from_fasl(args))),
+        'checkForSizeUpdate':    ((text, args) => call_jsxgraph_method(text, 'Text', 'checkForSizeUpdate', from_fasl(args))),
+        'convertGeonext2CSS':    ((text, args) => call_jsxgraph_method(text, 'Text', 'convertGeonext2CSS', from_fasl(args))),
+        'convertGeonextAndSketchometry2CSS': ((text, args) => call_jsxgraph_method(text, 'Text', 'convertGeonextAndSketchometry2CSS', from_fasl(args))),
+        'convertSketchometry2CSS': ((text, args) => call_jsxgraph_method(text, 'Text', 'convertSketchometry2CSS', from_fasl(args))),
+        'crudeSizeEstimate':     ((text, args) => call_jsxgraph_method(text, 'Text', 'crudeSizeEstimate', from_fasl(args))),
+        'escapeTicks':           ((text, args) => call_jsxgraph_method(text, 'Text', 'escapeTicks', from_fasl(args))),
+        'expandShortMath':       ((text, args) => call_jsxgraph_method(text, 'Text', 'expandShortMath', from_fasl(args))),
+        'generateTerm':          ((text, args) => call_jsxgraph_method(text, 'Text', 'generateTerm', from_fasl(args))),
+        'getAnchorX':            ((text, args) => call_jsxgraph_method(text, 'Text', 'getAnchorX', from_fasl(args))),
+        'getAnchorY':            ((text, args) => call_jsxgraph_method(text, 'Text', 'getAnchorY', from_fasl(args))),
+        'getNumberOfConflicts':  ((text, args) => call_jsxgraph_method(text, 'Text', 'getNumberOfConflicts', from_fasl(args))),
+        'getSize':               ((text, args) => call_jsxgraph_method(text, 'Text', 'getSize', from_fasl(args))),
+        'hasPoint':              ((text, args) => call_jsxgraph_method(text, 'Text', 'hasPoint', from_fasl(args))),
+        'notifyParents':         ((text, args) => call_jsxgraph_method(text, 'Text', 'notifyParents', from_fasl(args))),
+        'poorMansTeX':           ((text, args) => call_jsxgraph_method(text, 'Text', 'poorMansTeX', from_fasl(args))),
+        'replaceSub':            ((text, args) => call_jsxgraph_method(text, 'Text', 'replaceSub', from_fasl(args))),
+        'replaceSup':            ((text, args) => call_jsxgraph_method(text, 'Text', 'replaceSup', from_fasl(args))),
+        'setAutoPosition':       ((text, args) => call_jsxgraph_method(text, 'Text', 'setAutoPosition', from_fasl(args))),
+        'setCoords':             ((text, args) => call_jsxgraph_method(text, 'Text', 'setCoords', from_fasl(args))),
+        'setText':               ((text, args) => call_jsxgraph_method(text, 'Text', 'setText', from_fasl(args))),
+        'setTextJessieCode':     ((text, args) => call_jsxgraph_method(text, 'Text', 'setTextJessieCode', from_fasl(args))),
+        'unescapeTicks':         ((text, args) => call_jsxgraph_method(text, 'Text', 'unescapeTicks', from_fasl(args))),
+        'updateSize':            ((text, args) => call_jsxgraph_method(text, 'Text', 'updateSize', from_fasl(args))),
+        'updateText':            ((text, args) => call_jsxgraph_method(text, 'Text', 'updateText', from_fasl(args))),
+        'utf8_decode':           ((text, args) => call_jsxgraph_method(text, 'Text', 'utf8_decode', from_fasl(args))),
+        'valueTagToJessieCode':  ((text, args) => call_jsxgraph_method(text, 'Text', 'valueTagToJessieCode', from_fasl(args)))
     } : {
         '_createFctUpdateText'()     { throw new Error('DOM not available in this environment'); },
         '_setText'()                 { throw new Error('DOM not available in this environment'); },
@@ -3204,14 +3211,14 @@ var imports = {
     },
     // JSXGraph ForeignObject
     'jsx-foreignobject': hasDOM ? {
-        'H':                        (foreignobject => foreignobject.H()),
-        'W':                        (foreignobject => foreignobject.W()),
-        'hasPoint':                 ((foreignobject, x, y) => foreignobject.hasPoint(from_fasl(x), from_fasl(y))),
-        'setSize':                  ((foreignobject, width, height) => foreignobject.setSize(from_fasl(width), from_fasl(height))),
-        'update':                   (foreignobject => foreignobject.update()),
-        'updateRenderer':           (foreignobject => foreignobject.updateRenderer()),
-        'updateSize':               (foreignobject => foreignobject.updateSize()),
-        'updateSpan':               (foreignobject => foreignobject.updateSpan())
+        'H':                        (foreignobject => call_jsxgraph_method(foreignobject, 'ForeignObject', 'H')),
+        'W':                        (foreignobject => call_jsxgraph_method(foreignobject, 'ForeignObject', 'W')),
+        'hasPoint':                 ((foreignobject, x, y) => call_jsxgraph_method(foreignobject, 'ForeignObject', 'hasPoint', [from_fasl(x), from_fasl(y)])),
+        'setSize':                  ((foreignobject, width, height) => call_jsxgraph_method(foreignobject, 'ForeignObject', 'setSize', [from_fasl(width), from_fasl(height)])),
+        'update':                   (foreignobject => call_jsxgraph_method(foreignobject, 'ForeignObject', 'update')),
+        'updateRenderer':           (foreignobject => call_jsxgraph_method(foreignobject, 'ForeignObject', 'updateRenderer')),
+        'updateSize':               (foreignobject => call_jsxgraph_method(foreignobject, 'ForeignObject', 'updateSize')),
+        'updateSpan':               (foreignobject => call_jsxgraph_method(foreignobject, 'ForeignObject', 'updateSpan'))
     } : {
         'H'()                       { throw new Error('DOM not available in this environment'); },
         'W'()                       { throw new Error('DOM not available in this environment'); },
@@ -3224,7 +3231,7 @@ var imports = {
     },
     // JSXGraph Tapemeasure
     'jsx-tapemeasure': hasDOM ? {
-        'Value':                    (tapemeasure => tapemeasure.Value())
+        'Value':                    (tapemeasure => call_jsxgraph_method(tapemeasure, 'Tapemeasure', 'Value'))
     } : {
         'Value'()                   { throw new Error('DOM not available in this environment'); }
     },
@@ -3286,24 +3293,24 @@ var imports = {
     },
     // JSXGraph Checkbox
     'jsx-checkbox': hasDOM ? {
-        'Value':           ((checkbox, args) => checkbox.Value(...from_fasl(args)))
+        'Value':           ((checkbox, args) => call_jsxgraph_method(checkbox, 'Checkbox', 'Value', from_fasl(args)))
     } : {
         'Value'()          { throw new Error('DOM not available in this environment'); }
     },
     // JSXGraph Input
     'jsx-input': hasDOM ? {
-        'set':   ((input, args) => input.set(...from_fasl(args))),
-        'Value': ((input, args) => input.Value(...from_fasl(args)))
+        'set':   ((input, args) => call_jsxgraph_method(input, 'Input', 'set', from_fasl(args))),
+        'Value': ((input, args) => call_jsxgraph_method(input, 'Input', 'Value', from_fasl(args)))
     } : {
         'set'()   { throw new Error('DOM not available in this environment'); },
         'Value'() { throw new Error('DOM not available in this environment'); }
     },
     // JSXGraph Slider
     'jsx-slider': hasDOM ? {
-        'setMax':   ((slider, args) => slider.setMax(...from_fasl(args))),
-        'setMin':   ((slider, args) => slider.setMin(...from_fasl(args))),
-        'setValue': ((slider, args) => slider.setValue(...from_fasl(args))),
-        'Value':    ((slider, args) => slider.Value(...from_fasl(args)))
+        'setMax':   ((slider, args) => call_jsxgraph_method(slider, 'Slider', 'setMax', from_fasl(args))),
+        'setMin':   ((slider, args) => call_jsxgraph_method(slider, 'Slider', 'setMin', from_fasl(args))),
+        'setValue': ((slider, args) => call_jsxgraph_method(slider, 'Slider', 'setValue', from_fasl(args))),
+        'Value':    ((slider, args) => call_jsxgraph_method(slider, 'Slider', 'Value', from_fasl(args)))
     } : {
         'setMax'()   { throw new Error('DOM not available in this environment'); },
         'setMin'()   { throw new Error('DOM not available in this environment'); },
@@ -3312,15 +3319,15 @@ var imports = {
     },
     // JSXGraph Chart
     'jsx-chart': hasDOM ? {
-        'drawBar':       ((chart, args) => chart.drawBar(...from_fasl(args))),
-        'drawFit':       ((chart, args) => chart.drawFit(...from_fasl(args))),
-        'drawLine':      ((chart, args) => chart.drawLine(...from_fasl(args))),
-        'drawPie':       ((chart, args) => chart.drawPie(...from_fasl(args))),
-        'drawPoints':    ((chart, args) => chart.drawPoints(...from_fasl(args))),
-        'drawRadar':     ((chart, args) => chart.drawRadar(...from_fasl(args))),
-        'drawSpline':    ((chart, args) => chart.drawSpline(...from_fasl(args))),
-        'updateDataArray': ((chart, args) => chart.updateDataArray(...from_fasl(args))),
-        'updateRenderer':  ((chart, args) => chart.updateRenderer(...from_fasl(args)))
+        'drawBar':       ((chart, args) => call_jsxgraph_method(chart, 'Chart', 'drawBar', from_fasl(args))),
+        'drawFit':       ((chart, args) => call_jsxgraph_method(chart, 'Chart', 'drawFit', from_fasl(args))),
+        'drawLine':      ((chart, args) => call_jsxgraph_method(chart, 'Chart', 'drawLine', from_fasl(args))),
+        'drawPie':       ((chart, args) => call_jsxgraph_method(chart, 'Chart', 'drawPie', from_fasl(args))),
+        'drawPoints':    ((chart, args) => call_jsxgraph_method(chart, 'Chart', 'drawPoints', from_fasl(args))),
+        'drawRadar':     ((chart, args) => call_jsxgraph_method(chart, 'Chart', 'drawRadar', from_fasl(args))),
+        'drawSpline':    ((chart, args) => call_jsxgraph_method(chart, 'Chart', 'drawSpline', from_fasl(args))),
+        'updateDataArray': ((chart, args) => call_jsxgraph_method(chart, 'Chart', 'updateDataArray', from_fasl(args))),
+        'updateRenderer':  ((chart, args) => call_jsxgraph_method(chart, 'Chart', 'updateRenderer', from_fasl(args)))
     } : {
         'drawBar'()        { throw new Error('DOM not available in this environment'); },
         'drawFit'()        { throw new Error('DOM not available in this environment'); },
@@ -3334,14 +3341,14 @@ var imports = {
     },
     // JSXGraph Image
     'jsx-image': hasDOM ? {
-        'H':              ((image, args) => image.H(...from_fasl(args))),
-        'W':              ((image, args) => image.W(...from_fasl(args))),
-        'hasPoint':       ((image, args) => image.hasPoint(...from_fasl(args))),
-        'setSize':        ((image, args) => image.setSize(...from_fasl(args))),
-        'update':         ((image, args) => image.update(...from_fasl(args))),
-        'updateRenderer': ((image, args) => image.updateRenderer(...from_fasl(args))),
-        'updateSize':     ((image, args) => image.updateSize(...from_fasl(args))),
-        'updateSpan':     ((image, args) => image.updateSpan(...from_fasl(args)))
+        'H':              ((image, args) => call_jsxgraph_method(image, 'Image', 'H', from_fasl(args))),
+        'W':              ((image, args) => call_jsxgraph_method(image, 'Image', 'W', from_fasl(args))),
+        'hasPoint':       ((image, args) => call_jsxgraph_method(image, 'Image', 'hasPoint', from_fasl(args))),
+        'setSize':        ((image, args) => call_jsxgraph_method(image, 'Image', 'setSize', from_fasl(args))),
+        'update':         ((image, args) => call_jsxgraph_method(image, 'Image', 'update', from_fasl(args))),
+        'updateRenderer': ((image, args) => call_jsxgraph_method(image, 'Image', 'updateRenderer', from_fasl(args))),
+        'updateSize':     ((image, args) => call_jsxgraph_method(image, 'Image', 'updateSize', from_fasl(args))),
+        'updateSpan':     ((image, args) => call_jsxgraph_method(image, 'Image', 'updateSpan', from_fasl(args)))
     } : {
         'H'()             { throw new Error('DOM not available in this environment'); },
         'W'()             { throw new Error('DOM not available in this environment'); },
@@ -3354,25 +3361,25 @@ var imports = {
     },
     // JSXGraph Group
     'jsx-group': hasDOM ? {
-        'addParents':          ((group, args) => group.addParents(...from_fasl(args))),
-        'addPoint':            ((group, args) => group.addPoint(...from_fasl(args))),
-        'addPoints':           ((group, args) => group.addPoints(...from_fasl(args))),
-        'addRotationPoint':    ((group, args) => group.addRotationPoint(...from_fasl(args))),
-        'addScalePoint':       ((group, args) => group.addScalePoint(...from_fasl(args))),
-        'addTranslationPoint': ((group, args) => group.addTranslationPoint(...from_fasl(args))),
-        'addGroup':            ((group, args) => group.addGroup(...from_fasl(args))),
-        'removePoint':         ((group, args) => group.removePoint(...from_fasl(args))),
-        'removeRotationPoint': ((group, args) => group.removeRotationPoint(...from_fasl(args))),
-        'removeScalePoint':    ((group, args) => group.removeScalePoint(...from_fasl(args))),
-        'removeTranslationPoint': ((group, args) => group.removeTranslationPoint(...from_fasl(args))),
-        'setParents':          ((group, args) => group.setParents(...from_fasl(args))),
-        'setRotationCenter':   ((group, args) => group.setRotationCenter(...from_fasl(args))),
-        'setRotationPoints':   ((group, args) => group.setRotationPoints(...from_fasl(args))),
-        'setScaleCenter':      ((group, args) => group.setScaleCenter(...from_fasl(args))),
-        'setScalePoints':      ((group, args) => group.setScalePoints(...from_fasl(args))),
-        'setTranslationPoints': ((group, args) => group.setTranslationPoints(...from_fasl(args))),
-        'ungroup':             (group => group.ungroup()),
-        'update':              (group => group.update())
+        'addParents':          ((group, args) => call_jsxgraph_method(group, 'Group', 'addParents', from_fasl(args))),
+        'addPoint':            ((group, args) => call_jsxgraph_method(group, 'Group', 'addPoint', from_fasl(args))),
+        'addPoints':           ((group, args) => call_jsxgraph_method(group, 'Group', 'addPoints', from_fasl(args))),
+        'addRotationPoint':    ((group, args) => call_jsxgraph_method(group, 'Group', 'addRotationPoint', from_fasl(args))),
+        'addScalePoint':       ((group, args) => call_jsxgraph_method(group, 'Group', 'addScalePoint', from_fasl(args))),
+        'addTranslationPoint': ((group, args) => call_jsxgraph_method(group, 'Group', 'addTranslationPoint', from_fasl(args))),
+        'addGroup':            ((group, args) => call_jsxgraph_method(group, 'Group', 'addGroup', from_fasl(args))),
+        'removePoint':         ((group, args) => call_jsxgraph_method(group, 'Group', 'removePoint', from_fasl(args))),
+        'removeRotationPoint': ((group, args) => call_jsxgraph_method(group, 'Group', 'removeRotationPoint', from_fasl(args))),
+        'removeScalePoint':    ((group, args) => call_jsxgraph_method(group, 'Group', 'removeScalePoint', from_fasl(args))),
+        'removeTranslationPoint': ((group, args) => call_jsxgraph_method(group, 'Group', 'removeTranslationPoint', from_fasl(args))),
+        'setParents':          ((group, args) => call_jsxgraph_method(group, 'Group', 'setParents', from_fasl(args))),
+        'setRotationCenter':   ((group, args) => call_jsxgraph_method(group, 'Group', 'setRotationCenter', from_fasl(args))),
+        'setRotationPoints':   ((group, args) => call_jsxgraph_method(group, 'Group', 'setRotationPoints', from_fasl(args))),
+        'setScaleCenter':      ((group, args) => call_jsxgraph_method(group, 'Group', 'setScaleCenter', from_fasl(args))),
+        'setScalePoints':      ((group, args) => call_jsxgraph_method(group, 'Group', 'setScalePoints', from_fasl(args))),
+        'setTranslationPoints': ((group, args) => call_jsxgraph_method(group, 'Group', 'setTranslationPoints', from_fasl(args))),
+        'ungroup':             (group => call_jsxgraph_method(group, 'Group', 'ungroup')),
+        'update':              (group => call_jsxgraph_method(group, 'Group', 'update'))
     } : {
         'addParents'()          { throw new Error('DOM not available in this environment'); },
         'addPoint'()            { throw new Error('DOM not available in this environment'); },
@@ -3404,10 +3411,10 @@ var imports = {
     },
     // JSXGraph Arc
     'jsx-arc': hasDOM ? {
-        'get-radius':                 (arc => arc.getRadius()),
-        'has-point-sector':           ((arc, x, y) => arc.hasPointSector(x, y)),
-        'radius':                     (arc => arc.Radius()),
-        'value':                      ((arc, unit, rad) => arc.Value(from_fasl(unit), from_fasl(rad)))
+        'get-radius':                 (arc => call_jsxgraph_method(arc, 'Arc', 'getRadius')),
+        'has-point-sector':           ((arc, x, y) => call_jsxgraph_method(arc, 'Arc', 'hasPointSector', [x, y])),
+        'radius':                     (arc => call_jsxgraph_method(arc, 'Arc', 'Radius')),
+        'value':                      ((arc, unit, rad) => call_jsxgraph_method(arc, 'Arc', 'Value', [from_fasl(unit), from_fasl(rad)]))
     } : {
         'get-radius'()                { throw new Error('DOM not available in this environment'); },
         'has-point-sector'()          { throw new Error('DOM not available in this environment'); },
@@ -3416,9 +3423,9 @@ var imports = {
     },
     // JSXGraph Angle
     'jsx-angle': hasDOM ? {
-        'free':                       (angle => angle.free()),
-        'set-angle!':                 ((angle, val) => { angle.setAngle(from_fasl(val)); }),
-        'value':                      ((angle, unit) => angle.Value(from_fasl(unit)))
+        'free':                       (angle => call_jsxgraph_method(angle, 'Angle', 'free')),
+        'set-angle!':                 ((angle, val) => { call_jsxgraph_method(angle, 'Angle', 'setAngle', [from_fasl(val)]); }),
+        'value':                      ((angle, unit) => call_jsxgraph_method(angle, 'Angle', 'Value', [from_fasl(unit)]))
     } : {
         'free'()                      { throw new Error('DOM not available in this environment'); },
         'set-angle!'()                { throw new Error('DOM not available in this environment'); },
@@ -3426,13 +3433,13 @@ var imports = {
     },
     // JSXGraph Sector
     'jsx-sector': hasDOM ? {
-        'area':                       (sector => sector.Area()),
-        'has-point-sector':           ((sector, x, y) => sector.hasPointSector(x, y)),
-        'l':                          (sector => sector.L()),
-        'perimeter':                  (sector => sector.Perimeter()),
-        'radius':                     (sector => sector.Radius()),
-        'set-position-directly!':     ((sector, method, coords, oldcoords) => sector.setPositionDirectly(from_fasl(method), from_fasl(coords), from_fasl(oldcoords))),
-        'set-radius!':                ((sector, value) => sector.setRadius(from_fasl(value)))
+        'area':                       (sector => call_jsxgraph_method(sector, 'Sector', 'Area')),
+        'has-point-sector':           ((sector, x, y) => call_jsxgraph_method(sector, 'Sector', 'hasPointSector', [x, y])),
+        'l':                          (sector => call_jsxgraph_method(sector, 'Sector', 'L')),
+        'perimeter':                  (sector => call_jsxgraph_method(sector, 'Sector', 'Perimeter')),
+        'radius':                     (sector => call_jsxgraph_method(sector, 'Sector', 'Radius')),
+        'set-position-directly!':     ((sector, method, coords, oldcoords) => call_jsxgraph_method(sector, 'Sector', 'setPositionDirectly', [from_fasl(method), from_fasl(coords), from_fasl(oldcoords)])),
+        'set-radius!':                ((sector, value) => call_jsxgraph_method(sector, 'Sector', 'setRadius', [from_fasl(value)]))
     } : {
         'area'()                      { throw new Error('DOM not available in this environment'); },
         'has-point-sector'()          { throw new Error('DOM not available in this environment'); },
@@ -3444,8 +3451,8 @@ var imports = {
     },
     // JSXGraph Glider
     'jsx-glider': hasDOM ? {
-        'start-animation!':          ((glider, direction, stepCount, delay) => glider.startAnimation(from_fasl(direction), from_fasl(stepCount), from_fasl(delay))),
-        'stop-animation!':           ((glider) => glider.stopAnimation())
+        'start-animation!':          ((glider, direction, stepCount, delay) => call_jsxgraph_method(glider, 'Glider', 'startAnimation', [from_fasl(direction), from_fasl(stepCount), from_fasl(delay)])),
+        'stop-animation!':           ((glider) => call_jsxgraph_method(glider, 'Glider', 'stopAnimation'))
     } : {
         'start-animation!'()         { throw new Error('DOM not available in this environment'); },
         'stop-animation!'()          { throw new Error('DOM not available in this environment'); }
@@ -3468,19 +3475,19 @@ var imports = {
     },
     // JSXGraph Riemannsum
     'jsx-riemannsum': hasDOM ? {
-        'Value': ((riemannsum) => riemannsum.Value())
+        'Value': ((riemannsum) => call_jsxgraph_method(riemannsum, 'Riemannsum', 'Value'))
     } : {
         'Value'()                     { throw new Error('DOM not available in this environment'); }
     },
     // JSXGraph Slopefield
     'jsx-slopefield': hasDOM ? {
-        'setF': ((field, func) => field.setF(from_fasl(func)))
+        'setF': ((field, func) => call_jsxgraph_method(field, 'Slopefield', 'setF', [from_fasl(func)]))
     } : {
         'setF'()                      { throw new Error('DOM not available in this environment'); }
     },
     // JSXGraph Vectorfield
     'jsx-vectorfield': hasDOM ? {
-        'setF': ((field, func) => field.setF(from_fasl(func)))
+        'setF': ((field, func) => call_jsxgraph_method(field, 'Vectorfield', 'setF', [from_fasl(func)]))
     } : {
         'setF'()                      { throw new Error('DOM not available in this environment'); }
     },
@@ -3527,18 +3534,18 @@ var imports = {
         'set-snatch-distance!':        ((pt, d) => { pt.snatchDistance = d; }),
         'style':                       (pt => pt.style),
         'set-style!':                  ((pt, s) => { pt.style = s; }),
-        'x':                           (pt => pt.X()),
-        'y':                           (pt => pt.Y()),
+        'x':                           (pt => call_jsxgraph_method(pt, 'Point', 'X')),
+        'y':                           (pt => call_jsxgraph_method(pt, 'Point', 'Y')),
         'zoom':                        (pt => pt.zoom ? 1 : 0),
         'set-zoom!':                   ((pt, flag) => { pt.zoom = !!flag; }),
-        'has-point':                   ((pt, x, y) => pt.hasPoint(x, y) ? 1 : 0),
-        'is-on':                       ((pt, el, tol) => pt.isOn(el, tol) ? 1 : 0),
-        'make-intersection!':          ((pt, el1, el2, i, j) => { pt.makeIntersection(el1, el2, i, j); }),
-        'normalize-face':              ((pt, s) => pt.normalizeFace(from_fasl(s))),
-        'call-set-style!':             ((pt, i) => { pt.setStyle(i); }),
-        'update!':                     ((pt, flag) => { pt.update(!!flag); }),
-        'update-renderer!':            (pt => { pt.updateRenderer(); }),
-        'update-transform!':           ((pt, flag) => pt.updateTransform(!!flag))
+        'has-point':                   ((pt, x, y) => call_jsxgraph_method(pt, 'Point', 'hasPoint', [x, y]) ? 1 : 0),
+        'is-on':                       ((pt, el, tol) => call_jsxgraph_method(pt, 'Point', 'isOn', [el, tol]) ? 1 : 0),
+        'make-intersection!':          ((pt, el1, el2, i, j) => { call_jsxgraph_method(pt, 'Point', 'makeIntersection', [el1, el2, i, j]); }),
+        'normalize-face':              ((pt, s) => call_jsxgraph_method(pt, 'Point', 'normalizeFace', [from_fasl(s)])),
+        'call-set-style!':             ((pt, i) => { call_jsxgraph_method(pt, 'Point', 'setStyle', [i]); }),
+        'update!':                     ((pt, flag) => { call_jsxgraph_method(pt, 'Point', 'update', [!!flag]); }),
+        'update-renderer!':            (pt => { call_jsxgraph_method(pt, 'Point', 'updateRenderer'); }),
+        'update-transform!':           ((pt, flag) => call_jsxgraph_method(pt, 'Point', 'updateTransform', [!!flag]))
     } : {
         'is-point'()                    { throw new Error('DOM not available in this environment'); },
         'attractor-distance'()          { throw new Error('DOM not available in this environment'); },
