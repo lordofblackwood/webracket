@@ -3,6 +3,8 @@
 ;; Browser smoke for dynamic JSXGraph method-call boundary errors.
 
 (require (only-in webracket/unsafe/jsxgraph
+                  js-jsx-board-create
+                  js-jsx-board-create-point
                   js-jsx-circle-call
                   js-jsx-circle-call/nullish
                   js-jsx-curve-call
@@ -43,6 +45,19 @@
   (js-eval "({ present() { return {ok: true}; } })"))
 
 (define args (vector))
+
+(define board-without-create
+  (js-eval "({})"))
+
+(define board-create-message
+  (catch-message
+   (lambda ()
+     (js-jsx-board-create board-without-create "point" args args))))
+
+(define board-create-point-message
+  (catch-message
+   (lambda ()
+     (js-jsx-board-create-point board-without-create args args))))
 
 (define element-call-message
   (catch-message
@@ -94,6 +109,12 @@
    (lambda ()
      (js-jsx-polygon-call/nullish target "missingMethod" args))))
 
+(check-message board-create-message
+               "JSXGraph Board.create not available in this environment"
+               "missing JSXGraph Board.create message")
+(check-message board-create-point-message
+               "JSXGraph Board.create not available in this environment"
+               "missing JSXGraph Board.create point message")
 (check-message element-call-message
                "jsx-element.call: method missingMethod not available in this environment"
                "missing jsx-element call message")

@@ -124,6 +124,13 @@ function call_js_method(obj, name, args, who) {
   return method.apply(target, decode_js_send_args(args));
 }
 
+function call_jsxgraph_board_create(board, elementType, parents, attrs) {
+  const create = require_host_function(board,
+                                       'create',
+                                       'JSXGraph Board.create');
+  return create(elementType, from_fasl(parents), from_fasl(attrs));
+}
+
 function construct_js_value(ctor, args) {
   if (ctor === null || ctor === undefined) {
     throw new Error('js-new: constructor is null or undefined');
@@ -2766,92 +2773,92 @@ var imports = {
     // JSXGraph Board
     'jsx-board': hasDOM ? {
         'init-board':                ((containerId, attrs) => require_jsxgraph_api().initBoard(from_fasl(containerId), from_fasl(attrs))),
-        'create':                    ((board, elementType, parents, attrs) => board.create(from_fasl(elementType), from_fasl(parents), from_fasl(attrs))),
-        'create-point':              ((board, parents, attrs) => board.create('point', from_fasl(parents), from_fasl(attrs))),
-        'create-line':               ((board, parents, attrs) => board.create('line', from_fasl(parents), from_fasl(attrs))),
-        'create-segment':            ((board, parents, attrs) => board.create('segment', from_fasl(parents), from_fasl(attrs))),
-        'create-arc':                ((board, parents, attrs) => board.create('arc', from_fasl(parents), from_fasl(attrs))),
-        'create-angle':              ((board, parents, attrs) => board.create('angle', from_fasl(parents), from_fasl(attrs))),
-        'create-sector':             ((board, parents, attrs) => board.create('sector', from_fasl(parents), from_fasl(attrs))),
-        'create-glider':             ((board, parents, attrs) => board.create('glider', from_fasl(parents), from_fasl(attrs))),
-        'create-circle':             ((board, parents, attrs) => board.create('circle', from_fasl(parents), from_fasl(attrs))),
-        'create-conic':              ((board, parents, attrs) => board.create('conic', from_fasl(parents), from_fasl(attrs))),
-        'create-ellipse':            ((board, parents, attrs) => board.create('ellipse', from_fasl(parents), from_fasl(attrs))),
-        'create-curve':              ((board, parents, attrs) => board.create('curve', from_fasl(parents), from_fasl(attrs))),
-        'create-functiongraph':      ((board, parents, attrs) => board.create('functiongraph', from_fasl(parents), from_fasl(attrs))),
-        'create-polygon':            ((board, parents, attrs) => board.create('polygon', from_fasl(parents), from_fasl(attrs))),
-        'create-midpoint':           ((board, parents, attrs) => board.create('midpoint', from_fasl(parents), from_fasl(attrs))),
-        'create-parallel':           ((board, parents, attrs) => board.create('parallel', from_fasl(parents), from_fasl(attrs))),
-        'create-arrowparallel':      ((board, parents, attrs) => board.create('arrowparallel', from_fasl(parents), from_fasl(attrs))),
-        'create-axis':               ((board, parents, attrs) => board.create('axis', from_fasl(parents), from_fasl(attrs))),
-        'create-grid':               ((board, parents, attrs) => board.create('grid', from_fasl(parents), from_fasl(attrs))),
-        'create-boxplot':            ((board, parents, attrs) => board.create('boxplot', from_fasl(parents), from_fasl(attrs))),
-        'create-tangent':            ((board, parents, attrs) => board.create('tangent', from_fasl(parents), from_fasl(attrs))),
-        'create-tangentto':          ((board, parents, attrs) => board.create('tangentto', from_fasl(parents), from_fasl(attrs))),
-        'create-polarline':          ((board, parents, attrs) => board.create('polarline', from_fasl(parents), from_fasl(attrs))),
-        'create-polepoint':          ((board, parents, attrs) => board.create('polepoint', from_fasl(parents), from_fasl(attrs))),
-        'create-radicalaxis':        ((board, parents, attrs) => board.create('radicalaxis', from_fasl(parents), from_fasl(attrs))),
-        'create-circumcircle':       ((board, parents, attrs) => board.create('circumcircle', from_fasl(parents), from_fasl(attrs))),
-        'create-incircle':           ((board, parents, attrs) => board.create('incircle', from_fasl(parents), from_fasl(attrs))),
-        'create-incenter':           ((board, parents, attrs) => board.create('incenter', from_fasl(parents), from_fasl(attrs))),
-        'create-minorarc':           ((board, parents, attrs) => board.create('minorarc', from_fasl(parents), from_fasl(attrs))),
-        'create-minorsector':        ((board, parents, attrs) => board.create('minorsector', from_fasl(parents), from_fasl(attrs))),
-        'create-circumcirclearc':    ((board, parents, attrs) => board.create('circumcirclearc', from_fasl(parents), from_fasl(attrs))),
-        'create-circumcirclesector': ((board, parents, attrs) => board.create('circumcirclesector', from_fasl(parents), from_fasl(attrs))),
-        'create-semicircle':         ((board, parents, attrs) => board.create('semicircle', from_fasl(parents), from_fasl(attrs))),
-        'create-majorarc':           ((board, parents, attrs) => board.create('majorarc', from_fasl(parents), from_fasl(attrs))),
-        'create-majorsector':        ((board, parents, attrs) => board.create('majorsector', from_fasl(parents), from_fasl(attrs))),
-        'create-curveintersection':  ((board, parents, attrs) => board.create('curveintersection', from_fasl(parents), from_fasl(attrs))),
-        'create-curvedifference':    ((board, parents, attrs) => board.create('curvedifference', from_fasl(parents), from_fasl(attrs))),
-        'create-curveunion':         ((board, parents, attrs) => board.create('curveunion', from_fasl(parents), from_fasl(attrs))),
-        'create-derivative':         ((board, parents, attrs) => board.create('derivative', from_fasl(parents), from_fasl(attrs))),
-        'create-integral':           ((board, parents, attrs) => board.create('integral', from_fasl(parents), from_fasl(attrs))),
-        'create-riemannsum':         ((board, parents, attrs) => board.create('riemannsum', from_fasl(parents), from_fasl(attrs))),
-        'create-slopefield':         ((board, parents, attrs) => board.create('slopefield', from_fasl(parents), from_fasl(attrs))),
-        'create-vectorfield':        ((board, parents, attrs) => board.create('vectorfield', from_fasl(parents), from_fasl(attrs))),
-        'create-implicitcurve':      ((board, parents, attrs) => board.create('implicitcurve', from_fasl(parents), from_fasl(attrs))),
-        'create-spline':             ((board, parents, attrs) => board.create('spline', from_fasl(parents), from_fasl(attrs))),
-        'create-cardinalspline':     ((board, parents, attrs) => board.create('cardinalspline', from_fasl(parents), from_fasl(attrs))),
-        'create-comb':               ((board, parents, attrs) => board.create('comb', from_fasl(parents), from_fasl(attrs))),
-        'create-metapostspline':     ((board, parents, attrs) => board.create('metapostspline', from_fasl(parents), from_fasl(attrs))),
-        'create-polygonalchain':     ((board, parents, attrs) => board.create('polygonalchain', from_fasl(parents), from_fasl(attrs))),
-        'create-regularpolygon':     ((board, parents, attrs) => board.create('regularpolygon', from_fasl(parents), from_fasl(attrs))),
-        'create-hyperbola':          ((board, parents, attrs) => board.create('hyperbola', from_fasl(parents), from_fasl(attrs))),
-        'create-parabola':           ((board, parents, attrs) => board.create('parabola', from_fasl(parents), from_fasl(attrs))),
-        'create-stepfunction':       ((board, parents, attrs) => board.create('stepfunction', from_fasl(parents), from_fasl(attrs))),
-        'create-inequality':         ((board, parents, attrs) => board.create('inequality', from_fasl(parents), from_fasl(attrs))),
-        'create-turtle':             ((board, parents, attrs) => board.create('turtle', from_fasl(parents), from_fasl(attrs))),
-        'create-nonreflexangle':     ((board, parents, attrs) => board.create('nonreflexangle', from_fasl(parents), from_fasl(attrs))),
-        'create-perpendicular':      ((board, parents, attrs) => board.create('perpendicular', from_fasl(parents), from_fasl(attrs))),
-        'create-reflection':         ((board, parents, attrs) => board.create('reflection', from_fasl(parents), from_fasl(attrs))),
-        'create-bisector':           ((board, parents, attrs) => board.create('bisector', from_fasl(parents), from_fasl(attrs))),
-        'create-normal':             ((board, parents, attrs) => board.create('normal', from_fasl(parents), from_fasl(attrs))),
-        'create-intersection':       ((board, parents, attrs) => board.create('intersection', from_fasl(parents), from_fasl(attrs))),
-        'create-arrow':              ((board, parents, attrs) => board.create('arrow', from_fasl(parents), from_fasl(attrs))),
-        'create-button':             ((board, parents, attrs) => board.create('button', from_fasl(parents), from_fasl(attrs))),
-        'create-checkbox':           ((board, parents, attrs) => board.create('checkbox', from_fasl(parents), from_fasl(attrs))),
-        'create-input':              ((board, parents, attrs) => board.create('input', from_fasl(parents), from_fasl(attrs))),
-        'create-slider':             ((board, parents, attrs) => board.create('slider', from_fasl(parents), from_fasl(attrs))),
-        'create-chart':              ((board, parents, attrs) => board.create('chart', from_fasl(parents), from_fasl(attrs))),
-        'create-legend':             ((board, parents, attrs) => board.create('legend', from_fasl(parents), from_fasl(attrs))),
-        'create-smartlabel':         ((board, parents, attrs) => board.create('smartlabel', from_fasl(parents), from_fasl(attrs))),
-        'create-foreignobject':      ((board, parents, attrs) => board.create('foreignobject', from_fasl(parents), from_fasl(attrs))),
-        'create-tapemeasure':        ((board, parents, attrs) => board.create('tapemeasure', from_fasl(parents), from_fasl(attrs))),
-        'create-ticks':              ((board, parents, attrs) => board.create('ticks', from_fasl(parents), from_fasl(attrs))),
-        'create-hatch':              ((board, parents, attrs) => board.create('hatch', from_fasl(parents), from_fasl(attrs))),
-        'create-transformation':     ((board, parents, attrs) => board.create('transform', from_fasl(parents), from_fasl(attrs))),
-        'create-tracecurve':         ((board, parents, attrs) => board.create('tracecurve', from_fasl(parents), from_fasl(attrs))),
-        'create-slopetriangle':      ((board, parents, attrs) => board.create('slopetriangle', from_fasl(parents), from_fasl(attrs))),
-        'create-parallelogram':      ((board, parents, attrs) => board.create('parallelogram', from_fasl(parents), from_fasl(attrs))),
-        'create-reflexangle':        ((board, parents, attrs) => board.create('reflexangle', from_fasl(parents), from_fasl(attrs))),
-        'create-measurement':        ((board, parents, attrs) => board.create('measurement', from_fasl(parents), from_fasl(attrs))),
-        'create-circumcenter':       ((board, parents, attrs) => board.create('circumcenter', from_fasl(parents), from_fasl(attrs))),
-        'create-mirrorelement':      ((board, parents, attrs) => board.create('mirrorelement', from_fasl(parents), from_fasl(attrs))),
-        'create-text':               ((board, parents, attrs) => board.create('text', from_fasl(parents), from_fasl(attrs))),
-        'create-image':              ((board, parents, attrs) => board.create('image', from_fasl(parents), from_fasl(attrs))),
-        'create-group':              ((board, parents, attrs) => board.create('group', from_fasl(parents), from_fasl(attrs))),
-        'create-bisectorlines':      ((board, parents, attrs) => board.create('bisectorlines', from_fasl(parents), from_fasl(attrs))),
-        'create-perpendicularsegment': ((board, parents, attrs) => board.create('perpendicularsegment', from_fasl(parents), from_fasl(attrs))),
+        'create':                    ((board, elementType, parents, attrs) => call_jsxgraph_board_create(board, from_fasl(elementType), parents, attrs)),
+        'create-point':              ((board, parents, attrs) => call_jsxgraph_board_create(board, 'point', parents, attrs)),
+        'create-line':               ((board, parents, attrs) => call_jsxgraph_board_create(board, 'line', parents, attrs)),
+        'create-segment':            ((board, parents, attrs) => call_jsxgraph_board_create(board, 'segment', parents, attrs)),
+        'create-arc':                ((board, parents, attrs) => call_jsxgraph_board_create(board, 'arc', parents, attrs)),
+        'create-angle':              ((board, parents, attrs) => call_jsxgraph_board_create(board, 'angle', parents, attrs)),
+        'create-sector':             ((board, parents, attrs) => call_jsxgraph_board_create(board, 'sector', parents, attrs)),
+        'create-glider':             ((board, parents, attrs) => call_jsxgraph_board_create(board, 'glider', parents, attrs)),
+        'create-circle':             ((board, parents, attrs) => call_jsxgraph_board_create(board, 'circle', parents, attrs)),
+        'create-conic':              ((board, parents, attrs) => call_jsxgraph_board_create(board, 'conic', parents, attrs)),
+        'create-ellipse':            ((board, parents, attrs) => call_jsxgraph_board_create(board, 'ellipse', parents, attrs)),
+        'create-curve':              ((board, parents, attrs) => call_jsxgraph_board_create(board, 'curve', parents, attrs)),
+        'create-functiongraph':      ((board, parents, attrs) => call_jsxgraph_board_create(board, 'functiongraph', parents, attrs)),
+        'create-polygon':            ((board, parents, attrs) => call_jsxgraph_board_create(board, 'polygon', parents, attrs)),
+        'create-midpoint':           ((board, parents, attrs) => call_jsxgraph_board_create(board, 'midpoint', parents, attrs)),
+        'create-parallel':           ((board, parents, attrs) => call_jsxgraph_board_create(board, 'parallel', parents, attrs)),
+        'create-arrowparallel':      ((board, parents, attrs) => call_jsxgraph_board_create(board, 'arrowparallel', parents, attrs)),
+        'create-axis':               ((board, parents, attrs) => call_jsxgraph_board_create(board, 'axis', parents, attrs)),
+        'create-grid':               ((board, parents, attrs) => call_jsxgraph_board_create(board, 'grid', parents, attrs)),
+        'create-boxplot':            ((board, parents, attrs) => call_jsxgraph_board_create(board, 'boxplot', parents, attrs)),
+        'create-tangent':            ((board, parents, attrs) => call_jsxgraph_board_create(board, 'tangent', parents, attrs)),
+        'create-tangentto':          ((board, parents, attrs) => call_jsxgraph_board_create(board, 'tangentto', parents, attrs)),
+        'create-polarline':          ((board, parents, attrs) => call_jsxgraph_board_create(board, 'polarline', parents, attrs)),
+        'create-polepoint':          ((board, parents, attrs) => call_jsxgraph_board_create(board, 'polepoint', parents, attrs)),
+        'create-radicalaxis':        ((board, parents, attrs) => call_jsxgraph_board_create(board, 'radicalaxis', parents, attrs)),
+        'create-circumcircle':       ((board, parents, attrs) => call_jsxgraph_board_create(board, 'circumcircle', parents, attrs)),
+        'create-incircle':           ((board, parents, attrs) => call_jsxgraph_board_create(board, 'incircle', parents, attrs)),
+        'create-incenter':           ((board, parents, attrs) => call_jsxgraph_board_create(board, 'incenter', parents, attrs)),
+        'create-minorarc':           ((board, parents, attrs) => call_jsxgraph_board_create(board, 'minorarc', parents, attrs)),
+        'create-minorsector':        ((board, parents, attrs) => call_jsxgraph_board_create(board, 'minorsector', parents, attrs)),
+        'create-circumcirclearc':    ((board, parents, attrs) => call_jsxgraph_board_create(board, 'circumcirclearc', parents, attrs)),
+        'create-circumcirclesector': ((board, parents, attrs) => call_jsxgraph_board_create(board, 'circumcirclesector', parents, attrs)),
+        'create-semicircle':         ((board, parents, attrs) => call_jsxgraph_board_create(board, 'semicircle', parents, attrs)),
+        'create-majorarc':           ((board, parents, attrs) => call_jsxgraph_board_create(board, 'majorarc', parents, attrs)),
+        'create-majorsector':        ((board, parents, attrs) => call_jsxgraph_board_create(board, 'majorsector', parents, attrs)),
+        'create-curveintersection':  ((board, parents, attrs) => call_jsxgraph_board_create(board, 'curveintersection', parents, attrs)),
+        'create-curvedifference':    ((board, parents, attrs) => call_jsxgraph_board_create(board, 'curvedifference', parents, attrs)),
+        'create-curveunion':         ((board, parents, attrs) => call_jsxgraph_board_create(board, 'curveunion', parents, attrs)),
+        'create-derivative':         ((board, parents, attrs) => call_jsxgraph_board_create(board, 'derivative', parents, attrs)),
+        'create-integral':           ((board, parents, attrs) => call_jsxgraph_board_create(board, 'integral', parents, attrs)),
+        'create-riemannsum':         ((board, parents, attrs) => call_jsxgraph_board_create(board, 'riemannsum', parents, attrs)),
+        'create-slopefield':         ((board, parents, attrs) => call_jsxgraph_board_create(board, 'slopefield', parents, attrs)),
+        'create-vectorfield':        ((board, parents, attrs) => call_jsxgraph_board_create(board, 'vectorfield', parents, attrs)),
+        'create-implicitcurve':      ((board, parents, attrs) => call_jsxgraph_board_create(board, 'implicitcurve', parents, attrs)),
+        'create-spline':             ((board, parents, attrs) => call_jsxgraph_board_create(board, 'spline', parents, attrs)),
+        'create-cardinalspline':     ((board, parents, attrs) => call_jsxgraph_board_create(board, 'cardinalspline', parents, attrs)),
+        'create-comb':               ((board, parents, attrs) => call_jsxgraph_board_create(board, 'comb', parents, attrs)),
+        'create-metapostspline':     ((board, parents, attrs) => call_jsxgraph_board_create(board, 'metapostspline', parents, attrs)),
+        'create-polygonalchain':     ((board, parents, attrs) => call_jsxgraph_board_create(board, 'polygonalchain', parents, attrs)),
+        'create-regularpolygon':     ((board, parents, attrs) => call_jsxgraph_board_create(board, 'regularpolygon', parents, attrs)),
+        'create-hyperbola':          ((board, parents, attrs) => call_jsxgraph_board_create(board, 'hyperbola', parents, attrs)),
+        'create-parabola':           ((board, parents, attrs) => call_jsxgraph_board_create(board, 'parabola', parents, attrs)),
+        'create-stepfunction':       ((board, parents, attrs) => call_jsxgraph_board_create(board, 'stepfunction', parents, attrs)),
+        'create-inequality':         ((board, parents, attrs) => call_jsxgraph_board_create(board, 'inequality', parents, attrs)),
+        'create-turtle':             ((board, parents, attrs) => call_jsxgraph_board_create(board, 'turtle', parents, attrs)),
+        'create-nonreflexangle':     ((board, parents, attrs) => call_jsxgraph_board_create(board, 'nonreflexangle', parents, attrs)),
+        'create-perpendicular':      ((board, parents, attrs) => call_jsxgraph_board_create(board, 'perpendicular', parents, attrs)),
+        'create-reflection':         ((board, parents, attrs) => call_jsxgraph_board_create(board, 'reflection', parents, attrs)),
+        'create-bisector':           ((board, parents, attrs) => call_jsxgraph_board_create(board, 'bisector', parents, attrs)),
+        'create-normal':             ((board, parents, attrs) => call_jsxgraph_board_create(board, 'normal', parents, attrs)),
+        'create-intersection':       ((board, parents, attrs) => call_jsxgraph_board_create(board, 'intersection', parents, attrs)),
+        'create-arrow':              ((board, parents, attrs) => call_jsxgraph_board_create(board, 'arrow', parents, attrs)),
+        'create-button':             ((board, parents, attrs) => call_jsxgraph_board_create(board, 'button', parents, attrs)),
+        'create-checkbox':           ((board, parents, attrs) => call_jsxgraph_board_create(board, 'checkbox', parents, attrs)),
+        'create-input':              ((board, parents, attrs) => call_jsxgraph_board_create(board, 'input', parents, attrs)),
+        'create-slider':             ((board, parents, attrs) => call_jsxgraph_board_create(board, 'slider', parents, attrs)),
+        'create-chart':              ((board, parents, attrs) => call_jsxgraph_board_create(board, 'chart', parents, attrs)),
+        'create-legend':             ((board, parents, attrs) => call_jsxgraph_board_create(board, 'legend', parents, attrs)),
+        'create-smartlabel':         ((board, parents, attrs) => call_jsxgraph_board_create(board, 'smartlabel', parents, attrs)),
+        'create-foreignobject':      ((board, parents, attrs) => call_jsxgraph_board_create(board, 'foreignobject', parents, attrs)),
+        'create-tapemeasure':        ((board, parents, attrs) => call_jsxgraph_board_create(board, 'tapemeasure', parents, attrs)),
+        'create-ticks':              ((board, parents, attrs) => call_jsxgraph_board_create(board, 'ticks', parents, attrs)),
+        'create-hatch':              ((board, parents, attrs) => call_jsxgraph_board_create(board, 'hatch', parents, attrs)),
+        'create-transformation':     ((board, parents, attrs) => call_jsxgraph_board_create(board, 'transform', parents, attrs)),
+        'create-tracecurve':         ((board, parents, attrs) => call_jsxgraph_board_create(board, 'tracecurve', parents, attrs)),
+        'create-slopetriangle':      ((board, parents, attrs) => call_jsxgraph_board_create(board, 'slopetriangle', parents, attrs)),
+        'create-parallelogram':      ((board, parents, attrs) => call_jsxgraph_board_create(board, 'parallelogram', parents, attrs)),
+        'create-reflexangle':        ((board, parents, attrs) => call_jsxgraph_board_create(board, 'reflexangle', parents, attrs)),
+        'create-measurement':        ((board, parents, attrs) => call_jsxgraph_board_create(board, 'measurement', parents, attrs)),
+        'create-circumcenter':       ((board, parents, attrs) => call_jsxgraph_board_create(board, 'circumcenter', parents, attrs)),
+        'create-mirrorelement':      ((board, parents, attrs) => call_jsxgraph_board_create(board, 'mirrorelement', parents, attrs)),
+        'create-text':               ((board, parents, attrs) => call_jsxgraph_board_create(board, 'text', parents, attrs)),
+        'create-image':              ((board, parents, attrs) => call_jsxgraph_board_create(board, 'image', parents, attrs)),
+        'create-group':              ((board, parents, attrs) => call_jsxgraph_board_create(board, 'group', parents, attrs)),
+        'create-bisectorlines':      ((board, parents, attrs) => call_jsxgraph_board_create(board, 'bisectorlines', parents, attrs)),
+        'create-perpendicularsegment': ((board, parents, attrs) => call_jsxgraph_board_create(board, 'perpendicularsegment', parents, attrs)),
         'add-grid!':                 (board => { board.addGrid(); }),
         'remove-grids!':             (board => { board.removeGrids(); }),
         'add-animation!':            ((board, element) => { board.addAnimation(from_fasl(element)); }),
@@ -3215,57 +3222,57 @@ var imports = {
     },
     // JSXGraph Ticks
     'jsx-ticks': hasDOM ? {
-        'create':                   ((board, parents, attrs) => board.create('ticks', from_fasl(parents), from_fasl(attrs)))
+        'create':                   ((board, parents, attrs) => call_jsxgraph_board_create(board, 'ticks', parents, attrs))
     } : {
         'create'()                  { throw new Error('DOM not available in this environment'); }
     },
     // JSXGraph Transformation
     'jsx-transformation': hasDOM ? {
-        'create':                   ((board, parents, attrs) => board.create('transform', from_fasl(parents), from_fasl(attrs)))
+        'create':                   ((board, parents, attrs) => call_jsxgraph_board_create(board, 'transform', parents, attrs))
     } : {
         'create'()                  { throw new Error('DOM not available in this environment'); }
     },
     // JSXGraph Tracecurve
     'jsx-tracecurve': hasDOM ? {
-        'create':                   ((board, parents, attrs) => board.create('tracecurve', from_fasl(parents), from_fasl(attrs)))
+        'create':                   ((board, parents, attrs) => call_jsxgraph_board_create(board, 'tracecurve', parents, attrs))
     } : {
         'create'()                  { throw new Error('DOM not available in this environment'); }
     },
     // JSXGraph Parallelogram
     'jsx-parallelogram': hasDOM ? {
-        'create':                   ((board, parents, attrs) => board.create('parallelogram', from_fasl(parents), from_fasl(attrs)))
+        'create':                   ((board, parents, attrs) => call_jsxgraph_board_create(board, 'parallelogram', parents, attrs))
     } : {
         'create'()                  { throw new Error('DOM not available in this environment'); }
     },
     // JSXGraph ReflexAngle
     'jsx-reflexangle': hasDOM ? {
-        'create':                   ((board, parents, attrs) => board.create('reflexangle', from_fasl(parents), from_fasl(attrs)))
+        'create':                   ((board, parents, attrs) => call_jsxgraph_board_create(board, 'reflexangle', parents, attrs))
     } : {
         'create'()                  { throw new Error('DOM not available in this environment'); }
     },
     // JSXGraph Point Relation Helpers
     'jsx-mirrorpoint': hasDOM ? {
-        'create':                   ((board, parents, attrs) => board.create('mirrorpoint', from_fasl(parents), from_fasl(attrs)))
+        'create':                   ((board, parents, attrs) => call_jsxgraph_board_create(board, 'mirrorpoint', parents, attrs))
     } : {
         'create'()                  { throw new Error('DOM not available in this environment'); }
     },
     'jsx-otherintersection': hasDOM ? {
-        'create':                   ((board, parents, attrs) => board.create('otherintersection', from_fasl(parents), from_fasl(attrs)))
+        'create':                   ((board, parents, attrs) => call_jsxgraph_board_create(board, 'otherintersection', parents, attrs))
     } : {
         'create'()                  { throw new Error('DOM not available in this environment'); }
     },
     'jsx-orthogonalprojection': hasDOM ? {
-        'create':                   ((board, parents, attrs) => board.create('orthogonalprojection', from_fasl(parents), from_fasl(attrs)))
+        'create':                   ((board, parents, attrs) => call_jsxgraph_board_create(board, 'orthogonalprojection', parents, attrs))
     } : {
         'create'()                  { throw new Error('DOM not available in this environment'); }
     },
     'jsx-parallelpoint': hasDOM ? {
-        'create':                   ((board, parents, attrs) => board.create('parallelpoint', from_fasl(parents), from_fasl(attrs)))
+        'create':                   ((board, parents, attrs) => call_jsxgraph_board_create(board, 'parallelpoint', parents, attrs))
     } : {
         'create'()                  { throw new Error('DOM not available in this environment'); }
     },
     'jsx-perpendicularpoint': hasDOM ? {
-        'create':                   ((board, parents, attrs) => board.create('perpendicularpoint', from_fasl(parents), from_fasl(attrs)))
+        'create':                   ((board, parents, attrs) => call_jsxgraph_board_create(board, 'perpendicularpoint', parents, attrs))
     } : {
         'create'()                  { throw new Error('DOM not available in this environment'); }
     },
