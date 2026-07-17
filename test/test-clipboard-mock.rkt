@@ -20,16 +20,19 @@
 (define (install!)
   (js-eval
    "window.__clipboardTest = { writes: [], reads: [] };
-    window.navigator.clipboard = {
-      readText() {
-        window.__clipboardTest.reads.push('read');
-        return { tag: 'read-promise', then(fn) { fn('mock text'); return this; }, catch(_fn) { return this; } };
-      },
-      writeText(text) {
-        window.__clipboardTest.writes.push(text);
-        return { tag: 'write-promise', then(fn) { fn(undefined); return this; }, catch(_fn) { return this; } };
+    Object.defineProperty(window.navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        readText() {
+          window.__clipboardTest.reads.push('read');
+          return { tag: 'read-promise', then(fn) { fn('mock text'); return this; }, catch(_fn) { return this; } };
+        },
+        writeText(text) {
+          window.__clipboardTest.writes.push(text);
+          return { tag: 'write-promise', then(fn) { fn(undefined); return this; }, catch(_fn) { return this; } };
+        }
       }
-    };"))
+    });"))
 
 (install!)
 
@@ -52,4 +55,4 @@
              "read"
              "readText call")
 
-(list #t)
+#t

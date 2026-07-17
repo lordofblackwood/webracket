@@ -38,13 +38,18 @@
   (and (not (js-nullish? method))
        (string=? (js-typeof method) "function")))
 
+;; clipboard-core-methods-present? : external/raw -> boolean?
+;;   Report whether raw has the required Clipboard text methods.
+(define (clipboard-core-methods-present? raw)
+  (and (clipboard-method-present? raw "readText")
+       (clipboard-method-present? raw "writeText")))
+
 ;; clipboard-supported-raw : -> (or/c #f external/raw)
 ;;   Read navigator.clipboard when it is available.
 (define (clipboard-supported-raw)
   (define raw (js-ref/extern (js-window-navigator) "clipboard"))
   (and (not (js-nullish? raw))
-       (clipboard-method-present? raw "readText")
-       (clipboard-method-present? raw "writeText")
+       (clipboard-core-methods-present? raw)
        raw))
 
 ;; clipboard-supported? : -> boolean?
@@ -61,24 +66,41 @@
 ;; clipboard? : any/c -> boolean?
 ;;   Report whether v is a wrapped Clipboard value.
 (define (clipboard? v)
+  (and (clipboard-host-value? v)
+       (clipboard-core-methods-present? (clipboard-raw v))))
+
+;; clipboard-host-value? : any/c -> boolean?
+;;   Report whether v wraps an external Clipboard-like host value.
+(define (clipboard-host-value? v)
   (and (clipboard-info? v)
-       (external? (clipboard-raw v))
-       (clipboard-method-present? (clipboard-raw v) "readText")
-       (clipboard-method-present? (clipboard-raw v) "writeText")))
+       (external? (clipboard-raw v))))
+
+;; check-clipboard : symbol? any/c -> void?
+;;   Ensure value wraps an external Clipboard-like host value.
+(define (check-clipboard who value)
+  (unless (clipboard-host-value? value)
+    (raise-argument-error who "clipboard-info?" value)))
+
+;; check-clipboard-method : symbol? clipboard-info? string? -> void?
+;;   Ensure a required Clipboard method is available.
+(define (check-clipboard-method who value method-name)
+  (unless (clipboard-method-present? (clipboard-raw value) method-name)
+    (raise-arguments-error who
+                           (string-append "Clipboard." method-name " is not available"))))
 
 ;; clipboard-read-text : clipboard-info? -> js-promise?
 ;;   Start an asynchronous clipboard text read and return a wrapped browser Promise.
 (define (clipboard-read-text value)
-  (unless (clipboard? value)
-    (raise-argument-error 'clipboard-read-text "clipboard-info?" value))
+  (check-clipboard 'clipboard-read-text value)
+  (check-clipboard-method 'clipboard-read-text value "readText")
   (js-promise-wrap
    (js-send/extern (clipboard-raw value) "readText" (vector))))
 
 ;; clipboard-write-text! : clipboard-info? (or/c string? symbol?) -> js-promise?
 ;;   Start an asynchronous clipboard text write and return a wrapped browser Promise.
 (define (clipboard-write-text! value text)
-  (unless (clipboard? value)
-    (raise-argument-error 'clipboard-write-text! "clipboard-info?" value))
+  (check-clipboard 'clipboard-write-text! value)
+  (check-clipboard-method 'clipboard-write-text! value "writeText")
   (define text* (clipboard-stringish->string 'clipboard-write-text! text))
   (js-promise-wrap
    (js-send/extern (clipboard-raw value) "writeText" (vector text*))))

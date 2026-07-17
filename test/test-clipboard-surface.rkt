@@ -2,10 +2,12 @@
 
 (require clipboard)
 
-(list
+(void
  clipboard
  clipboard?
  clipboard-raw
  clipboard-supported?
  clipboard-read-text
  clipboard-write-text!)
+
+#t
