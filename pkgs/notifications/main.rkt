@@ -3,9 +3,11 @@
 (require js/promise
          (only-in webracket/unsafe/dom
                   js-instanceof
+                  js-nullish?
                   js-new
                   js-object
                   js-ref
+                  js-ref/extern
                   js-send/extern
                   js-send/extern/nullish
                   js-typeof
@@ -42,6 +44,23 @@
 
 (define (notifications-supported?)
   (string=? (js-typeof (js-var "Notification")) "function"))
+
+;; notification-host-method-present? : external/raw string? -> boolean?
+;;   Report whether raw exposes a callable Notification method.
+(define (notification-host-method-present? raw method-name)
+  (define method (js-ref/extern raw method-name))
+  (and (not (js-nullish? method))
+       (string=? (js-typeof method) "function")))
+
+;; check-notification-host-method : symbol? external/raw string? string? -> void?
+;;   Ensure a required Notification host method is available.
+(define (check-notification-host-method who raw receiver-name method-name)
+  (unless (notification-host-method-present? raw method-name)
+    (raise-arguments-error who
+                           (string-append receiver-name
+                                          "."
+                                          method-name
+                                          " is not available"))))
 
 (define (notification raw)
   (notification-info raw))
@@ -94,6 +113,10 @@
 (define (notification-request-permission)
   (unless (notifications-supported?)
     (error 'notification-request-permission "Notification is not available"))
+  (check-notification-host-method 'notification-request-permission
+                                  (js-var "Notification")
+                                  "Notification"
+                                  "requestPermission")
   (js-promise-wrap
    (js-send/extern (js-var "Notification") "requestPermission" (vector))))
 
@@ -113,6 +136,10 @@
 (define (notification-close! value)
   (unless (notification? value)
     (raise-argument-error 'notification-close! "notification?" value))
+  (check-notification-host-method 'notification-close!
+                                  (notification-raw value)
+                                  "Notification"
+                                  "close")
   (js-send/extern/nullish (notification-raw value) "close" (vector))
   (void))
 
