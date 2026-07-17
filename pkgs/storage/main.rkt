@@ -1,6 +1,8 @@
 #lang webracket/base
 
-(require webracket/unsafe/dom)
+(require webracket/unsafe/dom
+         (only-in webracket/primitives
+                  external?))
 
 (provide (all-defined-out))
 
@@ -37,7 +39,34 @@
 ;; storage? : any/c -> boolean?
 ;;   Report whether v is a wrapped Storage value.
 (define (storage? v)
-  (storage-info? v))
+  (and (storage-info? v)
+       (external? (storage-raw v))
+       (storage-method-present? (storage-raw v) "key")
+       (storage-method-present? (storage-raw v) "getItem")
+       (storage-method-present? (storage-raw v) "setItem")
+       (storage-method-present? (storage-raw v) "removeItem")
+       (storage-method-present? (storage-raw v) "clear")))
+
+;; storage-method-present? : external/raw string? -> boolean?
+;;   Report whether raw exposes a callable Storage method.
+(define (storage-method-present? raw method-name)
+  (define method (js-ref/extern raw method-name))
+  (and (not (js-nullish? method))
+       (string=? (js-typeof method) "function")))
+
+;; check-storage : symbol? any/c -> void?
+;;   Ensure value wraps an external Storage-like host value.
+(define (check-storage who value)
+  (unless (and (storage-info? value)
+               (external? (storage-raw value)))
+    (raise-argument-error who "storage-info?" value)))
+
+;; check-storage-method : symbol? storage-info? string? -> void?
+;;   Ensure a required Storage method is available.
+(define (check-storage-method who value method-name)
+  (unless (storage-method-present? (storage-raw value) method-name)
+    (raise-arguments-error who
+                           (string-append "Storage." method-name " is not available"))))
 
 ;; local-storage : -> storage-info?
 ;;   Read the browser localStorage object.
@@ -52,30 +81,29 @@
 ;; storage-length : storage-info? -> exact-nonnegative-integer?
 ;;   Read the number of stored entries.
 (define (storage-length value)
-  (unless (storage? value)
-    (raise-argument-error 'storage-length "storage-info?" value))
+  (check-storage 'storage-length value)
   (js-ref (storage-raw value) "length"))
 
 ;; storage-key : storage-info? exact-nonnegative-integer? -> (or/c #f string?)
 ;;   Read a storage key by numeric position.
 (define (storage-key value index)
-  (unless (storage? value)
-    (raise-argument-error 'storage-key "storage-info?" value))
+  (check-storage 'storage-key value)
+  (check-storage-method 'storage-key value "key")
   (js-send/value (storage-raw value) "key" (vector index)))
 
 ;; storage-get-item : storage-info? (or/c string? symbol?) -> (or/c #f string?)
 ;;   Read a stored value by key.
 (define (storage-get-item value key)
-  (unless (storage? value)
-    (raise-argument-error 'storage-get-item "storage-info?" value))
+  (check-storage 'storage-get-item value)
+  (check-storage-method 'storage-get-item value "getItem")
   (define key* (storage-stringish->string 'storage-get-item key))
   (js-send/value (storage-raw value) "getItem" (vector key*)))
 
 ;; storage-set-item! : storage-info? (or/c string? symbol?) (or/c string? symbol?) -> void?
 ;;   Write a stored value by key.
 (define (storage-set-item! value key data)
-  (unless (storage? value)
-    (raise-argument-error 'storage-set-item! "storage-info?" value))
+  (check-storage 'storage-set-item! value)
+  (check-storage-method 'storage-set-item! value "setItem")
   (define key* (storage-stringish->string 'storage-set-item! key))
   (define data* (storage-stringish->string 'storage-set-item! data))
   (js-send/extern/nullish (storage-raw value) "setItem" (vector key* data*))
@@ -84,8 +112,8 @@
 ;; storage-remove-item! : storage-info? (or/c string? symbol?) -> void?
 ;;   Remove a stored value by key.
 (define (storage-remove-item! value key)
-  (unless (storage? value)
-    (raise-argument-error 'storage-remove-item! "storage-info?" value))
+  (check-storage 'storage-remove-item! value)
+  (check-storage-method 'storage-remove-item! value "removeItem")
   (define key* (storage-stringish->string 'storage-remove-item! key))
   (js-send/extern/nullish (storage-raw value) "removeItem" (vector key*))
   (void))
@@ -93,7 +121,7 @@
 ;; storage-clear! : storage-info? -> void?
 ;;   Remove all stored values.
 (define (storage-clear! value)
-  (unless (storage? value)
-    (raise-argument-error 'storage-clear! "storage-info?" value))
+  (check-storage 'storage-clear! value)
+  (check-storage-method 'storage-clear! value "clear")
   (js-send/extern/nullish (storage-raw value) "clear" (vector))
   (void))

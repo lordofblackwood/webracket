@@ -137,6 +137,8 @@ compile_test_dir_case test-fetch.html test-fetch.rkt \
   --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/dom.ffi"
 compile_test_dir_case test-storage.html test-storage.rkt \
   --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/dom.ffi"
+compile_test_dir_case test-storage-method-missing-host-ffi.html test-storage-method-missing-host-ffi.rkt \
+  --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/dom.ffi"
 compile_test_dir_case test-websocket.html test-websocket.rkt \
   --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/standard.ffi" \
   --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/websocket.ffi"
