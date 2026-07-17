@@ -1848,12 +1848,20 @@ function require_host_constructor(name, displayName, detail) {
   return ctor;
 }
 
-function require_window_function(name, displayName) {
-  const fn = window[name];
+function require_host_function(owner, name, displayName) {
+  const fn = owner[name];
   if (typeof fn !== 'function') {
     throw new Error(`${displayName} not available in this environment`);
   }
-  return fn.bind(window);
+  return fn.bind(owner);
+}
+
+function require_window_function(name, displayName) {
+  return require_host_function(window, name, displayName);
+}
+
+function require_document_function(name, displayName) {
+  return require_host_function(document, name, displayName);
 }
 
 function require_xterm_terminal() {
