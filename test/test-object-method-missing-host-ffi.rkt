@@ -15,8 +15,13 @@
                   js-canvas2d-reset-transform
                   js-canvas2d-round-rect
                   js-image-decode
+                  js-media-add-text-track!
+                  js-media-can-play-type
                   js-media-capture-stream
                   js-media-fast-seek!
+                  js-media-load!
+                  js-media-pause
+                  js-media-play
                   js-media-set-media-keys!
                   js-media-set-sink-id!
                   js-eval))
@@ -72,8 +77,13 @@
     [globalThis.__wrObjectMethodCtx, 'reset'],
     [globalThis.__wrObjectMethodCtx, 'resetTransform'],
     [globalThis.__wrObjectMethodCtx, 'roundRect'],
+    [globalThis.__wrObjectMethodMedia, 'addTextTrack'],
+    [globalThis.__wrObjectMethodMedia, 'canPlayType'],
     [globalThis.__wrObjectMethodMedia, 'captureStream'],
     [globalThis.__wrObjectMethodMedia, 'fastSeek'],
+    [globalThis.__wrObjectMethodMedia, 'load'],
+    [globalThis.__wrObjectMethodMedia, 'pause'],
+    [globalThis.__wrObjectMethodMedia, 'play'],
     [globalThis.__wrObjectMethodMedia, 'setMediaKeys'],
     [globalThis.__wrObjectMethodMedia, 'setSinkId'],
     [globalThis.__wrObjectMethodImage, 'decode']
@@ -148,6 +158,16 @@
    (lambda ()
      (js-canvas2d-round-rect ctx 0.0 0.0 1.0 1.0 (void)))))
 
+(define media-add-text-track-message
+  (catch-message
+   (lambda ()
+     (js-media-add-text-track! media "subtitles" (void) (void)))))
+
+(define media-can-play-type-message
+  (catch-message
+   (lambda ()
+     (js-media-can-play-type media "audio/ogg"))))
+
 (define media-capture-message
   (catch-message
    (lambda ()
@@ -157,6 +177,21 @@
   (catch-message
    (lambda ()
      (js-media-fast-seek! media 0.0))))
+
+(define media-load-message
+  (catch-message
+   (lambda ()
+     (js-media-load! media))))
+
+(define media-pause-message
+  (catch-message
+   (lambda ()
+     (js-media-pause media))))
+
+(define media-play-message
+  (catch-message
+   (lambda ()
+     (js-media-play media))))
 
 (define media-set-media-keys-message
   (catch-message
@@ -222,12 +257,27 @@
 (check-message round-rect-message
                "CanvasRenderingContext2D.roundRect not available in this environment"
                "missing roundRect message")
+(check-message media-add-text-track-message
+               "HTMLMediaElement.addTextTrack not available in this environment"
+               "missing addTextTrack message")
+(check-message media-can-play-type-message
+               "HTMLMediaElement.canPlayType not available in this environment"
+               "missing canPlayType message")
 (check-message media-capture-message
                "HTMLMediaElement.captureStream not available in this environment"
                "missing media captureStream message")
 (check-message media-fast-seek-message
                "HTMLMediaElement.fastSeek not available in this environment"
                "missing fastSeek message")
+(check-message media-load-message
+               "HTMLMediaElement.load not available in this environment"
+               "missing load message")
+(check-message media-pause-message
+               "HTMLMediaElement.pause not available in this environment"
+               "missing pause message")
+(check-message media-play-message
+               "HTMLMediaElement.play not available in this environment"
+               "missing play message")
 (check-message media-set-media-keys-message
                "HTMLMediaElement.setMediaKeys not available in this environment"
                "missing setMediaKeys message")

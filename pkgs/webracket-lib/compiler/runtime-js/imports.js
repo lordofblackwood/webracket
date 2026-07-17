@@ -1695,17 +1695,22 @@ var imports = {
         'volume': (m => m.volume),
         'set-volume!': ((m, v) => { m.volume = v; }),
         'add-text-track!': ((m, kind, label, lang) => {
+            const addTextTrack = require_host_function(m,
+                                                       'addTextTrack',
+                                                       'HTMLMediaElement.addTextTrack');
             const l = from_fasl(label);
             const g = from_fasl(lang);
             if (l === undefined && g === undefined) {
-                return m.addTextTrack(from_fasl(kind));
+                return addTextTrack(from_fasl(kind));
             } else if (g === undefined) {
-                return m.addTextTrack(from_fasl(kind), from_fasl(label));
+                return addTextTrack(from_fasl(kind), from_fasl(label));
             } else {
-                return m.addTextTrack(from_fasl(kind), from_fasl(label), from_fasl(lang));
+                return addTextTrack(from_fasl(kind), from_fasl(label), from_fasl(lang));
             }
         }),
-        'can-play-type': ((m, type) => m.canPlayType(from_fasl(type))),
+        'can-play-type': ((m, type) => require_host_function(m,
+                                                             'canPlayType',
+                                                             'HTMLMediaElement.canPlayType')(from_fasl(type))),
         'capture-stream': ((m, rate) => {
             const captureStream = require_host_function(m,
                                                         'captureStream',
@@ -1720,9 +1725,15 @@ var imports = {
         'fast-seek!': ((m, t) => { require_host_function(m,
                                                           'fastSeek',
                                                           'HTMLMediaElement.fastSeek')(t); }),
-        'load!': (m => { m.load(); }),
-        'pause': (m => m.pause()),
-        'play': (m => m.play()),
+        'load!': (m => { require_host_function(m,
+                                                'load',
+                                                'HTMLMediaElement.load')(); }),
+        'pause': (m => require_host_function(m,
+                                             'pause',
+                                             'HTMLMediaElement.pause')()),
+        'play': (m => require_host_function(m,
+                                            'play',
+                                            'HTMLMediaElement.play')()),
         'set-media-keys!': ((m, keys) => require_host_function(m,
                                                                 'setMediaKeys',
                                                                 'HTMLMediaElement.setMediaKeys')(keys)),
