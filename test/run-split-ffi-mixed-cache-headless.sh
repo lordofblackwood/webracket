@@ -139,6 +139,12 @@ compile_root_case test-browser-shared-dom-method-missing-host-ffi.html test/test
   --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/dom.ffi"
 compile_test_dir_case test-fetch.html test-fetch.rkt \
   --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/dom.ffi"
+compile_root_case test-fetch-method-missing-host-ffi.html test/test-fetch-method-missing-host-ffi.rkt \
+  --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/standard.ffi" \
+  --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/dom.ffi"
+compile_root_case test-compression-stream-method-missing-host-ffi.html test/test-compression-stream-method-missing-host-ffi.rkt \
+  --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/standard.ffi" \
+  --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/dom.ffi"
 compile_test_dir_case test-storage.html test-storage.rkt \
   --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/dom.ffi"
 compile_test_dir_case test-storage-method-missing-host-ffi.html test-storage-method-missing-host-ffi.rkt \

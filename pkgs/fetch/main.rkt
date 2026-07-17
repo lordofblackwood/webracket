@@ -36,6 +36,23 @@
 (define (fetch-constructor-present? name)
   (string=? (js-typeof (js-var name)) "function"))
 
+;; fetch-host-method-present? : external/raw string? -> boolean?
+;;   Report whether raw exposes a callable Fetch API method.
+(define (fetch-host-method-present? raw method-name)
+  (define method (js-ref/extern raw method-name))
+  (and (not (js-nullish? method))
+       (string=? (js-typeof method) "function")))
+
+;; check-fetch-host-method : symbol? external/raw string? string? -> void?
+;;   Ensure a required Fetch API host method is available.
+(define (check-fetch-host-method who raw receiver-name method-name)
+  (unless (fetch-host-method-present? raw method-name)
+    (raise-arguments-error who
+                           (string-append receiver-name
+                                          "."
+                                          method-name
+                                          " is not available"))))
+
 ;; fetch-headers-info : external/raw -> fetch-headers-info?
 ;;   Wrap a browser Headers object.
 (struct fetch-headers-info (raw) #:transparent)
@@ -160,6 +177,10 @@
 (define (fetch-request-clone request)
   (unless (fetch-request? request)
     (raise-argument-error 'fetch-request-clone "fetch-request-info?" request))
+  (check-fetch-host-method 'fetch-request-clone
+                           (fetch-request-raw request)
+                           "Request"
+                           "clone")
   (fetch-request (js-send/extern (fetch-request-raw request) "clone" (vector))))
 
 ;; fetch-response-ok? : fetch-response-info? -> boolean?
@@ -216,6 +237,10 @@
 (define (fetch-response-clone response)
   (unless (fetch-response? response)
     (raise-argument-error 'fetch-response-clone "fetch-response-info?" response))
+  (check-fetch-host-method 'fetch-response-clone
+                           (fetch-response-raw response)
+                           "Response"
+                           "clone")
   (fetch-response (js-send/extern (fetch-response-raw response) "clone" (vector))))
 
 ;; fetch-headers-get : fetch-headers-info? (or/c string? symbol?) -> (or/c #f string?)
@@ -223,6 +248,10 @@
 (define (fetch-headers-get headers name)
   (unless (fetch-headers? headers)
     (raise-argument-error 'fetch-headers-get "fetch-headers-info?" headers))
+  (check-fetch-host-method 'fetch-headers-get
+                           (fetch-headers-raw headers)
+                           "Headers"
+                           "get")
   (define name* (fetch-stringish->string 'fetch-headers-get name))
   (js-send/value (fetch-headers-raw headers) "get" (vector name*)))
 
@@ -231,6 +260,10 @@
 (define (fetch-headers-has? headers name)
   (unless (fetch-headers? headers)
     (raise-argument-error 'fetch-headers-has? "fetch-headers-info?" headers))
+  (check-fetch-host-method 'fetch-headers-has?
+                           (fetch-headers-raw headers)
+                           "Headers"
+                           "has")
   (define name* (fetch-stringish->string 'fetch-headers-has? name))
   (js-send/boolean (fetch-headers-raw headers) "has" (vector name*)))
 
@@ -239,6 +272,10 @@
 (define (fetch-headers-set! headers name value)
   (unless (fetch-headers? headers)
     (raise-argument-error 'fetch-headers-set! "fetch-headers-info?" headers))
+  (check-fetch-host-method 'fetch-headers-set!
+                           (fetch-headers-raw headers)
+                           "Headers"
+                           "set")
   (define name* (fetch-stringish->string 'fetch-headers-set! name))
   (define value* (fetch-stringish->string 'fetch-headers-set! value))
   (js-send/extern/nullish (fetch-headers-raw headers) "set" (vector name* value*))
@@ -249,6 +286,10 @@
 (define (fetch-headers-append! headers name value)
   (unless (fetch-headers? headers)
     (raise-argument-error 'fetch-headers-append! "fetch-headers-info?" headers))
+  (check-fetch-host-method 'fetch-headers-append!
+                           (fetch-headers-raw headers)
+                           "Headers"
+                           "append")
   (define name* (fetch-stringish->string 'fetch-headers-append! name))
   (define value* (fetch-stringish->string 'fetch-headers-append! value))
   (js-send/extern/nullish (fetch-headers-raw headers) "append" (vector name* value*))
@@ -259,6 +300,10 @@
 (define (fetch-headers-delete! headers name)
   (unless (fetch-headers? headers)
     (raise-argument-error 'fetch-headers-delete! "fetch-headers-info?" headers))
+  (check-fetch-host-method 'fetch-headers-delete!
+                           (fetch-headers-raw headers)
+                           "Headers"
+                           "delete")
   (define name* (fetch-stringish->string 'fetch-headers-delete! name))
   (js-send/extern/nullish (fetch-headers-raw headers) "delete" (vector name*))
   (void))
@@ -288,6 +333,10 @@
 (define (fetch-headers-for-each headers proc [this-arg #f])
   (unless (fetch-headers? headers)
     (raise-argument-error 'fetch-headers-for-each "fetch-headers-info?" headers))
+  (check-fetch-host-method 'fetch-headers-for-each
+                           (fetch-headers-raw headers)
+                           "Headers"
+                           "forEach")
   (define proc* (fetch-headers->external proc))
   (define args
     (if (eq? this-arg #f)

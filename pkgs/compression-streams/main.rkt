@@ -51,6 +51,23 @@
 (define (decompression-stream-supported?)
   (compression-stream-constructor-present? "DecompressionStream"))
 
+;; compression-stream-host-method-present? : external/raw string? -> boolean?
+;;   Report whether raw exposes a callable stream method.
+(define (compression-stream-host-method-present? raw method-name)
+  (define method (js-ref/extern raw method-name))
+  (and (not (js-nullish? method))
+       (string=? (js-typeof method) "function")))
+
+;; check-compression-stream-host-method : symbol? external/raw string? string? -> void?
+;;   Ensure a required stream host method is available.
+(define (check-compression-stream-host-method who raw receiver-name method-name)
+  (unless (compression-stream-host-method-present? raw method-name)
+    (raise-arguments-error who
+                           (string-append receiver-name
+                                          "."
+                                          method-name
+                                          " is not available"))))
+
 ;; compression-stream? : any/c -> boolean?
 ;;   Report whether v is a wrapped CompressionStream object.
 (define (compression-stream? v)
@@ -136,6 +153,10 @@
     (raise-argument-error 'readable-stream-pipe-through-compression "external?" readable))
   (unless (compression-stream? value)
     (raise-argument-error 'readable-stream-pipe-through-compression "compression-stream?" value))
+  (check-compression-stream-host-method 'readable-stream-pipe-through-compression
+                                        readable
+                                        "ReadableStream"
+                                        "pipeThrough")
   (js-send/extern readable "pipeThrough" (vector (compression-stream-raw value))))
 
 ;; readable-stream-pipe-through-decompression : external/raw decompression-stream? -> external/raw
@@ -145,4 +166,8 @@
     (raise-argument-error 'readable-stream-pipe-through-decompression "external?" readable))
   (unless (decompression-stream? value)
     (raise-argument-error 'readable-stream-pipe-through-decompression "decompression-stream?" value))
+  (check-compression-stream-host-method 'readable-stream-pipe-through-decompression
+                                        readable
+                                        "ReadableStream"
+                                        "pipeThrough")
   (js-send/extern readable "pipeThrough" (vector (decompression-stream-raw value))))
