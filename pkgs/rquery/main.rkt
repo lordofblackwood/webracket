@@ -7,9 +7,12 @@
          browser/event
          rquery/chain
          (only-in webracket/unsafe/dom
+                  js-nullish?
                   js-new
                   js-object
+                  js-ref/extern
                   js-send/boolean
+                  js-typeof
                   js-var)
          (only-in webracket/primitives
                   external?
@@ -64,6 +67,36 @@
 ;;   Reuse delegated listener wrappers per root element.
 (define delegate-listener-cache (make-hasheq))
 
+;; rquery-host-method-present? : external/raw string? -> boolean?
+;;   Report whether raw exposes a callable DOM method.
+(define (rquery-host-method-present? raw method-name)
+  (define method (js-ref/extern raw method-name))
+  (and (not (js-nullish? method))
+       (string=? (js-typeof method) "function")))
+
+;; check-rquery-host-method : symbol? external/raw string? string? -> void?
+;;   Ensure a required DOM host method is available.
+(define (check-rquery-host-method who raw receiver-name method-name)
+  (unless (rquery-host-method-present? raw method-name)
+    (raise-arguments-error who
+                           (string-append receiver-name
+                                          "."
+                                          method-name
+                                          " is not available"))))
+
+;; rquery-constructor-present? : string? -> boolean?
+;;   Report whether the host exposes a callable constructor.
+(define (rquery-constructor-present? name)
+  (string=? (js-typeof (js-var name)) "function"))
+
+;; check-rquery-constructor : symbol? string? -> void?
+;;   Ensure a required DOM constructor is available.
+(define (check-rquery-constructor who name)
+  (unless (rquery-constructor-present? name)
+    (raise-arguments-error who
+                           (string-append name
+                                          " constructor is not available"))))
+
 ;; delegate-cache-for-root : external? -> hash?
 ;;   Find or create the cache for one root element.
 (define (delegate-cache-for-root root)
@@ -77,6 +110,7 @@
     (raise-argument-error who "procedure?" listener))
   (define root* (element-unwrap root))
   (define selector* (element-stringish->string who selector))
+  (check-rquery-host-method who root* "Element" "contains")
   (define cache (delegate-cache-for-root root*))
   (define key (list selector* listener))
   (hash-ref!
@@ -88,10 +122,10 @@
         (define target (event-target evt))
         (when (external? target)
           (define matched (element-closest (element-wrap target) selector*))
-          (when (and matched
-                     (js-send/boolean root* "contains"
-                                      (vector (element-unwrap matched))))
-            (listener matched evt))))))))
+          (when matched
+            (check-rquery-host-method who root* "Element" "contains")
+            (when (js-send/boolean root* "contains" (vector (element-unwrap matched)))
+              (listener matched evt)))))))))
 
 ;; make-$selection : (or/c list? vector? dom-node-list?) -> $selection?
 ;;   Normalize supported selection sources into a wrapper.
@@ -396,12 +430,17 @@
 (define ($trigger event-name sel)
   (check-$selection '$trigger sel)
   (define event-name* (rquery-event-name->string '$trigger event-name))
+  (check-rquery-constructor '$trigger "Event")
   (for ([x (in-vector ($selection->vector sel))])
     (define evt
       (js-new (js-var "Event")
               (vector event-name*
                       (js-object (vector (vector "bubbles" #t)
                                          (vector "cancelable" #t))))))
+    (check-rquery-host-method '$trigger
+                              (element-unwrap x)
+                              "EventTarget"
+                              "dispatchEvent")
     (js-send/boolean (element-unwrap x) "dispatchEvent" (vector evt)))
   sel)
 
