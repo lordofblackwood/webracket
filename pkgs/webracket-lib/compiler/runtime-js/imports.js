@@ -107,16 +107,31 @@ function decode_js_send_args(args) {
   return from_fasl(args) || [];
 }
 
-function call_js_method(obj, name, args, who) {
+function require_js_target(obj, who) {
   if (obj === null || obj === undefined) {
     throw new Error(`${who}: target object is null or undefined`);
   }
+  return obj;
+}
+
+function call_js_method(obj, name, args, who) {
+  const target = require_js_target(obj, who);
   const methodName = from_fasl(name);
-  const method = obj[methodName];
+  const method = target[methodName];
   if (typeof method !== 'function') {
     throw new Error(`${who}: method ${String(methodName)} not available in this environment`);
   }
-  return method.apply(obj, decode_js_send_args(args));
+  return method.apply(target, decode_js_send_args(args));
+}
+
+function construct_js_value(ctor, args) {
+  if (ctor === null || ctor === undefined) {
+    throw new Error('js-new: constructor is null or undefined');
+  }
+  if (typeof ctor !== 'function') {
+    throw new Error(`js-new: expected constructor function, got ${typeof ctor}`);
+  }
+  return new ctor(...decode_js_send_args(args));
 }
 
 var imports = {
@@ -549,12 +564,12 @@ var imports = {
       'encode-uri':                ((s) => encodeURI(from_fasl(s))),
       'encode-uri-component':      ((s) => encodeURIComponent(from_fasl(s))),
       'var':                       ((name) => globalThis[from_fasl(name)]),
-      'ref/value':                 ((obj, key) => to_fasl(obj[from_fasl(key)])),
-      'ref/extern':                ((obj, key) => obj[from_fasl(key)]),
-      'set!':                      ((obj, key, val) => ( obj[from_fasl(key)] = from_fasl(val) )),
-      'index':                     ((obj, prop) => to_fasl( obj[ from_fasl(prop) ] ) ),
+      'ref/value':                 ((obj, key) => to_fasl(require_js_target(obj, 'js-ref')[from_fasl(key)])),
+      'ref/extern':                ((obj, key) => require_js_target(obj, 'js-ref/extern')[from_fasl(key)]),
+      'set!':                      ((obj, key, val) => ( require_js_target(obj, 'js-set!')[from_fasl(key)] = from_fasl(val) )),
+      'index':                     ((obj, prop) => to_fasl( require_js_target(obj, 'js-index')[ from_fasl(prop) ] ) ),
       'assign':                    ((name, val) => (globalThis[from_fasl(name)] = from_fasl(val))),
-      'new':                       ((ctor, args) => new ctor(...(from_fasl(args) || []))),
+      'new':                       ((ctor, args) => construct_js_value(ctor, args)),
       // Send variants:
       // - send/extern  => raw JS result
       // - send/value   => JS result converted via FASL
