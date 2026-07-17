@@ -59,6 +59,7 @@
  js-window-alert
  js-window-atob
  js-window-btoa
+ js-window-blur
  js-window-cancel-animation-frame
  js-window-cancel-idle-callback
  js-window-clear-interval
@@ -932,6 +933,10 @@
 ;; js-window-btoa : ffi (string) -> (string)
 ;;   Raw binding generated for webracket/unsafe/dom.
 (define js-window-btoa (unsafe-ffi-primitive 'js-window-btoa))
+
+;; js-window-blur : ffi () -> ()
+;;   Raw binding generated for webracket/unsafe/dom.
+(define js-window-blur (unsafe-ffi-primitive 'js-window-blur))
 
 ;; js-window-cancel-animation-frame : ffi (u32) -> ()
 ;;   Raw binding generated for webracket/unsafe/dom.

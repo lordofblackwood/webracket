@@ -8,6 +8,7 @@
                   js-window-alert
                   js-window-atob
                   js-window-btoa
+                  js-window-blur
                   js-window-cancel-animation-frame
                   js-window-clear-interval
                   js-window-clear-timeout
@@ -65,6 +66,7 @@
     'alert',
     'atob',
     'btoa',
+    'blur',
     'cancelAnimationFrame',
     'clearInterval',
     'clearTimeout',
@@ -110,6 +112,11 @@
   (catch-message
    (lambda ()
      (js-window-btoa "A"))))
+
+(define blur-message
+  (catch-message
+   (lambda ()
+     (js-window-blur))))
 
 (define cancel-animation-frame-message
   (catch-message
@@ -252,6 +259,9 @@
 (check-message btoa-message
                "window.btoa not available in this environment"
                "missing btoa message")
+(check-message blur-message
+               "window.blur not available in this environment"
+               "missing blur message")
 (check-message cancel-animation-frame-message
                "window.cancelAnimationFrame not available in this environment"
                "missing cancelAnimationFrame message")

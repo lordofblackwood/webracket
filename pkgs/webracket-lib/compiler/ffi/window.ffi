@@ -389,6 +389,12 @@
   #:mdn    "Window/btoa"
   (-> (string) (string)))
 
+(define-foreign js-window-blur
+  #:module "window"
+  #:name   "blur"
+  #:doc    "Removes focus from the window."
+  #:mdn    "Window/blur"
+  (-> () ()))
 
 (define-foreign js-window-cancel-animation-frame
   #:module "window"
