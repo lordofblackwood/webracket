@@ -12,6 +12,7 @@ Covered standalone or focused FFI families:
 - Browser constructor host errors for `AudioContext`, `Event`, `Image`, and `WebSocket`
 - Browser document optional/deprecated host errors such as XPath and fullscreen helpers
 - Browser element method host errors for optional and browser-version-sensitive APIs
+- Browser event method host errors for optional and browser-version-sensitive APIs
 - Browser object method host errors for canvas, media, and image methods
 - Browser window method host errors for direct function-valued APIs
 - Browser window optional host errors for functions such as `fetch` and `structuredClone`
