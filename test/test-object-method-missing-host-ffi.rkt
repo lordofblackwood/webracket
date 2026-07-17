@@ -8,12 +8,54 @@
                   js-canvas-to-blob
                   js-canvas-to-data-url
                   js-canvas-transfer-control-to-offscreen
+                  js-canvas2d-arc
+                  js-canvas2d-arc-to
+                  js-canvas2d-begin-path
+                  js-canvas2d-bezier-curve-to
+                  js-canvas2d-clear-rect
+                  js-canvas2d-clip
+                  js-canvas2d-close-path
                   js-canvas2d-create-conic-gradient
+                  js-canvas2d-create-image-data
+                  js-canvas2d-create-image-data-from
+                  js-canvas2d-create-linear-gradient
+                  js-canvas2d-create-pattern
+                  js-canvas2d-create-radial-gradient
                   js-canvas2d-draw-focus-if-needed!
                   js-canvas2d-draw-focus-if-needed-path!
+                  js-canvas2d-draw-image
+                  js-canvas2d-draw-image-5
+                  js-canvas2d-draw-image-9
+                  js-canvas2d-ellipse
+                  js-canvas2d-fill
+                  js-canvas2d-fill-rect
+                  js-canvas2d-fill-text
+                  js-canvas2d-get-image-data
+                  js-canvas2d-get-line-dash
+                  js-canvas2d-get-transform
+                  js-canvas2d-is-point-in-path
+                  js-canvas2d-is-point-in-stroke
+                  js-canvas2d-line-to
+                  js-canvas2d-measure-text
+                  js-canvas2d-move-to
+                  js-canvas2d-put-image-data
+                  js-canvas2d-quadratic-curve-to
+                  js-canvas2d-rect
                   js-canvas2d-reset
                   js-canvas2d-reset-transform
+                  js-canvas2d-restore
+                  js-canvas2d-rotate
                   js-canvas2d-round-rect
+                  js-canvas2d-save
+                  js-canvas2d-scale
+                  js-canvas2d-set-line-dash
+                  js-canvas2d-set-transform!
+                  js-canvas2d-set-transform-matrix!
+                  js-canvas2d-stroke
+                  js-canvas2d-stroke-rect
+                  js-canvas2d-stroke-text
+                  js-canvas2d-transform
+                  js-canvas2d-translate
                   js-image-decode
                   js-media-add-text-track!
                   js-media-can-play-type
@@ -64,6 +106,7 @@
 (define image (js-eval "globalThis.__wrObjectMethodImage"))
 (define callback (js-eval "globalThis.__wrObjectMethodCallback"))
 (define js-null (js-eval "null"))
+(define empty-array (js-eval "[]"))
 
 (js-eval
  "globalThis.__wrObjectMethodBoundaryTargets = [
@@ -72,11 +115,49 @@
     [globalThis.__wrObjectMethodCanvas, 'toBlob'],
     [globalThis.__wrObjectMethodCanvas, 'toDataURL'],
     [globalThis.__wrObjectMethodCanvas, 'transferControlToOffscreen'],
+    [globalThis.__wrObjectMethodCtx, 'arc'],
+    [globalThis.__wrObjectMethodCtx, 'arcTo'],
+    [globalThis.__wrObjectMethodCtx, 'beginPath'],
+    [globalThis.__wrObjectMethodCtx, 'bezierCurveTo'],
+    [globalThis.__wrObjectMethodCtx, 'clearRect'],
+    [globalThis.__wrObjectMethodCtx, 'clip'],
+    [globalThis.__wrObjectMethodCtx, 'closePath'],
     [globalThis.__wrObjectMethodCtx, 'createConicGradient'],
+    [globalThis.__wrObjectMethodCtx, 'createImageData'],
+    [globalThis.__wrObjectMethodCtx, 'createLinearGradient'],
+    [globalThis.__wrObjectMethodCtx, 'createPattern'],
+    [globalThis.__wrObjectMethodCtx, 'createRadialGradient'],
     [globalThis.__wrObjectMethodCtx, 'drawFocusIfNeeded'],
+    [globalThis.__wrObjectMethodCtx, 'drawImage'],
+    [globalThis.__wrObjectMethodCtx, 'ellipse'],
+    [globalThis.__wrObjectMethodCtx, 'fill'],
+    [globalThis.__wrObjectMethodCtx, 'fillRect'],
+    [globalThis.__wrObjectMethodCtx, 'fillText'],
+    [globalThis.__wrObjectMethodCtx, 'getImageData'],
+    [globalThis.__wrObjectMethodCtx, 'getLineDash'],
+    [globalThis.__wrObjectMethodCtx, 'getTransform'],
+    [globalThis.__wrObjectMethodCtx, 'isPointInPath'],
+    [globalThis.__wrObjectMethodCtx, 'isPointInStroke'],
+    [globalThis.__wrObjectMethodCtx, 'lineTo'],
+    [globalThis.__wrObjectMethodCtx, 'measureText'],
+    [globalThis.__wrObjectMethodCtx, 'moveTo'],
+    [globalThis.__wrObjectMethodCtx, 'putImageData'],
+    [globalThis.__wrObjectMethodCtx, 'quadraticCurveTo'],
+    [globalThis.__wrObjectMethodCtx, 'rect'],
     [globalThis.__wrObjectMethodCtx, 'reset'],
     [globalThis.__wrObjectMethodCtx, 'resetTransform'],
+    [globalThis.__wrObjectMethodCtx, 'restore'],
+    [globalThis.__wrObjectMethodCtx, 'rotate'],
     [globalThis.__wrObjectMethodCtx, 'roundRect'],
+    [globalThis.__wrObjectMethodCtx, 'save'],
+    [globalThis.__wrObjectMethodCtx, 'scale'],
+    [globalThis.__wrObjectMethodCtx, 'setLineDash'],
+    [globalThis.__wrObjectMethodCtx, 'setTransform'],
+    [globalThis.__wrObjectMethodCtx, 'stroke'],
+    [globalThis.__wrObjectMethodCtx, 'strokeRect'],
+    [globalThis.__wrObjectMethodCtx, 'strokeText'],
+    [globalThis.__wrObjectMethodCtx, 'transform'],
+    [globalThis.__wrObjectMethodCtx, 'translate'],
     [globalThis.__wrObjectMethodMedia, 'addTextTrack'],
     [globalThis.__wrObjectMethodMedia, 'canPlayType'],
     [globalThis.__wrObjectMethodMedia, 'captureStream'],
@@ -128,10 +209,70 @@
    (lambda ()
      (js-canvas-transfer-control-to-offscreen canvas))))
 
+(define arc-message
+  (catch-message
+   (lambda ()
+     (js-canvas2d-arc ctx 0.0 0.0 1.0 0.0 1.0 0))))
+
+(define arc-to-message
+  (catch-message
+   (lambda ()
+     (js-canvas2d-arc-to ctx 0.0 0.0 1.0 1.0 1.0))))
+
+(define begin-path-message
+  (catch-message
+   (lambda ()
+     (js-canvas2d-begin-path ctx))))
+
+(define bezier-curve-to-message
+  (catch-message
+   (lambda ()
+     (js-canvas2d-bezier-curve-to ctx 0.0 0.0 1.0 1.0 2.0 2.0))))
+
+(define clear-rect-message
+  (catch-message
+   (lambda ()
+     (js-canvas2d-clear-rect ctx 0.0 0.0 1.0 1.0))))
+
+(define clip-message
+  (catch-message
+   (lambda ()
+     (js-canvas2d-clip ctx (void) (void)))))
+
+(define close-path-message
+  (catch-message
+   (lambda ()
+     (js-canvas2d-close-path ctx))))
+
 (define conic-gradient-message
   (catch-message
    (lambda ()
      (js-canvas2d-create-conic-gradient ctx 0.0 0.0 0.0))))
+
+(define create-image-data-message
+  (catch-message
+   (lambda ()
+     (js-canvas2d-create-image-data ctx 1.0 1.0))))
+
+(define create-image-data-from-message
+  (catch-message
+   (lambda ()
+     (js-canvas2d-create-image-data-from ctx js-null))))
+
+(define linear-gradient-message
+  (catch-message
+   (lambda ()
+     (js-canvas2d-create-linear-gradient ctx 0.0 0.0 1.0 1.0))))
+
+(define pattern-message
+  (catch-message
+   (lambda ()
+     (js-canvas2d-create-pattern ctx canvas "repeat"))))
+
+(define radial-gradient-message
+  (catch-message
+   (lambda ()
+     (js-canvas2d-create-radial-gradient ctx 0.0 0.0 1.0 1.0 1.0 2.0))))
 
 (define draw-focus-message
   (catch-message
@@ -143,6 +284,96 @@
    (lambda ()
      (js-canvas2d-draw-focus-if-needed-path! ctx js-null canvas))))
 
+(define draw-image-message
+  (catch-message
+   (lambda ()
+     (js-canvas2d-draw-image ctx canvas 0.0 0.0))))
+
+(define draw-image-5-message
+  (catch-message
+   (lambda ()
+     (js-canvas2d-draw-image-5 ctx canvas 0.0 0.0 1.0 1.0))))
+
+(define draw-image-9-message
+  (catch-message
+   (lambda ()
+     (js-canvas2d-draw-image-9 ctx canvas 0.0 0.0 1.0 1.0 0.0 0.0 1.0 1.0))))
+
+(define ellipse-message
+  (catch-message
+   (lambda ()
+     (js-canvas2d-ellipse ctx 0.0 0.0 1.0 1.0 0.0 0.0 1.0 0))))
+
+(define fill-message
+  (catch-message
+   (lambda ()
+     (js-canvas2d-fill ctx (void) (void)))))
+
+(define fill-rect-message
+  (catch-message
+   (lambda ()
+     (js-canvas2d-fill-rect ctx 0.0 0.0 1.0 1.0))))
+
+(define fill-text-message
+  (catch-message
+   (lambda ()
+     (js-canvas2d-fill-text ctx "x" 0.0 0.0 (void)))))
+
+(define get-image-data-message
+  (catch-message
+   (lambda ()
+     (js-canvas2d-get-image-data ctx 0.0 0.0 1.0 1.0 (void)))))
+
+(define get-line-dash-message
+  (catch-message
+   (lambda ()
+     (js-canvas2d-get-line-dash ctx))))
+
+(define get-transform-message
+  (catch-message
+   (lambda ()
+     (js-canvas2d-get-transform ctx))))
+
+(define is-point-in-path-message
+  (catch-message
+   (lambda ()
+     (js-canvas2d-is-point-in-path ctx (void) 0.0 0.0 (void)))))
+
+(define is-point-in-stroke-message
+  (catch-message
+   (lambda ()
+     (js-canvas2d-is-point-in-stroke ctx (void) 0.0 0.0))))
+
+(define line-to-message
+  (catch-message
+   (lambda ()
+     (js-canvas2d-line-to ctx 0.0 0.0))))
+
+(define measure-text-message
+  (catch-message
+   (lambda ()
+     (js-canvas2d-measure-text ctx "x"))))
+
+(define move-to-message
+  (catch-message
+   (lambda ()
+     (js-canvas2d-move-to ctx 0.0 0.0))))
+
+(define put-image-data-message
+  (catch-message
+   (lambda ()
+     (js-canvas2d-put-image-data ctx js-null 0.0 0.0 (void) (void) (void) (void)))))
+
+(define quadratic-curve-to-message
+  (catch-message
+   (lambda ()
+     (js-canvas2d-quadratic-curve-to ctx 0.0 0.0 1.0 1.0))))
+
+(define rect-message
+  (catch-message
+   (lambda ()
+     (js-canvas2d-rect ctx 0.0 0.0 1.0 1.0))))
+
 (define reset-message
   (catch-message
    (lambda ()
@@ -153,10 +384,70 @@
    (lambda ()
      (js-canvas2d-reset-transform ctx))))
 
+(define restore-message
+  (catch-message
+   (lambda ()
+     (js-canvas2d-restore ctx))))
+
+(define rotate-message
+  (catch-message
+   (lambda ()
+     (js-canvas2d-rotate ctx 0.0))))
+
 (define round-rect-message
   (catch-message
    (lambda ()
      (js-canvas2d-round-rect ctx 0.0 0.0 1.0 1.0 (void)))))
+
+(define save-message
+  (catch-message
+   (lambda ()
+     (js-canvas2d-save ctx))))
+
+(define scale-message
+  (catch-message
+   (lambda ()
+     (js-canvas2d-scale ctx 1.0 1.0))))
+
+(define set-line-dash-message
+  (catch-message
+   (lambda ()
+     (js-canvas2d-set-line-dash ctx empty-array))))
+
+(define set-transform-message
+  (catch-message
+   (lambda ()
+     (js-canvas2d-set-transform! ctx 1.0 0.0 0.0 1.0 0.0 0.0))))
+
+(define set-transform-matrix-message
+  (catch-message
+   (lambda ()
+     (js-canvas2d-set-transform-matrix! ctx js-null))))
+
+(define stroke-message
+  (catch-message
+   (lambda ()
+     (js-canvas2d-stroke ctx (void)))))
+
+(define stroke-rect-message
+  (catch-message
+   (lambda ()
+     (js-canvas2d-stroke-rect ctx 0.0 0.0 1.0 1.0))))
+
+(define stroke-text-message
+  (catch-message
+   (lambda ()
+     (js-canvas2d-stroke-text ctx "x" 0.0 0.0 (void)))))
+
+(define transform-message
+  (catch-message
+   (lambda ()
+     (js-canvas2d-transform ctx 1.0 0.0 0.0 1.0 0.0 0.0))))
+
+(define translate-message
+  (catch-message
+   (lambda ()
+     (js-canvas2d-translate ctx 0.0 0.0))))
 
 (define media-add-text-track-message
   (catch-message
@@ -239,24 +530,150 @@
 (check-message canvas-transfer-message
                "canvas.transferControlToOffscreen not available in this environment"
                "missing canvas.transferControlToOffscreen message")
+(check-message arc-message
+               "CanvasRenderingContext2D.arc not available in this environment"
+               "missing arc message")
+(check-message arc-to-message
+               "CanvasRenderingContext2D.arcTo not available in this environment"
+               "missing arcTo message")
+(check-message begin-path-message
+               "CanvasRenderingContext2D.beginPath not available in this environment"
+               "missing beginPath message")
+(check-message bezier-curve-to-message
+               "CanvasRenderingContext2D.bezierCurveTo not available in this environment"
+               "missing bezierCurveTo message")
+(check-message clear-rect-message
+               "CanvasRenderingContext2D.clearRect not available in this environment"
+               "missing clearRect message")
+(check-message clip-message
+               "CanvasRenderingContext2D.clip not available in this environment"
+               "missing clip message")
+(check-message close-path-message
+               "CanvasRenderingContext2D.closePath not available in this environment"
+               "missing closePath message")
 (check-message conic-gradient-message
                "CanvasRenderingContext2D.createConicGradient not available in this environment"
                "missing createConicGradient message")
+(check-message create-image-data-message
+               "CanvasRenderingContext2D.createImageData not available in this environment"
+               "missing createImageData message")
+(check-message create-image-data-from-message
+               "CanvasRenderingContext2D.createImageData not available in this environment"
+               "missing createImageData copy message")
+(check-message linear-gradient-message
+               "CanvasRenderingContext2D.createLinearGradient not available in this environment"
+               "missing createLinearGradient message")
+(check-message pattern-message
+               "CanvasRenderingContext2D.createPattern not available in this environment"
+               "missing createPattern message")
+(check-message radial-gradient-message
+               "CanvasRenderingContext2D.createRadialGradient not available in this environment"
+               "missing createRadialGradient message")
 (check-message draw-focus-message
                "CanvasRenderingContext2D.drawFocusIfNeeded not available in this environment"
                "missing drawFocusIfNeeded message")
 (check-message draw-focus-path-message
                "CanvasRenderingContext2D.drawFocusIfNeeded not available in this environment"
                "missing drawFocusIfNeeded path message")
+(check-message draw-image-message
+               "CanvasRenderingContext2D.drawImage not available in this environment"
+               "missing drawImage message")
+(check-message draw-image-5-message
+               "CanvasRenderingContext2D.drawImage not available in this environment"
+               "missing drawImage 5 message")
+(check-message draw-image-9-message
+               "CanvasRenderingContext2D.drawImage not available in this environment"
+               "missing drawImage 9 message")
+(check-message ellipse-message
+               "CanvasRenderingContext2D.ellipse not available in this environment"
+               "missing ellipse message")
+(check-message fill-message
+               "CanvasRenderingContext2D.fill not available in this environment"
+               "missing fill message")
+(check-message fill-rect-message
+               "CanvasRenderingContext2D.fillRect not available in this environment"
+               "missing fillRect message")
+(check-message fill-text-message
+               "CanvasRenderingContext2D.fillText not available in this environment"
+               "missing fillText message")
+(check-message get-image-data-message
+               "CanvasRenderingContext2D.getImageData not available in this environment"
+               "missing getImageData message")
+(check-message get-line-dash-message
+               "CanvasRenderingContext2D.getLineDash not available in this environment"
+               "missing getLineDash message")
+(check-message get-transform-message
+               "CanvasRenderingContext2D.getTransform not available in this environment"
+               "missing getTransform message")
+(check-message is-point-in-path-message
+               "CanvasRenderingContext2D.isPointInPath not available in this environment"
+               "missing isPointInPath message")
+(check-message is-point-in-stroke-message
+               "CanvasRenderingContext2D.isPointInStroke not available in this environment"
+               "missing isPointInStroke message")
+(check-message line-to-message
+               "CanvasRenderingContext2D.lineTo not available in this environment"
+               "missing lineTo message")
+(check-message measure-text-message
+               "CanvasRenderingContext2D.measureText not available in this environment"
+               "missing measureText message")
+(check-message move-to-message
+               "CanvasRenderingContext2D.moveTo not available in this environment"
+               "missing moveTo message")
+(check-message put-image-data-message
+               "CanvasRenderingContext2D.putImageData not available in this environment"
+               "missing putImageData message")
+(check-message quadratic-curve-to-message
+               "CanvasRenderingContext2D.quadraticCurveTo not available in this environment"
+               "missing quadraticCurveTo message")
+(check-message rect-message
+               "CanvasRenderingContext2D.rect not available in this environment"
+               "missing rect message")
 (check-message reset-message
                "CanvasRenderingContext2D.reset not available in this environment"
                "missing reset message")
 (check-message reset-transform-message
                "CanvasRenderingContext2D.resetTransform not available in this environment"
                "missing resetTransform message")
+(check-message restore-message
+               "CanvasRenderingContext2D.restore not available in this environment"
+               "missing restore message")
+(check-message rotate-message
+               "CanvasRenderingContext2D.rotate not available in this environment"
+               "missing rotate message")
 (check-message round-rect-message
                "CanvasRenderingContext2D.roundRect not available in this environment"
                "missing roundRect message")
+(check-message save-message
+               "CanvasRenderingContext2D.save not available in this environment"
+               "missing save message")
+(check-message scale-message
+               "CanvasRenderingContext2D.scale not available in this environment"
+               "missing scale message")
+(check-message set-line-dash-message
+               "CanvasRenderingContext2D.setLineDash not available in this environment"
+               "missing setLineDash message")
+(check-message set-transform-message
+               "CanvasRenderingContext2D.setTransform not available in this environment"
+               "missing setTransform message")
+(check-message set-transform-matrix-message
+               "CanvasRenderingContext2D.setTransform not available in this environment"
+               "missing setTransform matrix message")
+(check-message stroke-message
+               "CanvasRenderingContext2D.stroke not available in this environment"
+               "missing stroke message")
+(check-message stroke-rect-message
+               "CanvasRenderingContext2D.strokeRect not available in this environment"
+               "missing strokeRect message")
+(check-message stroke-text-message
+               "CanvasRenderingContext2D.strokeText not available in this environment"
+               "missing strokeText message")
+(check-message transform-message
+               "CanvasRenderingContext2D.transform not available in this environment"
+               "missing transform message")
+(check-message translate-message
+               "CanvasRenderingContext2D.translate not available in this environment"
+               "missing translate message")
 (check-message media-add-text-track-message
                "HTMLMediaElement.addTextTrack not available in this environment"
                "missing addTextTrack message")

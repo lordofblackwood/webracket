@@ -1022,28 +1022,47 @@ var imports = {
         'set-letter-spacing!':    ((ctx, v) => { ctx.letterSpacing = from_fasl(v); }),
         'word-spacing':           (ctx => ctx.wordSpacing),
         'set-word-spacing!':      ((ctx, v) => { ctx.wordSpacing = from_fasl(v); }),
-        'arc': ((ctx, x, y, r, sa, ea, ccw) => ctx.arc(x, y, r, sa, ea, !!ccw)),
-        'arc-to': ((ctx, x1, y1, x2, y2, r) => ctx.arcTo(x1, y1, x2, y2, r)),
-        'begin-path': (ctx => ctx.beginPath()),
-        'bezier-curve-to': ((ctx, cp1x, cp1y, cp2x, cp2y, x, y) => ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, x, y)),
-        'clear-rect': ((ctx, x, y, w, h) => ctx.clearRect(x, y, w, h)),
+        'arc': ((ctx, x, y, r, sa, ea, ccw) => require_host_function(ctx,
+                                                                      'arc',
+                                                                      'CanvasRenderingContext2D.arc')(x, y, r, sa, ea, !!ccw)),
+        'arc-to': ((ctx, x1, y1, x2, y2, r) => require_host_function(ctx,
+                                                                     'arcTo',
+                                                                     'CanvasRenderingContext2D.arcTo')(x1, y1, x2, y2, r)),
+        'begin-path': (ctx => require_host_function(ctx,
+                                                    'beginPath',
+                                                    'CanvasRenderingContext2D.beginPath')()),
+        'bezier-curve-to': ((ctx, cp1x, cp1y, cp2x, cp2y, x, y) => require_host_function(ctx,
+                                                                                         'bezierCurveTo',
+                                                                                         'CanvasRenderingContext2D.bezierCurveTo')(cp1x, cp1y, cp2x, cp2y, x, y)),
+        'clear-rect': ((ctx, x, y, w, h) => require_host_function(ctx,
+                                                                  'clearRect',
+                                                                  'CanvasRenderingContext2D.clearRect')(x, y, w, h)),
         'clip': ((ctx, path, rule) => {
+          const clip = require_host_function(ctx,
+                                             'clip',
+                                             'CanvasRenderingContext2D.clip');
           // `(void)` is decoded as `undefined`
           const p = from_fasl(path);
           const r = from_fasl(rule);
           if (p === undefined && r === undefined) {
-            ctx.clip();
+            clip();
           } else if (p === undefined) {
-            ctx.clip(r);
+            clip(r);
           } else if (r === undefined) {
-            ctx.clip(p);
+            clip(p);
           } else {
-            ctx.clip(p, r);
+            clip(p, r);
           }
         }),
-        'close-path': (ctx => ctx.closePath()),
-        'create-image-data': ((ctx, sw, sh) => ctx.createImageData(sw, sh)),
-        'create-image-data-from': ((ctx, data) => ctx.createImageData(data)),
+        'close-path': (ctx => require_host_function(ctx,
+                                                    'closePath',
+                                                    'CanvasRenderingContext2D.closePath')()),
+        'create-image-data': ((ctx, sw, sh) => require_host_function(ctx,
+                                                                     'createImageData',
+                                                                     'CanvasRenderingContext2D.createImageData')(sw, sh)),
+        'create-image-data-from': ((ctx, data) => require_host_function(ctx,
+                                                                        'createImageData',
+                                                                        'CanvasRenderingContext2D.createImageData')(data)),
         'image-data-width': ((data) => data.width),
         'image-data-height': ((data) => data.height),
         'image-data-data': ((data) => data.data),
@@ -1054,9 +1073,15 @@ var imports = {
         'dom-matrix-d': ((matrix) => matrix.d),
         'dom-matrix-e': ((matrix) => matrix.e),
         'dom-matrix-f': ((matrix) => matrix.f),
-        'create-linear-gradient': ((ctx, x0, y0, x1, y1) => ctx.createLinearGradient(x0, y0, x1, y1)),
-        'create-pattern': ((ctx, img, rep) => ctx.createPattern(img, from_fasl(rep))),
-        'create-radial-gradient': ((ctx, x0, y0, r0, x1, y1, r1) => ctx.createRadialGradient(x0, y0, r0, x1, y1, r1)),
+        'create-linear-gradient': ((ctx, x0, y0, x1, y1) => require_host_function(ctx,
+                                                                                  'createLinearGradient',
+                                                                                  'CanvasRenderingContext2D.createLinearGradient')(x0, y0, x1, y1)),
+        'create-pattern': ((ctx, img, rep) => require_host_function(ctx,
+                                                                    'createPattern',
+                                                                    'CanvasRenderingContext2D.createPattern')(img, from_fasl(rep))),
+        'create-radial-gradient': ((ctx, x0, y0, r0, x1, y1, r1) => require_host_function(ctx,
+                                                                                         'createRadialGradient',
+                                                                                         'CanvasRenderingContext2D.createRadialGradient')(x0, y0, r0, x1, y1, r1)),
         'create-conic-gradient': ((ctx, sa, x, y) => require_host_function(ctx,
                                                                             'createConicGradient',
                                                                             'CanvasRenderingContext2D.createConicGradient')(sa, x, y)),
@@ -1066,88 +1091,134 @@ var imports = {
         'draw-focus-if-needed-path!': ((ctx, path, elem) => require_host_function(ctx,
                                                                                    'drawFocusIfNeeded',
                                                                                    'CanvasRenderingContext2D.drawFocusIfNeeded')(path, elem)),
-        'draw-image': ((ctx, img, dx, dy) => ctx.drawImage(img, dx, dy)),
-        'draw-image-5': ((ctx, img, dx, dy, dw, dh) => ctx.drawImage(img, dx, dy, dw, dh)),
-        'draw-image-9': ((ctx, img, sx, sy, sw, sh, dx, dy, dw, dh) => ctx.drawImage(img, sx, sy, sw, sh, dx, dy, dw, dh)),
-        'ellipse': ((ctx, x, y, rx, ry, rot, sa, ea, ccw) => ctx.ellipse(x, y, rx, ry, rot, sa, ea, !!ccw)),
+        'draw-image': ((ctx, img, dx, dy) => require_host_function(ctx,
+                                                                   'drawImage',
+                                                                   'CanvasRenderingContext2D.drawImage')(img, dx, dy)),
+        'draw-image-5': ((ctx, img, dx, dy, dw, dh) => require_host_function(ctx,
+                                                                            'drawImage',
+                                                                            'CanvasRenderingContext2D.drawImage')(img, dx, dy, dw, dh)),
+        'draw-image-9': ((ctx, img, sx, sy, sw, sh, dx, dy, dw, dh) => require_host_function(ctx,
+                                                                                            'drawImage',
+                                                                                            'CanvasRenderingContext2D.drawImage')(img, sx, sy, sw, sh, dx, dy, dw, dh)),
+        'ellipse': ((ctx, x, y, rx, ry, rot, sa, ea, ccw) => require_host_function(ctx,
+                                                                                  'ellipse',
+                                                                                  'CanvasRenderingContext2D.ellipse')(x, y, rx, ry, rot, sa, ea, !!ccw)),
         'fill': ((ctx, path, rule) => {
+          const fill = require_host_function(ctx,
+                                             'fill',
+                                             'CanvasRenderingContext2D.fill');
           // `(void)` is decoded as `undefined`
           const p = from_fasl(path);
           const r = from_fasl(rule);
           if (p === undefined && r === undefined) {
-            ctx.fill();
+            fill();
           } else if (p === undefined) {
-            ctx.fill(r);
+            fill(r);
           } else if (r === undefined) {
-            ctx.fill(p);
+            fill(p);
           } else {
-            ctx.fill(p, r);
+            fill(p, r);
           }
         }),
-        'fill-rect': ((ctx, x, y, w, h) => ctx.fillRect(x, y, w, h)),
+        'fill-rect': ((ctx, x, y, w, h) => require_host_function(ctx,
+                                                                 'fillRect',
+                                                                 'CanvasRenderingContext2D.fillRect')(x, y, w, h)),
         'fill-text': ((ctx, text, x, y, mw) => {
+          const fillText = require_host_function(ctx,
+                                                 'fillText',
+                                                 'CanvasRenderingContext2D.fillText');
           const m = from_fasl(mw);
           if (m === undefined) {
-            ctx.fillText(from_fasl(text), x, y);
+            fillText(from_fasl(text), x, y);
           } else {
-            ctx.fillText(from_fasl(text), x, y, m);
+            fillText(from_fasl(text), x, y, m);
           }
         }),
         'get-image-data': ((ctx, sx, sy, sw, sh, opts) => {
+          const getImageData = require_host_function(ctx,
+                                                     'getImageData',
+                                                     'CanvasRenderingContext2D.getImageData');
           const o = from_fasl(opts);
           if (o === undefined) {
-            return ctx.getImageData(sx, sy, sw, sh);
+            return getImageData(sx, sy, sw, sh);
           } else {
-            return ctx.getImageData(sx, sy, sw, sh, o);
+            return getImageData(sx, sy, sw, sh, o);
           }
         }),
-        'get-line-dash': (ctx => ctx.getLineDash()),
-        'get-transform': (ctx => ctx.getTransform()),
+        'get-line-dash': (ctx => require_host_function(ctx,
+                                                       'getLineDash',
+                                                       'CanvasRenderingContext2D.getLineDash')()),
+        'get-transform': (ctx => require_host_function(ctx,
+                                                       'getTransform',
+                                                       'CanvasRenderingContext2D.getTransform')()),
         'is-point-in-path': ((ctx, path, x, y, rule) => {
+          const isPointInPath = require_host_function(ctx,
+                                                      'isPointInPath',
+                                                      'CanvasRenderingContext2D.isPointInPath');
           const p = from_fasl(path);
           const r = from_fasl(rule);
           if (p === undefined && r === undefined) {
-            return ctx.isPointInPath(x, y) ? 1 : 0;
+            return isPointInPath(x, y) ? 1 : 0;
           } else if (p === undefined) {
-            return ctx.isPointInPath(x, y, r) ? 1 : 0;
+            return isPointInPath(x, y, r) ? 1 : 0;
           } else if (r === undefined) {
-            return ctx.isPointInPath(p, x, y) ? 1 : 0;
+            return isPointInPath(p, x, y) ? 1 : 0;
           } else {
-            return ctx.isPointInPath(p, x, y, r) ? 1 : 0;
+            return isPointInPath(p, x, y, r) ? 1 : 0;
           }
         }),
         'is-point-in-stroke': ((ctx, path, x, y) => {
+          const isPointInStroke = require_host_function(ctx,
+                                                        'isPointInStroke',
+                                                        'CanvasRenderingContext2D.isPointInStroke');
           const p = from_fasl(path);
           if (p === undefined) {
-            return ctx.isPointInStroke(x, y) ? 1 : 0;
+            return isPointInStroke(x, y) ? 1 : 0;
           } else {
-            return ctx.isPointInStroke(p, x, y) ? 1 : 0;
+            return isPointInStroke(p, x, y) ? 1 : 0;
           }
         }),
-        'line-to': ((ctx, x, y) => ctx.lineTo(x, y)),
-        'measure-text': ((ctx, text) => ctx.measureText(from_fasl(text))),
-        'move-to': ((ctx, x, y) => ctx.moveTo(x, y)),
+        'line-to': ((ctx, x, y) => require_host_function(ctx,
+                                                         'lineTo',
+                                                         'CanvasRenderingContext2D.lineTo')(x, y)),
+        'measure-text': ((ctx, text) => require_host_function(ctx,
+                                                              'measureText',
+                                                              'CanvasRenderingContext2D.measureText')(from_fasl(text))),
+        'move-to': ((ctx, x, y) => require_host_function(ctx,
+                                                         'moveTo',
+                                                         'CanvasRenderingContext2D.moveTo')(x, y)),
         'put-image-data': ((ctx, data, dx, dy, dirtyX, dirtyY, dirtyW, dirtyH) => {
+          const putImageData = require_host_function(ctx,
+                                                     'putImageData',
+                                                     'CanvasRenderingContext2D.putImageData');
           const dX = from_fasl(dirtyX);
           const dY = from_fasl(dirtyY);
           const dW = from_fasl(dirtyW);
           const dH = from_fasl(dirtyH);
           if (dX === undefined && dY === undefined && dW === undefined && dH === undefined) {
-            ctx.putImageData(data, dx, dy);
+            putImageData(data, dx, dy);
           } else {
-            ctx.putImageData(data, dx, dy, dX, dY, dW, dH);
+            putImageData(data, dx, dy, dX, dY, dW, dH);
           }
         }),
-        'quadratic-curve-to': ((ctx, cpx, cpy, x, y) => ctx.quadraticCurveTo(cpx, cpy, x, y)),
-        'rect': ((ctx, x, y, w, h) => ctx.rect(x, y, w, h)),
+        'quadratic-curve-to': ((ctx, cpx, cpy, x, y) => require_host_function(ctx,
+                                                                              'quadraticCurveTo',
+                                                                              'CanvasRenderingContext2D.quadraticCurveTo')(cpx, cpy, x, y)),
+        'rect': ((ctx, x, y, w, h) => require_host_function(ctx,
+                                                            'rect',
+                                                            'CanvasRenderingContext2D.rect')(x, y, w, h)),
         'reset': (ctx => require_host_function(ctx,
                                                 'reset',
                                                 'CanvasRenderingContext2D.reset')()),
         'reset-transform': (ctx => require_host_function(ctx,
                                                           'resetTransform',
                                                           'CanvasRenderingContext2D.resetTransform')()),
-        'restore': (ctx => ctx.restore()),
-        'rotate': ((ctx, angle) => ctx.rotate(angle)),
+        'restore': (ctx => require_host_function(ctx,
+                                                 'restore',
+                                                 'CanvasRenderingContext2D.restore')()),
+        'rotate': ((ctx, angle) => require_host_function(ctx,
+                                                         'rotate',
+                                                         'CanvasRenderingContext2D.rotate')(angle)),
         'round-rect': ((ctx, x, y, w, h, r) => {
           const roundRect = require_host_function(ctx,
                                                   'roundRect',
@@ -1159,30 +1230,52 @@ var imports = {
             roundRect(x, y, w, h, rad);
           }
         }),
-        'save': (ctx => ctx.save()),
-        'scale': ((ctx, x, y) => ctx.scale(x, y)),
-        'set-line-dash': ((ctx, arr) => ctx.setLineDash(arr)),
-        'set-transform!': ((ctx, a, b, c, d, e, f) => ctx.setTransform(a, b, c, d, e, f)),
-        'set-transform-matrix!': ((ctx, m) => ctx.setTransform(m)),
+        'save': (ctx => require_host_function(ctx,
+                                              'save',
+                                              'CanvasRenderingContext2D.save')()),
+        'scale': ((ctx, x, y) => require_host_function(ctx,
+                                                       'scale',
+                                                       'CanvasRenderingContext2D.scale')(x, y)),
+        'set-line-dash': ((ctx, arr) => require_host_function(ctx,
+                                                              'setLineDash',
+                                                              'CanvasRenderingContext2D.setLineDash')(arr)),
+        'set-transform!': ((ctx, a, b, c, d, e, f) => require_host_function(ctx,
+                                                                            'setTransform',
+                                                                            'CanvasRenderingContext2D.setTransform')(a, b, c, d, e, f)),
+        'set-transform-matrix!': ((ctx, m) => require_host_function(ctx,
+                                                                    'setTransform',
+                                                                    'CanvasRenderingContext2D.setTransform')(m)),
         'stroke': ((ctx, path) => {
+          const stroke = require_host_function(ctx,
+                                               'stroke',
+                                               'CanvasRenderingContext2D.stroke');
           const p = from_fasl(path);
           if (p === undefined) {
-            ctx.stroke();
+            stroke();
           } else {
-            ctx.stroke(p);
+            stroke(p);
           }
         }),
-        'stroke-rect': ((ctx, x, y, w, h) => ctx.strokeRect(x, y, w, h)),
+        'stroke-rect': ((ctx, x, y, w, h) => require_host_function(ctx,
+                                                                   'strokeRect',
+                                                                   'CanvasRenderingContext2D.strokeRect')(x, y, w, h)),
         'stroke-text': ((ctx, text, x, y, mw) => {
+          const strokeText = require_host_function(ctx,
+                                                   'strokeText',
+                                                   'CanvasRenderingContext2D.strokeText');
           const m = from_fasl(mw);
           if (m === undefined) {
-            ctx.strokeText(from_fasl(text), x, y);
+            strokeText(from_fasl(text), x, y);
           } else {
-            ctx.strokeText(from_fasl(text), x, y, m);
+            strokeText(from_fasl(text), x, y, m);
           }
         }),
-        'transform': ((ctx, a, b, c, d, e, f) => ctx.transform(a, b, c, d, e, f)),
-        'translate': ((ctx, x, y) => ctx.translate(x, y)),
+        'transform': ((ctx, a, b, c, d, e, f) => require_host_function(ctx,
+                                                                       'transform',
+                                                                       'CanvasRenderingContext2D.transform')(a, b, c, d, e, f)),
+        'translate': ((ctx, x, y) => require_host_function(ctx,
+                                                           'translate',
+                                                           'CanvasRenderingContext2D.translate')(x, y)),
     } : new Proxy({}, { get() { throw new Error('DOM not available in this environment'); } }),
     'image-data': hasDOM ? {
         'width':   (data => data.width),
