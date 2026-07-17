@@ -62,18 +62,29 @@
   (and (screen-orientation-info? v)
        (external? (screen-orientation-raw v))))
 
+;; check-screen-orientation : symbol? any/c -> void?
+;;   Ensure value wraps an external ScreenOrientation-like host value.
+(define (check-screen-orientation who value)
+  (unless (screen-orientation? value)
+    (raise-argument-error who "screen-orientation?" value)))
+
+;; check-screen-orientation-method : symbol? screen-orientation-info? string? -> void?
+;;   Ensure a required ScreenOrientation method is available.
+(define (check-screen-orientation-method who value method-name)
+  (unless (screen-orientation-method-present? (screen-orientation-raw value) method-name)
+    (raise-arguments-error who
+                           (string-append "ScreenOrientation." method-name " is not available"))))
+
 ;; screen-orientation-type : screen-orientation-info? -> string?
 ;;   Read the orientation type, such as "portrait-primary".
 (define (screen-orientation-type value)
-  (unless (screen-orientation? value)
-    (raise-argument-error 'screen-orientation-type "screen-orientation?" value))
+  (check-screen-orientation 'screen-orientation-type value)
   (js-ref (screen-orientation-raw value) "type"))
 
 ;; screen-orientation-angle : screen-orientation-info? -> number?
 ;;   Read the orientation angle in degrees.
 (define (screen-orientation-angle value)
-  (unless (screen-orientation? value)
-    (raise-argument-error 'screen-orientation-angle "screen-orientation?" value))
+  (check-screen-orientation 'screen-orientation-angle value)
   (js-ref (screen-orientation-raw value) "angle"))
 
 ;; screen-orientation-lock-type? : any/c -> boolean?
@@ -100,11 +111,8 @@
 ;; screen-orientation-lock! : screen-orientation-info? (or/c string? symbol?) -> js-promise?
 ;;   Request an orientation lock and return the browser Promise.
 (define (screen-orientation-lock! value lock-type)
-  (unless (screen-orientation? value)
-    (raise-argument-error 'screen-orientation-lock! "screen-orientation?" value))
-  (unless (screen-orientation-method-present? (screen-orientation-raw value) "lock")
-    (raise-arguments-error 'screen-orientation-lock!
-                           "ScreenOrientation.lock is not available"))
+  (check-screen-orientation 'screen-orientation-lock! value)
+  (check-screen-orientation-method 'screen-orientation-lock! value "lock")
   (define lock-type* (screen-orientation-lock-type->string 'screen-orientation-lock! lock-type))
   (js-promise-wrap
    (js-send/extern (screen-orientation-raw value) "lock" (vector lock-type*))))
@@ -112,11 +120,8 @@
 ;; screen-orientation-unlock! : screen-orientation-info? -> void?
 ;;   Remove an active orientation lock.
 (define (screen-orientation-unlock! value)
-  (unless (screen-orientation? value)
-    (raise-argument-error 'screen-orientation-unlock! "screen-orientation?" value))
-  (unless (screen-orientation-method-present? (screen-orientation-raw value) "unlock")
-    (raise-arguments-error 'screen-orientation-unlock!
-                           "ScreenOrientation.unlock is not available"))
+  (check-screen-orientation 'screen-orientation-unlock! value)
+  (check-screen-orientation-method 'screen-orientation-unlock! value "unlock")
   (js-send/extern/nullish (screen-orientation-raw value) "unlock" (vector))
   (void))
 
@@ -143,8 +148,7 @@
 ;; screen-orientation-on-change! : screen-orientation-info? (or/c procedure? external? #f) -> void?
 ;;   Set the onchange handler on a ScreenOrientation object.
 (define (screen-orientation-on-change! value callback)
-  (unless (screen-orientation? value)
-    (raise-argument-error 'screen-orientation-on-change! "screen-orientation?" value))
+  (check-screen-orientation 'screen-orientation-on-change! value)
   (define callback* (and callback
                          (screen-orientation-callback->external
                           'screen-orientation-on-change!
@@ -155,8 +159,8 @@
 ;; screen-orientation-add-change-listener! : screen-orientation-info? (or/c procedure? external?) -> external/raw
 ;;   Add a change listener to a ScreenOrientation object.
 (define (screen-orientation-add-change-listener! value callback)
-  (unless (screen-orientation? value)
-    (raise-argument-error 'screen-orientation-add-change-listener! "screen-orientation?" value))
+  (check-screen-orientation 'screen-orientation-add-change-listener! value)
+  (check-screen-orientation-method 'screen-orientation-add-change-listener! value "addEventListener")
   (define callback* (screen-orientation-callback->external
                      'screen-orientation-add-change-listener!
                      callback))
@@ -168,8 +172,8 @@
 ;; screen-orientation-remove-change-listener! : screen-orientation-info? (or/c procedure? external?) -> void?
 ;;   Remove a previously installed change listener.
 (define (screen-orientation-remove-change-listener! value callback)
-  (unless (screen-orientation? value)
-    (raise-argument-error 'screen-orientation-remove-change-listener! "screen-orientation?" value))
+  (check-screen-orientation 'screen-orientation-remove-change-listener! value)
+  (check-screen-orientation-method 'screen-orientation-remove-change-listener! value "removeEventListener")
   (define callback* (screen-orientation-callback->external
                      'screen-orientation-remove-change-listener!
                      callback))
