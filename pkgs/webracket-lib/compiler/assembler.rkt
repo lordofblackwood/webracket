@@ -1856,8 +1856,20 @@ function require_host_function(owner, name, displayName) {
   return fn.bind(owner);
 }
 
+function require_host_value(owner, name, displayName) {
+  const value = owner[name];
+  if (value === undefined || value === null) {
+    throw new Error(`${displayName} not available in this environment`);
+  }
+  return value;
+}
+
 function require_window_function(name, displayName) {
   return require_host_function(window, name, displayName);
+}
+
+function require_window_value(name, displayName) {
+  return require_host_value(window, name, displayName);
 }
 
 function require_document_function(name, displayName) {
