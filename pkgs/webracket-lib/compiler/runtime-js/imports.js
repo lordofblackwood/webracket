@@ -103,6 +103,22 @@ function call_console_fallback(name, fallbackName, args) {
   }
 }
 
+function decode_js_send_args(args) {
+  return from_fasl(args) || [];
+}
+
+function call_js_method(obj, name, args, who) {
+  if (obj === null || obj === undefined) {
+    throw new Error(`${who}: target object is null or undefined`);
+  }
+  const methodName = from_fasl(name);
+  const method = obj[methodName];
+  if (typeof method !== 'function') {
+    throw new Error(`${who}: method ${String(methodName)} not available in this environment`);
+  }
+  return method.apply(obj, decode_js_send_args(args));
+}
+
 var imports = {
     // Core Wasm runtime imports.
     'env': {
@@ -546,16 +562,16 @@ var imports = {
       // - send/truthy  => JS truthiness to 0/1
       // Default `send` mirrors `send/value`.
       'send':                      ((obj, name, args) => {
-                                    const x = obj[from_fasl(name)](...(from_fasl(args) || []));
+                                    const x = call_js_method(obj, name, args, 'js-send');
                                     return to_fasl(x);
                                    }),
-      'send/extern':               ((obj, name, args) => obj[from_fasl(name)](...(from_fasl(args) || [])) ),
+      'send/extern':               ((obj, name, args) => call_js_method(obj, name, args, 'js-send/extern') ),
       'send/value':                ((obj, name, args) => {
-                                    const x = obj[from_fasl(name)](...(from_fasl(args) || []));
+                                    const x = call_js_method(obj, name, args, 'js-send/value');
                                     return to_fasl(x);
                                    }),
       'send/boolean':              ((obj, name, args) => {
-                                    const x = obj[from_fasl(name)](...(from_fasl(args) || []));
+                                    const x = call_js_method(obj, name, args, 'js-send/boolean');
                                     if (typeof x === 'boolean') {
                                       return x ? 1 : 0;
                                     }
@@ -565,11 +581,11 @@ var imports = {
                                     throw new TypeError(`js-send/boolean: expected boolean result, got ${typeof x}`);
                                    }),
       'send/truthy':               ((obj, name, args) => {
-                                    const x = obj[from_fasl(name)](...(from_fasl(args) || []));
+                                    const x = call_js_method(obj, name, args, 'js-send/truthy');
                                     return x ? 1 : 0;
                                    }),
       'send/flonum':               ((obj, name, args) => {
-                                    const x = obj[from_fasl(name)](...(from_fasl(args) || []))
+                                    const x = call_js_method(obj, name, args, 'js-send/flonum')
                                     return (( (typeof x === "object") && (x instanceof Number) ) ? x.valueOf() : x)
                                     }),
       'throw':                     (exn => { throw from_fasl(exn); }),
