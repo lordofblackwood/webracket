@@ -75,6 +75,23 @@
        (external? (intersection-observer-raw v))
        (js-instanceof (intersection-observer-raw v) (js-var "IntersectionObserver"))))
 
+;; intersection-observer-host-method-present? : external/raw string? -> boolean?
+;;   Report whether raw exposes a callable IntersectionObserver method.
+(define (intersection-observer-host-method-present? raw method-name)
+  (define method (js-ref/extern raw method-name))
+  (and (not (js-nullish? method))
+       (string=? (js-typeof method) "function")))
+
+;; check-intersection-observer-host-method : symbol? intersection-observer-info? string? -> void?
+;;   Ensure a required IntersectionObserver host method is available.
+(define (check-intersection-observer-host-method who observer method-name)
+  (unless (intersection-observer-host-method-present? (intersection-observer-raw observer)
+                                                      method-name)
+    (raise-arguments-error who
+                           (string-append "IntersectionObserver."
+                                          method-name
+                                          " is not available"))))
+
 ;; observer-threshold->raw : any/c -> any/c
 ;;   Convert a threshold value to a browser-friendly representation.
 (define (observer-threshold->raw threshold)
@@ -176,6 +193,7 @@
 (define (intersection-observer-observe! observer target)
   (unless (intersection-observer? observer)
     (raise-argument-error 'intersection-observer-observe! "intersection-observer-info?" observer))
+  (check-intersection-observer-host-method 'intersection-observer-observe! observer "observe")
   (js-send/extern/nullish (intersection-observer-raw observer)
                           "observe"
                           (vector (observer-target->raw 'intersection-observer-observe! target)))
@@ -186,6 +204,7 @@
 (define (intersection-observer-unobserve! observer target)
   (unless (intersection-observer? observer)
     (raise-argument-error 'intersection-observer-unobserve! "intersection-observer-info?" observer))
+  (check-intersection-observer-host-method 'intersection-observer-unobserve! observer "unobserve")
   (js-send/extern/nullish (intersection-observer-raw observer)
                           "unobserve"
                           (vector (observer-target->raw 'intersection-observer-unobserve! target)))
@@ -196,6 +215,7 @@
 (define (intersection-observer-disconnect! observer)
   (unless (intersection-observer? observer)
     (raise-argument-error 'intersection-observer-disconnect! "intersection-observer-info?" observer))
+  (check-intersection-observer-host-method 'intersection-observer-disconnect! observer "disconnect")
   (js-send/extern/nullish (intersection-observer-raw observer) "disconnect" (vector))
   (void))
 
