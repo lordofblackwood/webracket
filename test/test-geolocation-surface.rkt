@@ -2,7 +2,7 @@
 
 (require geolocation)
 
-(list
+(void
  geolocation
  geolocation?
  geolocation-supported?
@@ -35,3 +35,5 @@
  geolocation-position-error-raw
  geolocation-position-error-code
  geolocation-position-error-message)
+
+#t

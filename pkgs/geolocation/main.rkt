@@ -37,25 +37,60 @@
       (raise-argument-error name "(or/c #f exact-nonnegative-integer?)" maximum-age))
     (values enable-high-accuracy timeout maximum-age)))
 
-(define (geolocation-supported?)
-  (define nav (js-window-navigator))
-  (define raw (js-ref/extern nav "geolocation"))
-  (and (not (js-nullish? raw))
-       (string=? (js-typeof (js-ref/extern raw "getCurrentPosition")) "function")
-       (string=? (js-typeof (js-ref/extern raw "watchPosition")) "function")
-       (string=? (js-typeof (js-ref/extern raw "clearWatch")) "function")))
+;; geolocation-method-present? : external/raw string? -> boolean?
+;;   Report whether raw exposes a callable Geolocation method.
+(define (geolocation-method-present? raw method-name)
+  (define method (js-ref/extern raw method-name))
+  (and (not (js-nullish? method))
+       (string=? (js-typeof method) "function")))
 
-(define (geolocation)
+;; geolocation-core-methods-present? : external/raw -> boolean?
+;;   Report whether raw has the required Geolocation methods.
+(define (geolocation-core-methods-present? raw)
+  (and (geolocation-method-present? raw "getCurrentPosition")
+       (geolocation-method-present? raw "watchPosition")
+       (geolocation-method-present? raw "clearWatch")))
+
+;; geolocation-supported-raw : -> (or/c #f external/raw)
+;;   Read navigator.geolocation when the required methods are available.
+(define (geolocation-supported-raw)
   (define raw (js-ref/extern (js-window-navigator) "geolocation"))
   (and (not (js-nullish? raw))
-       (geolocation-info raw)))
+       (geolocation-core-methods-present? raw)
+       raw))
+
+(define (geolocation-supported?)
+  (not (eq? (geolocation-supported-raw) #f)))
+
+(define (geolocation)
+  (define raw (geolocation-supported-raw))
+  (and raw (geolocation-info raw)))
 
 (define (geolocation-raw value)
   (geolocation-info-raw value))
 
 (define (geolocation? v)
+  (and (geolocation-host-value? v)
+       (geolocation-core-methods-present? (geolocation-raw v))))
+
+;; geolocation-host-value? : any/c -> boolean?
+;;   Report whether v wraps an external Geolocation-like host value.
+(define (geolocation-host-value? v)
   (and (geolocation-info? v)
        (external? (geolocation-raw v))))
+
+;; check-geolocation : symbol? any/c -> void?
+;;   Ensure value wraps an external Geolocation-like host value.
+(define (check-geolocation who value)
+  (unless (geolocation-host-value? value)
+    (raise-argument-error who "geolocation-info?" value)))
+
+;; check-geolocation-method : symbol? geolocation-info? string? -> void?
+;;   Ensure a required Geolocation method is available.
+(define (check-geolocation-method who value method-name)
+  (unless (geolocation-method-present? (geolocation-raw value) method-name)
+    (raise-arguments-error who
+                           (string-append "Geolocation." method-name " is not available"))))
 
 (define (geolocation-options->raw options)
   (define enable-high-accuracy (geolocation-options-enable-high-accuracy options))
@@ -118,8 +153,8 @@
   (if (js-nullish? value) #f value))
 
 (define (geolocation-get-current-position geo on-success [on-error #f] [options #f])
-  (unless (geolocation? geo)
-    (raise-argument-error 'geolocation-get-current-position "geolocation-info?" geo))
+  (check-geolocation 'geolocation-get-current-position geo)
+  (check-geolocation-method 'geolocation-get-current-position geo "getCurrentPosition")
   (unless (or (eq? on-error #f) (external? on-error) (procedure? on-error))
     (raise-argument-error 'geolocation-get-current-position "(or/c #f procedure? external?)" on-error))
   (unless (or (eq? options #f) (geolocation-options? options))
@@ -144,8 +179,8 @@
   (void))
 
 (define (geolocation-watch-position geo on-success [on-error #f] [options #f])
-  (unless (geolocation? geo)
-    (raise-argument-error 'geolocation-watch-position "geolocation-info?" geo))
+  (check-geolocation 'geolocation-watch-position geo)
+  (check-geolocation-method 'geolocation-watch-position geo "watchPosition")
   (unless (or (eq? on-error #f) (external? on-error) (procedure? on-error))
     (raise-argument-error 'geolocation-watch-position "(or/c #f procedure? external?)" on-error))
   (unless (or (eq? options #f) (geolocation-options? options))
@@ -169,8 +204,8 @@
   (js-send/value (geolocation-raw geo) "watchPosition" args))
 
 (define (geolocation-clear-watch! geo watch-id)
-  (unless (geolocation? geo)
-    (raise-argument-error 'geolocation-clear-watch! "geolocation-info?" geo))
+  (check-geolocation 'geolocation-clear-watch! geo)
+  (check-geolocation-method 'geolocation-clear-watch! geo "clearWatch")
   (unless (exact-nonnegative-integer? watch-id)
     (raise-argument-error 'geolocation-clear-watch! "exact-nonnegative-integer?" watch-id))
   (js-send/extern/nullish (geolocation-raw geo) "clearWatch" (vector watch-id))
