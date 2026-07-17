@@ -95,6 +95,9 @@ join_smoke_pages() {
 
 compile_test_dir_case test-audio.html test-audio.rkt \
   --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/audio.ffi"
+compile_root_case test-audio-method-missing-host-ffi.html test/test-audio-method-missing-host-ffi.rkt \
+  --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/standard.ffi" \
+  --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/audio.ffi"
 compile_test_dir_case test-console.html test-console.rkt \
   --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/standard.ffi" \
   --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/console.ffi"

@@ -113,7 +113,22 @@
 ;; audio-constructor-present? : string? -> boolean?
 ;;   Check whether the host environment exposes a named Audio constructor.
 (define (audio-constructor-present? name)
-  #t)
+  (string=? (js-typeof (js-var name)) "function"))
+
+;; audio-host-method-present? : external/raw string? -> boolean?
+;;   Report whether raw exposes a callable browser method.
+(define (audio-host-method-present? raw method-name)
+  (string=? (js-typeof (js-ref/extern raw method-name)) "function"))
+
+;; check-audio-host-method : symbol? external/raw string? string? -> void?
+;;   Ensure a required browser method is available.
+(define (check-audio-host-method who raw receiver-name method-name)
+  (unless (audio-host-method-present? raw method-name)
+    (raise-arguments-error who
+                           (string-append receiver-name
+                                          "."
+                                          method-name
+                                          " is not available"))))
 
 ;; audio-context? : any/c -> boolean?
 ;;   Check whether x is an AudioContext value.
@@ -469,6 +484,10 @@
     (if (null? options)
         (vector event-name* listener*)
         (list->vector (list* event-name* listener* options))))
+  (check-audio-host-method 'audio-add-event-listener!
+                           target
+                           "EventTarget"
+                           "addEventListener")
   (js-send/extern/nullish target "addEventListener" args)
   listener*)
 
@@ -486,6 +505,10 @@
     (if (null? options)
         (vector event-name* listener*)
         (list->vector (list* event-name* listener* options))))
+  (check-audio-host-method 'audio-remove-event-listener!
+                           target
+                           "EventTarget"
+                           "removeEventListener")
   (js-send/extern/nullish target "removeEventListener" args)
   (void))
 
