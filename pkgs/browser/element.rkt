@@ -37,6 +37,23 @@
     (raise-argument-error who "real?" v))
   (exact->inexact v))
 
+;; element-host-method-present? : external/raw string? -> boolean?
+;;   Report whether raw exposes a callable browser method.
+(define (element-host-method-present? raw method-name)
+  (define method (js-ref/extern raw method-name))
+  (and (not (js-nullish? method))
+       (string=? (js-typeof method) "function")))
+
+;; check-element-host-method : symbol? external/raw string? string? -> void?
+;;   Ensure a required Element-family host method is available.
+(define (check-element-host-method who raw receiver-name method-name)
+  (unless (element-host-method-present? raw method-name)
+    (raise-arguments-error who
+                           (string-append receiver-name
+                                          "."
+                                          method-name
+                                          " not available in this environment"))))
+
 ;; define-element-getter : (name binding) -> syntax
 ;;   Define a direct getter for an element property binding.
 (define-syntax-rule (define-element-getter name binding)
@@ -118,6 +135,7 @@
 ;; element-add-event-listener! : element? (or/c string? symbol?) (or/c procedure? external?) (or/c boolean? external?) ... -> external?
 ;;   Add an event listener to an element and return the installed listener.
 (define (element-add-event-listener! element event-name listener . options)
+  (define raw (element-unwrap element))
   (define event-name* (element-event-name->string 'element-add-event-listener! event-name))
   (define listener* (element-event-listener->external 'element-add-event-listener! listener))
   (for-each
@@ -129,12 +147,14 @@
     (if (null? options)
         (vector event-name* listener*)
         (list->vector (list* event-name* listener* options))))
-  (js-send/extern/nullish (element-unwrap element) "addEventListener" args)
+  (check-element-host-method 'element-add-event-listener! raw "EventTarget" "addEventListener")
+  (js-send/extern/nullish raw "addEventListener" args)
   listener*)
 
 ;; element-remove-event-listener! : element? (or/c string? symbol?) (or/c procedure? external?) (or/c boolean? external?) ... -> void?
 ;;   Remove an event listener from an element.
 (define (element-remove-event-listener! element event-name listener . options)
+  (define raw (element-unwrap element))
   (define event-name* (element-event-name->string 'element-remove-event-listener! event-name))
   (define listener* (element-event-listener->external 'element-remove-event-listener! listener))
   (for-each
@@ -146,7 +166,8 @@
     (if (null? options)
         (vector event-name* listener*)
         (list->vector (list* event-name* listener* options))))
-  (js-send/extern/nullish (element-unwrap element) "removeEventListener" args)
+  (check-element-host-method 'element-remove-event-listener! raw "EventTarget" "removeEventListener")
+  (js-send/extern/nullish raw "removeEventListener" args)
   (void))
 
 ;; element-id : element? -> (or/c #f string?)
@@ -202,28 +223,36 @@
 ;; element-append! : element? any/c -> void?
 ;;   Append a node or text to an element.
 (define (element-append! element child)
-  (js-send/extern/nullish (element-unwrap element) "append"
+  (define raw (element-unwrap element))
+  (check-element-host-method 'element-append! raw "Element" "append")
+  (js-send/extern/nullish raw "append"
                           (vector (element-nodeish->value child)))
   (void))
 
 ;; element-prepend! : element? any/c -> void?
 ;;   Prepend a node or text to an element.
 (define (element-prepend! element child)
-  (js-send/extern/nullish (element-unwrap element) "prepend"
+  (define raw (element-unwrap element))
+  (check-element-host-method 'element-prepend! raw "Element" "prepend")
+  (js-send/extern/nullish raw "prepend"
                           (vector (element-nodeish->value child)))
   (void))
 
 ;; element-before! : element? any/c -> void?
 ;;   Insert a node or text before an element.
 (define (element-before! element sibling)
-  (js-send/extern/nullish (element-unwrap element) "before"
+  (define raw (element-unwrap element))
+  (check-element-host-method 'element-before! raw "Element" "before")
+  (js-send/extern/nullish raw "before"
                           (vector (element-nodeish->value sibling)))
   (void))
 
 ;; element-after! : element? any/c -> void?
 ;;   Insert a node or text after an element.
 (define (element-after! element sibling)
-  (js-send/extern/nullish (element-unwrap element) "after"
+  (define raw (element-unwrap element))
+  (check-element-host-method 'element-after! raw "Element" "after")
+  (js-send/extern/nullish raw "after"
                           (vector (element-nodeish->value sibling)))
   (void))
 
@@ -322,51 +351,61 @@
 ;; dom-token-list-contains? : dom-token-list? (or/c string? symbol?) -> boolean?
 ;;   Report whether a token is present in the class list.
 (define (dom-token-list-contains? class-list token)
+  (define raw (dom-token-list-unwrap class-list))
   (define token* (element-stringish->string 'dom-token-list-contains? token))
-  (js-send/boolean (dom-token-list-unwrap class-list) "contains" (vector token*)))
+  (check-element-host-method 'dom-token-list-contains? raw "DOMTokenList" "contains")
+  (js-send/boolean raw "contains" (vector token*)))
 
 ;; dom-token-list-add! : dom-token-list? (or/c string? symbol?) ... -> void?
 ;;   Add one or more tokens to the class list.
 (define (dom-token-list-add! class-list token . more-tokens)
+  (define raw (dom-token-list-unwrap class-list))
   (define tokens (cons token more-tokens))
   (define token-values
     (list->vector (map (lambda (tok)
                          (element-stringish->string 'dom-token-list-add! tok))
                        tokens)))
-  (js-send/extern/nullish (dom-token-list-unwrap class-list) "add" token-values)
+  (check-element-host-method 'dom-token-list-add! raw "DOMTokenList" "add")
+  (js-send/extern/nullish raw "add" token-values)
   (void))
 
 ;; dom-token-list-remove! : dom-token-list? (or/c string? symbol?) ... -> void?
 ;;   Remove one or more tokens from the class list.
 (define (dom-token-list-remove! class-list token . more-tokens)
+  (define raw (dom-token-list-unwrap class-list))
   (define tokens (cons token more-tokens))
   (define token-values
     (list->vector (map (lambda (tok)
                          (element-stringish->string 'dom-token-list-remove! tok))
                        tokens)))
-  (js-send/extern/nullish (dom-token-list-unwrap class-list) "remove" token-values)
+  (check-element-host-method 'dom-token-list-remove! raw "DOMTokenList" "remove")
+  (js-send/extern/nullish raw "remove" token-values)
   (void))
 
 ;; dom-token-list-toggle! : dom-token-list? (or/c string? symbol?) [force] -> boolean?
 ;;   Toggle a token, or force a specific state when provided.
 (define (dom-token-list-toggle! class-list token [force #f])
+  (define raw (dom-token-list-unwrap class-list))
   (define token* (element-stringish->string 'dom-token-list-toggle! token))
+  (check-element-host-method 'dom-token-list-toggle! raw "DOMTokenList" "toggle")
   (cond
     [(eq? force #f)
-     (js-send/boolean (dom-token-list-unwrap class-list) "toggle" (vector token*))]
+     (js-send/boolean raw "toggle" (vector token*))]
     [(procedure? force)
-     (js-send/boolean (dom-token-list-unwrap class-list) "toggle"
+     (js-send/boolean raw "toggle"
                       (vector token* (if (force) #t #f)))]
     [else
-     (js-send/boolean (dom-token-list-unwrap class-list) "toggle"
+     (js-send/boolean raw "toggle"
                       (vector token* (if force #t #f)))]))
 
 ;; dom-token-list-replace! : dom-token-list? (or/c string? symbol?) (or/c string? symbol?) -> boolean?
 ;;   Replace one class token with another.
 (define (dom-token-list-replace! class-list old-token new-token)
+  (define raw (dom-token-list-unwrap class-list))
   (define old-token* (element-stringish->string 'dom-token-list-replace! old-token))
   (define new-token* (element-stringish->string 'dom-token-list-replace! new-token))
-  (js-send/boolean (dom-token-list-unwrap class-list) "replace" (vector old-token* new-token*)))
+  (check-element-host-method 'dom-token-list-replace! raw "DOMTokenList" "replace")
+  (js-send/boolean raw "replace" (vector old-token* new-token*)))
 
 ;; node-list-length : node-list? -> exact-nonnegative-integer?
 ;;   Read the number of nodes in a NodeList.
