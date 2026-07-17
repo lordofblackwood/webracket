@@ -2734,8 +2734,8 @@ var imports = {
     },
     // JSXGraph GeometryElement
     'jsx-element': hasDOM ? {
-        'call': ((element, method, args) => element[from_fasl(method)](...from_fasl(args))),
-        'call/nullish': ((element, method, args) => { element[from_fasl(method)](...from_fasl(args)); }),
+        'call': ((element, method, args) => call_js_method(element, method, args, 'jsx-element.call')),
+        'call/nullish': ((element, method, args) => { call_js_method(element, method, args, 'jsx-element.call/nullish'); }),
         'add-event': ((element, type, listener) => element.addEvent(from_fasl(type), listener))
     } : {
         'call'()                      { throw new Error('DOM not available in this environment'); },
@@ -2998,8 +2998,8 @@ var imports = {
     },
     // JSXGraph Line
     'jsx-line': hasDOM ? {
-        'call': ((line, method, args) => line[from_fasl(method)](...from_fasl(args))),
-        'call/nullish': ((line, method, args) => { line[from_fasl(method)](...from_fasl(args)); })
+        'call': ((line, method, args) => call_js_method(line, method, args, 'jsx-line.call')),
+        'call/nullish': ((line, method, args) => { call_js_method(line, method, args, 'jsx-line.call/nullish'); })
     } : {
         'call'()                      { throw new Error('DOM not available in this environment'); },
         'call/nullish'()              { throw new Error('DOM not available in this environment'); }
@@ -3054,16 +3054,16 @@ var imports = {
     },
     // JSXGraph Circle
     'jsx-circle': hasDOM ? {
-        'call': ((circle, method, args) => circle[from_fasl(method)](...from_fasl(args))),
-        'call/nullish': ((circle, method, args) => { circle[from_fasl(method)](...from_fasl(args)); })
+        'call': ((circle, method, args) => call_js_method(circle, method, args, 'jsx-circle.call')),
+        'call/nullish': ((circle, method, args) => { call_js_method(circle, method, args, 'jsx-circle.call/nullish'); })
     } : {
         'call'()                      { throw new Error('DOM not available in this environment'); },
         'call/nullish'()              { throw new Error('DOM not available in this environment'); }
     },
     // JSXGraph Curve
     'jsx-curve': hasDOM ? {
-        'call': ((curve, method, args) => curve[from_fasl(method)](...from_fasl(args))),
-        'call/nullish': ((curve, method, args) => { curve[from_fasl(method)](...from_fasl(args)); })
+        'call': ((curve, method, args) => call_js_method(curve, method, args, 'jsx-curve.call')),
+        'call/nullish': ((curve, method, args) => { call_js_method(curve, method, args, 'jsx-curve.call/nullish'); })
     } : {
         'call'()                      { throw new Error('DOM not available in this environment'); },
         'call/nullish'()              { throw new Error('DOM not available in this environment'); }
@@ -3088,8 +3088,8 @@ var imports = {
     },
     // JSXGraph Polygon
     'jsx-polygon': hasDOM ? {
-        'call': ((polygon, method, args) => polygon[from_fasl(method)](...from_fasl(args))),
-        'call/nullish': ((polygon, method, args) => { polygon[from_fasl(method)](...from_fasl(args)); })
+        'call': ((polygon, method, args) => call_js_method(polygon, method, args, 'jsx-polygon.call')),
+        'call/nullish': ((polygon, method, args) => { call_js_method(polygon, method, args, 'jsx-polygon.call/nullish'); })
     } : {
         'call'()                      { throw new Error('DOM not available in this environment'); },
         'call/nullish'()              { throw new Error('DOM not available in this environment'); }

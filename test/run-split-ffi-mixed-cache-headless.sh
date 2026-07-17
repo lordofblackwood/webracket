@@ -110,6 +110,7 @@ compile_root_case test-js-temp-ffi.html test/test-js-temp-ffi.rkt
 compile_root_case test-xtermjs-missing-host-ffi.html test/test-xtermjs-missing-host-ffi.rkt
 compile_root_case test-xtermjs-ffi.html test/test-xtermjs-ffi.rkt
 compile_root_case test-jsxgraph-missing-host-ffi.html test/test-jsxgraph-missing-host-ffi.rkt
+compile_root_case test-jsxgraph-call-missing-host-ffi.html test/test-jsxgraph-call-missing-host-ffi.rkt
 compile_root_case test-jsxgraph-ffi.html test/test-jsxgraph-ffi.rkt
 compile_root_case test-browser-constructor-missing-host-ffi.html test/test-browser-constructor-missing-host-ffi.rkt \
   --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/audio.ffi" \

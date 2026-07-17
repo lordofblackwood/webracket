@@ -18,7 +18,7 @@ Covered standalone or focused FFI families:
 - Browser window object-valued host errors such as storage, caches, and IndexedDB
 - `console.ffi`
 - `js.ffi` through `array.ffi`
-- `jsxgraph.ffi` with missing-host and mock-backed board/point fixtures
+- `jsxgraph.ffi` with missing-host, dynamic-call boundary, and mock-backed board/point fixtures
 - `math.ffi`
 - `performance.ffi`
 - `standard.ffi` through browser defaults, `array.ffi`, generic JS send boundary checks,
