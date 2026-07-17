@@ -217,6 +217,23 @@
       (void)
       value))
 
+;; canvas-host-method-present? : external/raw string? -> boolean?
+;;   Report whether raw exposes a callable browser method.
+(define (canvas-host-method-present? raw method-name)
+  (define method (js-ref/extern raw method-name))
+  (and (not (js-nullish? method))
+       (string=? (js-typeof method) "function")))
+
+;; check-canvas-host-method : symbol? external/raw string? string? -> void?
+;;   Ensure a required canvas host method is available.
+(define (check-canvas-host-method who raw receiver-name method-name)
+  (unless (canvas-host-method-present? raw method-name)
+    (raise-arguments-error who
+                           (string-append receiver-name
+                                          "."
+                                          method-name
+                                          " not available in this environment"))))
+
 ;; canvas-optional->extern : any/c -> any/c
 ;;   Treat #f as JavaScript undefined for optional extern arguments.
 ;;   The unsafe FFI binding expects a JS-side omitted value here; Racket
@@ -487,18 +504,9 @@
 ;; canvas-2d-fill : (or/c canvas-rendering-context-2d? external?) [any/c #f] [any/c #f] -> void?
 ;;   Fill the current path.
 (define (canvas-2d-fill ctx [path #f] [fill-rule #f])
-  (define ctx* (canvas-2d-context-unwrap ctx))
-  (cond
-    [(and (eq? path #f) (eq? fill-rule #f))
-     (js-send/value ctx* "fill" (vector))]
-    [(eq? path #f)
-     (js-send/value ctx* "fill" (vector (canvas-fill-rule->js fill-rule)))]
-    [(eq? fill-rule #f)
-     (js-send/value ctx* "fill" (vector (canvas-resolve-optional path)))]
-    [else
-     (js-send/value ctx* "fill"
-                    (vector (canvas-resolve-optional path)
-                            (canvas-fill-rule->js fill-rule)))])
+  (js-canvas2d-fill (canvas-2d-context-unwrap ctx)
+                    (canvas-resolve-optional path)
+                    (canvas-fill-rule->js fill-rule))
   (void))
 
 ;; canvas-2d-stroke : (or/c canvas-rendering-context-2d? external?) [any/c #f] -> void?
@@ -607,14 +615,18 @@
 ;; canvas-gradient-add-color-stop! : (or/c canvas-gradient? external?) real? (or/c string? symbol?) -> void?
 ;;   Add a color stop to a gradient.
 (define (canvas-gradient-add-color-stop! gradient offset color)
-  (js-send/value (canvas-gradient-unwrap gradient) "addColorStop"
+  (define raw (canvas-gradient-unwrap gradient))
+  (check-canvas-host-method 'canvas-gradient-add-color-stop! raw "CanvasGradient" "addColorStop")
+  (js-send/value raw "addColorStop"
                  (vector offset (canvas-stringish->string 'canvas-gradient-add-color-stop! color)))
   (void))
 
 ;; canvas-pattern-set-transform! : (or/c canvas-pattern? external?) (or/c dom-matrix? external?) -> void?
 ;;   Set a pattern transform.
 (define (canvas-pattern-set-transform! pattern matrix)
-  (js-send/value (canvas-pattern-unwrap pattern) "setTransform"
+  (define raw (canvas-pattern-unwrap pattern))
+  (check-canvas-host-method 'canvas-pattern-set-transform! raw "CanvasPattern" "setTransform")
+  (js-send/value raw "setTransform"
                  (vector (canvas-matrix->raw matrix)))
   (void))
 
@@ -936,15 +948,16 @@
 ;;   Create a new blank image buffer.
 (define (canvas-2d-create-image-data ctx width height)
   (canvas-image-data-wrap
-   (js-send/extern (canvas-2d-context-unwrap ctx) "createImageData" (vector width height))))
+   (js-canvas2d-create-image-data (canvas-2d-context-unwrap ctx)
+                                  (canvas-real->flonum 'canvas-2d-create-image-data width)
+                                  (canvas-real->flonum 'canvas-2d-create-image-data height))))
 
 ;; canvas-2d-create-image-data-from : (or/c canvas-rendering-context-2d? external?) (or/c image-data? external?) -> image-data?
 ;;   Copy an image buffer.
 (define (canvas-2d-create-image-data-from ctx data)
   (canvas-image-data-wrap
-   (js-send/extern (canvas-2d-context-unwrap ctx)
-                   "createImageData"
-                   (vector (canvas-image-data-unwrap data)))))
+   (js-canvas2d-create-image-data-from (canvas-2d-context-unwrap ctx)
+                                       (canvas-image-data-unwrap data))))
 
 ;; canvas-2d-create-pattern : (or/c canvas-rendering-context-2d? external?) any/c (or/c string? symbol?) -> (or/c #f canvas-pattern?)
 ;;   Create a pattern from an image or canvas source.
@@ -958,7 +971,10 @@
 ;;   Create a conic gradient.
 (define (canvas-2d-create-conic-gradient ctx angle x y)
   (canvas-gradient-wrap
-   (js-send/extern (canvas-2d-context-unwrap ctx) "createConicGradient" (vector angle x y))))
+   (js-canvas2d-create-conic-gradient (canvas-2d-context-unwrap ctx)
+                                      (canvas-real->flonum 'canvas-2d-create-conic-gradient angle)
+                                      (canvas-real->flonum 'canvas-2d-create-conic-gradient x)
+                                      (canvas-real->flonum 'canvas-2d-create-conic-gradient y))))
 
 ;; canvas-2d-draw-focus-if-needed! : (or/c canvas-rendering-context-2d? external?) any/c -> void?
 ;;   Draw a focus ring when needed.
@@ -1019,9 +1035,12 @@
 ;;   Read pixels from the canvas.
 (define (canvas-2d-get-image-data ctx sx sy sw sh [settings #f])
   (canvas-image-data-wrap
-   (if (eq? settings #f)
-       (js-send/extern (canvas-2d-context-unwrap ctx) "getImageData" (vector sx sy sw sh))
-       (js-send/extern (canvas-2d-context-unwrap ctx) "getImageData" (vector sx sy sw sh settings)))))
+   (js-canvas2d-get-image-data (canvas-2d-context-unwrap ctx)
+                               (canvas-real->flonum 'canvas-2d-get-image-data sx)
+                               (canvas-real->flonum 'canvas-2d-get-image-data sy)
+                               (canvas-real->flonum 'canvas-2d-get-image-data sw)
+                               (canvas-real->flonum 'canvas-2d-get-image-data sh)
+                               (canvas-resolve-optional settings))))
 
 ;; canvas-2d-get-line-dash : (or/c canvas-rendering-context-2d? external?) -> vector?
 ;;   Read the current dash pattern.
@@ -1156,13 +1175,23 @@
 ;;   Create a linear gradient.
 (define (canvas-2d-create-linear-gradient ctx x0 y0 x1 y1)
   (canvas-gradient-wrap
-   (js-send/extern (canvas-2d-context-unwrap ctx) "createLinearGradient" (vector x0 y0 x1 y1))))
+   (js-canvas2d-create-linear-gradient (canvas-2d-context-unwrap ctx)
+                                       (canvas-real->flonum 'canvas-2d-create-linear-gradient x0)
+                                       (canvas-real->flonum 'canvas-2d-create-linear-gradient y0)
+                                       (canvas-real->flonum 'canvas-2d-create-linear-gradient x1)
+                                       (canvas-real->flonum 'canvas-2d-create-linear-gradient y1))))
 
 ;; canvas-2d-create-radial-gradient : (or/c canvas-rendering-context-2d? external?) real? real? real? real? real? real? -> canvas-gradient?
 ;;   Create a radial gradient.
 (define (canvas-2d-create-radial-gradient ctx x0 y0 r0 x1 y1 r1)
   (canvas-gradient-wrap
-   (js-send/extern (canvas-2d-context-unwrap ctx) "createRadialGradient" (vector x0 y0 r0 x1 y1 r1))))
+   (js-canvas2d-create-radial-gradient (canvas-2d-context-unwrap ctx)
+                                       (canvas-real->flonum 'canvas-2d-create-radial-gradient x0)
+                                       (canvas-real->flonum 'canvas-2d-create-radial-gradient y0)
+                                       (canvas-real->flonum 'canvas-2d-create-radial-gradient r0)
+                                       (canvas-real->flonum 'canvas-2d-create-radial-gradient x1)
+                                       (canvas-real->flonum 'canvas-2d-create-radial-gradient y1)
+                                       (canvas-real->flonum 'canvas-2d-create-radial-gradient r1))))
 
 ;; canvas-2d-fill-style : (or/c canvas-rendering-context-2d? external?) -> any/c
 ;;   Read the fill style.
