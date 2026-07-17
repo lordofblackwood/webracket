@@ -161,6 +161,20 @@
               (external? option))
     (raise-argument-error who "(or/c boolean? external?)" option)))
 
+;; websocket-method-present? : external/raw string? -> boolean?
+;;   Report whether raw exposes a callable WebSocket method.
+(define (websocket-method-present? raw method-name)
+  (define method (js-ref/extern raw method-name))
+  (and (not (js-nullish? method))
+       (string=? (js-typeof method) "function")))
+
+;; check-websocket-method : symbol? websocket? string? -> void?
+;;   Ensure a required WebSocket method is available.
+(define (check-websocket-method who ws method-name)
+  (unless (websocket-method-present? (websocket-unwrap ws) method-name)
+    (raise-arguments-error who
+                           (string-append "WebSocket." method-name " is not available"))))
+
 ;; websocket-handler->external : symbol? any/c -> any/c
 ;;   Convert a handler to an external callback or JS null.
 (define (websocket-handler->external who handler)
@@ -284,6 +298,7 @@
 ;;   Add a WebSocket event listener and return the installed listener.
 (define (websocket-add-event-listener! ws event-name listener . options)
   (check-websocket 'websocket-add-event-listener! ws)
+  (check-websocket-method 'websocket-add-event-listener! ws "addEventListener")
   (define event-name* (normalize-websocket-event-name 'websocket-add-event-listener! event-name))
   (define listener* (websocket-listener->external 'websocket-add-event-listener! listener))
   (for-each (lambda (option)
@@ -300,6 +315,7 @@
 ;;   Remove a previously installed WebSocket event listener.
 (define (websocket-remove-event-listener! ws event-name listener . options)
   (check-websocket 'websocket-remove-event-listener! ws)
+  (check-websocket-method 'websocket-remove-event-listener! ws "removeEventListener")
   (define event-name* (normalize-websocket-event-name 'websocket-remove-event-listener! event-name))
   (define listener* (websocket-listener->external 'websocket-remove-event-listener! listener))
   (for-each (lambda (option)
