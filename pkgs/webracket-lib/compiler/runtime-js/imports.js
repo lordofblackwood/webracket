@@ -1206,32 +1206,36 @@ var imports = {
         'btoa':                 (s => window.btoa(from_fasl(s))),
         'blur':                 (() => window.blur()),
         'cancel-animation-frame': (id => window.cancelAnimationFrame(id)),
-        'cancel-idle-callback': (id => window.cancelIdleCallback(id)),
+        'cancel-idle-callback': (id => require_window_function('cancelIdleCallback',
+                                                              'window.cancelIdleCallback')(id)),
         'clear-interval':       (id => window.clearInterval(id)),
         'clear-timeout':        (id => window.clearTimeout(id)),
         'close':                (() => window.close()),
         'confirm':              (msg => window.confirm(from_fasl(msg)) ? 1 : 0),
         'create-image-bitmap':  ((image, sx, sy, sw, sh, opts) => {
+            const createImageBitmap = require_window_function('createImageBitmap',
+                                                              'window.createImageBitmap');
             const Sx = from_fasl(sx);
             const Sy = from_fasl(sy);
             const Sw = from_fasl(sw);
             const Sh = from_fasl(sh);
             const o  = from_fasl(opts);
             if (Sx === undefined) {
-                return window.createImageBitmap(image);
+                return createImageBitmap(image);
             } else if (o === undefined) {
-                return window.createImageBitmap(image, Sx, Sy, Sw, Sh);
+                return createImageBitmap(image, Sx, Sy, Sw, Sh);
             } else {
-                return window.createImageBitmap(image, Sx, Sy, Sw, Sh, o);
+                return createImageBitmap(image, Sx, Sy, Sw, Sh, o);
             }
         }),
         'fetch': ((input, init) => {
+            const windowFetch = require_window_function('fetch', 'window.fetch');
             const inp = from_fasl(input);
             const i   = from_fasl(init);
             if (i === undefined) {
-                return fetch(inp);
+                return windowFetch(inp);
             } else {
-                return fetch(inp, i);
+                return windowFetch(inp, i);
             }
         }),
         'focus':                (() => window.focus()),
@@ -1270,11 +1274,13 @@ var imports = {
         'prompt':              ((msg, def) => window.prompt(from_fasl(msg), from_fasl(def))),
         'request-animation-frame': (cb => window.requestAnimationFrame(cb)),
         'request-idle-callback': ((cb, opts) => {
+            const requestIdleCallback = require_window_function('requestIdleCallback',
+                                                               'window.requestIdleCallback');
             const o = from_fasl(opts);
             if (o === undefined) {
-                return window.requestIdleCallback(cb);
+                return requestIdleCallback(cb);
             } else {
-                return window.requestIdleCallback(cb, o);
+                return requestIdleCallback(cb, o);
             }
         }),
         'resize-by':           ((x, y) => window.resizeBy(x, y)),
@@ -1308,15 +1314,19 @@ var imports = {
         'set-timeout/delay':   ((handler, delay) => window.setTimeout(handler, delay)),
         'stop':                (() => window.stop()),
         'structured-clone':    ((value, options) => {
+            const structuredClone = require_window_function('structuredClone',
+                                                           'window.structuredClone');
             const o = from_fasl(options);
             if (o === undefined) {
-                return window.structuredClone(from_fasl(value));
+                return structuredClone(from_fasl(value));
             } else {
-                return window.structuredClone(from_fasl(value), o);
+                return structuredClone(from_fasl(value), o);
             }
         }),
-        'queue-microtask':     (cb => window.queueMicrotask(cb)),
-        'report-error':        (err => window.reportError(from_fasl(err)))
+        'queue-microtask':     (cb => require_window_function('queueMicrotask',
+                                                             'window.queueMicrotask')(cb)),
+        'report-error':        (err => require_window_function('reportError',
+                                                              'window.reportError')(from_fasl(err)))
     } : new Proxy({}, { get() { throw new Error('DOM not available in this environment'); } }),
     // Performance
     'performance': hasPerformance ? {

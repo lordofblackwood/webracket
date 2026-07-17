@@ -1848,6 +1848,14 @@ function require_host_constructor(name, displayName, detail) {
   return ctor;
 }
 
+function require_window_function(name, displayName) {
+  const fn = window[name];
+  if (typeof fn !== 'function') {
+    throw new Error(`${displayName} not available in this environment`);
+  }
+  return fn.bind(window);
+}
+
 function require_xterm_terminal() {
   return require_host_constructor('Terminal', 'xterm.js Terminal');
 }

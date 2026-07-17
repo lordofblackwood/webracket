@@ -111,6 +111,8 @@ compile_root_case test-browser-constructor-missing-host-ffi.html test/test-brows
   --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/audio.ffi" \
   --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/image.ffi" \
   --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/websocket.ffi"
+compile_root_case test-window-missing-host-ffi.html test/test-window-missing-host-ffi.rkt \
+  --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/dom.ffi"
 compile_test_dir_case test-fetch.html test-fetch.rkt \
   --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/dom.ffi"
 compile_test_dir_case test-storage.html test-storage.rkt \

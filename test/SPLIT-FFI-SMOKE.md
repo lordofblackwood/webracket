@@ -10,6 +10,7 @@ Covered standalone or focused FFI families:
 - `array.ffi`
 - `audio.ffi`
 - Browser constructor host errors for `AudioContext`, `Image`, and `WebSocket`
+- Browser window optional host errors for functions such as `fetch` and `structuredClone`
 - `console.ffi`
 - `js.ffi` through `array.ffi`
 - `jsxgraph.ffi` with missing-host and mock-backed board/point fixtures
