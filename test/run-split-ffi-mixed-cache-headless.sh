@@ -165,6 +165,12 @@ compile_root_case test-screen-orientation-surface.html test/test-screen-orientat
 compile_root_case test-screen-orientation-method-missing-host-ffi.html test/test-screen-orientation-method-missing-host-ffi.rkt \
   --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/standard.ffi" \
   --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/dom.ffi"
+compile_root_case test-gamepad-surface.html test/test-gamepad-surface.rkt \
+  --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/standard.ffi" \
+  --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/dom.ffi"
+compile_root_case test-gamepad-method-missing-host-ffi.html test/test-gamepad-method-missing-host-ffi.rkt \
+  --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/standard.ffi" \
+  --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/dom.ffi"
 compile_test_dir_case test-dom-facade.html test-dom-facade.rkt \
   --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/dom.ffi"
 compile_root_case test-js-string-symbol-ffi.html test/test-js-string-symbol-ffi.rkt \

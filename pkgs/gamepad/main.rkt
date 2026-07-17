@@ -63,6 +63,20 @@
 (define (gamepad-supported?)
   (gamepad-method-present? (js-window-navigator) "getGamepads"))
 
+;; check-gamepad-navigator-method : symbol? string? -> void?
+;;   Ensure navigator exposes a required Gamepad API method.
+(define (check-gamepad-navigator-method who method-name)
+  (unless (gamepad-method-present? (js-window-navigator) method-name)
+    (raise-arguments-error who
+                           (string-append "navigator." method-name " is not available"))))
+
+;; check-gamepad-window-method : symbol? string? -> void?
+;;   Ensure window exposes a required event listener method.
+(define (check-gamepad-window-method who method-name)
+  (unless (gamepad-method-present? (js-window-window) method-name)
+    (raise-arguments-error who
+                           (string-append "window." method-name " is not available"))))
+
 ;; gamepad? : any/c -> boolean?
 ;;   Report whether v is a wrapped Gamepad object.
 (define (gamepad? v)
@@ -78,7 +92,7 @@
 ;; gamepad-wrap : any/c -> (or/c #f gamepad?)
 ;;   Wrap a raw Gamepad slot, preserving disconnected/null slots as #f.
 (define (gamepad-wrap raw)
-  (and (not (js-nullish? raw))
+  (and (external? raw)
        (gamepad-info raw)))
 
 ;; gamepad-button-wrap : external/raw -> gamepad-button?
@@ -89,8 +103,7 @@
 ;; gamepads : -> vector?
 ;;   Return the current gamepad slots, with disconnected/null slots as #f.
 (define (gamepads)
-  (unless (gamepad-supported?)
-    (raise-arguments-error 'gamepads "navigator.getGamepads is not available"))
+  (check-gamepad-navigator-method 'gamepads "getGamepads")
   (define raw-gamepads (js-send/extern (js-window-navigator) "getGamepads" (vector)))
   (gamepad-vector-map gamepad-wrap (js-array->vector raw-gamepads)))
 
@@ -196,6 +209,7 @@
 ;; gamepad-add-connected-listener! : (or/c procedure? external?) -> external/raw
 ;;   Add a gamepadconnected listener to window.
 (define (gamepad-add-connected-listener! callback)
+  (check-gamepad-window-method 'gamepad-add-connected-listener! "addEventListener")
   (define callback* (gamepad-callback->external 'gamepad-add-connected-listener! callback))
   (js-send/extern/nullish (js-window-window)
                           "addEventListener"
@@ -205,6 +219,7 @@
 ;; gamepad-remove-connected-listener! : (or/c procedure? external?) -> void?
 ;;   Remove a previously installed gamepadconnected listener.
 (define (gamepad-remove-connected-listener! callback)
+  (check-gamepad-window-method 'gamepad-remove-connected-listener! "removeEventListener")
   (define callback* (gamepad-callback->external 'gamepad-remove-connected-listener! callback))
   (js-send/extern/nullish (js-window-window)
                           "removeEventListener"
@@ -214,6 +229,7 @@
 ;; gamepad-add-disconnected-listener! : (or/c procedure? external?) -> external/raw
 ;;   Add a gamepaddisconnected listener to window.
 (define (gamepad-add-disconnected-listener! callback)
+  (check-gamepad-window-method 'gamepad-add-disconnected-listener! "addEventListener")
   (define callback* (gamepad-callback->external 'gamepad-add-disconnected-listener! callback))
   (js-send/extern/nullish (js-window-window)
                           "addEventListener"
@@ -223,6 +239,7 @@
 ;; gamepad-remove-disconnected-listener! : (or/c procedure? external?) -> void?
 ;;   Remove a previously installed gamepaddisconnected listener.
 (define (gamepad-remove-disconnected-listener! callback)
+  (check-gamepad-window-method 'gamepad-remove-disconnected-listener! "removeEventListener")
   (define callback* (gamepad-callback->external 'gamepad-remove-disconnected-listener! callback))
   (js-send/extern/nullish (js-window-window)
                           "removeEventListener"
