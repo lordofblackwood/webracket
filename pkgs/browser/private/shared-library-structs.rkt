@@ -84,6 +84,16 @@
                                           method-name
                                           " not available in this environment"))))
 
+;; check-shared-dom-host-property : symbol? external/raw string? string? -> void?
+;;   Ensure a required shared DOM host property is available.
+(define (check-shared-dom-host-property who raw receiver-name property-name)
+  (when (js-nullish? (js-ref/extern raw property-name))
+    (raise-arguments-error who
+                           (string-append receiver-name
+                                          "."
+                                          property-name
+                                          " not available in this environment"))))
+
 ;; dom-attr : external/raw -> dom-attr?
 ;;   Wrap a browser Attr node.
 (struct dom-attr (raw) #:transparent)
@@ -315,12 +325,16 @@
 ;; selection-range-count : dom-selection? -> exact-nonnegative-integer?
 ;;   Read the number of ranges in the current selection.
 (define (selection-range-count selection)
-  (js-ref (dom-selection-unwrap selection) "rangeCount"))
+  (define raw (dom-selection-unwrap selection))
+  (check-shared-dom-host-property 'selection-range-count raw "Selection" "rangeCount")
+  (js-ref raw "rangeCount"))
 
 ;; selection-is-collapsed? : dom-selection? -> boolean?
 ;;   Report whether the current selection is collapsed.
 (define (selection-is-collapsed? selection)
-  (js-ref (dom-selection-unwrap selection) "isCollapsed"))
+  (define raw (dom-selection-unwrap selection))
+  (check-shared-dom-host-property 'selection-is-collapsed? raw "Selection" "isCollapsed")
+  (js-ref raw "isCollapsed"))
 
 ;; selection-anchor-node : dom-selection? -> (or/c #f dom-node?)
 ;;   Read the anchor node for the current selection.
@@ -368,12 +382,16 @@
 ;; media-query-list-media : media-query-list? -> string?
 ;;   Read the media query string.
 (define (media-query-list-media media-query-list)
-  (js-ref (media-query-list-unwrap media-query-list) "media"))
+  (define raw (media-query-list-unwrap media-query-list))
+  (check-shared-dom-host-property 'media-query-list-media raw "MediaQueryList" "media")
+  (js-ref raw "media"))
 
 ;; media-query-list-matches? : media-query-list? -> boolean?
 ;;   Report whether the media query currently matches.
 (define (media-query-list-matches? media-query-list)
-  (js-ref (media-query-list-unwrap media-query-list) "matches"))
+  (define raw (media-query-list-unwrap media-query-list))
+  (check-shared-dom-host-property 'media-query-list-matches? raw "MediaQueryList" "matches")
+  (js-ref raw "matches"))
 
 ;; css-style-declaration : external/raw -> css-style-declaration?
 ;;   Wrap a browser CSSStyleDeclaration object.
@@ -396,12 +414,16 @@
 ;; css-style-declaration-css-text : css-style-declaration? -> string?
 ;;   Read the CSS text for a style declaration.
 (define (css-style-declaration-css-text decl)
-  (js-ref (css-style-declaration-unwrap decl) "cssText"))
+  (define raw (css-style-declaration-unwrap decl))
+  (check-shared-dom-host-property 'css-style-declaration-css-text raw "CSSStyleDeclaration" "cssText")
+  (js-ref raw "cssText"))
 
 ;; css-style-declaration-set-css-text! : css-style-declaration? (or/c string? symbol?) -> void?
 ;;   Set the CSS text for a style declaration.
 (define (css-style-declaration-set-css-text! decl text)
-  (js-set! (css-style-declaration-unwrap decl)
+  (define raw (css-style-declaration-unwrap decl))
+  (check-shared-dom-host-property 'css-style-declaration-set-css-text! raw "CSSStyleDeclaration" "cssText")
+  (js-set! raw
            "cssText"
            (if (symbol? text) (symbol->string text) text))
   (void))
@@ -409,7 +431,9 @@
 ;; css-style-declaration-length : css-style-declaration? -> exact-nonnegative-integer?
 ;;   Read the number of style properties.
 (define (css-style-declaration-length decl)
-  (js-ref (css-style-declaration-unwrap decl) "length"))
+  (define raw (css-style-declaration-unwrap decl))
+  (check-shared-dom-host-property 'css-style-declaration-length raw "CSSStyleDeclaration" "length")
+  (js-ref raw "length"))
 
 ;; css-style-declaration-item : css-style-declaration? exact-nonnegative-integer? -> (or/c #f string?)
 ;;   Read the style property name at an index.
@@ -531,32 +555,44 @@
 ;; audio-track-kind : audio-track? -> string?
 ;;   Read the browser track kind.
 (define (audio-track-kind track)
-  (js-ref (audio-track-unwrap track) "kind"))
+  (define raw (audio-track-unwrap track))
+  (check-shared-dom-host-property 'audio-track-kind raw "AudioTrack" "kind")
+  (js-ref raw "kind"))
 
 ;; audio-track-label : audio-track? -> string?
 ;;   Read the browser track label.
 (define (audio-track-label track)
-  (js-ref (audio-track-unwrap track) "label"))
+  (define raw (audio-track-unwrap track))
+  (check-shared-dom-host-property 'audio-track-label raw "AudioTrack" "label")
+  (js-ref raw "label"))
 
 ;; audio-track-language : audio-track? -> string?
 ;;   Read the browser track language.
 (define (audio-track-language track)
-  (js-ref (audio-track-unwrap track) "language"))
+  (define raw (audio-track-unwrap track))
+  (check-shared-dom-host-property 'audio-track-language raw "AudioTrack" "language")
+  (js-ref raw "language"))
 
 ;; audio-track-id : audio-track? -> string?
 ;;   Read the browser track id.
 (define (audio-track-id track)
-  (js-ref (audio-track-unwrap track) "id"))
+  (define raw (audio-track-unwrap track))
+  (check-shared-dom-host-property 'audio-track-id raw "AudioTrack" "id")
+  (js-ref raw "id"))
 
 ;; audio-track-enabled? : audio-track? -> boolean?
 ;;   Read whether the audio track is enabled.
 (define (audio-track-enabled? track)
-  (js-ref (audio-track-unwrap track) "enabled"))
+  (define raw (audio-track-unwrap track))
+  (check-shared-dom-host-property 'audio-track-enabled? raw "AudioTrack" "enabled")
+  (js-ref raw "enabled"))
 
 ;; audio-track-set-enabled! : audio-track? boolean? -> void?
 ;;   Enable or disable the audio track.
 (define (audio-track-set-enabled! track enabled?)
-  (js-set! (audio-track-unwrap track) "enabled" enabled?)
+  (define raw (audio-track-unwrap track))
+  (check-shared-dom-host-property 'audio-track-set-enabled! raw "AudioTrack" "enabled")
+  (js-set! raw "enabled" enabled?)
   (void))
 
 ;; text-track : external/raw -> text-track?
@@ -580,32 +616,44 @@
 ;; text-track-kind : text-track? -> string?
 ;;   Read the browser track kind.
 (define (text-track-kind track)
-  (js-ref (text-track-unwrap track) "kind"))
+  (define raw (text-track-unwrap track))
+  (check-shared-dom-host-property 'text-track-kind raw "TextTrack" "kind")
+  (js-ref raw "kind"))
 
 ;; text-track-label : text-track? -> string?
 ;;   Read the browser track label.
 (define (text-track-label track)
-  (js-ref (text-track-unwrap track) "label"))
+  (define raw (text-track-unwrap track))
+  (check-shared-dom-host-property 'text-track-label raw "TextTrack" "label")
+  (js-ref raw "label"))
 
 ;; text-track-language : text-track? -> string?
 ;;   Read the browser track language.
 (define (text-track-language track)
-  (js-ref (text-track-unwrap track) "language"))
+  (define raw (text-track-unwrap track))
+  (check-shared-dom-host-property 'text-track-language raw "TextTrack" "language")
+  (js-ref raw "language"))
 
 ;; text-track-id : text-track? -> string?
 ;;   Read the browser track id.
 (define (text-track-id track)
-  (js-ref (text-track-unwrap track) "id"))
+  (define raw (text-track-unwrap track))
+  (check-shared-dom-host-property 'text-track-id raw "TextTrack" "id")
+  (js-ref raw "id"))
 
 ;; text-track-mode : text-track? -> string?
 ;;   Read the browser track mode.
 (define (text-track-mode track)
-  (js-ref (text-track-unwrap track) "mode"))
+  (define raw (text-track-unwrap track))
+  (check-shared-dom-host-property 'text-track-mode raw "TextTrack" "mode")
+  (js-ref raw "mode"))
 
 ;; text-track-set-mode! : text-track? (or/c string? symbol?) -> void?
 ;;   Set the browser track mode.
 (define (text-track-set-mode! track mode)
-  (js-set! (text-track-unwrap track)
+  (define raw (text-track-unwrap track))
+  (check-shared-dom-host-property 'text-track-set-mode! raw "TextTrack" "mode")
+  (js-set! raw
            "mode"
            (if (symbol? mode) (symbol->string mode) mode))
   (void))
@@ -631,27 +679,37 @@
 ;; video-track-kind : video-track? -> string?
 ;;   Read the browser track kind.
 (define (video-track-kind track)
-  (js-ref (video-track-unwrap track) "kind"))
+  (define raw (video-track-unwrap track))
+  (check-shared-dom-host-property 'video-track-kind raw "VideoTrack" "kind")
+  (js-ref raw "kind"))
 
 ;; video-track-label : video-track? -> string?
 ;;   Read the browser track label.
 (define (video-track-label track)
-  (js-ref (video-track-unwrap track) "label"))
+  (define raw (video-track-unwrap track))
+  (check-shared-dom-host-property 'video-track-label raw "VideoTrack" "label")
+  (js-ref raw "label"))
 
 ;; video-track-language : video-track? -> string?
 ;;   Read the browser track language.
 (define (video-track-language track)
-  (js-ref (video-track-unwrap track) "language"))
+  (define raw (video-track-unwrap track))
+  (check-shared-dom-host-property 'video-track-language raw "VideoTrack" "language")
+  (js-ref raw "language"))
 
 ;; video-track-id : video-track? -> string?
 ;;   Read the browser track id.
 (define (video-track-id track)
-  (js-ref (video-track-unwrap track) "id"))
+  (define raw (video-track-unwrap track))
+  (check-shared-dom-host-property 'video-track-id raw "VideoTrack" "id")
+  (js-ref raw "id"))
 
 ;; video-track-selected? : video-track? -> boolean?
 ;;   Read whether the video track is selected.
 (define (video-track-selected? track)
-  (js-ref (video-track-unwrap track) "selected"))
+  (define raw (video-track-unwrap track))
+  (check-shared-dom-host-property 'video-track-selected? raw "VideoTrack" "selected")
+  (js-ref raw "selected"))
 
 ;; media-error-info : external/raw -> media-error-info?
 ;;   Wrap a browser MediaError object.
@@ -674,12 +732,16 @@
 ;; media-error-info-code : media-error-info? -> exact-nonnegative-integer?
 ;;   Read the browser media error code.
 (define (media-error-info-code media-error)
-  (js-ref (media-error-info-unwrap media-error) "code"))
+  (define raw (media-error-info-unwrap media-error))
+  (check-shared-dom-host-property 'media-error-info-code raw "MediaError" "code")
+  (js-ref raw "code"))
 
 ;; media-error-info-message : media-error-info? -> string?
 ;;   Read the browser media error message.
 (define (media-error-info-message media-error)
-  (js-ref (media-error-info-unwrap media-error) "message"))
+  (define raw (media-error-info-unwrap media-error))
+  (check-shared-dom-host-property 'media-error-info-message raw "MediaError" "message")
+  (js-ref raw "message"))
 
 ;; audio-track-list : external/raw -> audio-track-list?
 ;;   Wrap a browser AudioTrackList object.
@@ -702,7 +764,9 @@
 ;; audio-track-list-length : audio-track-list? -> exact-nonnegative-integer?
 ;;   Read the number of audio tracks.
 (define (audio-track-list-length track-list)
-  (js-ref (audio-track-list-unwrap track-list) "length"))
+  (define raw (audio-track-list-unwrap track-list))
+  (check-shared-dom-host-property 'audio-track-list-length raw "AudioTrackList" "length")
+  (js-ref raw "length"))
 
 ;; audio-track-list-item : audio-track-list? exact-nonnegative-integer? -> (or/c #f audio-track?)
 ;;   Read an audio track by index.
@@ -732,7 +796,9 @@
 ;; text-track-list-length : text-track-list? -> exact-nonnegative-integer?
 ;;   Read the number of text tracks.
 (define (text-track-list-length track-list)
-  (js-ref (text-track-list-unwrap track-list) "length"))
+  (define raw (text-track-list-unwrap track-list))
+  (check-shared-dom-host-property 'text-track-list-length raw "TextTrackList" "length")
+  (js-ref raw "length"))
 
 ;; text-track-list-item : text-track-list? exact-nonnegative-integer? -> (or/c #f text-track?)
 ;;   Read a text track by index.
@@ -762,7 +828,9 @@
 ;; video-track-list-length : video-track-list? -> exact-nonnegative-integer?
 ;;   Read the number of video tracks.
 (define (video-track-list-length track-list)
-  (js-ref (video-track-list-unwrap track-list) "length"))
+  (define raw (video-track-list-unwrap track-list))
+  (check-shared-dom-host-property 'video-track-list-length raw "VideoTrackList" "length")
+  (js-ref raw "length"))
 
 ;; video-track-list-item : video-track-list? exact-nonnegative-integer? -> (or/c #f video-track?)
 ;;   Read a video track by index.
@@ -792,7 +860,9 @@
 ;; time-ranges-length : time-ranges? -> exact-nonnegative-integer?
 ;;   Read the number of time ranges.
 (define (time-ranges-length time-ranges)
-  (js-ref (time-ranges-unwrap time-ranges) "length"))
+  (define raw (time-ranges-unwrap time-ranges))
+  (check-shared-dom-host-property 'time-ranges-length raw "TimeRanges" "length")
+  (js-ref raw "length"))
 
 ;; time-ranges-start : time-ranges? exact-nonnegative-integer? -> real?
 ;;   Read the start time for a range.
