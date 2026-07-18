@@ -162,6 +162,26 @@ function call_jsxgraph_method(owner, ownerName, methodName, args = []) {
   return method(...args);
 }
 
+function get_xterm_terminal_property(term, name) {
+  return get_host_property(term, name, `xterm.js Terminal.${name}`);
+}
+
+function set_xterm_terminal_property(term, name, value) {
+  set_host_property(term, name, value, `xterm.js Terminal.${name}`);
+}
+
+function get_jsxgraph_board_property(board, name) {
+  return get_host_property(board, name, `JSXGraph Board.${name}`);
+}
+
+function get_jsxgraph_point_property(pt, name) {
+  return get_host_property(pt, name, `JSXGraph Point.${name}`);
+}
+
+function set_jsxgraph_point_property(pt, name, value) {
+  set_host_property(pt, name, value, `JSXGraph Point.${name}`);
+}
+
 function construct_js_value(ctor, args) {
   if (ctor === null || ctor === undefined) {
     throw new Error('js-new: constructor is null or undefined');
@@ -2564,34 +2584,34 @@ var imports = {
             const opts = from_fasl(options);
             return opts === undefined ? new TerminalCtor() : new TerminalCtor(opts);
         }),
-        'buffer': (term => term.buffer),
-        'cols': (term => term.cols),
-        'rows': (term => term.rows),
-        'element': (term => term.element),
-        'textarea': (term => term.textarea),
-        'markers':  (term => term.markers),
-        'modes':    (term => term.modes),
-        'options': (term => term.options),
+        'buffer': (term => get_xterm_terminal_property(term, 'buffer')),
+        'cols': (term => get_xterm_terminal_property(term, 'cols')),
+        'rows': (term => get_xterm_terminal_property(term, 'rows')),
+        'element': (term => get_xterm_terminal_property(term, 'element')),
+        'textarea': (term => get_xterm_terminal_property(term, 'textarea')),
+        'markers':  (term => get_xterm_terminal_property(term, 'markers')),
+        'modes':    (term => get_xterm_terminal_property(term, 'modes')),
+        'options': (term => get_xterm_terminal_property(term, 'options')),
         'set-options!': ((term, options) => {
             const opts = from_fasl(options);
             if (opts !== undefined) {
-                term.options = opts;
+                set_xterm_terminal_property(term, 'options', opts);
             }
         }),
-        'parser': (term => term.parser),
-        'unicode': (term => term.unicode),
-        'on-bell': (term => term.onBell),
-        'on-binary': (term => term.onBinary),
-        'on-cursor-move': (term => term.onCursorMove),
-        'on-data': (term => term.onData),
-        'on-key': (term => term.onKey),
-        'on-line-feed': (term => term.onLineFeed),
-        'on-render': (term => term.onRender),
-        'on-resize': (term => term.onResize),
-        'on-scroll': (term => term.onScroll),
-        'on-selection-change': (term => term.onSelectionChange),
-        'on-title-change': (term => term.onTitleChange),
-        'on-write-parsed': (term => term.onWriteParsed),
+        'parser': (term => get_xterm_terminal_property(term, 'parser')),
+        'unicode': (term => get_xterm_terminal_property(term, 'unicode')),
+        'on-bell': (term => get_xterm_terminal_property(term, 'onBell')),
+        'on-binary': (term => get_xterm_terminal_property(term, 'onBinary')),
+        'on-cursor-move': (term => get_xterm_terminal_property(term, 'onCursorMove')),
+        'on-data': (term => get_xterm_terminal_property(term, 'onData')),
+        'on-key': (term => get_xterm_terminal_property(term, 'onKey')),
+        'on-line-feed': (term => get_xterm_terminal_property(term, 'onLineFeed')),
+        'on-render': (term => get_xterm_terminal_property(term, 'onRender')),
+        'on-resize': (term => get_xterm_terminal_property(term, 'onResize')),
+        'on-scroll': (term => get_xterm_terminal_property(term, 'onScroll')),
+        'on-selection-change': (term => get_xterm_terminal_property(term, 'onSelectionChange')),
+        'on-title-change': (term => get_xterm_terminal_property(term, 'onTitleChange')),
+        'on-write-parsed': (term => get_xterm_terminal_property(term, 'onWriteParsed')),
         'attach-custom-key-event-handler': ((term, handler) => {
             require_host_function(term,
                                   'attachCustomKeyEventHandler',
@@ -2983,19 +3003,19 @@ var imports = {
         'zoom-in!':                 ((board, x, y) => { call_jsxgraph_board_method(board, 'zoomIn', [from_fasl(x), from_fasl(y)]); }),
         'zoom-out!':                ((board, x, y) => { call_jsxgraph_board_method(board, 'zoomOut', [from_fasl(x), from_fasl(y)]); }),
         'zoom100!':                 (board => { call_jsxgraph_board_method(board, 'zoom100'); }),
-        'id':                        (board => board.id),
-        'container':                 (board => board.container),
-        'renderer':                  (board => board.renderer),
-        'canvas-width':              (board => board.canvasWidth),
-        'canvas-height':             (board => board.canvasHeight),
-        'bounding-box':              (board => board.boundingBox),
+        'id':                        (board => get_jsxgraph_board_property(board, 'id')),
+        'container':                 (board => get_jsxgraph_board_property(board, 'container')),
+        'renderer':                  (board => get_jsxgraph_board_property(board, 'renderer')),
+        'canvas-width':              (board => get_jsxgraph_board_property(board, 'canvasWidth')),
+        'canvas-height':             (board => get_jsxgraph_board_property(board, 'canvasHeight')),
+        'bounding-box':              (board => get_jsxgraph_board_property(board, 'boundingBox')),
         'update!':                   (board => call_jsxgraph_board_method(board, 'update')),
         'full-update!':              (board => call_jsxgraph_board_method(board, 'fullUpdate')),
         'remove-object!':            ((board, obj) => { call_jsxgraph_board_method(board, 'removeObject', [obj]); }),
         'suspend-update!':           (board => call_jsxgraph_board_method(board, 'suspendUpdate')),
         'unsuspend-update!':         (board => call_jsxgraph_board_method(board, 'unsuspendUpdate')),
-        'num-objects':               (board => board.numObjects),
-        'objects-list':              (board => Object.values(board.objects))
+        'num-objects':               (board => get_jsxgraph_board_property(board, 'numObjects')),
+        'objects-list':              (board => Object.values(get_jsxgraph_board_property(board, 'objects')))
     } : {
         'init-board'()                { throw new Error('DOM not available in this environment'); },
         'create'()                    { throw new Error('DOM not available in this environment'); },
@@ -3525,42 +3545,42 @@ var imports = {
     // JSXGraph Point
     'jsx-point': hasDOM ? {
         'is-point':                    (v => boolean_to_i32(require_jsxgraph_is_point()(v))),
-        'attractor-distance':          (pt => pt.attractorDistance),
-        'set-attractor-distance!':     ((pt, d) => { pt.attractorDistance = d; }),
-        'attractors':                  (pt => pt.attractors),
-        'set-attractors!':             ((pt, a) => { pt.attractors = a; }),
-        'attractor-unit':              (pt => pt.attractorUnit),
-        'set-attractor-unit!':         ((pt, u) => { pt.attractorUnit = from_fasl(u); }),
-        'attract-to-grid':             (pt => pt.attractToGrid ? 1 : 0),
-        'set-attract-to-grid!':        ((pt, flag) => { pt.attractToGrid = !!flag; }),
-        'face':                        (pt => pt.face),
-        'set-face!':                   ((pt, f) => { pt.face = from_fasl(f); }),
-        'ignored-snap-to-points':      (pt => pt.ignoredSnapToPoints),
-        'set-ignored-snap-to-points!': ((pt, p) => { pt.ignoredSnapToPoints = p; }),
-        'infobox-digits':              (pt => pt.infoboxDigits),
-        'set-infobox-digits!':         ((pt, n) => { pt.infoboxDigits = n; }),
-        'show-infobox':                (pt => pt.showInfobox ? 1 : 0),
-        'set-show-infobox!':           ((pt, flag) => { pt.showInfobox = !!flag; }),
-        'size':                        (pt => pt.size),
-        'set-size!':                   ((pt, s) => { pt.size = s; }),
-        'size-unit':                   (pt => pt.sizeUnit),
-        'set-size-unit!':              ((pt, u) => { pt.sizeUnit = from_fasl(u); }),
-        'snap-size-x':                 (pt => pt.snapSizeX),
-        'set-snap-size-x!':            ((pt, x) => { pt.snapSizeX = x; }),
-        'snap-size-y':                 (pt => pt.snapSizeY),
-        'set-snap-size-y!':            ((pt, y) => { pt.snapSizeY = y; }),
-        'snap-to-grid':                (pt => pt.snapToGrid ? 1 : 0),
-        'set-snap-to-grid!':           ((pt, flag) => { pt.snapToGrid = !!flag; }),
-        'snap-to-points':              (pt => pt.snapToPoints ? 1 : 0),
-        'set-snap-to-points!':         ((pt, flag) => { pt.snapToPoints = !!flag; }),
-        'snatch-distance':             (pt => pt.snatchDistance),
-        'set-snatch-distance!':        ((pt, d) => { pt.snatchDistance = d; }),
-        'style':                       (pt => pt.style),
-        'set-style!':                  ((pt, s) => { pt.style = s; }),
+        'attractor-distance':          (pt => get_jsxgraph_point_property(pt, 'attractorDistance')),
+        'set-attractor-distance!':     ((pt, d) => { set_jsxgraph_point_property(pt, 'attractorDistance', d); }),
+        'attractors':                  (pt => get_jsxgraph_point_property(pt, 'attractors')),
+        'set-attractors!':             ((pt, a) => { set_jsxgraph_point_property(pt, 'attractors', a); }),
+        'attractor-unit':              (pt => get_jsxgraph_point_property(pt, 'attractorUnit')),
+        'set-attractor-unit!':         ((pt, u) => { set_jsxgraph_point_property(pt, 'attractorUnit', from_fasl(u)); }),
+        'attract-to-grid':             (pt => get_jsxgraph_point_property(pt, 'attractToGrid') ? 1 : 0),
+        'set-attract-to-grid!':        ((pt, flag) => { set_jsxgraph_point_property(pt, 'attractToGrid', !!flag); }),
+        'face':                        (pt => get_jsxgraph_point_property(pt, 'face')),
+        'set-face!':                   ((pt, f) => { set_jsxgraph_point_property(pt, 'face', from_fasl(f)); }),
+        'ignored-snap-to-points':      (pt => get_jsxgraph_point_property(pt, 'ignoredSnapToPoints')),
+        'set-ignored-snap-to-points!': ((pt, p) => { set_jsxgraph_point_property(pt, 'ignoredSnapToPoints', p); }),
+        'infobox-digits':              (pt => get_jsxgraph_point_property(pt, 'infoboxDigits')),
+        'set-infobox-digits!':         ((pt, n) => { set_jsxgraph_point_property(pt, 'infoboxDigits', n); }),
+        'show-infobox':                (pt => get_jsxgraph_point_property(pt, 'showInfobox') ? 1 : 0),
+        'set-show-infobox!':           ((pt, flag) => { set_jsxgraph_point_property(pt, 'showInfobox', !!flag); }),
+        'size':                        (pt => get_jsxgraph_point_property(pt, 'size')),
+        'set-size!':                   ((pt, s) => { set_jsxgraph_point_property(pt, 'size', s); }),
+        'size-unit':                   (pt => get_jsxgraph_point_property(pt, 'sizeUnit')),
+        'set-size-unit!':              ((pt, u) => { set_jsxgraph_point_property(pt, 'sizeUnit', from_fasl(u)); }),
+        'snap-size-x':                 (pt => get_jsxgraph_point_property(pt, 'snapSizeX')),
+        'set-snap-size-x!':            ((pt, x) => { set_jsxgraph_point_property(pt, 'snapSizeX', x); }),
+        'snap-size-y':                 (pt => get_jsxgraph_point_property(pt, 'snapSizeY')),
+        'set-snap-size-y!':            ((pt, y) => { set_jsxgraph_point_property(pt, 'snapSizeY', y); }),
+        'snap-to-grid':                (pt => get_jsxgraph_point_property(pt, 'snapToGrid') ? 1 : 0),
+        'set-snap-to-grid!':           ((pt, flag) => { set_jsxgraph_point_property(pt, 'snapToGrid', !!flag); }),
+        'snap-to-points':              (pt => get_jsxgraph_point_property(pt, 'snapToPoints') ? 1 : 0),
+        'set-snap-to-points!':         ((pt, flag) => { set_jsxgraph_point_property(pt, 'snapToPoints', !!flag); }),
+        'snatch-distance':             (pt => get_jsxgraph_point_property(pt, 'snatchDistance')),
+        'set-snatch-distance!':        ((pt, d) => { set_jsxgraph_point_property(pt, 'snatchDistance', d); }),
+        'style':                       (pt => get_jsxgraph_point_property(pt, 'style')),
+        'set-style!':                  ((pt, s) => { set_jsxgraph_point_property(pt, 'style', s); }),
         'x':                           (pt => call_jsxgraph_method(pt, 'Point', 'X')),
         'y':                           (pt => call_jsxgraph_method(pt, 'Point', 'Y')),
-        'zoom':                        (pt => pt.zoom ? 1 : 0),
-        'set-zoom!':                   ((pt, flag) => { pt.zoom = !!flag; }),
+        'zoom':                        (pt => get_jsxgraph_point_property(pt, 'zoom') ? 1 : 0),
+        'set-zoom!':                   ((pt, flag) => { set_jsxgraph_point_property(pt, 'zoom', !!flag); }),
         'has-point':                   ((pt, x, y) => call_jsxgraph_method(pt, 'Point', 'hasPoint', [x, y]) ? 1 : 0),
         'is-on':                       ((pt, el, tol) => call_jsxgraph_method(pt, 'Point', 'isOn', [el, tol]) ? 1 : 0),
         'make-intersection!':          ((pt, el1, el2, i, j) => { call_jsxgraph_method(pt, 'Point', 'makeIntersection', [el1, el2, i, j]); }),

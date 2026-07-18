@@ -3,6 +3,13 @@
 ;; Browser smoke for missing JSXGraph host-library errors.
 
 (require jsxgraph
+         (only-in webracket/unsafe/jsxgraph
+                  js-jsx-board-id
+                  js-jsx-board-canvas-width
+                  js-jsx-board-objects-list
+                  js-jsx-point-size
+                  js-jsx-set-point-size!
+                  js-jsx-point-snap-to-grid)
          (only-in webracket/unsafe/standard
                   js-eval))
 
@@ -24,6 +31,13 @@
       [(string=? (substring haystack index (+ index needle-length)) needle) #t]
       [else (loop (add1 index))])))
 
+(define (check-message message needle label)
+  (check-true (and message
+                   (string-contains/simple? message needle))
+              label))
+
+(define js-null (js-eval "null"))
+
 (define board-message
   (catch-message
    (lambda ()
@@ -34,14 +48,60 @@
    (lambda ()
      (jsx-point?/raw (js-eval "({})")))))
 
-(check-true (and board-message
-                 (string-contains/simple? board-message
-                                          "JSXGraph JXG.JSXGraph not available"))
-            "missing JSXGraph board message")
-(check-true (and point-message
-                 (string-contains/simple? point-message
-                                          "JSXGraph JXG.isPoint not available"))
-            "missing JSXGraph point message")
+(define board-id-null-message
+  (catch-message
+   (lambda ()
+     (js-jsx-board-id js-null))))
+
+(define board-canvas-width-null-message
+  (catch-message
+   (lambda ()
+     (js-jsx-board-canvas-width js-null))))
+
+(define board-objects-list-null-message
+  (catch-message
+   (lambda ()
+     (js-jsx-board-objects-list js-null))))
+
+(define point-size-null-message
+  (catch-message
+   (lambda ()
+     (js-jsx-point-size js-null))))
+
+(define set-point-size-null-message
+  (catch-message
+   (lambda ()
+     (js-jsx-set-point-size! js-null 4.0))))
+
+(define point-snap-to-grid-null-message
+  (catch-message
+   (lambda ()
+     (js-jsx-point-snap-to-grid js-null))))
+
+(check-message board-message
+               "JSXGraph JXG.JSXGraph not available"
+               "missing JSXGraph board message")
+(check-message point-message
+               "JSXGraph JXG.isPoint not available"
+               "missing JSXGraph point message")
+(check-message board-id-null-message
+               "JSXGraph Board.id: target object is null or undefined"
+               "null JSXGraph Board.id message")
+(check-message board-canvas-width-null-message
+               "JSXGraph Board.canvasWidth: target object is null or undefined"
+               "null JSXGraph Board.canvasWidth message")
+(check-message board-objects-list-null-message
+               "JSXGraph Board.objects: target object is null or undefined"
+               "null JSXGraph Board.objects message")
+(check-message point-size-null-message
+               "JSXGraph Point.size: target object is null or undefined"
+               "null JSXGraph Point.size message")
+(check-message set-point-size-null-message
+               "JSXGraph Point.size: target object is null or undefined"
+               "null JSXGraph Point.size setter message")
+(check-message point-snap-to-grid-null-message
+               "JSXGraph Point.snapToGrid: target object is null or undefined"
+               "null JSXGraph Point.snapToGrid message")
 
 (js-log "jsxgraph-missing-host-ffi-ok")
 #t

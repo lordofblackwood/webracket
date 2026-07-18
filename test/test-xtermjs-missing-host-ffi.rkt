@@ -41,8 +41,30 @@
 
 (define missing-terminal (js-eval "({})"))
 (define missing-addon (js-eval "({})"))
+(define js-null (js-eval "null"))
+(define options-object (js-eval "({})"))
 (define handler (js-eval "(() => {})"))
 (define parent (js-eval "document.createElement('div')"))
+
+(define buffer-null-message
+  (catch-message
+   (lambda ()
+     (xterm-terminal-buffer js-null))))
+
+(define cols-null-message
+  (catch-message
+   (lambda ()
+     (xterm-terminal-cols js-null))))
+
+(define set-options-null-message
+  (catch-message
+   (lambda ()
+     (xterm-set-terminal-options! js-null options-object))))
+
+(define on-bell-null-message
+  (catch-message
+   (lambda ()
+     (xterm-terminal-on-bell js-null))))
 
 (define attach-key-message
   (catch-message
@@ -235,6 +257,18 @@
 (check-message fit-addon-message
                "xterm.js FitAddon not available"
                "missing FitAddon message")
+(check-message buffer-null-message
+               "xterm.js Terminal.buffer: target object is null or undefined"
+               "null Terminal.buffer message")
+(check-message cols-null-message
+               "xterm.js Terminal.cols: target object is null or undefined"
+               "null Terminal.cols message")
+(check-message set-options-null-message
+               "xterm.js Terminal.options: target object is null or undefined"
+               "null Terminal.options setter message")
+(check-message on-bell-null-message
+               "xterm.js Terminal.onBell: target object is null or undefined"
+               "null Terminal.onBell message")
 (check-message attach-key-message
                "xterm.js Terminal.attachCustomKeyEventHandler not available in this environment"
                "missing attachCustomKeyEventHandler message")
