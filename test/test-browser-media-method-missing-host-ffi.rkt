@@ -65,6 +65,11 @@
                   missing-method
                   "')")))
 
+(define (catch-media-message missing-property thunk)
+  (catch-message
+   (lambda ()
+     (thunk (fake-media missing-property)))))
+
 (define add-text-track-message
   (catch-message
    (lambda ()
@@ -115,6 +120,10 @@
      (media-set-sink-id! (fake-media "setSinkId")
                          'speaker-1))))
 
+(define audio-tracks-message
+  (catch-media-message "audioTracks"
+                       media-audio-tracks))
+
 (define autoplay-message
   (catch-message
    (lambda ()
@@ -124,6 +133,23 @@
   (catch-message
    (lambda ()
      (media-set-autoplay! (fake-media "autoplay") #t))))
+
+(define buffered-message
+  (catch-media-message "buffered"
+                       media-buffered))
+
+(define controls-message
+  (catch-media-message "controls"
+                       media-controls?))
+
+(define controls-setter-message
+  (catch-media-message "controls"
+                       (lambda (media)
+                         (media-set-controls! media #t))))
+
+(define controls-list-message
+  (catch-media-message "controlsList"
+                       media-controls-list))
 
 (define current-src-message
   (catch-message
@@ -150,10 +176,58 @@
    (lambda ()
      (media-set-current-time! (fake-media "currentTime") 1.25))))
 
+(define default-muted-message
+  (catch-media-message "defaultMuted"
+                       media-default-muted))
+
+(define default-muted-setter-message
+  (catch-media-message "defaultMuted"
+                       (lambda (media)
+                         (media-set-default-muted! media #t))))
+
+(define default-playback-rate-message
+  (catch-media-message "defaultPlaybackRate"
+                       media-default-playback-rate))
+
+(define default-playback-rate-setter-message
+  (catch-media-message "defaultPlaybackRate"
+                       (lambda (media)
+                         (media-set-default-playback-rate! media 1.5))))
+
+(define disable-remote-playback-message
+  (catch-media-message "disableRemotePlayback"
+                       media-disable-remote-playback?))
+
+(define disable-remote-playback-setter-message
+  (catch-media-message "disableRemotePlayback"
+                       (lambda (media)
+                         (media-set-disable-remote-playback! media #t))))
+
 (define duration-message
   (catch-message
    (lambda ()
      (media-duration (fake-media "duration")))))
+
+(define ended-message
+  (catch-media-message "ended"
+                       media-ended?))
+
+(define error-message
+  (catch-media-message "error"
+                       media-error))
+
+(define loop-message
+  (catch-media-message "loop"
+                       media-loop?))
+
+(define loop-setter-message
+  (catch-media-message "loop"
+                       (lambda (media)
+                         (media-set-loop! media #t))))
+
+(define media-keys-message
+  (catch-media-message "mediaKeys"
+                       media-keys))
 
 (define media-group-message
   (catch-message
@@ -164,6 +238,66 @@
   (catch-message
    (lambda ()
      (media-set-media-group! (fake-media "mediaGroup") 'group-a))))
+
+(define muted-message
+  (catch-media-message "muted"
+                       media-muted))
+
+(define muted-setter-message
+  (catch-media-message "muted"
+                       (lambda (media)
+                         (media-set-muted! media #t))))
+
+(define network-state-message
+  (catch-media-message "networkState"
+                       media-network-state))
+
+(define paused-message
+  (catch-media-message "paused"
+                       media-paused?))
+
+(define playback-rate-message
+  (catch-media-message "playbackRate"
+                       media-playback-rate))
+
+(define playback-rate-setter-message
+  (catch-media-message "playbackRate"
+                       (lambda (media)
+                         (media-set-playback-rate! media 1.25))))
+
+(define played-message
+  (catch-media-message "played"
+                       media-played))
+
+(define preload-message
+  (catch-media-message "preload"
+                       media-preload))
+
+(define preload-setter-message
+  (catch-media-message "preload"
+                       (lambda (media)
+                         (media-set-preload! media 'metadata))))
+
+(define preserves-pitch-message
+  (catch-media-message "preservesPitch"
+                       media-preserves-pitch?))
+
+(define preserves-pitch-setter-message
+  (catch-media-message "preservesPitch"
+                       (lambda (media)
+                         (media-set-preserves-pitch! media #t))))
+
+(define ready-state-message
+  (catch-media-message "readyState"
+                       media-ready-state))
+
+(define seekable-message
+  (catch-media-message "seekable"
+                       media-seekable))
+
+(define seeking-message
+  (catch-media-message "seeking"
+                       media-seeking?))
 
 (define sink-id-property-message
   (catch-message
@@ -189,6 +323,14 @@
   (catch-message
    (lambda ()
      (media-set-src-object! (fake-media "srcObject") (js-null)))))
+
+(define text-tracks-message
+  (catch-media-message "textTracks"
+                       media-text-tracks))
+
+(define video-tracks-message
+  (catch-media-message "videoTracks"
+                       media-video-tracks))
 
 (define volume-message
   (catch-message
@@ -229,12 +371,27 @@
 (check-message set-sink-id-message
                "HTMLMediaElement.setSinkId not available in this environment"
                "missing setSinkId message")
+(check-message audio-tracks-message
+               "HTMLMediaElement.audioTracks not available in this environment"
+               "missing audioTracks message")
 (check-message autoplay-message
                "HTMLMediaElement.autoplay not available in this environment"
                "missing autoplay message")
 (check-message autoplay-setter-message
                "HTMLMediaElement.autoplay not available in this environment"
                "missing autoplay setter message")
+(check-message buffered-message
+               "HTMLMediaElement.buffered not available in this environment"
+               "missing buffered message")
+(check-message controls-message
+               "HTMLMediaElement.controls not available in this environment"
+               "missing controls message")
+(check-message controls-setter-message
+               "HTMLMediaElement.controls not available in this environment"
+               "missing controls setter message")
+(check-message controls-list-message
+               "HTMLMediaElement.controlsList not available in this environment"
+               "missing controlsList message")
 (check-message current-src-message
                "HTMLMediaElement.currentSrc not available in this environment"
                "missing currentSrc message")
@@ -250,15 +407,90 @@
 (check-message current-time-setter-message
                "HTMLMediaElement.currentTime not available in this environment"
                "missing currentTime setter message")
+(check-message default-muted-message
+               "HTMLMediaElement.defaultMuted not available in this environment"
+               "missing defaultMuted message")
+(check-message default-muted-setter-message
+               "HTMLMediaElement.defaultMuted not available in this environment"
+               "missing defaultMuted setter message")
+(check-message default-playback-rate-message
+               "HTMLMediaElement.defaultPlaybackRate not available in this environment"
+               "missing defaultPlaybackRate message")
+(check-message default-playback-rate-setter-message
+               "HTMLMediaElement.defaultPlaybackRate not available in this environment"
+               "missing defaultPlaybackRate setter message")
+(check-message disable-remote-playback-message
+               "HTMLMediaElement.disableRemotePlayback not available in this environment"
+               "missing disableRemotePlayback message")
+(check-message disable-remote-playback-setter-message
+               "HTMLMediaElement.disableRemotePlayback not available in this environment"
+               "missing disableRemotePlayback setter message")
 (check-message duration-message
                "HTMLMediaElement.duration not available in this environment"
                "missing duration message")
+(check-message ended-message
+               "HTMLMediaElement.ended not available in this environment"
+               "missing ended message")
+(check-message error-message
+               "HTMLMediaElement.error not available in this environment"
+               "missing error message")
+(check-message loop-message
+               "HTMLMediaElement.loop not available in this environment"
+               "missing loop message")
+(check-message loop-setter-message
+               "HTMLMediaElement.loop not available in this environment"
+               "missing loop setter message")
+(check-message media-keys-message
+               "HTMLMediaElement.mediaKeys not available in this environment"
+               "missing mediaKeys message")
 (check-message media-group-message
                "HTMLMediaElement.mediaGroup not available in this environment"
                "missing mediaGroup message")
 (check-message media-group-setter-message
                "HTMLMediaElement.mediaGroup not available in this environment"
                "missing mediaGroup setter message")
+(check-message muted-message
+               "HTMLMediaElement.muted not available in this environment"
+               "missing muted message")
+(check-message muted-setter-message
+               "HTMLMediaElement.muted not available in this environment"
+               "missing muted setter message")
+(check-message network-state-message
+               "HTMLMediaElement.networkState not available in this environment"
+               "missing networkState message")
+(check-message paused-message
+               "HTMLMediaElement.paused not available in this environment"
+               "missing paused message")
+(check-message playback-rate-message
+               "HTMLMediaElement.playbackRate not available in this environment"
+               "missing playbackRate message")
+(check-message playback-rate-setter-message
+               "HTMLMediaElement.playbackRate not available in this environment"
+               "missing playbackRate setter message")
+(check-message played-message
+               "HTMLMediaElement.played not available in this environment"
+               "missing played message")
+(check-message preload-message
+               "HTMLMediaElement.preload not available in this environment"
+               "missing preload message")
+(check-message preload-setter-message
+               "HTMLMediaElement.preload not available in this environment"
+               "missing preload setter message")
+(check-message preserves-pitch-message
+               "HTMLMediaElement.preservesPitch not available in this environment"
+               "missing preservesPitch message")
+(check-message preserves-pitch-setter-message
+               "HTMLMediaElement.preservesPitch not available in this environment"
+               "missing preservesPitch setter message")
+(check-message ready-state-message
+               "HTMLMediaElement.readyState not available in this environment"
+               "missing readyState message")
+(check-message seekable-message
+               "HTMLMediaElement.seekable not available in this environment"
+               "missing seekable message")
+(check-message seeking-message
+               "HTMLMediaElement.seeking not available in this environment"
+               "missing seeking message")
 (check-message sink-id-property-message
                "HTMLMediaElement.sinkId not available in this environment"
                "missing sinkId property message")
@@ -274,6 +506,12 @@
 (check-message src-object-setter-message
                "HTMLMediaElement.srcObject not available in this environment"
                "missing srcObject setter message")
+(check-message text-tracks-message
+               "HTMLMediaElement.textTracks not available in this environment"
+               "missing textTracks message")
+(check-message video-tracks-message
+               "HTMLMediaElement.videoTracks not available in this environment"
+               "missing videoTracks message")
 (check-message volume-message
                "HTMLMediaElement.volume not available in this environment"
                "missing volume message")
