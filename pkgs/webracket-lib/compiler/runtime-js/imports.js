@@ -362,6 +362,30 @@ function call_performance_method3(methodName, arg0, arg1, arg2) {
   return call_required_host_function3(performance, methodName, `performance.${methodName}`, arg0, arg1, arg2);
 }
 
+function call_xterm_terminal_method0(term, methodName) {
+  return call_required_host_function0(term, methodName, `xterm.js Terminal.${methodName}`);
+}
+
+function call_xterm_terminal_method1(term, methodName, arg0) {
+  return call_required_host_function1(term, methodName, `xterm.js Terminal.${methodName}`, arg0);
+}
+
+function call_xterm_terminal_method2(term, methodName, arg0, arg1) {
+  return call_required_host_function2(term, methodName, `xterm.js Terminal.${methodName}`, arg0, arg1);
+}
+
+function call_xterm_terminal_method3(term, methodName, arg0, arg1, arg2) {
+  return call_required_host_function3(term, methodName, `xterm.js Terminal.${methodName}`, arg0, arg1, arg2);
+}
+
+function call_xterm_fit_addon_method0(addon, methodName) {
+  return call_required_host_function0(addon, methodName, `xterm.js FitAddon.${methodName}`);
+}
+
+function call_xterm_fit_addon_method1(addon, methodName, arg0) {
+  return call_required_host_function1(addon, methodName, `xterm.js FitAddon.${methodName}`, arg0);
+}
+
 function call_jsxgraph_board_create(board, elementType, parents, attrs) {
   const create = require_host_function(board,
                                        'create',
@@ -2835,179 +2859,117 @@ var imports = {
         'on-title-change': (term => get_xterm_terminal_property(term, 'onTitleChange')),
         'on-write-parsed': (term => get_xterm_terminal_property(term, 'onWriteParsed')),
         'attach-custom-key-event-handler': ((term, handler) => {
-            require_host_function(term,
-                                  'attachCustomKeyEventHandler',
-                                  'xterm.js Terminal.attachCustomKeyEventHandler')(handler);
+            call_xterm_terminal_method1(term, 'attachCustomKeyEventHandler', handler);
         }),
         'attach-custom-wheel-event-handler': ((term, handler) => {
-            require_host_function(term,
-                                  'attachCustomWheelEventHandler',
-                                  'xterm.js Terminal.attachCustomWheelEventHandler')(handler);
+            call_xterm_terminal_method1(term, 'attachCustomWheelEventHandler', handler);
         }),
         'blur': (term => {
-            require_host_function(term,
-                                  'blur',
-                                  'xterm.js Terminal.blur')();
+            call_xterm_terminal_method0(term, 'blur');
         }),
         'focus': (term => {
-            require_host_function(term,
-                                  'focus',
-                                  'xterm.js Terminal.focus')();
+            call_xterm_terminal_method0(term, 'focus');
         }),
         'dispose': (term => {
-            require_host_function(term,
-                                  'dispose',
-                                  'xterm.js Terminal.dispose')();
+            call_xterm_terminal_method0(term, 'dispose');
         }),
         'clear': (term => {
-            require_host_function(term,
-                                  'clear',
-                                  'xterm.js Terminal.clear')();
+            call_xterm_terminal_method0(term, 'clear');
         }),
         'clear-selection': (term => {
-            require_host_function(term,
-                                  'clearSelection',
-                                  'xterm.js Terminal.clearSelection')();
+            call_xterm_terminal_method0(term, 'clearSelection');
         }),
         'clear-texture-atlas': (term => {
-            require_host_function(term,
-                                  'clearTextureAtlas',
-                                  'xterm.js Terminal.clearTextureAtlas')();
+            call_xterm_terminal_method0(term, 'clearTextureAtlas');
         }),
         'deregister-character-joiner': ((term, joinerId) => {
-            require_host_function(term,
-                                  'deregisterCharacterJoiner',
-                                  'xterm.js Terminal.deregisterCharacterJoiner')(joinerId);
+            call_xterm_terminal_method1(term, 'deregisterCharacterJoiner', joinerId);
         }),
-        'get-selection': (term => require_host_function(term,
-                                                        'getSelection',
-                                                        'xterm.js Terminal.getSelection')()),
-        'get-selection-position': (term => require_host_function(term,
-                                                                 'getSelectionPosition',
-                                                                 'xterm.js Terminal.getSelectionPosition')()),
-        'has-selection': (term => require_host_function(term,
-                                                        'hasSelection',
-                                                        'xterm.js Terminal.hasSelection')() ? 1 : 0),
+        'get-selection': (term => call_xterm_terminal_method0(term, 'getSelection')),
+        'get-selection-position': (term => call_xterm_terminal_method0(term, 'getSelectionPosition')),
+        'has-selection': (term => call_xterm_terminal_method0(term, 'hasSelection') ? 1 : 0),
         'input': ((term, data, wasUserInput) => {
-            const input = require_host_function(term,
-                                                'input',
-                                                'xterm.js Terminal.input');
             const d = from_fasl(data);
             const w = from_fasl(wasUserInput);
             if (w === undefined) {
-                input(d);
+                call_xterm_terminal_method1(term, 'input', d);
             } else {
-                input(d, w);
+                call_xterm_terminal_method2(term, 'input', d, w);
             }
         }),
         'load-addon': ((term, addon) => {
-            require_host_function(term,
-                                  'loadAddon',
-                                  'xterm.js Terminal.loadAddon')(addon);
+            call_xterm_terminal_method1(term, 'loadAddon', addon);
         }),
         'open': ((term, parent) => {
-            require_host_function(term,
-                                  'open',
-                                  'xterm.js Terminal.open')(parent);
+            call_xterm_terminal_method1(term, 'open', parent);
         }),
         'paste': ((term, data) => {
-            require_host_function(term,
-                                  'paste',
-                                  'xterm.js Terminal.paste')(from_fasl(data));
+            call_xterm_terminal_method1(term, 'paste', from_fasl(data));
         }),
         'refresh': ((term, start, end) => {
-            require_host_function(term,
-                                  'refresh',
-                                  'xterm.js Terminal.refresh')(start, end);
+            call_xterm_terminal_method2(term, 'refresh', start, end);
         }),
-        'register-character-joiner': ((term, handler) => require_host_function(term,
-                                                                               'registerCharacterJoiner',
-                                                                               'xterm.js Terminal.registerCharacterJoiner')(handler)),
-        'register-decoration': ((term, options) => require_host_function(term,
-                                                                         'registerDecoration',
-                                                                         'xterm.js Terminal.registerDecoration')(options)),
-        'register-link-provider': ((term, provider) => require_host_function(term,
-                                                                             'registerLinkProvider',
-                                                                             'xterm.js Terminal.registerLinkProvider')(provider)),
+        'register-character-joiner': ((term, handler) => call_xterm_terminal_method1(term,
+                                                                                     'registerCharacterJoiner',
+                                                                                     handler)),
+        'register-decoration': ((term, options) => call_xterm_terminal_method1(term,
+                                                                               'registerDecoration',
+                                                                               options)),
+        'register-link-provider': ((term, provider) => call_xterm_terminal_method1(term,
+                                                                                   'registerLinkProvider',
+                                                                                   provider)),
         'register-marker': ((term, cursorYOffset) => {
-            const registerMarker = require_host_function(term,
-                                                         'registerMarker',
-                                                         'xterm.js Terminal.registerMarker');
             const offset = from_fasl(cursorYOffset);
-            return offset === undefined ? registerMarker() : registerMarker(offset);
+            return offset === undefined
+                ? call_xterm_terminal_method0(term, 'registerMarker')
+                : call_xterm_terminal_method1(term, 'registerMarker', offset);
         }),
         'reset': (term => {
-            require_host_function(term,
-                                  'reset',
-                                  'xterm.js Terminal.reset')();
+            call_xterm_terminal_method0(term, 'reset');
         }),
         'resize': ((term, columns, rows) => {
-            require_host_function(term,
-                                  'resize',
-                                  'xterm.js Terminal.resize')(columns, rows);
+            call_xterm_terminal_method2(term, 'resize', columns, rows);
         }),
         'scroll-lines': ((term, amount) => {
-            require_host_function(term,
-                                  'scrollLines',
-                                  'xterm.js Terminal.scrollLines')(amount);
+            call_xterm_terminal_method1(term, 'scrollLines', amount);
         }),
         'scroll-pages': ((term, pageCount) => {
-            require_host_function(term,
-                                  'scrollPages',
-                                  'xterm.js Terminal.scrollPages')(pageCount);
+            call_xterm_terminal_method1(term, 'scrollPages', pageCount);
         }),
         'scroll-to-bottom': (term => {
-            require_host_function(term,
-                                  'scrollToBottom',
-                                  'xterm.js Terminal.scrollToBottom')();
+            call_xterm_terminal_method0(term, 'scrollToBottom');
         }),
         'scroll-to-line': ((term, line) => {
-            require_host_function(term,
-                                  'scrollToLine',
-                                  'xterm.js Terminal.scrollToLine')(line);
+            call_xterm_terminal_method1(term, 'scrollToLine', line);
         }),
         'scroll-to-top': (term => {
-            require_host_function(term,
-                                  'scrollToTop',
-                                  'xterm.js Terminal.scrollToTop')();
+            call_xterm_terminal_method0(term, 'scrollToTop');
         }),
         'select': ((term, column, row, length) => {
-            require_host_function(term,
-                                  'select',
-                                  'xterm.js Terminal.select')(column, row, length);
+            call_xterm_terminal_method3(term, 'select', column, row, length);
         }),
         'select-all': (term => {
-            require_host_function(term,
-                                  'selectAll',
-                                  'xterm.js Terminal.selectAll')();
+            call_xterm_terminal_method0(term, 'selectAll');
         }),
         'select-lines': ((term, start, end) => {
-            require_host_function(term,
-                                  'selectLines',
-                                  'xterm.js Terminal.selectLines')(start, end);
+            call_xterm_terminal_method2(term, 'selectLines', start, end);
         }),
         'write': ((term, data, callback) => {
-            const write = require_host_function(term,
-                                                'write',
-                                                'xterm.js Terminal.write');
             const d = from_fasl(data);
             const cb = from_fasl(callback);
             if (cb === undefined) {
-                write(d);
+                call_xterm_terminal_method1(term, 'write', d);
             } else {
-                write(d, cb);
+                call_xterm_terminal_method2(term, 'write', d, cb);
             }
         }),
         'writeln': ((term, data, callback) => {
-            const writeln = require_host_function(term,
-                                                  'writeln',
-                                                  'xterm.js Terminal.writeln');
             const d = from_fasl(data);
             const cb = from_fasl(callback);
             if (cb === undefined) {
-                writeln(d);
+                call_xterm_terminal_method1(term, 'writeln', d);
             } else {
-                writeln(d, cb);
+                call_xterm_terminal_method2(term, 'writeln', d, cb);
             }
         })
     },
@@ -3018,24 +2980,16 @@ var imports = {
             return new FitAddonCtor();
         }),
         'activate': ((addon, terminal) => {
-            require_host_function(addon,
-                                  'activate',
-                                  'xterm.js FitAddon.activate')(terminal);
+            call_xterm_fit_addon_method1(addon, 'activate', terminal);
         }),
         'dispose':   (addon            => {
-            require_host_function(addon,
-                                  'dispose',
-                                  'xterm.js FitAddon.dispose')();
+            call_xterm_fit_addon_method0(addon, 'dispose');
         }),
         'fit':       (addon            => {
-            require_host_function(addon,
-                                  'fit',
-                                  'xterm.js FitAddon.fit')();
+            call_xterm_fit_addon_method0(addon, 'fit');
         }),
         'propose-dimensions': (addon => {
-            const dims = require_host_function(addon,
-                                               'proposeDimensions',
-                                               'xterm.js FitAddon.proposeDimensions')();
+            const dims = call_xterm_fit_addon_method0(addon, 'proposeDimensions');
             if (dims === undefined || dims === null) {
                 return to_fasl(undefined);
             }
