@@ -387,24 +387,26 @@ function call_xterm_fit_addon_method1(addon, methodName, arg0) {
 }
 
 function call_jsxgraph_board_create(board, elementType, parents, attrs) {
-  const create = require_host_function(board,
-                                       'create',
-                                       'JSXGraph Board.create');
-  return create(elementType, from_fasl(parents), from_fasl(attrs));
+  return call_required_host_function3(board,
+                                      'create',
+                                      'JSXGraph Board.create',
+                                      elementType,
+                                      from_fasl(parents),
+                                      from_fasl(attrs));
 }
 
 function call_jsxgraph_board_method(board, methodName, args = []) {
-  const method = require_host_function(board,
-                                       methodName,
-                                       `JSXGraph Board.${methodName}`);
-  return method(...args);
+  return call_required_host_function(board,
+                                     methodName,
+                                     `JSXGraph Board.${methodName}`,
+                                     args);
 }
 
 function call_jsxgraph_method(owner, ownerName, methodName, args = []) {
-  const method = require_host_function(owner,
-                                       methodName,
-                                       `JSXGraph ${ownerName}.${methodName}`);
-  return method(...args);
+  return call_required_host_function(owner,
+                                     methodName,
+                                     `JSXGraph ${ownerName}.${methodName}`,
+                                     args);
 }
 
 function get_window_property(name) {
