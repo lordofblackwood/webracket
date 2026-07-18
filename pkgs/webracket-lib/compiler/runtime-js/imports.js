@@ -836,8 +836,8 @@ var imports = {
 
     // Temporary/prototype FFI.
     'temp': {
-      'x':                         ((o) => to_fasl(o.x)),
-      'set-x!':                    ((o, v) => { o.x = from_fasl(v); }),
+      'x':                         ((o) => to_fasl(get_host_property(o, 'x', 'temp.x'))),
+      'set-x!':                    ((o, v) => { set_host_property(o, 'x', from_fasl(v), 'temp.x'); }),
     },
 
     // JavaScript Math FFI.
@@ -937,8 +937,8 @@ var imports = {
 
     // JavaScript Array FFI.
     'array': {
-        'length':            (arr => arr.length),
-        'set-length!':       ((arr, len) => { arr.length = len; }),
+        'length':            (arr => get_host_property(arr, 'length', 'Array.length')),
+        'set-length!':       ((arr, len) => { set_host_property(arr, 'length', len, 'Array.length'); }),
         'from':              ((arrLike, mapFn, thisArg) => {
                 const a = from_fasl(arrLike);
                 const m = mapFn;
@@ -1153,16 +1153,16 @@ var imports = {
         'create-image-data-from': ((ctx, data) => require_host_function(ctx,
                                                                         'createImageData',
                                                                         'CanvasRenderingContext2D.createImageData')(data)),
-        'image-data-width': ((data) => data.width),
-        'image-data-height': ((data) => data.height),
-        'image-data-data': ((data) => data.data),
-        'text-metrics-width': ((metrics) => metrics.width),
-        'dom-matrix-a': ((matrix) => matrix.a),
-        'dom-matrix-b': ((matrix) => matrix.b),
-        'dom-matrix-c': ((matrix) => matrix.c),
-        'dom-matrix-d': ((matrix) => matrix.d),
-        'dom-matrix-e': ((matrix) => matrix.e),
-        'dom-matrix-f': ((matrix) => matrix.f),
+        'image-data-width': ((data) => get_host_property(data, 'width', 'ImageData.width')),
+        'image-data-height': ((data) => get_host_property(data, 'height', 'ImageData.height')),
+        'image-data-data': ((data) => get_host_property(data, 'data', 'ImageData.data')),
+        'text-metrics-width': ((metrics) => get_host_property(metrics, 'width', 'TextMetrics.width')),
+        'dom-matrix-a': ((matrix) => get_host_property(matrix, 'a', 'DOMMatrix.a')),
+        'dom-matrix-b': ((matrix) => get_host_property(matrix, 'b', 'DOMMatrix.b')),
+        'dom-matrix-c': ((matrix) => get_host_property(matrix, 'c', 'DOMMatrix.c')),
+        'dom-matrix-d': ((matrix) => get_host_property(matrix, 'd', 'DOMMatrix.d')),
+        'dom-matrix-e': ((matrix) => get_host_property(matrix, 'e', 'DOMMatrix.e')),
+        'dom-matrix-f': ((matrix) => get_host_property(matrix, 'f', 'DOMMatrix.f')),
         'create-linear-gradient': ((ctx, x0, y0, x1, y1) => require_host_function(ctx,
                                                                                   'createLinearGradient',
                                                                                   'CanvasRenderingContext2D.createLinearGradient')(x0, y0, x1, y1)),

@@ -4,7 +4,9 @@
 
 (require js/array
          (only-in webracket/unsafe/array
-                  js-eval))
+                  js-array-length
+                  js-eval
+                  js-set-array-length!))
 
 (define (check-true got label)
   (unless got
@@ -33,6 +35,13 @@
                    (string-contains/simple? message method-name)
                    (string-contains/simple? message "not available"))
               label))
+
+(define (check-message message needle label)
+  (check-true (and message
+                   (string-contains/simple? message needle))
+              label))
+
+(define js-null (js-eval "null"))
 
 (js-eval
  "globalThis.__wrArrayBoundaryFake = (missing) => {
@@ -114,6 +123,16 @@
    (lambda ()
      (array-to-string (fake-array "toString")))))
 
+(define length-null-message
+  (catch-message
+   (lambda ()
+     (js-array-length js-null))))
+
+(define set-length-null-message
+  (catch-message
+   (lambda ()
+     (js-set-array-length! js-null 0))))
+
 (js-eval
  "globalThis.__wrArrayBoundarySavedToSorted = Array.prototype.toSorted;
   Array.prototype.toSorted = undefined;")
@@ -162,6 +181,12 @@
 (check-unavailable-message to-string-message
                            "Array.toString"
                            "missing Array.toString message")
+(check-message length-null-message
+               "Array.length: target object is null or undefined"
+               "null Array.length message")
+(check-message set-length-null-message
+               "Array.length: target object is null or undefined"
+               "null Array.length setter message")
 (check-equal to-sorted-fallback
              #(1 2 3)
              "Array.toSorted fallback")
