@@ -35,6 +35,10 @@
 (define gradient (canvas-gradient-wrap (js-eval "({})")))
 (define pattern (canvas-pattern-wrap (js-eval "({})")))
 (define matrix (canvas-dom-matrix-wrap (js-eval "({})")))
+(define js-null (js-eval "null"))
+(define null-image-data (canvas-image-data-wrap js-null))
+(define null-text-metrics (canvas-text-metrics-wrap js-null))
+(define null-matrix (canvas-dom-matrix-wrap js-null))
 
 (define fill-message
   (catch-message
@@ -86,6 +90,26 @@
    (lambda ()
      (canvas-pattern-set-transform! pattern matrix))))
 
+(define image-data-width-null-message
+  (catch-message
+   (lambda ()
+     (canvas-image-data-width null-image-data))))
+
+(define image-data-data-null-message
+  (catch-message
+   (lambda ()
+     (canvas-image-data-data null-image-data))))
+
+(define text-metrics-width-null-message
+  (catch-message
+   (lambda ()
+     (canvas-text-metrics-width null-text-metrics))))
+
+(define dom-matrix-a-null-message
+  (catch-message
+   (lambda ()
+     (canvas-dom-matrix-a null-matrix))))
+
 (check-message fill-message
                "CanvasRenderingContext2D.fill not available in this environment"
                "missing fill message")
@@ -116,6 +140,18 @@
 (check-message pattern-set-transform-message
                "CanvasPattern.setTransform not available in this environment"
                "missing setTransform message")
+(check-message image-data-width-null-message
+               "ImageData.width: target object is null or undefined"
+               "null ImageData.width message")
+(check-message image-data-data-null-message
+               "ImageData.data: target object is null or undefined"
+               "null ImageData.data message")
+(check-message text-metrics-width-null-message
+               "TextMetrics.width: target object is null or undefined"
+               "null TextMetrics.width message")
+(check-message dom-matrix-a-null-message
+               "DOMMatrix.a: target object is null or undefined"
+               "null DOMMatrix.a message")
 
 (js-log "browser-canvas-method-missing-host-ffi-ok")
 #t

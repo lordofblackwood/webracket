@@ -1368,20 +1368,20 @@ var imports = {
                                                            'CanvasRenderingContext2D.translate')(x, y)),
     } : new Proxy({}, { get() { throw new Error('DOM not available in this environment'); } }),
     'image-data': hasDOM ? {
-        'width':   (data => data.width),
-        'height':  (data => data.height),
-        'data':    (data => data.data)
+        'width':   (data => get_host_property(data, 'width', 'ImageData.width')),
+        'height':  (data => get_host_property(data, 'height', 'ImageData.height')),
+        'data':    (data => get_host_property(data, 'data', 'ImageData.data'))
     } : new Proxy({}, { get() { throw new Error('DOM not available in this environment'); } }),
     'text-metrics': hasDOM ? {
-        'width':   (metrics => metrics.width)
+        'width':   (metrics => get_host_property(metrics, 'width', 'TextMetrics.width'))
     } : new Proxy({}, { get() { throw new Error('DOM not available in this environment'); } }),
     'dom-matrix': hasDOM ? {
-        'a':       (matrix => matrix.a),
-        'b':       (matrix => matrix.b),
-        'c':       (matrix => matrix.c),
-        'd':       (matrix => matrix.d),
-        'e':       (matrix => matrix.e),
-        'f':       (matrix => matrix.f)
+        'a':       (matrix => get_host_property(matrix, 'a', 'DOMMatrix.a')),
+        'b':       (matrix => get_host_property(matrix, 'b', 'DOMMatrix.b')),
+        'c':       (matrix => get_host_property(matrix, 'c', 'DOMMatrix.c')),
+        'd':       (matrix => get_host_property(matrix, 'd', 'DOMMatrix.d')),
+        'e':       (matrix => get_host_property(matrix, 'e', 'DOMMatrix.e')),
+        'f':       (matrix => get_host_property(matrix, 'f', 'DOMMatrix.f'))
     } : new Proxy({}, { get() { throw new Error('DOM not available in this environment'); } }),
     // Window
     'window': hasDOM ? {
