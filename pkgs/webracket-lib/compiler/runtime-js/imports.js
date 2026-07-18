@@ -162,6 +162,33 @@ function call_jsxgraph_method(owner, ownerName, methodName, args = []) {
   return method(...args);
 }
 
+function get_window_property(name) {
+  return get_host_property(typeof window === 'undefined' ? null : window,
+                           name,
+                           `window.${name}`);
+}
+
+function set_window_property(name, value) {
+  set_host_property(typeof window === 'undefined' ? null : window,
+                    name,
+                    value,
+                    `window.${name}`);
+}
+
+function get_performance_property(name) {
+  return get_host_property(typeof performance === 'undefined' ? null : performance,
+                           name,
+                           `performance.${name}`);
+}
+
+function get_performance_event_counts_property(counts, name) {
+  return get_host_property(counts, name, `PerformanceEventCounts.${name}`);
+}
+
+function get_performance_memory_info_property(mem, name) {
+  return get_host_property(mem, name, `PerformanceMemory.${name}`);
+}
+
 function get_xterm_terminal_property(term, name) {
   return get_host_property(term, name, `xterm.js Terminal.${name}`);
 }
@@ -1358,54 +1385,55 @@ var imports = {
     } : new Proxy({}, { get() { throw new Error('DOM not available in this environment'); } }),
     // Window
     'window': hasDOM ? {
-        'window':               (() => window),
-        'self':                 (() => self),
-        'document':             (() => document),
-        'name':                 (() => window.name),
-        'set-name!':            (n => { window.name = from_fasl(n); }),
-        'location':             (() => window.location),
-        'set-location!':        (loc => { window.location = from_fasl(loc); }),
+        'window':               (() => get_window_property('window')),
+        'self':                 (() => get_window_property('self')),
+        'document':             (() => require_window_value('document',
+                                                            'window.document')),
+        'name':                 (() => get_window_property('name')),
+        'set-name!':            (n => { set_window_property('name', from_fasl(n)); }),
+        'location':             (() => get_window_property('location')),
+        'set-location!':        (loc => { set_window_property('location', from_fasl(loc)); }),
         'custom-elements':      (() => require_window_value('customElements',
                                                             'window.customElements')),
         'history':              (() => require_window_value('history',
                                                             'window.history')),
-        'locationbar':          (() => window.locationbar),
-        'menubar':              (() => window.menubar),
-        'personalbar':          (() => window.personalbar),
-        'scrollbars':           (() => window.scrollbars),
-        'statusbar':            (() => window.statusbar),
-        'toolbar':              (() => window.toolbar),
-        'status':               (() => window.status),
-        'set-status!':          (s => { window.status = from_fasl(s); }),
-        'closed':               (() => window.closed ? 1 : 0),
-        'frames':               (() => window.frames),
-        'length':               (() => window.length),
-        'opener':               (() => window.opener),
-        'set-opener!':          (o => { window.opener = o; }),
-        'parent':               (() => window.parent),
-        'top':                  (() => window.top),
+        'locationbar':          (() => get_window_property('locationbar')),
+        'menubar':              (() => get_window_property('menubar')),
+        'personalbar':          (() => get_window_property('personalbar')),
+        'scrollbars':           (() => get_window_property('scrollbars')),
+        'statusbar':            (() => get_window_property('statusbar')),
+        'toolbar':              (() => get_window_property('toolbar')),
+        'status':               (() => get_window_property('status')),
+        'set-status!':          (s => { set_window_property('status', from_fasl(s)); }),
+        'closed':               (() => get_window_property('closed') ? 1 : 0),
+        'frames':               (() => get_window_property('frames')),
+        'length':               (() => get_window_property('length')),
+        'opener':               (() => get_window_property('opener')),
+        'set-opener!':          (o => { set_window_property('opener', o); }),
+        'parent':               (() => get_window_property('parent')),
+        'top':                  (() => get_window_property('top')),
         'visual-viewport':      (() => require_window_value('visualViewport',
                                                             'window.visualViewport')),
         'navigator':            (() => require_window_value('navigator',
                                                             'window.navigator')),
-        'origin':               (() => window.origin),
+        'origin':               (() => get_window_property('origin')),
         'crypto':               (() => require_window_value('crypto',
                                                             'window.crypto')),
-        'device-pixel-ratio':   (() => window.devicePixelRatio),
-        'event':                (() => window.event),
-        'frame-element':        (() => window.frameElement),
-        'inner-height':         (() => window.innerHeight),
-        'inner-width':          (() => window.innerWidth),
-        'outer-height':         (() => window.outerHeight),
-        'outer-width':          (() => window.outerWidth),
-        'screen-x':             (() => window.screenX),
-        'screen-y':             (() => window.screenY),
-        'screen-left':          (() => window.screenLeft),
-        'screen-top':           (() => window.screenTop),
-        'page-x-offset':        (() => window.pageXOffset),
-        'page-y-offset':        (() => window.pageYOffset),
-        'scroll-x':             (() => window.scrollX),
-        'scroll-y':             (() => window.scrollY),
+        'device-pixel-ratio':   (() => get_window_property('devicePixelRatio')),
+        'event':                (() => get_window_property('event')),
+        'frame-element':        (() => get_window_property('frameElement')),
+        'inner-height':         (() => get_window_property('innerHeight')),
+        'inner-width':          (() => get_window_property('innerWidth')),
+        'outer-height':         (() => get_window_property('outerHeight')),
+        'outer-width':          (() => get_window_property('outerWidth')),
+        'screen-x':             (() => get_window_property('screenX')),
+        'screen-y':             (() => get_window_property('screenY')),
+        'screen-left':          (() => get_window_property('screenLeft')),
+        'screen-top':           (() => get_window_property('screenTop')),
+        'page-x-offset':        (() => get_window_property('pageXOffset')),
+        'page-y-offset':        (() => get_window_property('pageYOffset')),
+        'scroll-x':             (() => get_window_property('scrollX')),
+        'scroll-y':             (() => get_window_property('scrollY')),
         'screen':               (() => require_window_value('screen',
                                                             'window.screen')),
         'local-storage':        (() => require_window_value('localStorage',
@@ -1416,8 +1444,8 @@ var imports = {
                                                             'window.performance')),
         'indexed-db':           (() => require_window_value('indexedDB',
                                                             'window.indexedDB')),
-        'is-secure-context':    (() => window.isSecureContext ? 1 : 0),
-        'cross-origin-isolated':(() => window.crossOriginIsolated ? 1 : 0),
+        'is-secure-context':    (() => get_window_property('isSecureContext') ? 1 : 0),
+        'cross-origin-isolated':(() => get_window_property('crossOriginIsolated') ? 1 : 0),
         'caches':               (() => require_window_value('caches',
                                                             'window.caches')),
         'speech-synthesis':     (() => require_window_value('speechSynthesis',
@@ -1584,10 +1612,10 @@ var imports = {
     } : new Proxy({}, { get() { throw new Error('DOM not available in this environment'); } }),
     // Performance
     'performance': hasPerformance ? {
-        'event-counts':        (() => performance.eventCounts),
-        'interaction-count':   (() => performance.interactionCount),
-        'memory':              (() => performance.memory),
-        'time-origin':         (() => performance.timeOrigin),
+        'event-counts':        (() => get_performance_property('eventCounts')),
+        'interaction-count':   (() => get_performance_property('interactionCount')),
+        'memory':              (() => get_performance_property('memory')),
+        'time-origin':         (() => get_performance_property('timeOrigin')),
         'now':                 (() => require_host_function(performance,
                                                              'now',
                                                              'performance.now')()),
@@ -1669,12 +1697,12 @@ var imports = {
                                                             'performance.toJSON')())
     } : new Proxy({}, { get() { throw new Error('Performance API not available in this environment'); } }),
     'performance-event-count-map': hasPerformance ? {
-        'size':                (list => list.length)
+        'size':                (list => get_performance_event_counts_property(list, 'length'))
     } : new Proxy({}, { get() { throw new Error('Performance API not available in this environment'); } }),
     'performance-memory-info': hasPerformance ? {
-        'js-heap-size-limit':  (mem => mem.jsHeapSizeLimit),
-        'total-js-heap-size':  (mem => mem.totalJSHeapSize),
-        'used-js-heap-size':   (mem => mem.usedJSHeapSize)
+        'js-heap-size-limit':  (mem => get_performance_memory_info_property(mem, 'jsHeapSizeLimit')),
+        'total-js-heap-size':  (mem => get_performance_memory_info_property(mem, 'totalJSHeapSize')),
+        'used-js-heap-size':   (mem => get_performance_memory_info_property(mem, 'usedJSHeapSize'))
     } : new Proxy({}, { get() { throw new Error('DOM not available in this environment'); } }),
     'websocket': websocket,
     'audio': audio,

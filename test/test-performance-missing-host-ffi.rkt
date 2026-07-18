@@ -6,12 +6,16 @@
                   js-performance-clear-marks
                   js-performance-clear-measures
                   js-performance-clear-resource-timings
+                  js-performance-event-count-map-size
                   js-performance-get-entries
                   js-performance-get-entries-by-name
                   js-performance-get-entries-by-type
                   js-performance-mark
                   js-performance-measure
                   js-performance-measure-user-agent-specific-memory
+                  js-performance-memory-info-js-heap-size-limit
+                  js-performance-memory-info-total-js-heap-size
+                  js-performance-memory-info-used-js-heap-size
                   js-performance-now
                   js-performance-set-resource-timing-buffer-size
                   js-performance-to-json)
@@ -40,6 +44,8 @@
   (check-true (and message
                    (string-contains/simple? message needle))
               label))
+
+(define js-null (js-eval "null"))
 
 (js-eval
  "globalThis.__wrPerformanceMethodBoundary = {};
@@ -128,6 +134,26 @@
    (lambda ()
      (js-performance-to-json))))
 
+(define event-count-size-null-message
+  (catch-message
+   (lambda ()
+     (js-performance-event-count-map-size js-null))))
+
+(define memory-js-heap-size-limit-null-message
+  (catch-message
+   (lambda ()
+     (js-performance-memory-info-js-heap-size-limit js-null))))
+
+(define memory-total-js-heap-size-null-message
+  (catch-message
+   (lambda ()
+     (js-performance-memory-info-total-js-heap-size js-null))))
+
+(define memory-used-js-heap-size-null-message
+  (catch-message
+   (lambda ()
+     (js-performance-memory-info-used-js-heap-size js-null))))
+
 (js-eval
  "Object.entries(globalThis.__wrPerformanceMethodBoundary).forEach(([name, saved]) => {
     if (saved.hadOwn) {
@@ -185,6 +211,22 @@
 (check-message to-json-message
                "performance.toJSON not available in this environment"
                "missing toJSON message")
+
+(check-message event-count-size-null-message
+               "PerformanceEventCounts.length: target object is null or undefined"
+               "null PerformanceEventCounts.length message")
+
+(check-message memory-js-heap-size-limit-null-message
+               "PerformanceMemory.jsHeapSizeLimit: target object is null or undefined"
+               "null PerformanceMemory.jsHeapSizeLimit message")
+
+(check-message memory-total-js-heap-size-null-message
+               "PerformanceMemory.totalJSHeapSize: target object is null or undefined"
+               "null PerformanceMemory.totalJSHeapSize message")
+
+(check-message memory-used-js-heap-size-null-message
+               "PerformanceMemory.usedJSHeapSize: target object is null or undefined"
+               "null PerformanceMemory.usedJSHeapSize message")
 
 (js-log "performance-missing-host-ffi-ok")
 #t
