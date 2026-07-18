@@ -346,6 +346,22 @@ function call_image_method0(img, methodName) {
   return call_required_host_function0(img, methodName, `HTMLImageElement.${methodName}`);
 }
 
+function call_performance_method0(methodName) {
+  return call_required_host_function0(performance, methodName, `performance.${methodName}`);
+}
+
+function call_performance_method1(methodName, arg0) {
+  return call_required_host_function1(performance, methodName, `performance.${methodName}`, arg0);
+}
+
+function call_performance_method2(methodName, arg0, arg1) {
+  return call_required_host_function2(performance, methodName, `performance.${methodName}`, arg0, arg1);
+}
+
+function call_performance_method3(methodName, arg0, arg1, arg2) {
+  return call_required_host_function3(performance, methodName, `performance.${methodName}`, arg0, arg1, arg2);
+}
+
 function call_jsxgraph_board_create(board, elementType, parents, attrs) {
   const create = require_host_function(board,
                                        'create',
@@ -1837,85 +1853,60 @@ var imports = {
         'interaction-count':   (() => get_performance_property('interactionCount')),
         'memory':              (() => get_performance_property('memory')),
         'time-origin':         (() => get_performance_property('timeOrigin')),
-        'now':                 (() => require_host_function(performance,
-                                                             'now',
-                                                             'performance.now')()),
+        'now':                 (() => call_performance_method0('now')),
         'clear-marks':         ((markName) => {
-            const clearMarks = require_host_function(performance,
-                                                     'clearMarks',
-                                                     'performance.clearMarks');
             const n = from_fasl(markName);
             if (n === undefined) {
-                clearMarks();
+                call_performance_method0('clearMarks');
             } else {
-                clearMarks(n);
+                call_performance_method1('clearMarks', n);
             }
         }),
         'clear-measures':      ((measureName) => {
-            const clearMeasures = require_host_function(performance,
-                                                        'clearMeasures',
-                                                        'performance.clearMeasures');
             const n = from_fasl(measureName);
             if (n === undefined) {
-                clearMeasures();
+                call_performance_method0('clearMeasures');
             } else {
-                clearMeasures(n);
+                call_performance_method1('clearMeasures', n);
             }
         }),
-        'clear-resource-timings': (() => require_host_function(performance,
-                                                               'clearResourceTimings',
-                                                               'performance.clearResourceTimings')()),
-        'get-entries':         (() => require_host_function(performance,
-                                                            'getEntries',
-                                                            'performance.getEntries')()),
+        'clear-resource-timings': (() => call_performance_method0('clearResourceTimings')),
+        'get-entries':         (() => call_performance_method0('getEntries')),
         'get-entries-by-name': ((name, entryType) => {
-            const getEntriesByName = require_host_function(performance,
-                                                           'getEntriesByName',
-                                                           'performance.getEntriesByName');
+            const n = from_fasl(name);
             const t = from_fasl(entryType);
             if (t === undefined) {
-                return getEntriesByName(from_fasl(name));
+                return call_performance_method1('getEntriesByName', n);
             } else {
-                return getEntriesByName(from_fasl(name), t);
+                return call_performance_method2('getEntriesByName', n, t);
             }
         }),
-        'get-entries-by-type':  ((entryType) => require_host_function(performance,
-                                                                      'getEntriesByType',
-                                                                      'performance.getEntriesByType')(from_fasl(entryType))),
+        'get-entries-by-type':  ((entryType) => call_performance_method1('getEntriesByType',
+                                                                         from_fasl(entryType))),
         'mark':                ((name, options) => {
-            const mark = require_host_function(performance,
-                                               'mark',
-                                               'performance.mark');
+            const n = from_fasl(name);
             const o = from_fasl(options);
             if (o === undefined) {
-                return mark(from_fasl(name));
+                return call_performance_method1('mark', n);
             } else {
-                return mark(from_fasl(name), o);
+                return call_performance_method2('mark', n, o);
             }
         }),
         'measure':             ((name, startOrOptions, endMark) => {
-            const measure = require_host_function(performance,
-                                                  'measure',
-                                                  'performance.measure');
+            const n = from_fasl(name);
             const s = from_fasl(startOrOptions);
             const e = from_fasl(endMark);
             if (s === undefined && e === undefined) {
-                return measure(from_fasl(name));
+                return call_performance_method1('measure', n);
             } else if (e === undefined) {
-                return measure(from_fasl(name), s);
+                return call_performance_method2('measure', n, s);
             } else {
-                return measure(from_fasl(name), s, e);
+                return call_performance_method3('measure', n, s, e);
             }
         }),
-        'measure-user-agent-specific-memory': (() => require_host_function(performance,
-                                                                           'measureUserAgentSpecificMemory',
-                                                                           'performance.measureUserAgentSpecificMemory')()),
-        'set-resource-timing-buffer-size': ((size) => require_host_function(performance,
-                                                                            'setResourceTimingBufferSize',
-                                                                            'performance.setResourceTimingBufferSize')(size)),
-        'to-json':             (() => require_host_function(performance,
-                                                            'toJSON',
-                                                            'performance.toJSON')())
+        'measure-user-agent-specific-memory': (() => call_performance_method0('measureUserAgentSpecificMemory')),
+        'set-resource-timing-buffer-size': ((size) => call_performance_method1('setResourceTimingBufferSize', size)),
+        'to-json':             (() => call_performance_method0('toJSON'))
     } : new Proxy({}, { get() { throw new Error('Performance API not available in this environment'); } }),
     'performance-event-count-map': hasPerformance ? {
         'size':                (list => get_performance_event_counts_property(list, 'size'))
