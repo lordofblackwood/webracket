@@ -177,6 +177,8 @@ compile_test_dir_case test-indexed-db-method-missing-host-ffi.html test-indexed-
   --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/dom.ffi"
 compile_root_case test-history-method-missing-host-ffi.html test/test-history-method-missing-host-ffi.rkt \
   --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/dom.ffi"
+compile_root_case test-fullscreen-method-missing-host-ffi.html test/test-fullscreen-method-missing-host-ffi.rkt \
+  --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/dom.ffi"
 compile_root_case test-geolocation-surface.html test/test-geolocation-surface.rkt \
   --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/dom.ffi"
 compile_root_case test-geolocation-method-missing-host-ffi.html test/test-geolocation-method-missing-host-ffi.rkt \
