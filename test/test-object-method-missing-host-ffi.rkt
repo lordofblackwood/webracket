@@ -5,9 +5,13 @@
 (require (only-in webracket/unsafe/dom
                   js-canvas-capture-stream
                   js-canvas-get-context
+                  js-canvas-width
+                  js-set-canvas-width!
                   js-canvas-to-blob
                   js-canvas-to-data-url
                   js-canvas-transfer-control-to-offscreen
+                  js-canvas2d-direction
+                  js-set-canvas2d-direction!
                   js-canvas2d-arc
                   js-canvas2d-arc-to
                   js-canvas2d-begin-path
@@ -56,7 +60,9 @@
                   js-canvas2d-stroke-text
                   js-canvas2d-transform
                   js-canvas2d-translate
+                  js-image-alt
                   js-image-decode
+                  js-set-image-alt!
                   js-media-add-text-track!
                   js-media-can-play-type
                   js-media-capture-stream
@@ -64,8 +70,10 @@
                   js-media-load!
                   js-media-pause
                   js-media-play
+                  js-media-src
                   js-media-set-media-keys!
                   js-media-set-sink-id!
+                  js-set-media-src!
                   js-eval))
 
 (define (check-true got label)
@@ -519,6 +527,46 @@
    (lambda ()
      (js-image-decode js-null))))
 
+(define null-canvas-width-message
+  (catch-message
+   (lambda ()
+     (js-canvas-width js-null))))
+
+(define null-canvas-set-width-message
+  (catch-message
+   (lambda ()
+     (js-set-canvas-width! js-null 4))))
+
+(define null-canvas2d-direction-message
+  (catch-message
+   (lambda ()
+     (js-canvas2d-direction js-null))))
+
+(define null-canvas2d-set-direction-message
+  (catch-message
+   (lambda ()
+     (js-set-canvas2d-direction! js-null "ltr"))))
+
+(define null-media-src-message
+  (catch-message
+   (lambda ()
+     (js-media-src js-null))))
+
+(define null-media-set-src-message
+  (catch-message
+   (lambda ()
+     (js-set-media-src! js-null ""))))
+
+(define null-image-alt-message
+  (catch-message
+   (lambda ()
+     (js-image-alt js-null))))
+
+(define null-image-set-alt-message
+  (catch-message
+   (lambda ()
+     (js-set-image-alt! js-null ""))))
+
 (js-eval
  "for (const saved of globalThis.__wrObjectMethodBoundary) {
     if (saved.hadOwn) {
@@ -736,6 +784,30 @@
 (check-message null-image-message
                "HTMLImageElement.decode: target object is null or undefined"
                "missing null image target message")
+(check-message null-canvas-width-message
+               "canvas.width: target object is null or undefined"
+               "missing null canvas width message")
+(check-message null-canvas-set-width-message
+               "canvas.width: target object is null or undefined"
+               "missing null canvas set width message")
+(check-message null-canvas2d-direction-message
+               "CanvasRenderingContext2D.direction: target object is null or undefined"
+               "missing null canvas2d direction message")
+(check-message null-canvas2d-set-direction-message
+               "CanvasRenderingContext2D.direction: target object is null or undefined"
+               "missing null canvas2d set direction message")
+(check-message null-media-src-message
+               "HTMLMediaElement.src: target object is null or undefined"
+               "missing null media src message")
+(check-message null-media-set-src-message
+               "HTMLMediaElement.src: target object is null or undefined"
+               "missing null media set src message")
+(check-message null-image-alt-message
+               "HTMLImageElement.alt: target object is null or undefined"
+               "missing null image alt message")
+(check-message null-image-set-alt-message
+               "HTMLImageElement.alt: target object is null or undefined"
+               "missing null image set alt message")
 
 (js-log "object-method-missing-host-ffi-ok")
 #t

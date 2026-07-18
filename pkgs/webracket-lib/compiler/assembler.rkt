@@ -1940,24 +1940,33 @@ function require_host_constructor(name, displayName, detail) {
   return ctor;
 }
 
-function require_host_function(owner, name, displayName) {
+function require_host_target(owner, displayName) {
   if (owner === null || owner === undefined) {
     throw new Error(`${displayName}: target object is null or undefined`);
   }
 
-  const fn = owner[name];
+  return owner;
+}
+
+function get_host_property(owner, name, displayName) {
+  return require_host_target(owner, displayName)[name];
+}
+
+function set_host_property(owner, name, value, displayName) {
+  require_host_target(owner, displayName)[name] = value;
+}
+
+function require_host_function(owner, name, displayName) {
+  const target = require_host_target(owner, displayName);
+  const fn = target[name];
   if (typeof fn !== 'function') {
     throw new Error(`${displayName} not available in this environment`);
   }
-  return fn.bind(owner);
+  return fn.bind(target);
 }
 
 function require_host_value(owner, name, displayName) {
-  if (owner === null || owner === undefined) {
-    throw new Error(`${displayName}: target object is null or undefined`);
-  }
-
-  const value = owner[name];
+  const value = require_host_target(owner, displayName)[name];
   if (value === undefined || value === null) {
     throw new Error(`${displayName} not available in this environment`);
   }
