@@ -175,6 +175,17 @@ function set_window_property(name, value) {
                     `window.${name}`);
 }
 
+function require_document_target(displayName) {
+  return require_host_target(typeof document === 'undefined' ? null : document,
+                             displayName);
+}
+
+function require_document_value(name, displayName) {
+  return require_host_value(typeof document === 'undefined' ? null : document,
+                            name,
+                            displayName);
+}
+
 function get_performance_property(name) {
   return get_host_property(typeof performance === 'undefined' ? null : performance,
                            name,
@@ -1708,10 +1719,13 @@ var imports = {
     'audio': audio,
     // Document
     'document': hasDOM ? {
-        'document':                 (()                               => document),
-        'head':                     (()                               => document.head),
-        'body':                     (()                               => document.body),
-        'document-element':         (()                               => document.documentElement),
+        'document':                 (()                               => require_document_target('document')),
+        'head':                     (()                               => require_document_value('head',
+                                                                                                 'document.head')),
+        'body':                     (()                               => require_document_value('body',
+                                                                                                 'document.body')),
+        'document-element':         (()                               => require_document_value('documentElement',
+                                                                                                 'document.documentElement')),
         'create-element':           ((local_name)                     => require_document_function('createElement',
                                                                                                     'document.createElement')(from_fasl(local_name))),
         'create-text-node':         ((fasl_start)                     => require_document_function('createTextNode',

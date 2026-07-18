@@ -19,6 +19,9 @@
                   js-create-range
                   js-create-text-node
                   js-create-tree-walker
+                  js-document-body
+                  js-document-element
+                  js-document-head
                   js-element-from-point
                   js-elements-from-point
                   js-enable-style-sheets-for-set
@@ -66,6 +69,51 @@
 
 (define js-null (js-eval "null"))
 (define js-document (js-eval "document"))
+
+(js-eval
+ "globalThis.__wrDocumentValueBoundaryNames = [
+    'head',
+    'body',
+    'documentElement'
+  ];
+  globalThis.__wrDocumentValueBoundary = {};
+  for (const name of globalThis.__wrDocumentValueBoundaryNames) {
+    globalThis.__wrDocumentValueBoundary[name] = {
+      descriptor: Object.getOwnPropertyDescriptor(document, name)
+    };
+    Object.defineProperty(document, name, {
+      value: undefined,
+      configurable: true,
+      writable: true
+    });
+  }")
+
+(define head-message
+  (catch-message
+   (lambda ()
+     (js-document-head))))
+
+(define body-message
+  (catch-message
+   (lambda ()
+     (js-document-body))))
+
+(define document-element-message
+  (catch-message
+   (lambda ()
+     (js-document-element))))
+
+(js-eval
+ "for (const name of globalThis.__wrDocumentValueBoundaryNames) {
+    const saved = globalThis.__wrDocumentValueBoundary[name];
+    if (saved.descriptor) {
+      Object.defineProperty(document, name, saved.descriptor);
+    } else {
+      delete document[name];
+    }
+  }
+  delete globalThis.__wrDocumentValueBoundary;
+  delete globalThis.__wrDocumentValueBoundaryNames;")
 
 (js-eval
  "globalThis.__wrDocumentBoundaryNames = [
@@ -303,6 +351,16 @@
   }
   delete globalThis.__wrDocumentBoundary;
   delete globalThis.__wrDocumentBoundaryNames;")
+
+(check-message head-message
+               "document.head not available in this environment"
+               "missing document.head message")
+(check-message body-message
+               "document.body not available in this environment"
+               "missing document.body message")
+(check-message document-element-message
+               "document.documentElement not available in this environment"
+               "missing document.documentElement message")
 
 (check-message adopt-node-message
                "document.adoptNode not available in this environment"
