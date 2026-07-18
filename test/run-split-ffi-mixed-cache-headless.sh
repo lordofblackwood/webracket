@@ -214,6 +214,12 @@ compile_root_case test-gamepad-surface.html test/test-gamepad-surface.rkt \
 compile_root_case test-gamepad-method-missing-host-ffi.html test/test-gamepad-method-missing-host-ffi.rkt \
   --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/standard.ffi" \
   --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/dom.ffi"
+compile_root_case test-intersection-observer-surface.html test/test-intersection-observer-surface.rkt \
+  --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/standard.ffi" \
+  --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/dom.ffi"
+compile_root_case test-resize-observer-surface.html test/test-resize-observer-surface.rkt \
+  --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/standard.ffi" \
+  --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/dom.ffi"
 compile_root_case test-observer-method-missing-host-ffi.html test/test-observer-method-missing-host-ffi.rkt \
   --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/standard.ffi" \
   --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/dom.ffi"

@@ -2,7 +2,7 @@
 
 (require intersection-observer)
 
-(list
+(void
  intersection-observer
  intersection-observer?
  intersection-observer-supported?
@@ -26,3 +26,5 @@
  intersection-observer-entry-intersection-rect
  intersection-observer-entry-root-bounds
  intersection-observer-entry-time)
+
+#t

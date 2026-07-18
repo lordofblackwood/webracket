@@ -112,7 +112,8 @@
 
 (define (make-resize-observer callback)
   (unless (resize-observer-supported?)
-    (error 'make-resize-observer "ResizeObserver is not available"))
+    (raise-arguments-error 'make-resize-observer
+                           "ResizeObserver is not available"))
   (resize-observer
    (js-new (js-var "ResizeObserver")
            (vector (resize-observer-callback->external

@@ -2,7 +2,7 @@
 
 (require resize-observer)
 
-(list
+(void
  resize-observer
  resize-observer?
  resize-observer-supported?
@@ -19,3 +19,5 @@
  resize-observer-entry-raw
  resize-observer-entry-target
  resize-observer-entry-content-rect)
+
+#t

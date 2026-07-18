@@ -171,7 +171,8 @@
 ;;   Create a new browser IntersectionObserver.
 (define (make-intersection-observer callback [options #f])
   (unless (intersection-observer-supported?)
-    (error 'make-intersection-observer "IntersectionObserver is not available"))
+    (raise-arguments-error 'make-intersection-observer
+                           "IntersectionObserver is not available"))
   (unless (or (eq? options #f) (intersection-observer-options? options))
     (raise-argument-error 'make-intersection-observer
                           "(or/c #f intersection-observer-options?)"

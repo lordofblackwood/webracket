@@ -81,22 +81,38 @@
     };
     delete globalThis.ResizeObserver.prototype[missing];
   };
-  globalThis.__wrObserverBoundaryRestore = () => {
+  globalThis.__wrObserverBoundaryHideIntersection = () => {
+    globalThis.IntersectionObserver = undefined;
+  };
+  globalThis.__wrObserverBoundaryHideResize = () => {
+    globalThis.ResizeObserver = undefined;
+  };
+  globalThis.__wrObserverBoundaryRestoreIntersection = () => {
     if (globalThis.__wrObserverBoundarySavedIntersection === undefined) {
       delete globalThis.IntersectionObserver;
     } else {
       globalThis.IntersectionObserver = globalThis.__wrObserverBoundarySavedIntersection;
     }
+  };
+  globalThis.__wrObserverBoundaryRestoreResize = () => {
     if (globalThis.__wrObserverBoundarySavedResize === undefined) {
       delete globalThis.ResizeObserver;
     } else {
       globalThis.ResizeObserver = globalThis.__wrObserverBoundarySavedResize;
     }
+  };
+  globalThis.__wrObserverBoundaryRestore = () => {
+    globalThis.__wrObserverBoundaryRestoreIntersection();
+    globalThis.__wrObserverBoundaryRestoreResize();
     delete globalThis.__wrObserverBoundarySavedIntersection;
     delete globalThis.__wrObserverBoundarySavedResize;
     delete globalThis.__wrObserverBoundaryTarget;
     delete globalThis.__wrObserverBoundaryInstallIntersection;
     delete globalThis.__wrObserverBoundaryInstallResize;
+    delete globalThis.__wrObserverBoundaryHideIntersection;
+    delete globalThis.__wrObserverBoundaryHideResize;
+    delete globalThis.__wrObserverBoundaryRestoreIntersection;
+    delete globalThis.__wrObserverBoundaryRestoreResize;
     delete globalThis.__wrObserverBoundaryRestore;
   };")
 
@@ -114,6 +130,28 @@
                           method
                           "')"))
   (catch-message thunk))
+
+(define (missing-intersection-constructor-message thunk)
+  (js-eval "__wrObserverBoundaryHideIntersection();")
+  (define message (catch-message thunk))
+  (js-eval "__wrObserverBoundaryRestoreIntersection();")
+  message)
+
+(define (missing-resize-constructor-message thunk)
+  (js-eval "__wrObserverBoundaryHideResize();")
+  (define message (catch-message thunk))
+  (js-eval "__wrObserverBoundaryRestoreResize();")
+  message)
+
+(define intersection-constructor-message
+  (missing-intersection-constructor-message
+   (lambda ()
+     (make-intersection-observer callback))))
+
+(define resize-constructor-message
+  (missing-resize-constructor-message
+   (lambda ()
+     (make-resize-observer callback))))
 
 (define intersection-observe-message
   (missing-intersection-message
@@ -161,6 +199,9 @@
      (define observer (make-resize-observer callback))
      (resize-observer-disconnect! observer))))
 
+(check-message intersection-constructor-message
+               "IntersectionObserver is not available"
+               "missing IntersectionObserver constructor message")
 (check-message intersection-observe-message
                "IntersectionObserver.observe is not available"
                "missing IntersectionObserver.observe message")
@@ -170,6 +211,9 @@
 (check-message intersection-disconnect-message
                "IntersectionObserver.disconnect is not available"
                "missing IntersectionObserver.disconnect message")
+(check-message resize-constructor-message
+               "ResizeObserver is not available"
+               "missing ResizeObserver constructor message")
 (check-message resize-observe-message
                "ResizeObserver.observe is not available"
                "missing ResizeObserver.observe message")
