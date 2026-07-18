@@ -1,6 +1,6 @@
 #lang webracket/base
 
-;; Browser smoke for ScreenOrientation wrapper host-method boundary errors.
+;; Browser smoke for ScreenOrientation wrapper host-boundary errors.
 
 (require screen-orientation
          (only-in webracket/unsafe/standard
@@ -66,6 +66,12 @@
 (define missing-remove-listener-orientation
   (fake-orientation "removeEventListener"))
 
+(define missing-type-orientation
+  (fake-orientation "type"))
+
+(define missing-angle-orientation
+  (fake-orientation "angle"))
+
 (check-true (screen-orientation? missing-lock-orientation)
             "screen-orientation? accepts external orientation-like value")
 
@@ -98,6 +104,16 @@
    (lambda ()
      (screen-orientation-type (screen-orientation-info #f)))))
 
+(define type-message
+  (catch-message
+   (lambda ()
+     (screen-orientation-type missing-type-orientation))))
+
+(define angle-message
+  (catch-message
+   (lambda ()
+     (screen-orientation-angle missing-angle-orientation))))
+
 (check-message lock-message
                "ScreenOrientation.lock is not available"
                "missing ScreenOrientation.lock message")
@@ -113,6 +129,12 @@
 (check-message invalid-raw-message
                "screen-orientation?"
                "missing screen-orientation invalid raw message")
+(check-message type-message
+               "ScreenOrientation.type is not available"
+               "missing ScreenOrientation.type message")
+(check-message angle-message
+               "ScreenOrientation.angle is not available"
+               "missing ScreenOrientation.angle message")
 
 (js-eval "delete globalThis.__wrScreenOrientationBoundaryFake;")
 

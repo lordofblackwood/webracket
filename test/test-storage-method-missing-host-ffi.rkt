@@ -1,6 +1,6 @@
 #lang webracket/base
 
-;; Browser smoke for Storage wrapper host-method boundary errors.
+;; Browser smoke for Storage wrapper host-boundary errors.
 
 (require storage
          (only-in webracket/unsafe/dom
@@ -53,6 +53,7 @@
 (define missing-set-storage (fake-storage "setItem"))
 (define missing-remove-storage (fake-storage "removeItem"))
 (define missing-clear-storage (fake-storage "clear"))
+(define missing-length-storage (fake-storage "length"))
 
 (check-true (not (storage? missing-key-storage))
             "storage? rejects missing key")
@@ -90,6 +91,11 @@
    (lambda ()
      (storage-clear! missing-clear-storage))))
 
+(define storage-length-message
+  (catch-message
+   (lambda ()
+     (storage-length missing-length-storage))))
+
 (define storage-invalid-raw-message
   (catch-message
    (lambda ()
@@ -110,6 +116,9 @@
 (check-message storage-clear-message
                "Storage.clear is not available"
                "missing Storage.clear message")
+(check-message storage-length-message
+               "Storage.length is not available"
+               "missing Storage.length message")
 (check-message storage-invalid-raw-message
                "storage-info?"
                "missing storage-info invalid raw message")

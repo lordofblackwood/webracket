@@ -54,6 +54,11 @@
   (and (not (js-nullish? method))
        (string=? (js-typeof method) "function")))
 
+;; storage-property-present? : external/raw string? -> boolean?
+;;   Report whether raw exposes a non-nullish property named property-name.
+(define (storage-property-present? raw property-name)
+  (not (js-nullish? (js-ref/extern raw property-name))))
+
 ;; check-storage : symbol? any/c -> void?
 ;;   Ensure value wraps an external Storage-like host value.
 (define (check-storage who value)
@@ -67,6 +72,13 @@
   (unless (storage-method-present? (storage-raw value) method-name)
     (raise-arguments-error who
                            (string-append "Storage." method-name " is not available"))))
+
+;; check-storage-property : symbol? storage-info? string? -> void?
+;;   Ensure a required Storage property is available.
+(define (check-storage-property who value property-name)
+  (unless (storage-property-present? (storage-raw value) property-name)
+    (raise-arguments-error who
+                           (string-append "Storage." property-name " is not available"))))
 
 ;; local-storage : -> storage-info?
 ;;   Read the browser localStorage object.
@@ -82,6 +94,7 @@
 ;;   Read the number of stored entries.
 (define (storage-length value)
   (check-storage 'storage-length value)
+  (check-storage-property 'storage-length value "length")
   (js-ref (storage-raw value) "length"))
 
 ;; storage-key : storage-info? exact-nonnegative-integer? -> (or/c #f string?)

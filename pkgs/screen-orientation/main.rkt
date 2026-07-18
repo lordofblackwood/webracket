@@ -38,6 +38,11 @@
   (and (not (js-nullish? method))
        (string=? (js-typeof method) "function")))
 
+;; screen-orientation-property-present? : external/raw string? -> boolean?
+;;   Report whether raw exposes a non-nullish property named property-name.
+(define (screen-orientation-property-present? raw property-name)
+  (not (js-nullish? (js-ref/extern raw property-name))))
+
 ;; screen-orientation-supported-raw : -> (or/c #f external/raw)
 ;;   Read screen.orientation when it is available.
 (define (screen-orientation-supported-raw)
@@ -75,16 +80,27 @@
     (raise-arguments-error who
                            (string-append "ScreenOrientation." method-name " is not available"))))
 
+;; check-screen-orientation-property : symbol? screen-orientation-info? string? -> void?
+;;   Ensure a required ScreenOrientation property is available.
+(define (check-screen-orientation-property who value property-name)
+  (unless (screen-orientation-property-present? (screen-orientation-raw value) property-name)
+    (raise-arguments-error who
+                           (string-append "ScreenOrientation."
+                                          property-name
+                                          " is not available"))))
+
 ;; screen-orientation-type : screen-orientation-info? -> string?
 ;;   Read the orientation type, such as "portrait-primary".
 (define (screen-orientation-type value)
   (check-screen-orientation 'screen-orientation-type value)
+  (check-screen-orientation-property 'screen-orientation-type value "type")
   (js-ref (screen-orientation-raw value) "type"))
 
 ;; screen-orientation-angle : screen-orientation-info? -> number?
 ;;   Read the orientation angle in degrees.
 (define (screen-orientation-angle value)
   (check-screen-orientation 'screen-orientation-angle value)
+  (check-screen-orientation-property 'screen-orientation-angle value "angle")
   (js-ref (screen-orientation-raw value) "angle"))
 
 ;; screen-orientation-lock-type? : any/c -> boolean?
