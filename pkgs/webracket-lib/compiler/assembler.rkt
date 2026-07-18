@@ -1941,6 +1941,10 @@ function require_host_constructor(name, displayName, detail) {
 }
 
 function require_host_function(owner, name, displayName) {
+  if (owner === null || owner === undefined) {
+    throw new Error(`${displayName}: target object is null or undefined`);
+  }
+
   const fn = owner[name];
   if (typeof fn !== 'function') {
     throw new Error(`${displayName} not available in this environment`);
@@ -1949,6 +1953,10 @@ function require_host_function(owner, name, displayName) {
 }
 
 function require_host_value(owner, name, displayName) {
+  if (owner === null || owner === undefined) {
+    throw new Error(`${displayName}: target object is null or undefined`);
+  }
+
   const value = owner[name];
   if (value === undefined || value === null) {
     throw new Error(`${displayName} not available in this environment`);
@@ -1957,15 +1965,21 @@ function require_host_value(owner, name, displayName) {
 }
 
 function require_window_function(name, displayName) {
-  return require_host_function(window, name, displayName);
+  return require_host_function(typeof window === 'undefined' ? null : window,
+                               name,
+                               displayName);
 }
 
 function require_window_value(name, displayName) {
-  return require_host_value(window, name, displayName);
+  return require_host_value(typeof window === 'undefined' ? null : window,
+                            name,
+                            displayName);
 }
 
 function require_document_function(name, displayName) {
-  return require_host_function(document, name, displayName);
+  return require_host_function(typeof document === 'undefined' ? null : document,
+                               name,
+                               displayName);
 }
 
 function require_xterm_terminal() {

@@ -499,6 +499,26 @@
    (lambda ()
      (js-image-decode image))))
 
+(define null-canvas-message
+  (catch-message
+   (lambda ()
+     (js-canvas-get-context js-null "2d" js-null))))
+
+(define null-canvas2d-message
+  (catch-message
+   (lambda ()
+     (js-canvas2d-fill js-null (void) (void)))))
+
+(define null-media-message
+  (catch-message
+   (lambda ()
+     (js-media-play js-null))))
+
+(define null-image-message
+  (catch-message
+   (lambda ()
+     (js-image-decode js-null))))
+
 (js-eval
  "for (const saved of globalThis.__wrObjectMethodBoundary) {
     if (saved.hadOwn) {
@@ -704,6 +724,18 @@
 (check-message image-decode-message
                "HTMLImageElement.decode not available in this environment"
                "missing image decode message")
+(check-message null-canvas-message
+               "canvas.getContext: target object is null or undefined"
+               "missing null canvas target message")
+(check-message null-canvas2d-message
+               "CanvasRenderingContext2D.fill: target object is null or undefined"
+               "missing null canvas2d target message")
+(check-message null-media-message
+               "HTMLMediaElement.play: target object is null or undefined"
+               "missing null media target message")
+(check-message null-image-message
+               "HTMLImageElement.decode: target object is null or undefined"
+               "missing null image target message")
 
 (js-log "object-method-missing-host-ffi-ok")
 #t
