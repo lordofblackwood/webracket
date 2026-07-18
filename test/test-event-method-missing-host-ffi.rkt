@@ -8,6 +8,12 @@
                   js-event-prevent-default
                   js-event-stop-immediate-propagation
                   js-event-stop-propagation
+                  js-event-target
+                  js-event-type
+                  js-message-event-data
+                  js-close-event-code
+                  js-touch-identifier
+                  js-touch-list-length
                   js-touch-list-ref)
          (only-in webracket/unsafe/standard
                   js-eval))
@@ -62,6 +68,7 @@
 (define event-target-without-listener (js-eval "({ addEventListener: undefined })"))
 (define touch-list-without-item (js-eval "({ item: undefined })"))
 (define listener (js-eval "(() => {})"))
+(define js-null (js-eval "null"))
 
 (define add-event-listener-message
   (catch-message
@@ -92,6 +99,36 @@
   (catch-message
    (lambda ()
      (js-touch-list-ref touch-list-without-item 0))))
+
+(define null-event-type-message
+  (catch-message
+   (lambda ()
+     (js-event-type js-null))))
+
+(define null-event-target-message
+  (catch-message
+   (lambda ()
+     (js-event-target js-null))))
+
+(define null-message-event-data-message
+  (catch-message
+   (lambda ()
+     (js-message-event-data js-null))))
+
+(define null-close-event-code-message
+  (catch-message
+   (lambda ()
+     (js-close-event-code js-null))))
+
+(define null-touch-list-length-message
+  (catch-message
+   (lambda ()
+     (js-touch-list-length js-null))))
+
+(define null-touch-identifier-message
+  (catch-message
+   (lambda ()
+     (js-touch-identifier js-null))))
 
 (js-eval
  "for (const saved of globalThis.__wrEventMethodBoundary) {
@@ -130,6 +167,30 @@
 (check-message touch-list-ref-message
                "TouchList.item not available in this environment"
                "missing TouchList.item message")
+
+(check-message null-event-type-message
+               "Event.type: target object is null or undefined"
+               "missing null Event.type message")
+
+(check-message null-event-target-message
+               "Event.target: target object is null or undefined"
+               "missing null Event.target message")
+
+(check-message null-message-event-data-message
+               "MessageEvent.data: target object is null or undefined"
+               "missing null MessageEvent.data message")
+
+(check-message null-close-event-code-message
+               "CloseEvent.code: target object is null or undefined"
+               "missing null CloseEvent.code message")
+
+(check-message null-touch-list-length-message
+               "TouchList.length: target object is null or undefined"
+               "missing null TouchList.length message")
+
+(check-message null-touch-identifier-message
+               "Touch.identifier: target object is null or undefined"
+               "missing null Touch.identifier message")
 
 (js-log "event-method-missing-host-ffi-ok")
 #t

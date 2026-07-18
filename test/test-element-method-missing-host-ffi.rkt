@@ -12,10 +12,17 @@
                   js-closest
                   js-computed-style-map
                   js-dom-rect-list-item
+                  js-dom-rect-list-length
                   js-dom-token-list-item
+                  js-dom-token-list-length
+                  js-dom-token-list-value
                   js-element-get-elements-by-class-name
                   js-element-get-elements-by-tag-name
                   js-element-get-elements-by-tag-name-ns
+                  js-element-class-list
+                  js-element-id
+                  js-element-scroll-top
+                  js-element-shadow-root
                   js-element-query-selector
                   js-element-query-selector-all
                   js-get-animations
@@ -31,12 +38,14 @@
                   js-has-attributes
                   js-has-pointer-capture
                   js-html-collection-item
+                  js-html-collection-length
                   js-html-collection-named-item
                   js-insert-adjacent-element!
                   js-insert-adjacent-html!
                   js-insert-adjacent-text!
                   js-matches
                   js-node-list-item
+                  js-node-list-length
                   js-prepend!
                   js-release-pointer-capture!
                   js-remove!
@@ -55,7 +64,10 @@
                   js-set-attribute-node!
                   js-set-attribute-node-ns!
                   js-set-attribute-ns!
+                  js-set-element-id!
+                  js-set-element-scroll-top!
                   js-set-pointer-capture!
+                  js-shadow-root-host
                   js-toggle-attribute!
                   js-toggle-attribute
                   js-eval))
@@ -442,6 +454,66 @@
    (lambda ()
      (js-dom-rect-list-item item-list-without-item 0))))
 
+(define null-element-class-list-message
+  (catch-message
+   (lambda ()
+     (js-element-class-list js-null))))
+
+(define null-element-id-message
+  (catch-message
+   (lambda ()
+     (js-element-id js-null))))
+
+(define null-element-set-id-message
+  (catch-message
+   (lambda ()
+     (js-set-element-id! js-null "id"))))
+
+(define null-element-scroll-top-message
+  (catch-message
+   (lambda ()
+     (js-element-scroll-top js-null))))
+
+(define null-element-set-scroll-top-message
+  (catch-message
+   (lambda ()
+     (js-set-element-scroll-top! js-null 0.0))))
+
+(define null-element-shadow-root-message
+  (catch-message
+   (lambda ()
+     (js-element-shadow-root js-null))))
+
+(define null-dom-token-list-value-message
+  (catch-message
+   (lambda ()
+     (js-dom-token-list-value js-null))))
+
+(define null-dom-token-list-length-message
+  (catch-message
+   (lambda ()
+     (js-dom-token-list-length js-null))))
+
+(define null-node-list-length-message
+  (catch-message
+   (lambda ()
+     (js-node-list-length js-null))))
+
+(define null-html-collection-length-message
+  (catch-message
+   (lambda ()
+     (js-html-collection-length js-null))))
+
+(define null-shadow-root-host-message
+  (catch-message
+   (lambda ()
+     (js-shadow-root-host js-null))))
+
+(define null-dom-rect-list-length-message
+  (catch-message
+   (lambda ()
+     (js-dom-rect-list-length js-null))))
+
 (js-eval
  "for (const saved of globalThis.__wrElementMethodBoundary) {
     if (saved.hadOwn) {
@@ -622,6 +694,42 @@
 (check-message dom-rect-list-item-message
                "DOMRectList.item not available in this environment"
                "missing DOMRectList.item message")
+(check-message null-element-class-list-message
+               "Element.classList: target object is null or undefined"
+               "missing null Element.classList message")
+(check-message null-element-id-message
+               "Element.id: target object is null or undefined"
+               "missing null Element.id message")
+(check-message null-element-set-id-message
+               "Element.id: target object is null or undefined"
+               "missing null Element.id set message")
+(check-message null-element-scroll-top-message
+               "Element.scrollTop: target object is null or undefined"
+               "missing null Element.scrollTop message")
+(check-message null-element-set-scroll-top-message
+               "Element.scrollTop: target object is null or undefined"
+               "missing null Element.scrollTop set message")
+(check-message null-element-shadow-root-message
+               "Element.shadowRoot: target object is null or undefined"
+               "missing null Element.shadowRoot message")
+(check-message null-dom-token-list-value-message
+               "DOMTokenList.value: target object is null or undefined"
+               "missing null DOMTokenList.value message")
+(check-message null-dom-token-list-length-message
+               "DOMTokenList.length: target object is null or undefined"
+               "missing null DOMTokenList.length message")
+(check-message null-node-list-length-message
+               "NodeList.length: target object is null or undefined"
+               "missing null NodeList.length message")
+(check-message null-html-collection-length-message
+               "HTMLCollection.length: target object is null or undefined"
+               "missing null HTMLCollection.length message")
+(check-message null-shadow-root-host-message
+               "ShadowRoot.host: target object is null or undefined"
+               "missing null ShadowRoot.host message")
+(check-message null-dom-rect-list-length-message
+               "DOMRectList.length: target object is null or undefined"
+               "missing null DOMRectList.length message")
 
 (js-log "element-method-missing-host-ffi-ok")
 #t
