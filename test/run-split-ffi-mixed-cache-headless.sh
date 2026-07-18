@@ -103,6 +103,8 @@ compile_test_dir_case test-console.html test-console.rkt \
   --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/console.ffi"
 compile_test_dir_case test-array.html test-array.rkt \
   --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/array.ffi"
+compile_root_case test-js-array-method-missing-host-ffi.html test/test-js-array-method-missing-host-ffi.rkt \
+  --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/array.ffi"
 compile_root_case test-standard-send-missing-host-ffi.html test/test-standard-send-missing-host-ffi.rkt \
   --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/standard.ffi"
 compile_root_case test-standard-property-missing-host-ffi.html test/test-standard-property-missing-host-ffi.rkt \

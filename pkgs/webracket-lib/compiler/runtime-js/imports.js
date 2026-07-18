@@ -124,6 +124,18 @@ function call_js_method(obj, name, args, who) {
   return method.apply(target, decode_js_send_args(args));
 }
 
+function call_array_static_method(methodName, args = []) {
+  return require_host_function(Array,
+                               methodName,
+                               `Array.${methodName}`)(...args);
+}
+
+function call_array_method(arr, methodName, args = []) {
+  return require_host_function(arr,
+                               methodName,
+                               `Array.${methodName}`)(...args);
+}
+
 function call_jsxgraph_board_create(board, elementType, parents, attrs) {
   const create = require_host_function(board,
                                        'create',
@@ -872,85 +884,90 @@ var imports = {
     },
 
     // JavaScript Array FFI.
-      'array': {
+    'array': {
         'length':            (arr => arr.length),
         'set-length!':       ((arr, len) => { arr.length = len; }),
         'from':              ((arrLike, mapFn, thisArg) => {
-            const a = from_fasl(arrLike);
-            const m = mapFn;
-            const t = from_fasl(thisArg);
-            if (m === undefined) {
-                return Array.from(a);
-            } else if (t === undefined) {
-                return Array.from(a, m);
-            } else {
-                return Array.from(a, m, t);
-            }
+                const a = from_fasl(arrLike);
+                const m = mapFn;
+                const t = from_fasl(thisArg);
+                if (m === undefined) {
+                    return call_array_static_method('from', [a]);
+                } else if (t === undefined) {
+                    return call_array_static_method('from', [a, m]);
+                } else {
+                    return call_array_static_method('from', [a, m, t]);
+                }
         }),
         'from-async':        ((arrLike, mapFn, thisArg) => {
-            const a = from_fasl(arrLike);
-            const m = mapFn;
-            const t = from_fasl(thisArg);
-            if (m === undefined) {
-                return Array.fromAsync(a);
-            } else if (t === undefined) {
-                return Array.fromAsync(a, m);
-            } else {
-                return Array.fromAsync(a, m, t);
-            }
+                const a = from_fasl(arrLike);
+                const m = mapFn;
+                const t = from_fasl(thisArg);
+                if (m === undefined) {
+                    return call_array_static_method('fromAsync', [a]);
+                } else if (t === undefined) {
+                    return call_array_static_method('fromAsync', [a, m]);
+                } else {
+                    return call_array_static_method('fromAsync', [a, m, t]);
+                }
         }),
-        'is-array':          (v => Array.isArray(from_fasl(v)) ? 1 : 0),
-        'to-vector':         (arr => to_fasl(Array.from(arr))),
+        'is-array':          (v => call_array_static_method('isArray', [from_fasl(v)]) ? 1 : 0),
+        'to-vector':         (arr => to_fasl(call_array_static_method('from', [arr]))),
         'to-bytes':          (arr => to_fasl(Uint8Array.from(arr))),
-        'of':                (items => Array.of(...(from_fasl(items) || []))),
-        'at':                ((arr, index) => arr.at(index)),
-        'concat':            ((arr, items) => arr.concat(...(from_fasl(items) || []))),
+        'of':                (items => call_array_static_method('of', from_fasl(items) || [])),
+        'at':                ((arr, index) => call_array_method(arr, 'at', [index])),
+        'concat':            ((arr, items) => call_array_method(arr, 'concat', from_fasl(items) || [])),
         'copy-within':       ((arr, target, start, end) => {
-            const e = from_fasl(end);
-            return e === undefined ? arr.copyWithin(target, start)
-                                   : arr.copyWithin(target, start, e);
+                const e = from_fasl(end);
+                return e === undefined
+                  ? call_array_method(arr, 'copyWithin', [target, start])
+                  : call_array_method(arr, 'copyWithin', [target, start, e]);
         }),
-        'entries':           (arr => arr.entries()),
-        'every':             ((arr, fn, thisArg) => arr.every(fn, from_fasl(thisArg)) ? 1 : 0),
-        'fill':              ((arr, value, start, end) => arr.fill(from_fasl(value), from_fasl(start), from_fasl(end))),
-        'filter':            ((arr, fn, thisArg) => arr.filter(fn, from_fasl(thisArg))),
-        'find':              ((arr, fn, thisArg) => arr.find(fn, from_fasl(thisArg))),
-        'find-index':        ((arr, fn, thisArg) => arr.findIndex(fn, from_fasl(thisArg))),
-        'find-last':         ((arr, fn, thisArg) => arr.findLast(fn, from_fasl(thisArg))),
-        'find-last-index':   ((arr, fn, thisArg) => arr.findLastIndex(fn, from_fasl(thisArg))),
-        'flat':              ((arr, depth) => arr.flat(from_fasl(depth))),
-        'flat-map':          ((arr, fn, thisArg) => arr.flatMap(fn, from_fasl(thisArg))),
-        'for-each':          ((arr, fn, thisArg) => { arr.forEach(fn, from_fasl(thisArg)); }),
-        'includes':          ((arr, value, fromIndex) => arr.includes(from_fasl(value), from_fasl(fromIndex)) ? 1 : 0),
-        'index-of':          ((arr, value, fromIndex) => arr.indexOf(from_fasl(value), from_fasl(fromIndex))),
-        'join':              ((arr, sep) => arr.join(from_fasl(sep))),
-        'keys':              (arr => arr.keys()),
-        'last-index-of':     ((arr, value, fromIndex) => arr.lastIndexOf(from_fasl(value), from_fasl(fromIndex))),
-        'map':               ((arr, fn, thisArg) => arr.map(fn, from_fasl(thisArg))),
-        'pop':               (arr => arr.pop()),
-        'push':              ((arr, items) => arr.push(...(from_fasl(items) || []))),
+        'entries':           (arr => call_array_method(arr, 'entries')),
+        'every':             ((arr, fn, thisArg) => call_array_method(arr, 'every', [fn, from_fasl(thisArg)]) ? 1 : 0),
+        'fill':              ((arr, value, start, end) => call_array_method(arr, 'fill', [from_fasl(value), from_fasl(start), from_fasl(end)])),
+        'filter':            ((arr, fn, thisArg) => call_array_method(arr, 'filter', [fn, from_fasl(thisArg)])),
+        'find':              ((arr, fn, thisArg) => call_array_method(arr, 'find', [fn, from_fasl(thisArg)])),
+        'find-index':        ((arr, fn, thisArg) => call_array_method(arr, 'findIndex', [fn, from_fasl(thisArg)])),
+        'find-last':         ((arr, fn, thisArg) => call_array_method(arr, 'findLast', [fn, from_fasl(thisArg)])),
+        'find-last-index':   ((arr, fn, thisArg) => call_array_method(arr, 'findLastIndex', [fn, from_fasl(thisArg)])),
+        'flat':              ((arr, depth) => call_array_method(arr, 'flat', [from_fasl(depth)])),
+        'flat-map':          ((arr, fn, thisArg) => call_array_method(arr, 'flatMap', [fn, from_fasl(thisArg)])),
+        'for-each':          ((arr, fn, thisArg) => { call_array_method(arr, 'forEach', [fn, from_fasl(thisArg)]); }),
+        'includes':          ((arr, value, fromIndex) => call_array_method(arr, 'includes', [from_fasl(value), from_fasl(fromIndex)]) ? 1 : 0),
+        'index-of':          ((arr, value, fromIndex) => call_array_method(arr, 'indexOf', [from_fasl(value), from_fasl(fromIndex)])),
+        'join':              ((arr, sep) => call_array_method(arr, 'join', [from_fasl(sep)])),
+        'keys':              (arr => call_array_method(arr, 'keys')),
+        'last-index-of':     ((arr, value, fromIndex) => call_array_method(arr, 'lastIndexOf', [from_fasl(value), from_fasl(fromIndex)])),
+        'map':               ((arr, fn, thisArg) => call_array_method(arr, 'map', [fn, from_fasl(thisArg)])),
+        'pop':               (arr => call_array_method(arr, 'pop')),
+        'push':              ((arr, items) => call_array_method(arr, 'push', from_fasl(items) || [])),
         'reduce':            ((arr, fn, init) => {
-            const i = from_fasl(init);
-            return i === undefined ? arr.reduce(fn) : arr.reduce(fn, i);
+                const i = from_fasl(init);
+                return i === undefined
+                  ? call_array_method(arr, 'reduce', [fn])
+                  : call_array_method(arr, 'reduce', [fn, i]);
         }),
         'reduce-right':      ((arr, fn, init) => {
-            const i = from_fasl(init);
-            return i === undefined ? arr.reduceRight(fn) : arr.reduceRight(fn, i);
+                const i = from_fasl(init);
+                return i === undefined
+                  ? call_array_method(arr, 'reduceRight', [fn])
+                  : call_array_method(arr, 'reduceRight', [fn, i]);
         }),
-        'reverse':           (arr => arr.reverse()),
-        'shift':             (arr => arr.shift()),
-        'slice':             ((arr, start, end) => arr.slice(from_fasl(start), from_fasl(end))),
-        'some':              ((arr, fn, thisArg) => arr.some(fn, from_fasl(thisArg)) ? 1 : 0),
-        'sort':              ((arr, fn) => arr.sort(fn)),
-        'splice':            ((arr, items) => arr.splice(...(from_fasl(items) || []))),
-        'to-locale-string':  ((arr, args) => arr.toLocaleString(...(from_fasl(args) || []))),
-        'to-string':         (arr => arr.toString()),
-        'unshift':           ((arr, items) => arr.unshift(...(from_fasl(items) || []))),
-        'values':            (arr => arr.values()),
-        'to-reversed':       (arr => (arr.toReversed ? arr.toReversed() : [...arr].reverse())),
-        'to-sorted':         ((arr, fn) => (arr.toSorted ? arr.toSorted(fn) : [...arr].sort(fn))),
-        'to-spliced':        ((arr, items) => (arr.toSpliced ? arr.toSpliced(...(from_fasl(items) || [])) : (() => { const b = arr.slice(); b.splice(...(from_fasl(items) || [])); return b; })())),
-        'with':              ((arr, index, value) => (arr.with ? arr.with(index, from_fasl(value)) : (() => { const b = arr.slice(); b[index] = from_fasl(value); return b; })())),
+        'reverse':           (arr => call_array_method(arr, 'reverse')),
+        'shift':             (arr => call_array_method(arr, 'shift')),
+        'slice':             ((arr, start, end) => call_array_method(arr, 'slice', [from_fasl(start), from_fasl(end)])),
+        'some':              ((arr, fn, thisArg) => call_array_method(arr, 'some', [fn, from_fasl(thisArg)]) ? 1 : 0),
+        'sort':              ((arr, fn) => call_array_method(arr, 'sort', [fn])),
+        'splice':            ((arr, items) => call_array_method(arr, 'splice', from_fasl(items) || [])),
+        'to-locale-string':  ((arr, args) => call_array_method(arr, 'toLocaleString', from_fasl(args) || [])),
+        'to-string':         (arr => call_array_method(arr, 'toString')),
+        'unshift':           ((arr, items) => call_array_method(arr, 'unshift', from_fasl(items) || [])),
+        'values':            (arr => call_array_method(arr, 'values')),
+        'to-reversed':       (arr => (typeof arr.toReversed === 'function' ? arr.toReversed() : [...arr].reverse())),
+        'to-sorted':         ((arr, fn) => (typeof arr.toSorted === 'function' ? arr.toSorted(fn) : [...arr].sort(fn))),
+        'to-spliced':        ((arr, items) => (typeof arr.toSpliced === 'function' ? arr.toSpliced(...(from_fasl(items) || [])) : (() => { const b = call_array_method(arr, 'slice'); call_array_method(b, 'splice', from_fasl(items) || []); return b; })())),
+        'with':              ((arr, index, value) => (typeof arr.with === 'function' ? arr.with(index, from_fasl(value)) : (() => { const b = call_array_method(arr, 'slice'); b[index] = from_fasl(value); return b; })())),
     },
     // Canvas
     'canvas': hasDOM ? {

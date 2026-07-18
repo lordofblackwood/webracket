@@ -82,19 +82,35 @@
 (define (array-items->vector items)
   (list->vector (map array-unwrap items)))
 
+;; check-array-global-method : symbol? string? -> external/raw
+;;   Return the Array constructor after checking a required static method.
+(define (check-array-global-method who method-name)
+  (define array-ctor (unsafe:js-var "Array"))
+  (unless (string=? (unsafe:js-typeof array-ctor) "function")
+    (raise-arguments-error who "Array is not available"))
+  (define method (unsafe:js-ref/extern array-ctor method-name))
+  (unless (and (not (unsafe:js-nullish? method))
+               (string=? (unsafe:js-typeof method) "function"))
+    (raise-arguments-error who
+                           (string-append "Array."
+                                          method-name
+                                          " is not available")))
+  array-ctor)
+
 ;; array-from : any/c [(or/c procedure? external?) #f] [any/c #f] -> array?
 ;;   Build an array from an iterable or array-like value.
 ;;   When map-function is supplied, it is called with each element and its
 ;;   index; this-arg becomes the JavaScript this value during those calls.
 (define (array-from source [map-function #f] [this-arg #f])
   (define source* (array-unwrap source))
+  (define array-ctor (check-array-global-method 'array-from "from"))
   (cond
     [(eq? map-function #f)
-     (array-wrap (unsafe:js-send/extern (unsafe:js-var "Array") "from" (vector source*)))]
+     (array-wrap (unsafe:js-send/extern array-ctor "from" (vector source*)))]
     [(eq? this-arg #f)
-     (array-wrap (unsafe:js-send/extern (unsafe:js-var "Array") "from" (vector source* map-function)))]
+     (array-wrap (unsafe:js-send/extern array-ctor "from" (vector source* map-function)))]
     [else
-     (array-wrap (unsafe:js-send/extern (unsafe:js-var "Array") "from"
+     (array-wrap (unsafe:js-send/extern array-ctor "from"
                                         (vector source* map-function (array-unwrap this-arg))))]))
 
 ;; array-from-async : any/c [(or/c procedure? external?) #f] [any/c #f] -> array?
@@ -103,13 +119,14 @@
 ;;   index; this-arg becomes the JavaScript this value during those calls.
 (define (array-from-async source [map-function #f] [this-arg #f])
   (define source* (array-unwrap source))
+  (define array-ctor (check-array-global-method 'array-from-async "fromAsync"))
   (cond
     [(eq? map-function #f)
-     (array-wrap (unsafe:js-send/extern (unsafe:js-var "Array") "fromAsync" (vector source*)))]
+     (array-wrap (unsafe:js-send/extern array-ctor "fromAsync" (vector source*)))]
     [(eq? this-arg #f)
-     (array-wrap (unsafe:js-send/extern (unsafe:js-var "Array") "fromAsync" (vector source* map-function)))]
+     (array-wrap (unsafe:js-send/extern array-ctor "fromAsync" (vector source* map-function)))]
     [else
-     (array-wrap (unsafe:js-send/extern (unsafe:js-var "Array") "fromAsync"
+     (array-wrap (unsafe:js-send/extern array-ctor "fromAsync"
                                         (vector source* map-function (array-unwrap this-arg))))]))
 
 ;; array-of : any/c ... -> array?
@@ -188,9 +205,9 @@
   (define arr* (array-unwrap arr))
   (cond
     [(and (eq? start #f) (eq? end #f))
-     (array-wrap (unsafe:js-send/extern arr* "slice" (vector)))]
+     (array-wrap (unsafe:js-array-slice arr* (void) (void)))]
     [(eq? end #f)
-     (array-wrap (unsafe:js-send/extern arr* "slice" (vector start)))]
+     (array-wrap (unsafe:js-array-slice arr* start (void)))]
     [else
      (array-wrap (unsafe:js-array-slice arr* start end))]))
 
@@ -205,7 +222,7 @@
 (define (array-copy-within! arr target start [end #f])
   (define arr* (array-unwrap arr))
   (if (eq? end #f)
-      (array-wrap (unsafe:js-send/extern arr* "copyWithin" (vector target start)))
+      (array-wrap (unsafe:js-array-copy-within arr* target start (void)))
       (array-wrap (unsafe:js-array-copy-within arr* target start end))))
 
 ;; array-fill! : any/c any/c [any/c #f] [any/c #f] -> array?
@@ -215,9 +232,9 @@
   (define arr* (array-unwrap arr))
   (cond
     [(and (eq? start #f) (eq? end #f))
-     (array-wrap (unsafe:js-send/extern arr* "fill" (vector (array-unwrap value))))]
+     (array-wrap (unsafe:js-array-fill arr* (array-unwrap value) (void) (void)))]
     [(eq? end #f)
-     (array-wrap (unsafe:js-send/extern arr* "fill" (vector (array-unwrap value) start)))]
+     (array-wrap (unsafe:js-array-fill arr* (array-unwrap value) start (void)))]
     [else
      (array-wrap (unsafe:js-array-fill arr* (array-unwrap value) start end))]))
 
@@ -252,7 +269,7 @@
 (define (array-sort! arr [compare-function #f])
   (define arr* (array-unwrap arr))
   (if (eq? compare-function #f)
-      (array-wrap (unsafe:js-send/extern arr* "sort" (vector)))
+      (array-wrap (unsafe:js-array-sort arr* (unsafe:js-undefined)))
       (array-wrap (unsafe:js-array-sort arr* compare-function))))
 
 ;; array-splice! : any/c exact-integer? exact-integer? any/c ... -> array?
@@ -266,7 +283,7 @@
 ;;   Convert the array to a localized string.
 (define (array-to-locale-string arr [locales-options #f])
   (if (eq? locales-options #f)
-      (unsafe:js-send/value (array-unwrap arr) "toLocaleString" (vector))
+      (unsafe:js-array-to-locale-string (array-unwrap arr) (void))
       (unsafe:js-array-to-locale-string (array-unwrap arr) locales-options)))
 
 ;; array-to-string : any/c -> string?
@@ -285,7 +302,7 @@
 (define (array-flat arr [depth #f])
   (define arr* (array-unwrap arr))
   (if (eq? depth #f)
-      (array-wrap (unsafe:js-send/extern arr* "flat" (vector)))
+      (array-wrap (unsafe:js-array-flat arr* (void)))
       (array-wrap (unsafe:js-array-flat arr* depth))))
 
 ;; array-to-reversed : any/c -> array?
@@ -300,7 +317,7 @@
 (define (array-to-sorted arr [compare-function #f])
   (define arr* (array-unwrap arr))
   (if (eq? compare-function #f)
-      (array-wrap (unsafe:js-send/extern arr* "toSorted" (vector)))
+      (array-wrap (unsafe:js-array-to-sorted arr* (unsafe:js-undefined)))
       (array-wrap (unsafe:js-array-to-sorted arr* compare-function))))
 
 ;; array-to-spliced : any/c exact-integer? exact-integer? any/c ... -> array?
