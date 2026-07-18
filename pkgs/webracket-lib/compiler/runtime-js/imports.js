@@ -93,13 +93,18 @@ function assert_ffi_exception_bridge_visible_imports(module, imports, label) {
 }
 
 function call_console_fallback(name, fallbackName, args) {
-  const method = typeof console[name] === 'function'
-    ? console[name]
-    : fallbackName && typeof console[fallbackName] === 'function'
-      ? console[fallbackName]
+  const target = typeof console === 'undefined' ? null : console;
+  if (!target) {
+    return;
+  }
+
+  const method = typeof target[name] === 'function'
+    ? target[name]
+    : fallbackName && typeof target[fallbackName] === 'function'
+      ? target[fallbackName]
       : null;
   if (method) {
-    return method.apply(console, args);
+    return method.call(target, ...args);
   }
 }
 
@@ -745,17 +750,17 @@ var imports = {
 
     // Console FFI.
     'console': {
-      'log':                       (args => console.log(...(from_fasl(args) || []))),
-      'info':                      (args => console.info(...(from_fasl(args) || []))),
-      'warn':                      (args => console.warn(...(from_fasl(args) || []))),
-      'error':                     (args => console.error(...(from_fasl(args) || []))),
-      'debug':                     (args => console.debug(...(from_fasl(args) || []))),
+      'log':                       (args => call_console_fallback('log', null, from_fasl(args) || [])),
+      'info':                      (args => call_console_fallback('info', 'log', from_fasl(args) || [])),
+      'warn':                      (args => call_console_fallback('warn', 'log', from_fasl(args) || [])),
+      'error':                     (args => call_console_fallback('error', 'log', from_fasl(args) || [])),
+      'debug':                     (args => call_console_fallback('debug', 'log', from_fasl(args) || [])),
       'assert':                    (args => {
                                      const as = from_fasl(args) || [];
-                                     console.assert(...as);
+                                     call_console_fallback('assert', 'error', as);
                                    }),
-      'clear':                     (() => console.clear()),
-      'dir':                       (args => console.dir(...(from_fasl(args) || []))),
+      'clear':                     (() => call_console_fallback('clear', null, [])),
+      'dir':                       (args => call_console_fallback('dir', 'log', from_fasl(args) || [])),
       'dirxml':                    (args => {
                                      const as = from_fasl(args) || [];
                                      call_console_fallback('dirxml', 'log', as);
@@ -764,19 +769,19 @@ var imports = {
                                      const as = from_fasl(args) || [];
                                      call_console_fallback('table', 'log', as);
                                    }),
-      'group':                     (args => console.group(...(from_fasl(args) || []))),
-      'group-collapsed':           (args => console.groupCollapsed(...(from_fasl(args) || []))),
-      'group-end':                 (() => console.groupEnd()),
-      'count':                     (args => console.count(...(from_fasl(args) || []))),
+      'group':                     (args => call_console_fallback('group', 'log', from_fasl(args) || [])),
+      'group-collapsed':           (args => call_console_fallback('groupCollapsed', 'log', from_fasl(args) || [])),
+      'group-end':                 (() => call_console_fallback('groupEnd', null, [])),
+      'count':                     (args => call_console_fallback('count', 'log', from_fasl(args) || [])),
       'count-reset':               (args => {
                                      const as = from_fasl(args) || [];
                                      call_console_fallback('countReset', 'count', as);
                                    }),
-      'time':                      (args => console.time(...(from_fasl(args) || []))),
-      'time-end':                  (args => console.timeEnd(...(from_fasl(args) || []))),
-      'time-log':                  (args => console.timeLog(...(from_fasl(args) || []))),
+      'time':                      (args => call_console_fallback('time', null, from_fasl(args) || [])),
+      'time-end':                  (args => call_console_fallback('timeEnd', null, from_fasl(args) || [])),
+      'time-log':                  (args => call_console_fallback('timeLog', null, from_fasl(args) || [])),
       'time-stamp':                (args => call_console_fallback('timeStamp', null, from_fasl(args) || [])),
-      'trace':                     (args => console.trace(...(from_fasl(args) || []))),
+      'trace':                     (args => call_console_fallback('trace', 'log', from_fasl(args) || [])),
       'profile':                   (args => call_console_fallback('profile', null, from_fasl(args) || [])),
       'profile-end':               (args => call_console_fallback('profileEnd', null, from_fasl(args) || [])),
       'exception':                 (args => call_console_fallback('exception', 'error', from_fasl(args) || [])),
