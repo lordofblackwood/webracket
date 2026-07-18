@@ -1,6 +1,6 @@
 #lang webracket/base
 
-;; Browser smoke for Gamepad wrapper host-method boundary errors.
+;; Browser smoke for Gamepad wrapper host boundary errors.
 
 (require gamepad
          (only-in webracket/unsafe/standard
@@ -33,6 +33,28 @@
  "globalThis.__wrGamepadBoundarySaved = {};
   globalThis.__wrGamepadBoundaryTarget = (name) =>
     name === 'navigator' ? navigator : window;
+  globalThis.__wrGamepadBoundaryFakeGamepad = (missing) => {
+    const gamepad = {
+      id: 'wr-gamepad',
+      index: 0,
+      connected: true,
+      timestamp: 1.5,
+      mapping: 'standard',
+      axes: [0.0],
+      buttons: [{ pressed: false, touched: false, value: 0.0 }]
+    };
+    delete gamepad[missing];
+    return gamepad;
+  };
+  globalThis.__wrGamepadBoundaryFakeButton = (missing) => {
+    const button = {
+      pressed: false,
+      touched: false,
+      value: 0.0
+    };
+    delete button[missing];
+    return button;
+  };
   globalThis.__wrGamepadBoundaryPatch = (targetName, methodName) => {
     const target = globalThis.__wrGamepadBoundaryTarget(targetName);
     const key = `${targetName}.${methodName}`;
@@ -64,10 +86,26 @@
     }
     delete globalThis.__wrGamepadBoundarySaved;
     delete globalThis.__wrGamepadBoundaryTarget;
+    delete globalThis.__wrGamepadBoundaryFakeGamepad;
+    delete globalThis.__wrGamepadBoundaryFakeButton;
     delete globalThis.__wrGamepadBoundaryPatch;
     delete globalThis.__wrGamepadBoundaryRestore;
     delete globalThis.__wrGamepadBoundaryRestoreAll;
   };")
+
+(define (fake-gamepad missing-property)
+  (gamepad-wrap
+   (js-eval
+    (string-append "__wrGamepadBoundaryFakeGamepad('"
+                   missing-property
+                   "')"))))
+
+(define (fake-button missing-property)
+  (gamepad-button-wrap
+   (js-eval
+    (string-append "__wrGamepadBoundaryFakeButton('"
+                   missing-property
+                   "')"))))
 
 (define (missing-method-message target method thunk)
   (js-eval (string-append "__wrGamepadBoundaryPatch('"
@@ -120,6 +158,56 @@
    (lambda ()
      (gamepad-remove-disconnected-listener! callback))))
 
+(define id-message
+  (catch-message
+   (lambda ()
+     (gamepad-id (fake-gamepad "id")))))
+
+(define index-message
+  (catch-message
+   (lambda ()
+     (gamepad-index (fake-gamepad "index")))))
+
+(define connected-message
+  (catch-message
+   (lambda ()
+     (gamepad-connected? (fake-gamepad "connected")))))
+
+(define timestamp-message
+  (catch-message
+   (lambda ()
+     (gamepad-timestamp (fake-gamepad "timestamp")))))
+
+(define mapping-message
+  (catch-message
+   (lambda ()
+     (gamepad-mapping (fake-gamepad "mapping")))))
+
+(define axes-message
+  (catch-message
+   (lambda ()
+     (gamepad-axes (fake-gamepad "axes")))))
+
+(define buttons-message
+  (catch-message
+   (lambda ()
+     (gamepad-buttons (fake-gamepad "buttons")))))
+
+(define button-pressed-message
+  (catch-message
+   (lambda ()
+     (gamepad-button-pressed? (fake-button "pressed")))))
+
+(define button-touched-message
+  (catch-message
+   (lambda ()
+     (gamepad-button-touched? (fake-button "touched")))))
+
+(define button-value-message
+  (catch-message
+   (lambda ()
+     (gamepad-button-value (fake-button "value")))))
+
 (check-message get-gamepads-message
                "navigator.getGamepads is not available"
                "missing navigator.getGamepads message")
@@ -135,6 +223,36 @@
 (check-message remove-disconnected-message
                "window.removeEventListener is not available"
                "missing remove disconnected listener message")
+(check-message id-message
+               "Gamepad.id is not available"
+               "missing Gamepad.id message")
+(check-message index-message
+               "Gamepad.index is not available"
+               "missing Gamepad.index message")
+(check-message connected-message
+               "Gamepad.connected is not available"
+               "missing Gamepad.connected message")
+(check-message timestamp-message
+               "Gamepad.timestamp is not available"
+               "missing Gamepad.timestamp message")
+(check-message mapping-message
+               "Gamepad.mapping is not available"
+               "missing Gamepad.mapping message")
+(check-message axes-message
+               "Gamepad.axes is not available"
+               "missing Gamepad.axes message")
+(check-message buttons-message
+               "Gamepad.buttons is not available"
+               "missing Gamepad.buttons message")
+(check-message button-pressed-message
+               "GamepadButton.pressed is not available"
+               "missing GamepadButton.pressed message")
+(check-message button-touched-message
+               "GamepadButton.touched is not available"
+               "missing GamepadButton.touched message")
+(check-message button-value-message
+               "GamepadButton.value is not available"
+               "missing GamepadButton.value message")
 
 (js-eval "__wrGamepadBoundaryRestoreAll();")
 

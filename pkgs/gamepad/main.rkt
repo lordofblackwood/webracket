@@ -47,6 +47,11 @@
   (and (not (js-nullish? method))
        (string=? (js-typeof method) "function")))
 
+;; gamepad-property-present? : external/raw string? -> boolean?
+;;   Report whether raw exposes a non-nullish property named property-name.
+(define (gamepad-property-present? raw property-name)
+  (not (js-nullish? (js-ref/extern raw property-name))))
+
 ;; gamepad-vector-map : procedure? vector? -> vector?
 ;;   Map proc over vec without depending on racket/vector.
 (define (gamepad-vector-map proc vec)
@@ -76,6 +81,20 @@
   (unless (gamepad-method-present? (js-window-window) method-name)
     (raise-arguments-error who
                            (string-append "window." method-name " is not available"))))
+
+;; check-gamepad-property : symbol? gamepad-info? string? -> void?
+;;   Ensure a required Gamepad property is available.
+(define (check-gamepad-property who value property-name)
+  (unless (gamepad-property-present? (gamepad-raw value) property-name)
+    (raise-arguments-error who
+                           (string-append "Gamepad." property-name " is not available"))))
+
+;; check-gamepad-button-property : symbol? gamepad-button-info? string? -> void?
+;;   Ensure a required GamepadButton property is available.
+(define (check-gamepad-button-property who value property-name)
+  (unless (gamepad-property-present? (gamepad-button-raw value) property-name)
+    (raise-arguments-error who
+                           (string-append "GamepadButton." property-name " is not available"))))
 
 ;; gamepad? : any/c -> boolean?
 ;;   Report whether v is a wrapped Gamepad object.
@@ -119,6 +138,7 @@
 (define (gamepad-id value)
   (unless (gamepad? value)
     (raise-argument-error 'gamepad-id "gamepad?" value))
+  (check-gamepad-property 'gamepad-id value "id")
   (js-ref (gamepad-raw value) "id"))
 
 ;; gamepad-index : gamepad? -> exact-nonnegative-integer?
@@ -126,6 +146,7 @@
 (define (gamepad-index value)
   (unless (gamepad? value)
     (raise-argument-error 'gamepad-index "gamepad?" value))
+  (check-gamepad-property 'gamepad-index value "index")
   (js-ref (gamepad-raw value) "index"))
 
 ;; gamepad-connected? : gamepad? -> boolean?
@@ -133,6 +154,7 @@
 (define (gamepad-connected? value)
   (unless (gamepad? value)
     (raise-argument-error 'gamepad-connected? "gamepad?" value))
+  (check-gamepad-property 'gamepad-connected? value "connected")
   (js-ref (gamepad-raw value) "connected"))
 
 ;; gamepad-timestamp : gamepad? -> number?
@@ -140,6 +162,7 @@
 (define (gamepad-timestamp value)
   (unless (gamepad? value)
     (raise-argument-error 'gamepad-timestamp "gamepad?" value))
+  (check-gamepad-property 'gamepad-timestamp value "timestamp")
   (js-ref (gamepad-raw value) "timestamp"))
 
 ;; gamepad-mapping : gamepad? -> string?
@@ -147,6 +170,7 @@
 (define (gamepad-mapping value)
   (unless (gamepad? value)
     (raise-argument-error 'gamepad-mapping "gamepad?" value))
+  (check-gamepad-property 'gamepad-mapping value "mapping")
   (js-ref (gamepad-raw value) "mapping"))
 
 ;; gamepad-axes : gamepad? -> vector?
@@ -154,6 +178,7 @@
 (define (gamepad-axes value)
   (unless (gamepad? value)
     (raise-argument-error 'gamepad-axes "gamepad?" value))
+  (check-gamepad-property 'gamepad-axes value "axes")
   (js-array->vector (js-ref/extern (gamepad-raw value) "axes")))
 
 ;; gamepad-buttons : gamepad? -> vector?
@@ -161,6 +186,7 @@
 (define (gamepad-buttons value)
   (unless (gamepad? value)
     (raise-argument-error 'gamepad-buttons "gamepad?" value))
+  (check-gamepad-property 'gamepad-buttons value "buttons")
   (gamepad-vector-map
    gamepad-button-wrap
    (js-array->vector (js-ref/extern (gamepad-raw value) "buttons"))))
@@ -170,6 +196,7 @@
 (define (gamepad-button-pressed? value)
   (unless (gamepad-button? value)
     (raise-argument-error 'gamepad-button-pressed? "gamepad-button?" value))
+  (check-gamepad-button-property 'gamepad-button-pressed? value "pressed")
   (js-ref (gamepad-button-raw value) "pressed"))
 
 ;; gamepad-button-touched? : gamepad-button? -> boolean?
@@ -177,6 +204,7 @@
 (define (gamepad-button-touched? value)
   (unless (gamepad-button? value)
     (raise-argument-error 'gamepad-button-touched? "gamepad-button?" value))
+  (check-gamepad-button-property 'gamepad-button-touched? value "touched")
   (js-ref (gamepad-button-raw value) "touched"))
 
 ;; gamepad-button-value : gamepad-button? -> number?
@@ -184,6 +212,7 @@
 (define (gamepad-button-value value)
   (unless (gamepad-button? value)
     (raise-argument-error 'gamepad-button-value "gamepad-button?" value))
+  (check-gamepad-button-property 'gamepad-button-value value "value")
   (js-ref (gamepad-button-raw value) "value"))
 
 ;; gamepad-callback->external : symbol? any/c -> external/raw
