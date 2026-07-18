@@ -141,6 +141,12 @@ function call_array_method(arr, methodName, args = []) {
                                `Array.${methodName}`)(...args);
 }
 
+function call_number_method(x, methodName, args = []) {
+  return require_host_function(x,
+                               methodName,
+                               `Number.${methodName}`)(...args);
+}
+
 function call_jsxgraph_board_create(board, elementType, parents, attrs) {
   const create = require_host_function(board,
                                        'create',
@@ -1031,27 +1037,38 @@ var imports = {
         // Convert number to exponential notation.
         'to-exponential':    ((x, fd) => {
                                  const d = from_fasl(fd);
-                                 return d === undefined ? x.toExponential() : x.toExponential(d);
+                                 return d === undefined
+                                   ? call_number_method(x, 'toExponential')
+                                   : call_number_method(x, 'toExponential', [d]);
                                }),
         // Format number with fixed-point notation.
         'to-fixed':          ((x, digits) => {
                                  const d = from_fasl(digits);
-                                 return d === undefined ? x.toFixed() : x.toFixed(d);
+                                 return d === undefined
+                                   ? call_number_method(x, 'toFixed')
+                                   : call_number_method(x, 'toFixed', [d]);
                                }),
         // Format number using locale-specific rules.
-        'to-locale-string':  ((x, locales, options) => x.toLocaleString(from_fasl(locales), from_fasl(options))),
+        'to-locale-string':  ((x, locales, options) => call_number_method(x,
+                                                                          'toLocaleString',
+                                                                          [from_fasl(locales),
+                                                                           from_fasl(options)])),
         // Format number with specified precision.
         'to-precision':      ((x, precision) => {
                                  const p = from_fasl(precision);
-                                 return p === undefined ? x.toPrecision() : x.toPrecision(p);
+                                 return p === undefined
+                                   ? call_number_method(x, 'toPrecision')
+                                   : call_number_method(x, 'toPrecision', [p]);
                                }),
         // Convert number to string with optional radix.
         'to-string':         ((x, radix) => {
                                  const r = from_fasl(radix);
-                                 return r === undefined ? x.toString() : x.toString(r);
+                                 return r === undefined
+                                   ? call_number_method(x, 'toString')
+                                   : call_number_method(x, 'toString', [r]);
                                }),
         // Extract primitive numeric value.
-        'value-of':          (x => x.valueOf())
+        'value-of':          (x => call_number_method(x, 'valueOf'))
     },
 
     // JavaScript Array FFI.
