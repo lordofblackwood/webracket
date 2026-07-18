@@ -163,16 +163,16 @@ function call_jsxgraph_method(owner, ownerName, methodName, args = []) {
 }
 
 function get_window_property(name) {
-  return get_host_property(typeof window === 'undefined' ? null : window,
-                           name,
-                           `window.${name}`);
+  return get_required_host_property(typeof window === 'undefined' ? null : window,
+                                    name,
+                                    `window.${name}`);
 }
 
 function set_window_property(name, value) {
-  set_host_property(typeof window === 'undefined' ? null : window,
-                    name,
-                    value,
-                    `window.${name}`);
+  set_required_host_property(typeof window === 'undefined' ? null : window,
+                             name,
+                             value,
+                             `window.${name}`);
 }
 
 function require_document_target(displayName) {
