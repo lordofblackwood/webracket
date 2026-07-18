@@ -288,6 +288,34 @@ function get_dom_rect_property(rect, name) {
   return get_required_host_property(rect, name, `DOMRect.${name}`);
 }
 
+function get_element_property(elem, name) {
+  return get_required_host_property(elem, name, `Element.${name}`);
+}
+
+function set_element_property(elem, name, value) {
+  set_required_host_property(elem, name, value, `Element.${name}`);
+}
+
+function get_dom_token_list_property(list, name) {
+  return get_required_host_property(list, name, `DOMTokenList.${name}`);
+}
+
+function get_node_list_property(list, name) {
+  return get_required_host_property(list, name, `NodeList.${name}`);
+}
+
+function get_html_collection_property(list, name) {
+  return get_required_host_property(list, name, `HTMLCollection.${name}`);
+}
+
+function get_shadow_root_property(root, name) {
+  return get_required_host_property(root, name, `ShadowRoot.${name}`);
+}
+
+function get_dom_rect_list_property(list, name) {
+  return get_required_host_property(list, name, `DOMRectList.${name}`);
+}
+
 function get_jsxgraph_board_property(board, name) {
   return get_host_property(board, name, `JSXGraph Board.${name}`);
 }
@@ -2394,60 +2422,60 @@ var imports = {
     },
     // Element
     'element': hasDOM ? {
-        'class-list':              (elem => get_host_property(elem, 'classList', 'Element.classList')),
-        'id':                      (elem => get_host_property(elem, 'id', 'Element.id')),
-        'set-id!':                 ((elem, id) => { set_host_property(elem, 'id', from_fasl(id), 'Element.id'); }),
-        'class-name':              (elem => get_host_property(elem, 'className', 'Element.className')),
-        'set-class-name!':         ((elem, name) => { set_host_property(elem, 'className', from_fasl(name), 'Element.className'); }),
-        'tag-name':                (elem => get_host_property(elem, 'tagName', 'Element.tagName')),
-        'local-name':              (elem => get_host_property(elem, 'localName', 'Element.localName')),
-        'namespace-uri':           (elem => get_host_property(elem, 'namespaceURI', 'Element.namespaceURI')),
-        'prefix':                  (elem => get_host_property(elem, 'prefix', 'Element.prefix')),
-        'is-connected':            (elem => get_host_property(elem, 'isConnected', 'Element.isConnected') ? 1 : 0),
-        'children':                (elem => get_host_property(elem, 'children', 'Element.children')),
-        'scroll-top':              (elem => get_host_property(elem, 'scrollTop', 'Element.scrollTop')),
-        'set-scroll-top!':         ((elem, value) => { set_host_property(elem, 'scrollTop', from_fasl(value), 'Element.scrollTop'); }),
-        'scroll-left':             (elem => get_host_property(elem, 'scrollLeft', 'Element.scrollLeft')),
-        'set-scroll-left!':        ((elem, value) => { set_host_property(elem, 'scrollLeft', from_fasl(value), 'Element.scrollLeft'); }),
-        'scroll-width':            (elem => get_host_property(elem, 'scrollWidth', 'Element.scrollWidth')),
-        'scroll-height':           (elem => get_host_property(elem, 'scrollHeight', 'Element.scrollHeight')),
-        'client-width':            (elem => get_host_property(elem, 'clientWidth', 'Element.clientWidth')),
-        'client-height':           (elem => get_host_property(elem, 'clientHeight', 'Element.clientHeight')),
-        'offset-width':            (elem => get_host_property(elem, 'offsetWidth', 'Element.offsetWidth')),
-        'offset-height':           (elem => get_host_property(elem, 'offsetHeight', 'Element.offsetHeight')),
-        'child-element-count':      (elem => get_host_property(elem, 'childElementCount', 'Element.childElementCount')),
-        'first-element-child':     (elem => get_host_property(elem, 'firstElementChild', 'Element.firstElementChild')),
-        'last-element-child':      (elem => get_host_property(elem, 'lastElementChild', 'Element.lastElementChild')),
-        'parent-element':          (elem => get_host_property(elem, 'parentElement', 'Element.parentElement')),
-        'previous-element-sibling': (elem => get_host_property(elem, 'previousElementSibling', 'Element.previousElementSibling')),
-        'next-element-sibling':    (elem => get_host_property(elem, 'nextElementSibling', 'Element.nextElementSibling')),
-        'inner-html':              (elem => get_host_property(elem, 'innerHTML', 'Element.innerHTML')),
-        'set-inner-html!':         ((elem, html) => { set_host_property(elem, 'innerHTML', from_fasl(html), 'Element.innerHTML'); }),
-        'outer-html':              (elem => get_host_property(elem, 'outerHTML', 'Element.outerHTML')),
-        'set-outer-html!':         ((elem, html) => { set_host_property(elem, 'outerHTML', from_fasl(html), 'Element.outerHTML'); }),
-        'text-content':            (elem => get_host_property(elem, 'textContent', 'Element.textContent')),
-        'set-text-content!':       ((elem, text) => { set_host_property(elem, 'textContent', from_fasl(text), 'Element.textContent'); }),
-        'shadow-root':             (elem => get_host_property(elem, 'shadowRoot', 'Element.shadowRoot')),
-        'dom-token-list-value':    (list => get_host_property(list, 'value', 'DOMTokenList.value')),
-        'dom-token-list-length':   (list => get_host_property(list, 'length', 'DOMTokenList.length')),
+        'class-list':              (elem => get_element_property(elem, 'classList')),
+        'id':                      (elem => get_element_property(elem, 'id')),
+        'set-id!':                 ((elem, id) => { set_element_property(elem, 'id', from_fasl(id)); }),
+        'class-name':              (elem => get_element_property(elem, 'className')),
+        'set-class-name!':         ((elem, name) => { set_element_property(elem, 'className', from_fasl(name)); }),
+        'tag-name':                (elem => get_element_property(elem, 'tagName')),
+        'local-name':              (elem => get_element_property(elem, 'localName')),
+        'namespace-uri':           (elem => get_element_property(elem, 'namespaceURI')),
+        'prefix':                  (elem => get_element_property(elem, 'prefix')),
+        'is-connected':            (elem => get_element_property(elem, 'isConnected') ? 1 : 0),
+        'children':                (elem => get_element_property(elem, 'children')),
+        'scroll-top':              (elem => get_element_property(elem, 'scrollTop')),
+        'set-scroll-top!':         ((elem, value) => { set_element_property(elem, 'scrollTop', from_fasl(value)); }),
+        'scroll-left':             (elem => get_element_property(elem, 'scrollLeft')),
+        'set-scroll-left!':        ((elem, value) => { set_element_property(elem, 'scrollLeft', from_fasl(value)); }),
+        'scroll-width':            (elem => get_element_property(elem, 'scrollWidth')),
+        'scroll-height':           (elem => get_element_property(elem, 'scrollHeight')),
+        'client-width':            (elem => get_element_property(elem, 'clientWidth')),
+        'client-height':           (elem => get_element_property(elem, 'clientHeight')),
+        'offset-width':            (elem => get_element_property(elem, 'offsetWidth')),
+        'offset-height':           (elem => get_element_property(elem, 'offsetHeight')),
+        'child-element-count':      (elem => get_element_property(elem, 'childElementCount')),
+        'first-element-child':     (elem => get_element_property(elem, 'firstElementChild')),
+        'last-element-child':      (elem => get_element_property(elem, 'lastElementChild')),
+        'parent-element':          (elem => get_element_property(elem, 'parentElement')),
+        'previous-element-sibling': (elem => get_element_property(elem, 'previousElementSibling')),
+        'next-element-sibling':    (elem => get_element_property(elem, 'nextElementSibling')),
+        'inner-html':              (elem => get_element_property(elem, 'innerHTML')),
+        'set-inner-html!':         ((elem, html) => { set_element_property(elem, 'innerHTML', from_fasl(html)); }),
+        'outer-html':              (elem => get_element_property(elem, 'outerHTML')),
+        'set-outer-html!':         ((elem, html) => { set_element_property(elem, 'outerHTML', from_fasl(html)); }),
+        'text-content':            (elem => get_element_property(elem, 'textContent')),
+        'set-text-content!':       ((elem, text) => { set_element_property(elem, 'textContent', from_fasl(text)); }),
+        'shadow-root':             (elem => get_element_property(elem, 'shadowRoot')),
+        'dom-token-list-value':    (list => get_dom_token_list_property(list, 'value')),
+        'dom-token-list-length':   (list => get_dom_token_list_property(list, 'length')),
         'dom-token-list-item':     ((list, index)         => require_host_function(list,
                                                                                    'item',
                                                                                    'DOMTokenList.item')(index)),
-        'node-list-length':       (list => get_host_property(list, 'length', 'NodeList.length')),
+        'node-list-length':       (list => get_node_list_property(list, 'length')),
         'node-list-item':         ((list, index)         => require_host_function(list,
                                                                                  'item',
                                                                                  'NodeList.item')(index)),
-        'html-collection-length': (list => get_host_property(list, 'length', 'HTMLCollection.length')),
+        'html-collection-length': (list => get_html_collection_property(list, 'length')),
         'html-collection-item':   ((list, index)         => require_host_function(list,
                                                                                  'item',
                                                                                  'HTMLCollection.item')(index)),
         'html-collection-named-item': ((list, name)      => require_host_function(list,
                                                                                   'namedItem',
                                                                                   'HTMLCollection.namedItem')(from_fasl(name))),
-        'shadow-root-host':       (root => get_host_property(root, 'host', 'ShadowRoot.host')),
-        'shadow-root-mode':       (root => get_host_property(root, 'mode', 'ShadowRoot.mode')),
-        'shadow-root-delegates-focus': (root => get_host_property(root, 'delegatesFocus', 'ShadowRoot.delegatesFocus') ? 1 : 0),
-        'dom-rect-list-length':   (list => get_host_property(list, 'length', 'DOMRectList.length')),
+        'shadow-root-host':       (root => get_shadow_root_property(root, 'host')),
+        'shadow-root-mode':       (root => get_shadow_root_property(root, 'mode')),
+        'shadow-root-delegates-focus': (root => get_shadow_root_property(root, 'delegatesFocus') ? 1 : 0),
+        'dom-rect-list-length':   (list => get_dom_rect_list_property(list, 'length')),
         'dom-rect-list-item':     ((list, index)         => require_host_function(list,
                                                                                  'item',
                                                                                  'DOMRectList.item')(index)),

@@ -20,8 +20,36 @@
                   js-element-get-elements-by-tag-name
                   js-element-get-elements-by-tag-name-ns
                   js-element-class-list
+                  js-element-class-name
+                  js-set-element-class-name!
+                  js-element-tag-name
+                  js-element-local-name
+                  js-element-namespace-uri
+                  js-element-prefix
+                  js-element-is-connected
+                  js-element-children
                   js-element-id
+                  js-element-inner-html
+                  js-set-element-inner-html!
+                  js-element-outer-html
+                  js-set-element-outer-html!
+                  js-element-text-content
+                  js-set-element-text-content!
                   js-element-scroll-top
+                  js-element-scroll-left
+                  js-set-element-scroll-left!
+                  js-element-scroll-width
+                  js-element-scroll-height
+                  js-element-client-width
+                  js-element-client-height
+                  js-element-offset-width
+                  js-element-offset-height
+                  js-element-child-element-count
+                  js-element-first-element-child
+                  js-element-last-element-child
+                  js-element-parent-element
+                  js-element-previous-element-sibling
+                  js-element-next-element-sibling
                   js-element-shadow-root
                   js-element-query-selector
                   js-element-query-selector-all
@@ -67,7 +95,9 @@
                   js-set-element-id!
                   js-set-element-scroll-top!
                   js-set-pointer-capture!
+                  js-shadow-root-delegates-focus
                   js-shadow-root-host
+                  js-shadow-root-mode
                   js-toggle-attribute!
                   js-toggle-attribute
                   js-eval))
@@ -95,6 +125,11 @@
                    (string-contains/simple? message needle))
               label))
 
+(define (check-missing-property thunk needle label)
+  (check-message (catch-message thunk)
+                 needle
+                 label))
+
 (js-eval
  "globalThis.__wrElementMethodBoundaryElement = document.createElement('div');
   globalThis.__wrElementMethodBoundaryElement.style.width = '4px';
@@ -107,6 +142,7 @@
 (define keyframes (js-eval "globalThis.__wrElementMethodBoundaryKeyframes"))
 (define options (js-eval "globalThis.__wrElementMethodBoundaryOptions"))
 (define shadow-init (js-eval "globalThis.__wrElementMethodBoundaryShadowInit"))
+(define (fresh-object) (js-eval "({})"))
 (define item-list-without-item (js-eval "({ item: undefined })"))
 (define collection-without-methods (js-eval "({ item: undefined, namedItem: undefined })"))
 (define js-null (js-eval "null"))
@@ -730,6 +766,175 @@
 (check-message null-dom-rect-list-length-message
                "DOMRectList.length: target object is null or undefined"
                "missing null DOMRectList.length message")
+
+(check-missing-property
+ (lambda () (js-element-class-list (fresh-object)))
+ "Element.classList not available in this environment"
+ "missing Element.classList property")
+(check-missing-property
+ (lambda () (js-element-id (fresh-object)))
+ "Element.id not available in this environment"
+ "missing Element.id property")
+(check-missing-property
+ (lambda () (js-set-element-id! (fresh-object) "id"))
+ "Element.id not available in this environment"
+ "missing Element.id set property")
+(check-missing-property
+ (lambda () (js-element-class-name (fresh-object)))
+ "Element.className not available in this environment"
+ "missing Element.className property")
+(check-missing-property
+ (lambda () (js-set-element-class-name! (fresh-object) "class"))
+ "Element.className not available in this environment"
+ "missing Element.className set property")
+(check-missing-property
+ (lambda () (js-element-tag-name (fresh-object)))
+ "Element.tagName not available in this environment"
+ "missing Element.tagName property")
+(check-missing-property
+ (lambda () (js-element-local-name (fresh-object)))
+ "Element.localName not available in this environment"
+ "missing Element.localName property")
+(check-missing-property
+ (lambda () (js-element-namespace-uri (fresh-object)))
+ "Element.namespaceURI not available in this environment"
+ "missing Element.namespaceURI property")
+(check-missing-property
+ (lambda () (js-element-prefix (fresh-object)))
+ "Element.prefix not available in this environment"
+ "missing Element.prefix property")
+(check-missing-property
+ (lambda () (js-element-is-connected (fresh-object)))
+ "Element.isConnected not available in this environment"
+ "missing Element.isConnected property")
+(check-missing-property
+ (lambda () (js-element-children (fresh-object)))
+ "Element.children not available in this environment"
+ "missing Element.children property")
+(check-missing-property
+ (lambda () (js-element-scroll-top (fresh-object)))
+ "Element.scrollTop not available in this environment"
+ "missing Element.scrollTop property")
+(check-missing-property
+ (lambda () (js-set-element-scroll-top! (fresh-object) 0.0))
+ "Element.scrollTop not available in this environment"
+ "missing Element.scrollTop set property")
+(check-missing-property
+ (lambda () (js-element-scroll-left (fresh-object)))
+ "Element.scrollLeft not available in this environment"
+ "missing Element.scrollLeft property")
+(check-missing-property
+ (lambda () (js-set-element-scroll-left! (fresh-object) 0.0))
+ "Element.scrollLeft not available in this environment"
+ "missing Element.scrollLeft set property")
+(check-missing-property
+ (lambda () (js-element-scroll-width (fresh-object)))
+ "Element.scrollWidth not available in this environment"
+ "missing Element.scrollWidth property")
+(check-missing-property
+ (lambda () (js-element-scroll-height (fresh-object)))
+ "Element.scrollHeight not available in this environment"
+ "missing Element.scrollHeight property")
+(check-missing-property
+ (lambda () (js-element-client-width (fresh-object)))
+ "Element.clientWidth not available in this environment"
+ "missing Element.clientWidth property")
+(check-missing-property
+ (lambda () (js-element-client-height (fresh-object)))
+ "Element.clientHeight not available in this environment"
+ "missing Element.clientHeight property")
+(check-missing-property
+ (lambda () (js-element-offset-width (fresh-object)))
+ "Element.offsetWidth not available in this environment"
+ "missing Element.offsetWidth property")
+(check-missing-property
+ (lambda () (js-element-offset-height (fresh-object)))
+ "Element.offsetHeight not available in this environment"
+ "missing Element.offsetHeight property")
+(check-missing-property
+ (lambda () (js-element-child-element-count (fresh-object)))
+ "Element.childElementCount not available in this environment"
+ "missing Element.childElementCount property")
+(check-missing-property
+ (lambda () (js-element-first-element-child (fresh-object)))
+ "Element.firstElementChild not available in this environment"
+ "missing Element.firstElementChild property")
+(check-missing-property
+ (lambda () (js-element-last-element-child (fresh-object)))
+ "Element.lastElementChild not available in this environment"
+ "missing Element.lastElementChild property")
+(check-missing-property
+ (lambda () (js-element-parent-element (fresh-object)))
+ "Element.parentElement not available in this environment"
+ "missing Element.parentElement property")
+(check-missing-property
+ (lambda () (js-element-previous-element-sibling (fresh-object)))
+ "Element.previousElementSibling not available in this environment"
+ "missing Element.previousElementSibling property")
+(check-missing-property
+ (lambda () (js-element-next-element-sibling (fresh-object)))
+ "Element.nextElementSibling not available in this environment"
+ "missing Element.nextElementSibling property")
+(check-missing-property
+ (lambda () (js-element-inner-html (fresh-object)))
+ "Element.innerHTML not available in this environment"
+ "missing Element.innerHTML property")
+(check-missing-property
+ (lambda () (js-set-element-inner-html! (fresh-object) "html"))
+ "Element.innerHTML not available in this environment"
+ "missing Element.innerHTML set property")
+(check-missing-property
+ (lambda () (js-element-outer-html (fresh-object)))
+ "Element.outerHTML not available in this environment"
+ "missing Element.outerHTML property")
+(check-missing-property
+ (lambda () (js-set-element-outer-html! (fresh-object) "html"))
+ "Element.outerHTML not available in this environment"
+ "missing Element.outerHTML set property")
+(check-missing-property
+ (lambda () (js-element-text-content (fresh-object)))
+ "Element.textContent not available in this environment"
+ "missing Element.textContent property")
+(check-missing-property
+ (lambda () (js-set-element-text-content! (fresh-object) "text"))
+ "Element.textContent not available in this environment"
+ "missing Element.textContent set property")
+(check-missing-property
+ (lambda () (js-element-shadow-root (fresh-object)))
+ "Element.shadowRoot not available in this environment"
+ "missing Element.shadowRoot property")
+(check-missing-property
+ (lambda () (js-dom-token-list-value (fresh-object)))
+ "DOMTokenList.value not available in this environment"
+ "missing DOMTokenList.value property")
+(check-missing-property
+ (lambda () (js-dom-token-list-length (fresh-object)))
+ "DOMTokenList.length not available in this environment"
+ "missing DOMTokenList.length property")
+(check-missing-property
+ (lambda () (js-node-list-length (fresh-object)))
+ "NodeList.length not available in this environment"
+ "missing NodeList.length property")
+(check-missing-property
+ (lambda () (js-html-collection-length (fresh-object)))
+ "HTMLCollection.length not available in this environment"
+ "missing HTMLCollection.length property")
+(check-missing-property
+ (lambda () (js-shadow-root-host (fresh-object)))
+ "ShadowRoot.host not available in this environment"
+ "missing ShadowRoot.host property")
+(check-missing-property
+ (lambda () (js-shadow-root-mode (fresh-object)))
+ "ShadowRoot.mode not available in this environment"
+ "missing ShadowRoot.mode property")
+(check-missing-property
+ (lambda () (js-shadow-root-delegates-focus (fresh-object)))
+ "ShadowRoot.delegatesFocus not available in this environment"
+ "missing ShadowRoot.delegatesFocus property")
+(check-missing-property
+ (lambda () (js-dom-rect-list-length (fresh-object)))
+ "DOMRectList.length not available in this environment"
+ "missing DOMRectList.length property")
 
 (js-log "element-method-missing-host-ffi-ok")
 #t
