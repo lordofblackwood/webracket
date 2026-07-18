@@ -66,6 +66,26 @@
    (lambda ()
      (xterm-terminal-on-bell js-null))))
 
+(define buffer-missing-message
+  (catch-message
+   (lambda ()
+     (xterm-terminal-buffer missing-terminal))))
+
+(define cols-missing-message
+  (catch-message
+   (lambda ()
+     (xterm-terminal-cols missing-terminal))))
+
+(define set-options-missing-message
+  (catch-message
+   (lambda ()
+     (xterm-set-terminal-options! missing-terminal options-object))))
+
+(define on-bell-missing-message
+  (catch-message
+   (lambda ()
+     (xterm-terminal-on-bell missing-terminal))))
+
 (define attach-key-message
   (catch-message
    (lambda ()
@@ -269,6 +289,18 @@
 (check-message on-bell-null-message
                "xterm.js Terminal.onBell: target object is null or undefined"
                "null Terminal.onBell message")
+(check-message buffer-missing-message
+               "xterm.js Terminal.buffer not available in this environment"
+               "missing Terminal.buffer message")
+(check-message cols-missing-message
+               "xterm.js Terminal.cols not available in this environment"
+               "missing Terminal.cols message")
+(check-message set-options-missing-message
+               "xterm.js Terminal.options not available in this environment"
+               "missing Terminal.options setter message")
+(check-message on-bell-missing-message
+               "xterm.js Terminal.onBell not available in this environment"
+               "missing Terminal.onBell message")
 (check-message attach-key-message
                "xterm.js Terminal.attachCustomKeyEventHandler not available in this environment"
                "missing attachCustomKeyEventHandler message")

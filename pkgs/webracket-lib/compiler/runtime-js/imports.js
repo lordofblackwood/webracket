@@ -187,25 +187,25 @@ function require_document_value(name, displayName) {
 }
 
 function get_performance_property(name) {
-  return get_host_property(typeof performance === 'undefined' ? null : performance,
-                           name,
-                           `performance.${name}`);
+  return get_required_host_property(typeof performance === 'undefined' ? null : performance,
+                                    name,
+                                    `performance.${name}`);
 }
 
 function get_performance_event_counts_property(counts, name) {
-  return get_host_property(counts, name, `PerformanceEventCounts.${name}`);
+  return get_required_host_property(counts, name, `PerformanceEventCounts.${name}`);
 }
 
 function get_performance_memory_info_property(mem, name) {
-  return get_host_property(mem, name, `PerformanceMemory.${name}`);
+  return get_required_host_property(mem, name, `PerformanceMemory.${name}`);
 }
 
 function get_xterm_terminal_property(term, name) {
-  return get_host_property(term, name, `xterm.js Terminal.${name}`);
+  return get_required_host_property(term, name, `xterm.js Terminal.${name}`);
 }
 
 function set_xterm_terminal_property(term, name, value) {
-  set_host_property(term, name, value, `xterm.js Terminal.${name}`);
+  set_required_host_property(term, name, value, `xterm.js Terminal.${name}`);
 }
 
 function get_canvas_element_property(canvas, name) {
@@ -317,15 +317,15 @@ function get_dom_rect_list_property(list, name) {
 }
 
 function get_jsxgraph_board_property(board, name) {
-  return get_host_property(board, name, `JSXGraph Board.${name}`);
+  return get_required_host_property(board, name, `JSXGraph Board.${name}`);
 }
 
 function get_jsxgraph_point_property(pt, name) {
-  return get_host_property(pt, name, `JSXGraph Point.${name}`);
+  return get_required_host_property(pt, name, `JSXGraph Point.${name}`);
 }
 
 function set_jsxgraph_point_property(pt, name, value) {
-  set_host_property(pt, name, value, `JSXGraph Point.${name}`);
+  set_required_host_property(pt, name, value, `JSXGraph Point.${name}`);
 }
 
 function construct_js_value(ctor, args) {
@@ -955,8 +955,8 @@ var imports = {
 
     // Temporary/prototype FFI.
     'temp': {
-      'x':                         ((o) => to_fasl(get_host_property(o, 'x', 'temp.x'))),
-      'set-x!':                    ((o, v) => { set_host_property(o, 'x', from_fasl(v), 'temp.x'); }),
+      'x':                         ((o) => to_fasl(get_required_host_property(o, 'x', 'temp.x'))),
+      'set-x!':                    ((o, v) => { set_required_host_property(o, 'x', from_fasl(v), 'temp.x'); }),
     },
 
     // JavaScript Math FFI.
@@ -1056,8 +1056,8 @@ var imports = {
 
     // JavaScript Array FFI.
     'array': {
-        'length':            (arr => get_host_property(arr, 'length', 'Array.length')),
-        'set-length!':       ((arr, len) => { set_host_property(arr, 'length', len, 'Array.length'); }),
+        'length':            (arr => get_required_host_property(arr, 'length', 'Array.length')),
+        'set-length!':       ((arr, len) => { set_required_host_property(arr, 'length', len, 'Array.length'); }),
         'from':              ((arrLike, mapFn, thisArg) => {
                 const a = from_fasl(arrLike);
                 const m = mapFn;
@@ -1816,7 +1816,7 @@ var imports = {
                                                             'performance.toJSON')())
     } : new Proxy({}, { get() { throw new Error('Performance API not available in this environment'); } }),
     'performance-event-count-map': hasPerformance ? {
-        'size':                (list => get_performance_event_counts_property(list, 'length'))
+        'size':                (list => get_performance_event_counts_property(list, 'size'))
     } : new Proxy({}, { get() { throw new Error('Performance API not available in this environment'); } }),
     'performance-memory-info': hasPerformance ? {
         'js-heap-size-limit':  (mem => get_performance_memory_info_property(mem, 'jsHeapSizeLimit')),

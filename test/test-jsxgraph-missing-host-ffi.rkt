@@ -37,6 +37,8 @@
               label))
 
 (define js-null (js-eval "null"))
+(define missing-board (js-eval "({})"))
+(define missing-point (js-eval "({})"))
 
 (define board-message
   (catch-message
@@ -78,6 +80,36 @@
    (lambda ()
      (js-jsx-point-snap-to-grid js-null))))
 
+(define board-id-missing-message
+  (catch-message
+   (lambda ()
+     (js-jsx-board-id missing-board))))
+
+(define board-canvas-width-missing-message
+  (catch-message
+   (lambda ()
+     (js-jsx-board-canvas-width missing-board))))
+
+(define board-objects-list-missing-message
+  (catch-message
+   (lambda ()
+     (js-jsx-board-objects-list missing-board))))
+
+(define point-size-missing-message
+  (catch-message
+   (lambda ()
+     (js-jsx-point-size missing-point))))
+
+(define set-point-size-missing-message
+  (catch-message
+   (lambda ()
+     (js-jsx-set-point-size! missing-point 4.0))))
+
+(define point-snap-to-grid-missing-message
+  (catch-message
+   (lambda ()
+     (js-jsx-point-snap-to-grid missing-point))))
+
 (check-message board-message
                "JSXGraph JXG.JSXGraph not available"
                "missing JSXGraph board message")
@@ -102,6 +134,24 @@
 (check-message point-snap-to-grid-null-message
                "JSXGraph Point.snapToGrid: target object is null or undefined"
                "null JSXGraph Point.snapToGrid message")
+(check-message board-id-missing-message
+               "JSXGraph Board.id not available in this environment"
+               "missing JSXGraph Board.id message")
+(check-message board-canvas-width-missing-message
+               "JSXGraph Board.canvasWidth not available in this environment"
+               "missing JSXGraph Board.canvasWidth message")
+(check-message board-objects-list-missing-message
+               "JSXGraph Board.objects not available in this environment"
+               "missing JSXGraph Board.objects message")
+(check-message point-size-missing-message
+               "JSXGraph Point.size not available in this environment"
+               "missing JSXGraph Point.size message")
+(check-message set-point-size-missing-message
+               "JSXGraph Point.size not available in this environment"
+               "missing JSXGraph Point.size setter message")
+(check-message point-snap-to-grid-missing-message
+               "JSXGraph Point.snapToGrid not available in this environment"
+               "missing JSXGraph Point.snapToGrid message")
 
 (js-log "jsxgraph-missing-host-ffi-ok")
 #t

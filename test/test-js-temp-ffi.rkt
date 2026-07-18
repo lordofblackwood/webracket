@@ -35,6 +35,7 @@
               label))
 
 (define obj (js-eval "({x: 17})"))
+(define missing-obj (js-eval "({})"))
 (define js-null (js-eval "null"))
 
 (check-equal (temp-x obj) 17 "initial temp x")
@@ -52,12 +53,28 @@
    (lambda ()
      (temp-set-x! js-null "updated"))))
 
+(define temp-x-missing-message
+  (catch-message
+   (lambda ()
+     (temp-x missing-obj))))
+
+(define temp-set-x-missing-message
+  (catch-message
+   (lambda ()
+     (temp-set-x! missing-obj "updated"))))
+
 (check-message temp-x-null-message
                "temp.x: target object is null or undefined"
                "null temp.x message")
 (check-message temp-set-x-null-message
                "temp.x: target object is null or undefined"
                "null temp.x setter message")
+(check-message temp-x-missing-message
+               "temp.x not available in this environment"
+               "missing temp.x message")
+(check-message temp-set-x-missing-message
+               "temp.x not available in this environment"
+               "missing temp.x setter message")
 
 (js-log "js-temp-ffi-ok")
 #t

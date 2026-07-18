@@ -42,6 +42,7 @@
               label))
 
 (define js-null (js-eval "null"))
+(define missing-length-object (js-eval "({})"))
 
 (js-eval
  "globalThis.__wrArrayBoundaryFake = (missing) => {
@@ -133,6 +134,16 @@
    (lambda ()
      (js-set-array-length! js-null 0))))
 
+(define length-missing-message
+  (catch-message
+   (lambda ()
+     (js-array-length missing-length-object))))
+
+(define set-length-missing-message
+  (catch-message
+   (lambda ()
+     (js-set-array-length! missing-length-object 0))))
+
 (js-eval
  "globalThis.__wrArrayBoundarySavedToSorted = Array.prototype.toSorted;
   Array.prototype.toSorted = undefined;")
@@ -187,6 +198,12 @@
 (check-message set-length-null-message
                "Array.length: target object is null or undefined"
                "null Array.length setter message")
+(check-message length-missing-message
+               "Array.length not available in this environment"
+               "missing Array.length message")
+(check-message set-length-missing-message
+               "Array.length not available in this environment"
+               "missing Array.length setter message")
 (check-equal to-sorted-fallback
              #(1 2 3)
              "Array.toSorted fallback")

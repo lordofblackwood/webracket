@@ -46,6 +46,7 @@
               label))
 
 (define js-null (js-eval "null"))
+(define missing-property-object (js-eval "({})"))
 
 (js-eval
  "globalThis.__wrPerformanceMethodBoundary = {};
@@ -154,6 +155,26 @@
    (lambda ()
      (js-performance-memory-info-used-js-heap-size js-null))))
 
+(define event-count-size-missing-message
+  (catch-message
+   (lambda ()
+     (js-performance-event-count-map-size missing-property-object))))
+
+(define memory-js-heap-size-limit-missing-message
+  (catch-message
+   (lambda ()
+     (js-performance-memory-info-js-heap-size-limit missing-property-object))))
+
+(define memory-total-js-heap-size-missing-message
+  (catch-message
+   (lambda ()
+     (js-performance-memory-info-total-js-heap-size missing-property-object))))
+
+(define memory-used-js-heap-size-missing-message
+  (catch-message
+   (lambda ()
+     (js-performance-memory-info-used-js-heap-size missing-property-object))))
+
 (js-eval
  "Object.entries(globalThis.__wrPerformanceMethodBoundary).forEach(([name, saved]) => {
     if (saved.hadOwn) {
@@ -213,8 +234,8 @@
                "missing toJSON message")
 
 (check-message event-count-size-null-message
-               "PerformanceEventCounts.length: target object is null or undefined"
-               "null PerformanceEventCounts.length message")
+               "PerformanceEventCounts.size: target object is null or undefined"
+               "null PerformanceEventCounts.size message")
 
 (check-message memory-js-heap-size-limit-null-message
                "PerformanceMemory.jsHeapSizeLimit: target object is null or undefined"
@@ -227,6 +248,22 @@
 (check-message memory-used-js-heap-size-null-message
                "PerformanceMemory.usedJSHeapSize: target object is null or undefined"
                "null PerformanceMemory.usedJSHeapSize message")
+
+(check-message event-count-size-missing-message
+               "PerformanceEventCounts.size not available in this environment"
+               "missing PerformanceEventCounts.size message")
+
+(check-message memory-js-heap-size-limit-missing-message
+               "PerformanceMemory.jsHeapSizeLimit not available in this environment"
+               "missing PerformanceMemory.jsHeapSizeLimit message")
+
+(check-message memory-total-js-heap-size-missing-message
+               "PerformanceMemory.totalJSHeapSize not available in this environment"
+               "missing PerformanceMemory.totalJSHeapSize message")
+
+(check-message memory-used-js-heap-size-missing-message
+               "PerformanceMemory.usedJSHeapSize not available in this environment"
+               "missing PerformanceMemory.usedJSHeapSize message")
 
 (js-log "performance-missing-host-ffi-ok")
 #t
