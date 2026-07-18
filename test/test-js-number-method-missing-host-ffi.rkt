@@ -4,6 +4,12 @@
 
 (require (only-in webracket/unsafe/standard
                   js-eval
+                  js-number-finite?
+                  js-number-integer?
+                  js-number-nan?
+                  js-number-safe-integer?
+                  js-number-parse-float
+                  js-number-parse-int
                   js-number-to-exponential
                   js-number-to-fixed
                   js-number-to-locale-string
@@ -36,12 +42,22 @@
 
 (js-eval
  "globalThis.__wrNumberBoundary = {
-    toExponential: Number.prototype.toExponential,
-    toFixed: Number.prototype.toFixed,
-    toLocaleString: Number.prototype.toLocaleString,
-    toPrecision: Number.prototype.toPrecision,
-    toString: Number.prototype.toString,
-    valueOf: Number.prototype.valueOf
+    prototype: {
+      toExponential: Number.prototype.toExponential,
+      toFixed: Number.prototype.toFixed,
+      toLocaleString: Number.prototype.toLocaleString,
+      toPrecision: Number.prototype.toPrecision,
+      toString: Number.prototype.toString,
+      valueOf: Number.prototype.valueOf
+    },
+    statics: {
+      isFinite: Number.isFinite,
+      isInteger: Number.isInteger,
+      isNaN: Number.isNaN,
+      isSafeInteger: Number.isSafeInteger,
+      parseFloat: Number.parseFloat,
+      parseInt: Number.parseInt
+    }
   };")
 
 (define (without-number-method method thunk)
@@ -53,10 +69,60 @@
   (js-eval
    (string-append "Number.prototype['"
                   method
-                  "'] = globalThis.__wrNumberBoundary['"
+                  "'] = globalThis.__wrNumberBoundary.prototype['"
                   method
                   "'];"))
   message)
+
+(define (without-number-static-method method thunk)
+  (js-eval
+   (string-append "Number['"
+                  method
+                  "'] = undefined;"))
+  (define message (catch-message thunk))
+  (js-eval
+   (string-append "Number['"
+                  method
+                  "'] = globalThis.__wrNumberBoundary.statics['"
+                  method
+                  "'];"))
+  message)
+
+(define finite-message
+  (without-number-static-method
+   "isFinite"
+   (lambda ()
+     (js-number-finite? 1.0))))
+
+(define integer-message
+  (without-number-static-method
+   "isInteger"
+   (lambda ()
+     (js-number-integer? 1.0))))
+
+(define nan-message
+  (without-number-static-method
+   "isNaN"
+   (lambda ()
+     (js-number-nan? 0.0))))
+
+(define safe-integer-message
+  (without-number-static-method
+   "isSafeInteger"
+   (lambda ()
+     (js-number-safe-integer? 1.0))))
+
+(define parse-float-message
+  (without-number-static-method
+   "parseFloat"
+   (lambda ()
+     (js-number-parse-float "1.5"))))
+
+(define parse-int-message
+  (without-number-static-method
+   "parseInt"
+   (lambda ()
+     (js-number-parse-int "15"))))
 
 (define to-exponential-message
   (without-number-method
@@ -95,11 +161,32 @@
      (js-number-value-of 1.0))))
 
 (js-eval
- "for (const name of Object.keys(globalThis.__wrNumberBoundary)) {
-    Number.prototype[name] = globalThis.__wrNumberBoundary[name];
+ "for (const name of Object.keys(globalThis.__wrNumberBoundary.prototype)) {
+    Number.prototype[name] = globalThis.__wrNumberBoundary.prototype[name];
+  }
+  for (const name of Object.keys(globalThis.__wrNumberBoundary.statics)) {
+    Number[name] = globalThis.__wrNumberBoundary.statics[name];
   }
   delete globalThis.__wrNumberBoundary;")
 
+(check-message finite-message
+               "Number.isFinite not available in this environment"
+               "missing Number.isFinite message")
+(check-message integer-message
+               "Number.isInteger not available in this environment"
+               "missing Number.isInteger message")
+(check-message nan-message
+               "Number.isNaN not available in this environment"
+               "missing Number.isNaN message")
+(check-message safe-integer-message
+               "Number.isSafeInteger not available in this environment"
+               "missing Number.isSafeInteger message")
+(check-message parse-float-message
+               "Number.parseFloat not available in this environment"
+               "missing Number.parseFloat message")
+(check-message parse-int-message
+               "Number.parseInt not available in this environment"
+               "missing Number.parseInt message")
 (check-message to-exponential-message
                "Number.toExponential not available in this environment"
                "missing Number.toExponential message")

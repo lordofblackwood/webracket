@@ -129,22 +129,82 @@ function call_js_method(obj, name, args, who) {
   return method.apply(target, decode_js_send_args(args));
 }
 
+function call_required_host_function(owner, name, displayName, args = []) {
+  const target = require_host_target(owner, displayName);
+  const fn = target[name];
+  if (typeof fn !== 'function') {
+    throw new Error(`${displayName} not available in this environment`);
+  }
+  return fn.apply(target, args);
+}
+
+function call_required_host_function0(owner, name, displayName) {
+  const target = require_host_target(owner, displayName);
+  const fn = target[name];
+  if (typeof fn !== 'function') {
+    throw new Error(`${displayName} not available in this environment`);
+  }
+  return fn.call(target);
+}
+
+function call_required_host_function1(owner, name, displayName, arg0) {
+  const target = require_host_target(owner, displayName);
+  const fn = target[name];
+  if (typeof fn !== 'function') {
+    throw new Error(`${displayName} not available in this environment`);
+  }
+  return fn.call(target, arg0);
+}
+
+function call_required_host_function2(owner, name, displayName, arg0, arg1) {
+  const target = require_host_target(owner, displayName);
+  const fn = target[name];
+  if (typeof fn !== 'function') {
+    throw new Error(`${displayName} not available in this environment`);
+  }
+  return fn.call(target, arg0, arg1);
+}
+
 function call_array_static_method(methodName, args = []) {
-  return require_host_function(Array,
-                               methodName,
-                               `Array.${methodName}`)(...args);
+  return call_required_host_function(Array,
+                                     methodName,
+                                     `Array.${methodName}`,
+                                     args);
 }
 
 function call_array_method(arr, methodName, args = []) {
-  return require_host_function(arr,
-                               methodName,
-                               `Array.${methodName}`)(...args);
+  return call_required_host_function(arr,
+                                     methodName,
+                                     `Array.${methodName}`,
+                                     args);
 }
 
-function call_number_method(x, methodName, args = []) {
-  return require_host_function(x,
-                               methodName,
-                               `Number.${methodName}`)(...args);
+function call_number_static_method1(methodName, arg0) {
+  return call_required_host_function1(Number,
+                                      methodName,
+                                      `Number.${methodName}`,
+                                      arg0);
+}
+
+function call_number_method0(x, methodName) {
+  return call_required_host_function0(x,
+                                      methodName,
+                                      `Number.${methodName}`);
+}
+
+function call_number_method1(x, methodName, arg0) {
+  return call_required_host_function1(x,
+                                      methodName,
+                                      `Number.${methodName}`,
+                                      arg0);
+}
+
+function call_number_method2(x, methodName, arg0, arg1) {
+  return call_required_host_function2(x,
+                                      methodName,
+                                      `Number.${methodName}`,
+                                      arg0,
+                                      arg1);
 }
 
 function call_jsxgraph_board_create(board, elementType, parents, attrs) {
@@ -1023,52 +1083,52 @@ var imports = {
         // Positive infinity constant.
         'positive-infinity': (() => Number.POSITIVE_INFINITY),
         // Test whether a value is finite.
-        'is-finite':         (x => boolean_to_i32(Number.isFinite(x))),
+        'is-finite':         (x => boolean_to_i32(call_number_static_method1('isFinite', x))),
         // Test whether a value is an integer.
-        'is-integer':        (x => boolean_to_i32(Number.isInteger(x))),
+        'is-integer':        (x => boolean_to_i32(call_number_static_method1('isInteger', x))),
         // Test whether a value is NaN.
-        'is-nan':            (x => boolean_to_i32(Number.isNaN(x))),
+        'is-nan':            (x => boolean_to_i32(call_number_static_method1('isNaN', x))),
         // Test whether a value is a safe integer.
-        'is-safe-integer':   (x => boolean_to_i32(Number.isSafeInteger(x))),
+        'is-safe-integer':   (x => boolean_to_i32(call_number_static_method1('isSafeInteger', x))),
         // Parse string into floating-point number.
-        'parse-float':       (s => Number.parseFloat(from_fasl(s))),
+        'parse-float':       (s => call_number_static_method1('parseFloat', from_fasl(s))),
         // Parse string into integer.
-        'parse-int':         (s => Number.parseInt(from_fasl(s))),
+        'parse-int':         (s => call_number_static_method1('parseInt', from_fasl(s))),
         // Convert number to exponential notation.
         'to-exponential':    ((x, fd) => {
                                  const d = from_fasl(fd);
                                  return d === undefined
-                                   ? call_number_method(x, 'toExponential')
-                                   : call_number_method(x, 'toExponential', [d]);
+                                   ? call_number_method0(x, 'toExponential')
+                                   : call_number_method1(x, 'toExponential', d);
                                }),
         // Format number with fixed-point notation.
         'to-fixed':          ((x, digits) => {
                                  const d = from_fasl(digits);
                                  return d === undefined
-                                   ? call_number_method(x, 'toFixed')
-                                   : call_number_method(x, 'toFixed', [d]);
+                                   ? call_number_method0(x, 'toFixed')
+                                   : call_number_method1(x, 'toFixed', d);
                                }),
         // Format number using locale-specific rules.
-        'to-locale-string':  ((x, locales, options) => call_number_method(x,
-                                                                          'toLocaleString',
-                                                                          [from_fasl(locales),
-                                                                           from_fasl(options)])),
+        'to-locale-string':  ((x, locales, options) => call_number_method2(x,
+                                                                           'toLocaleString',
+                                                                           from_fasl(locales),
+                                                                           from_fasl(options))),
         // Format number with specified precision.
         'to-precision':      ((x, precision) => {
                                  const p = from_fasl(precision);
                                  return p === undefined
-                                   ? call_number_method(x, 'toPrecision')
-                                   : call_number_method(x, 'toPrecision', [p]);
+                                   ? call_number_method0(x, 'toPrecision')
+                                   : call_number_method1(x, 'toPrecision', p);
                                }),
         // Convert number to string with optional radix.
         'to-string':         ((x, radix) => {
                                  const r = from_fasl(radix);
                                  return r === undefined
-                                   ? call_number_method(x, 'toString')
-                                   : call_number_method(x, 'toString', [r]);
+                                   ? call_number_method0(x, 'toString')
+                                   : call_number_method1(x, 'toString', r);
                                }),
         // Extract primitive numeric value.
-        'value-of':          (x => call_number_method(x, 'valueOf'))
+        'value-of':          (x => call_number_method0(x, 'valueOf'))
     },
 
     // JavaScript Array FFI.
