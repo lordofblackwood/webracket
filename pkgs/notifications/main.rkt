@@ -112,7 +112,7 @@
 
 (define (notification-request-permission)
   (unless (notifications-supported?)
-    (error 'notification-request-permission "Notification is not available"))
+    (raise-arguments-error 'notification-request-permission "Notification is not available"))
   (check-notification-host-method 'notification-request-permission
                                   (js-var "Notification")
                                   "Notification"
@@ -122,7 +122,7 @@
 
 (define (make-notification title [options #f])
   (unless (notifications-supported?)
-    (error 'make-notification "Notification is not available"))
+    (raise-arguments-error 'make-notification "Notification is not available"))
   (unless (or (eq? options #f) (notification-options? options))
     (raise-argument-error 'make-notification "(or/c #f notification-options?)" options))
   (define title* (notification-stringish->string 'make-notification title))

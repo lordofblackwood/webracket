@@ -2,7 +2,7 @@
 
 (require notifications)
 
-(list
+(void
  notification
  notification?
  notification-raw
@@ -28,3 +28,5 @@
  notification-require-interaction?
  notification-renotify?
  notification-silent?)
+
+#t

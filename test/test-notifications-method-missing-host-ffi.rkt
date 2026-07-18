@@ -57,22 +57,46 @@
       delete globalThis.Notification.prototype[missing];
     }
   };
-  globalThis.__wrNotificationBoundaryRestore = () => {
+  globalThis.__wrNotificationBoundaryHide = () => {
+    globalThis.Notification = undefined;
+  };
+  globalThis.__wrNotificationBoundaryRestoreNotification = () => {
     if (globalThis.__wrNotificationBoundarySaved === undefined) {
       delete globalThis.Notification;
     } else {
       globalThis.Notification = globalThis.__wrNotificationBoundarySaved;
     }
+  };
+  globalThis.__wrNotificationBoundaryRestore = () => {
+    globalThis.__wrNotificationBoundaryRestoreNotification();
     delete globalThis.__wrNotificationBoundarySaved;
     delete globalThis.__wrNotificationBoundaryInstall;
+    delete globalThis.__wrNotificationBoundaryHide;
+    delete globalThis.__wrNotificationBoundaryRestoreNotification;
     delete globalThis.__wrNotificationBoundaryRestore;
   };")
+
+(define (constructor-missing-message thunk)
+  (js-eval "__wrNotificationBoundaryHide();")
+  (define message (catch-message thunk))
+  (js-eval "__wrNotificationBoundaryRestoreNotification();")
+  message)
 
 (define (missing-method-message method thunk)
   (js-eval (string-append "__wrNotificationBoundaryInstall('"
                           method
                           "')"))
   (catch-message thunk))
+
+(define request-permission-unsupported-message
+  (constructor-missing-message
+   (lambda ()
+     (notification-request-permission))))
+
+(define make-unsupported-message
+  (constructor-missing-message
+   (lambda ()
+     (make-notification "WebRacket"))))
 
 (define request-permission-message
   (missing-method-message
@@ -92,6 +116,12 @@
 (check-message request-permission-message
                "Notification.requestPermission is not available"
                "missing Notification.requestPermission message")
+(check-message request-permission-unsupported-message
+               "Notification is not available"
+               "missing notification request unsupported message")
+(check-message make-unsupported-message
+               "Notification is not available"
+               "missing make-notification unsupported message")
 (check-message close-message
                "Notification.close is not available"
                "missing Notification.close message")
