@@ -326,6 +326,26 @@ function call_canvas_2d_method9(ctx, methodName, arg0, arg1, arg2, arg3, arg4, a
   return call_required_host_function9(ctx, methodName, `CanvasRenderingContext2D.${methodName}`, arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
 }
 
+function call_media_method0(media, methodName) {
+  return call_required_host_function0(media, methodName, `HTMLMediaElement.${methodName}`);
+}
+
+function call_media_method1(media, methodName, arg0) {
+  return call_required_host_function1(media, methodName, `HTMLMediaElement.${methodName}`, arg0);
+}
+
+function call_media_method2(media, methodName, arg0, arg1) {
+  return call_required_host_function2(media, methodName, `HTMLMediaElement.${methodName}`, arg0, arg1);
+}
+
+function call_media_method3(media, methodName, arg0, arg1, arg2) {
+  return call_required_host_function3(media, methodName, `HTMLMediaElement.${methodName}`, arg0, arg1, arg2);
+}
+
+function call_image_method0(img, methodName) {
+  return call_required_host_function0(img, methodName, `HTMLImageElement.${methodName}`);
+}
+
 function call_jsxgraph_board_create(board, elementType, parents, attrs) {
   const create = require_host_function(board,
                                        'create',
@@ -2111,51 +2131,32 @@ var imports = {
         'volume': (m => get_media_property(m, 'volume')),
         'set-volume!': ((m, v) => { set_media_property(m, 'volume', v); }),
         'add-text-track!': ((m, kind, label, lang) => {
-            const addTextTrack = require_host_function(m,
-                                                       'addTextTrack',
-                                                       'HTMLMediaElement.addTextTrack');
+            const k = from_fasl(kind);
             const l = from_fasl(label);
             const g = from_fasl(lang);
             if (l === undefined && g === undefined) {
-                return addTextTrack(from_fasl(kind));
+                return call_media_method1(m, 'addTextTrack', k);
             } else if (g === undefined) {
-                return addTextTrack(from_fasl(kind), from_fasl(label));
+                return call_media_method2(m, 'addTextTrack', k, l);
             } else {
-                return addTextTrack(from_fasl(kind), from_fasl(label), from_fasl(lang));
+                return call_media_method3(m, 'addTextTrack', k, l, g);
             }
         }),
-        'can-play-type': ((m, type) => require_host_function(m,
-                                                             'canPlayType',
-                                                             'HTMLMediaElement.canPlayType')(from_fasl(type))),
+        'can-play-type': ((m, type) => call_media_method1(m, 'canPlayType', from_fasl(type))),
         'capture-stream': ((m, rate) => {
-            const captureStream = require_host_function(m,
-                                                        'captureStream',
-                                                        'HTMLMediaElement.captureStream');
             const r = from_fasl(rate);
             if (r === undefined) {
-                return captureStream();
+                return call_media_method0(m, 'captureStream');
             } else {
-                return captureStream(r);
+                return call_media_method1(m, 'captureStream', r);
             }
         }),
-        'fast-seek!': ((m, t) => { require_host_function(m,
-                                                          'fastSeek',
-                                                          'HTMLMediaElement.fastSeek')(t); }),
-        'load!': (m => { require_host_function(m,
-                                                'load',
-                                                'HTMLMediaElement.load')(); }),
-        'pause': (m => require_host_function(m,
-                                             'pause',
-                                             'HTMLMediaElement.pause')()),
-        'play': (m => require_host_function(m,
-                                            'play',
-                                            'HTMLMediaElement.play')()),
-        'set-media-keys!': ((m, keys) => require_host_function(m,
-                                                                'setMediaKeys',
-                                                                'HTMLMediaElement.setMediaKeys')(keys)),
-        'set-sink-id!': ((m, id) => require_host_function(m,
-                                                           'setSinkId',
-                                                           'HTMLMediaElement.setSinkId')(from_fasl(id))),
+        'fast-seek!': ((m, t) => { call_media_method1(m, 'fastSeek', t); }),
+        'load!': (m => { call_media_method0(m, 'load'); }),
+        'pause': (m => call_media_method0(m, 'pause')),
+        'play': (m => call_media_method0(m, 'play')),
+        'set-media-keys!': ((m, keys) => call_media_method1(m, 'setMediaKeys', keys)),
+        'set-sink-id!': ((m, id) => call_media_method1(m, 'setSinkId', from_fasl(id))),
     } : {
         'audio-tracks'() { throw new Error('DOM not available in this environment'); },
         'autoplay'() { throw new Error('DOM not available in this environment'); },
@@ -2264,9 +2265,7 @@ var imports = {
         'set-name!': ((img, n) => { set_image_property(img, 'name', from_fasl(n)); }),
         'x': (img => get_image_property(img, 'x')),
         'y': (img => get_image_property(img, 'y')),
-        'decode': (img => require_host_function(img,
-                                                 'decode',
-                                                 'HTMLImageElement.decode')())
+        'decode': (img => call_image_method0(img, 'decode'))
     } : {
         'new'() { throw new Error('DOM not available in this environment'); },
         'alt'() { throw new Error('DOM not available in this environment'); },
