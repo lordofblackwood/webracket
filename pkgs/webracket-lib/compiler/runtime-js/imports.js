@@ -165,6 +165,69 @@ function call_required_host_function2(owner, name, displayName, arg0, arg1) {
   return fn.call(target, arg0, arg1);
 }
 
+function call_required_host_function3(owner, name, displayName, arg0, arg1, arg2) {
+  const target = require_host_target(owner, displayName);
+  const fn = target[name];
+  if (typeof fn !== 'function') {
+    throw new Error(`${displayName} not available in this environment`);
+  }
+  return fn.call(target, arg0, arg1, arg2);
+}
+
+function call_required_host_function4(owner, name, displayName, arg0, arg1, arg2, arg3) {
+  const target = require_host_target(owner, displayName);
+  const fn = target[name];
+  if (typeof fn !== 'function') {
+    throw new Error(`${displayName} not available in this environment`);
+  }
+  return fn.call(target, arg0, arg1, arg2, arg3);
+}
+
+function call_required_host_function5(owner, name, displayName, arg0, arg1, arg2, arg3, arg4) {
+  const target = require_host_target(owner, displayName);
+  const fn = target[name];
+  if (typeof fn !== 'function') {
+    throw new Error(`${displayName} not available in this environment`);
+  }
+  return fn.call(target, arg0, arg1, arg2, arg3, arg4);
+}
+
+function call_required_host_function6(owner, name, displayName, arg0, arg1, arg2, arg3, arg4, arg5) {
+  const target = require_host_target(owner, displayName);
+  const fn = target[name];
+  if (typeof fn !== 'function') {
+    throw new Error(`${displayName} not available in this environment`);
+  }
+  return fn.call(target, arg0, arg1, arg2, arg3, arg4, arg5);
+}
+
+function call_required_host_function7(owner, name, displayName, arg0, arg1, arg2, arg3, arg4, arg5, arg6) {
+  const target = require_host_target(owner, displayName);
+  const fn = target[name];
+  if (typeof fn !== 'function') {
+    throw new Error(`${displayName} not available in this environment`);
+  }
+  return fn.call(target, arg0, arg1, arg2, arg3, arg4, arg5, arg6);
+}
+
+function call_required_host_function8(owner, name, displayName, arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7) {
+  const target = require_host_target(owner, displayName);
+  const fn = target[name];
+  if (typeof fn !== 'function') {
+    throw new Error(`${displayName} not available in this environment`);
+  }
+  return fn.call(target, arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7);
+}
+
+function call_required_host_function9(owner, name, displayName, arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8) {
+  const target = require_host_target(owner, displayName);
+  const fn = target[name];
+  if (typeof fn !== 'function') {
+    throw new Error(`${displayName} not available in this environment`);
+  }
+  return fn.call(target, arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
+}
+
 function call_array_static_method(methodName, args = []) {
   return call_required_host_function(Array,
                                      methodName,
@@ -205,6 +268,62 @@ function call_number_method2(x, methodName, arg0, arg1) {
                                       `Number.${methodName}`,
                                       arg0,
                                       arg1);
+}
+
+function call_canvas_element_method0(canvas, methodName) {
+  return call_required_host_function0(canvas, methodName, `canvas.${methodName}`);
+}
+
+function call_canvas_element_method1(canvas, methodName, arg0) {
+  return call_required_host_function1(canvas, methodName, `canvas.${methodName}`, arg0);
+}
+
+function call_canvas_element_method2(canvas, methodName, arg0, arg1) {
+  return call_required_host_function2(canvas, methodName, `canvas.${methodName}`, arg0, arg1);
+}
+
+function call_canvas_element_method3(canvas, methodName, arg0, arg1, arg2) {
+  return call_required_host_function3(canvas, methodName, `canvas.${methodName}`, arg0, arg1, arg2);
+}
+
+function call_canvas_2d_method0(ctx, methodName) {
+  return call_required_host_function0(ctx, methodName, `CanvasRenderingContext2D.${methodName}`);
+}
+
+function call_canvas_2d_method1(ctx, methodName, arg0) {
+  return call_required_host_function1(ctx, methodName, `CanvasRenderingContext2D.${methodName}`, arg0);
+}
+
+function call_canvas_2d_method2(ctx, methodName, arg0, arg1) {
+  return call_required_host_function2(ctx, methodName, `CanvasRenderingContext2D.${methodName}`, arg0, arg1);
+}
+
+function call_canvas_2d_method3(ctx, methodName, arg0, arg1, arg2) {
+  return call_required_host_function3(ctx, methodName, `CanvasRenderingContext2D.${methodName}`, arg0, arg1, arg2);
+}
+
+function call_canvas_2d_method4(ctx, methodName, arg0, arg1, arg2, arg3) {
+  return call_required_host_function4(ctx, methodName, `CanvasRenderingContext2D.${methodName}`, arg0, arg1, arg2, arg3);
+}
+
+function call_canvas_2d_method5(ctx, methodName, arg0, arg1, arg2, arg3, arg4) {
+  return call_required_host_function5(ctx, methodName, `CanvasRenderingContext2D.${methodName}`, arg0, arg1, arg2, arg3, arg4);
+}
+
+function call_canvas_2d_method6(ctx, methodName, arg0, arg1, arg2, arg3, arg4, arg5) {
+  return call_required_host_function6(ctx, methodName, `CanvasRenderingContext2D.${methodName}`, arg0, arg1, arg2, arg3, arg4, arg5);
+}
+
+function call_canvas_2d_method7(ctx, methodName, arg0, arg1, arg2, arg3, arg4, arg5, arg6) {
+  return call_required_host_function7(ctx, methodName, `CanvasRenderingContext2D.${methodName}`, arg0, arg1, arg2, arg3, arg4, arg5, arg6);
+}
+
+function call_canvas_2d_method8(ctx, methodName, arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7) {
+  return call_required_host_function8(ctx, methodName, `CanvasRenderingContext2D.${methodName}`, arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7);
+}
+
+function call_canvas_2d_method9(ctx, methodName, arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8) {
+  return call_required_host_function9(ctx, methodName, `CanvasRenderingContext2D.${methodName}`, arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
 }
 
 function call_jsxgraph_board_create(board, elementType, parents, attrs) {
@@ -1219,23 +1338,13 @@ var imports = {
     },
     // Canvas
     'canvas': hasDOM ? {
-        'capture-stream':                ((canvas, rate)                 => require_host_function(canvas,
-                                                                                                    'captureStream',
-                                                                                                    'canvas.captureStream')(rate)),
-        'get-context':                   ((canvas, type, opts)           => require_host_function(canvas,
-                                                                                                    'getContext',
-                                                                                                    'canvas.getContext')(from_fasl(type), opts)),
+        'capture-stream':                ((canvas, rate)                 => call_canvas_element_method1(canvas, 'captureStream', rate)),
+        'get-context':                   ((canvas, type, opts)           => call_canvas_element_method2(canvas, 'getContext', from_fasl(type), opts)),
         'height':                        ((canvas)                       => get_canvas_element_property(canvas, 'height')),
         'set-height!':                   ((canvas, h)                    => { set_canvas_element_property(canvas, 'height', h); }),
-        'to-blob':                       ((canvas, cb, type, quality)    => require_host_function(canvas,
-                                                                                                    'toBlob',
-                                                                                                    'canvas.toBlob')(cb, from_fasl(type), quality)),
-        'to-data-url':                   ((canvas, type, quality)        => require_host_function(canvas,
-                                                                                                    'toDataURL',
-                                                                                                    'canvas.toDataURL')(from_fasl(type), quality)),
-        'transfer-control-to-offscreen': ((canvas)                       => require_host_function(canvas,
-                                                                                                    'transferControlToOffscreen',
-                                                                                                    'canvas.transferControlToOffscreen')()),
+        'to-blob':                       ((canvas, cb, type, quality)    => call_canvas_element_method3(canvas, 'toBlob', cb, from_fasl(type), quality)),
+        'to-data-url':                   ((canvas, type, quality)        => call_canvas_element_method2(canvas, 'toDataURL', from_fasl(type), quality)),
+        'transfer-control-to-offscreen': ((canvas)                       => call_canvas_element_method0(canvas, 'transferControlToOffscreen')),
         'width':                         ((canvas)                       => get_canvas_element_property(canvas, 'width')),
         'set-width!':                    ((canvas, w)                    => { set_canvas_element_property(canvas, 'width', w); })
     } : {
@@ -1308,47 +1417,28 @@ var imports = {
         'set-letter-spacing!':    ((ctx, v) => { set_canvas_2d_property(ctx, 'letterSpacing', from_fasl(v)); }),
         'word-spacing':           (ctx => get_canvas_2d_property(ctx, 'wordSpacing')),
         'set-word-spacing!':      ((ctx, v) => { set_canvas_2d_property(ctx, 'wordSpacing', from_fasl(v)); }),
-        'arc': ((ctx, x, y, r, sa, ea, ccw) => require_host_function(ctx,
-                                                                      'arc',
-                                                                      'CanvasRenderingContext2D.arc')(x, y, r, sa, ea, !!ccw)),
-        'arc-to': ((ctx, x1, y1, x2, y2, r) => require_host_function(ctx,
-                                                                     'arcTo',
-                                                                     'CanvasRenderingContext2D.arcTo')(x1, y1, x2, y2, r)),
-        'begin-path': (ctx => require_host_function(ctx,
-                                                    'beginPath',
-                                                    'CanvasRenderingContext2D.beginPath')()),
-        'bezier-curve-to': ((ctx, cp1x, cp1y, cp2x, cp2y, x, y) => require_host_function(ctx,
-                                                                                         'bezierCurveTo',
-                                                                                         'CanvasRenderingContext2D.bezierCurveTo')(cp1x, cp1y, cp2x, cp2y, x, y)),
-        'clear-rect': ((ctx, x, y, w, h) => require_host_function(ctx,
-                                                                  'clearRect',
-                                                                  'CanvasRenderingContext2D.clearRect')(x, y, w, h)),
+        'arc': ((ctx, x, y, r, sa, ea, ccw) => call_canvas_2d_method6(ctx, 'arc', x, y, r, sa, ea, !!ccw)),
+        'arc-to': ((ctx, x1, y1, x2, y2, r) => call_canvas_2d_method5(ctx, 'arcTo', x1, y1, x2, y2, r)),
+        'begin-path': (ctx => call_canvas_2d_method0(ctx, 'beginPath')),
+        'bezier-curve-to': ((ctx, cp1x, cp1y, cp2x, cp2y, x, y) => call_canvas_2d_method6(ctx, 'bezierCurveTo', cp1x, cp1y, cp2x, cp2y, x, y)),
+        'clear-rect': ((ctx, x, y, w, h) => call_canvas_2d_method4(ctx, 'clearRect', x, y, w, h)),
         'clip': ((ctx, path, rule) => {
-          const clip = require_host_function(ctx,
-                                             'clip',
-                                             'CanvasRenderingContext2D.clip');
           // `(void)` is decoded as `undefined`
           const p = from_fasl(path);
           const r = from_fasl(rule);
           if (p === undefined && r === undefined) {
-            clip();
+            call_canvas_2d_method0(ctx, 'clip');
           } else if (p === undefined) {
-            clip(r);
+            call_canvas_2d_method1(ctx, 'clip', r);
           } else if (r === undefined) {
-            clip(p);
+            call_canvas_2d_method1(ctx, 'clip', p);
           } else {
-            clip(p, r);
+            call_canvas_2d_method2(ctx, 'clip', p, r);
           }
         }),
-        'close-path': (ctx => require_host_function(ctx,
-                                                    'closePath',
-                                                    'CanvasRenderingContext2D.closePath')()),
-        'create-image-data': ((ctx, sw, sh) => require_host_function(ctx,
-                                                                     'createImageData',
-                                                                     'CanvasRenderingContext2D.createImageData')(sw, sh)),
-        'create-image-data-from': ((ctx, data) => require_host_function(ctx,
-                                                                        'createImageData',
-                                                                        'CanvasRenderingContext2D.createImageData')(data)),
+        'close-path': (ctx => call_canvas_2d_method0(ctx, 'closePath')),
+        'create-image-data': ((ctx, sw, sh) => call_canvas_2d_method2(ctx, 'createImageData', sw, sh)),
+        'create-image-data-from': ((ctx, data) => call_canvas_2d_method1(ctx, 'createImageData', data)),
         'image-data-width': ((data) => get_image_data_property(data, 'width')),
         'image-data-height': ((data) => get_image_data_property(data, 'height')),
         'image-data-data': ((data) => get_image_data_property(data, 'data')),
@@ -1359,209 +1449,124 @@ var imports = {
         'dom-matrix-d': ((matrix) => get_dom_matrix_property(matrix, 'd')),
         'dom-matrix-e': ((matrix) => get_dom_matrix_property(matrix, 'e')),
         'dom-matrix-f': ((matrix) => get_dom_matrix_property(matrix, 'f')),
-        'create-linear-gradient': ((ctx, x0, y0, x1, y1) => require_host_function(ctx,
-                                                                                  'createLinearGradient',
-                                                                                  'CanvasRenderingContext2D.createLinearGradient')(x0, y0, x1, y1)),
-        'create-pattern': ((ctx, img, rep) => require_host_function(ctx,
-                                                                    'createPattern',
-                                                                    'CanvasRenderingContext2D.createPattern')(img, from_fasl(rep))),
-        'create-radial-gradient': ((ctx, x0, y0, r0, x1, y1, r1) => require_host_function(ctx,
-                                                                                         'createRadialGradient',
-                                                                                         'CanvasRenderingContext2D.createRadialGradient')(x0, y0, r0, x1, y1, r1)),
-        'create-conic-gradient': ((ctx, sa, x, y) => require_host_function(ctx,
-                                                                            'createConicGradient',
-                                                                            'CanvasRenderingContext2D.createConicGradient')(sa, x, y)),
-        'draw-focus-if-needed!': ((ctx, elem) => require_host_function(ctx,
-                                                                        'drawFocusIfNeeded',
-                                                                        'CanvasRenderingContext2D.drawFocusIfNeeded')(elem)),
-        'draw-focus-if-needed-path!': ((ctx, path, elem) => require_host_function(ctx,
-                                                                                   'drawFocusIfNeeded',
-                                                                                   'CanvasRenderingContext2D.drawFocusIfNeeded')(path, elem)),
-        'draw-image': ((ctx, img, dx, dy) => require_host_function(ctx,
-                                                                   'drawImage',
-                                                                   'CanvasRenderingContext2D.drawImage')(img, dx, dy)),
-        'draw-image-5': ((ctx, img, dx, dy, dw, dh) => require_host_function(ctx,
-                                                                            'drawImage',
-                                                                            'CanvasRenderingContext2D.drawImage')(img, dx, dy, dw, dh)),
-        'draw-image-9': ((ctx, img, sx, sy, sw, sh, dx, dy, dw, dh) => require_host_function(ctx,
-                                                                                            'drawImage',
-                                                                                            'CanvasRenderingContext2D.drawImage')(img, sx, sy, sw, sh, dx, dy, dw, dh)),
-        'ellipse': ((ctx, x, y, rx, ry, rot, sa, ea, ccw) => require_host_function(ctx,
-                                                                                  'ellipse',
-                                                                                  'CanvasRenderingContext2D.ellipse')(x, y, rx, ry, rot, sa, ea, !!ccw)),
+        'create-linear-gradient': ((ctx, x0, y0, x1, y1) => call_canvas_2d_method4(ctx, 'createLinearGradient', x0, y0, x1, y1)),
+        'create-pattern': ((ctx, img, rep) => call_canvas_2d_method2(ctx, 'createPattern', img, from_fasl(rep))),
+        'create-radial-gradient': ((ctx, x0, y0, r0, x1, y1, r1) => call_canvas_2d_method6(ctx, 'createRadialGradient', x0, y0, r0, x1, y1, r1)),
+        'create-conic-gradient': ((ctx, sa, x, y) => call_canvas_2d_method3(ctx, 'createConicGradient', sa, x, y)),
+        'draw-focus-if-needed!': ((ctx, elem) => call_canvas_2d_method1(ctx, 'drawFocusIfNeeded', elem)),
+        'draw-focus-if-needed-path!': ((ctx, path, elem) => call_canvas_2d_method2(ctx, 'drawFocusIfNeeded', path, elem)),
+        'draw-image': ((ctx, img, dx, dy) => call_canvas_2d_method3(ctx, 'drawImage', img, dx, dy)),
+        'draw-image-5': ((ctx, img, dx, dy, dw, dh) => call_canvas_2d_method5(ctx, 'drawImage', img, dx, dy, dw, dh)),
+        'draw-image-9': ((ctx, img, sx, sy, sw, sh, dx, dy, dw, dh) => call_canvas_2d_method9(ctx, 'drawImage', img, sx, sy, sw, sh, dx, dy, dw, dh)),
+        'ellipse': ((ctx, x, y, rx, ry, rot, sa, ea, ccw) => call_canvas_2d_method8(ctx, 'ellipse', x, y, rx, ry, rot, sa, ea, !!ccw)),
         'fill': ((ctx, path, rule) => {
-          const fill = require_host_function(ctx,
-                                             'fill',
-                                             'CanvasRenderingContext2D.fill');
           // `(void)` is decoded as `undefined`
           const p = from_fasl(path);
           const r = from_fasl(rule);
           if (p === undefined && r === undefined) {
-            fill();
+            call_canvas_2d_method0(ctx, 'fill');
           } else if (p === undefined) {
-            fill(r);
+            call_canvas_2d_method1(ctx, 'fill', r);
           } else if (r === undefined) {
-            fill(p);
+            call_canvas_2d_method1(ctx, 'fill', p);
           } else {
-            fill(p, r);
+            call_canvas_2d_method2(ctx, 'fill', p, r);
           }
         }),
-        'fill-rect': ((ctx, x, y, w, h) => require_host_function(ctx,
-                                                                 'fillRect',
-                                                                 'CanvasRenderingContext2D.fillRect')(x, y, w, h)),
+        'fill-rect': ((ctx, x, y, w, h) => call_canvas_2d_method4(ctx, 'fillRect', x, y, w, h)),
         'fill-text': ((ctx, text, x, y, mw) => {
-          const fillText = require_host_function(ctx,
-                                                 'fillText',
-                                                 'CanvasRenderingContext2D.fillText');
           const m = from_fasl(mw);
+          const t = from_fasl(text);
           if (m === undefined) {
-            fillText(from_fasl(text), x, y);
+            call_canvas_2d_method3(ctx, 'fillText', t, x, y);
           } else {
-            fillText(from_fasl(text), x, y, m);
+            call_canvas_2d_method4(ctx, 'fillText', t, x, y, m);
           }
         }),
         'get-image-data': ((ctx, sx, sy, sw, sh, opts) => {
-          const getImageData = require_host_function(ctx,
-                                                     'getImageData',
-                                                     'CanvasRenderingContext2D.getImageData');
           const o = from_fasl(opts);
           if (o === undefined) {
-            return getImageData(sx, sy, sw, sh);
+            return call_canvas_2d_method4(ctx, 'getImageData', sx, sy, sw, sh);
           } else {
-            return getImageData(sx, sy, sw, sh, o);
+            return call_canvas_2d_method5(ctx, 'getImageData', sx, sy, sw, sh, o);
           }
         }),
-        'get-line-dash': (ctx => require_host_function(ctx,
-                                                       'getLineDash',
-                                                       'CanvasRenderingContext2D.getLineDash')()),
-        'get-transform': (ctx => require_host_function(ctx,
-                                                       'getTransform',
-                                                       'CanvasRenderingContext2D.getTransform')()),
+        'get-line-dash': (ctx => call_canvas_2d_method0(ctx, 'getLineDash')),
+        'get-transform': (ctx => call_canvas_2d_method0(ctx, 'getTransform')),
         'is-point-in-path': ((ctx, path, x, y, rule) => {
-          const isPointInPath = require_host_function(ctx,
-                                                      'isPointInPath',
-                                                      'CanvasRenderingContext2D.isPointInPath');
           const p = from_fasl(path);
           const r = from_fasl(rule);
           if (p === undefined && r === undefined) {
-            return isPointInPath(x, y) ? 1 : 0;
+            return call_canvas_2d_method2(ctx, 'isPointInPath', x, y) ? 1 : 0;
           } else if (p === undefined) {
-            return isPointInPath(x, y, r) ? 1 : 0;
+            return call_canvas_2d_method3(ctx, 'isPointInPath', x, y, r) ? 1 : 0;
           } else if (r === undefined) {
-            return isPointInPath(p, x, y) ? 1 : 0;
+            return call_canvas_2d_method3(ctx, 'isPointInPath', p, x, y) ? 1 : 0;
           } else {
-            return isPointInPath(p, x, y, r) ? 1 : 0;
+            return call_canvas_2d_method4(ctx, 'isPointInPath', p, x, y, r) ? 1 : 0;
           }
         }),
         'is-point-in-stroke': ((ctx, path, x, y) => {
-          const isPointInStroke = require_host_function(ctx,
-                                                        'isPointInStroke',
-                                                        'CanvasRenderingContext2D.isPointInStroke');
           const p = from_fasl(path);
           if (p === undefined) {
-            return isPointInStroke(x, y) ? 1 : 0;
+            return call_canvas_2d_method2(ctx, 'isPointInStroke', x, y) ? 1 : 0;
           } else {
-            return isPointInStroke(p, x, y) ? 1 : 0;
+            return call_canvas_2d_method3(ctx, 'isPointInStroke', p, x, y) ? 1 : 0;
           }
         }),
-        'line-to': ((ctx, x, y) => require_host_function(ctx,
-                                                         'lineTo',
-                                                         'CanvasRenderingContext2D.lineTo')(x, y)),
-        'measure-text': ((ctx, text) => require_host_function(ctx,
-                                                              'measureText',
-                                                              'CanvasRenderingContext2D.measureText')(from_fasl(text))),
-        'move-to': ((ctx, x, y) => require_host_function(ctx,
-                                                         'moveTo',
-                                                         'CanvasRenderingContext2D.moveTo')(x, y)),
+        'line-to': ((ctx, x, y) => call_canvas_2d_method2(ctx, 'lineTo', x, y)),
+        'measure-text': ((ctx, text) => call_canvas_2d_method1(ctx, 'measureText', from_fasl(text))),
+        'move-to': ((ctx, x, y) => call_canvas_2d_method2(ctx, 'moveTo', x, y)),
         'put-image-data': ((ctx, data, dx, dy, dirtyX, dirtyY, dirtyW, dirtyH) => {
-          const putImageData = require_host_function(ctx,
-                                                     'putImageData',
-                                                     'CanvasRenderingContext2D.putImageData');
           const dX = from_fasl(dirtyX);
           const dY = from_fasl(dirtyY);
           const dW = from_fasl(dirtyW);
           const dH = from_fasl(dirtyH);
           if (dX === undefined && dY === undefined && dW === undefined && dH === undefined) {
-            putImageData(data, dx, dy);
+            call_canvas_2d_method3(ctx, 'putImageData', data, dx, dy);
           } else {
-            putImageData(data, dx, dy, dX, dY, dW, dH);
+            call_canvas_2d_method7(ctx, 'putImageData', data, dx, dy, dX, dY, dW, dH);
           }
         }),
-        'quadratic-curve-to': ((ctx, cpx, cpy, x, y) => require_host_function(ctx,
-                                                                              'quadraticCurveTo',
-                                                                              'CanvasRenderingContext2D.quadraticCurveTo')(cpx, cpy, x, y)),
-        'rect': ((ctx, x, y, w, h) => require_host_function(ctx,
-                                                            'rect',
-                                                            'CanvasRenderingContext2D.rect')(x, y, w, h)),
-        'reset': (ctx => require_host_function(ctx,
-                                                'reset',
-                                                'CanvasRenderingContext2D.reset')()),
-        'reset-transform': (ctx => require_host_function(ctx,
-                                                          'resetTransform',
-                                                          'CanvasRenderingContext2D.resetTransform')()),
-        'restore': (ctx => require_host_function(ctx,
-                                                 'restore',
-                                                 'CanvasRenderingContext2D.restore')()),
-        'rotate': ((ctx, angle) => require_host_function(ctx,
-                                                         'rotate',
-                                                         'CanvasRenderingContext2D.rotate')(angle)),
+        'quadratic-curve-to': ((ctx, cpx, cpy, x, y) => call_canvas_2d_method4(ctx, 'quadraticCurveTo', cpx, cpy, x, y)),
+        'rect': ((ctx, x, y, w, h) => call_canvas_2d_method4(ctx, 'rect', x, y, w, h)),
+        'reset': (ctx => call_canvas_2d_method0(ctx, 'reset')),
+        'reset-transform': (ctx => call_canvas_2d_method0(ctx, 'resetTransform')),
+        'restore': (ctx => call_canvas_2d_method0(ctx, 'restore')),
+        'rotate': ((ctx, angle) => call_canvas_2d_method1(ctx, 'rotate', angle)),
         'round-rect': ((ctx, x, y, w, h, r) => {
-          const roundRect = require_host_function(ctx,
-                                                  'roundRect',
-                                                  'CanvasRenderingContext2D.roundRect');
           const rad = from_fasl(r);
           if (rad === undefined) {
-            roundRect(x, y, w, h);
+            call_canvas_2d_method4(ctx, 'roundRect', x, y, w, h);
           } else {
-            roundRect(x, y, w, h, rad);
+            call_canvas_2d_method5(ctx, 'roundRect', x, y, w, h, rad);
           }
         }),
-        'save': (ctx => require_host_function(ctx,
-                                              'save',
-                                              'CanvasRenderingContext2D.save')()),
-        'scale': ((ctx, x, y) => require_host_function(ctx,
-                                                       'scale',
-                                                       'CanvasRenderingContext2D.scale')(x, y)),
-        'set-line-dash': ((ctx, arr) => require_host_function(ctx,
-                                                              'setLineDash',
-                                                              'CanvasRenderingContext2D.setLineDash')(arr)),
-        'set-transform!': ((ctx, a, b, c, d, e, f) => require_host_function(ctx,
-                                                                            'setTransform',
-                                                                            'CanvasRenderingContext2D.setTransform')(a, b, c, d, e, f)),
-        'set-transform-matrix!': ((ctx, m) => require_host_function(ctx,
-                                                                    'setTransform',
-                                                                    'CanvasRenderingContext2D.setTransform')(m)),
+        'save': (ctx => call_canvas_2d_method0(ctx, 'save')),
+        'scale': ((ctx, x, y) => call_canvas_2d_method2(ctx, 'scale', x, y)),
+        'set-line-dash': ((ctx, arr) => call_canvas_2d_method1(ctx, 'setLineDash', arr)),
+        'set-transform!': ((ctx, a, b, c, d, e, f) => call_canvas_2d_method6(ctx, 'setTransform', a, b, c, d, e, f)),
+        'set-transform-matrix!': ((ctx, m) => call_canvas_2d_method1(ctx, 'setTransform', m)),
         'stroke': ((ctx, path) => {
-          const stroke = require_host_function(ctx,
-                                               'stroke',
-                                               'CanvasRenderingContext2D.stroke');
           const p = from_fasl(path);
           if (p === undefined) {
-            stroke();
+            call_canvas_2d_method0(ctx, 'stroke');
           } else {
-            stroke(p);
+            call_canvas_2d_method1(ctx, 'stroke', p);
           }
         }),
-        'stroke-rect': ((ctx, x, y, w, h) => require_host_function(ctx,
-                                                                   'strokeRect',
-                                                                   'CanvasRenderingContext2D.strokeRect')(x, y, w, h)),
+        'stroke-rect': ((ctx, x, y, w, h) => call_canvas_2d_method4(ctx, 'strokeRect', x, y, w, h)),
         'stroke-text': ((ctx, text, x, y, mw) => {
-          const strokeText = require_host_function(ctx,
-                                                   'strokeText',
-                                                   'CanvasRenderingContext2D.strokeText');
           const m = from_fasl(mw);
+          const t = from_fasl(text);
           if (m === undefined) {
-            strokeText(from_fasl(text), x, y);
+            call_canvas_2d_method3(ctx, 'strokeText', t, x, y);
           } else {
-            strokeText(from_fasl(text), x, y, m);
+            call_canvas_2d_method4(ctx, 'strokeText', t, x, y, m);
           }
         }),
-        'transform': ((ctx, a, b, c, d, e, f) => require_host_function(ctx,
-                                                                       'transform',
-                                                                       'CanvasRenderingContext2D.transform')(a, b, c, d, e, f)),
-        'translate': ((ctx, x, y) => require_host_function(ctx,
-                                                           'translate',
-                                                           'CanvasRenderingContext2D.translate')(x, y)),
+        'transform': ((ctx, a, b, c, d, e, f) => call_canvas_2d_method6(ctx, 'transform', a, b, c, d, e, f)),
+        'translate': ((ctx, x, y) => call_canvas_2d_method2(ctx, 'translate', x, y)),
     } : new Proxy({}, { get() { throw new Error('DOM not available in this environment'); } }),
     'image-data': hasDOM ? {
         'width':   (data => get_image_data_property(data, 'width')),
