@@ -50,6 +50,11 @@
   (and (not (js-nullish? method))
        (string=? (js-typeof method) "function")))
 
+;; history-property-present? : external/raw string? -> boolean?
+;;   Report whether raw exposes a non-nullish property named property-name.
+(define (history-property-present? raw property-name)
+  (not (js-nullish? (js-ref/extern raw property-name))))
+
 ;; history-supported? : -> boolean?
 ;;   Report whether the browser exposes window.history with the core methods.
 (define (history-supported?)
@@ -96,6 +101,13 @@
     (raise-arguments-error who
                            (string-append "History." method-name " is not available"))))
 
+;; check-history-property : symbol? history-info? string? -> void?
+;;   Ensure a required History property is available.
+(define (check-history-property who value property-name)
+  (unless (history-property-present? (history-raw value) property-name)
+    (raise-arguments-error who
+                           (string-append "History." property-name " is not available"))))
+
 ;; check-history-window-method : symbol? string? -> void?
 ;;   Ensure window exposes a required event listener method.
 (define (check-history-window-method who method-name)
@@ -141,6 +153,7 @@
 ;;   Read the number of session history entries.
 (define (history-length value)
   (check-history 'history-length value)
+  (check-history-property 'history-length value "length")
   (js-ref (history-raw value) "length"))
 
 ;; history-state : history? -> any/c

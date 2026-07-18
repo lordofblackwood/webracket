@@ -1,6 +1,6 @@
 #lang webracket/base
 
-;; Browser smoke for History wrapper host-method boundary errors.
+;; Browser smoke for History wrapper host-boundary errors.
 
 (require history
          (only-in webracket/unsafe/dom
@@ -95,6 +95,7 @@
 (define missing-go-history (fake-history "go"))
 (define missing-push-state-history (fake-history "pushState"))
 (define missing-replace-state-history (fake-history "replaceState"))
+(define missing-length-history (fake-history "length"))
 
 (check-true (not (history? missing-back-history))
             "history? rejects missing back")
@@ -132,6 +133,11 @@
    (lambda ()
      (history-replace-state! missing-replace-state-history 'state))))
 
+(define length-message
+  (catch-message
+   (lambda ()
+     (history-length missing-length-history))))
+
 (define invalid-raw-message
   (catch-message
    (lambda ()
@@ -166,6 +172,9 @@
 (check-message replace-state-message
                "History.replaceState is not available"
                "missing History.replaceState message")
+(check-message length-message
+               "History.length is not available"
+               "missing History.length message")
 (check-message invalid-raw-message
                "history?"
                "missing history invalid raw message")

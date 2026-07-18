@@ -1,6 +1,6 @@
 #lang webracket/base
 
-;; Browser smoke for Fullscreen wrapper host-method boundary errors.
+;; Browser smoke for Fullscreen wrapper host-boundary errors.
 
 (require fullscreen
          (only-in webracket/unsafe/dom
@@ -43,6 +43,7 @@
       writable: true
     });
   };
+  globalThis.__wrFullscreenBoundaryPatchDocumentProperty = globalThis.__wrFullscreenBoundaryPatchDocument;
   globalThis.__wrFullscreenBoundaryRestoreDocument = (methodName) => {
     const descriptor = globalThis.__wrFullscreenBoundarySavedDocument[methodName];
     if (descriptor) {
@@ -59,6 +60,7 @@
     delete globalThis.__wrFullscreenBoundaryFakeElement;
     delete globalThis.__wrFullscreenBoundarySavedDocument;
     delete globalThis.__wrFullscreenBoundaryPatchDocument;
+    delete globalThis.__wrFullscreenBoundaryPatchDocumentProperty;
     delete globalThis.__wrFullscreenBoundaryRestoreDocument;
     delete globalThis.__wrFullscreenBoundaryRestoreAll;
   };")
@@ -73,6 +75,16 @@
   (define message (catch-message thunk))
   (js-eval (string-append "__wrFullscreenBoundaryRestoreDocument('"
                           method
+                          "')"))
+  message)
+
+(define (missing-document-property-message property thunk)
+  (js-eval (string-append "__wrFullscreenBoundaryPatchDocumentProperty('"
+                          property
+                          "')"))
+  (define message (catch-message thunk))
+  (js-eval (string-append "__wrFullscreenBoundaryRestoreDocument('"
+                          property
                           "')"))
   message)
 
@@ -113,6 +125,12 @@
    (lambda ()
      (fullscreen-remove-error-listener! callback))))
 
+(define enabled-message
+  (missing-document-property-message
+   "fullscreenEnabled"
+   (lambda ()
+     (fullscreen-enabled?))))
+
 (check-message request-message
                "Element.requestFullscreen is not available"
                "missing Element.requestFullscreen message")
@@ -131,6 +149,9 @@
 (check-message remove-error-message
                "document.removeEventListener is not available"
                "missing error removeEventListener message")
+(check-message enabled-message
+               "document.fullscreenEnabled is not available"
+               "missing document.fullscreenEnabled message")
 
 (js-eval "__wrFullscreenBoundaryRestoreAll();")
 

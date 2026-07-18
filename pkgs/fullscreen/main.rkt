@@ -43,12 +43,24 @@
   (and (not (js-nullish? method))
        (string=? (js-typeof method) "function")))
 
+;; fullscreen-property-present? : external/raw string? -> boolean?
+;;   Report whether raw exposes a non-nullish property named property-name.
+(define (fullscreen-property-present? raw property-name)
+  (not (js-nullish? (js-ref/extern raw property-name))))
+
 ;; check-fullscreen-document-method : symbol? string? -> void?
 ;;   Ensure the current document exposes a required Fullscreen method.
 (define (check-fullscreen-document-method who method-name)
   (unless (fullscreen-method-present? (fullscreen-document-raw) method-name)
     (raise-arguments-error who
                            (string-append "document." method-name " is not available"))))
+
+;; check-fullscreen-document-property : symbol? string? -> void?
+;;   Ensure the current document exposes a required Fullscreen property.
+(define (check-fullscreen-document-property who property-name)
+  (unless (fullscreen-property-present? (fullscreen-document-raw) property-name)
+    (raise-arguments-error who
+                           (string-append "document." property-name " is not available"))))
 
 ;; check-fullscreen-element-method : symbol? any/c string? -> void?
 ;;   Ensure element exposes a required Fullscreen method.
@@ -90,6 +102,9 @@
 ;;   Report whether the current document allows fullscreen requests.
 (define (fullscreen-enabled?)
   (and (fullscreen-supported?)
+       (begin
+         (check-fullscreen-document-property 'fullscreen-enabled? "fullscreenEnabled")
+         #t)
        (js-ref (fullscreen-document-raw) "fullscreenEnabled")))
 
 ;; fullscreen-element : -> (or/c #f dom-element?)
