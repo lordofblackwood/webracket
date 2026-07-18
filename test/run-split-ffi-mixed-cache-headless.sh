@@ -109,6 +109,8 @@ compile_root_case test-standard-property-missing-host-ffi.html test/test-standar
   --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/standard.ffi"
 compile_root_case test-js-promise-method-missing-host-ffi.html test/test-js-promise-method-missing-host-ffi.rkt \
   --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/standard.ffi"
+compile_root_case test-js-iterator-method-missing-host-ffi.html test/test-js-iterator-method-missing-host-ffi.rkt \
+  --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/standard.ffi"
 compile_root_case test-js-math-ffi.html test/test-js-math-ffi.rkt
 compile_root_case test-js-performance-ffi.html test/test-js-performance-ffi.rkt
 compile_root_case test-performance-missing-host-ffi.html test/test-performance-missing-host-ffi.rkt

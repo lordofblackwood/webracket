@@ -12,6 +12,7 @@
                   js-send/extern
                   js-send/extern/nullish
                   js-send/value
+                  js-typeof
                   js-object
                   js-array/extern
                   js-Iterator
@@ -116,12 +117,43 @@
     [(procedure? value) (value)]
     [else value]))
 
+;; iterator-host-method-present? : external/raw string? -> boolean?
+;;   Report whether raw exposes a callable method named method-name.
+(define (iterator-host-method-present? raw method-name)
+  (and (external? raw)
+       (not (js-nullish? raw))
+       (let ([method (js-ref/extern raw method-name)])
+         (and (not (js-nullish? method))
+              (string=? (js-typeof method) "function")))))
+
+;; check-iterator-host-method : symbol? external/raw string? string? -> void?
+;;   Ensure a required Iterator host method is available.
+(define (check-iterator-host-method who raw receiver-name method-name)
+  (unless (iterator-host-method-present? raw method-name)
+    (raise-arguments-error who
+                           (string-append receiver-name
+                                          "."
+                                          method-name
+                                          " is not available"))))
+
+;; check-iterator-global-method : symbol? string? -> external/raw
+;;   Return the Iterator constructor after checking a required static method.
+(define (check-iterator-global-method who method-name)
+  (define iterator-ctor (Iterator))
+  (unless (and (external? iterator-ctor)
+               (not (js-nullish? iterator-ctor))
+               (string=? (js-typeof iterator-ctor) "function"))
+    (raise-arguments-error who "Iterator is not available"))
+  (check-iterator-host-method who iterator-ctor "Iterator" method-name)
+  iterator-ctor)
+
 ;; iterable? : any/c -> boolean?
 ;;   Check whether a value has a callable [Symbol.iterator] method.
 (define (iterable? value)
   (or (iterator? value)
       (let ([ctor (Iterator)])
         (and (not (js-nullish? ctor))
+             (iterator-host-method-present? ctor "from")
              (with-handlers ([exn:fail? (lambda (_) #f)])
                (define probe
                  (js-send/extern/nullish ctor "from"
@@ -216,9 +248,10 @@
 ;; iterator-from : iterable? -> iterator?
 ;;   Convert an iterator or iterable into a standard Iterator object.
 (define (iterator-from object)
+  (define iterator-ctor (check-iterator-global-method 'iterator-from "from"))
   (unless (iterable? object)
     (raise-argument-error 'iterator-from "iterable?" object))
-  (make-iterator (js-send (Iterator) "from" (vector (iterator-unwrap object)))))
+  (make-iterator (js-send iterator-ctor "from" (vector (iterator-unwrap object)))))
 
 ;; iterator-concat : iterable? ... -> iterator?
 ;;   Concatenate multiple iterables into one Iterator.
@@ -314,6 +347,7 @@
 (define (iterator-next iter)
   (unless (iterator? iter)
     (raise-argument-error 'iterator-next "iterator?" iter))
+  (check-iterator-host-method 'iterator-next (iterator-raw iter) "Iterator" "next")
   (js-send (iterator-raw iter) "next" (vector)))
 
 ;; iterator-return : iterator? [any/c] -> external/raw
@@ -321,16 +355,16 @@
 (define (iterator-return iter [value (void)])
   (unless (iterator? iter)
     (raise-argument-error 'iterator-return "iterator?" iter))
-  (with-handlers ([exn:fail? (lambda (_)
-                               (iterator-result value #t))])
-    (js-send/extern (iterator-raw iter) "return" (vector value))))
+  (if (iterator-host-method-present? (iterator-raw iter) "return")
+      (js-send/extern (iterator-raw iter) "return" (vector value))
+      (iterator-result value #t)))
 
 ;; iterator-dispose! : iterator? -> void?
 ;;   Dispose an Iterator by calling return() when available.
 (define (iterator-dispose! iter)
   (unless (iterator? iter)
     (raise-argument-error 'iterator-dispose! "iterator?" iter))
-  (with-handlers ([exn:fail? (lambda (_) (void))])
+  (when (iterator-host-method-present? (iterator-raw iter) "return")
     (js-send/value (iterator-raw iter) "return" (vector)))
   (void))
 
