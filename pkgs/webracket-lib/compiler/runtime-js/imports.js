@@ -208,6 +208,34 @@ function set_xterm_terminal_property(term, name, value) {
   set_host_property(term, name, value, `xterm.js Terminal.${name}`);
 }
 
+function get_canvas_element_property(canvas, name) {
+  return get_required_host_property(canvas, name, `canvas.${name}`);
+}
+
+function set_canvas_element_property(canvas, name, value) {
+  set_required_host_property(canvas, name, value, `canvas.${name}`);
+}
+
+function get_canvas_2d_property(ctx, name) {
+  return get_required_host_property(ctx, name, `CanvasRenderingContext2D.${name}`);
+}
+
+function set_canvas_2d_property(ctx, name, value) {
+  set_required_host_property(ctx, name, value, `CanvasRenderingContext2D.${name}`);
+}
+
+function get_image_data_property(data, name) {
+  return get_required_host_property(data, name, `ImageData.${name}`);
+}
+
+function get_text_metrics_property(metrics, name) {
+  return get_required_host_property(metrics, name, `TextMetrics.${name}`);
+}
+
+function get_dom_matrix_property(matrix, name) {
+  return get_required_host_property(matrix, name, `DOMMatrix.${name}`);
+}
+
 function get_jsxgraph_board_property(board, name) {
   return get_host_property(board, name, `JSXGraph Board.${name}`);
 }
@@ -1040,8 +1068,8 @@ var imports = {
         'get-context':                   ((canvas, type, opts)           => require_host_function(canvas,
                                                                                                     'getContext',
                                                                                                     'canvas.getContext')(from_fasl(type), opts)),
-        'height':                        ((canvas)                       => get_host_property(canvas, 'height', 'canvas.height')),
-        'set-height!':                   ((canvas, h)                    => { set_host_property(canvas, 'height', h, 'canvas.height'); }),
+        'height':                        ((canvas)                       => get_canvas_element_property(canvas, 'height')),
+        'set-height!':                   ((canvas, h)                    => { set_canvas_element_property(canvas, 'height', h); }),
         'to-blob':                       ((canvas, cb, type, quality)    => require_host_function(canvas,
                                                                                                     'toBlob',
                                                                                                     'canvas.toBlob')(cb, from_fasl(type), quality)),
@@ -1051,8 +1079,8 @@ var imports = {
         'transfer-control-to-offscreen': ((canvas)                       => require_host_function(canvas,
                                                                                                     'transferControlToOffscreen',
                                                                                                     'canvas.transferControlToOffscreen')()),
-        'width':                         ((canvas)                       => get_host_property(canvas, 'width', 'canvas.width')),
-        'set-width!':                    ((canvas, w)                    => { set_host_property(canvas, 'width', w, 'canvas.width'); })
+        'width':                         ((canvas)                       => get_canvas_element_property(canvas, 'width')),
+        'set-width!':                    ((canvas, w)                    => { set_canvas_element_property(canvas, 'width', w); })
     } : {
         'capture-stream'()                { throw new Error('DOM not available in this environment'); },
         'get-context'()                   { throw new Error('DOM not available in this environment'); },
@@ -1066,63 +1094,63 @@ var imports = {
     },
     // CanvasRenderingContext2D
     'canvas-rendering-context-2d': hasDOM ? {
-        'canvas':                 (ctx => get_host_property(ctx, 'canvas', 'CanvasRenderingContext2D.canvas')),
-        'direction':              (ctx => get_host_property(ctx, 'direction', 'CanvasRenderingContext2D.direction')),
-        'set-direction!':         ((ctx, dir) => { set_host_property(ctx, 'direction', from_fasl(dir), 'CanvasRenderingContext2D.direction'); }),
-        'fill-style':             (ctx => get_host_property(ctx, 'fillStyle', 'CanvasRenderingContext2D.fillStyle')),
-        'set-fill-style!':        ((ctx, style) => { set_host_property(ctx, 'fillStyle', from_fasl(style), 'CanvasRenderingContext2D.fillStyle'); }),
-        'filter':                 (ctx => get_host_property(ctx, 'filter', 'CanvasRenderingContext2D.filter')),
-        'set-filter!':            ((ctx, filter) => { set_host_property(ctx, 'filter', from_fasl(filter), 'CanvasRenderingContext2D.filter'); }),
-        'font':                   (ctx => get_host_property(ctx, 'font', 'CanvasRenderingContext2D.font')),
-        'set-font!':              ((ctx, font) => { set_host_property(ctx, 'font', from_fasl(font), 'CanvasRenderingContext2D.font'); }),
-        'global-alpha':           (ctx => get_host_property(ctx, 'globalAlpha', 'CanvasRenderingContext2D.globalAlpha')),
-        'set-global-alpha!':      ((ctx, a) => { set_host_property(ctx, 'globalAlpha', a, 'CanvasRenderingContext2D.globalAlpha'); }),
-        'global-composite-operation': (ctx => get_host_property(ctx, 'globalCompositeOperation', 'CanvasRenderingContext2D.globalCompositeOperation')),
-        'set-global-composite-operation!': ((ctx, op) => { set_host_property(ctx, 'globalCompositeOperation', from_fasl(op), 'CanvasRenderingContext2D.globalCompositeOperation'); }),
-        'image-smoothing-enabled': (ctx => get_host_property(ctx, 'imageSmoothingEnabled', 'CanvasRenderingContext2D.imageSmoothingEnabled') ? 1 : 0),
-        'set-image-smoothing-enabled!': ((ctx, flag) => { set_host_property(ctx, 'imageSmoothingEnabled', !!flag, 'CanvasRenderingContext2D.imageSmoothingEnabled'); }),
-        'image-smoothing-quality': (ctx => get_host_property(ctx, 'imageSmoothingQuality', 'CanvasRenderingContext2D.imageSmoothingQuality')),
-        'set-image-smoothing-quality!': ((ctx, q) => { set_host_property(ctx, 'imageSmoothingQuality', from_fasl(q), 'CanvasRenderingContext2D.imageSmoothingQuality'); }),
-        'line-cap':               (ctx => get_host_property(ctx, 'lineCap', 'CanvasRenderingContext2D.lineCap')),
-        'set-line-cap!':          ((ctx, cap) => { set_host_property(ctx, 'lineCap', from_fasl(cap), 'CanvasRenderingContext2D.lineCap'); }),
-        'line-dash-offset':       (ctx => get_host_property(ctx, 'lineDashOffset', 'CanvasRenderingContext2D.lineDashOffset')),
-        'set-line-dash-offset!':  ((ctx, off) => { set_host_property(ctx, 'lineDashOffset', off, 'CanvasRenderingContext2D.lineDashOffset'); }),
-        'line-join':              (ctx => get_host_property(ctx, 'lineJoin', 'CanvasRenderingContext2D.lineJoin')),
-        'set-line-join!':         ((ctx, join) => { set_host_property(ctx, 'lineJoin', from_fasl(join), 'CanvasRenderingContext2D.lineJoin'); }),
-        'line-width':             (ctx => get_host_property(ctx, 'lineWidth', 'CanvasRenderingContext2D.lineWidth')),
-        'set-line-width!':        ((ctx, w) => { set_host_property(ctx, 'lineWidth', w, 'CanvasRenderingContext2D.lineWidth'); }),
-        'miter-limit':            (ctx => get_host_property(ctx, 'miterLimit', 'CanvasRenderingContext2D.miterLimit')),
-        'set-miter-limit!':       ((ctx, m) => { set_host_property(ctx, 'miterLimit', m, 'CanvasRenderingContext2D.miterLimit'); }),
-        'shadow-blur':            (ctx => get_host_property(ctx, 'shadowBlur', 'CanvasRenderingContext2D.shadowBlur')),
-        'set-shadow-blur!':       ((ctx, b) => { set_host_property(ctx, 'shadowBlur', b, 'CanvasRenderingContext2D.shadowBlur'); }),
-        'shadow-color':           (ctx => get_host_property(ctx, 'shadowColor', 'CanvasRenderingContext2D.shadowColor')),
-        'set-shadow-color!':      ((ctx, c) => { set_host_property(ctx, 'shadowColor', from_fasl(c), 'CanvasRenderingContext2D.shadowColor'); }),
-        'shadow-offset-x':        (ctx => get_host_property(ctx, 'shadowOffsetX', 'CanvasRenderingContext2D.shadowOffsetX')),
-        'set-shadow-offset-x!':   ((ctx, x) => { set_host_property(ctx, 'shadowOffsetX', x, 'CanvasRenderingContext2D.shadowOffsetX'); }),
-        'shadow-offset-y':        (ctx => get_host_property(ctx, 'shadowOffsetY', 'CanvasRenderingContext2D.shadowOffsetY')),
-        'set-shadow-offset-y!':   ((ctx, y) => { set_host_property(ctx, 'shadowOffsetY', y, 'CanvasRenderingContext2D.shadowOffsetY'); }),
-        'stroke-style':           (ctx => get_host_property(ctx, 'strokeStyle', 'CanvasRenderingContext2D.strokeStyle')),
-        'set-stroke-style!':      ((ctx, style) => { set_host_property(ctx, 'strokeStyle', from_fasl(style), 'CanvasRenderingContext2D.strokeStyle'); }),
-        'text-align':             (ctx => get_host_property(ctx, 'textAlign', 'CanvasRenderingContext2D.textAlign')),
-        'set-text-align!':        ((ctx, a) => { set_host_property(ctx, 'textAlign', from_fasl(a), 'CanvasRenderingContext2D.textAlign'); }),
-        'text-baseline':          (ctx => get_host_property(ctx, 'textBaseline', 'CanvasRenderingContext2D.textBaseline')),
-        'set-text-baseline!':     ((ctx, b) => { set_host_property(ctx, 'textBaseline', from_fasl(b), 'CanvasRenderingContext2D.textBaseline'); }),
-        'text-rendering':         (ctx => get_host_property(ctx, 'textRendering', 'CanvasRenderingContext2D.textRendering')),
-        'set-text-rendering!':    ((ctx, r) => { set_host_property(ctx, 'textRendering', from_fasl(r), 'CanvasRenderingContext2D.textRendering'); }),
-        'font-kerning':           (ctx => get_host_property(ctx, 'fontKerning', 'CanvasRenderingContext2D.fontKerning')),
-        'set-font-kerning!':      ((ctx, k) => { set_host_property(ctx, 'fontKerning', from_fasl(k), 'CanvasRenderingContext2D.fontKerning'); }),
-        'font-stretch':           (ctx => get_host_property(ctx, 'fontStretch', 'CanvasRenderingContext2D.fontStretch')),
-        'set-font-stretch!':      ((ctx, s) => { set_host_property(ctx, 'fontStretch', from_fasl(s), 'CanvasRenderingContext2D.fontStretch'); }),
-        'font-variant-caps':      (ctx => get_host_property(ctx, 'fontVariantCaps', 'CanvasRenderingContext2D.fontVariantCaps')),
-        'set-font-variant-caps!': ((ctx, v) => { set_host_property(ctx, 'fontVariantCaps', from_fasl(v), 'CanvasRenderingContext2D.fontVariantCaps'); }),
-        'font-variant-ligatures': (ctx => get_host_property(ctx, 'fontVariantLigatures', 'CanvasRenderingContext2D.fontVariantLigatures')),
-        'set-font-variant-ligatures!': ((ctx, v) => { set_host_property(ctx, 'fontVariantLigatures', from_fasl(v), 'CanvasRenderingContext2D.fontVariantLigatures'); }),
-        'font-variant-numeric':   (ctx => get_host_property(ctx, 'fontVariantNumeric', 'CanvasRenderingContext2D.fontVariantNumeric')),
-        'set-font-variant-numeric!': ((ctx, v) => { set_host_property(ctx, 'fontVariantNumeric', from_fasl(v), 'CanvasRenderingContext2D.fontVariantNumeric'); }),
-        'letter-spacing':         (ctx => get_host_property(ctx, 'letterSpacing', 'CanvasRenderingContext2D.letterSpacing')),
-        'set-letter-spacing!':    ((ctx, v) => { set_host_property(ctx, 'letterSpacing', from_fasl(v), 'CanvasRenderingContext2D.letterSpacing'); }),
-        'word-spacing':           (ctx => get_host_property(ctx, 'wordSpacing', 'CanvasRenderingContext2D.wordSpacing')),
-        'set-word-spacing!':      ((ctx, v) => { set_host_property(ctx, 'wordSpacing', from_fasl(v), 'CanvasRenderingContext2D.wordSpacing'); }),
+        'canvas':                 (ctx => get_canvas_2d_property(ctx, 'canvas')),
+        'direction':              (ctx => get_canvas_2d_property(ctx, 'direction')),
+        'set-direction!':         ((ctx, dir) => { set_canvas_2d_property(ctx, 'direction', from_fasl(dir)); }),
+        'fill-style':             (ctx => get_canvas_2d_property(ctx, 'fillStyle')),
+        'set-fill-style!':        ((ctx, style) => { set_canvas_2d_property(ctx, 'fillStyle', from_fasl(style)); }),
+        'filter':                 (ctx => get_canvas_2d_property(ctx, 'filter')),
+        'set-filter!':            ((ctx, filter) => { set_canvas_2d_property(ctx, 'filter', from_fasl(filter)); }),
+        'font':                   (ctx => get_canvas_2d_property(ctx, 'font')),
+        'set-font!':              ((ctx, font) => { set_canvas_2d_property(ctx, 'font', from_fasl(font)); }),
+        'global-alpha':           (ctx => get_canvas_2d_property(ctx, 'globalAlpha')),
+        'set-global-alpha!':      ((ctx, a) => { set_canvas_2d_property(ctx, 'globalAlpha', a); }),
+        'global-composite-operation': (ctx => get_canvas_2d_property(ctx, 'globalCompositeOperation')),
+        'set-global-composite-operation!': ((ctx, op) => { set_canvas_2d_property(ctx, 'globalCompositeOperation', from_fasl(op)); }),
+        'image-smoothing-enabled': (ctx => get_canvas_2d_property(ctx, 'imageSmoothingEnabled') ? 1 : 0),
+        'set-image-smoothing-enabled!': ((ctx, flag) => { set_canvas_2d_property(ctx, 'imageSmoothingEnabled', !!flag); }),
+        'image-smoothing-quality': (ctx => get_canvas_2d_property(ctx, 'imageSmoothingQuality')),
+        'set-image-smoothing-quality!': ((ctx, q) => { set_canvas_2d_property(ctx, 'imageSmoothingQuality', from_fasl(q)); }),
+        'line-cap':               (ctx => get_canvas_2d_property(ctx, 'lineCap')),
+        'set-line-cap!':          ((ctx, cap) => { set_canvas_2d_property(ctx, 'lineCap', from_fasl(cap)); }),
+        'line-dash-offset':       (ctx => get_canvas_2d_property(ctx, 'lineDashOffset')),
+        'set-line-dash-offset!':  ((ctx, off) => { set_canvas_2d_property(ctx, 'lineDashOffset', off); }),
+        'line-join':              (ctx => get_canvas_2d_property(ctx, 'lineJoin')),
+        'set-line-join!':         ((ctx, join) => { set_canvas_2d_property(ctx, 'lineJoin', from_fasl(join)); }),
+        'line-width':             (ctx => get_canvas_2d_property(ctx, 'lineWidth')),
+        'set-line-width!':        ((ctx, w) => { set_canvas_2d_property(ctx, 'lineWidth', w); }),
+        'miter-limit':            (ctx => get_canvas_2d_property(ctx, 'miterLimit')),
+        'set-miter-limit!':       ((ctx, m) => { set_canvas_2d_property(ctx, 'miterLimit', m); }),
+        'shadow-blur':            (ctx => get_canvas_2d_property(ctx, 'shadowBlur')),
+        'set-shadow-blur!':       ((ctx, b) => { set_canvas_2d_property(ctx, 'shadowBlur', b); }),
+        'shadow-color':           (ctx => get_canvas_2d_property(ctx, 'shadowColor')),
+        'set-shadow-color!':      ((ctx, c) => { set_canvas_2d_property(ctx, 'shadowColor', from_fasl(c)); }),
+        'shadow-offset-x':        (ctx => get_canvas_2d_property(ctx, 'shadowOffsetX')),
+        'set-shadow-offset-x!':   ((ctx, x) => { set_canvas_2d_property(ctx, 'shadowOffsetX', x); }),
+        'shadow-offset-y':        (ctx => get_canvas_2d_property(ctx, 'shadowOffsetY')),
+        'set-shadow-offset-y!':   ((ctx, y) => { set_canvas_2d_property(ctx, 'shadowOffsetY', y); }),
+        'stroke-style':           (ctx => get_canvas_2d_property(ctx, 'strokeStyle')),
+        'set-stroke-style!':      ((ctx, style) => { set_canvas_2d_property(ctx, 'strokeStyle', from_fasl(style)); }),
+        'text-align':             (ctx => get_canvas_2d_property(ctx, 'textAlign')),
+        'set-text-align!':        ((ctx, a) => { set_canvas_2d_property(ctx, 'textAlign', from_fasl(a)); }),
+        'text-baseline':          (ctx => get_canvas_2d_property(ctx, 'textBaseline')),
+        'set-text-baseline!':     ((ctx, b) => { set_canvas_2d_property(ctx, 'textBaseline', from_fasl(b)); }),
+        'text-rendering':         (ctx => get_canvas_2d_property(ctx, 'textRendering')),
+        'set-text-rendering!':    ((ctx, r) => { set_canvas_2d_property(ctx, 'textRendering', from_fasl(r)); }),
+        'font-kerning':           (ctx => get_canvas_2d_property(ctx, 'fontKerning')),
+        'set-font-kerning!':      ((ctx, k) => { set_canvas_2d_property(ctx, 'fontKerning', from_fasl(k)); }),
+        'font-stretch':           (ctx => get_canvas_2d_property(ctx, 'fontStretch')),
+        'set-font-stretch!':      ((ctx, s) => { set_canvas_2d_property(ctx, 'fontStretch', from_fasl(s)); }),
+        'font-variant-caps':      (ctx => get_canvas_2d_property(ctx, 'fontVariantCaps')),
+        'set-font-variant-caps!': ((ctx, v) => { set_canvas_2d_property(ctx, 'fontVariantCaps', from_fasl(v)); }),
+        'font-variant-ligatures': (ctx => get_canvas_2d_property(ctx, 'fontVariantLigatures')),
+        'set-font-variant-ligatures!': ((ctx, v) => { set_canvas_2d_property(ctx, 'fontVariantLigatures', from_fasl(v)); }),
+        'font-variant-numeric':   (ctx => get_canvas_2d_property(ctx, 'fontVariantNumeric')),
+        'set-font-variant-numeric!': ((ctx, v) => { set_canvas_2d_property(ctx, 'fontVariantNumeric', from_fasl(v)); }),
+        'letter-spacing':         (ctx => get_canvas_2d_property(ctx, 'letterSpacing')),
+        'set-letter-spacing!':    ((ctx, v) => { set_canvas_2d_property(ctx, 'letterSpacing', from_fasl(v)); }),
+        'word-spacing':           (ctx => get_canvas_2d_property(ctx, 'wordSpacing')),
+        'set-word-spacing!':      ((ctx, v) => { set_canvas_2d_property(ctx, 'wordSpacing', from_fasl(v)); }),
         'arc': ((ctx, x, y, r, sa, ea, ccw) => require_host_function(ctx,
                                                                       'arc',
                                                                       'CanvasRenderingContext2D.arc')(x, y, r, sa, ea, !!ccw)),
@@ -1164,16 +1192,16 @@ var imports = {
         'create-image-data-from': ((ctx, data) => require_host_function(ctx,
                                                                         'createImageData',
                                                                         'CanvasRenderingContext2D.createImageData')(data)),
-        'image-data-width': ((data) => get_host_property(data, 'width', 'ImageData.width')),
-        'image-data-height': ((data) => get_host_property(data, 'height', 'ImageData.height')),
-        'image-data-data': ((data) => get_host_property(data, 'data', 'ImageData.data')),
-        'text-metrics-width': ((metrics) => get_host_property(metrics, 'width', 'TextMetrics.width')),
-        'dom-matrix-a': ((matrix) => get_host_property(matrix, 'a', 'DOMMatrix.a')),
-        'dom-matrix-b': ((matrix) => get_host_property(matrix, 'b', 'DOMMatrix.b')),
-        'dom-matrix-c': ((matrix) => get_host_property(matrix, 'c', 'DOMMatrix.c')),
-        'dom-matrix-d': ((matrix) => get_host_property(matrix, 'd', 'DOMMatrix.d')),
-        'dom-matrix-e': ((matrix) => get_host_property(matrix, 'e', 'DOMMatrix.e')),
-        'dom-matrix-f': ((matrix) => get_host_property(matrix, 'f', 'DOMMatrix.f')),
+        'image-data-width': ((data) => get_image_data_property(data, 'width')),
+        'image-data-height': ((data) => get_image_data_property(data, 'height')),
+        'image-data-data': ((data) => get_image_data_property(data, 'data')),
+        'text-metrics-width': ((metrics) => get_text_metrics_property(metrics, 'width')),
+        'dom-matrix-a': ((matrix) => get_dom_matrix_property(matrix, 'a')),
+        'dom-matrix-b': ((matrix) => get_dom_matrix_property(matrix, 'b')),
+        'dom-matrix-c': ((matrix) => get_dom_matrix_property(matrix, 'c')),
+        'dom-matrix-d': ((matrix) => get_dom_matrix_property(matrix, 'd')),
+        'dom-matrix-e': ((matrix) => get_dom_matrix_property(matrix, 'e')),
+        'dom-matrix-f': ((matrix) => get_dom_matrix_property(matrix, 'f')),
         'create-linear-gradient': ((ctx, x0, y0, x1, y1) => require_host_function(ctx,
                                                                                   'createLinearGradient',
                                                                                   'CanvasRenderingContext2D.createLinearGradient')(x0, y0, x1, y1)),
@@ -1379,20 +1407,20 @@ var imports = {
                                                            'CanvasRenderingContext2D.translate')(x, y)),
     } : new Proxy({}, { get() { throw new Error('DOM not available in this environment'); } }),
     'image-data': hasDOM ? {
-        'width':   (data => get_host_property(data, 'width', 'ImageData.width')),
-        'height':  (data => get_host_property(data, 'height', 'ImageData.height')),
-        'data':    (data => get_host_property(data, 'data', 'ImageData.data'))
+        'width':   (data => get_image_data_property(data, 'width')),
+        'height':  (data => get_image_data_property(data, 'height')),
+        'data':    (data => get_image_data_property(data, 'data'))
     } : new Proxy({}, { get() { throw new Error('DOM not available in this environment'); } }),
     'text-metrics': hasDOM ? {
-        'width':   (metrics => get_host_property(metrics, 'width', 'TextMetrics.width'))
+        'width':   (metrics => get_text_metrics_property(metrics, 'width'))
     } : new Proxy({}, { get() { throw new Error('DOM not available in this environment'); } }),
     'dom-matrix': hasDOM ? {
-        'a':       (matrix => get_host_property(matrix, 'a', 'DOMMatrix.a')),
-        'b':       (matrix => get_host_property(matrix, 'b', 'DOMMatrix.b')),
-        'c':       (matrix => get_host_property(matrix, 'c', 'DOMMatrix.c')),
-        'd':       (matrix => get_host_property(matrix, 'd', 'DOMMatrix.d')),
-        'e':       (matrix => get_host_property(matrix, 'e', 'DOMMatrix.e')),
-        'f':       (matrix => get_host_property(matrix, 'f', 'DOMMatrix.f'))
+        'a':       (matrix => get_dom_matrix_property(matrix, 'a')),
+        'b':       (matrix => get_dom_matrix_property(matrix, 'b')),
+        'c':       (matrix => get_dom_matrix_property(matrix, 'c')),
+        'd':       (matrix => get_dom_matrix_property(matrix, 'd')),
+        'e':       (matrix => get_dom_matrix_property(matrix, 'e')),
+        'f':       (matrix => get_dom_matrix_property(matrix, 'f'))
     } : new Proxy({}, { get() { throw new Error('DOM not available in this environment'); } }),
     // Window
     'window': hasDOM ? {

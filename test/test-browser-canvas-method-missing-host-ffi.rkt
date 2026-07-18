@@ -90,6 +90,71 @@
    (lambda ()
      (canvas-pattern-set-transform! pattern matrix))))
 
+(define canvas-width-message
+  (catch-message
+   (lambda ()
+     (canvas-width source))))
+
+(define canvas-width-setter-message
+  (catch-message
+   (lambda ()
+     (canvas-set-width! source 320))))
+
+(define context-canvas-message
+  (catch-message
+   (lambda ()
+     (canvas-2d-canvas ctx))))
+
+(define context-direction-message
+  (catch-message
+   (lambda ()
+     (canvas-2d-direction ctx))))
+
+(define context-direction-setter-message
+  (catch-message
+   (lambda ()
+     (canvas-2d-set-direction! ctx 'ltr))))
+
+(define context-fill-style-message
+  (catch-message
+   (lambda ()
+     (canvas-2d-fill-style ctx))))
+
+(define context-fill-style-setter-message
+  (catch-message
+   (lambda ()
+     (canvas-2d-set-fill-style! ctx 'red))))
+
+(define context-global-alpha-message
+  (catch-message
+   (lambda ()
+     (canvas-2d-global-alpha ctx))))
+
+(define context-image-smoothing-message
+  (catch-message
+   (lambda ()
+     (canvas-2d-image-smoothing-enabled? ctx))))
+
+(define image-data-width-message
+  (catch-message
+   (lambda ()
+     (canvas-image-data-width image-data))))
+
+(define image-data-data-message
+  (catch-message
+   (lambda ()
+     (canvas-image-data-data image-data))))
+
+(define text-metrics-width-message
+  (catch-message
+   (lambda ()
+     (canvas-text-metrics-width (canvas-text-metrics-wrap (js-eval "({})"))))))
+
+(define dom-matrix-a-message
+  (catch-message
+   (lambda ()
+     (canvas-dom-matrix-a matrix))))
+
 (define image-data-width-null-message
   (catch-message
    (lambda ()
@@ -140,6 +205,45 @@
 (check-message pattern-set-transform-message
                "CanvasPattern.setTransform not available in this environment"
                "missing setTransform message")
+(check-message canvas-width-message
+               "canvas.width not available in this environment"
+               "missing canvas width message")
+(check-message canvas-width-setter-message
+               "canvas.width not available in this environment"
+               "missing canvas width setter message")
+(check-message context-canvas-message
+               "CanvasRenderingContext2D.canvas not available in this environment"
+               "missing context canvas message")
+(check-message context-direction-message
+               "CanvasRenderingContext2D.direction not available in this environment"
+               "missing context direction message")
+(check-message context-direction-setter-message
+               "CanvasRenderingContext2D.direction not available in this environment"
+               "missing context direction setter message")
+(check-message context-fill-style-message
+               "CanvasRenderingContext2D.fillStyle not available in this environment"
+               "missing context fillStyle message")
+(check-message context-fill-style-setter-message
+               "CanvasRenderingContext2D.fillStyle not available in this environment"
+               "missing context fillStyle setter message")
+(check-message context-global-alpha-message
+               "CanvasRenderingContext2D.globalAlpha not available in this environment"
+               "missing context globalAlpha message")
+(check-message context-image-smoothing-message
+               "CanvasRenderingContext2D.imageSmoothingEnabled not available in this environment"
+               "missing context imageSmoothingEnabled message")
+(check-message image-data-width-message
+               "ImageData.width not available in this environment"
+               "missing ImageData.width message")
+(check-message image-data-data-message
+               "ImageData.data not available in this environment"
+               "missing ImageData.data message")
+(check-message text-metrics-width-message
+               "TextMetrics.width not available in this environment"
+               "missing TextMetrics.width message")
+(check-message dom-matrix-a-message
+               "DOMMatrix.a not available in this environment"
+               "missing DOMMatrix.a message")
 (check-message image-data-width-null-message
                "ImageData.width: target object is null or undefined"
                "null ImageData.width message")
