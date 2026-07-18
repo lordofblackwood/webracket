@@ -30,6 +30,25 @@
   (and (not (js-nullish? method))
        (string=? (js-typeof method) "function")))
 
+;; check-js-promise-host-method : symbol? external/raw string? string? -> void?
+;;   Ensure a required Promise host method is available.
+(define (check-js-promise-host-method who raw receiver-name method-name)
+  (unless (js-promise-thenable-method? raw method-name)
+    (raise-arguments-error who
+                           (string-append receiver-name
+                                          "."
+                                          method-name
+                                          " is not available"))))
+
+;; check-js-promise-global-method : symbol? string? -> external/raw
+;;   Return the Promise constructor after checking a required static method.
+(define (check-js-promise-global-method who method-name)
+  (define promise-ctor (js-var "Promise"))
+  (unless (string=? (js-typeof promise-ctor) "function")
+    (raise-arguments-error who "Promise is not available"))
+  (check-js-promise-host-method who promise-ctor "Promise" method-name)
+  promise-ctor)
+
 ;; js-promise-wrap : external/raw -> js-promise?
 ;;   Wrap a Promise-like value after validating that it is thenable.
 (define (js-promise-wrap raw)
@@ -76,14 +95,16 @@
 ;; js-promise-resolved : any/c -> js-promise?
 ;;   Build an already-resolved JavaScript Promise.
 (define (js-promise-resolved value)
+  (define promise-ctor (check-js-promise-global-method 'js-promise-resolved "resolve"))
   (js-promise-wrap
-   (js-send/extern (js-var "Promise") "resolve" (vector value))))
+   (js-send/extern promise-ctor "resolve" (vector value))))
 
 ;; js-promise-rejected : any/c -> js-promise?
 ;;   Build an already-rejected JavaScript Promise.
 (define (js-promise-rejected value)
+  (define promise-ctor (check-js-promise-global-method 'js-promise-rejected "reject"))
   (js-promise-wrap
-   (js-send/extern (js-var "Promise") "reject" (vector value))))
+   (js-send/extern promise-ctor "reject" (vector value))))
 
 ;; js-promise-then : js-promise? (or/c procedure? external?) [(or/c #f procedure? external?)] -> js-promise?
 ;;   Attach fulfillment and optional rejection handlers to a Promise.
@@ -104,6 +125,10 @@
 (define (js-promise-catch promise on-rejected)
   (unless (js-promise-thenable? promise)
     (raise-argument-error 'js-promise-catch "js-promise?" promise))
+  (check-js-promise-host-method 'js-promise-catch
+                                (js-promise-unwrap promise)
+                                "Promise"
+                                "catch")
   (js-promise-wrap
    (js-send/extern (js-promise-unwrap promise)
                    "catch"
@@ -114,6 +139,10 @@
 (define (js-promise-finally promise on-finally)
   (unless (js-promise-thenable? promise)
     (raise-argument-error 'js-promise-finally "js-promise?" promise))
+  (check-js-promise-host-method 'js-promise-finally
+                                (js-promise-unwrap promise)
+                                "Promise"
+                                "finally")
   (js-promise-wrap
    (js-send/extern (js-promise-unwrap promise)
                    "finally"
