@@ -250,6 +250,10 @@ compile_root_case test-browser-canvas-method-missing-host-ffi.html test/test-bro
   --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/dom.ffi"
 compile_root_case test-browser-image-surface.html test/test-browser-image-surface.rkt \
   --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/dom.ffi"
+compile_root_case test-browser-image-method-missing-host-ffi.html test/test-browser-image-method-missing-host-ffi.rkt \
+  --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/standard.ffi" \
+  --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/dom.ffi" \
+  --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/image.ffi"
 compile_root_case test-browser-media-method-missing-host-ffi.html test/test-browser-media-method-missing-host-ffi.rkt \
   --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/dom.ffi"
 compile_root_case test-dom-window-document.html test/test-dom-window-document.rkt \
