@@ -245,7 +245,7 @@
         this.type = 'lowpass';
         this.frequency = new AudioParam(350);
         this.detune = new AudioParam(0);
-        this.q = new AudioParam(1);
+        this.Q = new AudioParam(1);
         this.gain = new AudioParam(0);
       }
     };

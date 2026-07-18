@@ -34,12 +34,19 @@
   globalThis.__wrWebSocketBoundaryInstall = (missing) => {
     globalThis.WebSocket = class WebSocket {
       constructor(url, protocols) {
-        this.url = url;
-        this.protocols = protocols;
-        this.readyState = 1;
-        this.bufferedAmount = 0;
-        this.protocol = '';
-        this.extensions = '';
+        const values = {
+          url: url,
+          protocols: protocols,
+          readyState: 1,
+          bufferedAmount: 0,
+          protocol: '',
+          extensions: ''
+        };
+        for (const [name, value] of Object.entries(values)) {
+          if (name !== missing) {
+            this[name] = value;
+          }
+        }
       }
       send(_data) {}
       close(_code, _reason) {}
@@ -78,12 +85,82 @@
      (define ws (websocket-new "wss://example.invalid/socket"))
      (websocket-remove-event-listener! ws 'message callback))))
 
+(define send-message
+  (missing-method-message
+   "send"
+   (lambda ()
+     (define ws (websocket-new "wss://example.invalid/socket"))
+     (websocket-send ws "payload"))))
+
+(define close-message
+  (missing-method-message
+   "close"
+   (lambda ()
+     (define ws (websocket-new "wss://example.invalid/socket"))
+     (websocket-close ws))))
+
+(define url-message
+  (missing-method-message
+   "url"
+   (lambda ()
+     (define ws (websocket-new "wss://example.invalid/socket"))
+     (websocket-url ws))))
+
+(define ready-state-message
+  (missing-method-message
+   "readyState"
+   (lambda ()
+     (define ws (websocket-new "wss://example.invalid/socket"))
+     (websocket-ready-state-number ws))))
+
+(define buffered-amount-message
+  (missing-method-message
+   "bufferedAmount"
+   (lambda ()
+     (define ws (websocket-new "wss://example.invalid/socket"))
+     (websocket-buffered-amount ws))))
+
+(define protocol-message
+  (missing-method-message
+   "protocol"
+   (lambda ()
+     (define ws (websocket-new "wss://example.invalid/socket"))
+     (websocket-protocol ws))))
+
+(define extensions-message
+  (missing-method-message
+   "extensions"
+   (lambda ()
+     (define ws (websocket-new "wss://example.invalid/socket"))
+     (websocket-extensions ws))))
+
 (check-message add-listener-message
                "WebSocket.addEventListener is not available"
                "missing WebSocket.addEventListener message")
 (check-message remove-listener-message
                "WebSocket.removeEventListener is not available"
                "missing WebSocket.removeEventListener message")
+(check-message send-message
+               "WebSocket.send not available in this environment"
+               "missing WebSocket.send message")
+(check-message close-message
+               "WebSocket.close not available in this environment"
+               "missing WebSocket.close message")
+(check-message url-message
+               "WebSocket.url not available in this environment"
+               "missing WebSocket.url message")
+(check-message ready-state-message
+               "WebSocket.readyState not available in this environment"
+               "missing WebSocket.readyState message")
+(check-message buffered-amount-message
+               "WebSocket.bufferedAmount not available in this environment"
+               "missing WebSocket.bufferedAmount message")
+(check-message protocol-message
+               "WebSocket.protocol not available in this environment"
+               "missing WebSocket.protocol message")
+(check-message extensions-message
+               "WebSocket.extensions not available in this environment"
+               "missing WebSocket.extensions message")
 
 (js-eval "__wrWebSocketBoundaryRestore();")
 

@@ -1517,25 +1517,30 @@ const websocket_impl = {
     const p = from_fasl(protocols);
     return p === undefined ? new WebSocketCtor(u) : new WebSocketCtor(u, p);
   }),
-  'send': ((ws, data) => ws.send(from_fasl(data))),
+  'send': ((ws, data) => require_host_function(ws,
+                                               'send',
+                                               'WebSocket.send')(from_fasl(data))),
   'close': ((ws, code, reason) => {
+    const close = require_host_function(ws,
+                                        'close',
+                                        'WebSocket.close');
     const c = from_fasl(code);
     const r = from_fasl(reason);
     if (c === undefined && r === undefined) {
-      ws.close();
+      close();
     } else if (r === undefined) {
-      ws.close(c);
+      close(c);
     } else if (c === undefined) {
-      ws.close(1000, r);
+      close(1000, r);
     } else {
-      ws.close(c, r);
+      close(c, r);
     }
   }),
-  'url': (ws => ws.url),
-  'ready-state': (ws => ws.readyState),
-  'buffered-amount': (ws => ws.bufferedAmount),
-  'protocol': (ws => ws.protocol),
-  'extensions': (ws => ws.extensions)
+  'url': (ws => get_websocket_property(ws, 'url')),
+  'ready-state': (ws => get_websocket_property(ws, 'readyState')),
+  'buffered-amount': (ws => get_websocket_property(ws, 'bufferedAmount')),
+  'protocol': (ws => get_websocket_property(ws, 'protocol')),
+  'extensions': (ws => get_websocket_property(ws, 'extensions'))
 };
 
 const audio_impl = {
@@ -1552,13 +1557,13 @@ const audio_impl = {
   'context-suspend': (ctx => require_host_function(ctx,
                                                    'suspend',
                                                    'AudioContext.suspend')()),
-  'context-state': (ctx => ctx.state),
-  'context-current-time': (ctx => ctx.currentTime),
-  'context-sample-rate': (ctx => ctx.sampleRate),
-  'context-base-latency': (ctx => ctx.baseLatency),
-  'context-output-latency': (ctx => ctx.outputLatency),
-  'context-destination': (ctx => ctx.destination),
-  'context-listener': (ctx => ctx.listener),
+  'context-state': (ctx => get_audio_property(ctx, 'AudioContext', 'state')),
+  'context-current-time': (ctx => get_audio_property(ctx, 'AudioContext', 'currentTime')),
+  'context-sample-rate': (ctx => get_audio_property(ctx, 'AudioContext', 'sampleRate')),
+  'context-base-latency': (ctx => get_audio_property(ctx, 'AudioContext', 'baseLatency')),
+  'context-output-latency': (ctx => get_audio_property(ctx, 'AudioContext', 'outputLatency')),
+  'context-destination': (ctx => get_audio_property(ctx, 'AudioContext', 'destination')),
+  'context-listener': (ctx => get_audio_property(ctx, 'AudioContext', 'listener')),
   'context-create-gain': (ctx => require_host_function(ctx,
                                                        'createGain',
                                                        'AudioContext.createGain')()),
@@ -1614,7 +1619,7 @@ const audio_impl = {
   'context-decode-audio-data': ((ctx, data) => require_host_function(ctx,
                                                                      'decodeAudioData',
                                                                      'AudioContext.decodeAudioData')(from_fasl(data))),
-  'node-context': (node => node.context),
+  'node-context': (node => get_audio_property(node, 'AudioNode', 'context')),
   'node-connect': ((node, destination, outputIndex, inputIndex) => {
     const connect = require_host_function(node,
                                           'connect',
@@ -1644,8 +1649,10 @@ const audio_impl = {
       disconnect(out, input);
     }
   }),
-  'param-value': (param => param.value),
-  'param-set-value!': ((param, value) => { param.value = from_fasl(value); }),
+  'param-value': (param => get_audio_property(param, 'AudioParam', 'value')),
+  'param-set-value!': ((param, value) => {
+    set_audio_property(param, 'AudioParam', 'value', from_fasl(value));
+  }),
   'param-set-value-at-time!': ((param, value, time) =>
     require_host_function(param,
                           'setValueAtTime',
@@ -1681,18 +1688,20 @@ const audio_impl = {
     require_host_function(param,
                           'cancelAndHoldAtTime',
                           'AudioParam.cancelAndHoldAtTime')(from_fasl(time))),
-  'buffer-length': (buffer => buffer.length),
-  'buffer-duration': (buffer => buffer.duration),
-  'buffer-sample-rate': (buffer => buffer.sampleRate),
-  'buffer-number-of-channels': (buffer => buffer.numberOfChannels),
+  'buffer-length': (buffer => get_audio_property(buffer, 'AudioBuffer', 'length')),
+  'buffer-duration': (buffer => get_audio_property(buffer, 'AudioBuffer', 'duration')),
+  'buffer-sample-rate': (buffer => get_audio_property(buffer, 'AudioBuffer', 'sampleRate')),
+  'buffer-number-of-channels': (buffer => get_audio_property(buffer, 'AudioBuffer', 'numberOfChannels')),
   'buffer-get-channel-data': ((buffer, channel) => require_host_function(buffer,
                                                                          'getChannelData',
                                                                          'AudioBuffer.getChannelData')(from_fasl(channel))),
-  'gain-node-gain': (node => node.gain),
-  'oscillator-node-type': (node => node.type),
-  'oscillator-node-set-type!': ((node, type) => { node.type = from_fasl(type); }),
-  'oscillator-node-frequency': (node => node.frequency),
-  'oscillator-node-detune': (node => node.detune),
+  'gain-node-gain': (node => get_audio_property(node, 'GainNode', 'gain')),
+  'oscillator-node-type': (node => get_audio_property(node, 'OscillatorNode', 'type')),
+  'oscillator-node-set-type!': ((node, type) => {
+    set_audio_property(node, 'OscillatorNode', 'type', from_fasl(type));
+  }),
+  'oscillator-node-frequency': (node => get_audio_property(node, 'OscillatorNode', 'frequency')),
+  'oscillator-node-detune': (node => get_audio_property(node, 'OscillatorNode', 'detune')),
   'oscillator-node-start!': ((node, when) => require_host_function(node,
                                                                    'start',
                                                                    'OscillatorNode.start')(from_fasl(when))),
@@ -1702,16 +1711,24 @@ const audio_impl = {
   'oscillator-node-set-periodic-wave!': ((node, wave) => require_host_function(node,
                                                                                'setPeriodicWave',
                                                                                'OscillatorNode.setPeriodicWave')(from_fasl(wave))),
-  'audio-buffer-source-node-buffer': (node => node.buffer),
-  'audio-buffer-source-node-set-buffer!': ((node, buffer) => { node.buffer = from_fasl(buffer); }),
-  'audio-buffer-source-node-playback-rate': (node => node.playbackRate),
-  'audio-buffer-source-node-detune': (node => node.detune),
-  'audio-buffer-source-node-loop': (node => node.loop),
-  'audio-buffer-source-node-set-loop!': ((node, flag) => { node.loop = from_fasl(flag); }),
-  'audio-buffer-source-node-loop-start': (node => node.loopStart),
-  'audio-buffer-source-node-set-loop-start!': ((node, value) => { node.loopStart = from_fasl(value); }),
-  'audio-buffer-source-node-loop-end': (node => node.loopEnd),
-  'audio-buffer-source-node-set-loop-end!': ((node, value) => { node.loopEnd = from_fasl(value); }),
+  'audio-buffer-source-node-buffer': (node => get_audio_property(node, 'AudioBufferSourceNode', 'buffer')),
+  'audio-buffer-source-node-set-buffer!': ((node, buffer) => {
+    set_audio_property(node, 'AudioBufferSourceNode', 'buffer', from_fasl(buffer));
+  }),
+  'audio-buffer-source-node-playback-rate': (node => get_audio_property(node, 'AudioBufferSourceNode', 'playbackRate')),
+  'audio-buffer-source-node-detune': (node => get_audio_property(node, 'AudioBufferSourceNode', 'detune')),
+  'audio-buffer-source-node-loop': (node => get_audio_property(node, 'AudioBufferSourceNode', 'loop')),
+  'audio-buffer-source-node-set-loop!': ((node, flag) => {
+    set_audio_property(node, 'AudioBufferSourceNode', 'loop', from_fasl(flag));
+  }),
+  'audio-buffer-source-node-loop-start': (node => get_audio_property(node, 'AudioBufferSourceNode', 'loopStart')),
+  'audio-buffer-source-node-set-loop-start!': ((node, value) => {
+    set_audio_property(node, 'AudioBufferSourceNode', 'loopStart', from_fasl(value));
+  }),
+  'audio-buffer-source-node-loop-end': (node => get_audio_property(node, 'AudioBufferSourceNode', 'loopEnd')),
+  'audio-buffer-source-node-set-loop-end!': ((node, value) => {
+    set_audio_property(node, 'AudioBufferSourceNode', 'loopEnd', from_fasl(value));
+  }),
   'audio-buffer-source-node-start!': ((node, when, offset, duration) =>
     require_host_function(node,
                           'start',
@@ -1721,15 +1738,23 @@ const audio_impl = {
   'audio-buffer-source-node-stop!': ((node, when) => require_host_function(node,
                                                                            'stop',
                                                                            'AudioBufferSourceNode.stop')(from_fasl(when))),
-  'analyser-node-fft-size': (node => node.fftSize),
-  'analyser-node-set-fft-size!': ((node, size) => { node.fftSize = from_fasl(size); }),
-  'analyser-node-frequency-bin-count': (node => node.frequencyBinCount),
-  'analyser-node-min-decibels': (node => node.minDecibels),
-  'analyser-node-set-min-decibels!': ((node, value) => { node.minDecibels = from_fasl(value); }),
-  'analyser-node-max-decibels': (node => node.maxDecibels),
-  'analyser-node-set-max-decibels!': ((node, value) => { node.maxDecibels = from_fasl(value); }),
-  'analyser-node-smoothing-time-constant': (node => node.smoothingTimeConstant),
-  'analyser-node-set-smoothing-time-constant!': ((node, value) => { node.smoothingTimeConstant = from_fasl(value); }),
+  'analyser-node-fft-size': (node => get_audio_property(node, 'AnalyserNode', 'fftSize')),
+  'analyser-node-set-fft-size!': ((node, size) => {
+    set_audio_property(node, 'AnalyserNode', 'fftSize', from_fasl(size));
+  }),
+  'analyser-node-frequency-bin-count': (node => get_audio_property(node, 'AnalyserNode', 'frequencyBinCount')),
+  'analyser-node-min-decibels': (node => get_audio_property(node, 'AnalyserNode', 'minDecibels')),
+  'analyser-node-set-min-decibels!': ((node, value) => {
+    set_audio_property(node, 'AnalyserNode', 'minDecibels', from_fasl(value));
+  }),
+  'analyser-node-max-decibels': (node => get_audio_property(node, 'AnalyserNode', 'maxDecibels')),
+  'analyser-node-set-max-decibels!': ((node, value) => {
+    set_audio_property(node, 'AnalyserNode', 'maxDecibels', from_fasl(value));
+  }),
+  'analyser-node-smoothing-time-constant': (node => get_audio_property(node, 'AnalyserNode', 'smoothingTimeConstant')),
+  'analyser-node-set-smoothing-time-constant!': ((node, value) => {
+    set_audio_property(node, 'AnalyserNode', 'smoothingTimeConstant', from_fasl(value));
+  }),
   'analyser-node-get-byte-frequency-data!': ((node, data) => require_host_function(node,
                                                                                    'getByteFrequencyData',
                                                                                    'AnalyserNode.getByteFrequencyData')(from_fasl(data))),
@@ -1742,48 +1767,66 @@ const audio_impl = {
   'analyser-node-get-float-time-domain-data!': ((node, data) => require_host_function(node,
                                                                                       'getFloatTimeDomainData',
                                                                                       'AnalyserNode.getFloatTimeDomainData')(from_fasl(data))),
-  'biquad-filter-node-type': (node => node.type),
-  'biquad-filter-node-set-type!': ((node, type) => { node.type = from_fasl(type); }),
-  'biquad-filter-node-frequency': (node => node.frequency),
-  'biquad-filter-node-detune': (node => node.detune),
-  'biquad-filter-node-q': (node => node.q),
-  'biquad-filter-node-gain': (node => node.gain),
-  'constant-source-node-offset': (node => node.offset),
+  'biquad-filter-node-type': (node => get_audio_property(node, 'BiquadFilterNode', 'type')),
+  'biquad-filter-node-set-type!': ((node, type) => {
+    set_audio_property(node, 'BiquadFilterNode', 'type', from_fasl(type));
+  }),
+  'biquad-filter-node-frequency': (node => get_audio_property(node, 'BiquadFilterNode', 'frequency')),
+  'biquad-filter-node-detune': (node => get_audio_property(node, 'BiquadFilterNode', 'detune')),
+  'biquad-filter-node-q': (node => get_audio_property(node, 'BiquadFilterNode', 'Q')),
+  'biquad-filter-node-gain': (node => get_audio_property(node, 'BiquadFilterNode', 'gain')),
+  'constant-source-node-offset': (node => get_audio_property(node, 'ConstantSourceNode', 'offset')),
   'constant-source-node-start!': ((node, when) => require_host_function(node,
                                                                         'start',
                                                                         'ConstantSourceNode.start')(from_fasl(when))),
   'constant-source-node-stop!': ((node, when) => require_host_function(node,
                                                                        'stop',
                                                                        'ConstantSourceNode.stop')(from_fasl(when))),
-  'dynamics-compressor-node-threshold': (node => node.threshold),
-  'dynamics-compressor-node-knee': (node => node.knee),
-  'dynamics-compressor-node-ratio': (node => node.ratio),
-  'dynamics-compressor-node-reduction': (node => node.reduction),
-  'dynamics-compressor-node-attack': (node => node.attack),
-  'dynamics-compressor-node-release': (node => node.release),
-  'panner-node-panning-model': (node => node.panningModel),
-  'panner-node-set-panning-model!': ((node, value) => { node.panningModel = from_fasl(value); }),
-  'panner-node-distance-model': (node => node.distanceModel),
-  'panner-node-set-distance-model!': ((node, value) => { node.distanceModel = from_fasl(value); }),
-  'panner-node-position-x': (node => node.positionX),
-  'panner-node-position-y': (node => node.positionY),
-  'panner-node-position-z': (node => node.positionZ),
-  'panner-node-orientation-x': (node => node.orientationX),
-  'panner-node-orientation-y': (node => node.orientationY),
-  'panner-node-orientation-z': (node => node.orientationZ),
-  'panner-node-ref-distance': (node => node.refDistance),
-  'panner-node-set-ref-distance!': ((node, value) => { node.refDistance = from_fasl(value); }),
-  'panner-node-max-distance': (node => node.maxDistance),
-  'panner-node-set-max-distance!': ((node, value) => { node.maxDistance = from_fasl(value); }),
-  'panner-node-rolloff-factor': (node => node.rolloffFactor),
-  'panner-node-set-rolloff-factor!': ((node, value) => { node.rolloffFactor = from_fasl(value); }),
-  'panner-node-cone-inner-angle': (node => node.coneInnerAngle),
-  'panner-node-set-cone-inner-angle!': ((node, value) => { node.coneInnerAngle = from_fasl(value); }),
-  'panner-node-cone-outer-angle': (node => node.coneOuterAngle),
-  'panner-node-set-cone-outer-angle!': ((node, value) => { node.coneOuterAngle = from_fasl(value); }),
-  'panner-node-cone-outer-gain': (node => node.coneOuterGain),
-  'panner-node-set-cone-outer-gain!': ((node, value) => { node.coneOuterGain = from_fasl(value); }),
-  'stereo-panner-node-pan': (node => node.pan)
+  'dynamics-compressor-node-threshold': (node => get_audio_property(node, 'DynamicsCompressorNode', 'threshold')),
+  'dynamics-compressor-node-knee': (node => get_audio_property(node, 'DynamicsCompressorNode', 'knee')),
+  'dynamics-compressor-node-ratio': (node => get_audio_property(node, 'DynamicsCompressorNode', 'ratio')),
+  'dynamics-compressor-node-reduction': (node => get_audio_property(node, 'DynamicsCompressorNode', 'reduction')),
+  'dynamics-compressor-node-attack': (node => get_audio_property(node, 'DynamicsCompressorNode', 'attack')),
+  'dynamics-compressor-node-release': (node => get_audio_property(node, 'DynamicsCompressorNode', 'release')),
+  'panner-node-panning-model': (node => get_audio_property(node, 'PannerNode', 'panningModel')),
+  'panner-node-set-panning-model!': ((node, value) => {
+    set_audio_property(node, 'PannerNode', 'panningModel', from_fasl(value));
+  }),
+  'panner-node-distance-model': (node => get_audio_property(node, 'PannerNode', 'distanceModel')),
+  'panner-node-set-distance-model!': ((node, value) => {
+    set_audio_property(node, 'PannerNode', 'distanceModel', from_fasl(value));
+  }),
+  'panner-node-position-x': (node => get_audio_property(node, 'PannerNode', 'positionX')),
+  'panner-node-position-y': (node => get_audio_property(node, 'PannerNode', 'positionY')),
+  'panner-node-position-z': (node => get_audio_property(node, 'PannerNode', 'positionZ')),
+  'panner-node-orientation-x': (node => get_audio_property(node, 'PannerNode', 'orientationX')),
+  'panner-node-orientation-y': (node => get_audio_property(node, 'PannerNode', 'orientationY')),
+  'panner-node-orientation-z': (node => get_audio_property(node, 'PannerNode', 'orientationZ')),
+  'panner-node-ref-distance': (node => get_audio_property(node, 'PannerNode', 'refDistance')),
+  'panner-node-set-ref-distance!': ((node, value) => {
+    set_audio_property(node, 'PannerNode', 'refDistance', from_fasl(value));
+  }),
+  'panner-node-max-distance': (node => get_audio_property(node, 'PannerNode', 'maxDistance')),
+  'panner-node-set-max-distance!': ((node, value) => {
+    set_audio_property(node, 'PannerNode', 'maxDistance', from_fasl(value));
+  }),
+  'panner-node-rolloff-factor': (node => get_audio_property(node, 'PannerNode', 'rolloffFactor')),
+  'panner-node-set-rolloff-factor!': ((node, value) => {
+    set_audio_property(node, 'PannerNode', 'rolloffFactor', from_fasl(value));
+  }),
+  'panner-node-cone-inner-angle': (node => get_audio_property(node, 'PannerNode', 'coneInnerAngle')),
+  'panner-node-set-cone-inner-angle!': ((node, value) => {
+    set_audio_property(node, 'PannerNode', 'coneInnerAngle', from_fasl(value));
+  }),
+  'panner-node-cone-outer-angle': (node => get_audio_property(node, 'PannerNode', 'coneOuterAngle')),
+  'panner-node-set-cone-outer-angle!': ((node, value) => {
+    set_audio_property(node, 'PannerNode', 'coneOuterAngle', from_fasl(value));
+  }),
+  'panner-node-cone-outer-gain': (node => get_audio_property(node, 'PannerNode', 'coneOuterGain')),
+  'panner-node-set-cone-outer-gain!': ((node, value) => {
+    set_audio_property(node, 'PannerNode', 'coneOuterGain', from_fasl(value));
+  }),
+  'stereo-panner-node-pan': (node => get_audio_property(node, 'StereoPannerNode', 'pan'))
 };
 
 function is_pair(v) {
@@ -1973,6 +2016,22 @@ function require_host_value(owner, name, displayName) {
   return value;
 }
 
+function get_required_host_property(owner, name, displayName) {
+  const value = get_host_property(owner, name, displayName);
+  if (value === undefined) {
+    throw new Error(`${displayName} not available in this environment`);
+  }
+  return value;
+}
+
+function set_required_host_property(owner, name, value, displayName) {
+  const target = require_host_target(owner, displayName);
+  if (!(name in Object(target))) {
+    throw new Error(`${displayName} not available in this environment`);
+  }
+  target[name] = value;
+}
+
 function require_window_function(name, displayName) {
   return require_host_function(typeof window === 'undefined' ? null : window,
                                name,
@@ -1989,6 +2048,18 @@ function require_document_function(name, displayName) {
   return require_host_function(typeof document === 'undefined' ? null : document,
                                name,
                                displayName);
+}
+
+function get_websocket_property(ws, name) {
+  return get_required_host_property(ws, name, `WebSocket.${name}`);
+}
+
+function get_audio_property(owner, ownerName, name) {
+  return get_required_host_property(owner, name, `${ownerName}.${name}`);
+}
+
+function set_audio_property(owner, ownerName, name, value) {
+  set_required_host_property(owner, name, value, `${ownerName}.${name}`);
 }
 
 function require_xterm_terminal() {
