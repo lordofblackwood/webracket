@@ -44,6 +44,11 @@
   (and (not (js-nullish? method))
        (string=? (js-typeof method) "function")))
 
+;; geolocation-property-present? : external/raw string? -> boolean?
+;;   Report whether raw exposes a non-nullish property named property-name.
+(define (geolocation-property-present? raw property-name)
+  (not (js-nullish? (js-ref/extern raw property-name))))
+
 ;; geolocation-core-methods-present? : external/raw -> boolean?
 ;;   Report whether raw has the required Geolocation methods.
 (define (geolocation-core-methods-present? raw)
@@ -91,6 +96,16 @@
   (unless (geolocation-method-present? (geolocation-raw value) method-name)
     (raise-arguments-error who
                            (string-append "Geolocation." method-name " is not available"))))
+
+;; check-geolocation-property : symbol? external/raw string? string? -> void?
+;;   Ensure a required Geolocation host property is available.
+(define (check-geolocation-property who raw receiver-name property-name)
+  (unless (geolocation-property-present? raw property-name)
+    (raise-arguments-error who
+                           (string-append receiver-name
+                                          "."
+                                          property-name
+                                          " is not available"))))
 
 (define (geolocation-options->raw options)
   (define enable-high-accuracy (geolocation-options-enable-high-accuracy options))
@@ -215,30 +230,50 @@
   (unless (and (geolocation-position? position)
                (external? (geolocation-position-raw position)))
     (raise-argument-error 'geolocation-position-coordinates "geolocation-position?" position))
+  (check-geolocation-property 'geolocation-position-coordinates
+                              (geolocation-position-raw position)
+                              "GeolocationPosition"
+                              "coords")
   (geolocation-coordinates (js-ref/extern (geolocation-position-raw position) "coords")))
 
 (define (geolocation-position-timestamp position)
   (unless (and (geolocation-position? position)
                (external? (geolocation-position-raw position)))
     (raise-argument-error 'geolocation-position-timestamp "geolocation-position?" position))
+  (check-geolocation-property 'geolocation-position-timestamp
+                              (geolocation-position-raw position)
+                              "GeolocationPosition"
+                              "timestamp")
   (js-ref (geolocation-position-raw position) "timestamp"))
 
 (define (geolocation-coordinates-latitude coords)
   (unless (and (geolocation-coordinates? coords)
                (external? (geolocation-coordinates-raw coords)))
     (raise-argument-error 'geolocation-coordinates-latitude "geolocation-coordinates?" coords))
+  (check-geolocation-property 'geolocation-coordinates-latitude
+                              (geolocation-coordinates-raw coords)
+                              "GeolocationCoordinates"
+                              "latitude")
   (js-ref (geolocation-coordinates-raw coords) "latitude"))
 
 (define (geolocation-coordinates-longitude coords)
   (unless (and (geolocation-coordinates? coords)
                (external? (geolocation-coordinates-raw coords)))
     (raise-argument-error 'geolocation-coordinates-longitude "geolocation-coordinates?" coords))
+  (check-geolocation-property 'geolocation-coordinates-longitude
+                              (geolocation-coordinates-raw coords)
+                              "GeolocationCoordinates"
+                              "longitude")
   (js-ref (geolocation-coordinates-raw coords) "longitude"))
 
 (define (geolocation-coordinates-accuracy coords)
   (unless (and (geolocation-coordinates? coords)
                (external? (geolocation-coordinates-raw coords)))
     (raise-argument-error 'geolocation-coordinates-accuracy "geolocation-coordinates?" coords))
+  (check-geolocation-property 'geolocation-coordinates-accuracy
+                              (geolocation-coordinates-raw coords)
+                              "GeolocationCoordinates"
+                              "accuracy")
   (js-ref (geolocation-coordinates-raw coords) "accuracy"))
 
 (define (geolocation-coordinates-altitude coords)
@@ -269,10 +304,18 @@
   (unless (and (geolocation-position-error? err)
                (external? (geolocation-position-error-raw err)))
     (raise-argument-error 'geolocation-position-error-code "geolocation-position-error?" err))
+  (check-geolocation-property 'geolocation-position-error-code
+                              (geolocation-position-error-raw err)
+                              "GeolocationPositionError"
+                              "code")
   (js-ref (geolocation-position-error-raw err) "code"))
 
 (define (geolocation-position-error-message err)
   (unless (and (geolocation-position-error? err)
                (external? (geolocation-position-error-raw err)))
     (raise-argument-error 'geolocation-position-error-message "geolocation-position-error?" err))
+  (check-geolocation-property 'geolocation-position-error-message
+                              (geolocation-position-error-raw err)
+                              "GeolocationPositionError"
+                              "message")
   (js-ref (geolocation-position-error-raw err) "message"))
