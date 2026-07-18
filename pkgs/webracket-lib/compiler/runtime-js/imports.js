@@ -252,6 +252,42 @@ function set_image_property(img, name, value) {
   set_required_host_property(img, name, value, `HTMLImageElement.${name}`);
 }
 
+function get_event_property(evt, name) {
+  return get_required_host_property(evt, name, `Event.${name}`);
+}
+
+function get_mouse_event_property(evt, name) {
+  return get_required_host_property(evt, name, `MouseEvent.${name}`);
+}
+
+function get_keyboard_event_property(evt, name) {
+  return get_required_host_property(evt, name, `KeyboardEvent.${name}`);
+}
+
+function get_touch_event_property(evt, name) {
+  return get_required_host_property(evt, name, `TouchEvent.${name}`);
+}
+
+function get_message_event_property(evt, name) {
+  return get_required_host_property(evt, name, `MessageEvent.${name}`);
+}
+
+function get_close_event_property(evt, name) {
+  return get_required_host_property(evt, name, `CloseEvent.${name}`);
+}
+
+function get_touch_list_property(xs, name) {
+  return get_required_host_property(xs, name, `TouchList.${name}`);
+}
+
+function get_touch_property(touch, name) {
+  return get_required_host_property(touch, name, `Touch.${name}`);
+}
+
+function get_dom_rect_property(rect, name) {
+  return get_required_host_property(rect, name, `DOMRect.${name}`);
+}
+
 function get_jsxgraph_board_property(board, name) {
   return get_host_property(board, name, `JSXGraph Board.${name}`);
 }
@@ -2172,53 +2208,53 @@ var imports = {
             }
         }),
         'event?': (evt => (typeof Event !== 'undefined') && (evt instanceof Event)),
-        'type': (evt => get_host_property(evt, 'type', 'Event.type')),
-        'target': (evt => get_host_property(evt, 'target', 'Event.target')),
-        'current-target': (evt => get_host_property(evt, 'currentTarget', 'Event.currentTarget')),
-        'event-phase': (evt => get_host_property(evt, 'eventPhase', 'Event.eventPhase')),
-        'bubbles': (evt => get_host_property(evt, 'bubbles', 'Event.bubbles') ? 1 : 0),
-        'cancelable': (evt => get_host_property(evt, 'cancelable', 'Event.cancelable') ? 1 : 0),
-        'default-prevented': (evt => get_host_property(evt, 'defaultPrevented', 'Event.defaultPrevented') ? 1 : 0),
-        'composed': (evt => get_host_property(evt, 'composed', 'Event.composed') ? 1 : 0),
-        'is-trusted': (evt => get_host_property(evt, 'isTrusted', 'Event.isTrusted') ? 1 : 0),
-        'time-stamp': (evt => get_host_property(evt, 'timeStamp', 'Event.timeStamp')),
+        'type': (evt => get_event_property(evt, 'type')),
+        'target': (evt => get_event_property(evt, 'target')),
+        'current-target': (evt => get_event_property(evt, 'currentTarget')),
+        'event-phase': (evt => get_event_property(evt, 'eventPhase')),
+        'bubbles': (evt => get_event_property(evt, 'bubbles') ? 1 : 0),
+        'cancelable': (evt => get_event_property(evt, 'cancelable') ? 1 : 0),
+        'default-prevented': (evt => get_event_property(evt, 'defaultPrevented') ? 1 : 0),
+        'composed': (evt => get_event_property(evt, 'composed') ? 1 : 0),
+        'is-trusted': (evt => get_event_property(evt, 'isTrusted') ? 1 : 0),
+        'time-stamp': (evt => get_event_property(evt, 'timeStamp')),
         'composed-path': (evt => require_host_function(evt,
                                                         'composedPath',
                                                         'Event.composedPath')()),
         'prevent-default': (evt => require_host_function(evt,
                                                          'preventDefault',
                                                          'Event.preventDefault')()),
-        'mouse-offset-x': (evt => get_host_property(evt, 'offsetX', 'MouseEvent.offsetX')),
-        'mouse-offset-y': (evt => get_host_property(evt, 'offsetY', 'MouseEvent.offsetY')),
-        'mouse-client-x': (evt => get_host_property(evt, 'clientX', 'MouseEvent.clientX')),
-        'mouse-client-y': (evt => get_host_property(evt, 'clientY', 'MouseEvent.clientY')),
-        'mouse-page-x': (evt => get_host_property(evt, 'pageX', 'MouseEvent.pageX')),
-        'mouse-page-y': (evt => get_host_property(evt, 'pageY', 'MouseEvent.pageY')),
-        'mouse-screen-x': (evt => get_host_property(evt, 'screenX', 'MouseEvent.screenX')),
-        'mouse-screen-y': (evt => get_host_property(evt, 'screenY', 'MouseEvent.screenY')),
-        'mouse-button': (evt => get_host_property(evt, 'button', 'MouseEvent.button')),
-        'mouse-buttons': (evt => get_host_property(evt, 'buttons', 'MouseEvent.buttons')),
-        'mouse-alt-key': (evt => get_host_property(evt, 'altKey', 'MouseEvent.altKey') ? 1 : 0),
-        'mouse-ctrl-key': (evt => get_host_property(evt, 'ctrlKey', 'MouseEvent.ctrlKey') ? 1 : 0),
-        'mouse-meta-key': (evt => get_host_property(evt, 'metaKey', 'MouseEvent.metaKey') ? 1 : 0),
-        'mouse-shift-key': (evt => get_host_property(evt, 'shiftKey', 'MouseEvent.shiftKey') ? 1 : 0),
+        'mouse-offset-x': (evt => get_mouse_event_property(evt, 'offsetX')),
+        'mouse-offset-y': (evt => get_mouse_event_property(evt, 'offsetY')),
+        'mouse-client-x': (evt => get_mouse_event_property(evt, 'clientX')),
+        'mouse-client-y': (evt => get_mouse_event_property(evt, 'clientY')),
+        'mouse-page-x': (evt => get_mouse_event_property(evt, 'pageX')),
+        'mouse-page-y': (evt => get_mouse_event_property(evt, 'pageY')),
+        'mouse-screen-x': (evt => get_mouse_event_property(evt, 'screenX')),
+        'mouse-screen-y': (evt => get_mouse_event_property(evt, 'screenY')),
+        'mouse-button': (evt => get_mouse_event_property(evt, 'button')),
+        'mouse-buttons': (evt => get_mouse_event_property(evt, 'buttons')),
+        'mouse-alt-key': (evt => get_mouse_event_property(evt, 'altKey') ? 1 : 0),
+        'mouse-ctrl-key': (evt => get_mouse_event_property(evt, 'ctrlKey') ? 1 : 0),
+        'mouse-meta-key': (evt => get_mouse_event_property(evt, 'metaKey') ? 1 : 0),
+        'mouse-shift-key': (evt => get_mouse_event_property(evt, 'shiftKey') ? 1 : 0),
         'mouse-event?': (evt => (typeof MouseEvent !== 'undefined') && (evt instanceof MouseEvent)),
-        'keyboard-key': (evt => get_host_property(evt, 'key', 'KeyboardEvent.key')),
-        'keyboard-code': (evt => get_host_property(evt, 'code', 'KeyboardEvent.code')),
+        'keyboard-key': (evt => get_keyboard_event_property(evt, 'key')),
+        'keyboard-code': (evt => get_keyboard_event_property(evt, 'code')),
         'keyboard-event?': (evt => (typeof KeyboardEvent !== 'undefined') && (evt instanceof KeyboardEvent)),
-        'alt-key': (evt => get_host_property(evt, 'altKey', 'KeyboardEvent.altKey') ? 1 : 0),
-        'ctrl-key': (evt => get_host_property(evt, 'ctrlKey', 'KeyboardEvent.ctrlKey') ? 1 : 0),
-        'meta-key': (evt => get_host_property(evt, 'metaKey', 'KeyboardEvent.metaKey') ? 1 : 0),
-        'shift-key': (evt => get_host_property(evt, 'shiftKey', 'KeyboardEvent.shiftKey') ? 1 : 0),
-        'keyboard-repeat': (evt => get_host_property(evt, 'repeat', 'KeyboardEvent.repeat') ? 1 : 0),
+        'alt-key': (evt => get_keyboard_event_property(evt, 'altKey') ? 1 : 0),
+        'ctrl-key': (evt => get_keyboard_event_property(evt, 'ctrlKey') ? 1 : 0),
+        'meta-key': (evt => get_keyboard_event_property(evt, 'metaKey') ? 1 : 0),
+        'shift-key': (evt => get_keyboard_event_property(evt, 'shiftKey') ? 1 : 0),
+        'keyboard-repeat': (evt => get_keyboard_event_property(evt, 'repeat') ? 1 : 0),
         'pointer-event?': (evt => (typeof PointerEvent !== 'undefined') && (evt instanceof PointerEvent)),
         'focus-event?': (evt => (typeof FocusEvent !== 'undefined') && (evt instanceof FocusEvent)),
         'input-event?': (evt => (typeof InputEvent !== 'undefined') && (evt instanceof InputEvent)),
         'submit-event?': (evt => (typeof SubmitEvent !== 'undefined') && (evt instanceof SubmitEvent)),
         'touch-event?': (evt => (typeof TouchEvent !== 'undefined') && (evt instanceof TouchEvent)),
-        'touches': (evt => get_host_property(evt, 'touches', 'TouchEvent.touches')),
-        'target-touches': (evt => get_host_property(evt, 'targetTouches', 'TouchEvent.targetTouches')),
-        'changed-touches': (evt => get_host_property(evt, 'changedTouches', 'TouchEvent.changedTouches')),
+        'touches': (evt => get_touch_event_property(evt, 'touches')),
+        'target-touches': (evt => get_touch_event_property(evt, 'targetTouches')),
+        'changed-touches': (evt => get_touch_event_property(evt, 'changedTouches')),
         'wheel-event?': (evt => (typeof WheelEvent !== 'undefined') && (evt instanceof WheelEvent)),
         'stop-propagation': (evt => require_host_function(evt,
                                                           'stopPropagation',
@@ -2279,11 +2315,11 @@ var imports = {
     // MessageEvent
     'message-event': hasDOM ? {
         'message-event?': (evt => (typeof MessageEvent !== 'undefined') && (evt instanceof MessageEvent)),
-        'data': (evt => get_host_property(evt, 'data', 'MessageEvent.data')),
-        'origin': (evt => get_host_property(evt, 'origin', 'MessageEvent.origin')),
-        'last-event-id': (evt => get_host_property(evt, 'lastEventId', 'MessageEvent.lastEventId')),
-        'source': (evt => get_host_property(evt, 'source', 'MessageEvent.source')),
-        'ports': (evt => get_host_property(evt, 'ports', 'MessageEvent.ports'))
+        'data': (evt => get_message_event_property(evt, 'data')),
+        'origin': (evt => get_message_event_property(evt, 'origin')),
+        'last-event-id': (evt => get_message_event_property(evt, 'lastEventId')),
+        'source': (evt => get_message_event_property(evt, 'source')),
+        'ports': (evt => get_message_event_property(evt, 'ports'))
     } : {
         'message-event?'() { throw new Error('DOM not available in this environment'); },
         'data'() { throw new Error('DOM not available in this environment'); },
@@ -2295,9 +2331,9 @@ var imports = {
     // CloseEvent
     'close-event': hasDOM ? {
         'close-event?': (evt => (typeof CloseEvent !== 'undefined') && (evt instanceof CloseEvent)),
-        'was-clean': (evt => get_host_property(evt, 'wasClean', 'CloseEvent.wasClean') ? 1 : 0),
-        'code': (evt => get_host_property(evt, 'code', 'CloseEvent.code')),
-        'reason': (evt => get_host_property(evt, 'reason', 'CloseEvent.reason'))
+        'was-clean': (evt => get_close_event_property(evt, 'wasClean') ? 1 : 0),
+        'code': (evt => get_close_event_property(evt, 'code')),
+        'reason': (evt => get_close_event_property(evt, 'reason'))
     } : {
         'close-event?'() { throw new Error('DOM not available in this environment'); },
         'was-clean'() { throw new Error('DOM not available in this environment'); },
@@ -2307,7 +2343,7 @@ var imports = {
     // TouchList
     'touch-list': hasDOM ? {
         'touch-list?': (xs => (typeof TouchList !== 'undefined') && (xs instanceof TouchList)),
-        'length': (xs => get_host_property(xs, 'length', 'TouchList.length')),
+        'length': (xs => get_touch_list_property(xs, 'length')),
         'ref': ((xs, i) => require_host_function(xs,
                                                   'item',
                                                   'TouchList.item')(i))
@@ -2319,13 +2355,13 @@ var imports = {
     // Touch
     'touch': hasDOM ? {
         'touch?': (t => (typeof Touch !== 'undefined') && (t instanceof Touch)),
-        'identifier': (t => get_host_property(t, 'identifier', 'Touch.identifier')),
-        'client-x': (t => get_host_property(t, 'clientX', 'Touch.clientX')),
-        'client-y': (t => get_host_property(t, 'clientY', 'Touch.clientY')),
-        'page-x': (t => get_host_property(t, 'pageX', 'Touch.pageX')),
-        'page-y': (t => get_host_property(t, 'pageY', 'Touch.pageY')),
-        'screen-x': (t => get_host_property(t, 'screenX', 'Touch.screenX')),
-        'screen-y': (t => get_host_property(t, 'screenY', 'Touch.screenY'))
+        'identifier': (t => get_touch_property(t, 'identifier')),
+        'client-x': (t => get_touch_property(t, 'clientX')),
+        'client-y': (t => get_touch_property(t, 'clientY')),
+        'page-x': (t => get_touch_property(t, 'pageX')),
+        'page-y': (t => get_touch_property(t, 'pageY')),
+        'screen-x': (t => get_touch_property(t, 'screenX')),
+        'screen-y': (t => get_touch_property(t, 'screenY'))
     } : {
         'touch?'() { throw new Error('DOM not available in this environment'); },
         'identifier'() { throw new Error('DOM not available in this environment'); },
@@ -2338,10 +2374,10 @@ var imports = {
     },
     // DOMRect
     'dom-rect': hasDOM ? {
-        'left':   (rect => get_host_property(rect, 'left', 'DOMRect.left')),
-        'top':    (rect => get_host_property(rect, 'top', 'DOMRect.top')),
-        'width':  (rect => get_host_property(rect, 'width', 'DOMRect.width')),
-        'height': (rect => get_host_property(rect, 'height', 'DOMRect.height'))
+        'left':   (rect => get_dom_rect_property(rect, 'left')),
+        'top':    (rect => get_dom_rect_property(rect, 'top')),
+        'width':  (rect => get_dom_rect_property(rect, 'width')),
+        'height': (rect => get_dom_rect_property(rect, 'height'))
     } : {
         'left'()   { throw new Error('DOM not available in this environment'); },
         'top'()    { throw new Error('DOM not available in this environment'); },

@@ -4,17 +4,26 @@
 
 (require (only-in webracket/unsafe/event
                   js-add-event-listener!
+                  js-close-event-was-clean
                   js-event-composed-path
+                  js-event-bubbles
                   js-event-prevent-default
                   js-event-stop-immediate-propagation
                   js-event-stop-propagation
                   js-event-target
                   js-event-type
+                  js-keyboard-event-key
+                  js-keyboard-event-repeat
                   js-message-event-data
+                  js-mouse-event-alt-key
+                  js-mouse-event-client-x
                   js-close-event-code
+                  js-touch-event-touches
                   js-touch-identifier
                   js-touch-list-length
                   js-touch-list-ref)
+         (only-in webracket/unsafe/domrect
+                  js-dom-rect-left)
          (only-in webracket/unsafe/standard
                   js-eval))
 
@@ -67,6 +76,7 @@
 (define event (js-eval "globalThis.__wrEventMethodBoundaryEvent"))
 (define event-target-without-listener (js-eval "({ addEventListener: undefined })"))
 (define touch-list-without-item (js-eval "({ item: undefined })"))
+(define fake-object (js-eval "({})"))
 (define listener (js-eval "(() => {})"))
 (define js-null (js-eval "null"))
 
@@ -99,6 +109,66 @@
   (catch-message
    (lambda ()
      (js-touch-list-ref touch-list-without-item 0))))
+
+(define event-type-message
+  (catch-message
+   (lambda ()
+     (js-event-type fake-object))))
+
+(define event-bubbles-message
+  (catch-message
+   (lambda ()
+     (js-event-bubbles fake-object))))
+
+(define mouse-client-x-message
+  (catch-message
+   (lambda ()
+     (js-mouse-event-client-x fake-object))))
+
+(define mouse-alt-key-message
+  (catch-message
+   (lambda ()
+     (js-mouse-event-alt-key fake-object))))
+
+(define keyboard-key-message
+  (catch-message
+   (lambda ()
+     (js-keyboard-event-key fake-object))))
+
+(define keyboard-repeat-message
+  (catch-message
+   (lambda ()
+     (js-keyboard-event-repeat fake-object))))
+
+(define message-event-data-message
+  (catch-message
+   (lambda ()
+     (js-message-event-data fake-object))))
+
+(define close-event-was-clean-message
+  (catch-message
+   (lambda ()
+     (js-close-event-was-clean fake-object))))
+
+(define touch-event-touches-message
+  (catch-message
+   (lambda ()
+     (js-touch-event-touches fake-object))))
+
+(define touch-list-length-message
+  (catch-message
+   (lambda ()
+     (js-touch-list-length fake-object))))
+
+(define touch-identifier-message
+  (catch-message
+   (lambda ()
+     (js-touch-identifier fake-object))))
+
+(define dom-rect-left-message
+  (catch-message
+   (lambda ()
+     (js-dom-rect-left fake-object))))
 
 (define null-event-type-message
   (catch-message
@@ -167,6 +237,54 @@
 (check-message touch-list-ref-message
                "TouchList.item not available in this environment"
                "missing TouchList.item message")
+
+(check-message event-type-message
+               "Event.type not available in this environment"
+               "missing Event.type message")
+
+(check-message event-bubbles-message
+               "Event.bubbles not available in this environment"
+               "missing Event.bubbles message")
+
+(check-message mouse-client-x-message
+               "MouseEvent.clientX not available in this environment"
+               "missing MouseEvent.clientX message")
+
+(check-message mouse-alt-key-message
+               "MouseEvent.altKey not available in this environment"
+               "missing MouseEvent.altKey message")
+
+(check-message keyboard-key-message
+               "KeyboardEvent.key not available in this environment"
+               "missing KeyboardEvent.key message")
+
+(check-message keyboard-repeat-message
+               "KeyboardEvent.repeat not available in this environment"
+               "missing KeyboardEvent.repeat message")
+
+(check-message message-event-data-message
+               "MessageEvent.data not available in this environment"
+               "missing MessageEvent.data message")
+
+(check-message close-event-was-clean-message
+               "CloseEvent.wasClean not available in this environment"
+               "missing CloseEvent.wasClean message")
+
+(check-message touch-event-touches-message
+               "TouchEvent.touches not available in this environment"
+               "missing TouchEvent.touches message")
+
+(check-message touch-list-length-message
+               "TouchList.length not available in this environment"
+               "missing TouchList.length message")
+
+(check-message touch-identifier-message
+               "Touch.identifier not available in this environment"
+               "missing Touch.identifier message")
+
+(check-message dom-rect-left-message
+               "DOMRect.left not available in this environment"
+               "missing DOMRect.left message")
 
 (check-message null-event-type-message
                "Event.type: target object is null or undefined"
