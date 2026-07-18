@@ -115,6 +115,7 @@
 (define callback (js-eval "globalThis.__wrObjectMethodCallback"))
 (define js-null (js-eval "null"))
 (define empty-array (js-eval "[]"))
+(define fake-object (js-eval "({})"))
 
 (js-eval
  "globalThis.__wrObjectMethodBoundaryTargets = [
@@ -507,6 +508,16 @@
    (lambda ()
      (js-image-decode image))))
 
+(define image-alt-message
+  (catch-message
+   (lambda ()
+     (js-image-alt fake-object))))
+
+(define image-set-alt-message
+  (catch-message
+   (lambda ()
+     (js-set-image-alt! fake-object ""))))
+
 (define null-canvas-message
   (catch-message
    (lambda ()
@@ -772,6 +783,12 @@
 (check-message image-decode-message
                "HTMLImageElement.decode not available in this environment"
                "missing image decode message")
+(check-message image-alt-message
+               "HTMLImageElement.alt not available in this environment"
+               "missing image alt message")
+(check-message image-set-alt-message
+               "HTMLImageElement.alt not available in this environment"
+               "missing image set alt message")
 (check-message null-canvas-message
                "canvas.getContext: target object is null or undefined"
                "missing null canvas target message")

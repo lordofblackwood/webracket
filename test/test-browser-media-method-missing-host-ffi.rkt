@@ -55,7 +55,7 @@
         return { kind: 'sink-promise', id };
       }
     };
-    media[missing] = undefined;
+    delete media[missing];
     return media;
   };")
 
@@ -115,6 +115,91 @@
      (media-set-sink-id! (fake-media "setSinkId")
                          'speaker-1))))
 
+(define autoplay-message
+  (catch-message
+   (lambda ()
+     (media-autoplay? (fake-media "autoplay")))))
+
+(define autoplay-setter-message
+  (catch-message
+   (lambda ()
+     (media-set-autoplay! (fake-media "autoplay") #t))))
+
+(define current-src-message
+  (catch-message
+   (lambda ()
+     (media-current-src (fake-media "currentSrc")))))
+
+(define cross-origin-message
+  (catch-message
+   (lambda ()
+     (media-cross-origin (fake-media "crossOrigin")))))
+
+(define cross-origin-setter-message
+  (catch-message
+   (lambda ()
+     (media-set-cross-origin! (fake-media "crossOrigin") 'anonymous))))
+
+(define current-time-message
+  (catch-message
+   (lambda ()
+     (media-current-time (fake-media "currentTime")))))
+
+(define current-time-setter-message
+  (catch-message
+   (lambda ()
+     (media-set-current-time! (fake-media "currentTime") 1.25))))
+
+(define duration-message
+  (catch-message
+   (lambda ()
+     (media-duration (fake-media "duration")))))
+
+(define media-group-message
+  (catch-message
+   (lambda ()
+     (media-media-group (fake-media "mediaGroup")))))
+
+(define media-group-setter-message
+  (catch-message
+   (lambda ()
+     (media-set-media-group! (fake-media "mediaGroup") 'group-a))))
+
+(define sink-id-property-message
+  (catch-message
+   (lambda ()
+     (media-sink-id (fake-media "sinkId")))))
+
+(define src-message
+  (catch-message
+   (lambda ()
+     (media-src (fake-media "src")))))
+
+(define src-setter-message
+  (catch-message
+   (lambda ()
+     (media-set-src! (fake-media "src") 'song.ogg))))
+
+(define src-object-message
+  (catch-message
+   (lambda ()
+     (media-src-object (fake-media "srcObject")))))
+
+(define src-object-setter-message
+  (catch-message
+   (lambda ()
+     (media-set-src-object! (fake-media "srcObject") (js-null)))))
+
+(define volume-message
+  (catch-message
+   (lambda ()
+     (media-volume (fake-media "volume")))))
+
+(define volume-setter-message
+  (catch-message
+   (lambda ()
+     (media-set-volume! (fake-media "volume") 0.5))))
+
 (js-eval "delete globalThis.__wrMediaBoundaryFake;")
 
 (check-message add-text-track-message
@@ -144,6 +229,57 @@
 (check-message set-sink-id-message
                "HTMLMediaElement.setSinkId not available in this environment"
                "missing setSinkId message")
+(check-message autoplay-message
+               "HTMLMediaElement.autoplay not available in this environment"
+               "missing autoplay message")
+(check-message autoplay-setter-message
+               "HTMLMediaElement.autoplay not available in this environment"
+               "missing autoplay setter message")
+(check-message current-src-message
+               "HTMLMediaElement.currentSrc not available in this environment"
+               "missing currentSrc message")
+(check-message cross-origin-message
+               "HTMLMediaElement.crossOrigin not available in this environment"
+               "missing crossOrigin message")
+(check-message cross-origin-setter-message
+               "HTMLMediaElement.crossOrigin not available in this environment"
+               "missing crossOrigin setter message")
+(check-message current-time-message
+               "HTMLMediaElement.currentTime not available in this environment"
+               "missing currentTime message")
+(check-message current-time-setter-message
+               "HTMLMediaElement.currentTime not available in this environment"
+               "missing currentTime setter message")
+(check-message duration-message
+               "HTMLMediaElement.duration not available in this environment"
+               "missing duration message")
+(check-message media-group-message
+               "HTMLMediaElement.mediaGroup not available in this environment"
+               "missing mediaGroup message")
+(check-message media-group-setter-message
+               "HTMLMediaElement.mediaGroup not available in this environment"
+               "missing mediaGroup setter message")
+(check-message sink-id-property-message
+               "HTMLMediaElement.sinkId not available in this environment"
+               "missing sinkId property message")
+(check-message src-message
+               "HTMLMediaElement.src not available in this environment"
+               "missing src message")
+(check-message src-setter-message
+               "HTMLMediaElement.src not available in this environment"
+               "missing src setter message")
+(check-message src-object-message
+               "HTMLMediaElement.srcObject not available in this environment"
+               "missing srcObject message")
+(check-message src-object-setter-message
+               "HTMLMediaElement.srcObject not available in this environment"
+               "missing srcObject setter message")
+(check-message volume-message
+               "HTMLMediaElement.volume not available in this environment"
+               "missing volume message")
+(check-message volume-setter-message
+               "HTMLMediaElement.volume not available in this environment"
+               "missing volume setter message")
 
 (js-log "browser-media-method-missing-host-ffi-ok")
 #t
