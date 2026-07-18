@@ -2,7 +2,7 @@
 
 (require js/promise)
 
-(list
+(void
  js-promise
  js-promise?
  js-promise-raw
@@ -14,3 +14,5 @@
  js-promise-then
  js-promise-catch
  js-promise-finally)
+
+#t
