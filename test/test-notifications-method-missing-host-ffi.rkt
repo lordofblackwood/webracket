@@ -1,6 +1,6 @@
 #lang webracket/base
 
-;; Browser smoke for Notifications wrapper host-method boundary errors.
+;; Browser smoke for Notifications wrapper host-boundary errors.
 
 (require notifications
          (only-in webracket/unsafe/standard
@@ -40,19 +40,21 @@
       static permission = 'default';
       static requestPermission() { return thenable; }
       constructor(title, options) {
-        this.title = title;
-        this.body = options && options.body || '';
-        this.tag = options && options.tag || '';
+        if (missing !== 'title') this.title = title;
+        if (missing !== 'body') this.body = options && options.body || '';
+        if (missing !== 'tag') this.tag = options && options.tag || '';
         this.data = options && options.data;
-        this.icon = options && options.icon || '';
-        this.requireInteraction = !!(options && options.requireInteraction);
-        this.renotify = !!(options && options.renotify);
-        this.silent = !!(options && options.silent);
+        if (missing !== 'icon') this.icon = options && options.icon || '';
+        if (missing !== 'requireInteraction') this.requireInteraction = !!(options && options.requireInteraction);
+        if (missing !== 'renotify') this.renotify = !!(options && options.renotify);
+        if (missing !== 'silent') this.silent = !!(options && options.silent);
       }
       close() {}
     };
     if (missing === 'requestPermission') {
       delete globalThis.Notification.requestPermission;
+    } else if (missing === 'permission') {
+      delete globalThis.Notification.permission;
     } else {
       delete globalThis.Notification.prototype[missing];
     }
@@ -104,6 +106,12 @@
    (lambda ()
      (notification-request-permission))))
 
+(define permission-message
+  (missing-method-message
+   "permission"
+   (lambda ()
+     (notification-permission))))
+
 (define close-message
   (missing-method-message
    "close"
@@ -113,9 +121,54 @@
                  "notification? accepts fake host notification")
      (notification-close! n))))
 
+(define title-message
+  (missing-method-message
+   "title"
+   (lambda ()
+     (notification-title (make-notification "WebRacket")))))
+
+(define body-message
+  (missing-method-message
+   "body"
+   (lambda ()
+     (notification-body (make-notification "WebRacket")))))
+
+(define tag-message
+  (missing-method-message
+   "tag"
+   (lambda ()
+     (notification-tag (make-notification "WebRacket")))))
+
+(define icon-message
+  (missing-method-message
+   "icon"
+   (lambda ()
+     (notification-icon (make-notification "WebRacket")))))
+
+(define require-interaction-message
+  (missing-method-message
+   "requireInteraction"
+   (lambda ()
+     (notification-require-interaction? (make-notification "WebRacket")))))
+
+(define renotify-message
+  (missing-method-message
+   "renotify"
+   (lambda ()
+     (notification-renotify? (make-notification "WebRacket")))))
+
+(define silent-message
+  (missing-method-message
+   "silent"
+   (lambda ()
+     (notification-silent? (make-notification "WebRacket")))))
+
 (check-message request-permission-message
                "Notification.requestPermission is not available"
                "missing Notification.requestPermission message")
+(check-message permission-message
+               "Notification.permission is not available"
+               "missing Notification.permission message")
 (check-message request-permission-unsupported-message
                "Notification is not available"
                "missing notification request unsupported message")
@@ -125,6 +178,27 @@
 (check-message close-message
                "Notification.close is not available"
                "missing Notification.close message")
+(check-message title-message
+               "Notification.title is not available"
+               "missing Notification.title message")
+(check-message body-message
+               "Notification.body is not available"
+               "missing Notification.body message")
+(check-message tag-message
+               "Notification.tag is not available"
+               "missing Notification.tag message")
+(check-message icon-message
+               "Notification.icon is not available"
+               "missing Notification.icon message")
+(check-message require-interaction-message
+               "Notification.requireInteraction is not available"
+               "missing Notification.requireInteraction message")
+(check-message renotify-message
+               "Notification.renotify is not available"
+               "missing Notification.renotify message")
+(check-message silent-message
+               "Notification.silent is not available"
+               "missing Notification.silent message")
 
 (js-eval "__wrNotificationBoundaryRestore();")
 
