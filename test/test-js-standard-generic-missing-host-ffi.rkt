@@ -140,6 +140,12 @@
  "js-instanceof: expected constructor function, got object"
  "object instanceof constructor message")
 
+(check-message
+ (catch-message
+  (lambda () (js-instanceof (js-eval "({})") (js-eval "(() => {})"))))
+ "js-instanceof: expected constructible function"
+ "non-constructor instanceof message")
+
 (define boundary-target
   (js-eval "__wrStandardGenericBoundaryTarget"))
 

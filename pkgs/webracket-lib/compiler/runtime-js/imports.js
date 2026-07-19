@@ -139,7 +139,7 @@ function host_is_constructor(value) {
     return false;
   }
   try {
-    Reflect.construct(String, [], value);
+    Reflect.construct(hostString, [], value);
     return true;
   } catch (_) {
     return false;
@@ -428,6 +428,9 @@ function js_instanceof(obj, type) {
   }
   if (typeof type !== 'function') {
     throw new Error(`js-instanceof: expected constructor function, got ${typeof type}`);
+  }
+  if (!host_is_constructor(type)) {
+    throw new Error('js-instanceof: expected constructible function');
   }
   return obj instanceof type ? 1 : 0;
 }
@@ -1130,6 +1133,9 @@ function construct_js_value(ctor, args) {
   }
   if (typeof ctor !== 'function') {
     throw new Error(`js-new: expected constructor function, got ${typeof ctor}`);
+  }
+  if (!host_is_constructor(ctor)) {
+    throw new Error('js-new: expected constructible function');
   }
   return new ctor(...decode_js_send_args(args));
 }

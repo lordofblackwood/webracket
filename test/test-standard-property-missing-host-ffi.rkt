@@ -67,6 +67,11 @@
    (lambda ()
      (js-new plain-object (vector)))))
 
+(define new-non-constructor-message
+  (catch-message
+   (lambda ()
+     (js-new (js-eval "(() => {})") (vector)))))
+
 (check-message ref-message
                "js-ref: target object is null or undefined"
                "missing js-ref null target message")
@@ -85,6 +90,9 @@
 (check-message new-object-message
                "js-new: expected constructor function, got object"
                "missing js-new object constructor message")
+(check-message new-non-constructor-message
+               "js-new: expected constructible function"
+               "missing js-new non-constructor function message")
 
 (js-log "standard-property-missing-host-ffi-ok")
 #t
