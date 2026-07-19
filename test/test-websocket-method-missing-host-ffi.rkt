@@ -10,6 +10,10 @@
   (unless got
     (error 'check-true label)))
 
+(define (check-false got label)
+  (when got
+    (error 'check-false label)))
+
 (define (catch-message thunk)
   (with-handlers ([exn:fail? exn-message])
     (thunk)
@@ -61,6 +65,16 @@
     delete globalThis.__wrWebSocketBoundaryInstall;
     delete globalThis.__wrWebSocketBoundaryRestore;
   };")
+
+(js-eval "globalThis.WebSocket = {};")
+
+(check-false (websocket-constructor-present?)
+             "websocket-constructor-present? returns #f when WebSocket is not callable")
+
+(js-eval "globalThis.WebSocket = (() => false);")
+
+(check-false (websocket-constructor-present?)
+             "websocket-constructor-present? returns #f when WebSocket is not constructible")
 
 (define callback (lambda args (void)))
 

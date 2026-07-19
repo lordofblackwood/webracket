@@ -37,8 +37,7 @@
 ;; websocket-constructor-present? : -> boolean?
 ;;   Check whether the host environment exposes a WebSocket constructor.
 (define (websocket-constructor-present?)
-  (string=? (js-typeof (js-var "WebSocket"))
-            "function"))
+  (js-constructible? (js-var "WebSocket")))
 
 ;; procedure->external-cache : hash?
 ;;   Cache JS callback wrappers so the same procedure maps to the same external.
