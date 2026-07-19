@@ -1,6 +1,8 @@
 #lang racket/base
 
-(require (prefix-in unsafe: webracket/unsafe/array))
+(require (prefix-in unsafe: webracket/unsafe/array)
+         (only-in webracket/unsafe/standard
+                  [js-constructible? unsafe:js-constructible?]))
 
 (provide (struct-out array)
          array->bytes
@@ -86,7 +88,7 @@
 ;;   Return the Array constructor after checking a required static method.
 (define (check-array-global-method who method-name)
   (define array-ctor (unsafe:js-var "Array"))
-  (unless (string=? (unsafe:js-typeof array-ctor) "function")
+  (unless (unsafe:js-constructible? array-ctor)
     (raise-arguments-error who "Array is not available"))
   (define method (unsafe:js-ref/extern array-ctor method-name))
   (unless (and (not (unsafe:js-nullish? method))

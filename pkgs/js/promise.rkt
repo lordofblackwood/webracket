@@ -44,7 +44,7 @@
 ;;   Return the Promise constructor after checking a required static method.
 (define (check-js-promise-global-method who method-name)
   (define promise-ctor (js-var "Promise"))
-  (unless (string=? (js-typeof promise-ctor) "function")
+  (unless (js-constructible? promise-ctor)
     (raise-arguments-error who "Promise is not available"))
   (check-js-promise-host-method who promise-ctor "Promise" method-name)
   promise-ctor)

@@ -36,7 +36,22 @@
       return this;
     }
   };
-  globalThis.Promise = function Promise() {};")
+  globalThis.Promise = (() => false);
+  globalThis.Promise.resolve = (_value) => globalThis.__wrPromiseBoundaryThenOnly;
+  globalThis.Promise.reject = (_value) => globalThis.__wrPromiseBoundaryThenOnly;")
+
+(define non-constructor-resolve-message
+  (catch-message
+   (lambda ()
+     (js-promise-resolved 'ok))))
+
+(define non-constructor-reject-message
+  (catch-message
+   (lambda ()
+     (js-promise-rejected 'bad))))
+
+(js-eval
+ "globalThis.Promise = function Promise() {};")
 
 (define then-only-promise
   (js-promise-wrap
@@ -75,6 +90,12 @@
 (check-message reject-message
                "Promise.reject is not available"
                "missing Promise.reject message")
+(check-message non-constructor-resolve-message
+               "Promise is not available"
+               "non-constructible Promise.resolve message")
+(check-message non-constructor-reject-message
+               "Promise is not available"
+               "non-constructible Promise.reject message")
 (check-message catch-method-message
                "Promise.catch is not available"
                "missing Promise.catch message")

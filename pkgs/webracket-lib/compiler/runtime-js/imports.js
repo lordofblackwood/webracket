@@ -583,7 +583,7 @@ function call_required_host_function9(owner, name, displayName, arg0, arg1, arg2
 
 function require_array_constructor(displayName) {
   const ctor = get_global_value('Array');
-  if (typeof ctor !== 'function') {
+  if (!host_is_constructor(ctor)) {
     throw new Error(`${displayName} not available in this environment`);
   }
   return ctor;
@@ -591,7 +591,7 @@ function require_array_constructor(displayName) {
 
 function require_uint8_array_constructor(displayName) {
   const ctor = get_global_value('Uint8Array');
-  if (typeof ctor !== 'function') {
+  if (!host_is_constructor(ctor)) {
     throw new Error(`${displayName} not available in this environment`);
   }
   return ctor;

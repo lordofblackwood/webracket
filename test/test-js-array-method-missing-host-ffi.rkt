@@ -76,6 +76,12 @@
         delete globalThis.Array;
       }
     },
+    makeArrayNonConstructor() {
+      const fake = (() => false);
+      fake.from = (_source) => [1, 2, 3];
+      fake.of = (...items) => items;
+      globalThis.Array = fake;
+    },
     hideUint8Array() {
       try {
         return delete globalThis.Uint8Array;
@@ -90,6 +96,11 @@
       } else {
         delete globalThis.Uint8Array;
       }
+    },
+    makeUint8ArrayNonConstructor() {
+      const fake = (() => false);
+      fake.from = (_source) => ({length: 0});
+      globalThis.Uint8Array = fake;
     }
   };")
 
@@ -141,6 +152,20 @@
                    missing-method
                    "')"))))
 
+(define array-from-non-constructor-message
+  (catch-message/restoring
+   (lambda ()
+     (js-eval "globalThis.__wrArrayBoundary.makeArrayNonConstructor();")
+     (array-from #(1 2 3)))
+   restore-array-global!))
+
+(define array-of-non-constructor-message
+  (catch-message/restoring
+   (lambda ()
+     (js-eval "globalThis.__wrArrayBoundary.makeArrayNonConstructor();")
+     (array-of 1 2 3))
+   restore-array-global!))
+
 (js-eval
  "globalThis.__wrArrayBoundarySavedFrom = Array.from;
   globalThis.__wrArrayBoundarySavedFromAsync = Array.fromAsync;
@@ -159,6 +184,13 @@
 
 (define bytes-source-array
   (array-of 1 2 3))
+
+(define uint8-array-from-non-constructor-message
+  (catch-message/restoring
+   (lambda ()
+     (js-eval "globalThis.__wrArrayBoundary.makeUint8ArrayNonConstructor();")
+     (array->bytes bytes-source-array))
+   restore-uint8-array-global!))
 
 (js-eval
  "globalThis.__wrArrayBoundarySavedUint8ArrayFromDescriptor =
@@ -301,6 +333,15 @@
 (check-unavailable-message missing-uint8-array-from-message
                            "Uint8Array.from"
                            "missing Uint8Array.from message")
+(check-message array-from-non-constructor-message
+               "Array is not available"
+               "non-constructible Array.from message")
+(check-message array-of-non-constructor-message
+               "Array.of not available in this environment"
+               "non-constructible Array.of message")
+(check-message uint8-array-from-non-constructor-message
+               "Uint8Array.from not available in this environment"
+               "non-constructible Uint8Array.from message")
 (check-unavailable-message at-message
                            "Array.at"
                            "missing Array.at message")
