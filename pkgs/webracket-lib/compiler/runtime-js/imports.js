@@ -314,8 +314,26 @@ function call_array_method(arr, methodName, args = []) {
                                      args);
 }
 
+function require_number_constructor(displayName) {
+  const ctor = get_global_value('Number');
+  if (typeof ctor !== 'function') {
+    throw new Error(`${displayName} not available in this environment`);
+  }
+  return ctor;
+}
+
+function get_number_static_value(name) {
+  const displayName = `Number.${name}`;
+  const ctor = require_number_constructor(displayName);
+  const value = ctor[name];
+  if (value === null || value === undefined) {
+    throw new Error(`${displayName} not available in this environment`);
+  }
+  return value;
+}
+
 function call_number_static_method1(methodName, arg0) {
-  return call_required_host_function1(Number,
+  return call_required_host_function1(require_number_constructor(`Number.${methodName}`),
                                       methodName,
                                       `Number.${methodName}`,
                                       arg0);
@@ -1409,21 +1427,21 @@ var imports = {
     // JavaScript Number FFI.
     'number': {
         // Machine epsilon constant.
-        'epsilon':           (() => Number.EPSILON),
+        'epsilon':           (() => get_number_static_value('EPSILON')),
         // Largest safe integer.
-        'max-safe-integer':  (() => Number.MAX_SAFE_INTEGER),
+        'max-safe-integer':  (() => get_number_static_value('MAX_SAFE_INTEGER')),
         // Greatest finite number.
-        'max-value':         (() => Number.MAX_VALUE),
+        'max-value':         (() => get_number_static_value('MAX_VALUE')),
         // Smallest safe integer.
-        'min-safe-integer':  (() => Number.MIN_SAFE_INTEGER),
+        'min-safe-integer':  (() => get_number_static_value('MIN_SAFE_INTEGER')),
         // Smallest positive non-zero number.
-        'min-value':         (() => Number.MIN_VALUE),
+        'min-value':         (() => get_number_static_value('MIN_VALUE')),
         // IEEE NaN value.
-        'nan':               (() => Number.NaN),
+        'nan':               (() => get_number_static_value('NaN')),
         // Negative infinity constant.
-        'negative-infinity': (() => Number.NEGATIVE_INFINITY),
+        'negative-infinity': (() => get_number_static_value('NEGATIVE_INFINITY')),
         // Positive infinity constant.
-        'positive-infinity': (() => Number.POSITIVE_INFINITY),
+        'positive-infinity': (() => get_number_static_value('POSITIVE_INFINITY')),
         // Test whether a value is finite.
         'is-finite':         (x => boolean_to_i32(call_number_static_method1('isFinite', x))),
         // Test whether a value is an integer.

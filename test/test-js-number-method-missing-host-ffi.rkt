@@ -4,9 +4,17 @@
 
 (require (only-in webracket/unsafe/standard
                   js-eval
+                  js-number-epsilon
                   js-number-finite?
                   js-number-integer?
+                  js-number-max-safe-integer
+                  js-number-max-value
+                  js-number-min-safe-integer
+                  js-number-min-value
+                  js-number-nan
                   js-number-nan?
+                  js-number-negative-infinity
+                  js-number-positive-infinity
                   js-number-safe-integer?
                   js-number-parse-float
                   js-number-parse-int
@@ -15,7 +23,8 @@
                   js-number-to-locale-string
                   js-number-to-precision
                   js-number-to-string
-                  js-number-value-of))
+                  js-number-value-of
+                  js-truthy?))
 
 (define (check-true got label)
   (unless got
@@ -24,6 +33,15 @@
 (define (catch-message thunk)
   (with-handlers ([exn:fail? exn-message])
     (thunk)
+    #f))
+
+(define (catch-message/restoring thunk restore!)
+  (with-handlers ([exn:fail?
+                   (lambda (e)
+                     (restore!)
+                     (exn-message e))])
+    (thunk)
+    (restore!)
     #f))
 
 (define (string-contains/simple? haystack needle)
@@ -42,6 +60,7 @@
 
 (js-eval
  "globalThis.__wrNumberBoundary = {
+    numberDescriptor: Object.getOwnPropertyDescriptor(globalThis, 'Number') || null,
     prototype: {
       toExponential: Number.prototype.toExponential,
       toFixed: Number.prototype.toFixed,
@@ -57,6 +76,21 @@
       isSafeInteger: Number.isSafeInteger,
       parseFloat: Number.parseFloat,
       parseInt: Number.parseInt
+    },
+    hideNumber() {
+      try {
+        return delete globalThis.Number;
+      } catch (_e) {
+        return false;
+      }
+    },
+    restoreNumber() {
+      const saved = globalThis.__wrNumberBoundary.numberDescriptor;
+      if (saved) {
+        Object.defineProperty(globalThis, 'Number', saved);
+      } else {
+        delete globalThis.Number;
+      }
     }
   };")
 
@@ -87,6 +121,23 @@
                   method
                   "'];"))
   message)
+
+(define (hide-number-global?)
+  (js-truthy?
+   (js-eval "globalThis.__wrNumberBoundary.hideNumber()")))
+
+(define (restore-number-global!)
+  (js-eval "globalThis.__wrNumberBoundary.restoreNumber();")
+  (void))
+
+(define (check-hidden-number-global thunk needle label)
+  (cond
+    [(hide-number-global?)
+     (define message
+       (catch-message/restoring thunk restore-number-global!))
+     (check-message message needle label)]
+    [else
+     (restore-number-global!)]))
 
 (define finite-message
   (without-number-static-method
@@ -160,12 +211,58 @@
    (lambda ()
      (js-number-value-of 1.0))))
 
+(check-hidden-number-global
+ (lambda () (js-number-epsilon))
+ "Number.EPSILON not available in this environment"
+ "missing Number global epsilon message")
+
+(check-hidden-number-global
+ (lambda () (js-number-max-safe-integer))
+ "Number.MAX_SAFE_INTEGER not available in this environment"
+ "missing Number global MAX_SAFE_INTEGER message")
+
+(check-hidden-number-global
+ (lambda () (js-number-max-value))
+ "Number.MAX_VALUE not available in this environment"
+ "missing Number global MAX_VALUE message")
+
+(check-hidden-number-global
+ (lambda () (js-number-min-safe-integer))
+ "Number.MIN_SAFE_INTEGER not available in this environment"
+ "missing Number global MIN_SAFE_INTEGER message")
+
+(check-hidden-number-global
+ (lambda () (js-number-min-value))
+ "Number.MIN_VALUE not available in this environment"
+ "missing Number global MIN_VALUE message")
+
+(check-hidden-number-global
+ (lambda () (js-number-nan))
+ "Number.NaN not available in this environment"
+ "missing Number global NaN message")
+
+(check-hidden-number-global
+ (lambda () (js-number-negative-infinity))
+ "Number.NEGATIVE_INFINITY not available in this environment"
+ "missing Number global NEGATIVE_INFINITY message")
+
+(check-hidden-number-global
+ (lambda () (js-number-positive-infinity))
+ "Number.POSITIVE_INFINITY not available in this environment"
+ "missing Number global POSITIVE_INFINITY message")
+
+(check-hidden-number-global
+ (lambda () (js-number-finite? 1.0))
+ "Number.isFinite not available in this environment"
+ "missing Number global isFinite message")
+
 (js-eval
- "for (const name of Object.keys(globalThis.__wrNumberBoundary.prototype)) {
-    Number.prototype[name] = globalThis.__wrNumberBoundary.prototype[name];
+ "globalThis.__wrNumberBoundary.restoreNumber();
+  for (const name of Object.keys(globalThis.__wrNumberBoundary.prototype)) {
+    globalThis.Number.prototype[name] = globalThis.__wrNumberBoundary.prototype[name];
   }
   for (const name of Object.keys(globalThis.__wrNumberBoundary.statics)) {
-    Number[name] = globalThis.__wrNumberBoundary.statics[name];
+    globalThis.Number[name] = globalThis.__wrNumberBoundary.statics[name];
   }
   delete globalThis.__wrNumberBoundary;")
 
