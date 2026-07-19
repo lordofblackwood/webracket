@@ -61,6 +61,14 @@
     };
     delete globalThis.__wrCompressionBoundaryReadable[missing];
   };
+  globalThis.__wrCompressionBoundaryFakeStream = (missing) => {
+    const stream = {
+      readable: {kind: 'fake-readable'},
+      writable: {kind: 'fake-writable'}
+    };
+    delete stream[missing];
+    return stream;
+  };
   globalThis.__wrCompressionBoundaryInstallNonConstructor = (kind) => {
     globalThis[kind] = () => {};
   };
@@ -78,6 +86,7 @@
     delete globalThis.__wrCompressionBoundarySaved;
     delete globalThis.__wrCompressionBoundaryReadable;
     delete globalThis.__wrCompressionBoundaryInstall;
+    delete globalThis.__wrCompressionBoundaryFakeStream;
     delete globalThis.__wrCompressionBoundaryInstallNonConstructor;
     delete globalThis.__wrCompressionBoundaryRestoreConstructor;
     delete globalThis.__wrCompressionBoundaryRestore;
@@ -96,6 +105,18 @@
 (define (missing-pipe-through-message thunk)
   (js-eval "__wrCompressionBoundaryInstall('pipeThrough')")
   (catch-message thunk))
+
+(define (fake-compression-stream missing)
+  (compression-stream-info
+   (js-eval (string-append "__wrCompressionBoundaryFakeStream('"
+                           missing
+                           "')"))))
+
+(define (fake-decompression-stream missing)
+  (decompression-stream-info
+   (js-eval (string-append "__wrCompressionBoundaryFakeStream('"
+                           missing
+                           "')"))))
 
 (define compression-message
   (missing-pipe-through-message
@@ -127,6 +148,26 @@
    (lambda ()
      (make-decompression-stream 'gzip))))
 
+(define compression-readable-message
+  (catch-message
+   (lambda ()
+     (compression-stream-readable (fake-compression-stream "readable")))))
+
+(define compression-writable-message
+  (catch-message
+   (lambda ()
+     (compression-stream-writable (fake-compression-stream "writable")))))
+
+(define decompression-readable-message
+  (catch-message
+   (lambda ()
+     (decompression-stream-readable (fake-decompression-stream "readable")))))
+
+(define decompression-writable-message
+  (catch-message
+   (lambda ()
+     (decompression-stream-writable (fake-decompression-stream "writable")))))
+
 (check-message compression-message
                "ReadableStream.pipeThrough is not available"
                "missing compression ReadableStream.pipeThrough message")
@@ -139,6 +180,18 @@
 (check-message decompression-constructor-message
                "DecompressionStream is not available"
                "non-constructible DecompressionStream message")
+(check-message compression-readable-message
+               "CompressionStream.readable is not available"
+               "missing CompressionStream.readable message")
+(check-message compression-writable-message
+               "CompressionStream.writable is not available"
+               "missing CompressionStream.writable message")
+(check-message decompression-readable-message
+               "DecompressionStream.readable is not available"
+               "missing DecompressionStream.readable message")
+(check-message decompression-writable-message
+               "DecompressionStream.writable is not available"
+               "missing DecompressionStream.writable message")
 
 (js-eval "__wrCompressionBoundaryRestore();")
 

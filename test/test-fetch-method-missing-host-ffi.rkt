@@ -105,10 +105,10 @@
     };
     globalThis.Request = class Request {
       constructor(input, _init) {
-        this.url = String(input);
-        this.method = 'GET';
-        this.headers = new globalThis.Headers();
-        this.bodyUsed = false;
+        if (kind !== 'Request' || missing !== 'url') this.url = String(input);
+        if (kind !== 'Request' || missing !== 'method') this.method = 'GET';
+        if (kind !== 'Request' || missing !== 'headers') this.headers = new globalThis.Headers();
+        if (kind !== 'Request' || missing !== 'bodyUsed') this.bodyUsed = false;
       }
       clone() {
         return new globalThis.Request(this.url);
@@ -116,13 +116,13 @@
     };
     globalThis.Response = class Response {
       constructor(_body, init) {
-        this.ok = true;
-        this.status = init && init.status || 200;
-        this.statusText = '';
-        this.url = '';
-        this.type = 'basic';
-        this.bodyUsed = false;
-        this.headers = new globalThis.Headers();
+        if (kind !== 'Response' || missing !== 'ok') this.ok = true;
+        if (kind !== 'Response' || missing !== 'status') this.status = init && init.status || 200;
+        if (kind !== 'Response' || missing !== 'statusText') this.statusText = '';
+        if (kind !== 'Response' || missing !== 'url') this.url = '';
+        if (kind !== 'Response' || missing !== 'type') this.type = 'basic';
+        if (kind !== 'Response' || missing !== 'bodyUsed') this.bodyUsed = false;
+        if (kind !== 'Response' || missing !== 'headers') this.headers = new globalThis.Headers();
       }
       clone() {
         return new globalThis.Response(null, {status: this.status});
@@ -297,6 +297,33 @@
                  "fetch-request? accepts fake host request")
      (fetch-request-clone request))))
 
+(define (missing-request-property-message property thunk)
+  (missing-fetch-method-message "Request" property thunk))
+
+(define request-method-message
+  (missing-request-property-message
+   "method"
+   (lambda ()
+     (fetch-request-method (make-fetch-request "https://example.invalid/fetch")))))
+
+(define request-url-message
+  (missing-request-property-message
+   "url"
+   (lambda ()
+     (fetch-request-url (make-fetch-request "https://example.invalid/fetch")))))
+
+(define request-body-used-message
+  (missing-request-property-message
+   "bodyUsed"
+   (lambda ()
+     (fetch-request-body-used? (make-fetch-request "https://example.invalid/fetch")))))
+
+(define request-headers-message
+  (missing-request-property-message
+   "headers"
+   (lambda ()
+     (fetch-request-headers (make-fetch-request "https://example.invalid/fetch")))))
+
 (define response-clone-message
   (missing-fetch-method-message
    "Response"
@@ -306,6 +333,51 @@
      (check-true (fetch-response? response)
                  "fetch-response? accepts fake host response")
      (fetch-response-clone response))))
+
+(define (missing-response-property-message property thunk)
+  (missing-fetch-method-message "Response" property thunk))
+
+(define response-ok-message
+  (missing-response-property-message
+   "ok"
+   (lambda ()
+     (fetch-response-ok? (fetch-response (js-eval "new Response(null, {status: 204})"))))))
+
+(define response-status-message
+  (missing-response-property-message
+   "status"
+   (lambda ()
+     (fetch-response-status (fetch-response (js-eval "new Response(null, {status: 204})"))))))
+
+(define response-status-text-message
+  (missing-response-property-message
+   "statusText"
+   (lambda ()
+     (fetch-response-status-text (fetch-response (js-eval "new Response(null, {status: 204})"))))))
+
+(define response-url-message
+  (missing-response-property-message
+   "url"
+   (lambda ()
+     (fetch-response-url (fetch-response (js-eval "new Response(null, {status: 204})"))))))
+
+(define response-type-message
+  (missing-response-property-message
+   "type"
+   (lambda ()
+     (fetch-response-type (fetch-response (js-eval "new Response(null, {status: 204})"))))))
+
+(define response-body-used-message
+  (missing-response-property-message
+   "bodyUsed"
+   (lambda ()
+     (fetch-response-body-used? (fetch-response (js-eval "new Response(null, {status: 204})"))))))
+
+(define response-headers-message
+  (missing-response-property-message
+   "headers"
+   (lambda ()
+     (fetch-response-headers (fetch-response (js-eval "new Response(null, {status: 204})"))))))
 
 (check-message headers-get-message
                "Headers.get is not available"
@@ -340,6 +412,18 @@
 (check-message request-clone-message
                "Request.clone is not available"
                "missing Request.clone message")
+(check-message request-method-message
+               "Request.method is not available"
+               "missing Request.method message")
+(check-message request-url-message
+               "Request.url is not available"
+               "missing Request.url message")
+(check-message request-body-used-message
+               "Request.bodyUsed is not available"
+               "missing Request.bodyUsed message")
+(check-message request-headers-message
+               "Request.headers is not available"
+               "missing Request.headers message")
 (when request-constructor-message
   (check-message request-constructor-message
                  "Request constructor is not available"
@@ -355,6 +439,27 @@
 (check-message response-clone-message
                "Response.clone is not available"
                "missing Response.clone message")
+(check-message response-ok-message
+               "Response.ok is not available"
+               "missing Response.ok message")
+(check-message response-status-message
+               "Response.status is not available"
+               "missing Response.status message")
+(check-message response-status-text-message
+               "Response.statusText is not available"
+               "missing Response.statusText message")
+(check-message response-url-message
+               "Response.url is not available"
+               "missing Response.url message")
+(check-message response-type-message
+               "Response.type is not available"
+               "missing Response.type message")
+(check-message response-body-used-message
+               "Response.bodyUsed is not available"
+               "missing Response.bodyUsed message")
+(check-message response-headers-message
+               "Response.headers is not available"
+               "missing Response.headers message")
 (when response-existing-wrapper-constructor-message
   (check-message response-existing-wrapper-constructor-message
                  "Response constructor is not available"

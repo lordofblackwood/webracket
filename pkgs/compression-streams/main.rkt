@@ -57,6 +57,11 @@
   (and (not (js-nullish? method))
        (string=? (js-typeof method) "function")))
 
+;; compression-stream-host-property-present? : external/raw string? -> boolean?
+;;   Report whether raw exposes a non-nullish stream property.
+(define (compression-stream-host-property-present? raw property-name)
+  (not (js-nullish? (js-ref/extern raw property-name))))
+
 ;; check-compression-stream-host-method : symbol? external/raw string? string? -> void?
 ;;   Ensure a required stream host method is available.
 (define (check-compression-stream-host-method who raw receiver-name method-name)
@@ -65,6 +70,16 @@
                            (string-append receiver-name
                                           "."
                                           method-name
+                                          " is not available"))))
+
+;; check-compression-stream-host-property : symbol? external/raw string? string? -> void?
+;;   Ensure a required stream host property is available.
+(define (check-compression-stream-host-property who raw receiver-name property-name)
+  (unless (compression-stream-host-property-present? raw property-name)
+    (raise-arguments-error who
+                           (string-append receiver-name
+                                          "."
+                                          property-name
                                           " is not available"))))
 
 ;; compression-stream? : any/c -> boolean?
@@ -122,6 +137,10 @@
 (define (compression-stream-readable value)
   (unless (compression-stream? value)
     (raise-argument-error 'compression-stream-readable "compression-stream?" value))
+  (check-compression-stream-host-property 'compression-stream-readable
+                                          (compression-stream-raw value)
+                                          "CompressionStream"
+                                          "readable")
   (js-ref/extern (compression-stream-raw value) "readable"))
 
 ;; compression-stream-writable : compression-stream? -> external/raw
@@ -129,6 +148,10 @@
 (define (compression-stream-writable value)
   (unless (compression-stream? value)
     (raise-argument-error 'compression-stream-writable "compression-stream?" value))
+  (check-compression-stream-host-property 'compression-stream-writable
+                                          (compression-stream-raw value)
+                                          "CompressionStream"
+                                          "writable")
   (js-ref/extern (compression-stream-raw value) "writable"))
 
 ;; decompression-stream-readable : decompression-stream? -> external/raw
@@ -136,6 +159,10 @@
 (define (decompression-stream-readable value)
   (unless (decompression-stream? value)
     (raise-argument-error 'decompression-stream-readable "decompression-stream?" value))
+  (check-compression-stream-host-property 'decompression-stream-readable
+                                          (decompression-stream-raw value)
+                                          "DecompressionStream"
+                                          "readable")
   (js-ref/extern (decompression-stream-raw value) "readable"))
 
 ;; decompression-stream-writable : decompression-stream? -> external/raw
@@ -143,6 +170,10 @@
 (define (decompression-stream-writable value)
   (unless (decompression-stream? value)
     (raise-argument-error 'decompression-stream-writable "decompression-stream?" value))
+  (check-compression-stream-host-property 'decompression-stream-writable
+                                          (decompression-stream-raw value)
+                                          "DecompressionStream"
+                                          "writable")
   (js-ref/extern (decompression-stream-raw value) "writable"))
 
 ;; readable-stream-pipe-through-compression : external/raw compression-stream? -> external/raw

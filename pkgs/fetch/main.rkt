@@ -50,6 +50,11 @@
   (and (not (js-nullish? method))
        (string=? (js-typeof method) "function")))
 
+;; fetch-host-property-present? : external/raw string? -> boolean?
+;;   Report whether raw exposes a non-nullish Fetch API property.
+(define (fetch-host-property-present? raw property-name)
+  (not (js-nullish? (js-ref/extern raw property-name))))
+
 ;; check-fetch-host-method : symbol? external/raw string? string? -> void?
 ;;   Ensure a required Fetch API host method is available.
 (define (check-fetch-host-method who raw receiver-name method-name)
@@ -58,6 +63,16 @@
                            (string-append receiver-name
                                           "."
                                           method-name
+                                          " is not available"))))
+
+;; check-fetch-host-property : symbol? external/raw string? string? -> void?
+;;   Ensure a required Fetch API host property is available.
+(define (check-fetch-host-property who raw receiver-name property-name)
+  (unless (fetch-host-property-present? raw property-name)
+    (raise-arguments-error who
+                           (string-append receiver-name
+                                          "."
+                                          property-name
                                           " is not available"))))
 
 ;; fetch-headers-info : external/raw -> fetch-headers-info?
@@ -186,24 +201,40 @@
 ;;   Read the request method.
 (define (fetch-request-method request)
   (check-fetch-request 'fetch-request-method request)
+  (check-fetch-host-property 'fetch-request-method
+                             (fetch-request-raw request)
+                             "Request"
+                             "method")
   (js-ref (fetch-request-raw request) "method"))
 
 ;; fetch-request-url : fetch-request-info? -> any/c
 ;;   Read the request URL.
 (define (fetch-request-url request)
   (check-fetch-request 'fetch-request-url request)
+  (check-fetch-host-property 'fetch-request-url
+                             (fetch-request-raw request)
+                             "Request"
+                             "url")
   (js-ref (fetch-request-raw request) "url"))
 
 ;; fetch-request-body-used? : fetch-request-info? -> boolean?
 ;;   Report whether the request body has already been consumed.
 (define (fetch-request-body-used? request)
   (check-fetch-request 'fetch-request-body-used? request)
+  (check-fetch-host-property 'fetch-request-body-used?
+                             (fetch-request-raw request)
+                             "Request"
+                             "bodyUsed")
   (js-ref (fetch-request-raw request) "bodyUsed"))
 
 ;; fetch-request-headers : fetch-request-info? -> fetch-headers-info?
 ;;   Read the request headers wrapper.
 (define (fetch-request-headers request)
   (check-fetch-request 'fetch-request-headers request)
+  (check-fetch-host-property 'fetch-request-headers
+                             (fetch-request-raw request)
+                             "Request"
+                             "headers")
   (fetch-headers (js-ref (fetch-request-raw request) "headers")))
 
 ;; fetch-request-clone : fetch-request-info? -> fetch-request-info?
@@ -220,42 +251,70 @@
 ;;   Report whether the response status is in the successful range.
 (define (fetch-response-ok? response)
   (check-fetch-response 'fetch-response-ok? response)
+  (check-fetch-host-property 'fetch-response-ok?
+                             (fetch-response-raw response)
+                             "Response"
+                             "ok")
   (js-ref (fetch-response-raw response) "ok"))
 
 ;; fetch-response-status : fetch-response-info? -> exact-nonnegative-integer?
 ;;   Read the response status code.
 (define (fetch-response-status response)
   (check-fetch-response 'fetch-response-status response)
+  (check-fetch-host-property 'fetch-response-status
+                             (fetch-response-raw response)
+                             "Response"
+                             "status")
   (js-ref (fetch-response-raw response) "status"))
 
 ;; fetch-response-status-text : fetch-response-info? -> string?
 ;;   Read the response status text.
 (define (fetch-response-status-text response)
   (check-fetch-response 'fetch-response-status-text response)
+  (check-fetch-host-property 'fetch-response-status-text
+                             (fetch-response-raw response)
+                             "Response"
+                             "statusText")
   (js-ref (fetch-response-raw response) "statusText"))
 
 ;; fetch-response-url : fetch-response-info? -> string?
 ;;   Read the final response URL.
 (define (fetch-response-url response)
   (check-fetch-response 'fetch-response-url response)
+  (check-fetch-host-property 'fetch-response-url
+                             (fetch-response-raw response)
+                             "Response"
+                             "url")
   (js-ref (fetch-response-raw response) "url"))
 
 ;; fetch-response-type : fetch-response-info? -> string?
 ;;   Read the response type.
 (define (fetch-response-type response)
   (check-fetch-response 'fetch-response-type response)
+  (check-fetch-host-property 'fetch-response-type
+                             (fetch-response-raw response)
+                             "Response"
+                             "type")
   (js-ref (fetch-response-raw response) "type"))
 
 ;; fetch-response-body-used? : fetch-response-info? -> boolean?
 ;;   Report whether the response body has already been consumed.
 (define (fetch-response-body-used? response)
   (check-fetch-response 'fetch-response-body-used? response)
+  (check-fetch-host-property 'fetch-response-body-used?
+                             (fetch-response-raw response)
+                             "Response"
+                             "bodyUsed")
   (js-ref (fetch-response-raw response) "bodyUsed"))
 
 ;; fetch-response-headers : fetch-response-info? -> fetch-headers-info?
 ;;   Read the response headers wrapper.
 (define (fetch-response-headers response)
   (check-fetch-response 'fetch-response-headers response)
+  (check-fetch-host-property 'fetch-response-headers
+                             (fetch-response-raw response)
+                             "Response"
+                             "headers")
   (fetch-headers (js-ref (fetch-response-raw response) "headers")))
 
 ;; fetch-response-clone : fetch-response-info? -> fetch-response-info?
