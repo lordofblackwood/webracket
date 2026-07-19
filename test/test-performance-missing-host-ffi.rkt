@@ -20,7 +20,8 @@
                   js-performance-set-resource-timing-buffer-size
                   js-performance-to-json)
          (only-in webracket/unsafe/standard
-                  js-eval))
+                  js-eval
+                  js-truthy?))
 
 (define (check-true got label)
   (unless got
@@ -29,6 +30,15 @@
 (define (catch-message thunk)
   (with-handlers ([exn:fail? exn-message])
     (thunk)
+    #f))
+
+(define (catch-message/restoring thunk restore!)
+  (with-handlers ([exn:fail?
+                   (lambda (e)
+                     (restore!)
+                     (exn-message e))])
+    (thunk)
+    (restore!)
     #f))
 
 (define (string-contains/simple? haystack needle)
@@ -184,6 +194,59 @@
     }
   });
   delete globalThis.__wrPerformanceMethodBoundary;")
+
+(js-eval
+ "globalThis.__wrPerformanceGlobalBoundary = {
+    descriptor: Object.getOwnPropertyDescriptor(globalThis, 'performance') || null,
+    hide() {
+      try {
+        Object.defineProperty(globalThis, 'performance', {
+          value: undefined,
+          configurable: true,
+          writable: true
+        });
+        return true;
+      } catch (_e) {
+        return false;
+      }
+    },
+    restore() {
+      const saved = globalThis.__wrPerformanceGlobalBoundary.descriptor;
+      if (saved) {
+        Object.defineProperty(globalThis, 'performance', saved);
+      } else {
+        delete globalThis.performance;
+      }
+    }
+  };")
+
+(define (hide-performance-global?)
+  (js-truthy?
+   (js-eval "globalThis.__wrPerformanceGlobalBoundary.hide()")))
+
+(define (restore-performance-global!)
+  (js-eval "globalThis.__wrPerformanceGlobalBoundary.restore();")
+  (void))
+
+(define performance-global-message
+  (cond
+    [(hide-performance-global?)
+     (catch-message/restoring
+      (lambda ()
+        (js-performance-now))
+      restore-performance-global!)]
+    [else
+     (restore-performance-global!)
+     #f]))
+
+(js-eval
+ "globalThis.__wrPerformanceGlobalBoundary.restore();
+  delete globalThis.__wrPerformanceGlobalBoundary;")
+
+(when performance-global-message
+  (check-message performance-global-message
+                 "performance.now not available in this environment"
+                 "missing performance global message"))
 
 (check-message now-message
                "performance.now not available in this environment"

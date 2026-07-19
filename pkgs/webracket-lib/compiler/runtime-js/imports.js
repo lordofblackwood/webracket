@@ -541,20 +541,42 @@ function call_image_method0(img, methodName) {
   return call_required_host_function0(img, methodName, `HTMLImageElement.${methodName}`);
 }
 
+function require_performance_object(displayName) {
+  const perf = typeof performance === 'undefined' ? null : performance;
+  if (perf === null || perf === undefined) {
+    throw new Error(`${displayName} not available in this environment`);
+  }
+  return perf;
+}
+
 function call_performance_method0(methodName) {
-  return call_required_host_function0(performance, methodName, `performance.${methodName}`);
+  return call_required_host_function0(require_performance_object(`performance.${methodName}`),
+                                      methodName,
+                                      `performance.${methodName}`);
 }
 
 function call_performance_method1(methodName, arg0) {
-  return call_required_host_function1(performance, methodName, `performance.${methodName}`, arg0);
+  return call_required_host_function1(require_performance_object(`performance.${methodName}`),
+                                      methodName,
+                                      `performance.${methodName}`,
+                                      arg0);
 }
 
 function call_performance_method2(methodName, arg0, arg1) {
-  return call_required_host_function2(performance, methodName, `performance.${methodName}`, arg0, arg1);
+  return call_required_host_function2(require_performance_object(`performance.${methodName}`),
+                                      methodName,
+                                      `performance.${methodName}`,
+                                      arg0,
+                                      arg1);
 }
 
 function call_performance_method3(methodName, arg0, arg1, arg2) {
-  return call_required_host_function3(performance, methodName, `performance.${methodName}`, arg0, arg1, arg2);
+  return call_required_host_function3(require_performance_object(`performance.${methodName}`),
+                                      methodName,
+                                      `performance.${methodName}`,
+                                      arg0,
+                                      arg1,
+                                      arg2);
 }
 
 function call_event_method0(evt, methodName) {
