@@ -41,10 +41,13 @@
       [else (loop (add1 index))])))
 
 (define (check-unavailable-message message method-name label)
-  (check-true (and message
-                   (string-contains/simple? message method-name)
-                   (string-contains/simple? message "not available"))
-              label))
+  (unless (and message
+               (string-contains/simple? message method-name)
+               (string-contains/simple? message "not available"))
+    (error 'check-unavailable-message
+           (string-append label
+                          ": "
+                          (if message message "#f")))))
 
 (define (check-message message needle label)
   (check-true (and message
@@ -57,6 +60,7 @@
 (js-eval
  "globalThis.__wrArrayBoundary = {
     arrayDescriptor: Object.getOwnPropertyDescriptor(globalThis, 'Array') || null,
+    uint8ArrayDescriptor: Object.getOwnPropertyDescriptor(globalThis, 'Uint8Array') || null,
     hideArray() {
       try {
         return delete globalThis.Array;
@@ -71,6 +75,21 @@
       } else {
         delete globalThis.Array;
       }
+    },
+    hideUint8Array() {
+      try {
+        return delete globalThis.Uint8Array;
+      } catch (_e) {
+        return false;
+      }
+    },
+    restoreUint8Array() {
+      const saved = globalThis.__wrArrayBoundary.uint8ArrayDescriptor;
+      if (saved) {
+        Object.defineProperty(globalThis, 'Uint8Array', saved);
+      } else {
+        delete globalThis.Uint8Array;
+      }
     }
   };")
 
@@ -82,6 +101,14 @@
   (js-eval "globalThis.__wrArrayBoundary.restoreArray();")
   (void))
 
+(define (hide-uint8-array-global?)
+  (js-truthy?
+   (js-eval "globalThis.__wrArrayBoundary.hideUint8Array()")))
+
+(define (restore-uint8-array-global!)
+  (js-eval "globalThis.__wrArrayBoundary.restoreUint8Array();")
+  (void))
+
 (define (check-hidden-array-global thunk needle label)
   (cond
     [(hide-array-global?)
@@ -90,6 +117,15 @@
      (check-message message needle label)]
     [else
      (restore-array-global!)]))
+
+(define (check-hidden-uint8-array-global thunk needle label)
+  (cond
+    [(hide-uint8-array-global?)
+     (define message
+       (catch-message/restoring thunk restore-uint8-array-global!))
+     (check-message message needle label)]
+    [else
+     (restore-uint8-array-global!)]))
 
 (js-eval
  "globalThis.__wrArrayBoundaryFake = (missing) => {
@@ -121,6 +157,23 @@
    (lambda ()
      (array-from-async #(1 2 3)))))
 
+(define bytes-source-array
+  (array-of 1 2 3))
+
+(js-eval
+ "globalThis.__wrArrayBoundarySavedUint8ArrayFromDescriptor =
+    Object.getOwnPropertyDescriptor(Uint8Array, 'from') || null;
+  Object.defineProperty(Uint8Array, 'from', {
+    value: undefined,
+    writable: true,
+    configurable: true
+  });")
+
+(define missing-uint8-array-from-message
+  (catch-message
+   (lambda ()
+     (array->bytes bytes-source-array))))
+
 (js-eval
  "Array.from = globalThis.__wrArrayBoundarySavedFrom;
   if (globalThis.__wrArrayBoundarySavedFromAsync === undefined) {
@@ -128,8 +181,16 @@
   } else {
     Array.fromAsync = globalThis.__wrArrayBoundarySavedFromAsync;
   }
+  if (globalThis.__wrArrayBoundarySavedUint8ArrayFromDescriptor) {
+    Object.defineProperty(Uint8Array,
+                          'from',
+                          globalThis.__wrArrayBoundarySavedUint8ArrayFromDescriptor);
+  } else {
+    delete Uint8Array.from;
+  }
   delete globalThis.__wrArrayBoundarySavedFrom;
-  delete globalThis.__wrArrayBoundarySavedFromAsync;")
+  delete globalThis.__wrArrayBoundarySavedFromAsync;
+  delete globalThis.__wrArrayBoundarySavedUint8ArrayFromDescriptor;")
 
 (define at-message
   (catch-message
@@ -237,6 +298,9 @@
 (check-unavailable-message missing-from-async-message
                            "Array.fromAsync"
                            "missing Array.fromAsync message")
+(check-unavailable-message missing-uint8-array-from-message
+                           "Uint8Array.from"
+                           "missing Uint8Array.from message")
 (check-unavailable-message at-message
                            "Array.at"
                            "missing Array.at message")
@@ -289,12 +353,17 @@
  (lambda () (array-of 1 2 3))
  "Array.of not available in this environment"
  "missing Array global Array.of message")
+(check-hidden-uint8-array-global
+ (lambda () (array->bytes bytes-source-array))
+ "Uint8Array.from not available in this environment"
+ "missing Uint8Array global Uint8Array.from message")
 (check-equal to-sorted-fallback
              #(1 2 3)
              "Array.toSorted fallback")
 
 (js-eval
  "globalThis.__wrArrayBoundary.restoreArray();
+  globalThis.__wrArrayBoundary.restoreUint8Array();
   delete globalThis.__wrArrayBoundary;")
 
 (js-log "js-array-method-missing-host-ffi-ok")

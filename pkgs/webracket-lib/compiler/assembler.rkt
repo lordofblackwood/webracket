@@ -173,10 +173,9 @@ imports["ffi"] = splitRuntimeFfiExports;
                         #:core-provider-entry [core-provider-entry #f])
   (when (and ffi-buffer-name (not core-buffer-name))
     (error 'runtime "FFI sidecar output requires a split runtime core output"))
-  @~a{
-var memory = new WebAssembly.Memory({initial:1024});
-const hostArray = Array;
-// Static host bridge scratch map. Keep this in sync with runtime-wasm.rkt.
+	@~a{
+	var memory = new WebAssembly.Memory({initial:1024});
+	// Static host bridge scratch map. Keep this in sync with runtime-wasm.rkt.
 //   0..1MiB        VFS file transfer buffer
 //   +4KiB          VFS path buffer
 //   +64KiB         callback/FASL/string scratch buffer
@@ -260,7 +259,7 @@ class WebRacketMemoryBackend {
       if (!this.dirModes.has(dir)) this.dirModes.set(dir, 0o777);
       if (!this.dirIds.has(dir)) this.dirIds.set(dir, this.nextId++);
     }
-    this.files.set(p, bytes instanceof Uint8Array ? bytes : new TextEncoder().encode(String(bytes)));
+    this.files.set(p, bytes instanceof hostUint8Array ? bytes : new TextEncoder().encode(String(bytes)));
     this.fileMtimes.set(p, 0);
     this.fileModes.set(p, 0o666);
     this.fileIds.set(p, this.nextId++);
@@ -390,7 +389,7 @@ class WebRacketMemoryBackend {
     if (this.files.has(destP) && !existsOk) throw new Error(`VFS destination exists: ${destPath}`);
     const parent = this.parentDirs(destP).at(-1) || '/';
     if (!this.dirs.has(parent)) throw new Error(`VFS parent directory not found: ${destPath}`);
-    this.files.set(destP, new Uint8Array(this.files.get(srcP)));
+    this.files.set(destP, new hostUint8Array(this.files.get(srcP)));
     this.fileMtimes.set(destP, this.fileMtimes.get(srcP) || 0);
     this.fileModes.set(destP, this.fileModes.get(srcP) ?? 0o666);
     this.fileIds.set(destP, this.nextId++);
@@ -429,7 +428,7 @@ class WebRacketMemoryBackend {
       this.dirIds.set(dir, this.nextId++);
     }
     for (const [file, bytes, mtime, mode] of fileUpdates) {
-      this.files.set(file, new Uint8Array(bytes));
+      this.files.set(file, new hostUint8Array(bytes));
       this.fileMtimes.set(file, mtime);
       this.fileModes.set(file, mode);
       this.fileIds.set(file, this.nextId++);
@@ -505,7 +504,7 @@ class WebRacketMemoryBackend {
 
 class WebRacketTarBackend {
   constructor(bytes) {
-    this.bytes = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+    this.bytes = bytes instanceof hostUint8Array ? bytes : new hostUint8Array(bytes);
     this.files = new Map();
     this.dirs = new Map([['/', { mtime: 0, mode: 0o777, identity: 1 }]]);
     this.nextId = 2;
@@ -1011,23 +1010,23 @@ function decodeVFSBase64(s) {
   }
   if (typeof atob === 'function') {
     const bin = atob(text);
-    const bytes = new Uint8Array(bin.length);
+    const bytes = new hostUint8Array(bin.length);
     for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
     return bytes;
   }
   if (typeof Buffer !== 'undefined') {
-    return new Uint8Array(Buffer.from(text, 'base64'));
+    return new hostUint8Array(Buffer.from(text, 'base64'));
   }
   throw new Error('WebRacket VFS base64 preload requires atob or Buffer');
 }
 
 function vfsPreloadBytes(entry) {
-  if (entry instanceof Uint8Array) return new Uint8Array(entry);
-  if (entry instanceof ArrayBuffer) return new Uint8Array(entry);
+  if (entry instanceof hostUint8Array) return new hostUint8Array(entry);
+  if (entry instanceof ArrayBuffer) return new hostUint8Array(entry);
   if (ArrayBuffer.isView(entry)) {
-    return new Uint8Array(new Uint8Array(entry.buffer, entry.byteOffset, entry.byteLength));
+    return new hostUint8Array(new hostUint8Array(entry.buffer, entry.byteOffset, entry.byteLength));
   }
-  if (hostArray.isArray(entry)) return Uint8Array.from(entry);
+  if (hostArray.isArray(entry)) return hostUint8ArrayFrom(entry);
   if (typeof entry === 'string') return new TextEncoder().encode(entry);
   if (entry && typeof entry === 'object') {
     if ('bytes' in entry) return vfsPreloadBytes(entry.bytes);
@@ -1046,7 +1045,7 @@ async function vfsPreloadBytesAsync(entry) {
       if (typeof fs === 'undefined' || !fs.readFile) {
         throw new Error('WebRacket VFS file preload requires the Node runtime');
       }
-      return new Uint8Array(await fs.readFile(resolvePreloadFile(entry.file)));
+      return new hostUint8Array(await fs.readFile(resolvePreloadFile(entry.file)));
     }
     if ('url' in entry) {
       if (typeof fetch === 'undefined') {
@@ -1057,7 +1056,7 @@ async function vfsPreloadBytesAsync(entry) {
       if (!response.ok) {
         throw new Error(`WebRacket VFS URL preload failed: ${url.href}`);
       }
-      return new Uint8Array(await response.arrayBuffer());
+      return new hostUint8Array(await response.arrayBuffer());
     }
   }
   return vfsPreloadBytes(entry);
@@ -1066,11 +1065,11 @@ async function vfsPreloadBytesAsync(entry) {
 async function decompressVFSGzip(bytes) {
   if (typeof DecompressionStream !== 'undefined') {
     const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'));
-    return new Uint8Array(await new Response(stream).arrayBuffer());
+    return new hostUint8Array(await new Response(stream).arrayBuffer());
   }
   if (typeof process !== 'undefined' && process.versions && process.versions.node) {
     const zlib = await import('node:zlib');
-    return new Uint8Array(await new Promise((resolve, reject) => {
+    return new hostUint8Array(await new Promise((resolve, reject) => {
       zlib.gunzip(Buffer.from(bytes), (err, output) => err ? reject(err) : resolve(output));
     }));
   }
@@ -1218,7 +1217,7 @@ async function preloadWebRacketVFSAsync(vfs, entries) {
         if (child.isDirectory()) {
           await preloadWebRacketVFSAsync(vfs, [[childPath, { directory: childSource }]]);
         } else if (child.isFile()) {
-          vfs.writeFile(childPath, new Uint8Array(await fs.readFile(childSource)));
+          vfs.writeFile(childPath, new hostUint8Array(await fs.readFile(childSource)));
         }
       }
     } else {
@@ -1234,7 +1233,7 @@ await mountWebRacketVFSAsync(webracketVFS, globalThis.WebRacketVFSMounts);
 await preloadWebRacketVFSAsync(webracketVFS, globalThis.WebRacketVFSPreload);
 
 function vfs_path_from_memory(start, len) {
-  const bytes = new Uint8Array(memory.buffer).slice(start, start + len);
+  const bytes = new hostUint8Array(memory.buffer).slice(start, start + len);
   return new TextDecoder().decode(bytes);
 }
 
@@ -1470,7 +1469,7 @@ function js_value_to_fasl(v) {
       return;
     }
     // Bytes: prefer Uint8Array
-    if (x instanceof Uint8Array) {
+    if (x instanceof hostUint8Array) {
       writeBytesVal(x);
       return;
     }
@@ -1482,7 +1481,7 @@ function js_value_to_fasl(v) {
     // // Accept raw byte arrays too
     // if (Array.isArray(x) && x.every(n => Number.isInteger(n) && n >= 0 && n <= 255)) {
     //   console.log("writeAny - array with bytes => bytes")
-    //   writeBytesVal(Uint8Array.from(x));
+    //   writeBytesVal(hostUint8ArrayFrom(x));
     //   return;
     // }
     // Vector: plain JS Array (distinct from bytes above)
@@ -1508,7 +1507,7 @@ function js_value_to_fasl(v) {
     return;
   }
   writeAny(v);
-  return Uint8Array.from(out);
+  return hostUint8ArrayFrom(out);
 }
 
 const websocket_impl = {
@@ -1895,7 +1894,7 @@ function testsuite(js_value_to_fasl, fasl_to_js_value, { log = true } = {}) {
     // numbers (handle NaN, -0)
     if (typeof a === 'number' || typeof b === 'number') return Object.is(a, b);
     // Uint8Array (bytes)
-    if (a instanceof Uint8Array && b instanceof Uint8Array) {
+    if (a instanceof hostUint8Array && b instanceof hostUint8Array) {
       if (a.length !== b.length) return false;
       for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
       return true;
@@ -1965,7 +1964,7 @@ function testsuite(js_value_to_fasl, fasl_to_js_value, { log = true } = {}) {
   test('symbol foo', Symbol.for('foo'));
   test('keyword attrs', { tag: 'keyword', name: 'attrs' });
   // Bytes (Uint8Array)
-  test('bytes', new Uint8Array([0, 1, 2, 255]));
+  test('bytes', new hostUint8Array([0, 1, 2, 255]));
   // Pairs
   test('pair (1 . null)', { tag: 'pair', car: 1, cdr: null });
   test('list (1 2)',
@@ -2298,18 +2297,18 @@ const websocket = websocket_impl;
 const audio = audio_impl;
 
 function from_fasl(index) {
-    return fasl_to_js_value(new Uint8Array(memory.buffer), index)[0]
+    return fasl_to_js_value(new hostUint8Array(memory.buffer), index)[0]
 }
 
 function from_fasl2(index) {
-    const arr = new Uint8Array(memory.buffer)
+    const arr = new hostUint8Array(memory.buffer)
     const [v1, i1] = fasl_to_js_value(arr, index)
     const [v2] = fasl_to_js_value(arr, i1)
     return [v1, v2]
 }
 
 function from_fasl3(index) {
-    const arr = new Uint8Array(memory.buffer)
+    const arr = new hostUint8Array(memory.buffer)
     const [v1, i1] = fasl_to_js_value(arr, index)
     const [v2, i2] = fasl_to_js_value(arr, i1)
     const [v3] = fasl_to_js_value(arr, i2)
@@ -2325,7 +2324,7 @@ function callback_expected_arity_text(id) {
         return 'unknown';
     }
     const len = callback_expected_arity_export(id);
-    return fasl_to_js_value(new Uint8Array(memory.buffer, CALLBACK_BUFFER_BASE, len))[0];
+    return fasl_to_js_value(new hostUint8Array(memory.buffer, CALLBACK_BUFFER_BASE, len))[0];
 }
 
 function callback_name_text(id) {
@@ -2333,7 +2332,7 @@ function callback_name_text(id) {
         return null;
     }
     const len = callback_name_export(id);
-    const value = fasl_to_js_value(new Uint8Array(memory.buffer, CALLBACK_BUFFER_BASE, len))[0];
+    const value = fasl_to_js_value(new hostUint8Array(memory.buffer, CALLBACK_BUFFER_BASE, len))[0];
     if (typeof value === 'symbol') {
         return Symbol.keyFor(value) ?? value.description ?? String(value);
     }
@@ -2348,7 +2347,7 @@ function callback_debug_id_text(id) {
         return null;
     }
     const len = callback_debug_id_export(id);
-    const value = fasl_to_js_value(new Uint8Array(memory.buffer, CALLBACK_BUFFER_BASE, len))[0];
+    const value = fasl_to_js_value(new hostUint8Array(memory.buffer, CALLBACK_BUFFER_BASE, len))[0];
     if (typeof value === 'symbol') {
         return Symbol.keyFor(value) ?? value.description ?? String(value);
     }
@@ -2383,10 +2382,10 @@ export function make_callback(id) {
             if (fasl.length > CALLBACK_BUFFER_LENGTH) {
                 throw new RangeError('WebRacket callback argument FASL exceeds callback buffer');
             }
-            new Uint8Array(memory.buffer).set(fasl, CALLBACK_BUFFER_BASE);
+            new hostUint8Array(memory.buffer).set(fasl, CALLBACK_BUFFER_BASE);
             const len = callback_export(id, CALLBACK_BUFFER_BASE);
             const [ok, payload] =
-                fasl_to_js_value(new Uint8Array(memory.buffer, CALLBACK_BUFFER_BASE, len))[0];
+                fasl_to_js_value(new hostUint8Array(memory.buffer, CALLBACK_BUFFER_BASE, len))[0];
             if (ok) {
                 return payload;
             }
@@ -2443,7 +2442,7 @@ function to_fasl(v) {
   if (fasl.length > CALLBACK_BUFFER_LENGTH) {
     throw new RangeError('WebRacket FASL value exceeds callback buffer');
   }
-  new Uint8Array(memory.buffer).set(fasl, CALLBACK_BUFFER_BASE);
+  new hostUint8Array(memory.buffer).set(fasl, CALLBACK_BUFFER_BASE);
   return CALLBACK_BUFFER_BASE
 }
 
@@ -2474,9 +2473,9 @@ function wr_invoke_fasl(exported, payload) {
   if (fasl.length > CALLBACK_BUFFER_LENGTH) {
     throw new RangeError('WebRacket console bridge FASL exceeds callback buffer');
   }
-  new Uint8Array(memory.buffer).set(fasl, CALLBACK_BUFFER_BASE);
+  new hostUint8Array(memory.buffer).set(fasl, CALLBACK_BUFFER_BASE);
   const len = exported(CALLBACK_BUFFER_BASE);
-  return fasl_to_js_value(new Uint8Array(memory.buffer, CALLBACK_BUFFER_BASE, len))[0];
+  return fasl_to_js_value(new hostUint8Array(memory.buffer, CALLBACK_BUFFER_BASE, len))[0];
 }
 
 // Decode the tagged bridge result vector into a JavaScript object.
@@ -2715,7 +2714,7 @@ const wasmModule
                           // console.log( result );
 
                           // console.log( "Result bytes:" )
-                          const bytes  = new Uint8Array(memory.buffer, 0, result);
+                          const bytes  = new hostUint8Array(memory.buffer, 0, result);
                           console.log(new TextDecoder().decode(bytes));
                         });
 
@@ -2798,7 +2797,7 @@ const wasmModule
       @~a{globalThis.WebRacketVFSMounts = @|(vfs-mount-manifest-js vfs-mounts)|;
       }))
 
-(define (node-runtime out.wasm
+	(define (node-runtime out.wasm
                       #:core-out [core-out #f]
                       #:ffi-out [ffi-out #f]
                       #:core-provider-imports-from-core?
@@ -2808,10 +2807,13 @@ const wasmModule
                       #:console-bridge? [console-bridge? #f]
                       #:vfs-preloads [vfs-preloads '()]
                       #:vfs-mounts [vfs-mounts '()])
-  @~a{// Generated by "assembler.rkt".
-      import fs from 'node:fs/promises';
-      
-      const wasmBuffer = await fs.readFile("@|out.wasm|");
+	  @~a{// Generated by "assembler.rkt".
+	      import fs from 'node:fs/promises';
+	      const hostArray = Array;
+	      const hostUint8Array = Uint8Array;
+	      const hostUint8ArrayFrom = Uint8Array.from.bind(Uint8Array);
+
+	      const wasmBuffer = await fs.readFile("@|out.wasm|");
       @|(if core-out
             @~a{const coreWasmBuffer = await fs.readFile("@|core-out|");
             }
@@ -2842,7 +2844,7 @@ const wasmModule
          );
        }
        const @|buffer-name| = await @|label|WasmResponse.arrayBuffer();
-       const @|label|WasmBytes = new Uint8Array(@|buffer-name|);
+       const @|label|WasmBytes = new hostUint8Array(@|buffer-name|);
        const is@|label|WasmMagic =
          @|label|WasmBytes.length >= 4 &&
          @|label|WasmBytes[0] === 0x00 &&
@@ -2874,10 +2876,13 @@ const wasmModule
      <html>
      <head><meta charset="UTF-8"/></head>
      <body>
-       <script type="module">
-       // Generated by "assembler.rkt".
-       console.log('WebRacket browser runtime starting');
-       const wasmUrl = "@|out.wasm|";
+	       <script type="module">
+	       // Generated by "assembler.rkt".
+	       console.log('WebRacket browser runtime starting');
+	       const hostArray = Array;
+	       const hostUint8Array = Uint8Array;
+	       const hostUint8ArrayFrom = Uint8Array.from.bind(Uint8Array);
+	       const wasmUrl = "@|out.wasm|";
        const wasmResponse = await fetch(wasmUrl);
        if (!wasmResponse.ok) {
          const isAbsolutePath = wasmUrl.startsWith("/");
@@ -2889,7 +2894,7 @@ const wasmModule
          );
        }
        const wasmBuffer = await wasmResponse.arrayBuffer();
-       const wasmBytes = new Uint8Array(wasmBuffer);
+       const wasmBytes = new hostUint8Array(wasmBuffer);
        const isWasmMagic =
          wasmBytes.length >= 4 &&
          wasmBytes[0] === 0x00 &&

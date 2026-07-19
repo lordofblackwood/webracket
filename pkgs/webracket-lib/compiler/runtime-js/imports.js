@@ -5,6 +5,7 @@ if (typeof WebAssembly.Tag === 'undefined' || typeof WebAssembly.Exception === '
 const hostString = String;
 const hostNumber = Number;
 const hostMath = Math;
+const hostImportUint8Array = Uint8Array;
 const foreign_error_tag = new WebAssembly.Tag({ parameters: ['externref'] });
 
 function wrap_ffi_host_exceptions(fn) {
@@ -309,6 +310,14 @@ function require_array_constructor(displayName) {
   return ctor;
 }
 
+function require_uint8_array_constructor(displayName) {
+  const ctor = get_global_value('Uint8Array');
+  if (typeof ctor !== 'function') {
+    throw new Error(`${displayName} not available in this environment`);
+  }
+  return ctor;
+}
+
 function call_array_static_method(methodName, args = []) {
   return call_required_host_function(require_array_constructor(`Array.${methodName}`),
                                      methodName,
@@ -320,6 +329,13 @@ function call_array_method(arr, methodName, args = []) {
   return call_required_host_function(arr,
                                      methodName,
                                      `Array.${methodName}`,
+                                     args);
+}
+
+function call_uint8_array_static_method(methodName, args = []) {
+  return call_required_host_function(require_uint8_array_constructor(`Uint8Array.${methodName}`),
+                                     methodName,
+                                     `Uint8Array.${methodName}`,
                                      args);
 }
 
@@ -835,7 +851,7 @@ var imports = {
       'make_callback': make_callback,
       'js_output':   ((x)   => output_string.push(x)),
       'js_print_fasl': ((start, len) => {
-        const bytes = new Uint8Array(memory.buffer).slice(start, start + len);
+        const bytes = new hostImportUint8Array(memory.buffer).slice(start, start + len);
         const [v] = fasl_to_js_value(bytes);
         call_console_fallback('log', null, [v]);
       }),
@@ -950,7 +966,7 @@ var imports = {
           ];
           const bytes = js_value_to_fasl(payload);
           if (bytes.length > outMax) return -2;
-          new Uint8Array(memory.buffer).set(bytes, outStart);
+          new hostImportUint8Array(memory.buffer).set(bytes, outStart);
           return bytes.length;
         } catch (_) {
           return -1;
@@ -960,7 +976,7 @@ var imports = {
         try {
           const bytes = webracketVFS.readFile(vfs_path_from_memory(pathStart, pathLen));
           if (bytes.length > outMax) return -2;
-          new Uint8Array(memory.buffer).set(bytes, outStart);
+          new hostImportUint8Array(memory.buffer).set(bytes, outStart);
           return bytes.length;
         } catch (_) {
           return -1;
@@ -968,7 +984,7 @@ var imports = {
       }),
       'vfs_write_file': ((pathStart, pathLen, bytesStart, bytesLen) => {
         try {
-          const bytes = new Uint8Array(memory.buffer).slice(bytesStart, bytesStart + bytesLen);
+          const bytes = new hostImportUint8Array(memory.buffer).slice(bytesStart, bytesStart + bytesLen);
           webracketVFS.writeFile(vfs_path_from_memory(pathStart, pathLen), bytes);
           return 0;
         } catch (_) {
@@ -1027,7 +1043,7 @@ var imports = {
         try {
           const bytes = js_value_to_fasl(webracketVFS.rootList());
           if (bytes.length > outMax) return -2;
-          new Uint8Array(memory.buffer).set(bytes, outStart);
+          new hostImportUint8Array(memory.buffer).set(bytes, outStart);
           return bytes.length;
         } catch (_) {
           return -1;
@@ -1038,7 +1054,7 @@ var imports = {
           const names = webracketVFS.listDir(vfs_path_from_memory(pathStart, pathLen));
           const bytes = js_value_to_fasl(names);
           if (bytes.length > outMax) return -2;
-          new Uint8Array(memory.buffer).set(bytes, outStart);
+          new hostImportUint8Array(memory.buffer).set(bytes, outStart);
           return bytes.length;
         } catch (_) {
           return -1;
@@ -1610,7 +1626,7 @@ var imports = {
         }),
         'is-array':          (v => call_array_static_method('isArray', [from_fasl(v)]) ? 1 : 0),
         'to-vector':         (arr => to_fasl(call_array_static_method('from', [arr]))),
-        'to-bytes':          (arr => to_fasl(Uint8Array.from(arr))),
+        'to-bytes':          (arr => to_fasl(call_uint8_array_static_method('from', [arr]))),
         'of':                (items => call_array_static_method('of', from_fasl(items) || [])),
         'at':                ((arr, index) => call_array_method(arr, 'at', [index])),
         'concat':            ((arr, items) => call_array_method(arr, 'concat', from_fasl(items) || [])),
