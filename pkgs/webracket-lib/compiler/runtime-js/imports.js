@@ -2,6 +2,8 @@ if (typeof WebAssembly.Tag === 'undefined' || typeof WebAssembly.Exception === '
   throw new Error('WebRacket requires WebAssembly exception handling (Tag + Exception).');
 }
 
+const hostString = String;
+const hostNumber = Number;
 const foreign_error_tag = new WebAssembly.Tag({ parameters: ['externref'] });
 
 function wrap_ffi_host_exceptions(fn) {
@@ -141,12 +143,60 @@ function call_global_function1(name, displayName, arg0) {
   return fn.call(globalThis, arg0);
 }
 
+function call_global_function2(name, displayName, arg0, arg1) {
+  const fn = get_required_global_function(name, displayName);
+  return fn.call(globalThis, arg0, arg1);
+}
+
+function call_global_function3(name, displayName, arg0, arg1, arg2) {
+  const fn = get_required_global_function(name, displayName);
+  return fn.call(globalThis, arg0, arg1, arg2);
+}
+
+function js_instanceof(obj, type) {
+  if (type === null || type === undefined) {
+    throw new Error('js-instanceof: constructor is null or undefined');
+  }
+  if (typeof type !== 'function') {
+    throw new Error(`js-instanceof: expected constructor function, got ${typeof type}`);
+  }
+  return obj instanceof type ? 1 : 0;
+}
+
+function js_boxed_boolean_value(x) {
+  if (typeof x === 'object') {
+    const BooleanCtor = get_global_value('Boolean');
+    if (typeof BooleanCtor === 'function' && x instanceof BooleanCtor) {
+      return x.valueOf();
+    }
+  }
+  return x;
+}
+
+function js_boxed_number_value(x) {
+  if (typeof x === 'object') {
+    const NumberCtor = get_global_value('Number');
+    if (typeof NumberCtor === 'function' && x instanceof NumberCtor) {
+      return x.valueOf();
+    }
+  }
+  return x;
+}
+
+function js_flonum_result(x, who) {
+  const unboxed = js_boxed_number_value(x);
+  if (typeof unboxed !== 'number') {
+    throw new TypeError(`${who}: expected number result, got ${typeof x}`);
+  }
+  return unboxed;
+}
+
 function call_js_method(obj, name, args, who) {
   const target = require_js_target(obj, who);
   const methodName = from_fasl(name);
   const method = target[methodName];
   if (typeof method !== 'function') {
-    throw new Error(`${who}: method ${String(methodName)} not available in this environment`);
+    throw new Error(`${who}: method ${hostString(methodName)} not available in this environment`);
   }
   return method.apply(target, decode_js_send_args(args));
 }
@@ -951,30 +1001,30 @@ var imports = {
       'external_number_to_f64': (obj =>
         (typeof obj === 'number'
          ? obj
-         : (obj instanceof Number ? obj.valueOf() : NaN))),
+         : (obj instanceof hostNumber ? obj.valueOf() : NaN))),
       'flonum_to_string': (x =>
         to_fasl(flonum_to_racket_string(x))),
       'external_string_to_string': (obj =>
         (typeof obj === 'string'
          ? to_string(obj)
-         : (obj instanceof String ? to_string(obj.valueOf())
-                                   : to_string(String(obj))))),
+         : (obj instanceof hostString ? to_string(obj.valueOf())
+                                      : to_string(hostString(obj))))),
       'external_nullish': (obj => ((obj === null) || (obj === undefined)) ? 1 : 0),
       'external_undefined': (obj => (obj === undefined) ? 1 : 0),
 
       // Unicode character operations.
       'char_upcase': ((cp) => {
-        const s = String.fromCodePoint(cp).toUpperCase();
+        const s = hostString.fromCodePoint(cp).toUpperCase();
         const arr = Array.from(s);
         return (arr.length === 1) ? arr[0].codePointAt(0) : cp;
       }),
       'char_downcase': ((cp) => {
-        const s = String.fromCodePoint(cp).toLowerCase();
+        const s = hostString.fromCodePoint(cp).toLowerCase();
         const arr = Array.from(s);
         return (arr.length === 1) ? arr[0].codePointAt(0) : cp;
       }),
       'char_titlecase': ((cp) => {
-        const lower = String.fromCodePoint(cp).toLocaleLowerCase();
+        const lower = hostString.fromCodePoint(cp).toLocaleLowerCase();
         const title = lower.charAt(0).toLocaleUpperCase() + lower.slice(1);
         const arr = Array.from(title);
         return (arr.length === 1) ? arr[0].codePointAt(0) : cp;
@@ -982,7 +1032,7 @@ var imports = {
       'char_foldcase': ((cp) => {
         // JavaScript has no direct Unicode foldcase API, but upper-then-lower
         // fixes the final sigma case while preserving our single-codepoint guard.
-        const s = String.fromCodePoint(cp).toUpperCase().toLowerCase();
+        const s = hostString.fromCodePoint(cp).toUpperCase().toLowerCase();
         const arr = Array.from(s);
         return (arr.length === 1) ? arr[0].codePointAt(0) : cp;
       }),
@@ -1019,7 +1069,7 @@ var imports = {
         return 0; // Other
       }),
       'char_general_category': ((cp) => {
-        const s = String.fromCodePoint(cp);
+        const s = hostString.fromCodePoint(cp);
         if (/\p{Lu}/u.test(s)) return 0;
         if (/\p{Ll}/u.test(s)) return 1;
         if (/\p{Lt}/u.test(s)) return 2;
@@ -1052,23 +1102,23 @@ var imports = {
         return 29; // Cn
       }),
       'char_alphabetic': ((cp) =>
-        Number(/\p{Alphabetic}/u.test(String.fromCodePoint(cp)))),
+        hostNumber(/\p{Alphabetic}/u.test(hostString.fromCodePoint(cp)))),
       'char_lower_case': ((cp) =>
-        Number(/\p{Lowercase}/u.test(String.fromCodePoint(cp)))),
+        hostNumber(/\p{Lowercase}/u.test(hostString.fromCodePoint(cp)))),
       'char_upper_case': ((cp) =>
-        Number(/\p{Uppercase}/u.test(String.fromCodePoint(cp)))),
+        hostNumber(/\p{Uppercase}/u.test(hostString.fromCodePoint(cp)))),
       'char_title_case': ((cp) =>
-        Number(/\p{gc=Lt}/u.test(String.fromCodePoint(cp)))),
+        hostNumber(/\p{gc=Lt}/u.test(hostString.fromCodePoint(cp)))),
       'char_numeric': ((cp) =>
-        Number(/\p{Number}/u.test(String.fromCodePoint(cp)))),
+        hostNumber(/\p{Number}/u.test(hostString.fromCodePoint(cp)))),
       'char_symbolic': ((cp) =>
-        Number(/\p{gc=Sm}|\p{gc=Sc}|\p{gc=Sk}|\p{gc=So}/u.test(String.fromCodePoint(cp)))),
+        hostNumber(/\p{gc=Sm}|\p{gc=Sc}|\p{gc=Sk}|\p{gc=So}/u.test(hostString.fromCodePoint(cp)))),
       'char_punctuation': ((cp) =>
-        Number(/\p{gc=Pc}|\p{gc=Pd}|\p{gc=Ps}|\p{gc=Pe}|\p{gc=Pi}|\p{gc=Pf}|\p{gc=Po}/u.test(String.fromCodePoint(cp)))),
+        hostNumber(/\p{gc=Pc}|\p{gc=Pd}|\p{gc=Ps}|\p{gc=Pe}|\p{gc=Pi}|\p{gc=Pf}|\p{gc=Po}/u.test(hostString.fromCodePoint(cp)))),
       'char_graphic': ((cp) =>
-        Number(/\p{gc=Ll}|\p{gc=Lm}|\p{gc=Lo}|\p{gc=Lt}|\p{gc=Lu}|\p{gc=Nd}|\p{gc=Nl}|\p{gc=No}|\p{gc=Mn}|\p{gc=Mc}|\p{gc=Me}|\p{Alphabetic}|\p{Number}|\p{gc=Sm}|\p{gc=Sc}|\p{gc=Sk}|\p{gc=So}|\p{gc=Pc}|\p{gc=Pd}|\p{gc=Ps}|\p{gc=Pe}|\p{gc=Pi}|\p{gc=Pf}|\p{gc=Po}/u.test(String.fromCodePoint(cp)))),
+        hostNumber(/\p{gc=Ll}|\p{gc=Lm}|\p{gc=Lo}|\p{gc=Lt}|\p{gc=Lu}|\p{gc=Nd}|\p{gc=Nl}|\p{gc=No}|\p{gc=Mn}|\p{gc=Mc}|\p{gc=Me}|\p{Alphabetic}|\p{Number}|\p{gc=Sm}|\p{gc=Sc}|\p{gc=Sk}|\p{gc=So}|\p{gc=Pc}|\p{gc=Pd}|\p{gc=Ps}|\p{gc=Pe}|\p{gc=Pi}|\p{gc=Pf}|\p{gc=Po}/u.test(hostString.fromCodePoint(cp)))),
       'char_extended_pictographic': ((cp) =>
-        Number(/\p{Extended_Pictographic}/u.test(String.fromCodePoint(cp))))
+        hostNumber(/\p{Extended_Pictographic}/u.test(hostString.fromCodePoint(cp))))
     },
 
     // General JavaScript FFI.
@@ -1139,8 +1189,9 @@ var imports = {
                                     if (typeof x === 'boolean') {
                                       return x ? 1 : 0;
                                     }
-                                    if ((typeof x === 'object') && (x instanceof Boolean)) {
-                                      return x.valueOf() ? 1 : 0;
+                                    const boxed = js_boxed_boolean_value(x);
+                                    if (typeof boxed === 'boolean') {
+                                      return boxed ? 1 : 0;
                                     }
                                     throw new TypeError(`js-send/boolean: expected boolean result, got ${typeof x}`);
                                    }),
@@ -1149,9 +1200,9 @@ var imports = {
                                     return x ? 1 : 0;
                                    }),
       'send/flonum':               ((obj, name, args) => {
-                                    const x = call_js_method(obj, name, args, 'js-send/flonum')
-                                    return (( (typeof x === "object") && (x instanceof Number) ) ? x.valueOf() : x)
-                                    }),
+                                    const x = call_js_method(obj, name, args, 'js-send/flonum');
+                                    return js_flonum_result(x, 'js-send/flonum');
+                                   }),
       'throw':                     (exn => { throw from_fasl(exn); }),
       'null':                      (() => null),
       'this':                      (function () { return this; }),
@@ -1173,17 +1224,29 @@ var imports = {
                                               return [...( as ? as : [])]
                                     }),
       'typeof':                    ((obj) => typeof obj),
-      'value->string':             ((obj) => String(obj)),
-      'instanceof':                ((obj, type) => (obj instanceof type) ? 1 : 0),
+      'value->string':             ((obj) => call_global_function1('String',
+                                                                    'String',
+                                                                    obj)),
+      'instanceof':                ((obj, type) => js_instanceof(obj, type)),
       'operator':                  ((op, operands) => {
                                      const o = from_fasl(op);
                                      const args = from_fasl(operands) || [];
                                      if (args.length === 1) {
-                                       return Function('a', `return ${o} a;`)(args[0]);
+                                       return call_global_function2('Function',
+                                                                    'Function',
+                                                                    'a',
+                                                                    `return ${o} a;`)(args[0]);
                                      } else if (args.length === 2) {
-                                       return Function('a','b', `return a ${o} b;`)(args[0], args[1]);
+                                       return call_global_function3('Function',
+                                                                    'Function',
+                                                                    'a',
+                                                                    'b',
+                                                                    `return a ${o} b;`)(args[0], args[1]);
                                      } else {
-                                       return Function('args', `return args.reduce((a,b)=>a ${o} b);`)(args);
+                                       return call_global_function2('Function',
+                                                                    'Function',
+                                                                    'args',
+                                                                    `return args.reduce((a,b)=>a ${o} b);`)(args);
                                      }
                                        }),
       // The following returns the prototype object
