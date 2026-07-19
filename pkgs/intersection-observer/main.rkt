@@ -12,6 +12,7 @@
                   js-ref/extern
                   js-send/extern/nullish
                   js-typeof
+                  js-undefined?
                   js-var)
          (only-in webracket/primitives
                   external?
@@ -91,6 +92,15 @@
     (raise-arguments-error who
                            (string-append "IntersectionObserver."
                                           method-name
+                                          " is not available"))))
+
+;; check-intersection-observer-entry-property : symbol? intersection-observer-entry? string? -> void?
+;;   Ensure a required IntersectionObserverEntry property is available.
+(define (check-intersection-observer-entry-property who entry property-name)
+  (when (js-undefined? (js-ref/extern (intersection-observer-entry-raw entry) property-name))
+    (raise-arguments-error who
+                           (string-append "IntersectionObserverEntry."
+                                          property-name
                                           " is not available"))))
 
 ;; observer-threshold->raw : any/c -> any/c
@@ -227,6 +237,7 @@
   (unless (and (intersection-observer-entry? entry)
                (external? (intersection-observer-entry-raw entry)))
     (raise-argument-error 'intersection-observer-entry-target "intersection-observer-entry?" entry))
+  (check-intersection-observer-entry-property 'intersection-observer-entry-target entry "target")
   (element-wrap (js-ref/extern (intersection-observer-entry-raw entry) "target")))
 
 ;; intersection-observer-entry-is-intersecting? : intersection-observer-entry? -> boolean?
@@ -235,6 +246,9 @@
   (unless (and (intersection-observer-entry? entry)
                (external? (intersection-observer-entry-raw entry)))
     (raise-argument-error 'intersection-observer-entry-is-intersecting? "intersection-observer-entry?" entry))
+  (check-intersection-observer-entry-property 'intersection-observer-entry-is-intersecting?
+                                              entry
+                                              "isIntersecting")
   (js-ref (intersection-observer-entry-raw entry) "isIntersecting"))
 
 ;; intersection-observer-entry-intersection-ratio : intersection-observer-entry? -> real?
@@ -243,6 +257,9 @@
   (unless (and (intersection-observer-entry? entry)
                (external? (intersection-observer-entry-raw entry)))
     (raise-argument-error 'intersection-observer-entry-intersection-ratio "intersection-observer-entry?" entry))
+  (check-intersection-observer-entry-property 'intersection-observer-entry-intersection-ratio
+                                              entry
+                                              "intersectionRatio")
   (js-ref (intersection-observer-entry-raw entry) "intersectionRatio"))
 
 ;; intersection-observer-entry-bounding-client-rect : intersection-observer-entry? -> dom-rect?
@@ -251,6 +268,9 @@
   (unless (and (intersection-observer-entry? entry)
                (external? (intersection-observer-entry-raw entry)))
     (raise-argument-error 'intersection-observer-entry-bounding-client-rect "intersection-observer-entry?" entry))
+  (check-intersection-observer-entry-property 'intersection-observer-entry-bounding-client-rect
+                                              entry
+                                              "boundingClientRect")
   (dom-rect-wrap (js-ref/extern (intersection-observer-entry-raw entry) "boundingClientRect")))
 
 ;; intersection-observer-entry-intersection-rect : intersection-observer-entry? -> dom-rect?
@@ -259,6 +279,9 @@
   (unless (and (intersection-observer-entry? entry)
                (external? (intersection-observer-entry-raw entry)))
     (raise-argument-error 'intersection-observer-entry-intersection-rect "intersection-observer-entry?" entry))
+  (check-intersection-observer-entry-property 'intersection-observer-entry-intersection-rect
+                                              entry
+                                              "intersectionRect")
   (dom-rect-wrap (js-ref/extern (intersection-observer-entry-raw entry) "intersectionRect")))
 
 ;; intersection-observer-entry-root-bounds : intersection-observer-entry? -> (or/c #f dom-rect?)
@@ -267,6 +290,9 @@
   (unless (and (intersection-observer-entry? entry)
                (external? (intersection-observer-entry-raw entry)))
     (raise-argument-error 'intersection-observer-entry-root-bounds "intersection-observer-entry?" entry))
+  (check-intersection-observer-entry-property 'intersection-observer-entry-root-bounds
+                                              entry
+                                              "rootBounds")
   (define raw (js-ref/extern (intersection-observer-entry-raw entry) "rootBounds"))
   (and (not (js-nullish? raw))
        (dom-rect-wrap raw)))
@@ -277,4 +303,5 @@
   (unless (and (intersection-observer-entry? entry)
                (external? (intersection-observer-entry-raw entry)))
     (raise-argument-error 'intersection-observer-entry-time "intersection-observer-entry?" entry))
+  (check-intersection-observer-entry-property 'intersection-observer-entry-time entry "time")
   (js-ref (intersection-observer-entry-raw entry) "time"))

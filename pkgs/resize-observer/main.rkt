@@ -12,6 +12,7 @@
                   js-ref/extern
                   js-send/extern/nullish
                   js-typeof
+                  js-undefined?
                   js-var)
          (only-in webracket/primitives
                   external?
@@ -65,6 +66,15 @@
     (raise-arguments-error who
                            (string-append "ResizeObserver."
                                           method-name
+                                          " is not available"))))
+
+;; check-resize-observer-entry-property : symbol? resize-observer-entry? string? -> void?
+;;   Ensure a required ResizeObserverEntry property is available.
+(define (check-resize-observer-entry-property who entry property-name)
+  (when (js-undefined? (js-ref/extern (resize-observer-entry-raw entry) property-name))
+    (raise-arguments-error who
+                           (string-append "ResizeObserverEntry."
+                                          property-name
                                           " is not available"))))
 
 (define (resize-observer-options->raw options)
@@ -156,10 +166,12 @@
   (unless (and (resize-observer-entry? entry)
                (external? (resize-observer-entry-raw entry)))
     (raise-argument-error 'resize-observer-entry-target "resize-observer-entry?" entry))
+  (check-resize-observer-entry-property 'resize-observer-entry-target entry "target")
   (element-wrap (js-ref/extern (resize-observer-entry-raw entry) "target")))
 
 (define (resize-observer-entry-content-rect entry)
   (unless (and (resize-observer-entry? entry)
                (external? (resize-observer-entry-raw entry)))
     (raise-argument-error 'resize-observer-entry-content-rect "resize-observer-entry?" entry))
+  (check-resize-observer-entry-property 'resize-observer-entry-content-rect entry "contentRect")
   (dom-rect-wrap (js-ref/extern (resize-observer-entry-raw entry) "contentRect")))
