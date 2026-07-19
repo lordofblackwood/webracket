@@ -279,9 +279,11 @@
 ;;   Wrap browser paint-style values when possible.
 (define (canvas-paint-style-wrap value)
   (cond
-    [(and (external? value) (js-ref value "addColorStop"))
+    [(and (external? value)
+          (canvas-host-method-present? value "addColorStop"))
      (canvas-gradient-wrap value)]
-    [(and (external? value) (js-ref value "setTransform"))
+    [(and (external? value)
+          (canvas-host-method-present? value "setTransform"))
      (canvas-pattern-wrap value)]
     [else value]))
 

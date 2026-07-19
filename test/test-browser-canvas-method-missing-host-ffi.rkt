@@ -10,6 +10,10 @@
   (unless got
     (error 'check-true label)))
 
+(define (check-false got label)
+  (when got
+    (error 'check-false label)))
+
 (define (catch-message thunk)
   (with-handlers ([exn:fail? exn-message])
     (thunk)
@@ -39,6 +43,12 @@
 (define null-image-data (canvas-image-data-wrap js-null))
 (define null-text-metrics (canvas-text-metrics-wrap js-null))
 (define null-matrix (canvas-dom-matrix-wrap js-null))
+(define non-callable-gradient-style
+  (canvas-2d-fill-style
+   (canvas-2d-context-wrap (js-eval "({fillStyle: {addColorStop: 1}})"))))
+(define non-callable-pattern-style
+  (canvas-2d-stroke-style
+   (canvas-2d-context-wrap (js-eval "({strokeStyle: {setTransform: 1}})"))))
 
 (define fill-message
   (catch-message
@@ -495,6 +505,10 @@
 (check-message pattern-set-transform-message
                "CanvasPattern.setTransform not available in this environment"
                "missing setTransform message")
+(check-false (canvas-gradient? non-callable-gradient-style)
+             "non-callable addColorStop is not a gradient")
+(check-false (canvas-pattern? non-callable-pattern-style)
+             "non-callable setTransform is not a pattern")
 (check-message canvas-width-message
                "canvas.width not available in this environment"
                "missing canvas width message")
