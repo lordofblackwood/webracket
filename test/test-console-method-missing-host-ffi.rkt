@@ -90,5 +90,28 @@
                      (vector "log" "trace"))
              "console fallback calls")
 
+(define js-log-calls
+  (let ()
+    (js-eval
+     "globalThis.__wrConsoleBoundarySaved = globalThis.console;
+      globalThis.console = {
+        calls: [],
+        log(...args) { this.calls.push(['log', ...args]); }
+      };")
+    (check-no-error (lambda () (js-log "js-log fallback"))
+                    "js-log missing console.error")
+    (define calls (js-ref (js-var "console") "calls"))
+    (js-eval "globalThis.console = undefined;")
+    (check-no-error (lambda () (js-log "js-log no console"))
+                    "js-log missing console object")
+    (js-eval
+     "globalThis.console = globalThis.__wrConsoleBoundarySaved;
+      delete globalThis.__wrConsoleBoundarySaved;")
+    calls))
+
+(check-equal js-log-calls
+             (vector (vector "log" "js-log fallback"))
+             "js-log console fallback calls")
+
 (js-log "console-method-missing-host-ffi-ok")
 #t

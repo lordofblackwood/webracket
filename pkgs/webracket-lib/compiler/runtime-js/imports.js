@@ -650,7 +650,7 @@ var imports = {
     // WebRacket runtime primitive imports.
     'primitives': {
       // Diagnostics, callbacks, and output.
-      'console_log': ((x)   => console.error(x)),
+      'console_log': ((x)   => call_console_fallback('error', 'log', [x])),
       'add':         ((x,y) => x+y),
       'foreign_error_tag': foreign_error_tag,
       'make_callback': make_callback,
@@ -658,7 +658,7 @@ var imports = {
       'js_print_fasl': ((start, len) => {
         const bytes = new Uint8Array(memory.buffer).slice(start, start + len);
         const [v] = fasl_to_js_value(bytes);
-        console.log(v);
+        call_console_fallback('log', null, [v]);
       }),
 
       // Time and date.
