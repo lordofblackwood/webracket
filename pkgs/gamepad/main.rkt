@@ -66,7 +66,8 @@
 ;; gamepad-supported? : -> boolean?
 ;;   Report whether navigator.getGamepads is available.
 (define (gamepad-supported?)
-  (gamepad-method-present? (js-window-navigator) "getGamepads"))
+  (with-handlers ([exn:fail? (lambda (_e) #f)])
+    (gamepad-method-present? (js-window-navigator) "getGamepads")))
 
 ;; check-gamepad-navigator-method : symbol? string? -> void?
 ;;   Ensure navigator exposes a required Gamepad API method.

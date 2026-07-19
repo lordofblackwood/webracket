@@ -59,10 +59,11 @@
 ;; geolocation-supported-raw : -> (or/c #f external/raw)
 ;;   Read navigator.geolocation when the required methods are available.
 (define (geolocation-supported-raw)
-  (define raw (js-ref/extern (js-window-navigator) "geolocation"))
-  (and (not (js-nullish? raw))
-       (geolocation-core-methods-present? raw)
-       raw))
+  (with-handlers ([exn:fail? (lambda (_e) #f)])
+    (define raw (js-ref/extern (js-window-navigator) "geolocation"))
+    (and (not (js-nullish? raw))
+         (geolocation-core-methods-present? raw)
+         raw)))
 
 (define (geolocation-supported?)
   (not (eq? (geolocation-supported-raw) #f)))

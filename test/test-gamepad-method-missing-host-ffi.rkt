@@ -91,6 +91,23 @@
     delete globalThis.__wrGamepadBoundaryPatch;
     delete globalThis.__wrGamepadBoundaryRestore;
     delete globalThis.__wrGamepadBoundaryRestoreAll;
+  };
+  globalThis.__wrGamepadBoundarySavedNavigator =
+    Object.getOwnPropertyDescriptor(window, 'navigator') || null;
+  globalThis.__wrGamepadBoundaryHideNavigator = () => {
+    Object.defineProperty(window, 'navigator', {
+      value: undefined,
+      configurable: true,
+      writable: true
+    });
+  };
+  globalThis.__wrGamepadBoundaryRestoreNavigator = () => {
+    const descriptor = globalThis.__wrGamepadBoundarySavedNavigator;
+    if (descriptor) {
+      Object.defineProperty(window, 'navigator', descriptor);
+    } else {
+      delete window.navigator;
+    }
   };")
 
 (define (fake-gamepad missing-property)
@@ -122,6 +139,18 @@
   message)
 
 (define callback (lambda args (void)))
+
+(define (with-missing-navigator thunk)
+  (js-eval "__wrGamepadBoundaryHideNavigator();")
+  (define result (thunk))
+  (js-eval "__wrGamepadBoundaryRestoreNavigator();")
+  result)
+
+(check-true (eq? (with-missing-navigator
+                  (lambda ()
+                    (gamepad-supported?)))
+                 #f)
+            "gamepad-supported? returns #f when window.navigator is missing")
 
 (define get-gamepads-message
   (missing-method-message
@@ -255,6 +284,10 @@
                "missing GamepadButton.value message")
 
 (js-eval "__wrGamepadBoundaryRestoreAll();")
+(js-eval
+ "delete globalThis.__wrGamepadBoundarySavedNavigator;
+  delete globalThis.__wrGamepadBoundaryHideNavigator;
+  delete globalThis.__wrGamepadBoundaryRestoreNavigator;")
 
 (js-log "gamepad-method-missing-host-ffi-ok")
 #t

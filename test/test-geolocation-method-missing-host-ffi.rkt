@@ -75,6 +75,23 @@
     };
     delete err[missing];
     return err;
+  };
+  globalThis.__wrGeolocationBoundarySavedNavigator =
+    Object.getOwnPropertyDescriptor(window, 'navigator') || null;
+  globalThis.__wrGeolocationBoundaryHideNavigator = () => {
+    Object.defineProperty(window, 'navigator', {
+      value: undefined,
+      configurable: true,
+      writable: true
+    });
+  };
+  globalThis.__wrGeolocationBoundaryRestoreNavigator = () => {
+    const descriptor = globalThis.__wrGeolocationBoundarySavedNavigator;
+    if (descriptor) {
+      Object.defineProperty(window, 'navigator', descriptor);
+    } else {
+      delete window.navigator;
+    }
   };")
 
 (define (fake-geolocation missing)
@@ -112,12 +129,29 @@
 (define missing-clear-watch-geolocation
   (fake-geolocation "clearWatch"))
 
+(define (with-missing-navigator thunk)
+  (js-eval "__wrGeolocationBoundaryHideNavigator();")
+  (define result (thunk))
+  (js-eval "__wrGeolocationBoundaryRestoreNavigator();")
+  result)
+
 (check-true (not (geolocation? missing-current-position-geolocation))
             "geolocation? rejects missing getCurrentPosition")
 (check-true (not (geolocation? missing-watch-position-geolocation))
             "geolocation? rejects missing watchPosition")
 (check-true (not (geolocation? missing-clear-watch-geolocation))
             "geolocation? rejects missing clearWatch")
+
+(check-true (eq? (with-missing-navigator
+                  (lambda ()
+                    (geolocation-supported?)))
+                 #f)
+            "geolocation-supported? returns #f when window.navigator is missing")
+(check-true (eq? (with-missing-navigator
+                  (lambda ()
+                    (geolocation)))
+                 #f)
+            "geolocation returns #f when window.navigator is missing")
 
 (define current-position-message
   (catch-message
@@ -218,7 +252,10 @@
  "delete globalThis.__wrGeolocationBoundaryFake;
   delete globalThis.__wrGeolocationBoundaryFakePosition;
   delete globalThis.__wrGeolocationBoundaryFakeCoordinates;
-  delete globalThis.__wrGeolocationBoundaryFakeError;")
+  delete globalThis.__wrGeolocationBoundaryFakeError;
+  delete globalThis.__wrGeolocationBoundarySavedNavigator;
+  delete globalThis.__wrGeolocationBoundaryHideNavigator;
+  delete globalThis.__wrGeolocationBoundaryRestoreNavigator;")
 
 (js-log "geolocation-method-missing-host-ffi-ok")
 #t

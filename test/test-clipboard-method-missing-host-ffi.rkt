@@ -41,6 +41,23 @@
     };
     delete clip[missing];
     return clip;
+  };
+  globalThis.__wrClipboardBoundarySavedNavigator =
+    Object.getOwnPropertyDescriptor(window, 'navigator') || null;
+  globalThis.__wrClipboardBoundaryHideNavigator = () => {
+    Object.defineProperty(window, 'navigator', {
+      value: undefined,
+      configurable: true,
+      writable: true
+    });
+  };
+  globalThis.__wrClipboardBoundaryRestoreNavigator = () => {
+    const descriptor = globalThis.__wrClipboardBoundarySavedNavigator;
+    if (descriptor) {
+      Object.defineProperty(window, 'navigator', descriptor);
+    } else {
+      delete window.navigator;
+    }
   };")
 
 (define (fake-clipboard missing)
@@ -54,10 +71,27 @@
 (define missing-write-clipboard
   (fake-clipboard "writeText"))
 
+(define (with-missing-navigator thunk)
+  (js-eval "__wrClipboardBoundaryHideNavigator();")
+  (define result (thunk))
+  (js-eval "__wrClipboardBoundaryRestoreNavigator();")
+  result)
+
 (check-true (not (clipboard? missing-read-clipboard))
             "clipboard? rejects missing readText")
 (check-true (not (clipboard? missing-write-clipboard))
             "clipboard? rejects missing writeText")
+
+(check-true (eq? (with-missing-navigator
+                  (lambda ()
+                    (clipboard-supported?)))
+                 #f)
+            "clipboard-supported? returns #f when window.navigator is missing")
+(check-true (eq? (with-missing-navigator
+                  (lambda ()
+                    (clipboard)))
+                 #f)
+            "clipboard returns #f when window.navigator is missing")
 
 (define read-message
   (catch-message
@@ -84,7 +118,11 @@
                "clipboard-info?"
                "missing clipboard-info invalid raw message")
 
-(js-eval "delete globalThis.__wrClipboardBoundaryFake;")
+(js-eval
+ "delete globalThis.__wrClipboardBoundaryFake;
+  delete globalThis.__wrClipboardBoundarySavedNavigator;
+  delete globalThis.__wrClipboardBoundaryHideNavigator;
+  delete globalThis.__wrClipboardBoundaryRestoreNavigator;")
 
 (js-log "clipboard-method-missing-host-ffi-ok")
 #t

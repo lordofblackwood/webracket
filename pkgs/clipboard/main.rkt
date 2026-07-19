@@ -47,10 +47,11 @@
 ;; clipboard-supported-raw : -> (or/c #f external/raw)
 ;;   Read navigator.clipboard when it is available.
 (define (clipboard-supported-raw)
-  (define raw (js-ref/extern (js-window-navigator) "clipboard"))
-  (and (not (js-nullish? raw))
-       (clipboard-core-methods-present? raw)
-       raw))
+  (with-handlers ([exn:fail? (lambda (_e) #f)])
+    (define raw (js-ref/extern (js-window-navigator) "clipboard"))
+    (and (not (js-nullish? raw))
+         (clipboard-core-methods-present? raw)
+         raw)))
 
 ;; clipboard-supported? : -> boolean?
 ;;   Report whether the browser exposes navigator.clipboard text helpers.
