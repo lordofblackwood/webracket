@@ -60,8 +60,10 @@
     };
   }
 
+  globalThis.__wrJsxIsPointThisOk = false;
   globalThis.JXG = {
     isPoint(value) {
+      globalThis.__wrJsxIsPointThisOk = this === globalThis.JXG;
       return !!value && value.__jsxKind === 'point';
     },
     JSXGraph: {
@@ -113,6 +115,8 @@
 
 (check-true (jsx-point? point) "point wrapper")
 (check-true (jsx-point?/raw (jsx-point-raw point)) "raw point predicate")
+(check-true (js-eval "globalThis.__wrJsxIsPointThisOk")
+            "raw point predicate receiver")
 (check-number~= (jsx-point-x point) 1.0 "point x")
 (check-number~= (jsx-point-y point) 2.0 "point y")
 (check-number~= (jsx-point-size point) 4.0 "point size")

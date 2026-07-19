@@ -2277,12 +2277,12 @@ function require_jsxgraph_api() {
   return JXGValue.JSXGraph;
 }
 
-function require_jsxgraph_is_point() {
+function call_jsxgraph_is_point(value) {
   const JXGValue = globalThis.JXG;
   if (!JXGValue || typeof JXGValue.isPoint !== 'function') {
     throw new Error('JSXGraph JXG.isPoint not available in this environment');
   }
-  return JXGValue.isPoint.bind(JXGValue);
+  return JXGValue.isPoint.call(JXGValue, value);
 }
 
 const websocket = websocket_impl;

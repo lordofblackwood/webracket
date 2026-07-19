@@ -3795,7 +3795,7 @@ var imports = {
     },
     // JSXGraph Point
     'jsx-point': hasDOM ? {
-        'is-point':                    (v => boolean_to_i32(require_jsxgraph_is_point()(v))),
+        'is-point':                    (v => boolean_to_i32(call_jsxgraph_is_point(v))),
         'attractor-distance':          (pt => get_jsxgraph_point_property(pt, 'attractorDistance')),
         'set-attractor-distance!':     ((pt, d) => { set_jsxgraph_point_property(pt, 'attractorDistance', d); }),
         'attractors':                  (pt => get_jsxgraph_point_property(pt, 'attractors')),
