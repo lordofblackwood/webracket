@@ -11,7 +11,7 @@
                   js-set!
                   js-typeof
                   js-var
-                  js-window-speech-synthesis)
+                  js-window-window)
          (only-in webracket/primitives
                   external?
                   procedure->external))
@@ -62,6 +62,60 @@
   (and (not (js-nullish? method))
        (string=? (js-typeof method) "function")))
 
+;; speech-property-present? : external/raw string? -> boolean?
+;;   Report whether raw exposes a non-nullish property named property-name.
+(define (speech-property-present? raw property-name)
+  (not (js-nullish? (js-ref/extern raw property-name))))
+
+;; speech-constructor-present? : string? -> boolean?
+;;   Report whether the host exposes a callable constructor.
+(define (speech-constructor-present? name)
+  (string=? (js-typeof (js-var name)) "function"))
+
+;; speech-synthesis-raw/current : -> any/c
+;;   Probe the optional window.speechSynthesis property without requiring it.
+(define (speech-synthesis-raw/current)
+  (js-ref/extern (js-window-window) "speechSynthesis"))
+
+;; check-speech-constructor : symbol? string? -> void?
+;;   Ensure the host exposes a required Web Speech constructor.
+(define (check-speech-constructor who name)
+  (unless (speech-constructor-present? name)
+    (raise-arguments-error who
+                           (string-append name " constructor is not available"))))
+
+;; check-speech-synthesis : symbol? any/c -> void?
+;;   Ensure value wraps an external SpeechSynthesis-like host value.
+(define (check-speech-synthesis who value)
+  (unless (speech-synthesis-host-value? value)
+    (raise-argument-error who "speech-synthesis?" value)))
+
+;; check-speech-utterance : symbol? any/c -> void?
+;;   Ensure value wraps an external SpeechSynthesisUtterance-like host value.
+(define (check-speech-utterance who value)
+  (unless (speech-utterance? value)
+    (raise-argument-error who "speech-utterance?" value)))
+
+;; check-speech-voice : symbol? any/c -> void?
+;;   Ensure value wraps an external SpeechSynthesisVoice-like host value.
+(define (check-speech-voice who value)
+  (unless (speech-voice? value)
+    (raise-argument-error who "speech-voice?" value)))
+
+;; check-speech-host-method : symbol? external/raw string? string? -> void?
+;;   Ensure raw exposes a required Web Speech method.
+(define (check-speech-host-method who raw receiver-name method-name)
+  (unless (speech-method-present? raw method-name)
+    (raise-arguments-error who
+                           (string-append receiver-name "." method-name " is not available"))))
+
+;; check-speech-host-property : symbol? external/raw string? string? -> void?
+;;   Ensure raw exposes a required Web Speech property.
+(define (check-speech-host-property who raw receiver-name property-name)
+  (unless (speech-property-present? raw property-name)
+    (raise-arguments-error who
+                           (string-append receiver-name "." property-name " is not available"))))
+
 ;; speech-vector-map : procedure? vector? -> vector?
 ;;   Map proc over vec without depending on racket/vector.
 (define (speech-vector-map proc vec)
@@ -76,27 +130,31 @@
 ;; web-speech-synthesis-supported? : -> boolean?
 ;;   Report whether speech synthesis is available.
 (define (web-speech-synthesis-supported?)
-  (define synthesis (js-window-speech-synthesis))
-  (define utterance-constructor (js-var "SpeechSynthesisUtterance"))
+  (define synthesis (speech-synthesis-raw/current))
   (and (not (js-nullish? synthesis))
-       (not (js-nullish? utterance-constructor))
+       (speech-constructor-present? "SpeechSynthesisUtterance")
        (speech-method-present? synthesis "speak")))
 
 ;; web-speech-recognition-supported? : -> boolean?
 ;;   Report whether unprefixed or webkit-prefixed speech recognition is available.
 (define (web-speech-recognition-supported?)
-  (or (not (js-nullish? (js-var "SpeechRecognition")))
-      (not (js-nullish? (js-var "webkitSpeechRecognition")))))
+  (or (speech-constructor-present? "SpeechRecognition")
+      (speech-constructor-present? "webkitSpeechRecognition")))
 
 ;; speech-synthesis : -> (or/c #f speech-synthesis?)
 ;;   Return the browser SpeechSynthesis object when available.
 (define (speech-synthesis)
   (and (web-speech-synthesis-supported?)
-       (speech-synthesis-info (js-window-speech-synthesis))))
+       (speech-synthesis-info (speech-synthesis-raw/current))))
 
 ;; speech-synthesis? : any/c -> boolean?
 ;;   Report whether v is a wrapped SpeechSynthesis object.
 (define (speech-synthesis? v)
+  (speech-synthesis-host-value? v))
+
+;; speech-synthesis-host-value? : any/c -> boolean?
+;;   Report whether v wraps an external SpeechSynthesis-like host value.
+(define (speech-synthesis-host-value? v)
   (and (speech-synthesis-info? v)
        (external? (speech-synthesis-raw v))))
 
@@ -197,6 +255,7 @@
     (raise-argument-error 'make-speech-utterance
                           "(or/c #f speech-utterance-options?)"
                           options))
+  (check-speech-constructor 'make-speech-utterance "SpeechSynthesisUtterance")
   (define utterance
     (speech-utterance-info
      (js-new (js-var "SpeechSynthesisUtterance")
@@ -208,10 +267,12 @@
 ;; speech-synthesis-speak! : speech-synthesis? speech-utterance? -> void?
 ;;   Queue an utterance to be spoken.
 (define (speech-synthesis-speak! synthesis utterance)
-  (unless (speech-synthesis? synthesis)
-    (raise-argument-error 'speech-synthesis-speak! "speech-synthesis?" synthesis))
-  (unless (speech-utterance? utterance)
-    (raise-argument-error 'speech-synthesis-speak! "speech-utterance?" utterance))
+  (check-speech-synthesis 'speech-synthesis-speak! synthesis)
+  (check-speech-utterance 'speech-synthesis-speak! utterance)
+  (check-speech-host-method 'speech-synthesis-speak!
+                            (speech-synthesis-raw synthesis)
+                            "SpeechSynthesis"
+                            "speak")
   (js-send/extern/nullish (speech-synthesis-raw synthesis)
                           "speak"
                           (vector (speech-utterance-raw utterance)))
@@ -220,53 +281,74 @@
 ;; speech-synthesis-cancel! : speech-synthesis? -> void?
 ;;   Cancel queued and active speech.
 (define (speech-synthesis-cancel! synthesis)
-  (unless (speech-synthesis? synthesis)
-    (raise-argument-error 'speech-synthesis-cancel! "speech-synthesis?" synthesis))
+  (check-speech-synthesis 'speech-synthesis-cancel! synthesis)
+  (check-speech-host-method 'speech-synthesis-cancel!
+                            (speech-synthesis-raw synthesis)
+                            "SpeechSynthesis"
+                            "cancel")
   (js-send/extern/nullish (speech-synthesis-raw synthesis) "cancel" (vector))
   (void))
 
 ;; speech-synthesis-pause! : speech-synthesis? -> void?
 ;;   Pause active speech.
 (define (speech-synthesis-pause! synthesis)
-  (unless (speech-synthesis? synthesis)
-    (raise-argument-error 'speech-synthesis-pause! "speech-synthesis?" synthesis))
+  (check-speech-synthesis 'speech-synthesis-pause! synthesis)
+  (check-speech-host-method 'speech-synthesis-pause!
+                            (speech-synthesis-raw synthesis)
+                            "SpeechSynthesis"
+                            "pause")
   (js-send/extern/nullish (speech-synthesis-raw synthesis) "pause" (vector))
   (void))
 
 ;; speech-synthesis-resume! : speech-synthesis? -> void?
 ;;   Resume paused speech.
 (define (speech-synthesis-resume! synthesis)
-  (unless (speech-synthesis? synthesis)
-    (raise-argument-error 'speech-synthesis-resume! "speech-synthesis?" synthesis))
+  (check-speech-synthesis 'speech-synthesis-resume! synthesis)
+  (check-speech-host-method 'speech-synthesis-resume!
+                            (speech-synthesis-raw synthesis)
+                            "SpeechSynthesis"
+                            "resume")
   (js-send/extern/nullish (speech-synthesis-raw synthesis) "resume" (vector))
   (void))
 
 ;; speech-synthesis-speaking? : speech-synthesis? -> boolean?
 ;;   Report whether speech is currently active.
 (define (speech-synthesis-speaking? synthesis)
-  (unless (speech-synthesis? synthesis)
-    (raise-argument-error 'speech-synthesis-speaking? "speech-synthesis?" synthesis))
+  (check-speech-synthesis 'speech-synthesis-speaking? synthesis)
+  (check-speech-host-property 'speech-synthesis-speaking?
+                              (speech-synthesis-raw synthesis)
+                              "SpeechSynthesis"
+                              "speaking")
   (js-ref (speech-synthesis-raw synthesis) "speaking"))
 
 ;; speech-synthesis-paused? : speech-synthesis? -> boolean?
 ;;   Report whether speech is currently paused.
 (define (speech-synthesis-paused? synthesis)
-  (unless (speech-synthesis? synthesis)
-    (raise-argument-error 'speech-synthesis-paused? "speech-synthesis?" synthesis))
+  (check-speech-synthesis 'speech-synthesis-paused? synthesis)
+  (check-speech-host-property 'speech-synthesis-paused?
+                              (speech-synthesis-raw synthesis)
+                              "SpeechSynthesis"
+                              "paused")
   (js-ref (speech-synthesis-raw synthesis) "paused"))
 
 ;; speech-synthesis-pending? : speech-synthesis? -> boolean?
 ;;   Report whether utterances are queued.
 (define (speech-synthesis-pending? synthesis)
-  (unless (speech-synthesis? synthesis)
-    (raise-argument-error 'speech-synthesis-pending? "speech-synthesis?" synthesis))
+  (check-speech-synthesis 'speech-synthesis-pending? synthesis)
+  (check-speech-host-property 'speech-synthesis-pending?
+                              (speech-synthesis-raw synthesis)
+                              "SpeechSynthesis"
+                              "pending")
   (js-ref (speech-synthesis-raw synthesis) "pending"))
 
 ;; speech-synthesis-voices : speech-synthesis? -> vector?
 ;;   Return available speech voices as wrapped values.
 (define (speech-synthesis-voices synthesis)
-  (unless (speech-synthesis? synthesis)
-    (raise-argument-error 'speech-synthesis-voices "speech-synthesis?" synthesis))
+  (check-speech-synthesis 'speech-synthesis-voices synthesis)
+  (check-speech-host-method 'speech-synthesis-voices
+                            (speech-synthesis-raw synthesis)
+                            "SpeechSynthesis"
+                            "getVoices")
   (speech-vector-map
    speech-voice-info
    (js-array->vector
@@ -275,37 +357,60 @@
 ;; speech-voice-name : speech-voice? -> string?
 ;;   Read a voice name.
 (define (speech-voice-name voice)
-  (unless (speech-voice? voice)
-    (raise-argument-error 'speech-voice-name "speech-voice?" voice))
+  (check-speech-voice 'speech-voice-name voice)
+  (check-speech-host-property 'speech-voice-name
+                              (speech-voice-raw voice)
+                              "SpeechSynthesisVoice"
+                              "name")
   (js-ref (speech-voice-raw voice) "name"))
 
 ;; speech-voice-lang : speech-voice? -> string?
 ;;   Read a BCP 47 language tag for a voice.
 (define (speech-voice-lang voice)
-  (unless (speech-voice? voice)
-    (raise-argument-error 'speech-voice-lang "speech-voice?" voice))
+  (check-speech-voice 'speech-voice-lang voice)
+  (check-speech-host-property 'speech-voice-lang
+                              (speech-voice-raw voice)
+                              "SpeechSynthesisVoice"
+                              "lang")
   (js-ref (speech-voice-raw voice) "lang"))
 
 ;; speech-voice-default? : speech-voice? -> boolean?
 ;;   Report whether this is the default voice.
 (define (speech-voice-default? voice)
-  (unless (speech-voice? voice)
-    (raise-argument-error 'speech-voice-default? "speech-voice?" voice))
+  (check-speech-voice 'speech-voice-default? voice)
+  (check-speech-host-property 'speech-voice-default?
+                              (speech-voice-raw voice)
+                              "SpeechSynthesisVoice"
+                              "default")
   (js-ref (speech-voice-raw voice) "default"))
 
 ;; speech-voice-local-service? : speech-voice? -> boolean?
 ;;   Report whether this voice is provided locally.
 (define (speech-voice-local-service? voice)
-  (unless (speech-voice? voice)
-    (raise-argument-error 'speech-voice-local-service? "speech-voice?" voice))
+  (check-speech-voice 'speech-voice-local-service? voice)
+  (check-speech-host-property 'speech-voice-local-service?
+                              (speech-voice-raw voice)
+                              "SpeechSynthesisVoice"
+                              "localService")
   (js-ref (speech-voice-raw voice) "localService"))
 
 ;; speech-voice-uri : speech-voice? -> string?
 ;;   Read the voice URI.
 (define (speech-voice-uri voice)
-  (unless (speech-voice? voice)
-    (raise-argument-error 'speech-voice-uri "speech-voice?" voice))
+  (check-speech-voice 'speech-voice-uri voice)
+  (check-speech-host-property 'speech-voice-uri
+                              (speech-voice-raw voice)
+                              "SpeechSynthesisVoice"
+                              "voiceURI")
   (js-ref (speech-voice-raw voice) "voiceURI"))
+
+;; speech-utterance-set-voice! : speech-utterance? speech-voice? -> void?
+;;   Set the voice used by an utterance.
+(define (speech-utterance-set-voice! utterance voice)
+  (check-speech-utterance 'speech-utterance-set-voice! utterance)
+  (check-speech-voice 'speech-utterance-set-voice! voice)
+  (js-set! (speech-utterance-raw utterance) "voice" (speech-voice-raw voice))
+  (void))
 
 ;; speech-callback->external : symbol? any/c -> external/raw
 ;;   Convert a callback to a stable external callback wrapper.
@@ -330,8 +435,7 @@
 ;; speech-utterance-on-end! : speech-utterance? (or/c procedure? external? #f) -> void?
 ;;   Set the onend handler for an utterance.
 (define (speech-utterance-on-end! utterance callback)
-  (unless (speech-utterance? utterance)
-    (raise-argument-error 'speech-utterance-on-end! "speech-utterance?" utterance))
+  (check-speech-utterance 'speech-utterance-on-end! utterance)
   (define callback* (and callback
                          (speech-callback->external 'speech-utterance-on-end! callback)))
   (js-set! (speech-utterance-raw utterance) "onend" callback*)
@@ -340,8 +444,7 @@
 ;; speech-utterance-on-error! : speech-utterance? (or/c procedure? external? #f) -> void?
 ;;   Set the onerror handler for an utterance.
 (define (speech-utterance-on-error! utterance callback)
-  (unless (speech-utterance? utterance)
-    (raise-argument-error 'speech-utterance-on-error! "speech-utterance?" utterance))
+  (check-speech-utterance 'speech-utterance-on-error! utterance)
   (define callback* (and callback
                          (speech-callback->external 'speech-utterance-on-error! callback)))
   (js-set! (speech-utterance-raw utterance) "onerror" callback*)
