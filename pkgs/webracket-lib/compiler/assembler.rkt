@@ -175,6 +175,7 @@ imports["ffi"] = splitRuntimeFfiExports;
     (error 'runtime "FFI sidecar output requires a split runtime core output"))
   @~a{
 var memory = new WebAssembly.Memory({initial:1024});
+const hostArray = Array;
 // Static host bridge scratch map. Keep this in sync with runtime-wasm.rkt.
 //   0..1MiB        VFS file transfer buffer
 //   +4KiB          VFS path buffer
@@ -1026,7 +1027,7 @@ function vfsPreloadBytes(entry) {
   if (ArrayBuffer.isView(entry)) {
     return new Uint8Array(new Uint8Array(entry.buffer, entry.byteOffset, entry.byteLength));
   }
-  if (Array.isArray(entry)) return Uint8Array.from(entry);
+  if (hostArray.isArray(entry)) return Uint8Array.from(entry);
   if (typeof entry === 'string') return new TextEncoder().encode(entry);
   if (entry && typeof entry === 'object') {
     if ('bytes' in entry) return vfsPreloadBytes(entry.bytes);
@@ -1109,9 +1110,9 @@ async function vfsPreloadTarBytesAsync(entry) {
 
 function vfsMountPairs(entries) {
   if (!entries) return [];
-  if (Array.isArray(entries)) {
+  if (hostArray.isArray(entries)) {
     return entries.map((entry) => {
-      if (Array.isArray(entry) && entry.length >= 2) return [entry[0], entry[1]];
+      if (hostArray.isArray(entry) && entry.length >= 2) return [entry[0], entry[1]];
       if (entry && typeof entry === 'object' && 'path' in entry) return [entry.path, entry];
       throw new Error('WebRacket VFS mount array entries need a path');
     });
@@ -1156,9 +1157,9 @@ function hostJoinPath(base, name) {
 function vfsPreloadPairs(entries) {
   let pairs;
   if (!entries) return [];
-  if (Array.isArray(entries)) {
+  if (hostArray.isArray(entries)) {
     pairs = entries.map((entry) => {
-      if (Array.isArray(entry) && entry.length >= 2) return [entry[0], entry[1]];
+      if (hostArray.isArray(entry) && entry.length >= 2) return [entry[0], entry[1]];
       if (entry && typeof entry === 'object' && 'path' in entry) return [entry.path, entry];
       throw new Error('WebRacket VFS preload array entries need a path');
     });
@@ -1301,7 +1302,7 @@ function fasl_to_js_value(arr, i = 0) {
     }
     case @|fasl-vector|: {
       const n = u32();
-      const vec = new Array(n);
+      const vec = new hostArray(n);
       for(let j = 0; j < n; j++) {
         [vec[j], i] = fasl_to_js_value(arr, i);
       }
@@ -1485,7 +1486,7 @@ function js_value_to_fasl(v) {
     //   return;
     // }
     // Vector: plain JS Array (distinct from bytes above)
-    if (Array.isArray(x)) {
+    if (hostArray.isArray(x)) {
       writeVector(x);
       return;
     }
@@ -1913,7 +1914,7 @@ function testsuite(js_value_to_fasl, fasl_to_js_value, { log = true } = {}) {
       return deepEq(a.car, b.car) && deepEq(a.cdr, b.cdr);
     }
     // Arrays (vectors)
-    if (Array.isArray(a) && Array.isArray(b)) {
+    if (hostArray.isArray(a) && hostArray.isArray(b)) {
       if (a.length !== b.length) return false;
       for (let i = 0; i < a.length; i++) if (!deepEq(a[i], b[i])) return false;
       return true;
@@ -2378,7 +2379,7 @@ export function make_callback(id) {
             );
         }
         try {
-            const fasl = js_value_to_fasl(Array.from(args));
+            const fasl = js_value_to_fasl(hostArray.from(args));
             if (fasl.length > CALLBACK_BUFFER_LENGTH) {
                 throw new RangeError('WebRacket callback argument FASL exceeds callback buffer');
             }
@@ -2480,7 +2481,7 @@ function wr_invoke_fasl(exported, payload) {
 
 // Decode the tagged bridge result vector into a JavaScript object.
 function wr_decode_result(raw, operation, name, args) {
-  if (!Array.isArray(raw) || raw.length < 5) {
+  if (!hostArray.isArray(raw) || raw.length < 5) {
     return {
       ok: false,
       kind: 'invalid-bridge-result',
@@ -2525,12 +2526,12 @@ function wr_format_value(exported, value) {
 
 // Normalize detailed binding metadata returned by the Wasm bridge.
 function wr_decode_names_detailed(raw) {
-  if (!Array.isArray(raw)) {
+  if (!hostArray.isArray(raw)) {
     return [];
   }
   return raw
     .map((entry) => {
-      if (!Array.isArray(entry) || entry.length < 5) {
+      if (!hostArray.isArray(entry) || entry.length < 5) {
         return {
           name: String(entry),
           origin: 'unknown',
@@ -2624,7 +2625,7 @@ function install_console_bridge(exports) {
   };
   WR.names = () => {
     const names = wr_invoke_fasl(wr_names, null);
-    return Array.isArray(names) ? names.slice().sort((a, b) => String(a).localeCompare(String(b))) : [];
+    return hostArray.isArray(names) ? names.slice().sort((a, b) => String(a).localeCompare(String(b))) : [];
   };
   WR.search = (query) => {
     const needle = String(query ?? '').toLocaleLowerCase();

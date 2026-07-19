@@ -301,8 +301,16 @@ function call_required_host_function9(owner, name, displayName, arg0, arg1, arg2
   return fn.call(target, arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
 }
 
+function require_array_constructor(displayName) {
+  const ctor = get_global_value('Array');
+  if (typeof ctor !== 'function') {
+    throw new Error(`${displayName} not available in this environment`);
+  }
+  return ctor;
+}
+
 function call_array_static_method(methodName, args = []) {
-  return call_required_host_function(Array,
+  return call_required_host_function(require_array_constructor(`Array.${methodName}`),
                                      methodName,
                                      `Array.${methodName}`,
                                      args);
@@ -313,6 +321,57 @@ function call_array_method(arr, methodName, args = []) {
                                      methodName,
                                      `Array.${methodName}`,
                                      args);
+}
+
+function copy_array_with_slice(arr, displayName) {
+  const target = require_host_target(arr, displayName);
+  return call_array_method(target, 'slice');
+}
+
+function call_array_to_reversed(arr) {
+  const target = require_host_target(arr, 'Array.toReversed');
+  const fn = target.toReversed;
+  if (typeof fn === 'function') {
+    return fn.call(target);
+  }
+  const copy = copy_array_with_slice(target, 'Array.toReversed');
+  call_array_method(copy, 'reverse');
+  return copy;
+}
+
+function call_array_to_sorted(arr, compareFn) {
+  const target = require_host_target(arr, 'Array.toSorted');
+  const fn = target.toSorted;
+  if (typeof fn === 'function') {
+    return fn.call(target, compareFn);
+  }
+  const copy = copy_array_with_slice(target, 'Array.toSorted');
+  call_array_method(copy, 'sort', [compareFn]);
+  return copy;
+}
+
+function call_array_to_spliced(arr, items) {
+  const target = require_host_target(arr, 'Array.toSpliced');
+  const args = from_fasl(items) || [];
+  const fn = target.toSpliced;
+  if (typeof fn === 'function') {
+    return fn.apply(target, args);
+  }
+  const copy = copy_array_with_slice(target, 'Array.toSpliced');
+  call_array_method(copy, 'splice', args);
+  return copy;
+}
+
+function call_array_with(arr, index, value) {
+  const target = require_host_target(arr, 'Array.with');
+  const replacement = from_fasl(value);
+  const fn = target.with;
+  if (typeof fn === 'function') {
+    return fn.call(target, index, replacement);
+  }
+  const copy = copy_array_with_slice(target, 'Array.with');
+  copy[index] = replacement;
+  return copy;
 }
 
 function require_number_constructor(displayName) {
@@ -1063,25 +1122,25 @@ var imports = {
       // Unicode character operations.
       'char_upcase': ((cp) => {
         const s = hostString.fromCodePoint(cp).toUpperCase();
-        const arr = Array.from(s);
+        const arr = hostArray.from(s);
         return (arr.length === 1) ? arr[0].codePointAt(0) : cp;
       }),
       'char_downcase': ((cp) => {
         const s = hostString.fromCodePoint(cp).toLowerCase();
-        const arr = Array.from(s);
+        const arr = hostArray.from(s);
         return (arr.length === 1) ? arr[0].codePointAt(0) : cp;
       }),
       'char_titlecase': ((cp) => {
         const lower = hostString.fromCodePoint(cp).toLocaleLowerCase();
         const title = lower.charAt(0).toLocaleUpperCase() + lower.slice(1);
-        const arr = Array.from(title);
+        const arr = hostArray.from(title);
         return (arr.length === 1) ? arr[0].codePointAt(0) : cp;
       }),
       'char_foldcase': ((cp) => {
         // JavaScript has no direct Unicode foldcase API, but upper-then-lower
         // fixes the final sigma case while preserving our single-codepoint guard.
         const s = hostString.fromCodePoint(cp).toUpperCase().toLowerCase();
-        const arr = Array.from(s);
+        const arr = hostArray.from(s);
         return (arr.length === 1) ? arr[0].codePointAt(0) : cp;
       }),
       // NOTE: This classification covers only a subset of Unicode's
@@ -1602,10 +1661,10 @@ var imports = {
         'to-string':         (arr => call_array_method(arr, 'toString')),
         'unshift':           ((arr, items) => call_array_method(arr, 'unshift', from_fasl(items) || [])),
         'values':            (arr => call_array_method(arr, 'values')),
-        'to-reversed':       (arr => (typeof arr.toReversed === 'function' ? arr.toReversed() : [...arr].reverse())),
-        'to-sorted':         ((arr, fn) => (typeof arr.toSorted === 'function' ? arr.toSorted(fn) : [...arr].sort(fn))),
-        'to-spliced':        ((arr, items) => (typeof arr.toSpliced === 'function' ? arr.toSpliced(...(from_fasl(items) || [])) : (() => { const b = call_array_method(arr, 'slice'); call_array_method(b, 'splice', from_fasl(items) || []); return b; })())),
-        'with':              ((arr, index, value) => (typeof arr.with === 'function' ? arr.with(index, from_fasl(value)) : (() => { const b = call_array_method(arr, 'slice'); b[index] = from_fasl(value); return b; })())),
+        'to-reversed':       (arr => call_array_to_reversed(arr)),
+        'to-sorted':         ((arr, fn) => call_array_to_sorted(arr, fn)),
+        'to-spliced':        ((arr, items) => call_array_to_spliced(arr, items)),
+        'with':              ((arr, index, value) => call_array_with(arr, index, value)),
     },
     // Canvas
     'canvas': hasDOM ? {

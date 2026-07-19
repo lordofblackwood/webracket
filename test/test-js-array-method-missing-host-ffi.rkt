@@ -6,7 +6,8 @@
          (only-in webracket/unsafe/array
                   js-array-length
                   js-eval
-                  js-set-array-length!))
+                  js-set-array-length!
+                  js-truthy?))
 
 (define (check-true got label)
   (unless got
@@ -19,6 +20,15 @@
 (define (catch-message thunk)
   (with-handlers ([exn:fail? exn-message])
     (thunk)
+    #f))
+
+(define (catch-message/restoring thunk restore!)
+  (with-handlers ([exn:fail?
+                   (lambda (e)
+                     (restore!)
+                     (exn-message e))])
+    (thunk)
+    (restore!)
     #f))
 
 (define (string-contains/simple? haystack needle)
@@ -43,6 +53,43 @@
 
 (define js-null (js-eval "null"))
 (define missing-length-object (js-eval "({})"))
+
+(js-eval
+ "globalThis.__wrArrayBoundary = {
+    arrayDescriptor: Object.getOwnPropertyDescriptor(globalThis, 'Array') || null,
+    hideArray() {
+      try {
+        return delete globalThis.Array;
+      } catch (_e) {
+        return false;
+      }
+    },
+    restoreArray() {
+      const saved = globalThis.__wrArrayBoundary.arrayDescriptor;
+      if (saved) {
+        Object.defineProperty(globalThis, 'Array', saved);
+      } else {
+        delete globalThis.Array;
+      }
+    }
+  };")
+
+(define (hide-array-global?)
+  (js-truthy?
+   (js-eval "globalThis.__wrArrayBoundary.hideArray()")))
+
+(define (restore-array-global!)
+  (js-eval "globalThis.__wrArrayBoundary.restoreArray();")
+  (void))
+
+(define (check-hidden-array-global thunk needle label)
+  (cond
+    [(hide-array-global?)
+     (define message
+       (catch-message/restoring thunk restore-array-global!))
+     (check-message message needle label)]
+    [else
+     (restore-array-global!)]))
 
 (js-eval
  "globalThis.__wrArrayBoundaryFake = (missing) => {
@@ -144,6 +191,28 @@
    (lambda ()
      (js-set-array-length! missing-length-object 0))))
 
+(define null-array (array-wrap js-null))
+
+(define to-reversed-null-message
+  (catch-message
+   (lambda ()
+     (array-to-reversed null-array))))
+
+(define to-sorted-null-message
+  (catch-message
+   (lambda ()
+     (array-to-sorted null-array))))
+
+(define to-spliced-null-message
+  (catch-message
+   (lambda ()
+     (array-to-spliced null-array 0 0))))
+
+(define with-null-message
+  (catch-message
+   (lambda ()
+     (array-with null-array 0 'x))))
+
 (js-eval
  "globalThis.__wrArrayBoundarySavedToSorted = Array.prototype.toSorted;
   Array.prototype.toSorted = undefined;")
@@ -204,9 +273,29 @@
 (check-message set-length-missing-message
                "Array.length not available in this environment"
                "missing Array.length setter message")
+(check-message to-reversed-null-message
+               "Array.toReversed: target object is null or undefined"
+               "null Array.toReversed message")
+(check-message to-sorted-null-message
+               "Array.toSorted: target object is null or undefined"
+               "null Array.toSorted message")
+(check-message to-spliced-null-message
+               "Array.toSpliced: target object is null or undefined"
+               "null Array.toSpliced message")
+(check-message with-null-message
+               "Array.with: target object is null or undefined"
+               "null Array.with message")
+(check-hidden-array-global
+ (lambda () (array-of 1 2 3))
+ "Array.of not available in this environment"
+ "missing Array global Array.of message")
 (check-equal to-sorted-fallback
              #(1 2 3)
              "Array.toSorted fallback")
+
+(js-eval
+ "globalThis.__wrArrayBoundary.restoreArray();
+  delete globalThis.__wrArrayBoundary;")
 
 (js-log "js-array-method-missing-host-ffi-ok")
 #t
