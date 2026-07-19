@@ -3,8 +3,9 @@
 ;; Browser smoke for IndexedDB wrapper host-method boundary errors.
 
 (require indexed-db
-         (only-in webracket/unsafe/dom
-                  js-eval))
+         (only-in webracket/unsafe/standard
+                  js-eval
+                  js-truthy?))
 
 (define (check-true got label)
   (unless got
@@ -13,6 +14,15 @@
 (define (catch-message thunk)
   (with-handlers ([exn:fail? exn-message])
     (thunk)
+    #f))
+
+(define (catch-message/restoring thunk restore!)
+  (with-handlers ([exn:fail?
+                   (lambda (e)
+                     (restore!)
+                     (exn-message e))])
+    (thunk)
+    (restore!)
     #f))
 
 (define (string-contains/simple? haystack needle)
@@ -31,6 +41,28 @@
 
 (js-eval
  "globalThis.__wrIndexedDBBoundarySaved = {};
+  globalThis.__wrIndexedDBBoundaryConstructorDescriptor =
+    Object.getOwnPropertyDescriptor(globalThis, 'IDBFactory') || null;
+  globalThis.__wrIndexedDBBoundaryHideConstructor = () => {
+    try {
+      Object.defineProperty(globalThis, 'IDBFactory', {
+        value: undefined,
+        configurable: true,
+        writable: true
+      });
+      return true;
+    } catch (_e) {
+      return false;
+    }
+  };
+  globalThis.__wrIndexedDBBoundaryRestoreConstructor = () => {
+    const saved = globalThis.__wrIndexedDBBoundaryConstructorDescriptor;
+    if (saved) {
+      Object.defineProperty(globalThis, 'IDBFactory', saved);
+    } else {
+      delete globalThis.IDBFactory;
+    }
+  };
   globalThis.__wrIndexedDBBoundaryPatch = (name) => {
     const proto = IDBFactory.prototype;
     if (!Object.prototype.hasOwnProperty.call(globalThis.__wrIndexedDBBoundarySaved, name)) {
@@ -54,10 +86,14 @@
     delete globalThis.__wrIndexedDBBoundarySaved[name];
   };
   globalThis.__wrIndexedDBBoundaryRestoreAll = () => {
+    globalThis.__wrIndexedDBBoundaryRestoreConstructor();
     for (const name of Object.keys(globalThis.__wrIndexedDBBoundarySaved)) {
       globalThis.__wrIndexedDBBoundaryRestore(name);
     }
     delete globalThis.__wrIndexedDBBoundarySaved;
+    delete globalThis.__wrIndexedDBBoundaryConstructorDescriptor;
+    delete globalThis.__wrIndexedDBBoundaryHideConstructor;
+    delete globalThis.__wrIndexedDBBoundaryRestoreConstructor;
     delete globalThis.__wrIndexedDBBoundaryPatch;
     delete globalThis.__wrIndexedDBBoundaryRestore;
     delete globalThis.__wrIndexedDBBoundaryRestoreAll;
@@ -67,6 +103,25 @@
 
 (check-true (indexed-db? db)
             "indexed-db predicate before patches")
+
+(define (hide-indexed-db-constructor?)
+  (js-truthy?
+   (js-eval "__wrIndexedDBBoundaryHideConstructor()")))
+
+(define (restore-indexed-db-constructor!)
+  (js-eval "__wrIndexedDBBoundaryRestoreConstructor();")
+  (void))
+
+(define constructor-message
+  (cond
+    [(hide-indexed-db-constructor?)
+     (catch-message/restoring
+      (lambda ()
+        (indexed-db-open db "wr-missing-constructor"))
+      restore-indexed-db-constructor!)]
+    [else
+     (restore-indexed-db-constructor!)
+     #f]))
 
 (define (missing-method-message method thunk)
   (js-eval (string-append "__wrIndexedDBBoundaryPatch('"
@@ -105,6 +160,10 @@
 (check-message open-message
                "IDBFactory.open is not available"
                "missing IDBFactory.open message")
+(when constructor-message
+  (check-message constructor-message
+                 "IDBFactory constructor is not available"
+                 "missing IDBFactory constructor message"))
 (check-message delete-message
                "IDBFactory.deleteDatabase is not available"
                "missing IDBFactory.deleteDatabase message")

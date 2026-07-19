@@ -32,6 +32,13 @@
   (string=? (js-typeof (js-var "IDBFactory"))
             "function"))
 
+;; check-indexed-db-constructor : symbol? -> void?
+;;   Ensure the host environment exposes the IDBFactory constructor.
+(define (check-indexed-db-constructor who)
+  (unless (indexed-db-constructor-present?)
+    (raise-arguments-error who
+                           "IDBFactory constructor is not available")))
+
 ;; indexed-db : -> indexed-db-info?
 ;;   Read the browser IndexedDB factory object.
 (define (indexed-db)
@@ -65,7 +72,11 @@
 ;; check-indexed-db : symbol? any/c -> void?
 ;;   Ensure value wraps an external IDBFactory host value.
 (define (check-indexed-db who value)
-  (unless (indexed-db-host-value? value)
+  (unless (and (indexed-db-info? value)
+               (external? (indexed-db-raw value)))
+    (raise-argument-error who "indexed-db-info?" value))
+  (check-indexed-db-constructor who)
+  (unless (js-instanceof (indexed-db-raw value) (js-var "IDBFactory"))
     (raise-argument-error who "indexed-db-info?" value)))
 
 ;; check-indexed-db-method : symbol? indexed-db-info? string? -> void?
