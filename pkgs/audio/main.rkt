@@ -113,7 +113,7 @@
 ;; audio-constructor-present? : string? -> boolean?
 ;;   Check whether the host environment exposes a named Audio constructor.
 (define (audio-constructor-present? name)
-  (string=? (js-typeof (js-var name)) "function"))
+  (js-constructible? (js-var name)))
 
 ;; audio-host-method-present? : external/raw string? -> boolean?
 ;;   Report whether raw exposes a callable browser method.

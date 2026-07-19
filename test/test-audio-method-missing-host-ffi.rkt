@@ -81,6 +81,20 @@
              "audio-node? returns #f when AudioNode is not callable")
 
 (js-eval
+ "globalThis.AudioContext = (() => false);
+  globalThis.AudioNode = (() => false);")
+
+(define audio-context-non-constructor-message
+  (catch-message
+   (lambda ()
+     (audio-context-new))))
+
+(check-false (audio-context? (js-eval "globalThis.__wrAudioBoundaryPlain"))
+             "audio-context? returns #f when AudioContext is not constructible")
+(check-false (audio-node? (js-eval "globalThis.__wrAudioBoundaryPlain"))
+             "audio-node? returns #f when AudioNode is not constructible")
+
+(js-eval
  "globalThis.AudioNode = class AudioNode {};
   globalThis.__wrAudioBoundaryNode = new AudioNode();")
 
@@ -282,6 +296,9 @@
 (check-message remove-listener-message
                "EventTarget.removeEventListener is not available"
                "missing audio removeEventListener message")
+(check-message audio-context-non-constructor-message
+               "AudioContext not available in this environment: context-new"
+               "non-constructible AudioContext constructor message")
 (check-message context-close-message
                "AudioContext.close not available in this environment"
                "missing AudioContext.close message")
