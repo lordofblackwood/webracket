@@ -4,6 +4,7 @@ if (typeof WebAssembly.Tag === 'undefined' || typeof WebAssembly.Exception === '
 
 const hostString = String;
 const hostNumber = Number;
+const hostMath = Math;
 const foreign_error_tag = new WebAssembly.Tag({ parameters: ['externref'] });
 
 function wrap_ffi_host_exceptions(fn) {
@@ -356,6 +357,35 @@ function call_number_method2(x, methodName, arg0, arg1) {
   return call_required_host_function2(x,
                                       methodName,
                                       `Number.${methodName}`,
+                                      arg0,
+                                      arg1);
+}
+
+function require_math_object(displayName) {
+  const math = get_global_value('Math');
+  if (math === null || math === undefined) {
+    throw new Error(`${displayName} not available in this environment`);
+  }
+  return math;
+}
+
+function call_math_method0(methodName) {
+  return call_required_host_function0(require_math_object(`Math.${methodName}`),
+                                      methodName,
+                                      `Math.${methodName}`);
+}
+
+function call_math_method1(methodName, arg0) {
+  return call_required_host_function1(require_math_object(`Math.${methodName}`),
+                                      methodName,
+                                      `Math.${methodName}`,
+                                      arg0);
+}
+
+function call_math_method2(methodName, arg0, arg1) {
+  return call_required_host_function2(require_math_object(`Math.${methodName}`),
+                                      methodName,
+                                      `Math.${methodName}`,
                                       arg0,
                                       arg1);
 }
@@ -755,7 +785,7 @@ var imports = {
       'current_inexact_milliseconds': (() => Date.now()),
       'current_milliseconds_bits': (() => {
         const modulus = 0x40000000;
-        let n = Math.trunc(Date.now()) % modulus;
+        let n = hostMath.trunc(Date.now()) % modulus;
         if (n >= 0x20000000) n -= modulus;
         return (n << 1) | 0;
       }),
@@ -787,13 +817,13 @@ var imports = {
           const now = local
             ? new Date(get.year(), d.getMonth(), d.getDate())
             : new Date(Date.UTC(get.year(), d.getUTCMonth(), d.getUTCDate()));
-          return Math.floor((now - start) / 86400000);
+          return hostMath.floor((now - start) / 86400000);
         });
         const dst = (() => {
           if (!local) return 0;
           const jan = new Date(get.year(), 0, 1).getTimezoneOffset();
           const jul = new Date(get.year(), 6, 1).getTimezoneOffset();
-          return d.getTimezoneOffset() < Math.max(jan, jul) ? 1 : 0;
+          return d.getTimezoneOffset() < hostMath.max(jan, jul) ? 1 : 0;
         });
         // WebRacket currently represents exact integers as small fixnums, while
         // Racket's date* nanosecond range extends to 999,999,999. Preserve a
@@ -1387,41 +1417,41 @@ var imports = {
 
     // JavaScript Math FFI.
     'math': {
-        'abs':    ((x)       => Math.abs(x)),
-        'acos':   ((x)       => Math.acos(x)),
-        'acosh':  ((x)       => Math.acosh(x)),
-        'asin':   ((x)       => Math.asin(x)),
-        'asinh':  ((x)       => Math.asinh(x)),
-        'atan':   ((x)       => Math.atan(x)),
-        'atan2':  ((y, x)    => Math.atan2(y, x)),
-        'atanh':  ((x)       => Math.atanh(x)),
-        'cbrt':   ((x)       => Math.cbrt(x)),
-        'ceil':   ((x)       => Math.ceil(x)),
-        'clz32':  ((x)       => Math.clz32(x)),
-        'cos':    ((x)       => Math.cos(x)),
-        'cosh':   ((x)       => Math.cosh(x)),
-        'exp':    ((x)       => Math.exp(x)),
-        'expm1':  ((x)       => Math.expm1(x)),
-        'floor':  ((x)       => Math.floor(x)),
-        'fround': ((x)       => Math.fround(x)),
-        'hypot':  ((x, y)    => Math.hypot(x, y)),
-        'imul':   ((a, b)    => Math.imul(a, b)),
-        'log':    ((x)       => Math.log(x)),
-        'log10':  ((x)       => Math.log10(x)),
-        'log1p':  ((x)       => Math.log1p(x)),
-        'log2':   ((x)       => Math.log2(x)),
-        'max':    ((x, y)    => Math.max(x, y)),
-        'min':    ((x, y)    => Math.min(x, y)),
-        'pow':    ((x, y)    => Math.pow(x, y)),
-        'random': (()        => Math.random()),
-        'round':  ((x)       => Math.round(x)),
-        'sign':   ((x)       => Math.sign(x)),
-        'sin':    ((x)       => Math.sin(x)),
-        'sinh':   ((x)       => Math.sinh(x)),
-        'sqrt':   ((x)       => Math.sqrt(x)),
-        'tan':    ((x)       => Math.tan(x)),
-        'tanh':   ((x)       => Math.tanh(x)),
-        'trunc':  ((x)       => Math.trunc(x))
+        'abs':    ((x)       => call_math_method1('abs', x)),
+        'acos':   ((x)       => call_math_method1('acos', x)),
+        'acosh':  ((x)       => call_math_method1('acosh', x)),
+        'asin':   ((x)       => call_math_method1('asin', x)),
+        'asinh':  ((x)       => call_math_method1('asinh', x)),
+        'atan':   ((x)       => call_math_method1('atan', x)),
+        'atan2':  ((y, x)    => call_math_method2('atan2', y, x)),
+        'atanh':  ((x)       => call_math_method1('atanh', x)),
+        'cbrt':   ((x)       => call_math_method1('cbrt', x)),
+        'ceil':   ((x)       => call_math_method1('ceil', x)),
+        'clz32':  ((x)       => call_math_method1('clz32', x)),
+        'cos':    ((x)       => call_math_method1('cos', x)),
+        'cosh':   ((x)       => call_math_method1('cosh', x)),
+        'exp':    ((x)       => call_math_method1('exp', x)),
+        'expm1':  ((x)       => call_math_method1('expm1', x)),
+        'floor':  ((x)       => call_math_method1('floor', x)),
+        'fround': ((x)       => call_math_method1('fround', x)),
+        'hypot':  ((x, y)    => call_math_method2('hypot', x, y)),
+        'imul':   ((a, b)    => call_math_method2('imul', a, b)),
+        'log':    ((x)       => call_math_method1('log', x)),
+        'log10':  ((x)       => call_math_method1('log10', x)),
+        'log1p':  ((x)       => call_math_method1('log1p', x)),
+        'log2':   ((x)       => call_math_method1('log2', x)),
+        'max':    ((x, y)    => call_math_method2('max', x, y)),
+        'min':    ((x, y)    => call_math_method2('min', x, y)),
+        'pow':    ((x, y)    => call_math_method2('pow', x, y)),
+        'random': (()        => call_math_method0('random')),
+        'round':  ((x)       => call_math_method1('round', x)),
+        'sign':   ((x)       => call_math_method1('sign', x)),
+        'sin':    ((x)       => call_math_method1('sin', x)),
+        'sinh':   ((x)       => call_math_method1('sinh', x)),
+        'sqrt':   ((x)       => call_math_method1('sqrt', x)),
+        'tan':    ((x)       => call_math_method1('tan', x)),
+        'tanh':   ((x)       => call_math_method1('tanh', x)),
+        'trunc':  ((x)       => call_math_method1('trunc', x))
     },
 
     // JavaScript Number FFI.
@@ -4019,5 +4049,7 @@ var imports = {
         'update-transform!'()           { throw new Error('DOM not available in this environment'); }
     }
 };
+
+imports['math-ffi'] = { ...imports.math };
 
 install_ffi_exception_bridge(imports);

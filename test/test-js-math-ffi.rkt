@@ -3,6 +3,9 @@
 ;; Browser smoke for the standalone JavaScript Math FFI module.
 
 (require js/math)
+(require (only-in webracket/unsafe/standard
+                  js-eval
+                  js-truthy?))
 
 (define epsilon 0.000001)
 
@@ -14,10 +17,94 @@
   (unless got
     (error 'check-true label)))
 
+(define (catch-message thunk)
+  (with-handlers ([exn:fail? exn-message])
+    (thunk)
+    #f))
+
+(define (catch-message/restoring thunk restore!)
+  (with-handlers ([exn:fail?
+                   (lambda (e)
+                     (restore!)
+                     (exn-message e))])
+    (thunk)
+    (restore!)
+    #f))
+
+(define (string-contains/simple? haystack needle)
+  (define haystack-length (string-length haystack))
+  (define needle-length (string-length needle))
+  (let loop ([index 0])
+    (cond
+      [(> (+ index needle-length) haystack-length) #f]
+      [(string=? (substring haystack index (+ index needle-length)) needle) #t]
+      [else (loop (add1 index))])))
+
+(define (check-message message needle label)
+  (check-true (and message
+                   (string-contains/simple? message needle))
+              label))
+
 (define (check-number~= got want label)
   (unless (<= (abs (- got want)) epsilon)
     (error 'check-number~=
            (format "~a: got ~s want ~s" label got want))))
+
+(js-eval
+ "globalThis.__wrMathBoundary = {
+    mathDescriptor: Object.getOwnPropertyDescriptor(globalThis, 'Math') || null,
+    methods: {
+      abs: Math.abs,
+      atan2: Math.atan2,
+      random: Math.random
+    },
+    hideMath() {
+      try {
+        return delete globalThis.Math;
+      } catch (_e) {
+        return false;
+      }
+    },
+    restoreMath() {
+      const saved = globalThis.__wrMathBoundary.mathDescriptor;
+      if (saved) {
+        Object.defineProperty(globalThis, 'Math', saved);
+      } else {
+        delete globalThis.Math;
+      }
+    }
+  };")
+
+(define (hide-math-global?)
+  (js-truthy?
+   (js-eval "globalThis.__wrMathBoundary.hideMath()")))
+
+(define (restore-math-global!)
+  (js-eval "globalThis.__wrMathBoundary.restoreMath();")
+  (void))
+
+(define (check-hidden-math-global thunk needle label)
+  (cond
+    [(hide-math-global?)
+     (define message
+       (catch-message/restoring thunk restore-math-global!))
+     (check-message message needle label)]
+    [else
+     (restore-math-global!)]))
+
+(define (without-math-method method thunk)
+  (js-eval
+   (string-append "Math['"
+                  method
+                  "'] = undefined;"))
+  (define message (catch-message thunk))
+  (js-eval
+   (string-append "Math['"
+                  method
+                  "'] = globalThis.__wrMathBoundary.methods['"
+                  method
+                  "'];"))
+  message)
 
 (check-number~= (math-abs -7.5) 7.5 "abs")
 (check-number~= (math-acos 1.0) 0.0 "acos")
@@ -57,6 +144,39 @@
 (check-number~= (math-tan 0.0) 0.0 "tan")
 (check-number~= (math-tanh 0.0) 0.0 "tanh")
 (check-number~= (math-trunc 2.9) 2.0 "trunc")
+
+(check-hidden-math-global
+ (lambda () (math-abs -1.0))
+ "Math.abs not available in this environment"
+ "missing Math global abs message")
+
+(check-message
+ (without-math-method
+  "random"
+  (lambda () (math-random)))
+ "Math.random not available in this environment"
+ "missing Math.random message")
+
+(check-message
+ (without-math-method
+  "abs"
+  (lambda () (math-abs -1.0)))
+ "Math.abs not available in this environment"
+ "missing Math.abs message")
+
+(check-message
+ (without-math-method
+  "atan2"
+  (lambda () (math-atan2 0.0 -1.0)))
+ "Math.atan2 not available in this environment"
+ "missing Math.atan2 message")
+
+(js-eval
+ "globalThis.__wrMathBoundary.restoreMath();
+  for (const name of Object.keys(globalThis.__wrMathBoundary.methods)) {
+    globalThis.Math[name] = globalThis.__wrMathBoundary.methods[name];
+  }
+  delete globalThis.__wrMathBoundary;")
 
 (js-log "js-math-ffi-ok")
 #t
