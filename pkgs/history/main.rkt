@@ -58,14 +58,15 @@
 ;; history-supported? : -> boolean?
 ;;   Report whether the browser exposes window.history with the core methods.
 (define (history-supported?)
-  (define value (history))
-  (and (history-info? value)
-       (external? (history-raw value))
-       (history-method-present? (history-raw value) "back")
-       (history-method-present? (history-raw value) "forward")
-       (history-method-present? (history-raw value) "go")
-       (history-method-present? (history-raw value) "pushState")
-       (history-method-present? (history-raw value) "replaceState")))
+  (with-handlers ([exn:fail? (lambda (_e) #f)])
+    (define value (history))
+    (and (history-info? value)
+         (external? (history-raw value))
+         (history-method-present? (history-raw value) "back")
+         (history-method-present? (history-raw value) "forward")
+         (history-method-present? (history-raw value) "go")
+         (history-method-present? (history-raw value) "pushState")
+         (history-method-present? (history-raw value) "replaceState"))))
 
 ;; history : -> history-info?
 ;;   Read the current browser History object.

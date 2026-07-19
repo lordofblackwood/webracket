@@ -10,6 +10,10 @@
   (unless got
     (error 'check-true label)))
 
+(define (check-false got label)
+  (when got
+    (error 'check-false label)))
+
 (define (catch-message thunk)
   (with-handlers ([exn:fail? exn-message])
     (thunk)
@@ -28,6 +32,59 @@
   (check-true (and message
                    (string-contains/simple? message needle))
               label))
+
+(js-eval
+ "globalThis.__wrScreenOrientationWindowBoundary = {
+    screen: Object.getOwnPropertyDescriptor(globalThis, 'screen') || null,
+    hideScreen() {
+      Object.defineProperty(globalThis, 'screen', {
+        value: undefined,
+        configurable: true
+      });
+    },
+    setScreenWithoutOrientation() {
+      Object.defineProperty(globalThis, 'screen', {
+        value: {},
+        configurable: true
+      });
+    },
+    restoreScreen() {
+      const descriptor = globalThis.__wrScreenOrientationWindowBoundary.screen;
+      if (descriptor) {
+        Object.defineProperty(globalThis, 'screen', descriptor);
+      } else {
+        delete globalThis.screen;
+      }
+    }
+  };")
+
+(define missing-screen-supported?
+  (let ()
+    (js-eval "__wrScreenOrientationWindowBoundary.hideScreen();")
+    (define supported? (screen-orientation-supported?))
+    (js-eval "__wrScreenOrientationWindowBoundary.restoreScreen();")
+    supported?))
+
+(define missing-screen-orientation
+  (let ()
+    (js-eval "__wrScreenOrientationWindowBoundary.hideScreen();")
+    (define value (screen-orientation))
+    (js-eval "__wrScreenOrientationWindowBoundary.restoreScreen();")
+    value))
+
+(define missing-orientation-supported?
+  (let ()
+    (js-eval "__wrScreenOrientationWindowBoundary.setScreenWithoutOrientation();")
+    (define supported? (screen-orientation-supported?))
+    (js-eval "__wrScreenOrientationWindowBoundary.restoreScreen();")
+    supported?))
+
+(define missing-orientation-value
+  (let ()
+    (js-eval "__wrScreenOrientationWindowBoundary.setScreenWithoutOrientation();")
+    (define value (screen-orientation))
+    (js-eval "__wrScreenOrientationWindowBoundary.restoreScreen();")
+    value))
 
 (js-eval
  "globalThis.__wrScreenOrientationBoundaryFake = (missing) => {
@@ -114,6 +171,14 @@
    (lambda ()
      (screen-orientation-angle missing-angle-orientation))))
 
+(check-false missing-screen-supported?
+             "screen-orientation-supported? returns #f when screen is missing")
+(check-false missing-screen-orientation
+             "screen-orientation returns #f when screen is missing")
+(check-false missing-orientation-supported?
+             "screen-orientation-supported? returns #f when screen.orientation is missing")
+(check-false missing-orientation-value
+             "screen-orientation returns #f when screen.orientation is missing")
 (check-message lock-message
                "ScreenOrientation.lock is not available"
                "missing ScreenOrientation.lock message")
@@ -136,7 +201,9 @@
                "ScreenOrientation.angle is not available"
                "missing ScreenOrientation.angle message")
 
-(js-eval "delete globalThis.__wrScreenOrientationBoundaryFake;")
+(js-eval
+ "delete globalThis.__wrScreenOrientationBoundaryFake;
+  delete globalThis.__wrScreenOrientationWindowBoundary;")
 
 (js-log "screen-orientation-method-missing-host-ffi-ok")
 #t

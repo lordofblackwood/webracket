@@ -10,6 +10,10 @@
   (unless got
     (error 'check-true label)))
 
+(define (check-false got label)
+  (when got
+    (error 'check-false label)))
+
 (define (catch-message thunk)
   (with-handlers ([exn:fail? exn-message])
     (thunk)
@@ -90,6 +94,19 @@
                           "')"))
   message)
 
+(define missing-window-history-message
+  (missing-window-method-message
+   "history"
+   (lambda ()
+     (history))))
+
+(define missing-window-history-supported?
+  (let ()
+    (js-eval "__wrHistoryBoundaryPatchWindow('history')")
+    (define supported? (history-supported?))
+    (js-eval "__wrHistoryBoundaryRestoreWindow('history')")
+    supported?))
+
 (define missing-back-history (fake-history "back"))
 (define missing-forward-history (fake-history "forward"))
 (define missing-go-history (fake-history "go"))
@@ -157,6 +174,11 @@
    (lambda ()
      (history-remove-popstate-listener! callback))))
 
+(check-message missing-window-history-message
+               "window.history not available in this environment"
+               "missing window.history message")
+(check-false missing-window-history-supported?
+             "history-supported? returns #f when window.history is missing")
 (check-message back-message
                "History.back is not available"
                "missing History.back message")

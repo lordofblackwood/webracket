@@ -30,6 +30,42 @@
               label))
 
 (js-eval
+ "globalThis.__wrStorageWindowBoundary = {
+    localStorage: Object.getOwnPropertyDescriptor(globalThis, 'localStorage') || null,
+    sessionStorage: Object.getOwnPropertyDescriptor(globalThis, 'sessionStorage') || null,
+    hide(name) {
+      Object.defineProperty(globalThis, name, {
+        value: undefined,
+        configurable: true
+      });
+    },
+    restore(name) {
+      const descriptor = globalThis.__wrStorageWindowBoundary[name];
+      if (descriptor) {
+        Object.defineProperty(globalThis, name, descriptor);
+      } else {
+        delete globalThis[name];
+      }
+    }
+  };")
+
+(define local-storage-message
+  (catch-message
+   (lambda ()
+     (js-eval "__wrStorageWindowBoundary.hide('localStorage');")
+     (local-storage))))
+
+(js-eval "__wrStorageWindowBoundary.restore('localStorage');")
+
+(define session-storage-message
+  (catch-message
+   (lambda ()
+     (js-eval "__wrStorageWindowBoundary.hide('sessionStorage');")
+     (session-storage))))
+
+(js-eval "__wrStorageWindowBoundary.restore('sessionStorage');")
+
+(js-eval
  "globalThis.__wrStorageBoundaryFake = (missing) => {
     const storage = {
       length: 0,
@@ -101,6 +137,12 @@
    (lambda ()
      (storage-length (storage #f)))))
 
+(check-message local-storage-message
+               "window.localStorage not available in this environment"
+               "missing window.localStorage message")
+(check-message session-storage-message
+               "window.sessionStorage not available in this environment"
+               "missing window.sessionStorage message")
 (check-message storage-key-message
                "Storage.key is not available"
                "missing Storage.key message")
@@ -123,7 +165,9 @@
                "storage-info?"
                "missing storage-info invalid raw message")
 
-(js-eval "delete globalThis.__wrStorageBoundaryFake;")
+(js-eval
+ "delete globalThis.__wrStorageBoundaryFake;
+  delete globalThis.__wrStorageWindowBoundary;")
 
 (js-log "storage-method-missing-host-ffi-ok")
 #t

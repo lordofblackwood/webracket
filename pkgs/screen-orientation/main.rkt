@@ -46,9 +46,10 @@
 ;; screen-orientation-supported-raw : -> (or/c #f external/raw)
 ;;   Read screen.orientation when it is available.
 (define (screen-orientation-supported-raw)
-  (define orientation (js-ref/extern (js-window-screen) "orientation"))
-  (and (not (js-nullish? orientation))
-       orientation))
+  (with-handlers ([exn:fail? (lambda (_e) #f)])
+    (define orientation (js-ref/extern (js-window-screen) "orientation"))
+    (and (not (js-nullish? orientation))
+         orientation)))
 
 ;; screen-orientation-supported? : -> boolean?
 ;;   Report whether the browser exposes screen.orientation.
