@@ -29,8 +29,7 @@
 ;; indexed-db-constructor-present? : -> boolean?
 ;;   Check whether the host environment exposes the IDBFactory constructor.
 (define (indexed-db-constructor-present?)
-  (string=? (js-typeof (js-var "IDBFactory"))
-            "function"))
+  (js-constructible? (js-var "IDBFactory")))
 
 ;; check-indexed-db-constructor : symbol? -> void?
 ;;   Ensure the host environment exposes the IDBFactory constructor.
