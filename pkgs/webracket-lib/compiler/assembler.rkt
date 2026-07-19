@@ -1517,23 +1517,21 @@ const websocket_impl = {
     const p = from_fasl(protocols);
     return p === undefined ? new WebSocketCtor(u) : new WebSocketCtor(u, p);
   }),
-  'send': ((ws, data) => require_host_function(ws,
-                                               'send',
-                                               'WebSocket.send')(from_fasl(data))),
+  'send': ((ws, data) => call_host_function1(ws,
+                                             'send',
+                                             'WebSocket.send',
+                                             from_fasl(data))),
   'close': ((ws, code, reason) => {
-    const close = require_host_function(ws,
-                                        'close',
-                                        'WebSocket.close');
     const c = from_fasl(code);
     const r = from_fasl(reason);
     if (c === undefined && r === undefined) {
-      close();
+      call_host_function0(ws, 'close', 'WebSocket.close');
     } else if (r === undefined) {
-      close(c);
+      call_host_function1(ws, 'close', 'WebSocket.close', c);
     } else if (c === undefined) {
-      close(1000, r);
+      call_host_function2(ws, 'close', 'WebSocket.close', 1000, r);
     } else {
-      close(c, r);
+      call_host_function2(ws, 'close', 'WebSocket.close', c, r);
     }
   }),
   'url': (ws => get_websocket_property(ws, 'url')),
@@ -1548,15 +1546,15 @@ const audio_impl = {
     const ctor = require_host_constructor('AudioContext', 'AudioContext', 'context-new');
     return new ctor();
   }),
-  'context-close': (ctx => require_host_function(ctx,
-                                                 'close',
-                                                 'AudioContext.close')()),
-  'context-resume': (ctx => require_host_function(ctx,
-                                                  'resume',
-                                                  'AudioContext.resume')()),
-  'context-suspend': (ctx => require_host_function(ctx,
-                                                   'suspend',
-                                                   'AudioContext.suspend')()),
+  'context-close': (ctx => call_host_function0(ctx,
+                                               'close',
+                                               'AudioContext.close')),
+  'context-resume': (ctx => call_host_function0(ctx,
+                                                'resume',
+                                                'AudioContext.resume')),
+  'context-suspend': (ctx => call_host_function0(ctx,
+                                                 'suspend',
+                                                 'AudioContext.suspend')),
   'context-state': (ctx => get_audio_property(ctx, 'AudioContext', 'state')),
   'context-current-time': (ctx => get_audio_property(ctx, 'AudioContext', 'currentTime')),
   'context-sample-rate': (ctx => get_audio_property(ctx, 'AudioContext', 'sampleRate')),
@@ -1564,89 +1562,94 @@ const audio_impl = {
   'context-output-latency': (ctx => get_audio_property(ctx, 'AudioContext', 'outputLatency')),
   'context-destination': (ctx => get_audio_property(ctx, 'AudioContext', 'destination')),
   'context-listener': (ctx => get_audio_property(ctx, 'AudioContext', 'listener')),
-  'context-create-gain': (ctx => require_host_function(ctx,
-                                                       'createGain',
-                                                       'AudioContext.createGain')()),
-  'context-create-oscillator': (ctx => require_host_function(ctx,
-                                                             'createOscillator',
-                                                             'AudioContext.createOscillator')()),
-  'context-create-buffer-source': (ctx => require_host_function(ctx,
-                                                                'createBufferSource',
-                                                                'AudioContext.createBufferSource')()),
-  'context-create-analyser': (ctx => require_host_function(ctx,
-                                                           'createAnalyser',
-                                                           'AudioContext.createAnalyser')()),
-  'context-create-biquad-filter': (ctx => require_host_function(ctx,
-                                                                'createBiquadFilter',
-                                                                'AudioContext.createBiquadFilter')()),
-  'context-create-constant-source': (ctx => require_host_function(ctx,
-                                                                  'createConstantSource',
-                                                                  'AudioContext.createConstantSource')()),
+  'context-create-gain': (ctx => call_host_function0(ctx,
+                                                     'createGain',
+                                                     'AudioContext.createGain')),
+  'context-create-oscillator': (ctx => call_host_function0(ctx,
+                                                           'createOscillator',
+                                                           'AudioContext.createOscillator')),
+  'context-create-buffer-source': (ctx => call_host_function0(ctx,
+                                                              'createBufferSource',
+                                                              'AudioContext.createBufferSource')),
+  'context-create-analyser': (ctx => call_host_function0(ctx,
+                                                         'createAnalyser',
+                                                         'AudioContext.createAnalyser')),
+  'context-create-biquad-filter': (ctx => call_host_function0(ctx,
+                                                              'createBiquadFilter',
+                                                              'AudioContext.createBiquadFilter')),
+  'context-create-constant-source': (ctx => call_host_function0(ctx,
+                                                                'createConstantSource',
+                                                                'AudioContext.createConstantSource')),
   'context-create-channel-splitter': ((ctx, channels) => {
-    const createChannelSplitter = require_host_function(ctx,
-                                                        'createChannelSplitter',
-                                                        'AudioContext.createChannelSplitter');
     const count = from_fasl(channels);
-    return count === undefined ? createChannelSplitter() : createChannelSplitter(count);
+    return count === undefined
+      ? call_host_function0(ctx,
+                            'createChannelSplitter',
+                            'AudioContext.createChannelSplitter')
+      : call_host_function1(ctx,
+                            'createChannelSplitter',
+                            'AudioContext.createChannelSplitter',
+                            count);
   }),
   'context-create-channel-merger': ((ctx, channels) => {
-    const createChannelMerger = require_host_function(ctx,
-                                                      'createChannelMerger',
-                                                      'AudioContext.createChannelMerger');
     const count = from_fasl(channels);
-    return count === undefined ? createChannelMerger() : createChannelMerger(count);
+    return count === undefined
+      ? call_host_function0(ctx,
+                            'createChannelMerger',
+                            'AudioContext.createChannelMerger')
+      : call_host_function1(ctx,
+                            'createChannelMerger',
+                            'AudioContext.createChannelMerger',
+                            count);
   }),
-  'context-create-dynamics-compressor': (ctx => require_host_function(ctx,
-                                                                      'createDynamicsCompressor',
-                                                                      'AudioContext.createDynamicsCompressor')()),
-  'context-create-panner': (ctx => require_host_function(ctx,
-                                                         'createPanner',
-                                                         'AudioContext.createPanner')()),
-  'context-create-stereo-panner': (ctx => require_host_function(ctx,
-                                                                'createStereoPanner',
-                                                                'AudioContext.createStereoPanner')()),
+  'context-create-dynamics-compressor': (ctx => call_host_function0(ctx,
+                                                                    'createDynamicsCompressor',
+                                                                    'AudioContext.createDynamicsCompressor')),
+  'context-create-panner': (ctx => call_host_function0(ctx,
+                                                       'createPanner',
+                                                       'AudioContext.createPanner')),
+  'context-create-stereo-panner': (ctx => call_host_function0(ctx,
+                                                              'createStereoPanner',
+                                                              'AudioContext.createStereoPanner')),
   'context-create-buffer': ((ctx, channels, length, sampleRate) =>
-    require_host_function(ctx,
-                          'createBuffer',
-                          'AudioContext.createBuffer')(from_fasl(channels),
-                                                       from_fasl(length),
-                                                       from_fasl(sampleRate))),
+    call_host_function3(ctx,
+                        'createBuffer',
+                        'AudioContext.createBuffer',
+                        from_fasl(channels),
+                        from_fasl(length),
+                        from_fasl(sampleRate))),
   'context-create-periodic-wave': ((ctx, real, imag) =>
-    require_host_function(ctx,
-                          'createPeriodicWave',
-                          'AudioContext.createPeriodicWave')(from_fasl(real),
-                                                            from_fasl(imag))),
-  'context-decode-audio-data': ((ctx, data) => require_host_function(ctx,
-                                                                     'decodeAudioData',
-                                                                     'AudioContext.decodeAudioData')(from_fasl(data))),
+    call_host_function2(ctx,
+                        'createPeriodicWave',
+                        'AudioContext.createPeriodicWave',
+                        from_fasl(real),
+                        from_fasl(imag))),
+  'context-decode-audio-data': ((ctx, data) => call_host_function1(ctx,
+                                                                   'decodeAudioData',
+                                                                   'AudioContext.decodeAudioData',
+                                                                   from_fasl(data))),
   'node-context': (node => get_audio_property(node, 'AudioNode', 'context')),
   'node-connect': ((node, destination, outputIndex, inputIndex) => {
-    const connect = require_host_function(node,
-                                          'connect',
-                                          'AudioNode.connect');
     const dest = from_fasl(destination);
     const out = from_fasl(outputIndex);
     const input = from_fasl(inputIndex);
     if (out === undefined && input === undefined) {
-      return connect(dest);
+      return call_host_function1(node, 'connect', 'AudioNode.connect', dest);
     } else if (input === undefined) {
-      return connect(dest, out);
+      return call_host_function2(node, 'connect', 'AudioNode.connect', dest, out);
     } else {
-      return connect(dest, out, input);
+      return call_host_function3(node, 'connect', 'AudioNode.connect', dest, out, input);
     }
   }),
   'node-disconnect': ((node, outputIndex, inputIndex) => {
-    const disconnect = require_host_function(node,
-                                             'disconnect',
-                                             'AudioNode.disconnect');
     const out = from_fasl(outputIndex);
     const input = from_fasl(inputIndex);
     if (out === undefined && input === undefined) {
-      disconnect();
+      call_host_function0(node, 'disconnect', 'AudioNode.disconnect');
     } else if (input === undefined) {
-      disconnect(out);
+      call_host_function1(node, 'disconnect', 'AudioNode.disconnect', out);
     } else {
-      disconnect(out, input);
+      call_host_function2(node, 'disconnect', 'AudioNode.disconnect', out, input);
     }
   }),
   'param-value': (param => get_audio_property(param, 'AudioParam', 'value')),
@@ -1654,47 +1657,55 @@ const audio_impl = {
     set_audio_property(param, 'AudioParam', 'value', from_fasl(value));
   }),
   'param-set-value-at-time!': ((param, value, time) =>
-    require_host_function(param,
-                          'setValueAtTime',
-                          'AudioParam.setValueAtTime')(from_fasl(value),
-                                                       from_fasl(time))),
+    call_host_function2(param,
+                        'setValueAtTime',
+                        'AudioParam.setValueAtTime',
+                        from_fasl(value),
+                        from_fasl(time))),
   'param-linear-ramp-to-value-at-time!': ((param, value, time) =>
-    require_host_function(param,
-                          'linearRampToValueAtTime',
-                          'AudioParam.linearRampToValueAtTime')(from_fasl(value),
-                                                                from_fasl(time))),
+    call_host_function2(param,
+                        'linearRampToValueAtTime',
+                        'AudioParam.linearRampToValueAtTime',
+                        from_fasl(value),
+                        from_fasl(time))),
   'param-exponential-ramp-to-value-at-time!': ((param, value, time) =>
-    require_host_function(param,
-                          'exponentialRampToValueAtTime',
-                          'AudioParam.exponentialRampToValueAtTime')(from_fasl(value),
-                                                                     from_fasl(time))),
+    call_host_function2(param,
+                        'exponentialRampToValueAtTime',
+                        'AudioParam.exponentialRampToValueAtTime',
+                        from_fasl(value),
+                        from_fasl(time))),
   'param-set-target-at-time!': ((param, value, time, timeConstant) =>
-    require_host_function(param,
-                          'setTargetAtTime',
-                          'AudioParam.setTargetAtTime')(from_fasl(value),
-                                                        from_fasl(time),
-                                                        from_fasl(timeConstant))),
+    call_host_function3(param,
+                        'setTargetAtTime',
+                        'AudioParam.setTargetAtTime',
+                        from_fasl(value),
+                        from_fasl(time),
+                        from_fasl(timeConstant))),
   'param-set-value-curve-at-time!': ((param, values, startTime, duration) =>
-    require_host_function(param,
-                          'setValueCurveAtTime',
-                          'AudioParam.setValueCurveAtTime')(from_fasl(values),
-                                                            from_fasl(startTime),
-                                                            from_fasl(duration))),
+    call_host_function3(param,
+                        'setValueCurveAtTime',
+                        'AudioParam.setValueCurveAtTime',
+                        from_fasl(values),
+                        from_fasl(startTime),
+                        from_fasl(duration))),
   'param-cancel-scheduled-values!': ((param, time) =>
-    require_host_function(param,
-                          'cancelScheduledValues',
-                          'AudioParam.cancelScheduledValues')(from_fasl(time))),
+    call_host_function1(param,
+                        'cancelScheduledValues',
+                        'AudioParam.cancelScheduledValues',
+                        from_fasl(time))),
   'param-cancel-and-hold-at-time!': ((param, time) =>
-    require_host_function(param,
-                          'cancelAndHoldAtTime',
-                          'AudioParam.cancelAndHoldAtTime')(from_fasl(time))),
+    call_host_function1(param,
+                        'cancelAndHoldAtTime',
+                        'AudioParam.cancelAndHoldAtTime',
+                        from_fasl(time))),
   'buffer-length': (buffer => get_audio_property(buffer, 'AudioBuffer', 'length')),
   'buffer-duration': (buffer => get_audio_property(buffer, 'AudioBuffer', 'duration')),
   'buffer-sample-rate': (buffer => get_audio_property(buffer, 'AudioBuffer', 'sampleRate')),
   'buffer-number-of-channels': (buffer => get_audio_property(buffer, 'AudioBuffer', 'numberOfChannels')),
-  'buffer-get-channel-data': ((buffer, channel) => require_host_function(buffer,
-                                                                         'getChannelData',
-                                                                         'AudioBuffer.getChannelData')(from_fasl(channel))),
+  'buffer-get-channel-data': ((buffer, channel) => call_host_function1(buffer,
+                                                                       'getChannelData',
+                                                                       'AudioBuffer.getChannelData',
+                                                                       from_fasl(channel))),
   'gain-node-gain': (node => get_audio_property(node, 'GainNode', 'gain')),
   'oscillator-node-type': (node => get_audio_property(node, 'OscillatorNode', 'type')),
   'oscillator-node-set-type!': ((node, type) => {
@@ -1702,15 +1713,18 @@ const audio_impl = {
   }),
   'oscillator-node-frequency': (node => get_audio_property(node, 'OscillatorNode', 'frequency')),
   'oscillator-node-detune': (node => get_audio_property(node, 'OscillatorNode', 'detune')),
-  'oscillator-node-start!': ((node, when) => require_host_function(node,
-                                                                   'start',
-                                                                   'OscillatorNode.start')(from_fasl(when))),
-  'oscillator-node-stop!': ((node, when) => require_host_function(node,
-                                                                  'stop',
-                                                                  'OscillatorNode.stop')(from_fasl(when))),
-  'oscillator-node-set-periodic-wave!': ((node, wave) => require_host_function(node,
-                                                                               'setPeriodicWave',
-                                                                               'OscillatorNode.setPeriodicWave')(from_fasl(wave))),
+  'oscillator-node-start!': ((node, when) => call_host_function1(node,
+                                                                 'start',
+                                                                 'OscillatorNode.start',
+                                                                 from_fasl(when))),
+  'oscillator-node-stop!': ((node, when) => call_host_function1(node,
+                                                                'stop',
+                                                                'OscillatorNode.stop',
+                                                                from_fasl(when))),
+  'oscillator-node-set-periodic-wave!': ((node, wave) => call_host_function1(node,
+                                                                             'setPeriodicWave',
+                                                                             'OscillatorNode.setPeriodicWave',
+                                                                             from_fasl(wave))),
   'audio-buffer-source-node-buffer': (node => get_audio_property(node, 'AudioBufferSourceNode', 'buffer')),
   'audio-buffer-source-node-set-buffer!': ((node, buffer) => {
     set_audio_property(node, 'AudioBufferSourceNode', 'buffer', from_fasl(buffer));
@@ -1730,14 +1744,16 @@ const audio_impl = {
     set_audio_property(node, 'AudioBufferSourceNode', 'loopEnd', from_fasl(value));
   }),
   'audio-buffer-source-node-start!': ((node, when, offset, duration) =>
-    require_host_function(node,
-                          'start',
-                          'AudioBufferSourceNode.start')(from_fasl(when),
-                                                         from_fasl(offset),
-                                                         from_fasl(duration))),
-  'audio-buffer-source-node-stop!': ((node, when) => require_host_function(node,
-                                                                           'stop',
-                                                                           'AudioBufferSourceNode.stop')(from_fasl(when))),
+    call_host_function3(node,
+                        'start',
+                        'AudioBufferSourceNode.start',
+                        from_fasl(when),
+                        from_fasl(offset),
+                        from_fasl(duration))),
+  'audio-buffer-source-node-stop!': ((node, when) => call_host_function1(node,
+                                                                         'stop',
+                                                                         'AudioBufferSourceNode.stop',
+                                                                         from_fasl(when))),
   'analyser-node-fft-size': (node => get_audio_property(node, 'AnalyserNode', 'fftSize')),
   'analyser-node-set-fft-size!': ((node, size) => {
     set_audio_property(node, 'AnalyserNode', 'fftSize', from_fasl(size));
@@ -1755,18 +1771,22 @@ const audio_impl = {
   'analyser-node-set-smoothing-time-constant!': ((node, value) => {
     set_audio_property(node, 'AnalyserNode', 'smoothingTimeConstant', from_fasl(value));
   }),
-  'analyser-node-get-byte-frequency-data!': ((node, data) => require_host_function(node,
-                                                                                   'getByteFrequencyData',
-                                                                                   'AnalyserNode.getByteFrequencyData')(from_fasl(data))),
-  'analyser-node-get-byte-time-domain-data!': ((node, data) => require_host_function(node,
-                                                                                     'getByteTimeDomainData',
-                                                                                     'AnalyserNode.getByteTimeDomainData')(from_fasl(data))),
-  'analyser-node-get-float-frequency-data!': ((node, data) => require_host_function(node,
-                                                                                    'getFloatFrequencyData',
-                                                                                    'AnalyserNode.getFloatFrequencyData')(from_fasl(data))),
-  'analyser-node-get-float-time-domain-data!': ((node, data) => require_host_function(node,
-                                                                                      'getFloatTimeDomainData',
-                                                                                      'AnalyserNode.getFloatTimeDomainData')(from_fasl(data))),
+  'analyser-node-get-byte-frequency-data!': ((node, data) => call_host_function1(node,
+                                                                                 'getByteFrequencyData',
+                                                                                 'AnalyserNode.getByteFrequencyData',
+                                                                                 from_fasl(data))),
+  'analyser-node-get-byte-time-domain-data!': ((node, data) => call_host_function1(node,
+                                                                                   'getByteTimeDomainData',
+                                                                                   'AnalyserNode.getByteTimeDomainData',
+                                                                                   from_fasl(data))),
+  'analyser-node-get-float-frequency-data!': ((node, data) => call_host_function1(node,
+                                                                                  'getFloatFrequencyData',
+                                                                                  'AnalyserNode.getFloatFrequencyData',
+                                                                                  from_fasl(data))),
+  'analyser-node-get-float-time-domain-data!': ((node, data) => call_host_function1(node,
+                                                                                    'getFloatTimeDomainData',
+                                                                                    'AnalyserNode.getFloatTimeDomainData',
+                                                                                    from_fasl(data))),
   'biquad-filter-node-type': (node => get_audio_property(node, 'BiquadFilterNode', 'type')),
   'biquad-filter-node-set-type!': ((node, type) => {
     set_audio_property(node, 'BiquadFilterNode', 'type', from_fasl(type));
@@ -1776,12 +1796,14 @@ const audio_impl = {
   'biquad-filter-node-q': (node => get_audio_property(node, 'BiquadFilterNode', 'Q')),
   'biquad-filter-node-gain': (node => get_audio_property(node, 'BiquadFilterNode', 'gain')),
   'constant-source-node-offset': (node => get_audio_property(node, 'ConstantSourceNode', 'offset')),
-  'constant-source-node-start!': ((node, when) => require_host_function(node,
-                                                                        'start',
-                                                                        'ConstantSourceNode.start')(from_fasl(when))),
-  'constant-source-node-stop!': ((node, when) => require_host_function(node,
-                                                                       'stop',
-                                                                       'ConstantSourceNode.stop')(from_fasl(when))),
+  'constant-source-node-start!': ((node, when) => call_host_function1(node,
+                                                                      'start',
+                                                                      'ConstantSourceNode.start',
+                                                                      from_fasl(when))),
+  'constant-source-node-stop!': ((node, when) => call_host_function1(node,
+                                                                     'stop',
+                                                                     'ConstantSourceNode.stop',
+                                                                     from_fasl(when))),
   'dynamics-compressor-node-threshold': (node => get_audio_property(node, 'DynamicsCompressorNode', 'threshold')),
   'dynamics-compressor-node-knee': (node => get_audio_property(node, 'DynamicsCompressorNode', 'knee')),
   'dynamics-compressor-node-ratio': (node => get_audio_property(node, 'DynamicsCompressorNode', 'ratio')),
