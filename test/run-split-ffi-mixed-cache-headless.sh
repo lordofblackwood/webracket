@@ -127,6 +127,7 @@ compile_root_case test-js-math-ffi.html test/test-js-math-ffi.rkt
 compile_root_case test-js-number-method-missing-host-ffi.html test/test-js-number-method-missing-host-ffi.rkt
 compile_root_case test-js-performance-ffi.html test/test-js-performance-ffi.rkt
 compile_root_case test-performance-missing-host-ffi.html test/test-performance-missing-host-ffi.rkt
+compile_root_case test-runtime-date-global-boundary.html test/test-runtime-date-global-boundary.rkt
 compile_root_case test-js-temp-ffi.html test/test-js-temp-ffi.rkt
 compile_root_case test-xtermjs-missing-host-ffi.html test/test-xtermjs-missing-host-ffi.rkt
 compile_root_case test-xtermjs-ffi.html test/test-xtermjs-ffi.rkt

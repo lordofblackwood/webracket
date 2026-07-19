@@ -5,6 +5,7 @@ if (typeof WebAssembly.Tag === 'undefined' || typeof WebAssembly.Exception === '
 const hostString = String;
 const hostNumber = Number;
 const hostMath = Math;
+const hostDate = Date;
 const hostImportUint8Array = Uint8Array;
 const foreign_error_tag = new WebAssembly.Tag({ parameters: ['externref'] });
 
@@ -879,15 +880,15 @@ var imports = {
       }),
 
       // Time and date.
-      'current_inexact_milliseconds': (() => Date.now()),
+      'current_inexact_milliseconds': (() => hostDate.now()),
       'current_milliseconds_bits': (() => {
         const modulus = 0x40000000;
-        let n = hostMath.trunc(Date.now()) % modulus;
+        let n = hostMath.trunc(hostDate.now()) % modulus;
         if (n >= 0x20000000) n -= modulus;
         return (n << 1) | 0;
       }),
       'date_field': ((seconds, local, field) => {
-        const d = new Date(seconds * 1000);
+        const d = new hostDate(seconds * 1000);
         const get = local ? {
           year: () => d.getFullYear(),
           month: () => d.getMonth() + 1,
@@ -909,17 +910,17 @@ var imports = {
         };
         const yearDay = (() => {
           const start = local
-            ? new Date(get.year(), 0, 1)
-            : new Date(Date.UTC(get.year(), 0, 1));
+            ? new hostDate(get.year(), 0, 1)
+            : new hostDate(hostDate.UTC(get.year(), 0, 1));
           const now = local
-            ? new Date(get.year(), d.getMonth(), d.getDate())
-            : new Date(Date.UTC(get.year(), d.getUTCMonth(), d.getUTCDate()));
+            ? new hostDate(get.year(), d.getMonth(), d.getDate())
+            : new hostDate(hostDate.UTC(get.year(), d.getUTCMonth(), d.getUTCDate()));
           return hostMath.floor((now - start) / 86400000);
         });
         const dst = (() => {
           if (!local) return 0;
-          const jan = new Date(get.year(), 0, 1).getTimezoneOffset();
-          const jul = new Date(get.year(), 6, 1).getTimezoneOffset();
+          const jan = new hostDate(get.year(), 0, 1).getTimezoneOffset();
+          const jul = new hostDate(get.year(), 6, 1).getTimezoneOffset();
           return d.getTimezoneOffset() < hostMath.max(jan, jul) ? 1 : 0;
         });
         // WebRacket currently represents exact integers as small fixnums, while
