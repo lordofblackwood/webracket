@@ -8,6 +8,7 @@
                   js-send/extern
                   js-send/extern/nullish
                   js-typeof
+                  js-undefined?
                   js-window-navigator
                   js-window-window)
          (only-in webracket/primitives
@@ -97,6 +98,13 @@
     (raise-arguments-error who
                            (string-append "GamepadButton." property-name " is not available"))))
 
+;; check-gamepad-event-property : symbol? external/raw string? -> void?
+;;   Ensure a required GamepadEvent property is available.
+(define (check-gamepad-event-property who raw property-name)
+  (when (js-undefined? (js-ref/extern raw property-name))
+    (raise-arguments-error who
+                           (string-append "GamepadEvent." property-name " is not available"))))
+
 ;; gamepad? : any/c -> boolean?
 ;;   Report whether v is a wrapped Gamepad object.
 (define (gamepad? v)
@@ -113,6 +121,7 @@
 ;;   Wrap a raw Gamepad slot, preserving disconnected/null slots as #f.
 (define (gamepad-wrap raw)
   (and (external? raw)
+       (not (js-nullish? raw))
        (gamepad-info raw)))
 
 ;; gamepad-button-wrap : external/raw -> gamepad-button?
@@ -132,6 +141,7 @@
 (define (gamepad-event-gamepad event)
   (unless (external? event)
     (raise-argument-error 'gamepad-event-gamepad "external?" event))
+  (check-gamepad-event-property 'gamepad-event-gamepad event "gamepad")
   (gamepad-wrap (js-ref/extern event "gamepad")))
 
 ;; gamepad-id : gamepad? -> string?

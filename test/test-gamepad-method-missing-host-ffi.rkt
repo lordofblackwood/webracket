@@ -55,6 +55,17 @@
     delete button[missing];
     return button;
   };
+  globalThis.__wrGamepadBoundaryFakeEvent = (missing) => {
+    const event = {
+      gamepad: globalThis.__wrGamepadBoundaryFakeGamepad('notAProperty')
+    };
+    if (missing === 'gamepad') {
+      delete event.gamepad;
+    } else if (missing === 'gamepad-null') {
+      event.gamepad = null;
+    }
+    return event;
+  };
   globalThis.__wrGamepadBoundaryPatch = (targetName, methodName) => {
     const target = globalThis.__wrGamepadBoundaryTarget(targetName);
     const key = `${targetName}.${methodName}`;
@@ -88,6 +99,7 @@
     delete globalThis.__wrGamepadBoundaryTarget;
     delete globalThis.__wrGamepadBoundaryFakeGamepad;
     delete globalThis.__wrGamepadBoundaryFakeButton;
+    delete globalThis.__wrGamepadBoundaryFakeEvent;
     delete globalThis.__wrGamepadBoundaryPatch;
     delete globalThis.__wrGamepadBoundaryRestore;
     delete globalThis.__wrGamepadBoundaryRestoreAll;
@@ -123,6 +135,15 @@
     (string-append "__wrGamepadBoundaryFakeButton('"
                    missing-property
                    "')"))))
+
+(define (fake-event missing-property)
+  (js-eval
+   (string-append "__wrGamepadBoundaryFakeEvent('"
+                  missing-property
+                  "')")))
+
+(check-true (eq? (gamepad-wrap (js-eval "null")) #f)
+            "gamepad-wrap maps null slots to #f")
 
 (define (missing-method-message target method thunk)
   (js-eval (string-append "__wrGamepadBoundaryPatch('"
@@ -237,6 +258,14 @@
    (lambda ()
      (gamepad-button-value (fake-button "value")))))
 
+(define event-gamepad-message
+  (catch-message
+   (lambda ()
+     (gamepad-event-gamepad (fake-event "gamepad")))))
+
+(check-true (eq? (gamepad-event-gamepad (fake-event "gamepad-null")) #f)
+            "GamepadEvent.gamepad null still maps to #f")
+
 (check-message get-gamepads-message
                "navigator.getGamepads is not available"
                "missing navigator.getGamepads message")
@@ -282,6 +311,9 @@
 (check-message button-value-message
                "GamepadButton.value is not available"
                "missing GamepadButton.value message")
+(check-message event-gamepad-message
+               "GamepadEvent.gamepad is not available"
+               "missing GamepadEvent.gamepad message")
 
 (js-eval "__wrGamepadBoundaryRestoreAll();")
 (js-eval
