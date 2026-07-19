@@ -4,7 +4,8 @@
 
 (require fetch
          (only-in webracket/unsafe/standard
-                  js-eval))
+                  js-eval
+                  js-truthy?))
 
 (define (check-true got label)
   (unless got
@@ -13,6 +14,15 @@
 (define (catch-message thunk)
   (with-handlers ([exn:fail? exn-message])
     (thunk)
+    #f))
+
+(define (catch-message/restoring thunk restore!)
+  (with-handlers ([exn:fail?
+                   (lambda (e)
+                     (restore!)
+                     (exn-message e))])
+    (thunk)
+    (restore!)
     #f))
 
 (define (string-contains/simple? haystack needle)
@@ -31,9 +41,29 @@
 
 (js-eval
  "globalThis.__wrFetchBoundarySaved = {
-    Headers: globalThis.Headers,
-    Request: globalThis.Request,
-    Response: globalThis.Response
+    Headers: Object.getOwnPropertyDescriptor(globalThis, 'Headers') || null,
+    Request: Object.getOwnPropertyDescriptor(globalThis, 'Request') || null,
+    Response: Object.getOwnPropertyDescriptor(globalThis, 'Response') || null
+  };
+  globalThis.__wrFetchBoundaryRestoreConstructor = (kind) => {
+    const saved = globalThis.__wrFetchBoundarySaved[kind];
+    if (saved) {
+      Object.defineProperty(globalThis, kind, saved);
+    } else {
+      delete globalThis[kind];
+    }
+  };
+  globalThis.__wrFetchBoundaryHideConstructor = (kind) => {
+    try {
+      Object.defineProperty(globalThis, kind, {
+        value: undefined,
+        configurable: true,
+        writable: true
+      });
+      return true;
+    } catch (_e) {
+      return false;
+    }
   };
   globalThis.__wrFetchBoundaryInstall = (kind, missing) => {
     globalThis.Headers = class Headers {
@@ -89,27 +119,76 @@
     delete globalThis[kind].prototype[missing];
   };
   globalThis.__wrFetchBoundaryRestore = () => {
-    if (globalThis.__wrFetchBoundarySaved.Headers === undefined) {
-      delete globalThis.Headers;
-    } else {
-      globalThis.Headers = globalThis.__wrFetchBoundarySaved.Headers;
-    }
-    if (globalThis.__wrFetchBoundarySaved.Request === undefined) {
-      delete globalThis.Request;
-    } else {
-      globalThis.Request = globalThis.__wrFetchBoundarySaved.Request;
-    }
-    if (globalThis.__wrFetchBoundarySaved.Response === undefined) {
-      delete globalThis.Response;
-    } else {
-      globalThis.Response = globalThis.__wrFetchBoundarySaved.Response;
-    }
+    globalThis.__wrFetchBoundaryRestoreConstructor('Headers');
+    globalThis.__wrFetchBoundaryRestoreConstructor('Request');
+    globalThis.__wrFetchBoundaryRestoreConstructor('Response');
     delete globalThis.__wrFetchBoundarySaved;
+    delete globalThis.__wrFetchBoundaryRestoreConstructor;
+    delete globalThis.__wrFetchBoundaryHideConstructor;
     delete globalThis.__wrFetchBoundaryInstall;
     delete globalThis.__wrFetchBoundaryRestore;
   };")
 
 (define callback (lambda args (void)))
+
+(define headers-before-constructor-patch (make-fetch-headers))
+(define request-before-constructor-patch
+  (make-fetch-request "https://example.invalid/fetch"))
+(define response-before-constructor-patch
+  (fetch-response (js-eval "new Response(null, {status: 204})")))
+
+(define (hide-fetch-constructor? kind)
+  (js-truthy?
+   (js-eval (string-append "__wrFetchBoundaryHideConstructor('"
+                           kind
+                           "')"))))
+
+(define (restore-fetch-constructor! kind)
+  (js-eval (string-append "__wrFetchBoundaryRestoreConstructor('"
+                          kind
+                          "')"))
+  (void))
+
+(define (missing-constructor-message kind thunk)
+  (cond
+    [(hide-fetch-constructor? kind)
+     (catch-message/restoring
+      thunk
+      (lambda ()
+        (restore-fetch-constructor! kind)))]
+    [else
+     (restore-fetch-constructor! kind)
+     #f]))
+
+(define headers-constructor-message
+  (missing-constructor-message
+   "Headers"
+   (lambda ()
+     (make-fetch-headers))))
+
+(define headers-existing-wrapper-constructor-message
+  (missing-constructor-message
+   "Headers"
+   (lambda ()
+     (fetch-headers-get headers-before-constructor-patch 'x-test))))
+
+(define request-constructor-message
+  (missing-constructor-message
+   "Request"
+   (lambda ()
+     (make-fetch-request "https://example.invalid/fetch"))))
+
+(define request-existing-wrapper-constructor-message
+  (missing-constructor-message
+   "Request"
+   (lambda ()
+     (fetch-request-url request-before-constructor-patch))))
+
+(define response-existing-wrapper-constructor-message
+  (missing-constructor-message
+   "Response"
+   (lambda ()
+     (fetch-response-status response-before-constructor-patch))))
 
 (define (missing-fetch-method-message kind method thunk)
   (js-eval (string-append "__wrFetchBoundaryInstall('"
@@ -189,6 +268,14 @@
 (check-message headers-get-message
                "Headers.get is not available"
                "missing Headers.get message")
+(when headers-constructor-message
+  (check-message headers-constructor-message
+                 "Headers constructor is not available"
+                 "missing Headers constructor message"))
+(when headers-existing-wrapper-constructor-message
+  (check-message headers-existing-wrapper-constructor-message
+                 "Headers constructor is not available"
+                 "missing existing Headers wrapper constructor message"))
 (check-message headers-has-message
                "Headers.has is not available"
                "missing Headers.has message")
@@ -207,9 +294,21 @@
 (check-message request-clone-message
                "Request.clone is not available"
                "missing Request.clone message")
+(when request-constructor-message
+  (check-message request-constructor-message
+                 "Request constructor is not available"
+                 "missing Request constructor message"))
+(when request-existing-wrapper-constructor-message
+  (check-message request-existing-wrapper-constructor-message
+                 "Request constructor is not available"
+                 "missing existing Request wrapper constructor message"))
 (check-message response-clone-message
                "Response.clone is not available"
                "missing Response.clone message")
+(when response-existing-wrapper-constructor-message
+  (check-message response-existing-wrapper-constructor-message
+                 "Response constructor is not available"
+                 "missing existing Response wrapper constructor message"))
 
 (js-eval "__wrFetchBoundaryRestore();")
 

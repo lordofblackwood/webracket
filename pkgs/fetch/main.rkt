@@ -36,6 +36,13 @@
 (define (fetch-constructor-present? name)
   (string=? (js-typeof (js-var name)) "function"))
 
+;; check-fetch-constructor : symbol? string? -> void?
+;;   Ensure the host environment exposes a named Fetch constructor.
+(define (check-fetch-constructor who name)
+  (unless (fetch-constructor-present? name)
+    (raise-arguments-error who
+                           (string-append name " constructor is not available"))))
+
 ;; fetch-host-method-present? : external/raw string? -> boolean?
 ;;   Report whether raw exposes a callable Fetch API method.
 (define (fetch-host-method-present? raw method-name)
@@ -119,19 +126,47 @@
        (external? (fetch-response-raw v))
        (js-instanceof (fetch-response-raw v) (js-var "Response"))))
 
+;; check-fetch-headers : symbol? any/c -> void?
+;;   Ensure headers wraps an external Headers host value.
+(define (check-fetch-headers who headers)
+  (unless (and (fetch-headers-info? headers)
+               (external? (fetch-headers-raw headers)))
+    (raise-argument-error who "fetch-headers-info?" headers))
+  (check-fetch-constructor who "Headers")
+  (unless (js-instanceof (fetch-headers-raw headers) (js-var "Headers"))
+    (raise-argument-error who "fetch-headers-info?" headers)))
+
+;; check-fetch-request : symbol? any/c -> void?
+;;   Ensure request wraps an external Request host value.
+(define (check-fetch-request who request)
+  (unless (and (fetch-request-info? request)
+               (external? (fetch-request-raw request)))
+    (raise-argument-error who "fetch-request-info?" request))
+  (check-fetch-constructor who "Request")
+  (unless (js-instanceof (fetch-request-raw request) (js-var "Request"))
+    (raise-argument-error who "fetch-request-info?" request)))
+
+;; check-fetch-response : symbol? any/c -> void?
+;;   Ensure response wraps an external Response host value.
+(define (check-fetch-response who response)
+  (unless (and (fetch-response-info? response)
+               (external? (fetch-response-raw response)))
+    (raise-argument-error who "fetch-response-info?" response))
+  (check-fetch-constructor who "Response")
+  (unless (js-instanceof (fetch-response-raw response) (js-var "Response"))
+    (raise-argument-error who "fetch-response-info?" response)))
+
 ;; make-fetch-headers : [any/c #f] -> fetch-headers-info?
 ;;   Create a new Headers object from an optional initializer.
 (define (make-fetch-headers [init #f])
-  (unless (fetch-constructor-present? "Headers")
-    (error 'make-fetch-headers "Headers constructor is not available"))
+  (check-fetch-constructor 'make-fetch-headers "Headers")
   (define init* (fetch-resolve-optional init))
   (fetch-headers (js-new (js-var "Headers") (vector init*))))
 
 ;; make-fetch-request : any/c [any/c #f] -> fetch-request-info?
 ;;   Create a new Request object from an input and optional initializer.
 (define (make-fetch-request input [init #f])
-  (unless (fetch-constructor-present? "Request")
-    (error 'make-fetch-request "Request constructor is not available"))
+  (check-fetch-constructor 'make-fetch-request "Request")
   (define input* (if (symbol? input) (symbol->string input) input))
   (define init* (fetch-resolve-optional init))
   (fetch-request (js-new (js-var "Request") (vector input* init*))))
@@ -139,44 +174,42 @@
 ;; fetch : any/c [any/c #f] -> external/raw
 ;;   Start a fetch request.
 (define (fetch request [init #f])
-  (define request* (if (fetch-request? request)
-                       (fetch-request-raw request)
-                       request))
+  (define request*
+    (cond
+      [(fetch-request-info? request)
+       (check-fetch-request 'fetch request)
+       (fetch-request-raw request)]
+      [else request]))
   (js-window-fetch request* (fetch-resolve-optional init)))
 
 ;; fetch-request-method : fetch-request-info? -> any/c
 ;;   Read the request method.
 (define (fetch-request-method request)
-  (unless (fetch-request? request)
-    (raise-argument-error 'fetch-request-method "fetch-request-info?" request))
+  (check-fetch-request 'fetch-request-method request)
   (js-ref (fetch-request-raw request) "method"))
 
 ;; fetch-request-url : fetch-request-info? -> any/c
 ;;   Read the request URL.
 (define (fetch-request-url request)
-  (unless (fetch-request? request)
-    (raise-argument-error 'fetch-request-url "fetch-request-info?" request))
+  (check-fetch-request 'fetch-request-url request)
   (js-ref (fetch-request-raw request) "url"))
 
 ;; fetch-request-body-used? : fetch-request-info? -> boolean?
 ;;   Report whether the request body has already been consumed.
 (define (fetch-request-body-used? request)
-  (unless (fetch-request? request)
-    (raise-argument-error 'fetch-request-body-used? "fetch-request-info?" request))
+  (check-fetch-request 'fetch-request-body-used? request)
   (js-ref (fetch-request-raw request) "bodyUsed"))
 
 ;; fetch-request-headers : fetch-request-info? -> fetch-headers-info?
 ;;   Read the request headers wrapper.
 (define (fetch-request-headers request)
-  (unless (fetch-request? request)
-    (raise-argument-error 'fetch-request-headers "fetch-request-info?" request))
+  (check-fetch-request 'fetch-request-headers request)
   (fetch-headers (js-ref (fetch-request-raw request) "headers")))
 
 ;; fetch-request-clone : fetch-request-info? -> fetch-request-info?
 ;;   Clone a request.
 (define (fetch-request-clone request)
-  (unless (fetch-request? request)
-    (raise-argument-error 'fetch-request-clone "fetch-request-info?" request))
+  (check-fetch-request 'fetch-request-clone request)
   (check-fetch-host-method 'fetch-request-clone
                            (fetch-request-raw request)
                            "Request"
@@ -186,57 +219,49 @@
 ;; fetch-response-ok? : fetch-response-info? -> boolean?
 ;;   Report whether the response status is in the successful range.
 (define (fetch-response-ok? response)
-  (unless (fetch-response? response)
-    (raise-argument-error 'fetch-response-ok? "fetch-response-info?" response))
+  (check-fetch-response 'fetch-response-ok? response)
   (js-ref (fetch-response-raw response) "ok"))
 
 ;; fetch-response-status : fetch-response-info? -> exact-nonnegative-integer?
 ;;   Read the response status code.
 (define (fetch-response-status response)
-  (unless (fetch-response? response)
-    (raise-argument-error 'fetch-response-status "fetch-response-info?" response))
+  (check-fetch-response 'fetch-response-status response)
   (js-ref (fetch-response-raw response) "status"))
 
 ;; fetch-response-status-text : fetch-response-info? -> string?
 ;;   Read the response status text.
 (define (fetch-response-status-text response)
-  (unless (fetch-response? response)
-    (raise-argument-error 'fetch-response-status-text "fetch-response-info?" response))
+  (check-fetch-response 'fetch-response-status-text response)
   (js-ref (fetch-response-raw response) "statusText"))
 
 ;; fetch-response-url : fetch-response-info? -> string?
 ;;   Read the final response URL.
 (define (fetch-response-url response)
-  (unless (fetch-response? response)
-    (raise-argument-error 'fetch-response-url "fetch-response-info?" response))
+  (check-fetch-response 'fetch-response-url response)
   (js-ref (fetch-response-raw response) "url"))
 
 ;; fetch-response-type : fetch-response-info? -> string?
 ;;   Read the response type.
 (define (fetch-response-type response)
-  (unless (fetch-response? response)
-    (raise-argument-error 'fetch-response-type "fetch-response-info?" response))
+  (check-fetch-response 'fetch-response-type response)
   (js-ref (fetch-response-raw response) "type"))
 
 ;; fetch-response-body-used? : fetch-response-info? -> boolean?
 ;;   Report whether the response body has already been consumed.
 (define (fetch-response-body-used? response)
-  (unless (fetch-response? response)
-    (raise-argument-error 'fetch-response-body-used? "fetch-response-info?" response))
+  (check-fetch-response 'fetch-response-body-used? response)
   (js-ref (fetch-response-raw response) "bodyUsed"))
 
 ;; fetch-response-headers : fetch-response-info? -> fetch-headers-info?
 ;;   Read the response headers wrapper.
 (define (fetch-response-headers response)
-  (unless (fetch-response? response)
-    (raise-argument-error 'fetch-response-headers "fetch-response-info?" response))
+  (check-fetch-response 'fetch-response-headers response)
   (fetch-headers (js-ref (fetch-response-raw response) "headers")))
 
 ;; fetch-response-clone : fetch-response-info? -> fetch-response-info?
 ;;   Clone a response.
 (define (fetch-response-clone response)
-  (unless (fetch-response? response)
-    (raise-argument-error 'fetch-response-clone "fetch-response-info?" response))
+  (check-fetch-response 'fetch-response-clone response)
   (check-fetch-host-method 'fetch-response-clone
                            (fetch-response-raw response)
                            "Response"
@@ -246,8 +271,7 @@
 ;; fetch-headers-get : fetch-headers-info? (or/c string? symbol?) -> (or/c #f string?)
 ;;   Read a header value by name.
 (define (fetch-headers-get headers name)
-  (unless (fetch-headers? headers)
-    (raise-argument-error 'fetch-headers-get "fetch-headers-info?" headers))
+  (check-fetch-headers 'fetch-headers-get headers)
   (check-fetch-host-method 'fetch-headers-get
                            (fetch-headers-raw headers)
                            "Headers"
@@ -258,8 +282,7 @@
 ;; fetch-headers-has? : fetch-headers-info? (or/c string? symbol?) -> boolean?
 ;;   Check whether a header is present.
 (define (fetch-headers-has? headers name)
-  (unless (fetch-headers? headers)
-    (raise-argument-error 'fetch-headers-has? "fetch-headers-info?" headers))
+  (check-fetch-headers 'fetch-headers-has? headers)
   (check-fetch-host-method 'fetch-headers-has?
                            (fetch-headers-raw headers)
                            "Headers"
@@ -270,8 +293,7 @@
 ;; fetch-headers-set! : fetch-headers-info? (or/c string? symbol?) (or/c string? symbol?) -> void?
 ;;   Set a header value.
 (define (fetch-headers-set! headers name value)
-  (unless (fetch-headers? headers)
-    (raise-argument-error 'fetch-headers-set! "fetch-headers-info?" headers))
+  (check-fetch-headers 'fetch-headers-set! headers)
   (check-fetch-host-method 'fetch-headers-set!
                            (fetch-headers-raw headers)
                            "Headers"
@@ -284,8 +306,7 @@
 ;; fetch-headers-append! : fetch-headers-info? (or/c string? symbol?) (or/c string? symbol?) -> void?
 ;;   Append a header value.
 (define (fetch-headers-append! headers name value)
-  (unless (fetch-headers? headers)
-    (raise-argument-error 'fetch-headers-append! "fetch-headers-info?" headers))
+  (check-fetch-headers 'fetch-headers-append! headers)
   (check-fetch-host-method 'fetch-headers-append!
                            (fetch-headers-raw headers)
                            "Headers"
@@ -298,8 +319,7 @@
 ;; fetch-headers-delete! : fetch-headers-info? (or/c string? symbol?) -> void?
 ;;   Delete a header.
 (define (fetch-headers-delete! headers name)
-  (unless (fetch-headers? headers)
-    (raise-argument-error 'fetch-headers-delete! "fetch-headers-info?" headers))
+  (check-fetch-headers 'fetch-headers-delete! headers)
   (check-fetch-host-method 'fetch-headers-delete!
                            (fetch-headers-raw headers)
                            "Headers"
@@ -331,8 +351,7 @@
 ;; fetch-headers-for-each : fetch-headers-info? (or/c procedure? external?) [any/c] -> void?
 ;;   Iterate over headers with a Map-style callback.
 (define (fetch-headers-for-each headers proc [this-arg #f])
-  (unless (fetch-headers? headers)
-    (raise-argument-error 'fetch-headers-for-each "fetch-headers-info?" headers))
+  (check-fetch-headers 'fetch-headers-for-each headers)
   (check-fetch-host-method 'fetch-headers-for-each
                            (fetch-headers-raw headers)
                            "Headers"
