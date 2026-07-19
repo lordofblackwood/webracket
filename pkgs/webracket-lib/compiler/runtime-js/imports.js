@@ -128,6 +128,19 @@ function get_global_property(ownerName, name) {
   return owner === null || owner === undefined ? undefined : owner[name];
 }
 
+function get_required_global_function(name, displayName) {
+  const fn = get_global_value(name);
+  if (typeof fn !== 'function') {
+    throw new Error(`${displayName} not available in this environment`);
+  }
+  return fn;
+}
+
+function call_global_function1(name, displayName, arg0) {
+  const fn = get_required_global_function(name, displayName);
+  return fn.call(globalThis, arg0);
+}
+
 function call_js_method(obj, name, args, who) {
   const target = require_js_target(obj, who);
   const methodName = from_fasl(name);
@@ -1069,16 +1082,36 @@ var imports = {
       'undefined?':                ((v) => (v === undefined) ? 1 : 0),
       'truthy?':                   ((v) => v ? 1 : 0),
       'eval':                      ((code) => eval(from_fasl(code))),
-      'is-finite':                 ((x) => isFinite(x) ? 1 : 0),
-      'finite?':                   ((x) => isFinite(x) ? 1 : 0),
-      'is-nan':                    ((x) => isNaN(x) ? 1 : 0),
-      'nan?':                      ((x) => isNaN(x) ? 1 : 0),
-      'parse-float':               ((s) => parseFloat(from_fasl(s))),
-      'parse-int':                 ((s) => parseInt(from_fasl(s))),
-      'decode-uri':                ((s) => decodeURI(from_fasl(s))),
-      'decode-uri-component':      ((s) => decodeURIComponent(from_fasl(s))),
-      'encode-uri':                ((s) => encodeURI(from_fasl(s))),
-      'encode-uri-component':      ((s) => encodeURIComponent(from_fasl(s))),
+      'is-finite':                 ((x) => call_global_function1('isFinite',
+                                                                  'isFinite',
+                                                                  x) ? 1 : 0),
+      'finite?':                   ((x) => call_global_function1('isFinite',
+                                                                  'isFinite',
+                                                                  x) ? 1 : 0),
+      'is-nan':                    ((x) => call_global_function1('isNaN',
+                                                                  'isNaN',
+                                                                  x) ? 1 : 0),
+      'nan?':                      ((x) => call_global_function1('isNaN',
+                                                                  'isNaN',
+                                                                  x) ? 1 : 0),
+      'parse-float':               ((s) => call_global_function1('parseFloat',
+                                                                  'parseFloat',
+                                                                  from_fasl(s))),
+      'parse-int':                 ((s) => call_global_function1('parseInt',
+                                                                  'parseInt',
+                                                                  from_fasl(s))),
+      'decode-uri':                ((s) => call_global_function1('decodeURI',
+                                                                  'decodeURI',
+                                                                  from_fasl(s))),
+      'decode-uri-component':      ((s) => call_global_function1('decodeURIComponent',
+                                                                  'decodeURIComponent',
+                                                                  from_fasl(s))),
+      'encode-uri':                ((s) => call_global_function1('encodeURI',
+                                                                  'encodeURI',
+                                                                  from_fasl(s))),
+      'encode-uri-component':      ((s) => call_global_function1('encodeURIComponent',
+                                                                  'encodeURIComponent',
+                                                                  from_fasl(s))),
       'var':                       ((name) => globalThis[from_fasl(name)]),
       'ref/value':                 ((obj, key) => to_fasl(require_js_target(obj, 'js-ref')[from_fasl(key)])),
       'ref/extern':                ((obj, key) => require_js_target(obj, 'js-ref/extern')[from_fasl(key)]),
