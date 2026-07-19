@@ -623,6 +623,14 @@ function set_jsxgraph_point_property(pt, name, value) {
   set_required_host_property(pt, name, value, `JSXGraph Point.${name}`);
 }
 
+function get_jsxgraph_board_objects_list(board) {
+  const objects = get_jsxgraph_board_property(board, 'objects');
+  if (objects === null || (typeof objects !== 'object' && typeof objects !== 'function')) {
+    throw new Error('JSXGraph Board.objects must be an object in this environment');
+  }
+  return Object.values(objects);
+}
+
 function construct_js_value(ctor, args) {
   if (ctor === null || ctor === undefined) {
     throw new Error('js-new: constructor is null or undefined');
@@ -3080,7 +3088,7 @@ var imports = {
     },
     // JSXGraph Board
     'jsx-board': hasDOM ? {
-        'init-board':                ((containerId, attrs) => require_jsxgraph_api().initBoard(from_fasl(containerId), from_fasl(attrs))),
+        'init-board':                ((containerId, attrs) => call_jsxgraph_init_board(from_fasl(containerId), from_fasl(attrs))),
         'create':                    ((board, elementType, parents, attrs) => call_jsxgraph_board_create(board, from_fasl(elementType), parents, attrs)),
         'create-point':              ((board, parents, attrs) => call_jsxgraph_board_create(board, 'point', parents, attrs)),
         'create-line':               ((board, parents, attrs) => call_jsxgraph_board_create(board, 'line', parents, attrs)),
@@ -3266,7 +3274,7 @@ var imports = {
         'suspend-update!':           (board => call_jsxgraph_board_method(board, 'suspendUpdate')),
         'unsuspend-update!':         (board => call_jsxgraph_board_method(board, 'unsuspendUpdate')),
         'num-objects':               (board => get_jsxgraph_board_property(board, 'numObjects')),
-        'objects-list':              (board => Object.values(get_jsxgraph_board_property(board, 'objects')))
+        'objects-list':              (board => get_jsxgraph_board_objects_list(board))
     } : {
         'init-board'()                { throw new Error('DOM not available in this environment'); },
         'create'()                    { throw new Error('DOM not available in this environment'); },

@@ -60,6 +60,7 @@
     };
   }
 
+  globalThis.__wrJsxInitBoardThisOk = false;
   globalThis.__wrJsxIsPointThisOk = false;
   globalThis.JXG = {
     isPoint(value) {
@@ -68,6 +69,7 @@
     },
     JSXGraph: {
       initBoard(containerId, attrs) {
+        globalThis.__wrJsxInitBoardThisOk = this === globalThis.JXG.JSXGraph;
         const container = document.getElementById(containerId);
         return {
           id: containerId,
@@ -102,6 +104,8 @@
                     (jsx-attributes [axis #t])))
 
 (check-true (jsx-board? board) "board wrapper")
+(check-true (js-eval "globalThis.__wrJsxInitBoardThisOk")
+            "board init receiver")
 (check-equal (jsx-board-id board) "jsxgraph-smoke-host" "board id")
 (check-equal (jsx-board-canvas-width board) 640 "board width")
 (check-equal (jsx-board-canvas-height board) 480 "board height")

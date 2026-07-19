@@ -38,12 +38,23 @@
 
 (define js-null (js-eval "null"))
 (define missing-board (js-eval "({})"))
+(define null-board-objects (js-eval "({objects: null})"))
+(define number-board-objects (js-eval "({objects: 17})"))
 (define missing-point (js-eval "({})"))
 
 (define board-message
   (catch-message
    (lambda ()
      (jsx-create-board "missing-jsxgraph-host"))))
+
+(js-eval "globalThis.JXG = {JSXGraph: {}}")
+
+(define board-init-method-message
+  (catch-message
+   (lambda ()
+     (jsx-create-board "missing-jsxgraph-init-board"))))
+
+(js-eval "delete globalThis.JXG")
 
 (define point-message
   (catch-message
@@ -95,6 +106,16 @@
    (lambda ()
      (js-jsx-board-objects-list missing-board))))
 
+(define board-objects-list-null-property-message
+  (catch-message
+   (lambda ()
+     (js-jsx-board-objects-list null-board-objects))))
+
+(define board-objects-list-number-property-message
+  (catch-message
+   (lambda ()
+     (js-jsx-board-objects-list number-board-objects))))
+
 (define point-size-missing-message
   (catch-message
    (lambda ()
@@ -113,6 +134,9 @@
 (check-message board-message
                "JSXGraph JXG.JSXGraph not available"
                "missing JSXGraph board message")
+(check-message board-init-method-message
+               "JSXGraph JXG.JSXGraph.initBoard not available"
+               "missing JSXGraph initBoard message")
 (check-message point-message
                "JSXGraph JXG.isPoint not available"
                "missing JSXGraph point message")
@@ -143,6 +167,12 @@
 (check-message board-objects-list-missing-message
                "JSXGraph Board.objects not available in this environment"
                "missing JSXGraph Board.objects message")
+(check-message board-objects-list-null-property-message
+               "JSXGraph Board.objects must be an object in this environment"
+               "null JSXGraph Board.objects property message")
+(check-message board-objects-list-number-property-message
+               "JSXGraph Board.objects must be an object in this environment"
+               "number JSXGraph Board.objects property message")
 (check-message point-size-missing-message
                "JSXGraph Point.size not available in this environment"
                "missing JSXGraph Point.size message")

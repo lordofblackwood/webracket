@@ -2271,10 +2271,18 @@ function require_xterm_fit_addon() {
 
 function require_jsxgraph_api() {
   const JXGValue = globalThis.JXG;
-  if (!JXGValue || !JXGValue.JSXGraph || typeof JXGValue.JSXGraph.initBoard !== 'function') {
+  if (!JXGValue || !JXGValue.JSXGraph) {
     throw new Error('JSXGraph JXG.JSXGraph not available in this environment');
   }
   return JXGValue.JSXGraph;
+}
+
+function call_jsxgraph_init_board(containerId, attrs) {
+  return call_required_host_function2(require_jsxgraph_api(),
+                                      'initBoard',
+                                      'JSXGraph JXG.JSXGraph.initBoard',
+                                      containerId,
+                                      attrs);
 }
 
 function call_jsxgraph_is_point(value) {
