@@ -2008,6 +2008,69 @@ function require_host_function(owner, name, displayName) {
   return fn.bind(target);
 }
 
+function call_host_function0(owner, name, displayName) {
+  const target = require_host_target(owner, displayName);
+  const fn = target[name];
+  if (typeof fn !== 'function') {
+    throw new Error(`${displayName} not available in this environment`);
+  }
+  return fn.call(target);
+}
+
+function call_host_function1(owner, name, displayName, arg0) {
+  const target = require_host_target(owner, displayName);
+  const fn = target[name];
+  if (typeof fn !== 'function') {
+    throw new Error(`${displayName} not available in this environment`);
+  }
+  return fn.call(target, arg0);
+}
+
+function call_host_function2(owner, name, displayName, arg0, arg1) {
+  const target = require_host_target(owner, displayName);
+  const fn = target[name];
+  if (typeof fn !== 'function') {
+    throw new Error(`${displayName} not available in this environment`);
+  }
+  return fn.call(target, arg0, arg1);
+}
+
+function call_host_function3(owner, name, displayName, arg0, arg1, arg2) {
+  const target = require_host_target(owner, displayName);
+  const fn = target[name];
+  if (typeof fn !== 'function') {
+    throw new Error(`${displayName} not available in this environment`);
+  }
+  return fn.call(target, arg0, arg1, arg2);
+}
+
+function call_host_function4(owner, name, displayName, arg0, arg1, arg2, arg3) {
+  const target = require_host_target(owner, displayName);
+  const fn = target[name];
+  if (typeof fn !== 'function') {
+    throw new Error(`${displayName} not available in this environment`);
+  }
+  return fn.call(target, arg0, arg1, arg2, arg3);
+}
+
+function call_host_function5(owner, name, displayName, arg0, arg1, arg2, arg3, arg4) {
+  const target = require_host_target(owner, displayName);
+  const fn = target[name];
+  if (typeof fn !== 'function') {
+    throw new Error(`${displayName} not available in this environment`);
+  }
+  return fn.call(target, arg0, arg1, arg2, arg3, arg4);
+}
+
+function call_host_function6(owner, name, displayName, arg0, arg1, arg2, arg3, arg4, arg5) {
+  const target = require_host_target(owner, displayName);
+  const fn = target[name];
+  if (typeof fn !== 'function') {
+    throw new Error(`${displayName} not available in this environment`);
+  }
+  return fn.call(target, arg0, arg1, arg2, arg3, arg4, arg5);
+}
+
 function require_host_value(owner, name, displayName) {
   const value = require_host_target(owner, displayName)[name];
   if (value === undefined || value === null) {
@@ -2038,6 +2101,69 @@ function require_window_function(name, displayName) {
                                displayName);
 }
 
+function call_window_function0(name, displayName) {
+  return call_host_function0(typeof window === 'undefined' ? null : window,
+                             name,
+                             displayName);
+}
+
+function call_window_function1(name, displayName, arg0) {
+  return call_host_function1(typeof window === 'undefined' ? null : window,
+                             name,
+                             displayName,
+                             arg0);
+}
+
+function call_window_function2(name, displayName, arg0, arg1) {
+  return call_host_function2(typeof window === 'undefined' ? null : window,
+                             name,
+                             displayName,
+                             arg0,
+                             arg1);
+}
+
+function call_window_function3(name, displayName, arg0, arg1, arg2) {
+  return call_host_function3(typeof window === 'undefined' ? null : window,
+                             name,
+                             displayName,
+                             arg0,
+                             arg1,
+                             arg2);
+}
+
+function call_window_function4(name, displayName, arg0, arg1, arg2, arg3) {
+  return call_host_function4(typeof window === 'undefined' ? null : window,
+                             name,
+                             displayName,
+                             arg0,
+                             arg1,
+                             arg2,
+                             arg3);
+}
+
+function call_window_function5(name, displayName, arg0, arg1, arg2, arg3, arg4) {
+  return call_host_function5(typeof window === 'undefined' ? null : window,
+                             name,
+                             displayName,
+                             arg0,
+                             arg1,
+                             arg2,
+                             arg3,
+                             arg4);
+}
+
+function call_window_function6(name, displayName, arg0, arg1, arg2, arg3, arg4, arg5) {
+  return call_host_function6(typeof window === 'undefined' ? null : window,
+                             name,
+                             displayName,
+                             arg0,
+                             arg1,
+                             arg2,
+                             arg3,
+                             arg4,
+                             arg5);
+}
+
 function require_window_value(name, displayName) {
   return require_host_value(typeof window === 'undefined' ? null : window,
                             name,
@@ -2048,6 +2174,57 @@ function require_document_function(name, displayName) {
   return require_host_function(typeof document === 'undefined' ? null : document,
                                name,
                                displayName);
+}
+
+function call_document_function0(name, displayName) {
+  return call_host_function0(typeof document === 'undefined' ? null : document,
+                             name,
+                             displayName);
+}
+
+function call_document_function1(name, displayName, arg0) {
+  return call_host_function1(typeof document === 'undefined' ? null : document,
+                             name,
+                             displayName,
+                             arg0);
+}
+
+function call_document_function2(name, displayName, arg0, arg1) {
+  return call_host_function2(typeof document === 'undefined' ? null : document,
+                             name,
+                             displayName,
+                             arg0,
+                             arg1);
+}
+
+function call_document_function3(name, displayName, arg0, arg1, arg2) {
+  return call_host_function3(typeof document === 'undefined' ? null : document,
+                             name,
+                             displayName,
+                             arg0,
+                             arg1,
+                             arg2);
+}
+
+function call_document_function4(name, displayName, arg0, arg1, arg2, arg3) {
+  return call_host_function4(typeof document === 'undefined' ? null : document,
+                             name,
+                             displayName,
+                             arg0,
+                             arg1,
+                             arg2,
+                             arg3);
+}
+
+function call_document_function5(name, displayName, arg0, arg1, arg2, arg3, arg4) {
+  return call_host_function5(typeof document === 'undefined' ? null : document,
+                             name,
+                             displayName,
+                             arg0,
+                             arg1,
+                             arg2,
+                             arg3,
+                             arg4);
 }
 
 function get_websocket_property(ws, name) {

@@ -1763,163 +1763,210 @@ var imports = {
                                                             'window.speechSynthesis')),
         'style-media':          (() => require_window_value('styleMedia',
                                                             'window.styleMedia')),
-        'alert':                (msg => require_window_function('alert',
-                                                                'window.alert')(from_fasl(msg))),
-        'atob':                 (s => require_window_function('atob',
-                                                              'window.atob')(from_fasl(s))),
-        'btoa':                 (s => require_window_function('btoa',
-                                                              'window.btoa')(from_fasl(s))),
-        'blur':                 (() => require_window_function('blur',
-                                                              'window.blur')()),
-        'cancel-animation-frame': (id => require_window_function('cancelAnimationFrame',
-                                                                 'window.cancelAnimationFrame')(id)),
-        'cancel-idle-callback': (id => require_window_function('cancelIdleCallback',
-                                                              'window.cancelIdleCallback')(id)),
-        'clear-interval':       (id => require_window_function('clearInterval',
-                                                              'window.clearInterval')(id)),
-        'clear-timeout':        (id => require_window_function('clearTimeout',
-                                                              'window.clearTimeout')(id)),
-        'close':                (() => require_window_function('close',
-                                                              'window.close')()),
-        'confirm':              (msg => require_window_function('confirm',
-                                                               'window.confirm')(from_fasl(msg)) ? 1 : 0),
+        'alert':                (msg => call_window_function1('alert',
+                                                              'window.alert',
+                                                              from_fasl(msg))),
+        'atob':                 (s => call_window_function1('atob',
+                                                            'window.atob',
+                                                            from_fasl(s))),
+        'btoa':                 (s => call_window_function1('btoa',
+                                                            'window.btoa',
+                                                            from_fasl(s))),
+        'blur':                 (() => call_window_function0('blur',
+                                                             'window.blur')),
+        'cancel-animation-frame': (id => call_window_function1('cancelAnimationFrame',
+                                                               'window.cancelAnimationFrame',
+                                                               id)),
+        'cancel-idle-callback': (id => call_window_function1('cancelIdleCallback',
+                                                             'window.cancelIdleCallback',
+                                                             id)),
+        'clear-interval':       (id => call_window_function1('clearInterval',
+                                                             'window.clearInterval',
+                                                             id)),
+        'clear-timeout':        (id => call_window_function1('clearTimeout',
+                                                             'window.clearTimeout',
+                                                             id)),
+        'close':                (() => call_window_function0('close',
+                                                             'window.close')),
+        'confirm':              (msg => call_window_function1('confirm',
+                                                              'window.confirm',
+                                                              from_fasl(msg)) ? 1 : 0),
         'create-image-bitmap':  ((image, sx, sy, sw, sh, opts) => {
-            const createImageBitmap = require_window_function('createImageBitmap',
-                                                              'window.createImageBitmap');
             const Sx = from_fasl(sx);
             const Sy = from_fasl(sy);
             const Sw = from_fasl(sw);
             const Sh = from_fasl(sh);
             const o  = from_fasl(opts);
             if (Sx === undefined) {
-                return createImageBitmap(image);
+                return call_window_function1('createImageBitmap',
+                                             'window.createImageBitmap',
+                                             image);
             } else if (o === undefined) {
-                return createImageBitmap(image, Sx, Sy, Sw, Sh);
+                return call_window_function5('createImageBitmap',
+                                             'window.createImageBitmap',
+                                             image,
+                                             Sx,
+                                             Sy,
+                                             Sw,
+                                             Sh);
             } else {
-                return createImageBitmap(image, Sx, Sy, Sw, Sh, o);
+                return call_window_function6('createImageBitmap',
+                                             'window.createImageBitmap',
+                                             image,
+                                             Sx,
+                                             Sy,
+                                             Sw,
+                                             Sh,
+                                             o);
             }
         }),
         'fetch': ((input, init) => {
-            const windowFetch = require_window_function('fetch', 'window.fetch');
             const inp = from_fasl(input);
             const i   = from_fasl(init);
             if (i === undefined) {
-                return windowFetch(inp);
+                return call_window_function1('fetch', 'window.fetch', inp);
             } else {
-                return windowFetch(inp, i);
+                return call_window_function2('fetch', 'window.fetch', inp, i);
             }
         }),
-        'focus':                (() => require_window_function('focus',
-                                                              'window.focus')()),
+        'focus':                (() => call_window_function0('focus',
+                                                             'window.focus')),
         'get-computed-style':   ((elt, pseudo) => {
-            const getComputedStyle = require_window_function('getComputedStyle',
-                                                            'window.getComputedStyle');
             const p = from_fasl(pseudo);
-            return getComputedStyle(elt, p);
+            return call_window_function2('getComputedStyle',
+                                         'window.getComputedStyle',
+                                         elt,
+                                         p);
         }),
-        'get-selection':        (() => require_window_function('getSelection',
-                                                              'window.getSelection')()),
-        'match-media':          (q => require_window_function('matchMedia',
-                                                             'window.matchMedia')(from_fasl(q))),
-        'move-by':              ((x, y) => require_window_function('moveBy',
-                                                                  'window.moveBy')(x, y)),
-        'move-to':              ((x, y) => require_window_function('moveTo',
-                                                                  'window.moveTo')(x, y)),
+        'get-selection':        (() => call_window_function0('getSelection',
+                                                             'window.getSelection')),
+        'match-media':          (q => call_window_function1('matchMedia',
+                                                            'window.matchMedia',
+                                                            from_fasl(q))),
+        'move-by':              ((x, y) => call_window_function2('moveBy',
+                                                                 'window.moveBy',
+                                                                 x,
+                                                                 y)),
+        'move-to':              ((x, y) => call_window_function2('moveTo',
+                                                                 'window.moveTo',
+                                                                 x,
+                                                                 y)),
         'open':                 ((url, target, features, replace) => {
-            const windowOpen = require_window_function('open', 'window.open');
             const u = from_fasl(url);
             const t = from_fasl(target);
             const f = from_fasl(features);
             const r = from_fasl(replace);
             if (t === undefined && f === undefined && r === undefined) {
-                return windowOpen(u);
+                return call_window_function1('open', 'window.open', u);
             } else if (f === undefined && r === undefined) {
-                return windowOpen(u, t);
+                return call_window_function2('open', 'window.open', u, t);
             } else if (r === undefined) {
-                return windowOpen(u, t, f);
+                return call_window_function3('open', 'window.open', u, t, f);
             } else {
-                return windowOpen(u, t, f, r);
+                return call_window_function4('open', 'window.open', u, t, f, r);
             }
         }),
         'post-message':        ((msg, target, transfer) => {
-            const postMessage = require_window_function('postMessage',
-                                                       'window.postMessage');
             const t = from_fasl(transfer);
             if (t === undefined) {
-                postMessage(from_fasl(msg), from_fasl(target));
+                call_window_function2('postMessage',
+                                      'window.postMessage',
+                                      from_fasl(msg),
+                                      from_fasl(target));
             } else {
-                postMessage(from_fasl(msg), from_fasl(target), t);
+                call_window_function3('postMessage',
+                                      'window.postMessage',
+                                      from_fasl(msg),
+                                      from_fasl(target),
+                                      t);
             }
         }),
-        'print':               (() => require_window_function('print',
-                                                             'window.print')()),
-        'prompt':              ((msg, def) => require_window_function('prompt',
-                                                                     'window.prompt')(from_fasl(msg), from_fasl(def))),
-        'request-animation-frame': (cb => require_window_function('requestAnimationFrame',
-                                                                  'window.requestAnimationFrame')(cb)),
+        'print':               (() => call_window_function0('print',
+                                                            'window.print')),
+        'prompt':              ((msg, def) => call_window_function2('prompt',
+                                                                    'window.prompt',
+                                                                    from_fasl(msg),
+                                                                    from_fasl(def))),
+        'request-animation-frame': (cb => call_window_function1('requestAnimationFrame',
+                                                                'window.requestAnimationFrame',
+                                                                cb)),
         'request-idle-callback': ((cb, opts) => {
-            const requestIdleCallback = require_window_function('requestIdleCallback',
-                                                               'window.requestIdleCallback');
             const o = from_fasl(opts);
             if (o === undefined) {
-                return requestIdleCallback(cb);
+                return call_window_function1('requestIdleCallback',
+                                             'window.requestIdleCallback',
+                                             cb);
             } else {
-                return requestIdleCallback(cb, o);
+                return call_window_function2('requestIdleCallback',
+                                             'window.requestIdleCallback',
+                                             cb,
+                                             o);
             }
         }),
-        'resize-by':           ((x, y) => require_window_function('resizeBy',
-                                                                 'window.resizeBy')(x, y)),
-        'resize-to':           ((w, h) => require_window_function('resizeTo',
-                                                                 'window.resizeTo')(w, h)),
+        'resize-by':           ((x, y) => call_window_function2('resizeBy',
+                                                                'window.resizeBy',
+                                                                x,
+                                                                y)),
+        'resize-to':           ((w, h) => call_window_function2('resizeTo',
+                                                                'window.resizeTo',
+                                                                w,
+                                                                h)),
         'scroll':              ((x, y, opts) => {
-            const scroll = require_window_function('scroll', 'window.scroll');
             const o = from_fasl(opts);
             if (o === undefined) {
-                scroll(x, y);
+                call_window_function2('scroll', 'window.scroll', x, y);
             } else {
-                scroll(o);
+                call_window_function1('scroll', 'window.scroll', o);
             }
         }),
         'scroll-by':           ((x, y, opts) => {
-            const scrollBy = require_window_function('scrollBy', 'window.scrollBy');
             const o = from_fasl(opts);
             if (o === undefined) {
-                scrollBy(x, y);
+                call_window_function2('scrollBy', 'window.scrollBy', x, y);
             } else {
-                scrollBy(o);
+                call_window_function1('scrollBy', 'window.scrollBy', o);
             }
         }),
         'scroll-to':           ((x, y, opts) => {
-            const scrollTo = require_window_function('scrollTo', 'window.scrollTo');
             const o = from_fasl(opts);
             if (o === undefined) {
-                scrollTo(x, y);
+                call_window_function2('scrollTo', 'window.scrollTo', x, y);
             } else {
-                scrollTo(o);
+                call_window_function1('scrollTo', 'window.scrollTo', o);
             }
         }),
-        'set-interval':        ((handler, delay) => require_window_function('setInterval',
-                                                                           'window.setInterval')(handler, delay)),
-        'set-timeout':         ((handler)        => require_window_function('setTimeout',
-                                                                           'window.setTimeout')(handler)),
-        'set-timeout/delay':   ((handler, delay) => require_window_function('setTimeout',
-                                                                           'window.setTimeout')(handler, delay)),
-        'stop':                (() => require_window_function('stop',
-                                                             'window.stop')()),
+        'set-interval':        ((handler, delay) => call_window_function2('setInterval',
+                                                                          'window.setInterval',
+                                                                          handler,
+                                                                          delay)),
+        'set-timeout':         ((handler)        => call_window_function1('setTimeout',
+                                                                          'window.setTimeout',
+                                                                          handler)),
+        'set-timeout/delay':   ((handler, delay) => call_window_function2('setTimeout',
+                                                                          'window.setTimeout',
+                                                                          handler,
+                                                                          delay)),
+        'stop':                (() => call_window_function0('stop',
+                                                            'window.stop')),
         'structured-clone':    ((value, options) => {
-            const structuredClone = require_window_function('structuredClone',
-                                                           'window.structuredClone');
             const o = from_fasl(options);
             if (o === undefined) {
-                return structuredClone(from_fasl(value));
+                return call_window_function1('structuredClone',
+                                             'window.structuredClone',
+                                             from_fasl(value));
             } else {
-                return structuredClone(from_fasl(value), o);
+                return call_window_function2('structuredClone',
+                                             'window.structuredClone',
+                                             from_fasl(value),
+                                             o);
             }
         }),
-        'queue-microtask':     (cb => require_window_function('queueMicrotask',
-                                                             'window.queueMicrotask')(cb)),
-        'report-error':        (err => require_window_function('reportError',
-                                                              'window.reportError')(from_fasl(err)))
+        'queue-microtask':     (cb => call_window_function1('queueMicrotask',
+                                                            'window.queueMicrotask',
+                                                            cb)),
+        'report-error':        (err => call_window_function1('reportError',
+                                                             'window.reportError',
+                                                             from_fasl(err)))
     } : new Proxy({}, { get() { throw new Error('DOM not available in this environment'); } }),
     // Performance
     'performance': hasPerformance ? {
@@ -2001,92 +2048,139 @@ var imports = {
                                                                                                  'document.body')),
         'document-element':         (()                               => require_document_value('documentElement',
                                                                                                  'document.documentElement')),
-        'create-element':           ((local_name)                     => require_document_function('createElement',
-                                                                                                    'document.createElement')(from_fasl(local_name))),
-        'create-text-node':         ((fasl_start)                     => require_document_function('createTextNode',
-                                                                                                    'document.createTextNode')(from_fasl(fasl_start))),
-        'adopt-node':               ((node)                           => require_document_function('adoptNode',
-                                                                                                    'document.adoptNode')(node)),
-        'caret-range-from-point':   ((x, y)                           => require_document_function('caretRangeFromPoint',
-                                                                                                    'document.caretRangeFromPoint')(x, y)),
-        'capture-events':           (()                               => require_document_function('captureEvents',
-                                                                                                    'document.captureEvents')()),
-        'clear':                    (()                               => require_document_function('clear',
-                                                                                                    'document.clear')()),
-        'close':                    (()                               => require_document_function('close',
-                                                                                                    'document.close')()),
-        'create-attribute':         ((name)                           => require_document_function('createAttribute',
-                                                                                                    'document.createAttribute')(from_fasl(name))),
-        'create-attribute-ns':      ((ns, name)                      => require_document_function('createAttributeNS',
-                                                                                                   'document.createAttributeNS')(from_fasl(ns), from_fasl(name))),
-        'create-cdata-section':     ((data)                           => require_document_function('createCDATASection',
-                                                                                                    'document.createCDATASection')(from_fasl(data))),
-        'create-comment':           ((data)                           => require_document_function('createComment',
-                                                                                                    'document.createComment')(from_fasl(data))),
-        'create-document-fragment': (()                               => require_document_function('createDocumentFragment',
-                                                                                                    'document.createDocumentFragment')()),
-        'create-element-ns':        ((ns, name)                       => require_document_function('createElementNS',
-                                                                                                    'document.createElementNS')(from_fasl(ns), from_fasl(name))),
-        'create-event':             ((type)                           => require_document_function('createEvent',
-                                                                                                    'document.createEvent')(from_fasl(type))),
-        'create-expression':        ((expr, resolver)                 => require_document_function('createExpression',
-                                                                                                    'document.createExpression')(from_fasl(expr), resolver)),
-        'create-ns-resolver':       ((node)                           => require_document_function('createNSResolver',
-                                                                                                    'document.createNSResolver')(node)),
-        'create-node-iterator':     ((root, what, filter)             => require_document_function('createNodeIterator',
-                                                                                                    'document.createNodeIterator')(root, what, filter)),
-        'create-processing-instruction': ((target, data)             => require_document_function('createProcessingInstruction',
-                                                                                                   'document.createProcessingInstruction')(from_fasl(target), from_fasl(data))),
-        'create-range':             (()                               => require_document_function('createRange',
-                                                                                                    'document.createRange')()),
-        'create-tree-walker':       ((root, what, filter)             => require_document_function('createTreeWalker',
-                                                                                                    'document.createTreeWalker')(root, what, filter)),
-        'element-from-point':       ((x, y)                           => require_document_function('elementFromPoint',
-                                                                                                    'document.elementFromPoint')(x, y)),
-        'elements-from-point':      ((x, y)                           => require_document_function('elementsFromPoint',
-                                                                                                    'document.elementsFromPoint')(x, y)),
-        'enable-style-sheets-for-set': ((name)                        => require_document_function('enableStyleSheetsForSet',
-                                                                                                    'document.enableStyleSheetsForSet')(from_fasl(name))),
-        'evaluate':                 ((expr, ctx, resolver, type, result) => require_document_function('evaluate',
-                                                                                                       'document.evaluate')(from_fasl(expr), ctx, resolver, type, result)),
-        'exec-command':             ((cmd, show_ui, value)            => require_document_function('execCommand',
-                                                                                                    'document.execCommand')(from_fasl(cmd), !!show_ui, from_fasl(value)) ? 1 : 0),
-        'exit-fullscreen':          (()                               => require_document_function('exitFullscreen',
-                                                                                                    'document.exitFullscreen')()),
-        'exit-picture-in-picture':  (()                               => require_document_function('exitPictureInPicture',
-                                                                                                    'document.exitPictureInPicture')()),
-        'exit-pointer-lock':        (()                               => require_document_function('exitPointerLock',
-                                                                                                    'document.exitPointerLock')()),
-        'get-element-by-id':        ((id)                             => require_document_function('getElementById',
-                                                                                                    'document.getElementById')(from_fasl(id))),
-        'get-elements-by-class-name': ((class_name)                   => require_document_function('getElementsByClassName',
-                                                                                                   'document.getElementsByClassName')(from_fasl(class_name))),
-        'get-elements-by-name':     ((name)                           => require_document_function('getElementsByName',
-                                                                                                    'document.getElementsByName')(from_fasl(name))),
-        'get-elements-by-tag-name': ((name)                           => require_document_function('getElementsByTagName',
-                                                                                                    'document.getElementsByTagName')(from_fasl(name))),
-        'get-elements-by-tag-name-ns': ((ns, name)                    => require_document_function('getElementsByTagNameNS',
-                                                                                                    'document.getElementsByTagNameNS')(from_fasl(ns), from_fasl(name))),
-        'get-selection':            (()                               => require_document_function('getSelection',
-                                                                                                    'document.getSelection')()),
-        'has-focus':                (()                               => require_document_function('hasFocus',
-                                                                                                    'document.hasFocus')() ? 1 : 0),
-        'import-node':              ((node, deep)                     => require_document_function('importNode',
-                                                                                                    'document.importNode')(node, !!deep)),
-        'open':                     (()                               => require_document_function('open',
-                                                                                                    'document.open')()),
+        'create-element':           ((local_name)                     => call_document_function1('createElement',
+                                                                                                  'document.createElement',
+                                                                                                  from_fasl(local_name))),
+        'create-text-node':         ((fasl_start)                     => call_document_function1('createTextNode',
+                                                                                                  'document.createTextNode',
+                                                                                                  from_fasl(fasl_start))),
+        'adopt-node':               ((node)                           => call_document_function1('adoptNode',
+                                                                                                  'document.adoptNode',
+                                                                                                  node)),
+        'caret-range-from-point':   ((x, y)                           => call_document_function2('caretRangeFromPoint',
+                                                                                                  'document.caretRangeFromPoint',
+                                                                                                  x,
+                                                                                                  y)),
+        'capture-events':           (()                               => call_document_function0('captureEvents',
+                                                                                                  'document.captureEvents')),
+        'clear':                    (()                               => call_document_function0('clear',
+                                                                                                  'document.clear')),
+        'close':                    (()                               => call_document_function0('close',
+                                                                                                  'document.close')),
+        'create-attribute':         ((name)                           => call_document_function1('createAttribute',
+                                                                                                  'document.createAttribute',
+                                                                                                  from_fasl(name))),
+        'create-attribute-ns':      ((ns, name)                      => call_document_function2('createAttributeNS',
+                                                                                                 'document.createAttributeNS',
+                                                                                                 from_fasl(ns),
+                                                                                                 from_fasl(name))),
+        'create-cdata-section':     ((data)                           => call_document_function1('createCDATASection',
+                                                                                                  'document.createCDATASection',
+                                                                                                  from_fasl(data))),
+        'create-comment':           ((data)                           => call_document_function1('createComment',
+                                                                                                  'document.createComment',
+                                                                                                  from_fasl(data))),
+        'create-document-fragment': (()                               => call_document_function0('createDocumentFragment',
+                                                                                                  'document.createDocumentFragment')),
+        'create-element-ns':        ((ns, name)                       => call_document_function2('createElementNS',
+                                                                                                  'document.createElementNS',
+                                                                                                  from_fasl(ns),
+                                                                                                  from_fasl(name))),
+        'create-event':             ((type)                           => call_document_function1('createEvent',
+                                                                                                  'document.createEvent',
+                                                                                                  from_fasl(type))),
+        'create-expression':        ((expr, resolver)                 => call_document_function2('createExpression',
+                                                                                                  'document.createExpression',
+                                                                                                  from_fasl(expr),
+                                                                                                  resolver)),
+        'create-ns-resolver':       ((node)                           => call_document_function1('createNSResolver',
+                                                                                                  'document.createNSResolver',
+                                                                                                  node)),
+        'create-node-iterator':     ((root, what, filter)             => call_document_function3('createNodeIterator',
+                                                                                                  'document.createNodeIterator',
+                                                                                                  root,
+                                                                                                  what,
+                                                                                                  filter)),
+        'create-processing-instruction': ((target, data)             => call_document_function2('createProcessingInstruction',
+                                                                                                 'document.createProcessingInstruction',
+                                                                                                 from_fasl(target),
+                                                                                                 from_fasl(data))),
+        'create-range':             (()                               => call_document_function0('createRange',
+                                                                                                  'document.createRange')),
+        'create-tree-walker':       ((root, what, filter)             => call_document_function3('createTreeWalker',
+                                                                                                  'document.createTreeWalker',
+                                                                                                  root,
+                                                                                                  what,
+                                                                                                  filter)),
+        'element-from-point':       ((x, y)                           => call_document_function2('elementFromPoint',
+                                                                                                  'document.elementFromPoint',
+                                                                                                  x,
+                                                                                                  y)),
+        'elements-from-point':      ((x, y)                           => call_document_function2('elementsFromPoint',
+                                                                                                  'document.elementsFromPoint',
+                                                                                                  x,
+                                                                                                  y)),
+        'enable-style-sheets-for-set': ((name)                        => call_document_function1('enableStyleSheetsForSet',
+                                                                                                  'document.enableStyleSheetsForSet',
+                                                                                                  from_fasl(name))),
+        'evaluate':                 ((expr, ctx, resolver, type, result) => call_document_function5('evaluate',
+                                                                                                     'document.evaluate',
+                                                                                                     from_fasl(expr),
+                                                                                                     ctx,
+                                                                                                     resolver,
+                                                                                                     type,
+                                                                                                     result)),
+        'exec-command':             ((cmd, show_ui, value)            => call_document_function3('execCommand',
+                                                                                                  'document.execCommand',
+                                                                                                  from_fasl(cmd),
+                                                                                                  !!show_ui,
+                                                                                                  from_fasl(value)) ? 1 : 0),
+        'exit-fullscreen':          (()                               => call_document_function0('exitFullscreen',
+                                                                                                  'document.exitFullscreen')),
+        'exit-picture-in-picture':  (()                               => call_document_function0('exitPictureInPicture',
+                                                                                                  'document.exitPictureInPicture')),
+        'exit-pointer-lock':        (()                               => call_document_function0('exitPointerLock',
+                                                                                                  'document.exitPointerLock')),
+        'get-element-by-id':        ((id)                             => call_document_function1('getElementById',
+                                                                                                  'document.getElementById',
+                                                                                                  from_fasl(id))),
+        'get-elements-by-class-name': ((class_name)                   => call_document_function1('getElementsByClassName',
+                                                                                                 'document.getElementsByClassName',
+                                                                                                 from_fasl(class_name))),
+        'get-elements-by-name':     ((name)                           => call_document_function1('getElementsByName',
+                                                                                                  'document.getElementsByName',
+                                                                                                  from_fasl(name))),
+        'get-elements-by-tag-name': ((name)                           => call_document_function1('getElementsByTagName',
+                                                                                                  'document.getElementsByTagName',
+                                                                                                  from_fasl(name))),
+        'get-elements-by-tag-name-ns': ((ns, name)                    => call_document_function2('getElementsByTagNameNS',
+                                                                                                  'document.getElementsByTagNameNS',
+                                                                                                  from_fasl(ns),
+                                                                                                  from_fasl(name))),
+        'get-selection':            (()                               => call_document_function0('getSelection',
+                                                                                                  'document.getSelection')),
+        'has-focus':                (()                               => call_document_function0('hasFocus',
+                                                                                                  'document.hasFocus') ? 1 : 0),
+        'import-node':              ((node, deep)                     => call_document_function2('importNode',
+                                                                                                  'document.importNode',
+                                                                                                  node,
+                                                                                                  !!deep)),
+        'open':                     (()                               => call_document_function0('open',
+                                                                                                  'document.open')),
         // Deprecated:
         // 'query-command-enabled':    ((cmd)                            => document.queryCommandEnabled(from_fasl(cmd)) ? 1 : 0),
         // 'query-command-indeterm':   ((cmd)                            => document.queryCommandIndeterm(from_fasl(cmd)) ? 1 : 0),
         // 'query-command-state':      ((cmd)                            => document.queryCommandState(from_fasl(cmd)) ? 1 : 0),
         // 'query-command-supported':  ((cmd)                            => document.queryCommandSupported(from_fasl(cmd)) ? 1 : 0),
         // 'query-command-value':      ((cmd)                            => document.queryCommandValue(from_fasl(cmd))),
-        'query-selector':           ((sel)                            => require_document_function('querySelector',
-                                                                                                    'document.querySelector')(from_fasl(sel))),
-        'query-selector-all':       ((sel)                            => require_document_function('querySelectorAll',
-                                                                                                    'document.querySelectorAll')(from_fasl(sel))),
-        'release-events':           (()                               => require_document_function('releaseEvents',
-                                                                                                    'document.releaseEvents')()),
+        'query-selector':           ((sel)                            => call_document_function1('querySelector',
+                                                                                                  'document.querySelector',
+                                                                                                  from_fasl(sel))),
+        'query-selector-all':       ((sel)                            => call_document_function1('querySelectorAll',
+                                                                                                  'document.querySelectorAll',
+                                                                                                  from_fasl(sel))),
+        'release-events':           (()                               => call_document_function0('releaseEvents',
+                                                                                                  'document.releaseEvents')),
         // Deprecated
         // 'write':                    ((text)                           => document.write(from_fasl(text))),
         // 'writeln':                  ((text)                           => document.writeln(from_fasl(text))),

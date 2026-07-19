@@ -10,10 +10,13 @@
                   js-window-btoa
                   js-window-blur
                   js-window-cancel-animation-frame
+                  js-window-cancel-idle-callback
                   js-window-clear-interval
                   js-window-clear-timeout
                   js-window-close
                   js-window-confirm
+                  js-window-create-image-bitmap
+                  js-window-fetch
                   js-window-focus
                   js-window-get-computed-style
                   js-window-get-selection
@@ -25,6 +28,7 @@
                   js-window-print
                   js-window-prompt
                   js-window-request-animation-frame
+                  js-window-request-idle-callback
                   js-window-resize-by
                   js-window-resize-to
                   js-window-scroll
@@ -33,7 +37,10 @@
                   js-window-set-interval
                   js-window-set-timeout
                   js-window-set-timeout/delay
-                  js-window-stop))
+                  js-window-stop
+                  js-window-structured-clone
+                  js-window-queue-microtask
+                  js-window-report-error))
 
 (define (check-true got label)
   (unless got
@@ -60,6 +67,7 @@
 
 (define callback (js-eval "() => {}"))
 (define element (js-eval "document.createElement('div')"))
+(define canvas (js-eval "document.createElement('canvas')"))
 
 (js-eval
  "globalThis.__wrWindowMethodBoundaryNames = [
@@ -68,10 +76,13 @@
     'btoa',
     'blur',
     'cancelAnimationFrame',
+    'cancelIdleCallback',
     'clearInterval',
     'clearTimeout',
     'close',
     'confirm',
+    'createImageBitmap',
+    'fetch',
     'focus',
     'getComputedStyle',
     'getSelection',
@@ -83,6 +94,7 @@
     'print',
     'prompt',
     'requestAnimationFrame',
+    'requestIdleCallback',
     'resizeBy',
     'resizeTo',
     'scroll',
@@ -90,7 +102,10 @@
     'scrollTo',
     'setInterval',
     'setTimeout',
-    'stop'
+    'stop',
+    'structuredClone',
+    'queueMicrotask',
+    'reportError'
   ];
   globalThis.__wrWindowMethodBoundary = {};
   for (const name of globalThis.__wrWindowMethodBoundaryNames) {
@@ -123,6 +138,11 @@
    (lambda ()
      (js-window-cancel-animation-frame 1))))
 
+(define cancel-idle-callback-message
+  (catch-message
+   (lambda ()
+     (js-window-cancel-idle-callback 1))))
+
 (define clear-interval-message
   (catch-message
    (lambda ()
@@ -142,6 +162,16 @@
   (catch-message
    (lambda ()
      (js-window-confirm "message"))))
+
+(define create-image-bitmap-message
+  (catch-message
+   (lambda ()
+     (js-window-create-image-bitmap canvas (void) (void) (void) (void) (void)))))
+
+(define fetch-message
+  (catch-message
+   (lambda ()
+     (js-window-fetch "about:blank" (void)))))
 
 (define focus-message
   (catch-message
@@ -198,6 +228,11 @@
    (lambda ()
      (js-window-request-animation-frame callback))))
 
+(define request-idle-callback-message
+  (catch-message
+   (lambda ()
+     (js-window-request-idle-callback callback (void)))))
+
 (define resize-by-message
   (catch-message
    (lambda ()
@@ -243,6 +278,21 @@
    (lambda ()
      (js-window-stop))))
 
+(define structured-clone-message
+  (catch-message
+   (lambda ()
+     (js-window-structured-clone "value" (void)))))
+
+(define queue-microtask-message
+  (catch-message
+   (lambda ()
+     (js-window-queue-microtask callback))))
+
+(define report-error-message
+  (catch-message
+   (lambda ()
+     (js-window-report-error "value"))))
+
 (js-eval
  "for (const name of globalThis.__wrWindowMethodBoundaryNames) {
     window[name] = globalThis.__wrWindowMethodBoundary[name];
@@ -265,6 +315,9 @@
 (check-message cancel-animation-frame-message
                "window.cancelAnimationFrame not available in this environment"
                "missing cancelAnimationFrame message")
+(check-message cancel-idle-callback-message
+               "window.cancelIdleCallback not available in this environment"
+               "missing cancelIdleCallback message")
 (check-message clear-interval-message
                "window.clearInterval not available in this environment"
                "missing clearInterval message")
@@ -277,6 +330,12 @@
 (check-message confirm-message
                "window.confirm not available in this environment"
                "missing confirm message")
+(check-message create-image-bitmap-message
+               "window.createImageBitmap not available in this environment"
+               "missing createImageBitmap message")
+(check-message fetch-message
+               "window.fetch not available in this environment"
+               "missing fetch message")
 (check-message focus-message
                "window.focus not available in this environment"
                "missing focus message")
@@ -310,6 +369,9 @@
 (check-message request-animation-frame-message
                "window.requestAnimationFrame not available in this environment"
                "missing requestAnimationFrame message")
+(check-message request-idle-callback-message
+               "window.requestIdleCallback not available in this environment"
+               "missing requestIdleCallback message")
 (check-message resize-by-message
                "window.resizeBy not available in this environment"
                "missing resizeBy message")
@@ -337,6 +399,15 @@
 (check-message stop-message
                "window.stop not available in this environment"
                "missing stop message")
+(check-message structured-clone-message
+               "window.structuredClone not available in this environment"
+               "missing structuredClone message")
+(check-message queue-microtask-message
+               "window.queueMicrotask not available in this environment"
+               "missing queueMicrotask message")
+(check-message report-error-message
+               "window.reportError not available in this environment"
+               "missing reportError message")
 
 (js-log "window-method-missing-host-ffi-ok")
 #t
