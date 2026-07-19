@@ -87,6 +87,12 @@
   globalThis.__wrObserverBoundaryHideResize = () => {
     globalThis.ResizeObserver = undefined;
   };
+  globalThis.__wrObserverBoundaryInstallNonConstructorIntersection = () => {
+    globalThis.IntersectionObserver = () => {};
+  };
+  globalThis.__wrObserverBoundaryInstallNonConstructorResize = () => {
+    globalThis.ResizeObserver = () => {};
+  };
   globalThis.__wrObserverBoundaryRestoreIntersection = () => {
     if (globalThis.__wrObserverBoundarySavedIntersection === undefined) {
       delete globalThis.IntersectionObserver;
@@ -111,6 +117,8 @@
     delete globalThis.__wrObserverBoundaryInstallResize;
     delete globalThis.__wrObserverBoundaryHideIntersection;
     delete globalThis.__wrObserverBoundaryHideResize;
+    delete globalThis.__wrObserverBoundaryInstallNonConstructorIntersection;
+    delete globalThis.__wrObserverBoundaryInstallNonConstructorResize;
     delete globalThis.__wrObserverBoundaryRestoreIntersection;
     delete globalThis.__wrObserverBoundaryRestoreResize;
     delete globalThis.__wrObserverBoundaryRestore;
@@ -143,13 +151,35 @@
   (js-eval "__wrObserverBoundaryRestoreResize();")
   message)
 
+(define (non-constructor-intersection-constructor-message thunk)
+  (js-eval "__wrObserverBoundaryInstallNonConstructorIntersection();")
+  (define message (catch-message thunk))
+  (js-eval "__wrObserverBoundaryRestoreIntersection();")
+  message)
+
+(define (non-constructor-resize-constructor-message thunk)
+  (js-eval "__wrObserverBoundaryInstallNonConstructorResize();")
+  (define message (catch-message thunk))
+  (js-eval "__wrObserverBoundaryRestoreResize();")
+  message)
+
 (define intersection-constructor-message
   (missing-intersection-constructor-message
    (lambda ()
      (make-intersection-observer callback))))
 
+(define intersection-non-constructor-message
+  (non-constructor-intersection-constructor-message
+   (lambda ()
+     (make-intersection-observer callback))))
+
 (define resize-constructor-message
   (missing-resize-constructor-message
+   (lambda ()
+     (make-resize-observer callback))))
+
+(define resize-non-constructor-message
+  (non-constructor-resize-constructor-message
    (lambda ()
      (make-resize-observer callback))))
 
@@ -202,6 +232,9 @@
 (check-message intersection-constructor-message
                "IntersectionObserver is not available"
                "missing IntersectionObserver constructor message")
+(check-message intersection-non-constructor-message
+               "IntersectionObserver is not available"
+               "non-constructible IntersectionObserver constructor message")
 (check-message intersection-observe-message
                "IntersectionObserver.observe is not available"
                "missing IntersectionObserver.observe message")
@@ -214,6 +247,9 @@
 (check-message resize-constructor-message
                "ResizeObserver is not available"
                "missing ResizeObserver constructor message")
+(check-message resize-non-constructor-message
+               "ResizeObserver is not available"
+               "non-constructible ResizeObserver constructor message")
 (check-message resize-observe-message
                "ResizeObserver.observe is not available"
                "missing ResizeObserver.observe message")

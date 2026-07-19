@@ -2,6 +2,7 @@
 
 (require browser/element
          (only-in webracket/unsafe/dom
+                  js-constructible?
                   js-index
                   js-instanceof
                   js-new
@@ -55,7 +56,7 @@
 ;; intersection-observer-supported? : -> boolean?
 ;;   Report whether the browser exposes IntersectionObserver.
 (define (intersection-observer-supported?)
-  (string=? (js-typeof (js-var "IntersectionObserver")) "function"))
+  (js-constructible? (js-var "IntersectionObserver")))
 
 ;; intersection-observer : external/raw -> intersection-observer-info?
 ;;   Wrap a browser IntersectionObserver object.

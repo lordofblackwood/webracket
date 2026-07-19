@@ -2,6 +2,7 @@
 
 (require browser/element
          (only-in webracket/unsafe/dom
+                  js-constructible?
                   js-index
                   js-instanceof
                   js-new
@@ -35,7 +36,7 @@
     (values box)))
 
 (define (resize-observer-supported?)
-  (string=? (js-typeof (js-var "ResizeObserver")) "function"))
+  (js-constructible? (js-var "ResizeObserver")))
 
 (define (resize-observer raw)
   (resize-observer-info raw))

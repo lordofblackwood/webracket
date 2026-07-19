@@ -47,6 +47,9 @@
   globalThis.__wrSpeechBoundaryHideUtterance = () => {
     globalThis.SpeechSynthesisUtterance = undefined;
   };
+  globalThis.__wrSpeechBoundaryInstallNonConstructorUtterance = () => {
+    globalThis.SpeechSynthesisUtterance = () => {};
+  };
   globalThis.__wrSpeechBoundaryFakeSynthesis = (missing) => {
     const synth = {
       speaking: false,
@@ -105,6 +108,7 @@
     delete globalThis.__wrSpeechBoundarySaved;
     delete globalThis.__wrSpeechBoundaryInstallUtterance;
     delete globalThis.__wrSpeechBoundaryHideUtterance;
+    delete globalThis.__wrSpeechBoundaryInstallNonConstructorUtterance;
     delete globalThis.__wrSpeechBoundaryFakeSynthesis;
     delete globalThis.__wrSpeechBoundaryFakeVoice;
     delete globalThis.__wrSpeechBoundaryInstallSynthesis;
@@ -123,6 +127,13 @@
 
 (js-eval "__wrSpeechBoundaryHideUtterance();")
 (define utterance-constructor-message
+  (catch-message
+   (lambda ()
+     (make-speech-utterance "hello"))))
+(js-eval "__wrSpeechBoundaryInstallUtterance();")
+
+(js-eval "__wrSpeechBoundaryInstallNonConstructorUtterance();")
+(define utterance-non-constructor-message
   (catch-message
    (lambda ()
      (make-speech-utterance "hello"))))
@@ -215,6 +226,9 @@
 (check-message utterance-constructor-message
                "SpeechSynthesisUtterance constructor is not available"
                "missing SpeechSynthesisUtterance constructor message")
+(check-message utterance-non-constructor-message
+               "SpeechSynthesisUtterance constructor is not available"
+               "non-constructible SpeechSynthesisUtterance constructor message")
 (check-message speak-message
                "SpeechSynthesis.speak is not available"
                "missing SpeechSynthesis.speak message")

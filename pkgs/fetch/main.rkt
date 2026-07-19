@@ -34,7 +34,7 @@
 ;; fetch-constructor-present? : string? -> boolean?
 ;;   Check whether the host environment exposes a named constructor.
 (define (fetch-constructor-present? name)
-  (string=? (js-typeof (js-var name)) "function"))
+  (js-constructible? (js-var name)))
 
 ;; check-fetch-constructor : symbol? string? -> void?
 ;;   Ensure the host environment exposes a named Fetch constructor.

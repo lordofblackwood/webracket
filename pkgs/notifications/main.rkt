@@ -2,6 +2,7 @@
 
 (require js/promise
          (only-in webracket/unsafe/dom
+                  js-constructible?
                   js-instanceof
                   js-nullish?
                   js-new
@@ -43,7 +44,7 @@
     (values body icon tag data silent require-interaction renotify)))
 
 (define (notifications-supported?)
-  (string=? (js-typeof (js-var "Notification")) "function"))
+  (js-constructible? (js-var "Notification")))
 
 ;; notification-host-method-present? : external/raw string? -> boolean?
 ;;   Report whether raw exposes a callable Notification method.

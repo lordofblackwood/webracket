@@ -1,6 +1,7 @@
 #lang webracket/base
 
 (require (only-in webracket/unsafe/dom
+                  js-constructible?
                   js-array->vector
                   js-new
                   js-nullish?
@@ -70,7 +71,7 @@
 ;; speech-constructor-present? : string? -> boolean?
 ;;   Report whether the host exposes a callable constructor.
 (define (speech-constructor-present? name)
-  (string=? (js-typeof (js-var name)) "function"))
+  (js-constructible? (js-var name)))
 
 ;; speech-synthesis-raw/current : -> any/c
 ;;   Probe the optional window.speechSynthesis property without requiring it.

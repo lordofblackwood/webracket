@@ -1596,6 +1596,7 @@ var imports = {
       'index':                     ((obj, prop) => to_fasl( require_js_target(obj, 'js-index')[ from_fasl(prop) ] ) ),
       'assign':                    ((name, val) => (globalThis[from_fasl(name)] = from_fasl(val))),
       'new':                       ((ctor, args) => construct_js_value(ctor, args)),
+      'constructible?':            ((obj) => host_is_constructor(obj) ? 1 : 0),
       // Send variants:
       // - send/extern  => raw JS result
       // - send/value   => JS result converted via FASL

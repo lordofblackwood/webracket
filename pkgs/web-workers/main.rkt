@@ -71,7 +71,7 @@
 ;; worker-supported? : -> boolean?
 ;;   Report whether the browser exposes the Worker constructor.
 (define (worker-supported?)
-  (string=? (js-typeof (worker-constructor)) "function"))
+  (js-constructible? (worker-constructor)))
 
 ;; worker? : any/c -> boolean?
 ;;   Report whether v is a wrapped browser Worker object.

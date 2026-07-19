@@ -259,6 +259,11 @@
   #:name   "typeof"
   (-> (extern) (string)))
 
+(define-foreign js-constructible?
+  #:module "standard"
+  #:name   "constructible?"
+  (-> (extern) (boolean)))
+
 (define-foreign js-value->string
   #:module "standard"
   #:name   "value->string"

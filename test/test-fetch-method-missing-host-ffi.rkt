@@ -65,6 +65,18 @@
       return false;
     }
   };
+  globalThis.__wrFetchBoundaryInstallNonConstructor = (kind) => {
+    try {
+      Object.defineProperty(globalThis, kind, {
+        value: () => {},
+        configurable: true,
+        writable: true
+      });
+      return true;
+    } catch (_e) {
+      return false;
+    }
+  };
   globalThis.__wrFetchBoundaryInstall = (kind, missing) => {
     globalThis.Headers = class Headers {
       constructor(_init) {
@@ -125,6 +137,7 @@
     delete globalThis.__wrFetchBoundarySaved;
     delete globalThis.__wrFetchBoundaryRestoreConstructor;
     delete globalThis.__wrFetchBoundaryHideConstructor;
+    delete globalThis.__wrFetchBoundaryInstallNonConstructor;
     delete globalThis.__wrFetchBoundaryInstall;
     delete globalThis.__wrFetchBoundaryRestore;
   };")
@@ -140,6 +153,12 @@
 (define (hide-fetch-constructor? kind)
   (js-truthy?
    (js-eval (string-append "__wrFetchBoundaryHideConstructor('"
+                           kind
+                           "')"))))
+
+(define (install-fetch-non-constructor? kind)
+  (js-truthy?
+   (js-eval (string-append "__wrFetchBoundaryInstallNonConstructor('"
                            kind
                            "')"))))
 
@@ -160,8 +179,25 @@
      (restore-fetch-constructor! kind)
      #f]))
 
+(define (non-constructor-message kind thunk)
+  (cond
+    [(install-fetch-non-constructor? kind)
+     (catch-message/restoring
+      thunk
+      (lambda ()
+        (restore-fetch-constructor! kind)))]
+    [else
+     (restore-fetch-constructor! kind)
+     #f]))
+
 (define headers-constructor-message
   (missing-constructor-message
+   "Headers"
+   (lambda ()
+     (make-fetch-headers))))
+
+(define headers-non-constructor-message
+  (non-constructor-message
    "Headers"
    (lambda ()
      (make-fetch-headers))))
@@ -174,6 +210,12 @@
 
 (define request-constructor-message
   (missing-constructor-message
+   "Request"
+   (lambda ()
+     (make-fetch-request "https://example.invalid/fetch"))))
+
+(define request-non-constructor-message
+  (non-constructor-message
    "Request"
    (lambda ()
      (make-fetch-request "https://example.invalid/fetch"))))
@@ -272,6 +314,10 @@
   (check-message headers-constructor-message
                  "Headers constructor is not available"
                  "missing Headers constructor message"))
+(when headers-non-constructor-message
+  (check-message headers-non-constructor-message
+                 "Headers constructor is not available"
+                 "non-constructible Headers constructor message"))
 (when headers-existing-wrapper-constructor-message
   (check-message headers-existing-wrapper-constructor-message
                  "Headers constructor is not available"
@@ -298,6 +344,10 @@
   (check-message request-constructor-message
                  "Request constructor is not available"
                  "missing Request constructor message"))
+(when request-non-constructor-message
+  (check-message request-non-constructor-message
+                 "Request constructor is not available"
+                 "non-constructible Request constructor message"))
 (when request-existing-wrapper-constructor-message
   (check-message request-existing-wrapper-constructor-message
                  "Request constructor is not available"

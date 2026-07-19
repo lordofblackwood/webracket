@@ -7,6 +7,7 @@
          browser/event
          rquery/chain
          (only-in webracket/unsafe/dom
+                  js-constructible?
                   js-nullish?
                   js-new
                   js-object
@@ -87,7 +88,7 @@
 ;; rquery-constructor-present? : string? -> boolean?
 ;;   Report whether the host exposes a callable constructor.
 (define (rquery-constructor-present? name)
-  (string=? (js-typeof (js-var name)) "function"))
+  (js-constructible? (js-var name)))
 
 ;; check-rquery-constructor : symbol? string? -> void?
 ;;   Ensure a required DOM constructor is available.

@@ -363,6 +363,7 @@
  js-object
  js-Array
  js-typeof
+ js-constructible?
  js-value->string
  js-instanceof
  js-operator
@@ -2149,6 +2150,10 @@
 ;; js-typeof : ffi (extern) -> (string)
 ;;   Raw binding generated for webracket/unsafe/dom.
 (define js-typeof (unsafe-ffi-primitive 'js-typeof))
+
+;; js-constructible? : ffi (extern) -> (boolean)
+;;   Raw binding generated for webracket/unsafe/dom.
+(define js-constructible? (unsafe-ffi-primitive 'js-constructible?))
 
 ;; js-value->string : ffi (extern) -> (string)
 ;;   Raw binding generated for webracket/unsafe/dom.

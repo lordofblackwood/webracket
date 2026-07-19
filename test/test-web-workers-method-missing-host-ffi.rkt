@@ -70,6 +70,13 @@
       writable: true
     });
   };
+  globalThis.__wrWorkerBoundaryInstallNonConstructor = () => {
+    Object.defineProperty(globalThis, 'Worker', {
+      value: () => {},
+      configurable: true,
+      writable: true
+    });
+  };
   globalThis.__wrWorkerBoundaryRestoreWorker = () => {
     const descriptor = globalThis.__wrWorkerBoundarySavedWorker;
     if (descriptor) {
@@ -83,12 +90,22 @@
     delete globalThis.__wrWorkerBoundarySavedWorker;
     delete globalThis.__wrWorkerBoundaryInstallFake;
     delete globalThis.__wrWorkerBoundaryHideConstructor;
+    delete globalThis.__wrWorkerBoundaryInstallNonConstructor;
     delete globalThis.__wrWorkerBoundaryRestoreWorker;
     delete globalThis.__wrWorkerBoundaryRestoreAll;
   };")
 
 (define (constructor-missing-message)
   (js-eval "__wrWorkerBoundaryHideConstructor();")
+  (define message
+    (catch-message
+     (lambda ()
+       (make-worker "worker.js"))))
+  (js-eval "__wrWorkerBoundaryRestoreWorker();")
+  message)
+
+(define (constructor-non-constructor-message)
+  (js-eval "__wrWorkerBoundaryInstallNonConstructor();")
   (define message
     (catch-message
      (lambda ()
@@ -109,6 +126,9 @@
 
 (define constructor-message
   (constructor-missing-message))
+
+(define constructor-non-constructor-message*
+  (constructor-non-constructor-message))
 
 (define post-message-message
   (catch-message
@@ -137,6 +157,9 @@
 (check-message constructor-message
                "Worker is not available"
                "missing Worker constructor message")
+(check-message constructor-non-constructor-message*
+               "Worker is not available"
+               "non-constructible Worker constructor message")
 (check-message post-message-message
                "Worker.postMessage is not available"
                "missing Worker.postMessage message")

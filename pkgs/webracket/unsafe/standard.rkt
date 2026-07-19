@@ -51,6 +51,7 @@
 (define-ffi js-object)
 (define-ffi js-Array)
 (define-ffi js-typeof)
+(define-ffi js-constructible?)
 (define-ffi js-value->string)
 (define-ffi js-instanceof)
 (define-ffi js-operator)

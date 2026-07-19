@@ -62,6 +62,9 @@
   globalThis.__wrNotificationBoundaryHide = () => {
     globalThis.Notification = undefined;
   };
+  globalThis.__wrNotificationBoundaryInstallNonConstructor = () => {
+    globalThis.Notification = () => {};
+  };
   globalThis.__wrNotificationBoundaryRestoreNotification = () => {
     if (globalThis.__wrNotificationBoundarySaved === undefined) {
       delete globalThis.Notification;
@@ -74,12 +77,19 @@
     delete globalThis.__wrNotificationBoundarySaved;
     delete globalThis.__wrNotificationBoundaryInstall;
     delete globalThis.__wrNotificationBoundaryHide;
+    delete globalThis.__wrNotificationBoundaryInstallNonConstructor;
     delete globalThis.__wrNotificationBoundaryRestoreNotification;
     delete globalThis.__wrNotificationBoundaryRestore;
   };")
 
 (define (constructor-missing-message thunk)
   (js-eval "__wrNotificationBoundaryHide();")
+  (define message (catch-message thunk))
+  (js-eval "__wrNotificationBoundaryRestoreNotification();")
+  message)
+
+(define (constructor-non-constructor-message thunk)
+  (js-eval "__wrNotificationBoundaryInstallNonConstructor();")
   (define message (catch-message thunk))
   (js-eval "__wrNotificationBoundaryRestoreNotification();")
   message)
@@ -97,6 +107,16 @@
 
 (define make-unsupported-message
   (constructor-missing-message
+   (lambda ()
+     (make-notification "WebRacket"))))
+
+(define request-permission-non-constructor-message
+  (constructor-non-constructor-message
+   (lambda ()
+     (notification-request-permission))))
+
+(define make-non-constructor-message
+  (constructor-non-constructor-message
    (lambda ()
      (make-notification "WebRacket"))))
 
@@ -175,6 +195,12 @@
 (check-message make-unsupported-message
                "Notification is not available"
                "missing make-notification unsupported message")
+(check-message request-permission-non-constructor-message
+               "Notification is not available"
+               "non-constructible notification request unsupported message")
+(check-message make-non-constructor-message
+               "Notification is not available"
+               "non-constructible make-notification unsupported message")
 (check-message close-message
                "Notification.close is not available"
                "missing Notification.close message")

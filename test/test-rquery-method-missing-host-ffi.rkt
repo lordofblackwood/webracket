@@ -36,6 +36,9 @@
   globalThis.__wrRQueryBoundaryInstallEventMissing = () => {
     globalThis.Event = undefined;
   };
+  globalThis.__wrRQueryBoundaryInstallEventNonConstructor = () => {
+    globalThis.Event = () => {};
+  };
   globalThis.__wrRQueryBoundaryInstallDispatchMissing = () => {
     const target = document.createElement('button');
     target.dispatchEvent = undefined;
@@ -67,6 +70,7 @@
     }
     delete globalThis.__wrRQueryBoundarySavedEvent;
     delete globalThis.__wrRQueryBoundaryInstallEventMissing;
+    delete globalThis.__wrRQueryBoundaryInstallEventNonConstructor;
     delete globalThis.__wrRQueryBoundaryInstallDispatchMissing;
     delete globalThis.__wrRQueryBoundaryInstallContainsMissing;
     delete globalThis.__wrRQueryBoundaryRestoreEvent;
@@ -80,6 +84,16 @@
   (catch-message
    (lambda ()
      (js-eval "__wrRQueryBoundaryInstallEventMissing();")
+     ($trigger 'click
+               (list->$selection
+                (list (element-wrap (js-eval "document.createElement('button')"))))))))
+
+(js-eval "__wrRQueryBoundaryRestoreEvent();")
+
+(define event-non-constructor-message
+  (catch-message
+   (lambda ()
+     (js-eval "__wrRQueryBoundaryInstallEventNonConstructor();")
      ($trigger 'click
                (list->$selection
                 (list (element-wrap (js-eval "document.createElement('button')"))))))))
@@ -112,6 +126,9 @@
 (check-message event-constructor-message
                "Event constructor is not available"
                "missing Event constructor message")
+(check-message event-non-constructor-message
+               "Event constructor is not available"
+               "non-constructible Event constructor message")
 (check-message dispatch-event-message
                "EventTarget.dispatchEvent is not available"
                "missing dispatchEvent message")

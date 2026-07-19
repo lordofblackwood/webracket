@@ -1,6 +1,7 @@
 #lang webracket/base
 
 (require (only-in webracket/unsafe/dom
+                  js-constructible?
                   js-new
                   js-nullish?
                   js-ref/extern
@@ -37,9 +38,7 @@
 ;; compression-stream-constructor-present? : string? -> boolean?
 ;;   Report whether a stream constructor exists.
 (define (compression-stream-constructor-present? name)
-  (define ctor (js-var name))
-  (and (not (js-nullish? ctor))
-       (string=? (js-typeof ctor) "function")))
+  (js-constructible? (js-var name)))
 
 ;; compression-stream-supported? : -> boolean?
 ;;   Report whether CompressionStream is available.
