@@ -1996,9 +1996,21 @@ function testsuite(js_value_to_fasl, fasl_to_js_value, { log = true } = {}) {
 const hasDOM = typeof document !== 'undefined' && typeof document.createTextNode === 'function';
 const hasPerformance = typeof performance !== 'undefined';
 
+function host_is_constructor(value) {
+  if (typeof value !== 'function') {
+    return false;
+  }
+  try {
+    Reflect.construct(String, [], value);
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
 function require_host_constructor(name, displayName, detail) {
   const ctor = globalThis[name];
-  if (typeof ctor !== 'function') {
+  if (!host_is_constructor(ctor)) {
     const suffix = detail === undefined ? '' : `: ${detail}`;
     throw new Error(`${displayName} not available in this environment${suffix}`);
   }

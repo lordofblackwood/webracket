@@ -52,6 +52,26 @@
      (websocket-new "wss://example.invalid/socket"))))
 
 (js-eval
+ "globalThis.Image = (() => false);
+  globalThis.AudioContext = (() => false);
+  globalThis.WebSocket = (() => false);")
+
+(define image-non-constructor-message
+  (catch-message
+   (lambda ()
+     (image-new))))
+
+(define audio-non-constructor-message
+  (catch-message
+   (lambda ()
+     (audio-context-new))))
+
+(define websocket-non-constructor-message
+  (catch-message
+   (lambda ()
+     (websocket-new "wss://example.invalid/socket"))))
+
+(js-eval
  "globalThis.Image = globalThis.__wrConstructorBoundary.Image;
   globalThis.AudioContext = globalThis.__wrConstructorBoundary.AudioContext;
   globalThis.WebSocket = globalThis.__wrConstructorBoundary.WebSocket;
@@ -69,6 +89,18 @@
                  (string-contains/simple? websocket-message
                                           "WebSocket not available in this environment: new"))
             "missing WebSocket constructor message")
+(check-true (and image-non-constructor-message
+                 (string-contains/simple? image-non-constructor-message
+                                          "Image not available in this environment: new"))
+            "non-constructible Image constructor message")
+(check-true (and audio-non-constructor-message
+                 (string-contains/simple? audio-non-constructor-message
+                                          "AudioContext not available in this environment: context-new"))
+            "non-constructible AudioContext constructor message")
+(check-true (and websocket-non-constructor-message
+                 (string-contains/simple? websocket-non-constructor-message
+                                          "WebSocket not available in this environment: new"))
+            "non-constructible WebSocket constructor message")
 
 (js-log "browser-constructor-missing-host-ffi-ok")
 #t

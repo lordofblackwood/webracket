@@ -163,6 +163,11 @@
     });
   }")
 
+(define event-new-non-constructor-message
+  (catch-message
+   (lambda ()
+     (js-event-new "webracket-test" (void)))))
+
 (check-false/no-error (lambda () (js-event? dummy))
                       "event? with non-constructible Event")
 (check-false/no-error (lambda () (js-mouse-event? dummy))
@@ -209,6 +214,10 @@
 (check-message event-new-malformed-message
                "Event not available in this environment: new"
                "malformed Event constructor message")
+
+(check-message event-new-non-constructor-message
+               "Event not available in this environment: new"
+               "non-constructible Event constructor message")
 
 (js-log "event-constructor-missing-host-ffi-ok")
 #t
