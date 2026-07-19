@@ -166,6 +166,15 @@ function js_instanceof(obj, type) {
   return obj instanceof type ? 1 : 0;
 }
 
+function host_instanceof_or_false(obj, constructorName) {
+  const ctor = get_global_value(constructorName);
+  try {
+    return typeof ctor === 'function' && obj instanceof ctor;
+  } catch (_) {
+    return false;
+  }
+}
+
 function js_boxed_boolean_value(x) {
   if (typeof x === 'object') {
     const BooleanCtor = get_global_value('Boolean');
@@ -2734,7 +2743,7 @@ var imports = {
                 return new EventCtor(t, i);
             }
         }),
-        'event?': (evt => (typeof Event !== 'undefined') && (evt instanceof Event)),
+        'event?': (evt => host_instanceof_or_false(evt, 'Event')),
         'type': (evt => get_event_property(evt, 'type')),
         'target': (evt => get_event_property(evt, 'target')),
         'current-target': (evt => get_event_property(evt, 'currentTarget')),
@@ -2761,24 +2770,24 @@ var imports = {
         'mouse-ctrl-key': (evt => get_mouse_event_property(evt, 'ctrlKey') ? 1 : 0),
         'mouse-meta-key': (evt => get_mouse_event_property(evt, 'metaKey') ? 1 : 0),
         'mouse-shift-key': (evt => get_mouse_event_property(evt, 'shiftKey') ? 1 : 0),
-        'mouse-event?': (evt => (typeof MouseEvent !== 'undefined') && (evt instanceof MouseEvent)),
+        'mouse-event?': (evt => host_instanceof_or_false(evt, 'MouseEvent')),
         'keyboard-key': (evt => get_keyboard_event_property(evt, 'key')),
         'keyboard-code': (evt => get_keyboard_event_property(evt, 'code')),
-        'keyboard-event?': (evt => (typeof KeyboardEvent !== 'undefined') && (evt instanceof KeyboardEvent)),
+        'keyboard-event?': (evt => host_instanceof_or_false(evt, 'KeyboardEvent')),
         'alt-key': (evt => get_keyboard_event_property(evt, 'altKey') ? 1 : 0),
         'ctrl-key': (evt => get_keyboard_event_property(evt, 'ctrlKey') ? 1 : 0),
         'meta-key': (evt => get_keyboard_event_property(evt, 'metaKey') ? 1 : 0),
         'shift-key': (evt => get_keyboard_event_property(evt, 'shiftKey') ? 1 : 0),
         'keyboard-repeat': (evt => get_keyboard_event_property(evt, 'repeat') ? 1 : 0),
-        'pointer-event?': (evt => (typeof PointerEvent !== 'undefined') && (evt instanceof PointerEvent)),
-        'focus-event?': (evt => (typeof FocusEvent !== 'undefined') && (evt instanceof FocusEvent)),
-        'input-event?': (evt => (typeof InputEvent !== 'undefined') && (evt instanceof InputEvent)),
-        'submit-event?': (evt => (typeof SubmitEvent !== 'undefined') && (evt instanceof SubmitEvent)),
-        'touch-event?': (evt => (typeof TouchEvent !== 'undefined') && (evt instanceof TouchEvent)),
+        'pointer-event?': (evt => host_instanceof_or_false(evt, 'PointerEvent')),
+        'focus-event?': (evt => host_instanceof_or_false(evt, 'FocusEvent')),
+        'input-event?': (evt => host_instanceof_or_false(evt, 'InputEvent')),
+        'submit-event?': (evt => host_instanceof_or_false(evt, 'SubmitEvent')),
+        'touch-event?': (evt => host_instanceof_or_false(evt, 'TouchEvent')),
         'touches': (evt => get_touch_event_property(evt, 'touches')),
         'target-touches': (evt => get_touch_event_property(evt, 'targetTouches')),
         'changed-touches': (evt => get_touch_event_property(evt, 'changedTouches')),
-        'wheel-event?': (evt => (typeof WheelEvent !== 'undefined') && (evt instanceof WheelEvent)),
+        'wheel-event?': (evt => host_instanceof_or_false(evt, 'WheelEvent')),
         'stop-propagation': (evt => call_event_method0(evt, 'stopPropagation')),
         'stop-immediate-propagation': (evt => call_event_method0(evt, 'stopImmediatePropagation'))
     } : {
@@ -2833,7 +2842,7 @@ var imports = {
     },
     // MessageEvent
     'message-event': hasDOM ? {
-        'message-event?': (evt => (typeof MessageEvent !== 'undefined') && (evt instanceof MessageEvent)),
+        'message-event?': (evt => host_instanceof_or_false(evt, 'MessageEvent')),
         'data': (evt => get_message_event_property(evt, 'data')),
         'origin': (evt => get_message_event_property(evt, 'origin')),
         'last-event-id': (evt => get_message_event_property(evt, 'lastEventId')),
@@ -2849,7 +2858,7 @@ var imports = {
     },
     // CloseEvent
     'close-event': hasDOM ? {
-        'close-event?': (evt => (typeof CloseEvent !== 'undefined') && (evt instanceof CloseEvent)),
+        'close-event?': (evt => host_instanceof_or_false(evt, 'CloseEvent')),
         'was-clean': (evt => get_close_event_property(evt, 'wasClean') ? 1 : 0),
         'code': (evt => get_close_event_property(evt, 'code')),
         'reason': (evt => get_close_event_property(evt, 'reason'))
@@ -2861,7 +2870,7 @@ var imports = {
     },
     // TouchList
     'touch-list': hasDOM ? {
-        'touch-list?': (xs => (typeof TouchList !== 'undefined') && (xs instanceof TouchList)),
+        'touch-list?': (xs => host_instanceof_or_false(xs, 'TouchList')),
         'length': (xs => get_touch_list_property(xs, 'length')),
         'ref': ((xs, i) => call_touch_list_method1(xs, 'item', i))
     } : {
@@ -2871,7 +2880,7 @@ var imports = {
     },
     // Touch
     'touch': hasDOM ? {
-        'touch?': (t => (typeof Touch !== 'undefined') && (t instanceof Touch)),
+        'touch?': (t => host_instanceof_or_false(t, 'Touch')),
         'identifier': (t => get_touch_property(t, 'identifier')),
         'client-x': (t => get_touch_property(t, 'clientX')),
         'client-y': (t => get_touch_property(t, 'clientY')),
