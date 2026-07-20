@@ -30,6 +30,8 @@
               label))
 
 (define selection (dom-selection-wrap (js-eval "({ toString: undefined })")))
+(define selection-null-nodes
+  (dom-selection-wrap (js-eval "({ anchorNode: null, focusNode: null })")))
 (define media-query-list (media-query-list-wrap (js-eval "({})")))
 (define css-style (css-style-declaration-wrap (js-eval "({})")))
 (define audio-track (audio-track-wrap (js-eval "({})")))
@@ -50,6 +52,16 @@
   (catch-message
    (lambda ()
      (selection-is-collapsed? selection))))
+
+(define selection-anchor-message
+  (catch-message
+   (lambda ()
+     (selection-anchor-node selection))))
+
+(define selection-focus-message
+  (catch-message
+   (lambda ()
+     (selection-focus-node selection))))
 
 (define selection-string-message
   (catch-message
@@ -252,6 +264,16 @@
 (check-message selection-collapsed-message
                "Selection.isCollapsed not available in this environment"
                "missing Selection.isCollapsed message")
+(check-message selection-anchor-message
+               "Selection.anchorNode not available in this environment"
+               "missing Selection.anchorNode message")
+(check-message selection-focus-message
+               "Selection.focusNode not available in this environment"
+               "missing Selection.focusNode message")
+(check-true (not (selection-anchor-node selection-null-nodes))
+            "null Selection.anchorNode returns #f")
+(check-true (not (selection-focus-node selection-null-nodes))
+            "null Selection.focusNode returns #f")
 (check-message selection-string-message
                "Selection.toString not available in this environment"
                "missing Selection.toString message")

@@ -53,9 +53,11 @@
 ;; dom-node-wrap : any/c -> any/c
 ;;   Wrap a raw browser Node object, leaving wrapped values alone.
 (define (dom-node-wrap value)
-  (if (or (not value) (dom-node? value) (dom-element? value) (dom-text? value) (dom-attr? value))
-      value
-      (dom-node value)))
+  (cond
+    [(not value) #f]
+    [(or (dom-node? value) (dom-element? value) (dom-text? value) (dom-attr? value)) value]
+    [(js-nullish? value) #f]
+    [else (dom-node value)]))
 
 ;; dom-node-unwrap : any/c -> any/c
 ;;   Unwrap a dom-node struct to its raw browser object.
@@ -88,6 +90,16 @@
 ;;   Ensure a required shared DOM host property is available.
 (define (check-shared-dom-host-property who raw receiver-name property-name)
   (when (js-nullish? (js-ref/extern raw property-name))
+    (raise-arguments-error who
+                           (string-append receiver-name
+                                          "."
+                                          property-name
+                                          " not available in this environment"))))
+
+;; check-shared-dom-host-nullable-property : symbol? external/raw string? string? -> void?
+;;   Ensure a required shared DOM property is present, allowing null values.
+(define (check-shared-dom-host-nullable-property who raw receiver-name property-name)
+  (when (js-undefined? (js-ref/extern raw property-name))
     (raise-arguments-error who
                            (string-append receiver-name
                                           "."
@@ -339,12 +351,16 @@
 ;; selection-anchor-node : dom-selection? -> (or/c #f dom-node?)
 ;;   Read the anchor node for the current selection.
 (define (selection-anchor-node selection)
-  (dom-node-wrap (js-ref (dom-selection-unwrap selection) "anchorNode")))
+  (define raw (dom-selection-unwrap selection))
+  (check-shared-dom-host-nullable-property 'selection-anchor-node raw "Selection" "anchorNode")
+  (dom-node-wrap (js-ref/extern raw "anchorNode")))
 
 ;; selection-focus-node : dom-selection? -> (or/c #f dom-node?)
 ;;   Read the focus node for the current selection.
 (define (selection-focus-node selection)
-  (dom-node-wrap (js-ref (dom-selection-unwrap selection) "focusNode")))
+  (define raw (dom-selection-unwrap selection))
+  (check-shared-dom-host-nullable-property 'selection-focus-node raw "Selection" "focusNode")
+  (dom-node-wrap (js-ref/extern raw "focusNode")))
 
 ;; selection-to-string : dom-selection? -> string?
 ;;   Convert the current selection to text.
