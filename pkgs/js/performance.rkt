@@ -6,8 +6,11 @@
                   external?
                   procedure->external)
          (only-in webracket/unsafe/array
+                  js-nullish?
+                  js-ref/extern
                   js-send/value
-                  js-send/boolean)
+                  js-send/boolean
+                  js-typeof)
          (only-in webracket/unsafe/performance
                   js-performance-clear-marks
                   js-performance-clear-measures
@@ -94,69 +97,87 @@
 ;;   Wrap a browser EventCounts object in a checked structure.
 (struct performance-event-counts-info (raw) #:transparent)
 
+;; performance-event-counts-raw/checked : symbol? any/c -> external/raw
+;;   Validate and unwrap a browser PerformanceEventCounts value.
+(define (performance-event-counts-raw/checked who counts)
+  (unless (performance-event-counts-info? counts)
+    (raise-argument-error who
+                          "performance-event-counts-info?"
+                          counts))
+  (define raw (performance-event-counts-info-raw counts))
+  (unless (and (external? raw)
+               (not (js-nullish? raw)))
+    (raise-argument-error who
+                          "performance-event-counts-info?"
+                          counts))
+  raw)
+
+;; performance-event-counts-host-method-present? : external/raw string? -> boolean?
+;;   Report whether raw exposes a callable PerformanceEventCounts method.
+(define (performance-event-counts-host-method-present? raw method-name)
+  (and (external? raw)
+       (not (js-nullish? raw))
+       (let ([method (js-ref/extern raw method-name)])
+         (and (not (js-nullish? method))
+              (string=? (js-typeof method) "function")))))
+
+;; check-performance-event-counts-host-method : symbol? external/raw string? -> void?
+;;   Ensure a required PerformanceEventCounts method is available.
+(define (check-performance-event-counts-host-method who raw method-name)
+  (unless (performance-event-counts-host-method-present? raw method-name)
+    (raise-arguments-error who
+                           (string-append "PerformanceEventCounts."
+                                          method-name
+                                          " is not available"))))
+
 ;; performance-event-count-map-size : performance-event-counts-info? -> exact-nonnegative-integer?
 ;;   Read the number of recorded event types.
 (define (performance-event-count-map-size counts)
-  (unless (performance-event-counts-info? counts)
-    (raise-argument-error 'performance-event-count-map-size
-                          "performance-event-counts-info?"
-                          counts))
-  (js-performance-event-count-map-size (performance-event-counts-info-raw counts)))
+  (define raw (performance-event-counts-raw/checked 'performance-event-count-map-size counts))
+  (js-performance-event-count-map-size raw))
 
 ;; performance-event-count-map-entries : performance-event-counts-info? -> iterator?
 ;;   Read the iterator of event-count entries.
 (define (performance-event-count-map-entries counts)
-  (unless (performance-event-counts-info? counts)
-    (raise-argument-error 'performance-event-count-map-entries
-                          "performance-event-counts-info?"
-                          counts))
-  (make-iterator (js-send/value (performance-event-counts-info-raw counts) "entries" (vector))))
+  (define raw (performance-event-counts-raw/checked 'performance-event-count-map-entries counts))
+  (check-performance-event-counts-host-method 'performance-event-count-map-entries raw "entries")
+  (make-iterator (js-send/value raw "entries" (vector))))
 
 ;; performance-event-count-map-keys : performance-event-counts-info? -> iterator?
 ;;   Read the iterator of event-count keys.
 (define (performance-event-count-map-keys counts)
-  (unless (performance-event-counts-info? counts)
-    (raise-argument-error 'performance-event-count-map-keys
-                          "performance-event-counts-info?"
-                          counts))
-  (make-iterator (js-send/value (performance-event-counts-info-raw counts) "keys" (vector))))
+  (define raw (performance-event-counts-raw/checked 'performance-event-count-map-keys counts))
+  (check-performance-event-counts-host-method 'performance-event-count-map-keys raw "keys")
+  (make-iterator (js-send/value raw "keys" (vector))))
 
 ;; performance-event-count-map-values : performance-event-counts-info? -> iterator?
 ;;   Read the iterator of event-count values.
 (define (performance-event-count-map-values counts)
-  (unless (performance-event-counts-info? counts)
-    (raise-argument-error 'performance-event-count-map-values
-                          "performance-event-counts-info?"
-                          counts))
-  (make-iterator (js-send/value (performance-event-counts-info-raw counts) "values" (vector))))
+  (define raw (performance-event-counts-raw/checked 'performance-event-count-map-values counts))
+  (check-performance-event-counts-host-method 'performance-event-count-map-values raw "values")
+  (make-iterator (js-send/value raw "values" (vector))))
 
 ;; performance-event-count-map-get : performance-event-counts-info? (or/c string? symbol?) -> (or/c #f exact-nonnegative-integer?)
 ;;   Read the count for a specific event type.
 (define (performance-event-count-map-get counts event-type)
-  (unless (performance-event-counts-info? counts)
-    (raise-argument-error 'performance-event-count-map-get
-                          "performance-event-counts-info?"
-                          counts))
+  (define raw (performance-event-counts-raw/checked 'performance-event-count-map-get counts))
+  (check-performance-event-counts-host-method 'performance-event-count-map-get raw "get")
   (define event-type* (performance-stringish->string 'performance-event-count-map-get event-type))
-  (js-send/value (performance-event-counts-info-raw counts) "get" (vector event-type*)))
+  (js-send/value raw "get" (vector event-type*)))
 
 ;; performance-event-count-map-has? : performance-event-counts-info? (or/c string? symbol?) -> boolean?
 ;;   Check whether a specific event type is exposed.
 (define (performance-event-count-map-has? counts event-type)
-  (unless (performance-event-counts-info? counts)
-    (raise-argument-error 'performance-event-count-map-has?
-                          "performance-event-counts-info?"
-                          counts))
+  (define raw (performance-event-counts-raw/checked 'performance-event-count-map-has? counts))
+  (check-performance-event-counts-host-method 'performance-event-count-map-has? raw "has")
   (define event-type* (performance-stringish->string 'performance-event-count-map-has? event-type))
-  (js-send/boolean (performance-event-counts-info-raw counts) "has" (vector event-type*)))
+  (js-send/boolean raw "has" (vector event-type*)))
 
 ;; performance-event-count-map-for-each : performance-event-counts-info? (procedure? external?) -> void?
 ;;   Iterate over event-count entries with a Map-style callback.
 (define (performance-event-count-map-for-each counts proc)
-  (unless (performance-event-counts-info? counts)
-    (raise-argument-error 'performance-event-count-map-for-each
-                          "performance-event-counts-info?"
-                          counts))
+  (define raw (performance-event-counts-raw/checked 'performance-event-count-map-for-each counts))
+  (check-performance-event-counts-host-method 'performance-event-count-map-for-each raw "forEach")
   (unless (or (procedure? proc)
               (external? proc))
     (raise-argument-error 'performance-event-count-map-for-each
@@ -173,7 +194,7 @@
           (define external (procedure->external proc))
           (hash-set! procedure->external-cache proc external)
           external])]))
-  (js-send/value (performance-event-counts-info-raw counts) "forEach" (vector proc*))
+  (js-send/value raw "forEach" (vector proc*))
   (void))
 
 ;; performance-event-counts : -> (or/c #f performance-event-counts-info?)

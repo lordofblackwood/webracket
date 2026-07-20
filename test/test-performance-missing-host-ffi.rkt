@@ -19,6 +19,14 @@
                   js-performance-now
                   js-performance-set-resource-timing-buffer-size
                   js-performance-to-json)
+         (only-in js/performance
+                  performance-event-count-map-entries
+                  performance-event-count-map-for-each
+                  performance-event-count-map-get
+                  performance-event-count-map-has?
+                  performance-event-count-map-keys
+                  performance-event-count-map-values
+                  performance-event-counts-info)
          (only-in webracket/unsafe/standard
                   js-eval
                   js-truthy?))
@@ -57,6 +65,26 @@
 
 (define js-null (js-eval "null"))
 (define missing-property-object (js-eval "({})"))
+
+(define (fake-event-counts missing)
+  (performance-event-counts-info
+   (js-eval
+    (string-append
+     "(() => {
+        const counts = {
+          size: 0,
+          entries() { return [][Symbol.iterator](); },
+          keys() { return [][Symbol.iterator](); },
+          values() { return [][Symbol.iterator](); },
+          get(_name) { return undefined; },
+          has(_name) { return false; },
+          forEach(_proc) {}
+        };
+        delete counts['"
+     missing
+     "'];
+        return counts;
+      })()"))))
 
 (js-eval
  "globalThis.__wrPerformanceMethodBoundary = {};
@@ -169,6 +197,42 @@
   (catch-message
    (lambda ()
      (js-performance-event-count-map-size missing-property-object))))
+
+(define event-count-entries-missing-message
+  (catch-message
+   (lambda ()
+     (performance-event-count-map-entries (fake-event-counts "entries")))))
+
+(define event-count-keys-missing-message
+  (catch-message
+   (lambda ()
+     (performance-event-count-map-keys (fake-event-counts "keys")))))
+
+(define event-count-values-missing-message
+  (catch-message
+   (lambda ()
+     (performance-event-count-map-values (fake-event-counts "values")))))
+
+(define event-count-get-missing-message
+  (catch-message
+   (lambda ()
+     (performance-event-count-map-get (fake-event-counts "get") 'click))))
+
+(define event-count-has-missing-message
+  (catch-message
+   (lambda ()
+     (performance-event-count-map-has? (fake-event-counts "has") 'click))))
+
+(define event-count-for-each-missing-message
+  (catch-message
+   (lambda ()
+     (performance-event-count-map-for-each (fake-event-counts "forEach")
+                                           (lambda args (void))))))
+
+(define event-count-invalid-raw-wrapper-message
+  (catch-message
+   (lambda ()
+     (performance-event-count-map-entries (performance-event-counts-info #f)))))
 
 (define memory-js-heap-size-limit-missing-message
   (catch-message
@@ -315,6 +379,34 @@
 (check-message event-count-size-missing-message
                "PerformanceEventCounts.size not available in this environment"
                "missing PerformanceEventCounts.size message")
+
+(check-message event-count-entries-missing-message
+               "PerformanceEventCounts.entries is not available"
+               "missing PerformanceEventCounts.entries message")
+
+(check-message event-count-keys-missing-message
+               "PerformanceEventCounts.keys is not available"
+               "missing PerformanceEventCounts.keys message")
+
+(check-message event-count-values-missing-message
+               "PerformanceEventCounts.values is not available"
+               "missing PerformanceEventCounts.values message")
+
+(check-message event-count-get-missing-message
+               "PerformanceEventCounts.get is not available"
+               "missing PerformanceEventCounts.get message")
+
+(check-message event-count-has-missing-message
+               "PerformanceEventCounts.has is not available"
+               "missing PerformanceEventCounts.has message")
+
+(check-message event-count-for-each-missing-message
+               "PerformanceEventCounts.forEach is not available"
+               "missing PerformanceEventCounts.forEach message")
+
+(check-message event-count-invalid-raw-wrapper-message
+               "performance-event-counts-info?"
+               "invalid PerformanceEventCounts wrapper raw message")
 
 (check-message memory-js-heap-size-limit-missing-message
                "PerformanceMemory.jsHeapSizeLimit not available in this environment"
