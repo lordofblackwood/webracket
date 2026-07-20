@@ -3,8 +3,10 @@
 ;; Browser smoke for Gamepad wrapper host boundary errors.
 
 (require gamepad
-         (only-in webracket/unsafe/standard
-                  js-eval))
+         (only-in webracket/unsafe/dom
+                  js-eval
+                  js-null
+                  js-undefined))
 
 (define (check-true got label)
   (unless got
@@ -145,6 +147,27 @@
 (check-true (eq? (gamepad-wrap (js-eval "null")) #f)
             "gamepad-wrap maps null slots to #f")
 
+(define null-raw-gamepad
+  (gamepad-info (js-null)))
+
+(define undefined-raw-gamepad
+  (gamepad-info (js-undefined)))
+
+(define null-raw-button
+  (gamepad-button-info (js-null)))
+
+(define undefined-raw-button
+  (gamepad-button-info (js-undefined)))
+
+(check-true (not (gamepad? null-raw-gamepad))
+            "gamepad? rejects null raw")
+(check-true (not (gamepad? undefined-raw-gamepad))
+            "gamepad? rejects undefined raw")
+(check-true (not (gamepad-button? null-raw-button))
+            "gamepad-button? rejects null raw")
+(check-true (not (gamepad-button? undefined-raw-button))
+            "gamepad-button? rejects undefined raw")
+
 (define (missing-method-message target method thunk)
   (js-eval (string-append "__wrGamepadBoundaryPatch('"
                           target
@@ -258,10 +281,40 @@
    (lambda ()
      (gamepad-button-value (fake-button "value")))))
 
+(define gamepad-null-raw-message
+  (catch-message
+   (lambda ()
+     (gamepad-id null-raw-gamepad))))
+
+(define gamepad-undefined-raw-message
+  (catch-message
+   (lambda ()
+     (gamepad-id undefined-raw-gamepad))))
+
+(define button-null-raw-message
+  (catch-message
+   (lambda ()
+     (gamepad-button-value null-raw-button))))
+
+(define button-undefined-raw-message
+  (catch-message
+   (lambda ()
+     (gamepad-button-value undefined-raw-button))))
+
 (define event-gamepad-message
   (catch-message
    (lambda ()
      (gamepad-event-gamepad (fake-event "gamepad")))))
+
+(define event-null-raw-message
+  (catch-message
+   (lambda ()
+     (gamepad-event-gamepad (js-null)))))
+
+(define event-undefined-raw-message
+  (catch-message
+   (lambda ()
+     (gamepad-event-gamepad (js-undefined)))))
 
 (check-true (eq? (gamepad-event-gamepad (fake-event "gamepad-null")) #f)
             "GamepadEvent.gamepad null still maps to #f")
@@ -311,9 +364,27 @@
 (check-message button-value-message
                "GamepadButton.value is not available"
                "missing GamepadButton.value message")
+(check-message gamepad-null-raw-message
+               "gamepad?"
+               "missing gamepad null raw message")
+(check-message gamepad-undefined-raw-message
+               "gamepad?"
+               "missing gamepad undefined raw message")
+(check-message button-null-raw-message
+               "gamepad-button?"
+               "missing gamepad button null raw message")
+(check-message button-undefined-raw-message
+               "gamepad-button?"
+               "missing gamepad button undefined raw message")
 (check-message event-gamepad-message
                "GamepadEvent.gamepad is not available"
                "missing GamepadEvent.gamepad message")
+(check-message event-null-raw-message
+               "external?"
+               "missing GamepadEvent null raw message")
+(check-message event-undefined-raw-message
+               "external?"
+               "missing GamepadEvent undefined raw message")
 
 (js-eval "__wrGamepadBoundaryRestoreAll();")
 (js-eval

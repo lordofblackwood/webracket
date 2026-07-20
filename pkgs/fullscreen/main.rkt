@@ -48,6 +48,12 @@
 (define (fullscreen-property-present? raw property-name)
   (not (js-nullish? (js-ref/extern raw property-name))))
 
+;; fullscreen-raw-host-value? : any/c -> boolean?
+;;   Report whether raw is a non-nullish external host value.
+(define (fullscreen-raw-host-value? raw)
+  (and (external? raw)
+       (not (js-nullish? raw))))
+
 ;; check-fullscreen-document-method : symbol? string? -> void?
 ;;   Ensure the current document exposes a required Fullscreen method.
 (define (check-fullscreen-document-method who method-name)
@@ -121,7 +127,7 @@
 ;;   Recognize a wrapped or raw browser element.
 (define (fullscreen-elementish? value)
   (or (dom-element? value)
-      (external? value)))
+      (fullscreen-raw-host-value? value)))
 
 ;; fullscreen-request! : (or/c dom-element? external?) -> js-promise?
 ;;   Request fullscreen display for element.

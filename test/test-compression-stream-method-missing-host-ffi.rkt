@@ -3,8 +3,10 @@
 ;; Browser smoke for Compression Streams wrapper host-method boundary errors.
 
 (require compression-streams
-         (only-in webracket/unsafe/standard
-                  js-eval))
+         (only-in webracket/unsafe/dom
+                  js-eval
+                  js-null
+                  js-undefined))
 
 (define (check-true got label)
   (unless got
@@ -118,6 +120,27 @@
                            missing
                            "')"))))
 
+(define null-raw-compression-stream
+  (compression-stream-info (js-null)))
+
+(define undefined-raw-compression-stream
+  (compression-stream-info (js-undefined)))
+
+(define null-raw-decompression-stream
+  (decompression-stream-info (js-null)))
+
+(define undefined-raw-decompression-stream
+  (decompression-stream-info (js-undefined)))
+
+(check-true (not (compression-stream? null-raw-compression-stream))
+            "compression-stream? rejects null raw")
+(check-true (not (compression-stream? undefined-raw-compression-stream))
+            "compression-stream? rejects undefined raw")
+(check-true (not (decompression-stream? null-raw-decompression-stream))
+            "decompression-stream? rejects null raw")
+(check-true (not (decompression-stream? undefined-raw-decompression-stream))
+            "decompression-stream? rejects undefined raw")
+
 (define compression-message
   (missing-pipe-through-message
    (lambda ()
@@ -168,6 +191,40 @@
    (lambda ()
      (decompression-stream-writable (fake-decompression-stream "writable")))))
 
+(define compression-null-raw-message
+  (catch-message
+   (lambda ()
+     (compression-stream-readable null-raw-compression-stream))))
+
+(define compression-undefined-raw-message
+  (catch-message
+   (lambda ()
+     (compression-stream-readable undefined-raw-compression-stream))))
+
+(define decompression-null-raw-message
+  (catch-message
+   (lambda ()
+     (decompression-stream-readable null-raw-decompression-stream))))
+
+(define decompression-undefined-raw-message
+  (catch-message
+   (lambda ()
+     (decompression-stream-readable undefined-raw-decompression-stream))))
+
+(define readable-null-raw-message
+  (catch-message
+   (lambda ()
+     (readable-stream-pipe-through-compression
+      (js-null)
+      (make-compression-stream 'gzip)))))
+
+(define readable-undefined-raw-message
+  (catch-message
+   (lambda ()
+     (readable-stream-pipe-through-decompression
+      (js-undefined)
+      (make-decompression-stream 'gzip)))))
+
 (check-message compression-message
                "ReadableStream.pipeThrough is not available"
                "missing compression ReadableStream.pipeThrough message")
@@ -192,6 +249,24 @@
 (check-message decompression-writable-message
                "DecompressionStream.writable is not available"
                "missing DecompressionStream.writable message")
+(check-message compression-null-raw-message
+               "compression-stream?"
+               "missing CompressionStream null raw message")
+(check-message compression-undefined-raw-message
+               "compression-stream?"
+               "missing CompressionStream undefined raw message")
+(check-message decompression-null-raw-message
+               "decompression-stream?"
+               "missing DecompressionStream null raw message")
+(check-message decompression-undefined-raw-message
+               "decompression-stream?"
+               "missing DecompressionStream undefined raw message")
+(check-message readable-null-raw-message
+               "external?"
+               "missing ReadableStream null raw message")
+(check-message readable-undefined-raw-message
+               "external?"
+               "missing ReadableStream undefined raw message")
 
 (js-eval "__wrCompressionBoundaryRestore();")
 

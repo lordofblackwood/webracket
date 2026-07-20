@@ -68,6 +68,12 @@
   (and (not (js-nullish? method))
        (string=? (js-typeof method) "function")))
 
+;; worker-raw-host-value? : any/c -> boolean?
+;;   Report whether raw is a non-nullish external host value.
+(define (worker-raw-host-value? raw)
+  (and (external? raw)
+       (not (js-nullish? raw))))
+
 ;; worker-supported? : -> boolean?
 ;;   Report whether the browser exposes the Worker constructor.
 (define (worker-supported?)
@@ -78,7 +84,7 @@
 (define (worker? v)
   (and (worker-info? v)
        (worker-supported?)
-       (external? (worker-raw v))
+       (worker-raw-host-value? (worker-raw v))
        (js-instanceof (worker-raw v) (worker-constructor))))
 
 ;; check-worker : symbol? any/c -> void?

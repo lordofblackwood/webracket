@@ -58,6 +58,12 @@
 (define (notification-host-property-present? raw property-name)
   (not (js-nullish? (js-ref/extern raw property-name))))
 
+;; notification-raw-host-value? : any/c -> boolean?
+;;   Report whether raw is a non-nullish external host value.
+(define (notification-raw-host-value? raw)
+  (and (external? raw)
+       (not (js-nullish? raw))))
+
 ;; check-notification-host-method : symbol? external/raw string? string? -> void?
 ;;   Ensure a required Notification host method is available.
 (define (check-notification-host-method who raw receiver-name method-name)
@@ -87,7 +93,7 @@
 (define (notification? v)
   (and (notification-info? v)
        (notifications-supported?)
-       (external? (notification-raw v))
+       (notification-raw-host-value? (notification-raw v))
        (js-instanceof (notification-raw v) (js-var "Notification"))))
 
 (define (notification-stringish->string who value)

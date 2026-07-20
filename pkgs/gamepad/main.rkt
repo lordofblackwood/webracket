@@ -53,6 +53,12 @@
 (define (gamepad-property-present? raw property-name)
   (not (js-nullish? (js-ref/extern raw property-name))))
 
+;; gamepad-raw-host-value? : any/c -> boolean?
+;;   Report whether raw is a non-nullish external host value.
+(define (gamepad-raw-host-value? raw)
+  (and (external? raw)
+       (not (js-nullish? raw))))
+
 ;; gamepad-vector-map : procedure? vector? -> vector?
 ;;   Map proc over vec without depending on racket/vector.
 (define (gamepad-vector-map proc vec)
@@ -109,19 +115,18 @@
 ;;   Report whether v is a wrapped Gamepad object.
 (define (gamepad? v)
   (and (gamepad-info? v)
-       (external? (gamepad-raw v))))
+       (gamepad-raw-host-value? (gamepad-raw v))))
 
 ;; gamepad-button? : any/c -> boolean?
 ;;   Report whether v is a wrapped GamepadButton object.
 (define (gamepad-button? v)
   (and (gamepad-button-info? v)
-       (external? (gamepad-button-raw v))))
+       (gamepad-raw-host-value? (gamepad-button-raw v))))
 
 ;; gamepad-wrap : any/c -> (or/c #f gamepad?)
 ;;   Wrap a raw Gamepad slot, preserving disconnected/null slots as #f.
 (define (gamepad-wrap raw)
-  (and (external? raw)
-       (not (js-nullish? raw))
+  (and (gamepad-raw-host-value? raw)
        (gamepad-info raw)))
 
 ;; gamepad-button-wrap : external/raw -> gamepad-button?
@@ -139,7 +144,7 @@
 ;; gamepad-event-gamepad : external/raw -> (or/c #f gamepad?)
 ;;   Extract the gamepad from a gamepadconnected or gamepaddisconnected event.
 (define (gamepad-event-gamepad event)
-  (unless (external? event)
+  (unless (gamepad-raw-host-value? event)
     (raise-argument-error 'gamepad-event-gamepad "external?" event))
   (check-gamepad-event-property 'gamepad-event-gamepad event "gamepad")
   (gamepad-wrap (js-ref/extern event "gamepad")))

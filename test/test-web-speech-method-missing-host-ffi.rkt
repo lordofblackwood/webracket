@@ -4,7 +4,9 @@
 
 (require web-speech
          (only-in webracket/unsafe/dom
-                  js-eval))
+                  js-eval
+                  js-null
+                  js-undefined))
 
 (define (check-true got label)
   (unless got
@@ -153,6 +155,37 @@
                            missing
                            "')"))))
 
+(define null-raw-synthesis
+  (speech-synthesis-info (js-null)))
+
+(define undefined-raw-synthesis
+  (speech-synthesis-info (js-undefined)))
+
+(define null-raw-utterance
+  (speech-utterance-info (js-null)))
+
+(define undefined-raw-utterance
+  (speech-utterance-info (js-undefined)))
+
+(define null-raw-voice
+  (speech-voice-info (js-null)))
+
+(define undefined-raw-voice
+  (speech-voice-info (js-undefined)))
+
+(check-false (speech-synthesis? null-raw-synthesis)
+             "speech-synthesis? rejects null raw")
+(check-false (speech-synthesis? undefined-raw-synthesis)
+             "speech-synthesis? rejects undefined raw")
+(check-false (speech-utterance? null-raw-utterance)
+             "speech-utterance? rejects null raw")
+(check-false (speech-utterance? undefined-raw-utterance)
+             "speech-utterance? rejects undefined raw")
+(check-false (speech-voice? null-raw-voice)
+             "speech-voice? rejects null raw")
+(check-false (speech-voice? undefined-raw-voice)
+             "speech-voice? rejects undefined raw")
+
 (define speak-message
   (catch-message
    (lambda ()
@@ -223,6 +256,36 @@
    (lambda ()
      (speech-synthesis-cancel! (speech-synthesis-info #f)))))
 
+(define synthesis-null-raw-message
+  (catch-message
+   (lambda ()
+     (speech-synthesis-cancel! null-raw-synthesis))))
+
+(define synthesis-undefined-raw-message
+  (catch-message
+   (lambda ()
+     (speech-synthesis-cancel! undefined-raw-synthesis))))
+
+(define utterance-null-raw-message
+  (catch-message
+   (lambda ()
+     (speech-utterance-on-end! null-raw-utterance #f))))
+
+(define utterance-undefined-raw-message
+  (catch-message
+   (lambda ()
+     (speech-utterance-on-end! undefined-raw-utterance #f))))
+
+(define voice-null-raw-message
+  (catch-message
+   (lambda ()
+     (speech-voice-name null-raw-voice))))
+
+(define voice-undefined-raw-message
+  (catch-message
+   (lambda ()
+     (speech-voice-name undefined-raw-voice))))
+
 (check-message utterance-constructor-message
                "SpeechSynthesisUtterance constructor is not available"
                "missing SpeechSynthesisUtterance constructor message")
@@ -271,6 +334,24 @@
 (check-message invalid-synthesis-message
                "speech-synthesis?"
                "missing speech synthesis invalid raw message")
+(check-message synthesis-null-raw-message
+               "speech-synthesis?"
+               "missing speech synthesis null raw message")
+(check-message synthesis-undefined-raw-message
+               "speech-synthesis?"
+               "missing speech synthesis undefined raw message")
+(check-message utterance-null-raw-message
+               "speech-utterance?"
+               "missing speech utterance null raw message")
+(check-message utterance-undefined-raw-message
+               "speech-utterance?"
+               "missing speech utterance undefined raw message")
+(check-message voice-null-raw-message
+               "speech-voice?"
+               "missing speech voice null raw message")
+(check-message voice-undefined-raw-message
+               "speech-voice?"
+               "missing speech voice undefined raw message")
 
 (js-eval "__wrSpeechBoundaryRestore();")
 

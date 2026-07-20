@@ -68,6 +68,12 @@
 (define (speech-property-present? raw property-name)
   (not (js-nullish? (js-ref/extern raw property-name))))
 
+;; speech-raw-host-value? : any/c -> boolean?
+;;   Report whether raw is a non-nullish external host value.
+(define (speech-raw-host-value? raw)
+  (and (external? raw)
+       (not (js-nullish? raw))))
+
 ;; speech-constructor-present? : string? -> boolean?
 ;;   Report whether the host exposes a callable constructor.
 (define (speech-constructor-present? name)
@@ -157,19 +163,19 @@
 ;;   Report whether v wraps an external SpeechSynthesis-like host value.
 (define (speech-synthesis-host-value? v)
   (and (speech-synthesis-info? v)
-       (external? (speech-synthesis-raw v))))
+       (speech-raw-host-value? (speech-synthesis-raw v))))
 
 ;; speech-utterance? : any/c -> boolean?
 ;;   Report whether v is a wrapped SpeechSynthesisUtterance object.
 (define (speech-utterance? v)
   (and (speech-utterance-info? v)
-       (external? (speech-utterance-raw v))))
+       (speech-raw-host-value? (speech-utterance-raw v))))
 
 ;; speech-voice? : any/c -> boolean?
 ;;   Report whether v is a wrapped SpeechSynthesisVoice object.
 (define (speech-voice? v)
   (and (speech-voice-info? v)
-       (external? (speech-voice-raw v))))
+       (speech-raw-host-value? (speech-voice-raw v))))
 
 ;; speech-optional-string? : any/c -> boolean?
 ;;   Recognize optional string-like settings.

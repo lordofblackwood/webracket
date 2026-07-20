@@ -3,6 +3,7 @@
 ;; Browser smoke for observer wrapper host-method boundary errors.
 
 (require (only-in intersection-observer
+                  intersection-observer
                   intersection-observer?
                   intersection-observer-disconnect!
                   intersection-observer-entry
@@ -18,6 +19,7 @@
                   make-intersection-observer)
          (only-in resize-observer
                   make-resize-observer
+                  resize-observer
                   resize-observer?
                   resize-observer-disconnect!
                   resize-observer-entry
@@ -25,8 +27,10 @@
                   resize-observer-entry-target
                   resize-observer-observe!
                   resize-observer-unobserve!)
-         (only-in webracket/unsafe/standard
-                  js-eval))
+         (only-in webracket/unsafe/dom
+                  js-eval
+                  js-null
+                  js-undefined))
 
 (define (check-true got label)
   (unless got
@@ -171,6 +175,39 @@
 
 (define target (js-eval "globalThis.__wrObserverBoundaryTarget"))
 (define callback (lambda args (void)))
+
+(define null-raw-intersection-observer
+  (intersection-observer (js-null)))
+
+(define undefined-raw-intersection-observer
+  (intersection-observer (js-undefined)))
+
+(define null-raw-resize-observer
+  (resize-observer (js-null)))
+
+(define undefined-raw-resize-observer
+  (resize-observer (js-undefined)))
+
+(define null-raw-intersection-entry
+  (intersection-observer-entry (js-null)))
+
+(define undefined-raw-intersection-entry
+  (intersection-observer-entry (js-undefined)))
+
+(define null-raw-resize-entry
+  (resize-observer-entry (js-null)))
+
+(define undefined-raw-resize-entry
+  (resize-observer-entry (js-undefined)))
+
+(check-true (not (intersection-observer? null-raw-intersection-observer))
+            "intersection-observer? rejects null raw")
+(check-true (not (intersection-observer? undefined-raw-intersection-observer))
+            "intersection-observer? rejects undefined raw")
+(check-true (not (resize-observer? null-raw-resize-observer))
+            "resize-observer? rejects null raw")
+(check-true (not (resize-observer? undefined-raw-resize-observer))
+            "resize-observer? rejects undefined raw")
 
 (define (fake-intersection-entry missing-property)
   (intersection-observer-entry
@@ -333,6 +370,26 @@
    (lambda ()
      (intersection-observer-entry-time (fake-intersection-entry "time")))))
 
+(define intersection-observer-null-raw-message
+  (catch-message
+   (lambda ()
+     (intersection-observer-disconnect! null-raw-intersection-observer))))
+
+(define intersection-observer-undefined-raw-message
+  (catch-message
+   (lambda ()
+     (intersection-observer-disconnect! undefined-raw-intersection-observer))))
+
+(define intersection-entry-null-raw-message
+  (catch-message
+   (lambda ()
+     (intersection-observer-entry-target null-raw-intersection-entry))))
+
+(define intersection-entry-undefined-raw-message
+  (catch-message
+   (lambda ()
+     (intersection-observer-entry-target undefined-raw-intersection-entry))))
+
 (define resize-entry-target-message
   (catch-message
    (lambda ()
@@ -342,6 +399,26 @@
   (catch-message
    (lambda ()
      (resize-observer-entry-content-rect (fake-resize-entry "contentRect")))))
+
+(define resize-observer-null-raw-message
+  (catch-message
+   (lambda ()
+     (resize-observer-disconnect! null-raw-resize-observer))))
+
+(define resize-observer-undefined-raw-message
+  (catch-message
+   (lambda ()
+     (resize-observer-disconnect! undefined-raw-resize-observer))))
+
+(define resize-entry-null-raw-message
+  (catch-message
+   (lambda ()
+     (resize-observer-entry-target null-raw-resize-entry))))
+
+(define resize-entry-undefined-raw-message
+  (catch-message
+   (lambda ()
+     (resize-observer-entry-target undefined-raw-resize-entry))))
 
 (check-message intersection-constructor-message
                "IntersectionObserver is not available"
@@ -394,12 +471,36 @@
 (check-message intersection-entry-time-message
                "IntersectionObserverEntry.time is not available"
                "missing IntersectionObserverEntry.time message")
+(check-message intersection-observer-null-raw-message
+               "intersection-observer-info?"
+               "missing IntersectionObserver null raw message")
+(check-message intersection-observer-undefined-raw-message
+               "intersection-observer-info?"
+               "missing IntersectionObserver undefined raw message")
+(check-message intersection-entry-null-raw-message
+               "intersection-observer-entry?"
+               "missing IntersectionObserverEntry null raw message")
+(check-message intersection-entry-undefined-raw-message
+               "intersection-observer-entry?"
+               "missing IntersectionObserverEntry undefined raw message")
 (check-message resize-entry-target-message
                "ResizeObserverEntry.target is not available"
                "missing ResizeObserverEntry.target message")
 (check-message resize-entry-content-rect-message
                "ResizeObserverEntry.contentRect is not available"
                "missing ResizeObserverEntry.contentRect message")
+(check-message resize-observer-null-raw-message
+               "resize-observer-info?"
+               "missing ResizeObserver null raw message")
+(check-message resize-observer-undefined-raw-message
+               "resize-observer-info?"
+               "missing ResizeObserver undefined raw message")
+(check-message resize-entry-null-raw-message
+               "resize-observer-entry?"
+               "missing ResizeObserverEntry null raw message")
+(check-message resize-entry-undefined-raw-message
+               "resize-observer-entry?"
+               "missing ResizeObserverEntry undefined raw message")
 
 (js-eval "__wrObserverBoundaryRestore();")
 

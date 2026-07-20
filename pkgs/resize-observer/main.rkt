@@ -48,7 +48,7 @@
 (define (resize-observer? v)
   (and (resize-observer-info? v)
        (resize-observer-supported?)
-       (external? (resize-observer-raw v))
+       (resize-observer-raw-host-value? (resize-observer-raw v))
        (js-instanceof (resize-observer-raw v) (js-var "ResizeObserver"))))
 
 ;; resize-observer-host-method-present? : external/raw string? -> boolean?
@@ -57,6 +57,12 @@
   (define method (js-ref/extern raw method-name))
   (and (not (js-nullish? method))
        (string=? (js-typeof method) "function")))
+
+;; resize-observer-raw-host-value? : any/c -> boolean?
+;;   Report whether raw is a non-nullish external host value.
+(define (resize-observer-raw-host-value? raw)
+  (and (external? raw)
+       (not (js-nullish? raw))))
 
 ;; check-resize-observer-host-method : symbol? resize-observer-info? string? -> void?
 ;;   Ensure a required ResizeObserver host method is available.
@@ -117,7 +123,7 @@
 (define (observer-target->raw who target)
   (cond
     [(dom-element? target) (dom-element-raw target)]
-    [(external? target) target]
+    [(resize-observer-raw-host-value? target) target]
     [else
      (raise-argument-error who "(or/c dom-element? external?)" target)]))
 
@@ -164,14 +170,14 @@
 
 (define (resize-observer-entry-target entry)
   (unless (and (resize-observer-entry? entry)
-               (external? (resize-observer-entry-raw entry)))
+               (resize-observer-raw-host-value? (resize-observer-entry-raw entry)))
     (raise-argument-error 'resize-observer-entry-target "resize-observer-entry?" entry))
   (check-resize-observer-entry-property 'resize-observer-entry-target entry "target")
   (element-wrap (js-ref/extern (resize-observer-entry-raw entry) "target")))
 
 (define (resize-observer-entry-content-rect entry)
   (unless (and (resize-observer-entry? entry)
-               (external? (resize-observer-entry-raw entry)))
+               (resize-observer-raw-host-value? (resize-observer-entry-raw entry)))
     (raise-argument-error 'resize-observer-entry-content-rect "resize-observer-entry?" entry))
   (check-resize-observer-entry-property 'resize-observer-entry-content-rect entry "contentRect")
   (dom-rect-wrap (js-ref/extern (resize-observer-entry-raw entry) "contentRect")))

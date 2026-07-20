@@ -4,7 +4,9 @@
 
 (require fullscreen
          (only-in webracket/unsafe/dom
-                  js-eval))
+                  js-eval
+                  js-null
+                  js-undefined))
 
 (define (check-true got label)
   (unless got
@@ -95,6 +97,16 @@
    (lambda ()
      (fullscreen-request! fake-element))))
 
+(define request-null-raw-message
+  (catch-message
+   (lambda ()
+     (fullscreen-request! (js-null)))))
+
+(define request-undefined-raw-message
+  (catch-message
+   (lambda ()
+     (fullscreen-request! (js-undefined)))))
+
 (define exit-message
   (missing-document-method-message
    "exitFullscreen"
@@ -134,6 +146,12 @@
 (check-message request-message
                "Element.requestFullscreen is not available"
                "missing Element.requestFullscreen message")
+(check-message request-null-raw-message
+               "(or/c dom-element? external?)"
+               "missing Element null raw message")
+(check-message request-undefined-raw-message
+               "(or/c dom-element? external?)"
+               "missing Element undefined raw message")
 (check-message exit-message
                "document.exitFullscreen is not available"
                "missing document.exitFullscreen message")

@@ -55,6 +55,12 @@
 (define (fetch-host-property-present? raw property-name)
   (not (js-nullish? (js-ref/extern raw property-name))))
 
+;; fetch-raw-host-value? : any/c -> boolean?
+;;   Report whether raw is a non-nullish external host value.
+(define (fetch-raw-host-value? raw)
+  (and (external? raw)
+       (not (js-nullish? raw))))
+
 ;; check-fetch-host-method : symbol? external/raw string? string? -> void?
 ;;   Ensure a required Fetch API host method is available.
 (define (check-fetch-host-method who raw receiver-name method-name)
@@ -122,7 +128,7 @@
 (define (fetch-headers? v)
   (and (fetch-headers-info? v)
        (fetch-constructor-present? "Headers")
-       (external? (fetch-headers-raw v))
+       (fetch-raw-host-value? (fetch-headers-raw v))
        (js-instanceof (fetch-headers-raw v) (js-var "Headers"))))
 
 ;; fetch-request? : any/c -> boolean?
@@ -130,7 +136,7 @@
 (define (fetch-request? v)
   (and (fetch-request-info? v)
        (fetch-constructor-present? "Request")
-       (external? (fetch-request-raw v))
+       (fetch-raw-host-value? (fetch-request-raw v))
        (js-instanceof (fetch-request-raw v) (js-var "Request"))))
 
 ;; fetch-response? : any/c -> boolean?
@@ -138,14 +144,14 @@
 (define (fetch-response? v)
   (and (fetch-response-info? v)
        (fetch-constructor-present? "Response")
-       (external? (fetch-response-raw v))
+       (fetch-raw-host-value? (fetch-response-raw v))
        (js-instanceof (fetch-response-raw v) (js-var "Response"))))
 
 ;; check-fetch-headers : symbol? any/c -> void?
 ;;   Ensure headers wraps an external Headers host value.
 (define (check-fetch-headers who headers)
   (unless (and (fetch-headers-info? headers)
-               (external? (fetch-headers-raw headers)))
+               (fetch-raw-host-value? (fetch-headers-raw headers)))
     (raise-argument-error who "fetch-headers-info?" headers))
   (check-fetch-constructor who "Headers")
   (unless (js-instanceof (fetch-headers-raw headers) (js-var "Headers"))
@@ -155,7 +161,7 @@
 ;;   Ensure request wraps an external Request host value.
 (define (check-fetch-request who request)
   (unless (and (fetch-request-info? request)
-               (external? (fetch-request-raw request)))
+               (fetch-raw-host-value? (fetch-request-raw request)))
     (raise-argument-error who "fetch-request-info?" request))
   (check-fetch-constructor who "Request")
   (unless (js-instanceof (fetch-request-raw request) (js-var "Request"))
@@ -165,7 +171,7 @@
 ;;   Ensure response wraps an external Response host value.
 (define (check-fetch-response who response)
   (unless (and (fetch-response-info? response)
-               (external? (fetch-response-raw response)))
+               (fetch-raw-host-value? (fetch-response-raw response)))
     (raise-argument-error who "fetch-response-info?" response))
   (check-fetch-constructor who "Response")
   (unless (js-instanceof (fetch-response-raw response) (js-var "Response"))

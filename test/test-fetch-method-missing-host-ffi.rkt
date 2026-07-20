@@ -3,8 +3,10 @@
 ;; Browser smoke for Fetch wrapper host-method boundary errors.
 
 (require fetch
-         (only-in webracket/unsafe/standard
+         (only-in webracket/unsafe/dom
                   js-eval
+                  js-null
+                  js-undefined
                   js-truthy?))
 
 (define (check-true got label)
@@ -149,6 +151,37 @@
   (make-fetch-request "https://example.invalid/fetch"))
 (define response-before-constructor-patch
   (fetch-response (js-eval "new Response(null, {status: 204})")))
+
+(define null-raw-headers
+  (fetch-headers-info (js-null)))
+
+(define undefined-raw-headers
+  (fetch-headers-info (js-undefined)))
+
+(define null-raw-request
+  (fetch-request-info (js-null)))
+
+(define undefined-raw-request
+  (fetch-request-info (js-undefined)))
+
+(define null-raw-response
+  (fetch-response-info (js-null)))
+
+(define undefined-raw-response
+  (fetch-response-info (js-undefined)))
+
+(check-true (not (fetch-headers? null-raw-headers))
+            "fetch-headers? rejects null raw")
+(check-true (not (fetch-headers? undefined-raw-headers))
+            "fetch-headers? rejects undefined raw")
+(check-true (not (fetch-request? null-raw-request))
+            "fetch-request? rejects null raw")
+(check-true (not (fetch-request? undefined-raw-request))
+            "fetch-request? rejects undefined raw")
+(check-true (not (fetch-response? null-raw-response))
+            "fetch-response? rejects null raw")
+(check-true (not (fetch-response? undefined-raw-response))
+            "fetch-response? rejects undefined raw")
 
 (define (hide-fetch-constructor? kind)
   (js-truthy?
@@ -379,6 +412,36 @@
    (lambda ()
      (fetch-response-headers (fetch-response (js-eval "new Response(null, {status: 204})"))))))
 
+(define headers-null-raw-message
+  (catch-message
+   (lambda ()
+     (fetch-headers-get null-raw-headers 'x-test))))
+
+(define headers-undefined-raw-message
+  (catch-message
+   (lambda ()
+     (fetch-headers-get undefined-raw-headers 'x-test))))
+
+(define request-null-raw-message
+  (catch-message
+   (lambda ()
+     (fetch-request-url null-raw-request))))
+
+(define request-undefined-raw-message
+  (catch-message
+   (lambda ()
+     (fetch-request-url undefined-raw-request))))
+
+(define response-null-raw-message
+  (catch-message
+   (lambda ()
+     (fetch-response-status null-raw-response))))
+
+(define response-undefined-raw-message
+  (catch-message
+   (lambda ()
+     (fetch-response-status undefined-raw-response))))
+
 (check-message headers-get-message
                "Headers.get is not available"
                "missing Headers.get message")
@@ -460,6 +523,24 @@
 (check-message response-headers-message
                "Response.headers is not available"
                "missing Response.headers message")
+(check-message headers-null-raw-message
+               "fetch-headers-info?"
+               "missing Headers null raw message")
+(check-message headers-undefined-raw-message
+               "fetch-headers-info?"
+               "missing Headers undefined raw message")
+(check-message request-null-raw-message
+               "fetch-request-info?"
+               "missing Request null raw message")
+(check-message request-undefined-raw-message
+               "fetch-request-info?"
+               "missing Request undefined raw message")
+(check-message response-null-raw-message
+               "fetch-response-info?"
+               "missing Response null raw message")
+(check-message response-undefined-raw-message
+               "fetch-response-info?"
+               "missing Response undefined raw message")
 (when response-existing-wrapper-constructor-message
   (check-message response-existing-wrapper-constructor-message
                  "Response constructor is not available"

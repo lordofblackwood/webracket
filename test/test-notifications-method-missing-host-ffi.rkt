@@ -3,8 +3,10 @@
 ;; Browser smoke for Notifications wrapper host-boundary errors.
 
 (require notifications
-         (only-in webracket/unsafe/standard
-                  js-eval))
+         (only-in webracket/unsafe/dom
+                  js-eval
+                  js-null
+                  js-undefined))
 
 (define (check-true got label)
   (unless got
@@ -183,6 +185,27 @@
    (lambda ()
      (notification-silent? (make-notification "WebRacket")))))
 
+(define null-raw-notification
+  (notification-info (js-null)))
+
+(define undefined-raw-notification
+  (notification-info (js-undefined)))
+
+(check-true (not (notification? null-raw-notification))
+            "notification? rejects null raw")
+(check-true (not (notification? undefined-raw-notification))
+            "notification? rejects undefined raw")
+
+(define notification-null-raw-message
+  (catch-message
+   (lambda ()
+     (notification-title null-raw-notification))))
+
+(define notification-undefined-raw-message
+  (catch-message
+   (lambda ()
+     (notification-title undefined-raw-notification))))
+
 (check-message request-permission-message
                "Notification.requestPermission is not available"
                "missing Notification.requestPermission message")
@@ -225,6 +248,12 @@
 (check-message silent-message
                "Notification.silent is not available"
                "missing Notification.silent message")
+(check-message notification-null-raw-message
+               "notification?"
+               "missing Notification null raw message")
+(check-message notification-undefined-raw-message
+               "notification?"
+               "missing Notification undefined raw message")
 
 (js-eval "__wrNotificationBoundaryRestore();")
 

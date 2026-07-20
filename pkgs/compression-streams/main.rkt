@@ -62,6 +62,12 @@
 (define (compression-stream-host-property-present? raw property-name)
   (not (js-nullish? (js-ref/extern raw property-name))))
 
+;; compression-stream-raw-host-value? : any/c -> boolean?
+;;   Report whether raw is a non-nullish external host value.
+(define (compression-stream-raw-host-value? raw)
+  (and (external? raw)
+       (not (js-nullish? raw))))
+
 ;; check-compression-stream-host-method : symbol? external/raw string? string? -> void?
 ;;   Ensure a required stream host method is available.
 (define (check-compression-stream-host-method who raw receiver-name method-name)
@@ -86,13 +92,13 @@
 ;;   Report whether v is a wrapped CompressionStream object.
 (define (compression-stream? v)
   (and (compression-stream-info? v)
-       (external? (compression-stream-raw v))))
+       (compression-stream-raw-host-value? (compression-stream-raw v))))
 
 ;; decompression-stream? : any/c -> boolean?
 ;;   Report whether v is a wrapped DecompressionStream object.
 (define (decompression-stream? v)
   (and (decompression-stream-info? v)
-       (external? (decompression-stream-raw v))))
+       (compression-stream-raw-host-value? (decompression-stream-raw v))))
 
 ;; compression-format? : any/c -> boolean?
 ;;   Recognize CompressionStream format names.
@@ -179,7 +185,7 @@
 ;; readable-stream-pipe-through-compression : external/raw compression-stream? -> external/raw
 ;;   Pipe a ReadableStream through a CompressionStream and return the resulting ReadableStream.
 (define (readable-stream-pipe-through-compression readable value)
-  (unless (external? readable)
+  (unless (compression-stream-raw-host-value? readable)
     (raise-argument-error 'readable-stream-pipe-through-compression "external?" readable))
   (unless (compression-stream? value)
     (raise-argument-error 'readable-stream-pipe-through-compression "compression-stream?" value))
@@ -192,7 +198,7 @@
 ;; readable-stream-pipe-through-decompression : external/raw decompression-stream? -> external/raw
 ;;   Pipe a ReadableStream through a DecompressionStream and return the resulting ReadableStream.
 (define (readable-stream-pipe-through-decompression readable value)
-  (unless (external? readable)
+  (unless (compression-stream-raw-host-value? readable)
     (raise-argument-error 'readable-stream-pipe-through-decompression "external?" readable))
   (unless (decompression-stream? value)
     (raise-argument-error 'readable-stream-pipe-through-decompression "decompression-stream?" value))
