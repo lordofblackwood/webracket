@@ -1,6 +1,8 @@
 #lang racket/base
 
-(require webracket/unsafe/standard)
+(require webracket/unsafe/standard
+         (only-in webracket/primitives
+                  external?))
 
 (provide (all-defined-out))
 
@@ -12,12 +14,25 @@
 ;;   Wrap a browser Element object.
 (struct dom-element (raw) #:transparent)
 
+;; shared-dom-nullish-value? : any/c -> boolean?
+;;   Report whether value is Racket #f or a JavaScript nullish host value.
+(define (shared-dom-nullish-value? value)
+  (or (not value)
+      (and (external? value)
+           (js-nullish? value))))
+
+;; shared-dom-wrap-value : any/c (any/c -> boolean?) (any/c -> any/c) -> any/c
+;;   Preserve wrapped and nullish values, otherwise build a host wrapper.
+(define (shared-dom-wrap-value value wrapped? make-wrapper)
+  (cond
+    [(wrapped? value) value]
+    [(shared-dom-nullish-value? value) #f]
+    [else (make-wrapper value)]))
+
 ;; element-wrap : any/c -> any/c
 ;;   Wrap a raw browser Element object, leaving wrapped values alone.
 (define (element-wrap value)
-  (if (or (not value) (dom-element? value))
-      value
-      (dom-element value)))
+  (shared-dom-wrap-value value dom-element? dom-element))
 
 ;; element-unwrap : any/c -> any/c
 ;;   Unwrap an element struct to its raw browser object.
@@ -35,9 +50,7 @@
 ;; dom-text-wrap : any/c -> any/c
 ;;   Wrap a raw browser Text node, leaving wrapped values alone.
 (define (dom-text-wrap value)
-  (if (dom-text? value)
-      value
-      (dom-text value)))
+  (shared-dom-wrap-value value dom-text? dom-text))
 
 ;; dom-text-unwrap : any/c -> any/c
 ;;   Unwrap a dom-text struct to its raw browser object.
@@ -50,14 +63,18 @@
 ;;   Wrap a browser Node object.
 (struct dom-node (raw) #:transparent)
 
+;; shared-dom-node-wrapper? : any/c -> boolean?
+;;   Report whether value is already one of the node-wrapper structs.
+(define (shared-dom-node-wrapper? value)
+  (or (dom-node? value)
+      (dom-element? value)
+      (dom-text? value)
+      (dom-attr? value)))
+
 ;; dom-node-wrap : any/c -> any/c
 ;;   Wrap a raw browser Node object, leaving wrapped values alone.
 (define (dom-node-wrap value)
-  (cond
-    [(not value) #f]
-    [(or (dom-node? value) (dom-element? value) (dom-text? value) (dom-attr? value)) value]
-    [(js-nullish? value) #f]
-    [else (dom-node value)]))
+  (shared-dom-wrap-value value shared-dom-node-wrapper? dom-node))
 
 ;; dom-node-unwrap : any/c -> any/c
 ;;   Unwrap a dom-node struct to its raw browser object.
@@ -113,9 +130,7 @@
 ;; dom-attr-wrap : any/c -> any/c
 ;;   Wrap a raw browser Attr node, leaving wrapped values alone.
 (define (dom-attr-wrap value)
-  (if (or (not value) (dom-attr? value))
-      value
-      (dom-attr value)))
+  (shared-dom-wrap-value value dom-attr? dom-attr))
 
 ;; dom-attr-unwrap : any/c -> any/c
 ;;   Unwrap a dom-attr struct to its raw browser object.
@@ -131,9 +146,7 @@
 ;; node-list-wrap : any/c -> any/c
 ;;   Wrap a raw browser NodeList object, leaving wrapped values alone.
 (define (node-list-wrap value)
-  (if (or (not value) (dom-node-list? value))
-      value
-      (dom-node-list value)))
+  (shared-dom-wrap-value value dom-node-list? dom-node-list))
 
 ;; node-list-unwrap : any/c -> any/c
 ;;   Unwrap a node-list struct to its raw browser object.
@@ -149,9 +162,7 @@
 ;; html-collection-wrap : any/c -> any/c
 ;;   Wrap a raw browser HTMLCollection object, leaving wrapped values alone.
 (define (html-collection-wrap value)
-  (if (or (not value) (html-collection? value))
-      value
-      (html-collection value)))
+  (shared-dom-wrap-value value html-collection? html-collection))
 
 ;; html-collection-unwrap : any/c -> any/c
 ;;   Unwrap an html-collection struct to its raw browser object.
@@ -167,9 +178,7 @@
 ;; dom-token-list-wrap : any/c -> any/c
 ;;   Wrap a raw browser DOMTokenList object, leaving wrapped values alone.
 (define (dom-token-list-wrap value)
-  (if (or (not value) (dom-token-list? value))
-      value
-      (dom-token-list value)))
+  (shared-dom-wrap-value value dom-token-list? dom-token-list))
 
 ;; dom-token-list-unwrap : any/c -> any/c
 ;;   Unwrap a DOMTokenList struct to its raw browser object.
@@ -185,9 +194,7 @@
 ;; shadow-root-wrap : any/c -> any/c
 ;;   Wrap a raw browser ShadowRoot object, leaving wrapped values alone.
 (define (shadow-root-wrap value)
-  (if (or (not value) (dom-shadow-root? value))
-      value
-      (dom-shadow-root value)))
+  (shared-dom-wrap-value value dom-shadow-root? dom-shadow-root))
 
 ;; shadow-root-unwrap : any/c -> any/c
 ;;   Unwrap a shadow-root struct to its raw browser object.
@@ -203,9 +210,7 @@
 ;; animation-wrap : any/c -> any/c
 ;;   Wrap a raw browser Animation object, leaving wrapped values alone.
 (define (animation-wrap value)
-  (if (or (not value) (dom-animation? value))
-      value
-      (dom-animation value)))
+  (shared-dom-wrap-value value dom-animation? dom-animation))
 
 ;; animation-unwrap : any/c -> any/c
 ;;   Unwrap an animation struct to its raw browser object.
@@ -221,9 +226,7 @@
 ;; computed-style-map-wrap : any/c -> any/c
 ;;   Wrap a raw browser ComputedStyleMap object, leaving wrapped values alone.
 (define (computed-style-map-wrap value)
-  (if (or (not value) (dom-computed-style-map? value))
-      value
-      (dom-computed-style-map value)))
+  (shared-dom-wrap-value value dom-computed-style-map? dom-computed-style-map))
 
 ;; computed-style-map-unwrap : any/c -> any/c
 ;;   Unwrap a computed-style-map struct to its raw browser object.
@@ -239,9 +242,7 @@
 ;; audio-listener-wrap : any/c -> any/c
 ;;   Wrap a raw browser AudioListener object, leaving wrapped values alone.
 (define (audio-listener-wrap value)
-  (if (or (not value) (audio-listener? value))
-      value
-      (audio-listener value)))
+  (shared-dom-wrap-value value audio-listener? audio-listener))
 
 ;; audio-listener-unwrap : any/c -> any/c
 ;;   Unwrap an audio-listener struct to its raw browser object.
@@ -257,9 +258,7 @@
 ;; audio-periodic-wave-wrap : any/c -> any/c
 ;;   Wrap a raw browser PeriodicWave object, leaving wrapped values alone.
 (define (audio-periodic-wave-wrap value)
-  (if (or (not value) (audio-periodic-wave? value))
-      value
-      (audio-periodic-wave value)))
+  (shared-dom-wrap-value value audio-periodic-wave? audio-periodic-wave))
 
 ;; audio-periodic-wave-unwrap : any/c -> any/c
 ;;   Unwrap an audio-periodic-wave struct to its raw browser object.
@@ -287,9 +286,7 @@
 ;; dom-rect-wrap : any/c -> any/c
 ;;   Wrap a raw browser DOMRect object, leaving wrapped values alone.
 (define (dom-rect-wrap value)
-  (if (dom-rect? value)
-      value
-      (dom-rect value)))
+  (shared-dom-wrap-value value dom-rect? dom-rect))
 
 ;; dom-rect-unwrap : any/c -> any/c
 ;;   Unwrap a DOMRect struct to its raw browser object.
@@ -305,9 +302,7 @@
 ;; dom-rect-list-wrap : any/c -> any/c
 ;;   Wrap a raw browser DOMRectList object, leaving wrapped values alone.
 (define (dom-rect-list-wrap value)
-  (if (or (not value) (dom-rect-list? value))
-      value
-      (dom-rect-list value)))
+  (shared-dom-wrap-value value dom-rect-list? dom-rect-list))
 
 ;; dom-rect-list-unwrap : any/c -> any/c
 ;;   Unwrap a dom-rect-list struct to its raw browser object.
@@ -323,9 +318,7 @@
 ;; dom-selection-wrap : any/c -> any/c
 ;;   Wrap a raw browser Selection object, leaving wrapped values alone.
 (define (dom-selection-wrap value)
-  (if (or (not value) (dom-selection? value))
-      value
-      (dom-selection value)))
+  (shared-dom-wrap-value value dom-selection? dom-selection))
 
 ;; dom-selection-unwrap : any/c -> any/c
 ;;   Unwrap a dom-selection struct to its raw browser object.
@@ -384,9 +377,7 @@
 ;; media-query-list-wrap : any/c -> any/c
 ;;   Wrap a raw browser MediaQueryList object, leaving wrapped values alone.
 (define (media-query-list-wrap value)
-  (if (or (not value) (media-query-list? value))
-      value
-      (media-query-list value)))
+  (shared-dom-wrap-value value media-query-list? media-query-list))
 
 ;; media-query-list-unwrap : any/c -> any/c
 ;;   Unwrap a media-query-list struct to its raw browser object.
@@ -416,9 +407,7 @@
 ;; css-style-declaration-wrap : any/c -> any/c
 ;;   Wrap a raw browser CSSStyleDeclaration object, leaving wrapped values alone.
 (define (css-style-declaration-wrap value)
-  (if (or (not value) (css-style-declaration? value))
-      value
-      (css-style-declaration value)))
+  (shared-dom-wrap-value value css-style-declaration? css-style-declaration))
 
 ;; css-style-declaration-unwrap : any/c -> any/c
 ;;   Unwrap a css-style-declaration struct to its raw browser object.
@@ -503,9 +492,7 @@
 ;; media-stream-wrap : any/c -> any/c
 ;;   Wrap a raw browser MediaStream object, leaving wrapped values alone.
 (define (media-stream-wrap value)
-  (if (or (not value) (media-stream? value))
-      value
-      (media-stream value)))
+  (shared-dom-wrap-value value media-stream? media-stream))
 
 ;; media-stream-unwrap : any/c -> any/c
 ;;   Unwrap a media-stream struct to its raw browser object.
@@ -521,9 +508,7 @@
 ;; media-source-wrap : any/c -> any/c
 ;;   Wrap a raw browser MediaSource object, leaving wrapped values alone.
 (define (media-source-wrap value)
-  (if (or (not value) (media-source? value))
-      value
-      (media-source value)))
+  (shared-dom-wrap-value value media-source? media-source))
 
 ;; media-source-unwrap : any/c -> any/c
 ;;   Unwrap a media-source struct to its raw browser object.
@@ -539,9 +524,7 @@
 ;; media-keys-info-wrap : any/c -> any/c
 ;;   Wrap a raw browser MediaKeys object, leaving wrapped values alone.
 (define (media-keys-info-wrap value)
-  (if (or (not value) (media-keys-info? value))
-      value
-      (media-keys-info value)))
+  (shared-dom-wrap-value value media-keys-info? media-keys-info))
 
 ;; media-keys-info-unwrap : any/c -> any/c
 ;;   Unwrap a media-keys-info struct to its raw browser object.
@@ -557,9 +540,7 @@
 ;; audio-track-wrap : any/c -> any/c
 ;;   Wrap a raw browser AudioTrack object, leaving wrapped values alone.
 (define (audio-track-wrap value)
-  (if (or (not value) (audio-track? value))
-      value
-      (audio-track value)))
+  (shared-dom-wrap-value value audio-track? audio-track))
 
 ;; audio-track-unwrap : any/c -> any/c
 ;;   Unwrap an audio-track struct to its raw browser object.
@@ -618,9 +599,7 @@
 ;; text-track-wrap : any/c -> any/c
 ;;   Wrap a raw browser TextTrack object, leaving wrapped values alone.
 (define (text-track-wrap value)
-  (if (or (not value) (text-track? value))
-      value
-      (text-track value)))
+  (shared-dom-wrap-value value text-track? text-track))
 
 ;; text-track-unwrap : any/c -> any/c
 ;;   Unwrap a text-track struct to its raw browser object.
@@ -681,9 +660,7 @@
 ;; video-track-wrap : any/c -> any/c
 ;;   Wrap a raw browser VideoTrack object, leaving wrapped values alone.
 (define (video-track-wrap value)
-  (if (or (not value) (video-track? value))
-      value
-      (video-track value)))
+  (shared-dom-wrap-value value video-track? video-track))
 
 ;; video-track-unwrap : any/c -> any/c
 ;;   Unwrap a video-track struct to its raw browser object.
@@ -734,9 +711,7 @@
 ;; media-error-info-wrap : any/c -> any/c
 ;;   Wrap a raw browser MediaError object, leaving wrapped values alone.
 (define (media-error-info-wrap value)
-  (if (or (not value) (media-error-info? value))
-      value
-      (media-error-info value)))
+  (shared-dom-wrap-value value media-error-info? media-error-info))
 
 ;; media-error-info-unwrap : any/c -> any/c
 ;;   Unwrap a media-error-info struct to its raw browser object.
@@ -766,9 +741,7 @@
 ;; audio-track-list-wrap : any/c -> any/c
 ;;   Wrap a raw browser AudioTrackList object, leaving wrapped values alone.
 (define (audio-track-list-wrap value)
-  (if (or (not value) (audio-track-list? value))
-      value
-      (audio-track-list value)))
+  (shared-dom-wrap-value value audio-track-list? audio-track-list))
 
 ;; audio-track-list-unwrap : any/c -> any/c
 ;;   Unwrap an audio-track-list struct to its raw browser object.
@@ -798,9 +771,7 @@
 ;; text-track-list-wrap : any/c -> any/c
 ;;   Wrap a raw browser TextTrackList object, leaving wrapped values alone.
 (define (text-track-list-wrap value)
-  (if (or (not value) (text-track-list? value))
-      value
-      (text-track-list value)))
+  (shared-dom-wrap-value value text-track-list? text-track-list))
 
 ;; text-track-list-unwrap : any/c -> any/c
 ;;   Unwrap a text-track-list struct to its raw browser object.
@@ -830,9 +801,7 @@
 ;; video-track-list-wrap : any/c -> any/c
 ;;   Wrap a raw browser VideoTrackList object, leaving wrapped values alone.
 (define (video-track-list-wrap value)
-  (if (or (not value) (video-track-list? value))
-      value
-      (video-track-list value)))
+  (shared-dom-wrap-value value video-track-list? video-track-list))
 
 ;; video-track-list-unwrap : any/c -> any/c
 ;;   Unwrap a video-track-list struct to its raw browser object.
@@ -862,9 +831,7 @@
 ;; time-ranges-wrap : any/c -> any/c
 ;;   Wrap a raw browser TimeRanges object, leaving wrapped values alone.
 (define (time-ranges-wrap value)
-  (if (or (not value) (time-ranges? value))
-      value
-      (time-ranges value)))
+  (shared-dom-wrap-value value time-ranges? time-ranges))
 
 ;; time-ranges-unwrap : any/c -> any/c
 ;;   Unwrap a time-ranges struct to its raw browser object.

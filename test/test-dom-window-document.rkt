@@ -506,8 +506,12 @@
                      "document adopt node wrapper")
          (check-true (dom-attr? (element-get-attribute-node (dom-test-fixture "host") 'data-state))
                      "element attribute node wrapper")
-         (check-true (dom-attr? (element-set-attribute-node! host attr-node))
-                     "element set attribute node wrapper")
+         (check-false (element-set-attribute-node! host attr-node)
+                      "element set attribute node first insert")
+         (define replacement-attr-node
+           (document-create-attribute 'data-state))
+         (check-true (dom-attr? (element-set-attribute-node! host replacement-attr-node))
+                     "element set attribute node replacement wrapper")
          (define ns-attr-node
            (document-create-attribute-ns 'http://example.invalid/ns 'data-temp))
          (check-true (dom-attr? ns-attr-node)
@@ -524,7 +528,7 @@
          (check-equal (element-get-attribute-ns host 'http://example.invalid/ns 'data-temp)
                       "ns-value"
                       "element get attribute ns")
-         (check-true (dom-attr? (element-remove-attribute-node! host attr-node))
+         (check-true (dom-attr? (element-remove-attribute-node! host replacement-attr-node))
                      "element remove attribute node")
          (element-set-scroll-top! host 10.0)
          (element-set-scroll-left! host 12.0)
