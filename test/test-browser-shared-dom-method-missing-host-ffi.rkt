@@ -37,14 +37,28 @@
   (check-false value label))
 
 (define js-null (js-eval "null"))
+(define js-undefined (js-eval "undefined"))
+(define raw-null-selection (dom-selection js-null))
+(define raw-undefined-selection (dom-selection js-undefined))
+(define raw-null-media-query-list (media-query-list js-null))
+(define raw-null-css-style (css-style-declaration js-null))
+(define raw-undefined-css-style (css-style-declaration js-undefined))
+(define raw-null-audio-track (audio-track js-null))
+(define raw-undefined-text-track (text-track js-undefined))
+(define raw-null-video-track (video-track js-null))
+(define raw-null-media-error (media-error-info js-null))
+(define raw-null-audio-track-list (audio-track-list js-null))
+(define raw-undefined-text-track-list (text-track-list js-undefined))
+(define raw-null-video-track-list (video-track-list js-null))
+(define raw-undefined-time-ranges (time-ranges js-undefined))
 (define selection (dom-selection-wrap (js-eval "({ toString: undefined })")))
 (define selection-null-nodes
   (dom-selection-wrap (js-eval "({ anchorNode: null, focusNode: null })")))
-(define media-query-list (media-query-list-wrap (js-eval "({})")))
+(define fake-media-query-list (media-query-list-wrap (js-eval "({})")))
 (define css-style (css-style-declaration-wrap (js-eval "({})")))
-(define audio-track (audio-track-wrap (js-eval "({})")))
-(define text-track (text-track-wrap (js-eval "({})")))
-(define video-track (video-track-wrap (js-eval "({})")))
+(define fake-audio-track (audio-track-wrap (js-eval "({})")))
+(define fake-text-track (text-track-wrap (js-eval "({})")))
+(define fake-video-track (video-track-wrap (js-eval "({})")))
 (define media-error (media-error-info-wrap (js-eval "({})")))
 (define audio-tracks (audio-track-list-wrap (js-eval "({})")))
 (define text-tracks (text-track-list-wrap (js-eval "({})")))
@@ -84,12 +98,12 @@
 (define media-query-list-media-message
   (catch-message
    (lambda ()
-     (media-query-list-media media-query-list))))
+     (media-query-list-media fake-media-query-list))))
 
 (define media-query-list-matches-message
   (catch-message
    (lambda ()
-     (media-query-list-matches? media-query-list))))
+     (media-query-list-matches? fake-media-query-list))))
 
 (define css-text-message
   (catch-message
@@ -129,87 +143,87 @@
 (define audio-track-kind-message
   (catch-message
    (lambda ()
-     (audio-track-kind audio-track))))
+     (audio-track-kind fake-audio-track))))
 
 (define audio-track-label-message
   (catch-message
    (lambda ()
-     (audio-track-label audio-track))))
+     (audio-track-label fake-audio-track))))
 
 (define audio-track-language-message
   (catch-message
    (lambda ()
-     (audio-track-language audio-track))))
+     (audio-track-language fake-audio-track))))
 
 (define audio-track-id-message
   (catch-message
    (lambda ()
-     (audio-track-id audio-track))))
+     (audio-track-id fake-audio-track))))
 
 (define audio-track-enabled-message
   (catch-message
    (lambda ()
-     (audio-track-enabled? audio-track))))
+     (audio-track-enabled? fake-audio-track))))
 
 (define audio-track-set-enabled-message
   (catch-message
    (lambda ()
-     (audio-track-set-enabled! audio-track #t))))
+     (audio-track-set-enabled! fake-audio-track #t))))
 
 (define text-track-kind-message
   (catch-message
    (lambda ()
-     (text-track-kind text-track))))
+     (text-track-kind fake-text-track))))
 
 (define text-track-label-message
   (catch-message
    (lambda ()
-     (text-track-label text-track))))
+     (text-track-label fake-text-track))))
 
 (define text-track-language-message
   (catch-message
    (lambda ()
-     (text-track-language text-track))))
+     (text-track-language fake-text-track))))
 
 (define text-track-id-message
   (catch-message
    (lambda ()
-     (text-track-id text-track))))
+     (text-track-id fake-text-track))))
 
 (define text-track-mode-message
   (catch-message
    (lambda ()
-     (text-track-mode text-track))))
+     (text-track-mode fake-text-track))))
 
 (define text-track-set-mode-message
   (catch-message
    (lambda ()
-     (text-track-set-mode! text-track 'showing))))
+     (text-track-set-mode! fake-text-track 'showing))))
 
 (define video-track-kind-message
   (catch-message
    (lambda ()
-     (video-track-kind video-track))))
+     (video-track-kind fake-video-track))))
 
 (define video-track-label-message
   (catch-message
    (lambda ()
-     (video-track-label video-track))))
+     (video-track-label fake-video-track))))
 
 (define video-track-language-message
   (catch-message
    (lambda ()
-     (video-track-language video-track))))
+     (video-track-language fake-video-track))))
 
 (define video-track-id-message
   (catch-message
    (lambda ()
-     (video-track-id video-track))))
+     (video-track-id fake-video-track))))
 
 (define video-track-selected-message
   (catch-message
    (lambda ()
-     (video-track-selected? video-track))))
+     (video-track-selected? fake-video-track))))
 
 (define media-error-code-message
   (catch-message
@@ -265,6 +279,76 @@
   (catch-message
    (lambda ()
      (time-ranges-end ranges 0))))
+
+(define raw-null-selection-range-count-message
+  (catch-message
+   (lambda ()
+     (selection-range-count raw-null-selection))))
+
+(define raw-undefined-selection-anchor-message
+  (catch-message
+   (lambda ()
+     (selection-anchor-node raw-undefined-selection))))
+
+(define raw-null-selection-string-message
+  (catch-message
+   (lambda ()
+     (selection-to-string raw-null-selection))))
+
+(define raw-null-media-query-list-message
+  (catch-message
+   (lambda ()
+     (media-query-list-media raw-null-media-query-list))))
+
+(define raw-null-css-length-message
+  (catch-message
+   (lambda ()
+     (css-style-declaration-length raw-null-css-style))))
+
+(define raw-undefined-css-item-message
+  (catch-message
+   (lambda ()
+     (css-style-declaration-item raw-undefined-css-style 0))))
+
+(define raw-null-audio-track-kind-message
+  (catch-message
+   (lambda ()
+     (audio-track-kind raw-null-audio-track))))
+
+(define raw-undefined-text-track-mode-message
+  (catch-message
+   (lambda ()
+     (text-track-mode raw-undefined-text-track))))
+
+(define raw-null-video-track-selected-message
+  (catch-message
+   (lambda ()
+     (video-track-selected? raw-null-video-track))))
+
+(define raw-null-media-error-code-message
+  (catch-message
+   (lambda ()
+     (media-error-info-code raw-null-media-error))))
+
+(define raw-null-audio-track-list-length-message
+  (catch-message
+   (lambda ()
+     (audio-track-list-length raw-null-audio-track-list))))
+
+(define raw-undefined-text-track-list-item-message
+  (catch-message
+   (lambda ()
+     (text-track-list-item raw-undefined-text-track-list 0))))
+
+(define raw-null-video-track-list-item-message
+  (catch-message
+   (lambda ()
+     (video-track-list-item raw-null-video-track-list 0))))
+
+(define raw-undefined-time-ranges-start-message
+  (catch-message
+   (lambda ()
+     (time-ranges-start raw-undefined-time-ranges 0))))
 
 (check-message selection-range-count-message
                "Selection.rangeCount not available in this environment"
@@ -455,6 +539,48 @@
 (check-message range-end-message
                "TimeRanges.end not available in this environment"
                "missing TimeRanges.end message")
+(check-message raw-null-selection-range-count-message
+               "Selection.rangeCount not available in this environment"
+               "missing raw null Selection.rangeCount message")
+(check-message raw-undefined-selection-anchor-message
+               "Selection.anchorNode not available in this environment"
+               "missing raw undefined Selection.anchorNode message")
+(check-message raw-null-selection-string-message
+               "Selection.toString not available in this environment"
+               "missing raw null Selection.toString message")
+(check-message raw-null-media-query-list-message
+               "MediaQueryList.media not available in this environment"
+               "missing raw null MediaQueryList.media message")
+(check-message raw-null-css-length-message
+               "CSSStyleDeclaration.length not available in this environment"
+               "missing raw null CSSStyleDeclaration.length message")
+(check-message raw-undefined-css-item-message
+               "CSSStyleDeclaration.item not available in this environment"
+               "missing raw undefined CSSStyleDeclaration.item message")
+(check-message raw-null-audio-track-kind-message
+               "AudioTrack.kind not available in this environment"
+               "missing raw null AudioTrack.kind message")
+(check-message raw-undefined-text-track-mode-message
+               "TextTrack.mode not available in this environment"
+               "missing raw undefined TextTrack.mode message")
+(check-message raw-null-video-track-selected-message
+               "VideoTrack.selected not available in this environment"
+               "missing raw null VideoTrack.selected message")
+(check-message raw-null-media-error-code-message
+               "MediaError.code not available in this environment"
+               "missing raw null MediaError.code message")
+(check-message raw-null-audio-track-list-length-message
+               "AudioTrackList.length not available in this environment"
+               "missing raw null AudioTrackList.length message")
+(check-message raw-undefined-text-track-list-item-message
+               "TextTrackList.item not available in this environment"
+               "missing raw undefined TextTrackList.item message")
+(check-message raw-null-video-track-list-item-message
+               "VideoTrackList.item not available in this environment"
+               "missing raw null VideoTrackList.item message")
+(check-message raw-undefined-time-ranges-start-message
+               "TimeRanges.start not available in this environment"
+               "missing raw undefined TimeRanges.start message")
 
 (js-log "browser-shared-dom-method-missing-host-ffi-ok")
 #t

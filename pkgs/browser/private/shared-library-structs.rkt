@@ -21,6 +21,12 @@
       (and (external? value)
            (js-nullish? value))))
 
+;; shared-dom-raw-host-value? : any/c -> boolean?
+;;   Report whether value is a non-nullish external host value.
+(define (shared-dom-raw-host-value? value)
+  (and (external? value)
+       (not (js-nullish? value))))
+
 ;; shared-dom-wrap-value : any/c (any/c -> boolean?) (any/c -> any/c) -> any/c
 ;;   Preserve wrapped and nullish values, otherwise build a host wrapper.
 (define (shared-dom-wrap-value value wrapped? make-wrapper)
@@ -89,9 +95,10 @@
 ;; shared-dom-host-method-present? : external/raw string? -> boolean?
 ;;   Report whether raw exposes a callable DOM method.
 (define (shared-dom-host-method-present? raw method-name)
-  (define method (js-ref/extern raw method-name))
-  (and (not (js-nullish? method))
-       (string=? (js-typeof method) "function")))
+  (and (shared-dom-raw-host-value? raw)
+       (let ([method (js-ref/extern raw method-name)])
+         (and (not (js-nullish? method))
+              (string=? (js-typeof method) "function")))))
 
 ;; check-shared-dom-host-method : symbol? external/raw string? string? -> void?
 ;;   Ensure a required shared DOM host method is available.
@@ -106,7 +113,8 @@
 ;; check-shared-dom-host-property : symbol? external/raw string? string? -> void?
 ;;   Ensure a required shared DOM host property is available.
 (define (check-shared-dom-host-property who raw receiver-name property-name)
-  (when (js-nullish? (js-ref/extern raw property-name))
+  (when (or (not (shared-dom-raw-host-value? raw))
+            (js-nullish? (js-ref/extern raw property-name)))
     (raise-arguments-error who
                            (string-append receiver-name
                                           "."
@@ -116,7 +124,8 @@
 ;; check-shared-dom-host-nullable-property : symbol? external/raw string? string? -> void?
 ;;   Ensure a required shared DOM property is present, allowing null values.
 (define (check-shared-dom-host-nullable-property who raw receiver-name property-name)
-  (when (js-undefined? (js-ref/extern raw property-name))
+  (when (or (not (shared-dom-raw-host-value? raw))
+            (js-undefined? (js-ref/extern raw property-name)))
     (raise-arguments-error who
                            (string-append receiver-name
                                           "."
@@ -270,6 +279,8 @@
 ;; array-like->vector : symbol? any/c (-> any/c any/c) -> vector?
 ;;   Convert a browser array-like value into a WebRacket vector.
 (define (array-like->vector who value wrap-item)
+  (unless (shared-dom-raw-host-value? value)
+    (raise-argument-error who "array-like browser value" value))
   (define length (js-ref value "length"))
   (unless (exact-nonnegative-integer? length)
     (raise-argument-error who "array-like browser value" value))
