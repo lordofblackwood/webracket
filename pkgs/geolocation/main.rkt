@@ -56,6 +56,12 @@
        (geolocation-method-present? raw "watchPosition")
        (geolocation-method-present? raw "clearWatch")))
 
+;; geolocation-raw-host-value? : any/c -> boolean?
+;;   Report whether raw is a non-nullish external host value.
+(define (geolocation-raw-host-value? raw)
+  (and (external? raw)
+       (not (js-nullish? raw))))
+
 ;; geolocation-supported-raw : -> (or/c #f external/raw)
 ;;   Read navigator.geolocation when the required methods are available.
 (define (geolocation-supported-raw)
@@ -83,7 +89,7 @@
 ;;   Report whether v wraps an external Geolocation-like host value.
 (define (geolocation-host-value? v)
   (and (geolocation-info? v)
-       (external? (geolocation-raw v))))
+       (geolocation-raw-host-value? (geolocation-raw v))))
 
 ;; check-geolocation : symbol? any/c -> void?
 ;;   Ensure value wraps an external Geolocation-like host value.
@@ -229,7 +235,7 @@
 
 (define (geolocation-position-coordinates position)
   (unless (and (geolocation-position? position)
-               (external? (geolocation-position-raw position)))
+               (geolocation-raw-host-value? (geolocation-position-raw position)))
     (raise-argument-error 'geolocation-position-coordinates "geolocation-position?" position))
   (check-geolocation-property 'geolocation-position-coordinates
                               (geolocation-position-raw position)
@@ -239,7 +245,7 @@
 
 (define (geolocation-position-timestamp position)
   (unless (and (geolocation-position? position)
-               (external? (geolocation-position-raw position)))
+               (geolocation-raw-host-value? (geolocation-position-raw position)))
     (raise-argument-error 'geolocation-position-timestamp "geolocation-position?" position))
   (check-geolocation-property 'geolocation-position-timestamp
                               (geolocation-position-raw position)
@@ -249,7 +255,7 @@
 
 (define (geolocation-coordinates-latitude coords)
   (unless (and (geolocation-coordinates? coords)
-               (external? (geolocation-coordinates-raw coords)))
+               (geolocation-raw-host-value? (geolocation-coordinates-raw coords)))
     (raise-argument-error 'geolocation-coordinates-latitude "geolocation-coordinates?" coords))
   (check-geolocation-property 'geolocation-coordinates-latitude
                               (geolocation-coordinates-raw coords)
@@ -259,7 +265,7 @@
 
 (define (geolocation-coordinates-longitude coords)
   (unless (and (geolocation-coordinates? coords)
-               (external? (geolocation-coordinates-raw coords)))
+               (geolocation-raw-host-value? (geolocation-coordinates-raw coords)))
     (raise-argument-error 'geolocation-coordinates-longitude "geolocation-coordinates?" coords))
   (check-geolocation-property 'geolocation-coordinates-longitude
                               (geolocation-coordinates-raw coords)
@@ -269,7 +275,7 @@
 
 (define (geolocation-coordinates-accuracy coords)
   (unless (and (geolocation-coordinates? coords)
-               (external? (geolocation-coordinates-raw coords)))
+               (geolocation-raw-host-value? (geolocation-coordinates-raw coords)))
     (raise-argument-error 'geolocation-coordinates-accuracy "geolocation-coordinates?" coords))
   (check-geolocation-property 'geolocation-coordinates-accuracy
                               (geolocation-coordinates-raw coords)
@@ -279,31 +285,31 @@
 
 (define (geolocation-coordinates-altitude coords)
   (unless (and (geolocation-coordinates? coords)
-               (external? (geolocation-coordinates-raw coords)))
+               (geolocation-raw-host-value? (geolocation-coordinates-raw coords)))
     (raise-argument-error 'geolocation-coordinates-altitude "geolocation-coordinates?" coords))
   (geolocation-optional-number (geolocation-coordinates-raw coords) "altitude"))
 
 (define (geolocation-coordinates-altitude-accuracy coords)
   (unless (and (geolocation-coordinates? coords)
-               (external? (geolocation-coordinates-raw coords)))
+               (geolocation-raw-host-value? (geolocation-coordinates-raw coords)))
     (raise-argument-error 'geolocation-coordinates-altitude-accuracy "geolocation-coordinates?" coords))
   (geolocation-optional-number (geolocation-coordinates-raw coords) "altitudeAccuracy"))
 
 (define (geolocation-coordinates-heading coords)
   (unless (and (geolocation-coordinates? coords)
-               (external? (geolocation-coordinates-raw coords)))
+               (geolocation-raw-host-value? (geolocation-coordinates-raw coords)))
     (raise-argument-error 'geolocation-coordinates-heading "geolocation-coordinates?" coords))
   (geolocation-optional-number (geolocation-coordinates-raw coords) "heading"))
 
 (define (geolocation-coordinates-speed coords)
   (unless (and (geolocation-coordinates? coords)
-               (external? (geolocation-coordinates-raw coords)))
+               (geolocation-raw-host-value? (geolocation-coordinates-raw coords)))
     (raise-argument-error 'geolocation-coordinates-speed "geolocation-coordinates?" coords))
   (geolocation-optional-number (geolocation-coordinates-raw coords) "speed"))
 
 (define (geolocation-position-error-code err)
   (unless (and (geolocation-position-error? err)
-               (external? (geolocation-position-error-raw err)))
+               (geolocation-raw-host-value? (geolocation-position-error-raw err)))
     (raise-argument-error 'geolocation-position-error-code "geolocation-position-error?" err))
   (check-geolocation-property 'geolocation-position-error-code
                               (geolocation-position-error-raw err)
@@ -313,7 +319,7 @@
 
 (define (geolocation-position-error-message err)
   (unless (and (geolocation-position-error? err)
-               (external? (geolocation-position-error-raw err)))
+               (geolocation-raw-host-value? (geolocation-position-error-raw err)))
     (raise-argument-error 'geolocation-position-error-message "geolocation-position-error?" err))
   (check-geolocation-property 'geolocation-position-error-message
                               (geolocation-position-error-raw err)

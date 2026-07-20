@@ -3,8 +3,10 @@
 ;; Browser smoke for Clipboard wrapper host-method boundary errors.
 
 (require clipboard
-         (only-in webracket/unsafe/standard
-                  js-eval))
+         (only-in webracket/unsafe/dom
+                  js-eval
+                  js-null
+                  js-undefined))
 
 (define (check-true got label)
   (unless got
@@ -71,6 +73,12 @@
 (define missing-write-clipboard
   (fake-clipboard "writeText"))
 
+(define null-raw-clipboard
+  (clipboard-info (js-null)))
+
+(define undefined-raw-clipboard
+  (clipboard-info (js-undefined)))
+
 (define (with-missing-navigator thunk)
   (js-eval "__wrClipboardBoundaryHideNavigator();")
   (define result (thunk))
@@ -81,6 +89,10 @@
             "clipboard? rejects missing readText")
 (check-true (not (clipboard? missing-write-clipboard))
             "clipboard? rejects missing writeText")
+(check-true (not (clipboard? null-raw-clipboard))
+            "clipboard? rejects null raw")
+(check-true (not (clipboard? undefined-raw-clipboard))
+            "clipboard? rejects undefined raw")
 
 (check-true (eq? (with-missing-navigator
                   (lambda ()
@@ -108,6 +120,16 @@
    (lambda ()
      (clipboard-read-text (clipboard-info #f)))))
 
+(define null-raw-message
+  (catch-message
+   (lambda ()
+     (clipboard-read-text null-raw-clipboard))))
+
+(define undefined-raw-message
+  (catch-message
+   (lambda ()
+     (clipboard-read-text undefined-raw-clipboard))))
+
 (check-message read-message
                "Clipboard.readText is not available"
                "missing Clipboard.readText message")
@@ -117,6 +139,12 @@
 (check-message invalid-raw-message
                "clipboard-info?"
                "missing clipboard-info invalid raw message")
+(check-message null-raw-message
+               "clipboard-info?"
+               "missing clipboard-info null raw message")
+(check-message undefined-raw-message
+               "clipboard-info?"
+               "missing clipboard-info undefined raw message")
 
 (js-eval
  "delete globalThis.__wrClipboardBoundaryFake;

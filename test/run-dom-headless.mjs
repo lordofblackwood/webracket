@@ -51,6 +51,43 @@ function formatRequestFailure(entry) {
   return `${entry.method} ${entry.url} ${entry.failureText || "request failed"}`;
 }
 
+function isGenericCompletionMessage(text) {
+  const trimmed = text.trim();
+  return trimmed === "true" || trimmed.includes("-ok");
+}
+
+async function waitForGenericCompletion(page, testPage, consoleMessages, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  let lastMessageCount = consoleMessages.length;
+  let quietSince = null;
+
+  while (Date.now() < deadline) {
+    if (consoleMessages.some(isGenericCompletionMessage)) {
+      return;
+    }
+    const meaningful = consoleMessages.filter((text) => text.trim().length > 0);
+    if (meaningful.length > 0) {
+      if (quietSince === null || consoleMessages.length !== lastMessageCount) {
+        quietSince = Date.now();
+        lastMessageCount = consoleMessages.length;
+      } else if (Date.now() - quietSince >= 1000) {
+        return;
+      }
+    } else {
+      lastMessageCount = consoleMessages.length;
+    }
+    await page.waitForTimeout(100);
+  }
+
+  const meaningful = consoleMessages.filter((text) => text.trim().length > 0);
+  if (meaningful.length === 0) {
+    throw new Error(`No console output observed for ${testPage}`);
+  }
+  throw new Error(
+    `No completion marker observed for ${testPage}. Console: ${JSON.stringify(meaningful)}`
+  );
+}
+
 async function capturePageSnapshot(page) {
   try {
     return await page.evaluate(() => ({
@@ -111,7 +148,7 @@ async function runPageProbe(page, testPage, consoleMessages) {
   if (testPage === "test-vfs-tgz-browser.html") {
     for (let i = 0; i < 30; i++) {
       if (consoleMessages.some((text) => text.includes("hello from browser tgz"))) {
-        return;
+        return true;
       }
       await page.waitForTimeout(100);
     }
@@ -165,7 +202,7 @@ async function runPageProbe(page, testPage, consoleMessages) {
     if (!probe.mutated?.ok || probe.mutated.value !== 5) {
       throw new Error(`WR.raw(\"counter\") after increment returned ${JSON.stringify(probe.mutated)}`);
     }
-    return;
+    return true;
   }
 
   if (testPage === "test-browser-canvas-draw-image-integers.html") {
@@ -181,7 +218,7 @@ async function runPageProbe(page, testPage, consoleMessages) {
     if (!probe.bodyText.includes("canvas-draw-image-integers-ok")) {
       throw new Error(`canvas draw-image integer marker missing: ${JSON.stringify(probe)}`);
     }
-    return;
+    return true;
   }
 
   if (testPage === "test-js-string-symbol-ffi.html") {
@@ -197,7 +234,7 @@ async function runPageProbe(page, testPage, consoleMessages) {
         !probe.bodyText.includes("js-string-symbol-ffi-ok")) {
       throw new Error(`string/symbol FFI smoke mismatch: ${JSON.stringify(probe)}`);
     }
-    return;
+    return true;
   }
 
   if (testPage === "test-keyword-fasl-bridge.html") {
@@ -210,7 +247,7 @@ async function runPageProbe(page, testPage, consoleMessages) {
     if (probe.state !== "loaded" || !probe.bodyText.includes("keyword-fasl-bridge-ok")) {
       throw new Error(`keyword fasl bridge smoke failed: ${JSON.stringify(probe)}`);
     }
-    return;
+    return true;
   }
 
   if (testPage === "test-webracket-base-format.html") {
@@ -223,7 +260,7 @@ async function runPageProbe(page, testPage, consoleMessages) {
     if (probe.state !== "loaded" || probe.bodyText.trim() !== "42|value=42") {
       throw new Error(`webracket/base format smoke failed: ${JSON.stringify(probe)}`);
     }
-    return;
+    return true;
   }
 
   if (testPage === "test-web-pict-text-binding.html") {
@@ -239,7 +276,7 @@ async function runPageProbe(page, testPage, consoleMessages) {
     if (probe.state !== "loaded" || probe.text.trim() !== "web-pict-text-binding-ok") {
       throw new Error(`web-pict text binding smoke failed: ${JSON.stringify(probe)}`);
     }
-    return;
+    return true;
   }
 
   if (testPage === "test-racket-port-call-with-output-string.html") {
@@ -252,11 +289,11 @@ async function runPageProbe(page, testPage, consoleMessages) {
     if (probe.state !== "loaded" || probe.bodyText.trim() !== "abc|ab") {
       throw new Error(`racket/port call-with-output-string smoke failed: ${JSON.stringify(probe)}`);
     }
-    return;
+    return true;
   }
 
   if (testPage !== "test-console-bridge-smoke.html") {
-    return;
+    return false;
   }
 
   await page.waitForFunction(() => typeof globalThis.WR === "function");
@@ -373,6 +410,7 @@ async function runPageProbe(page, testPage, consoleMessages) {
   if (typeof probe.exceptionThrown !== "string" || probe.exceptionThrown.length === 0) {
     throw new Error(`WR.value("explode!", 0) threw ${JSON.stringify(probe.exceptionThrown)}`);
   }
+  return true;
 }
 
 async function main() {
@@ -458,18 +496,20 @@ async function main() {
 
       try {
         await withTimeout(testPage, perTestTimeoutMs, async () => {
-          await page.goto(`${baseUrl}/${testPage}`, { waitUntil: "load" });
-          await page.waitForTimeout(1000);
+          await page.goto(`${baseUrl}/${testPage}`, { waitUntil: "domcontentloaded" });
 
           if (pageErrors.length > 0) {
             throw pageErrors[0];
           }
 
-          await runPageProbe(page, testPage, consoleMessages);
+          const handled = await runPageProbe(page, testPage, consoleMessages);
 
-          const meaningful = consoleMessages.filter((text) => text.trim().length > 0);
-          if (meaningful.length === 0) {
-            throw new Error(`No console output observed for ${testPage}`);
+          if (!handled) {
+            await waitForGenericCompletion(page, testPage, consoleMessages, perTestTimeoutMs);
+          }
+
+          if (pageErrors.length > 0) {
+            throw pageErrors[0];
           }
         });
         console.log(`PASS ${testPage}`);

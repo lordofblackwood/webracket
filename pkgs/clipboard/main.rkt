@@ -44,6 +44,12 @@
   (and (clipboard-method-present? raw "readText")
        (clipboard-method-present? raw "writeText")))
 
+;; clipboard-raw-host-value? : any/c -> boolean?
+;;   Report whether raw is a non-nullish external host value.
+(define (clipboard-raw-host-value? raw)
+  (and (external? raw)
+       (not (js-nullish? raw))))
+
 ;; clipboard-supported-raw : -> (or/c #f external/raw)
 ;;   Read navigator.clipboard when it is available.
 (define (clipboard-supported-raw)
@@ -74,7 +80,7 @@
 ;;   Report whether v wraps an external Clipboard-like host value.
 (define (clipboard-host-value? v)
   (and (clipboard-info? v)
-       (external? (clipboard-raw v))))
+       (clipboard-raw-host-value? (clipboard-raw v))))
 
 ;; check-clipboard : symbol? any/c -> void?
 ;;   Ensure value wraps an external Clipboard-like host value.

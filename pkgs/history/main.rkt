@@ -61,7 +61,7 @@
   (with-handlers ([exn:fail? (lambda (_e) #f)])
     (define value (history))
     (and (history-info? value)
-         (external? (history-raw value))
+         (history-raw-host-value? (history-raw value))
          (history-method-present? (history-raw value) "back")
          (history-method-present? (history-raw value) "forward")
          (history-method-present? (history-raw value) "go")
@@ -87,7 +87,13 @@
 ;;   Report whether v wraps an external History-like host value.
 (define (history-host-value? v)
   (and (history-info? v)
-       (external? (history-raw v))))
+       (history-raw-host-value? (history-raw v))))
+
+;; history-raw-host-value? : any/c -> boolean?
+;;   Report whether raw is a non-nullish external host value.
+(define (history-raw-host-value? raw)
+  (and (external? raw)
+       (not (js-nullish? raw))))
 
 ;; check-history : symbol? any/c -> void?
 ;;   Ensure value wraps an external History-like host value.

@@ -4,7 +4,9 @@
 
 (require history
          (only-in webracket/unsafe/dom
-                  js-eval))
+                  js-eval
+                  js-null
+                  js-undefined))
 
 (define (check-true got label)
   (unless got
@@ -113,6 +115,8 @@
 (define missing-push-state-history (fake-history "pushState"))
 (define missing-replace-state-history (fake-history "replaceState"))
 (define missing-length-history (fake-history "length"))
+(define null-raw-history (history-info (js-null)))
+(define undefined-raw-history (history-info (js-undefined)))
 
 (check-true (not (history? missing-back-history))
             "history? rejects missing back")
@@ -124,6 +128,10 @@
             "history? rejects missing pushState")
 (check-true (not (history? missing-replace-state-history))
             "history? rejects missing replaceState")
+(check-false (history? null-raw-history)
+             "history? rejects null raw")
+(check-false (history? undefined-raw-history)
+             "history? rejects undefined raw")
 
 (define back-message
   (catch-message
@@ -159,6 +167,16 @@
   (catch-message
    (lambda ()
      (history-back! (history-info #f)))))
+
+(define null-raw-message
+  (catch-message
+   (lambda ()
+     (history-back! null-raw-history))))
+
+(define undefined-raw-message
+  (catch-message
+   (lambda ()
+     (history-back! undefined-raw-history))))
 
 (define callback (lambda args (void)))
 
@@ -200,6 +218,12 @@
 (check-message invalid-raw-message
                "history?"
                "missing history invalid raw message")
+(check-message null-raw-message
+               "history?"
+               "missing history null raw message")
+(check-message undefined-raw-message
+               "history?"
+               "missing history undefined raw message")
 (check-message add-popstate-message
                "window.addEventListener is not available"
                "missing window.addEventListener message")

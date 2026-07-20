@@ -3,8 +3,10 @@
 ;; Browser smoke for ScreenOrientation wrapper host-boundary errors.
 
 (require screen-orientation
-         (only-in webracket/unsafe/standard
-                  js-eval))
+         (only-in webracket/unsafe/dom
+                  js-eval
+                  js-null
+                  js-undefined))
 
 (define (check-true got label)
   (unless got
@@ -129,8 +131,18 @@
 (define missing-angle-orientation
   (fake-orientation "angle"))
 
+(define null-raw-orientation
+  (screen-orientation-info (js-null)))
+
+(define undefined-raw-orientation
+  (screen-orientation-info (js-undefined)))
+
 (check-true (screen-orientation? missing-lock-orientation)
             "screen-orientation? accepts external orientation-like value")
+(check-false (screen-orientation? null-raw-orientation)
+             "screen-orientation? rejects null raw")
+(check-false (screen-orientation? undefined-raw-orientation)
+             "screen-orientation? rejects undefined raw")
 
 (define lock-message
   (catch-message
@@ -160,6 +172,16 @@
   (catch-message
    (lambda ()
      (screen-orientation-type (screen-orientation-info #f)))))
+
+(define null-raw-message
+  (catch-message
+   (lambda ()
+     (screen-orientation-type null-raw-orientation))))
+
+(define undefined-raw-message
+  (catch-message
+   (lambda ()
+     (screen-orientation-type undefined-raw-orientation))))
 
 (define type-message
   (catch-message
@@ -194,6 +216,12 @@
 (check-message invalid-raw-message
                "screen-orientation?"
                "missing screen-orientation invalid raw message")
+(check-message null-raw-message
+               "screen-orientation?"
+               "missing screen-orientation null raw message")
+(check-message undefined-raw-message
+               "screen-orientation?"
+               "missing screen-orientation undefined raw message")
 (check-message type-message
                "ScreenOrientation.type is not available"
                "missing ScreenOrientation.type message")
