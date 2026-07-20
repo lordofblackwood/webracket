@@ -34,6 +34,12 @@
 (define (websocket-unwrap ws)
   (websocket-raw ws))
 
+;; websocket-raw-host-value? : any/c -> boolean?
+;;   Report whether raw is a non-nullish external host value.
+(define (websocket-raw-host-value? raw)
+  (and (external? raw)
+       (not (js-nullish? raw))))
+
 ;; websocket-constructor-present? : -> boolean?
 ;;   Check whether the host environment exposes a WebSocket constructor.
 (define (websocket-constructor-present?)
@@ -46,7 +52,8 @@
 ;; check-websocket : symbol? any/c -> void?
 ;;   Ensure x is a wrapped WebSocket value.
 (define (check-websocket who x)
-  (unless (websocket? x)
+  (unless (and (websocket? x)
+               (websocket-raw-host-value? (websocket-unwrap x)))
     (raise-argument-error who "websocket?" x)))
 
 ;; check-websocket-handler : symbol? any/c -> void?
@@ -163,8 +170,7 @@
 ;; websocket-method-present? : external/raw string? -> boolean?
 ;;   Report whether raw exposes a callable WebSocket method.
 (define (websocket-method-present? raw method-name)
-  (and (external? raw)
-       (not (js-nullish? raw))
+  (and (websocket-raw-host-value? raw)
        (let ([method (js-ref/extern raw method-name)])
          (and (not (js-nullish? method))
               (string=? (js-typeof method) "function")))))
@@ -172,6 +178,7 @@
 ;; check-websocket-method : symbol? websocket? string? -> void?
 ;;   Ensure a required WebSocket method is available.
 (define (check-websocket-method who ws method-name)
+  (check-websocket who ws)
   (unless (websocket-method-present? (websocket-unwrap ws) method-name)
     (raise-arguments-error who
                            (string-append "WebSocket." method-name " is not available"))))

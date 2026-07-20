@@ -76,7 +76,20 @@
 (check-false (websocket-constructor-present?)
              "websocket-constructor-present? returns #f when WebSocket is not constructible")
 
+(define js-null (js-eval "null"))
+(define js-undefined (js-eval "undefined"))
 (define callback (lambda args (void)))
+(define null-raw-websocket (websocket js-null))
+(define undefined-raw-websocket (websocket js-undefined))
+
+(check-true (not (websocket-raw-host-value? js-null))
+            "websocket raw host value rejects null")
+(check-true (not (websocket-raw-host-value? js-undefined))
+            "websocket raw host value rejects undefined")
+(check-true (not (websocket-method-present? js-null "send"))
+            "websocket method present rejects null target")
+(check-true (not (websocket-method-present? js-undefined "send"))
+            "websocket method present rejects undefined target")
 
 (define (missing-method-message method thunk)
   (js-eval (string-append "__wrWebSocketBoundaryInstall('"
@@ -148,6 +161,31 @@
      (define ws (websocket-new "wss://example.invalid/socket"))
      (websocket-extensions ws))))
 
+(define null-send-message
+  (catch-message
+   (lambda ()
+     (websocket-send null-raw-websocket "payload"))))
+
+(define undefined-close-message
+  (catch-message
+   (lambda ()
+     (websocket-close undefined-raw-websocket))))
+
+(define null-url-message
+  (catch-message
+   (lambda ()
+     (websocket-url null-raw-websocket))))
+
+(define null-handler-message
+  (catch-message
+   (lambda ()
+     (websocket-onopen! null-raw-websocket callback))))
+
+(define undefined-listener-message
+  (catch-message
+   (lambda ()
+     (websocket-add-event-listener! undefined-raw-websocket 'message callback))))
+
 (check-message add-listener-message
                "WebSocket.addEventListener is not available"
                "missing WebSocket.addEventListener message")
@@ -175,6 +213,21 @@
 (check-message extensions-message
                "WebSocket.extensions not available in this environment"
                "missing WebSocket.extensions message")
+(check-message null-send-message
+               "websocket?"
+               "null websocket send raw message")
+(check-message undefined-close-message
+               "websocket?"
+               "undefined websocket close raw message")
+(check-message null-url-message
+               "websocket?"
+               "null websocket url raw message")
+(check-message null-handler-message
+               "websocket?"
+               "null websocket handler raw message")
+(check-message undefined-listener-message
+               "websocket?"
+               "undefined websocket listener raw message")
 
 (js-eval "__wrWebSocketBoundaryRestore();")
 
