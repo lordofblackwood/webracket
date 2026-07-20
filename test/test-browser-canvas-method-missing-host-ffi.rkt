@@ -35,7 +35,7 @@
 
 (define ctx (canvas-2d-context-wrap (js-eval "({})")))
 (define source (canvas-wrap (js-eval "({})")))
-(define image-data (canvas-image-data-wrap (js-eval "({})")))
+(define sample-image-data (canvas-image-data-wrap (js-eval "({})")))
 (define gradient (canvas-gradient-wrap (js-eval "({})")))
 (define pattern (canvas-pattern-wrap (js-eval "({})")))
 (define matrix (canvas-dom-matrix-wrap (js-eval "({})")))
@@ -63,6 +63,14 @@
 (define non-callable-pattern-style
   (canvas-2d-stroke-style
    (canvas-2d-context-wrap (js-eval "({strokeStyle: {setTransform: 1}})"))))
+(define valid-pattern
+  (canvas-pattern-wrap (js-eval "({setTransform: function (matrix) { this.matrix = matrix; }})")))
+(define forged-null-source (html-canvas-element js-null))
+(define forged-undefined-image-data (image-data js-undefined))
+(define forged-null-offscreen-canvas (offscreen-canvas js-null))
+(define forged-null-gradient (canvas-gradient js-null))
+(define forged-undefined-pattern (canvas-pattern js-undefined))
+(define forged-null-matrix (dom-matrix js-null))
 
 (define fill-message
   (catch-message
@@ -77,7 +85,7 @@
 (define create-image-data-from-message
   (catch-message
    (lambda ()
-     (canvas-2d-create-image-data-from ctx image-data))))
+     (canvas-2d-create-image-data-from ctx sample-image-data))))
 
 (define pattern-message
   (catch-message
@@ -422,17 +430,17 @@
 (define image-data-width-message
   (catch-message
    (lambda ()
-     (canvas-image-data-width image-data))))
+     (canvas-image-data-width sample-image-data))))
 
 (define image-data-height-message
   (catch-message
    (lambda ()
-     (canvas-image-data-height image-data))))
+     (canvas-image-data-height sample-image-data))))
 
 (define image-data-data-message
   (catch-message
    (lambda ()
-     (canvas-image-data-data image-data))))
+     (canvas-image-data-data sample-image-data))))
 
 (define text-metrics-width-message
   (catch-message
@@ -468,6 +476,36 @@
   (catch-message
    (lambda ()
      (canvas-dom-matrix-f matrix))))
+
+(define forged-source-message
+  (catch-message
+   (lambda ()
+     (canvas-2d-create-pattern ctx forged-null-source 'repeat))))
+
+(define forged-image-data-message
+  (catch-message
+   (lambda ()
+     (canvas-2d-put-image-data ctx forged-undefined-image-data 0 0))))
+
+(define forged-offscreen-canvas-message
+  (catch-message
+   (lambda ()
+     (canvas-2d-draw-image ctx forged-null-offscreen-canvas 0 0))))
+
+(define forged-gradient-style-message
+  (catch-message
+   (lambda ()
+     (canvas-2d-set-fill-style! ctx forged-null-gradient))))
+
+(define forged-pattern-style-message
+  (catch-message
+   (lambda ()
+     (canvas-2d-set-stroke-style! ctx forged-undefined-pattern))))
+
+(define forged-matrix-message
+  (catch-message
+   (lambda ()
+     (canvas-pattern-set-transform! valid-pattern forged-null-matrix))))
 
 (check-message fill-message
                "CanvasRenderingContext2D.fill not available in this environment"
@@ -716,6 +754,24 @@
 (check-message dom-matrix-f-message
                "DOMMatrix.f not available in this environment"
                "missing DOMMatrix.f message")
+(check-message forged-source-message
+               "html-canvas-element with non-nullish raw value"
+               "missing forged canvas source message")
+(check-message forged-image-data-message
+               "image-data with non-nullish raw value"
+               "missing forged ImageData message")
+(check-message forged-offscreen-canvas-message
+               "offscreen-canvas with non-nullish raw value"
+               "missing forged OffscreenCanvas message")
+(check-message forged-gradient-style-message
+               "canvas-gradient with non-nullish raw value"
+               "missing forged CanvasGradient style message")
+(check-message forged-pattern-style-message
+               "canvas-pattern with non-nullish raw value"
+               "missing forged CanvasPattern style message")
+(check-message forged-matrix-message
+               "dom-matrix with non-nullish raw value"
+               "missing forged DOMMatrix message")
 (check-false null-canvas "null canvas wrapper returns #f")
 (check-false null-ctx "null canvas context wrapper returns #f")
 (check-false null-image-data "null ImageData wrapper returns #f")

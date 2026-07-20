@@ -275,6 +275,19 @@
     [(real? value)   (exact->inexact value)]
     [else (raise-argument-error who "real?" value)]))
 
+;; canvas-raw-host-value? : any/c -> boolean?
+;;   Report whether value is a non-nullish browser host value.
+(define (canvas-raw-host-value? value)
+  (and (external? value)
+       (not (js-nullish? value))))
+
+;; canvas-wrapper-raw/checked : symbol? string? any/c any/c -> external/raw
+;;   Validate a wrapper raw field before passing it to browser host calls.
+(define (canvas-wrapper-raw/checked who expected value raw)
+  (unless (canvas-raw-host-value? raw)
+    (raise-argument-error who expected value))
+  raw)
+
 ;; canvas-source-unwrap : any/c -> any/c
 ;;   Unwrap browser canvas-like sources when available.
 (define (canvas-source-unwrap value)
@@ -284,12 +297,49 @@
     [(offscreen-canvas? value) (offscreen-canvas-raw value)]
     [else value]))
 
+;; canvas-source-unwrap/checked : symbol? any/c -> any/c
+;;   Validate and unwrap browser canvas-like sources when available.
+(define (canvas-source-unwrap/checked who value)
+  (cond
+    [(html-canvas-element? value)
+     (canvas-wrapper-raw/checked who
+                                 "html-canvas-element with non-nullish raw value"
+                                 value
+                                 (html-canvas-element-raw value))]
+    [(image-data? value)
+     (canvas-wrapper-raw/checked who
+                                 "image-data with non-nullish raw value"
+                                 value
+                                 (image-data-raw value))]
+    [(offscreen-canvas? value)
+     (canvas-wrapper-raw/checked who
+                                 "offscreen-canvas with non-nullish raw value"
+                                 value
+                                 (offscreen-canvas-raw value))]
+    [else value]))
+
 ;; canvas-paint-style-unwrap : any/c -> any/c
 ;;   Unwrap wrapper values used for paint styles.
 (define (canvas-paint-style-unwrap value)
   (cond
     [(canvas-gradient? value) (canvas-gradient-raw value)]
     [(canvas-pattern? value) (canvas-pattern-raw value)]
+    [else value]))
+
+;; canvas-paint-style-unwrap/checked : symbol? any/c -> any/c
+;;   Validate and unwrap wrapper values used for paint styles.
+(define (canvas-paint-style-unwrap/checked who value)
+  (cond
+    [(canvas-gradient? value)
+     (canvas-wrapper-raw/checked who
+                                 "canvas-gradient with non-nullish raw value"
+                                 value
+                                 (canvas-gradient-raw value))]
+    [(canvas-pattern? value)
+     (canvas-wrapper-raw/checked who
+                                 "canvas-pattern with non-nullish raw value"
+                                 value
+                                 (canvas-pattern-raw value))]
     [else value]))
 
 ;; canvas-paint-style-wrap : any/c -> any/c
@@ -321,6 +371,16 @@
       (dom-matrix-raw value)
       value))
 
+;; canvas-matrix->raw/checked : symbol? any/c -> any/c
+;;   Validate and unwrap a DOMMatrix wrapper when available.
+(define (canvas-matrix->raw/checked who value)
+  (if (dom-matrix? value)
+      (canvas-wrapper-raw/checked who
+                                  "dom-matrix with non-nullish raw value"
+                                  value
+                                  (dom-matrix-raw value))
+      value))
+
 ;; canvas-image-data-wrap : any/c -> (or/c #f image-data?)
 ;;   Wrap a browser ImageData value, preserving nullish values as #f.
 (define (canvas-image-data-wrap value)
@@ -331,6 +391,16 @@
 (define (canvas-image-data-unwrap value)
   (if (image-data? value)
       (image-data-raw value)
+      value))
+
+;; canvas-image-data-unwrap/checked : symbol? any/c -> any/c
+;;   Validate and unwrap a browser ImageData value when available.
+(define (canvas-image-data-unwrap/checked who value)
+  (if (image-data? value)
+      (canvas-wrapper-raw/checked who
+                                  "image-data with non-nullish raw value"
+                                  value
+                                  (image-data-raw value))
       value))
 
 ;; canvas-gradient-wrap : any/c -> (or/c #f canvas-gradient?)
@@ -647,7 +717,7 @@
   (define raw (canvas-pattern-unwrap pattern))
   (check-canvas-host-method 'canvas-pattern-set-transform! raw "CanvasPattern" "setTransform")
   (js-send/value raw "setTransform"
-                 (vector (canvas-matrix->raw matrix)))
+                 (vector (canvas-matrix->raw/checked 'canvas-pattern-set-transform! matrix)))
   (void))
 
 ;; canvas-2d-filter : (or/c canvas-rendering-context-2d? external?) -> string?
@@ -977,13 +1047,17 @@
 (define (canvas-2d-create-image-data-from ctx data)
   (canvas-image-data-wrap
    (js-canvas2d-create-image-data-from (canvas-2d-context-unwrap ctx)
-                                       (canvas-image-data-unwrap data))))
+                                       (canvas-image-data-unwrap/checked
+                                        'canvas-2d-create-image-data-from
+                                        data))))
 
 ;; canvas-2d-create-pattern : (or/c canvas-rendering-context-2d? external?) any/c (or/c string? symbol?) -> (or/c #f canvas-pattern?)
 ;;   Create a pattern from an image or canvas source.
 (define (canvas-2d-create-pattern ctx source repetition)
   (define pattern (js-canvas2d-create-pattern (canvas-2d-context-unwrap ctx)
-                                              (canvas-source-unwrap source)
+                                              (canvas-source-unwrap/checked
+                                               'canvas-2d-create-pattern
+                                               source)
                                               (canvas-stringish->string 'canvas-2d-create-pattern repetition)))
   (and pattern (canvas-pattern-wrap pattern)))
 
@@ -1012,7 +1086,7 @@
 ;;   Draw an image source at a point.
 (define (canvas-2d-draw-image ctx source dx dy)
   (js-canvas2d-draw-image (canvas-2d-context-unwrap ctx)
-                          (canvas-source-unwrap source)
+                          (canvas-source-unwrap/checked 'canvas-2d-draw-image source)
                           (canvas-real->flonum 'canvas-2d-draw-image dx)
                           (canvas-real->flonum 'canvas-2d-draw-image dy))
   (void))
@@ -1021,7 +1095,7 @@
 ;;   Draw an image source with destination sizing.
 (define (canvas-2d-draw-image-5 ctx source dx dy dwidth dheight)
   (js-canvas2d-draw-image-5 (canvas-2d-context-unwrap ctx)
-                            (canvas-source-unwrap source)
+                            (canvas-source-unwrap/checked 'canvas-2d-draw-image-5 source)
                             (canvas-real->flonum 'canvas-2d-draw-image-5 dx)
                             (canvas-real->flonum 'canvas-2d-draw-image-5 dy)
                             (canvas-real->flonum 'canvas-2d-draw-image-5 dwidth)
@@ -1032,7 +1106,7 @@
 ;;   Draw an image source with source and destination rectangles.
 (define (canvas-2d-draw-image-9 ctx source sx sy sw sh dx dy dw dh)
   (js-canvas2d-draw-image-9 (canvas-2d-context-unwrap ctx)
-                            (canvas-source-unwrap source)
+                            (canvas-source-unwrap/checked 'canvas-2d-draw-image-9 source)
                             (canvas-real->flonum 'canvas-2d-draw-image-9 sx)
                             (canvas-real->flonum 'canvas-2d-draw-image-9 sy)
                             (canvas-real->flonum 'canvas-2d-draw-image-9 sw)
@@ -1119,7 +1193,7 @@
 ;;   Write pixels back to the canvas.
 (define (canvas-2d-put-image-data ctx data dx dy [dirty-x #f] [dirty-y #f] [dirty-width #f] [dirty-height #f])
   (js-canvas2d-put-image-data (canvas-2d-context-unwrap ctx)
-                              (canvas-image-data-unwrap data)
+                              (canvas-image-data-unwrap/checked 'canvas-2d-put-image-data data)
                               dx
                               dy
                               (canvas-resolve-optional dirty-x)
@@ -1182,7 +1256,9 @@
 ;;   Set the transform matrix from a DOMMatrix.
 (define (canvas-2d-set-transform-matrix! ctx matrix)
   (js-canvas2d-set-transform-matrix! (canvas-2d-context-unwrap ctx)
-                                     (canvas-matrix->raw matrix))
+                                     (canvas-matrix->raw/checked
+                                      'canvas-2d-set-transform-matrix!
+                                      matrix))
   (void))
 
 ;; canvas-2d-transform : (or/c canvas-rendering-context-2d? external?) real? real? real? real? real? real? -> void?
@@ -1222,7 +1298,9 @@
 ;;   Set the fill style.
 (define (canvas-2d-set-fill-style! ctx style)
   (js-set-canvas2d-fill-style! (canvas-2d-context-unwrap ctx)
-                               (canvas-paint-style-unwrap style))
+                               (canvas-paint-style-unwrap/checked
+                                'canvas-2d-set-fill-style!
+                                style))
   (void))
 
 ;; canvas-2d-stroke-style : (or/c canvas-rendering-context-2d? external?) -> any/c
@@ -1234,5 +1312,7 @@
 ;;   Set the stroke style.
 (define (canvas-2d-set-stroke-style! ctx style)
   (js-set-canvas2d-stroke-style! (canvas-2d-context-unwrap ctx)
-                                 (canvas-paint-style-unwrap style))
+                                 (canvas-paint-style-unwrap/checked
+                                  'canvas-2d-set-stroke-style!
+                                  style))
   (void))
