@@ -5,7 +5,8 @@
 (require browser/media
          (only-in webracket/unsafe/standard
                   js-eval
-                  js-null))
+                  js-null
+                  js-undefined))
 
 (define (check-true got label)
   (unless got
@@ -56,6 +57,11 @@
       }
     };
     delete media[missing];
+    return media;
+  };
+  globalThis.__wrMediaBoundaryFakeSrcObject = () => {
+    const media = globalThis.__wrMediaBoundaryFake('notAProperty');
+    media.srcObject = null;
     return media;
   };")
 
@@ -324,6 +330,40 @@
    (lambda ()
      (media-set-src-object! (fake-media "srcObject") (js-null)))))
 
+(define src-object-null-result
+  (media-src-object
+   (js-eval "__wrMediaBoundaryFakeSrcObject()")))
+
+(define null-receiver-src-message
+  (catch-message
+   (lambda ()
+     (media-src (js-null)))))
+
+(define undefined-receiver-src-message
+  (catch-message
+   (lambda ()
+     (media-src (js-undefined)))))
+
+(define null-receiver-src-setter-message
+  (catch-message
+   (lambda ()
+     (media-set-src! (js-null) 'song.ogg))))
+
+(define undefined-receiver-src-setter-message
+  (catch-message
+   (lambda ()
+     (media-set-src! (js-undefined) 'song.ogg))))
+
+(define null-receiver-play-message
+  (catch-message
+   (lambda ()
+     (media-play (js-null)))))
+
+(define undefined-receiver-play-message
+  (catch-message
+   (lambda ()
+     (media-play (js-undefined)))))
+
 (define text-tracks-message
   (catch-media-message "textTracks"
                        media-text-tracks))
@@ -342,7 +382,9 @@
    (lambda ()
      (media-set-volume! (fake-media "volume") 0.5))))
 
-(js-eval "delete globalThis.__wrMediaBoundaryFake;")
+(js-eval
+ "delete globalThis.__wrMediaBoundaryFake;
+  delete globalThis.__wrMediaBoundaryFakeSrcObject;")
 
 (check-message add-text-track-message
                "HTMLMediaElement.addTextTrack not available in this environment"
@@ -506,6 +548,26 @@
 (check-message src-object-setter-message
                "HTMLMediaElement.srcObject not available in this environment"
                "missing srcObject setter message")
+(check-true (eq? src-object-null-result #f)
+            "srcObject null maps to #f")
+(check-message null-receiver-src-message
+               "HTMLMediaElement.src: target object is null or undefined"
+               "null receiver src message")
+(check-message undefined-receiver-src-message
+               "HTMLMediaElement.src: target object is null or undefined"
+               "undefined receiver src message")
+(check-message null-receiver-src-setter-message
+               "HTMLMediaElement.src: target object is null or undefined"
+               "null receiver src setter message")
+(check-message undefined-receiver-src-setter-message
+               "HTMLMediaElement.src: target object is null or undefined"
+               "undefined receiver src setter message")
+(check-message null-receiver-play-message
+               "HTMLMediaElement.play: target object is null or undefined"
+               "null receiver play message")
+(check-message undefined-receiver-play-message
+               "HTMLMediaElement.play: target object is null or undefined"
+               "undefined receiver play message")
 (check-message text-tracks-message
                "HTMLMediaElement.textTracks not available in this environment"
                "missing textTracks message")

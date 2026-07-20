@@ -401,7 +401,7 @@
 (define (media-src-object media)
   (define src-object (js-media-src-object media))
   (cond
-    [(not src-object) #f]
+    [(or (not src-object) (js-nullish? src-object)) #f]
     [(not (js-nullish? (js-ref/extern src-object "getTracks")))
      (media-stream-wrap src-object)]
     [else (media-source-wrap src-object)]))
