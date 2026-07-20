@@ -32,6 +32,16 @@
 ;;   Wrap a browser IntersectionObserverEntry object.
 (struct intersection-observer-entry (raw) #:transparent)
 
+;; observer-element-raw/checked : symbol? dom-element? -> external/raw
+;;   Validate and unwrap a DOM element before passing it to observer host calls.
+(define (observer-element-raw/checked who element)
+  (define raw (dom-element-raw element))
+  (unless (shared-dom-raw-host-value? raw)
+    (raise-argument-error who
+                          "dom-element with non-nullish raw value"
+                          element))
+  raw)
+
 ;; intersection-observer-options : any/c any/c any/c -> intersection-observer-options?
 ;;   Wrap constructor options for IntersectionObserver.
 (struct intersection-observer-options (root root-margin threshold)
@@ -39,6 +49,8 @@
   #:constructor-name make-intersection-observer-options
   #:guard
   (lambda (root root-margin threshold name)
+    (when (dom-element? root)
+      (observer-element-raw/checked name root))
     (unless (or (eq? root #f)
                 (dom-element? root)
                 (intersection-observer-raw-host-value? root))
@@ -130,7 +142,12 @@
     (append
      (if (eq? root #f)
          '()
-         (list (vector "root" (if (dom-element? root) (dom-element-raw root) root))))
+         (list (vector "root"
+                       (if (dom-element? root)
+                           (observer-element-raw/checked
+                            'make-intersection-observer-options
+                            root)
+                           root))))
      (if (eq? root-margin #f)
          '()
          (list (vector "rootMargin"
@@ -146,7 +163,7 @@
 ;;   Normalize an observed target to a raw browser Element object.
 (define (observer-target->raw who target)
   (cond
-    [(dom-element? target) (dom-element-raw target)]
+    [(dom-element? target) (observer-element-raw/checked who target)]
     [(intersection-observer-raw-host-value? target) target]
     [else
      (raise-argument-error who "(or/c dom-element? external?)" target)]))

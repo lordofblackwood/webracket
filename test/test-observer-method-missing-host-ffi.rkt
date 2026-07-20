@@ -2,7 +2,9 @@
 
 ;; Browser smoke for observer wrapper host-method boundary errors.
 
-(require (only-in intersection-observer
+(require (only-in browser/element
+                  dom-element)
+         (only-in intersection-observer
                   intersection-observer
                   intersection-observer?
                   intersection-observer-disconnect!
@@ -14,6 +16,7 @@
                   intersection-observer-entry-root-bounds
                   intersection-observer-entry-target
                   intersection-observer-entry-time
+                  make-intersection-observer-options
                   intersection-observer-observe!
                   intersection-observer-unobserve!
                   make-intersection-observer)
@@ -200,6 +203,9 @@
 (define undefined-raw-resize-entry
   (resize-observer-entry (js-undefined)))
 
+(define null-raw-element (dom-element (js-null)))
+(define undefined-raw-element (dom-element (js-undefined)))
+
 (check-true (not (intersection-observer? null-raw-intersection-observer))
             "intersection-observer? rejects null raw")
 (check-true (not (intersection-observer? undefined-raw-intersection-observer))
@@ -324,6 +330,44 @@
    (lambda ()
      (define observer (make-resize-observer callback))
      (resize-observer-disconnect! observer))))
+
+(define intersection-options-null-root-message
+  (catch-message
+   (lambda ()
+     (make-intersection-observer-options null-raw-element #f #f))))
+
+(define intersection-options-undefined-root-message
+  (catch-message
+   (lambda ()
+     (make-intersection-observer-options undefined-raw-element #f #f))))
+
+(define intersection-observe-null-element-message
+  (missing-intersection-message
+   "notAProperty"
+   (lambda ()
+     (define observer (make-intersection-observer callback))
+     (intersection-observer-observe! observer null-raw-element))))
+
+(define intersection-unobserve-undefined-element-message
+  (missing-intersection-message
+   "notAProperty"
+   (lambda ()
+     (define observer (make-intersection-observer callback))
+     (intersection-observer-unobserve! observer undefined-raw-element))))
+
+(define resize-observe-null-element-message
+  (missing-resize-message
+   "notAProperty"
+   (lambda ()
+     (define observer (make-resize-observer callback))
+     (resize-observer-observe! observer null-raw-element))))
+
+(define resize-unobserve-undefined-element-message
+  (missing-resize-message
+   "notAProperty"
+   (lambda ()
+     (define observer (make-resize-observer callback))
+     (resize-observer-unobserve! observer undefined-raw-element))))
 
 (define intersection-entry-target-message
   (catch-message
@@ -450,6 +494,24 @@
 (check-message resize-disconnect-message
                "ResizeObserver.disconnect is not available"
                "missing ResizeObserver.disconnect message")
+(check-message intersection-options-null-root-message
+               "dom-element with non-nullish raw value"
+               "missing IntersectionObserver null root element message")
+(check-message intersection-options-undefined-root-message
+               "dom-element with non-nullish raw value"
+               "missing IntersectionObserver undefined root element message")
+(check-message intersection-observe-null-element-message
+               "dom-element with non-nullish raw value"
+               "missing IntersectionObserver null target element message")
+(check-message intersection-unobserve-undefined-element-message
+               "dom-element with non-nullish raw value"
+               "missing IntersectionObserver undefined target element message")
+(check-message resize-observe-null-element-message
+               "dom-element with non-nullish raw value"
+               "missing ResizeObserver null target element message")
+(check-message resize-unobserve-undefined-element-message
+               "dom-element with non-nullish raw value"
+               "missing ResizeObserver undefined target element message")
 (check-message intersection-entry-target-message
                "IntersectionObserverEntry.target is not available"
                "missing IntersectionObserverEntry.target message")
