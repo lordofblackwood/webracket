@@ -173,10 +173,25 @@
 (struct dom-matrix (raw) #:transparent)
 (struct offscreen-canvas (raw) #:transparent)
 
-;; canvas-wrap : any/c -> html-canvas-element?
-;;   Wrap a browser canvas value.
+;; canvas-nullish-value? : any/c -> boolean?
+;;   Report whether value is Racket #f or a JavaScript nullish host value.
+(define (canvas-nullish-value? value)
+  (or (not value)
+      (and (external? value)
+           (js-nullish? value))))
+
+;; canvas-wrap-value : any/c (any/c -> boolean?) (any/c -> any/c) -> any/c
+;;   Preserve wrapped and nullish values, otherwise build a host wrapper.
+(define (canvas-wrap-value value wrapped? make-wrapper)
+  (cond
+    [(wrapped? value) value]
+    [(canvas-nullish-value? value) #f]
+    [else (make-wrapper value)]))
+
+;; canvas-wrap : any/c -> (or/c #f html-canvas-element?)
+;;   Wrap a browser canvas value, preserving nullish values as #f.
 (define (canvas-wrap value)
-  (html-canvas-element value))
+  (canvas-wrap-value value html-canvas-element? html-canvas-element))
 
 ;; canvas-unwrap : any/c -> any/c
 ;;   Unwrap a browser canvas value.
@@ -185,10 +200,10 @@
       (html-canvas-element-raw value)
       value))
 
-;; canvas-2d-context-wrap : any/c -> canvas-rendering-context-2d?
-;;   Wrap a browser 2D context value.
+;; canvas-2d-context-wrap : any/c -> (or/c #f canvas-rendering-context-2d?)
+;;   Wrap a browser 2D context value, preserving nullish values as #f.
 (define (canvas-2d-context-wrap value)
-  (canvas-rendering-context-2d value))
+  (canvas-wrap-value value canvas-rendering-context-2d? canvas-rendering-context-2d))
 
 ;; canvas-2d-context-unwrap : any/c -> any/c
 ;;   Unwrap a browser 2D context value.
@@ -279,6 +294,7 @@
 ;;   Wrap browser paint-style values when possible.
 (define (canvas-paint-style-wrap value)
   (cond
+    [(canvas-nullish-value? value) #f]
     [(and (external? value)
           (canvas-host-method-present? value "addColorStop"))
      (canvas-gradient-wrap value)]
@@ -303,10 +319,10 @@
       (dom-matrix-raw value)
       value))
 
-;; canvas-image-data-wrap : any/c -> image-data?
-;;   Wrap a browser ImageData value.
+;; canvas-image-data-wrap : any/c -> (or/c #f image-data?)
+;;   Wrap a browser ImageData value, preserving nullish values as #f.
 (define (canvas-image-data-wrap value)
-  (image-data value))
+  (canvas-wrap-value value image-data? image-data))
 
 ;; canvas-image-data-unwrap : any/c -> any/c
 ;;   Unwrap a browser ImageData value.
@@ -315,10 +331,10 @@
       (image-data-raw value)
       value))
 
-;; canvas-gradient-wrap : any/c -> canvas-gradient?
-;;   Wrap a browser gradient value.
+;; canvas-gradient-wrap : any/c -> (or/c #f canvas-gradient?)
+;;   Wrap a browser gradient value, preserving nullish values as #f.
 (define (canvas-gradient-wrap value)
-  (canvas-gradient value))
+  (canvas-wrap-value value canvas-gradient? canvas-gradient))
 
 ;; canvas-gradient-unwrap : any/c -> any/c
 ;;   Unwrap a browser gradient value.
@@ -327,10 +343,10 @@
       (canvas-gradient-raw value)
       value))
 
-;; canvas-pattern-wrap : any/c -> canvas-pattern?
-;;   Wrap a browser pattern value.
+;; canvas-pattern-wrap : any/c -> (or/c #f canvas-pattern?)
+;;   Wrap a browser pattern value, preserving nullish values as #f.
 (define (canvas-pattern-wrap value)
-  (canvas-pattern value))
+  (canvas-wrap-value value canvas-pattern? canvas-pattern))
 
 ;; canvas-pattern-unwrap : any/c -> any/c
 ;;   Unwrap a browser pattern value.
@@ -339,10 +355,10 @@
       (canvas-pattern-raw value)
       value))
 
-;; canvas-text-metrics-wrap : any/c -> text-metrics?
-;;   Wrap a browser TextMetrics value.
+;; canvas-text-metrics-wrap : any/c -> (or/c #f text-metrics?)
+;;   Wrap a browser TextMetrics value, preserving nullish values as #f.
 (define (canvas-text-metrics-wrap value)
-  (text-metrics value))
+  (canvas-wrap-value value text-metrics? text-metrics))
 
 ;; canvas-text-metrics-unwrap : any/c -> any/c
 ;;   Unwrap a browser TextMetrics value.
@@ -351,10 +367,10 @@
       (text-metrics-raw value)
       value))
 
-;; canvas-dom-matrix-wrap : any/c -> dom-matrix?
-;;   Wrap a browser DOMMatrix value.
+;; canvas-dom-matrix-wrap : any/c -> (or/c #f dom-matrix?)
+;;   Wrap a browser DOMMatrix value, preserving nullish values as #f.
 (define (canvas-dom-matrix-wrap value)
-  (dom-matrix value))
+  (canvas-wrap-value value dom-matrix? dom-matrix))
 
 ;; canvas-dom-matrix-unwrap : any/c -> any/c
 ;;   Unwrap a browser DOMMatrix value.
@@ -368,10 +384,10 @@
 (define (canvas-js-array->bytes arr)
   (array->bytes arr))
 
-;; offscreen-canvas-wrap : any/c -> offscreen-canvas?
-;;   Wrap a browser OffscreenCanvas value.
+;; offscreen-canvas-wrap : any/c -> (or/c #f offscreen-canvas?)
+;;   Wrap a browser OffscreenCanvas value, preserving nullish values as #f.
 (define (offscreen-canvas-wrap value)
-  (offscreen-canvas value))
+  (canvas-wrap-value value offscreen-canvas? offscreen-canvas))
 
 ;; offscreen-canvas-unwrap : any/c -> any/c
 ;;   Unwrap a browser OffscreenCanvas value.

@@ -40,9 +40,23 @@
 (define pattern (canvas-pattern-wrap (js-eval "({})")))
 (define matrix (canvas-dom-matrix-wrap (js-eval "({})")))
 (define js-null (js-eval "null"))
+(define js-undefined (js-eval "undefined"))
+(define null-canvas (canvas-wrap js-null))
+(define null-ctx (canvas-2d-context-wrap js-null))
 (define null-image-data (canvas-image-data-wrap js-null))
+(define null-gradient (canvas-gradient-wrap js-null))
+(define null-pattern (canvas-pattern-wrap js-null))
 (define null-text-metrics (canvas-text-metrics-wrap js-null))
 (define null-matrix (canvas-dom-matrix-wrap js-null))
+(define null-offscreen-canvas (offscreen-canvas-wrap js-null))
+(define undefined-canvas (canvas-wrap js-undefined))
+(define undefined-ctx (canvas-2d-context-wrap js-undefined))
+(define undefined-image-data (canvas-image-data-wrap js-undefined))
+(define undefined-gradient (canvas-gradient-wrap js-undefined))
+(define undefined-pattern (canvas-pattern-wrap js-undefined))
+(define undefined-text-metrics (canvas-text-metrics-wrap js-undefined))
+(define undefined-matrix (canvas-dom-matrix-wrap js-undefined))
+(define undefined-offscreen-canvas (offscreen-canvas-wrap js-undefined))
 (define non-callable-gradient-style
   (canvas-2d-fill-style
    (canvas-2d-context-wrap (js-eval "({fillStyle: {addColorStop: 1}})"))))
@@ -455,26 +469,6 @@
    (lambda ()
      (canvas-dom-matrix-f matrix))))
 
-(define image-data-width-null-message
-  (catch-message
-   (lambda ()
-     (canvas-image-data-width null-image-data))))
-
-(define image-data-data-null-message
-  (catch-message
-   (lambda ()
-     (canvas-image-data-data null-image-data))))
-
-(define text-metrics-width-null-message
-  (catch-message
-   (lambda ()
-     (canvas-text-metrics-width null-text-metrics))))
-
-(define dom-matrix-a-null-message
-  (catch-message
-   (lambda ()
-     (canvas-dom-matrix-a null-matrix))))
-
 (check-message fill-message
                "CanvasRenderingContext2D.fill not available in this environment"
                "missing fill message")
@@ -722,18 +716,22 @@
 (check-message dom-matrix-f-message
                "DOMMatrix.f not available in this environment"
                "missing DOMMatrix.f message")
-(check-message image-data-width-null-message
-               "ImageData.width: target object is null or undefined"
-               "null ImageData.width message")
-(check-message image-data-data-null-message
-               "ImageData.data: target object is null or undefined"
-               "null ImageData.data message")
-(check-message text-metrics-width-null-message
-               "TextMetrics.width: target object is null or undefined"
-               "null TextMetrics.width message")
-(check-message dom-matrix-a-null-message
-               "DOMMatrix.a: target object is null or undefined"
-               "null DOMMatrix.a message")
+(check-false null-canvas "null canvas wrapper returns #f")
+(check-false null-ctx "null canvas context wrapper returns #f")
+(check-false null-image-data "null ImageData wrapper returns #f")
+(check-false null-gradient "null CanvasGradient wrapper returns #f")
+(check-false null-pattern "null CanvasPattern wrapper returns #f")
+(check-false null-text-metrics "null TextMetrics wrapper returns #f")
+(check-false null-matrix "null DOMMatrix wrapper returns #f")
+(check-false null-offscreen-canvas "null OffscreenCanvas wrapper returns #f")
+(check-false undefined-canvas "undefined canvas wrapper returns #f")
+(check-false undefined-ctx "undefined canvas context wrapper returns #f")
+(check-false undefined-image-data "undefined ImageData wrapper returns #f")
+(check-false undefined-gradient "undefined CanvasGradient wrapper returns #f")
+(check-false undefined-pattern "undefined CanvasPattern wrapper returns #f")
+(check-false undefined-text-metrics "undefined TextMetrics wrapper returns #f")
+(check-false undefined-matrix "undefined DOMMatrix wrapper returns #f")
+(check-false undefined-offscreen-canvas "undefined OffscreenCanvas wrapper returns #f")
 
 (js-log "browser-canvas-method-missing-host-ffi-ok")
 #t
