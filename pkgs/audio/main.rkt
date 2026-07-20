@@ -22,12 +22,26 @@
 ;;   Wrap a browser AudioListener object.
 (struct audio-listener (raw) #:transparent)
 
+;; audio-nullish-value? : any/c -> boolean?
+;;   Report whether value is Racket #f or a JavaScript nullish host value.
+(define (audio-nullish-value? value)
+  (or (not value)
+      (and (external? value)
+           (js-nullish? value))))
+
+;; audio-raw-host-value? : any/c -> boolean?
+;;   Report whether value is a non-nullish external host value.
+(define (audio-raw-host-value? value)
+  (and (external? value)
+       (not (js-nullish? value))))
+
 ;; audio-listener-wrap : any/c -> any/c
 ;;   Wrap a raw browser AudioListener object, leaving wrapped values alone.
 (define (audio-listener-wrap value)
-  (if (or (not value) (audio-listener? value))
-      value
-      (audio-listener value)))
+  (cond
+    [(audio-listener? value) value]
+    [(audio-nullish-value? value) #f]
+    [else (audio-listener value)]))
 
 ;; audio-listener-unwrap : any/c -> any/c
 ;;   Unwrap an audio-listener struct to its raw browser object.
@@ -43,9 +57,10 @@
 ;; audio-periodic-wave-wrap : any/c -> any/c
 ;;   Wrap a raw browser PeriodicWave object, leaving wrapped values alone.
 (define (audio-periodic-wave-wrap value)
-  (if (or (not value) (audio-periodic-wave? value))
-      value
-      (audio-periodic-wave value)))
+  (cond
+    [(audio-periodic-wave? value) value]
+    [(audio-nullish-value? value) #f]
+    [else (audio-periodic-wave value)]))
 
 ;; audio-periodic-wave-unwrap : any/c -> any/c
 ;;   Unwrap an audio-periodic-wave struct to its raw browser object.
@@ -57,6 +72,8 @@
 ;; array-like->vector : symbol? any/c (-> any/c any/c) -> vector?
 ;;   Convert a browser array-like value into a WebRacket vector.
 (define (array-like->vector who value wrap-item)
+  (unless (audio-raw-host-value? value)
+    (raise-argument-error who "array-like browser value" value))
   (define length (js-ref value "length"))
   (unless (exact-nonnegative-integer? length)
     (raise-argument-error who "array-like browser value" value))
@@ -118,7 +135,8 @@
 ;; audio-host-method-present? : external/raw string? -> boolean?
 ;;   Report whether raw exposes a callable browser method.
 (define (audio-host-method-present? raw method-name)
-  (string=? (js-typeof (js-ref/extern raw method-name)) "function"))
+  (and (audio-raw-host-value? raw)
+       (string=? (js-typeof (js-ref/extern raw method-name)) "function")))
 
 ;; check-audio-host-method : symbol? external/raw string? string? -> void?
 ;;   Ensure a required browser method is available.
@@ -133,107 +151,114 @@
 ;; audio-context? : any/c -> boolean?
 ;;   Check whether x is an AudioContext value.
 (define (audio-context? x)
-  (and (external? x)
+  (and (audio-raw-host-value? x)
        (audio-constructor-present? "AudioContext")
        (js-instanceof x (js-var "AudioContext"))))
 
 ;; audio-node? : any/c -> boolean?
 ;;   Check whether x is an AudioNode value.
 (define (audio-node? x)
-  (and (external? x)
+  (and (audio-raw-host-value? x)
        (audio-constructor-present? "AudioNode")
        (js-instanceof x (js-var "AudioNode"))))
 
 ;; audio-param? : any/c -> boolean?
 ;;   Check whether x is an AudioParam value.
 (define (audio-param? x)
-  (and (external? x)
+  (and (audio-raw-host-value? x)
        (audio-constructor-present? "AudioParam")
        (js-instanceof x (js-var "AudioParam"))))
 
 ;; audio-buffer? : any/c -> boolean?
 ;;   Check whether x is an AudioBuffer value.
 (define (audio-buffer? x)
-  (and (external? x)
+  (and (audio-raw-host-value? x)
        (audio-constructor-present? "AudioBuffer")
        (js-instanceof x (js-var "AudioBuffer"))))
 
 ;; audio-gain-node? : any/c -> boolean?
 ;;   Check whether x is a GainNode value.
 (define (audio-gain-node? x)
-  (and (external? x)
+  (and (audio-raw-host-value? x)
        (audio-constructor-present? "GainNode")
        (js-instanceof x (js-var "GainNode"))))
 
 ;; audio-oscillator-node? : any/c -> boolean?
 ;;   Check whether x is an OscillatorNode value.
 (define (audio-oscillator-node? x)
-  (and (external? x)
+  (and (audio-raw-host-value? x)
        (audio-constructor-present? "OscillatorNode")
        (js-instanceof x (js-var "OscillatorNode"))))
 
 ;; audio-buffer-source-node? : any/c -> boolean?
 ;;   Check whether x is an AudioBufferSourceNode value.
 (define (audio-buffer-source-node? x)
-  (and (external? x)
+  (and (audio-raw-host-value? x)
        (audio-constructor-present? "AudioBufferSourceNode")
        (js-instanceof x (js-var "AudioBufferSourceNode"))))
 
 ;; audio-analyser-node? : any/c -> boolean?
 ;;   Check whether x is an AnalyserNode value.
 (define (audio-analyser-node? x)
-  (and (external? x)
+  (and (audio-raw-host-value? x)
        (audio-constructor-present? "AnalyserNode")
        (js-instanceof x (js-var "AnalyserNode"))))
 
 ;; audio-biquad-filter-node? : any/c -> boolean?
 ;;   Check whether x is a BiquadFilterNode value.
 (define (audio-biquad-filter-node? x)
-  (and (external? x)
+  (and (audio-raw-host-value? x)
        (audio-constructor-present? "BiquadFilterNode")
        (js-instanceof x (js-var "BiquadFilterNode"))))
 
 ;; audio-constant-source-node? : any/c -> boolean?
 ;;   Check whether x is a ConstantSourceNode value.
 (define (audio-constant-source-node? x)
-  (and (external? x)
+  (and (audio-raw-host-value? x)
        (audio-constructor-present? "ConstantSourceNode")
        (js-instanceof x (js-var "ConstantSourceNode"))))
 
 ;; audio-dynamics-compressor-node? : any/c -> boolean?
 ;;   Check whether x is a DynamicsCompressorNode value.
 (define (audio-dynamics-compressor-node? x)
-  (and (external? x)
+  (and (audio-raw-host-value? x)
        (audio-constructor-present? "DynamicsCompressorNode")
        (js-instanceof x (js-var "DynamicsCompressorNode"))))
 
 ;; audio-panner-node? : any/c -> boolean?
 ;;   Check whether x is a PannerNode value.
 (define (audio-panner-node? x)
-  (and (external? x)
+  (and (audio-raw-host-value? x)
        (audio-constructor-present? "PannerNode")
        (js-instanceof x (js-var "PannerNode"))))
 
 ;; audio-stereo-panner-node? : any/c -> boolean?
 ;;   Check whether x is a StereoPannerNode value.
 (define (audio-stereo-panner-node? x)
-  (and (external? x)
+  (and (audio-raw-host-value? x)
        (audio-constructor-present? "StereoPannerNode")
        (js-instanceof x (js-var "StereoPannerNode"))))
 
 ;; audio-channel-splitter-node? : any/c -> boolean?
 ;;   Check whether x is a ChannelSplitterNode value.
 (define (audio-channel-splitter-node? x)
-  (and (external? x)
+  (and (audio-raw-host-value? x)
        (audio-constructor-present? "ChannelSplitterNode")
        (js-instanceof x (js-var "ChannelSplitterNode"))))
 
 ;; audio-channel-merger-node? : any/c -> boolean?
 ;;   Check whether x is a ChannelMergerNode value.
 (define (audio-channel-merger-node? x)
-  (and (external? x)
+  (and (audio-raw-host-value? x)
        (audio-constructor-present? "ChannelMergerNode")
        (js-instanceof x (js-var "ChannelMergerNode"))))
+
+;; audio-periodic-wave-host-value? : any/c -> boolean?
+;;   Report whether value is a raw or wrapped non-nullish PeriodicWave host value.
+(define (audio-periodic-wave-host-value? value)
+  (or (audio-raw-host-value? value)
+      (and (audio-periodic-wave? value)
+           (audio-raw-host-value? (audio-periodic-wave-raw value)))))
 
 ;;; -------------------------------------------------------------------
 ;;; Checkers
@@ -332,7 +357,7 @@
 ;; check-audio-periodic-wave : symbol? any/c -> void?
 ;;   Ensure x is a PeriodicWave value.
 (define (check-audio-periodic-wave who x)
-  (unless (audio-periodic-wave? x)
+  (unless (audio-periodic-wave-host-value? x)
     (raise-argument-error who "audio-periodic-wave?" x)))
 
 ;; check-audio-stringish : symbol? any/c -> void?
@@ -884,7 +909,7 @@
 ;;   Set a periodic wave on the oscillator.
 (define (audio-oscillator-node-set-periodic-wave! node wave)
   (check-audio-oscillator-node 'audio-oscillator-node-set-periodic-wave! node)
-  (unless (or (external? wave) (audio-periodic-wave? wave))
+  (unless (audio-periodic-wave-host-value? wave)
     (raise-argument-error 'audio-oscillator-node-set-periodic-wave! "(or/c external? audio-periodic-wave?)" wave))
   (js-audio-oscillator-node-set-periodic-wave! node
                                                (if (audio-periodic-wave? wave)

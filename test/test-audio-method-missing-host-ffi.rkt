@@ -37,7 +37,9 @@
                   js-audio-param-set-value-at-time!
                   js-audio-stereo-panner-node-pan)
          (only-in webracket/unsafe/standard
-                  js-eval))
+                  js-eval
+                  js-null
+                  js-undefined))
 
 (define (check-true got label)
   (unless got
@@ -74,6 +76,60 @@
   globalThis.AudioContext = {};
   globalThis.AudioNode = {};
   globalThis.__wrAudioBoundaryPlain = {};")
+
+(define null-raw (js-null))
+(define undefined-raw (js-undefined))
+(define null-raw-periodic-wave (audio-periodic-wave null-raw))
+(define undefined-raw-periodic-wave (audio-periodic-wave undefined-raw))
+
+(check-false (audio-raw-host-value? null-raw)
+             "audio raw host value rejects null")
+(check-false (audio-raw-host-value? undefined-raw)
+             "audio raw host value rejects undefined")
+(check-false (audio-context? null-raw)
+             "audio-context? rejects null")
+(check-false (audio-node? undefined-raw)
+             "audio-node? rejects undefined")
+(check-false (audio-param? null-raw)
+             "audio-param? rejects null")
+(check-false (audio-buffer? undefined-raw)
+             "audio-buffer? rejects undefined")
+(check-false (audio-listener-wrap null-raw)
+             "audio-listener-wrap maps null to #f")
+(check-false (audio-listener-wrap undefined-raw)
+             "audio-listener-wrap maps undefined to #f")
+(check-false (audio-periodic-wave-wrap null-raw)
+             "audio-periodic-wave-wrap maps null to #f")
+(check-false (audio-periodic-wave-wrap undefined-raw)
+             "audio-periodic-wave-wrap maps undefined to #f")
+(check-false (audio-periodic-wave-host-value? null-raw-periodic-wave)
+             "audio periodic wave host value rejects wrapped null")
+(check-false (audio-periodic-wave-host-value? undefined-raw-periodic-wave)
+             "audio periodic wave host value rejects wrapped undefined")
+(check-false (audio-host-method-present? null-raw "connect")
+             "audio host method check rejects null target")
+(check-false (audio-host-method-present? undefined-raw "connect")
+             "audio host method check rejects undefined target")
+
+(define null-host-method-message
+  (catch-message
+   (lambda ()
+     (check-audio-host-method 'audio-null-host-method
+                              null-raw
+                              "AudioNode"
+                              "connect"))))
+
+(define null-periodic-wave-message
+  (catch-message
+   (lambda ()
+     (check-audio-periodic-wave 'audio-null-periodic-wave
+                                null-raw-periodic-wave))))
+
+(define undefined-periodic-wave-message
+  (catch-message
+   (lambda ()
+     (check-audio-periodic-wave 'audio-undefined-periodic-wave
+                                undefined-raw-periodic-wave))))
 
 (check-false (audio-context? (js-eval "globalThis.__wrAudioBoundaryPlain"))
              "audio-context? returns #f when AudioContext is not callable")
@@ -296,6 +352,15 @@
 (check-message remove-listener-message
                "EventTarget.removeEventListener is not available"
                "missing audio removeEventListener message")
+(check-message null-host-method-message
+               "AudioNode.connect is not available"
+               "missing null audio host method message")
+(check-message null-periodic-wave-message
+               "audio-periodic-wave?"
+               "missing null PeriodicWave wrapper message")
+(check-message undefined-periodic-wave-message
+               "audio-periodic-wave?"
+               "missing undefined PeriodicWave wrapper message")
 (check-message audio-context-non-constructor-message
                "AudioContext not available in this environment: context-new"
                "non-constructible AudioContext constructor message")
