@@ -40,14 +40,16 @@
 ;; geolocation-method-present? : external/raw string? -> boolean?
 ;;   Report whether raw exposes a callable Geolocation method.
 (define (geolocation-method-present? raw method-name)
-  (define method (js-ref/extern raw method-name))
-  (and (not (js-nullish? method))
-       (string=? (js-typeof method) "function")))
+  (and (geolocation-raw-host-value? raw)
+       (let ([method (js-ref/extern raw method-name)])
+         (and (not (js-nullish? method))
+              (string=? (js-typeof method) "function")))))
 
 ;; geolocation-property-present? : external/raw string? -> boolean?
 ;;   Report whether raw exposes a non-nullish property named property-name.
 (define (geolocation-property-present? raw property-name)
-  (not (js-nullish? (js-ref/extern raw property-name))))
+  (and (geolocation-raw-host-value? raw)
+       (not (js-nullish? (js-ref/extern raw property-name)))))
 
 ;; geolocation-core-methods-present? : external/raw -> boolean?
 ;;   Report whether raw has the required Geolocation methods.

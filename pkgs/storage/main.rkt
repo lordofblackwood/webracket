@@ -57,14 +57,16 @@
 ;; storage-method-present? : external/raw string? -> boolean?
 ;;   Report whether raw exposes a callable Storage method.
 (define (storage-method-present? raw method-name)
-  (define method (js-ref/extern raw method-name))
-  (and (not (js-nullish? method))
-       (string=? (js-typeof method) "function")))
+  (and (storage-raw-host-value? raw)
+       (let ([method (js-ref/extern raw method-name)])
+         (and (not (js-nullish? method))
+              (string=? (js-typeof method) "function")))))
 
 ;; storage-property-present? : external/raw string? -> boolean?
 ;;   Report whether raw exposes a non-nullish property named property-name.
 (define (storage-property-present? raw property-name)
-  (not (js-nullish? (js-ref/extern raw property-name))))
+  (and (storage-raw-host-value? raw)
+       (not (js-nullish? (js-ref/extern raw property-name)))))
 
 ;; check-storage : symbol? any/c -> void?
 ;;   Ensure value wraps an external Storage-like host value.

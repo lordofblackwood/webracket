@@ -34,9 +34,10 @@
 ;; clipboard-method-present? : external/raw string? -> boolean?
 ;;   Report whether raw exposes a non-nullish method named method-name.
 (define (clipboard-method-present? raw method-name)
-  (define method (js-ref/extern raw method-name))
-  (and (not (js-nullish? method))
-       (string=? (js-typeof method) "function")))
+  (and (clipboard-raw-host-value? raw)
+       (let ([method (js-ref/extern raw method-name)])
+         (and (not (js-nullish? method))
+              (string=? (js-typeof method) "function")))))
 
 ;; clipboard-core-methods-present? : external/raw -> boolean?
 ;;   Report whether raw has the required Clipboard text methods.

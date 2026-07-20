@@ -82,9 +82,10 @@
 ;; intersection-observer-host-method-present? : external/raw string? -> boolean?
 ;;   Report whether raw exposes a callable IntersectionObserver method.
 (define (intersection-observer-host-method-present? raw method-name)
-  (define method (js-ref/extern raw method-name))
-  (and (not (js-nullish? method))
-       (string=? (js-typeof method) "function")))
+  (and (intersection-observer-raw-host-value? raw)
+       (let ([method (js-ref/extern raw method-name)])
+         (and (not (js-nullish? method))
+              (string=? (js-typeof method) "function")))))
 
 ;; intersection-observer-raw-host-value? : any/c -> boolean?
 ;;   Report whether raw is a non-nullish external host value.

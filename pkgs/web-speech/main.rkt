@@ -59,14 +59,16 @@
 ;; speech-method-present? : external/raw string? -> boolean?
 ;;   Report whether raw exposes a callable method named method-name.
 (define (speech-method-present? raw method-name)
-  (define method (js-ref/extern raw method-name))
-  (and (not (js-nullish? method))
-       (string=? (js-typeof method) "function")))
+  (and (speech-raw-host-value? raw)
+       (let ([method (js-ref/extern raw method-name)])
+         (and (not (js-nullish? method))
+              (string=? (js-typeof method) "function")))))
 
 ;; speech-property-present? : external/raw string? -> boolean?
 ;;   Report whether raw exposes a non-nullish property named property-name.
 (define (speech-property-present? raw property-name)
-  (not (js-nullish? (js-ref/extern raw property-name))))
+  (and (speech-raw-host-value? raw)
+       (not (js-nullish? (js-ref/extern raw property-name)))))
 
 ;; speech-raw-host-value? : any/c -> boolean?
 ;;   Report whether raw is a non-nullish external host value.

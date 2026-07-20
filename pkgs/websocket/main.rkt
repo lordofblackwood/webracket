@@ -163,9 +163,11 @@
 ;; websocket-method-present? : external/raw string? -> boolean?
 ;;   Report whether raw exposes a callable WebSocket method.
 (define (websocket-method-present? raw method-name)
-  (define method (js-ref/extern raw method-name))
-  (and (not (js-nullish? method))
-       (string=? (js-typeof method) "function")))
+  (and (external? raw)
+       (not (js-nullish? raw))
+       (let ([method (js-ref/extern raw method-name)])
+         (and (not (js-nullish? method))
+              (string=? (js-typeof method) "function")))))
 
 ;; check-websocket-method : symbol? websocket? string? -> void?
 ;;   Ensure a required WebSocket method is available.

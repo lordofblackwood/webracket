@@ -53,14 +53,16 @@
 ;; compression-stream-host-method-present? : external/raw string? -> boolean?
 ;;   Report whether raw exposes a callable stream method.
 (define (compression-stream-host-method-present? raw method-name)
-  (define method (js-ref/extern raw method-name))
-  (and (not (js-nullish? method))
-       (string=? (js-typeof method) "function")))
+  (and (compression-stream-raw-host-value? raw)
+       (let ([method (js-ref/extern raw method-name)])
+         (and (not (js-nullish? method))
+              (string=? (js-typeof method) "function")))))
 
 ;; compression-stream-host-property-present? : external/raw string? -> boolean?
 ;;   Report whether raw exposes a non-nullish stream property.
 (define (compression-stream-host-property-present? raw property-name)
-  (not (js-nullish? (js-ref/extern raw property-name))))
+  (and (compression-stream-raw-host-value? raw)
+       (not (js-nullish? (js-ref/extern raw property-name)))))
 
 ;; compression-stream-raw-host-value? : any/c -> boolean?
 ;;   Report whether raw is a non-nullish external host value.

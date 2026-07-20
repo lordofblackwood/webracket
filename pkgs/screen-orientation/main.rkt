@@ -34,14 +34,16 @@
 ;; screen-orientation-method-present? : external/raw string? -> boolean?
 ;;   Report whether raw exposes a callable method named method-name.
 (define (screen-orientation-method-present? raw method-name)
-  (define method (js-ref/extern raw method-name))
-  (and (not (js-nullish? method))
-       (string=? (js-typeof method) "function")))
+  (and (screen-orientation-raw-host-value? raw)
+       (let ([method (js-ref/extern raw method-name)])
+         (and (not (js-nullish? method))
+              (string=? (js-typeof method) "function")))))
 
 ;; screen-orientation-property-present? : external/raw string? -> boolean?
 ;;   Report whether raw exposes a non-nullish property named property-name.
 (define (screen-orientation-property-present? raw property-name)
-  (not (js-nullish? (js-ref/extern raw property-name))))
+  (and (screen-orientation-raw-host-value? raw)
+       (not (js-nullish? (js-ref/extern raw property-name)))))
 
 ;; screen-orientation-supported-raw : -> (or/c #f external/raw)
 ;;   Read screen.orientation when it is available.

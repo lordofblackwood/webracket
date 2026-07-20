@@ -235,9 +235,11 @@
 ;; canvas-host-method-present? : external/raw string? -> boolean?
 ;;   Report whether raw exposes a callable browser method.
 (define (canvas-host-method-present? raw method-name)
-  (define method (js-ref/extern raw method-name))
-  (and (not (js-nullish? method))
-       (string=? (js-typeof method) "function")))
+  (and (external? raw)
+       (not (js-nullish? raw))
+       (let ([method (js-ref/extern raw method-name)])
+         (and (not (js-nullish? method))
+              (string=? (js-typeof method) "function")))))
 
 ;; check-canvas-host-method : symbol? external/raw string? string? -> void?
 ;;   Ensure a required canvas host method is available.

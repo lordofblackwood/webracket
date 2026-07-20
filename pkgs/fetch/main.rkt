@@ -46,14 +46,16 @@
 ;; fetch-host-method-present? : external/raw string? -> boolean?
 ;;   Report whether raw exposes a callable Fetch API method.
 (define (fetch-host-method-present? raw method-name)
-  (define method (js-ref/extern raw method-name))
-  (and (not (js-nullish? method))
-       (string=? (js-typeof method) "function")))
+  (and (fetch-raw-host-value? raw)
+       (let ([method (js-ref/extern raw method-name)])
+         (and (not (js-nullish? method))
+              (string=? (js-typeof method) "function")))))
 
 ;; fetch-host-property-present? : external/raw string? -> boolean?
 ;;   Report whether raw exposes a non-nullish Fetch API property.
 (define (fetch-host-property-present? raw property-name)
-  (not (js-nullish? (js-ref/extern raw property-name))))
+  (and (fetch-raw-host-value? raw)
+       (not (js-nullish? (js-ref/extern raw property-name)))))
 
 ;; fetch-raw-host-value? : any/c -> boolean?
 ;;   Report whether raw is a non-nullish external host value.

@@ -40,9 +40,10 @@
 ;; element-host-method-present? : external/raw string? -> boolean?
 ;;   Report whether raw exposes a callable browser method.
 (define (element-host-method-present? raw method-name)
-  (define method (js-ref/extern raw method-name))
-  (and (not (js-nullish? method))
-       (string=? (js-typeof method) "function")))
+  (and (shared-dom-raw-host-value? raw)
+       (let ([method (js-ref/extern raw method-name)])
+         (and (not (js-nullish? method))
+              (string=? (js-typeof method) "function")))))
 
 ;; check-element-host-method : symbol? external/raw string? string? -> void?
 ;;   Ensure a required Element-family host method is available.
