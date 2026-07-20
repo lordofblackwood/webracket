@@ -40,10 +40,20 @@
     speechSynthesis: Object.getOwnPropertyDescriptor(window, 'speechSynthesis'),
     SpeechSynthesisUtterance: globalThis.SpeechSynthesisUtterance
   };
-  globalThis.__wrSpeechBoundaryInstallUtterance = () => {
+  globalThis.__wrSpeechBoundaryInstallUtterance = (missing = 'none') => {
     globalThis.SpeechSynthesisUtterance =
       class SpeechSynthesisUtterance {
-        constructor(text) { this.text = text; }
+        constructor(text) {
+          this.text = text;
+          this.lang = '';
+          this.volume = 1;
+          this.rate = 1;
+          this.pitch = 1;
+          this.voice = null;
+          this.onend = null;
+          this.onerror = null;
+          delete this[missing];
+        }
       };
   };
   globalThis.__wrSpeechBoundaryHideUtterance = () => {
@@ -142,6 +152,15 @@
 (js-eval "__wrSpeechBoundaryInstallUtterance();")
 
 (define utterance (make-speech-utterance "hello"))
+(define callback (lambda args (void)))
+
+(define (missing-utterance-property-message property thunk)
+  (js-eval (string-append "__wrSpeechBoundaryInstallUtterance('"
+                          property
+                          "');"))
+  (define message (catch-message thunk))
+  (js-eval "__wrSpeechBoundaryInstallUtterance();")
+  message)
 
 (define (fake-synthesis missing)
   (speech-synthesis-info
@@ -251,6 +270,53 @@
    (lambda ()
      (speech-voice-uri (fake-voice "voiceURI")))))
 
+(define utterance-lang-message
+  (missing-utterance-property-message
+   "lang"
+   (lambda ()
+     (make-speech-utterance "hello"
+                            (make-speech-utterance-options 'en-US)))))
+
+(define utterance-volume-message
+  (missing-utterance-property-message
+   "volume"
+   (lambda ()
+     (make-speech-utterance "hello"
+                            (make-speech-utterance-options #f 0.5)))))
+
+(define utterance-rate-message
+  (missing-utterance-property-message
+   "rate"
+   (lambda ()
+     (make-speech-utterance "hello"
+                            (make-speech-utterance-options #f #f 1.5)))))
+
+(define utterance-pitch-message
+  (missing-utterance-property-message
+   "pitch"
+   (lambda ()
+     (make-speech-utterance "hello"
+                            (make-speech-utterance-options #f #f #f 1.25)))))
+
+(define utterance-voice-message
+  (missing-utterance-property-message
+   "voice"
+   (lambda ()
+     (speech-utterance-set-voice! (make-speech-utterance "hello")
+                                  (fake-voice "none")))))
+
+(define utterance-on-end-message
+  (missing-utterance-property-message
+   "onend"
+   (lambda ()
+     (speech-utterance-on-end! (make-speech-utterance "hello") callback))))
+
+(define utterance-on-error-message
+  (missing-utterance-property-message
+   "onerror"
+   (lambda ()
+     (speech-utterance-on-error! (make-speech-utterance "hello") callback))))
+
 (define invalid-synthesis-message
   (catch-message
    (lambda ()
@@ -331,6 +397,27 @@
 (check-message voice-uri-message
                "SpeechSynthesisVoice.voiceURI is not available"
                "missing SpeechSynthesisVoice.voiceURI message")
+(check-message utterance-lang-message
+               "SpeechSynthesisUtterance.lang is not available"
+               "missing SpeechSynthesisUtterance.lang message")
+(check-message utterance-volume-message
+               "SpeechSynthesisUtterance.volume is not available"
+               "missing SpeechSynthesisUtterance.volume message")
+(check-message utterance-rate-message
+               "SpeechSynthesisUtterance.rate is not available"
+               "missing SpeechSynthesisUtterance.rate message")
+(check-message utterance-pitch-message
+               "SpeechSynthesisUtterance.pitch is not available"
+               "missing SpeechSynthesisUtterance.pitch message")
+(check-message utterance-voice-message
+               "SpeechSynthesisUtterance.voice is not available"
+               "missing SpeechSynthesisUtterance.voice message")
+(check-message utterance-on-end-message
+               "SpeechSynthesisUtterance.onend is not available"
+               "missing SpeechSynthesisUtterance.onend message")
+(check-message utterance-on-error-message
+               "SpeechSynthesisUtterance.onerror is not available"
+               "missing SpeechSynthesisUtterance.onerror message")
 (check-message invalid-synthesis-message
                "speech-synthesis?"
                "missing speech synthesis invalid raw message")

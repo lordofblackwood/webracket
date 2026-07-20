@@ -11,6 +11,7 @@
                   js-send/extern/nullish
                   js-set!
                   js-typeof
+                  js-undefined?
                   js-var
                   js-window-window)
          (only-in webracket/primitives
@@ -70,6 +71,12 @@
   (and (speech-raw-host-value? raw)
        (not (js-nullish? (js-ref/extern raw property-name)))))
 
+;; speech-nullable-property-present? : external/raw string? -> boolean?
+;;   Report whether raw exposes a property, allowing null values.
+(define (speech-nullable-property-present? raw property-name)
+  (and (speech-raw-host-value? raw)
+       (not (js-undefined? (js-ref/extern raw property-name)))))
+
 ;; speech-raw-host-value? : any/c -> boolean?
 ;;   Report whether raw is a non-nullish external host value.
 (define (speech-raw-host-value? raw)
@@ -122,6 +129,13 @@
 ;;   Ensure raw exposes a required Web Speech property.
 (define (check-speech-host-property who raw receiver-name property-name)
   (unless (speech-property-present? raw property-name)
+    (raise-arguments-error who
+                           (string-append receiver-name "." property-name " is not available"))))
+
+;; check-speech-host-nullable-property : symbol? external/raw string? string? -> void?
+;;   Ensure raw exposes a required Web Speech property, allowing null values.
+(define (check-speech-host-nullable-property who raw receiver-name property-name)
+  (unless (speech-nullable-property-present? raw property-name)
     (raise-arguments-error who
                            (string-append receiver-name "." property-name " is not available"))))
 
@@ -238,20 +252,36 @@
 ;;   Apply checked utterance options to a raw utterance.
 (define (apply-speech-utterance-options! utterance options)
   (when (speech-utterance-options-lang options)
+    (check-speech-host-property 'make-speech-utterance
+                                (speech-utterance-raw utterance)
+                                "SpeechSynthesisUtterance"
+                                "lang")
     (js-set! (speech-utterance-raw utterance)
              "lang"
              (speech-stringish-option->string
               'make-speech-utterance
               (speech-utterance-options-lang options))))
   (when (speech-utterance-options-volume options)
+    (check-speech-host-property 'make-speech-utterance
+                                (speech-utterance-raw utterance)
+                                "SpeechSynthesisUtterance"
+                                "volume")
     (js-set! (speech-utterance-raw utterance)
              "volume"
              (speech-utterance-options-volume options)))
   (when (speech-utterance-options-rate options)
+    (check-speech-host-property 'make-speech-utterance
+                                (speech-utterance-raw utterance)
+                                "SpeechSynthesisUtterance"
+                                "rate")
     (js-set! (speech-utterance-raw utterance)
              "rate"
              (speech-utterance-options-rate options)))
   (when (speech-utterance-options-pitch options)
+    (check-speech-host-property 'make-speech-utterance
+                                (speech-utterance-raw utterance)
+                                "SpeechSynthesisUtterance"
+                                "pitch")
     (js-set! (speech-utterance-raw utterance)
              "pitch"
              (speech-utterance-options-pitch options)))
@@ -418,6 +448,10 @@
 (define (speech-utterance-set-voice! utterance voice)
   (check-speech-utterance 'speech-utterance-set-voice! utterance)
   (check-speech-voice 'speech-utterance-set-voice! voice)
+  (check-speech-host-nullable-property 'speech-utterance-set-voice!
+                                       (speech-utterance-raw utterance)
+                                       "SpeechSynthesisUtterance"
+                                       "voice")
   (js-set! (speech-utterance-raw utterance) "voice" (speech-voice-raw voice))
   (void))
 
@@ -445,6 +479,10 @@
 ;;   Set the onend handler for an utterance.
 (define (speech-utterance-on-end! utterance callback)
   (check-speech-utterance 'speech-utterance-on-end! utterance)
+  (check-speech-host-nullable-property 'speech-utterance-on-end!
+                                       (speech-utterance-raw utterance)
+                                       "SpeechSynthesisUtterance"
+                                       "onend")
   (define callback* (and callback
                          (speech-callback->external 'speech-utterance-on-end! callback)))
   (js-set! (speech-utterance-raw utterance) "onend" callback*)
@@ -454,6 +492,10 @@
 ;;   Set the onerror handler for an utterance.
 (define (speech-utterance-on-error! utterance callback)
   (check-speech-utterance 'speech-utterance-on-error! utterance)
+  (check-speech-host-nullable-property 'speech-utterance-on-error!
+                                       (speech-utterance-raw utterance)
+                                       "SpeechSynthesisUtterance"
+                                       "onerror")
   (define callback* (and callback
                          (speech-callback->external 'speech-utterance-on-error! callback)))
   (js-set! (speech-utterance-raw utterance) "onerror" callback*)
