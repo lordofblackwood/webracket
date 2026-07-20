@@ -206,6 +206,13 @@
 (define (media-value->self _who value)
   value)
 
+;; media-wrapper-raw/checked : symbol? string? any/c any/c -> external/raw
+;;   Validate a wrapped media value before passing it to browser host calls.
+(define (media-wrapper-raw/checked who expected value raw)
+  (unless (shared-dom-raw-host-value? raw)
+    (raise-argument-error who expected value))
+  raw)
+
 ;; define-media-getter : syntax -> syntax
 ;;   Define a simple media property getter.
 (define-syntax-rule (define-media-getter racket-name foreign-proc convert)
@@ -353,9 +360,14 @@
 ;; media-set-media-keys! : external? (or/c media-keys-info? external/raw) -> external/raw
 ;;   Attach MediaKeys for encrypted media playback.
 (define (media-set-media-keys! media keys)
-  (js-media-set-media-keys! media (if (media-keys-info? keys)
-                                      (media-keys-info-unwrap keys)
-                                      keys)))
+  (js-media-set-media-keys!
+   media
+   (if (media-keys-info? keys)
+       (media-wrapper-raw/checked 'media-set-media-keys!
+                                  "media-keys-info?"
+                                  keys
+                                  (media-keys-info-raw keys))
+       keys)))
 
 ;; media-media-group : external? -> string?
 ;;   Read the media group identifier.
@@ -413,8 +425,16 @@
    media
    (cond
      [(not src-object) #f]
-     [(media-stream? src-object) (media-stream-unwrap src-object)]
-     [(media-source? src-object) (media-source-unwrap src-object)]
+     [(media-stream? src-object)
+      (media-wrapper-raw/checked 'media-set-src-object!
+                                 "media-stream?"
+                                 src-object
+                                 (media-stream-raw src-object))]
+     [(media-source? src-object)
+      (media-wrapper-raw/checked 'media-set-src-object!
+                                 "media-source?"
+                                 src-object
+                                 (media-source-raw src-object))]
      [else src-object]))
   (void))
 

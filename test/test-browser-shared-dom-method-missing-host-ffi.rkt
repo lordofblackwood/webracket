@@ -3,6 +3,9 @@
 ;; Browser smoke for shared browser/element DOM wrapper host-method errors.
 
 (require browser/element
+         (only-in browser/media
+                  media-set-media-keys!
+                  media-set-src-object!)
          (only-in webracket/unsafe/standard
                   js-eval))
 
@@ -51,6 +54,11 @@
 (define raw-undefined-text-track-list (text-track-list js-undefined))
 (define raw-null-video-track-list (video-track-list js-null))
 (define raw-undefined-time-ranges (time-ranges js-undefined))
+(define raw-null-media-stream (media-stream js-null))
+(define raw-undefined-media-source (media-source js-undefined))
+(define raw-null-media-keys (media-keys-info js-null))
+(define fake-media-target
+  (js-eval "({ srcObject: null, setMediaKeys(_keys) { return {}; } })"))
 (define selection (dom-selection-wrap (js-eval "({ toString: undefined })")))
 (define selection-null-nodes
   (dom-selection-wrap (js-eval "({ anchorNode: null, focusNode: null })")))
@@ -350,6 +358,21 @@
    (lambda ()
      (time-ranges-start raw-undefined-time-ranges 0))))
 
+(define raw-null-media-stream-src-object-message
+  (catch-message
+   (lambda ()
+     (media-set-src-object! fake-media-target raw-null-media-stream))))
+
+(define raw-undefined-media-source-src-object-message
+  (catch-message
+   (lambda ()
+     (media-set-src-object! fake-media-target raw-undefined-media-source))))
+
+(define raw-null-media-keys-message
+  (catch-message
+   (lambda ()
+     (media-set-media-keys! fake-media-target raw-null-media-keys))))
+
 (check-message selection-range-count-message
                "Selection.rangeCount not available in this environment"
                "missing Selection.rangeCount message")
@@ -581,6 +604,15 @@
 (check-message raw-undefined-time-ranges-start-message
                "TimeRanges.start not available in this environment"
                "missing raw undefined TimeRanges.start message")
+(check-message raw-null-media-stream-src-object-message
+               "media-stream?"
+               "missing raw null MediaStream srcObject message")
+(check-message raw-undefined-media-source-src-object-message
+               "media-source?"
+               "missing raw undefined MediaSource srcObject message")
+(check-message raw-null-media-keys-message
+               "media-keys-info?"
+               "missing raw null MediaKeys message")
 
 (js-log "browser-shared-dom-method-missing-host-ffi-ok")
 #t
