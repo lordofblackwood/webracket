@@ -214,37 +214,48 @@
 ;;   Wrap the browser-specific memory information object.
 (struct performance-memory-info (raw) #:transparent)
 
+;; performance-memory-info-raw/checked : symbol? any/c -> external/raw
+;;   Validate and unwrap a browser PerformanceMemory value.
+(define (performance-memory-info-raw/checked who memory-info)
+  (unless (performance-memory-info? memory-info)
+    (raise-argument-error who
+                          "performance-memory-info?"
+                          memory-info))
+  (define raw (performance-memory-info-raw memory-info))
+  (unless (and (external? raw)
+               (not (js-nullish? raw)))
+    (raise-argument-error who
+                          "performance-memory-info?"
+                          memory-info))
+  raw)
+
 ;; performance-memory-info-js-heap-size-limit : performance-memory-info? -> exact-nonnegative-integer?
 ;;   Read the browser's JavaScript heap size limit.
 (define (performance-memory-info-js-heap-size-limit memory-info)
-  (unless (performance-memory-info? memory-info)
-    (raise-argument-error 'performance-memory-info-js-heap-size-limit
-                          "performance-memory-info?"
-                          memory-info))
-  (js-performance-memory-info-js-heap-size-limit (performance-memory-info-raw memory-info)))
+  (define raw (performance-memory-info-raw/checked 'performance-memory-info-js-heap-size-limit
+                                                   memory-info))
+  (js-performance-memory-info-js-heap-size-limit raw))
 
 ;; performance-memory-info-total-js-heap-size : performance-memory-info? -> exact-nonnegative-integer?
 ;;   Read the browser's total JavaScript heap size.
 (define (performance-memory-info-total-js-heap-size memory-info)
-  (unless (performance-memory-info? memory-info)
-    (raise-argument-error 'performance-memory-info-total-js-heap-size
-                          "performance-memory-info?"
-                          memory-info))
-  (js-performance-memory-info-total-js-heap-size (performance-memory-info-raw memory-info)))
+  (define raw (performance-memory-info-raw/checked 'performance-memory-info-total-js-heap-size
+                                                   memory-info))
+  (js-performance-memory-info-total-js-heap-size raw))
 
 ;; performance-memory-info-used-js-heap-size : performance-memory-info? -> exact-nonnegative-integer?
 ;;   Read the browser's used JavaScript heap size.
 (define (performance-memory-info-used-js-heap-size memory-info)
-  (unless (performance-memory-info? memory-info)
-    (raise-argument-error 'performance-memory-info-used-js-heap-size
-                          "performance-memory-info?"
-                          memory-info))
-  (js-performance-memory-info-used-js-heap-size (performance-memory-info-raw memory-info)))
+  (define raw (performance-memory-info-raw/checked 'performance-memory-info-used-js-heap-size
+                                                   memory-info))
+  (js-performance-memory-info-used-js-heap-size raw))
 
 ;; performance-memory-info-exact? : external/raw -> boolean?
 ;;   Check whether browser memory fields fit WebRacket exact integers.
 (define (performance-memory-info-exact? memory)
-  (and (exact-nonnegative-integer?
+  (and (external? memory)
+       (not (js-nullish? memory))
+       (exact-nonnegative-integer?
         (js-performance-memory-info-js-heap-size-limit memory))
        (exact-nonnegative-integer?
         (js-performance-memory-info-total-js-heap-size memory))

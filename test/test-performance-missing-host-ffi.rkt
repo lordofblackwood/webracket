@@ -26,7 +26,11 @@
                   performance-event-count-map-has?
                   performance-event-count-map-keys
                   performance-event-count-map-values
-                  performance-event-counts-info)
+                  performance-event-counts-info
+                  performance-memory-info
+                  performance-memory-info-js-heap-size-limit
+                  performance-memory-info-total-js-heap-size
+                  performance-memory-info-used-js-heap-size)
          (only-in webracket/unsafe/standard
                   js-eval
                   js-truthy?))
@@ -249,6 +253,34 @@
    (lambda ()
      (js-performance-memory-info-used-js-heap-size missing-property-object))))
 
+(define memory-wrapper-js-heap-size-limit-missing-message
+  (catch-message
+   (lambda ()
+     (performance-memory-info-js-heap-size-limit
+      (performance-memory-info missing-property-object)))))
+
+(define memory-wrapper-total-js-heap-size-missing-message
+  (catch-message
+   (lambda ()
+     (performance-memory-info-total-js-heap-size
+      (performance-memory-info missing-property-object)))))
+
+(define memory-wrapper-used-js-heap-size-missing-message
+  (catch-message
+   (lambda ()
+     (performance-memory-info-used-js-heap-size
+      (performance-memory-info missing-property-object)))))
+
+(define memory-invalid-raw-wrapper-message
+  (catch-message
+   (lambda ()
+     (performance-memory-info-js-heap-size-limit (performance-memory-info #f)))))
+
+(define memory-null-raw-wrapper-message
+  (catch-message
+   (lambda ()
+     (performance-memory-info-js-heap-size-limit (performance-memory-info js-null)))))
+
 (js-eval
  "Object.entries(globalThis.__wrPerformanceMethodBoundary).forEach(([name, saved]) => {
     if (saved.hadOwn) {
@@ -419,6 +451,26 @@
 (check-message memory-used-js-heap-size-missing-message
                "PerformanceMemory.usedJSHeapSize not available in this environment"
                "missing PerformanceMemory.usedJSHeapSize message")
+
+(check-message memory-wrapper-js-heap-size-limit-missing-message
+               "PerformanceMemory.jsHeapSizeLimit not available in this environment"
+               "missing wrapped PerformanceMemory.jsHeapSizeLimit message")
+
+(check-message memory-wrapper-total-js-heap-size-missing-message
+               "PerformanceMemory.totalJSHeapSize not available in this environment"
+               "missing wrapped PerformanceMemory.totalJSHeapSize message")
+
+(check-message memory-wrapper-used-js-heap-size-missing-message
+               "PerformanceMemory.usedJSHeapSize not available in this environment"
+               "missing wrapped PerformanceMemory.usedJSHeapSize message")
+
+(check-message memory-invalid-raw-wrapper-message
+               "performance-memory-info?"
+               "invalid PerformanceMemory wrapper raw message")
+
+(check-message memory-null-raw-wrapper-message
+               "performance-memory-info?"
+               "null PerformanceMemory wrapper raw message")
 
 (js-log "performance-missing-host-ffi-ok")
 #t
