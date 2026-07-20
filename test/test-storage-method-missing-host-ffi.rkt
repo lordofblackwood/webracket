@@ -4,7 +4,9 @@
 
 (require storage
          (only-in webracket/unsafe/dom
-                  js-eval))
+                  js-eval
+                  js-null
+                  js-undefined))
 
 (define (check-true got label)
   (unless got
@@ -90,6 +92,8 @@
 (define missing-remove-storage (fake-storage "removeItem"))
 (define missing-clear-storage (fake-storage "clear"))
 (define missing-length-storage (fake-storage "length"))
+(define null-raw-storage (storage (js-null)))
+(define undefined-raw-storage (storage (js-undefined)))
 
 (check-true (not (storage? missing-key-storage))
             "storage? rejects missing key")
@@ -101,6 +105,10 @@
             "storage? rejects missing removeItem")
 (check-true (not (storage? missing-clear-storage))
             "storage? rejects missing clear")
+(check-true (not (storage? null-raw-storage))
+            "storage? rejects null raw")
+(check-true (not (storage? undefined-raw-storage))
+            "storage? rejects undefined raw")
 
 (define storage-key-message
   (catch-message
@@ -137,6 +145,16 @@
    (lambda ()
      (storage-length (storage #f)))))
 
+(define storage-null-raw-message
+  (catch-message
+   (lambda ()
+     (storage-length null-raw-storage))))
+
+(define storage-undefined-raw-message
+  (catch-message
+   (lambda ()
+     (storage-length undefined-raw-storage))))
+
 (check-message local-storage-message
                "window.localStorage not available in this environment"
                "missing window.localStorage message")
@@ -164,6 +182,12 @@
 (check-message storage-invalid-raw-message
                "storage-info?"
                "missing storage-info invalid raw message")
+(check-message storage-null-raw-message
+               "storage-info?"
+               "null storage-info invalid raw message")
+(check-message storage-undefined-raw-message
+               "storage-info?"
+               "undefined storage-info invalid raw message")
 
 (js-eval
  "delete globalThis.__wrStorageBoundaryFake;

@@ -36,16 +36,23 @@
 (define (storage-raw value)
   (storage-info-raw value))
 
+;; storage-raw-host-value? : any/c -> boolean?
+;;   Report whether raw is a non-nullish external host value.
+(define (storage-raw-host-value? raw)
+  (and (external? raw)
+       (not (js-nullish? raw))))
+
 ;; storage? : any/c -> boolean?
 ;;   Report whether v is a wrapped Storage value.
 (define (storage? v)
   (and (storage-info? v)
-       (external? (storage-raw v))
-       (storage-method-present? (storage-raw v) "key")
-       (storage-method-present? (storage-raw v) "getItem")
-       (storage-method-present? (storage-raw v) "setItem")
-       (storage-method-present? (storage-raw v) "removeItem")
-       (storage-method-present? (storage-raw v) "clear")))
+       (let ([raw (storage-raw v)])
+         (and (storage-raw-host-value? raw)
+              (storage-method-present? raw "key")
+              (storage-method-present? raw "getItem")
+              (storage-method-present? raw "setItem")
+              (storage-method-present? raw "removeItem")
+              (storage-method-present? raw "clear")))))
 
 ;; storage-method-present? : external/raw string? -> boolean?
 ;;   Report whether raw exposes a callable Storage method.
@@ -63,7 +70,7 @@
 ;;   Ensure value wraps an external Storage-like host value.
 (define (check-storage who value)
   (unless (and (storage-info? value)
-               (external? (storage-raw value)))
+               (storage-raw-host-value? (storage-raw value)))
     (raise-argument-error who "storage-info?" value)))
 
 ;; check-storage-method : symbol? storage-info? string? -> void?

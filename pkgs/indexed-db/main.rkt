@@ -48,6 +48,12 @@
 (define (indexed-db-raw value)
   (indexed-db-info-raw value))
 
+;; indexed-db-raw-host-value? : any/c -> boolean?
+;;   Report whether raw is a non-nullish external host value.
+(define (indexed-db-raw-host-value? raw)
+  (and (external? raw)
+       (not (js-nullish? raw))))
+
 ;; indexed-db? : any/c -> boolean?
 ;;   Report whether v is a wrapped IndexedDB factory object.
 (define (indexed-db? v)
@@ -58,8 +64,9 @@
 (define (indexed-db-host-value? v)
   (and (indexed-db-info? v)
        (indexed-db-constructor-present?)
-       (external? (indexed-db-raw v))
-       (js-instanceof (indexed-db-raw v) (js-var "IDBFactory"))))
+       (let ([raw (indexed-db-raw v)])
+         (and (indexed-db-raw-host-value? raw)
+              (js-instanceof raw (js-var "IDBFactory"))))))
 
 ;; indexed-db-method-present? : external/raw string? -> boolean?
 ;;   Report whether raw exposes a callable IDBFactory method.
@@ -72,7 +79,7 @@
 ;;   Ensure value wraps an external IDBFactory host value.
 (define (check-indexed-db who value)
   (unless (and (indexed-db-info? value)
-               (external? (indexed-db-raw value)))
+               (indexed-db-raw-host-value? (indexed-db-raw value)))
     (raise-argument-error who "indexed-db-info?" value))
   (check-indexed-db-constructor who)
   (unless (js-instanceof (indexed-db-raw value) (js-var "IDBFactory"))

@@ -5,6 +5,8 @@
 (require indexed-db
          (only-in webracket/unsafe/standard
                   js-eval
+                  js-null
+                  js-undefined
                   js-truthy?))
 
 (define (check-true got label)
@@ -139,9 +141,15 @@
   };")
 
 (define db (indexed-db))
+(define null-raw-db (indexed-db-info (js-null)))
+(define undefined-raw-db (indexed-db-info (js-undefined)))
 
 (check-true (indexed-db? db)
             "indexed-db predicate before patches")
+(check-true (not (indexed-db? null-raw-db))
+            "indexed-db? rejects null raw")
+(check-true (not (indexed-db? undefined-raw-db))
+            "indexed-db? rejects undefined raw")
 
 (define (hide-indexed-db-constructor?)
   (js-truthy?
@@ -196,6 +204,16 @@
      (restore-indexed-db-value!)
      #f]))
 
+(define indexed-db-null-raw-message
+  (catch-message
+   (lambda ()
+     (indexed-db-open null-raw-db "wr-null-raw"))))
+
+(define indexed-db-undefined-raw-message
+  (catch-message
+   (lambda ()
+     (indexed-db-open undefined-raw-db "wr-undefined-raw"))))
+
 (define (missing-method-message method thunk)
   (js-eval (string-append "__wrIndexedDBBoundaryPatch('"
                           method
@@ -245,6 +263,12 @@
   (check-message indexed-db-value-message
                  "window.indexedDB not available in this environment"
                  "missing window.indexedDB message"))
+(check-message indexed-db-null-raw-message
+               "indexed-db-info?"
+               "null indexed-db-info invalid raw message")
+(check-message indexed-db-undefined-raw-message
+               "indexed-db-info?"
+               "undefined indexed-db-info invalid raw message")
 (check-message delete-message
                "IDBFactory.deleteDatabase is not available"
                "missing IDBFactory.deleteDatabase message")
