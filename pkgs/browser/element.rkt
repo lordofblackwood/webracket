@@ -500,9 +500,8 @@
 ;; element-set-scroll-top! : element? real? -> void?
 ;;   Set an element's vertical scroll offset.
 (define (element-set-scroll-top! element value)
-  (js-set! (element-unwrap element)
-           "scrollTop"
-           (element-real->flonum 'element-set-scroll-top! value))
+  (js-set-element-scroll-top! (element-unwrap element)
+                              (element-real->flonum 'element-set-scroll-top! value))
   (void))
 
 ;; element-scroll-left : element? -> real?
@@ -512,9 +511,8 @@
 ;; element-set-scroll-left! : element? real? -> void?
 ;;   Set an element's horizontal scroll offset.
 (define (element-set-scroll-left! element value)
-  (js-set! (element-unwrap element)
-           "scrollLeft"
-           (element-real->flonum 'element-set-scroll-left! value))
+  (js-set-element-scroll-left! (element-unwrap element)
+                               (element-real->flonum 'element-set-scroll-left! value))
   (void))
 
 ;; element-scroll-width : element? -> exact-nonnegative-integer?
@@ -586,14 +584,16 @@
 ;; element-value : element? -> (or/c #f string?)
 ;;   Read an element's value property.
 (define (element-value element)
-  (js-ref (element-unwrap element) "value"))
+  (define raw (element-unwrap element))
+  (check-shared-dom-host-property 'element-value raw "Element" "value")
+  (js-ref raw "value"))
 
 ;; element-set-value! : element? (or/c string? symbol?) -> void?
 ;;   Set an element's value property.
 (define (element-set-value! element value)
-  (js-set! (element-unwrap element)
-           "value"
-           (element-stringish->string 'element-set-value! value))
+  (define raw (element-unwrap element))
+  (check-shared-dom-host-property 'element-set-value! raw "Element" "value")
+  (js-set! raw "value" (element-stringish->string 'element-set-value! value))
   (void))
 
 ;; element-computed-style-map : element? -> external/raw

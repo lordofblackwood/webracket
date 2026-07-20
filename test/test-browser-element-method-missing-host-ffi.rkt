@@ -63,6 +63,26 @@
    (lambda ()
      (element-after! element "x"))))
 
+(define set-scroll-top-message
+  (catch-message
+   (lambda ()
+     (element-set-scroll-top! element 0.0))))
+
+(define set-scroll-left-message
+  (catch-message
+   (lambda ()
+     (element-set-scroll-left! element 0.0))))
+
+(define value-message
+  (catch-message
+   (lambda ()
+     (element-value element))))
+
+(define set-value-message
+  (catch-message
+   (lambda ()
+     (element-set-value! element "x"))))
+
 (define contains-message
   (catch-message
    (lambda ()
@@ -106,6 +126,18 @@
 (check-message after-message
                "Element.after not available in this environment"
                "missing after message")
+(check-message set-scroll-top-message
+               "Element.scrollTop not available in this environment"
+               "missing scrollTop setter message")
+(check-message set-scroll-left-message
+               "Element.scrollLeft not available in this environment"
+               "missing scrollLeft setter message")
+(check-message value-message
+               "Element.value not available in this environment"
+               "missing value getter message")
+(check-message set-value-message
+               "Element.value not available in this environment"
+               "missing value setter message")
 (check-message contains-message
                "DOMTokenList.contains not available in this environment"
                "missing contains message")
