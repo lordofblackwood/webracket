@@ -115,6 +115,7 @@
 (define missing-push-state-history (fake-history "pushState"))
 (define missing-replace-state-history (fake-history "replaceState"))
 (define missing-length-history (fake-history "length"))
+(define missing-state-history (fake-history "state"))
 (define null-raw-history (history-info (js-null)))
 (define undefined-raw-history (history-info (js-undefined)))
 
@@ -162,6 +163,11 @@
   (catch-message
    (lambda ()
      (history-length missing-length-history))))
+
+(define state-message
+  (catch-message
+   (lambda ()
+     (history-state missing-state-history))))
 
 (define invalid-raw-message
   (catch-message
@@ -221,6 +227,9 @@
 (check-message length-message
                "History.length is not available"
                "missing History.length message")
+(check-message state-message
+               "History.state is not available"
+               "missing History.state message")
 (check-message invalid-raw-message
                "history?"
                "missing history invalid raw message")

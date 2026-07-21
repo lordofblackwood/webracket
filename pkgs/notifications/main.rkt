@@ -12,6 +12,7 @@
                   js-send/extern
                   js-send/extern/nullish
                   js-typeof
+                  js-undefined?
                   js-var)
          (only-in webracket/primitives
                   external?))
@@ -60,6 +61,12 @@
   (and (notification-raw-host-value? raw)
        (not (js-nullish? (js-ref/extern raw property-name)))))
 
+;; notification-host-nullable-property-present? : external/raw string? -> boolean?
+;;   Report whether raw exposes a Notification property, allowing null values.
+(define (notification-host-nullable-property-present? raw property-name)
+  (and (notification-raw-host-value? raw)
+       (not (js-undefined? (js-ref/extern raw property-name)))))
+
 ;; notification-raw-host-value? : any/c -> boolean?
 ;;   Report whether raw is a non-nullish external host value.
 (define (notification-raw-host-value? raw)
@@ -80,6 +87,16 @@
 ;;   Ensure a required Notification host property is available.
 (define (check-notification-host-property who raw receiver-name property-name)
   (unless (notification-host-property-present? raw property-name)
+    (raise-arguments-error who
+                           (string-append receiver-name
+                                          "."
+                                          property-name
+                                          " is not available"))))
+
+;; check-notification-host-nullable-property : symbol? external/raw string? string? -> void?
+;;   Ensure a required nullable Notification host property is available.
+(define (check-notification-host-nullable-property who raw receiver-name property-name)
+  (unless (notification-host-nullable-property-present? raw property-name)
     (raise-arguments-error who
                            (string-append receiver-name
                                           "."
@@ -202,6 +219,10 @@
 (define (notification-data value)
   (unless (notification? value)
     (raise-argument-error 'notification-data "notification?" value))
+  (check-notification-host-nullable-property 'notification-data
+                                             (notification-raw value)
+                                             "Notification"
+                                             "data")
   (js-ref (notification-raw value) "data"))
 
 (define (notification-icon value)

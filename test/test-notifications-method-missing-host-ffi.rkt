@@ -45,7 +45,7 @@
         if (missing !== 'title') this.title = title;
         if (missing !== 'body') this.body = options && options.body || '';
         if (missing !== 'tag') this.tag = options && options.tag || '';
-        this.data = options && options.data;
+        if (missing !== 'data') this.data = options && options.data || null;
         if (missing !== 'icon') this.icon = options && options.icon || '';
         if (missing !== 'requireInteraction') this.requireInteraction = !!(options && options.requireInteraction);
         if (missing !== 'renotify') this.renotify = !!(options && options.renotify);
@@ -161,6 +161,12 @@
    (lambda ()
      (notification-tag (make-notification "WebRacket")))))
 
+(define data-message
+  (missing-method-message
+   "data"
+   (lambda ()
+     (notification-data (make-notification "WebRacket")))))
+
 (define icon-message
   (missing-method-message
    "icon"
@@ -236,6 +242,9 @@
 (check-message tag-message
                "Notification.tag is not available"
                "missing Notification.tag message")
+(check-message data-message
+               "Notification.data is not available"
+               "missing Notification.data message")
 (check-message icon-message
                "Notification.icon is not available"
                "missing Notification.icon message")

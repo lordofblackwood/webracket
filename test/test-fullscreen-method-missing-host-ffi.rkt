@@ -143,6 +143,18 @@
    (lambda ()
      (fullscreen-enabled?))))
 
+(define element-message
+  (missing-document-property-message
+   "fullscreenElement"
+   (lambda ()
+     (fullscreen-element))))
+
+(define active-message
+  (missing-document-property-message
+   "fullscreenElement"
+   (lambda ()
+     (fullscreen-active?))))
+
 (check-message request-message
                "Element.requestFullscreen is not available"
                "missing Element.requestFullscreen message")
@@ -170,6 +182,12 @@
 (check-message enabled-message
                "document.fullscreenEnabled is not available"
                "missing document.fullscreenEnabled message")
+(check-message element-message
+               "document.fullscreenElement is not available"
+               "missing document.fullscreenElement message")
+(check-message active-message
+               "document.fullscreenElement is not available"
+               "missing active fullscreenElement message")
 
 (js-eval "__wrFullscreenBoundaryRestoreAll();")
 

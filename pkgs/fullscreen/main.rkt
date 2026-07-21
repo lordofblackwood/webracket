@@ -9,7 +9,8 @@
                   js-ref/extern
                   js-send/extern
                   js-send/extern/nullish
-                  js-typeof)
+                  js-typeof
+                  js-undefined?)
          (only-in webracket/primitives
                   external?
                   procedure->external))
@@ -50,6 +51,12 @@
   (and (fullscreen-raw-host-value? raw)
        (not (js-nullish? (js-ref/extern raw property-name)))))
 
+;; fullscreen-nullable-property-present? : external/raw string? -> boolean?
+;;   Report whether raw exposes a property, allowing null values.
+(define (fullscreen-nullable-property-present? raw property-name)
+  (and (fullscreen-raw-host-value? raw)
+       (not (js-undefined? (js-ref/extern raw property-name)))))
+
 ;; fullscreen-raw-host-value? : any/c -> boolean?
 ;;   Report whether raw is a non-nullish external host value.
 (define (fullscreen-raw-host-value? raw)
@@ -67,6 +74,13 @@
 ;;   Ensure the current document exposes a required Fullscreen property.
 (define (check-fullscreen-document-property who property-name)
   (unless (fullscreen-property-present? (fullscreen-document-raw) property-name)
+    (raise-arguments-error who
+                           (string-append "document." property-name " is not available"))))
+
+;; check-fullscreen-document-nullable-property : symbol? string? -> void?
+;;   Ensure the current document exposes a required nullable Fullscreen property.
+(define (check-fullscreen-document-nullable-property who property-name)
+  (unless (fullscreen-nullable-property-present? (fullscreen-document-raw) property-name)
     (raise-arguments-error who
                            (string-append "document." property-name " is not available"))))
 
@@ -118,6 +132,7 @@
 ;; fullscreen-element : -> (or/c #f dom-element?)
 ;;   Read the current fullscreen element, if any.
 (define (fullscreen-element)
+  (check-fullscreen-document-nullable-property 'fullscreen-element "fullscreenElement")
   (element-wrap (js-ref/extern (fullscreen-document-raw) "fullscreenElement")))
 
 ;; fullscreen-active? : -> boolean?

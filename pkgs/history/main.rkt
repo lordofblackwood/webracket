@@ -124,6 +124,13 @@
     (raise-arguments-error who
                            (string-append "History." property-name " is not available"))))
 
+;; check-history-nullable-property : symbol? history-info? string? -> void?
+;;   Ensure a required nullable History property is available.
+(define (check-history-nullable-property who value property-name)
+  (unless (history-nullable-property-present? (history-raw value) property-name)
+    (raise-arguments-error who
+                           (string-append "History." property-name " is not available"))))
+
 ;; check-history-window-method : symbol? string? -> void?
 ;;   Ensure window exposes a required event listener method.
 (define (check-history-window-method who method-name)
@@ -183,6 +190,7 @@
 ;;   Read the current history state object or value.
 (define (history-state value)
   (check-history 'history-state value)
+  (check-history-nullable-property 'history-state value "state")
   (js-ref (history-raw value) "state"))
 
 ;; history-back! : history? -> void?
