@@ -454,9 +454,17 @@
 (define (alpha-identity-transform ctx)
   (js-canvas2d-set-transform! ctx 1.0 0.0 0.0 1.0 0.0 0.0))
 
+;; make-path2d : symbol? -> external?
+;;   Construct a browser Path2D value or raise a clear Racket exception.
+(define (make-path2d who)
+  (define path2d-ctor (js-var "Path2D"))
+  (unless (js-constructible? path2d-ctor)
+    (raise-arguments-error who "Path2D constructor is not available"))
+  (js-new path2d-ctor (vector)))
+
 (define (alpha-offscreen-canvas width height)
   (define offscreen-ctor (js-var "OffscreenCanvas"))
-  (if (string=? (js-typeof offscreen-ctor) "undefined")
+  (if (not (js-constructible? offscreen-ctor))
       (let ([canvas (js-create-element "canvas")])
         (js-set-canvas-width! canvas width)
         (js-set-canvas-height! canvas height)

@@ -252,6 +252,8 @@ compile_root_case test-js-string-symbol-ffi.html test/test-js-string-symbol-ffi.
   --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/dom.ffi"
 compile_root_case test-browser-canvas-draw-image-integers.html test/test-browser-canvas-draw-image-integers.rkt \
   --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/dom.ffi"
+compile_root_case test-web-pict-method-missing-host-ffi.html test/test-web-pict-method-missing-host-ffi.rkt \
+  --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/dom.ffi"
 compile_root_case test-browser-window-surface.html test/test-browser-window-surface.rkt \
   --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/dom.ffi"
 compile_root_case test-browser-event-surface.html test/test-browser-event-surface.rkt \

@@ -2143,7 +2143,7 @@
               (dc 'save) ; only way to store clipping region
               ; (define rgn <make-new-path>) ; new Path2d()   
               ; <set-reg-to-rectangle>       ; rgn.rectangle(x, y, w, h)
-              (define rgn (js-new (js-var "Path2D") (vector))) ; new Path2D()
+              (define rgn (make-path2d 'inset/clip)) ; new Path2D()
               (js-send rgn "rect"
                        (vector (->real x)
                                (->real y)
