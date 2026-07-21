@@ -20,6 +20,15 @@
     (thunk)
     #f))
 
+(define (catch-message/restoring thunk restore!)
+  (with-handlers ([exn:fail?
+                   (lambda (e)
+                     (restore!)
+                     (exn-message e))])
+    (thunk)
+    (restore!)
+    #f))
+
 (define (string-contains/simple? haystack needle)
   (define haystack-length (string-length haystack))
   (define needle-length (string-length needle))
@@ -36,6 +45,67 @@
 
 (define null-value (js-null))
 (define plain-object (js-eval "({})"))
+
+(js-eval
+ "(() => {
+    const hostObject = Object;
+    const getOwnPropertyDescriptor = hostObject.getOwnPropertyDescriptor;
+    const defineProperty = hostObject.defineProperty;
+    const savedReflect =
+      getOwnPropertyDescriptor.call(hostObject, globalThis, 'Reflect') || null;
+    globalThis.__wrStandardPropertyBoundary = {
+      constructor: class WRReflectBoundary {
+        constructor() {
+          this.ok = 41;
+        }
+      },
+      hideReflect() {
+        try {
+          return delete globalThis.Reflect;
+        } catch (_e) {
+          return false;
+        }
+      },
+      restoreReflect() {
+        if (savedReflect) {
+          defineProperty.call(hostObject, globalThis, 'Reflect', savedReflect);
+        } else {
+          delete globalThis.Reflect;
+        }
+      },
+      cleanup() {
+        this.restoreReflect();
+        delete globalThis.__wrStandardPropertyBoundary;
+      }
+    };
+  })();")
+
+(define (hidden-reflect?)
+  (js-eval "__wrStandardPropertyBoundary.hideReflect()"))
+
+(define (restore-reflect!)
+  (js-eval "__wrStandardPropertyBoundary.restoreReflect()")
+  (void))
+
+(define (check-hidden-reflect/new-survives)
+  (define (construct)
+    (define value
+      (js-new (js-ref/extern (js-eval "__wrStandardPropertyBoundary")
+                             "constructor")
+              (vector)))
+    (check-true (= (js-ref value "ok") 41)
+                "js-new constructed with hidden Reflect"))
+  (cond
+    [(hidden-reflect?)
+     (define message
+       (catch-message/restoring construct restore-reflect!))
+     (check-true (not message)
+                 "js-new survives hidden Reflect")]
+    [else
+     (restore-reflect!)
+     (define message (catch-message construct))
+     (check-true (not message)
+                 "js-new works when Reflect cannot be hidden")]))
 
 (define ref-message
   (catch-message
@@ -72,6 +142,8 @@
    (lambda ()
      (js-new (js-eval "(() => {})") (vector)))))
 
+(check-hidden-reflect/new-survives)
+
 (check-message ref-message
                "js-ref: target object is null or undefined"
                "missing js-ref null target message")
@@ -93,6 +165,8 @@
 (check-message new-non-constructor-message
                "js-new: expected constructible function"
                "missing js-new non-constructor function message")
+
+(js-eval "__wrStandardPropertyBoundary.cleanup();")
 
 (js-log "standard-property-missing-host-ffi-ok")
 #t

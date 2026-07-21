@@ -4,6 +4,7 @@ if (typeof WebAssembly.Tag === 'undefined' || typeof WebAssembly.Exception === '
 
 const hostString = String;
 const hostObject = Object;
+const hostReflect = typeof Reflect === 'undefined' ? null : Reflect;
 const hostNumber = Number;
 const hostBoolean = Boolean;
 const hostMath = Math;
@@ -20,6 +21,9 @@ if (typeof hostNumberValueOf !== 'function') {
 }
 if (typeof hostBooleanValueOf !== 'function') {
   throw new Error('Boolean.valueOf not available in this environment');
+}
+if (!hostReflect || typeof hostReflect.construct !== 'function') {
+  throw new Error('Reflect.construct not available in this environment');
 }
 const foreign_error_tag = new WebAssembly.Tag({ parameters: ['externref'] });
 
@@ -153,7 +157,7 @@ function host_is_constructor(value) {
     return false;
   }
   try {
-    Reflect.construct(hostString, [], value);
+    hostReflect.construct(hostString, [], value);
     return true;
   } catch (_) {
     return false;
