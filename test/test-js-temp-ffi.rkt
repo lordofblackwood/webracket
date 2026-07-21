@@ -20,6 +20,15 @@
     (thunk)
     #f))
 
+(define (catch-message/restoring thunk restore!)
+  (with-handlers ([exn:fail?
+                   (lambda (e)
+                     (restore!)
+                     (exn-message e))])
+    (thunk)
+    (restore!)
+    #f))
+
 (define (string-contains/simple? haystack needle)
   (define haystack-length (string-length haystack))
   (define needle-length (string-length needle))
@@ -38,10 +47,63 @@
 (define missing-obj (js-eval "({})"))
 (define js-null (js-eval "null"))
 
+(js-eval
+ "(() => {
+    const hostObject = Object;
+    const getOwnPropertyDescriptor = hostObject.getOwnPropertyDescriptor;
+    const defineProperty = hostObject.defineProperty;
+    const savedObject =
+      getOwnPropertyDescriptor.call(hostObject, globalThis, 'Object') || null;
+    globalThis.__wrTempObjectBoundary = {
+      hide() {
+        try {
+          return delete globalThis.Object;
+        } catch (_e) {
+          return false;
+        }
+      },
+      restore() {
+        if (savedObject) {
+          defineProperty.call(hostObject, globalThis, 'Object', savedObject);
+        } else {
+          delete globalThis.Object;
+        }
+      },
+      cleanup() {
+        this.restore();
+        delete globalThis.__wrTempObjectBoundary;
+      }
+    };
+  })();")
+
+(define (hidden-object?)
+  (js-eval "__wrTempObjectBoundary.hide()"))
+
+(define (restore-object!)
+  (js-eval "__wrTempObjectBoundary.restore()")
+  (void))
+
+(define (check-hidden-object/no-error thunk label)
+  (cond
+    [(hidden-object?)
+     (define message
+       (catch-message/restoring thunk restore-object!))
+     (check-true (not message) label)]
+    [else
+     (restore-object!)
+     (define message (catch-message thunk))
+     (check-true (not message) label)]))
+
 (check-equal (temp-x obj) 17 "initial temp x")
 (temp-set-x! obj "updated")
 (check-equal (temp-x obj) "updated" "updated temp x")
 (check-equal (js-ref obj "x") "updated" "raw object property")
+
+(check-hidden-object/no-error
+ (lambda ()
+   (temp-set-x! obj "object-hidden"))
+ "temp setter survives hidden Object")
+(check-equal (temp-x obj) "object-hidden" "hidden Object setter update")
 
 (define temp-x-null-message
   (catch-message
@@ -75,6 +137,8 @@
 (check-message temp-set-x-missing-message
                "temp.x not available in this environment"
                "missing temp.x setter message")
+
+(js-eval "__wrTempObjectBoundary.cleanup();")
 
 (js-log "js-temp-ffi-ok")
 #t

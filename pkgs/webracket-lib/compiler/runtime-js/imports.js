@@ -3,6 +3,7 @@ if (typeof WebAssembly.Tag === 'undefined' || typeof WebAssembly.Exception === '
 }
 
 const hostString = String;
+const hostObject = Object;
 const hostNumber = Number;
 const hostBoolean = Boolean;
 const hostMath = Math;
@@ -53,14 +54,14 @@ function install_ffi_exception_bridge(imports) {
   // with a `(catch $ffi-host-exn ...)` path. If we also wrapped core modules,
   // internal runtime errors would be rethrown as foreign-call exceptions and
   // could bypass the intended internal error handling/debug flow.
-  for (const [moduleName, table] of Object.entries(imports)) {
+  for (const [moduleName, table] of hostObject.entries(imports)) {
     if (!is_ffi_exception_bridge_module(moduleName)) {
       continue;
     }
     if (!table || typeof table !== 'object') {
       continue;
     }
-    for (const key of Object.keys(table)) {
+    for (const key of hostObject.keys(table)) {
       const value = table[key];
       if (typeof value === 'function') {
         table[key] = wrap_ffi_host_exceptions(value);
@@ -88,14 +89,14 @@ function assert_ffi_exception_bridge_visible_imports(module, imports, label) {
         `FFI import table '${moduleName}' required by ${label} must be an object`
       );
     }
-    const prototype = Object.getPrototypeOf(table);
-    if (prototype !== Object.prototype && prototype !== null) {
+    const prototype = hostObject.getPrototypeOf(table);
+    if (prototype !== hostObject.prototype && prototype !== null) {
       throw new Error(
         `FFI import table '${moduleName}' required by ${label} must be a plain object`
       );
     }
     for (const name of names) {
-      const descriptor = Object.getOwnPropertyDescriptor(table, name);
+      const descriptor = hostObject.getOwnPropertyDescriptor(table, name);
       if (!descriptor || !descriptor.enumerable) {
         throw new Error(
           `FFI import '${moduleName}.${name}' required by ${label} must be an own enumerable function so host exceptions can be bridged`
@@ -265,7 +266,7 @@ function get_required_host_property(owner, name, displayName) {
 
 function set_required_host_property(owner, name, value, displayName) {
   const target = require_host_target(owner, displayName);
-  if (!(name in Object(target))) {
+  if (!(name in hostObject(target))) {
     throw new Error(`${displayName} not available in this environment`);
   }
   target[name] = value;
