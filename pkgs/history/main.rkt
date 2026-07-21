@@ -8,7 +8,8 @@
                   js-ref/extern
                   js-send/extern/nullish
                   js-set!
-                  js-typeof)
+                  js-typeof
+                  js-undefined?)
          (only-in webracket/primitives
                   external?
                   procedure->external))
@@ -56,6 +57,12 @@
 (define (history-property-present? raw property-name)
   (and (history-raw-host-value? raw)
        (not (js-nullish? (js-ref/extern raw property-name)))))
+
+;; history-nullable-property-present? : external/raw string? -> boolean?
+;;   Report whether raw exposes a property, allowing null values.
+(define (history-nullable-property-present? raw property-name)
+  (and (history-raw-host-value? raw)
+       (not (js-undefined? (js-ref/extern raw property-name)))))
 
 ;; history-supported? : -> boolean?
 ;;   Report whether the browser exposes window.history with the core methods.
@@ -123,6 +130,13 @@
   (unless (history-method-present? (history-window-raw) method-name)
     (raise-arguments-error who
                            (string-append "window." method-name " is not available"))))
+
+;; check-history-window-nullable-property : symbol? string? -> void?
+;;   Ensure window exposes a required nullable handler property.
+(define (check-history-window-nullable-property who property-name)
+  (unless (history-nullable-property-present? (history-window-raw) property-name)
+    (raise-arguments-error who
+                           (string-append "window." property-name " is not available"))))
 
 ;; history-stringish->string : symbol? any/c -> string?
 ;;   Normalize a string-like argument to a browser string.
@@ -234,6 +248,7 @@
 (define (history-on-popstate! callback)
   (unless (or (eq? callback #f) (procedure? callback) (external? callback))
     (raise-argument-error 'history-on-popstate! "(or/c #f procedure? external?)" callback))
+  (check-history-window-nullable-property 'history-on-popstate! "onpopstate")
   (js-set! (history-window-raw)
            "onpopstate"
            (if (eq? callback #f)

@@ -39,6 +39,12 @@
       this.messages = [];
       this.listeners = [];
       this.terminated = false;
+      if (missing !== 'onmessage') {
+        this.onmessage = null;
+      }
+      if (missing !== 'onerror') {
+        this.onerror = null;
+      }
       if (missing !== 'postMessage') {
         this.postMessage = (message) => { this.messages.push(message); };
       }
@@ -154,6 +160,16 @@
                                     'message
                                     callback))))
 
+(define onmessage-message
+  (catch-message
+   (lambda ()
+     (worker-onmessage! (fake-worker "onmessage") callback))))
+
+(define onerror-message
+  (catch-message
+   (lambda ()
+     (worker-onerror! (fake-worker "onerror") callback))))
+
 (check-message constructor-message
                "Worker is not available"
                "missing Worker constructor message")
@@ -172,6 +188,12 @@
 (check-message remove-event-message
                "Worker.removeEventListener is not available"
                "missing Worker.removeEventListener message")
+(check-message onmessage-message
+               "Worker.onmessage is not available"
+               "missing Worker.onmessage message")
+(check-message onerror-message
+               "Worker.onerror is not available"
+               "missing Worker.onerror message")
 
 (js-eval "__wrWorkerBoundaryRestoreAll();")
 

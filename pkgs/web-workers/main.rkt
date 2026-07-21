@@ -69,6 +69,12 @@
          (and (not (js-nullish? method))
               (string=? (js-typeof method) "function")))))
 
+;; worker-nullable-property-present? : external/raw string? -> boolean?
+;;   Report whether raw exposes a property, allowing null values.
+(define (worker-nullable-property-present? raw property-name)
+  (and (worker-raw-host-value? raw)
+       (not (js-undefined? (js-ref/extern raw property-name)))))
+
 ;; worker-raw-host-value? : any/c -> boolean?
 ;;   Report whether raw is a non-nullish external host value.
 (define (worker-raw-host-value? raw)
@@ -100,6 +106,13 @@
   (unless (worker-method-present? (worker-raw value) method-name)
     (raise-arguments-error who
                            (string-append "Worker." method-name " is not available"))))
+
+;; check-worker-nullable-property : symbol? worker? string? -> void?
+;;   Ensure a required nullable Worker property is available.
+(define (check-worker-nullable-property who value property-name)
+  (unless (worker-nullable-property-present? (worker-raw value) property-name)
+    (raise-arguments-error who
+                           (string-append "Worker." property-name " is not available"))))
 
 ;; worker-callback->external : symbol? any/c -> external/raw
 ;;   Convert a callback to a stable external callback wrapper.
@@ -203,6 +216,7 @@
   (check-worker who value)
   (unless (or (eq? handler #f) (procedure? handler) (external? handler))
     (raise-argument-error who "(or/c #f procedure? external?)" handler))
+  (check-worker-nullable-property who value prop)
   (js-set! (worker-raw value) prop (worker-handler->external who handler))
   (void))
 

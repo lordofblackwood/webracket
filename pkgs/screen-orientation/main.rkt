@@ -9,6 +9,7 @@
                   js-send/extern/nullish
                   js-set!
                   js-typeof
+                  js-undefined?
                   js-window-screen)
          (only-in webracket/primitives
                   external?
@@ -44,6 +45,12 @@
 (define (screen-orientation-property-present? raw property-name)
   (and (screen-orientation-raw-host-value? raw)
        (not (js-nullish? (js-ref/extern raw property-name)))))
+
+;; screen-orientation-nullable-property-present? : external/raw string? -> boolean?
+;;   Report whether raw exposes a property, allowing null values.
+(define (screen-orientation-nullable-property-present? raw property-name)
+  (and (screen-orientation-raw-host-value? raw)
+       (not (js-undefined? (js-ref/extern raw property-name)))))
 
 ;; screen-orientation-supported-raw : -> (or/c #f external/raw)
 ;;   Read screen.orientation when it is available.
@@ -93,6 +100,15 @@
 ;;   Ensure a required ScreenOrientation property is available.
 (define (check-screen-orientation-property who value property-name)
   (unless (screen-orientation-property-present? (screen-orientation-raw value) property-name)
+    (raise-arguments-error who
+                           (string-append "ScreenOrientation."
+                                          property-name
+                                          " is not available"))))
+
+;; check-screen-orientation-nullable-property : symbol? screen-orientation-info? string? -> void?
+;;   Ensure a required nullable ScreenOrientation property is available.
+(define (check-screen-orientation-nullable-property who value property-name)
+  (unless (screen-orientation-nullable-property-present? (screen-orientation-raw value) property-name)
     (raise-arguments-error who
                            (string-append "ScreenOrientation."
                                           property-name
@@ -174,6 +190,7 @@
 ;;   Set the onchange handler on a ScreenOrientation object.
 (define (screen-orientation-on-change! value callback)
   (check-screen-orientation 'screen-orientation-on-change! value)
+  (check-screen-orientation-nullable-property 'screen-orientation-on-change! value "onchange")
   (define callback* (and callback
                          (screen-orientation-callback->external
                           'screen-orientation-on-change!

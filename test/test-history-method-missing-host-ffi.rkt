@@ -180,6 +180,12 @@
 
 (define callback (lambda args (void)))
 
+(define on-popstate-message
+  (missing-window-method-message
+   "onpopstate"
+   (lambda ()
+     (history-on-popstate! callback))))
+
 (define add-popstate-message
   (missing-window-method-message
    "addEventListener"
@@ -224,6 +230,9 @@
 (check-message undefined-raw-message
                "history?"
                "missing history undefined raw message")
+(check-message on-popstate-message
+               "window.onpopstate is not available"
+               "missing window.onpopstate message")
 (check-message add-popstate-message
                "window.addEventListener is not available"
                "missing window.addEventListener message")

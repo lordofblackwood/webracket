@@ -131,6 +131,9 @@
 (define missing-angle-orientation
   (fake-orientation "angle"))
 
+(define missing-onchange-orientation
+  (fake-orientation "onchange"))
+
 (define null-raw-orientation
   (screen-orientation-info (js-null)))
 
@@ -205,6 +208,13 @@
    (lambda ()
      (screen-orientation-angle missing-angle-orientation))))
 
+(define on-change-message
+  (catch-message
+   (lambda ()
+     (screen-orientation-on-change!
+      missing-onchange-orientation
+      (lambda () (void))))))
+
 (check-false missing-screen-supported?
              "screen-orientation-supported? returns #f when screen is missing")
 (check-false missing-screen-orientation
@@ -240,6 +250,9 @@
 (check-message angle-message
                "ScreenOrientation.angle is not available"
                "missing ScreenOrientation.angle message")
+(check-message on-change-message
+               "ScreenOrientation.onchange is not available"
+               "missing ScreenOrientation.onchange message")
 
 (js-eval
  "delete globalThis.__wrScreenOrientationBoundaryFake;
