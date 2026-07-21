@@ -20,6 +20,15 @@
     (thunk)
     #f))
 
+(define (catch-message/restoring thunk restore!)
+  (with-handlers ([exn:fail?
+                   (lambda (e)
+                     (restore!)
+                     (exn-message e))])
+    (thunk)
+    (restore!)
+    #f))
+
 (define (string-contains/simple? haystack needle)
   (define haystack-length (string-length haystack))
   (define needle-length (string-length needle))
@@ -53,13 +62,36 @@
    (lambda ()
      (iterator-from (basic-iterator)))))
 
+(define no-global-prototype-message
+  (catch-message
+   (lambda ()
+     (iterator-prototype))))
+
 (js-eval
  "globalThis.Iterator = function Iterator() {};")
+
+(define (restore-fake-iterator!)
+  (js-eval "globalThis.Iterator = function Iterator() {};")
+  (void))
 
 (define no-from-message
   (catch-message
    (lambda ()
      (iterator-from (basic-iterator)))))
+
+(define no-prototype-message
+  (catch-message/restoring
+   (lambda ()
+     (js-eval "globalThis.Iterator.prototype = undefined;")
+     (iterator-prototype))
+   restore-fake-iterator!))
+
+(define no-prototype-constructor-message
+  (catch-message/restoring
+   (lambda ()
+     (js-eval "globalThis.Iterator.prototype = { constructor: undefined };")
+     (iterator-prototype-constructor))
+   restore-fake-iterator!))
 
 (define no-next-message
   (catch-message
@@ -79,18 +111,62 @@
   delete globalThis.__wrIteratorBoundarySaved;
   delete globalThis.__wrIteratorBoundaryNoNext;")
 
+(js-eval
+ "globalThis.__wrIteratorBoundarySavedObjectEntries =
+    Object.getOwnPropertyDescriptor(Object, 'entries') || null;")
+
+(define (hide-object-entries!)
+  (js-eval
+   "Object.defineProperty(Object, 'entries', {
+      value: undefined,
+      writable: true,
+      configurable: true
+    });")
+  (void))
+
+(define (restore-object-entries!)
+  (js-eval
+   "if (globalThis.__wrIteratorBoundarySavedObjectEntries) {
+      Object.defineProperty(Object,
+                            'entries',
+                            globalThis.__wrIteratorBoundarySavedObjectEntries);
+    } else {
+      delete Object.entries;
+    }
+    delete globalThis.__wrIteratorBoundarySavedObjectEntries;")
+  (void))
+
+(define object-entries-message
+  (catch-message/restoring
+   (lambda ()
+     (hide-object-entries!)
+     (iterator-zip-keyed (js-eval "({a: [1]})")))
+   restore-object-entries!))
+
 (check-message no-global-message
                "Iterator is not available"
                "missing Iterator global message")
+(check-message no-global-prototype-message
+               "Iterator is not available"
+               "missing Iterator prototype global message")
 (check-message no-from-message
                "Iterator.from is not available"
                "missing Iterator.from message")
+(check-message no-prototype-message
+               "Iterator.prototype is not available"
+               "missing Iterator.prototype message")
+(check-message no-prototype-constructor-message
+               "Iterator.prototype.constructor is not available"
+               "missing Iterator.prototype.constructor message")
 (check-message no-next-message
                "Iterator.next is not available"
                "missing Iterator.next message")
 (check-equal (js-ref return-result "done") #t "iterator-return fallback done")
 (check-equal (js-ref return-result "value") "finished" "iterator-return fallback value")
 (check-equal dispose-message #f "iterator-dispose! ignores missing return")
+(check-message object-entries-message
+               "Object.entries is not available"
+               "missing Object.entries message")
 
 (js-log "js-iterator-method-missing-host-ffi-ok")
 #t

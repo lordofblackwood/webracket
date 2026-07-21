@@ -136,16 +136,48 @@
                                           method-name
                                           " is not available"))))
 
-;; check-iterator-global-method : symbol? string? -> external/raw
-;;   Return the Iterator constructor after checking a required static method.
-(define (check-iterator-global-method who method-name)
+;; check-iterator-host-property : symbol? external/raw string? string? -> external/raw
+;;   Return a required Iterator host property after checking it is available.
+(define (check-iterator-host-property who raw receiver-name property-name)
+  (define value (and (external? raw)
+                     (not (js-nullish? raw))
+                     (js-ref/extern raw property-name)))
+  (unless (and (external? value)
+               (not (js-nullish? value)))
+    (raise-arguments-error who
+                           (string-append receiver-name
+                                          "."
+                                          property-name
+                                          " is not available")))
+  value)
+
+;; check-iterator-global : symbol? -> external/raw
+;;   Return the Iterator constructor after checking the host global is available.
+(define (check-iterator-global who)
   (define iterator-ctor (Iterator))
   (unless (and (external? iterator-ctor)
                (not (js-nullish? iterator-ctor))
                (string=? (js-typeof iterator-ctor) "function"))
     (raise-arguments-error who "Iterator is not available"))
+  iterator-ctor)
+
+;; check-iterator-global-method : symbol? string? -> external/raw
+;;   Return the Iterator constructor after checking a required static method.
+(define (check-iterator-global-method who method-name)
+  (define iterator-ctor (check-iterator-global who))
   (check-iterator-host-method who iterator-ctor "Iterator" method-name)
   iterator-ctor)
+
+;; check-object-global-method : symbol? string? -> external/raw
+;;   Return the Object constructor after checking a required static method.
+(define (check-object-global-method who method-name)
+  (define object-ctor (js-Object))
+  (unless (and (external? object-ctor)
+               (not (js-nullish? object-ctor))
+               (string=? (js-typeof object-ctor) "function"))
+    (raise-arguments-error who "Object is not available"))
+  (check-iterator-host-method who object-ctor "Object" method-name)
+  object-ctor)
 
 ;; iterable? : any/c -> boolean?
 ;;   Check whether a value has a callable [Symbol.iterator] method.
@@ -233,12 +265,25 @@
 ;; iterator-prototype : -> external/raw
 ;;   Read Iterator.prototype.
 (define (iterator-prototype)
-  (js-ref/extern (Iterator) "prototype"))
+  (check-iterator-host-property 'iterator-prototype
+                                (check-iterator-global 'iterator-prototype)
+                                "Iterator"
+                                "prototype"))
 
 ;; iterator-prototype-constructor : -> external/raw
 ;;   Read the constructor stored on Iterator.prototype.
 (define (iterator-prototype-constructor)
-  (js-ref/extern (iterator-prototype) "constructor"))
+  (define prototype
+    (check-iterator-host-property 'iterator-prototype-constructor
+                                  (check-iterator-global
+                                   'iterator-prototype-constructor)
+                                  "Iterator"
+                                  "prototype"))
+  (check-iterator-host-method 'iterator-prototype-constructor
+                              prototype
+                              "Iterator.prototype"
+                              "constructor")
+  (js-ref/extern prototype "constructor"))
 
 ;; iterator-prototype-to-string-tag : -> string?
 ;;   Read the default Symbol.toStringTag value for Iterator.prototype.
@@ -313,12 +358,16 @@
       (raise-argument-error 'iterator-zip-keyed
                             "(or/c #f iterator-zip-options?)"
                             options)))
+  (define object-ctor (check-object-global-method 'iterator-zip-keyed
+                                                  "entries"))
   (define entries
     (map (lambda (entry)
            (cons (iterator-entry-key entry)
                  (iterator-from (iterator-entry-value entry))))
          (iterator-collect-list
-          (iterator-from (js-send/value (js-Object) "entries" (vector iterables))))))
+          (iterator-from (js-send/value object-ctor
+                                        "entries"
+                                        (vector iterables))))))
   (define done? #f)
   (iterator-make
    (lambda ()
