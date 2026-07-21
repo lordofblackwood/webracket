@@ -248,6 +248,8 @@ compile_root_case test-rquery-surface-ffi.html test/test-rquery-surface-ffi.rkt 
 compile_root_case test-rquery-method-missing-host-ffi.html test/test-rquery-method-missing-host-ffi.rkt \
   --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/standard.ffi" \
   --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/dom.ffi"
+compile_root_case test-web-easy-scrollspy-reflect-boundary.html test/test-web-easy-scrollspy-reflect-boundary.rkt \
+  --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/dom.ffi"
 compile_root_case test-js-string-symbol-ffi.html test/test-js-string-symbol-ffi.rkt \
   --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/dom.ffi"
 compile_root_case test-browser-canvas-draw-image-integers.html test/test-browser-canvas-draw-image-integers.rkt \

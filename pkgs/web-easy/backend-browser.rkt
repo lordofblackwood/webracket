@@ -921,6 +921,14 @@
       (and v
            (not (extern-nullish? v))))
 
+    ;; extern-callable-property? : any/c string? -> boolean?
+    ;;   Check whether external value has a callable property.
+    (define (extern-callable-property? v property-name)
+      (and (extern-present? v)
+           (let ([method (js-ref/extern v property-name)])
+             (and (extern-present? method)
+                  (string=? (js-typeof method) "function")))))
+
     ;; extern-bool-true? : any/c -> boolean?
     ;;   Interpret external value as boolean true/false by string conversion.
     (define (extern-bool-true? v)
@@ -1934,7 +1942,7 @@
           (and observer-ctor*
                reflect*
                (not (extern-nullish? observer-ctor*))
-               (not (extern-nullish? reflect*))))
+               (extern-callable-property? reflect* "construct")))
         (if io-supported?
                 (let* ([io-callback
                         (contextual-procedure->external
