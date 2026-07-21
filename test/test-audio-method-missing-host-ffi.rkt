@@ -152,10 +152,13 @@
 
 (js-eval
  "globalThis.AudioNode = class AudioNode {};
+  globalThis.AudioContext = class AudioContext {};
   globalThis.__wrAudioBoundaryNode = new AudioNode();")
 
 (define node-without-listeners
   (js-eval "globalThis.__wrAudioBoundaryNode"))
+(define context-without-handler
+  (js-eval "new AudioContext()"))
 (define noop-listener (lambda (_evt) (void)))
 
 (define add-listener-message
@@ -171,6 +174,16 @@
      (audio-remove-event-listener! node-without-listeners
                                    'ended
                                    noop-listener))))
+
+(define node-onended-message
+  (catch-message
+   (lambda ()
+     (audio-oscillator-node-onended! node-without-listeners noop-listener))))
+
+(define context-onstatechange-message
+  (catch-message
+   (lambda ()
+     (audio-context-onstatechange! context-without-handler noop-listener))))
 
 (define fake-object
   (js-eval "globalThis.__wrAudioBoundaryPlain"))
@@ -352,6 +365,12 @@
 (check-message remove-listener-message
                "EventTarget.removeEventListener is not available"
                "missing audio removeEventListener message")
+(check-message node-onended-message
+               "AudioNode.onended is not available"
+               "missing AudioNode.onended message")
+(check-message context-onstatechange-message
+               "AudioContext.onstatechange is not available"
+               "missing AudioContext.onstatechange message")
 (check-message null-host-method-message
                "AudioNode.connect is not available"
                "missing null audio host method message")

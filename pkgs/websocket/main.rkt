@@ -175,6 +175,12 @@
          (and (not (js-nullish? method))
               (string=? (js-typeof method) "function")))))
 
+;; websocket-nullable-property-present? : external/raw string? -> boolean?
+;;   Report whether raw exposes a property, allowing null values.
+(define (websocket-nullable-property-present? raw property-name)
+  (and (websocket-raw-host-value? raw)
+       (not (js-undefined? (js-ref/extern raw property-name)))))
+
 ;; check-websocket-method : symbol? websocket? string? -> void?
 ;;   Ensure a required WebSocket method is available.
 (define (check-websocket-method who ws method-name)
@@ -182,6 +188,14 @@
   (unless (websocket-method-present? (websocket-unwrap ws) method-name)
     (raise-arguments-error who
                            (string-append "WebSocket." method-name " is not available"))))
+
+;; check-websocket-nullable-property : symbol? websocket? string? -> void?
+;;   Ensure a required nullable WebSocket property is available.
+(define (check-websocket-nullable-property who ws property-name)
+  (check-websocket who ws)
+  (unless (websocket-nullable-property-present? (websocket-unwrap ws) property-name)
+    (raise-arguments-error who
+                           (string-append "WebSocket." property-name " is not available"))))
 
 ;; websocket-handler->external : symbol? any/c -> any/c
 ;;   Convert a handler to an external callback or JS null.
@@ -216,6 +230,7 @@
 ;;   Install or clear a WebSocket event handler property.
 (define (websocket-set-handler! who ws prop handler)
   (check-websocket who ws)
+  (check-websocket-nullable-property who ws prop)
   (js-set! (websocket-unwrap ws) prop (websocket-handler->external who handler))
   (void))
 

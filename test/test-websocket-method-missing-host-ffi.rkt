@@ -44,7 +44,11 @@
           readyState: 1,
           bufferedAmount: 0,
           protocol: '',
-          extensions: ''
+          extensions: '',
+          onopen: null,
+          onmessage: null,
+          onclose: null,
+          onerror: null
         };
         for (const [name, value] of Object.entries(values)) {
           if (name !== missing) {
@@ -161,6 +165,34 @@
      (define ws (websocket-new "wss://example.invalid/socket"))
      (websocket-extensions ws))))
 
+(define onopen-message
+  (missing-method-message
+   "onopen"
+   (lambda ()
+     (define ws (websocket-new "wss://example.invalid/socket"))
+     (websocket-onopen! ws callback))))
+
+(define onmessage-message
+  (missing-method-message
+   "onmessage"
+   (lambda ()
+     (define ws (websocket-new "wss://example.invalid/socket"))
+     (websocket-onmessage! ws callback))))
+
+(define onclose-message
+  (missing-method-message
+   "onclose"
+   (lambda ()
+     (define ws (websocket-new "wss://example.invalid/socket"))
+     (websocket-onclose! ws callback))))
+
+(define onerror-message
+  (missing-method-message
+   "onerror"
+   (lambda ()
+     (define ws (websocket-new "wss://example.invalid/socket"))
+     (websocket-onerror! ws callback))))
+
 (define null-send-message
   (catch-message
    (lambda ()
@@ -213,6 +245,18 @@
 (check-message extensions-message
                "WebSocket.extensions not available in this environment"
                "missing WebSocket.extensions message")
+(check-message onopen-message
+               "WebSocket.onopen is not available"
+               "missing WebSocket.onopen message")
+(check-message onmessage-message
+               "WebSocket.onmessage is not available"
+               "missing WebSocket.onmessage message")
+(check-message onclose-message
+               "WebSocket.onclose is not available"
+               "missing WebSocket.onclose message")
+(check-message onerror-message
+               "WebSocket.onerror is not available"
+               "missing WebSocket.onerror message")
 (check-message null-send-message
                "websocket?"
                "null websocket send raw message")

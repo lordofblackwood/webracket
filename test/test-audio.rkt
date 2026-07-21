@@ -104,6 +104,7 @@
         this.detune = new AudioParam(0);
         this.started = [];
         this.stopped = [];
+        this.onended = null;
       }
       start(when) {
         this.started.push(when);
@@ -127,6 +128,7 @@
         this.loopEnd = 0;
         this.started = [];
         this.stopped = [];
+        this.onended = null;
       }
       start(when, offset, duration) {
         this.started.push([when, offset, duration]);
@@ -142,6 +144,7 @@
         this.offset = new AudioParam(1);
         this.started = [];
         this.stopped = [];
+        this.onended = null;
       }
       start(when) {
         this.started.push(when);
@@ -260,6 +263,7 @@
         this.destination = new AudioNode(this);
         this.listener = {kind: 'listener'};
         this.calls = [];
+        this.onstatechange = null;
       }
       close() {
         this.calls.push(['close']);

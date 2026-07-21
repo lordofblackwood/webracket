@@ -148,6 +148,22 @@
                                           method-name
                                           " is not available"))))
 
+;; audio-host-nullable-property-present? : external/raw string? -> boolean?
+;;   Report whether raw exposes a property, allowing null values.
+(define (audio-host-nullable-property-present? raw property-name)
+  (and (audio-raw-host-value? raw)
+       (not (js-undefined? (js-ref/extern raw property-name)))))
+
+;; check-audio-host-nullable-property : symbol? external/raw string? string? -> void?
+;;   Ensure a required nullable browser property is available.
+(define (check-audio-host-nullable-property who raw receiver-name property-name)
+  (unless (audio-host-nullable-property-present? raw property-name)
+    (raise-arguments-error who
+                           (string-append receiver-name
+                                          "."
+                                          property-name
+                                          " is not available"))))
+
 ;; audio-context? : any/c -> boolean?
 ;;   Check whether x is an AudioContext value.
 (define (audio-context? x)
@@ -468,7 +484,7 @@
 (define (audio-handler->external who handler)
   (check-audio-handler who handler)
   (cond
-    [(eq? handler #f) (js-undefined)]
+    [(eq? handler #f) (js-null)]
     [(external? handler) handler]
     [else (procedure->stable-external handler)]))
 
@@ -481,17 +497,19 @@
     [else
      (raise-argument-error who "(or/c procedure? external?)" listener)]))
 
-;; audio-set-handler! : symbol? external? string? any/c -> void?
+;; audio-set-handler! : symbol? external? string? string? any/c -> void?
 ;;   Install or clear an Audio event handler property.
-(define (audio-set-handler! who target prop handler)
+(define (audio-set-handler! who target receiver-name prop handler)
   (check-audio-node who target)
+  (check-audio-host-nullable-property who target receiver-name prop)
   (js-set! target prop (audio-handler->external who handler))
   (void))
 
-;; audio-set-handler!/context : symbol? external? string? any/c -> void?
+;; audio-set-handler!/context : symbol? external? string? string? any/c -> void?
 ;;   Install or clear an AudioContext handler property.
-(define (audio-set-handler!/context who target prop handler)
+(define (audio-set-handler!/context who target receiver-name prop handler)
   (check-audio-context who target)
+  (check-audio-host-nullable-property who target receiver-name prop)
   (js-set! target prop (audio-handler->external who handler))
   (void))
 
@@ -1357,19 +1375,35 @@
 ;; audio-context-onstatechange! : audio-context? (or/c #f procedure? external?) -> void?
 ;;   Install or clear the AudioContext onstatechange handler.
 (define (audio-context-onstatechange! ctx handler)
-  (audio-set-handler!/context 'audio-context-onstatechange! ctx "onstatechange" handler))
+  (audio-set-handler!/context 'audio-context-onstatechange!
+                              ctx
+                              "AudioContext"
+                              "onstatechange"
+                              handler))
 
 ;; audio-oscillator-node-onended! : audio-oscillator-node? (or/c #f procedure? external?) -> void?
 ;;   Install or clear the oscillator onended handler.
 (define (audio-oscillator-node-onended! node handler)
-  (audio-set-handler! 'audio-oscillator-node-onended! node "onended" handler))
+  (audio-set-handler! 'audio-oscillator-node-onended!
+                      node
+                      "AudioNode"
+                      "onended"
+                      handler))
 
 ;; audio-buffer-source-node-onended! : audio-buffer-source-node? (or/c #f procedure? external?) -> void?
 ;;   Install or clear the buffer source onended handler.
 (define (audio-buffer-source-node-onended! node handler)
-  (audio-set-handler! 'audio-buffer-source-node-onended! node "onended" handler))
+  (audio-set-handler! 'audio-buffer-source-node-onended!
+                      node
+                      "AudioNode"
+                      "onended"
+                      handler))
 
 ;; audio-constant-source-node-onended! : audio-constant-source-node? (or/c #f procedure? external?) -> void?
 ;;   Install or clear the constant source onended handler.
 (define (audio-constant-source-node-onended! node handler)
-  (audio-set-handler! 'audio-constant-source-node-onended! node "onended" handler))
+  (audio-set-handler! 'audio-constant-source-node-onended!
+                      node
+                      "AudioNode"
+                      "onended"
+                      handler))
