@@ -127,9 +127,9 @@
                                           [provider-entry #f])
   (cond
     [core-buffer-name
-     @~a{const coreRuntimeModule = await WebAssembly.compile(@|core-buffer-name|);
+     @~a{const coreRuntimeModule = await hostWebAssembly.compile(@|core-buffer-name|);
 assert_ffi_exception_bridge_visible_imports(coreRuntimeModule, imports, "split core runtime");
-const coreRuntimeInstance = await WebAssembly.instantiate(coreRuntimeModule, imports);
+const coreRuntimeInstance = await hostWebAssembly.instantiate(coreRuntimeModule, imports);
 splitRuntimeCoreExports = coreRuntimeInstance.exports;
 imports["core"] = splitRuntimeCoreExports;
 @|(if provider-imports-from-core?
@@ -154,9 +154,9 @@ splitRuntimeCoreExports["$initialize-split-runtime-after-ffi!"]();
 
 (define (split-ffi-runtime-instantiation ffi-buffer-name)
   (if ffi-buffer-name
-      @~a{const ffiRuntimeModule = await WebAssembly.compile(@|ffi-buffer-name|);
+      @~a{const ffiRuntimeModule = await hostWebAssembly.compile(@|ffi-buffer-name|);
 assert_ffi_exception_bridge_visible_imports(ffiRuntimeModule, imports, "split FFI runtime");
-const ffiRuntimeInstance = await WebAssembly.instantiate(ffiRuntimeModule, imports);
+const ffiRuntimeInstance = await hostWebAssembly.instantiate(ffiRuntimeModule, imports);
 const splitRuntimeFfiExports = ffiRuntimeInstance.exports;
 imports["ffi"] = splitRuntimeFfiExports;
 
@@ -174,7 +174,22 @@ imports["ffi"] = splitRuntimeFfiExports;
   (when (and ffi-buffer-name (not core-buffer-name))
     (error 'runtime "FFI sidecar output requires a split runtime core output"))
 	@~a{
-	var memory = new WebAssembly.Memory({initial:1024});
+const hostWebAssembly = typeof WebAssembly === 'undefined' ? null : WebAssembly;
+const hostWebAssemblyTag = hostWebAssembly && hostWebAssembly.Tag;
+const hostWebAssemblyException = hostWebAssembly && hostWebAssembly.Exception;
+const hostWebAssemblyModule = hostWebAssembly && hostWebAssembly.Module;
+if (!hostWebAssembly ||
+    typeof hostWebAssembly.Memory !== 'function' ||
+    typeof hostWebAssembly.compile !== 'function' ||
+    typeof hostWebAssembly.instantiate !== 'function' ||
+    typeof hostWebAssemblyTag !== 'function' ||
+    typeof hostWebAssemblyException !== 'function' ||
+    !hostWebAssemblyModule ||
+    typeof hostWebAssemblyModule.imports !== 'function') {
+  throw new Error('WebRacket requires WebAssembly compile/instantiate and exception handling (Tag + Exception).');
+}
+
+	var memory = new hostWebAssembly.Memory({initial:1024});
 	// Static host bridge scratch map. Keep this in sync with runtime-wasm.rkt.
 //   0..1MiB        VFS file transfer buffer
 //   +4KiB          VFS path buffer
@@ -2148,8 +2163,7 @@ export function make_callback(id) {
                 callback_error_text(id, argc, 'callback-failed', message)
             );
         } catch (err) {
-            const isWasmException = (typeof WebAssembly.Exception !== 'undefined') &&
-                                    (err instanceof WebAssembly.Exception);
+            const isWasmException = err instanceof hostWebAssemblyException;
             if (isWasmException) {
                 const isArityMismatch = callback_accepts_argc_export
                     ? (callback_accepts_argc_export(id, argc) === 0)
@@ -2413,10 +2427,10 @@ let splitRuntimeCoreExports = {};
    #:provider-entry core-provider-entry)|
 @|(split-ffi-runtime-instantiation ffi-buffer-name)|
 
-const programModule = await WebAssembly.compile(wasmBuffer);
+const programModule = await hostWebAssembly.compile(wasmBuffer);
 assert_ffi_exception_bridge_visible_imports(programModule, imports, "program module");
 const wasmModule
-      = await WebAssembly
+      = await hostWebAssembly
       .instantiate(programModule, imports)
       .then(instance => { const programExports = instance.exports;
                           const { entry, get_bytes, copy_bytes_to_memory } = programExports;
@@ -2451,8 +2465,7 @@ const wasmModule
                             result = entry();
                           } catch (err) {
                             const isWasmException =
-                              (typeof WebAssembly.Exception !== 'undefined') &&
-                              (err instanceof WebAssembly.Exception);
+                              err instanceof hostWebAssemblyException;
                             if (isWasmException) {
                               console.error("-----");
                               console.error("[Host] Uncaught WebAssembly exception:");

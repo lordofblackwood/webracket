@@ -1,4 +1,8 @@
-if (typeof WebAssembly.Tag === 'undefined' || typeof WebAssembly.Exception === 'undefined') {
+if (typeof hostWebAssemblyTag !== 'function' ||
+    typeof hostWebAssemblyException !== 'function' ||
+    typeof hostWebAssemblyModule === 'undefined' ||
+    !hostWebAssemblyModule ||
+    typeof hostWebAssemblyModule.imports !== 'function') {
   throw new Error('WebRacket requires WebAssembly exception handling (Tag + Exception).');
 }
 
@@ -25,17 +29,17 @@ if (typeof hostBooleanValueOf !== 'function') {
 if (!hostReflect || typeof hostReflect.construct !== 'function') {
   throw new Error('Reflect.construct not available in this environment');
 }
-const foreign_error_tag = new WebAssembly.Tag({ parameters: ['externref'] });
+const foreign_error_tag = new hostWebAssemblyTag({ parameters: ['externref'] });
 
 function wrap_ffi_host_exceptions(fn) {
   return (...args) => {
     try {
       return fn(...args);
     } catch (err) {
-      if (err instanceof WebAssembly.Exception) {
+      if (err instanceof hostWebAssemblyException) {
         throw err;
       }
-      throw new WebAssembly.Exception(foreign_error_tag, [err]);
+      throw new hostWebAssemblyException(foreign_error_tag, [err]);
     }
   };
 }
@@ -76,7 +80,7 @@ function install_ffi_exception_bridge(imports) {
 
 function assert_ffi_exception_bridge_visible_imports(module, imports, label) {
   const required = new Map();
-  for (const spec of WebAssembly.Module.imports(module)) {
+  for (const spec of hostWebAssemblyModule.imports(module)) {
     if (spec.kind !== 'function' || !is_ffi_exception_bridge_module(spec.module)) {
       continue;
     }

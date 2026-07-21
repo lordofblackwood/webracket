@@ -24,6 +24,15 @@
     (thunk)
     #f))
 
+(define (catch-message/restoring thunk restore!)
+  (with-handlers ([exn:fail?
+                   (lambda (e)
+                     (restore!)
+                     (exn-message e))])
+    (thunk)
+    (restore!)
+    #f))
+
 (define (string-contains/simple? haystack needle)
   (define haystack-length (string-length haystack))
   (define needle-length (string-length needle))
@@ -40,6 +49,49 @@
 
 (define target
   (js-eval "({ present() { return true; } })"))
+
+(define throwing-target
+  (js-eval "({ throws() { throw new Error('wr hidden WebAssembly host failure'); } })"))
+
+(js-eval
+ "(() => {
+    const hostObject = Object;
+    const getOwnPropertyDescriptor = hostObject.getOwnPropertyDescriptor;
+    const defineProperty = hostObject.defineProperty;
+    const savedWebAssembly =
+      getOwnPropertyDescriptor.call(hostObject, globalThis, 'WebAssembly') || null;
+    globalThis.__wrStandardSendBoundary = {
+      hideWebAssembly() {
+        try {
+          defineProperty.call(hostObject, globalThis, 'WebAssembly', {
+            configurable: true,
+            enumerable: savedWebAssembly ? savedWebAssembly.enumerable : false,
+            writable: true,
+            value: undefined
+          });
+          return globalThis.WebAssembly === undefined;
+        } catch (_e) {
+          try {
+            globalThis.WebAssembly = undefined;
+            return globalThis.WebAssembly === undefined;
+          } catch (_e2) {
+            return false;
+          }
+        }
+      },
+      restoreWebAssembly() {
+        if (savedWebAssembly) {
+          defineProperty.call(hostObject, globalThis, 'WebAssembly', savedWebAssembly);
+        } else {
+          delete globalThis.WebAssembly;
+        }
+      },
+      cleanup() {
+        this.restoreWebAssembly();
+        delete globalThis.__wrStandardSendBoundary;
+      }
+    };
+  })();")
 
 (define missing-send-message
   (catch-message
@@ -91,6 +143,24 @@
    (lambda ()
      (js-send/value (js-null) "missingMethod" (vector)))))
 
+(define (hide-webassembly!)
+  (js-eval "__wrStandardSendBoundary.hideWebAssembly()"))
+
+(define (restore-webassembly!)
+  (js-eval "__wrStandardSendBoundary.restoreWebAssembly();"))
+
+(define hidden-webassembly-host-exception-message
+  (if (hide-webassembly!)
+      (catch-message/restoring
+       (lambda ()
+         (js-send/value throwing-target "throws" (vector)))
+       restore-webassembly!)
+      (begin
+        (restore-webassembly!)
+        (catch-message
+         (lambda ()
+           (js-send/value throwing-target "throws" (vector)))))))
+
 (check-message missing-send-message
                "js-send: method missingMethod not available in this environment"
                "missing js-send message")
@@ -121,6 +191,11 @@
 (check-message null-target-message
                "js-send/value: target object is null or undefined"
                "missing null target message")
+(check-message hidden-webassembly-host-exception-message
+               "wr hidden WebAssembly host failure"
+               "host exception survives hidden WebAssembly")
+
+(js-eval "__wrStandardSendBoundary.cleanup();")
 
 (js-log "standard-send-missing-host-ffi-ok")
 #t
