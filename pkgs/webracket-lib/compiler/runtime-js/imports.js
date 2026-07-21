@@ -422,6 +422,21 @@ function call_global_function3(name, displayName, arg0, arg1, arg2) {
   return fn.call(globalThis, arg0, arg1, arg2);
 }
 
+function require_object_value(displayName) {
+  const object = get_global_value('Object');
+  if (object === null || object === undefined) {
+    throw new Error(`${displayName} not available in this environment`);
+  }
+  return object;
+}
+
+function call_object_static_method1(methodName, arg0) {
+  return call_required_host_function1(require_object_value(`Object.${methodName}`),
+                                      methodName,
+                                      `Object.${methodName}`,
+                                      arg0);
+}
+
 function js_instanceof(obj, type) {
   if (type === null || type === undefined) {
     throw new Error('js-instanceof: constructor is null or undefined');
@@ -478,6 +493,9 @@ function js_boxed_number_value(x) {
 }
 
 function js_flonum_result(x, who) {
+  if (typeof x === 'number') {
+    return x;
+  }
   const unboxed = js_boxed_number_value(x);
   if (typeof unboxed !== 'number') {
     throw new TypeError(`${who}: expected number result, got ${typeof x}`);
@@ -1137,7 +1155,7 @@ function get_jsxgraph_board_objects_list(board) {
   if (objects === null || (typeof objects !== 'object' && typeof objects !== 'function')) {
     throw new Error('JSXGraph Board.objects must be an object in this environment');
   }
-  return Object.values(objects);
+  return call_object_static_method1('values', objects);
 }
 
 function construct_js_value(ctor, args) {
@@ -1439,12 +1457,18 @@ var imports = {
       'register_external': (obj => { externals.push(obj); return externals.length - 1; }),
       'lookup_external':   (idx => externals[idx]),
       'external_number_to_f64': (obj => {
+        if (typeof obj === 'number') {
+          return obj;
+        }
         const value = maybe_unbox_host_boxed_value(obj, hostNumber, 'Number.valueOf');
         return typeof value === 'number' ? value : NaN;
       }),
       'flonum_to_string': (x =>
         to_fasl(flonum_to_racket_string(x))),
       'external_string_to_string': (obj => {
+        if (typeof obj === 'string') {
+          return to_string(obj);
+        }
         const value = maybe_unbox_host_boxed_value(obj, hostString, 'String.valueOf');
         return typeof value === 'string'
           ? to_string(value)

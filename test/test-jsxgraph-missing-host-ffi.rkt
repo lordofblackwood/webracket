@@ -11,7 +11,8 @@
                   js-jsx-set-point-size!
                   js-jsx-point-snap-to-grid)
          (only-in webracket/unsafe/standard
-                  js-eval))
+                  js-eval
+                  js-truthy?))
 
 (define (check-true got label)
   (unless got
@@ -20,6 +21,15 @@
 (define (catch-message thunk)
   (with-handlers ([exn:fail? exn-message])
     (thunk)
+    #f))
+
+(define (catch-message/restoring thunk restore!)
+  (with-handlers ([exn:fail?
+                   (lambda (e)
+                     (restore!)
+                     (exn-message e))])
+    (thunk)
+    (restore!)
     #f))
 
 (define (string-contains/simple? haystack needle)
@@ -40,7 +50,42 @@
 (define missing-board (js-eval "({})"))
 (define null-board-objects (js-eval "({objects: null})"))
 (define number-board-objects (js-eval "({objects: 17})"))
+(define object-values-board (js-eval "({objects: {a: 1}})"))
 (define missing-point (js-eval "({})"))
+
+(js-eval
+ "globalThis.__wrJSXGraphBoundaryObjectValues = {
+    descriptor: Object.getOwnPropertyDescriptor(Object, 'values') || null,
+    hide() {
+      try {
+        Object.defineProperty(Object, 'values', {
+          value: undefined,
+          configurable: true,
+          writable: true
+        });
+        return true;
+      } catch (_e) {
+        return false;
+      }
+    },
+    restore() {
+      const saved = globalThis.__wrJSXGraphBoundaryObjectValues.descriptor;
+      if (saved) {
+        Object.defineProperty(Object, 'values', saved);
+      } else {
+        delete Object.values;
+      }
+      delete globalThis.__wrJSXGraphBoundaryObjectValues;
+    }
+  };")
+
+(define (hide-object-values?)
+  (js-truthy?
+   (js-eval "globalThis.__wrJSXGraphBoundaryObjectValues.hide()")))
+
+(define (restore-object-values!)
+  (js-eval "globalThis.__wrJSXGraphBoundaryObjectValues.restore();")
+  (void))
 
 (define board-message
   (catch-message
@@ -116,6 +161,17 @@
    (lambda ()
      (js-jsx-board-objects-list number-board-objects))))
 
+(define object-values-message
+  (cond
+    [(hide-object-values?)
+     (catch-message/restoring
+      (lambda ()
+        (js-jsx-board-objects-list object-values-board))
+      restore-object-values!)]
+    [else
+     (restore-object-values!)
+     #f]))
+
 (define point-size-missing-message
   (catch-message
    (lambda ()
@@ -173,6 +229,9 @@
 (check-message board-objects-list-number-property-message
                "JSXGraph Board.objects must be an object in this environment"
                "number JSXGraph Board.objects property message")
+(check-message object-values-message
+               "Object.values not available in this environment"
+               "missing Object.values message")
 (check-message point-size-missing-message
                "JSXGraph Point.size not available in this environment"
                "missing JSXGraph Point.size message")
