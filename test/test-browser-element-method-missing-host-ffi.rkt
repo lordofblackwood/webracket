@@ -56,6 +56,20 @@
 (define undefined-element (dom-element (js-undefined)))
 (define null-text (dom-text (js-null)))
 (define undefined-attr (dom-attr (js-undefined)))
+(define null-class-list (dom-token-list (js-null)))
+(define undefined-node-list (dom-node-list (js-undefined)))
+(define null-html-collection (html-collection (js-null)))
+(define undefined-shadow-root (dom-shadow-root (js-undefined)))
+(define null-rect-list (dom-rect-list (js-null)))
+(define valid-rect-list
+  (dom-rect-list
+   (js-eval
+    "({
+       length: 3,
+       item(_i) {
+         return { x: 0, y: 0, width: 10, height: 20 };
+       }
+     })")))
 
 (define add-event-listener-message
   (catch-message
@@ -197,12 +211,93 @@
    (lambda ()
      (element-replace-with! nodeish-host null-element))))
 
+(define null-token-value-message
+  (catch-message
+   (lambda ()
+     (dom-token-list-value null-class-list))))
+
+(define null-token-length-message
+  (catch-message
+   (lambda ()
+     (dom-token-list-length null-class-list))))
+
+(define null-token-item-message
+  (catch-message
+   (lambda ()
+     (dom-token-list-item null-class-list 0))))
+
+(define null-token-contains-message
+  (catch-message
+   (lambda ()
+     (dom-token-list-contains? null-class-list 'x))))
+
+(define undefined-node-list-length-message
+  (catch-message
+   (lambda ()
+     (node-list-length undefined-node-list))))
+
+(define undefined-node-list-item-message
+  (catch-message
+   (lambda ()
+     (node-list-item undefined-node-list 0))))
+
+(define null-html-collection-length-message
+  (catch-message
+   (lambda ()
+     (html-collection-length null-html-collection))))
+
+(define null-html-collection-item-message
+  (catch-message
+   (lambda ()
+     (html-collection-item null-html-collection 0))))
+
+(define null-html-collection-named-item-message
+  (catch-message
+   (lambda ()
+     (html-collection-named-item null-html-collection 'main))))
+
+(define undefined-shadow-root-host-message
+  (catch-message
+   (lambda ()
+     (shadow-root-host undefined-shadow-root))))
+
+(define undefined-shadow-root-mode-message
+  (catch-message
+   (lambda ()
+     (shadow-root-mode undefined-shadow-root))))
+
+(define undefined-shadow-root-delegates-message
+  (catch-message
+   (lambda ()
+     (shadow-root-delegates-focus? undefined-shadow-root))))
+
+(define null-rect-list-length-message
+  (catch-message
+   (lambda ()
+     (dom-rect-list-length null-rect-list))))
+
+(define null-rect-list-item-message
+  (catch-message
+   (lambda ()
+     (dom-rect-list-item null-rect-list 0))))
+
+(define valid-rect-list-length
+  (dom-rect-list-length valid-rect-list))
+
 (define (check-nodeish-message message who label)
   (check-message message
                  (symbol->string who)
                  (string-append label " who"))
   (check-message message
                  "DOM node wrapper with non-null host value"
+                 label))
+
+(define (check-wrapper-message message who expected label)
+  (check-message message
+                 (symbol->string who)
+                 (string-append label " who"))
+  (check-message message
+                 expected
                  label))
 
 (check-message add-event-listener-message
@@ -289,6 +384,64 @@
 (check-nodeish-message forged-element-replace-with-message
                        'element-replace-with!
                        "forged element replace with message")
+(check-wrapper-message null-token-value-message
+                       'dom-token-list-value
+                       "DOMTokenList host value"
+                       "null token value message")
+(check-wrapper-message null-token-length-message
+                       'dom-token-list-length
+                       "DOMTokenList host value"
+                       "null token length message")
+(check-wrapper-message null-token-item-message
+                       'dom-token-list-item
+                       "DOMTokenList host value"
+                       "null token item message")
+(check-wrapper-message null-token-contains-message
+                       'dom-token-list-contains?
+                       "DOMTokenList host value"
+                       "null token contains message")
+(check-wrapper-message undefined-node-list-length-message
+                       'node-list-length
+                       "NodeList host value"
+                       "undefined node-list length message")
+(check-wrapper-message undefined-node-list-item-message
+                       'node-list-item
+                       "NodeList host value"
+                       "undefined node-list item message")
+(check-wrapper-message null-html-collection-length-message
+                       'html-collection-length
+                       "HTMLCollection host value"
+                       "null html collection length message")
+(check-wrapper-message null-html-collection-item-message
+                       'html-collection-item
+                       "HTMLCollection host value"
+                       "null html collection item message")
+(check-wrapper-message null-html-collection-named-item-message
+                       'html-collection-named-item
+                       "HTMLCollection host value"
+                       "null html collection named item message")
+(check-wrapper-message undefined-shadow-root-host-message
+                       'shadow-root-host
+                       "ShadowRoot host value"
+                       "undefined shadow root host message")
+(check-wrapper-message undefined-shadow-root-mode-message
+                       'shadow-root-mode
+                       "ShadowRoot host value"
+                       "undefined shadow root mode message")
+(check-wrapper-message undefined-shadow-root-delegates-message
+                       'shadow-root-delegates-focus?
+                       "ShadowRoot host value"
+                       "undefined shadow root delegates message")
+(check-wrapper-message null-rect-list-length-message
+                       'dom-rect-list-length
+                       "DOMRectList host value"
+                       "null rect list length message")
+(check-wrapper-message null-rect-list-item-message
+                       'dom-rect-list-item
+                       "DOMRectList host value"
+                       "null rect list item message")
+(check-true (= valid-rect-list-length 3)
+            "dom-rect-list-length unwraps DOMRectList wrappers")
 
 (js-log "browser-element-method-missing-host-ffi-ok")
 #t

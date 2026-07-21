@@ -37,6 +37,61 @@
     (raise-argument-error who "real?" v))
   (exact->inexact v))
 
+;; element-host-raw/checked : symbol? string? any/c any/c -> external/raw
+;;   Validate a raw DOM host value before passing it to browser host calls.
+(define (element-host-raw/checked who expected value raw)
+  (unless (shared-dom-raw-host-value? raw)
+    (raise-argument-error who expected value))
+  raw)
+
+;; element-raw/checked : symbol? any/c -> external/raw
+;;   Unwrap and validate an Element-like host value.
+(define (element-raw/checked who value)
+  (element-host-raw/checked who
+                            "Element host value"
+                            value
+                            (element-unwrap value)))
+
+;; dom-token-list-raw/checked : symbol? any/c -> external/raw
+;;   Unwrap and validate a DOMTokenList host value.
+(define (dom-token-list-raw/checked who value)
+  (element-host-raw/checked who
+                            "DOMTokenList host value"
+                            value
+                            (dom-token-list-unwrap value)))
+
+;; node-list-raw/checked : symbol? any/c -> external/raw
+;;   Unwrap and validate a NodeList host value.
+(define (node-list-raw/checked who value)
+  (element-host-raw/checked who
+                            "NodeList host value"
+                            value
+                            (node-list-unwrap value)))
+
+;; html-collection-raw/checked : symbol? any/c -> external/raw
+;;   Unwrap and validate an HTMLCollection host value.
+(define (html-collection-raw/checked who value)
+  (element-host-raw/checked who
+                            "HTMLCollection host value"
+                            value
+                            (html-collection-unwrap value)))
+
+;; shadow-root-raw/checked : symbol? any/c -> external/raw
+;;   Unwrap and validate a ShadowRoot host value.
+(define (shadow-root-raw/checked who value)
+  (element-host-raw/checked who
+                            "ShadowRoot host value"
+                            value
+                            (shadow-root-unwrap value)))
+
+;; dom-rect-list-raw/checked : symbol? any/c -> external/raw
+;;   Unwrap and validate a DOMRectList host value.
+(define (dom-rect-list-raw/checked who value)
+  (element-host-raw/checked who
+                            "DOMRectList host value"
+                            value
+                            (dom-rect-list-unwrap value)))
+
 ;; element-host-method-present? : external/raw string? -> boolean?
 ;;   Report whether raw exposes a callable browser method.
 (define (element-host-method-present? raw method-name)
@@ -86,11 +141,10 @@
 ;; element-node-wrapper-raw/checked : symbol? any/c any/c -> external/raw
 ;;   Validate a wrapped node-like value before passing it to browser host calls.
 (define (element-node-wrapper-raw/checked who value raw)
-  (unless (shared-dom-raw-host-value? raw)
-    (raise-argument-error who
-                          "DOM node wrapper with non-null host value"
-                          value))
-  raw)
+  (element-host-raw/checked who
+                            "DOM node wrapper with non-null host value"
+                            value
+                            raw))
 
 ;; element-nodeish->value : symbol? any/c -> any/c
 ;;   Normalize a node-like value for DOM insertion helpers.
@@ -351,22 +405,26 @@
 ;; dom-token-list-value : dom-token-list? -> (or/c #f string?)
 ;;   Read the class list value.
 (define (dom-token-list-value class-list)
-  (js-dom-token-list-value (dom-token-list-unwrap class-list)))
+  (js-dom-token-list-value
+   (dom-token-list-raw/checked 'dom-token-list-value class-list)))
 
 ;; dom-token-list-length : dom-token-list? -> exact-nonnegative-integer?
 ;;   Read the number of class tokens.
 (define (dom-token-list-length class-list)
-  (js-dom-token-list-length (dom-token-list-unwrap class-list)))
+  (js-dom-token-list-length
+   (dom-token-list-raw/checked 'dom-token-list-length class-list)))
 
 ;; dom-token-list-item : dom-token-list? exact-nonnegative-integer? -> (or/c #f string?)
 ;;   Read the class token at an index.
 (define (dom-token-list-item class-list index)
-  (js-dom-token-list-item (dom-token-list-unwrap class-list) index))
+  (js-dom-token-list-item
+   (dom-token-list-raw/checked 'dom-token-list-item class-list)
+   index))
 
 ;; dom-token-list-contains? : dom-token-list? (or/c string? symbol?) -> boolean?
 ;;   Report whether a token is present in the class list.
 (define (dom-token-list-contains? class-list token)
-  (define raw (dom-token-list-unwrap class-list))
+  (define raw (dom-token-list-raw/checked 'dom-token-list-contains? class-list))
   (define token* (element-stringish->string 'dom-token-list-contains? token))
   (check-element-host-method 'dom-token-list-contains? raw "DOMTokenList" "contains")
   (js-send/boolean raw "contains" (vector token*)))
@@ -374,7 +432,7 @@
 ;; dom-token-list-add! : dom-token-list? (or/c string? symbol?) ... -> void?
 ;;   Add one or more tokens to the class list.
 (define (dom-token-list-add! class-list token . more-tokens)
-  (define raw (dom-token-list-unwrap class-list))
+  (define raw (dom-token-list-raw/checked 'dom-token-list-add! class-list))
   (define tokens (cons token more-tokens))
   (define token-values
     (list->vector (map (lambda (tok)
@@ -387,7 +445,7 @@
 ;; dom-token-list-remove! : dom-token-list? (or/c string? symbol?) ... -> void?
 ;;   Remove one or more tokens from the class list.
 (define (dom-token-list-remove! class-list token . more-tokens)
-  (define raw (dom-token-list-unwrap class-list))
+  (define raw (dom-token-list-raw/checked 'dom-token-list-remove! class-list))
   (define tokens (cons token more-tokens))
   (define token-values
     (list->vector (map (lambda (tok)
@@ -400,7 +458,7 @@
 ;; dom-token-list-toggle! : dom-token-list? (or/c string? symbol?) [force] -> boolean?
 ;;   Toggle a token, or force a specific state when provided.
 (define (dom-token-list-toggle! class-list token [force #f])
-  (define raw (dom-token-list-unwrap class-list))
+  (define raw (dom-token-list-raw/checked 'dom-token-list-toggle! class-list))
   (define token* (element-stringish->string 'dom-token-list-toggle! token))
   (check-element-host-method 'dom-token-list-toggle! raw "DOMTokenList" "toggle")
   (cond
@@ -416,7 +474,7 @@
 ;; dom-token-list-replace! : dom-token-list? (or/c string? symbol?) (or/c string? symbol?) -> boolean?
 ;;   Replace one class token with another.
 (define (dom-token-list-replace! class-list old-token new-token)
-  (define raw (dom-token-list-unwrap class-list))
+  (define raw (dom-token-list-raw/checked 'dom-token-list-replace! class-list))
   (define old-token* (element-stringish->string 'dom-token-list-replace! old-token))
   (define new-token* (element-stringish->string 'dom-token-list-replace! new-token))
   (check-element-host-method 'dom-token-list-replace! raw "DOMTokenList" "replace")
@@ -425,28 +483,39 @@
 ;; node-list-length : node-list? -> exact-nonnegative-integer?
 ;;   Read the number of nodes in a NodeList.
 (define (node-list-length node-list)
-  (js-node-list-length (node-list-unwrap node-list)))
+  (js-node-list-length
+   (node-list-raw/checked 'node-list-length node-list)))
 
 ;; node-list-item : node-list? exact-nonnegative-integer? -> (or/c #f dom-node?)
 ;;   Read the node at a given index.
 (define (node-list-item node-list index)
-  (dom-node-wrap (js-node-list-item (node-list-unwrap node-list) index)))
+  (dom-node-wrap
+   (js-node-list-item
+    (node-list-raw/checked 'node-list-item node-list)
+    index)))
 
 ;; html-collection-length : html-collection? -> exact-nonnegative-integer?
 ;;   Read the number of elements in an HTMLCollection.
 (define (html-collection-length collection)
-  (js-html-collection-length (html-collection-unwrap collection)))
+  (js-html-collection-length
+   (html-collection-raw/checked 'html-collection-length collection)))
 
 ;; html-collection-item : html-collection? exact-nonnegative-integer? -> (or/c #f element?)
 ;;   Read the element at a given index.
 (define (html-collection-item collection index)
-  (element-wrap (js-html-collection-item (html-collection-unwrap collection) index)))
+  (element-wrap
+   (js-html-collection-item
+    (html-collection-raw/checked 'html-collection-item collection)
+    index)))
 
 ;; html-collection-named-item : html-collection? (or/c string? symbol?) -> (or/c #f element?)
 ;;   Read the named element, if present.
 (define (html-collection-named-item collection name)
   (define name* (element-stringish->string 'html-collection-named-item name))
-  (element-wrap (js-html-collection-named-item (html-collection-unwrap collection) name*)))
+  (element-wrap
+   (js-html-collection-named-item
+    (html-collection-raw/checked 'html-collection-named-item collection)
+    name*)))
 
 ;; element-get-attribute-ns : element? (or/c string? symbol?) (or/c string? symbol?) -> (or/c #f string?)
 ;;   Read a namespaced element attribute.
@@ -635,17 +704,21 @@
 ;; shadow-root-host : shadow-root? -> element?
 ;;   Read the host element for a shadow root.
 (define (shadow-root-host shadow-root)
-  (element-wrap (js-shadow-root-host (shadow-root-unwrap shadow-root))))
+  (element-wrap
+   (js-shadow-root-host
+    (shadow-root-raw/checked 'shadow-root-host shadow-root))))
 
 ;; shadow-root-mode : shadow-root? -> string?
 ;;   Read the shadow root mode.
 (define (shadow-root-mode shadow-root)
-  (js-shadow-root-mode (shadow-root-unwrap shadow-root)))
+  (js-shadow-root-mode
+   (shadow-root-raw/checked 'shadow-root-mode shadow-root)))
 
 ;; shadow-root-delegates-focus? : shadow-root? -> boolean?
 ;;   Report whether the shadow root delegates focus.
 (define (shadow-root-delegates-focus? shadow-root)
-  (js-shadow-root-delegates-focus (shadow-root-unwrap shadow-root)))
+  (js-shadow-root-delegates-focus
+   (shadow-root-raw/checked 'shadow-root-delegates-focus? shadow-root)))
 
 ;; element-animate : element? any/c [any/c] -> animation?
 ;;   Start an animation on an element.
@@ -701,12 +774,17 @@
 
 ;; dom-rect-list-length : dom-rect-list? -> exact-nonnegative-integer?
 ;;   Read the number of rectangles in a DOMRectList.
-(define-element-getter dom-rect-list-length js-dom-rect-list-length)
+(define (dom-rect-list-length rect-list)
+  (js-dom-rect-list-length
+   (dom-rect-list-raw/checked 'dom-rect-list-length rect-list)))
 
 ;; dom-rect-list-item : dom-rect-list? exact-nonnegative-integer? -> (or/c #f dom-rect?)
 ;;   Read a rectangle at a given index.
 (define (dom-rect-list-item rect-list index)
-  (dom-rect-wrap (js-dom-rect-list-item (dom-rect-list-unwrap rect-list) index)))
+  (dom-rect-wrap
+   (js-dom-rect-list-item
+    (dom-rect-list-raw/checked 'dom-rect-list-item rect-list)
+    index)))
 
 ;; get-client-rects : external? -> dom-rect-list?
 ;;   Read the client rect list as a wrapped DOMRectList.

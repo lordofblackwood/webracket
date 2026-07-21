@@ -650,7 +650,9 @@
   (define pseudo-element* (window-resolve-stringish-optional 'window-get-computed-style
                                                              pseudo-element))
   (css-style-declaration-wrap
-   (js-window-get-computed-style (element-unwrap element) pseudo-element*)))
+   (js-window-get-computed-style
+    (element-raw/checked 'window-get-computed-style element)
+    pseudo-element*)))
 
 ;; window-structured-clone : any/c [any/c #f] -> any/c
 ;;   Clone a value using the structured-clone algorithm.

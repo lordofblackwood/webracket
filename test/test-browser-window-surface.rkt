@@ -1,6 +1,32 @@
 #lang webracket/base
 
-(require browser/window)
+(require browser/window
+         browser/element
+         (only-in webracket/unsafe/standard
+                  js-null))
+
+(define (check-true got label)
+  (unless got
+    (error 'check-true label)))
+
+(define (catch-message thunk)
+  (with-handlers ([exn:fail? exn-message])
+    (thunk)
+    #f))
+
+(define (string-contains/simple? haystack needle)
+  (define haystack-length (string-length haystack))
+  (define needle-length (string-length needle))
+  (let loop ([index 0])
+    (cond
+      [(> (+ index needle-length) haystack-length) #f]
+      [(string=? (substring haystack index (+ index needle-length)) needle) #t]
+      [else (loop (add1 index))])))
+
+(define (check-message message needle label)
+  (check-true (and message
+                   (string-contains/simple? message needle))
+              label))
 
 (define (all-procedures? xs)
   (cond
@@ -113,3 +139,17 @@
  window-match-media
  window-get-computed-style
  window-structured-clone))
+
+(define computed-style-null-element-message
+  (catch-message
+   (lambda ()
+     (window-get-computed-style (dom-element (js-null))))))
+
+(check-message computed-style-null-element-message
+               "window-get-computed-style"
+               "computed style null element who")
+(check-message computed-style-null-element-message
+               "Element host value"
+               "computed style null element message")
+
+#t
