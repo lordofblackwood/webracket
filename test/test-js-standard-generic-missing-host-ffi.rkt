@@ -161,6 +161,18 @@
     [else
      (restore-global! name)]))
 
+;; check-hidden-global/no-error : string? (-> any/c) string? -> void?
+;;   Check that cached bridge intrinsics survive a later hidden global.
+(define (check-hidden-global/no-error name thunk label)
+  (cond
+    [(hidden-global? name)
+     (define message
+       (catch-message/restoring thunk
+                                (lambda () (restore-global! name))))
+     (check-true (not message) label)]
+    [else
+     (restore-global! name)]))
+
 ;; hidden-prototype-method? : string? string? -> boolean?
 ;;   Hide a host prototype method when the browser allows it.
 (define (hidden-prototype-method? owner-name method-name)
@@ -194,6 +206,42 @@
     [else
      (restore-prototype-method! owner-name method-name)]))
 
+;; check-hidden-prototype-method/no-error : string? string? (-> any/c) string? -> void?
+;;   Check that cached bridge intrinsics survive a later hidden prototype method.
+(define (check-hidden-prototype-method/no-error owner-name method-name thunk label)
+  (cond
+    [(hidden-prototype-method? owner-name method-name)
+     (define message
+       (catch-message/restoring thunk
+                                (lambda ()
+                                  (restore-prototype-method! owner-name method-name))))
+     (check-true (not message) label)]
+    [else
+     (restore-prototype-method! owner-name method-name)]))
+
+;; check-boxed-boolean : string? -> void?
+;;   Check that the JS bridge unboxes a boxed Boolean through cached intrinsics.
+(define (check-boxed-boolean label)
+  (check-true (not (js-send/boolean boundary-target
+                                    "boxedBoolean"
+                                    (vector)))
+              label))
+
+;; check-boxed-number : string? -> void?
+;;   Check that the JS bridge unboxes a boxed Number through cached intrinsics.
+(define (check-boxed-number label)
+  (check-true (= (js-send/flonum boundary-target
+                                  "boxedNumber"
+                                  (vector))
+                 1.5)
+              label))
+
+;; check-boxed-number-ref : string? -> void?
+;;   Check that FASL conversion unboxes a boxed Number through cached intrinsics.
+(define (check-boxed-number-ref label)
+  (check-true (= (js-ref boundary-target "boxedNumberValue") 1.5)
+              label))
+
 (check-hidden-global "String"
                      (lambda () (js-value->string (js-null)))
                      "String not available in this environment"
@@ -225,41 +273,33 @@
 (define boundary-target
   (js-eval "__wrStandardGenericBoundaryTarget"))
 
-(check-hidden-global "Boolean"
-                     (lambda () (js-send/boolean boundary-target
-                                                 "boxedBoolean"
-                                                 (vector)))
-                     "js-send/boolean: expected boolean result, got object"
-                     "boxed Boolean missing constructor message")
+(check-hidden-global/no-error "Boolean"
+                              (lambda () (check-boxed-boolean
+                                          "boxed Boolean with hidden global"))
+                              "boxed Boolean survives hidden constructor")
 
-(check-hidden-global "Number"
-                     (lambda () (js-send/flonum boundary-target
-                                                "boxedNumber"
-                                                (vector)))
-                     "js-send/flonum: expected number result, got object"
-                     "boxed Number missing constructor message")
+(check-hidden-global/no-error "Number"
+                              (lambda () (check-boxed-number
+                                          "boxed Number with hidden global"))
+                              "boxed Number survives hidden constructor")
 
-(check-hidden-prototype-method "Boolean"
-                               "valueOf"
-                               (lambda () (js-send/boolean boundary-target
-                                                           "boxedBoolean"
-                                                           (vector)))
-                               "Boolean.valueOf not available in this environment"
-                               "boxed Boolean missing valueOf message")
+(check-hidden-prototype-method/no-error "Boolean"
+                                        "valueOf"
+                                        (lambda () (check-boxed-boolean
+                                                    "boxed Boolean with hidden valueOf"))
+                                        "boxed Boolean survives hidden valueOf")
 
-(check-hidden-prototype-method "Number"
-                               "valueOf"
-                               (lambda () (js-send/flonum boundary-target
-                                                          "boxedNumber"
-                                                          (vector)))
-                               "Number.valueOf not available in this environment"
-                               "boxed Number missing valueOf message")
+(check-hidden-prototype-method/no-error "Number"
+                                        "valueOf"
+                                        (lambda () (check-boxed-number
+                                                    "boxed Number with hidden valueOf"))
+                                        "boxed Number survives hidden valueOf")
 
-(check-hidden-prototype-method "Number"
-                               "valueOf"
-                               (lambda () (js-ref boundary-target "boxedNumberValue"))
-                               "Number.valueOf not available in this environment"
-                               "boxed Number FASL conversion missing valueOf message")
+(check-hidden-prototype-method/no-error "Number"
+                                        "valueOf"
+                                        (lambda () (check-boxed-number-ref
+                                                    "boxed Number ref with hidden valueOf"))
+                                        "boxed Number FASL conversion survives hidden valueOf")
 
 (js-eval "__wrStandardGenericBoundaryRestoreAll();")
 

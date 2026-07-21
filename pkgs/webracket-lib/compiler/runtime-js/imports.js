@@ -4,9 +4,22 @@ if (typeof WebAssembly.Tag === 'undefined' || typeof WebAssembly.Exception === '
 
 const hostString = String;
 const hostNumber = Number;
+const hostBoolean = Boolean;
 const hostMath = Math;
 const hostDate = Date;
 const hostImportUint8Array = Uint8Array;
+const hostStringValueOf = hostString.prototype.valueOf;
+const hostNumberValueOf = hostNumber.prototype.valueOf;
+const hostBooleanValueOf = hostBoolean.prototype.valueOf;
+if (typeof hostStringValueOf !== 'function') {
+  throw new Error('String.valueOf not available in this environment');
+}
+if (typeof hostNumberValueOf !== 'function') {
+  throw new Error('Number.valueOf not available in this environment');
+}
+if (typeof hostBooleanValueOf !== 'function') {
+  throw new Error('Boolean.valueOf not available in this environment');
+}
 const foreign_error_tag = new WebAssembly.Tag({ parameters: ['externref'] });
 
 function wrap_ffi_host_exceptions(fn) {
@@ -450,29 +463,19 @@ function value_is_instanceof(obj, ctor) {
   }
 }
 
-function maybe_unbox_global_boxed_value(x, constructorName, displayName) {
-  if (typeof x === 'object') {
-    const ctor = get_global_value(constructorName);
-    if (value_is_instanceof(x, ctor)) {
-      return call_required_host_function0(x, 'valueOf', displayName);
-    }
-  }
-  return x;
-}
-
-function maybe_unbox_host_boxed_value(x, ctor, displayName) {
+function maybe_unbox_host_boxed_value(x, ctor, valueOf) {
   if (typeof x === 'object' && value_is_instanceof(x, ctor)) {
-    return call_required_host_function0(x, 'valueOf', displayName);
+    return valueOf.call(x);
   }
   return x;
 }
 
 function js_boxed_boolean_value(x) {
-  return maybe_unbox_global_boxed_value(x, 'Boolean', 'Boolean.valueOf');
+  return maybe_unbox_host_boxed_value(x, hostBoolean, hostBooleanValueOf);
 }
 
 function js_boxed_number_value(x) {
-  return maybe_unbox_global_boxed_value(x, 'Number', 'Number.valueOf');
+  return maybe_unbox_host_boxed_value(x, hostNumber, hostNumberValueOf);
 }
 
 function js_flonum_result(x, who) {
@@ -1443,7 +1446,7 @@ var imports = {
         if (typeof obj === 'number') {
           return obj;
         }
-        const value = maybe_unbox_host_boxed_value(obj, hostNumber, 'Number.valueOf');
+        const value = maybe_unbox_host_boxed_value(obj, hostNumber, hostNumberValueOf);
         return typeof value === 'number' ? value : NaN;
       }),
       'flonum_to_string': (x =>
@@ -1452,7 +1455,7 @@ var imports = {
         if (typeof obj === 'string') {
           return to_string(obj);
         }
-        const value = maybe_unbox_host_boxed_value(obj, hostString, 'String.valueOf');
+        const value = maybe_unbox_host_boxed_value(obj, hostString, hostStringValueOf);
         return typeof value === 'string'
           ? to_string(value)
           : to_string(hostString(obj));

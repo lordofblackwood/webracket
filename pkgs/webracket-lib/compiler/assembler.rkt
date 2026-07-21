@@ -1429,8 +1429,8 @@ function js_value_to_fasl(v) {
       return;
     }
     // Number object
-    if ((typeof x === "object") && (typeof Number === "function") && (x instanceof Number)) {
-      const value = call_required_host_function0(x, 'valueOf', 'Number.valueOf');
+    if ((typeof x === "object") && value_is_instanceof(x, hostNumber)) {
+      const value = hostNumberValueOf.call(x);
       if (typeof value !== "number") {
         throw new TypeError(`Number.valueOf: expected number result, got ${typeof value}`);
       }
