@@ -5,6 +5,8 @@
 (require (only-in webracket/unsafe/standard
                   js-AsyncIterator
                   js-AsyncGenerator
+                  js-AsyncFunction
+                  js-AsyncGeneratorFunction
                   js-BigInt
                   js-Intl
                   js-IntlCollator
@@ -12,6 +14,7 @@
                   js-DisposableStack
                   js-eval
                   js-Generator
+                  js-GeneratorFunction
                   js-truthy?
                   js-undefined?))
 
@@ -46,10 +49,12 @@
  "const wrStandardGlobalBoundaryObject = Object;
   const wrStandardGlobalBoundaryObjectDefineProperty = Object.defineProperty;
   const wrStandardGlobalBoundaryObjectGetOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
+  const wrStandardGlobalBoundaryObjectGetPrototypeOf = Object.getPrototypeOf;
   const wrStandardGlobalBoundaryObjectKeys = Object.keys;
   const wrStandardGlobalBoundaryHasOwnProperty = Object.prototype.hasOwnProperty;
   globalThis.__wrStandardGlobalBoundarySaved = {};
   globalThis.__wrStandardGlobalBoundarySavedMethods = {};
+  globalThis.__wrStandardGlobalBoundarySavedConstructors = {};
   globalThis.__wrStandardGlobalBoundaryHide = (name) => {
     if (!wrStandardGlobalBoundaryHasOwnProperty.call(globalThis.__wrStandardGlobalBoundarySaved, name)) {
       globalThis.__wrStandardGlobalBoundarySaved[name] =
@@ -104,7 +109,53 @@
     }
     delete globalThis.__wrStandardGlobalBoundarySavedMethods[key];
   };
+  globalThis.__wrStandardGlobalBoundaryIntrinsicPrototype = (kind) => {
+    switch (kind) {
+      case 'generator-function':
+        return wrStandardGlobalBoundaryObjectGetPrototypeOf(function*(){});
+      case 'async-generator-function':
+        return wrStandardGlobalBoundaryObjectGetPrototypeOf(async function*(){});
+      case 'async-function':
+        return wrStandardGlobalBoundaryObjectGetPrototypeOf(async function(){});
+      default:
+        return undefined;
+    }
+  };
+  globalThis.__wrStandardGlobalBoundaryHideIntrinsicConstructor = (kind) => {
+    const owner = globalThis.__wrStandardGlobalBoundaryIntrinsicPrototype(kind);
+    if (!owner) {
+      return false;
+    }
+    if (!wrStandardGlobalBoundaryHasOwnProperty.call(globalThis.__wrStandardGlobalBoundarySavedConstructors, kind)) {
+      globalThis.__wrStandardGlobalBoundarySavedConstructors[kind] =
+        wrStandardGlobalBoundaryObjectGetOwnPropertyDescriptor(owner, 'constructor') || null;
+    }
+
+    try {
+      wrStandardGlobalBoundaryObjectDefineProperty(owner, 'constructor', {
+        value: undefined,
+        configurable: true,
+        writable: true
+      });
+      return true;
+    } catch (_e) {
+      return false;
+    }
+  };
+  globalThis.__wrStandardGlobalBoundaryRestoreIntrinsicConstructor = (kind) => {
+    const owner = globalThis.__wrStandardGlobalBoundaryIntrinsicPrototype(kind);
+    const saved = globalThis.__wrStandardGlobalBoundarySavedConstructors[kind];
+    if (owner && saved) {
+      wrStandardGlobalBoundaryObjectDefineProperty(owner, 'constructor', saved);
+    } else if (owner) {
+      delete owner.constructor;
+    }
+    delete globalThis.__wrStandardGlobalBoundarySavedConstructors[kind];
+  };
   globalThis.__wrStandardGlobalBoundaryRestoreAll = () => {
+    for (const kind of wrStandardGlobalBoundaryObjectKeys(globalThis.__wrStandardGlobalBoundarySavedConstructors)) {
+      globalThis.__wrStandardGlobalBoundaryRestoreIntrinsicConstructor(kind);
+    }
     for (const name of wrStandardGlobalBoundaryObjectKeys(globalThis.__wrStandardGlobalBoundarySavedMethods)) {
       const parts = name.split('.');
       globalThis.__wrStandardGlobalBoundaryRestoreMethod(parts[0], parts[1]);
@@ -114,10 +165,14 @@
     }
     delete globalThis.__wrStandardGlobalBoundarySaved;
     delete globalThis.__wrStandardGlobalBoundarySavedMethods;
+    delete globalThis.__wrStandardGlobalBoundarySavedConstructors;
     delete globalThis.__wrStandardGlobalBoundaryHide;
     delete globalThis.__wrStandardGlobalBoundaryRestore;
     delete globalThis.__wrStandardGlobalBoundaryHideMethod;
     delete globalThis.__wrStandardGlobalBoundaryRestoreMethod;
+    delete globalThis.__wrStandardGlobalBoundaryIntrinsicPrototype;
+    delete globalThis.__wrStandardGlobalBoundaryHideIntrinsicConstructor;
+    delete globalThis.__wrStandardGlobalBoundaryRestoreIntrinsicConstructor;
     delete globalThis.__wrStandardGlobalBoundaryRestoreAll;
   };")
 
@@ -197,6 +252,35 @@
     [else
      (restore-method! owner-name method-name)]))
 
+;; hidden-intrinsic-constructor? : string? -> boolean?
+;;   Hide an intrinsic function prototype constructor when the browser allows it.
+(define (hidden-intrinsic-constructor? kind)
+  (js-truthy?
+   (js-eval (string-append "__wrStandardGlobalBoundaryHideIntrinsicConstructor('"
+                           kind
+                           "')"))))
+
+;; restore-intrinsic-constructor! : string? -> void?
+;;   Restore an intrinsic function prototype constructor after a boundary check.
+(define (restore-intrinsic-constructor! kind)
+  (js-eval (string-append "__wrStandardGlobalBoundaryRestoreIntrinsicConstructor('"
+                          kind
+                          "')"))
+  (void))
+
+;; check-hidden-intrinsic-constructor : string? (-> any/c) string? string? -> void?
+;;   Check that a hidden intrinsic constructor produces a clear catchable error.
+(define (check-hidden-intrinsic-constructor kind thunk needle label)
+  (cond
+    [(hidden-intrinsic-constructor? kind)
+     (define message
+       (catch-message/restoring thunk
+                                (lambda ()
+                                  (restore-intrinsic-constructor! kind))))
+     (check-message message needle label)]
+    [else
+     (restore-intrinsic-constructor! kind)]))
+
 (check-hidden-global "BigInt"
                      js-BigInt
                      "missing BigInt reports undefined")
@@ -235,6 +319,19 @@
                              js-AsyncGenerator
                              "Object.getPrototypeOf not available in this environment"
                              "missing Object.getPrototypeOf AsyncGenerator message")
+
+(check-hidden-intrinsic-constructor "generator-function"
+                                    js-GeneratorFunction
+                                    "GeneratorFunction not available in this environment"
+                                    "missing GeneratorFunction constructor message")
+(check-hidden-intrinsic-constructor "async-generator-function"
+                                    js-AsyncGeneratorFunction
+                                    "AsyncGeneratorFunction not available in this environment"
+                                    "missing AsyncGeneratorFunction constructor message")
+(check-hidden-intrinsic-constructor "async-function"
+                                    js-AsyncFunction
+                                    "AsyncFunction not available in this environment"
+                                    "missing AsyncFunction constructor message")
 
 (js-eval "__wrStandardGlobalBoundaryRestoreAll();")
 

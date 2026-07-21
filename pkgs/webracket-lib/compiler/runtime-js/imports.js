@@ -437,6 +437,10 @@ function call_object_static_method1(methodName, arg0) {
                                       arg0);
 }
 
+function get_intrinsic_function_constructor(fn, displayName) {
+  return require_host_value(fn, 'constructor', displayName);
+}
+
 function js_instanceof(obj, type) {
   if (type === null || type === undefined) {
     throw new Error('js-instanceof: constructor is null or undefined');
@@ -1766,13 +1770,16 @@ var imports = {
       'Iterator':                  (() => get_global_value('Iterator')),
       'AsyncIterator':             (() => get_global_value('AsyncIterator')),
       'Promise':                   (() => get_global_value('Promise')),
-      'GeneratorFunction':         (() => (function*(){}).constructor),
-      'AsyncGeneratorFunction':    (() => (async function*(){}).constructor),
+      'GeneratorFunction':         (() => get_intrinsic_function_constructor(function*(){},
+                                                                             'GeneratorFunction')),
+      'AsyncGeneratorFunction':    (() => get_intrinsic_function_constructor(async function*(){},
+                                                                             'AsyncGeneratorFunction')),
       'Generator':                 (() => call_object_static_method1('getPrototypeOf',
                                                                       function*(){}())),
       'AsyncGenerator':            (() => call_object_static_method1('getPrototypeOf',
                                                                       async function*(){}())),
-      'AsyncFunction':             (() => (async function(){}).constructor),
+      'AsyncFunction':             (() => get_intrinsic_function_constructor(async function(){},
+                                                                             'AsyncFunction')),
       'DisposableStack':           (() => get_global_value('DisposableStack')),
       'AsyncDisposableStack':     (() => get_global_value('AsyncDisposableStack')),
       'Reflect':                   (() => get_global_value('Reflect')),
