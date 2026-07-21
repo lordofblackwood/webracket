@@ -171,15 +171,6 @@ function set_host_property(owner, name, value, displayName) {
   require_host_target(owner, displayName)[name] = value;
 }
 
-function require_host_function(owner, name, displayName) {
-  const target = require_host_target(owner, displayName);
-  const fn = target[name];
-  if (typeof fn !== 'function') {
-    throw new Error(`${displayName} not available in this environment`);
-  }
-  return fn.bind(target);
-}
-
 function call_host_function0(owner, name, displayName) {
   const target = require_host_target(owner, displayName);
   const fn = target[name];
@@ -267,12 +258,6 @@ function set_required_host_property(owner, name, value, displayName) {
   target[name] = value;
 }
 
-function require_window_function(name, displayName) {
-  return require_host_function(typeof window === 'undefined' ? null : window,
-                               name,
-                               displayName);
-}
-
 function call_window_function0(name, displayName) {
   return call_host_function0(typeof window === 'undefined' ? null : window,
                              name,
@@ -340,12 +325,6 @@ function require_window_value(name, displayName) {
   return require_host_value(typeof window === 'undefined' ? null : window,
                             name,
                             displayName);
-}
-
-function require_document_function(name, displayName) {
-  return require_host_function(typeof document === 'undefined' ? null : document,
-                               name,
-                               displayName);
 }
 
 function call_document_function0(name, displayName) {
