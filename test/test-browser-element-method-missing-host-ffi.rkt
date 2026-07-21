@@ -4,7 +4,9 @@
 
 (require browser/element
          (only-in webracket/unsafe/standard
-                  js-eval))
+                  js-eval
+                  js-null
+                  js-undefined))
 
 (define (check-true got label)
   (unless got
@@ -32,6 +34,28 @@
 (define element (element-wrap (js-eval "({})")))
 (define class-list (dom-token-list-wrap (js-eval "({})")))
 (define callback (lambda args (void)))
+(define nodeish-host
+  (element-wrap
+   (js-eval
+    "({
+       append(_x) {},
+       prepend(_x) {},
+       before(_x) {},
+       after(_x) {},
+       appendChild(_x) {},
+       insertAdjacentElement(_pos, child) { return child; },
+       setAttributeNode(attr) { return attr; },
+       setAttributeNodeNS(attr) { return attr; },
+       removeAttributeNode(attr) { return attr; },
+       replaceChildren(_x) {},
+       replaceWith(_x) {}
+     })")))
+(define null-node (dom-node (js-null)))
+(define undefined-node (dom-node (js-undefined)))
+(define null-element (dom-element (js-null)))
+(define undefined-element (dom-element (js-undefined)))
+(define null-text (dom-text (js-null)))
+(define undefined-attr (dom-attr (js-undefined)))
 
 (define add-event-listener-message
   (catch-message
@@ -108,6 +132,79 @@
    (lambda ()
      (dom-token-list-replace! class-list 'x 'y))))
 
+(define forged-append-child-message
+  (catch-message
+   (lambda ()
+     (append-child! nodeish-host undefined-node))))
+
+(define forged-append-message
+  (catch-message
+   (lambda ()
+     (element-append! nodeish-host null-node))))
+
+(define forged-prepend-message
+  (catch-message
+   (lambda ()
+     (element-prepend! nodeish-host undefined-element))))
+
+(define forged-before-message
+  (catch-message
+   (lambda ()
+     (element-before! nodeish-host null-element))))
+
+(define forged-after-message
+  (catch-message
+   (lambda ()
+     (element-after! nodeish-host null-text))))
+
+(define forged-insert-adjacent-element-message
+  (catch-message
+   (lambda ()
+     (element-insert-adjacent-element! nodeish-host 'beforeend null-node))))
+
+(define forged-set-attribute-node-message
+  (catch-message
+   (lambda ()
+     (element-set-attribute-node! nodeish-host undefined-attr))))
+
+(define forged-set-attribute-node-ns-message
+  (catch-message
+   (lambda ()
+     (element-set-attribute-node-ns! nodeish-host undefined-attr))))
+
+(define forged-remove-attribute-node-message
+  (catch-message
+   (lambda ()
+     (element-remove-attribute-node! nodeish-host undefined-attr))))
+
+(define forged-replace-children-message
+  (catch-message
+   (lambda ()
+     (replace-children! nodeish-host null-node))))
+
+(define forged-element-replace-children-message
+  (catch-message
+   (lambda ()
+     (element-replace-children! nodeish-host undefined-element))))
+
+(define forged-replace-with-message
+  (catch-message
+   (lambda ()
+     (replace-with! nodeish-host null-text))))
+
+(define forged-element-replace-with-message
+  (catch-message
+   (lambda ()
+     (element-replace-with! nodeish-host null-element))))
+
+(define (check-nodeish-message message who label)
+  (check-message message
+                 (symbol->string who)
+                 (string-append label " who"))
+  (check-message message
+                 "DOM node wrapper with non-null host value"
+                 label))
+
 (check-message add-event-listener-message
                "EventTarget.addEventListener not available in this environment"
                "missing addEventListener message")
@@ -153,6 +250,45 @@
 (check-message replace-message
                "DOMTokenList.replace not available in this environment"
                "missing replace message")
+(check-nodeish-message forged-append-child-message
+                       'append-child!
+                       "forged append-child message")
+(check-nodeish-message forged-append-message
+                       'element-append!
+                       "forged append message")
+(check-nodeish-message forged-prepend-message
+                       'element-prepend!
+                       "forged prepend message")
+(check-nodeish-message forged-before-message
+                       'element-before!
+                       "forged before message")
+(check-nodeish-message forged-after-message
+                       'element-after!
+                       "forged after message")
+(check-nodeish-message forged-insert-adjacent-element-message
+                       'element-insert-adjacent-element!
+                       "forged insert adjacent element message")
+(check-nodeish-message forged-set-attribute-node-message
+                       'element-set-attribute-node!
+                       "forged set attribute node message")
+(check-nodeish-message forged-set-attribute-node-ns-message
+                       'element-set-attribute-node-ns!
+                       "forged set attribute node ns message")
+(check-nodeish-message forged-remove-attribute-node-message
+                       'element-remove-attribute-node!
+                       "forged remove attribute node message")
+(check-nodeish-message forged-replace-children-message
+                       'replace-children!
+                       "forged replace children message")
+(check-nodeish-message forged-element-replace-children-message
+                       'element-replace-children!
+                       "forged element replace children message")
+(check-nodeish-message forged-replace-with-message
+                       'replace-with!
+                       "forged replace with message")
+(check-nodeish-message forged-element-replace-with-message
+                       'element-replace-with!
+                       "forged element replace with message")
 
 (js-log "browser-element-method-missing-host-ffi-ok")
 #t

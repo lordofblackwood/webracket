@@ -83,16 +83,29 @@
 ;; Element property access in this library should stay on the direct
 ;; js-element-* bindings instead of routing through reflective lookup.
 
-;; element-nodeish->value : any/c -> any/c
+;; element-node-wrapper-raw/checked : symbol? any/c any/c -> external/raw
+;;   Validate a wrapped node-like value before passing it to browser host calls.
+(define (element-node-wrapper-raw/checked who value raw)
+  (unless (shared-dom-raw-host-value? raw)
+    (raise-argument-error who
+                          "DOM node wrapper with non-null host value"
+                          value))
+  raw)
+
+;; element-nodeish->value : symbol? any/c -> any/c
 ;;   Normalize a node-like value for DOM insertion helpers.
-(define (element-nodeish->value value)
+(define (element-nodeish->value who value)
   (cond
     [(symbol? value) (symbol->string value)]
     [(string? value) value]
-    [(dom-node? value) (dom-node-raw value)]
-    [(dom-element? value) (dom-element-raw value)]
-    [(dom-text? value) (dom-text-raw value)]
-    [(dom-attr? value) (dom-attr-raw value)]
+    [(dom-node? value)
+     (element-node-wrapper-raw/checked who value (dom-node-raw value))]
+    [(dom-element? value)
+     (element-node-wrapper-raw/checked who value (dom-element-raw value))]
+    [(dom-text? value)
+     (element-node-wrapper-raw/checked who value (dom-text-raw value))]
+    [(dom-attr? value)
+     (element-node-wrapper-raw/checked who value (dom-attr-raw value))]
     [else value]))
 
 ;; element-event-listener-cache : hash?
@@ -218,7 +231,8 @@
 ;; append-child! : external? external? -> void?
 ;;   Append a child node.
 (define (append-child! parent child)
-  (js-append-child! (element-unwrap parent) (element-unwrap child))
+  (js-append-child! (element-unwrap parent)
+                    (element-nodeish->value 'append-child! child))
   (void))
 
 ;; element-append! : element? any/c -> void?
@@ -227,7 +241,7 @@
   (define raw (element-unwrap element))
   (check-element-host-method 'element-append! raw "Element" "append")
   (js-send/extern/nullish raw "append"
-                          (vector (element-nodeish->value child)))
+                          (vector (element-nodeish->value 'element-append! child)))
   (void))
 
 ;; element-prepend! : element? any/c -> void?
@@ -236,7 +250,7 @@
   (define raw (element-unwrap element))
   (check-element-host-method 'element-prepend! raw "Element" "prepend")
   (js-send/extern/nullish raw "prepend"
-                          (vector (element-nodeish->value child)))
+                          (vector (element-nodeish->value 'element-prepend! child)))
   (void))
 
 ;; element-before! : element? any/c -> void?
@@ -245,7 +259,7 @@
   (define raw (element-unwrap element))
   (check-element-host-method 'element-before! raw "Element" "before")
   (js-send/extern/nullish raw "before"
-                          (vector (element-nodeish->value sibling)))
+                          (vector (element-nodeish->value 'element-before! sibling)))
   (void))
 
 ;; element-after! : element? any/c -> void?
@@ -254,7 +268,7 @@
   (define raw (element-unwrap element))
   (check-element-host-method 'element-after! raw "Element" "after")
   (js-send/extern/nullish raw "after"
-                          (vector (element-nodeish->value sibling)))
+                          (vector (element-nodeish->value 'element-after! sibling)))
   (void))
 
 ;; set-attribute! : external? (or/c string? symbol?) (or/c string? symbol?) -> void?
@@ -657,17 +671,23 @@
 ;; element-set-attribute-node! : element? any/c -> (or/c #f dom-attr?)
 ;;   Attach an attribute node to an element.
 (define (element-set-attribute-node! element node)
-  (dom-attr-wrap (js-set-attribute-node! (element-unwrap element) (element-nodeish->value node))))
+  (dom-attr-wrap
+   (js-set-attribute-node! (element-unwrap element)
+                           (element-nodeish->value 'element-set-attribute-node! node))))
 
 ;; element-set-attribute-node-ns! : element? any/c -> (or/c #f dom-attr?)
 ;;   Attach a namespaced attribute node to an element.
 (define (element-set-attribute-node-ns! element node)
-  (dom-attr-wrap (js-set-attribute-node-ns! (element-unwrap element) (element-nodeish->value node))))
+  (dom-attr-wrap
+   (js-set-attribute-node-ns! (element-unwrap element)
+                              (element-nodeish->value 'element-set-attribute-node-ns! node))))
 
 ;; element-remove-attribute-node! : element? any/c -> (or/c #f dom-attr?)
 ;;   Remove an attribute node from an element.
 (define (element-remove-attribute-node! element node)
-  (dom-attr-wrap (js-remove-attribute-node! (element-unwrap element) (element-nodeish->value node))))
+  (dom-attr-wrap
+   (js-remove-attribute-node! (element-unwrap element)
+                              (element-nodeish->value 'element-remove-attribute-node! node))))
 
 ;; get-bounding-client-rect : element? -> dom-rect?
 ;;   Read the element bounding box.
@@ -728,7 +748,9 @@
   (element-wrap
    (js-insert-adjacent-element! (element-unwrap element)
                                 position*
-                                (element-nodeish->value child))))
+                                (element-nodeish->value
+                                 'element-insert-adjacent-element!
+                                 child))))
 
 ;; element-insert-adjacent-html! : element? (or/c string? symbol?) (or/c string? symbol?) -> void?
 ;;   Insert HTML relative to an element.
@@ -757,27 +779,39 @@
 (define (element-remove! element)
   (remove! element))
 
-;; replace-children! : external? external? -> void?
-;;   Replace the child list with one node.
-(define (replace-children! element child)
-  (js-replace-children! (element-unwrap element) (element-unwrap child))
+;; replace-children*/who! : symbol? external? any/c -> void?
+;;   Replace the child list with one normalized node or text value.
+(define (replace-children*/who! who element child)
+  (js-replace-children! (element-unwrap element)
+                        (element-nodeish->value who child))
   (void))
+
+;; replace-children! : external? any/c -> void?
+;;   Replace the child list with one node or text value.
+(define (replace-children! element child)
+  (replace-children*/who! 'replace-children! element child))
 
 ;; element-replace-children! : element? any/c -> void?
-;;   Replace the child list with one node.
+;;   Replace the child list with one node or text value.
 (define (element-replace-children! element child)
-  (replace-children! element child))
+  (replace-children*/who! 'element-replace-children! element child))
 
-;; replace-with! : external? external? -> void?
-;;   Replace the element with another node.
-(define (replace-with! element sibling)
-  (js-replace-with! (element-unwrap element) (element-unwrap sibling))
+;; replace-with*/who! : symbol? external? any/c -> void?
+;;   Replace the element with one normalized node or text value.
+(define (replace-with*/who! who element sibling)
+  (js-replace-with! (element-unwrap element)
+                    (element-nodeish->value who sibling))
   (void))
 
+;; replace-with! : external? any/c -> void?
+;;   Replace the element with another node or text value.
+(define (replace-with! element sibling)
+  (replace-with*/who! 'replace-with! element sibling))
+
 ;; element-replace-with! : element? any/c -> void?
-;;   Replace the element with another node.
+;;   Replace the element with another node or text value.
 (define (element-replace-with! element sibling)
-  (replace-with! element sibling))
+  (replace-with*/who! 'element-replace-with! element sibling))
 
 ;; request-fullscreen : external? -> external/raw
 ;;   Request fullscreen for the element.
