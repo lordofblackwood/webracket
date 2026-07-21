@@ -1429,8 +1429,12 @@ function js_value_to_fasl(v) {
       return;
     }
     // Number object
-    if ( (typeof x === "object") && (x instanceof Number) ) {
-      writeFlonum(x.valueOf());
+    if ((typeof x === "object") && (typeof Number === "function") && (x instanceof Number)) {
+      const value = call_required_host_function0(x, 'valueOf', 'Number.valueOf');
+      if (typeof value !== "number") {
+        throw new TypeError(`Number.valueOf: expected number result, got ${typeof value}`);
+      }
+      writeFlonum(value);
       return;
     }
     if (typeof x === "boolean") {

@@ -7,6 +7,7 @@
                   js-instanceof
                   js-null
                   js-operator
+                  js-ref
                   js-send/boolean
                   js-send/flonum
                   js-truthy?
@@ -50,6 +51,7 @@
   globalThis.__wrStandardGenericBoundaryBoxedBoolean = new Boolean(false);
   globalThis.__wrStandardGenericBoundaryBoxedNumber = new Number(1.5);
   globalThis.__wrStandardGenericBoundaryTarget = {
+    boxedNumberValue: globalThis.__wrStandardGenericBoundaryBoxedNumber,
     boxedBoolean() {
       return globalThis.__wrStandardGenericBoundaryBoxedBoolean;
     },
@@ -252,6 +254,12 @@
                                                           (vector)))
                                "Number.valueOf not available in this environment"
                                "boxed Number missing valueOf message")
+
+(check-hidden-prototype-method "Number"
+                               "valueOf"
+                               (lambda () (js-ref boundary-target "boxedNumberValue"))
+                               "Number.valueOf not available in this environment"
+                               "boxed Number FASL conversion missing valueOf message")
 
 (js-eval "__wrStandardGenericBoundaryRestoreAll();")
 
