@@ -444,24 +444,37 @@ function host_instanceof_or_false(obj, constructorName) {
   }
 }
 
-function js_boxed_boolean_value(x) {
+function value_is_instanceof(obj, ctor) {
+  try {
+    return typeof ctor === 'function' && obj instanceof ctor;
+  } catch (_) {
+    return false;
+  }
+}
+
+function maybe_unbox_global_boxed_value(x, constructorName, displayName) {
   if (typeof x === 'object') {
-    const BooleanCtor = get_global_value('Boolean');
-    if (typeof BooleanCtor === 'function' && x instanceof BooleanCtor) {
-      return x.valueOf();
+    const ctor = get_global_value(constructorName);
+    if (value_is_instanceof(x, ctor)) {
+      return call_required_host_function0(x, 'valueOf', displayName);
     }
   }
   return x;
 }
 
-function js_boxed_number_value(x) {
-  if (typeof x === 'object') {
-    const NumberCtor = get_global_value('Number');
-    if (typeof NumberCtor === 'function' && x instanceof NumberCtor) {
-      return x.valueOf();
-    }
+function maybe_unbox_host_boxed_value(x, ctor, displayName) {
+  if (typeof x === 'object' && value_is_instanceof(x, ctor)) {
+    return call_required_host_function0(x, 'valueOf', displayName);
   }
   return x;
+}
+
+function js_boxed_boolean_value(x) {
+  return maybe_unbox_global_boxed_value(x, 'Boolean', 'Boolean.valueOf');
+}
+
+function js_boxed_number_value(x) {
+  return maybe_unbox_global_boxed_value(x, 'Number', 'Number.valueOf');
 }
 
 function js_flonum_result(x, who) {
@@ -1425,17 +1438,18 @@ var imports = {
       // External values and FFI bridge helpers.
       'register_external': (obj => { externals.push(obj); return externals.length - 1; }),
       'lookup_external':   (idx => externals[idx]),
-      'external_number_to_f64': (obj =>
-        (typeof obj === 'number'
-         ? obj
-         : (obj instanceof hostNumber ? obj.valueOf() : NaN))),
+      'external_number_to_f64': (obj => {
+        const value = maybe_unbox_host_boxed_value(obj, hostNumber, 'Number.valueOf');
+        return typeof value === 'number' ? value : NaN;
+      }),
       'flonum_to_string': (x =>
         to_fasl(flonum_to_racket_string(x))),
-      'external_string_to_string': (obj =>
-        (typeof obj === 'string'
-         ? to_string(obj)
-         : (obj instanceof hostString ? to_string(obj.valueOf())
-                                      : to_string(hostString(obj))))),
+      'external_string_to_string': (obj => {
+        const value = maybe_unbox_host_boxed_value(obj, hostString, 'String.valueOf');
+        return typeof value === 'string'
+          ? to_string(value)
+          : to_string(hostString(obj));
+      }),
       'external_nullish': (obj => ((obj === null) || (obj === undefined)) ? 1 : 0),
       'external_undefined': (obj => (obj === undefined) ? 1 : 0),
 
