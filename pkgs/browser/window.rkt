@@ -5,22 +5,38 @@
                   js-object)
          webracket/unsafe/window)
 
-(provide (struct-out dom-window)
-         (struct-out window-document-info)
-         (struct-out window-location-info)
-         (struct-out window-custom-elements-info)
-         (struct-out window-history-info)
-         (struct-out window-visual-viewport-info)
-         (struct-out window-navigator-info)
-         (struct-out window-screen-info)
-         (struct-out window-performance-info)
-         (struct-out window-local-storage-info)
-         (struct-out window-session-storage-info)
-         (struct-out window-indexed-db-info)
-         (struct-out window-caches-info)
-         (struct-out window-speech-synthesis-info)
-         (struct-out window-style-media-info)
-         (struct-out window-crypto-info)
+(provide (except-out (struct-out dom-window) dom-window?)
+         (except-out (struct-out window-document-info) window-document-info?)
+         (except-out (struct-out window-location-info) window-location-info?)
+         (except-out (struct-out window-custom-elements-info) window-custom-elements-info?)
+         (except-out (struct-out window-history-info) window-history-info?)
+         (except-out (struct-out window-visual-viewport-info) window-visual-viewport-info?)
+         (except-out (struct-out window-navigator-info) window-navigator-info?)
+         (except-out (struct-out window-screen-info) window-screen-info?)
+         (except-out (struct-out window-performance-info) window-performance-info?)
+         (except-out (struct-out window-local-storage-info) window-local-storage-info?)
+         (except-out (struct-out window-session-storage-info) window-session-storage-info?)
+         (except-out (struct-out window-indexed-db-info) window-indexed-db-info?)
+         (except-out (struct-out window-caches-info) window-caches-info?)
+         (except-out (struct-out window-speech-synthesis-info) window-speech-synthesis-info?)
+         (except-out (struct-out window-style-media-info) window-style-media-info?)
+         (except-out (struct-out window-crypto-info) window-crypto-info?)
+         (rename-out [dom-window/surface? dom-window?]
+                     [window-document-info/surface? window-document-info?]
+                     [window-location-info/surface? window-location-info?]
+                     [window-custom-elements-info/surface? window-custom-elements-info?]
+                     [window-history-info/surface? window-history-info?]
+                     [window-visual-viewport-info/surface? window-visual-viewport-info?]
+                     [window-navigator-info/surface? window-navigator-info?]
+                     [window-screen-info/surface? window-screen-info?]
+                     [window-performance-info/surface? window-performance-info?]
+                     [window-local-storage-info/surface? window-local-storage-info?]
+                     [window-session-storage-info/surface? window-session-storage-info?]
+                     [window-indexed-db-info/surface? window-indexed-db-info?]
+                     [window-caches-info/surface? window-caches-info?]
+                     [window-speech-synthesis-info/surface? window-speech-synthesis-info?]
+                     [window-style-media-info/surface? window-style-media-info?]
+                     [window-crypto-info/surface? window-crypto-info?])
          (struct-out window-scroll-options)
          Window
          window-self
@@ -276,6 +292,102 @@
 ;; window-crypto-info : external/raw -> window-crypto-info?
 ;;   Wrap the browser Crypto object.
 (struct window-crypto-info (raw) #:transparent)
+
+;; dom-window/surface? : any/c -> boolean?
+;;   Check whether value is a Window wrapper with a usable host value.
+(define (dom-window/surface? value)
+  (and (dom-window? value)
+       (shared-dom-raw-host-value? (dom-window-raw value))))
+
+;; window-document-info/surface? : any/c -> boolean?
+;;   Check whether value is a Document wrapper with a usable host value.
+(define (window-document-info/surface? value)
+  (and (window-document-info? value)
+       (shared-dom-raw-host-value? (window-document-info-raw value))))
+
+;; window-location-info/surface? : any/c -> boolean?
+;;   Check whether value is a Location wrapper with a usable host value.
+(define (window-location-info/surface? value)
+  (and (window-location-info? value)
+       (shared-dom-raw-host-value? (window-location-info-raw value))))
+
+;; window-custom-elements-info/surface? : any/c -> boolean?
+;;   Check whether value is a CustomElementRegistry wrapper with a usable host value.
+(define (window-custom-elements-info/surface? value)
+  (and (window-custom-elements-info? value)
+       (shared-dom-raw-host-value? (window-custom-elements-info-raw value))))
+
+;; window-history-info/surface? : any/c -> boolean?
+;;   Check whether value is a History wrapper with a usable host value.
+(define (window-history-info/surface? value)
+  (and (window-history-info? value)
+       (shared-dom-raw-host-value? (window-history-info-raw value))))
+
+;; window-visual-viewport-info/surface? : any/c -> boolean?
+;;   Check whether value is a VisualViewport wrapper with a usable host value.
+(define (window-visual-viewport-info/surface? value)
+  (and (window-visual-viewport-info? value)
+       (shared-dom-raw-host-value? (window-visual-viewport-info-raw value))))
+
+;; window-navigator-info/surface? : any/c -> boolean?
+;;   Check whether value is a Navigator wrapper with a usable host value.
+(define (window-navigator-info/surface? value)
+  (and (window-navigator-info? value)
+       (shared-dom-raw-host-value? (window-navigator-info-raw value))))
+
+;; window-screen-info/surface? : any/c -> boolean?
+;;   Check whether value is a Screen wrapper with a usable host value.
+(define (window-screen-info/surface? value)
+  (and (window-screen-info? value)
+       (shared-dom-raw-host-value? (window-screen-info-raw value))))
+
+;; window-performance-info/surface? : any/c -> boolean?
+;;   Check whether value is a Performance wrapper with a usable host value.
+(define (window-performance-info/surface? value)
+  (and (window-performance-info? value)
+       (shared-dom-raw-host-value? (window-performance-info-raw value))))
+
+;; window-local-storage-info/surface? : any/c -> boolean?
+;;   Check whether value is a localStorage wrapper with a usable host value.
+(define (window-local-storage-info/surface? value)
+  (and (window-local-storage-info? value)
+       (shared-dom-raw-host-value? (window-local-storage-info-raw value))))
+
+;; window-session-storage-info/surface? : any/c -> boolean?
+;;   Check whether value is a sessionStorage wrapper with a usable host value.
+(define (window-session-storage-info/surface? value)
+  (and (window-session-storage-info? value)
+       (shared-dom-raw-host-value? (window-session-storage-info-raw value))))
+
+;; window-indexed-db-info/surface? : any/c -> boolean?
+;;   Check whether value is an IndexedDB wrapper with a usable host value.
+(define (window-indexed-db-info/surface? value)
+  (and (window-indexed-db-info? value)
+       (shared-dom-raw-host-value? (window-indexed-db-info-raw value))))
+
+;; window-caches-info/surface? : any/c -> boolean?
+;;   Check whether value is a CacheStorage wrapper with a usable host value.
+(define (window-caches-info/surface? value)
+  (and (window-caches-info? value)
+       (shared-dom-raw-host-value? (window-caches-info-raw value))))
+
+;; window-speech-synthesis-info/surface? : any/c -> boolean?
+;;   Check whether value is a SpeechSynthesis wrapper with a usable host value.
+(define (window-speech-synthesis-info/surface? value)
+  (and (window-speech-synthesis-info? value)
+       (shared-dom-raw-host-value? (window-speech-synthesis-info-raw value))))
+
+;; window-style-media-info/surface? : any/c -> boolean?
+;;   Check whether value is a StyleMedia wrapper with a usable host value.
+(define (window-style-media-info/surface? value)
+  (and (window-style-media-info? value)
+       (shared-dom-raw-host-value? (window-style-media-info-raw value))))
+
+;; window-crypto-info/surface? : any/c -> boolean?
+;;   Check whether value is a Crypto wrapper with a usable host value.
+(define (window-crypto-info/surface? value)
+  (and (window-crypto-info? value)
+       (shared-dom-raw-host-value? (window-crypto-info-raw value))))
 
 ;; window-location : -> window-location-info?
 ;;   Read the window location object.
