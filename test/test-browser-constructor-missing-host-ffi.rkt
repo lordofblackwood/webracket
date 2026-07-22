@@ -72,6 +72,18 @@
      (websocket-new "wss://example.invalid/socket"))))
 
 (js-eval
+ "globalThis.Image = class Image {
+    constructor() {
+      return { src: '', width: 1, height: 1, complete: true, currentSrc: '' };
+    }
+  };")
+
+(define image-constructor-result-message
+  (catch-message
+   (lambda ()
+     (image-new))))
+
+(js-eval
  "globalThis.Image = globalThis.__wrConstructorBoundary.Image;
   globalThis.AudioContext = globalThis.__wrConstructorBoundary.AudioContext;
   globalThis.WebSocket = globalThis.__wrConstructorBoundary.WebSocket;
@@ -101,6 +113,10 @@
                  (string-contains/simple? websocket-non-constructor-message
                                           "WebSocket not available in this environment: new"))
             "non-constructible WebSocket constructor message")
+(check-true (and image-constructor-result-message
+                 (string-contains/simple? image-constructor-result-message
+                                          "Image constructor result must be HTMLImageElement-like"))
+            "bad Image constructor result message")
 
 (js-log "browser-constructor-missing-host-ffi-ok")
 #t

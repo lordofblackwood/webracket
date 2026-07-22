@@ -96,6 +96,26 @@
                                           property-name
                                           " is not available"))))
 
+;; check-compression-stream-result : symbol? string? any/c -> compression-stream?
+;;   Wrap and validate a CompressionStream constructor result.
+(define (check-compression-stream-result who display-name raw)
+  (define stream (compression-stream-info raw))
+  (unless (compression-stream? stream)
+    (raise-arguments-error who
+                           (string-append display-name
+                                          " result must be CompressionStream-like")))
+  stream)
+
+;; check-decompression-stream-result : symbol? string? any/c -> decompression-stream?
+;;   Wrap and validate a DecompressionStream constructor result.
+(define (check-decompression-stream-result who display-name raw)
+  (define stream (decompression-stream-info raw))
+  (unless (decompression-stream? stream)
+    (raise-arguments-error who
+                           (string-append display-name
+                                          " result must be DecompressionStream-like")))
+  stream)
+
 ;; compression-stream? : any/c -> boolean?
 ;;   Report whether v is a wrapped CompressionStream object.
 (define (compression-stream? v)
@@ -144,7 +164,9 @@
   (unless (compression-stream-supported?)
     (raise-arguments-error 'make-compression-stream
                            "CompressionStream is not available"))
-  (compression-stream-info
+  (check-compression-stream-result
+   'make-compression-stream
+   "CompressionStream constructor"
    (js-new (js-var "CompressionStream")
            (vector (compression-format->string 'make-compression-stream format)))))
 
@@ -154,7 +176,9 @@
   (unless (decompression-stream-supported?)
     (raise-arguments-error 'make-decompression-stream
                            "DecompressionStream is not available"))
-  (decompression-stream-info
+  (check-decompression-stream-result
+   'make-decompression-stream
+   "DecompressionStream constructor"
    (js-new (js-var "DecompressionStream")
            (vector (compression-format->string 'make-decompression-stream format)))))
 

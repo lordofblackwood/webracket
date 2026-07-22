@@ -358,6 +358,47 @@
                                           method-name
                                           " not available in this environment"))))
 
+;; canvas-result-wrap/checked : symbol? string? string? any/c (any/c -> any/c) (any/c -> boolean?) boolean? -> any/c
+;;   Wrap and validate a browser object returned by a canvas API.
+(define (canvas-result-wrap/checked who display-name expected raw wrap surface? nullable?)
+  (define wrapped (wrap raw))
+  (cond
+    [(and nullable? (not wrapped)) #f]
+    [(and wrapped (surface? wrapped)) wrapped]
+    [else
+     (raise-arguments-error who
+                            (string-append display-name
+                                           " result must be "
+                                           expected))]))
+
+;; canvas-array-like-result? : any/c -> boolean?
+;;   Report whether raw is a non-nullish host value with an array-like length.
+(define (canvas-array-like-result? raw)
+  (and (canvas-raw-host-value? raw)
+       (exact-nonnegative-integer? (js-ref raw "length"))))
+
+;; canvas-check-array-like-result : symbol? string? any/c -> external/raw
+;;   Validate that a canvas API returned an array-like raw value.
+(define (canvas-check-array-like-result who display-name raw)
+  (unless (canvas-array-like-result? raw)
+    (raise-arguments-error who
+                           (string-append display-name
+                                          " result must be array-like")))
+  raw)
+
+;; canvas-paint-style-wrap-result : symbol? string? any/c -> any/c
+;;   Wrap and validate a paint style returned by a canvas API.
+(define (canvas-paint-style-wrap-result who display-name raw)
+  (define value (canvas-paint-style-wrap raw))
+  (cond
+    [(and (external? raw)
+          (not (js-nullish? raw))
+          (eq? value raw))
+     (raise-arguments-error who
+                            (string-append display-name
+                                           " result must be a string, CanvasGradient-like, or CanvasPattern-like"))]
+    [else value]))
+
 ;; canvas-optional->extern : any/c -> any/c
 ;;   Treat #f as JavaScript undefined for optional extern arguments.
 ;;   The unsafe FFI binding expects a JS-side omitted value here; Racket
@@ -589,7 +630,13 @@
   (define ctx (js-canvas-get-context (canvas-unwrap canvas)
                                      context-id*
                                      (canvas-optional->extern options)))
-  (and ctx (canvas-2d-context-wrap ctx)))
+  (canvas-result-wrap/checked 'canvas-get-context
+                              "canvas.getContext"
+                              "CanvasRenderingContext2D-like"
+                              ctx
+                              canvas-2d-context-wrap
+                              canvas-rendering-context-2d/surface?
+                              #t))
 
 ;; canvas-width : (or/c html-canvas-element? external?) -> exact-nonnegative-integer?
 ;;   Read the canvas width.
@@ -629,13 +676,25 @@
 ;; canvas-transfer-control-to-offscreen : (or/c html-canvas-element? external?) -> external/raw
 ;;   Transfer control to an OffscreenCanvas.
 (define (canvas-transfer-control-to-offscreen canvas)
-  (offscreen-canvas-wrap
-   (js-canvas-transfer-control-to-offscreen (canvas-unwrap canvas))))
+  (canvas-result-wrap/checked
+   'canvas-transfer-control-to-offscreen
+   "canvas.transferControlToOffscreen"
+   "OffscreenCanvas-like"
+   (js-canvas-transfer-control-to-offscreen (canvas-unwrap canvas))
+   offscreen-canvas-wrap
+   offscreen-canvas/surface?
+   #f))
 
 ;; canvas-2d-canvas : (or/c canvas-rendering-context-2d? external?) -> html-canvas-element?
 ;;   Read the backing canvas from a 2D context.
 (define (canvas-2d-canvas ctx)
-  (canvas-wrap (js-canvas2d-canvas (canvas-2d-context-unwrap ctx))))
+  (canvas-result-wrap/checked 'canvas-2d-canvas
+                              "CanvasRenderingContext2D.canvas"
+                              "HTMLCanvasElement-like"
+                              (js-canvas2d-canvas (canvas-2d-context-unwrap ctx))
+                              canvas-wrap
+                              html-canvas-element/surface?
+                              #f))
 
 ;; canvas-2d-direction : (or/c canvas-rendering-context-2d? external?) -> string?
 ;;   Read the canvas direction.
@@ -757,7 +816,13 @@
 ;; canvas-2d-measure-text : (or/c canvas-rendering-context-2d? external?) string? -> external/raw
 ;;   Measure text width and metrics.
 (define (canvas-2d-measure-text ctx text)
-  (canvas-text-metrics-wrap (js-canvas2d-measure-text (canvas-2d-context-unwrap ctx) text)))
+  (canvas-result-wrap/checked 'canvas-2d-measure-text
+                              "CanvasRenderingContext2D.measureText"
+                              "TextMetrics-like"
+                              (js-canvas2d-measure-text (canvas-2d-context-unwrap ctx) text)
+                              canvas-text-metrics-wrap
+                              text-metrics/surface?
+                              #f))
 
 ;; canvas-image-data-width : image-data? -> exact-nonnegative-integer?
 ;;   Read the width of an image buffer.
@@ -772,7 +837,11 @@
 ;; canvas-image-data-data : image-data? -> bytes?
 ;;   Read the pixel bytes of an image buffer.
 (define (canvas-image-data-data data)
-  (canvas-js-array->bytes (js-canvas-image-data-data (image-data-raw data))))
+  (canvas-js-array->bytes
+   (canvas-check-array-like-result
+    'canvas-image-data-data
+    "ImageData.data"
+    (js-canvas-image-data-data (image-data-raw data)))))
 
 ;; canvas-text-metrics-width : text-metrics? -> real?
 ;;   Read the measured text width.
@@ -1144,19 +1213,31 @@
 ;; canvas-2d-create-image-data : (or/c canvas-rendering-context-2d? external?) exact-nonnegative-integer? exact-nonnegative-integer? -> image-data?
 ;;   Create a new blank image buffer.
 (define (canvas-2d-create-image-data ctx width height)
-  (canvas-image-data-wrap
+  (canvas-result-wrap/checked
+   'canvas-2d-create-image-data
+   "CanvasRenderingContext2D.createImageData"
+   "ImageData-like"
    (js-canvas2d-create-image-data (canvas-2d-context-unwrap ctx)
                                   (canvas-real->flonum 'canvas-2d-create-image-data width)
-                                  (canvas-real->flonum 'canvas-2d-create-image-data height))))
+                                  (canvas-real->flonum 'canvas-2d-create-image-data height))
+   canvas-image-data-wrap
+   image-data/surface?
+   #f))
 
 ;; canvas-2d-create-image-data-from : (or/c canvas-rendering-context-2d? external?) (or/c image-data? external?) -> image-data?
 ;;   Copy an image buffer.
 (define (canvas-2d-create-image-data-from ctx data)
-  (canvas-image-data-wrap
+  (canvas-result-wrap/checked
+   'canvas-2d-create-image-data-from
+   "CanvasRenderingContext2D.createImageData"
+   "ImageData-like"
    (js-canvas2d-create-image-data-from (canvas-2d-context-unwrap ctx)
-                                       (canvas-image-data-unwrap/checked
-                                        'canvas-2d-create-image-data-from
-                                        data))))
+                                        (canvas-image-data-unwrap/checked
+                                         'canvas-2d-create-image-data-from
+                                         data))
+   canvas-image-data-wrap
+   image-data/surface?
+   #f))
 
 ;; canvas-2d-create-pattern : (or/c canvas-rendering-context-2d? external?) any/c (or/c string? symbol?) -> (or/c #f canvas-pattern?)
 ;;   Create a pattern from an image or canvas source.
@@ -1166,16 +1247,28 @@
                                                'canvas-2d-create-pattern
                                                source)
                                               (canvas-stringish->string 'canvas-2d-create-pattern repetition)))
-  (and pattern (canvas-pattern-wrap pattern)))
+  (canvas-result-wrap/checked 'canvas-2d-create-pattern
+                              "CanvasRenderingContext2D.createPattern"
+                              "CanvasPattern-like"
+                              pattern
+                              canvas-pattern-wrap
+                              canvas-pattern/surface?
+                              #t))
 
 ;; canvas-2d-create-conic-gradient : (or/c canvas-rendering-context-2d? external?) real? real? real? -> canvas-gradient?
 ;;   Create a conic gradient.
 (define (canvas-2d-create-conic-gradient ctx angle x y)
-  (canvas-gradient-wrap
+  (canvas-result-wrap/checked
+   'canvas-2d-create-conic-gradient
+   "CanvasRenderingContext2D.createConicGradient"
+   "CanvasGradient-like"
    (js-canvas2d-create-conic-gradient (canvas-2d-context-unwrap ctx)
                                       (canvas-real->flonum 'canvas-2d-create-conic-gradient angle)
                                       (canvas-real->flonum 'canvas-2d-create-conic-gradient x)
-                                      (canvas-real->flonum 'canvas-2d-create-conic-gradient y))))
+                                      (canvas-real->flonum 'canvas-2d-create-conic-gradient y))
+   canvas-gradient-wrap
+   canvas-gradient/surface?
+   #f))
 
 ;; canvas-2d-draw-focus-if-needed! : (or/c canvas-rendering-context-2d? external?) any/c -> void?
 ;;   Draw a focus ring when needed.
@@ -1235,23 +1328,39 @@
 ;; canvas-2d-get-image-data : (or/c canvas-rendering-context-2d? external?) real? real? real? real? [any/c #f] -> image-data?
 ;;   Read pixels from the canvas.
 (define (canvas-2d-get-image-data ctx sx sy sw sh [settings #f])
-  (canvas-image-data-wrap
+  (canvas-result-wrap/checked
+   'canvas-2d-get-image-data
+   "CanvasRenderingContext2D.getImageData"
+   "ImageData-like"
    (js-canvas2d-get-image-data (canvas-2d-context-unwrap ctx)
                                (canvas-real->flonum 'canvas-2d-get-image-data sx)
                                (canvas-real->flonum 'canvas-2d-get-image-data sy)
                                (canvas-real->flonum 'canvas-2d-get-image-data sw)
                                (canvas-real->flonum 'canvas-2d-get-image-data sh)
-                               (canvas-resolve-optional settings))))
+                               (canvas-resolve-optional settings))
+   canvas-image-data-wrap
+   image-data/surface?
+   #f))
 
 ;; canvas-2d-get-line-dash : (or/c canvas-rendering-context-2d? external?) -> vector?
 ;;   Read the current dash pattern.
 (define (canvas-2d-get-line-dash ctx)
-  (array->vector (js-canvas2d-get-line-dash (canvas-2d-context-unwrap ctx))))
+  (array->vector
+   (canvas-check-array-like-result
+    'canvas-2d-get-line-dash
+    "CanvasRenderingContext2D.getLineDash"
+    (js-canvas2d-get-line-dash (canvas-2d-context-unwrap ctx)))))
 
 ;; canvas-2d-get-transform : (or/c canvas-rendering-context-2d? external?) -> dom-matrix?
 ;;   Read the current transform matrix.
 (define (canvas-2d-get-transform ctx)
-  (canvas-dom-matrix-wrap (js-canvas2d-get-transform (canvas-2d-context-unwrap ctx))))
+  (canvas-result-wrap/checked 'canvas-2d-get-transform
+                              "CanvasRenderingContext2D.getTransform"
+                              "DOMMatrix-like"
+                              (js-canvas2d-get-transform (canvas-2d-context-unwrap ctx))
+                              canvas-dom-matrix-wrap
+                              dom-matrix/surface?
+                              #f))
 
 ;; canvas-2d-is-point-in-path : (or/c canvas-rendering-context-2d? external?) [any/c #f] real? real? [any/c #f] -> boolean?
 ;;   Check whether a point lies within the path.
@@ -1377,29 +1486,43 @@
 ;; canvas-2d-create-linear-gradient : (or/c canvas-rendering-context-2d? external?) real? real? real? real? -> canvas-gradient?
 ;;   Create a linear gradient.
 (define (canvas-2d-create-linear-gradient ctx x0 y0 x1 y1)
-  (canvas-gradient-wrap
+  (canvas-result-wrap/checked
+   'canvas-2d-create-linear-gradient
+   "CanvasRenderingContext2D.createLinearGradient"
+   "CanvasGradient-like"
    (js-canvas2d-create-linear-gradient (canvas-2d-context-unwrap ctx)
                                        (canvas-real->flonum 'canvas-2d-create-linear-gradient x0)
                                        (canvas-real->flonum 'canvas-2d-create-linear-gradient y0)
                                        (canvas-real->flonum 'canvas-2d-create-linear-gradient x1)
-                                       (canvas-real->flonum 'canvas-2d-create-linear-gradient y1))))
+                                       (canvas-real->flonum 'canvas-2d-create-linear-gradient y1))
+   canvas-gradient-wrap
+   canvas-gradient/surface?
+   #f))
 
 ;; canvas-2d-create-radial-gradient : (or/c canvas-rendering-context-2d? external?) real? real? real? real? real? real? -> canvas-gradient?
 ;;   Create a radial gradient.
 (define (canvas-2d-create-radial-gradient ctx x0 y0 r0 x1 y1 r1)
-  (canvas-gradient-wrap
+  (canvas-result-wrap/checked
+   'canvas-2d-create-radial-gradient
+   "CanvasRenderingContext2D.createRadialGradient"
+   "CanvasGradient-like"
    (js-canvas2d-create-radial-gradient (canvas-2d-context-unwrap ctx)
                                        (canvas-real->flonum 'canvas-2d-create-radial-gradient x0)
                                        (canvas-real->flonum 'canvas-2d-create-radial-gradient y0)
                                        (canvas-real->flonum 'canvas-2d-create-radial-gradient r0)
                                        (canvas-real->flonum 'canvas-2d-create-radial-gradient x1)
                                        (canvas-real->flonum 'canvas-2d-create-radial-gradient y1)
-                                       (canvas-real->flonum 'canvas-2d-create-radial-gradient r1))))
+                                       (canvas-real->flonum 'canvas-2d-create-radial-gradient r1))
+   canvas-gradient-wrap
+   canvas-gradient/surface?
+   #f))
 
 ;; canvas-2d-fill-style : (or/c canvas-rendering-context-2d? external?) -> any/c
 ;;   Read the fill style.
 (define (canvas-2d-fill-style ctx)
-  (canvas-paint-style-wrap (js-canvas2d-fill-style (canvas-2d-context-unwrap ctx))))
+  (canvas-paint-style-wrap-result 'canvas-2d-fill-style
+                                  "CanvasRenderingContext2D.fillStyle"
+                                  (js-canvas2d-fill-style (canvas-2d-context-unwrap ctx))))
 
 ;; canvas-2d-set-fill-style! : (or/c canvas-rendering-context-2d? external?) any/c -> void?
 ;;   Set the fill style.
@@ -1413,7 +1536,9 @@
 ;; canvas-2d-stroke-style : (or/c canvas-rendering-context-2d? external?) -> any/c
 ;;   Read the stroke style.
 (define (canvas-2d-stroke-style ctx)
-  (canvas-paint-style-wrap (js-canvas2d-stroke-style (canvas-2d-context-unwrap ctx))))
+  (canvas-paint-style-wrap-result 'canvas-2d-stroke-style
+                                  "CanvasRenderingContext2D.strokeStyle"
+                                  (js-canvas2d-stroke-style (canvas-2d-context-unwrap ctx))))
 
 ;; canvas-2d-set-stroke-style! : (or/c canvas-rendering-context-2d? external?) any/c -> void?
 ;;   Set the stroke style.

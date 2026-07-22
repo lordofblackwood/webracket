@@ -43,6 +43,7 @@
         this.decoding = 'auto';
         this.loading = 'eager';
         this.crossOrigin = 'anonymous';
+        this.currentSrc = '';
         this.complete = 0;
       }
     };

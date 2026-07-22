@@ -74,6 +74,16 @@
   globalThis.__wrCompressionBoundaryInstallNonConstructor = (kind) => {
     globalThis[kind] = () => {};
   };
+  globalThis.__wrCompressionBoundaryInstallBadConstructorResult = (kind, missing) => {
+    globalThis[kind] = class {
+      constructor(format) {
+        this.format = format;
+        this.readable = {kind: 'bad-readable'};
+        this.writable = {kind: 'bad-writable'};
+        delete this[missing];
+      }
+    };
+  };
   globalThis.__wrCompressionBoundaryRestoreConstructor = (kind) => {
     const saved = globalThis.__wrCompressionBoundarySaved[kind];
     if (saved === undefined) {
@@ -90,6 +100,7 @@
     delete globalThis.__wrCompressionBoundaryInstall;
     delete globalThis.__wrCompressionBoundaryFakeStream;
     delete globalThis.__wrCompressionBoundaryInstallNonConstructor;
+    delete globalThis.__wrCompressionBoundaryInstallBadConstructorResult;
     delete globalThis.__wrCompressionBoundaryRestoreConstructor;
     delete globalThis.__wrCompressionBoundaryRestore;
   };")
@@ -97,6 +108,18 @@
 (define (non-constructor-stream-message kind thunk)
   (js-eval (string-append "__wrCompressionBoundaryInstallNonConstructor('"
                           kind
+                          "')"))
+  (define message (catch-message thunk))
+  (js-eval (string-append "__wrCompressionBoundaryRestoreConstructor('"
+                          kind
+                          "')"))
+  message)
+
+(define (bad-constructor-result-message kind missing thunk)
+  (js-eval (string-append "__wrCompressionBoundaryInstallBadConstructorResult('"
+                          kind
+                          "', '"
+                          missing
                           "')"))
   (define message (catch-message thunk))
   (js-eval (string-append "__wrCompressionBoundaryRestoreConstructor('"
@@ -164,6 +187,13 @@
    (lambda ()
      (make-compression-stream 'gzip))))
 
+(define compression-constructor-result-message
+  (bad-constructor-result-message
+   "CompressionStream"
+   "readable"
+   (lambda ()
+     (make-compression-stream 'gzip))))
+
 (define decompression-message
   (missing-pipe-through-message
    (lambda ()
@@ -176,6 +206,13 @@
 (define decompression-constructor-message
   (non-constructor-stream-message
    "DecompressionStream"
+   (lambda ()
+     (make-decompression-stream 'gzip))))
+
+(define decompression-constructor-result-message
+  (bad-constructor-result-message
+   "DecompressionStream"
+   "writable"
    (lambda ()
      (make-decompression-stream 'gzip))))
 
@@ -239,12 +276,18 @@
 (check-message compression-constructor-message
                "CompressionStream is not available"
                "non-constructible CompressionStream message")
+(check-message compression-constructor-result-message
+               "CompressionStream constructor result must be CompressionStream-like"
+               "bad CompressionStream constructor result message")
 (check-message decompression-message
                "ReadableStream.pipeThrough is not available"
                "missing decompression ReadableStream.pipeThrough message")
 (check-message decompression-constructor-message
                "DecompressionStream is not available"
                "non-constructible DecompressionStream message")
+(check-message decompression-constructor-result-message
+               "DecompressionStream constructor result must be DecompressionStream-like"
+               "bad DecompressionStream constructor result message")
 (check-message compression-readable-message
                "CompressionStream.readable is not available"
                "missing CompressionStream.readable message")

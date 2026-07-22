@@ -57,12 +57,16 @@
 (define undefined-text-metrics (canvas-text-metrics-wrap js-undefined))
 (define undefined-matrix (canvas-dom-matrix-wrap js-undefined))
 (define undefined-offscreen-canvas (offscreen-canvas-wrap js-undefined))
-(define non-callable-gradient-style
-  (canvas-2d-fill-style
-   (canvas-2d-context-wrap (js-eval "({fillStyle: {addColorStop: 1}})"))))
-(define non-callable-pattern-style
-  (canvas-2d-stroke-style
-   (canvas-2d-context-wrap (js-eval "({strokeStyle: {setTransform: 1}})"))))
+(define non-callable-gradient-style-message
+  (catch-message
+   (lambda ()
+     (canvas-2d-fill-style
+      (canvas-2d-context-wrap (js-eval "({fillStyle: {addColorStop: 1}})"))))))
+(define non-callable-pattern-style-message
+  (catch-message
+   (lambda ()
+     (canvas-2d-stroke-style
+      (canvas-2d-context-wrap (js-eval "({strokeStyle: {setTransform: 1}})"))))))
 (define valid-pattern
   (canvas-pattern-wrap (js-eval "({setTransform: function (matrix) { this.matrix = matrix; }})")))
 (define forged-null-source (html-canvas-element js-null))
@@ -161,6 +165,42 @@
   (offscreen-canvas-wrap
    (js-eval "({ width: 320 })")))
 
+(define bad-context-result-canvas
+  (canvas-wrap
+   (js-eval
+    "({ width: 320,
+        height: 200,
+        getContext(_kind) { return {}; },
+        toDataURL() { return 'data:'; },
+        toBlob(callback) { callback(null); } })")))
+(define bad-offscreen-result-canvas
+  (canvas-wrap
+   (js-eval
+    "({ width: 320,
+        height: 200,
+        getContext(_kind) { return null; },
+        toDataURL() { return 'data:'; },
+        toBlob(callback) { callback(null); },
+        transferControlToOffscreen() { return { width: 320 }; } })")))
+(define bad-result-ctx
+  (canvas-2d-context-wrap
+   (js-eval
+    "({ canvas: { width: 320 },
+        createImageData() { return {}; },
+        createPattern() { return {}; },
+        createConicGradient() { return {}; },
+        getImageData() { return {}; },
+        getLineDash() { return 17; },
+        getTransform() { return {}; },
+        measureText() { return {}; },
+        createLinearGradient() { return {}; },
+        createRadialGradient() { return {}; },
+        fillStyle: { addColorStop: 1 },
+        strokeStyle: { setTransform: 1 } })")))
+(define bad-array-image-data
+  (canvas-image-data-wrap
+   (js-eval "({ width: 1, height: 1, data: 17 })")))
+
 (define fill-message
   (catch-message
    (lambda ()
@@ -200,6 +240,76 @@
   (catch-message
    (lambda ()
      (canvas-2d-create-radial-gradient ctx 0 0 1 1 1 2))))
+
+(define get-context-result-message
+  (catch-message
+   (lambda ()
+     (canvas-get-context bad-context-result-canvas "2d"))))
+
+(define transfer-control-result-message
+  (catch-message
+   (lambda ()
+     (canvas-transfer-control-to-offscreen bad-offscreen-result-canvas))))
+
+(define context-canvas-result-message
+  (catch-message
+   (lambda ()
+     (canvas-2d-canvas bad-result-ctx))))
+
+(define create-image-data-result-message
+  (catch-message
+   (lambda ()
+     (canvas-2d-create-image-data bad-result-ctx 1 1))))
+
+(define create-image-data-from-result-message
+  (catch-message
+   (lambda ()
+     (canvas-2d-create-image-data-from bad-result-ctx complete-image-data))))
+
+(define pattern-result-message
+  (catch-message
+   (lambda ()
+     (canvas-2d-create-pattern bad-result-ctx complete-canvas 'repeat))))
+
+(define conic-gradient-result-message
+  (catch-message
+   (lambda ()
+     (canvas-2d-create-conic-gradient bad-result-ctx 0 0 0))))
+
+(define get-image-data-result-message
+  (catch-message
+   (lambda ()
+     (canvas-2d-get-image-data bad-result-ctx 0 0 1 1))))
+
+(define get-line-dash-result-message
+  (catch-message
+   (lambda ()
+     (canvas-2d-get-line-dash bad-result-ctx))))
+
+(define get-transform-result-message
+  (catch-message
+   (lambda ()
+     (canvas-2d-get-transform bad-result-ctx))))
+
+(define measure-text-result-message
+  (catch-message
+   (lambda ()
+     (canvas-2d-measure-text bad-result-ctx "x"))))
+
+(define linear-gradient-result-message
+  (catch-message
+   (lambda ()
+     (canvas-2d-create-linear-gradient bad-result-ctx 0 0 1 1))))
+
+(define radial-gradient-result-message
+  (catch-message
+   (lambda ()
+     (canvas-2d-create-radial-gradient bad-result-ctx 0 0 1 1 1 2))))
+
+(define image-data-data-result-message
+  (catch-message
+   (lambda ()
+     (canvas-image-data-data bad-array-image-data))))
 
 (define gradient-add-color-stop-message
   (catch-message
@@ -620,16 +730,60 @@
 (check-message radial-gradient-message
                "CanvasRenderingContext2D.createRadialGradient not available in this environment"
                "missing createRadialGradient message")
+(check-message get-context-result-message
+               "canvas.getContext result must be CanvasRenderingContext2D-like"
+               "bad getContext result message")
+(check-message transfer-control-result-message
+               "canvas.transferControlToOffscreen result must be OffscreenCanvas-like"
+               "bad transferControlToOffscreen result message")
+(check-message context-canvas-result-message
+               "CanvasRenderingContext2D.canvas result must be HTMLCanvasElement-like"
+               "bad context canvas result message")
+(check-message create-image-data-result-message
+               "CanvasRenderingContext2D.createImageData result must be ImageData-like"
+               "bad createImageData result message")
+(check-message create-image-data-from-result-message
+               "CanvasRenderingContext2D.createImageData result must be ImageData-like"
+               "bad createImageData copy result message")
+(check-message pattern-result-message
+               "CanvasRenderingContext2D.createPattern result must be CanvasPattern-like"
+               "bad createPattern result message")
+(check-message conic-gradient-result-message
+               "CanvasRenderingContext2D.createConicGradient result must be CanvasGradient-like"
+               "bad createConicGradient result message")
+(check-message get-image-data-result-message
+               "CanvasRenderingContext2D.getImageData result must be ImageData-like"
+               "bad getImageData result message")
+(check-message get-line-dash-result-message
+               "CanvasRenderingContext2D.getLineDash result must be array-like"
+               "bad getLineDash result message")
+(check-message get-transform-result-message
+               "CanvasRenderingContext2D.getTransform result must be DOMMatrix-like"
+               "bad getTransform result message")
+(check-message measure-text-result-message
+               "CanvasRenderingContext2D.measureText result must be TextMetrics-like"
+               "bad measureText result message")
+(check-message linear-gradient-result-message
+               "CanvasRenderingContext2D.createLinearGradient result must be CanvasGradient-like"
+               "bad createLinearGradient result message")
+(check-message radial-gradient-result-message
+               "CanvasRenderingContext2D.createRadialGradient result must be CanvasGradient-like"
+               "bad createRadialGradient result message")
+(check-message image-data-data-result-message
+               "ImageData.data result must be array-like"
+               "bad ImageData.data result message")
 (check-message gradient-add-color-stop-message
                "CanvasGradient.addColorStop not available in this environment"
                "missing addColorStop message")
 (check-message pattern-set-transform-message
                "CanvasPattern.setTransform not available in this environment"
                "missing setTransform message")
-(check-false (canvas-gradient? non-callable-gradient-style)
-             "non-callable addColorStop is not a gradient")
-(check-false (canvas-pattern? non-callable-pattern-style)
-             "non-callable setTransform is not a pattern")
+(check-message non-callable-gradient-style-message
+               "CanvasRenderingContext2D.fillStyle result must be a string, CanvasGradient-like, or CanvasPattern-like"
+               "bad fillStyle result message")
+(check-message non-callable-pattern-style-message
+               "CanvasRenderingContext2D.strokeStyle result must be a string, CanvasGradient-like, or CanvasPattern-like"
+               "bad strokeStyle result message")
 (check-true (html-canvas-element? complete-canvas)
             "complete canvas predicate")
 (check-false (html-canvas-element? incomplete-canvas)

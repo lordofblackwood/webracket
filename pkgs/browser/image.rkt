@@ -47,11 +47,27 @@
       (void)
       value))
 
+;; image-check-constructor-result : external/raw -> external/raw
+;;   Validate that Image construction returned a usable HTMLImageElement value.
+(define (image-check-constructor-result raw)
+  (with-handlers ([exn:fail?
+                   (lambda (_exn)
+                     (raise-arguments-error 'image-new
+                                            "Image constructor result must be HTMLImageElement-like"))])
+    (js-image-alt raw)
+    (js-image-src raw)
+    (js-image-width raw)
+    (js-image-height raw)
+    (js-image-complete raw)
+    (js-image-current-src raw)
+    raw))
+
 ;; image-new : [any/c #f] [any/c #f] -> external/raw
 ;;   Create a new image element.
 (define (image-new [width #f] [height #f])
-  (js-image-new (image-resolve-optional width)
-                (image-resolve-optional height)))
+  (image-check-constructor-result
+   (js-image-new (image-resolve-optional width)
+                 (image-resolve-optional height))))
 
 ;; image-alt : external? -> string?
 ;;   Read the alt text.
