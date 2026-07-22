@@ -102,6 +102,45 @@
   (define message (catch-message thunk))
   message)
 
+(define (fake-websocket missing)
+  (js-eval (string-append "__wrWebSocketBoundaryInstall('"
+                          missing
+                          "')"))
+  (websocket-new "wss://example.invalid/socket"))
+
+(check-true (websocket? (fake-websocket "none"))
+            "websocket? accepts complete fake WebSocket")
+(check-true (not (websocket? null-raw-websocket))
+            "websocket? rejects null raw")
+(check-true (not (websocket? undefined-raw-websocket))
+            "websocket? rejects undefined raw")
+(check-true (not (websocket? (fake-websocket "send")))
+            "websocket? rejects missing send")
+(check-true (not (websocket? (fake-websocket "close")))
+            "websocket? rejects missing close")
+(check-true (not (websocket? (fake-websocket "addEventListener")))
+            "websocket? rejects missing addEventListener")
+(check-true (not (websocket? (fake-websocket "removeEventListener")))
+            "websocket? rejects missing removeEventListener")
+(check-true (not (websocket? (fake-websocket "url")))
+            "websocket? rejects missing url")
+(check-true (not (websocket? (fake-websocket "readyState")))
+            "websocket? rejects missing readyState")
+(check-true (not (websocket? (fake-websocket "bufferedAmount")))
+            "websocket? rejects missing bufferedAmount")
+(check-true (not (websocket? (fake-websocket "protocol")))
+            "websocket? rejects missing protocol")
+(check-true (not (websocket? (fake-websocket "extensions")))
+            "websocket? rejects missing extensions")
+(check-true (not (websocket? (fake-websocket "onopen")))
+            "websocket? rejects missing onopen")
+(check-true (not (websocket? (fake-websocket "onmessage")))
+            "websocket? rejects missing onmessage")
+(check-true (not (websocket? (fake-websocket "onclose")))
+            "websocket? rejects missing onclose")
+(check-true (not (websocket? (fake-websocket "onerror")))
+            "websocket? rejects missing onerror")
+
 (define add-listener-message
   (missing-method-message
    "addEventListener"

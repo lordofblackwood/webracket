@@ -8,6 +8,9 @@
                   procedure->external))
 
 (provide (except-out (all-defined-out)
+                     websocket-info
+                     websocket-info?
+                     websocket-info-raw
                      procedure->external-cache
                      procedure->stable-external))
 
@@ -25,9 +28,19 @@
 ;; validated `websocket-*` helpers for browser-side code loaded via
 ;; `include-lib`.
 
+;; websocket-info : external/raw -> websocket-info?
+;;   Internal wrapper for a browser WebSocket object.
+(struct websocket-info (raw) #:transparent)
+
 ;; websocket : external/raw -> websocket?
 ;;   Wrap a browser WebSocket object.
-(struct websocket (raw) #:transparent)
+(define (websocket raw)
+  (websocket-info raw))
+
+;; websocket-raw : websocket? -> external/raw
+;;   Extract the raw browser WebSocket object.
+(define (websocket-raw ws)
+  (websocket-info-raw ws))
 
 ;; websocket-unwrap : websocket? -> external/raw
 ;;   Extract the raw browser WebSocket object.
@@ -52,8 +65,7 @@
 ;; check-websocket : symbol? any/c -> void?
 ;;   Ensure x is a wrapped WebSocket value.
 (define (check-websocket who x)
-  (unless (and (websocket? x)
-               (websocket-raw-host-value? (websocket-unwrap x)))
+  (unless (websocket-host-value? x)
     (raise-argument-error who "websocket?" x)))
 
 ;; check-websocket-handler : symbol? any/c -> void?
@@ -180,6 +192,43 @@
 (define (websocket-nullable-property-present? raw property-name)
   (and (websocket-raw-host-value? raw)
        (not (js-undefined? (js-ref/extern raw property-name)))))
+
+;; websocket-property-present? : external/raw string? -> boolean?
+;;   Report whether raw exposes a non-nullish property.
+(define (websocket-property-present? raw property-name)
+  (and (websocket-raw-host-value? raw)
+       (not (js-nullish? (js-ref/extern raw property-name)))))
+
+;; websocket-core-surface-present? : external/raw -> boolean?
+;;   Report whether raw has the required WebSocket surface.
+(define (websocket-core-surface-present? raw)
+  (and (websocket-method-present? raw "send")
+       (websocket-method-present? raw "close")
+       (websocket-method-present? raw "addEventListener")
+       (websocket-method-present? raw "removeEventListener")
+       (websocket-property-present? raw "url")
+       (websocket-property-present? raw "readyState")
+       (websocket-property-present? raw "bufferedAmount")
+       (websocket-property-present? raw "protocol")
+       (websocket-property-present? raw "extensions")
+       (websocket-nullable-property-present? raw "onopen")
+       (websocket-nullable-property-present? raw "onmessage")
+       (websocket-nullable-property-present? raw "onclose")
+       (websocket-nullable-property-present? raw "onerror")))
+
+;; websocket-host-value? : any/c -> boolean?
+;;   Report whether x wraps an external WebSocket-like host value.
+(define (websocket-host-value? x)
+  (and (websocket-info? x)
+       (websocket-raw-host-value? (websocket-unwrap x))))
+
+;; websocket? : any/c -> boolean?
+;;   Report whether x is a wrapped browser WebSocket object.
+(define (websocket? x)
+  (and (websocket-host-value? x)
+       (websocket-constructor-present?)
+       (js-instanceof (websocket-unwrap x) (js-var "WebSocket"))
+       (websocket-core-surface-present? (websocket-unwrap x))))
 
 ;; check-websocket-method : symbol? websocket? string? -> void?
 ;;   Ensure a required WebSocket method is available.
