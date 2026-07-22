@@ -186,6 +186,12 @@ const hostSymbolKeyFor = hostSymbol && typeof hostSymbol.keyFor === 'function'
   ? hostSymbol.keyFor.bind(hostSymbol)
   : null;
 const hostSymbolToPrimitive = hostSymbol && hostSymbol.toPrimitive;
+const hostArrayFromForFasl = typeof hostArray.from === 'function'
+  ? hostArray.from.bind(hostArray)
+  : null;
+const hostArrayIsArrayForFasl = typeof hostArray.isArray === 'function'
+  ? hostArray.isArray.bind(hostArray)
+  : null;
 const hostStringFromCodePointForFasl = typeof String.fromCodePoint === 'function'
   ? String.fromCodePoint.bind(String)
   : null;
@@ -201,6 +207,9 @@ if (!hostWebAssembly ||
 }
 if (!hostSymbol || !hostSymbolFor || !hostSymbolKeyFor || !hostSymbolToPrimitive) {
   throw new Error('WebRacket requires JavaScript Symbol registry support.');
+}
+if (!hostArrayFromForFasl || !hostArrayIsArrayForFasl) {
+  throw new Error('WebRacket requires Array.from/isArray.');
 }
 if (!hostStringFromCodePointForFasl) {
   throw new Error('WebRacket requires String.fromCodePoint.');
@@ -1058,7 +1067,7 @@ function vfsPreloadBytes(entry) {
   if (ArrayBuffer.isView(entry)) {
     return new hostUint8Array(new hostUint8Array(entry.buffer, entry.byteOffset, entry.byteLength));
   }
-  if (hostArray.isArray(entry)) return hostUint8ArrayFrom(entry);
+  if (hostArrayIsArrayForFasl(entry)) return hostUint8ArrayFrom(entry);
   if (typeof entry === 'string') return new TextEncoder().encode(entry);
   if (entry && typeof entry === 'object') {
     if ('bytes' in entry) return vfsPreloadBytes(entry.bytes);
@@ -1141,9 +1150,9 @@ async function vfsPreloadTarBytesAsync(entry) {
 
 function vfsMountPairs(entries) {
   if (!entries) return [];
-  if (hostArray.isArray(entries)) {
+  if (hostArrayIsArrayForFasl(entries)) {
     return entries.map((entry) => {
-      if (hostArray.isArray(entry) && entry.length >= 2) return [entry[0], entry[1]];
+      if (hostArrayIsArrayForFasl(entry) && entry.length >= 2) return [entry[0], entry[1]];
       if (entry && typeof entry === 'object' && 'path' in entry) return [entry.path, entry];
       throw new Error('WebRacket VFS mount array entries need a path');
     });
@@ -1188,9 +1197,9 @@ function hostJoinPath(base, name) {
 function vfsPreloadPairs(entries) {
   let pairs;
   if (!entries) return [];
-  if (hostArray.isArray(entries)) {
+  if (hostArrayIsArrayForFasl(entries)) {
     pairs = entries.map((entry) => {
-      if (hostArray.isArray(entry) && entry.length >= 2) return [entry[0], entry[1]];
+      if (hostArrayIsArrayForFasl(entry) && entry.length >= 2) return [entry[0], entry[1]];
       if (entry && typeof entry === 'object' && 'path' in entry) return [entry.path, entry];
       throw new Error('WebRacket VFS preload array entries need a path');
     });
@@ -1537,7 +1546,7 @@ function js_value_to_fasl(v) {
     //   return;
     // }
     // Vector: plain JS Array (distinct from bytes above)
-    if (hostArray.isArray(x)) {
+    if (hostArrayIsArrayForFasl(x)) {
       writeVector(x);
       return;
     }
@@ -1965,7 +1974,7 @@ function testsuite(js_value_to_fasl, fasl_to_js_value, { log = true } = {}) {
       return deepEq(a.car, b.car) && deepEq(a.cdr, b.cdr);
     }
     // Arrays (vectors)
-    if (hostArray.isArray(a) && hostArray.isArray(b)) {
+    if (hostArrayIsArrayForFasl(a) && hostArrayIsArrayForFasl(b)) {
       if (a.length !== b.length) return false;
       for (let i = 0; i < a.length; i++) if (!deepEq(a[i], b[i])) return false;
       return true;
@@ -2177,7 +2186,7 @@ export function make_callback(id) {
             );
         }
         try {
-            const fasl = js_value_to_fasl(hostArray.from(args));
+            const fasl = js_value_to_fasl(hostArrayFromForFasl(args));
             if (fasl.length > CALLBACK_BUFFER_LENGTH) {
                 throw new RangeError('WebRacket callback argument FASL exceeds callback buffer');
             }
@@ -2278,7 +2287,7 @@ function wr_invoke_fasl(exported, payload) {
 
 // Decode the tagged bridge result vector into a JavaScript object.
 function wr_decode_result(raw, operation, name, args) {
-  if (!hostArray.isArray(raw) || raw.length < 5) {
+  if (!hostArrayIsArrayForFasl(raw) || raw.length < 5) {
     return {
       ok: false,
       kind: 'invalid-bridge-result',
@@ -2323,12 +2332,12 @@ function wr_format_value(exported, value) {
 
 // Normalize detailed binding metadata returned by the Wasm bridge.
 function wr_decode_names_detailed(raw) {
-  if (!hostArray.isArray(raw)) {
+  if (!hostArrayIsArrayForFasl(raw)) {
     return [];
   }
   return raw
     .map((entry) => {
-      if (!hostArray.isArray(entry) || entry.length < 5) {
+      if (!hostArrayIsArrayForFasl(entry) || entry.length < 5) {
         return {
           name: String(entry),
           origin: 'unknown',
@@ -2422,7 +2431,7 @@ function install_console_bridge(exports) {
   };
   WR.names = () => {
     const names = wr_invoke_fasl(wr_names, null);
-    return hostArray.isArray(names) ? names.slice().sort((a, b) => String(a).localeCompare(String(b))) : [];
+    return hostArrayIsArrayForFasl(names) ? names.slice().sort((a, b) => String(a).localeCompare(String(b))) : [];
   };
   WR.search = (query) => {
     const needle = String(query ?? '').toLocaleLowerCase();
@@ -2608,13 +2617,16 @@ const wasmModule
 	      import fs from 'node:fs/promises';
 	      const hostArray = Array;
 	      const hostUint8Array = Uint8Array;
-	      const hostUint8ArrayFrom = Uint8Array.from.bind(Uint8Array);
+	      const hostUint8ArrayFrom = typeof hostUint8Array.from === 'function'
+	        ? hostUint8Array.from.bind(hostUint8Array)
+	        : null;
 	      const hostUint8ArrayPrototype = hostUint8Array && hostUint8Array.prototype;
 	      const hostUint8ArraySlice = hostUint8ArrayPrototype && hostUint8ArrayPrototype.slice;
 	      const hostUint8ArraySet = hostUint8ArrayPrototype && hostUint8ArrayPrototype.set;
-	      if (typeof hostUint8ArraySlice !== 'function' ||
+	      if (!hostUint8ArrayFrom ||
+	          typeof hostUint8ArraySlice !== 'function' ||
 	          typeof hostUint8ArraySet !== 'function') {
-	          throw new Error('WebRacket requires Uint8Array slice/set.');
+	          throw new Error('WebRacket requires Uint8Array from/slice/set.');
 	      }
 
 	      const wasmBuffer = await fs.readFile("@|out.wasm|");
@@ -2685,13 +2697,16 @@ const wasmModule
 	       console.log('WebRacket browser runtime starting');
 	       const hostArray = Array;
 	       const hostUint8Array = Uint8Array;
-	       const hostUint8ArrayFrom = Uint8Array.from.bind(Uint8Array);
+	       const hostUint8ArrayFrom = typeof hostUint8Array.from === 'function'
+	         ? hostUint8Array.from.bind(hostUint8Array)
+	         : null;
 	       const hostUint8ArrayPrototype = hostUint8Array && hostUint8Array.prototype;
 	       const hostUint8ArraySlice = hostUint8ArrayPrototype && hostUint8ArrayPrototype.slice;
 	       const hostUint8ArraySet = hostUint8ArrayPrototype && hostUint8ArrayPrototype.set;
-	       if (typeof hostUint8ArraySlice !== 'function' ||
+	       if (!hostUint8ArrayFrom ||
+	           typeof hostUint8ArraySlice !== 'function' ||
 	           typeof hostUint8ArraySet !== 'function') {
-	           throw new Error('WebRacket requires Uint8Array slice/set.');
+	           throw new Error('WebRacket requires Uint8Array from/slice/set.');
 	       }
 	       const wasmUrl = "@|out.wasm|";
        const wasmResponse = await fetch(wasmUrl);

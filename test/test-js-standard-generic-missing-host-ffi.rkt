@@ -5,10 +5,12 @@
 (require (only-in webracket/unsafe/standard
                   js-constructible?
                   js-eval
+                  js-global-this
                   js-instanceof
                   js-null
                   js-operator
                   js-ref
+                  js-send
                   js-send/boolean
                   js-send/flonum
                   js-truthy?
@@ -16,6 +18,7 @@
                   js-value->string)
          (only-in webracket/primitives
                   file->bytes
+                  procedure->external
                   webracket-vfs-write-file))
 
 (define (check-true got label)
@@ -378,6 +381,26 @@
                    (not (char-alphabetic? #\1)))
               label))
 
+;; check-callback-array-intrinsics : string? -> void?
+;;   Check callback argument FASL conversion through cached Array intrinsics.
+(define (check-callback-array-intrinsics label)
+  (define callback
+    (procedure->external
+     (lambda (xs marker)
+       (and (vector? xs)
+            (= (vector-length xs) 3)
+            (= (vector-ref xs 0) 1)
+            (= (vector-ref xs 1) 2)
+            (= (vector-ref xs 2) 3)
+            (equal? marker "callback-marker")))))
+  (define result
+    (js-send callback
+             "call"
+             (vector (js-global-this)
+                     (js-eval "[1, 2, 3]")
+                     "callback-marker")))
+  (check-true result label))
+
 (check-hidden-global "String"
                      (lambda () (js-value->string (js-null)))
                      "String not available in this environment"
@@ -457,6 +480,18 @@
                                      (lambda () (check-character-intrinsics
                                                  "characters with hidden Array.from"))
                                      "character helpers survive hidden Array.from")
+
+(check-hidden-static-method/no-error "Array"
+                                     "from"
+                                     (lambda () (check-callback-array-intrinsics
+                                                 "callback with hidden Array.from"))
+                                     "callback bridge survives hidden Array.from")
+
+(check-hidden-static-method/no-error "Array"
+                                     "isArray"
+                                     (lambda () (check-callback-array-intrinsics
+                                                 "callback with hidden Array.isArray"))
+                                     "callback bridge survives hidden Array.isArray")
 
 (for-each
  (lambda (name)
