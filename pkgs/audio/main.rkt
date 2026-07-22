@@ -591,26 +591,45 @@
                 (raise-argument-error who "real?" x)))
             (vector->list v)))
 
+;; audio-typed-array-constructor : symbol? string? any/c -> external?
+;;   Return a browser typed-array constructor with audio-specific context.
+(define (audio-typed-array-constructor who name constructor)
+  (unless (js-constructible? constructor)
+    (raise-arguments-error who
+                           (string-append name
+                                          " not available in this environment")))
+  constructor)
+
+;; audio-float32-array-constructor : symbol? -> external?
+;;   Return the browser Float32Array constructor with audio-specific context.
+(define (audio-float32-array-constructor who)
+  (audio-typed-array-constructor who "Float32Array" (js-Float32Array)))
+
+;; audio-uint8-array-constructor : symbol? -> external?
+;;   Return the browser Uint8Array constructor with audio-specific context.
+(define (audio-uint8-array-constructor who)
+  (audio-typed-array-constructor who "Uint8Array" (js-Uint8Array)))
+
 ;;; -------------------------------------------------------------------
 ;;; Constructors
 ;;; -------------------------------------------------------------------
 
 
-;; audio-vector->js-float32-array : vector? -> external?
+;; audio-vector->js-float32-array : vector? [symbol?] -> external?
 ;;   Convert a Racket vector of reals to a browser Float32Array.
-(define (audio-vector->js-float32-array values)
-  (js-new (js-Float32Array)
+(define (audio-vector->js-float32-array values [who 'audio-vector->js-float32-array])
+  (js-new (audio-float32-array-constructor who)
           (vector (js-array/extern values))))
 
-;; audio-make-js-uint8-array : exact-nonnegative-integer? -> external?
+;; audio-make-js-uint8-array : exact-nonnegative-integer? [symbol?] -> external?
 ;;   Allocate a zero-filled browser Uint8Array of the requested length.
-(define (audio-make-js-uint8-array length)
-  (js-new (js-Uint8Array) (vector length)))
+(define (audio-make-js-uint8-array length [who 'audio-make-js-uint8-array])
+  (js-new (audio-uint8-array-constructor who) (vector length)))
 
-;; audio-make-js-float32-array : exact-nonnegative-integer? -> external?
+;; audio-make-js-float32-array : exact-nonnegative-integer? [symbol?] -> external?
 ;;   Allocate a zero-filled browser Float32Array of the requested length.
-(define (audio-make-js-float32-array length)
-  (js-new (js-Float32Array) (vector length)))
+(define (audio-make-js-float32-array length [who 'audio-make-js-float32-array])
+  (js-new (audio-float32-array-constructor who) (vector length)))
 
 ;; audio-copy-js-array-into-bytes! : symbol? external? bytes? -> void?
 ;;   Copy a browser typed array back into a Racket bytes value.
@@ -883,8 +902,12 @@
   (check-audio-float-vector 'audio-context-create-periodic-wave imag)
   (audio-periodic-wave-wrap
    (js-audio-context-create-periodic-wave ctx
-                                          (audio-vector->js-float32-array real)
-                                          (audio-vector->js-float32-array imag))))
+                                          (audio-vector->js-float32-array
+                                           real
+                                           'audio-context-create-periodic-wave)
+                                          (audio-vector->js-float32-array
+                                           imag
+                                           'audio-context-create-periodic-wave))))
 
 ;; audio-context-decode-audio-data : audio-context? (or/c bytes? external?) -> external?
 ;;   Decode audio data and return the browser Promise.
@@ -997,7 +1020,9 @@
                 (raise-argument-error 'audio-param-set-value-curve-at-time! "real?" x)))
             (list start-time duration))
   (js-audio-param-set-value-curve-at-time! param
-                                           (audio-vector->js-float32-array values)
+                                           (audio-vector->js-float32-array
+                                            values
+                                            'audio-param-set-value-curve-at-time!)
                                            start-time
                                            duration))
 
@@ -1261,7 +1286,8 @@
   (check-audio-byte-buffer 'audio-analyser-node-get-byte-frequency-data! data)
   (define js-data (audio-make-js-uint8-array (if (bytes? data)
                                                  (bytes-length data)
-                                                 (vector-length data))))
+                                                 (vector-length data))
+                                             'audio-analyser-node-get-byte-frequency-data!))
   (js-audio-analyser-node-get-byte-frequency-data! node js-data)
   (cond
     [(bytes? data) (audio-copy-js-array-into-bytes! 'audio-analyser-node-get-byte-frequency-data! js-data data)]
@@ -1274,7 +1300,8 @@
   (check-audio-byte-buffer 'audio-analyser-node-get-byte-time-domain-data! data)
   (define js-data (audio-make-js-uint8-array (if (bytes? data)
                                                  (bytes-length data)
-                                                 (vector-length data))))
+                                                 (vector-length data))
+                                             'audio-analyser-node-get-byte-time-domain-data!))
   (js-audio-analyser-node-get-byte-time-domain-data! node js-data)
   (cond
     [(bytes? data) (audio-copy-js-array-into-bytes! 'audio-analyser-node-get-byte-time-domain-data! js-data data)]
@@ -1285,7 +1312,9 @@
 (define (audio-analyser-node-get-float-frequency-data! node data)
   (check-audio-analyser-node 'audio-analyser-node-get-float-frequency-data! node)
   (check-audio-float-vector 'audio-analyser-node-get-float-frequency-data! data)
-  (define js-data (audio-make-js-float32-array (vector-length data)))
+  (define js-data (audio-make-js-float32-array
+                   (vector-length data)
+                   'audio-analyser-node-get-float-frequency-data!))
   (js-audio-analyser-node-get-float-frequency-data! node js-data)
   (audio-copy-js-array-into-vector! 'audio-analyser-node-get-float-frequency-data! js-data data))
 
@@ -1294,7 +1323,9 @@
 (define (audio-analyser-node-get-float-time-domain-data! node data)
   (check-audio-analyser-node 'audio-analyser-node-get-float-time-domain-data! node)
   (check-audio-float-vector 'audio-analyser-node-get-float-time-domain-data! data)
-  (define js-data (audio-make-js-float32-array (vector-length data)))
+  (define js-data (audio-make-js-float32-array
+                   (vector-length data)
+                   'audio-analyser-node-get-float-time-domain-data!))
   (js-audio-analyser-node-get-float-time-domain-data! node js-data)
   (audio-copy-js-array-into-vector! 'audio-analyser-node-get-float-time-domain-data! js-data data))
 

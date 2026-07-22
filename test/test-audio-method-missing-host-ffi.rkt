@@ -84,7 +84,9 @@
     PannerNode: globalThis.PannerNode,
     StereoPannerNode: globalThis.StereoPannerNode,
     ChannelSplitterNode: globalThis.ChannelSplitterNode,
-    ChannelMergerNode: globalThis.ChannelMergerNode
+    ChannelMergerNode: globalThis.ChannelMergerNode,
+    Float32Array: globalThis.Float32Array,
+    Uint8Array: globalThis.Uint8Array
   };
   globalThis.AudioContext = {};
   globalThis.AudioNode = {};
@@ -123,6 +125,38 @@
              "audio host method check rejects null target")
 (check-false (audio-host-method-present? undefined-raw "connect")
              "audio host method check rejects undefined target")
+
+(js-eval "globalThis.Float32Array = undefined;")
+
+(define missing-float32-array-message
+  (catch-message
+   (lambda ()
+     (audio-vector->js-float32-array #(0.0 1.0)))))
+
+(js-eval "globalThis.Float32Array = (() => false);")
+
+(define non-constructor-float32-array-message
+  (catch-message
+   (lambda ()
+     (audio-make-js-float32-array 2))))
+
+(js-eval
+ "globalThis.Float32Array = globalThis.__wrAudioBoundarySaved.Float32Array;
+  globalThis.Uint8Array = undefined;")
+
+(define missing-uint8-array-message
+  (catch-message
+   (lambda ()
+     (audio-make-js-uint8-array 2))))
+
+(js-eval "globalThis.Uint8Array = (() => false);")
+
+(define non-constructor-uint8-array-message
+  (catch-message
+   (lambda ()
+     (audio-make-js-uint8-array 2))))
+
+(js-eval "globalThis.Uint8Array = globalThis.__wrAudioBoundarySaved.Uint8Array;")
 
 (define null-host-method-message
   (catch-message
@@ -451,6 +485,8 @@
   globalThis.StereoPannerNode = globalThis.__wrAudioBoundarySaved.StereoPannerNode;
   globalThis.ChannelSplitterNode = globalThis.__wrAudioBoundarySaved.ChannelSplitterNode;
   globalThis.ChannelMergerNode = globalThis.__wrAudioBoundarySaved.ChannelMergerNode;
+  globalThis.Float32Array = globalThis.__wrAudioBoundarySaved.Float32Array;
+  globalThis.Uint8Array = globalThis.__wrAudioBoundarySaved.Uint8Array;
   delete globalThis.__wrAudioBoundarySaved;
   delete globalThis.__wrAudioBoundaryPlain;
   delete globalThis.__wrAudioBoundaryNode;")
@@ -470,6 +506,18 @@
 (check-message null-host-method-message
                "AudioNode.connect is not available"
                "missing null audio host method message")
+(check-message missing-float32-array-message
+               "Float32Array not available in this environment"
+               "missing Float32Array constructor message")
+(check-message non-constructor-float32-array-message
+               "Float32Array not available in this environment"
+               "non-constructible Float32Array constructor message")
+(check-message missing-uint8-array-message
+               "Uint8Array not available in this environment"
+               "missing Uint8Array constructor message")
+(check-message non-constructor-uint8-array-message
+               "Uint8Array not available in this environment"
+               "non-constructible Uint8Array constructor message")
 (check-message null-periodic-wave-message
                "audio-periodic-wave?"
                "missing null PeriodicWave wrapper message")
