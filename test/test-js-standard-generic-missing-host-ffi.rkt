@@ -49,6 +49,7 @@
 (js-eval
  "globalThis.__wrStandardGenericBoundarySaved = {};
   globalThis.__wrStandardGenericBoundarySavedPrototypeMethods = {};
+  globalThis.__wrStandardGenericBoundarySavedStaticMethods = {};
   globalThis.__wrStandardGenericBoundaryBoxedBoolean = new Boolean(false);
   globalThis.__wrStandardGenericBoundaryBoxedNumber = new Number(1.5);
   globalThis.__wrStandardGenericBoundaryTarget = {
@@ -114,6 +115,39 @@
     }
     delete globalThis.__wrStandardGenericBoundarySavedPrototypeMethods[key];
   };
+  globalThis.__wrStandardGenericBoundaryHideStaticMethod = (ownerName, methodName) => {
+    const owner = globalThis[ownerName];
+    if (!owner) {
+      return false;
+    }
+    const key = ownerName + '.' + methodName;
+    if (!Object.prototype.hasOwnProperty.call(globalThis.__wrStandardGenericBoundarySavedStaticMethods, key)) {
+      globalThis.__wrStandardGenericBoundarySavedStaticMethods[key] =
+        Object.getOwnPropertyDescriptor(owner, methodName) || null;
+    }
+
+    try {
+      Object.defineProperty(owner, methodName, {
+        value: undefined,
+        configurable: true,
+        writable: true
+      });
+      return true;
+    } catch (_e) {
+      return false;
+    }
+  };
+  globalThis.__wrStandardGenericBoundaryRestoreStaticMethod = (ownerName, methodName) => {
+    const owner = globalThis[ownerName];
+    const key = ownerName + '.' + methodName;
+    const saved = globalThis.__wrStandardGenericBoundarySavedStaticMethods[key];
+    if (owner && saved) {
+      Object.defineProperty(owner, methodName, saved);
+    } else if (owner) {
+      delete owner[methodName];
+    }
+    delete globalThis.__wrStandardGenericBoundarySavedStaticMethods[key];
+  };
   globalThis.__wrStandardGenericBoundaryRestoreAll = () => {
     for (const name of Object.keys(globalThis.__wrStandardGenericBoundarySaved)) {
       globalThis.__wrStandardGenericBoundaryRestore(name);
@@ -122,12 +156,19 @@
       const parts = key.split('.');
       globalThis.__wrStandardGenericBoundaryRestorePrototypeMethod(parts[0], parts[1]);
     }
+    for (const key of Object.keys(globalThis.__wrStandardGenericBoundarySavedStaticMethods)) {
+      const parts = key.split('.');
+      globalThis.__wrStandardGenericBoundaryRestoreStaticMethod(parts[0], parts[1]);
+    }
     delete globalThis.__wrStandardGenericBoundarySaved;
     delete globalThis.__wrStandardGenericBoundarySavedPrototypeMethods;
+    delete globalThis.__wrStandardGenericBoundarySavedStaticMethods;
     delete globalThis.__wrStandardGenericBoundaryHide;
     delete globalThis.__wrStandardGenericBoundaryRestore;
     delete globalThis.__wrStandardGenericBoundaryHidePrototypeMethod;
     delete globalThis.__wrStandardGenericBoundaryRestorePrototypeMethod;
+    delete globalThis.__wrStandardGenericBoundaryHideStaticMethod;
+    delete globalThis.__wrStandardGenericBoundaryRestoreStaticMethod;
     delete globalThis.__wrStandardGenericBoundaryRestoreAll;
     delete globalThis.__wrStandardGenericBoundaryBoxedBoolean;
     delete globalThis.__wrStandardGenericBoundaryBoxedNumber;
@@ -220,6 +261,39 @@
     [else
      (restore-prototype-method! owner-name method-name)]))
 
+;; hidden-static-method? : string? string? -> boolean?
+;;   Hide a host static method when the browser allows it.
+(define (hidden-static-method? owner-name method-name)
+  (js-truthy?
+   (js-eval (string-append "__wrStandardGenericBoundaryHideStaticMethod('"
+                           owner-name
+                           "', '"
+                           method-name
+                           "')"))))
+
+;; restore-static-method! : string? string? -> void?
+;;   Restore a host static method after a boundary check.
+(define (restore-static-method! owner-name method-name)
+  (js-eval (string-append "__wrStandardGenericBoundaryRestoreStaticMethod('"
+                          owner-name
+                          "', '"
+                          method-name
+                          "')"))
+  (void))
+
+;; check-hidden-static-method/no-error : string? string? (-> any/c) string? -> void?
+;;   Check that cached bridge intrinsics survive a later hidden static method.
+(define (check-hidden-static-method/no-error owner-name method-name thunk label)
+  (cond
+    [(hidden-static-method? owner-name method-name)
+     (define message
+       (catch-message/restoring thunk
+                                (lambda ()
+                                  (restore-static-method! owner-name method-name))))
+     (check-true (not message) label)]
+    [else
+     (restore-static-method! owner-name method-name)]))
+
 ;; check-boxed-boolean : string? -> void?
 ;;   Check that the JS bridge unboxes a boxed Boolean through cached intrinsics.
 (define (check-boxed-boolean label)
@@ -241,6 +315,21 @@
 ;;   Check that FASL conversion unboxes a boxed Number through cached intrinsics.
 (define (check-boxed-number-ref label)
   (check-true (= (js-ref boundary-target "boxedNumberValue") 1.5)
+              label))
+
+;; check-character-intrinsics : string? -> void?
+;;   Check character operations that depend on cached JS string/array intrinsics.
+(define (check-character-intrinsics label)
+  (check-true (and (equal? (char-upcase #\a) #\A)
+                   (equal? (char-downcase #\A) #\a)
+                   (equal? (char-titlecase #\a) #\A)
+                   (equal? (char-foldcase #\A) #\a)
+                   (equal? (char-upcase (integer->char #x03BB))
+                           (integer->char #x039B))
+                   (equal? (char-foldcase (integer->char #x03C2))
+                           (integer->char #x03C3))
+                   (char-alphabetic? #\A)
+                   (not (char-alphabetic? #\1)))
               label))
 
 (check-hidden-global "String"
@@ -310,6 +399,18 @@
                                         (lambda () (check-boxed-number-ref
                                                     "boxed Number ref with hidden valueOf"))
                                         "boxed Number FASL conversion survives hidden valueOf")
+
+(check-hidden-static-method/no-error "String"
+                                     "fromCodePoint"
+                                     (lambda () (check-character-intrinsics
+                                                 "characters with hidden String.fromCodePoint"))
+                                     "character helpers survive hidden String.fromCodePoint")
+
+(check-hidden-static-method/no-error "Array"
+                                     "from"
+                                     (lambda () (check-character-intrinsics
+                                                 "characters with hidden Array.from"))
+                                     "character helpers survive hidden Array.from")
 
 (js-eval "__wrStandardGenericBoundaryRestoreAll();")
 

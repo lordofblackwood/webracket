@@ -23,6 +23,12 @@ const hostImportUint8Array = Uint8Array;
 const hostStringValueOf = hostString.prototype.valueOf;
 const hostNumberValueOf = hostNumber.prototype.valueOf;
 const hostBooleanValueOf = hostBoolean.prototype.valueOf;
+const hostStringFromCodePoint = typeof hostString.fromCodePoint === 'function'
+  ? hostString.fromCodePoint.bind(hostString)
+  : null;
+const hostArrayFrom = typeof hostArray.from === 'function'
+  ? hostArray.from.bind(hostArray)
+  : null;
 if (typeof hostStringValueOf !== 'function') {
   throw new hostError('String.valueOf not available in this environment');
 }
@@ -31,6 +37,12 @@ if (typeof hostNumberValueOf !== 'function') {
 }
 if (typeof hostBooleanValueOf !== 'function') {
   throw new hostError('Boolean.valueOf not available in this environment');
+}
+if (!hostStringFromCodePoint) {
+  throw new hostError('String.fromCodePoint not available in this environment');
+}
+if (!hostArrayFrom) {
+  throw new hostError('Array.from not available in this environment');
 }
 if (!hostReflect || typeof hostReflect.construct !== 'function') {
   throw new hostError('Reflect.construct not available in this environment');
@@ -1480,26 +1492,26 @@ var imports = {
 
       // Unicode character operations.
       'char_upcase': ((cp) => {
-        const s = hostString.fromCodePoint(cp).toUpperCase();
-        const arr = hostArray.from(s);
+        const s = hostStringFromCodePoint(cp).toUpperCase();
+        const arr = hostArrayFrom(s);
         return (arr.length === 1) ? arr[0].codePointAt(0) : cp;
       }),
       'char_downcase': ((cp) => {
-        const s = hostString.fromCodePoint(cp).toLowerCase();
-        const arr = hostArray.from(s);
+        const s = hostStringFromCodePoint(cp).toLowerCase();
+        const arr = hostArrayFrom(s);
         return (arr.length === 1) ? arr[0].codePointAt(0) : cp;
       }),
       'char_titlecase': ((cp) => {
-        const lower = hostString.fromCodePoint(cp).toLocaleLowerCase();
+        const lower = hostStringFromCodePoint(cp).toLocaleLowerCase();
         const title = lower.charAt(0).toLocaleUpperCase() + lower.slice(1);
-        const arr = hostArray.from(title);
+        const arr = hostArrayFrom(title);
         return (arr.length === 1) ? arr[0].codePointAt(0) : cp;
       }),
       'char_foldcase': ((cp) => {
         // JavaScript has no direct Unicode foldcase API, but upper-then-lower
         // fixes the final sigma case while preserving our single-codepoint guard.
-        const s = hostString.fromCodePoint(cp).toUpperCase().toLowerCase();
-        const arr = hostArray.from(s);
+        const s = hostStringFromCodePoint(cp).toUpperCase().toLowerCase();
+        const arr = hostArrayFrom(s);
         return (arr.length === 1) ? arr[0].codePointAt(0) : cp;
       }),
       // NOTE: This classification covers only a subset of Unicode's
@@ -1535,7 +1547,7 @@ var imports = {
         return 0; // Other
       }),
       'char_general_category': ((cp) => {
-        const s = hostString.fromCodePoint(cp);
+        const s = hostStringFromCodePoint(cp);
         if (/\p{Lu}/u.test(s)) return 0;
         if (/\p{Ll}/u.test(s)) return 1;
         if (/\p{Lt}/u.test(s)) return 2;
@@ -1568,23 +1580,23 @@ var imports = {
         return 29; // Cn
       }),
       'char_alphabetic': ((cp) =>
-        hostNumber(/\p{Alphabetic}/u.test(hostString.fromCodePoint(cp)))),
+        hostNumber(/\p{Alphabetic}/u.test(hostStringFromCodePoint(cp)))),
       'char_lower_case': ((cp) =>
-        hostNumber(/\p{Lowercase}/u.test(hostString.fromCodePoint(cp)))),
+        hostNumber(/\p{Lowercase}/u.test(hostStringFromCodePoint(cp)))),
       'char_upper_case': ((cp) =>
-        hostNumber(/\p{Uppercase}/u.test(hostString.fromCodePoint(cp)))),
+        hostNumber(/\p{Uppercase}/u.test(hostStringFromCodePoint(cp)))),
       'char_title_case': ((cp) =>
-        hostNumber(/\p{gc=Lt}/u.test(hostString.fromCodePoint(cp)))),
+        hostNumber(/\p{gc=Lt}/u.test(hostStringFromCodePoint(cp)))),
       'char_numeric': ((cp) =>
-        hostNumber(/\p{Number}/u.test(hostString.fromCodePoint(cp)))),
+        hostNumber(/\p{Number}/u.test(hostStringFromCodePoint(cp)))),
       'char_symbolic': ((cp) =>
-        hostNumber(/\p{gc=Sm}|\p{gc=Sc}|\p{gc=Sk}|\p{gc=So}/u.test(hostString.fromCodePoint(cp)))),
+        hostNumber(/\p{gc=Sm}|\p{gc=Sc}|\p{gc=Sk}|\p{gc=So}/u.test(hostStringFromCodePoint(cp)))),
       'char_punctuation': ((cp) =>
-        hostNumber(/\p{gc=Pc}|\p{gc=Pd}|\p{gc=Ps}|\p{gc=Pe}|\p{gc=Pi}|\p{gc=Pf}|\p{gc=Po}/u.test(hostString.fromCodePoint(cp)))),
+        hostNumber(/\p{gc=Pc}|\p{gc=Pd}|\p{gc=Ps}|\p{gc=Pe}|\p{gc=Pi}|\p{gc=Pf}|\p{gc=Po}/u.test(hostStringFromCodePoint(cp)))),
       'char_graphic': ((cp) =>
-        hostNumber(/\p{gc=Ll}|\p{gc=Lm}|\p{gc=Lo}|\p{gc=Lt}|\p{gc=Lu}|\p{gc=Nd}|\p{gc=Nl}|\p{gc=No}|\p{gc=Mn}|\p{gc=Mc}|\p{gc=Me}|\p{Alphabetic}|\p{Number}|\p{gc=Sm}|\p{gc=Sc}|\p{gc=Sk}|\p{gc=So}|\p{gc=Pc}|\p{gc=Pd}|\p{gc=Ps}|\p{gc=Pe}|\p{gc=Pi}|\p{gc=Pf}|\p{gc=Po}/u.test(hostString.fromCodePoint(cp)))),
+        hostNumber(/\p{gc=Ll}|\p{gc=Lm}|\p{gc=Lo}|\p{gc=Lt}|\p{gc=Lu}|\p{gc=Nd}|\p{gc=Nl}|\p{gc=No}|\p{gc=Mn}|\p{gc=Mc}|\p{gc=Me}|\p{Alphabetic}|\p{Number}|\p{gc=Sm}|\p{gc=Sc}|\p{gc=Sk}|\p{gc=So}|\p{gc=Pc}|\p{gc=Pd}|\p{gc=Ps}|\p{gc=Pe}|\p{gc=Pi}|\p{gc=Pf}|\p{gc=Po}/u.test(hostStringFromCodePoint(cp)))),
       'char_extended_pictographic': ((cp) =>
-        hostNumber(/\p{Extended_Pictographic}/u.test(hostString.fromCodePoint(cp))))
+        hostNumber(/\p{Extended_Pictographic}/u.test(hostStringFromCodePoint(cp))))
     },
 
     // General JavaScript FFI.
