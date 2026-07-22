@@ -18,8 +18,9 @@
                   js-Iterator
                   js-Object))
 
-(provide (struct-out iterator)
+(provide (except-out (struct-out iterator) iterator?)
          (struct-out iterator-zip-options)
+         (rename-out [iterator/surface? iterator?])
          Iterator
          iterable?
          iterator->vector
@@ -120,11 +121,27 @@
 ;; iterator-host-method-present? : external/raw string? -> boolean?
 ;;   Report whether raw exposes a callable method named method-name.
 (define (iterator-host-method-present? raw method-name)
-  (and (external? raw)
-       (not (js-nullish? raw))
+  (and (iterator-raw-host-value? raw)
        (let ([method (js-ref/extern raw method-name)])
          (and (not (js-nullish? method))
               (string=? (js-typeof method) "function")))))
+
+;; iterator-raw-host-value? : any/c -> boolean?
+;;   Report whether raw is a non-nullish external host value.
+(define (iterator-raw-host-value? raw)
+  (and (external? raw)
+       (not (js-nullish? raw))))
+
+;; iterator-host-value? : any/c -> boolean?
+;;   Report whether v wraps an external Iterator-like host value.
+(define (iterator-host-value? v)
+  (and (iterator? v)
+       (iterator-host-method-present? (iterator-raw v) "next")))
+
+;; iterator/surface? : any/c -> boolean?
+;;   Report whether v is a wrapped Iterator-like host value.
+(define (iterator/surface? v)
+  (iterator-host-value? v))
 
 ;; check-iterator-host-method : symbol? external/raw string? string? -> void?
 ;;   Ensure a required Iterator host method is available.
@@ -182,7 +199,7 @@
 ;; iterable? : any/c -> boolean?
 ;;   Check whether a value has a callable [Symbol.iterator] method.
 (define (iterable? value)
-  (or (iterator? value)
+  (or (iterator-host-value? value)
       (let ([ctor (Iterator)])
         (and (not (js-nullish? ctor))
              (iterator-host-method-present? ctor "from")

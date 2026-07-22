@@ -5,11 +5,17 @@
 (require js/iterator
          (only-in webracket/unsafe/standard
                   js-eval
+                  js-null
+                  js-undefined
                   js-ref))
 
 (define (check-true got label)
   (unless got
     (error 'check-true label)))
+
+(define (check-false got label)
+  (when got
+    (error 'check-false label)))
 
 (define (check-equal got want label)
   (unless (equal? got want)
@@ -56,6 +62,25 @@
 (define no-next-iterator
   (make-iterator
    (js-eval "globalThis.__wrIteratorBoundaryNoNext")))
+
+(define null-raw-iterator
+  (make-iterator (js-null)))
+
+(define undefined-raw-iterator
+  (make-iterator (js-undefined)))
+
+(check-false (iterator? no-next-iterator)
+             "iterator? rejects missing next")
+(check-false (iterator? null-raw-iterator)
+             "iterator? rejects null raw")
+(check-false (iterator? undefined-raw-iterator)
+             "iterator? rejects undefined raw")
+(check-false (iterable? no-next-iterator)
+             "iterable? rejects wrapped iterator missing next")
+(check-false (iterable? null-raw-iterator)
+             "iterable? rejects wrapped iterator with null raw")
+(check-false (iterable? undefined-raw-iterator)
+             "iterable? rejects wrapped iterator with undefined raw")
 
 (define no-global-message
   (catch-message
