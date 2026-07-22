@@ -212,7 +212,10 @@
      (define message
        (catch-message/restoring thunk
                                 (lambda () (restore-global! name))))
-     (check-true (not message) label)]
+     (check-true (not message)
+                 (if message
+                     (string-append label ": " message)
+                     label))]
     [else
      (restore-global! name)]))
 
@@ -258,7 +261,10 @@
        (catch-message/restoring thunk
                                 (lambda ()
                                   (restore-prototype-method! owner-name method-name))))
-     (check-true (not message) label)]
+     (check-true (not message)
+                 (if message
+                     (string-append label ": " message)
+                     label))]
     [else
      (restore-prototype-method! owner-name method-name)]))
 
@@ -291,7 +297,10 @@
        (catch-message/restoring thunk
                                 (lambda ()
                                   (restore-static-method! owner-name method-name))))
-     (check-true (not message) label)]
+     (check-true (not message)
+                 (if message
+                     (string-append label ": " message)
+                     label))]
     [else
      (restore-static-method! owner-name method-name)]))
 
@@ -316,6 +325,15 @@
 ;;   Check that FASL conversion unboxes a boxed Number through cached intrinsics.
 (define (check-boxed-number-ref label)
   (check-true (= (js-ref boundary-target "boxedNumberValue") 1.5)
+              label))
+
+;; check-symbol-intrinsics : string? -> void?
+;;   Check FASL symbol conversion through cached JS Symbol intrinsics.
+(define (check-symbol-intrinsics label)
+  (define stat (file-or-directory-stat "/"))
+  (check-true (and (hash? stat)
+                   (hash-has-key? stat 'inode)
+                   (exact-integer? (hash-ref stat 'inode)))
               label))
 
 ;; check-character-intrinsics : string? -> void?
@@ -412,6 +430,23 @@
                                      (lambda () (check-character-intrinsics
                                                  "characters with hidden Array.from"))
                                      "character helpers survive hidden Array.from")
+
+(check-hidden-global/no-error "Symbol"
+                              (lambda () (check-symbol-intrinsics
+                                          "symbols with hidden global"))
+                              "symbol conversion survives hidden Symbol global")
+
+(check-hidden-static-method/no-error "Symbol"
+                                     "for"
+                                     (lambda () (check-symbol-intrinsics
+                                                 "VFS stat symbols with hidden Symbol.for"))
+                                     "symbol decode survives hidden Symbol.for")
+
+(check-hidden-static-method/no-error "Symbol"
+                                     "keyFor"
+                                     (lambda () (check-symbol-intrinsics
+                                                 "VFS stat symbols with hidden Symbol.keyFor"))
+                                     "symbol encode survives hidden Symbol.keyFor")
 
 (check-hidden-static-method/no-error "Reflect"
                                      "construct"

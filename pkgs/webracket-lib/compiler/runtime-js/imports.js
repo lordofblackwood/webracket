@@ -1296,24 +1296,24 @@ var imports = {
           if (stat.type === 'missing') return -1;
           const mtime = stat.mtime || 0;
           const payload = [
-            Symbol.for('device-id'), 0,
-            Symbol.for('inode'), stat.identity || 0,
-            Symbol.for('mode'), stat.mode || 0,
-            Symbol.for('hardlink-count'), 1,
-            Symbol.for('user-id'), 0,
-            Symbol.for('group-id'), 0,
-            Symbol.for('device-id-for-special-file'), 0,
-            Symbol.for('size'), stat.size || 0,
-            Symbol.for('block-size'), 0,
-            Symbol.for('block-count'), 0,
-            Symbol.for('access-time-seconds'), mtime,
-            Symbol.for('modify-time-seconds'), mtime,
-            Symbol.for('change-time-seconds'), mtime,
-            Symbol.for('creation-time-seconds'), mtime,
-            Symbol.for('access-time-nanoseconds'), 0,
-            Symbol.for('modify-time-nanoseconds'), 0,
-            Symbol.for('change-time-nanoseconds'), 0,
-            Symbol.for('creation-time-nanoseconds'), 0
+            hostSymbolFor('device-id'), 0,
+            hostSymbolFor('inode'), stat.identity || 0,
+            hostSymbolFor('mode'), stat.mode || 0,
+            hostSymbolFor('hardlink-count'), 1,
+            hostSymbolFor('user-id'), 0,
+            hostSymbolFor('group-id'), 0,
+            hostSymbolFor('device-id-for-special-file'), 0,
+            hostSymbolFor('size'), stat.size || 0,
+            hostSymbolFor('block-size'), 0,
+            hostSymbolFor('block-count'), 0,
+            hostSymbolFor('access-time-seconds'), mtime,
+            hostSymbolFor('modify-time-seconds'), mtime,
+            hostSymbolFor('change-time-seconds'), mtime,
+            hostSymbolFor('creation-time-seconds'), mtime,
+            hostSymbolFor('access-time-nanoseconds'), 0,
+            hostSymbolFor('modify-time-nanoseconds'), 0,
+            hostSymbolFor('change-time-nanoseconds'), 0,
+            hostSymbolFor('creation-time-nanoseconds'), 0
           ];
           const bytes = js_value_to_fasl(payload);
           if (bytes.length > outMax) return -2;
@@ -3668,8 +3668,8 @@ var imports = {
             if (dims === undefined || dims === null) {
                 return to_fasl(undefined);
             }
-            const colsPair = { tag: 'pair', car: Symbol.for('cols'), cdr: dims.cols };
-            const rowsPair = { tag: 'pair', car: Symbol.for('rows'), cdr: dims.rows };
+            const colsPair = { tag: 'pair', car: hostSymbolFor('cols'), cdr: dims.cols };
+            const rowsPair = { tag: 'pair', car: hostSymbolFor('rows'), cdr: dims.rows };
             const alist = {
                 tag: 'pair',
                 car: colsPair,

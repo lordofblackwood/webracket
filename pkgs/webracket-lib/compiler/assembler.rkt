@@ -178,6 +178,17 @@ const hostWebAssembly = typeof WebAssembly === 'undefined' ? null : WebAssembly;
 const hostWebAssemblyTag = hostWebAssembly && hostWebAssembly.Tag;
 const hostWebAssemblyException = hostWebAssembly && hostWebAssembly.Exception;
 const hostWebAssemblyModule = hostWebAssembly && hostWebAssembly.Module;
+const hostSymbol = typeof Symbol === 'undefined' ? null : Symbol;
+const hostSymbolFor = hostSymbol && typeof hostSymbol.for === 'function'
+  ? hostSymbol.for.bind(hostSymbol)
+  : null;
+const hostSymbolKeyFor = hostSymbol && typeof hostSymbol.keyFor === 'function'
+  ? hostSymbol.keyFor.bind(hostSymbol)
+  : null;
+const hostSymbolToPrimitive = hostSymbol && hostSymbol.toPrimitive;
+const hostStringFromCodePointForFasl = typeof String.fromCodePoint === 'function'
+  ? String.fromCodePoint.bind(String)
+  : null;
 if (!hostWebAssembly ||
     typeof hostWebAssembly.Memory !== 'function' ||
     typeof hostWebAssembly.compile !== 'function' ||
@@ -187,6 +198,12 @@ if (!hostWebAssembly ||
     !hostWebAssemblyModule ||
     typeof hostWebAssemblyModule.imports !== 'function') {
   throw new Error('WebRacket requires WebAssembly compile/instantiate and exception handling (Tag + Exception).');
+}
+if (!hostSymbol || !hostSymbolFor || !hostSymbolKeyFor || !hostSymbolToPrimitive) {
+  throw new Error('WebRacket requires JavaScript Symbol registry support.');
+}
+if (!hostStringFromCodePointForFasl) {
+  throw new Error('WebRacket requires String.fromCodePoint.');
 }
 
 	var memory = new hostWebAssembly.Memory({initial:1024});
@@ -1266,7 +1283,7 @@ function fasl_to_js_value(arr, i = 0) {
       tag: 'keyword',
       name,
       toString() { return `#:${name}`; },
-      [Symbol.toPrimitive]() { return `#:${name}`; }
+      [hostSymbolToPrimitive]() { return `#:${name}`; }
     };
   }
 
@@ -1295,9 +1312,9 @@ function fasl_to_js_value(arr, i = 0) {
       return [(raw << 2) >> 2, i];
     }
     case @|fasl-character|:
-      return [String.fromCodePoint(u32()), i];
+      return [hostStringFromCodePointForFasl(u32()), i];
     case @|fasl-symbol|:
-      return [Symbol.for(read_string()), i];
+      return [hostSymbolFor(read_string()), i];
     case @|fasl-keyword|:
       return [keywordValue(read_string()), i];
     case @|fasl-string|:
@@ -1510,7 +1527,7 @@ function js_value_to_fasl(v) {
     }
     // Symbol
     if (typeof x === "symbol") {
-      const name = Symbol.keyFor(x) ?? x.description ?? "";
+      const name = hostSymbolKeyFor(x) ?? x.description ?? "";
       writeSymbol(name);
       return;
     }
@@ -1901,7 +1918,7 @@ function testsuite(js_value_to_fasl, fasl_to_js_value, { log = true } = {}) {
   function charToString(v) {
     if (typeof v === 'string' && v.length === 1) return v;
     if (v && typeof v === 'object' && v.tag === 'char' && typeof v.cp === 'number') {
-      try { return String.fromCodePoint(v.cp); } catch { /* fall through */ }
+      try { return hostStringFromCodePointForFasl(v.cp); } catch { /* fall through */ }
     }
     return null;
   }
@@ -1920,8 +1937,8 @@ function testsuite(js_value_to_fasl, fasl_to_js_value, { log = true } = {}) {
     }
     // Symbols (use registry key or description)
     if (typeof a === 'symbol' && typeof b === 'symbol') {
-      const ka = Symbol.keyFor(a) ?? a.description ?? '';
-      const kb = Symbol.keyFor(b) ?? b.description ?? '';
+      const ka = hostSymbolKeyFor(a) ?? a.description ?? '';
+      const kb = hostSymbolKeyFor(b) ?? b.description ?? '';
       return ka === kb;
     }
     if (a && b && a.tag === 'keyword' && b.tag === 'keyword') {
@@ -1980,7 +1997,7 @@ function testsuite(js_value_to_fasl, fasl_to_js_value, { log = true } = {}) {
   test('char A', { tag: 'char', cp: 'A'.codePointAt(0) });
   test('char snowman', { tag: 'char', cp: '☃'.codePointAt(0) });
   // Symbols
-  test('symbol foo', Symbol.for('foo'));
+  test('symbol foo', hostSymbolFor('foo'));
   test('keyword attrs', { tag: 'keyword', name: 'attrs' });
   // Bytes (Uint8Array)
   test('bytes', new hostUint8Array([0, 1, 2, 255]));
@@ -2100,7 +2117,7 @@ function callback_name_text(id) {
     const len = callback_name_export(id);
     const value = fasl_to_js_value(new hostUint8Array(memory.buffer, CALLBACK_BUFFER_BASE, len))[0];
     if (typeof value === 'symbol') {
-        return Symbol.keyFor(value) ?? value.description ?? String(value);
+        return hostSymbolKeyFor(value) ?? value.description ?? String(value);
     }
     if (typeof value === 'string' && value.length > 0) {
         return value;
@@ -2115,7 +2132,7 @@ function callback_debug_id_text(id) {
     const len = callback_debug_id_export(id);
     const value = fasl_to_js_value(new hostUint8Array(memory.buffer, CALLBACK_BUFFER_BASE, len))[0];
     if (typeof value === 'symbol') {
-        return Symbol.keyFor(value) ?? value.description ?? String(value);
+        return hostSymbolKeyFor(value) ?? value.description ?? String(value);
     }
     if (typeof value === 'string' && value.length > 0) {
         return value;
