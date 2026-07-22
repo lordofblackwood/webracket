@@ -37,6 +37,15 @@
 
 (js-eval
  "globalThis.__wrMediaBoundaryFake = (missing) => {
+    const promiseLike = (fields) => Object.assign({
+      then(fn) {
+        if (fn) fn(undefined);
+        return this;
+      },
+      catch(_fn) {
+        return this;
+      }
+    }, fields);
     const media = {
       addTextTrack(kind, label, language) {
         return { kind, label: label || '', language: language || '', id: 'track-0', mode: 'disabled' };
@@ -51,15 +60,22 @@
       load() {},
       pause() {},
       play() {
-        return { kind: 'play-promise' };
+        return promiseLike({ kind: 'play-promise' });
       },
       setMediaKeys(keys) {
-        return { kind: 'media-keys-promise', keys };
+        return promiseLike({ kind: 'media-keys-promise', keys });
       },
       setSinkId(id) {
-        return { kind: 'sink-promise', id };
+        return promiseLike({ kind: 'sink-promise', id });
       }
     };
+    if (missing === 'playBadResult') {
+      media.play = () => 42;
+    } else if (missing === 'setMediaKeysBadResult') {
+      media.setMediaKeys = (_keys) => 42;
+    } else if (missing === 'setSinkIdBadResult') {
+      media.setSinkId = (_id) => 42;
+    }
     delete media[missing];
     return media;
   };
@@ -118,16 +134,33 @@
    (lambda ()
      (media-play (fake-media "play")))))
 
+(define play-result-message
+  (catch-message
+   (lambda ()
+     (media-play (fake-media "playBadResult")))))
+
 (define set-media-keys-message
   (catch-message
    (lambda ()
      (media-set-media-keys! (fake-media "setMediaKeys")
                             (js-null)))))
 
+(define set-media-keys-result-message
+  (catch-message
+   (lambda ()
+     (media-set-media-keys! (fake-media "setMediaKeysBadResult")
+                            (js-null)))))
+
 (define set-sink-id-message
   (catch-message
    (lambda ()
      (media-set-sink-id! (fake-media "setSinkId")
+                         'speaker-1))))
+
+(define set-sink-id-result-message
+  (catch-message
+   (lambda ()
+     (media-set-sink-id! (fake-media "setSinkIdBadResult")
                          'speaker-1))))
 
 (define audio-tracks-message
@@ -498,12 +531,21 @@
 (check-message play-message
                "HTMLMediaElement.play not available in this environment"
                "missing play message")
+(check-message play-result-message
+               "HTMLMediaElement.play result must be Promise-like"
+               "bad play result message")
 (check-message set-media-keys-message
                "HTMLMediaElement.setMediaKeys not available in this environment"
                "missing setMediaKeys message")
+(check-message set-media-keys-result-message
+               "HTMLMediaElement.setMediaKeys result must be Promise-like"
+               "bad setMediaKeys result message")
 (check-message set-sink-id-message
                "HTMLMediaElement.setSinkId not available in this environment"
                "missing setSinkId message")
+(check-message set-sink-id-result-message
+               "HTMLMediaElement.setSinkId result must be Promise-like"
+               "bad setSinkId result message")
 (check-message audio-tracks-message
                "HTMLMediaElement.audioTracks not available in this environment"
                "missing audioTracks message")

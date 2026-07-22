@@ -224,6 +224,15 @@
       createSession() { return {}; },
       setServerCertificate(_cert) { return {}; }
     };
+    const promiseLike = (fields) => Object.assign({
+      then(fn) {
+        if (fn) fn(undefined);
+        return this;
+      },
+      catch(_fn) {
+        return this;
+      }
+    }, fields);
     const media = {
       autoplay: 0,
       crossOrigin: 'anonymous',
@@ -255,7 +264,7 @@
       mediaKeys,
       played: buffered,
       calls: [],
-      play() { this.calls.push(['play']); return { kind: 'play-promise' }; },
+      play() { this.calls.push(['play']); return promiseLike({ kind: 'play-promise' }); },
       pause() { this.calls.push(['pause']); },
       load() { this.calls.push(['load']); },
       fastSeek(t) { this.calls.push(['fastSeek', t]); },
@@ -270,8 +279,8 @@
         this.calls.push(['addTextTrack', kind, label, language]);
         return { kind, label, language, id: 'added-0', mode: 'hidden' };
       },
-      setMediaKeys(keys) { this.calls.push(['setMediaKeys', keys]); return { kind: 'setMediaKeys-promise' }; },
-      setSinkId(id) { this.calls.push(['setSinkId', id]); return { kind: 'sink', id }; }
+      setMediaKeys(keys) { this.calls.push(['setMediaKeys', keys]); return promiseLike({ kind: 'setMediaKeys-promise' }); },
+      setSinkId(id) { this.calls.push(['setSinkId', id]); return promiseLike({ kind: 'sink', id }); }
     };
     const image = {
       alt: 'Alpha',

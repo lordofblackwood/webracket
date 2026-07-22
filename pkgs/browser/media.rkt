@@ -3,7 +3,8 @@
 (require browser/element
          (only-in webracket/unsafe/standard
                   js-nullish?
-                  js-ref/extern)
+                  js-ref/extern
+                  js-typeof)
          webracket/unsafe/media)
 
 (provide media-stream?
@@ -213,6 +214,24 @@
     (raise-argument-error who expected value))
   raw)
 
+;; media-promise-like-result? : any/c -> boolean?
+;;   Report whether raw is a non-nullish external value with a callable then method.
+(define (media-promise-like-result? raw)
+  (and (shared-dom-raw-host-value? raw)
+       (let ([then (js-ref/extern raw "then")])
+         (and (not (js-nullish? then))
+              (string=? (js-typeof then) "function")))))
+
+;; media-check-promise-result : symbol? string? any/c -> external/raw
+;;   Validate that a browser media method returned a Promise-like raw value.
+(define (media-check-promise-result who method-name raw)
+  (unless (media-promise-like-result? raw)
+    (raise-arguments-error who
+                           (string-append "HTMLMediaElement."
+                                          method-name
+                                          " result must be Promise-like")))
+  raw)
+
 ;; define-media-getter : syntax -> syntax
 ;;   Define a simple media property getter.
 (define-syntax-rule (define-media-getter racket-name foreign-proc convert)
@@ -358,16 +377,19 @@
 (define-media-wrapped-getter media-keys js-media-media-keys media-keys-info-wrap)
 
 ;; media-set-media-keys! : external? (or/c media-keys-info? external/raw) -> external/raw
-;;   Attach MediaKeys for encrypted media playback.
+;;   Attach MediaKeys for encrypted media playback and return the browser promise-like value.
 (define (media-set-media-keys! media keys)
-  (js-media-set-media-keys!
-   media
-   (if (media-keys-info-wrapper? keys)
-       (media-wrapper-raw/checked 'media-set-media-keys!
-                                  "media-keys-info?"
-                                  keys
-                                  (media-keys-info-raw keys))
-       keys)))
+  (media-check-promise-result
+   'media-set-media-keys!
+   "setMediaKeys"
+   (js-media-set-media-keys!
+    media
+    (if (media-keys-info-wrapper? keys)
+        (media-wrapper-raw/checked 'media-set-media-keys!
+                                   "media-keys-info?"
+                                   keys
+                                   (media-keys-info-raw keys))
+        keys))))
 
 ;; media-media-group : external? -> string?
 ;;   Read the media group identifier.
@@ -462,9 +484,11 @@
   (media-error-info-wrap (js-media-error media)))
 
 ;; media-play : external? -> external/raw
-;;   Start playback.
+;;   Start playback and return the browser promise-like value.
 (define (media-play media)
-  (js-media-play media))
+  (media-check-promise-result 'media-play
+                              "play"
+                              (js-media-play media)))
 
 ;; media-pause : external? -> void?
 ;;   Pause playback.
@@ -530,4 +554,7 @@
 ;; media-set-sink-id! : external? (or/c string? symbol?) -> external/raw
 ;;   Choose an output sink if supported and return the browser promise-like value.
 (define (media-set-sink-id! media id)
-  (js-media-set-sink-id! media (media-stringish->string 'media-set-sink-id! id)))
+  (media-check-promise-result
+   'media-set-sink-id!
+   "setSinkId"
+   (js-media-set-sink-id! media (media-stringish->string 'media-set-sink-id! id))))
