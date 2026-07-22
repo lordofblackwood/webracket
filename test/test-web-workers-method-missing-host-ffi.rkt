@@ -34,6 +34,9 @@
     Object.getOwnPropertyDescriptor(globalThis, 'Worker') || null;
   globalThis.__wrWorkerBoundaryInstallFake = (missing) => {
     function WebRacketBoundaryWorker(scriptUrl, options) {
+      if (missing === 'constructorBadResult') {
+        return {};
+      }
       this.scriptUrl = scriptUrl;
       this.options = options || null;
       this.messages = [];
@@ -148,6 +151,11 @@
 (define constructor-non-constructor-message*
   (constructor-non-constructor-message))
 
+(define constructor-result-message
+  (catch-message
+   (lambda ()
+     (fake-worker "constructorBadResult"))))
+
 (define post-message-message
   (catch-message
    (lambda ()
@@ -188,6 +196,9 @@
 (check-message constructor-non-constructor-message*
                "Worker is not available"
                "non-constructible Worker constructor message")
+(check-message constructor-result-message
+               "Worker constructor result must be Worker"
+               "bad Worker constructor result message")
 (check-message post-message-message
                "Worker.postMessage is not available"
                "missing Worker.postMessage message")

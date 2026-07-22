@@ -76,6 +76,14 @@
   (and (external? raw)
        (not (js-nullish? raw))))
 
+;; geolocation-check-watch-id-result : symbol? any/c -> exact-nonnegative-integer?
+;;   Validate the watch id returned by Geolocation.watchPosition.
+(define (geolocation-check-watch-id-result who result)
+  (unless (exact-nonnegative-integer? result)
+    (raise-arguments-error who
+                           "Geolocation.watchPosition result must be an exact nonnegative integer"))
+  result)
+
 ;; geolocation-position-raw : geolocation-position? -> external/raw
 ;;   Extract the raw GeolocationPosition object.
 (define (geolocation-position-raw value)
@@ -312,7 +320,9 @@
        (vector success*
                (geolocation-error-callback->external 'geolocation-watch-position on-error)
                (geolocation-options->raw options))]))
-  (js-send/value (geolocation-raw geo) "watchPosition" args))
+  (geolocation-check-watch-id-result
+   'geolocation-watch-position
+   (js-send/value (geolocation-raw geo) "watchPosition" args)))
 
 (define (geolocation-clear-watch! geo watch-id)
   (check-geolocation 'geolocation-clear-watch! geo)

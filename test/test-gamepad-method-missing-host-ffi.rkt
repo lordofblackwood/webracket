@@ -45,7 +45,13 @@
       axes: [0.0],
       buttons: [{ pressed: false, touched: false, value: 0.0 }]
     };
-    delete gamepad[missing];
+    if (missing === 'axesBadResult') {
+      gamepad.axes = 42;
+    } else if (missing === 'buttonsBadResult') {
+      gamepad.buttons = 42;
+    } else {
+      delete gamepad[missing];
+    }
     return gamepad;
   };
   globalThis.__wrGamepadBoundaryFakeButton = (missing) => {
@@ -81,6 +87,19 @@
       writable: true
     });
   };
+  globalThis.__wrGamepadBoundaryPatchBadResult = (targetName, methodName) => {
+    const target = globalThis.__wrGamepadBoundaryTarget(targetName);
+    const key = `${targetName}.${methodName}`;
+    if (!Object.prototype.hasOwnProperty.call(globalThis.__wrGamepadBoundarySaved, key)) {
+      globalThis.__wrGamepadBoundarySaved[key] =
+        Object.getOwnPropertyDescriptor(target, methodName) || null;
+    }
+    Object.defineProperty(target, methodName, {
+      value: () => 42,
+      configurable: true,
+      writable: true
+    });
+  };
   globalThis.__wrGamepadBoundaryRestore = (targetName, methodName) => {
     const target = globalThis.__wrGamepadBoundaryTarget(targetName);
     const key = `${targetName}.${methodName}`;
@@ -103,6 +122,7 @@
     delete globalThis.__wrGamepadBoundaryFakeButton;
     delete globalThis.__wrGamepadBoundaryFakeEvent;
     delete globalThis.__wrGamepadBoundaryPatch;
+    delete globalThis.__wrGamepadBoundaryPatchBadResult;
     delete globalThis.__wrGamepadBoundaryRestore;
     delete globalThis.__wrGamepadBoundaryRestoreAll;
   };
@@ -218,6 +238,20 @@
                           "')"))
   message)
 
+(define (bad-result-message target method thunk)
+  (js-eval (string-append "__wrGamepadBoundaryPatchBadResult('"
+                          target
+                          "', '"
+                          method
+                          "')"))
+  (define message (catch-message thunk))
+  (js-eval (string-append "__wrGamepadBoundaryRestore('"
+                          target
+                          "', '"
+                          method
+                          "')"))
+  message)
+
 (define callback (lambda args (void)))
 
 (define (with-missing-navigator thunk)
@@ -234,6 +268,13 @@
 
 (define get-gamepads-message
   (missing-method-message
+   "navigator"
+   "getGamepads"
+   (lambda ()
+     (gamepads))))
+
+(define get-gamepads-result-message
+  (bad-result-message
    "navigator"
    "getGamepads"
    (lambda ()
@@ -297,10 +338,20 @@
    (lambda ()
      (gamepad-axes (fake-gamepad "axes")))))
 
+(define axes-result-message
+  (catch-message
+   (lambda ()
+     (gamepad-axes (fake-gamepad "axesBadResult")))))
+
 (define buttons-message
   (catch-message
    (lambda ()
      (gamepad-buttons (fake-gamepad "buttons")))))
+
+(define buttons-result-message
+  (catch-message
+   (lambda ()
+     (gamepad-buttons (fake-gamepad "buttonsBadResult")))))
 
 (define button-pressed-message
   (catch-message
@@ -358,6 +409,9 @@
 (check-message get-gamepads-message
                "navigator.getGamepads is not available"
                "missing navigator.getGamepads message")
+(check-message get-gamepads-result-message
+               "navigator.getGamepads result must be array-like"
+               "bad navigator.getGamepads result message")
 (check-message add-connected-message
                "window.addEventListener is not available"
                "missing add connected listener message")
@@ -388,9 +442,15 @@
 (check-message axes-message
                "Gamepad.axes is not available"
                "missing Gamepad.axes message")
+(check-message axes-result-message
+               "Gamepad.axes result must be array-like"
+               "bad Gamepad.axes result message")
 (check-message buttons-message
                "Gamepad.buttons is not available"
                "missing Gamepad.buttons message")
+(check-message buttons-result-message
+               "Gamepad.buttons result must be array-like"
+               "bad Gamepad.buttons result message")
 (check-message button-pressed-message
                "GamepadButton.pressed is not available"
                "missing GamepadButton.pressed message")

@@ -44,6 +44,9 @@
         return missing === 'requestPermissionBadResult' ? 42 : thenable;
       }
       constructor(title, options) {
+        if (missing === 'constructorBadResult') {
+          return {};
+        }
         if (missing !== 'title') this.title = title;
         if (missing !== 'body') this.body = options && options.body || '';
         if (missing !== 'tag') this.tag = options && options.tag || '';
@@ -146,6 +149,12 @@
 
 (define make-non-constructor-message
   (constructor-non-constructor-message
+   (lambda ()
+     (make-notification "WebRacket"))))
+
+(define make-constructor-result-message
+  (missing-method-message
+   "constructorBadResult"
    (lambda ()
      (make-notification "WebRacket"))))
 
@@ -284,6 +293,9 @@
 (check-message make-non-constructor-message
                "Notification is not available"
                "non-constructible make-notification unsupported message")
+(check-message make-constructor-result-message
+               "Notification constructor result must be Notification"
+               "bad Notification constructor result message")
 (check-message close-message
                "Notification.close is not available"
                "missing Notification.close message")

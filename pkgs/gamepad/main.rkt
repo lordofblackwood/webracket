@@ -61,6 +61,21 @@
   (and (external? raw)
        (not (js-nullish? raw))))
 
+;; gamepad-array-like-result? : any/c -> boolean?
+;;   Report whether raw is a non-nullish host value with an array-like length.
+(define (gamepad-array-like-result? raw)
+  (and (gamepad-raw-host-value? raw)
+       (exact-nonnegative-integer? (js-ref raw "length"))))
+
+;; gamepad-check-array-like-result : symbol? string? any/c -> external/raw
+;;   Validate a host result before converting it with js-array->vector.
+(define (gamepad-check-array-like-result who display-name raw)
+  (unless (gamepad-array-like-result? raw)
+    (raise-arguments-error who
+                           (string-append display-name
+                                          " result must be array-like")))
+  raw)
+
 ;; gamepad-required-properties-present? : external/raw -> boolean?
 ;;   Report whether raw exposes the required Gamepad data properties.
 (define (gamepad-required-properties-present? raw)
@@ -183,7 +198,12 @@
 (define (gamepads)
   (check-gamepad-navigator-method 'gamepads "getGamepads")
   (define raw-gamepads (js-send/extern (js-window-navigator) "getGamepads" (vector)))
-  (gamepad-vector-map gamepad-wrap (js-array->vector raw-gamepads)))
+  (gamepad-vector-map
+   gamepad-wrap
+   (js-array->vector
+    (gamepad-check-array-like-result 'gamepads
+                                     "navigator.getGamepads"
+                                     raw-gamepads))))
 
 ;; gamepad-event-gamepad : external/raw -> (or/c #f gamepad?)
 ;;   Extract the gamepad from a gamepadconnected or gamepaddisconnected event.
@@ -233,7 +253,11 @@
 (define (gamepad-axes value)
   (check-gamepad 'gamepad-axes value)
   (check-gamepad-property 'gamepad-axes value "axes")
-  (js-array->vector (js-ref/extern (gamepad-raw value) "axes")))
+  (js-array->vector
+   (gamepad-check-array-like-result
+    'gamepad-axes
+    "Gamepad.axes"
+    (js-ref/extern (gamepad-raw value) "axes"))))
 
 ;; gamepad-buttons : gamepad? -> vector?
 ;;   Return the current buttons as wrapped GamepadButton values.
@@ -242,7 +266,11 @@
   (check-gamepad-property 'gamepad-buttons value "buttons")
   (gamepad-vector-map
    gamepad-button-wrap
-   (js-array->vector (js-ref/extern (gamepad-raw value) "buttons"))))
+   (js-array->vector
+    (gamepad-check-array-like-result
+     'gamepad-buttons
+     "Gamepad.buttons"
+     (js-ref/extern (gamepad-raw value) "buttons")))))
 
 ;; gamepad-button-pressed? : gamepad-button? -> boolean?
 ;;   Report whether the button is currently pressed.

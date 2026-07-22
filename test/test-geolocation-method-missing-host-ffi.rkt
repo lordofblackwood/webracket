@@ -35,7 +35,9 @@
  "globalThis.__wrGeolocationBoundaryFake = (missing) => {
     const geo = {
       getCurrentPosition(_success, _error, _options) {},
-      watchPosition(_success, _error, _options) { return 1; },
+      watchPosition(_success, _error, _options) {
+        return missing === 'watchPositionBadResult' ? 'bad-watch-id' : 1;
+      },
       clearWatch(_watchId) {}
     };
     delete geo[missing];
@@ -151,6 +153,9 @@
 (define missing-watch-position-geolocation
   (fake-geolocation "watchPosition"))
 
+(define bad-watch-position-result-geolocation
+  (fake-geolocation "watchPositionBadResult"))
+
 (define missing-clear-watch-geolocation
   (fake-geolocation "clearWatch"))
 
@@ -254,6 +259,12 @@
      (geolocation-watch-position missing-watch-position-geolocation
                                  (lambda (_position) (void))))))
 
+(define watch-position-result-message
+  (catch-message
+   (lambda ()
+     (geolocation-watch-position bad-watch-position-result-geolocation
+                                 (lambda (_position) (void))))))
+
 (define clear-watch-message
   (catch-message
    (lambda ()
@@ -349,6 +360,9 @@
 (check-message watch-position-message
                "Geolocation.watchPosition is not available"
                "missing Geolocation.watchPosition message")
+(check-message watch-position-result-message
+               "Geolocation.watchPosition result must be an exact nonnegative integer"
+               "bad Geolocation.watchPosition result message")
 (check-message clear-watch-message
                "Geolocation.clearWatch is not available"
                "missing Geolocation.clearWatch message")

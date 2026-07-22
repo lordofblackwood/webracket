@@ -116,6 +116,16 @@
   (unless (worker-host-value? value)
     (raise-argument-error who "worker?" value)))
 
+;; worker-check-instance-result : symbol? string? any/c -> external/raw
+;;   Validate that a Worker constructor returned a Worker instance.
+(define (worker-check-instance-result who display-name raw)
+  (unless (and (worker-raw-host-value? raw)
+               (js-instanceof raw (worker-constructor)))
+    (raise-arguments-error who
+                           (string-append display-name
+                                          " result must be Worker")))
+  raw)
+
 ;; check-worker-method : symbol? worker? string? -> void?
 ;;   Ensure a required Worker method is available.
 (define (check-worker-method who value method-name)
@@ -200,11 +210,14 @@
     (raise-argument-error 'make-worker "(or/c #f worker-options?)" options))
   (define script-url* (worker-stringish->string 'make-worker script-url))
   (worker-info
-   (if (eq? options #f)
-       (js-new (worker-constructor) (vector script-url*))
-       (js-new (worker-constructor)
-               (vector script-url*
-                       (worker-options->raw options))))))
+   (worker-check-instance-result
+    'make-worker
+    "Worker constructor"
+    (if (eq? options #f)
+        (js-new (worker-constructor) (vector script-url*))
+        (js-new (worker-constructor)
+                (vector script-url*
+                        (worker-options->raw options)))))))
 
 ;; worker-post-message! : worker? worker-message-value? -> void?
 ;;   Post a structured-cloneable message to a Worker.

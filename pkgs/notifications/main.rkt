@@ -139,6 +139,16 @@
   (unless (notification-host-value? value)
     (raise-argument-error who "notification?" value)))
 
+;; notification-check-instance-result : symbol? string? any/c -> external/raw
+;;   Validate that a Notification constructor returned a Notification instance.
+(define (notification-check-instance-result who display-name raw)
+  (unless (and (notification-raw-host-value? raw)
+               (js-instanceof raw (js-var "Notification")))
+    (raise-arguments-error who
+                           (string-append display-name
+                                          " result must be Notification")))
+  raw)
+
 (define (notification-stringish->string who value)
   (cond
     [(string? value) value]
@@ -200,11 +210,14 @@
     (raise-argument-error 'make-notification "(or/c #f notification-options?)" options))
   (define title* (notification-stringish->string 'make-notification title))
   (notification
-   (if (eq? options #f)
-       (js-new (js-var "Notification") (vector title*))
-       (js-new (js-var "Notification")
-               (vector title*
-                       (notification-options->raw options))))))
+   (notification-check-instance-result
+    'make-notification
+    "Notification constructor"
+    (if (eq? options #f)
+        (js-new (js-var "Notification") (vector title*))
+        (js-new (js-var "Notification")
+                (vector title*
+                        (notification-options->raw options)))))))
 
 (define (notification-close! value)
   (check-notification 'notification-close! value)
