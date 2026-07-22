@@ -79,6 +79,37 @@
     delete media[missing];
     return media;
   };
+  globalThis.__wrMediaBoundaryFakeBadResult = (kind) => {
+    const media = globalThis.__wrMediaBoundaryFake('notAProperty');
+    if (kind === 'addTextTrack') {
+      media.addTextTrack = () => ({ kind: 'subtitles', label: '', language: '', id: 'track-0' });
+    } else if (kind === 'audioTracks') {
+      media.audioTracks = { length: 0 };
+    } else if (kind === 'buffered') {
+      media.buffered = { length: 0, start(_index) { return 0; } };
+    } else if (kind === 'captureStream') {
+      media.captureStream = () => ({});
+    } else if (kind === 'controlsList') {
+      media.controlsList = { value: '', length: 0 };
+    } else if (kind === 'error') {
+      media.error = { message: 'media failure' };
+    } else if (kind === 'mediaKeys') {
+      media.mediaKeys = { createSession() { return {}; } };
+    } else if (kind === 'played') {
+      media.played = { length: 0, end(_index) { return 0; } };
+    } else if (kind === 'seekable') {
+      media.seekable = { length: 0, start(_index) { return 0; } };
+    } else if (kind === 'srcObjectSource') {
+      media.srcObject = { addSourceBuffer(_type) { return {}; } };
+    } else if (kind === 'srcObjectStream') {
+      media.srcObject = { getTracks: 42 };
+    } else if (kind === 'textTracks') {
+      media.textTracks = { length: 0 };
+    } else if (kind === 'videoTracks') {
+      media.videoTracks = { length: 0 };
+    }
+    return media;
+  };
   globalThis.__wrMediaBoundaryFakeSrcObject = () => {
     const media = globalThis.__wrMediaBoundaryFake('notAProperty');
     media.srcObject = null;
@@ -89,6 +120,12 @@
   (js-eval
    (string-append "__wrMediaBoundaryFake('"
                   missing-method
+                  "')")))
+
+(define (fake-media-bad-result kind)
+  (js-eval
+   (string-append "__wrMediaBoundaryFakeBadResult('"
+                  kind
                   "')")))
 
 (define (catch-media-message missing-property thunk)
@@ -102,6 +139,12 @@
      (media-add-text-track! (fake-media "addTextTrack")
                             'subtitles))))
 
+(define add-text-track-result-message
+  (catch-message
+   (lambda ()
+     (media-add-text-track! (fake-media-bad-result "addTextTrack")
+                            'subtitles))))
+
 (define can-play-type-message
   (catch-message
    (lambda ()
@@ -112,6 +155,11 @@
   (catch-message
    (lambda ()
      (media-capture-stream (fake-media "captureStream")))))
+
+(define capture-stream-result-message
+  (catch-message
+   (lambda ()
+     (media-capture-stream (fake-media-bad-result "captureStream")))))
 
 (define fast-seek-message
   (catch-message
@@ -167,6 +215,11 @@
   (catch-media-message "audioTracks"
                        media-audio-tracks))
 
+(define audio-tracks-result-message
+  (catch-message
+   (lambda ()
+     (media-audio-tracks (fake-media-bad-result "audioTracks")))))
+
 (define autoplay-message
   (catch-message
    (lambda ()
@@ -181,6 +234,11 @@
   (catch-media-message "buffered"
                        media-buffered))
 
+(define buffered-result-message
+  (catch-message
+   (lambda ()
+     (media-buffered (fake-media-bad-result "buffered")))))
+
 (define controls-message
   (catch-media-message "controls"
                        media-controls?))
@@ -193,6 +251,11 @@
 (define controls-list-message
   (catch-media-message "controlsList"
                        media-controls-list))
+
+(define controls-list-result-message
+  (catch-message
+   (lambda ()
+     (media-controls-list (fake-media-bad-result "controlsList")))))
 
 (define current-src-message
   (catch-message
@@ -259,6 +322,11 @@
   (catch-media-message "error"
                        media-error))
 
+(define error-result-message
+  (catch-message
+   (lambda ()
+     (media-error (fake-media-bad-result "error")))))
+
 (define loop-message
   (catch-media-message "loop"
                        media-loop?))
@@ -271,6 +339,11 @@
 (define media-keys-message
   (catch-media-message "mediaKeys"
                        media-keys))
+
+(define media-keys-result-message
+  (catch-message
+   (lambda ()
+     (media-keys (fake-media-bad-result "mediaKeys")))))
 
 (define media-group-message
   (catch-message
@@ -312,6 +385,11 @@
   (catch-media-message "played"
                        media-played))
 
+(define played-result-message
+  (catch-message
+   (lambda ()
+     (media-played (fake-media-bad-result "played")))))
+
 (define preload-message
   (catch-media-message "preload"
                        media-preload))
@@ -338,6 +416,11 @@
   (catch-media-message "seekable"
                        media-seekable))
 
+(define seekable-result-message
+  (catch-message
+   (lambda ()
+     (media-seekable (fake-media-bad-result "seekable")))))
+
 (define seeking-message
   (catch-media-message "seeking"
                        media-seeking?))
@@ -361,6 +444,16 @@
   (catch-message
    (lambda ()
      (media-src-object (fake-media "srcObject")))))
+
+(define src-object-source-result-message
+  (catch-message
+   (lambda ()
+     (media-src-object (fake-media-bad-result "srcObjectSource")))))
+
+(define src-object-stream-result-message
+  (catch-message
+   (lambda ()
+     (media-src-object (fake-media-bad-result "srcObjectStream")))))
 
 (define src-object-setter-message
   (catch-message
@@ -405,9 +498,19 @@
   (catch-media-message "textTracks"
                        media-text-tracks))
 
+(define text-tracks-result-message
+  (catch-message
+   (lambda ()
+     (media-text-tracks (fake-media-bad-result "textTracks")))))
+
 (define video-tracks-message
   (catch-media-message "videoTracks"
                        media-video-tracks))
+
+(define video-tracks-result-message
+  (catch-message
+   (lambda ()
+     (media-video-tracks (fake-media-bad-result "videoTracks")))))
 
 (define volume-message
   (catch-message
@@ -508,17 +611,24 @@
 
 (js-eval
  "delete globalThis.__wrMediaBoundaryFake;
+  delete globalThis.__wrMediaBoundaryFakeBadResult;
   delete globalThis.__wrMediaBoundaryFakeSrcObject;")
 
 (check-message add-text-track-message
                "HTMLMediaElement.addTextTrack not available in this environment"
                "missing addTextTrack message")
+(check-message add-text-track-result-message
+               "HTMLMediaElement.addTextTrack result must be TextTrack"
+               "bad addTextTrack result message")
 (check-message can-play-type-message
                "HTMLMediaElement.canPlayType not available in this environment"
                "missing canPlayType message")
 (check-message capture-stream-message
                "HTMLMediaElement.captureStream not available in this environment"
                "missing captureStream message")
+(check-message capture-stream-result-message
+               "HTMLMediaElement.captureStream result must be MediaStream"
+               "bad captureStream result message")
 (check-message fast-seek-message
                "HTMLMediaElement.fastSeek not available in this environment"
                "missing fastSeek message")
@@ -549,6 +659,9 @@
 (check-message audio-tracks-message
                "HTMLMediaElement.audioTracks not available in this environment"
                "missing audioTracks message")
+(check-message audio-tracks-result-message
+               "HTMLMediaElement.audioTracks result must be AudioTrackList"
+               "bad audioTracks result message")
 (check-message autoplay-message
                "HTMLMediaElement.autoplay not available in this environment"
                "missing autoplay message")
@@ -558,6 +671,9 @@
 (check-message buffered-message
                "HTMLMediaElement.buffered not available in this environment"
                "missing buffered message")
+(check-message buffered-result-message
+               "HTMLMediaElement.buffered result must be TimeRanges"
+               "bad buffered result message")
 (check-message controls-message
                "HTMLMediaElement.controls not available in this environment"
                "missing controls message")
@@ -567,6 +683,9 @@
 (check-message controls-list-message
                "HTMLMediaElement.controlsList not available in this environment"
                "missing controlsList message")
+(check-message controls-list-result-message
+               "HTMLMediaElement.controlsList result must be DOMTokenList"
+               "bad controlsList result message")
 (check-message current-src-message
                "HTMLMediaElement.currentSrc not available in this environment"
                "missing currentSrc message")
@@ -609,6 +728,9 @@
 (check-message error-message
                "HTMLMediaElement.error not available in this environment"
                "missing error message")
+(check-message error-result-message
+               "HTMLMediaElement.error result must be MediaError"
+               "bad error result message")
 (check-message loop-message
                "HTMLMediaElement.loop not available in this environment"
                "missing loop message")
@@ -618,6 +740,9 @@
 (check-message media-keys-message
                "HTMLMediaElement.mediaKeys not available in this environment"
                "missing mediaKeys message")
+(check-message media-keys-result-message
+               "HTMLMediaElement.mediaKeys result must be MediaKeys"
+               "bad mediaKeys result message")
 (check-message media-group-message
                "HTMLMediaElement.mediaGroup not available in this environment"
                "missing mediaGroup message")
@@ -645,6 +770,9 @@
 (check-message played-message
                "HTMLMediaElement.played not available in this environment"
                "missing played message")
+(check-message played-result-message
+               "HTMLMediaElement.played result must be TimeRanges"
+               "bad played result message")
 (check-message preload-message
                "HTMLMediaElement.preload not available in this environment"
                "missing preload message")
@@ -663,6 +791,9 @@
 (check-message seekable-message
                "HTMLMediaElement.seekable not available in this environment"
                "missing seekable message")
+(check-message seekable-result-message
+               "HTMLMediaElement.seekable result must be TimeRanges"
+               "bad seekable result message")
 (check-message seeking-message
                "HTMLMediaElement.seeking not available in this environment"
                "missing seeking message")
@@ -678,6 +809,12 @@
 (check-message src-object-message
                "HTMLMediaElement.srcObject not available in this environment"
                "missing srcObject message")
+(check-message src-object-source-result-message
+               "HTMLMediaElement.srcObject result must be MediaStream or MediaSource"
+               "bad srcObject source result message")
+(check-message src-object-stream-result-message
+               "HTMLMediaElement.srcObject result must be MediaStream or MediaSource"
+               "bad srcObject stream result message")
 (check-message src-object-setter-message
                "HTMLMediaElement.srcObject not available in this environment"
                "missing srcObject setter message")
@@ -772,9 +909,15 @@
 (check-message text-tracks-message
                "HTMLMediaElement.textTracks not available in this environment"
                "missing textTracks message")
+(check-message text-tracks-result-message
+               "HTMLMediaElement.textTracks result must be TextTrackList"
+               "bad textTracks result message")
 (check-message video-tracks-message
                "HTMLMediaElement.videoTracks not available in this environment"
                "missing videoTracks message")
+(check-message video-tracks-result-message
+               "HTMLMediaElement.videoTracks result must be VideoTrackList"
+               "bad videoTracks result message")
 (check-message volume-message
                "HTMLMediaElement.volume not available in this environment"
                "missing volume message")

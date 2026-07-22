@@ -176,6 +176,7 @@
     const controlsList = {
       value: 'nodownload',
       length: 1,
+      item(index) { return index === 0 ? 'nodownload' : null; },
       contains(token) { return token === 'nodownload'; }
     };
     const audioTrackList = {

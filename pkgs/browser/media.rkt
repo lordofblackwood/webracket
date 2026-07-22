@@ -232,6 +232,28 @@
                                           " result must be Promise-like")))
   raw)
 
+;; media-result-wrap/checked : symbol? string? string? any/c (any/c -> any/c) (any/c -> boolean?) boolean? -> any/c
+;;   Wrap and validate a browser object returned by an HTMLMediaElement API.
+(define (media-result-wrap/checked who display-name expected raw wrap surface? nullable?)
+  (define wrapped (wrap raw))
+  (cond
+    [(and nullable? (not wrapped)) #f]
+    [(and wrapped (surface? wrapped)) wrapped]
+    [else
+     (raise-arguments-error who
+                            (string-append display-name
+                                           " result must be "
+                                           expected))]))
+
+;; media-dom-token-list-result? : any/c -> boolean?
+;;   Check the DOMTokenList surface used by media controlsList.
+(define (media-dom-token-list-result? value)
+  (and (dom-token-list? value)
+       (shared-dom-host-surface-present?
+        (dom-token-list-unwrap value)
+        '("value" "length")
+        '("item"))))
+
 ;; define-media-getter : syntax -> syntax
 ;;   Define a simple media property getter.
 (define-syntax-rule (define-media-getter racket-name foreign-proc convert)
@@ -244,12 +266,6 @@
   (define (racket-name media value)
     (foreign-proc media (convert who value))
     (void)))
-
-;; define-media-wrapped-getter : syntax -> syntax
-;;   Define a media property getter that wraps a browser object result.
-(define-syntax-rule (define-media-wrapped-getter racket-name foreign-proc wrap)
-  (define (racket-name media)
-    (wrap (foreign-proc media))))
 
 ;; media-autoplay? : external? -> boolean?
 ;;   Read whether autoplay is enabled.
@@ -370,11 +386,25 @@
 
 ;; media-controls-list : external? -> dom-token-list?
 ;;   Read the browser controlsList policy object.
-(define-media-wrapped-getter media-controls-list js-media-controls-list dom-token-list-wrap)
+(define (media-controls-list media)
+  (media-result-wrap/checked 'media-controls-list
+                             "HTMLMediaElement.controlsList"
+                             "DOMTokenList"
+                             (js-media-controls-list media)
+                             dom-token-list-wrap
+                             media-dom-token-list-result?
+                             #f))
 
 ;; media-keys : external? -> (or/c #f media-keys-info?)
 ;;   Read the attached MediaKeys object.
-(define-media-wrapped-getter media-keys js-media-media-keys media-keys-info-wrap)
+(define (media-keys media)
+  (media-result-wrap/checked 'media-keys
+                             "HTMLMediaElement.mediaKeys"
+                             "MediaKeys"
+                             (js-media-media-keys media)
+                             media-keys-info-wrap
+                             media-keys-info?
+                             #t))
 
 ;; media-set-media-keys! : external? (or/c media-keys-info? external/raw) -> external/raw
 ;;   Attach MediaKeys for encrypted media playback and return the browser promise-like value.
@@ -436,9 +466,28 @@
   (define src-object (js-media-src-object media))
   (cond
     [(or (not src-object) (js-nullish? src-object)) #f]
-    [(not (js-nullish? (js-ref/extern src-object "getTracks")))
-     (media-stream-wrap src-object)]
-    [else (media-source-wrap src-object)]))
+    [(shared-dom-host-method-present? src-object "getTracks")
+     (media-result-wrap/checked 'media-src-object
+                                "HTMLMediaElement.srcObject"
+                                "MediaStream"
+                                src-object
+                                media-stream-wrap
+                                media-stream?
+                                #f)]
+    [(shared-dom-host-surface-present? src-object
+                                       '()
+                                       '("addSourceBuffer" "endOfStream"))
+     (media-result-wrap/checked 'media-src-object
+                                "HTMLMediaElement.srcObject"
+                                "MediaSource"
+                                src-object
+                                media-source-wrap
+                                media-source?
+                                #f)]
+    [else
+     (raise-arguments-error
+      'media-src-object
+      "HTMLMediaElement.srcObject result must be MediaStream or MediaSource")]))
 
 ;; media-set-src-object! : external? (or/c #f media-stream? media-source? external/raw) -> void?
 ;;   Set the source object for the media element.
@@ -466,22 +515,47 @@
   (define kind* (media-stringish->string 'media-add-text-track! kind))
   (define label* (media-resolve-stringish-optional 'media-add-text-track! label))
   (define language* (media-resolve-stringish-optional 'media-add-text-track! language))
-  (text-track-wrap (js-media-add-text-track! media kind* label* language*)))
+  (media-result-wrap/checked
+   'media-add-text-track!
+   "HTMLMediaElement.addTextTrack"
+   "TextTrack"
+   (js-media-add-text-track! media kind* label* language*)
+   text-track-wrap
+   text-track?
+   #f))
 
 ;; media-audio-tracks : external? -> (or/c #f audio-track-list?)
 ;;   Read the browser audio track list.
 (define (media-audio-tracks media)
-  (audio-track-list-wrap (js-media-audio-tracks media)))
+  (media-result-wrap/checked 'media-audio-tracks
+                             "HTMLMediaElement.audioTracks"
+                             "AudioTrackList"
+                             (js-media-audio-tracks media)
+                             audio-track-list-wrap
+                             audio-track-list?
+                             #t))
 
 ;; media-buffered : external? -> time-ranges?
 ;;   Read the buffered time ranges.
 (define (media-buffered media)
-  (time-ranges-wrap (js-media-buffered media)))
+  (media-result-wrap/checked 'media-buffered
+                             "HTMLMediaElement.buffered"
+                             "TimeRanges"
+                             (js-media-buffered media)
+                             time-ranges-wrap
+                             time-ranges?
+                             #f))
 
 ;; media-error : external? -> (or/c #f media-error-info?)
 ;;   Read the current media error, if any.
 (define (media-error media)
-  (media-error-info-wrap (js-media-error media)))
+  (media-result-wrap/checked 'media-error
+                             "HTMLMediaElement.error"
+                             "MediaError"
+                             (js-media-error media)
+                             media-error-info-wrap
+                             media-error-info?
+                             #t))
 
 ;; media-play : external? -> external/raw
 ;;   Start playback and return the browser promise-like value.
@@ -516,27 +590,58 @@
 ;; media-played : external? -> time-ranges?
 ;;   Read the played time ranges.
 (define (media-played media)
-  (time-ranges-wrap (js-media-played media)))
+  (media-result-wrap/checked 'media-played
+                             "HTMLMediaElement.played"
+                             "TimeRanges"
+                             (js-media-played media)
+                             time-ranges-wrap
+                             time-ranges?
+                             #f))
 
 ;; media-seekable : external? -> time-ranges?
 ;;   Read the seekable time ranges.
 (define (media-seekable media)
-  (time-ranges-wrap (js-media-seekable media)))
+  (media-result-wrap/checked 'media-seekable
+                             "HTMLMediaElement.seekable"
+                             "TimeRanges"
+                             (js-media-seekable media)
+                             time-ranges-wrap
+                             time-ranges?
+                             #f))
 
 ;; media-text-tracks : external? -> (or/c #f text-track-list?)
 ;;   Read the browser text track list.
 (define (media-text-tracks media)
-  (text-track-list-wrap (js-media-text-tracks media)))
+  (media-result-wrap/checked 'media-text-tracks
+                             "HTMLMediaElement.textTracks"
+                             "TextTrackList"
+                             (js-media-text-tracks media)
+                             text-track-list-wrap
+                             text-track-list?
+                             #t))
 
 ;; media-video-tracks : external? -> (or/c #f video-track-list?)
 ;;   Read the browser video track list.
 (define (media-video-tracks media)
-  (video-track-list-wrap (js-media-video-tracks media)))
+  (media-result-wrap/checked 'media-video-tracks
+                             "HTMLMediaElement.videoTracks"
+                             "VideoTrackList"
+                             (js-media-video-tracks media)
+                             video-track-list-wrap
+                             video-track-list?
+                             #t))
 
 ;; media-capture-stream : external? [frame-rate #f] -> media-stream?
 ;;   Capture the media as a stream. #f omits the optional frame rate.
 (define (media-capture-stream media [frame-rate #f])
-  (media-stream-wrap (js-media-capture-stream media (media-resolve-optional frame-rate))))
+  (media-result-wrap/checked
+   'media-capture-stream
+   "HTMLMediaElement.captureStream"
+   "MediaStream"
+   (js-media-capture-stream media (media-resolve-optional frame-rate))
+   media-stream-wrap
+   media-stream?
+   #f))
 
 ;; media-network-state-number : external? -> exact-nonnegative-integer?
 ;;   Read the browser network state code.
