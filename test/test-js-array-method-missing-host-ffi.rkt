@@ -101,6 +101,44 @@
       const fake = (() => false);
       fake.from = (_source) => ({length: 0});
       globalThis.Uint8Array = fake;
+    },
+    arrayStaticDescriptors: {},
+    arrayPrototypeDescriptors: {},
+    replaceArrayStaticWithBadResult(methodName) {
+      this.arrayStaticDescriptors[methodName] =
+        Object.getOwnPropertyDescriptor(Array, methodName) || null;
+      Object.defineProperty(Array, methodName, {
+        value: (..._args) => 42,
+        writable: true,
+        configurable: true
+      });
+    },
+    restoreArrayStatic(methodName) {
+      const saved = this.arrayStaticDescriptors[methodName];
+      if (saved) {
+        Object.defineProperty(Array, methodName, saved);
+      } else {
+        delete Array[methodName];
+      }
+      delete this.arrayStaticDescriptors[methodName];
+    },
+    replaceArrayPrototypeWithBadResult(methodName) {
+      this.arrayPrototypeDescriptors[methodName] =
+        Object.getOwnPropertyDescriptor(Array.prototype, methodName) || null;
+      Object.defineProperty(Array.prototype, methodName, {
+        value: function(..._args) { return 42; },
+        writable: true,
+        configurable: true
+      });
+    },
+    restoreArrayPrototype(methodName) {
+      const saved = this.arrayPrototypeDescriptors[methodName];
+      if (saved) {
+        Object.defineProperty(Array.prototype, methodName, saved);
+      } else {
+        delete Array.prototype[methodName];
+      }
+      delete this.arrayPrototypeDescriptors[methodName];
     }
   };")
 
@@ -120,6 +158,38 @@
   (js-eval "globalThis.__wrArrayBoundary.restoreUint8Array();")
   (void))
 
+(define (replace-array-static-with-bad-result! method-name)
+  (js-eval
+   (string-append
+    "globalThis.__wrArrayBoundary.replaceArrayStaticWithBadResult('"
+    method-name
+    "');"))
+  (void))
+
+(define (restore-array-static! method-name)
+  (js-eval
+   (string-append
+    "globalThis.__wrArrayBoundary.restoreArrayStatic('"
+    method-name
+    "');"))
+  (void))
+
+(define (replace-array-prototype-with-bad-result! method-name)
+  (js-eval
+   (string-append
+    "globalThis.__wrArrayBoundary.replaceArrayPrototypeWithBadResult('"
+    method-name
+    "');"))
+  (void))
+
+(define (restore-array-prototype! method-name)
+  (js-eval
+   (string-append
+    "globalThis.__wrArrayBoundary.restoreArrayPrototype('"
+    method-name
+    "');"))
+  (void))
+
 (define (check-hidden-array-global thunk needle label)
   (cond
     [(hide-array-global?)
@@ -137,6 +207,22 @@
      (check-message message needle label)]
     [else
      (restore-uint8-array-global!)]))
+
+(define (bad-static-array-result-message method-name thunk)
+  (catch-message/restoring
+   (lambda ()
+     (replace-array-static-with-bad-result! method-name)
+     (thunk))
+   (lambda ()
+     (restore-array-static! method-name))))
+
+(define (bad-prototype-array-result-message method-name thunk)
+  (catch-message/restoring
+   (lambda ()
+     (replace-array-prototype-with-bad-result! method-name)
+     (thunk))
+   (lambda ()
+     (restore-array-prototype! method-name))))
 
 (js-eval
  "globalThis.__wrArrayBoundaryFake = (missing) => {
@@ -223,6 +309,96 @@
   delete globalThis.__wrArrayBoundarySavedFrom;
   delete globalThis.__wrArrayBoundarySavedFromAsync;
   delete globalThis.__wrArrayBoundarySavedUint8ArrayFromDescriptor;")
+
+(define bad-from-result-message
+  (bad-static-array-result-message
+   "from"
+   (lambda ()
+     (array-from #(1 2 3)))))
+
+(define bad-of-result-message
+  (bad-static-array-result-message
+   "of"
+   (lambda ()
+     (array-of 1 2 3))))
+
+(define bad-vector->array-result-message
+  (bad-static-array-result-message
+   "of"
+   (lambda ()
+     (vector->array #(1 2 3)))))
+
+(define bad-slice-result-message
+  (bad-prototype-array-result-message
+   "slice"
+   (lambda ()
+     (array-slice (array-of 1 2 3)))))
+
+(define bad-concat-result-message
+  (bad-prototype-array-result-message
+   "concat"
+   (lambda ()
+     (array-concat (array-of 1) (array-of 2)))))
+
+(define bad-copy-within-result-message
+  (bad-prototype-array-result-message
+   "copyWithin"
+   (lambda ()
+     (array-copy-within! (array-of 1 2 3) 0 1))))
+
+(define bad-fill-result-message
+  (bad-prototype-array-result-message
+   "fill"
+   (lambda ()
+     (array-fill! (array-of 1 2 3) 'x))))
+
+(define bad-reverse-result-message
+  (bad-prototype-array-result-message
+   "reverse"
+   (lambda ()
+     (array-reverse! (array-of 1 2 3)))))
+
+(define bad-sort-result-message
+  (bad-prototype-array-result-message
+   "sort"
+   (lambda ()
+     (array-sort! (array-of 3 1 2)))))
+
+(define bad-splice-result-message
+  (bad-prototype-array-result-message
+   "splice"
+   (lambda ()
+     (array-splice! (array-of 1 2 3) 1 1))))
+
+(define bad-flat-result-message
+  (bad-prototype-array-result-message
+   "flat"
+   (lambda ()
+     (array-flat (array-of (array-of 1 2) (array-of 3))))))
+
+(define bad-to-reversed-result-message
+  (bad-prototype-array-result-message
+   "toReversed"
+   (lambda ()
+     (array-to-reversed (array-of 1 2 3)))))
+
+(define bad-to-sorted-result-message
+  (bad-prototype-array-result-message
+   "toSorted"
+   (lambda ()
+     (array-to-sorted (array-of 3 1 2)))))
+
+(define bad-to-spliced-result-message
+  (bad-prototype-array-result-message
+   "toSpliced"
+   (lambda ()
+     (array-to-spliced (array-of 1 2 3) 1 1))))
+
+(define bad-with-result-message
+  (bad-prototype-array-result-message
+   "with"
+   (lambda ()
+     (array-with (array-of 1 2 3) 1 'x))))
 
 (define at-message
   (catch-message
@@ -342,6 +518,51 @@
 (check-message uint8-array-from-non-constructor-message
                "Uint8Array.from not available in this environment"
                "non-constructible Uint8Array.from message")
+(check-message bad-from-result-message
+               "Array.from result must be an Array"
+               "bad Array.from result message")
+(check-message bad-of-result-message
+               "Array.of result must be an Array"
+               "bad Array.of result message")
+(check-message bad-vector->array-result-message
+               "Array.of result must be an Array"
+               "bad vector->array result message")
+(check-message bad-slice-result-message
+               "Array.slice result must be an Array"
+               "bad Array.slice result message")
+(check-message bad-concat-result-message
+               "Array.concat result must be an Array"
+               "bad Array.concat result message")
+(check-message bad-copy-within-result-message
+               "Array.copyWithin result must be an Array"
+               "bad Array.copyWithin result message")
+(check-message bad-fill-result-message
+               "Array.fill result must be an Array"
+               "bad Array.fill result message")
+(check-message bad-reverse-result-message
+               "Array.reverse result must be an Array"
+               "bad Array.reverse result message")
+(check-message bad-sort-result-message
+               "Array.sort result must be an Array"
+               "bad Array.sort result message")
+(check-message bad-splice-result-message
+               "Array.splice result must be an Array"
+               "bad Array.splice result message")
+(check-message bad-flat-result-message
+               "Array.flat result must be an Array"
+               "bad Array.flat result message")
+(check-message bad-to-reversed-result-message
+               "Array.toReversed result must be an Array"
+               "bad Array.toReversed result message")
+(check-message bad-to-sorted-result-message
+               "Array.toSorted result must be an Array"
+               "bad Array.toSorted result message")
+(check-message bad-to-spliced-result-message
+               "Array.toSpliced result must be an Array"
+               "bad Array.toSpliced result message")
+(check-message bad-with-result-message
+               "Array.with result must be an Array"
+               "bad Array.with result message")
 (check-unavailable-message at-message
                            "Array.at"
                            "missing Array.at message")

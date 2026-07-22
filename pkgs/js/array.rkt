@@ -72,6 +72,16 @@
 (define (array-wrap value)
   (array value))
 
+;; array-wrap-result : symbol? string? any/c -> array?
+;;   Wrap a JavaScript Array result after checking the host boundary.
+(define (array-wrap-result who method-name value)
+  (when (zero? (unsafe:js-array-is-array value))
+    (raise-arguments-error who
+                           (string-append "Array."
+                                          method-name
+                                          " result must be an Array")))
+  (array value))
+
 ;; array-unwrap : any/c -> any/c
 ;;   Unwrap a browser JavaScript Array value when available.
 (define (array-unwrap value)
@@ -108,12 +118,19 @@
   (define array-ctor (check-array-global-method 'array-from "from"))
   (cond
     [(eq? map-function #f)
-     (array-wrap (unsafe:js-send/extern array-ctor "from" (vector source*)))]
+     (array-wrap-result 'array-from
+                        "from"
+                        (unsafe:js-send/extern array-ctor "from" (vector source*)))]
     [(eq? this-arg #f)
-     (array-wrap (unsafe:js-send/extern array-ctor "from" (vector source* map-function)))]
+     (array-wrap-result 'array-from
+                        "from"
+                        (unsafe:js-send/extern array-ctor "from" (vector source* map-function)))]
     [else
-     (array-wrap (unsafe:js-send/extern array-ctor "from"
-                                        (vector source* map-function (array-unwrap this-arg))))]))
+     (array-wrap-result
+      'array-from
+      "from"
+      (unsafe:js-send/extern array-ctor "from"
+                             (vector source* map-function (array-unwrap this-arg))))]))
 
 ;; array-from-async : any/c [(or/c procedure? external?) #f] [any/c #f] -> array?
 ;;   Build an array from an async iterable or array-like value.
@@ -134,7 +151,9 @@
 ;; array-of : any/c ... -> array?
 ;;   Build a JavaScript array from the given items.
 (define (array-of . items)
-  (array-wrap (unsafe:js-array-of (array-items->vector items))))
+  (array-wrap-result 'array-of
+                     "of"
+                     (unsafe:js-array-of (array-items->vector items))))
 
 ;; array-length : any/c -> exact-nonnegative-integer?
 ;;   Read the length of a JavaScript array.
@@ -180,17 +199,26 @@
 ;; vector->array : vector? -> array?
 ;;   Convert a Racket vector into a JavaScript array.
 (define (vector->array vec)
-  (array-wrap (unsafe:js-array-of (array-sequence->vector 'vector->array vec))))
+  (array-wrap-result 'vector->array
+                     "of"
+                     (unsafe:js-array-of
+                      (array-sequence->vector 'vector->array vec))))
 
 ;; list->array : list? -> array?
 ;;   Convert a Racket list into a JavaScript array.
 (define (list->array xs)
-  (array-wrap (unsafe:js-array-of (array-sequence->vector 'list->array xs))))
+  (array-wrap-result 'list->array
+                     "of"
+                     (unsafe:js-array-of
+                      (array-sequence->vector 'list->array xs))))
 
 ;; sequence->array : (or/c list? vector?) -> array?
 ;;   Convert a Racket list or vector into a JavaScript array.
 (define (sequence->array items)
-  (array-wrap (unsafe:js-array-of (array-sequence->vector 'sequence->array items))))
+  (array-wrap-result 'sequence->array
+                     "of"
+                     (unsafe:js-array-of
+                      (array-sequence->vector 'sequence->array items))))
 
 ;; array-join : any/c [any/c #f] -> string?
 ;;   Join the array elements into a string.
@@ -207,16 +235,25 @@
   (define arr* (array-unwrap arr))
   (cond
     [(and (eq? start #f) (eq? end #f))
-     (array-wrap (unsafe:js-array-slice arr* (void) (void)))]
+     (array-wrap-result 'array-slice
+                        "slice"
+                        (unsafe:js-array-slice arr* (void) (void)))]
     [(eq? end #f)
-     (array-wrap (unsafe:js-array-slice arr* start (void)))]
+     (array-wrap-result 'array-slice
+                        "slice"
+                        (unsafe:js-array-slice arr* start (void)))]
     [else
-     (array-wrap (unsafe:js-array-slice arr* start end))]))
+     (array-wrap-result 'array-slice
+                        "slice"
+                        (unsafe:js-array-slice arr* start end))]))
 
 ;; array-concat : any/c any/c ... -> array?
 ;;   Concatenate arrays and values into a new array.
 (define (array-concat arr . items)
-  (array-wrap (unsafe:js-array-concat (array-unwrap arr) (array-items->vector items))))
+  (array-wrap-result 'array-concat
+                     "concat"
+                     (unsafe:js-array-concat (array-unwrap arr)
+                                             (array-items->vector items))))
 
 ;; array-copy-within! : any/c exact-integer? exact-integer? [any/c #f] -> array?
 ;;   Copy a slice of the array within the array itself.
@@ -224,8 +261,12 @@
 (define (array-copy-within! arr target start [end #f])
   (define arr* (array-unwrap arr))
   (if (eq? end #f)
-      (array-wrap (unsafe:js-array-copy-within arr* target start (void)))
-      (array-wrap (unsafe:js-array-copy-within arr* target start end))))
+      (array-wrap-result 'array-copy-within!
+                         "copyWithin"
+                         (unsafe:js-array-copy-within arr* target start (void)))
+      (array-wrap-result 'array-copy-within!
+                         "copyWithin"
+                         (unsafe:js-array-copy-within arr* target start end))))
 
 ;; array-fill! : any/c any/c [any/c #f] [any/c #f] -> array?
 ;;   Fill a range of the array in place.
@@ -234,11 +275,17 @@
   (define arr* (array-unwrap arr))
   (cond
     [(and (eq? start #f) (eq? end #f))
-     (array-wrap (unsafe:js-array-fill arr* (array-unwrap value) (void) (void)))]
+     (array-wrap-result 'array-fill!
+                        "fill"
+                        (unsafe:js-array-fill arr* (array-unwrap value) (void) (void)))]
     [(eq? end #f)
-     (array-wrap (unsafe:js-array-fill arr* (array-unwrap value) start (void)))]
+     (array-wrap-result 'array-fill!
+                        "fill"
+                        (unsafe:js-array-fill arr* (array-unwrap value) start (void)))]
     [else
-     (array-wrap (unsafe:js-array-fill arr* (array-unwrap value) start end))]))
+     (array-wrap-result 'array-fill!
+                        "fill"
+                        (unsafe:js-array-fill arr* (array-unwrap value) start end))]))
 
 ;; array-push! : any/c any/c ... -> exact-nonnegative-integer?
 ;;   Append one or more values to the end of the array.
@@ -257,7 +304,9 @@
 ;; array-reverse! : any/c -> array?
 ;;   Reverse the array in place.
 (define (array-reverse! arr)
-  (array-wrap (unsafe:js-array-reverse (array-unwrap arr))))
+  (array-wrap-result 'array-reverse!
+                     "reverse"
+                     (unsafe:js-array-reverse (array-unwrap arr))))
 
 ;; array-shift : any/c -> any/c
 ;;   Remove and return the first array element.
@@ -271,13 +320,19 @@
 (define (array-sort! arr [compare-function #f])
   (define arr* (array-unwrap arr))
   (if (eq? compare-function #f)
-      (array-wrap (unsafe:js-array-sort arr* (unsafe:js-undefined)))
-      (array-wrap (unsafe:js-array-sort arr* compare-function))))
+      (array-wrap-result 'array-sort!
+                         "sort"
+                         (unsafe:js-array-sort arr* (unsafe:js-undefined)))
+      (array-wrap-result 'array-sort!
+                         "sort"
+                         (unsafe:js-array-sort arr* compare-function))))
 
 ;; array-splice! : any/c exact-integer? exact-integer? any/c ... -> array?
 ;;   Replace array elements in place and return the removed items.
 (define (array-splice! arr start delete-count . items)
-  (array-wrap
+  (array-wrap-result
+   'array-splice!
+   "splice"
    (unsafe:js-array-splice (array-unwrap arr)
                            (array-items->vector (cons start (cons delete-count items))))))
 
@@ -304,13 +359,19 @@
 (define (array-flat arr [depth #f])
   (define arr* (array-unwrap arr))
   (if (eq? depth #f)
-      (array-wrap (unsafe:js-array-flat arr* (void)))
-      (array-wrap (unsafe:js-array-flat arr* depth))))
+      (array-wrap-result 'array-flat
+                         "flat"
+                         (unsafe:js-array-flat arr* (void)))
+      (array-wrap-result 'array-flat
+                         "flat"
+                         (unsafe:js-array-flat arr* depth))))
 
 ;; array-to-reversed : any/c -> array?
 ;;   Return a reversed copy of the array.
 (define (array-to-reversed arr)
-  (array-wrap (unsafe:js-array-to-reversed (array-unwrap arr))))
+  (array-wrap-result 'array-to-reversed
+                     "toReversed"
+                     (unsafe:js-array-to-reversed (array-unwrap arr))))
 
 ;; array-to-sorted : any/c [(or/c procedure? external?) #f] -> array?
 ;;   Return a sorted copy of the array.
@@ -319,14 +380,20 @@
 (define (array-to-sorted arr [compare-function #f])
   (define arr* (array-unwrap arr))
   (if (eq? compare-function #f)
-      (array-wrap (unsafe:js-array-to-sorted arr* (unsafe:js-undefined)))
-      (array-wrap (unsafe:js-array-to-sorted arr* compare-function))))
+      (array-wrap-result 'array-to-sorted
+                         "toSorted"
+                         (unsafe:js-array-to-sorted arr* (unsafe:js-undefined)))
+      (array-wrap-result 'array-to-sorted
+                         "toSorted"
+                         (unsafe:js-array-to-sorted arr* compare-function))))
 
 ;; array-to-spliced : any/c exact-integer? exact-integer? any/c ... -> array?
 ;;   Return the result of splicing without mutating the original array.
 ;;   start and delete-count are array positions.
 (define (array-to-spliced arr start delete-count . items)
-  (array-wrap
+  (array-wrap-result
+   'array-to-spliced
+   "toSpliced"
    (unsafe:js-array-to-spliced
     (array-unwrap arr)
     (array-items->vector (cons start (cons delete-count items))))))
@@ -335,4 +402,6 @@
 ;;   Return a copy of the array with one value replaced.
 ;;   index is an array position.
 (define (array-with arr index value)
-  (array-wrap (unsafe:js-array-with (array-unwrap arr) index (array-unwrap value))))
+  (array-wrap-result 'array-with
+                     "with"
+                     (unsafe:js-array-with (array-unwrap arr) index (array-unwrap value))))
