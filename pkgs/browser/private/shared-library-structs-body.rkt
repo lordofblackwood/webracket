@@ -20,6 +20,17 @@
   (and (external? value)
        (not (js-nullish? value))))
 
+;; shared-dom-wrapper-with-host? : any/c (any/c -> boolean?) (any/c -> any/c) -> boolean?
+;;   Report whether value is a wrapper around a non-nullish host value.
+(define (shared-dom-wrapper-with-host? value wrapper? raw-ref)
+  (and (wrapper? value)
+       (shared-dom-raw-host-value? (raw-ref value))))
+
+;; dom-element/surface? : any/c -> boolean?
+;;   Check whether value is a usable Element wrapper.
+(define (dom-element/surface? value)
+  (shared-dom-wrapper-with-host? value dom-element? dom-element-raw))
+
 ;; shared-dom-wrap-value : any/c (any/c -> boolean?) (any/c -> any/c) -> any/c
 ;;   Preserve wrapped and nullish values, otherwise build a host wrapper.
 (define (shared-dom-wrap-value value wrapped? make-wrapper)
@@ -46,6 +57,11 @@
 ;;   Wrap a browser Text node.
 (struct dom-text (raw) #:transparent)
 
+;; dom-text/surface? : any/c -> boolean?
+;;   Check whether value is a usable Text wrapper.
+(define (dom-text/surface? value)
+  (shared-dom-wrapper-with-host? value dom-text? dom-text-raw))
+
 ;; dom-text-wrap : any/c -> any/c
 ;;   Wrap a raw browser Text node, leaving wrapped values alone.
 (define (dom-text-wrap value)
@@ -61,6 +77,11 @@
 ;; dom-node : external/raw -> dom-node?
 ;;   Wrap a browser Node object.
 (struct dom-node (raw) #:transparent)
+
+;; dom-node/surface? : any/c -> boolean?
+;;   Check whether value is a usable Node wrapper.
+(define (dom-node/surface? value)
+  (shared-dom-wrapper-with-host? value dom-node? dom-node-raw))
 
 ;; shared-dom-node-wrapper? : any/c -> boolean?
 ;;   Report whether value is already one of the node-wrapper structs.
@@ -152,6 +173,11 @@
 ;;   Wrap a browser Attr node.
 (struct dom-attr (raw) #:transparent)
 
+;; dom-attr/surface? : any/c -> boolean?
+;;   Check whether value is a usable Attr wrapper.
+(define (dom-attr/surface? value)
+  (shared-dom-wrapper-with-host? value dom-attr? dom-attr-raw))
+
 ;; dom-attr-wrap : any/c -> any/c
 ;;   Wrap a raw browser Attr node, leaving wrapped values alone.
 (define (dom-attr-wrap value)
@@ -167,6 +193,11 @@
 ;; dom-node-list : external/raw -> dom-node-list?
 ;;   Wrap a browser NodeList object.
 (struct dom-node-list (raw) #:transparent)
+
+;; dom-node-list/surface? : any/c -> boolean?
+;;   Check whether value is a usable NodeList wrapper.
+(define (dom-node-list/surface? value)
+  (shared-dom-wrapper-with-host? value dom-node-list? dom-node-list-raw))
 
 ;; node-list-wrap : any/c -> any/c
 ;;   Wrap a raw browser NodeList object, leaving wrapped values alone.
@@ -184,6 +215,11 @@
 ;;   Wrap a browser HTMLCollection object.
 (struct html-collection (raw) #:transparent)
 
+;; html-collection/surface? : any/c -> boolean?
+;;   Check whether value is a usable HTMLCollection wrapper.
+(define (html-collection/surface? value)
+  (shared-dom-wrapper-with-host? value html-collection? html-collection-raw))
+
 ;; html-collection-wrap : any/c -> any/c
 ;;   Wrap a raw browser HTMLCollection object, leaving wrapped values alone.
 (define (html-collection-wrap value)
@@ -199,6 +235,11 @@
 ;; dom-token-list : external/raw -> dom-token-list?
 ;;   Wrap a browser DOMTokenList object.
 (struct dom-token-list (raw) #:transparent)
+
+;; dom-token-list/surface? : any/c -> boolean?
+;;   Check whether value is a usable DOMTokenList wrapper.
+(define (dom-token-list/surface? value)
+  (shared-dom-wrapper-with-host? value dom-token-list? dom-token-list-raw))
 
 ;; dom-token-list-wrap : any/c -> any/c
 ;;   Wrap a raw browser DOMTokenList object, leaving wrapped values alone.
@@ -216,6 +257,11 @@
 ;;   Wrap a browser ShadowRoot object.
 (struct dom-shadow-root (raw) #:transparent)
 
+;; dom-shadow-root/surface? : any/c -> boolean?
+;;   Check whether value is a usable ShadowRoot wrapper.
+(define (dom-shadow-root/surface? value)
+  (shared-dom-wrapper-with-host? value dom-shadow-root? dom-shadow-root-raw))
+
 ;; shadow-root-wrap : any/c -> any/c
 ;;   Wrap a raw browser ShadowRoot object, leaving wrapped values alone.
 (define (shadow-root-wrap value)
@@ -231,6 +277,11 @@
 ;; dom-animation : external/raw -> dom-animation?
 ;;   Wrap a browser Animation object.
 (struct dom-animation (raw) #:transparent)
+
+;; dom-animation/surface? : any/c -> boolean?
+;;   Check whether value is a usable Animation wrapper.
+(define (dom-animation/surface? value)
+  (shared-dom-wrapper-with-host? value dom-animation? dom-animation-raw))
 
 ;; animation-wrap : any/c -> any/c
 ;;   Wrap a raw browser Animation object, leaving wrapped values alone.
@@ -248,6 +299,11 @@
 ;;   Wrap a browser ComputedStyleMap object.
 (struct dom-computed-style-map (raw) #:transparent)
 
+;; dom-computed-style-map/surface? : any/c -> boolean?
+;;   Check whether value is a usable ComputedStyleMap wrapper.
+(define (dom-computed-style-map/surface? value)
+  (shared-dom-wrapper-with-host? value dom-computed-style-map? dom-computed-style-map-raw))
+
 ;; computed-style-map-wrap : any/c -> any/c
 ;;   Wrap a raw browser ComputedStyleMap object, leaving wrapped values alone.
 (define (computed-style-map-wrap value)
@@ -264,6 +320,11 @@
 ;;   Wrap a browser AudioListener object.
 (struct audio-listener (raw) #:transparent)
 
+;; audio-listener/surface? : any/c -> boolean?
+;;   Check whether value is a usable AudioListener wrapper.
+(define (audio-listener/surface? value)
+  (shared-dom-wrapper-with-host? value audio-listener? audio-listener-raw))
+
 ;; audio-listener-wrap : any/c -> any/c
 ;;   Wrap a raw browser AudioListener object, leaving wrapped values alone.
 (define (audio-listener-wrap value)
@@ -279,6 +340,11 @@
 ;; audio-periodic-wave : external/raw -> audio-periodic-wave?
 ;;   Wrap a browser PeriodicWave object.
 (struct audio-periodic-wave (raw) #:transparent)
+
+;; audio-periodic-wave/surface? : any/c -> boolean?
+;;   Check whether value is a usable PeriodicWave wrapper.
+(define (audio-periodic-wave/surface? value)
+  (shared-dom-wrapper-with-host? value audio-periodic-wave? audio-periodic-wave-raw))
 
 ;; audio-periodic-wave-wrap : any/c -> any/c
 ;;   Wrap a raw browser PeriodicWave object, leaving wrapped values alone.
@@ -310,6 +376,11 @@
 ;;   Wrap a browser DOMRect object.
 (struct dom-rect (raw) #:transparent)
 
+;; dom-rect/surface? : any/c -> boolean?
+;;   Check whether value is a usable DOMRect wrapper.
+(define (dom-rect/surface? value)
+  (shared-dom-wrapper-with-host? value dom-rect? dom-rect-raw))
+
 ;; dom-rect-wrap : any/c -> any/c
 ;;   Wrap a raw browser DOMRect object, leaving wrapped values alone.
 (define (dom-rect-wrap value)
@@ -326,6 +397,11 @@
 ;;   Wrap a browser DOMRectList object.
 (struct dom-rect-list (raw) #:transparent)
 
+;; dom-rect-list/surface? : any/c -> boolean?
+;;   Check whether value is a usable DOMRectList wrapper.
+(define (dom-rect-list/surface? value)
+  (shared-dom-wrapper-with-host? value dom-rect-list? dom-rect-list-raw))
+
 ;; dom-rect-list-wrap : any/c -> any/c
 ;;   Wrap a raw browser DOMRectList object, leaving wrapped values alone.
 (define (dom-rect-list-wrap value)
@@ -341,6 +417,11 @@
 ;; dom-selection : external/raw -> dom-selection?
 ;;   Wrap a browser Selection object.
 (struct dom-selection (raw) #:transparent)
+
+;; dom-selection/surface? : any/c -> boolean?
+;;   Check whether value is a usable Selection wrapper.
+(define (dom-selection/surface? value)
+  (shared-dom-wrapper-with-host? value dom-selection? dom-selection-raw))
 
 ;; dom-selection-wrap : any/c -> any/c
 ;;   Wrap a raw browser Selection object, leaving wrapped values alone.
@@ -401,6 +482,11 @@
 ;;   Wrap a browser MediaQueryList object.
 (struct media-query-list (raw) #:transparent)
 
+;; media-query-list/surface? : any/c -> boolean?
+;;   Check whether value is a usable MediaQueryList wrapper.
+(define (media-query-list/surface? value)
+  (shared-dom-wrapper-with-host? value media-query-list? media-query-list-raw))
+
 ;; media-query-list-wrap : any/c -> any/c
 ;;   Wrap a raw browser MediaQueryList object, leaving wrapped values alone.
 (define (media-query-list-wrap value)
@@ -430,6 +516,11 @@
 ;; css-style-declaration : external/raw -> css-style-declaration?
 ;;   Wrap a browser CSSStyleDeclaration object.
 (struct css-style-declaration (raw) #:transparent)
+
+;; css-style-declaration/surface? : any/c -> boolean?
+;;   Check whether value is a usable CSSStyleDeclaration wrapper.
+(define (css-style-declaration/surface? value)
+  (shared-dom-wrapper-with-host? value css-style-declaration? css-style-declaration-raw))
 
 ;; css-style-declaration-wrap : any/c -> any/c
 ;;   Wrap a raw browser CSSStyleDeclaration object, leaving wrapped values alone.

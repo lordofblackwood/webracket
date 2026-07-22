@@ -39,6 +39,12 @@
 (define (check-nullish-wrapper value label)
   (check-false value label))
 
+(define (check-nullish-predicate-rejected predicate make-wrapper label)
+  (check-false (predicate (make-wrapper js-null))
+               (string-append label " rejects null raw"))
+  (check-false (predicate (make-wrapper js-undefined))
+               (string-append label " rejects undefined raw")))
+
 (define js-null (js-eval "null"))
 (define js-undefined (js-eval "undefined"))
 (define raw-null-selection (dom-selection js-null))
@@ -435,6 +441,29 @@
                        "null VideoTrackList wrapper returns #f")
 (check-nullish-wrapper (time-ranges-wrap js-null)
                        "null TimeRanges wrapper returns #f")
+(check-nullish-predicate-rejected dom-element? dom-element "dom-element?")
+(check-nullish-predicate-rejected dom-text? dom-text "dom-text?")
+(check-nullish-predicate-rejected dom-node? dom-node "dom-node?")
+(check-nullish-predicate-rejected dom-attr? dom-attr "dom-attr?")
+(check-nullish-predicate-rejected dom-node-list? dom-node-list "dom-node-list?")
+(check-nullish-predicate-rejected html-collection? html-collection "html-collection?")
+(check-nullish-predicate-rejected dom-token-list? dom-token-list "dom-token-list?")
+(check-nullish-predicate-rejected dom-shadow-root? dom-shadow-root "dom-shadow-root?")
+(check-nullish-predicate-rejected dom-animation? dom-animation "dom-animation?")
+(check-nullish-predicate-rejected dom-computed-style-map?
+                                  dom-computed-style-map
+                                  "dom-computed-style-map?")
+(check-nullish-predicate-rejected audio-listener? audio-listener "audio-listener?")
+(check-nullish-predicate-rejected audio-periodic-wave?
+                                  audio-periodic-wave
+                                  "audio-periodic-wave?")
+(check-nullish-predicate-rejected dom-rect? dom-rect "dom-rect?")
+(check-nullish-predicate-rejected dom-rect-list? dom-rect-list "dom-rect-list?")
+(check-nullish-predicate-rejected dom-selection? dom-selection "dom-selection?")
+(check-nullish-predicate-rejected media-query-list? media-query-list "media-query-list?")
+(check-nullish-predicate-rejected css-style-declaration?
+                                  css-style-declaration
+                                  "css-style-declaration?")
 (check-message selection-anchor-message
                "Selection.anchorNode not available in this environment"
                "missing Selection.anchorNode message")

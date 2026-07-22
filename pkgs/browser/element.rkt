@@ -10,6 +10,23 @@
                   procedure->external))
 
 (provide (except-out (all-defined-out)
+                     dom-element?
+                     dom-text?
+                     dom-node?
+                     dom-attr?
+                     dom-node-list?
+                     html-collection?
+                     dom-token-list?
+                     dom-shadow-root?
+                     dom-animation?
+                     dom-computed-style-map?
+                     audio-listener?
+                     audio-periodic-wave?
+                     dom-rect?
+                     dom-rect-list?
+                     dom-selection?
+                     media-query-list?
+                     css-style-declaration?
                      media-stream?
                      media-source?
                      media-keys-info?
@@ -21,7 +38,24 @@
                      text-track-list?
                      video-track-list?
                      time-ranges?)
-         (rename-out [media-stream/surface? media-stream?]
+         (rename-out [dom-element/surface? dom-element?]
+                     [dom-text/surface? dom-text?]
+                     [dom-node/surface? dom-node?]
+                     [dom-attr/surface? dom-attr?]
+                     [dom-node-list/surface? dom-node-list?]
+                     [html-collection/surface? html-collection?]
+                     [dom-token-list/surface? dom-token-list?]
+                     [dom-shadow-root/surface? dom-shadow-root?]
+                     [dom-animation/surface? dom-animation?]
+                     [dom-computed-style-map/surface? dom-computed-style-map?]
+                     [audio-listener/surface? audio-listener?]
+                     [audio-periodic-wave/surface? audio-periodic-wave?]
+                     [dom-rect/surface? dom-rect?]
+                     [dom-rect-list/surface? dom-rect-list?]
+                     [dom-selection/surface? dom-selection?]
+                     [media-query-list/surface? media-query-list?]
+                     [css-style-declaration/surface? css-style-declaration?]
+                     [media-stream/surface? media-stream?]
                      [media-source/surface? media-source?]
                      [media-keys-info/surface? media-keys-info?]
                      [audio-track/surface? audio-track?]
