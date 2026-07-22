@@ -57,6 +57,16 @@
   (check-js-promise-host-method who promise-ctor "Promise" method-name)
   promise-ctor)
 
+;; js-promise-wrap-result : symbol? string? any/c -> js-promise?
+;;   Wrap a Promise method result after checking that it is Promise-like.
+(define (js-promise-wrap-result who method-name raw)
+  (unless (js-promise-thenable-method? raw "then")
+    (raise-arguments-error who
+                           (string-append "Promise."
+                                          method-name
+                                          " result must be Promise-like")))
+  (js-promise raw))
+
 ;; js-promise-wrap : external/raw -> js-promise?
 ;;   Wrap a Promise-like value after validating that it is thenable.
 (define (js-promise-wrap raw)
@@ -107,14 +117,18 @@
 ;;   Build an already-resolved JavaScript Promise.
 (define (js-promise-resolved value)
   (define promise-ctor (check-js-promise-global-method 'js-promise-resolved "resolve"))
-  (js-promise-wrap
+  (js-promise-wrap-result
+   'js-promise-resolved
+   "resolve"
    (js-send/extern promise-ctor "resolve" (vector value))))
 
 ;; js-promise-rejected : any/c -> js-promise?
 ;;   Build an already-rejected JavaScript Promise.
 (define (js-promise-rejected value)
   (define promise-ctor (check-js-promise-global-method 'js-promise-rejected "reject"))
-  (js-promise-wrap
+  (js-promise-wrap-result
+   'js-promise-rejected
+   "reject"
    (js-send/extern promise-ctor "reject" (vector value))))
 
 ;; js-promise-then : js-promise? (or/c procedure? external?) [(or/c #f procedure? external?)] -> js-promise?
@@ -123,7 +137,9 @@
   (unless (js-promise-thenable? promise)
     (raise-argument-error 'js-promise-then "js-promise?" promise))
   (define on-fulfilled* (js-promise-handler->external 'js-promise-then on-fulfilled))
-  (js-promise-wrap
+  (js-promise-wrap-result
+   'js-promise-then
+   "then"
    (if (eq? on-rejected #f)
        (js-send/extern (js-promise-unwrap promise) "then" (vector on-fulfilled*))
        (js-send/extern (js-promise-unwrap promise)
@@ -140,7 +156,9 @@
                                 (js-promise-unwrap promise)
                                 "Promise"
                                 "catch")
-  (js-promise-wrap
+  (js-promise-wrap-result
+   'js-promise-catch
+   "catch"
    (js-send/extern (js-promise-unwrap promise)
                    "catch"
                    (vector (js-promise-handler->external 'js-promise-catch on-rejected)))))
@@ -154,7 +172,9 @@
                                 (js-promise-unwrap promise)
                                 "Promise"
                                 "finally")
-  (js-promise-wrap
+  (js-promise-wrap-result
+   'js-promise-finally
+   "finally"
    (js-send/extern (js-promise-unwrap promise)
                    "finally"
                    (vector (js-promise-handler->external 'js-promise-finally on-finally)))))
