@@ -61,6 +61,24 @@
   (and (external? raw)
        (not (js-nullish? raw))))
 
+;; gamepad-required-properties-present? : external/raw -> boolean?
+;;   Report whether raw exposes the required Gamepad data properties.
+(define (gamepad-required-properties-present? raw)
+  (and (gamepad-property-present? raw "id")
+       (gamepad-property-present? raw "index")
+       (gamepad-property-present? raw "connected")
+       (gamepad-property-present? raw "timestamp")
+       (gamepad-property-present? raw "mapping")
+       (gamepad-property-present? raw "axes")
+       (gamepad-property-present? raw "buttons")))
+
+;; gamepad-button-required-properties-present? : external/raw -> boolean?
+;;   Report whether raw exposes the required GamepadButton data properties.
+(define (gamepad-button-required-properties-present? raw)
+  (and (gamepad-property-present? raw "pressed")
+       (gamepad-property-present? raw "touched")
+       (gamepad-property-present? raw "value")))
+
 ;; gamepad-vector-map : procedure? vector? -> vector?
 ;;   Map proc over vec without depending on racket/vector.
 (define (gamepad-vector-map proc vec)
@@ -116,22 +134,46 @@
 ;; gamepad? : any/c -> boolean?
 ;;   Report whether v is a wrapped Gamepad object.
 (define (gamepad? v)
+  (and (gamepad-host-value? v)
+       (gamepad-required-properties-present? (gamepad-raw v))))
+
+;; gamepad-host-value? : any/c -> boolean?
+;;   Report whether v wraps an external Gamepad-like host value.
+(define (gamepad-host-value? v)
   (and (gamepad-info? v)
        (gamepad-raw-host-value? (gamepad-raw v))))
 
 ;; gamepad-button? : any/c -> boolean?
 ;;   Report whether v is a wrapped GamepadButton object.
 (define (gamepad-button? v)
+  (and (gamepad-button-host-value? v)
+       (gamepad-button-required-properties-present? (gamepad-button-raw v))))
+
+;; gamepad-button-host-value? : any/c -> boolean?
+;;   Report whether v wraps an external GamepadButton-like host value.
+(define (gamepad-button-host-value? v)
   (and (gamepad-button-info? v)
        (gamepad-raw-host-value? (gamepad-button-raw v))))
 
-;; gamepad-wrap : any/c -> (or/c #f gamepad?)
+;; check-gamepad : symbol? any/c -> void?
+;;   Ensure value wraps an external Gamepad-like host value.
+(define (check-gamepad who value)
+  (unless (gamepad-host-value? value)
+    (raise-argument-error who "gamepad?" value)))
+
+;; check-gamepad-button : symbol? any/c -> void?
+;;   Ensure value wraps an external GamepadButton-like host value.
+(define (check-gamepad-button who value)
+  (unless (gamepad-button-host-value? value)
+    (raise-argument-error who "gamepad-button?" value)))
+
+;; gamepad-wrap : any/c -> (or/c #f gamepad-info?)
 ;;   Wrap a raw Gamepad slot, preserving disconnected/null slots as #f.
 (define (gamepad-wrap raw)
   (and (gamepad-raw-host-value? raw)
        (gamepad-info raw)))
 
-;; gamepad-button-wrap : external/raw -> gamepad-button?
+;; gamepad-button-wrap : external/raw -> gamepad-button-info?
 ;;   Wrap a raw GamepadButton value.
 (define (gamepad-button-wrap raw)
   (gamepad-button-info raw))
@@ -154,56 +196,49 @@
 ;; gamepad-id : gamepad? -> string?
 ;;   Read the browser-provided gamepad id.
 (define (gamepad-id value)
-  (unless (gamepad? value)
-    (raise-argument-error 'gamepad-id "gamepad?" value))
+  (check-gamepad 'gamepad-id value)
   (check-gamepad-property 'gamepad-id value "id")
   (js-ref (gamepad-raw value) "id"))
 
 ;; gamepad-index : gamepad? -> exact-nonnegative-integer?
 ;;   Read the gamepad slot index.
 (define (gamepad-index value)
-  (unless (gamepad? value)
-    (raise-argument-error 'gamepad-index "gamepad?" value))
+  (check-gamepad 'gamepad-index value)
   (check-gamepad-property 'gamepad-index value "index")
   (js-ref (gamepad-raw value) "index"))
 
 ;; gamepad-connected? : gamepad? -> boolean?
 ;;   Report whether the gamepad is still connected.
 (define (gamepad-connected? value)
-  (unless (gamepad? value)
-    (raise-argument-error 'gamepad-connected? "gamepad?" value))
+  (check-gamepad 'gamepad-connected? value)
   (check-gamepad-property 'gamepad-connected? value "connected")
   (js-ref (gamepad-raw value) "connected"))
 
 ;; gamepad-timestamp : gamepad? -> number?
 ;;   Read the most recent gamepad data timestamp.
 (define (gamepad-timestamp value)
-  (unless (gamepad? value)
-    (raise-argument-error 'gamepad-timestamp "gamepad?" value))
+  (check-gamepad 'gamepad-timestamp value)
   (check-gamepad-property 'gamepad-timestamp value "timestamp")
   (js-ref (gamepad-raw value) "timestamp"))
 
 ;; gamepad-mapping : gamepad? -> string?
 ;;   Read the gamepad mapping string, commonly "standard".
 (define (gamepad-mapping value)
-  (unless (gamepad? value)
-    (raise-argument-error 'gamepad-mapping "gamepad?" value))
+  (check-gamepad 'gamepad-mapping value)
   (check-gamepad-property 'gamepad-mapping value "mapping")
   (js-ref (gamepad-raw value) "mapping"))
 
 ;; gamepad-axes : gamepad? -> vector?
 ;;   Return the current axis values as a vector of numbers.
 (define (gamepad-axes value)
-  (unless (gamepad? value)
-    (raise-argument-error 'gamepad-axes "gamepad?" value))
+  (check-gamepad 'gamepad-axes value)
   (check-gamepad-property 'gamepad-axes value "axes")
   (js-array->vector (js-ref/extern (gamepad-raw value) "axes")))
 
 ;; gamepad-buttons : gamepad? -> vector?
 ;;   Return the current buttons as wrapped GamepadButton values.
 (define (gamepad-buttons value)
-  (unless (gamepad? value)
-    (raise-argument-error 'gamepad-buttons "gamepad?" value))
+  (check-gamepad 'gamepad-buttons value)
   (check-gamepad-property 'gamepad-buttons value "buttons")
   (gamepad-vector-map
    gamepad-button-wrap
@@ -212,24 +247,21 @@
 ;; gamepad-button-pressed? : gamepad-button? -> boolean?
 ;;   Report whether the button is currently pressed.
 (define (gamepad-button-pressed? value)
-  (unless (gamepad-button? value)
-    (raise-argument-error 'gamepad-button-pressed? "gamepad-button?" value))
+  (check-gamepad-button 'gamepad-button-pressed? value)
   (check-gamepad-button-property 'gamepad-button-pressed? value "pressed")
   (js-ref (gamepad-button-raw value) "pressed"))
 
 ;; gamepad-button-touched? : gamepad-button? -> boolean?
 ;;   Report whether the button is currently touched.
 (define (gamepad-button-touched? value)
-  (unless (gamepad-button? value)
-    (raise-argument-error 'gamepad-button-touched? "gamepad-button?" value))
+  (check-gamepad-button 'gamepad-button-touched? value)
   (check-gamepad-button-property 'gamepad-button-touched? value "touched")
   (js-ref (gamepad-button-raw value) "touched"))
 
 ;; gamepad-button-value : gamepad-button? -> number?
 ;;   Read the analog button value between 0 and 1.
 (define (gamepad-button-value value)
-  (unless (gamepad-button? value)
-    (raise-argument-error 'gamepad-button-value "gamepad-button?" value))
+  (check-gamepad-button 'gamepad-button-value value)
   (check-gamepad-button-property 'gamepad-button-value value "value")
   (js-ref (gamepad-button-raw value) "value"))
 

@@ -125,14 +125,14 @@
   };")
 
 (define (fake-gamepad missing-property)
-  (gamepad-wrap
+  (gamepad-info
    (js-eval
     (string-append "__wrGamepadBoundaryFakeGamepad('"
                    missing-property
                    "')"))))
 
 (define (fake-button missing-property)
-  (gamepad-button-wrap
+  (gamepad-button-info
    (js-eval
     (string-append "__wrGamepadBoundaryFakeButton('"
                    missing-property
@@ -146,6 +146,20 @@
 
 (check-true (eq? (gamepad-wrap (js-eval "null")) #f)
             "gamepad-wrap maps null slots to #f")
+(check-true (gamepad? (gamepad-wrap (js-eval "__wrGamepadBoundaryFakeGamepad('notAProperty')")))
+            "gamepad-wrap preserves complete raw Gamepad objects")
+(check-true (gamepad? (gamepad-info
+                       (js-eval
+                        "({
+                           id: '',
+                           index: 0,
+                           connected: false,
+                           timestamp: 0,
+                           mapping: '',
+                           axes: [],
+                           buttons: []
+                         })")))
+            "gamepad? accepts present falsy Gamepad properties")
 
 (define null-raw-gamepad
   (gamepad-info (js-null)))
@@ -167,6 +181,28 @@
             "gamepad-button? rejects null raw")
 (check-true (not (gamepad-button? undefined-raw-button))
             "gamepad-button? rejects undefined raw")
+(check-true (gamepad-button? (fake-button "notAProperty"))
+            "gamepad-button? accepts present falsy GamepadButton properties")
+(check-true (not (gamepad? (fake-gamepad "id")))
+            "gamepad? rejects raw Gamepad missing id")
+(check-true (not (gamepad? (fake-gamepad "index")))
+            "gamepad? rejects raw Gamepad missing index")
+(check-true (not (gamepad? (fake-gamepad "connected")))
+            "gamepad? rejects raw Gamepad missing connected")
+(check-true (not (gamepad? (fake-gamepad "timestamp")))
+            "gamepad? rejects raw Gamepad missing timestamp")
+(check-true (not (gamepad? (fake-gamepad "mapping")))
+            "gamepad? rejects raw Gamepad missing mapping")
+(check-true (not (gamepad? (fake-gamepad "axes")))
+            "gamepad? rejects raw Gamepad missing axes")
+(check-true (not (gamepad? (fake-gamepad "buttons")))
+            "gamepad? rejects raw Gamepad missing buttons")
+(check-true (not (gamepad-button? (fake-button "pressed")))
+            "gamepad-button? rejects raw GamepadButton missing pressed")
+(check-true (not (gamepad-button? (fake-button "touched")))
+            "gamepad-button? rejects raw GamepadButton missing touched")
+(check-true (not (gamepad-button? (fake-button "value")))
+            "gamepad-button? rejects raw GamepadButton missing value")
 
 (define (missing-method-message target method thunk)
   (js-eval (string-append "__wrGamepadBoundaryPatch('"
