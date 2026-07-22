@@ -19,16 +19,18 @@ The entry point is @tt{webracket.rkt}. It accepts either:
 @section{Overview}
 
 The overall goal is to compile a WebRacket source file, such as a
-@tt{#lang webracket/base} module, to a WebAssembly module.
+@tt{#lang webracket/base} module, to WebAssembly.
 
-The generated @tt{.wasm} file is not used alone. It is paired with a generated
-host support file:
+By default, WebRacket emits split-runtime output: a program @tt{.wasm}, a
+runtime @tt{.runtime.wasm} sidecar, and a generated host support file.
+Programs that use direct JavaScript FFI wrappers also emit an @tt{.ffi.wasm}
+sidecar by default:
 
 @itemlist[
-  @item{Node mode: a @tt{.js} host file that loads and runs the @tt{.wasm}
-        module in the terminal.}
-  @item{Browser mode: a @tt{.html} host file that loads and runs the @tt{.wasm}
-        module in the browser.}
+  @item{Node mode: a @tt{.js} host file that loads and runs the program and
+        runtime Wasm modules in the terminal.}
+  @item{Browser mode: a @tt{.html} host file that loads and runs the program
+        and runtime Wasm modules in the browser.}
 ]
 
 So the normal output is a small set of files that work together: compile
@@ -284,6 +286,23 @@ Staged provider options:
   @item{@(flag "--no-expander-read-provider"): Disable the staged @tt{expander/read} provider (default).}
   @item{@(flag "--expander-read-syntax-provider"): Compose the private staged original-Racket @tt{read-syntax} provider.}
   @item{@(flag "--no-expander-read-syntax-provider"): Disable the private staged @tt{read-syntax} provider (default).}
+]
+
+Runtime output options:
+
+@itemlist[
+  @item{@(flag "--split-runtime"): Emit split program/runtime Wasm output (default).}
+  @item{@(flag "--no-split-runtime"): Emit one monolithic Wasm module.}
+  @item{@(flag "--split-runtime-cache-reference"): In Node split-runtime mode, read the stable runtime Wasm directly from the runtime cache. This requires the cache to be prewarmed.}
+  @item{@(flag "--no-split-runtime-cache-reference"): Materialize the runtime sidecar next to the program output (default).}
+  @item{@(flag "--split-runtime-core-url <url>"): In browser split-runtime mode, fetch a prewarmed runtime Wasm from @tt{<url>} instead of materializing a per-program runtime sidecar.}
+  @item{@(flag "--no-split-runtime-core-url"): Materialize the browser runtime sidecar next to the program output (default).}
+  @item{@(flag "--split-runtime-core-only"): Split only registered core-runtime helpers into the runtime module.}
+  @item{@(flag "--no-split-runtime-core-only"): Use the classified runtime/program split strategy (default).}
+  @item{@(flag "--split-runtime-provider-runtime"): For module-language input, merge cached module-bridge provider fragments into the split runtime.}
+  @item{@(flag "--no-split-runtime-provider-runtime"): Keep module-bridge provider fragments in the program module (default).}
+  @item{@(flag "--split-runtime-ffi-module"): Explicitly emit active direct FFI wrappers as an FFI Wasm sidecar. This is the default in compatible split-runtime modes when FFI wrappers are active.}
+  @item{@(flag "--no-split-runtime-ffi-module"): Keep active direct FFI wrappers in the program module.}
 ]
 
 Experimental compiler options:

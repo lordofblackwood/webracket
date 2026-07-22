@@ -149,12 +149,13 @@
 (define (record-failure! fmt . args)
   (set! failures (cons (apply format fmt args) failures)))
 
-;; check-output! : symbol? path-string? command-result? -> void?
+;; check-output! : symbol? path-string? command-result? [#:expect-output? boolean?] -> void?
 ;;   Check command success and generated program output.
-(define (check-output! mode log-path result)
+(define (check-output! mode log-path result #:expect-output? [expect-output? #t])
   (unless (command-result-ok? result)
     (record-failure! "~a compile/run command failed; see ~a" mode log-path))
-  (when (and expected-output-regexp
+  (when (and expect-output?
+             expected-output-regexp
              (not (regexp-match? expected-output-regexp
                                   (command-result-stdout result))))
     (record-failure! "~a program stdout did not match expected output regexp ~s; see ~a"
@@ -168,13 +169,15 @@
   (path->string
    (path-replace-extension (file-name-from-path source) #"")))
 
-;; check-artifacts! : symbol? path? path-string? boolean? -> void?
+;; check-artifacts! : symbol? path? path-string? boolean? [#:split-ffi? boolean?] -> void?
 ;;   Check split/default or monolithic generated artifacts.
-(define (check-artifacts! mode source dest-dir split-runtime?)
+(define (check-artifacts! mode source dest-dir split-runtime?
+                          #:split-ffi? [split-ffi? #f])
   (define base (generated-basename source))
   (define host-js (build-path dest-dir (string-append base ".js")))
   (define program-wasm (build-path dest-dir (string-append base ".wasm")))
   (define runtime-wasm (build-path dest-dir (string-append base ".runtime.wasm")))
+  (define ffi-wasm (build-path dest-dir (string-append base ".ffi.wasm")))
   (unless (file-exists? host-js)
     (record-failure! "~a did not produce Node host: ~a" mode host-js))
   (unless (wasm-magic? program-wasm)
@@ -188,11 +191,24 @@
     [(file-exists? runtime-wasm)
      (record-failure! "~a unexpectedly produced runtime sidecar: ~a"
                       mode
-                      runtime-wasm)]))
+                      runtime-wasm)])
+  (cond
+    [split-ffi?
+     (unless (wasm-magic? ffi-wasm)
+       (record-failure! "~a did not produce valid FFI sidecar: ~a"
+                        mode
+                        ffi-wasm))]
+    [(file-exists? ffi-wasm)
+     (record-failure! "~a unexpectedly produced FFI sidecar: ~a"
+                      mode
+                      ffi-wasm)]))
 
-;; run-case! : symbol? path-string? path? (listof string?) boolean? -> void?
+;; run-case! : symbol? path-string? path? (listof string?) boolean?
+;;             [#:split-ffi? boolean?] [#:run? boolean?] -> void?
 ;;   Compile/run one default-policy case and check its artifacts.
-(define (run-case! mode temp-root source extra-args split-runtime?)
+(define (run-case! mode temp-root source extra-args split-runtime?
+                   #:split-ffi? [split-ffi? #f]
+                   #:run? [run? #t])
   (define racket-exe (ensure-executable "racket"))
   (define dest-dir
     (build-path temp-root
@@ -201,8 +217,9 @@
   (define args
     (append
      (list "-S" "pkgs" "webracket.rkt"
-           "--node"
-           "--run"
+           "--node")
+     (if run? '("--run") '())
+     (list
            "--dest" (path->string dest-dir))
      extra-args
      (list (path->string source))))
@@ -212,8 +229,9 @@
     (build-path temp-root
                 (format "~a-~a.log" mode (source-case-name source))))
   (write-log! log-path racket-exe args result)
-  (check-output! mode log-path result)
-  (check-artifacts! mode source dest-dir split-runtime?))
+  (check-output! mode log-path result #:expect-output? run?)
+  (check-artifacts! mode source dest-dir split-runtime?
+                    #:split-ffi? split-ffi?))
 
 ;; run-invalid-case! : symbol? path-string? (listof string?) regexp? -> void?
 ;;   Check that invalid default-policy flag combinations are rejected.
@@ -274,6 +292,31 @@ RKT
     #:exists 'truncate/replace)
   source)
 
+;; write-generated-standard-ffi-source! : path-string? -> path?
+;;   Write a generated module source that demands standard JS FFI support.
+(define (write-generated-standard-ffi-source! temp-root)
+  (define source-dir (build-path temp-root "sources"))
+  (make-directory* source-dir)
+  (define source (build-path source-dir "standard-ffi-demand.rkt"))
+  (call-with-output-file source
+    (lambda (out)
+      (display
+       #<<RKT
+#lang webracket/base
+
+(require (only-in webracket/unsafe/standard
+                  js-eval
+                  js-number-finite?))
+
+(unless (js-number-finite? (js-eval "42"))
+  (error 'standard-ffi-demand "expected finite JS number"))
+
+42
+RKT
+       out))
+    #:exists 'truncate/replace)
+  source)
+
 (define module-read-demand-source
   (build-path repo-root "test" "test-module-read-demand.rkt"))
 (define default-source-files
@@ -281,16 +324,30 @@ RKT
                 module-read-demand-source
                 (write-generated-regexp-source! temp-root))
           extra-source-files))
+(define standard-ffi-source
+  (write-generated-standard-ffi-source! temp-root))
 
 (printf "Split runtime default check\n")
 (printf "  sources: ~a\n" (length default-source-files))
 (for ([source (in-list default-source-files)])
   (printf "    ~a\n" source))
+(printf "  ffi source: ~a\n" standard-ffi-source)
 (printf "  temp:   ~a\n" temp-root)
 
 (for ([source (in-list default-source-files)])
   (run-case! 'default-sidecar temp-root source '() #t)
   (run-case! 'explicit-monolithic temp-root source '("--no-split-runtime") #f))
+(run-case! 'default-split-ffi temp-root standard-ffi-source '() #t
+           #:split-ffi? #t
+           #:run? #f)
+(run-case! 'explicit-inline-ffi temp-root standard-ffi-source
+           '("--no-split-runtime-ffi-module")
+           #t
+           #:run? #f)
+(run-case! 'explicit-monolithic-ffi temp-root standard-ffi-source
+           '("--no-split-runtime")
+           #f
+           #:run? #f)
 (run-invalid-case!
  'invalid-cache-reference-without-split
  temp-root
@@ -301,10 +358,15 @@ RKT
  temp-root
  '("--browser" "--no-split-runtime" "--split-runtime-core-url" "/runtime.wasm")
  #rx"`--split-runtime-core-url` requires `--split-runtime`")
+(run-invalid-case!
+ 'invalid-explicit-split-ffi-without-split
+ temp-root
+ '("--no-split-runtime" "--split-runtime-ffi-module")
+ #rx"`--split-runtime-ffi-module` requires `--split-runtime`")
 
 (cond
   [(null? failures)
-   (printf "ok: default sidecar, explicit monolithic, and invalid flag checks succeeded\n")
+   (printf "ok: default sidecar, default split FFI, explicit fallbacks, and invalid flag checks succeeded\n")
    (unless keep-temp?
      (delete-directory/files temp-root))
    (exit 0)]

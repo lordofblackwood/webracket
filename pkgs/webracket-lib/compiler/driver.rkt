@@ -4298,6 +4298,7 @@
          #:split-runtime-core-only? [split-runtime-core-only? #f]
          #:split-runtime-provider-runtime? [split-runtime-provider-runtime? #f]
          #:split-runtime-ffi-module? [split-runtime-ffi-module? #f]
+         #:split-runtime-ffi-module-explicit? [split-runtime-ffi-module-explicit? #f]
          ;; Program Debug
          #:print-top-level-results? print-top-level-results?
          #:internal-bind-treelist-debug-shape? internal-bind-treelist-debug-shape?
@@ -4614,6 +4615,13 @@
            stx-for-compile)]))
   (define t-add-stdlib-end (now-ms))
 
+  (define split-runtime-ffi-module/effective?
+    (if split-runtime-ffi-module-explicit?
+        split-runtime-ffi-module?
+        (and split-runtime?
+             (not split-runtime-core-only?)
+             (not split-runtime-provider-runtime?))))
+
   (define t-preflight-start (now-ms))
 
   ; 4. Preflight checks
@@ -4649,13 +4657,13 @@
   (when (and split-runtime-provider-runtime? (not module-input?))
     (error 'drive-compilation
            "`--split-runtime-provider-runtime` requires #lang webracket/base or #lang webracket/full module input"))
-  (when (and split-runtime-ffi-module? (not split-runtime?))
+  (when (and split-runtime-ffi-module/effective? (not split-runtime?))
     (error 'drive-compilation
            "`--split-runtime-ffi-module` requires `--split-runtime`"))
-  (when (and split-runtime-ffi-module? split-runtime-core-only?)
+  (when (and split-runtime-ffi-module/effective? split-runtime-core-only?)
     (error 'drive-compilation
            "`--split-runtime-ffi-module` cannot be combined with `--split-runtime-core-only`"))
-  (when (and split-runtime-ffi-module? split-runtime-provider-runtime?)
+  (when (and split-runtime-ffi-module/effective? split-runtime-provider-runtime?)
     (error 'drive-compilation
            "`--split-runtime-ffi-module` cannot be combined with `--split-runtime-provider-runtime` yet"))
 
@@ -4678,10 +4686,10 @@
   (define runtime-wat  (and split-runtime? (split-runtime-wat-path out-wat)))
   (define runtime-wasm (and split-runtime? (split-runtime-wasm-path out-wasm)))
   (define ffi-wat
-    (and split-runtime? split-runtime-ffi-module?
+    (and split-runtime? split-runtime-ffi-module/effective?
          (split-runtime-ffi-wat-path out-wat)))
   (define ffi-wasm
-    (and split-runtime? split-runtime-ffi-module?
+    (and split-runtime? split-runtime-ffi-module/effective?
          (split-runtime-ffi-wasm-path out-wasm)))
 
   ; Preflight: ensure output files do not collide.
@@ -4695,10 +4703,6 @@
     (if (and split-runtime? (not split-runtime-core-url))
         (list (cons "split runtime WAT output file" runtime-wat)
               (cons "split runtime Wasm output file" runtime-wasm))
-        '())
-    (if ffi-wat
-        (list (cons "split FFI WAT output file" ffi-wat)
-              (cons "split FFI Wasm output file" ffi-wasm))
         '())))
 
   ; Preflight: ensure output locations are writable.
@@ -4709,9 +4713,6 @@
   (when (and split-runtime? (not split-runtime-core-url))
     (ensure-output-path-writable! 'drive-compilation runtime-wat "split runtime WAT output file")
     (ensure-output-path-writable! 'drive-compilation runtime-wasm "split runtime Wasm output file"))
-  (when ffi-wat
-    (ensure-output-path-writable! 'drive-compilation ffi-wat "split FFI WAT output file")
-    (ensure-output-path-writable! 'drive-compilation ffi-wasm "split FFI Wasm output file"))
   
   ; Preflight: ensure wasm-tools exists and can run.
   (initialize-assembler-environment!
@@ -4785,7 +4786,7 @@
                    [current-split-runtime-ffi-in-core?
                     split-runtime-ffi-in-core?]
                    [current-split-runtime-ffi-module?
-                    split-runtime-ffi-module?]
+                    split-runtime-ffi-module/effective?]
                    [current-split-runtime-program-only-fast-path?
                     allow-split-program-only-fast-path?])
       (comp stx-to-compile)))
@@ -4981,6 +4982,22 @@
   (define split-ffi-module
     (and split-runtime?
          (split-runtime-modules-ffi-module split-modules)))
+  (when split-ffi-module
+    (ensure-distinct-output-files!
+     'drive-compilation
+     (append
+      (list (cons "WAT output file"       out-wat)
+            (cons "Wasm output file"      out-wasm)
+            (cons "label-map output file" out-map)
+            (cons "host output file"      out-host)
+            (cons "split FFI WAT output file" ffi-wat)
+            (cons "split FFI Wasm output file" ffi-wasm))
+      (if (and split-runtime? (not split-runtime-core-url))
+          (list (cons "split runtime WAT output file" runtime-wat)
+                (cons "split runtime Wasm output file" runtime-wasm))
+          '())))
+    (ensure-output-path-writable! 'drive-compilation ffi-wat "split FFI WAT output file")
+    (ensure-output-path-writable! 'drive-compilation ffi-wasm "split FFI Wasm output file"))
   (when (and split-runtime? verbose?)
     (displayln
      (format "Split runtime imports: ~a runtime definitions"

@@ -17,6 +17,24 @@ LOCAL_NODE_MODULES="${DOM_HEADLESS_NODE_MODULES:-$ROOT_DIR/.local-tools/node_mod
 CHROME_EXECUTABLE="${DOM_HEADLESS_EXECUTABLE:-}"
 PLAYWRIGHT_CACHE_ROOT="${PLAYWRIGHT_BROWSERS_PATH:-$HOME/Library/Caches/ms-playwright}"
 SMOKE_PAGES=()
+SPLIT_FFI_MODE="${SPLIT_FFI_MIXED_CACHE_MODE:-default}"
+SPLIT_FFI_MODE_ARGS=()
+
+case "$SPLIT_FFI_MODE" in
+  default)
+    ;;
+  explicit)
+    SPLIT_FFI_MODE_ARGS=(--split-runtime-ffi-module)
+    ;;
+  inline)
+    SPLIT_FFI_MODE_ARGS=(--no-split-runtime-ffi-module)
+    ;;
+  *)
+    echo "Unknown SPLIT_FFI_MIXED_CACHE_MODE: $SPLIT_FFI_MODE" >&2
+    echo "Expected one of: default, explicit, inline" >&2
+    exit 2
+    ;;
+esac
 
 mkdir -p "$OUT_DIR" "$PROVIDER_CACHE_DIR" "$RUNTIME_PROVIDER_CACHE_DIR"
 
@@ -41,7 +59,7 @@ compile_root_test() {
     -- \
     racket "$ROOT_DIR/webracket.rkt" \
       --browser \
-      --split-runtime-ffi-module \
+      "${SPLIT_FFI_MODE_ARGS[@]}" \
       --dest "$OUT_DIR" \
       --provider-cache-dir "$PROVIDER_CACHE_DIR" \
       --runtime-provider-cache-dir "$RUNTIME_PROVIDER_CACHE_DIR" \
@@ -62,7 +80,7 @@ compile_test_dir_test() {
       -- \
       racket "$ROOT_DIR/webracket.rkt" \
         --browser \
-        --split-runtime-ffi-module \
+        "${SPLIT_FFI_MODE_ARGS[@]}" \
         --dest "$OUT_DIR" \
         --provider-cache-dir "$PROVIDER_CACHE_DIR" \
         --runtime-provider-cache-dir "$RUNTIME_PROVIDER_CACHE_DIR" \
