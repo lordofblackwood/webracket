@@ -293,6 +293,53 @@
 ;;   Wrap the browser Crypto object.
 (struct window-crypto-info (raw) #:transparent)
 
+;; window-host-surface? : external/raw (listof string?) (listof string?) -> boolean?
+;;   Check whether a window property result exposes a stable host surface.
+(define (window-host-surface? raw property-names method-names)
+  (shared-dom-host-surface-present? raw property-names method-names))
+
+;; window-result-wrap/checked : symbol? string? string? any/c procedure? procedure? -> any/c
+;;   Wrap a window property result and reject malformed host objects early.
+(define (window-result-wrap/checked who display-name expected raw make-wrapper surface?)
+  (define wrapped (make-wrapper raw))
+  (unless (surface? wrapped)
+    (raise-arguments-error who
+                           (string-append display-name " result must be " expected)))
+  wrapped)
+
+(define window-custom-elements-methods
+  '("define" "get" "whenDefined" "upgrade"))
+
+(define window-history-methods
+  '("back" "forward" "go" "pushState" "replaceState"))
+
+(define window-screen-properties
+  '("width" "height" "availWidth" "availHeight" "colorDepth" "pixelDepth"))
+
+(define window-performance-properties
+  '("timeOrigin"))
+
+(define window-performance-methods
+  '("now" "mark" "measure" "clearMarks" "clearMeasures" "getEntries" "getEntriesByName" "getEntriesByType"))
+
+(define window-storage-methods
+  '("key" "getItem" "setItem" "removeItem" "clear"))
+
+(define window-indexed-db-methods
+  '("open" "deleteDatabase" "cmp"))
+
+(define window-caches-methods
+  '("open" "has" "delete" "match" "keys"))
+
+(define window-speech-synthesis-properties
+  '("speaking" "paused" "pending"))
+
+(define window-speech-synthesis-methods
+  '("speak" "cancel" "pause" "resume" "getVoices"))
+
+(define window-crypto-methods
+  '("getRandomValues"))
+
 ;; dom-window/surface? : any/c -> boolean?
 ;;   Check whether value is a Window wrapper with a usable host value.
 (define (dom-window/surface? value)
@@ -315,13 +362,17 @@
 ;;   Check whether value is a CustomElementRegistry wrapper with a usable host value.
 (define (window-custom-elements-info/surface? value)
   (and (window-custom-elements-info? value)
-       (shared-dom-raw-host-value? (window-custom-elements-info-raw value))))
+       (window-host-surface? (window-custom-elements-info-raw value)
+                             '()
+                             window-custom-elements-methods)))
 
 ;; window-history-info/surface? : any/c -> boolean?
 ;;   Check whether value is a History wrapper with a usable host value.
 (define (window-history-info/surface? value)
   (and (window-history-info? value)
-       (shared-dom-raw-host-value? (window-history-info-raw value))))
+       (window-host-surface? (window-history-info-raw value)
+                             '()
+                             window-history-methods)))
 
 ;; window-visual-viewport-info/surface? : any/c -> boolean?
 ;;   Check whether value is a VisualViewport wrapper with a usable host value.
@@ -339,43 +390,57 @@
 ;;   Check whether value is a Screen wrapper with a usable host value.
 (define (window-screen-info/surface? value)
   (and (window-screen-info? value)
-       (shared-dom-raw-host-value? (window-screen-info-raw value))))
+       (window-host-surface? (window-screen-info-raw value)
+                             window-screen-properties
+                             '())))
 
 ;; window-performance-info/surface? : any/c -> boolean?
 ;;   Check whether value is a Performance wrapper with a usable host value.
 (define (window-performance-info/surface? value)
   (and (window-performance-info? value)
-       (shared-dom-raw-host-value? (window-performance-info-raw value))))
+       (window-host-surface? (window-performance-info-raw value)
+                             window-performance-properties
+                             window-performance-methods)))
 
 ;; window-local-storage-info/surface? : any/c -> boolean?
 ;;   Check whether value is a localStorage wrapper with a usable host value.
 (define (window-local-storage-info/surface? value)
   (and (window-local-storage-info? value)
-       (shared-dom-raw-host-value? (window-local-storage-info-raw value))))
+       (window-host-surface? (window-local-storage-info-raw value)
+                             '()
+                             window-storage-methods)))
 
 ;; window-session-storage-info/surface? : any/c -> boolean?
 ;;   Check whether value is a sessionStorage wrapper with a usable host value.
 (define (window-session-storage-info/surface? value)
   (and (window-session-storage-info? value)
-       (shared-dom-raw-host-value? (window-session-storage-info-raw value))))
+       (window-host-surface? (window-session-storage-info-raw value)
+                             '()
+                             window-storage-methods)))
 
 ;; window-indexed-db-info/surface? : any/c -> boolean?
 ;;   Check whether value is an IndexedDB wrapper with a usable host value.
 (define (window-indexed-db-info/surface? value)
   (and (window-indexed-db-info? value)
-       (shared-dom-raw-host-value? (window-indexed-db-info-raw value))))
+       (window-host-surface? (window-indexed-db-info-raw value)
+                             '()
+                             window-indexed-db-methods)))
 
 ;; window-caches-info/surface? : any/c -> boolean?
 ;;   Check whether value is a CacheStorage wrapper with a usable host value.
 (define (window-caches-info/surface? value)
   (and (window-caches-info? value)
-       (shared-dom-raw-host-value? (window-caches-info-raw value))))
+       (window-host-surface? (window-caches-info-raw value)
+                             '()
+                             window-caches-methods)))
 
 ;; window-speech-synthesis-info/surface? : any/c -> boolean?
 ;;   Check whether value is a SpeechSynthesis wrapper with a usable host value.
 (define (window-speech-synthesis-info/surface? value)
   (and (window-speech-synthesis-info? value)
-       (shared-dom-raw-host-value? (window-speech-synthesis-info-raw value))))
+       (window-host-surface? (window-speech-synthesis-info-raw value)
+                             window-speech-synthesis-properties
+                             window-speech-synthesis-methods)))
 
 ;; window-style-media-info/surface? : any/c -> boolean?
 ;;   Check whether value is a StyleMedia wrapper with a usable host value.
@@ -387,7 +452,9 @@
 ;;   Check whether value is a Crypto wrapper with a usable host value.
 (define (window-crypto-info/surface? value)
   (and (window-crypto-info? value)
-       (shared-dom-raw-host-value? (window-crypto-info-raw value))))
+       (window-host-surface? (window-crypto-info-raw value)
+                             '()
+                             window-crypto-methods)))
 
 ;; window-location : -> window-location-info?
 ;;   Read the window location object.
@@ -397,12 +464,22 @@
 ;; window-custom-elements : -> window-custom-elements-info?
 ;;   Read the browser CustomElementRegistry object.
 (define (window-custom-elements)
-  (window-custom-elements-info (js-window-custom-elements)))
+  (window-result-wrap/checked 'window-custom-elements
+                              "window.customElements"
+                              "CustomElementRegistry"
+                              (js-window-custom-elements)
+                              window-custom-elements-info
+                              window-custom-elements-info/surface?))
 
 ;; window-history : -> window-history-info?
 ;;   Read the browser History object.
 (define (window-history)
-  (window-history-info (js-window-history)))
+  (window-result-wrap/checked 'window-history
+                              "window.history"
+                              "History"
+                              (js-window-history)
+                              window-history-info
+                              window-history-info/surface?))
 
 ;; window-visual-viewport : -> (or/c #f window-visual-viewport-info?)
 ;;   Read the browser VisualViewport object when present.
@@ -419,37 +496,72 @@
 ;; window-screen : -> window-screen-info?
 ;;   Read the browser Screen object.
 (define (window-screen)
-  (window-screen-info (js-window-screen)))
+  (window-result-wrap/checked 'window-screen
+                              "window.screen"
+                              "Screen"
+                              (js-window-screen)
+                              window-screen-info
+                              window-screen-info/surface?))
 
 ;; window-performance : -> window-performance-info?
 ;;   Read the browser Performance object.
 (define (window-performance)
-  (window-performance-info (js-window-performance)))
+  (window-result-wrap/checked 'window-performance
+                              "window.performance"
+                              "Performance"
+                              (js-window-performance)
+                              window-performance-info
+                              window-performance-info/surface?))
 
 ;; window-local-storage : -> window-local-storage-info?
 ;;   Read the browser localStorage object.
 (define (window-local-storage)
-  (window-local-storage-info (js-window-local-storage)))
+  (window-result-wrap/checked 'window-local-storage
+                              "window.localStorage"
+                              "Storage"
+                              (js-window-local-storage)
+                              window-local-storage-info
+                              window-local-storage-info/surface?))
 
 ;; window-session-storage : -> window-session-storage-info?
 ;;   Read the browser sessionStorage object.
 (define (window-session-storage)
-  (window-session-storage-info (js-window-session-storage)))
+  (window-result-wrap/checked 'window-session-storage
+                              "window.sessionStorage"
+                              "Storage"
+                              (js-window-session-storage)
+                              window-session-storage-info
+                              window-session-storage-info/surface?))
 
 ;; window-indexed-db : -> window-indexed-db-info?
 ;;   Read the browser IndexedDB factory object.
 (define (window-indexed-db)
-  (window-indexed-db-info (js-window-indexed-db)))
+  (window-result-wrap/checked 'window-indexed-db
+                              "window.indexedDB"
+                              "IDBFactory"
+                              (js-window-indexed-db)
+                              window-indexed-db-info
+                              window-indexed-db-info/surface?))
 
 ;; window-caches : -> window-caches-info?
 ;;   Read the browser CacheStorage object.
 (define (window-caches)
-  (window-caches-info (js-window-caches)))
+  (window-result-wrap/checked 'window-caches
+                              "window.caches"
+                              "CacheStorage"
+                              (js-window-caches)
+                              window-caches-info
+                              window-caches-info/surface?))
 
 ;; window-speech-synthesis : -> window-speech-synthesis-info?
 ;;   Read the browser SpeechSynthesis object.
 (define (window-speech-synthesis)
-  (window-speech-synthesis-info (js-window-speech-synthesis)))
+  (window-result-wrap/checked 'window-speech-synthesis
+                              "window.speechSynthesis"
+                              "SpeechSynthesis"
+                              (js-window-speech-synthesis)
+                              window-speech-synthesis-info
+                              window-speech-synthesis-info/surface?))
 
 ;; window-style-media : -> window-style-media-info?
 ;;   Read the browser StyleMedia object.
@@ -459,7 +571,12 @@
 ;; window-crypto : -> window-crypto-info?
 ;;   Read the browser Crypto object.
 (define (window-crypto)
-  (window-crypto-info (js-window-crypto)))
+  (window-result-wrap/checked 'window-crypto
+                              "window.crypto"
+                              "Crypto"
+                              (js-window-crypto)
+                              window-crypto-info
+                              window-crypto-info/surface?))
 
 ;; window-set-location! : any/c -> void?
 ;;   Navigate the window to a new URL or Location.

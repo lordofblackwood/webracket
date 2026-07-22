@@ -3,6 +3,7 @@
 (require browser/window
          browser/element
          (only-in webracket/unsafe/standard
+                  js-eval
                   js-null
                   js-undefined))
 
@@ -187,6 +188,151 @@
                                      window-style-media-info
                                      "window-style-media-info?")
 (check-nullish-host-wrapper-rejected window-crypto-info? window-crypto-info "window-crypto-info?")
+
+(define malformed-host (js-eval "({})"))
+
+(check-false (window-custom-elements-info? (window-custom-elements-info malformed-host))
+             "window-custom-elements-info? rejects malformed raw")
+(check-false (window-history-info? (window-history-info malformed-host))
+             "window-history-info? rejects malformed raw")
+(check-false (window-screen-info? (window-screen-info malformed-host))
+             "window-screen-info? rejects malformed raw")
+(check-false (window-performance-info? (window-performance-info malformed-host))
+             "window-performance-info? rejects malformed raw")
+(check-false (window-local-storage-info? (window-local-storage-info malformed-host))
+             "window-local-storage-info? rejects malformed raw")
+(check-false (window-session-storage-info? (window-session-storage-info malformed-host))
+             "window-session-storage-info? rejects malformed raw")
+(check-false (window-indexed-db-info? (window-indexed-db-info malformed-host))
+             "window-indexed-db-info? rejects malformed raw")
+(check-false (window-caches-info? (window-caches-info malformed-host))
+             "window-caches-info? rejects malformed raw")
+(check-false (window-speech-synthesis-info? (window-speech-synthesis-info malformed-host))
+             "window-speech-synthesis-info? rejects malformed raw")
+(check-false (window-crypto-info? (window-crypto-info malformed-host))
+             "window-crypto-info? rejects malformed raw")
+
+(js-eval
+ "globalThis.__wrWindowSurfaceBoundary = {
+    saved: {},
+    fake(name) {
+      this.saved[name] = Object.getOwnPropertyDescriptor(window, name);
+      Object.defineProperty(window, name, {
+        value: {},
+        configurable: true,
+        writable: true
+      });
+    },
+    restore(name) {
+      const descriptor = this.saved[name];
+      if (descriptor) {
+        Object.defineProperty(window, name, descriptor);
+      } else {
+        delete window[name];
+      }
+      delete this.saved[name];
+    }
+  };")
+
+(define (window-surface-boundary-fake! property-name)
+  (js-eval
+   (string-append "globalThis.__wrWindowSurfaceBoundary.fake('" property-name "');")))
+
+(define (window-surface-boundary-restore! property-name)
+  (js-eval
+   (string-append "globalThis.__wrWindowSurfaceBoundary.restore('" property-name "');")))
+
+(define (window-surface-message property-name thunk)
+  (with-handlers ([exn:fail? (lambda (e)
+                               (window-surface-boundary-restore! property-name)
+                               (exn-message e))])
+    (window-surface-boundary-fake! property-name)
+    (thunk)
+    (window-surface-boundary-restore! property-name)
+    #f))
+
+(define custom-elements-result-message
+  (window-surface-message "customElements"
+                          (lambda ()
+                            (window-custom-elements))))
+
+(define history-result-message
+  (window-surface-message "history"
+                          (lambda ()
+                            (window-history))))
+
+(define screen-result-message
+  (window-surface-message "screen"
+                          (lambda ()
+                            (window-screen))))
+
+(define performance-result-message
+  (window-surface-message "performance"
+                          (lambda ()
+                            (window-performance))))
+
+(define local-storage-result-message
+  (window-surface-message "localStorage"
+                          (lambda ()
+                            (window-local-storage))))
+
+(define session-storage-result-message
+  (window-surface-message "sessionStorage"
+                          (lambda ()
+                            (window-session-storage))))
+
+(define indexed-db-result-message
+  (window-surface-message "indexedDB"
+                          (lambda ()
+                            (window-indexed-db))))
+
+(define caches-result-message
+  (window-surface-message "caches"
+                          (lambda ()
+                            (window-caches))))
+
+(define speech-synthesis-result-message
+  (window-surface-message "speechSynthesis"
+                          (lambda ()
+                            (window-speech-synthesis))))
+
+(define crypto-result-message
+  (window-surface-message "crypto"
+                          (lambda ()
+                            (window-crypto))))
+
+(js-eval "delete globalThis.__wrWindowSurfaceBoundary;")
+
+(check-message custom-elements-result-message
+               "window.customElements result must be CustomElementRegistry"
+               "malformed customElements result message")
+(check-message history-result-message
+               "window.history result must be History"
+               "malformed history result message")
+(check-message screen-result-message
+               "window.screen result must be Screen"
+               "malformed screen result message")
+(check-message performance-result-message
+               "window.performance result must be Performance"
+               "malformed performance result message")
+(check-message local-storage-result-message
+               "window.localStorage result must be Storage"
+               "malformed localStorage result message")
+(check-message session-storage-result-message
+               "window.sessionStorage result must be Storage"
+               "malformed sessionStorage result message")
+(check-message indexed-db-result-message
+               "window.indexedDB result must be IDBFactory"
+               "malformed indexedDB result message")
+(check-message caches-result-message
+               "window.caches result must be CacheStorage"
+               "malformed caches result message")
+(check-message speech-synthesis-result-message
+               "window.speechSynthesis result must be SpeechSynthesis"
+               "malformed speechSynthesis result message")
+(check-message crypto-result-message
+               "window.crypto result must be Crypto"
+               "malformed crypto result message")
 
 (define computed-style-null-element-message
   (catch-message
