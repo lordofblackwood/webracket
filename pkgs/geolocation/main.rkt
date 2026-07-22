@@ -13,16 +13,28 @@
                   external?
                   procedure->external))
 
-(provide (all-defined-out))
+(provide (except-out (all-defined-out)
+                     geolocation-position-info?
+                     geolocation-position-info-raw
+                     geolocation-coordinates-info?
+                     geolocation-coordinates-info-raw
+                     geolocation-position-error-info?
+                     geolocation-position-error-info-raw))
 
 ;;;
 ;;; Geolocation wrappers
 ;;;
 
 (struct geolocation-info (raw) #:transparent)
-(struct geolocation-position (raw) #:transparent)
-(struct geolocation-coordinates (raw) #:transparent)
-(struct geolocation-position-error (raw) #:transparent)
+(struct geolocation-position-info (raw)
+  #:transparent
+  #:constructor-name geolocation-position)
+(struct geolocation-coordinates-info (raw)
+  #:transparent
+  #:constructor-name geolocation-coordinates)
+(struct geolocation-position-error-info (raw)
+  #:transparent
+  #:constructor-name geolocation-position-error)
 
 (struct geolocation-options (enable-high-accuracy timeout maximum-age)
   #:transparent
@@ -63,6 +75,81 @@
 (define (geolocation-raw-host-value? raw)
   (and (external? raw)
        (not (js-nullish? raw))))
+
+;; geolocation-position-raw : geolocation-position? -> external/raw
+;;   Extract the raw GeolocationPosition object.
+(define (geolocation-position-raw value)
+  (geolocation-position-info-raw value))
+
+;; geolocation-coordinates-raw : geolocation-coordinates? -> external/raw
+;;   Extract the raw GeolocationCoordinates object.
+(define (geolocation-coordinates-raw value)
+  (geolocation-coordinates-info-raw value))
+
+;; geolocation-position-error-raw : geolocation-position-error? -> external/raw
+;;   Extract the raw GeolocationPositionError object.
+(define (geolocation-position-error-raw value)
+  (geolocation-position-error-info-raw value))
+
+;; geolocation-position-host-value? : any/c -> boolean?
+;;   Report whether value wraps a non-null GeolocationPosition-like host value.
+(define (geolocation-position-host-value? value)
+  (and (geolocation-position-info? value)
+       (geolocation-raw-host-value? (geolocation-position-raw value))))
+
+;; geolocation-coordinates-host-value? : any/c -> boolean?
+;;   Report whether value wraps a non-null GeolocationCoordinates-like host value.
+(define (geolocation-coordinates-host-value? value)
+  (and (geolocation-coordinates-info? value)
+       (geolocation-raw-host-value? (geolocation-coordinates-raw value))))
+
+;; geolocation-position-error-host-value? : any/c -> boolean?
+;;   Report whether value wraps a non-null GeolocationPositionError-like host value.
+(define (geolocation-position-error-host-value? value)
+  (and (geolocation-position-error-info? value)
+       (geolocation-raw-host-value? (geolocation-position-error-raw value))))
+
+;; geolocation-coordinates-core-surface-present? : external/raw -> boolean?
+;;   Report whether raw has the required GeolocationCoordinates properties.
+(define (geolocation-coordinates-core-surface-present? raw)
+  (and (geolocation-property-present? raw "latitude")
+       (geolocation-property-present? raw "longitude")
+       (geolocation-property-present? raw "accuracy")))
+
+;; geolocation-position-core-surface-present? : external/raw -> boolean?
+;;   Report whether raw has the required GeolocationPosition properties.
+(define (geolocation-position-core-surface-present? raw)
+  (and (geolocation-property-present? raw "coords")
+       (geolocation-property-present? raw "timestamp")
+       (geolocation-coordinates-core-surface-present?
+        (js-ref/extern raw "coords"))))
+
+;; geolocation-position-error-core-surface-present? : external/raw -> boolean?
+;;   Report whether raw has the required GeolocationPositionError properties.
+(define (geolocation-position-error-core-surface-present? raw)
+  (and (geolocation-property-present? raw "code")
+       (geolocation-property-present? raw "message")))
+
+;; geolocation-position? : any/c -> boolean?
+;;   Report whether value is a usable wrapped GeolocationPosition value.
+(define (geolocation-position? value)
+  (and (geolocation-position-host-value? value)
+       (geolocation-position-core-surface-present?
+        (geolocation-position-raw value))))
+
+;; geolocation-coordinates? : any/c -> boolean?
+;;   Report whether value is a usable wrapped GeolocationCoordinates value.
+(define (geolocation-coordinates? value)
+  (and (geolocation-coordinates-host-value? value)
+       (geolocation-coordinates-core-surface-present?
+        (geolocation-coordinates-raw value))))
+
+;; geolocation-position-error? : any/c -> boolean?
+;;   Report whether value is a usable wrapped GeolocationPositionError value.
+(define (geolocation-position-error? value)
+  (and (geolocation-position-error-host-value? value)
+       (geolocation-position-error-core-surface-present?
+        (geolocation-position-error-raw value))))
 
 ;; geolocation-supported-raw : -> (or/c #f external/raw)
 ;;   Read navigator.geolocation when the required methods are available.
@@ -236,8 +323,7 @@
   (void))
 
 (define (geolocation-position-coordinates position)
-  (unless (and (geolocation-position? position)
-               (geolocation-raw-host-value? (geolocation-position-raw position)))
+  (unless (geolocation-position-host-value? position)
     (raise-argument-error 'geolocation-position-coordinates "geolocation-position?" position))
   (check-geolocation-property 'geolocation-position-coordinates
                               (geolocation-position-raw position)
@@ -246,8 +332,7 @@
   (geolocation-coordinates (js-ref/extern (geolocation-position-raw position) "coords")))
 
 (define (geolocation-position-timestamp position)
-  (unless (and (geolocation-position? position)
-               (geolocation-raw-host-value? (geolocation-position-raw position)))
+  (unless (geolocation-position-host-value? position)
     (raise-argument-error 'geolocation-position-timestamp "geolocation-position?" position))
   (check-geolocation-property 'geolocation-position-timestamp
                               (geolocation-position-raw position)
@@ -256,8 +341,7 @@
   (js-ref (geolocation-position-raw position) "timestamp"))
 
 (define (geolocation-coordinates-latitude coords)
-  (unless (and (geolocation-coordinates? coords)
-               (geolocation-raw-host-value? (geolocation-coordinates-raw coords)))
+  (unless (geolocation-coordinates-host-value? coords)
     (raise-argument-error 'geolocation-coordinates-latitude "geolocation-coordinates?" coords))
   (check-geolocation-property 'geolocation-coordinates-latitude
                               (geolocation-coordinates-raw coords)
@@ -266,8 +350,7 @@
   (js-ref (geolocation-coordinates-raw coords) "latitude"))
 
 (define (geolocation-coordinates-longitude coords)
-  (unless (and (geolocation-coordinates? coords)
-               (geolocation-raw-host-value? (geolocation-coordinates-raw coords)))
+  (unless (geolocation-coordinates-host-value? coords)
     (raise-argument-error 'geolocation-coordinates-longitude "geolocation-coordinates?" coords))
   (check-geolocation-property 'geolocation-coordinates-longitude
                               (geolocation-coordinates-raw coords)
@@ -276,8 +359,7 @@
   (js-ref (geolocation-coordinates-raw coords) "longitude"))
 
 (define (geolocation-coordinates-accuracy coords)
-  (unless (and (geolocation-coordinates? coords)
-               (geolocation-raw-host-value? (geolocation-coordinates-raw coords)))
+  (unless (geolocation-coordinates-host-value? coords)
     (raise-argument-error 'geolocation-coordinates-accuracy "geolocation-coordinates?" coords))
   (check-geolocation-property 'geolocation-coordinates-accuracy
                               (geolocation-coordinates-raw coords)
@@ -286,32 +368,27 @@
   (js-ref (geolocation-coordinates-raw coords) "accuracy"))
 
 (define (geolocation-coordinates-altitude coords)
-  (unless (and (geolocation-coordinates? coords)
-               (geolocation-raw-host-value? (geolocation-coordinates-raw coords)))
+  (unless (geolocation-coordinates-host-value? coords)
     (raise-argument-error 'geolocation-coordinates-altitude "geolocation-coordinates?" coords))
   (geolocation-optional-number (geolocation-coordinates-raw coords) "altitude"))
 
 (define (geolocation-coordinates-altitude-accuracy coords)
-  (unless (and (geolocation-coordinates? coords)
-               (geolocation-raw-host-value? (geolocation-coordinates-raw coords)))
+  (unless (geolocation-coordinates-host-value? coords)
     (raise-argument-error 'geolocation-coordinates-altitude-accuracy "geolocation-coordinates?" coords))
   (geolocation-optional-number (geolocation-coordinates-raw coords) "altitudeAccuracy"))
 
 (define (geolocation-coordinates-heading coords)
-  (unless (and (geolocation-coordinates? coords)
-               (geolocation-raw-host-value? (geolocation-coordinates-raw coords)))
+  (unless (geolocation-coordinates-host-value? coords)
     (raise-argument-error 'geolocation-coordinates-heading "geolocation-coordinates?" coords))
   (geolocation-optional-number (geolocation-coordinates-raw coords) "heading"))
 
 (define (geolocation-coordinates-speed coords)
-  (unless (and (geolocation-coordinates? coords)
-               (geolocation-raw-host-value? (geolocation-coordinates-raw coords)))
+  (unless (geolocation-coordinates-host-value? coords)
     (raise-argument-error 'geolocation-coordinates-speed "geolocation-coordinates?" coords))
   (geolocation-optional-number (geolocation-coordinates-raw coords) "speed"))
 
 (define (geolocation-position-error-code err)
-  (unless (and (geolocation-position-error? err)
-               (geolocation-raw-host-value? (geolocation-position-error-raw err)))
+  (unless (geolocation-position-error-host-value? err)
     (raise-argument-error 'geolocation-position-error-code "geolocation-position-error?" err))
   (check-geolocation-property 'geolocation-position-error-code
                               (geolocation-position-error-raw err)
@@ -320,8 +397,7 @@
   (js-ref (geolocation-position-error-raw err) "code"))
 
 (define (geolocation-position-error-message err)
-  (unless (and (geolocation-position-error? err)
-               (geolocation-raw-host-value? (geolocation-position-error-raw err)))
+  (unless (geolocation-position-error-host-value? err)
     (raise-argument-error 'geolocation-position-error-message "geolocation-position-error?" err))
   (check-geolocation-property 'geolocation-position-error-message
                               (geolocation-position-error-raw err)

@@ -57,6 +57,22 @@
     delete position[missing];
     return position;
   };
+  globalThis.__wrGeolocationBoundaryFakePositionCoordinates = (missing) => {
+    const position = {
+      coords: {
+        latitude: 55.6761,
+        longitude: 12.5683,
+        accuracy: 10,
+        altitude: null,
+        altitudeAccuracy: null,
+        heading: null,
+        speed: null
+      },
+      timestamp: 12345
+    };
+    delete position.coords[missing];
+    return position;
+  };
   globalThis.__wrGeolocationBoundaryFakeCoordinates = (missing) => {
     const coords = {
       latitude: 55.6761,
@@ -105,6 +121,13 @@
   (geolocation-position
    (js-eval
     (string-append "__wrGeolocationBoundaryFakePosition('"
+                   missing
+                   "')"))))
+
+(define (fake-position-coordinates missing)
+  (geolocation-position
+   (js-eval
+    (string-append "__wrGeolocationBoundaryFakePositionCoordinates('"
                    missing
                    "')"))))
 
@@ -171,6 +194,42 @@
             "geolocation? rejects null raw")
 (check-true (not (geolocation? undefined-raw-geolocation))
             "geolocation? rejects undefined raw")
+(check-true (geolocation-position? (fake-position "none"))
+            "geolocation-position? accepts complete fake position")
+(check-true (not (geolocation-position? (fake-position "coords")))
+            "geolocation-position? rejects missing coords")
+(check-true (not (geolocation-position? (fake-position "timestamp")))
+            "geolocation-position? rejects missing timestamp")
+(check-true (not (geolocation-position? (fake-position-coordinates "latitude")))
+            "geolocation-position? rejects nested missing latitude")
+(check-true (not (geolocation-position? null-raw-position))
+            "geolocation-position? rejects null raw")
+(check-true (not (geolocation-position? undefined-raw-position))
+            "geolocation-position? rejects undefined raw")
+(check-true (geolocation-coordinates? (fake-coordinates "none"))
+            "geolocation-coordinates? accepts complete fake coordinates")
+(check-true (not (geolocation-coordinates? (fake-coordinates "latitude")))
+            "geolocation-coordinates? rejects missing latitude")
+(check-true (not (geolocation-coordinates? (fake-coordinates "longitude")))
+            "geolocation-coordinates? rejects missing longitude")
+(check-true (not (geolocation-coordinates? (fake-coordinates "accuracy")))
+            "geolocation-coordinates? rejects missing accuracy")
+(check-true (geolocation-coordinates? (fake-coordinates "altitude"))
+            "geolocation-coordinates? accepts missing optional altitude")
+(check-true (not (geolocation-coordinates? null-raw-coordinates))
+            "geolocation-coordinates? rejects null raw")
+(check-true (not (geolocation-coordinates? undefined-raw-coordinates))
+            "geolocation-coordinates? rejects undefined raw")
+(check-true (geolocation-position-error? (fake-error "none"))
+            "geolocation-position-error? accepts complete fake error")
+(check-true (not (geolocation-position-error? (fake-error "code")))
+            "geolocation-position-error? rejects missing code")
+(check-true (not (geolocation-position-error? (fake-error "message")))
+            "geolocation-position-error? rejects missing message")
+(check-true (not (geolocation-position-error? null-raw-error))
+            "geolocation-position-error? rejects null raw")
+(check-true (not (geolocation-position-error? undefined-raw-error))
+            "geolocation-position-error? rejects undefined raw")
 
 (check-true (eq? (with-missing-navigator
                   (lambda ()
@@ -345,6 +404,7 @@
 (js-eval
  "delete globalThis.__wrGeolocationBoundaryFake;
   delete globalThis.__wrGeolocationBoundaryFakePosition;
+  delete globalThis.__wrGeolocationBoundaryFakePositionCoordinates;
   delete globalThis.__wrGeolocationBoundaryFakeCoordinates;
   delete globalThis.__wrGeolocationBoundaryFakeError;
   delete globalThis.__wrGeolocationBoundarySavedNavigator;
