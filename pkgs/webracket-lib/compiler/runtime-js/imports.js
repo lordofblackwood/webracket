@@ -1,5 +1,8 @@
 const hostError = Error;
 const hostTypeError = TypeError;
+const hostEval = typeof eval === 'function'
+  ? eval
+  : (() => { throw new hostError('eval not available in this environment'); });
 
 if (typeof hostWebAssemblyTag !== 'function' ||
     typeof hostWebAssemblyException !== 'function' ||
@@ -1594,7 +1597,7 @@ var imports = {
       'null?':                     ((v) => (v === null) ? 1 : 0),
       'undefined?':                ((v) => (v === undefined) ? 1 : 0),
       'truthy?':                   ((v) => v ? 1 : 0),
-      'eval':                      ((code) => eval(from_fasl(code))),
+      'eval':                      ((code) => hostEval(from_fasl(code))),
       'is-finite':                 ((x) => call_global_function1('isFinite',
                                                                   'isFinite',
                                                                   x) ? 1 : 0),

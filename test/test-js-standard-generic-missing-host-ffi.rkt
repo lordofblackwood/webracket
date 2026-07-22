@@ -11,6 +11,7 @@
                   js-send/boolean
                   js-send/flonum
                   js-truthy?
+                  js-undefined?
                   js-value->string))
 
 (define (check-true got label)
@@ -251,6 +252,15 @@
                      (lambda () (js-operator "+" (vector 1 2)))
                      "Function not available in this environment"
                      "missing Function message")
+
+(check-hidden-global/no-error "eval"
+                              (lambda ()
+                                (check-true (js-truthy? (js-eval "true"))
+                                            "js-eval survives hidden global eval"))
+                              "js-eval survives hidden global")
+
+(check-true (js-undefined? (js-eval "typeof hostError === 'undefined' ? undefined : hostError"))
+            "js-eval runs in global scope")
 
 (check-message
  (catch-message
