@@ -110,10 +110,34 @@
   (notification-info-raw value))
 
 (define (notification? v)
+  (and (notification-host-value? v)
+       (notification-required-properties-present? (notification-raw v))))
+
+;; notification-host-value? : any/c -> boolean?
+;;   Report whether v wraps an external Notification-like host value.
+(define (notification-host-value? v)
   (and (notification-info? v)
        (notifications-supported?)
        (notification-raw-host-value? (notification-raw v))
        (js-instanceof (notification-raw v) (js-var "Notification"))))
+
+;; notification-required-properties-present? : external/raw -> boolean?
+;;   Report whether raw exposes the required Notification data properties.
+(define (notification-required-properties-present? raw)
+  (and (notification-host-property-present? raw "title")
+       (notification-host-property-present? raw "body")
+       (notification-host-property-present? raw "tag")
+       (notification-host-nullable-property-present? raw "data")
+       (notification-host-property-present? raw "icon")
+       (notification-host-property-present? raw "requireInteraction")
+       (notification-host-property-present? raw "renotify")
+       (notification-host-property-present? raw "silent")))
+
+;; check-notification : symbol? any/c -> void?
+;;   Ensure value wraps an external Notification-like host value.
+(define (check-notification who value)
+  (unless (notification-host-value? value)
+    (raise-argument-error who "notification?" value)))
 
 (define (notification-stringish->string who value)
   (cond
@@ -180,8 +204,7 @@
                        (notification-options->raw options))))))
 
 (define (notification-close! value)
-  (unless (notification? value)
-    (raise-argument-error 'notification-close! "notification?" value))
+  (check-notification 'notification-close! value)
   (check-notification-host-method 'notification-close!
                                   (notification-raw value)
                                   "Notification"
@@ -190,8 +213,7 @@
   (void))
 
 (define (notification-title value)
-  (unless (notification? value)
-    (raise-argument-error 'notification-title "notification?" value))
+  (check-notification 'notification-title value)
   (check-notification-host-property 'notification-title
                                     (notification-raw value)
                                     "Notification"
@@ -199,8 +221,7 @@
   (js-ref (notification-raw value) "title"))
 
 (define (notification-body value)
-  (unless (notification? value)
-    (raise-argument-error 'notification-body "notification?" value))
+  (check-notification 'notification-body value)
   (check-notification-host-property 'notification-body
                                     (notification-raw value)
                                     "Notification"
@@ -208,8 +229,7 @@
   (js-ref (notification-raw value) "body"))
 
 (define (notification-tag value)
-  (unless (notification? value)
-    (raise-argument-error 'notification-tag "notification?" value))
+  (check-notification 'notification-tag value)
   (check-notification-host-property 'notification-tag
                                     (notification-raw value)
                                     "Notification"
@@ -217,8 +237,7 @@
   (js-ref (notification-raw value) "tag"))
 
 (define (notification-data value)
-  (unless (notification? value)
-    (raise-argument-error 'notification-data "notification?" value))
+  (check-notification 'notification-data value)
   (check-notification-host-nullable-property 'notification-data
                                              (notification-raw value)
                                              "Notification"
@@ -226,8 +245,7 @@
   (js-ref (notification-raw value) "data"))
 
 (define (notification-icon value)
-  (unless (notification? value)
-    (raise-argument-error 'notification-icon "notification?" value))
+  (check-notification 'notification-icon value)
   (check-notification-host-property 'notification-icon
                                     (notification-raw value)
                                     "Notification"
@@ -235,8 +253,7 @@
   (js-ref (notification-raw value) "icon"))
 
 (define (notification-require-interaction? value)
-  (unless (notification? value)
-    (raise-argument-error 'notification-require-interaction? "notification?" value))
+  (check-notification 'notification-require-interaction? value)
   (check-notification-host-property 'notification-require-interaction?
                                     (notification-raw value)
                                     "Notification"
@@ -244,8 +261,7 @@
   (js-ref (notification-raw value) "requireInteraction"))
 
 (define (notification-renotify? value)
-  (unless (notification? value)
-    (raise-argument-error 'notification-renotify? "notification?" value))
+  (check-notification 'notification-renotify? value)
   (check-notification-host-property 'notification-renotify?
                                     (notification-raw value)
                                     "Notification"
@@ -253,8 +269,7 @@
   (js-ref (notification-raw value) "renotify"))
 
 (define (notification-silent? value)
-  (unless (notification? value)
-    (raise-argument-error 'notification-silent? "notification?" value))
+  (check-notification 'notification-silent? value)
   (check-notification-host-property 'notification-silent?
                                     (notification-raw value)
                                     "Notification"

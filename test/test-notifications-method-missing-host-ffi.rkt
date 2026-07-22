@@ -102,6 +102,31 @@
                           "')"))
   (catch-message thunk))
 
+(define (with-installed-notification missing thunk)
+  (js-eval (string-append "__wrNotificationBoundaryInstall('"
+                          missing
+                          "')"))
+  (define result (thunk))
+  (js-eval "__wrNotificationBoundaryRestoreNotification();")
+  result)
+
+(define (make-fake-notification)
+  (make-notification
+   "WebRacket"
+   (make-notification-options ""
+                              ""
+                              ""
+                              #f
+                              #f
+                              #f
+                              #f)))
+
+(define (notification-predicate-result missing)
+  (with-installed-notification
+   missing
+   (lambda ()
+     (notification? (make-fake-notification)))))
+
 (define request-permission-unsupported-message
   (constructor-missing-message
    (lambda ()
@@ -197,6 +222,24 @@
 (define undefined-raw-notification
   (notification-info (js-undefined)))
 
+(check-true (notification-predicate-result "notAProperty")
+            "notification? accepts present falsy Notification properties")
+(check-true (not (notification-predicate-result "title"))
+            "notification? rejects Notification missing title")
+(check-true (not (notification-predicate-result "body"))
+            "notification? rejects Notification missing body")
+(check-true (not (notification-predicate-result "tag"))
+            "notification? rejects Notification missing tag")
+(check-true (not (notification-predicate-result "data"))
+            "notification? rejects Notification missing data")
+(check-true (not (notification-predicate-result "icon"))
+            "notification? rejects Notification missing icon")
+(check-true (not (notification-predicate-result "requireInteraction"))
+            "notification? rejects Notification missing requireInteraction")
+(check-true (not (notification-predicate-result "renotify"))
+            "notification? rejects Notification missing renotify")
+(check-true (not (notification-predicate-result "silent"))
+            "notification? rejects Notification missing silent")
 (check-true (not (notification? null-raw-notification))
             "notification? rejects null raw")
 (check-true (not (notification? undefined-raw-notification))
