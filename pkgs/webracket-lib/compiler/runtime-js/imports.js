@@ -20,6 +20,38 @@ const hostBoolean = Boolean;
 const hostMath = Math;
 const hostDate = Date;
 const hostImportUint8Array = Uint8Array;
+const hostMathTrunc = typeof hostMath.trunc === 'function'
+  ? hostMath.trunc.bind(hostMath)
+  : null;
+const hostMathFloor = typeof hostMath.floor === 'function'
+  ? hostMath.floor.bind(hostMath)
+  : null;
+const hostMathMax = typeof hostMath.max === 'function'
+  ? hostMath.max.bind(hostMath)
+  : null;
+const hostDateNow = typeof hostDate.now === 'function'
+  ? hostDate.now.bind(hostDate)
+  : null;
+const hostDateUTC = typeof hostDate.UTC === 'function'
+  ? hostDate.UTC.bind(hostDate)
+  : null;
+const hostDatePrototype = hostDate.prototype;
+const hostDateGetFullYear = hostDatePrototype && hostDatePrototype.getFullYear;
+const hostDateGetMonth = hostDatePrototype && hostDatePrototype.getMonth;
+const hostDateGetDate = hostDatePrototype && hostDatePrototype.getDate;
+const hostDateGetHours = hostDatePrototype && hostDatePrototype.getHours;
+const hostDateGetMinutes = hostDatePrototype && hostDatePrototype.getMinutes;
+const hostDateGetSeconds = hostDatePrototype && hostDatePrototype.getSeconds;
+const hostDateGetDay = hostDatePrototype && hostDatePrototype.getDay;
+const hostDateGetTimezoneOffset = hostDatePrototype && hostDatePrototype.getTimezoneOffset;
+const hostDateGetUTCFullYear = hostDatePrototype && hostDatePrototype.getUTCFullYear;
+const hostDateGetUTCMonth = hostDatePrototype && hostDatePrototype.getUTCMonth;
+const hostDateGetUTCDate = hostDatePrototype && hostDatePrototype.getUTCDate;
+const hostDateGetUTCHours = hostDatePrototype && hostDatePrototype.getUTCHours;
+const hostDateGetUTCMinutes = hostDatePrototype && hostDatePrototype.getUTCMinutes;
+const hostDateGetUTCSeconds = hostDatePrototype && hostDatePrototype.getUTCSeconds;
+const hostDateGetUTCDay = hostDatePrototype && hostDatePrototype.getUTCDay;
+const hostDateGetTime = hostDatePrototype && hostDatePrototype.getTime;
 const hostStringValueOf = hostString.prototype.valueOf;
 const hostNumberValueOf = hostNumber.prototype.valueOf;
 const hostBooleanValueOf = hostBoolean.prototype.valueOf;
@@ -40,6 +72,28 @@ if (typeof hostNumberValueOf !== 'function') {
 }
 if (typeof hostBooleanValueOf !== 'function') {
   throw new hostError('Boolean.valueOf not available in this environment');
+}
+if (!hostMathTrunc || !hostMathFloor || !hostMathMax) {
+  throw new hostError('Math.trunc/floor/max not available in this environment');
+}
+if (!hostDateNow || !hostDateUTC ||
+    typeof hostDateGetFullYear !== 'function' ||
+    typeof hostDateGetMonth !== 'function' ||
+    typeof hostDateGetDate !== 'function' ||
+    typeof hostDateGetHours !== 'function' ||
+    typeof hostDateGetMinutes !== 'function' ||
+    typeof hostDateGetSeconds !== 'function' ||
+    typeof hostDateGetDay !== 'function' ||
+    typeof hostDateGetTimezoneOffset !== 'function' ||
+    typeof hostDateGetUTCFullYear !== 'function' ||
+    typeof hostDateGetUTCMonth !== 'function' ||
+    typeof hostDateGetUTCDate !== 'function' ||
+    typeof hostDateGetUTCHours !== 'function' ||
+    typeof hostDateGetUTCMinutes !== 'function' ||
+    typeof hostDateGetUTCSeconds !== 'function' ||
+    typeof hostDateGetUTCDay !== 'function' ||
+    typeof hostDateGetTime !== 'function') {
+  throw new hostError('Date runtime methods not available in this environment');
 }
 if (!hostStringFromCodePoint) {
   throw new hostError('String.fromCodePoint not available in this environment');
@@ -1208,48 +1262,50 @@ var imports = {
       }),
 
       // Time and date.
-      'current_inexact_milliseconds': (() => hostDate.now()),
+      'current_inexact_milliseconds': (() => hostDateNow()),
       'current_milliseconds_bits': (() => {
         const modulus = 0x40000000;
-        let n = hostMath.trunc(hostDate.now()) % modulus;
+        let n = hostMathTrunc(hostDateNow()) % modulus;
         if (n >= 0x20000000) n -= modulus;
         return (n << 1) | 0;
       }),
       'date_field': ((seconds, local, field) => {
         const d = new hostDate(seconds * 1000);
         const get = local ? {
-          year: () => d.getFullYear(),
-          month: () => d.getMonth() + 1,
-          day: () => d.getDate(),
-          hour: () => d.getHours(),
-          minute: () => d.getMinutes(),
-          second: () => d.getSeconds(),
-          weekDay: () => d.getDay(),
-          offset: () => -d.getTimezoneOffset() * 60
+          year: () => hostDateGetFullYear.call(d),
+          month: () => hostDateGetMonth.call(d) + 1,
+          day: () => hostDateGetDate.call(d),
+          hour: () => hostDateGetHours.call(d),
+          minute: () => hostDateGetMinutes.call(d),
+          second: () => hostDateGetSeconds.call(d),
+          weekDay: () => hostDateGetDay.call(d),
+          offset: () => -hostDateGetTimezoneOffset.call(d) * 60
         } : {
-          year: () => d.getUTCFullYear(),
-          month: () => d.getUTCMonth() + 1,
-          day: () => d.getUTCDate(),
-          hour: () => d.getUTCHours(),
-          minute: () => d.getUTCMinutes(),
-          second: () => d.getUTCSeconds(),
-          weekDay: () => d.getUTCDay(),
+          year: () => hostDateGetUTCFullYear.call(d),
+          month: () => hostDateGetUTCMonth.call(d) + 1,
+          day: () => hostDateGetUTCDate.call(d),
+          hour: () => hostDateGetUTCHours.call(d),
+          minute: () => hostDateGetUTCMinutes.call(d),
+          second: () => hostDateGetUTCSeconds.call(d),
+          weekDay: () => hostDateGetUTCDay.call(d),
           offset: () => 0
         };
         const yearDay = (() => {
           const start = local
             ? new hostDate(get.year(), 0, 1)
-            : new hostDate(hostDate.UTC(get.year(), 0, 1));
+            : new hostDate(hostDateUTC(get.year(), 0, 1));
           const now = local
-            ? new hostDate(get.year(), d.getMonth(), d.getDate())
-            : new hostDate(hostDate.UTC(get.year(), d.getUTCMonth(), d.getUTCDate()));
-          return hostMath.floor((now - start) / 86400000);
+            ? new hostDate(get.year(), hostDateGetMonth.call(d), hostDateGetDate.call(d))
+            : new hostDate(hostDateUTC(get.year(),
+                                       hostDateGetUTCMonth.call(d),
+                                       hostDateGetUTCDate.call(d)));
+          return hostMathFloor((hostDateGetTime.call(now) - hostDateGetTime.call(start)) / 86400000);
         });
         const dst = (() => {
           if (!local) return 0;
-          const jan = new hostDate(get.year(), 0, 1).getTimezoneOffset();
-          const jul = new hostDate(get.year(), 6, 1).getTimezoneOffset();
-          return d.getTimezoneOffset() < hostMath.max(jan, jul) ? 1 : 0;
+          const jan = hostDateGetTimezoneOffset.call(new hostDate(get.year(), 0, 1));
+          const jul = hostDateGetTimezoneOffset.call(new hostDate(get.year(), 6, 1));
+          return hostDateGetTimezoneOffset.call(d) < hostMathMax(jan, jul) ? 1 : 0;
         });
         // WebRacket currently represents exact integers as small fixnums, while
         // Racket's date* nanosecond range extends to 999,999,999. Preserve a
