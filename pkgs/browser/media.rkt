@@ -362,7 +362,7 @@
 (define (media-set-media-keys! media keys)
   (js-media-set-media-keys!
    media
-   (if (media-keys-info? keys)
+   (if (media-keys-info-wrapper? keys)
        (media-wrapper-raw/checked 'media-set-media-keys!
                                   "media-keys-info?"
                                   keys
@@ -425,12 +425,12 @@
    media
    (cond
      [(not src-object) #f]
-     [(media-stream? src-object)
+     [(media-stream-wrapper? src-object)
       (media-wrapper-raw/checked 'media-set-src-object!
                                  "media-stream?"
                                  src-object
                                  (media-stream-raw src-object))]
-     [(media-source? src-object)
+     [(media-source-wrapper? src-object)
       (media-wrapper-raw/checked 'media-set-src-object!
                                  "media-source?"
                                  src-object

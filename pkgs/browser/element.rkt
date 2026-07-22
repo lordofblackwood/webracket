@@ -9,7 +9,29 @@
                   external?
                   procedure->external))
 
-(provide (all-defined-out)
+(provide (except-out (all-defined-out)
+                     media-stream?
+                     media-source?
+                     media-keys-info?
+                     audio-track?
+                     text-track?
+                     video-track?
+                     media-error-info?
+                     audio-track-list?
+                     text-track-list?
+                     video-track-list?
+                     time-ranges?)
+         (rename-out [media-stream/surface? media-stream?]
+                     [media-source/surface? media-source?]
+                     [media-keys-info/surface? media-keys-info?]
+                     [audio-track/surface? audio-track?]
+                     [text-track/surface? text-track?]
+                     [video-track/surface? video-track?]
+                     [media-error-info/surface? media-error-info?]
+                     [audio-track-list/surface? audio-track-list?]
+                     [text-track-list/surface? text-track-list?]
+                     [video-track-list/surface? video-track-list?]
+                     [time-ranges/surface? time-ranges?])
          (all-from-out webracket/unsafe/element))
 
 (include "private/shared-library-structs-body.rkt")

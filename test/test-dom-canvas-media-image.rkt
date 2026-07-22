@@ -215,10 +215,14 @@
       getTracks() { return []; }
     };
     const mediaSource = {
-      kind: 'source'
+      kind: 'source',
+      addSourceBuffer(_type) { return {}; },
+      endOfStream() {}
     };
     const mediaKeys = {
-      kind: 'keys'
+      kind: 'keys',
+      createSession() { return {}; },
+      setServerCertificate(_cert) { return {}; }
     };
     const media = {
       autoplay: 0,

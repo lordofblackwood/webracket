@@ -12,6 +12,10 @@
   (unless got
     (error 'check-true label)))
 
+(define (check-false got label)
+  (when got
+    (error 'check-false label)))
+
 (define (catch-message thunk)
   (with-handlers ([exn:fail? exn-message])
     (thunk)
@@ -382,6 +386,93 @@
    (lambda ()
      (media-set-volume! (fake-media "volume") 0.5))))
 
+(define complete-media-stream
+  (media-stream-wrap (js-eval "({ getTracks() { return []; } })")))
+(define incomplete-media-stream
+  (media-stream-wrap (js-eval "({})")))
+(define complete-media-source
+  (media-source-wrap
+   (js-eval "({ addSourceBuffer(_type) { return {}; }, endOfStream() {} })")))
+(define incomplete-media-source
+  (media-source-wrap (js-eval "({ endOfStream() {} })")))
+(define complete-media-keys
+  (media-keys-info-wrap
+   (js-eval "({ createSession() { return {}; }, setServerCertificate(_cert) { return {}; } })")))
+(define incomplete-media-keys
+  (media-keys-info-wrap (js-eval "({ createSession() { return {}; } })")))
+(define complete-audio-track
+  (audio-track-wrap
+   (js-eval "({ kind: 'audio', label: 'Audio', language: 'en', id: 'audio-0', enabled: false })")))
+(define incomplete-audio-track
+  (audio-track-wrap
+   (js-eval "({ label: 'Audio', language: 'en', id: 'audio-0', enabled: false })")))
+(define complete-text-track
+  (text-track-wrap
+   (js-eval "({ kind: 'subtitles', label: 'Captions', language: 'en', id: 'text-0', mode: 'disabled' })")))
+(define incomplete-text-track
+  (text-track-wrap
+   (js-eval "({ kind: 'subtitles', label: 'Captions', language: 'en', id: 'text-0' })")))
+(define complete-video-track
+  (video-track-wrap
+   (js-eval "({ kind: 'main', label: 'Main', language: 'en', id: 'video-0', selected: true })")))
+(define incomplete-video-track
+  (video-track-wrap
+   (js-eval "({ kind: 'main', label: 'Main', language: 'en', id: 'video-0' })")))
+(define complete-media-error
+  (media-error-info-wrap (js-eval "({ code: 3, message: 'media failure' })")))
+(define incomplete-media-error
+  (media-error-info-wrap (js-eval "({ message: 'media failure' })")))
+(define complete-audio-track-list
+  (audio-track-list-wrap (js-eval "({ length: 0, item(_index) { return null; } })")))
+(define incomplete-audio-track-list
+  (audio-track-list-wrap (js-eval "({ item(_index) { return null; } })")))
+(define complete-text-track-list
+  (text-track-list-wrap (js-eval "({ length: 0, item(_index) { return null; } })")))
+(define incomplete-text-track-list
+  (text-track-list-wrap (js-eval "({ length: 0 })")))
+(define complete-video-track-list
+  (video-track-list-wrap (js-eval "({ length: 0, item(_index) { return null; } })")))
+(define incomplete-video-track-list
+  (video-track-list-wrap (js-eval "({ length: 0 })")))
+(define complete-time-ranges
+  (time-ranges-wrap
+   (js-eval "({ length: 0, start(_index) { return 0; }, end(_index) { return 0; } })")))
+(define incomplete-time-ranges
+  (time-ranges-wrap (js-eval "({ length: 0, end(_index) { return 0; } })")))
+
+(define incomplete-audio-track-kind-message
+  (catch-message
+   (lambda ()
+     (audio-track-kind incomplete-audio-track))))
+(define incomplete-text-track-mode-message
+  (catch-message
+   (lambda ()
+     (text-track-mode incomplete-text-track))))
+(define incomplete-video-track-selected-message
+  (catch-message
+   (lambda ()
+     (video-track-selected? incomplete-video-track))))
+(define incomplete-media-error-code-message
+  (catch-message
+   (lambda ()
+     (media-error-info-code incomplete-media-error))))
+(define incomplete-audio-track-list-length-message
+  (catch-message
+   (lambda ()
+     (audio-track-list-length incomplete-audio-track-list))))
+(define incomplete-text-track-list-item-message
+  (catch-message
+   (lambda ()
+     (text-track-list-item incomplete-text-track-list 0))))
+(define incomplete-video-track-list-item-message
+  (catch-message
+   (lambda ()
+     (video-track-list-item incomplete-video-track-list 0))))
+(define incomplete-time-ranges-start-message
+  (catch-message
+   (lambda ()
+     (time-ranges-start incomplete-time-ranges 0))))
+
 (js-eval
  "delete globalThis.__wrMediaBoundaryFake;
   delete globalThis.__wrMediaBoundaryFakeSrcObject;")
@@ -568,6 +659,74 @@
 (check-message undefined-receiver-play-message
                "HTMLMediaElement.play: target object is null or undefined"
                "undefined receiver play message")
+(check-true (media-stream? complete-media-stream)
+            "complete media-stream predicate")
+(check-false (media-stream? incomplete-media-stream)
+             "incomplete media-stream predicate")
+(check-true (media-source? complete-media-source)
+            "complete media-source predicate")
+(check-false (media-source? incomplete-media-source)
+             "incomplete media-source predicate")
+(check-true (media-keys-info? complete-media-keys)
+            "complete media-keys predicate")
+(check-false (media-keys-info? incomplete-media-keys)
+             "incomplete media-keys predicate")
+(check-true (audio-track? complete-audio-track)
+            "complete audio-track predicate")
+(check-false (audio-track? incomplete-audio-track)
+             "incomplete audio-track predicate")
+(check-true (text-track? complete-text-track)
+            "complete text-track predicate")
+(check-false (text-track? incomplete-text-track)
+             "incomplete text-track predicate")
+(check-true (video-track? complete-video-track)
+            "complete video-track predicate")
+(check-false (video-track? incomplete-video-track)
+             "incomplete video-track predicate")
+(check-true (media-error-info? complete-media-error)
+            "complete media-error predicate")
+(check-false (media-error-info? incomplete-media-error)
+             "incomplete media-error predicate")
+(check-true (audio-track-list? complete-audio-track-list)
+            "complete audio-track-list predicate")
+(check-false (audio-track-list? incomplete-audio-track-list)
+             "incomplete audio-track-list predicate")
+(check-true (text-track-list? complete-text-track-list)
+            "complete text-track-list predicate")
+(check-false (text-track-list? incomplete-text-track-list)
+             "incomplete text-track-list predicate")
+(check-true (video-track-list? complete-video-track-list)
+            "complete video-track-list predicate")
+(check-false (video-track-list? incomplete-video-track-list)
+             "incomplete video-track-list predicate")
+(check-true (time-ranges? complete-time-ranges)
+            "complete time-ranges predicate")
+(check-false (time-ranges? incomplete-time-ranges)
+             "incomplete time-ranges predicate")
+(check-message incomplete-audio-track-kind-message
+               "AudioTrack.kind not available in this environment"
+               "incomplete AudioTrack.kind message")
+(check-message incomplete-text-track-mode-message
+               "TextTrack.mode not available in this environment"
+               "incomplete TextTrack.mode message")
+(check-message incomplete-video-track-selected-message
+               "VideoTrack.selected not available in this environment"
+               "incomplete VideoTrack.selected message")
+(check-message incomplete-media-error-code-message
+               "MediaError.code not available in this environment"
+               "incomplete MediaError.code message")
+(check-message incomplete-audio-track-list-length-message
+               "AudioTrackList.length not available in this environment"
+               "incomplete AudioTrackList.length message")
+(check-message incomplete-text-track-list-item-message
+               "TextTrackList.item not available in this environment"
+               "incomplete TextTrackList.item message")
+(check-message incomplete-video-track-list-item-message
+               "VideoTrackList.item not available in this environment"
+               "incomplete VideoTrackList.item message")
+(check-message incomplete-time-ranges-start-message
+               "TimeRanges.start not available in this environment"
+               "incomplete TimeRanges.start message")
 (check-message text-tracks-message
                "HTMLMediaElement.textTracks not available in this environment"
                "missing textTracks message")

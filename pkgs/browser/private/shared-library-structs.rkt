@@ -4,7 +4,29 @@
          (only-in webracket/primitives
                   external?))
 
-(provide (all-defined-out))
+(provide (except-out (all-defined-out)
+                     media-stream?
+                     media-source?
+                     media-keys-info?
+                     audio-track?
+                     text-track?
+                     video-track?
+                     media-error-info?
+                     audio-track-list?
+                     text-track-list?
+                     video-track-list?
+                     time-ranges?)
+         (rename-out [media-stream/surface? media-stream?]
+                     [media-source/surface? media-source?]
+                     [media-keys-info/surface? media-keys-info?]
+                     [audio-track/surface? audio-track?]
+                     [text-track/surface? text-track?]
+                     [video-track/surface? video-track?]
+                     [media-error-info/surface? media-error-info?]
+                     [audio-track-list/surface? audio-track-list?]
+                     [text-track-list/surface? text-track-list?]
+                     [video-track-list/surface? video-track-list?]
+                     [time-ranges/surface? time-ranges?]))
 
 ;;;
 ;;; Shared DOM structs.
@@ -100,6 +122,30 @@
          (and (not (js-nullish? method))
               (string=? (js-typeof method) "function")))))
 
+;; shared-dom-host-property-present? : external/raw string? -> boolean?
+;;   Report whether raw exposes a non-nullish browser property.
+(define (shared-dom-host-property-present? raw property-name)
+  (and (shared-dom-raw-host-value? raw)
+       (not (js-nullish? (js-ref/extern raw property-name)))))
+
+;; shared-dom-host-properties-present? : external/raw (listof string?) -> boolean?
+;;   Report whether raw exposes all named non-nullish browser properties.
+(define (shared-dom-host-properties-present? raw property-names)
+  (for/and ([property-name (in-list property-names)])
+    (shared-dom-host-property-present? raw property-name)))
+
+;; shared-dom-host-methods-present? : external/raw (listof string?) -> boolean?
+;;   Report whether raw exposes all named callable browser methods.
+(define (shared-dom-host-methods-present? raw method-names)
+  (for/and ([method-name (in-list method-names)])
+    (shared-dom-host-method-present? raw method-name)))
+
+;; shared-dom-host-surface-present? : external/raw (listof string?) (listof string?) -> boolean?
+;;   Report whether raw exposes the requested browser property and method surface.
+(define (shared-dom-host-surface-present? raw property-names method-names)
+  (and (shared-dom-host-properties-present? raw property-names)
+       (shared-dom-host-methods-present? raw method-names)))
+
 ;; check-shared-dom-host-method : symbol? external/raw string? string? -> void?
 ;;   Ensure a required shared DOM host method is available.
 (define (check-shared-dom-host-method who raw receiver-name method-name)
@@ -113,8 +159,7 @@
 ;; check-shared-dom-host-property : symbol? external/raw string? string? -> void?
 ;;   Ensure a required shared DOM host property is available.
 (define (check-shared-dom-host-property who raw receiver-name property-name)
-  (when (or (not (shared-dom-raw-host-value? raw))
-            (js-nullish? (js-ref/extern raw property-name)))
+  (unless (shared-dom-host-property-present? raw property-name)
     (raise-arguments-error who
                            (string-append receiver-name
                                           "."
@@ -500,15 +545,28 @@
 ;;   Wrap a browser MediaStream object.
 (struct media-stream (raw) #:transparent)
 
+;; media-stream-wrapper? : any/c -> boolean?
+;;   Report whether value is the internal MediaStream wrapper.
+(define media-stream-wrapper? media-stream?)
+
+;; media-stream/surface? : any/c -> boolean?
+;;   Check whether value is a usable MediaStream wrapper.
+(define (media-stream/surface? value)
+  (and (media-stream-wrapper? value)
+       (shared-dom-host-surface-present?
+        (media-stream-raw value)
+        '()
+        '("getTracks"))))
+
 ;; media-stream-wrap : any/c -> any/c
 ;;   Wrap a raw browser MediaStream object, leaving wrapped values alone.
 (define (media-stream-wrap value)
-  (shared-dom-wrap-value value media-stream? media-stream))
+  (shared-dom-wrap-value value media-stream-wrapper? media-stream))
 
 ;; media-stream-unwrap : any/c -> any/c
 ;;   Unwrap a media-stream struct to its raw browser object.
 (define (media-stream-unwrap value)
-  (if (media-stream? value)
+  (if (media-stream-wrapper? value)
       (media-stream-raw value)
       value))
 
@@ -516,15 +574,28 @@
 ;;   Wrap a browser MediaSource object.
 (struct media-source (raw) #:transparent)
 
+;; media-source-wrapper? : any/c -> boolean?
+;;   Report whether value is the internal MediaSource wrapper.
+(define media-source-wrapper? media-source?)
+
+;; media-source/surface? : any/c -> boolean?
+;;   Check whether value is a usable MediaSource wrapper.
+(define (media-source/surface? value)
+  (and (media-source-wrapper? value)
+       (shared-dom-host-surface-present?
+        (media-source-raw value)
+        '()
+        '("addSourceBuffer" "endOfStream"))))
+
 ;; media-source-wrap : any/c -> any/c
 ;;   Wrap a raw browser MediaSource object, leaving wrapped values alone.
 (define (media-source-wrap value)
-  (shared-dom-wrap-value value media-source? media-source))
+  (shared-dom-wrap-value value media-source-wrapper? media-source))
 
 ;; media-source-unwrap : any/c -> any/c
 ;;   Unwrap a media-source struct to its raw browser object.
 (define (media-source-unwrap value)
-  (if (media-source? value)
+  (if (media-source-wrapper? value)
       (media-source-raw value)
       value))
 
@@ -532,15 +603,28 @@
 ;;   Wrap a browser MediaKeys object.
 (struct media-keys-info (raw) #:transparent)
 
+;; media-keys-info-wrapper? : any/c -> boolean?
+;;   Report whether value is the internal MediaKeys wrapper.
+(define media-keys-info-wrapper? media-keys-info?)
+
+;; media-keys-info/surface? : any/c -> boolean?
+;;   Check whether value is a usable MediaKeys wrapper.
+(define (media-keys-info/surface? value)
+  (and (media-keys-info-wrapper? value)
+       (shared-dom-host-surface-present?
+        (media-keys-info-raw value)
+        '()
+        '("createSession" "setServerCertificate"))))
+
 ;; media-keys-info-wrap : any/c -> any/c
 ;;   Wrap a raw browser MediaKeys object, leaving wrapped values alone.
 (define (media-keys-info-wrap value)
-  (shared-dom-wrap-value value media-keys-info? media-keys-info))
+  (shared-dom-wrap-value value media-keys-info-wrapper? media-keys-info))
 
 ;; media-keys-info-unwrap : any/c -> any/c
 ;;   Unwrap a media-keys-info struct to its raw browser object.
 (define (media-keys-info-unwrap value)
-  (if (media-keys-info? value)
+  (if (media-keys-info-wrapper? value)
       (media-keys-info-raw value)
       value))
 
@@ -548,15 +632,28 @@
 ;;   Wrap a browser AudioTrack object.
 (struct audio-track (raw) #:transparent)
 
+;; audio-track-wrapper? : any/c -> boolean?
+;;   Report whether value is the internal AudioTrack wrapper.
+(define audio-track-wrapper? audio-track?)
+
+;; audio-track/surface? : any/c -> boolean?
+;;   Check whether value is a usable AudioTrack wrapper.
+(define (audio-track/surface? value)
+  (and (audio-track-wrapper? value)
+       (shared-dom-host-surface-present?
+        (audio-track-raw value)
+        '("kind" "label" "language" "id" "enabled")
+        '())))
+
 ;; audio-track-wrap : any/c -> any/c
 ;;   Wrap a raw browser AudioTrack object, leaving wrapped values alone.
 (define (audio-track-wrap value)
-  (shared-dom-wrap-value value audio-track? audio-track))
+  (shared-dom-wrap-value value audio-track-wrapper? audio-track))
 
 ;; audio-track-unwrap : any/c -> any/c
 ;;   Unwrap an audio-track struct to its raw browser object.
 (define (audio-track-unwrap value)
-  (if (audio-track? value)
+  (if (audio-track-wrapper? value)
       (audio-track-raw value)
       value))
 
@@ -607,15 +704,28 @@
 ;;   Wrap a browser TextTrack object.
 (struct text-track (raw) #:transparent)
 
+;; text-track-wrapper? : any/c -> boolean?
+;;   Report whether value is the internal TextTrack wrapper.
+(define text-track-wrapper? text-track?)
+
+;; text-track/surface? : any/c -> boolean?
+;;   Check whether value is a usable TextTrack wrapper.
+(define (text-track/surface? value)
+  (and (text-track-wrapper? value)
+       (shared-dom-host-surface-present?
+        (text-track-raw value)
+        '("kind" "label" "language" "id" "mode")
+        '())))
+
 ;; text-track-wrap : any/c -> any/c
 ;;   Wrap a raw browser TextTrack object, leaving wrapped values alone.
 (define (text-track-wrap value)
-  (shared-dom-wrap-value value text-track? text-track))
+  (shared-dom-wrap-value value text-track-wrapper? text-track))
 
 ;; text-track-unwrap : any/c -> any/c
 ;;   Unwrap a text-track struct to its raw browser object.
 (define (text-track-unwrap value)
-  (if (text-track? value)
+  (if (text-track-wrapper? value)
       (text-track-raw value)
       value))
 
@@ -668,15 +778,28 @@
 ;;   Wrap a browser VideoTrack object.
 (struct video-track (raw) #:transparent)
 
+;; video-track-wrapper? : any/c -> boolean?
+;;   Report whether value is the internal VideoTrack wrapper.
+(define video-track-wrapper? video-track?)
+
+;; video-track/surface? : any/c -> boolean?
+;;   Check whether value is a usable VideoTrack wrapper.
+(define (video-track/surface? value)
+  (and (video-track-wrapper? value)
+       (shared-dom-host-surface-present?
+        (video-track-raw value)
+        '("kind" "label" "language" "id" "selected")
+        '())))
+
 ;; video-track-wrap : any/c -> any/c
 ;;   Wrap a raw browser VideoTrack object, leaving wrapped values alone.
 (define (video-track-wrap value)
-  (shared-dom-wrap-value value video-track? video-track))
+  (shared-dom-wrap-value value video-track-wrapper? video-track))
 
 ;; video-track-unwrap : any/c -> any/c
 ;;   Unwrap a video-track struct to its raw browser object.
 (define (video-track-unwrap value)
-  (if (video-track? value)
+  (if (video-track-wrapper? value)
       (video-track-raw value)
       value))
 
@@ -719,15 +842,28 @@
 ;;   Wrap a browser MediaError object.
 (struct media-error-info (raw) #:transparent)
 
+;; media-error-info-wrapper? : any/c -> boolean?
+;;   Report whether value is the internal MediaError wrapper.
+(define media-error-info-wrapper? media-error-info?)
+
+;; media-error-info/surface? : any/c -> boolean?
+;;   Check whether value is a usable MediaError wrapper.
+(define (media-error-info/surface? value)
+  (and (media-error-info-wrapper? value)
+       (shared-dom-host-surface-present?
+        (media-error-info-raw value)
+        '("code" "message")
+        '())))
+
 ;; media-error-info-wrap : any/c -> any/c
 ;;   Wrap a raw browser MediaError object, leaving wrapped values alone.
 (define (media-error-info-wrap value)
-  (shared-dom-wrap-value value media-error-info? media-error-info))
+  (shared-dom-wrap-value value media-error-info-wrapper? media-error-info))
 
 ;; media-error-info-unwrap : any/c -> any/c
 ;;   Unwrap a media-error-info struct to its raw browser object.
 (define (media-error-info-unwrap value)
-  (if (media-error-info? value)
+  (if (media-error-info-wrapper? value)
       (media-error-info-raw value)
       value))
 
@@ -749,15 +885,28 @@
 ;;   Wrap a browser AudioTrackList object.
 (struct audio-track-list (raw) #:transparent)
 
+;; audio-track-list-wrapper? : any/c -> boolean?
+;;   Report whether value is the internal AudioTrackList wrapper.
+(define audio-track-list-wrapper? audio-track-list?)
+
+;; audio-track-list/surface? : any/c -> boolean?
+;;   Check whether value is a usable AudioTrackList wrapper.
+(define (audio-track-list/surface? value)
+  (and (audio-track-list-wrapper? value)
+       (shared-dom-host-surface-present?
+        (audio-track-list-raw value)
+        '("length")
+        '("item"))))
+
 ;; audio-track-list-wrap : any/c -> any/c
 ;;   Wrap a raw browser AudioTrackList object, leaving wrapped values alone.
 (define (audio-track-list-wrap value)
-  (shared-dom-wrap-value value audio-track-list? audio-track-list))
+  (shared-dom-wrap-value value audio-track-list-wrapper? audio-track-list))
 
 ;; audio-track-list-unwrap : any/c -> any/c
 ;;   Unwrap an audio-track-list struct to its raw browser object.
 (define (audio-track-list-unwrap value)
-  (if (audio-track-list? value)
+  (if (audio-track-list-wrapper? value)
       (audio-track-list-raw value)
       value))
 
@@ -779,15 +928,28 @@
 ;;   Wrap a browser TextTrackList object.
 (struct text-track-list (raw) #:transparent)
 
+;; text-track-list-wrapper? : any/c -> boolean?
+;;   Report whether value is the internal TextTrackList wrapper.
+(define text-track-list-wrapper? text-track-list?)
+
+;; text-track-list/surface? : any/c -> boolean?
+;;   Check whether value is a usable TextTrackList wrapper.
+(define (text-track-list/surface? value)
+  (and (text-track-list-wrapper? value)
+       (shared-dom-host-surface-present?
+        (text-track-list-raw value)
+        '("length")
+        '("item"))))
+
 ;; text-track-list-wrap : any/c -> any/c
 ;;   Wrap a raw browser TextTrackList object, leaving wrapped values alone.
 (define (text-track-list-wrap value)
-  (shared-dom-wrap-value value text-track-list? text-track-list))
+  (shared-dom-wrap-value value text-track-list-wrapper? text-track-list))
 
 ;; text-track-list-unwrap : any/c -> any/c
 ;;   Unwrap a text-track-list struct to its raw browser object.
 (define (text-track-list-unwrap value)
-  (if (text-track-list? value)
+  (if (text-track-list-wrapper? value)
       (text-track-list-raw value)
       value))
 
@@ -809,15 +971,28 @@
 ;;   Wrap a browser VideoTrackList object.
 (struct video-track-list (raw) #:transparent)
 
+;; video-track-list-wrapper? : any/c -> boolean?
+;;   Report whether value is the internal VideoTrackList wrapper.
+(define video-track-list-wrapper? video-track-list?)
+
+;; video-track-list/surface? : any/c -> boolean?
+;;   Check whether value is a usable VideoTrackList wrapper.
+(define (video-track-list/surface? value)
+  (and (video-track-list-wrapper? value)
+       (shared-dom-host-surface-present?
+        (video-track-list-raw value)
+        '("length")
+        '("item"))))
+
 ;; video-track-list-wrap : any/c -> any/c
 ;;   Wrap a raw browser VideoTrackList object, leaving wrapped values alone.
 (define (video-track-list-wrap value)
-  (shared-dom-wrap-value value video-track-list? video-track-list))
+  (shared-dom-wrap-value value video-track-list-wrapper? video-track-list))
 
 ;; video-track-list-unwrap : any/c -> any/c
 ;;   Unwrap a video-track-list struct to its raw browser object.
 (define (video-track-list-unwrap value)
-  (if (video-track-list? value)
+  (if (video-track-list-wrapper? value)
       (video-track-list-raw value)
       value))
 
@@ -839,15 +1014,28 @@
 ;;   Wrap a browser TimeRanges object.
 (struct time-ranges (raw) #:transparent)
 
+;; time-ranges-wrapper? : any/c -> boolean?
+;;   Report whether value is the internal TimeRanges wrapper.
+(define time-ranges-wrapper? time-ranges?)
+
+;; time-ranges/surface? : any/c -> boolean?
+;;   Check whether value is a usable TimeRanges wrapper.
+(define (time-ranges/surface? value)
+  (and (time-ranges-wrapper? value)
+       (shared-dom-host-surface-present?
+        (time-ranges-raw value)
+        '("length")
+        '("start" "end"))))
+
 ;; time-ranges-wrap : any/c -> any/c
 ;;   Wrap a raw browser TimeRanges object, leaving wrapped values alone.
 (define (time-ranges-wrap value)
-  (shared-dom-wrap-value value time-ranges? time-ranges))
+  (shared-dom-wrap-value value time-ranges-wrapper? time-ranges))
 
 ;; time-ranges-unwrap : any/c -> any/c
 ;;   Unwrap a time-ranges struct to its raw browser object.
 (define (time-ranges-unwrap value)
-  (if (time-ranges? value)
+  (if (time-ranges-wrapper? value)
       (time-ranges-raw value)
       value))
 
