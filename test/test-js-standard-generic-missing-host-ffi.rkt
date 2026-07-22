@@ -343,6 +343,8 @@
               label))
 
 (define vfs-uint8array-check-counter 0)
+(define vfs-text-check-counter 0)
+(define vfs-array-buffer-view-check-counter 0)
 
 ;; check-vfs-uint8array-intrinsics : string? -> void?
 ;;   Check VFS memory copies through cached Uint8Array intrinsics.
@@ -364,6 +366,53 @@
                    (hash? stat)
                    (equal? (hash-ref stat 'size)
                            (bytes-length payload)))
+              label))
+
+;; check-vfs-text-intrinsics : string? -> void?
+;;   Check VFS text writes through cached TextEncoder intrinsics.
+(define (check-vfs-text-intrinsics label)
+  (set! vfs-text-check-counter
+        (add1 vfs-text-check-counter))
+  (define n vfs-text-check-counter)
+  (define path
+    (string-append "/tmp/webracket-text-boundary-"
+                   (number->string n)
+                   ".txt"))
+  (define payload
+    (string-append "text-boundary-"
+                   (number->string n)))
+  (js-eval
+   (string-append "webracketVFS.writeFile('"
+                  path
+                  "', '"
+                  payload
+                  "'); undefined"))
+  (check-true (equal? (file->bytes path)
+                      (string->bytes/utf-8 payload))
+              label))
+
+;; check-vfs-array-buffer-view-intrinsics : string? -> void?
+;;   Check VFS typed-array-view preloads through cached ArrayBuffer intrinsics.
+(define (check-vfs-array-buffer-view-intrinsics label)
+  (set! vfs-array-buffer-view-check-counter
+        (add1 vfs-array-buffer-view-check-counter))
+  (define n vfs-array-buffer-view-check-counter)
+  (define path
+    (string-append "/tmp/webracket-array-buffer-view-boundary-"
+                   (number->string n)
+                   ".bin"))
+  (js-eval
+   (string-append
+    "(function() {"
+    "  const buffer = new ArrayBuffer(2);"
+    "  const view = new DataView(buffer);"
+    "  view.setUint8(0, 65);"
+    "  view.setUint8(1, 66);"
+    "  preloadWebRacketVFS([['"
+    path
+    "', view]]);"
+    "})(); undefined"))
+  (check-true (equal? (file->bytes path) #"AB")
               label))
 
 ;; check-character-intrinsics : string? -> void?
@@ -557,6 +606,44 @@
                                         (lambda () (check-vfs-uint8array-intrinsics
                                                     "VFS copies with hidden Uint8Array.prototype.set"))
                                         "VFS copies survive hidden Uint8Array.prototype.set")
+
+(check-hidden-global/no-error "TextEncoder"
+                              (lambda () (check-vfs-text-intrinsics
+                                          "VFS text write with hidden TextEncoder global"))
+                              "VFS text writes survive hidden TextEncoder global")
+
+(check-hidden-prototype-method/no-error "TextEncoder"
+                                        "encode"
+                                        (lambda () (check-vfs-text-intrinsics
+                                                    "VFS text write with hidden TextEncoder.prototype.encode"))
+                                        "VFS text writes survive hidden TextEncoder.prototype.encode")
+
+(check-hidden-global/no-error "TextDecoder"
+                              (lambda () (check-vfs-uint8array-intrinsics
+                                          "VFS paths with hidden TextDecoder global"))
+                              "VFS paths survive hidden TextDecoder global")
+
+(check-hidden-prototype-method/no-error "TextDecoder"
+                                        "decode"
+                                        (lambda () (check-vfs-uint8array-intrinsics
+                                                    "VFS paths with hidden TextDecoder.prototype.decode"))
+                                        "VFS paths survive hidden TextDecoder.prototype.decode")
+
+(check-hidden-global/no-error "ArrayBuffer"
+                              (lambda () (check-boxed-number
+                                          "FASL flonum conversion with hidden ArrayBuffer global"))
+                              "FASL flonum conversion survives hidden ArrayBuffer global")
+
+(check-hidden-global/no-error "DataView"
+                              (lambda () (check-boxed-number
+                                          "FASL flonum conversion with hidden DataView global"))
+                              "FASL flonum conversion survives hidden DataView global")
+
+(check-hidden-static-method/no-error "ArrayBuffer"
+                                     "isView"
+                                     (lambda () (check-vfs-array-buffer-view-intrinsics
+                                                 "VFS DataView preload with hidden ArrayBuffer.isView"))
+                                     "VFS DataView preloads survive hidden ArrayBuffer.isView")
 
 (js-eval "__wrStandardGenericBoundaryRestoreAll();")
 

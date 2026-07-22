@@ -186,15 +186,29 @@ const hostSymbolKeyFor = hostSymbol && typeof hostSymbol.keyFor === 'function'
   ? hostSymbol.keyFor.bind(hostSymbol)
   : null;
 const hostSymbolToPrimitive = hostSymbol && hostSymbol.toPrimitive;
+const hostStringForBridge = typeof String === 'undefined' ? null : String;
 const hostArrayFromForFasl = typeof hostArray.from === 'function'
   ? hostArray.from.bind(hostArray)
   : null;
 const hostArrayIsArrayForFasl = typeof hostArray.isArray === 'function'
   ? hostArray.isArray.bind(hostArray)
   : null;
-const hostStringFromCodePointForFasl = typeof String.fromCodePoint === 'function'
-  ? String.fromCodePoint.bind(String)
+const hostArrayBufferForBridge = typeof ArrayBuffer === 'undefined' ? null : ArrayBuffer;
+const hostArrayBufferIsViewForVfs = hostArrayBufferForBridge &&
+  typeof hostArrayBufferForBridge.isView === 'function'
+  ? hostArrayBufferForBridge.isView.bind(hostArrayBufferForBridge)
   : null;
+const hostDataViewForFasl = typeof DataView === 'undefined' ? null : DataView;
+const hostStringFromCodePointForFasl = hostStringForBridge &&
+  typeof hostStringForBridge.fromCodePoint === 'function'
+  ? hostStringForBridge.fromCodePoint.bind(hostStringForBridge)
+  : null;
+const hostTextEncoderForUtf8 = typeof TextEncoder === 'undefined' ? null : TextEncoder;
+const hostTextDecoderForUtf8 = typeof TextDecoder === 'undefined' ? null : TextDecoder;
+const hostTextEncoderPrototypeForUtf8 = hostTextEncoderForUtf8 && hostTextEncoderForUtf8.prototype;
+const hostTextDecoderPrototypeForUtf8 = hostTextDecoderForUtf8 && hostTextDecoderForUtf8.prototype;
+const hostTextEncoderEncodeForUtf8 = hostTextEncoderPrototypeForUtf8 && hostTextEncoderPrototypeForUtf8.encode;
+const hostTextDecoderDecodeForUtf8 = hostTextDecoderPrototypeForUtf8 && hostTextDecoderPrototypeForUtf8.decode;
 if (!hostWebAssembly ||
     typeof hostWebAssembly.Memory !== 'function' ||
     typeof hostWebAssembly.compile !== 'function' ||
@@ -211,8 +225,29 @@ if (!hostSymbol || !hostSymbolFor || !hostSymbolKeyFor || !hostSymbolToPrimitive
 if (!hostArrayFromForFasl || !hostArrayIsArrayForFasl) {
   throw new Error('WebRacket requires Array.from/isArray.');
 }
-if (!hostStringFromCodePointForFasl) {
+if (!hostStringForBridge || !hostStringFromCodePointForFasl) {
   throw new Error('WebRacket requires String.fromCodePoint.');
+}
+if (!hostArrayBufferForBridge ||
+    !hostArrayBufferIsViewForVfs ||
+    typeof hostDataViewForFasl !== 'function') {
+  throw new Error('WebRacket requires ArrayBuffer/DataView support.');
+}
+if (typeof hostTextEncoderForUtf8 !== 'function' ||
+    typeof hostTextDecoderForUtf8 !== 'function' ||
+    typeof hostTextEncoderEncodeForUtf8 !== 'function' ||
+    typeof hostTextDecoderDecodeForUtf8 !== 'function') {
+  throw new Error('WebRacket requires TextEncoder/TextDecoder UTF-8 support.');
+}
+const hostTextEncoderInstanceForUtf8 = new hostTextEncoderForUtf8();
+const hostTextDecoderInstanceForUtf8 = new hostTextDecoderForUtf8();
+
+function utf8_encode_string(s) {
+  return hostTextEncoderEncodeForUtf8.call(hostTextEncoderInstanceForUtf8, hostStringForBridge(s));
+}
+
+function utf8_decode_bytes(bytes) {
+  return hostTextDecoderDecodeForUtf8.call(hostTextDecoderInstanceForUtf8, bytes);
 }
 
 	var memory = new hostWebAssembly.Memory({initial:1024});
@@ -300,7 +335,7 @@ class WebRacketMemoryBackend {
       if (!this.dirModes.has(dir)) this.dirModes.set(dir, 0o777);
       if (!this.dirIds.has(dir)) this.dirIds.set(dir, this.nextId++);
     }
-    this.files.set(p, bytes instanceof hostUint8Array ? bytes : new TextEncoder().encode(String(bytes)));
+    this.files.set(p, bytes instanceof hostUint8Array ? bytes : utf8_encode_string(bytes));
     this.fileMtimes.set(p, 0);
     this.fileModes.set(p, 0o666);
     this.fileIds.set(p, this.nextId++);
@@ -573,7 +608,7 @@ class WebRacketTarBackend {
     let end = start;
     const max = Math.min(start + len, this.bytes.length);
     while (end < max && this.bytes[end] !== 0) end++;
-    return new TextDecoder().decode(this.bytes.slice(start, end));
+    return utf8_decode_bytes(uint8array_bytes_slice(this.bytes, start, end));
   }
 
   readOctal(start, len, fallback = 0, fieldName = 'octal field') {
@@ -587,14 +622,13 @@ class WebRacketTarBackend {
   }
 
   readPaxHeaders(start, size) {
-    const decoder = new TextDecoder();
     const headers = {};
     const end = start + size;
     for (let i = start; i < end;) {
       let space = i;
       while (space < end && this.bytes[space] !== 32) space++;
       if (space >= end) throw new Error('VFS tar pax header is invalid');
-      const lenText = decoder.decode(this.bytes.slice(i, space));
+      const lenText = utf8_decode_bytes(uint8array_bytes_slice(this.bytes, i, space));
       if (!/^[0-9]+$/.test(lenText)) throw new Error('VFS tar pax header is invalid');
       const len = parseInt(lenText, 10);
       const recordEnd = i + len;
@@ -607,8 +641,8 @@ class WebRacketTarBackend {
       if (eq <= space + 1 || eq >= recordEnd - 1) {
         throw new Error('VFS tar pax header is invalid');
       }
-      const key = decoder.decode(this.bytes.slice(space + 1, eq));
-      headers[key] = decoder.decode(this.bytes.slice(eq + 1, recordEnd - 1));
+      const key = utf8_decode_bytes(uint8array_bytes_slice(this.bytes, space + 1, eq));
+      headers[key] = utf8_decode_bytes(uint8array_bytes_slice(this.bytes, eq + 1, recordEnd - 1));
       i = recordEnd;
     }
     return headers;
@@ -773,7 +807,7 @@ class WebRacketTarBackend {
     const p = this.normalize(path);
     if (!this.files.has(p)) throw new Error(`VFS file not found: ${path}`);
     const f = this.files.get(p);
-    return this.bytes.slice(f.start, f.start + f.size);
+    return uint8array_bytes_slice(this.bytes, f.start, f.start + f.size);
   }
 
   listDir(path) {
@@ -1063,15 +1097,15 @@ function decodeVFSBase64(s) {
 
 function vfsPreloadBytes(entry) {
   if (entry instanceof hostUint8Array) return new hostUint8Array(entry);
-  if (entry instanceof ArrayBuffer) return new hostUint8Array(entry);
-  if (ArrayBuffer.isView(entry)) {
+  if (entry instanceof hostArrayBufferForBridge) return new hostUint8Array(entry);
+  if (hostArrayBufferIsViewForVfs(entry)) {
     return new hostUint8Array(new hostUint8Array(entry.buffer, entry.byteOffset, entry.byteLength));
   }
   if (hostArrayIsArrayForFasl(entry)) return hostUint8ArrayFrom(entry);
-  if (typeof entry === 'string') return new TextEncoder().encode(entry);
+  if (typeof entry === 'string') return utf8_encode_string(entry);
   if (entry && typeof entry === 'object') {
     if ('bytes' in entry) return vfsPreloadBytes(entry.bytes);
-    if ('text' in entry) return new TextEncoder().encode(String(entry.text));
+    if ('text' in entry) return utf8_encode_string(entry.text);
     if ('base64' in entry) return decodeVFSBase64(entry.base64);
     if ('file' in entry || 'url' in entry || typeof entry.directory === 'string') {
       throw new Error('WebRacket VFS file, URL, and host directory preloads require preloadWebRacketVFSAsync');
@@ -1291,7 +1325,7 @@ function uint8array_bytes_slice(bytes, start, end) {
 
 function vfs_path_from_memory(start, len) {
   const bytes = memory_bytes_slice(start, start + len);
-  return new TextDecoder().decode(bytes);
+  return utf8_decode_bytes(bytes);
 }
 
 function read_u32(arr, i) {
@@ -1327,7 +1361,7 @@ function fasl_to_js_value(arr, i = 0) {
 
   function read_string() {
     const b = read_bytes();
-    return new TextDecoder().decode(b);
+    return utf8_decode_bytes(b);
   }
 
   switch(tag) {
@@ -1367,7 +1401,7 @@ function fasl_to_js_value(arr, i = 0) {
     case @|fasl-flonum|: {
       const hi = u32();
       const lo = u32();
-      const dv = new DataView(new ArrayBuffer(8));
+      const dv = new hostDataViewForFasl(new hostArrayBufferForBridge(8));
       dv.setUint32(0, hi);
       dv.setUint32(4, lo);
       return [dv.getFloat64(0), i];
@@ -1388,7 +1422,6 @@ function fasl_to_js_value(arr, i = 0) {
 
 function js_value_to_fasl(v) {
   const out = [];
-  const enc = new TextEncoder();
 
   // --- low-level writers (big-endian) ---
   function writeByte(b) {
@@ -1402,11 +1435,11 @@ function js_value_to_fasl(v) {
     for (let i = 0; i < u8.length; i++) out.push(u8[i] & 0xFF);
   }
   function writeString(s) {
-    const u8 = enc.encode(s);
+    const u8 = utf8_encode_string(s);
     writeBytes(u8);
   }
   function writeF64(x) {
-    const dv = new DataView(new ArrayBuffer(8));
+    const dv = new hostDataViewForFasl(new hostArrayBufferForBridge(8));
     // Big-endian
     dv.setFloat64(0, x, false);
     const hi = dv.getUint32(0, false);
@@ -2521,7 +2554,7 @@ const wasmModule
 
                           // console.log( "Result bytes:" )
                           const bytes  = new hostUint8Array(memory.buffer, 0, result);
-                          console.log(new TextDecoder().decode(bytes));
+                          console.log(utf8_decode_bytes(bytes));
                         });
 
 })
