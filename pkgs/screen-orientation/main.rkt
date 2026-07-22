@@ -57,7 +57,7 @@
 (define (screen-orientation-supported-raw)
   (with-handlers ([exn:fail? (lambda (_e) #f)])
     (define orientation (js-ref/extern (js-window-screen) "orientation"))
-    (and (not (js-nullish? orientation))
+    (and (screen-orientation-raw-host-value? orientation)
          orientation)))
 
 ;; screen-orientation-supported? : -> boolean?
@@ -71,6 +71,13 @@
   (and (external? raw)
        (not (js-nullish? raw))))
 
+;; screen-orientation-required-properties-present? : external/raw -> boolean?
+;;   Report whether raw exposes the required ScreenOrientation data properties.
+(define (screen-orientation-required-properties-present? raw)
+  (and (screen-orientation-property-present? raw "type")
+       (screen-orientation-property-present? raw "angle")
+       (screen-orientation-nullable-property-present? raw "onchange")))
+
 ;; screen-orientation : -> (or/c #f screen-orientation-info?)
 ;;   Read the current browser ScreenOrientation object when available.
 (define (screen-orientation)
@@ -80,13 +87,19 @@
 ;; screen-orientation? : any/c -> boolean?
 ;;   Report whether v is a wrapped ScreenOrientation value.
 (define (screen-orientation? v)
+  (and (screen-orientation-host-value? v)
+       (screen-orientation-required-properties-present? (screen-orientation-raw v))))
+
+;; screen-orientation-host-value? : any/c -> boolean?
+;;   Report whether v wraps an external ScreenOrientation-like host value.
+(define (screen-orientation-host-value? v)
   (and (screen-orientation-info? v)
        (screen-orientation-raw-host-value? (screen-orientation-raw v))))
 
 ;; check-screen-orientation : symbol? any/c -> void?
 ;;   Ensure value wraps an external ScreenOrientation-like host value.
 (define (check-screen-orientation who value)
-  (unless (screen-orientation? value)
+  (unless (screen-orientation-host-value? value)
     (raise-argument-error who "screen-orientation?" value)))
 
 ;; check-screen-orientation-method : symbol? screen-orientation-info? string? -> void?

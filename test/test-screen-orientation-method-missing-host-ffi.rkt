@@ -50,6 +50,14 @@
         configurable: true
       });
     },
+    setScreenWithOrientation(missing) {
+      Object.defineProperty(globalThis, 'screen', {
+        value: {
+          orientation: globalThis.__wrScreenOrientationBoundaryFake(missing)
+        },
+        configurable: true
+      });
+    },
     restoreScreen() {
       const descriptor = globalThis.__wrScreenOrientationWindowBoundary.screen;
       if (descriptor) {
@@ -113,6 +121,66 @@
                            missing
                            "')"))))
 
+(define (with-fake-screen-orientation missing thunk)
+  (js-eval
+   (string-append "__wrScreenOrientationWindowBoundary.setScreenWithOrientation('"
+                  missing
+                  "');"))
+  (define result (thunk))
+  (js-eval "__wrScreenOrientationWindowBoundary.restoreScreen();")
+  result)
+
+(define complete-fake-supported?
+  (with-fake-screen-orientation
+   "notAProperty"
+   (lambda ()
+     (screen-orientation-supported?))))
+
+(define complete-fake-current-orientation
+  (with-fake-screen-orientation
+   "notAProperty"
+   (lambda ()
+     (screen-orientation))))
+
+(define missing-type-supported?
+  (with-fake-screen-orientation
+   "type"
+   (lambda ()
+     (screen-orientation-supported?))))
+
+(define missing-type-current-orientation
+  (with-fake-screen-orientation
+   "type"
+   (lambda ()
+     (screen-orientation))))
+
+(define missing-angle-supported?
+  (with-fake-screen-orientation
+   "angle"
+   (lambda ()
+     (screen-orientation-supported?))))
+
+(define missing-angle-current-orientation
+  (with-fake-screen-orientation
+   "angle"
+   (lambda ()
+     (screen-orientation))))
+
+(define missing-onchange-supported?
+  (with-fake-screen-orientation
+   "onchange"
+   (lambda ()
+     (screen-orientation-supported?))))
+
+(define missing-onchange-current-orientation
+  (with-fake-screen-orientation
+   "onchange"
+   (lambda ()
+     (screen-orientation))))
+
+(define complete-orientation
+  (fake-orientation "notAProperty"))
+
 (define missing-lock-orientation
   (fake-orientation "lock"))
 
@@ -140,8 +208,38 @@
 (define undefined-raw-orientation
   (screen-orientation-info (js-undefined)))
 
+(check-true complete-fake-supported?
+            "screen-orientation-supported? accepts complete fake orientation")
+(check-true (screen-orientation? complete-fake-current-orientation)
+            "screen-orientation returns complete fake orientation")
+(check-true missing-type-supported?
+            "screen-orientation-supported? accepts available orientation missing type")
+(check-true (screen-orientation-info? missing-type-current-orientation)
+            "screen-orientation returns wrapper when orientation is missing type")
+(check-false (screen-orientation? missing-type-current-orientation)
+             "screen-orientation? rejects current orientation missing type")
+(check-true missing-angle-supported?
+            "screen-orientation-supported? accepts available orientation missing angle")
+(check-true (screen-orientation-info? missing-angle-current-orientation)
+            "screen-orientation returns wrapper when orientation is missing angle")
+(check-false (screen-orientation? missing-angle-current-orientation)
+             "screen-orientation? rejects current orientation missing angle")
+(check-true missing-onchange-supported?
+            "screen-orientation-supported? accepts available orientation missing onchange")
+(check-true (screen-orientation-info? missing-onchange-current-orientation)
+            "screen-orientation returns wrapper when orientation is missing onchange")
+(check-false (screen-orientation? missing-onchange-current-orientation)
+             "screen-orientation? rejects current orientation missing onchange")
+(check-true (screen-orientation? complete-orientation)
+            "screen-orientation? accepts present falsy ScreenOrientation properties")
 (check-true (screen-orientation? missing-lock-orientation)
             "screen-orientation? accepts external orientation-like value")
+(check-false (screen-orientation? missing-type-orientation)
+             "screen-orientation? rejects raw ScreenOrientation missing type")
+(check-false (screen-orientation? missing-angle-orientation)
+             "screen-orientation? rejects raw ScreenOrientation missing angle")
+(check-false (screen-orientation? missing-onchange-orientation)
+             "screen-orientation? rejects raw ScreenOrientation missing onchange")
 (check-false (screen-orientation-raw-host-value? (js-null))
              "screen orientation raw host value rejects null")
 (check-false (screen-orientation-raw-host-value? (js-undefined))
