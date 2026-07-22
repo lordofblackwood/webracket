@@ -48,7 +48,7 @@
               label))
 
 (define target
-  (js-eval "({ present() { return true; } })"))
+  (js-eval "({ present() { return true; }, notBoolean() { return 'not boolean'; } })"))
 
 (define throwing-target
   (js-eval "({ throws() { throw new Error('wr hidden WebAssembly host failure'); } })"))
@@ -89,6 +89,56 @@
       cleanup() {
         this.restoreWebAssembly();
         delete globalThis.__wrStandardSendBoundary;
+      }
+    };
+  })();")
+
+(js-eval
+ "(() => {
+    const hostObject = Object;
+    const getOwnPropertyDescriptor = hostObject.getOwnPropertyDescriptor;
+    const defineProperty = hostObject.defineProperty;
+    const hasOwn = hostObject.prototype.hasOwnProperty;
+    const saved = {};
+    globalThis.__wrStandardSendErrorBoundary = {
+      hide(name) {
+        if (!hasOwn.call(saved, name)) {
+          saved[name] = getOwnPropertyDescriptor.call(hostObject, globalThis, name) || null;
+        }
+        try {
+          defineProperty.call(hostObject, globalThis, name, {
+            configurable: true,
+            enumerable: saved[name] ? saved[name].enumerable : false,
+            writable: true,
+            value: undefined
+          });
+          return globalThis[name] === undefined;
+        } catch (_e) {
+          try {
+            globalThis[name] = undefined;
+            return globalThis[name] === undefined;
+          } catch (_e2) {
+            return false;
+          }
+        }
+      },
+      restore(name) {
+        if (!hasOwn.call(saved, name)) {
+          return;
+        }
+        const descriptor = saved[name];
+        if (descriptor) {
+          defineProperty.call(hostObject, globalThis, name, descriptor);
+        } else {
+          delete globalThis[name];
+        }
+        delete saved[name];
+      },
+      cleanup() {
+        for (const name of hostObject.keys(saved)) {
+          this.restore(name);
+        }
+        delete globalThis.__wrStandardSendErrorBoundary;
       }
     };
   })();")
@@ -149,6 +199,21 @@
 (define (restore-webassembly!)
   (js-eval "__wrStandardSendBoundary.restoreWebAssembly();"))
 
+(define (hide-error-constructor! name)
+  (js-eval (string-append "__wrStandardSendErrorBoundary.hide('" name "')")))
+
+(define (restore-error-constructor! name)
+  (js-eval (string-append "__wrStandardSendErrorBoundary.restore('" name "');")))
+
+(define (catch-message/hidden-error-constructor name thunk)
+  (if (hide-error-constructor! name)
+      (catch-message/restoring
+       thunk
+       (lambda () (restore-error-constructor! name)))
+      (begin
+        (restore-error-constructor! name)
+        #f)))
+
 (define hidden-webassembly-host-exception-message
   (if (hide-webassembly!)
       (catch-message/restoring
@@ -160,6 +225,18 @@
         (catch-message
          (lambda ()
            (js-send/value throwing-target "throws" (vector)))))))
+
+(define hidden-error-missing-send/value-message
+  (catch-message/hidden-error-constructor
+   "Error"
+   (lambda ()
+     (js-send/value target "missingMethod" (vector)))))
+
+(define hidden-type-error-send/boolean-message
+  (catch-message/hidden-error-constructor
+   "TypeError"
+   (lambda ()
+     (js-send/boolean target "notBoolean" (vector)))))
 
 (check-message missing-send-message
                "js-send: method missingMethod not available in this environment"
@@ -195,7 +272,18 @@
                "wr hidden WebAssembly host failure"
                "host exception survives hidden WebAssembly")
 
+(when hidden-error-missing-send/value-message
+  (check-message hidden-error-missing-send/value-message
+                 "js-send/value: method missingMethod not available in this environment"
+                 "host error constructor hidden message"))
+
+(when hidden-type-error-send/boolean-message
+  (check-message hidden-type-error-send/boolean-message
+                 "js-send/boolean: expected boolean result, got string"
+                 "host type error constructor hidden message"))
+
 (js-eval "__wrStandardSendBoundary.cleanup();")
+(js-eval "__wrStandardSendErrorBoundary.cleanup();")
 
 (js-log "standard-send-missing-host-ffi-ok")
 #t

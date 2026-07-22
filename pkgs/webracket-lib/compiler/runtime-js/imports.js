@@ -1,9 +1,12 @@
+const hostError = Error;
+const hostTypeError = TypeError;
+
 if (typeof hostWebAssemblyTag !== 'function' ||
     typeof hostWebAssemblyException !== 'function' ||
     typeof hostWebAssemblyModule === 'undefined' ||
     !hostWebAssemblyModule ||
     typeof hostWebAssemblyModule.imports !== 'function') {
-  throw new Error('WebRacket requires WebAssembly exception handling (Tag + Exception).');
+  throw new hostError('WebRacket requires WebAssembly exception handling (Tag + Exception).');
 }
 
 const hostString = String;
@@ -18,16 +21,16 @@ const hostStringValueOf = hostString.prototype.valueOf;
 const hostNumberValueOf = hostNumber.prototype.valueOf;
 const hostBooleanValueOf = hostBoolean.prototype.valueOf;
 if (typeof hostStringValueOf !== 'function') {
-  throw new Error('String.valueOf not available in this environment');
+  throw new hostError('String.valueOf not available in this environment');
 }
 if (typeof hostNumberValueOf !== 'function') {
-  throw new Error('Number.valueOf not available in this environment');
+  throw new hostError('Number.valueOf not available in this environment');
 }
 if (typeof hostBooleanValueOf !== 'function') {
-  throw new Error('Boolean.valueOf not available in this environment');
+  throw new hostError('Boolean.valueOf not available in this environment');
 }
 if (!hostReflect || typeof hostReflect.construct !== 'function') {
-  throw new Error('Reflect.construct not available in this environment');
+  throw new hostError('Reflect.construct not available in this environment');
 }
 const foreign_error_tag = new hostWebAssemblyTag({ parameters: ['externref'] });
 
@@ -93,25 +96,25 @@ function assert_ffi_exception_bridge_visible_imports(module, imports, label) {
   for (const [moduleName, names] of required.entries()) {
     const table = imports[moduleName];
     if (!table || typeof table !== 'object') {
-      throw new Error(
+      throw new hostError(
         `FFI import table '${moduleName}' required by ${label} must be an object`
       );
     }
     const prototype = hostObject.getPrototypeOf(table);
     if (prototype !== hostObject.prototype && prototype !== null) {
-      throw new Error(
+      throw new hostError(
         `FFI import table '${moduleName}' required by ${label} must be a plain object`
       );
     }
     for (const name of names) {
       const descriptor = hostObject.getOwnPropertyDescriptor(table, name);
       if (!descriptor || !descriptor.enumerable) {
-        throw new Error(
+        throw new hostError(
           `FFI import '${moduleName}.${name}' required by ${label} must be an own enumerable function so host exceptions can be bridged`
         );
       }
       if (typeof table[name] !== 'function') {
-        throw new Error(
+        throw new hostError(
           `FFI import '${moduleName}.${name}' required by ${label} must be a function`
         );
       }
@@ -141,7 +144,7 @@ function decode_js_send_args(args) {
 
 function require_js_target(obj, who) {
   if (obj === null || obj === undefined) {
-    throw new Error(`${who}: target object is null or undefined`);
+    throw new hostError(`${who}: target object is null or undefined`);
   }
   return obj;
 }
@@ -172,14 +175,14 @@ function require_host_constructor(name, displayName, detail) {
   const ctor = globalThis[name];
   if (!host_is_constructor(ctor)) {
     const suffix = detail === undefined ? '' : `: ${detail}`;
-    throw new Error(`${displayName} not available in this environment${suffix}`);
+    throw new hostError(`${displayName} not available in this environment${suffix}`);
   }
   return ctor;
 }
 
 function require_host_target(owner, displayName) {
   if (owner === null || owner === undefined) {
-    throw new Error(`${displayName}: target object is null or undefined`);
+    throw new hostError(`${displayName}: target object is null or undefined`);
   }
 
   return owner;
@@ -197,7 +200,7 @@ function call_host_function0(owner, name, displayName) {
   const target = require_host_target(owner, displayName);
   const fn = target[name];
   if (typeof fn !== 'function') {
-    throw new Error(`${displayName} not available in this environment`);
+    throw new hostError(`${displayName} not available in this environment`);
   }
   return fn.call(target);
 }
@@ -206,7 +209,7 @@ function call_host_function1(owner, name, displayName, arg0) {
   const target = require_host_target(owner, displayName);
   const fn = target[name];
   if (typeof fn !== 'function') {
-    throw new Error(`${displayName} not available in this environment`);
+    throw new hostError(`${displayName} not available in this environment`);
   }
   return fn.call(target, arg0);
 }
@@ -215,7 +218,7 @@ function call_host_function2(owner, name, displayName, arg0, arg1) {
   const target = require_host_target(owner, displayName);
   const fn = target[name];
   if (typeof fn !== 'function') {
-    throw new Error(`${displayName} not available in this environment`);
+    throw new hostError(`${displayName} not available in this environment`);
   }
   return fn.call(target, arg0, arg1);
 }
@@ -224,7 +227,7 @@ function call_host_function3(owner, name, displayName, arg0, arg1, arg2) {
   const target = require_host_target(owner, displayName);
   const fn = target[name];
   if (typeof fn !== 'function') {
-    throw new Error(`${displayName} not available in this environment`);
+    throw new hostError(`${displayName} not available in this environment`);
   }
   return fn.call(target, arg0, arg1, arg2);
 }
@@ -233,7 +236,7 @@ function call_host_function4(owner, name, displayName, arg0, arg1, arg2, arg3) {
   const target = require_host_target(owner, displayName);
   const fn = target[name];
   if (typeof fn !== 'function') {
-    throw new Error(`${displayName} not available in this environment`);
+    throw new hostError(`${displayName} not available in this environment`);
   }
   return fn.call(target, arg0, arg1, arg2, arg3);
 }
@@ -242,7 +245,7 @@ function call_host_function5(owner, name, displayName, arg0, arg1, arg2, arg3, a
   const target = require_host_target(owner, displayName);
   const fn = target[name];
   if (typeof fn !== 'function') {
-    throw new Error(`${displayName} not available in this environment`);
+    throw new hostError(`${displayName} not available in this environment`);
   }
   return fn.call(target, arg0, arg1, arg2, arg3, arg4);
 }
@@ -251,7 +254,7 @@ function call_host_function6(owner, name, displayName, arg0, arg1, arg2, arg3, a
   const target = require_host_target(owner, displayName);
   const fn = target[name];
   if (typeof fn !== 'function') {
-    throw new Error(`${displayName} not available in this environment`);
+    throw new hostError(`${displayName} not available in this environment`);
   }
   return fn.call(target, arg0, arg1, arg2, arg3, arg4, arg5);
 }
@@ -259,7 +262,7 @@ function call_host_function6(owner, name, displayName, arg0, arg1, arg2, arg3, a
 function require_host_value(owner, name, displayName) {
   const value = require_host_target(owner, displayName)[name];
   if (value === undefined || value === null) {
-    throw new Error(`${displayName} not available in this environment`);
+    throw new hostError(`${displayName} not available in this environment`);
   }
   return value;
 }
@@ -267,7 +270,7 @@ function require_host_value(owner, name, displayName) {
 function get_required_host_property(owner, name, displayName) {
   const value = get_host_property(owner, name, displayName);
   if (value === undefined) {
-    throw new Error(`${displayName} not available in this environment`);
+    throw new hostError(`${displayName} not available in this environment`);
   }
   return value;
 }
@@ -275,7 +278,7 @@ function get_required_host_property(owner, name, displayName) {
 function set_required_host_property(owner, name, value, displayName) {
   const target = require_host_target(owner, displayName);
   if (!(name in hostObject(target))) {
-    throw new Error(`${displayName} not available in this environment`);
+    throw new hostError(`${displayName} not available in this environment`);
   }
   target[name] = value;
 }
@@ -403,7 +406,7 @@ function call_document_function5(name, displayName, arg0, arg1, arg2, arg3, arg4
 function get_required_global_function(name, displayName) {
   const fn = get_global_value(name);
   if (typeof fn !== 'function') {
-    throw new Error(`${displayName} not available in this environment`);
+    throw new hostError(`${displayName} not available in this environment`);
   }
   return fn;
 }
@@ -426,7 +429,7 @@ function call_global_function3(name, displayName, arg0, arg1, arg2) {
 function require_object_value(displayName) {
   const object = get_global_value('Object');
   if (object === null || object === undefined) {
-    throw new Error(`${displayName} not available in this environment`);
+    throw new hostError(`${displayName} not available in this environment`);
   }
   return object;
 }
@@ -444,13 +447,13 @@ function get_intrinsic_function_constructor(fn, displayName) {
 
 function js_instanceof(obj, type) {
   if (type === null || type === undefined) {
-    throw new Error('js-instanceof: constructor is null or undefined');
+    throw new hostError('js-instanceof: constructor is null or undefined');
   }
   if (typeof type !== 'function') {
-    throw new Error(`js-instanceof: expected constructor function, got ${typeof type}`);
+    throw new hostError(`js-instanceof: expected constructor function, got ${typeof type}`);
   }
   if (!host_is_constructor(type)) {
-    throw new Error('js-instanceof: expected constructible function');
+    throw new hostError('js-instanceof: expected constructible function');
   }
   return obj instanceof type ? 1 : 0;
 }
@@ -493,7 +496,7 @@ function js_flonum_result(x, who) {
   }
   const unboxed = js_boxed_number_value(x);
   if (typeof unboxed !== 'number') {
-    throw new TypeError(`${who}: expected number result, got ${typeof x}`);
+    throw new hostTypeError(`${who}: expected number result, got ${typeof x}`);
   }
   return unboxed;
 }
@@ -503,7 +506,7 @@ function call_js_method(obj, name, args, who) {
   const methodName = from_fasl(name);
   const method = target[methodName];
   if (typeof method !== 'function') {
-    throw new Error(`${who}: method ${hostString(methodName)} not available in this environment`);
+    throw new hostError(`${who}: method ${hostString(methodName)} not available in this environment`);
   }
   return method.apply(target, decode_js_send_args(args));
 }
@@ -512,7 +515,7 @@ function call_required_host_function(owner, name, displayName, args = []) {
   const target = require_host_target(owner, displayName);
   const fn = target[name];
   if (typeof fn !== 'function') {
-    throw new Error(`${displayName} not available in this environment`);
+    throw new hostError(`${displayName} not available in this environment`);
   }
   return fn.apply(target, args);
 }
@@ -521,7 +524,7 @@ function call_required_host_function0(owner, name, displayName) {
   const target = require_host_target(owner, displayName);
   const fn = target[name];
   if (typeof fn !== 'function') {
-    throw new Error(`${displayName} not available in this environment`);
+    throw new hostError(`${displayName} not available in this environment`);
   }
   return fn.call(target);
 }
@@ -530,7 +533,7 @@ function call_required_host_function1(owner, name, displayName, arg0) {
   const target = require_host_target(owner, displayName);
   const fn = target[name];
   if (typeof fn !== 'function') {
-    throw new Error(`${displayName} not available in this environment`);
+    throw new hostError(`${displayName} not available in this environment`);
   }
   return fn.call(target, arg0);
 }
@@ -539,7 +542,7 @@ function call_required_host_function2(owner, name, displayName, arg0, arg1) {
   const target = require_host_target(owner, displayName);
   const fn = target[name];
   if (typeof fn !== 'function') {
-    throw new Error(`${displayName} not available in this environment`);
+    throw new hostError(`${displayName} not available in this environment`);
   }
   return fn.call(target, arg0, arg1);
 }
@@ -548,7 +551,7 @@ function call_required_host_function3(owner, name, displayName, arg0, arg1, arg2
   const target = require_host_target(owner, displayName);
   const fn = target[name];
   if (typeof fn !== 'function') {
-    throw new Error(`${displayName} not available in this environment`);
+    throw new hostError(`${displayName} not available in this environment`);
   }
   return fn.call(target, arg0, arg1, arg2);
 }
@@ -557,7 +560,7 @@ function call_required_host_function4(owner, name, displayName, arg0, arg1, arg2
   const target = require_host_target(owner, displayName);
   const fn = target[name];
   if (typeof fn !== 'function') {
-    throw new Error(`${displayName} not available in this environment`);
+    throw new hostError(`${displayName} not available in this environment`);
   }
   return fn.call(target, arg0, arg1, arg2, arg3);
 }
@@ -566,7 +569,7 @@ function call_required_host_function5(owner, name, displayName, arg0, arg1, arg2
   const target = require_host_target(owner, displayName);
   const fn = target[name];
   if (typeof fn !== 'function') {
-    throw new Error(`${displayName} not available in this environment`);
+    throw new hostError(`${displayName} not available in this environment`);
   }
   return fn.call(target, arg0, arg1, arg2, arg3, arg4);
 }
@@ -575,7 +578,7 @@ function call_required_host_function6(owner, name, displayName, arg0, arg1, arg2
   const target = require_host_target(owner, displayName);
   const fn = target[name];
   if (typeof fn !== 'function') {
-    throw new Error(`${displayName} not available in this environment`);
+    throw new hostError(`${displayName} not available in this environment`);
   }
   return fn.call(target, arg0, arg1, arg2, arg3, arg4, arg5);
 }
@@ -584,7 +587,7 @@ function call_required_host_function7(owner, name, displayName, arg0, arg1, arg2
   const target = require_host_target(owner, displayName);
   const fn = target[name];
   if (typeof fn !== 'function') {
-    throw new Error(`${displayName} not available in this environment`);
+    throw new hostError(`${displayName} not available in this environment`);
   }
   return fn.call(target, arg0, arg1, arg2, arg3, arg4, arg5, arg6);
 }
@@ -593,7 +596,7 @@ function call_required_host_function8(owner, name, displayName, arg0, arg1, arg2
   const target = require_host_target(owner, displayName);
   const fn = target[name];
   if (typeof fn !== 'function') {
-    throw new Error(`${displayName} not available in this environment`);
+    throw new hostError(`${displayName} not available in this environment`);
   }
   return fn.call(target, arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7);
 }
@@ -602,7 +605,7 @@ function call_required_host_function9(owner, name, displayName, arg0, arg1, arg2
   const target = require_host_target(owner, displayName);
   const fn = target[name];
   if (typeof fn !== 'function') {
-    throw new Error(`${displayName} not available in this environment`);
+    throw new hostError(`${displayName} not available in this environment`);
   }
   return fn.call(target, arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
 }
@@ -610,7 +613,7 @@ function call_required_host_function9(owner, name, displayName, arg0, arg1, arg2
 function require_array_constructor(displayName) {
   const ctor = get_global_value('Array');
   if (!host_is_constructor(ctor)) {
-    throw new Error(`${displayName} not available in this environment`);
+    throw new hostError(`${displayName} not available in this environment`);
   }
   return ctor;
 }
@@ -618,7 +621,7 @@ function require_array_constructor(displayName) {
 function require_uint8_array_constructor(displayName) {
   const ctor = get_global_value('Uint8Array');
   if (!host_is_constructor(ctor)) {
-    throw new Error(`${displayName} not available in this environment`);
+    throw new hostError(`${displayName} not available in this environment`);
   }
   return ctor;
 }
@@ -698,7 +701,7 @@ function call_array_with(arr, index, value) {
 function require_number_constructor(displayName) {
   const ctor = get_global_value('Number');
   if (typeof ctor !== 'function') {
-    throw new Error(`${displayName} not available in this environment`);
+    throw new hostError(`${displayName} not available in this environment`);
   }
   return ctor;
 }
@@ -708,7 +711,7 @@ function get_number_static_value(name) {
   const ctor = require_number_constructor(displayName);
   const value = ctor[name];
   if (value === null || value === undefined) {
-    throw new Error(`${displayName} not available in this environment`);
+    throw new hostError(`${displayName} not available in this environment`);
   }
   return value;
 }
@@ -744,7 +747,7 @@ function call_number_method2(x, methodName, arg0, arg1) {
 function require_math_object(displayName) {
   const math = get_global_value('Math');
   if (math === null || math === undefined) {
-    throw new Error(`${displayName} not available in this environment`);
+    throw new hostError(`${displayName} not available in this environment`);
   }
   return math;
 }
@@ -849,7 +852,7 @@ function call_image_method0(img, methodName) {
 function require_performance_object(displayName) {
   const perf = typeof performance === 'undefined' ? null : performance;
   if (perf === null || perf === undefined) {
-    throw new Error(`${displayName} not available in this environment`);
+    throw new hostError(`${displayName} not available in this environment`);
   }
   return perf;
 }
@@ -1148,20 +1151,20 @@ function set_jsxgraph_point_property(pt, name, value) {
 function get_jsxgraph_board_objects_list(board) {
   const objects = get_jsxgraph_board_property(board, 'objects');
   if (objects === null || (typeof objects !== 'object' && typeof objects !== 'function')) {
-    throw new Error('JSXGraph Board.objects must be an object in this environment');
+    throw new hostError('JSXGraph Board.objects must be an object in this environment');
   }
   return call_object_static_method1('values', objects);
 }
 
 function construct_js_value(ctor, args) {
   if (ctor === null || ctor === undefined) {
-    throw new Error('js-new: constructor is null or undefined');
+    throw new hostError('js-new: constructor is null or undefined');
   }
   if (typeof ctor !== 'function') {
-    throw new Error(`js-new: expected constructor function, got ${typeof ctor}`);
+    throw new hostError(`js-new: expected constructor function, got ${typeof ctor}`);
   }
   if (!host_is_constructor(ctor)) {
-    throw new Error('js-new: expected constructible function');
+    throw new hostError('js-new: expected constructible function');
   }
   return new ctor(...decode_js_send_args(args));
 }
@@ -1654,7 +1657,7 @@ var imports = {
                                     if (typeof boxed === 'boolean') {
                                       return boxed ? 1 : 0;
                                     }
-                                    throw new TypeError(`js-send/boolean: expected boolean result, got ${typeof x}`);
+                                    throw new hostTypeError(`js-send/boolean: expected boolean result, got ${typeof x}`);
                                    }),
       'send/truthy':               ((obj, name, args) => {
                                     const x = call_js_method(obj, name, args, 'js-send/truthy');
@@ -2037,15 +2040,15 @@ var imports = {
         'width':                         ((canvas)                       => get_canvas_element_property(canvas, 'width')),
         'set-width!':                    ((canvas, w)                    => { set_canvas_element_property(canvas, 'width', w); })
     } : {
-        'capture-stream'()                { throw new Error('DOM not available in this environment'); },
-        'get-context'()                   { throw new Error('DOM not available in this environment'); },
-        'height'()                        { throw new Error('DOM not available in this environment'); },
-        'set-height!'()                   { throw new Error('DOM not available in this environment'); },
-        'to-blob'()                       { throw new Error('DOM not available in this environment'); },
-        'to-data-url'()                   { throw new Error('DOM not available in this environment'); },
-        'transfer-control-to-offscreen'() { throw new Error('DOM not available in this environment'); },
-        'width'()                         { throw new Error('DOM not available in this environment'); },
-        'set-width!'()                    { throw new Error('DOM not available in this environment'); }
+        'capture-stream'()                { throw new hostError('DOM not available in this environment'); },
+        'get-context'()                   { throw new hostError('DOM not available in this environment'); },
+        'height'()                        { throw new hostError('DOM not available in this environment'); },
+        'set-height!'()                   { throw new hostError('DOM not available in this environment'); },
+        'to-blob'()                       { throw new hostError('DOM not available in this environment'); },
+        'to-data-url'()                   { throw new hostError('DOM not available in this environment'); },
+        'transfer-control-to-offscreen'() { throw new hostError('DOM not available in this environment'); },
+        'width'()                         { throw new hostError('DOM not available in this environment'); },
+        'set-width!'()                    { throw new hostError('DOM not available in this environment'); }
     },
     // CanvasRenderingContext2D
     'canvas-rendering-context-2d': hasDOM ? {
@@ -2256,15 +2259,15 @@ var imports = {
         }),
         'transform': ((ctx, a, b, c, d, e, f) => call_canvas_2d_method6(ctx, 'transform', a, b, c, d, e, f)),
         'translate': ((ctx, x, y) => call_canvas_2d_method2(ctx, 'translate', x, y)),
-    } : new Proxy({}, { get() { throw new Error('DOM not available in this environment'); } }),
+    } : new Proxy({}, { get() { throw new hostError('DOM not available in this environment'); } }),
     'image-data': hasDOM ? {
         'width':   (data => get_image_data_property(data, 'width')),
         'height':  (data => get_image_data_property(data, 'height')),
         'data':    (data => get_image_data_property(data, 'data'))
-    } : new Proxy({}, { get() { throw new Error('DOM not available in this environment'); } }),
+    } : new Proxy({}, { get() { throw new hostError('DOM not available in this environment'); } }),
     'text-metrics': hasDOM ? {
         'width':   (metrics => get_text_metrics_property(metrics, 'width'))
-    } : new Proxy({}, { get() { throw new Error('DOM not available in this environment'); } }),
+    } : new Proxy({}, { get() { throw new hostError('DOM not available in this environment'); } }),
     'dom-matrix': hasDOM ? {
         'a':       (matrix => get_dom_matrix_property(matrix, 'a')),
         'b':       (matrix => get_dom_matrix_property(matrix, 'b')),
@@ -2272,7 +2275,7 @@ var imports = {
         'd':       (matrix => get_dom_matrix_property(matrix, 'd')),
         'e':       (matrix => get_dom_matrix_property(matrix, 'e')),
         'f':       (matrix => get_dom_matrix_property(matrix, 'f'))
-    } : new Proxy({}, { get() { throw new Error('DOM not available in this environment'); } }),
+    } : new Proxy({}, { get() { throw new hostError('DOM not available in this environment'); } }),
     // Window
     'window': hasDOM ? {
         'window':               (() => get_window_property('window')),
@@ -2546,7 +2549,7 @@ var imports = {
         'report-error':        (err => call_window_function1('reportError',
                                                              'window.reportError',
                                                              from_fasl(err)))
-    } : new Proxy({}, { get() { throw new Error('DOM not available in this environment'); } }),
+    } : new Proxy({}, { get() { throw new hostError('DOM not available in this environment'); } }),
     // Performance
     'performance': hasPerformance ? {
         'event-counts':        (() => get_performance_property('eventCounts')),
@@ -2607,15 +2610,15 @@ var imports = {
         'measure-user-agent-specific-memory': (() => call_performance_method0('measureUserAgentSpecificMemory')),
         'set-resource-timing-buffer-size': ((size) => call_performance_method1('setResourceTimingBufferSize', size)),
         'to-json':             (() => call_performance_method0('toJSON'))
-    } : new Proxy({}, { get() { throw new Error('Performance API not available in this environment'); } }),
+    } : new Proxy({}, { get() { throw new hostError('Performance API not available in this environment'); } }),
     'performance-event-count-map': hasPerformance ? {
         'size':                (list => get_performance_event_counts_property(list, 'size'))
-    } : new Proxy({}, { get() { throw new Error('Performance API not available in this environment'); } }),
+    } : new Proxy({}, { get() { throw new hostError('Performance API not available in this environment'); } }),
     'performance-memory-info': hasPerformance ? {
         'js-heap-size-limit':  (mem => get_performance_memory_info_property(mem, 'jsHeapSizeLimit')),
         'total-js-heap-size':  (mem => get_performance_memory_info_property(mem, 'totalJSHeapSize')),
         'used-js-heap-size':   (mem => get_performance_memory_info_property(mem, 'usedJSHeapSize'))
-    } : new Proxy({}, { get() { throw new Error('DOM not available in this environment'); } }),
+    } : new Proxy({}, { get() { throw new hostError('DOM not available in this environment'); } }),
     'websocket': websocket,
     'audio': audio,
     // Document
@@ -2765,57 +2768,57 @@ var imports = {
         // 'writeln':                  ((text)                           => document.writeln(from_fasl(text))),
     }
     : { // Node
-        'document'()                 { throw new Error('DOM not available in this environment'); },
-        'head'()                     { throw new Error('DOM not available in this environment'); },
-        'body'()                     { throw new Error('DOM not available in this environment'); },
-        'document-element'()         { throw new Error('DOM not available in this environment'); },
-        'create-element'()           { throw new Error('DOM not available in this environment'); },
-        'create-text-node'()         { throw new Error('DOM not available in this environment'); },
-        'adopt-node'()               { throw new Error('DOM not available in this environment'); },
-        'caret-range-from-point'()   { throw new Error('DOM not available in this environment'); },
-        'capture-events'()           { throw new Error('DOM not available in this environment'); },
-        'clear'()                    { throw new Error('DOM not available in this environment'); },
-        'close'()                    { throw new Error('DOM not available in this environment'); },
-        'create-attribute'()         { throw new Error('DOM not available in this environment'); },
-        'create-attribute-ns'()      { throw new Error('DOM not available in this environment'); },
-        'create-cdata-section'()     { throw new Error('DOM not available in this environment'); },
-        'create-comment'()           { throw new Error('DOM not available in this environment'); },
-        'create-document-fragment'() { throw new Error('DOM not available in this environment'); },
-        'create-element-ns'()        { throw new Error('DOM not available in this environment'); },
-        'create-event'()             { throw new Error('DOM not available in this environment'); },
-        'create-expression'()        { throw new Error('DOM not available in this environment'); },
-        'create-ns-resolver'()       { throw new Error('DOM not available in this environment'); },
-        'create-node-iterator'()     { throw new Error('DOM not available in this environment'); },
-        'create-processing-instruction'() { throw new Error('DOM not available in this environment'); },
-        'create-range'()             { throw new Error('DOM not available in this environment'); },
-        'create-tree-walker'()       { throw new Error('DOM not available in this environment'); },
-        'element-from-point'()       { throw new Error('DOM not available in this environment'); },
-        'elements-from-point'()      { throw new Error('DOM not available in this environment'); },
-        'enable-style-sheets-for-set'() { throw new Error('DOM not available in this environment'); },
-        'evaluate'()                 { throw new Error('DOM not available in this environment'); },
-        'exec-command'()             { throw new Error('DOM not available in this environment'); },
-        'exit-fullscreen'()          { throw new Error('DOM not available in this environment'); },
-        'exit-picture-in-picture'()  { throw new Error('DOM not available in this environment'); },
-        'exit-pointer-lock'()        { throw new Error('DOM not available in this environment'); },
-        'get-element-by-id'()        { throw new Error('DOM not available in this environment'); },
-        'get-elements-by-class-name'() { throw new Error('DOM not available in this environment'); },
-        'get-elements-by-name'()     { throw new Error('DOM not available in this environment'); },
-        'get-elements-by-tag-name'() { throw new Error('DOM not available in this environment'); },
-        'get-elements-by-tag-name-ns'() { throw new Error('DOM not available in this environment'); },
-        'get-selection'()            { throw new Error('DOM not available in this environment'); },
-        'has-focus'()                { throw new Error('DOM not available in this environment'); },
-        'import-node'()              { throw new Error('DOM not available in this environment'); },
-        'open'()                     { throw new Error('DOM not available in this environment'); },
-        'query-command-enabled'()    { throw new Error('DOM not available in this environment'); },
-        'query-command-indeterm'()   { throw new Error('DOM not available in this environment'); },
-        'query-command-state'()      { throw new Error('DOM not available in this environment'); },
-        'query-command-supported'()  { throw new Error('DOM not available in this environment'); },
-        'query-command-value'()      { throw new Error('DOM not available in this environment'); },
-        'query-selector'()           { throw new Error('DOM not available in this environment'); },
-        'query-selector-all'()       { throw new Error('DOM not available in this environment'); },
-        'release-events'()           { throw new Error('DOM not available in this environment'); },
-        'write'()                    { throw new Error('DOM not available in this environment'); },
-        'writeln'()                  { throw new Error('DOM not available in this environment'); },
+        'document'()                 { throw new hostError('DOM not available in this environment'); },
+        'head'()                     { throw new hostError('DOM not available in this environment'); },
+        'body'()                     { throw new hostError('DOM not available in this environment'); },
+        'document-element'()         { throw new hostError('DOM not available in this environment'); },
+        'create-element'()           { throw new hostError('DOM not available in this environment'); },
+        'create-text-node'()         { throw new hostError('DOM not available in this environment'); },
+        'adopt-node'()               { throw new hostError('DOM not available in this environment'); },
+        'caret-range-from-point'()   { throw new hostError('DOM not available in this environment'); },
+        'capture-events'()           { throw new hostError('DOM not available in this environment'); },
+        'clear'()                    { throw new hostError('DOM not available in this environment'); },
+        'close'()                    { throw new hostError('DOM not available in this environment'); },
+        'create-attribute'()         { throw new hostError('DOM not available in this environment'); },
+        'create-attribute-ns'()      { throw new hostError('DOM not available in this environment'); },
+        'create-cdata-section'()     { throw new hostError('DOM not available in this environment'); },
+        'create-comment'()           { throw new hostError('DOM not available in this environment'); },
+        'create-document-fragment'() { throw new hostError('DOM not available in this environment'); },
+        'create-element-ns'()        { throw new hostError('DOM not available in this environment'); },
+        'create-event'()             { throw new hostError('DOM not available in this environment'); },
+        'create-expression'()        { throw new hostError('DOM not available in this environment'); },
+        'create-ns-resolver'()       { throw new hostError('DOM not available in this environment'); },
+        'create-node-iterator'()     { throw new hostError('DOM not available in this environment'); },
+        'create-processing-instruction'() { throw new hostError('DOM not available in this environment'); },
+        'create-range'()             { throw new hostError('DOM not available in this environment'); },
+        'create-tree-walker'()       { throw new hostError('DOM not available in this environment'); },
+        'element-from-point'()       { throw new hostError('DOM not available in this environment'); },
+        'elements-from-point'()      { throw new hostError('DOM not available in this environment'); },
+        'enable-style-sheets-for-set'() { throw new hostError('DOM not available in this environment'); },
+        'evaluate'()                 { throw new hostError('DOM not available in this environment'); },
+        'exec-command'()             { throw new hostError('DOM not available in this environment'); },
+        'exit-fullscreen'()          { throw new hostError('DOM not available in this environment'); },
+        'exit-picture-in-picture'()  { throw new hostError('DOM not available in this environment'); },
+        'exit-pointer-lock'()        { throw new hostError('DOM not available in this environment'); },
+        'get-element-by-id'()        { throw new hostError('DOM not available in this environment'); },
+        'get-elements-by-class-name'() { throw new hostError('DOM not available in this environment'); },
+        'get-elements-by-name'()     { throw new hostError('DOM not available in this environment'); },
+        'get-elements-by-tag-name'() { throw new hostError('DOM not available in this environment'); },
+        'get-elements-by-tag-name-ns'() { throw new hostError('DOM not available in this environment'); },
+        'get-selection'()            { throw new hostError('DOM not available in this environment'); },
+        'has-focus'()                { throw new hostError('DOM not available in this environment'); },
+        'import-node'()              { throw new hostError('DOM not available in this environment'); },
+        'open'()                     { throw new hostError('DOM not available in this environment'); },
+        'query-command-enabled'()    { throw new hostError('DOM not available in this environment'); },
+        'query-command-indeterm'()   { throw new hostError('DOM not available in this environment'); },
+        'query-command-state'()      { throw new hostError('DOM not available in this environment'); },
+        'query-command-supported'()  { throw new hostError('DOM not available in this environment'); },
+        'query-command-value'()      { throw new hostError('DOM not available in this environment'); },
+        'query-selector'()           { throw new hostError('DOM not available in this environment'); },
+        'query-selector-all'()       { throw new hostError('DOM not available in this environment'); },
+        'release-events'()           { throw new hostError('DOM not available in this environment'); },
+        'write'()                    { throw new hostError('DOM not available in this environment'); },
+        'writeln'()                  { throw new hostError('DOM not available in this environment'); },
     },
     // Media
     'media': hasDOM ? {
@@ -2896,64 +2899,64 @@ var imports = {
         'set-media-keys!': ((m, keys) => call_media_method1(m, 'setMediaKeys', keys)),
         'set-sink-id!': ((m, id) => call_media_method1(m, 'setSinkId', from_fasl(id))),
     } : {
-        'audio-tracks'() { throw new Error('DOM not available in this environment'); },
-        'autoplay'() { throw new Error('DOM not available in this environment'); },
-        'set-autoplay!'() { throw new Error('DOM not available in this environment'); },
-        'buffered'() { throw new Error('DOM not available in this environment'); },
-        'controls'() { throw new Error('DOM not available in this environment'); },
-        'set-controls!'() { throw new Error('DOM not available in this environment'); },
-        'controls-list'() { throw new Error('DOM not available in this environment'); },
-        'cross-origin'() { throw new Error('DOM not available in this environment'); },
-        'set-cross-origin!'() { throw new Error('DOM not available in this environment'); },
-        'current-src'() { throw new Error('DOM not available in this environment'); },
-        'current-time'() { throw new Error('DOM not available in this environment'); },
-        'set-current-time!'() { throw new Error('DOM not available in this environment'); },
-        'default-muted'() { throw new Error('DOM not available in this environment'); },
-        'set-default-muted!'() { throw new Error('DOM not available in this environment'); },
-        'default-playback-rate'() { throw new Error('DOM not available in this environment'); },
-        'set-default-playback-rate!'() { throw new Error('DOM not available in this environment'); },
-        'disable-remote-playback'() { throw new Error('DOM not available in this environment'); },
-        'set-disable-remote-playback!'() { throw new Error('DOM not available in this environment'); },
-        'duration'() { throw new Error('DOM not available in this environment'); },
-        'ended'() { throw new Error('DOM not available in this environment'); },
-        'error'() { throw new Error('DOM not available in this environment'); },
-        'loop'() { throw new Error('DOM not available in this environment'); },
-        'set-loop!'() { throw new Error('DOM not available in this environment'); },
-        'media-keys'() { throw new Error('DOM not available in this environment'); },
-        'media-group'() { throw new Error('DOM not available in this environment'); },
-        'set-media-group!'() { throw new Error('DOM not available in this environment'); },
-        'muted'() { throw new Error('DOM not available in this environment'); },
-        'set-muted!'() { throw new Error('DOM not available in this environment'); },
-        'network-state'() { throw new Error('DOM not available in this environment'); },
-        'paused'() { throw new Error('DOM not available in this environment'); },
-        'playback-rate'() { throw new Error('DOM not available in this environment'); },
-        'set-playback-rate!'() { throw new Error('DOM not available in this environment'); },
-        'played'() { throw new Error('DOM not available in this environment'); },
-        'preload'() { throw new Error('DOM not available in this environment'); },
-        'set-preload!'() { throw new Error('DOM not available in this environment'); },
-        'preserves-pitch'() { throw new Error('DOM not available in this environment'); },
-        'set-preserves-pitch!'() { throw new Error('DOM not available in this environment'); },
-        'ready-state'() { throw new Error('DOM not available in this environment'); },
-        'seekable'() { throw new Error('DOM not available in this environment'); },
-        'seeking'() { throw new Error('DOM not available in this environment'); },
-        'sink-id'() { throw new Error('DOM not available in this environment'); },
-        'src'() { throw new Error('DOM not available in this environment'); },
-        'set-src!'() { throw new Error('DOM not available in this environment'); },
-        'src-object'() { throw new Error('DOM not available in this environment'); },
-        'set-src-object!'() { throw new Error('DOM not available in this environment'); },
-        'text-tracks'() { throw new Error('DOM not available in this environment'); },
-        'video-tracks'() { throw new Error('DOM not available in this environment'); },
-        'volume'() { throw new Error('DOM not available in this environment'); },
-        'set-volume!'() { throw new Error('DOM not available in this environment'); },
-        'add-text-track!'() { throw new Error('DOM not available in this environment'); },
-        'can-play-type'() { throw new Error('DOM not available in this environment'); },
-        'capture-stream'() { throw new Error('DOM not available in this environment'); },
-        'fast-seek!'() { throw new Error('DOM not available in this environment'); },
-        'load!'() { throw new Error('DOM not available in this environment'); },
-        'pause'() { throw new Error('DOM not available in this environment'); },
-        'play'() { throw new Error('DOM not available in this environment'); },
-        'set-media-keys!'() { throw new Error('DOM not available in this environment'); },
-        'set-sink-id!'() { throw new Error('DOM not available in this environment'); },
+        'audio-tracks'() { throw new hostError('DOM not available in this environment'); },
+        'autoplay'() { throw new hostError('DOM not available in this environment'); },
+        'set-autoplay!'() { throw new hostError('DOM not available in this environment'); },
+        'buffered'() { throw new hostError('DOM not available in this environment'); },
+        'controls'() { throw new hostError('DOM not available in this environment'); },
+        'set-controls!'() { throw new hostError('DOM not available in this environment'); },
+        'controls-list'() { throw new hostError('DOM not available in this environment'); },
+        'cross-origin'() { throw new hostError('DOM not available in this environment'); },
+        'set-cross-origin!'() { throw new hostError('DOM not available in this environment'); },
+        'current-src'() { throw new hostError('DOM not available in this environment'); },
+        'current-time'() { throw new hostError('DOM not available in this environment'); },
+        'set-current-time!'() { throw new hostError('DOM not available in this environment'); },
+        'default-muted'() { throw new hostError('DOM not available in this environment'); },
+        'set-default-muted!'() { throw new hostError('DOM not available in this environment'); },
+        'default-playback-rate'() { throw new hostError('DOM not available in this environment'); },
+        'set-default-playback-rate!'() { throw new hostError('DOM not available in this environment'); },
+        'disable-remote-playback'() { throw new hostError('DOM not available in this environment'); },
+        'set-disable-remote-playback!'() { throw new hostError('DOM not available in this environment'); },
+        'duration'() { throw new hostError('DOM not available in this environment'); },
+        'ended'() { throw new hostError('DOM not available in this environment'); },
+        'error'() { throw new hostError('DOM not available in this environment'); },
+        'loop'() { throw new hostError('DOM not available in this environment'); },
+        'set-loop!'() { throw new hostError('DOM not available in this environment'); },
+        'media-keys'() { throw new hostError('DOM not available in this environment'); },
+        'media-group'() { throw new hostError('DOM not available in this environment'); },
+        'set-media-group!'() { throw new hostError('DOM not available in this environment'); },
+        'muted'() { throw new hostError('DOM not available in this environment'); },
+        'set-muted!'() { throw new hostError('DOM not available in this environment'); },
+        'network-state'() { throw new hostError('DOM not available in this environment'); },
+        'paused'() { throw new hostError('DOM not available in this environment'); },
+        'playback-rate'() { throw new hostError('DOM not available in this environment'); },
+        'set-playback-rate!'() { throw new hostError('DOM not available in this environment'); },
+        'played'() { throw new hostError('DOM not available in this environment'); },
+        'preload'() { throw new hostError('DOM not available in this environment'); },
+        'set-preload!'() { throw new hostError('DOM not available in this environment'); },
+        'preserves-pitch'() { throw new hostError('DOM not available in this environment'); },
+        'set-preserves-pitch!'() { throw new hostError('DOM not available in this environment'); },
+        'ready-state'() { throw new hostError('DOM not available in this environment'); },
+        'seekable'() { throw new hostError('DOM not available in this environment'); },
+        'seeking'() { throw new hostError('DOM not available in this environment'); },
+        'sink-id'() { throw new hostError('DOM not available in this environment'); },
+        'src'() { throw new hostError('DOM not available in this environment'); },
+        'set-src!'() { throw new hostError('DOM not available in this environment'); },
+        'src-object'() { throw new hostError('DOM not available in this environment'); },
+        'set-src-object!'() { throw new hostError('DOM not available in this environment'); },
+        'text-tracks'() { throw new hostError('DOM not available in this environment'); },
+        'video-tracks'() { throw new hostError('DOM not available in this environment'); },
+        'volume'() { throw new hostError('DOM not available in this environment'); },
+        'set-volume!'() { throw new hostError('DOM not available in this environment'); },
+        'add-text-track!'() { throw new hostError('DOM not available in this environment'); },
+        'can-play-type'() { throw new hostError('DOM not available in this environment'); },
+        'capture-stream'() { throw new hostError('DOM not available in this environment'); },
+        'fast-seek!'() { throw new hostError('DOM not available in this environment'); },
+        'load!'() { throw new hostError('DOM not available in this environment'); },
+        'pause'() { throw new hostError('DOM not available in this environment'); },
+        'play'() { throw new hostError('DOM not available in this environment'); },
+        'set-media-keys!'() { throw new hostError('DOM not available in this environment'); },
+        'set-sink-id!'() { throw new hostError('DOM not available in this environment'); },
     },
     // Image
     'image': hasDOM ? {
@@ -3005,42 +3008,42 @@ var imports = {
         'y': (img => get_image_property(img, 'y')),
         'decode': (img => call_image_method0(img, 'decode'))
     } : {
-        'new'() { throw new Error('DOM not available in this environment'); },
-        'alt'() { throw new Error('DOM not available in this environment'); },
-        'set-alt!'() { throw new Error('DOM not available in this environment'); },
-        'src'() { throw new Error('DOM not available in this environment'); },
-        'set-src!'() { throw new Error('DOM not available in this environment'); },
-        'srcset'() { throw new Error('DOM not available in this environment'); },
-        'set-srcset!'() { throw new Error('DOM not available in this environment'); },
-        'sizes'() { throw new Error('DOM not available in this environment'); },
-        'set-sizes!'() { throw new Error('DOM not available in this environment'); },
-        'cross-origin'() { throw new Error('DOM not available in this environment'); },
-        'set-cross-origin!'() { throw new Error('DOM not available in this environment'); },
-        'use-map'() { throw new Error('DOM not available in this environment'); },
-        'set-use-map!'() { throw new Error('DOM not available in this environment'); },
-        'is-map'() { throw new Error('DOM not available in this environment'); },
-        'set-is-map!'() { throw new Error('DOM not available in this environment'); },
-        'width'() { throw new Error('DOM not available in this environment'); },
-        'set-width!'() { throw new Error('DOM not available in this environment'); },
-        'height'() { throw new Error('DOM not available in this environment'); },
-        'set-height!'() { throw new Error('DOM not available in this environment'); },
-        'natural-width'() { throw new Error('DOM not available in this environment'); },
-        'natural-height'() { throw new Error('DOM not available in this environment'); },
-        'complete'() { throw new Error('DOM not available in this environment'); },
-        'current-src'() { throw new Error('DOM not available in this environment'); },
-        'decoding'() { throw new Error('DOM not available in this environment'); },
-        'set-decoding!'() { throw new Error('DOM not available in this environment'); },
-        'fetch-priority'() { throw new Error('DOM not available in this environment'); },
-        'set-fetch-priority!'() { throw new Error('DOM not available in this environment'); },
-        'loading'() { throw new Error('DOM not available in this environment'); },
-        'set-loading!'() { throw new Error('DOM not available in this environment'); },
-        'referrer-policy'() { throw new Error('DOM not available in this environment'); },
-        'set-referrer-policy!'() { throw new Error('DOM not available in this environment'); },
-        'name'() { throw new Error('DOM not available in this environment'); },
-        'set-name!'() { throw new Error('DOM not available in this environment'); },
-        'x'() { throw new Error('DOM not available in this environment'); },
-        'y'() { throw new Error('DOM not available in this environment'); },
-        'decode'() { throw new Error('DOM not available in this environment'); }
+        'new'() { throw new hostError('DOM not available in this environment'); },
+        'alt'() { throw new hostError('DOM not available in this environment'); },
+        'set-alt!'() { throw new hostError('DOM not available in this environment'); },
+        'src'() { throw new hostError('DOM not available in this environment'); },
+        'set-src!'() { throw new hostError('DOM not available in this environment'); },
+        'srcset'() { throw new hostError('DOM not available in this environment'); },
+        'set-srcset!'() { throw new hostError('DOM not available in this environment'); },
+        'sizes'() { throw new hostError('DOM not available in this environment'); },
+        'set-sizes!'() { throw new hostError('DOM not available in this environment'); },
+        'cross-origin'() { throw new hostError('DOM not available in this environment'); },
+        'set-cross-origin!'() { throw new hostError('DOM not available in this environment'); },
+        'use-map'() { throw new hostError('DOM not available in this environment'); },
+        'set-use-map!'() { throw new hostError('DOM not available in this environment'); },
+        'is-map'() { throw new hostError('DOM not available in this environment'); },
+        'set-is-map!'() { throw new hostError('DOM not available in this environment'); },
+        'width'() { throw new hostError('DOM not available in this environment'); },
+        'set-width!'() { throw new hostError('DOM not available in this environment'); },
+        'height'() { throw new hostError('DOM not available in this environment'); },
+        'set-height!'() { throw new hostError('DOM not available in this environment'); },
+        'natural-width'() { throw new hostError('DOM not available in this environment'); },
+        'natural-height'() { throw new hostError('DOM not available in this environment'); },
+        'complete'() { throw new hostError('DOM not available in this environment'); },
+        'current-src'() { throw new hostError('DOM not available in this environment'); },
+        'decoding'() { throw new hostError('DOM not available in this environment'); },
+        'set-decoding!'() { throw new hostError('DOM not available in this environment'); },
+        'fetch-priority'() { throw new hostError('DOM not available in this environment'); },
+        'set-fetch-priority!'() { throw new hostError('DOM not available in this environment'); },
+        'loading'() { throw new hostError('DOM not available in this environment'); },
+        'set-loading!'() { throw new hostError('DOM not available in this environment'); },
+        'referrer-policy'() { throw new hostError('DOM not available in this environment'); },
+        'set-referrer-policy!'() { throw new hostError('DOM not available in this environment'); },
+        'name'() { throw new hostError('DOM not available in this environment'); },
+        'set-name!'() { throw new hostError('DOM not available in this environment'); },
+        'x'() { throw new hostError('DOM not available in this environment'); },
+        'y'() { throw new hostError('DOM not available in this environment'); },
+        'decode'() { throw new hostError('DOM not available in this environment'); }
     },
     // Event
     'event': hasDOM ? {
@@ -3102,54 +3105,54 @@ var imports = {
         'stop-propagation': (evt => call_event_method0(evt, 'stopPropagation')),
         'stop-immediate-propagation': (evt => call_event_method0(evt, 'stopImmediatePropagation'))
     } : {
-        'new'() { throw new Error('DOM not available in this environment'); },
-        'event?'() { throw new Error('DOM not available in this environment'); },
-        'type'() { throw new Error('DOM not available in this environment'); },
-        'target'() { throw new Error('DOM not available in this environment'); },
-        'current-target'() { throw new Error('DOM not available in this environment'); },
-        'event-phase'() { throw new Error('DOM not available in this environment'); },
-        'bubbles'() { throw new Error('DOM not available in this environment'); },
-        'cancelable'() { throw new Error('DOM not available in this environment'); },
-        'default-prevented'() { throw new Error('DOM not available in this environment'); },
-        'composed'() { throw new Error('DOM not available in this environment'); },
-        'is-trusted'() { throw new Error('DOM not available in this environment'); },
-        'time-stamp'() { throw new Error('DOM not available in this environment'); },
-        'composed-path'() { throw new Error('DOM not available in this environment'); },
-        'prevent-default'() { throw new Error('DOM not available in this environment'); },
-        'mouse-offset-x'() { throw new Error('DOM not available in this environment'); },
-        'mouse-offset-y'() { throw new Error('DOM not available in this environment'); },
-        'mouse-client-x'() { throw new Error('DOM not available in this environment'); },
-        'mouse-client-y'() { throw new Error('DOM not available in this environment'); },
-        'mouse-page-x'() { throw new Error('DOM not available in this environment'); },
-        'mouse-page-y'() { throw new Error('DOM not available in this environment'); },
-        'mouse-screen-x'() { throw new Error('DOM not available in this environment'); },
-        'mouse-screen-y'() { throw new Error('DOM not available in this environment'); },
-        'mouse-button'() { throw new Error('DOM not available in this environment'); },
-        'mouse-buttons'() { throw new Error('DOM not available in this environment'); },
-        'mouse-alt-key'() { throw new Error('DOM not available in this environment'); },
-        'mouse-ctrl-key'() { throw new Error('DOM not available in this environment'); },
-        'mouse-meta-key'() { throw new Error('DOM not available in this environment'); },
-        'mouse-shift-key'() { throw new Error('DOM not available in this environment'); },
-        'mouse-event?'() { throw new Error('DOM not available in this environment'); },
-        'keyboard-key'() { throw new Error('DOM not available in this environment'); },
-        'keyboard-code'() { throw new Error('DOM not available in this environment'); },
-        'keyboard-event?'() { throw new Error('DOM not available in this environment'); },
-        'alt-key'() { throw new Error('DOM not available in this environment'); },
-        'ctrl-key'() { throw new Error('DOM not available in this environment'); },
-        'meta-key'() { throw new Error('DOM not available in this environment'); },
-        'shift-key'() { throw new Error('DOM not available in this environment'); },
-        'keyboard-repeat'() { throw new Error('DOM not available in this environment'); },
-        'pointer-event?'() { throw new Error('DOM not available in this environment'); },
-        'focus-event?'() { throw new Error('DOM not available in this environment'); },
-        'input-event?'() { throw new Error('DOM not available in this environment'); },
-        'submit-event?'() { throw new Error('DOM not available in this environment'); },
-        'touch-event?'() { throw new Error('DOM not available in this environment'); },
-        'touches'() { throw new Error('DOM not available in this environment'); },
-        'target-touches'() { throw new Error('DOM not available in this environment'); },
-        'changed-touches'() { throw new Error('DOM not available in this environment'); },
-        'wheel-event?'() { throw new Error('DOM not available in this environment'); },
-        'stop-propagation'() { throw new Error('DOM not available in this environment'); },
-        'stop-immediate-propagation'() { throw new Error('DOM not available in this environment'); }
+        'new'() { throw new hostError('DOM not available in this environment'); },
+        'event?'() { throw new hostError('DOM not available in this environment'); },
+        'type'() { throw new hostError('DOM not available in this environment'); },
+        'target'() { throw new hostError('DOM not available in this environment'); },
+        'current-target'() { throw new hostError('DOM not available in this environment'); },
+        'event-phase'() { throw new hostError('DOM not available in this environment'); },
+        'bubbles'() { throw new hostError('DOM not available in this environment'); },
+        'cancelable'() { throw new hostError('DOM not available in this environment'); },
+        'default-prevented'() { throw new hostError('DOM not available in this environment'); },
+        'composed'() { throw new hostError('DOM not available in this environment'); },
+        'is-trusted'() { throw new hostError('DOM not available in this environment'); },
+        'time-stamp'() { throw new hostError('DOM not available in this environment'); },
+        'composed-path'() { throw new hostError('DOM not available in this environment'); },
+        'prevent-default'() { throw new hostError('DOM not available in this environment'); },
+        'mouse-offset-x'() { throw new hostError('DOM not available in this environment'); },
+        'mouse-offset-y'() { throw new hostError('DOM not available in this environment'); },
+        'mouse-client-x'() { throw new hostError('DOM not available in this environment'); },
+        'mouse-client-y'() { throw new hostError('DOM not available in this environment'); },
+        'mouse-page-x'() { throw new hostError('DOM not available in this environment'); },
+        'mouse-page-y'() { throw new hostError('DOM not available in this environment'); },
+        'mouse-screen-x'() { throw new hostError('DOM not available in this environment'); },
+        'mouse-screen-y'() { throw new hostError('DOM not available in this environment'); },
+        'mouse-button'() { throw new hostError('DOM not available in this environment'); },
+        'mouse-buttons'() { throw new hostError('DOM not available in this environment'); },
+        'mouse-alt-key'() { throw new hostError('DOM not available in this environment'); },
+        'mouse-ctrl-key'() { throw new hostError('DOM not available in this environment'); },
+        'mouse-meta-key'() { throw new hostError('DOM not available in this environment'); },
+        'mouse-shift-key'() { throw new hostError('DOM not available in this environment'); },
+        'mouse-event?'() { throw new hostError('DOM not available in this environment'); },
+        'keyboard-key'() { throw new hostError('DOM not available in this environment'); },
+        'keyboard-code'() { throw new hostError('DOM not available in this environment'); },
+        'keyboard-event?'() { throw new hostError('DOM not available in this environment'); },
+        'alt-key'() { throw new hostError('DOM not available in this environment'); },
+        'ctrl-key'() { throw new hostError('DOM not available in this environment'); },
+        'meta-key'() { throw new hostError('DOM not available in this environment'); },
+        'shift-key'() { throw new hostError('DOM not available in this environment'); },
+        'keyboard-repeat'() { throw new hostError('DOM not available in this environment'); },
+        'pointer-event?'() { throw new hostError('DOM not available in this environment'); },
+        'focus-event?'() { throw new hostError('DOM not available in this environment'); },
+        'input-event?'() { throw new hostError('DOM not available in this environment'); },
+        'submit-event?'() { throw new hostError('DOM not available in this environment'); },
+        'touch-event?'() { throw new hostError('DOM not available in this environment'); },
+        'touches'() { throw new hostError('DOM not available in this environment'); },
+        'target-touches'() { throw new hostError('DOM not available in this environment'); },
+        'changed-touches'() { throw new hostError('DOM not available in this environment'); },
+        'wheel-event?'() { throw new hostError('DOM not available in this environment'); },
+        'stop-propagation'() { throw new hostError('DOM not available in this environment'); },
+        'stop-immediate-propagation'() { throw new hostError('DOM not available in this environment'); }
     },
     // MessageEvent
     'message-event': hasDOM ? {
@@ -3160,12 +3163,12 @@ var imports = {
         'source': (evt => get_message_event_property(evt, 'source')),
         'ports': (evt => get_message_event_property(evt, 'ports'))
     } : {
-        'message-event?'() { throw new Error('DOM not available in this environment'); },
-        'data'() { throw new Error('DOM not available in this environment'); },
-        'origin'() { throw new Error('DOM not available in this environment'); },
-        'last-event-id'() { throw new Error('DOM not available in this environment'); },
-        'source'() { throw new Error('DOM not available in this environment'); },
-        'ports'() { throw new Error('DOM not available in this environment'); }
+        'message-event?'() { throw new hostError('DOM not available in this environment'); },
+        'data'() { throw new hostError('DOM not available in this environment'); },
+        'origin'() { throw new hostError('DOM not available in this environment'); },
+        'last-event-id'() { throw new hostError('DOM not available in this environment'); },
+        'source'() { throw new hostError('DOM not available in this environment'); },
+        'ports'() { throw new hostError('DOM not available in this environment'); }
     },
     // CloseEvent
     'close-event': hasDOM ? {
@@ -3174,10 +3177,10 @@ var imports = {
         'code': (evt => get_close_event_property(evt, 'code')),
         'reason': (evt => get_close_event_property(evt, 'reason'))
     } : {
-        'close-event?'() { throw new Error('DOM not available in this environment'); },
-        'was-clean'() { throw new Error('DOM not available in this environment'); },
-        'code'() { throw new Error('DOM not available in this environment'); },
-        'reason'() { throw new Error('DOM not available in this environment'); }
+        'close-event?'() { throw new hostError('DOM not available in this environment'); },
+        'was-clean'() { throw new hostError('DOM not available in this environment'); },
+        'code'() { throw new hostError('DOM not available in this environment'); },
+        'reason'() { throw new hostError('DOM not available in this environment'); }
     },
     // TouchList
     'touch-list': hasDOM ? {
@@ -3185,9 +3188,9 @@ var imports = {
         'length': (xs => get_touch_list_property(xs, 'length')),
         'ref': ((xs, i) => call_touch_list_method1(xs, 'item', i))
     } : {
-        'touch-list?'() { throw new Error('DOM not available in this environment'); },
-        'length'() { throw new Error('DOM not available in this environment'); },
-        'ref'() { throw new Error('DOM not available in this environment'); }
+        'touch-list?'() { throw new hostError('DOM not available in this environment'); },
+        'length'() { throw new hostError('DOM not available in this environment'); },
+        'ref'() { throw new hostError('DOM not available in this environment'); }
     },
     // Touch
     'touch': hasDOM ? {
@@ -3200,14 +3203,14 @@ var imports = {
         'screen-x': (t => get_touch_property(t, 'screenX')),
         'screen-y': (t => get_touch_property(t, 'screenY'))
     } : {
-        'touch?'() { throw new Error('DOM not available in this environment'); },
-        'identifier'() { throw new Error('DOM not available in this environment'); },
-        'client-x'() { throw new Error('DOM not available in this environment'); },
-        'client-y'() { throw new Error('DOM not available in this environment'); },
-        'page-x'() { throw new Error('DOM not available in this environment'); },
-        'page-y'() { throw new Error('DOM not available in this environment'); },
-        'screen-x'() { throw new Error('DOM not available in this environment'); },
-        'screen-y'() { throw new Error('DOM not available in this environment'); }
+        'touch?'() { throw new hostError('DOM not available in this environment'); },
+        'identifier'() { throw new hostError('DOM not available in this environment'); },
+        'client-x'() { throw new hostError('DOM not available in this environment'); },
+        'client-y'() { throw new hostError('DOM not available in this environment'); },
+        'page-x'() { throw new hostError('DOM not available in this environment'); },
+        'page-y'() { throw new hostError('DOM not available in this environment'); },
+        'screen-x'() { throw new hostError('DOM not available in this environment'); },
+        'screen-y'() { throw new hostError('DOM not available in this environment'); }
     },
     // DOMRect
     'dom-rect': hasDOM ? {
@@ -3216,10 +3219,10 @@ var imports = {
         'width':  (rect => get_dom_rect_property(rect, 'width')),
         'height': (rect => get_dom_rect_property(rect, 'height'))
     } : {
-        'left'()   { throw new Error('DOM not available in this environment'); },
-        'top'()    { throw new Error('DOM not available in this environment'); },
-        'width'()  { throw new Error('DOM not available in this environment'); },
-        'height'() { throw new Error('DOM not available in this environment'); }
+        'left'()   { throw new hostError('DOM not available in this environment'); },
+        'top'()    { throw new hostError('DOM not available in this environment'); },
+        'width'()  { throw new hostError('DOM not available in this environment'); },
+        'height'() { throw new hostError('DOM not available in this environment'); }
     },
     // EventTarget
     'event-target': hasDOM ? {
@@ -3228,7 +3231,7 @@ var imports = {
                                                                                       from_fasl(type),
                                                                                       listener))
     } : {
-        'add-event-listener!'() { throw new Error('DOM not available in this environment'); }
+        'add-event-listener!'() { throw new hostError('DOM not available in this environment'); }
     },
     // Element
     'element': hasDOM ? {
@@ -3380,103 +3383,103 @@ var imports = {
                                                                                   'toggleAttribute',
                                                                                   from_fasl(name)) ? 1 : 0),
     } : {
-        'class-list'() { throw new Error('DOM not available in this environment'); },
-        'id'() { throw new Error('DOM not available in this environment'); },
-        'set-id!'() { throw new Error('DOM not available in this environment'); },
-        'class-name'() { throw new Error('DOM not available in this environment'); },
-        'set-class-name!'() { throw new Error('DOM not available in this environment'); },
-        'tag-name'() { throw new Error('DOM not available in this environment'); },
-        'local-name'() { throw new Error('DOM not available in this environment'); },
-        'namespace-uri'() { throw new Error('DOM not available in this environment'); },
-        'prefix'() { throw new Error('DOM not available in this environment'); },
-        'is-connected'() { throw new Error('DOM not available in this environment'); },
-        'children'() { throw new Error('DOM not available in this environment'); },
-        'scroll-top'() { throw new Error('DOM not available in this environment'); },
-        'set-scroll-top!'() { throw new Error('DOM not available in this environment'); },
-        'scroll-left'() { throw new Error('DOM not available in this environment'); },
-        'set-scroll-left!'() { throw new Error('DOM not available in this environment'); },
-        'scroll-width'() { throw new Error('DOM not available in this environment'); },
-        'scroll-height'() { throw new Error('DOM not available in this environment'); },
-        'client-width'() { throw new Error('DOM not available in this environment'); },
-        'client-height'() { throw new Error('DOM not available in this environment'); },
-        'offset-width'() { throw new Error('DOM not available in this environment'); },
-        'offset-height'() { throw new Error('DOM not available in this environment'); },
-        'child-element-count'() { throw new Error('DOM not available in this environment'); },
-        'first-element-child'() { throw new Error('DOM not available in this environment'); },
-        'last-element-child'() { throw new Error('DOM not available in this environment'); },
-        'parent-element'() { throw new Error('DOM not available in this environment'); },
-        'previous-element-sibling'() { throw new Error('DOM not available in this environment'); },
-        'next-element-sibling'() { throw new Error('DOM not available in this environment'); },
-        'inner-html'() { throw new Error('DOM not available in this environment'); },
-        'set-inner-html!'() { throw new Error('DOM not available in this environment'); },
-        'outer-html'() { throw new Error('DOM not available in this environment'); },
-        'set-outer-html!'() { throw new Error('DOM not available in this environment'); },
-        'text-content'() { throw new Error('DOM not available in this environment'); },
-        'set-text-content!'() { throw new Error('DOM not available in this environment'); },
-        'shadow-root'() { throw new Error('DOM not available in this environment'); },
-        'dom-token-list-value'() { throw new Error('DOM not available in this environment'); },
-        'dom-token-list-length'() { throw new Error('DOM not available in this environment'); },
-        'dom-token-list-item'() { throw new Error('DOM not available in this environment'); },
-        'node-list-length'() { throw new Error('DOM not available in this environment'); },
-        'node-list-item'() { throw new Error('DOM not available in this environment'); },
-        'html-collection-length'() { throw new Error('DOM not available in this environment'); },
-        'html-collection-item'() { throw new Error('DOM not available in this environment'); },
-        'html-collection-named-item'() { throw new Error('DOM not available in this environment'); },
-        'shadow-root-host'() { throw new Error('DOM not available in this environment'); },
-        'shadow-root-mode'() { throw new Error('DOM not available in this environment'); },
-        'shadow-root-delegates-focus'() { throw new Error('DOM not available in this environment'); },
-        'dom-rect-list-length'() { throw new Error('DOM not available in this environment'); },
-        'dom-rect-list-item'() { throw new Error('DOM not available in this environment'); },
-        'append-child!'()             { throw new Error('DOM not available in this environment'); },
-        'set-attribute!'()            { throw new Error('DOM not available in this environment'); },
-        'after!'()                    { throw new Error('DOM not available in this environment'); },
-        'animate'()                   { throw new Error('DOM not available in this environment'); },
-        'append!'()                   { throw new Error('DOM not available in this environment'); },
-        'attach-shadow!'()            { throw new Error('DOM not available in this environment'); },
-        'before!'()                   { throw new Error('DOM not available in this environment'); },
-        'closest'()                   { throw new Error('DOM not available in this environment'); },
-        'computed-style-map'()        { throw new Error('DOM not available in this environment'); },
-        'get-animations'()            { throw new Error('DOM not available in this environment'); },
-        'get-attribute'()             { throw new Error('DOM not available in this environment'); },
-        'get-attribute-ns'()          { throw new Error('DOM not available in this environment'); },
-        'get-attribute-names'()       { throw new Error('DOM not available in this environment'); },
-        'get-attribute-node'()        { throw new Error('DOM not available in this environment'); },
-        'get-attribute-node-ns'()     { throw new Error('DOM not available in this environment'); },
-        'get-bounding-client-rect'()  { throw new Error('DOM not available in this environment'); },
-        'get-client-rects'()          { throw new Error('DOM not available in this environment'); },
-        'get-elements-by-class-name'(){ throw new Error('DOM not available in this environment'); },
-        'get-elements-by-tag-name'()  { throw new Error('DOM not available in this environment'); },
-        'get-elements-by-tag-name-ns'(){ throw new Error('DOM not available in this environment'); },
-        'has-attribute'()             { throw new Error('DOM not available in this environment'); },
-        'has-attribute-ns'()          { throw new Error('DOM not available in this environment'); },
-        'has-attributes'()            { throw new Error('DOM not available in this environment'); },
-        'has-pointer-capture'()       { throw new Error('DOM not available in this environment'); },
-        'insert-adjacent-element!'()  { throw new Error('DOM not available in this environment'); },
-        'insert-adjacent-html!'()     { throw new Error('DOM not available in this environment'); },
-        'insert-adjacent-text!'()     { throw new Error('DOM not available in this environment'); },
-        'matches'()                   { throw new Error('DOM not available in this environment'); },
-        'prepend!'()                  { throw new Error('DOM not available in this environment'); },
-        'query-selector'()            { throw new Error('DOM not available in this environment'); },
-        'query-selector-all'()        { throw new Error('DOM not available in this environment'); },
-        'release-pointer-capture!'()  { throw new Error('DOM not available in this environment'); },
-        'remove!'()                   { throw new Error('DOM not available in this environment'); },
-        'remove-attribute!'()         { throw new Error('DOM not available in this environment'); },
-        'remove-attribute-ns!'()      { throw new Error('DOM not available in this environment'); },
-        'remove-attribute-node!'()    { throw new Error('DOM not available in this environment'); },
-        'replace-children!'()         { throw new Error('DOM not available in this environment'); },
-        'replace-with!'()             { throw new Error('DOM not available in this environment'); },
-        'request-fullscreen'()        { throw new Error('DOM not available in this environment'); },
-        'request-pointer-lock'()      { throw new Error('DOM not available in this environment'); },
-        'scroll!'()                   { throw new Error('DOM not available in this environment'); },
-        'scroll-by!'()                { throw new Error('DOM not available in this environment'); },
-        'scroll-into-view!'()         { throw new Error('DOM not available in this environment'); },
-        'scroll-to!'()                { throw new Error('DOM not available in this environment'); },
-        'set-attribute-ns!'()         { throw new Error('DOM not available in this environment'); },
-        'set-attribute-node!'()       { throw new Error('DOM not available in this environment'); },
-        'set-attribute-node-ns!'()    { throw new Error('DOM not available in this environment'); },
-        'set-pointer-capture!'()      { throw new Error('DOM not available in this environment'); },
-        'toggle-attribute!'()         { throw new Error('DOM not available in this environment'); },
-        'toggle-attribute'()          { throw new Error('DOM not available in this environment'); },
+        'class-list'() { throw new hostError('DOM not available in this environment'); },
+        'id'() { throw new hostError('DOM not available in this environment'); },
+        'set-id!'() { throw new hostError('DOM not available in this environment'); },
+        'class-name'() { throw new hostError('DOM not available in this environment'); },
+        'set-class-name!'() { throw new hostError('DOM not available in this environment'); },
+        'tag-name'() { throw new hostError('DOM not available in this environment'); },
+        'local-name'() { throw new hostError('DOM not available in this environment'); },
+        'namespace-uri'() { throw new hostError('DOM not available in this environment'); },
+        'prefix'() { throw new hostError('DOM not available in this environment'); },
+        'is-connected'() { throw new hostError('DOM not available in this environment'); },
+        'children'() { throw new hostError('DOM not available in this environment'); },
+        'scroll-top'() { throw new hostError('DOM not available in this environment'); },
+        'set-scroll-top!'() { throw new hostError('DOM not available in this environment'); },
+        'scroll-left'() { throw new hostError('DOM not available in this environment'); },
+        'set-scroll-left!'() { throw new hostError('DOM not available in this environment'); },
+        'scroll-width'() { throw new hostError('DOM not available in this environment'); },
+        'scroll-height'() { throw new hostError('DOM not available in this environment'); },
+        'client-width'() { throw new hostError('DOM not available in this environment'); },
+        'client-height'() { throw new hostError('DOM not available in this environment'); },
+        'offset-width'() { throw new hostError('DOM not available in this environment'); },
+        'offset-height'() { throw new hostError('DOM not available in this environment'); },
+        'child-element-count'() { throw new hostError('DOM not available in this environment'); },
+        'first-element-child'() { throw new hostError('DOM not available in this environment'); },
+        'last-element-child'() { throw new hostError('DOM not available in this environment'); },
+        'parent-element'() { throw new hostError('DOM not available in this environment'); },
+        'previous-element-sibling'() { throw new hostError('DOM not available in this environment'); },
+        'next-element-sibling'() { throw new hostError('DOM not available in this environment'); },
+        'inner-html'() { throw new hostError('DOM not available in this environment'); },
+        'set-inner-html!'() { throw new hostError('DOM not available in this environment'); },
+        'outer-html'() { throw new hostError('DOM not available in this environment'); },
+        'set-outer-html!'() { throw new hostError('DOM not available in this environment'); },
+        'text-content'() { throw new hostError('DOM not available in this environment'); },
+        'set-text-content!'() { throw new hostError('DOM not available in this environment'); },
+        'shadow-root'() { throw new hostError('DOM not available in this environment'); },
+        'dom-token-list-value'() { throw new hostError('DOM not available in this environment'); },
+        'dom-token-list-length'() { throw new hostError('DOM not available in this environment'); },
+        'dom-token-list-item'() { throw new hostError('DOM not available in this environment'); },
+        'node-list-length'() { throw new hostError('DOM not available in this environment'); },
+        'node-list-item'() { throw new hostError('DOM not available in this environment'); },
+        'html-collection-length'() { throw new hostError('DOM not available in this environment'); },
+        'html-collection-item'() { throw new hostError('DOM not available in this environment'); },
+        'html-collection-named-item'() { throw new hostError('DOM not available in this environment'); },
+        'shadow-root-host'() { throw new hostError('DOM not available in this environment'); },
+        'shadow-root-mode'() { throw new hostError('DOM not available in this environment'); },
+        'shadow-root-delegates-focus'() { throw new hostError('DOM not available in this environment'); },
+        'dom-rect-list-length'() { throw new hostError('DOM not available in this environment'); },
+        'dom-rect-list-item'() { throw new hostError('DOM not available in this environment'); },
+        'append-child!'()             { throw new hostError('DOM not available in this environment'); },
+        'set-attribute!'()            { throw new hostError('DOM not available in this environment'); },
+        'after!'()                    { throw new hostError('DOM not available in this environment'); },
+        'animate'()                   { throw new hostError('DOM not available in this environment'); },
+        'append!'()                   { throw new hostError('DOM not available in this environment'); },
+        'attach-shadow!'()            { throw new hostError('DOM not available in this environment'); },
+        'before!'()                   { throw new hostError('DOM not available in this environment'); },
+        'closest'()                   { throw new hostError('DOM not available in this environment'); },
+        'computed-style-map'()        { throw new hostError('DOM not available in this environment'); },
+        'get-animations'()            { throw new hostError('DOM not available in this environment'); },
+        'get-attribute'()             { throw new hostError('DOM not available in this environment'); },
+        'get-attribute-ns'()          { throw new hostError('DOM not available in this environment'); },
+        'get-attribute-names'()       { throw new hostError('DOM not available in this environment'); },
+        'get-attribute-node'()        { throw new hostError('DOM not available in this environment'); },
+        'get-attribute-node-ns'()     { throw new hostError('DOM not available in this environment'); },
+        'get-bounding-client-rect'()  { throw new hostError('DOM not available in this environment'); },
+        'get-client-rects'()          { throw new hostError('DOM not available in this environment'); },
+        'get-elements-by-class-name'(){ throw new hostError('DOM not available in this environment'); },
+        'get-elements-by-tag-name'()  { throw new hostError('DOM not available in this environment'); },
+        'get-elements-by-tag-name-ns'(){ throw new hostError('DOM not available in this environment'); },
+        'has-attribute'()             { throw new hostError('DOM not available in this environment'); },
+        'has-attribute-ns'()          { throw new hostError('DOM not available in this environment'); },
+        'has-attributes'()            { throw new hostError('DOM not available in this environment'); },
+        'has-pointer-capture'()       { throw new hostError('DOM not available in this environment'); },
+        'insert-adjacent-element!'()  { throw new hostError('DOM not available in this environment'); },
+        'insert-adjacent-html!'()     { throw new hostError('DOM not available in this environment'); },
+        'insert-adjacent-text!'()     { throw new hostError('DOM not available in this environment'); },
+        'matches'()                   { throw new hostError('DOM not available in this environment'); },
+        'prepend!'()                  { throw new hostError('DOM not available in this environment'); },
+        'query-selector'()            { throw new hostError('DOM not available in this environment'); },
+        'query-selector-all'()        { throw new hostError('DOM not available in this environment'); },
+        'release-pointer-capture!'()  { throw new hostError('DOM not available in this environment'); },
+        'remove!'()                   { throw new hostError('DOM not available in this environment'); },
+        'remove-attribute!'()         { throw new hostError('DOM not available in this environment'); },
+        'remove-attribute-ns!'()      { throw new hostError('DOM not available in this environment'); },
+        'remove-attribute-node!'()    { throw new hostError('DOM not available in this environment'); },
+        'replace-children!'()         { throw new hostError('DOM not available in this environment'); },
+        'replace-with!'()             { throw new hostError('DOM not available in this environment'); },
+        'request-fullscreen'()        { throw new hostError('DOM not available in this environment'); },
+        'request-pointer-lock'()      { throw new hostError('DOM not available in this environment'); },
+        'scroll!'()                   { throw new hostError('DOM not available in this environment'); },
+        'scroll-by!'()                { throw new hostError('DOM not available in this environment'); },
+        'scroll-into-view!'()         { throw new hostError('DOM not available in this environment'); },
+        'scroll-to!'()                { throw new hostError('DOM not available in this environment'); },
+        'set-attribute-ns!'()         { throw new hostError('DOM not available in this environment'); },
+        'set-attribute-node!'()       { throw new hostError('DOM not available in this environment'); },
+        'set-attribute-node-ns!'()    { throw new hostError('DOM not available in this environment'); },
+        'set-pointer-capture!'()      { throw new hostError('DOM not available in this environment'); },
+        'toggle-attribute!'()         { throw new hostError('DOM not available in this environment'); },
+        'toggle-attribute'()          { throw new hostError('DOM not available in this environment'); },
     },
     'xterm-terminal': {
         'create': (options => {
@@ -3847,168 +3850,168 @@ var imports = {
         'num-objects':               (board => get_jsxgraph_board_property(board, 'numObjects')),
         'objects-list':              (board => get_jsxgraph_board_objects_list(board))
     } : {
-        'init-board'()                { throw new Error('DOM not available in this environment'); },
-        'create'()                    { throw new Error('DOM not available in this environment'); },
-        'create-point'()              { throw new Error('DOM not available in this environment'); },
-        'create-line'()               { throw new Error('DOM not available in this environment'); },
-        'create-segment'()            { throw new Error('DOM not available in this environment'); },
-        'create-arc'()                { throw new Error('DOM not available in this environment'); },
-        'create-angle'()              { throw new Error('DOM not available in this environment'); },
-        'create-sector'()             { throw new Error('DOM not available in this environment'); },
-        'create-glider'()             { throw new Error('DOM not available in this environment'); },
-        'create-circle'()             { throw new Error('DOM not available in this environment'); },
-        'create-conic'()              { throw new Error('DOM not available in this environment'); },
-        'create-ellipse'()            { throw new Error('DOM not available in this environment'); },
-        'create-curve'()              { throw new Error('DOM not available in this environment'); },
-        'create-functiongraph'()      { throw new Error('DOM not available in this environment'); },
-        'create-polygon'()            { throw new Error('DOM not available in this environment'); },
-        'create-midpoint'()           { throw new Error('DOM not available in this environment'); },
-        'create-parallel'()           { throw new Error('DOM not available in this environment'); },
-        'create-arrowparallel'()      { throw new Error('DOM not available in this environment'); },
-        'create-axis'()               { throw new Error('DOM not available in this environment'); },
-        'create-grid'()               { throw new Error('DOM not available in this environment'); },
-        'create-boxplot'()            { throw new Error('DOM not available in this environment'); },
-        'create-tangent'()            { throw new Error('DOM not available in this environment'); },
-        'create-tangentto'()          { throw new Error('DOM not available in this environment'); },
-        'create-polarline'()          { throw new Error('DOM not available in this environment'); },
-        'create-polepoint'()          { throw new Error('DOM not available in this environment'); },
-        'create-radicalaxis'()        { throw new Error('DOM not available in this environment'); },
-        'create-circumcircle'()       { throw new Error('DOM not available in this environment'); },
-        'create-incircle'()           { throw new Error('DOM not available in this environment'); },
-        'create-incenter'()           { throw new Error('DOM not available in this environment'); },
-        'create-minorarc'()           { throw new Error('DOM not available in this environment'); },
-        'create-minorsector'()        { throw new Error('DOM not available in this environment'); },
-        'create-circumcirclearc'()    { throw new Error('DOM not available in this environment'); },
-        'create-circumcirclesector'() { throw new Error('DOM not available in this environment'); },
-        'create-semicircle'()         { throw new Error('DOM not available in this environment'); },
-        'create-majorarc'()           { throw new Error('DOM not available in this environment'); },
-        'create-majorsector'()        { throw new Error('DOM not available in this environment'); },
-        'create-perpendicular'()      { throw new Error('DOM not available in this environment'); },
-        'create-reflection'()         { throw new Error('DOM not available in this environment'); },
-        'create-bisector'()           { throw new Error('DOM not available in this environment'); },
-        'create-normal'()             { throw new Error('DOM not available in this environment'); },
-        'create-intersection'()       { throw new Error('DOM not available in this environment'); },
-        'create-arrow'()              { throw new Error('DOM not available in this environment'); },
-        'create-button'()             { throw new Error('DOM not available in this environment'); },
-        'create-checkbox'()           { throw new Error('DOM not available in this environment'); },
-        'create-input'()              { throw new Error('DOM not available in this environment'); },
-        'create-slider'()             { throw new Error('DOM not available in this environment'); },
-        'create-chart'()              { throw new Error('DOM not available in this environment'); },
-        'create-legend'()             { throw new Error('DOM not available in this environment'); },
-        'create-smartlabel'()         { throw new Error('DOM not available in this environment'); },
-        'create-foreignobject'()      { throw new Error('DOM not available in this environment'); },
-        'create-tapemeasure'()        { throw new Error('DOM not available in this environment'); },
-        'create-ticks'()              { throw new Error('DOM not available in this environment'); },
-        'create-hatch'()              { throw new Error('DOM not available in this environment'); },
-        'create-transformation'()     { throw new Error('DOM not available in this environment'); },
-        'create-tracecurve'()         { throw new Error('DOM not available in this environment'); },
-        'create-slopetriangle'()      { throw new Error('DOM not available in this environment'); },
-        'create-parallelogram'()      { throw new Error('DOM not available in this environment'); },
-        'create-reflexangle'()        { throw new Error('DOM not available in this environment'); },
-        'create-nonreflexangle'()     { throw new Error('DOM not available in this environment'); },
-        'create-measurement'()        { throw new Error('DOM not available in this environment'); },
-        'create-circumcenter'()       { throw new Error('DOM not available in this environment'); },
-        'create-mirrorelement'()      { throw new Error('DOM not available in this environment'); },
-        'create-text'()               { throw new Error('DOM not available in this environment'); },
-        'create-image'()              { throw new Error('DOM not available in this environment'); },
-        'create-group'()              { throw new Error('DOM not available in this environment'); },
-        'create-bisectorlines'()      { throw new Error('DOM not available in this environment'); },
-        'create-perpendicularsegment'() { throw new Error('DOM not available in this environment'); },
-        'add-grid!'()                 { throw new Error('DOM not available in this environment'); },
-        'remove-grids!'()             { throw new Error('DOM not available in this environment'); },
-        'add-animation!'()            { throw new Error('DOM not available in this environment'); },
-        'add-conditions!'()           { throw new Error('DOM not available in this environment'); },
-        'add-event-handlers!'()       { throw new Error('DOM not available in this environment'); },
-        'add-fullscreen-event-handlers!'() { throw new Error('DOM not available in this environment'); },
-        'add-hook!'()                 { throw new Error('DOM not available in this environment'); },
-        'add-keyboard-event-handlers!'() { throw new Error('DOM not available in this environment'); },
-        'add-mouse-event-handlers!'() { throw new Error('DOM not available in this environment'); },
-        'add-pointer-event-handlers!'() { throw new Error('DOM not available in this environment'); },
-        'add-resize-event-handlers!'() { throw new Error('DOM not available in this environment'); },
-        'add-touch-event-handlers!'() { throw new Error('DOM not available in this environment'); },
-        'add-wheel-event-handlers!'() { throw new Error('DOM not available in this environment'); },
-        'add-child!'()               { throw new Error('DOM not available in this environment'); },
-        'apply-zoom!'()               { throw new Error('DOM not available in this environment'); },
-        'calculate-snap-sizes!'()     { throw new Error('DOM not available in this environment'); },
-        'clear-traces!'()             { throw new Error('DOM not available in this environment'); },
-        'create-roulette!'()          { throw new Error('DOM not available in this environment'); },
-        'dehighlight-all!'()          { throw new Error('DOM not available in this environment'); },
-        'finalize-adding!'()          { throw new Error('DOM not available in this environment'); },
-        'generate-id'()               { throw new Error('DOM not available in this environment'); },
-        'generate-name'()             { throw new Error('DOM not available in this environment'); },
-        'get-all-objects-under-mouse'() { throw new Error('DOM not available in this environment'); },
-        'get-all-under-mouse'()       { throw new Error('DOM not available in this environment'); },
-        'get-bounding-box'()          { throw new Error('DOM not available in this environment'); },
-        'get-coords-top-left-corner'() { throw new Error('DOM not available in this environment'); },
-        'get-mouse-position'()        { throw new Error('DOM not available in this environment'); },
-        'get-mouse-position/index'()  { throw new Error('DOM not available in this environment'); },
-        'get-scr-coords-of-mouse'()   { throw new Error('DOM not available in this environment'); },
-        'get-usr-coords-of-mouse'()   { throw new Error('DOM not available in this environment'); },
-        'has-point!'()                { throw new Error('DOM not available in this environment'); },
-        'highlight-custom-infobox!'()  { throw new Error('DOM not available in this environment'); },
-        'highlight-custom-infobox/element!'() { throw new Error('DOM not available in this environment'); },
-        'highlight-infobox!'()         { throw new Error('DOM not available in this environment'); },
-        'highlight-infobox/element!'() { throw new Error('DOM not available in this environment'); },
-        'init-geonext-board!'()        { throw new Error('DOM not available in this environment'); },
-        'init-infobox!'()              { throw new Error('DOM not available in this environment'); },
-        'init-move-object!'()          { throw new Error('DOM not available in this environment'); },
-        'init-move-origin!'()          { throw new Error('DOM not available in this environment'); },
-        'move-object!'()              { throw new Error('DOM not available in this environment'); },
-        'move-origin!'()              { throw new Error('DOM not available in this environment'); },
-        'off'()                       { throw new Error('DOM not available in this environment'); },
-        'on'()                        { throw new Error('DOM not available in this environment'); },
-        'remove-event-handlers!'()    { throw new Error('DOM not available in this environment'); },
-        'remove-hook!'()              { throw new Error('DOM not available in this environment'); },
-        'remove-keyboard-event-handlers!'() { throw new Error('DOM not available in this environment'); },
-        'remove-mouse-event-handlers!'() { throw new Error('DOM not available in this environment'); },
-        'remove-pointer-event-handlers!'() { throw new Error('DOM not available in this environment'); },
-        'remove-resize-event-handlers!'() { throw new Error('DOM not available in this environment'); },
-        'remove-touch-event-handlers!'() { throw new Error('DOM not available in this environment'); },
-        'resize-container!'()         { throw new Error('DOM not available in this environment'); },
-        'select'()                    { throw new Error('DOM not available in this environment'); },
-        'set-attribute!'()            { throw new Error('DOM not available in this environment'); },
-        'set-bounding-box!'()         { throw new Error('DOM not available in this environment'); },
-        'set-id!'()                   { throw new Error('DOM not available in this environment'); },
-        'set-zoom!'()                 { throw new Error('DOM not available in this environment'); },
-        'show-dependencies!'()        { throw new Error('DOM not available in this environment'); },
-        'show-xml!'()                 { throw new Error('DOM not available in this environment'); },
-        'start-intersection-observer!'() { throw new Error('DOM not available in this environment'); },
-        'start-resize-observer!'()    { throw new Error('DOM not available in this environment'); },
-        'start-selection-mode!'()     { throw new Error('DOM not available in this environment'); },
-        'stop-all-animation!'()       { throw new Error('DOM not available in this environment'); },
-        'stop-intersection-observer!'() { throw new Error('DOM not available in this environment'); },
-        'stop-resize-observer!'()     { throw new Error('DOM not available in this environment'); },
-        'stop-selection-mode!'()      { throw new Error('DOM not available in this environment'); },
-        'suppress-default!'()         { throw new Error('DOM not available in this environment'); },
-        'to-fullscreen!'()            { throw new Error('DOM not available in this environment'); },
-        'update-conditions!'()        { throw new Error('DOM not available in this environment'); },
-        'update-container-dims!'()    { throw new Error('DOM not available in this environment'); },
-        'update-container-dims/size!'() { throw new Error('DOM not available in this environment'); },
-        'update-coords!'()            { throw new Error('DOM not available in this environment'); },
-        'update-csstransforms!'()     { throw new Error('DOM not available in this environment'); },
-        'update-elements!'()          { throw new Error('DOM not available in this environment'); },
-        'update-hooks!'()             { throw new Error('DOM not available in this environment'); },
-        'update-infobox!'()           { throw new Error('DOM not available in this environment'); },
-        'update-renderer!'()          { throw new Error('DOM not available in this environment'); },
-        'update-renderer-canvas!'()   { throw new Error('DOM not available in this environment'); },
-        'zoom-all-points!'()          { throw new Error('DOM not available in this environment'); },
-        'zoom-elements!'()            { throw new Error('DOM not available in this environment'); },
-        'zoom-in!'()                  { throw new Error('DOM not available in this environment'); },
-        'zoom-out!'()                 { throw new Error('DOM not available in this environment'); },
-        'zoom100!'()                  { throw new Error('DOM not available in this environment'); },
-        'update!'()                   { throw new Error('DOM not available in this environment'); },
-        'full-update!'()              { throw new Error('DOM not available in this environment'); },
-        'remove-object!'()            { throw new Error('DOM not available in this environment'); },
-        'suspend-update!'()           { throw new Error('DOM not available in this environment'); },
-        'unsuspend-update!'()         { throw new Error('DOM not available in this environment'); },
-        'id'()                        { throw new Error('DOM not available in this environment'); },
-        'container'()                 { throw new Error('DOM not available in this environment'); },
-        'renderer'()                  { throw new Error('DOM not available in this environment'); },
-        'canvas-width'()              { throw new Error('DOM not available in this environment'); },
-        'canvas-height'()             { throw new Error('DOM not available in this environment'); },
-        'bounding-box'()              { throw new Error('DOM not available in this environment'); },
-        'num-objects'()               { throw new Error('DOM not available in this environment'); },
-        'objects-list'()              { throw new Error('DOM not available in this environment'); }
+        'init-board'()                { throw new hostError('DOM not available in this environment'); },
+        'create'()                    { throw new hostError('DOM not available in this environment'); },
+        'create-point'()              { throw new hostError('DOM not available in this environment'); },
+        'create-line'()               { throw new hostError('DOM not available in this environment'); },
+        'create-segment'()            { throw new hostError('DOM not available in this environment'); },
+        'create-arc'()                { throw new hostError('DOM not available in this environment'); },
+        'create-angle'()              { throw new hostError('DOM not available in this environment'); },
+        'create-sector'()             { throw new hostError('DOM not available in this environment'); },
+        'create-glider'()             { throw new hostError('DOM not available in this environment'); },
+        'create-circle'()             { throw new hostError('DOM not available in this environment'); },
+        'create-conic'()              { throw new hostError('DOM not available in this environment'); },
+        'create-ellipse'()            { throw new hostError('DOM not available in this environment'); },
+        'create-curve'()              { throw new hostError('DOM not available in this environment'); },
+        'create-functiongraph'()      { throw new hostError('DOM not available in this environment'); },
+        'create-polygon'()            { throw new hostError('DOM not available in this environment'); },
+        'create-midpoint'()           { throw new hostError('DOM not available in this environment'); },
+        'create-parallel'()           { throw new hostError('DOM not available in this environment'); },
+        'create-arrowparallel'()      { throw new hostError('DOM not available in this environment'); },
+        'create-axis'()               { throw new hostError('DOM not available in this environment'); },
+        'create-grid'()               { throw new hostError('DOM not available in this environment'); },
+        'create-boxplot'()            { throw new hostError('DOM not available in this environment'); },
+        'create-tangent'()            { throw new hostError('DOM not available in this environment'); },
+        'create-tangentto'()          { throw new hostError('DOM not available in this environment'); },
+        'create-polarline'()          { throw new hostError('DOM not available in this environment'); },
+        'create-polepoint'()          { throw new hostError('DOM not available in this environment'); },
+        'create-radicalaxis'()        { throw new hostError('DOM not available in this environment'); },
+        'create-circumcircle'()       { throw new hostError('DOM not available in this environment'); },
+        'create-incircle'()           { throw new hostError('DOM not available in this environment'); },
+        'create-incenter'()           { throw new hostError('DOM not available in this environment'); },
+        'create-minorarc'()           { throw new hostError('DOM not available in this environment'); },
+        'create-minorsector'()        { throw new hostError('DOM not available in this environment'); },
+        'create-circumcirclearc'()    { throw new hostError('DOM not available in this environment'); },
+        'create-circumcirclesector'() { throw new hostError('DOM not available in this environment'); },
+        'create-semicircle'()         { throw new hostError('DOM not available in this environment'); },
+        'create-majorarc'()           { throw new hostError('DOM not available in this environment'); },
+        'create-majorsector'()        { throw new hostError('DOM not available in this environment'); },
+        'create-perpendicular'()      { throw new hostError('DOM not available in this environment'); },
+        'create-reflection'()         { throw new hostError('DOM not available in this environment'); },
+        'create-bisector'()           { throw new hostError('DOM not available in this environment'); },
+        'create-normal'()             { throw new hostError('DOM not available in this environment'); },
+        'create-intersection'()       { throw new hostError('DOM not available in this environment'); },
+        'create-arrow'()              { throw new hostError('DOM not available in this environment'); },
+        'create-button'()             { throw new hostError('DOM not available in this environment'); },
+        'create-checkbox'()           { throw new hostError('DOM not available in this environment'); },
+        'create-input'()              { throw new hostError('DOM not available in this environment'); },
+        'create-slider'()             { throw new hostError('DOM not available in this environment'); },
+        'create-chart'()              { throw new hostError('DOM not available in this environment'); },
+        'create-legend'()             { throw new hostError('DOM not available in this environment'); },
+        'create-smartlabel'()         { throw new hostError('DOM not available in this environment'); },
+        'create-foreignobject'()      { throw new hostError('DOM not available in this environment'); },
+        'create-tapemeasure'()        { throw new hostError('DOM not available in this environment'); },
+        'create-ticks'()              { throw new hostError('DOM not available in this environment'); },
+        'create-hatch'()              { throw new hostError('DOM not available in this environment'); },
+        'create-transformation'()     { throw new hostError('DOM not available in this environment'); },
+        'create-tracecurve'()         { throw new hostError('DOM not available in this environment'); },
+        'create-slopetriangle'()      { throw new hostError('DOM not available in this environment'); },
+        'create-parallelogram'()      { throw new hostError('DOM not available in this environment'); },
+        'create-reflexangle'()        { throw new hostError('DOM not available in this environment'); },
+        'create-nonreflexangle'()     { throw new hostError('DOM not available in this environment'); },
+        'create-measurement'()        { throw new hostError('DOM not available in this environment'); },
+        'create-circumcenter'()       { throw new hostError('DOM not available in this environment'); },
+        'create-mirrorelement'()      { throw new hostError('DOM not available in this environment'); },
+        'create-text'()               { throw new hostError('DOM not available in this environment'); },
+        'create-image'()              { throw new hostError('DOM not available in this environment'); },
+        'create-group'()              { throw new hostError('DOM not available in this environment'); },
+        'create-bisectorlines'()      { throw new hostError('DOM not available in this environment'); },
+        'create-perpendicularsegment'() { throw new hostError('DOM not available in this environment'); },
+        'add-grid!'()                 { throw new hostError('DOM not available in this environment'); },
+        'remove-grids!'()             { throw new hostError('DOM not available in this environment'); },
+        'add-animation!'()            { throw new hostError('DOM not available in this environment'); },
+        'add-conditions!'()           { throw new hostError('DOM not available in this environment'); },
+        'add-event-handlers!'()       { throw new hostError('DOM not available in this environment'); },
+        'add-fullscreen-event-handlers!'() { throw new hostError('DOM not available in this environment'); },
+        'add-hook!'()                 { throw new hostError('DOM not available in this environment'); },
+        'add-keyboard-event-handlers!'() { throw new hostError('DOM not available in this environment'); },
+        'add-mouse-event-handlers!'() { throw new hostError('DOM not available in this environment'); },
+        'add-pointer-event-handlers!'() { throw new hostError('DOM not available in this environment'); },
+        'add-resize-event-handlers!'() { throw new hostError('DOM not available in this environment'); },
+        'add-touch-event-handlers!'() { throw new hostError('DOM not available in this environment'); },
+        'add-wheel-event-handlers!'() { throw new hostError('DOM not available in this environment'); },
+        'add-child!'()               { throw new hostError('DOM not available in this environment'); },
+        'apply-zoom!'()               { throw new hostError('DOM not available in this environment'); },
+        'calculate-snap-sizes!'()     { throw new hostError('DOM not available in this environment'); },
+        'clear-traces!'()             { throw new hostError('DOM not available in this environment'); },
+        'create-roulette!'()          { throw new hostError('DOM not available in this environment'); },
+        'dehighlight-all!'()          { throw new hostError('DOM not available in this environment'); },
+        'finalize-adding!'()          { throw new hostError('DOM not available in this environment'); },
+        'generate-id'()               { throw new hostError('DOM not available in this environment'); },
+        'generate-name'()             { throw new hostError('DOM not available in this environment'); },
+        'get-all-objects-under-mouse'() { throw new hostError('DOM not available in this environment'); },
+        'get-all-under-mouse'()       { throw new hostError('DOM not available in this environment'); },
+        'get-bounding-box'()          { throw new hostError('DOM not available in this environment'); },
+        'get-coords-top-left-corner'() { throw new hostError('DOM not available in this environment'); },
+        'get-mouse-position'()        { throw new hostError('DOM not available in this environment'); },
+        'get-mouse-position/index'()  { throw new hostError('DOM not available in this environment'); },
+        'get-scr-coords-of-mouse'()   { throw new hostError('DOM not available in this environment'); },
+        'get-usr-coords-of-mouse'()   { throw new hostError('DOM not available in this environment'); },
+        'has-point!'()                { throw new hostError('DOM not available in this environment'); },
+        'highlight-custom-infobox!'()  { throw new hostError('DOM not available in this environment'); },
+        'highlight-custom-infobox/element!'() { throw new hostError('DOM not available in this environment'); },
+        'highlight-infobox!'()         { throw new hostError('DOM not available in this environment'); },
+        'highlight-infobox/element!'() { throw new hostError('DOM not available in this environment'); },
+        'init-geonext-board!'()        { throw new hostError('DOM not available in this environment'); },
+        'init-infobox!'()              { throw new hostError('DOM not available in this environment'); },
+        'init-move-object!'()          { throw new hostError('DOM not available in this environment'); },
+        'init-move-origin!'()          { throw new hostError('DOM not available in this environment'); },
+        'move-object!'()              { throw new hostError('DOM not available in this environment'); },
+        'move-origin!'()              { throw new hostError('DOM not available in this environment'); },
+        'off'()                       { throw new hostError('DOM not available in this environment'); },
+        'on'()                        { throw new hostError('DOM not available in this environment'); },
+        'remove-event-handlers!'()    { throw new hostError('DOM not available in this environment'); },
+        'remove-hook!'()              { throw new hostError('DOM not available in this environment'); },
+        'remove-keyboard-event-handlers!'() { throw new hostError('DOM not available in this environment'); },
+        'remove-mouse-event-handlers!'() { throw new hostError('DOM not available in this environment'); },
+        'remove-pointer-event-handlers!'() { throw new hostError('DOM not available in this environment'); },
+        'remove-resize-event-handlers!'() { throw new hostError('DOM not available in this environment'); },
+        'remove-touch-event-handlers!'() { throw new hostError('DOM not available in this environment'); },
+        'resize-container!'()         { throw new hostError('DOM not available in this environment'); },
+        'select'()                    { throw new hostError('DOM not available in this environment'); },
+        'set-attribute!'()            { throw new hostError('DOM not available in this environment'); },
+        'set-bounding-box!'()         { throw new hostError('DOM not available in this environment'); },
+        'set-id!'()                   { throw new hostError('DOM not available in this environment'); },
+        'set-zoom!'()                 { throw new hostError('DOM not available in this environment'); },
+        'show-dependencies!'()        { throw new hostError('DOM not available in this environment'); },
+        'show-xml!'()                 { throw new hostError('DOM not available in this environment'); },
+        'start-intersection-observer!'() { throw new hostError('DOM not available in this environment'); },
+        'start-resize-observer!'()    { throw new hostError('DOM not available in this environment'); },
+        'start-selection-mode!'()     { throw new hostError('DOM not available in this environment'); },
+        'stop-all-animation!'()       { throw new hostError('DOM not available in this environment'); },
+        'stop-intersection-observer!'() { throw new hostError('DOM not available in this environment'); },
+        'stop-resize-observer!'()     { throw new hostError('DOM not available in this environment'); },
+        'stop-selection-mode!'()      { throw new hostError('DOM not available in this environment'); },
+        'suppress-default!'()         { throw new hostError('DOM not available in this environment'); },
+        'to-fullscreen!'()            { throw new hostError('DOM not available in this environment'); },
+        'update-conditions!'()        { throw new hostError('DOM not available in this environment'); },
+        'update-container-dims!'()    { throw new hostError('DOM not available in this environment'); },
+        'update-container-dims/size!'() { throw new hostError('DOM not available in this environment'); },
+        'update-coords!'()            { throw new hostError('DOM not available in this environment'); },
+        'update-csstransforms!'()     { throw new hostError('DOM not available in this environment'); },
+        'update-elements!'()          { throw new hostError('DOM not available in this environment'); },
+        'update-hooks!'()             { throw new hostError('DOM not available in this environment'); },
+        'update-infobox!'()           { throw new hostError('DOM not available in this environment'); },
+        'update-renderer!'()          { throw new hostError('DOM not available in this environment'); },
+        'update-renderer-canvas!'()   { throw new hostError('DOM not available in this environment'); },
+        'zoom-all-points!'()          { throw new hostError('DOM not available in this environment'); },
+        'zoom-elements!'()            { throw new hostError('DOM not available in this environment'); },
+        'zoom-in!'()                  { throw new hostError('DOM not available in this environment'); },
+        'zoom-out!'()                 { throw new hostError('DOM not available in this environment'); },
+        'zoom100!'()                  { throw new hostError('DOM not available in this environment'); },
+        'update!'()                   { throw new hostError('DOM not available in this environment'); },
+        'full-update!'()              { throw new hostError('DOM not available in this environment'); },
+        'remove-object!'()            { throw new hostError('DOM not available in this environment'); },
+        'suspend-update!'()           { throw new hostError('DOM not available in this environment'); },
+        'unsuspend-update!'()         { throw new hostError('DOM not available in this environment'); },
+        'id'()                        { throw new hostError('DOM not available in this environment'); },
+        'container'()                 { throw new hostError('DOM not available in this environment'); },
+        'renderer'()                  { throw new hostError('DOM not available in this environment'); },
+        'canvas-width'()              { throw new hostError('DOM not available in this environment'); },
+        'canvas-height'()             { throw new hostError('DOM not available in this environment'); },
+        'bounding-box'()              { throw new hostError('DOM not available in this environment'); },
+        'num-objects'()               { throw new hostError('DOM not available in this environment'); },
+        'objects-list'()              { throw new hostError('DOM not available in this environment'); }
     },
     // JSXGraph GeometryElement
     'jsx-element': hasDOM ? {
@@ -4016,9 +4019,9 @@ var imports = {
         'call/nullish': ((element, method, args) => { call_js_method(element, method, args, 'jsx-element.call/nullish'); }),
         'add-event': ((element, type, listener) => call_jsxgraph_method(element, 'GeometryElement', 'addEvent', [from_fasl(type), listener]))
     } : {
-        'call'()                      { throw new Error('DOM not available in this environment'); },
-        'call/nullish'()              { throw new Error('DOM not available in this environment'); },
-        'add-event'()                 { throw new Error('DOM not available in this environment'); }
+        'call'()                      { throw new hostError('DOM not available in this environment'); },
+        'call/nullish'()              { throw new hostError('DOM not available in this environment'); },
+        'add-event'()                 { throw new hostError('DOM not available in this environment'); }
     },
     // JSXGraph Text
     'jsx-text': hasDOM ? {
@@ -4052,35 +4055,35 @@ var imports = {
         'utf8_decode':           ((text, args) => call_jsxgraph_method(text, 'Text', 'utf8_decode', from_fasl(args))),
         'valueTagToJessieCode':  ((text, args) => call_jsxgraph_method(text, 'Text', 'valueTagToJessieCode', from_fasl(args)))
     } : {
-        '_createFctUpdateText'()     { throw new Error('DOM not available in this environment'); },
-        '_setText'()                 { throw new Error('DOM not available in this environment'); },
-        'bounds'()                   { throw new Error('DOM not available in this environment'); },
-        'checkForSizeUpdate'()       { throw new Error('DOM not available in this environment'); },
-        'convertGeonext2CSS'()       { throw new Error('DOM not available in this environment'); },
-        'convertGeonextAndSketchometry2CSS'() { throw new Error('DOM not available in this environment'); },
-        'convertSketchometry2CSS'()   { throw new Error('DOM not available in this environment'); },
-        'crudeSizeEstimate'()        { throw new Error('DOM not available in this environment'); },
-        'escapeTicks'()              { throw new Error('DOM not available in this environment'); },
-        'expandShortMath'()          { throw new Error('DOM not available in this environment'); },
-        'generateTerm'()             { throw new Error('DOM not available in this environment'); },
-        'getAnchorX'()               { throw new Error('DOM not available in this environment'); },
-        'getAnchorY'()               { throw new Error('DOM not available in this environment'); },
-        'getNumberOfConflicts'()     { throw new Error('DOM not available in this environment'); },
-        'getSize'()                  { throw new Error('DOM not available in this environment'); },
-        'hasPoint'()                 { throw new Error('DOM not available in this environment'); },
-        'notifyParents'()            { throw new Error('DOM not available in this environment'); },
-        'poorMansTeX'()              { throw new Error('DOM not available in this environment'); },
-        'replaceSub'()               { throw new Error('DOM not available in this environment'); },
-        'replaceSup'()               { throw new Error('DOM not available in this environment'); },
-        'setAutoPosition'()          { throw new Error('DOM not available in this environment'); },
-        'setCoords'()                { throw new Error('DOM not available in this environment'); },
-        'setText'()                  { throw new Error('DOM not available in this environment'); },
-        'setTextJessieCode'()        { throw new Error('DOM not available in this environment'); },
-        'unescapeTicks'()            { throw new Error('DOM not available in this environment'); },
-        'updateSize'()               { throw new Error('DOM not available in this environment'); },
-        'updateText'()               { throw new Error('DOM not available in this environment'); },
-        'utf8_decode'()              { throw new Error('DOM not available in this environment'); },
-        'valueTagToJessieCode'()     { throw new Error('DOM not available in this environment'); }
+        '_createFctUpdateText'()     { throw new hostError('DOM not available in this environment'); },
+        '_setText'()                 { throw new hostError('DOM not available in this environment'); },
+        'bounds'()                   { throw new hostError('DOM not available in this environment'); },
+        'checkForSizeUpdate'()       { throw new hostError('DOM not available in this environment'); },
+        'convertGeonext2CSS'()       { throw new hostError('DOM not available in this environment'); },
+        'convertGeonextAndSketchometry2CSS'() { throw new hostError('DOM not available in this environment'); },
+        'convertSketchometry2CSS'()   { throw new hostError('DOM not available in this environment'); },
+        'crudeSizeEstimate'()        { throw new hostError('DOM not available in this environment'); },
+        'escapeTicks'()              { throw new hostError('DOM not available in this environment'); },
+        'expandShortMath'()          { throw new hostError('DOM not available in this environment'); },
+        'generateTerm'()             { throw new hostError('DOM not available in this environment'); },
+        'getAnchorX'()               { throw new hostError('DOM not available in this environment'); },
+        'getAnchorY'()               { throw new hostError('DOM not available in this environment'); },
+        'getNumberOfConflicts'()     { throw new hostError('DOM not available in this environment'); },
+        'getSize'()                  { throw new hostError('DOM not available in this environment'); },
+        'hasPoint'()                 { throw new hostError('DOM not available in this environment'); },
+        'notifyParents'()            { throw new hostError('DOM not available in this environment'); },
+        'poorMansTeX'()              { throw new hostError('DOM not available in this environment'); },
+        'replaceSub'()               { throw new hostError('DOM not available in this environment'); },
+        'replaceSup'()               { throw new hostError('DOM not available in this environment'); },
+        'setAutoPosition'()          { throw new hostError('DOM not available in this environment'); },
+        'setCoords'()                { throw new hostError('DOM not available in this environment'); },
+        'setText'()                  { throw new hostError('DOM not available in this environment'); },
+        'setTextJessieCode'()        { throw new hostError('DOM not available in this environment'); },
+        'unescapeTicks'()            { throw new hostError('DOM not available in this environment'); },
+        'updateSize'()               { throw new hostError('DOM not available in this environment'); },
+        'updateText'()               { throw new hostError('DOM not available in this environment'); },
+        'utf8_decode'()              { throw new hostError('DOM not available in this environment'); },
+        'valueTagToJessieCode'()     { throw new hostError('DOM not available in this environment'); }
     },
     // JSXGraph ForeignObject
     'jsx-foreignobject': hasDOM ? {
@@ -4093,90 +4096,90 @@ var imports = {
         'updateSize':               (foreignobject => call_jsxgraph_method(foreignobject, 'ForeignObject', 'updateSize')),
         'updateSpan':               (foreignobject => call_jsxgraph_method(foreignobject, 'ForeignObject', 'updateSpan'))
     } : {
-        'H'()                       { throw new Error('DOM not available in this environment'); },
-        'W'()                       { throw new Error('DOM not available in this environment'); },
-        'hasPoint'()                { throw new Error('DOM not available in this environment'); },
-        'setSize'()                 { throw new Error('DOM not available in this environment'); },
-        'update'()                  { throw new Error('DOM not available in this environment'); },
-        'updateRenderer'()          { throw new Error('DOM not available in this environment'); },
-        'updateSize'()              { throw new Error('DOM not available in this environment'); },
-        'updateSpan'()              { throw new Error('DOM not available in this environment'); }
+        'H'()                       { throw new hostError('DOM not available in this environment'); },
+        'W'()                       { throw new hostError('DOM not available in this environment'); },
+        'hasPoint'()                { throw new hostError('DOM not available in this environment'); },
+        'setSize'()                 { throw new hostError('DOM not available in this environment'); },
+        'update'()                  { throw new hostError('DOM not available in this environment'); },
+        'updateRenderer'()          { throw new hostError('DOM not available in this environment'); },
+        'updateSize'()              { throw new hostError('DOM not available in this environment'); },
+        'updateSpan'()              { throw new hostError('DOM not available in this environment'); }
     },
     // JSXGraph Tapemeasure
     'jsx-tapemeasure': hasDOM ? {
         'Value':                    (tapemeasure => call_jsxgraph_method(tapemeasure, 'Tapemeasure', 'Value'))
     } : {
-        'Value'()                   { throw new Error('DOM not available in this environment'); }
+        'Value'()                   { throw new hostError('DOM not available in this environment'); }
     },
     // JSXGraph Ticks
     'jsx-ticks': hasDOM ? {
         'create':                   ((board, parents, attrs) => call_jsxgraph_board_create(board, 'ticks', parents, attrs))
     } : {
-        'create'()                  { throw new Error('DOM not available in this environment'); }
+        'create'()                  { throw new hostError('DOM not available in this environment'); }
     },
     // JSXGraph Transformation
     'jsx-transformation': hasDOM ? {
         'create':                   ((board, parents, attrs) => call_jsxgraph_board_create(board, 'transform', parents, attrs))
     } : {
-        'create'()                  { throw new Error('DOM not available in this environment'); }
+        'create'()                  { throw new hostError('DOM not available in this environment'); }
     },
     // JSXGraph Tracecurve
     'jsx-tracecurve': hasDOM ? {
         'create':                   ((board, parents, attrs) => call_jsxgraph_board_create(board, 'tracecurve', parents, attrs))
     } : {
-        'create'()                  { throw new Error('DOM not available in this environment'); }
+        'create'()                  { throw new hostError('DOM not available in this environment'); }
     },
     // JSXGraph Parallelogram
     'jsx-parallelogram': hasDOM ? {
         'create':                   ((board, parents, attrs) => call_jsxgraph_board_create(board, 'parallelogram', parents, attrs))
     } : {
-        'create'()                  { throw new Error('DOM not available in this environment'); }
+        'create'()                  { throw new hostError('DOM not available in this environment'); }
     },
     // JSXGraph ReflexAngle
     'jsx-reflexangle': hasDOM ? {
         'create':                   ((board, parents, attrs) => call_jsxgraph_board_create(board, 'reflexangle', parents, attrs))
     } : {
-        'create'()                  { throw new Error('DOM not available in this environment'); }
+        'create'()                  { throw new hostError('DOM not available in this environment'); }
     },
     // JSXGraph Point Relation Helpers
     'jsx-mirrorpoint': hasDOM ? {
         'create':                   ((board, parents, attrs) => call_jsxgraph_board_create(board, 'mirrorpoint', parents, attrs))
     } : {
-        'create'()                  { throw new Error('DOM not available in this environment'); }
+        'create'()                  { throw new hostError('DOM not available in this environment'); }
     },
     'jsx-otherintersection': hasDOM ? {
         'create':                   ((board, parents, attrs) => call_jsxgraph_board_create(board, 'otherintersection', parents, attrs))
     } : {
-        'create'()                  { throw new Error('DOM not available in this environment'); }
+        'create'()                  { throw new hostError('DOM not available in this environment'); }
     },
     'jsx-orthogonalprojection': hasDOM ? {
         'create':                   ((board, parents, attrs) => call_jsxgraph_board_create(board, 'orthogonalprojection', parents, attrs))
     } : {
-        'create'()                  { throw new Error('DOM not available in this environment'); }
+        'create'()                  { throw new hostError('DOM not available in this environment'); }
     },
     'jsx-parallelpoint': hasDOM ? {
         'create':                   ((board, parents, attrs) => call_jsxgraph_board_create(board, 'parallelpoint', parents, attrs))
     } : {
-        'create'()                  { throw new Error('DOM not available in this environment'); }
+        'create'()                  { throw new hostError('DOM not available in this environment'); }
     },
     'jsx-perpendicularpoint': hasDOM ? {
         'create':                   ((board, parents, attrs) => call_jsxgraph_board_create(board, 'perpendicularpoint', parents, attrs))
     } : {
-        'create'()                  { throw new Error('DOM not available in this environment'); }
+        'create'()                  { throw new hostError('DOM not available in this environment'); }
     },
     // JSXGraph Checkbox
     'jsx-checkbox': hasDOM ? {
         'Value':           ((checkbox, args) => call_jsxgraph_method(checkbox, 'Checkbox', 'Value', from_fasl(args)))
     } : {
-        'Value'()          { throw new Error('DOM not available in this environment'); }
+        'Value'()          { throw new hostError('DOM not available in this environment'); }
     },
     // JSXGraph Input
     'jsx-input': hasDOM ? {
         'set':   ((input, args) => call_jsxgraph_method(input, 'Input', 'set', from_fasl(args))),
         'Value': ((input, args) => call_jsxgraph_method(input, 'Input', 'Value', from_fasl(args)))
     } : {
-        'set'()   { throw new Error('DOM not available in this environment'); },
-        'Value'() { throw new Error('DOM not available in this environment'); }
+        'set'()   { throw new hostError('DOM not available in this environment'); },
+        'Value'() { throw new hostError('DOM not available in this environment'); }
     },
     // JSXGraph Slider
     'jsx-slider': hasDOM ? {
@@ -4185,10 +4188,10 @@ var imports = {
         'setValue': ((slider, args) => call_jsxgraph_method(slider, 'Slider', 'setValue', from_fasl(args))),
         'Value':    ((slider, args) => call_jsxgraph_method(slider, 'Slider', 'Value', from_fasl(args)))
     } : {
-        'setMax'()   { throw new Error('DOM not available in this environment'); },
-        'setMin'()   { throw new Error('DOM not available in this environment'); },
-        'setValue'() { throw new Error('DOM not available in this environment'); },
-        'Value'()    { throw new Error('DOM not available in this environment'); }
+        'setMax'()   { throw new hostError('DOM not available in this environment'); },
+        'setMin'()   { throw new hostError('DOM not available in this environment'); },
+        'setValue'() { throw new hostError('DOM not available in this environment'); },
+        'Value'()    { throw new hostError('DOM not available in this environment'); }
     },
     // JSXGraph Chart
     'jsx-chart': hasDOM ? {
@@ -4202,15 +4205,15 @@ var imports = {
         'updateDataArray': ((chart, args) => call_jsxgraph_method(chart, 'Chart', 'updateDataArray', from_fasl(args))),
         'updateRenderer':  ((chart, args) => call_jsxgraph_method(chart, 'Chart', 'updateRenderer', from_fasl(args)))
     } : {
-        'drawBar'()        { throw new Error('DOM not available in this environment'); },
-        'drawFit'()        { throw new Error('DOM not available in this environment'); },
-        'drawLine'()       { throw new Error('DOM not available in this environment'); },
-        'drawPie'()        { throw new Error('DOM not available in this environment'); },
-        'drawPoints'()     { throw new Error('DOM not available in this environment'); },
-        'drawRadar'()      { throw new Error('DOM not available in this environment'); },
-        'drawSpline'()     { throw new Error('DOM not available in this environment'); },
-        'updateDataArray'(){ throw new Error('DOM not available in this environment'); },
-        'updateRenderer'() { throw new Error('DOM not available in this environment'); }
+        'drawBar'()        { throw new hostError('DOM not available in this environment'); },
+        'drawFit'()        { throw new hostError('DOM not available in this environment'); },
+        'drawLine'()       { throw new hostError('DOM not available in this environment'); },
+        'drawPie'()        { throw new hostError('DOM not available in this environment'); },
+        'drawPoints'()     { throw new hostError('DOM not available in this environment'); },
+        'drawRadar'()      { throw new hostError('DOM not available in this environment'); },
+        'drawSpline'()     { throw new hostError('DOM not available in this environment'); },
+        'updateDataArray'(){ throw new hostError('DOM not available in this environment'); },
+        'updateRenderer'() { throw new hostError('DOM not available in this environment'); }
     },
     // JSXGraph Image
     'jsx-image': hasDOM ? {
@@ -4223,14 +4226,14 @@ var imports = {
         'updateSize':     ((image, args) => call_jsxgraph_method(image, 'Image', 'updateSize', from_fasl(args))),
         'updateSpan':     ((image, args) => call_jsxgraph_method(image, 'Image', 'updateSpan', from_fasl(args)))
     } : {
-        'H'()             { throw new Error('DOM not available in this environment'); },
-        'W'()             { throw new Error('DOM not available in this environment'); },
-        'hasPoint'()      { throw new Error('DOM not available in this environment'); },
-        'setSize'()       { throw new Error('DOM not available in this environment'); },
-        'update'()        { throw new Error('DOM not available in this environment'); },
-        'updateRenderer'(){ throw new Error('DOM not available in this environment'); },
-        'updateSize'()    { throw new Error('DOM not available in this environment'); },
-        'updateSpan'()    { throw new Error('DOM not available in this environment'); }
+        'H'()             { throw new hostError('DOM not available in this environment'); },
+        'W'()             { throw new hostError('DOM not available in this environment'); },
+        'hasPoint'()      { throw new hostError('DOM not available in this environment'); },
+        'setSize'()       { throw new hostError('DOM not available in this environment'); },
+        'update'()        { throw new hostError('DOM not available in this environment'); },
+        'updateRenderer'(){ throw new hostError('DOM not available in this environment'); },
+        'updateSize'()    { throw new hostError('DOM not available in this environment'); },
+        'updateSpan'()    { throw new hostError('DOM not available in this environment'); }
     },
     // JSXGraph Group
     'jsx-group': hasDOM ? {
@@ -4254,33 +4257,33 @@ var imports = {
         'ungroup':             (group => call_jsxgraph_method(group, 'Group', 'ungroup')),
         'update':              (group => call_jsxgraph_method(group, 'Group', 'update'))
     } : {
-        'addParents'()          { throw new Error('DOM not available in this environment'); },
-        'addPoint'()            { throw new Error('DOM not available in this environment'); },
-        'addPoints'()           { throw new Error('DOM not available in this environment'); },
-        'addRotationPoint'()    { throw new Error('DOM not available in this environment'); },
-        'addScalePoint'()       { throw new Error('DOM not available in this environment'); },
-        'addTranslationPoint'() { throw new Error('DOM not available in this environment'); },
-        'addGroup'()            { throw new Error('DOM not available in this environment'); },
-        'removePoint'()         { throw new Error('DOM not available in this environment'); },
-        'removeRotationPoint'() { throw new Error('DOM not available in this environment'); },
-        'removeScalePoint'()    { throw new Error('DOM not available in this environment'); },
-        'removeTranslationPoint'() { throw new Error('DOM not available in this environment'); },
-        'setParents'()          { throw new Error('DOM not available in this environment'); },
-        'setRotationCenter'()   { throw new Error('DOM not available in this environment'); },
-        'setRotationPoints'()   { throw new Error('DOM not available in this environment'); },
-        'setScaleCenter'()      { throw new Error('DOM not available in this environment'); },
-        'setScalePoints'()      { throw new Error('DOM not available in this environment'); },
-        'setTranslationPoints'() { throw new Error('DOM not available in this environment'); },
-        'ungroup'()             { throw new Error('DOM not available in this environment'); },
-        'update'()              { throw new Error('DOM not available in this environment'); }
+        'addParents'()          { throw new hostError('DOM not available in this environment'); },
+        'addPoint'()            { throw new hostError('DOM not available in this environment'); },
+        'addPoints'()           { throw new hostError('DOM not available in this environment'); },
+        'addRotationPoint'()    { throw new hostError('DOM not available in this environment'); },
+        'addScalePoint'()       { throw new hostError('DOM not available in this environment'); },
+        'addTranslationPoint'() { throw new hostError('DOM not available in this environment'); },
+        'addGroup'()            { throw new hostError('DOM not available in this environment'); },
+        'removePoint'()         { throw new hostError('DOM not available in this environment'); },
+        'removeRotationPoint'() { throw new hostError('DOM not available in this environment'); },
+        'removeScalePoint'()    { throw new hostError('DOM not available in this environment'); },
+        'removeTranslationPoint'() { throw new hostError('DOM not available in this environment'); },
+        'setParents'()          { throw new hostError('DOM not available in this environment'); },
+        'setRotationCenter'()   { throw new hostError('DOM not available in this environment'); },
+        'setRotationPoints'()   { throw new hostError('DOM not available in this environment'); },
+        'setScaleCenter'()      { throw new hostError('DOM not available in this environment'); },
+        'setScalePoints'()      { throw new hostError('DOM not available in this environment'); },
+        'setTranslationPoints'() { throw new hostError('DOM not available in this environment'); },
+        'ungroup'()             { throw new hostError('DOM not available in this environment'); },
+        'update'()              { throw new hostError('DOM not available in this environment'); }
     },
     // JSXGraph Line
     'jsx-line': hasDOM ? {
         'call': ((line, method, args) => call_js_method(line, method, args, 'jsx-line.call')),
         'call/nullish': ((line, method, args) => { call_js_method(line, method, args, 'jsx-line.call/nullish'); })
     } : {
-        'call'()                      { throw new Error('DOM not available in this environment'); },
-        'call/nullish'()              { throw new Error('DOM not available in this environment'); }
+        'call'()                      { throw new hostError('DOM not available in this environment'); },
+        'call/nullish'()              { throw new hostError('DOM not available in this environment'); }
     },
     // JSXGraph Arc
     'jsx-arc': hasDOM ? {
@@ -4289,10 +4292,10 @@ var imports = {
         'radius':                     (arc => call_jsxgraph_method(arc, 'Arc', 'Radius')),
         'value':                      ((arc, unit, rad) => call_jsxgraph_method(arc, 'Arc', 'Value', [from_fasl(unit), from_fasl(rad)]))
     } : {
-        'get-radius'()                { throw new Error('DOM not available in this environment'); },
-        'has-point-sector'()          { throw new Error('DOM not available in this environment'); },
-        'radius'()                    { throw new Error('DOM not available in this environment'); },
-        'value'()                     { throw new Error('DOM not available in this environment'); }
+        'get-radius'()                { throw new hostError('DOM not available in this environment'); },
+        'has-point-sector'()          { throw new hostError('DOM not available in this environment'); },
+        'radius'()                    { throw new hostError('DOM not available in this environment'); },
+        'value'()                     { throw new hostError('DOM not available in this environment'); }
     },
     // JSXGraph Angle
     'jsx-angle': hasDOM ? {
@@ -4300,9 +4303,9 @@ var imports = {
         'set-angle!':                 ((angle, val) => { call_jsxgraph_method(angle, 'Angle', 'setAngle', [from_fasl(val)]); }),
         'value':                      ((angle, unit) => call_jsxgraph_method(angle, 'Angle', 'Value', [from_fasl(unit)]))
     } : {
-        'free'()                      { throw new Error('DOM not available in this environment'); },
-        'set-angle!'()                { throw new Error('DOM not available in this environment'); },
-        'value'()                     { throw new Error('DOM not available in this environment'); }
+        'free'()                      { throw new hostError('DOM not available in this environment'); },
+        'set-angle!'()                { throw new hostError('DOM not available in this environment'); },
+        'value'()                     { throw new hostError('DOM not available in this environment'); }
     },
     // JSXGraph Sector
     'jsx-sector': hasDOM ? {
@@ -4314,63 +4317,63 @@ var imports = {
         'set-position-directly!':     ((sector, method, coords, oldcoords) => call_jsxgraph_method(sector, 'Sector', 'setPositionDirectly', [from_fasl(method), from_fasl(coords), from_fasl(oldcoords)])),
         'set-radius!':                ((sector, value) => call_jsxgraph_method(sector, 'Sector', 'setRadius', [from_fasl(value)]))
     } : {
-        'area'()                      { throw new Error('DOM not available in this environment'); },
-        'has-point-sector'()          { throw new Error('DOM not available in this environment'); },
-        'l'()                         { throw new Error('DOM not available in this environment'); },
-        'perimeter'()                 { throw new Error('DOM not available in this environment'); },
-        'radius'()                    { throw new Error('DOM not available in this environment'); },
-        'set-position-directly!'()    { throw new Error('DOM not available in this environment'); },
-        'set-radius!'()               { throw new Error('DOM not available in this environment'); }
+        'area'()                      { throw new hostError('DOM not available in this environment'); },
+        'has-point-sector'()          { throw new hostError('DOM not available in this environment'); },
+        'l'()                         { throw new hostError('DOM not available in this environment'); },
+        'perimeter'()                 { throw new hostError('DOM not available in this environment'); },
+        'radius'()                    { throw new hostError('DOM not available in this environment'); },
+        'set-position-directly!'()    { throw new hostError('DOM not available in this environment'); },
+        'set-radius!'()               { throw new hostError('DOM not available in this environment'); }
     },
     // JSXGraph Glider
     'jsx-glider': hasDOM ? {
         'start-animation!':          ((glider, direction, stepCount, delay) => call_jsxgraph_method(glider, 'Glider', 'startAnimation', [from_fasl(direction), from_fasl(stepCount), from_fasl(delay)])),
         'stop-animation!':           ((glider) => call_jsxgraph_method(glider, 'Glider', 'stopAnimation'))
     } : {
-        'start-animation!'()         { throw new Error('DOM not available in this environment'); },
-        'stop-animation!'()          { throw new Error('DOM not available in this environment'); }
+        'start-animation!'()         { throw new hostError('DOM not available in this environment'); },
+        'stop-animation!'()          { throw new hostError('DOM not available in this environment'); }
     },
     // JSXGraph Circle
     'jsx-circle': hasDOM ? {
         'call': ((circle, method, args) => call_js_method(circle, method, args, 'jsx-circle.call')),
         'call/nullish': ((circle, method, args) => { call_js_method(circle, method, args, 'jsx-circle.call/nullish'); })
     } : {
-        'call'()                      { throw new Error('DOM not available in this environment'); },
-        'call/nullish'()              { throw new Error('DOM not available in this environment'); }
+        'call'()                      { throw new hostError('DOM not available in this environment'); },
+        'call/nullish'()              { throw new hostError('DOM not available in this environment'); }
     },
     // JSXGraph Curve
     'jsx-curve': hasDOM ? {
         'call': ((curve, method, args) => call_js_method(curve, method, args, 'jsx-curve.call')),
         'call/nullish': ((curve, method, args) => { call_js_method(curve, method, args, 'jsx-curve.call/nullish'); })
     } : {
-        'call'()                      { throw new Error('DOM not available in this environment'); },
-        'call/nullish'()              { throw new Error('DOM not available in this environment'); }
+        'call'()                      { throw new hostError('DOM not available in this environment'); },
+        'call/nullish'()              { throw new hostError('DOM not available in this environment'); }
     },
     // JSXGraph Riemannsum
     'jsx-riemannsum': hasDOM ? {
         'Value': ((riemannsum) => call_jsxgraph_method(riemannsum, 'Riemannsum', 'Value'))
     } : {
-        'Value'()                     { throw new Error('DOM not available in this environment'); }
+        'Value'()                     { throw new hostError('DOM not available in this environment'); }
     },
     // JSXGraph Slopefield
     'jsx-slopefield': hasDOM ? {
         'setF': ((field, func) => call_jsxgraph_method(field, 'Slopefield', 'setF', [from_fasl(func)]))
     } : {
-        'setF'()                      { throw new Error('DOM not available in this environment'); }
+        'setF'()                      { throw new hostError('DOM not available in this environment'); }
     },
     // JSXGraph Vectorfield
     'jsx-vectorfield': hasDOM ? {
         'setF': ((field, func) => call_jsxgraph_method(field, 'Vectorfield', 'setF', [from_fasl(func)]))
     } : {
-        'setF'()                      { throw new Error('DOM not available in this environment'); }
+        'setF'()                      { throw new hostError('DOM not available in this environment'); }
     },
     // JSXGraph Polygon
     'jsx-polygon': hasDOM ? {
         'call': ((polygon, method, args) => call_js_method(polygon, method, args, 'jsx-polygon.call')),
         'call/nullish': ((polygon, method, args) => { call_js_method(polygon, method, args, 'jsx-polygon.call/nullish'); })
     } : {
-        'call'()                      { throw new Error('DOM not available in this environment'); },
-        'call/nullish'()              { throw new Error('DOM not available in this environment'); }
+        'call'()                      { throw new hostError('DOM not available in this environment'); },
+        'call/nullish'()              { throw new hostError('DOM not available in this environment'); }
     },
     // JSXGraph Point
     'jsx-point': hasDOM ? {
@@ -4420,51 +4423,51 @@ var imports = {
         'update-renderer!':            (pt => { call_jsxgraph_method(pt, 'Point', 'updateRenderer'); }),
         'update-transform!':           ((pt, flag) => call_jsxgraph_method(pt, 'Point', 'updateTransform', [!!flag]))
     } : {
-        'is-point'()                    { throw new Error('DOM not available in this environment'); },
-        'attractor-distance'()          { throw new Error('DOM not available in this environment'); },
-        'set-attractor-distance!'()     { throw new Error('DOM not available in this environment'); },
-        'attractors'()                  { throw new Error('DOM not available in this environment'); },
-        'set-attractors!'()             { throw new Error('DOM not available in this environment'); },
-        'attractor-unit'()              { throw new Error('DOM not available in this environment'); },
-        'set-attractor-unit!'()         { throw new Error('DOM not available in this environment'); },
-        'attract-to-grid'()             { throw new Error('DOM not available in this environment'); },
-        'set-attract-to-grid!'()        { throw new Error('DOM not available in this environment'); },
-        'face'()                        { throw new Error('DOM not available in this environment'); },
-        'set-face!'()                   { throw new Error('DOM not available in this environment'); },
-        'ignored-snap-to-points'()      { throw new Error('DOM not available in this environment'); },
-        'set-ignored-snap-to-points!'() { throw new Error('DOM not available in this environment'); },
-        'infobox-digits'()              { throw new Error('DOM not available in this environment'); },
-        'set-infobox-digits!'()         { throw new Error('DOM not available in this environment'); },
-        'show-infobox'()                { throw new Error('DOM not available in this environment'); },
-        'set-show-infobox!'()           { throw new Error('DOM not available in this environment'); },
-        'size'()                        { throw new Error('DOM not available in this environment'); },
-        'set-size!'()                   { throw new Error('DOM not available in this environment'); },
-        'size-unit'()                   { throw new Error('DOM not available in this environment'); },
-        'set-size-unit!'()              { throw new Error('DOM not available in this environment'); },
-        'snap-size-x'()                 { throw new Error('DOM not available in this environment'); },
-        'set-snap-size-x!'()            { throw new Error('DOM not available in this environment'); },
-        'snap-size-y'()                 { throw new Error('DOM not available in this environment'); },
-        'set-snap-size-y!'()            { throw new Error('DOM not available in this environment'); },
-        'snap-to-grid'()                { throw new Error('DOM not available in this environment'); },
-        'set-snap-to-grid!'()           { throw new Error('DOM not available in this environment'); },
-        'snap-to-points'()              { throw new Error('DOM not available in this environment'); },
-        'set-snap-to-points!'()         { throw new Error('DOM not available in this environment'); },
-        'snatch-distance'()             { throw new Error('DOM not available in this environment'); },
-        'set-snatch-distance!'()        { throw new Error('DOM not available in this environment'); },
-        'style'()                       { throw new Error('DOM not available in this environment'); },
-        'set-style!'()                  { throw new Error('DOM not available in this environment'); },
-        'x'()                           { throw new Error('DOM not available in this environment'); },
-        'y'()                           { throw new Error('DOM not available in this environment'); },
-        'zoom'()                        { throw new Error('DOM not available in this environment'); },
-        'set-zoom!'()                   { throw new Error('DOM not available in this environment'); },
-        'has-point'()                   { throw new Error('DOM not available in this environment'); },
-        'is-on'()                       { throw new Error('DOM not available in this environment'); },
-        'make-intersection!'()          { throw new Error('DOM not available in this environment'); },
-        'normalize-face'()              { throw new Error('DOM not available in this environment'); },
-        'call-set-style!'()             { throw new Error('DOM not available in this environment'); },
-        'update!'()                     { throw new Error('DOM not available in this environment'); },
-        'update-renderer!'()            { throw new Error('DOM not available in this environment'); },
-        'update-transform!'()           { throw new Error('DOM not available in this environment'); }
+        'is-point'()                    { throw new hostError('DOM not available in this environment'); },
+        'attractor-distance'()          { throw new hostError('DOM not available in this environment'); },
+        'set-attractor-distance!'()     { throw new hostError('DOM not available in this environment'); },
+        'attractors'()                  { throw new hostError('DOM not available in this environment'); },
+        'set-attractors!'()             { throw new hostError('DOM not available in this environment'); },
+        'attractor-unit'()              { throw new hostError('DOM not available in this environment'); },
+        'set-attractor-unit!'()         { throw new hostError('DOM not available in this environment'); },
+        'attract-to-grid'()             { throw new hostError('DOM not available in this environment'); },
+        'set-attract-to-grid!'()        { throw new hostError('DOM not available in this environment'); },
+        'face'()                        { throw new hostError('DOM not available in this environment'); },
+        'set-face!'()                   { throw new hostError('DOM not available in this environment'); },
+        'ignored-snap-to-points'()      { throw new hostError('DOM not available in this environment'); },
+        'set-ignored-snap-to-points!'() { throw new hostError('DOM not available in this environment'); },
+        'infobox-digits'()              { throw new hostError('DOM not available in this environment'); },
+        'set-infobox-digits!'()         { throw new hostError('DOM not available in this environment'); },
+        'show-infobox'()                { throw new hostError('DOM not available in this environment'); },
+        'set-show-infobox!'()           { throw new hostError('DOM not available in this environment'); },
+        'size'()                        { throw new hostError('DOM not available in this environment'); },
+        'set-size!'()                   { throw new hostError('DOM not available in this environment'); },
+        'size-unit'()                   { throw new hostError('DOM not available in this environment'); },
+        'set-size-unit!'()              { throw new hostError('DOM not available in this environment'); },
+        'snap-size-x'()                 { throw new hostError('DOM not available in this environment'); },
+        'set-snap-size-x!'()            { throw new hostError('DOM not available in this environment'); },
+        'snap-size-y'()                 { throw new hostError('DOM not available in this environment'); },
+        'set-snap-size-y!'()            { throw new hostError('DOM not available in this environment'); },
+        'snap-to-grid'()                { throw new hostError('DOM not available in this environment'); },
+        'set-snap-to-grid!'()           { throw new hostError('DOM not available in this environment'); },
+        'snap-to-points'()              { throw new hostError('DOM not available in this environment'); },
+        'set-snap-to-points!'()         { throw new hostError('DOM not available in this environment'); },
+        'snatch-distance'()             { throw new hostError('DOM not available in this environment'); },
+        'set-snatch-distance!'()        { throw new hostError('DOM not available in this environment'); },
+        'style'()                       { throw new hostError('DOM not available in this environment'); },
+        'set-style!'()                  { throw new hostError('DOM not available in this environment'); },
+        'x'()                           { throw new hostError('DOM not available in this environment'); },
+        'y'()                           { throw new hostError('DOM not available in this environment'); },
+        'zoom'()                        { throw new hostError('DOM not available in this environment'); },
+        'set-zoom!'()                   { throw new hostError('DOM not available in this environment'); },
+        'has-point'()                   { throw new hostError('DOM not available in this environment'); },
+        'is-on'()                       { throw new hostError('DOM not available in this environment'); },
+        'make-intersection!'()          { throw new hostError('DOM not available in this environment'); },
+        'normalize-face'()              { throw new hostError('DOM not available in this environment'); },
+        'call-set-style!'()             { throw new hostError('DOM not available in this environment'); },
+        'update!'()                     { throw new hostError('DOM not available in this environment'); },
+        'update-renderer!'()            { throw new hostError('DOM not available in this environment'); },
+        'update-transform!'()           { throw new hostError('DOM not available in this environment'); }
     }
 };
 
