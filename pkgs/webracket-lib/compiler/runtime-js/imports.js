@@ -29,6 +29,9 @@ const hostStringFromCodePoint = typeof hostString.fromCodePoint === 'function'
 const hostArrayFrom = typeof hostArray.from === 'function'
   ? hostArray.from.bind(hostArray)
   : null;
+const hostReflectConstruct = hostReflect && typeof hostReflect.construct === 'function'
+  ? hostReflect.construct.bind(hostReflect)
+  : null;
 if (typeof hostStringValueOf !== 'function') {
   throw new hostError('String.valueOf not available in this environment');
 }
@@ -44,7 +47,7 @@ if (!hostStringFromCodePoint) {
 if (!hostArrayFrom) {
   throw new hostError('Array.from not available in this environment');
 }
-if (!hostReflect || typeof hostReflect.construct !== 'function') {
+if (!hostReflectConstruct) {
   throw new hostError('Reflect.construct not available in this environment');
 }
 const foreign_error_tag = new hostWebAssemblyTag({ parameters: ['externref'] });
@@ -179,7 +182,7 @@ function host_is_constructor(value) {
     return false;
   }
   try {
-    hostReflect.construct(hostString, [], value);
+    hostReflectConstruct(hostString, [], value);
     return true;
   } catch (_) {
     return false;

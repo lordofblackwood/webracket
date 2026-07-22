@@ -3,6 +3,7 @@
 ;; Browser smoke for generic JS standard operations at hostile host boundaries.
 
 (require (only-in webracket/unsafe/standard
+                  js-constructible?
                   js-eval
                   js-instanceof
                   js-null
@@ -411,6 +412,15 @@
                                      (lambda () (check-character-intrinsics
                                                  "characters with hidden Array.from"))
                                      "character helpers survive hidden Array.from")
+
+(check-hidden-static-method/no-error "Reflect"
+                                     "construct"
+                                     (lambda ()
+                                       (check-true (and (js-constructible? (js-eval "Array"))
+                                                        (js-instanceof (js-eval "([])")
+                                                                       (js-eval "Array")))
+                                                   "constructor checks with hidden Reflect.construct"))
+                                     "constructor checks survive hidden Reflect.construct")
 
 (js-eval "__wrStandardGenericBoundaryRestoreAll();")
 
