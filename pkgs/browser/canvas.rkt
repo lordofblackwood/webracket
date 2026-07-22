@@ -6,14 +6,22 @@
                   external?)
          webracket/unsafe/canvas)
 
-(provide (struct-out html-canvas-element)
-         (struct-out canvas-rendering-context-2d)
-         (struct-out image-data)
-         (struct-out canvas-gradient)
-         (struct-out canvas-pattern)
-         (struct-out text-metrics)
-         (struct-out dom-matrix)
-         (struct-out offscreen-canvas)
+(provide (except-out (struct-out html-canvas-element) html-canvas-element?)
+         (except-out (struct-out canvas-rendering-context-2d) canvas-rendering-context-2d?)
+         (except-out (struct-out image-data) image-data?)
+         (except-out (struct-out canvas-gradient) canvas-gradient?)
+         (except-out (struct-out canvas-pattern) canvas-pattern?)
+         (except-out (struct-out text-metrics) text-metrics?)
+         (except-out (struct-out dom-matrix) dom-matrix?)
+         (except-out (struct-out offscreen-canvas) offscreen-canvas?)
+         (rename-out [html-canvas-element/surface? html-canvas-element?]
+                     [canvas-rendering-context-2d/surface? canvas-rendering-context-2d?]
+                     [image-data/surface? image-data?]
+                     [canvas-gradient/surface? canvas-gradient?]
+                     [canvas-pattern/surface? canvas-pattern?]
+                     [text-metrics/surface? text-metrics?]
+                     [dom-matrix/surface? dom-matrix?]
+                     [offscreen-canvas/surface? offscreen-canvas?])
          canvas-wrap
          canvas-unwrap
          canvas-2d-context-wrap
@@ -240,6 +248,105 @@
        (let ([method (js-ref/extern raw method-name)])
          (and (not (js-nullish? method))
               (string=? (js-typeof method) "function")))))
+
+;; canvas-host-property-present? : external/raw string? -> boolean?
+;;   Report whether raw exposes a non-nullish browser property.
+(define (canvas-host-property-present? raw property-name)
+  (and (external? raw)
+       (not (js-nullish? raw))
+       (not (js-nullish? (js-ref/extern raw property-name)))))
+
+;; canvas-host-properties-present? : external/raw (listof string?) -> boolean?
+;;   Report whether raw exposes all named non-nullish browser properties.
+(define (canvas-host-properties-present? raw property-names)
+  (for/and ([property-name (in-list property-names)])
+    (canvas-host-property-present? raw property-name)))
+
+;; canvas-host-methods-present? : external/raw (listof string?) -> boolean?
+;;   Report whether raw exposes all named callable browser methods.
+(define (canvas-host-methods-present? raw method-names)
+  (for/and ([method-name (in-list method-names)])
+    (canvas-host-method-present? raw method-name)))
+
+;; canvas-host-surface-present? : external/raw (listof string?) (listof string?) -> boolean?
+;;   Report whether raw exposes the requested browser property and method surface.
+(define (canvas-host-surface-present? raw property-names method-names)
+  (and (canvas-host-properties-present? raw property-names)
+       (canvas-host-methods-present? raw method-names)))
+
+;; html-canvas-element/surface? : any/c -> boolean?
+;;   Check whether value is a usable HTMLCanvasElement wrapper.
+(define (html-canvas-element/surface? value)
+  (and (html-canvas-element? value)
+       (canvas-host-surface-present?
+        (html-canvas-element-raw value)
+        '("width" "height")
+        '("getContext" "toDataURL" "toBlob"))))
+
+;; canvas-rendering-context-2d/surface? : any/c -> boolean?
+;;   Check whether value is a usable CanvasRenderingContext2D wrapper.
+(define (canvas-rendering-context-2d/surface? value)
+  (and (canvas-rendering-context-2d? value)
+       (canvas-host-surface-present?
+        (canvas-rendering-context-2d-raw value)
+        '("canvas" "direction" "fillStyle" "strokeStyle" "font" "globalAlpha")
+        '("fillRect" "strokeRect" "beginPath" "closePath" "moveTo" "lineTo"
+          "arc" "clearRect" "fill" "stroke" "save" "restore" "translate"
+          "scale" "rotate" "fillText" "strokeText" "measureText"))))
+
+;; image-data/surface? : any/c -> boolean?
+;;   Check whether value is a usable ImageData wrapper.
+(define (image-data/surface? value)
+  (and (image-data? value)
+       (canvas-host-surface-present?
+        (image-data-raw value)
+        '("width" "height" "data")
+        '())))
+
+;; canvas-gradient/surface? : any/c -> boolean?
+;;   Check whether value is a usable CanvasGradient wrapper.
+(define (canvas-gradient/surface? value)
+  (and (canvas-gradient? value)
+       (canvas-host-surface-present?
+        (canvas-gradient-raw value)
+        '()
+        '("addColorStop"))))
+
+;; canvas-pattern/surface? : any/c -> boolean?
+;;   Check whether value is a usable CanvasPattern wrapper.
+(define (canvas-pattern/surface? value)
+  (and (canvas-pattern? value)
+       (canvas-host-surface-present?
+        (canvas-pattern-raw value)
+        '()
+        '("setTransform"))))
+
+;; text-metrics/surface? : any/c -> boolean?
+;;   Check whether value is a usable TextMetrics wrapper.
+(define (text-metrics/surface? value)
+  (and (text-metrics? value)
+       (canvas-host-surface-present?
+        (text-metrics-raw value)
+        '("width")
+        '())))
+
+;; dom-matrix/surface? : any/c -> boolean?
+;;   Check whether value is a usable DOMMatrix wrapper.
+(define (dom-matrix/surface? value)
+  (and (dom-matrix? value)
+       (canvas-host-surface-present?
+        (dom-matrix-raw value)
+        '("a" "b" "c" "d" "e" "f")
+        '())))
+
+;; offscreen-canvas/surface? : any/c -> boolean?
+;;   Check whether value is a usable OffscreenCanvas wrapper.
+(define (offscreen-canvas/surface? value)
+  (and (offscreen-canvas? value)
+       (canvas-host-surface-present?
+        (offscreen-canvas-raw value)
+        '("width" "height")
+        '())))
 
 ;; check-canvas-host-method : symbol? external/raw string? string? -> void?
 ;;   Ensure a required canvas host method is available.

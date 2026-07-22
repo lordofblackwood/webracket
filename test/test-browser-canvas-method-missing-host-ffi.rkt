@@ -72,6 +72,95 @@
 (define forged-undefined-pattern (canvas-pattern js-undefined))
 (define forged-null-matrix (dom-matrix js-null))
 
+(define complete-canvas
+  (canvas-wrap
+   (js-eval
+    "({ width: 320,
+        height: 200,
+        getContext(_kind) { return null; },
+        toDataURL() { return 'data:'; },
+        toBlob(callback) { callback(null); } })")))
+(define incomplete-canvas
+  (canvas-wrap
+   (js-eval
+    "({ width: 320,
+        height: 200,
+        getContext(_kind) { return null; },
+        toDataURL() { return 'data:'; } })")))
+(define complete-ctx
+  (canvas-2d-context-wrap
+   (js-eval
+    "({ canvas: {},
+        direction: 'ltr',
+        fillStyle: 'red',
+        strokeStyle: 'blue',
+        font: '16px sans-serif',
+        globalAlpha: 1,
+        fillRect() {},
+        strokeRect() {},
+        beginPath() {},
+        closePath() {},
+        moveTo() {},
+        lineTo() {},
+        arc() {},
+        clearRect() {},
+        fill() {},
+        stroke() {},
+        save() {},
+        restore() {},
+        translate() {},
+        scale() {},
+        rotate() {},
+        fillText() {},
+        strokeText() {},
+        measureText() { return { width: 0 }; } })")))
+(define incomplete-ctx
+  (canvas-2d-context-wrap
+   (js-eval
+    "({ canvas: {},
+        direction: 'ltr',
+        fillStyle: 'red',
+        strokeStyle: 'blue',
+        font: '16px sans-serif',
+        globalAlpha: 1,
+        fillRect() {} })")))
+(define complete-image-data
+  (canvas-image-data-wrap
+   (js-eval "({ width: 1, height: 1, data: new Uint8ClampedArray([0, 0, 0, 0]) })")))
+(define incomplete-image-data
+  (canvas-image-data-wrap
+   (js-eval "({ height: 1, data: new Uint8ClampedArray([0, 0, 0, 0]) })")))
+(define complete-gradient
+  (canvas-gradient-wrap
+   (js-eval "({ addColorStop(_offset, _color) {} })")))
+(define incomplete-gradient
+  (canvas-gradient-wrap
+   (js-eval "({ addColorStop: 1 })")))
+(define complete-pattern
+  (canvas-pattern-wrap
+   (js-eval "({ setTransform(_matrix) {} })")))
+(define incomplete-pattern
+  (canvas-pattern-wrap
+   (js-eval "({ setTransform: 1 })")))
+(define complete-text-metrics
+  (canvas-text-metrics-wrap
+   (js-eval "({ width: 12 })")))
+(define incomplete-text-metrics
+  (canvas-text-metrics-wrap
+   (js-eval "({})")))
+(define complete-dom-matrix
+  (canvas-dom-matrix-wrap
+   (js-eval "({ a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 })")))
+(define incomplete-dom-matrix
+  (canvas-dom-matrix-wrap
+   (js-eval "({ b: 0, c: 0, d: 1, e: 0, f: 0 })")))
+(define complete-offscreen-canvas
+  (offscreen-canvas-wrap
+   (js-eval "({ width: 320, height: 200 })")))
+(define incomplete-offscreen-canvas
+  (offscreen-canvas-wrap
+   (js-eval "({ width: 320 })")))
+
 (define fill-message
   (catch-message
    (lambda ()
@@ -541,6 +630,38 @@
              "non-callable addColorStop is not a gradient")
 (check-false (canvas-pattern? non-callable-pattern-style)
              "non-callable setTransform is not a pattern")
+(check-true (html-canvas-element? complete-canvas)
+            "complete canvas predicate")
+(check-false (html-canvas-element? incomplete-canvas)
+             "incomplete canvas predicate")
+(check-true (canvas-rendering-context-2d? complete-ctx)
+            "complete context predicate")
+(check-false (canvas-rendering-context-2d? incomplete-ctx)
+             "incomplete context predicate")
+(check-true (image-data? complete-image-data)
+            "complete ImageData predicate")
+(check-false (image-data? incomplete-image-data)
+             "incomplete ImageData predicate")
+(check-true (canvas-gradient? complete-gradient)
+            "complete CanvasGradient predicate")
+(check-false (canvas-gradient? incomplete-gradient)
+             "incomplete CanvasGradient predicate")
+(check-true (canvas-pattern? complete-pattern)
+            "complete CanvasPattern predicate")
+(check-false (canvas-pattern? incomplete-pattern)
+             "incomplete CanvasPattern predicate")
+(check-true (text-metrics? complete-text-metrics)
+            "complete TextMetrics predicate")
+(check-false (text-metrics? incomplete-text-metrics)
+             "incomplete TextMetrics predicate")
+(check-true (dom-matrix? complete-dom-matrix)
+            "complete DOMMatrix predicate")
+(check-false (dom-matrix? incomplete-dom-matrix)
+             "incomplete DOMMatrix predicate")
+(check-true (offscreen-canvas? complete-offscreen-canvas)
+            "complete OffscreenCanvas predicate")
+(check-false (offscreen-canvas? incomplete-offscreen-canvas)
+             "incomplete OffscreenCanvas predicate")
 (check-message canvas-width-message
                "canvas.width not available in this environment"
                "missing canvas width message")
