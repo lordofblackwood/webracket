@@ -19,6 +19,7 @@ const hostNumber = Number;
 const hostBoolean = Boolean;
 const hostMath = Math;
 const hostDate = Date;
+const hostRegExp = typeof RegExp === 'undefined' ? null : RegExp;
 const hostImportUint8Array = Uint8Array;
 const hostMathTrunc = typeof hostMath.trunc === 'function'
   ? hostMath.trunc.bind(hostMath)
@@ -52,9 +53,19 @@ const hostDateGetUTCMinutes = hostDatePrototype && hostDatePrototype.getUTCMinut
 const hostDateGetUTCSeconds = hostDatePrototype && hostDatePrototype.getUTCSeconds;
 const hostDateGetUTCDay = hostDatePrototype && hostDatePrototype.getUTCDay;
 const hostDateGetTime = hostDatePrototype && hostDatePrototype.getTime;
-const hostStringValueOf = hostString.prototype.valueOf;
+const hostStringPrototype = hostString.prototype;
+const hostStringValueOf = hostStringPrototype.valueOf;
+const hostStringToUpperCase = hostStringPrototype.toUpperCase;
+const hostStringToLowerCase = hostStringPrototype.toLowerCase;
+const hostStringToLocaleLowerCase = hostStringPrototype.toLocaleLowerCase;
+const hostStringToLocaleUpperCase = hostStringPrototype.toLocaleUpperCase;
+const hostStringCharAt = hostStringPrototype.charAt;
+const hostStringSlice = hostStringPrototype.slice;
+const hostStringCodePointAt = hostStringPrototype.codePointAt;
 const hostNumberValueOf = hostNumber.prototype.valueOf;
 const hostBooleanValueOf = hostBoolean.prototype.valueOf;
+const hostRegExpPrototype = hostRegExp && hostRegExp.prototype;
+const hostRegExpTest = hostRegExpPrototype && hostRegExpPrototype.test;
 const hostStringFromCodePoint = typeof hostString.fromCodePoint === 'function'
   ? hostString.fromCodePoint.bind(hostString)
   : null;
@@ -67,11 +78,23 @@ const hostReflectConstruct = hostReflect && typeof hostReflect.construct === 'fu
 if (typeof hostStringValueOf !== 'function') {
   throw new hostError('String.valueOf not available in this environment');
 }
+if (typeof hostStringToUpperCase !== 'function' ||
+    typeof hostStringToLowerCase !== 'function' ||
+    typeof hostStringToLocaleLowerCase !== 'function' ||
+    typeof hostStringToLocaleUpperCase !== 'function' ||
+    typeof hostStringCharAt !== 'function' ||
+    typeof hostStringSlice !== 'function' ||
+    typeof hostStringCodePointAt !== 'function') {
+  throw new hostError('String character methods not available in this environment');
+}
 if (typeof hostNumberValueOf !== 'function') {
   throw new hostError('Number.valueOf not available in this environment');
 }
 if (typeof hostBooleanValueOf !== 'function') {
   throw new hostError('Boolean.valueOf not available in this environment');
+}
+if (typeof hostRegExpTest !== 'function') {
+  throw new hostError('RegExp.test not available in this environment');
 }
 if (!hostMathTrunc || !hostMathFloor || !hostMathMax) {
   throw new hostError('Math.trunc/floor/max not available in this environment');
@@ -571,6 +594,15 @@ function js_flonum_result(x, who) {
     throw new hostTypeError(`${who}: expected number result, got ${typeof x}`);
   }
   return unboxed;
+}
+
+function single_codepoint_or_original(cp, s) {
+  const arr = hostArrayFrom(s);
+  return (arr.length === 1) ? hostStringCodePointAt.call(arr[0], 0) : cp;
+}
+
+function host_regexp_test(re, s) {
+  return hostRegExpTest.call(re, s);
 }
 
 function call_js_method(obj, name, args, who) {
@@ -1551,27 +1583,25 @@ var imports = {
 
       // Unicode character operations.
       'char_upcase': ((cp) => {
-        const s = hostStringFromCodePoint(cp).toUpperCase();
-        const arr = hostArrayFrom(s);
-        return (arr.length === 1) ? arr[0].codePointAt(0) : cp;
+        const s = hostStringToUpperCase.call(hostStringFromCodePoint(cp));
+        return single_codepoint_or_original(cp, s);
       }),
       'char_downcase': ((cp) => {
-        const s = hostStringFromCodePoint(cp).toLowerCase();
-        const arr = hostArrayFrom(s);
-        return (arr.length === 1) ? arr[0].codePointAt(0) : cp;
+        const s = hostStringToLowerCase.call(hostStringFromCodePoint(cp));
+        return single_codepoint_or_original(cp, s);
       }),
       'char_titlecase': ((cp) => {
-        const lower = hostStringFromCodePoint(cp).toLocaleLowerCase();
-        const title = lower.charAt(0).toLocaleUpperCase() + lower.slice(1);
-        const arr = hostArrayFrom(title);
-        return (arr.length === 1) ? arr[0].codePointAt(0) : cp;
+        const lower = hostStringToLocaleLowerCase.call(hostStringFromCodePoint(cp));
+        const first = hostStringCharAt.call(lower, 0);
+        const title = hostStringToLocaleUpperCase.call(first) + hostStringSlice.call(lower, 1);
+        return single_codepoint_or_original(cp, title);
       }),
       'char_foldcase': ((cp) => {
         // JavaScript has no direct Unicode foldcase API, but upper-then-lower
         // fixes the final sigma case while preserving our single-codepoint guard.
-        const s = hostStringFromCodePoint(cp).toUpperCase().toLowerCase();
-        const arr = hostArrayFrom(s);
-        return (arr.length === 1) ? arr[0].codePointAt(0) : cp;
+        const upper = hostStringToUpperCase.call(hostStringFromCodePoint(cp));
+        const s = hostStringToLowerCase.call(upper);
+        return single_codepoint_or_original(cp, s);
       }),
       // NOTE: This classification covers only a subset of Unicode's
       // grapheme break property table and should be expanded.
@@ -1607,55 +1637,55 @@ var imports = {
       }),
       'char_general_category': ((cp) => {
         const s = hostStringFromCodePoint(cp);
-        if (/\p{Lu}/u.test(s)) return 0;
-        if (/\p{Ll}/u.test(s)) return 1;
-        if (/\p{Lt}/u.test(s)) return 2;
-        if (/\p{Lm}/u.test(s)) return 3;
-        if (/\p{Lo}/u.test(s)) return 4;
-        if (/\p{Mn}/u.test(s)) return 5;
-        if (/\p{Mc}/u.test(s)) return 6;
-        if (/\p{Me}/u.test(s)) return 7;
-        if (/\p{Nd}/u.test(s)) return 8;
-        if (/\p{Nl}/u.test(s)) return 9;
-        if (/\p{No}/u.test(s)) return 10;
-        if (/\p{Ps}/u.test(s)) return 11;
-        if (/\p{Pe}/u.test(s)) return 12;
-        if (/\p{Pi}/u.test(s)) return 13;
-        if (/\p{Pf}/u.test(s)) return 14;
-        if (/\p{Pd}/u.test(s)) return 15;
-        if (/\p{Pc}/u.test(s)) return 16;
-        if (/\p{Po}/u.test(s)) return 17;
-        if (/\p{Sc}/u.test(s)) return 18;
-        if (/\p{Sm}/u.test(s)) return 19;
-        if (/\p{Sk}/u.test(s)) return 20;
-        if (/\p{So}/u.test(s)) return 21;
-        if (/\p{Zs}/u.test(s)) return 22;
-        if (/\p{Zp}/u.test(s)) return 23;
-        if (/\p{Zl}/u.test(s)) return 24;
-        if (/\p{Cc}/u.test(s)) return 25;
-        if (/\p{Cf}/u.test(s)) return 26;
-        if (/\p{Cs}/u.test(s)) return 27;
-        if (/\p{Co}/u.test(s)) return 28;
+        if (host_regexp_test(/\p{Lu}/u, s)) return 0;
+        if (host_regexp_test(/\p{Ll}/u, s)) return 1;
+        if (host_regexp_test(/\p{Lt}/u, s)) return 2;
+        if (host_regexp_test(/\p{Lm}/u, s)) return 3;
+        if (host_regexp_test(/\p{Lo}/u, s)) return 4;
+        if (host_regexp_test(/\p{Mn}/u, s)) return 5;
+        if (host_regexp_test(/\p{Mc}/u, s)) return 6;
+        if (host_regexp_test(/\p{Me}/u, s)) return 7;
+        if (host_regexp_test(/\p{Nd}/u, s)) return 8;
+        if (host_regexp_test(/\p{Nl}/u, s)) return 9;
+        if (host_regexp_test(/\p{No}/u, s)) return 10;
+        if (host_regexp_test(/\p{Ps}/u, s)) return 11;
+        if (host_regexp_test(/\p{Pe}/u, s)) return 12;
+        if (host_regexp_test(/\p{Pi}/u, s)) return 13;
+        if (host_regexp_test(/\p{Pf}/u, s)) return 14;
+        if (host_regexp_test(/\p{Pd}/u, s)) return 15;
+        if (host_regexp_test(/\p{Pc}/u, s)) return 16;
+        if (host_regexp_test(/\p{Po}/u, s)) return 17;
+        if (host_regexp_test(/\p{Sc}/u, s)) return 18;
+        if (host_regexp_test(/\p{Sm}/u, s)) return 19;
+        if (host_regexp_test(/\p{Sk}/u, s)) return 20;
+        if (host_regexp_test(/\p{So}/u, s)) return 21;
+        if (host_regexp_test(/\p{Zs}/u, s)) return 22;
+        if (host_regexp_test(/\p{Zp}/u, s)) return 23;
+        if (host_regexp_test(/\p{Zl}/u, s)) return 24;
+        if (host_regexp_test(/\p{Cc}/u, s)) return 25;
+        if (host_regexp_test(/\p{Cf}/u, s)) return 26;
+        if (host_regexp_test(/\p{Cs}/u, s)) return 27;
+        if (host_regexp_test(/\p{Co}/u, s)) return 28;
         return 29; // Cn
       }),
       'char_alphabetic': ((cp) =>
-        hostNumber(/\p{Alphabetic}/u.test(hostStringFromCodePoint(cp)))),
+        hostNumber(host_regexp_test(/\p{Alphabetic}/u, hostStringFromCodePoint(cp)))),
       'char_lower_case': ((cp) =>
-        hostNumber(/\p{Lowercase}/u.test(hostStringFromCodePoint(cp)))),
+        hostNumber(host_regexp_test(/\p{Lowercase}/u, hostStringFromCodePoint(cp)))),
       'char_upper_case': ((cp) =>
-        hostNumber(/\p{Uppercase}/u.test(hostStringFromCodePoint(cp)))),
+        hostNumber(host_regexp_test(/\p{Uppercase}/u, hostStringFromCodePoint(cp)))),
       'char_title_case': ((cp) =>
-        hostNumber(/\p{gc=Lt}/u.test(hostStringFromCodePoint(cp)))),
+        hostNumber(host_regexp_test(/\p{gc=Lt}/u, hostStringFromCodePoint(cp)))),
       'char_numeric': ((cp) =>
-        hostNumber(/\p{Number}/u.test(hostStringFromCodePoint(cp)))),
+        hostNumber(host_regexp_test(/\p{Number}/u, hostStringFromCodePoint(cp)))),
       'char_symbolic': ((cp) =>
-        hostNumber(/\p{gc=Sm}|\p{gc=Sc}|\p{gc=Sk}|\p{gc=So}/u.test(hostStringFromCodePoint(cp)))),
+        hostNumber(host_regexp_test(/\p{gc=Sm}|\p{gc=Sc}|\p{gc=Sk}|\p{gc=So}/u, hostStringFromCodePoint(cp)))),
       'char_punctuation': ((cp) =>
-        hostNumber(/\p{gc=Pc}|\p{gc=Pd}|\p{gc=Ps}|\p{gc=Pe}|\p{gc=Pi}|\p{gc=Pf}|\p{gc=Po}/u.test(hostStringFromCodePoint(cp)))),
+        hostNumber(host_regexp_test(/\p{gc=Pc}|\p{gc=Pd}|\p{gc=Ps}|\p{gc=Pe}|\p{gc=Pi}|\p{gc=Pf}|\p{gc=Po}/u, hostStringFromCodePoint(cp)))),
       'char_graphic': ((cp) =>
-        hostNumber(/\p{gc=Ll}|\p{gc=Lm}|\p{gc=Lo}|\p{gc=Lt}|\p{gc=Lu}|\p{gc=Nd}|\p{gc=Nl}|\p{gc=No}|\p{gc=Mn}|\p{gc=Mc}|\p{gc=Me}|\p{Alphabetic}|\p{Number}|\p{gc=Sm}|\p{gc=Sc}|\p{gc=Sk}|\p{gc=So}|\p{gc=Pc}|\p{gc=Pd}|\p{gc=Ps}|\p{gc=Pe}|\p{gc=Pi}|\p{gc=Pf}|\p{gc=Po}/u.test(hostStringFromCodePoint(cp)))),
+        hostNumber(host_regexp_test(/\p{gc=Ll}|\p{gc=Lm}|\p{gc=Lo}|\p{gc=Lt}|\p{gc=Lu}|\p{gc=Nd}|\p{gc=Nl}|\p{gc=No}|\p{gc=Mn}|\p{gc=Mc}|\p{gc=Me}|\p{Alphabetic}|\p{Number}|\p{gc=Sm}|\p{gc=Sc}|\p{gc=Sk}|\p{gc=So}|\p{gc=Pc}|\p{gc=Pd}|\p{gc=Ps}|\p{gc=Pe}|\p{gc=Pi}|\p{gc=Pf}|\p{gc=Po}/u, hostStringFromCodePoint(cp)))),
       'char_extended_pictographic': ((cp) =>
-        hostNumber(/\p{Extended_Pictographic}/u.test(hostStringFromCodePoint(cp))))
+        hostNumber(host_regexp_test(/\p{Extended_Pictographic}/u, hostStringFromCodePoint(cp))))
     },
 
     // General JavaScript FFI.

@@ -431,6 +431,28 @@
                                                  "characters with hidden Array.from"))
                                      "character helpers survive hidden Array.from")
 
+(for-each
+ (lambda (name)
+   (check-hidden-prototype-method/no-error
+    "String"
+    name
+    (lambda () (check-character-intrinsics
+                (string-append "characters with hidden String.prototype." name)))
+    (string-append "character helpers survive hidden String.prototype." name)))
+ '("toUpperCase"
+   "toLowerCase"
+   "toLocaleLowerCase"
+   "toLocaleUpperCase"
+   "charAt"
+   "slice"
+   "codePointAt"))
+
+(check-hidden-prototype-method/no-error "RegExp"
+                                        "test"
+                                        (lambda () (check-character-intrinsics
+                                                    "characters with hidden RegExp.prototype.test"))
+                                        "character helpers survive hidden RegExp.prototype.test")
+
 (check-hidden-global/no-error "Symbol"
                               (lambda () (check-symbol-intrinsics
                                           "symbols with hidden global"))
