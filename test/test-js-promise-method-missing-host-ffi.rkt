@@ -4,11 +4,17 @@
 
 (require js/promise
          (only-in webracket/unsafe/standard
-                  js-eval))
+                  js-eval
+                  js-null
+                  js-undefined))
 
 (define (check-true got label)
   (unless got
     (error 'check-true label)))
+
+(define (check-false got label)
+  (when got
+    (error 'check-false label)))
 
 (define (catch-message thunk)
   (with-handlers ([exn:fail? exn-message])
@@ -57,6 +63,43 @@
   (js-promise-wrap
    (js-eval "globalThis.__wrPromiseBoundaryThenOnly")))
 
+(define null-raw-promise
+  (js-promise (js-null)))
+
+(define undefined-raw-promise
+  (js-promise (js-undefined)))
+
+(check-false (js-promise? null-raw-promise)
+             "js-promise? rejects null raw")
+(check-false (js-promise? undefined-raw-promise)
+             "js-promise? rejects undefined raw")
+(check-false (js-promise-thenable? null-raw-promise)
+             "js-promise-thenable? rejects null raw")
+(check-false (js-promise-thenable? undefined-raw-promise)
+             "js-promise-thenable? rejects undefined raw")
+
+(define null-wrap-message
+  (catch-message
+   (lambda ()
+     (js-promise-wrap (js-null)))))
+
+(define undefined-wrap-message
+  (catch-message
+   (lambda ()
+     (js-promise-wrap (js-undefined)))))
+
+(define null-raw-then-message
+  (catch-message
+   (lambda ()
+     (js-promise-then null-raw-promise
+                      (lambda (value) value)))))
+
+(define undefined-raw-then-message
+  (catch-message
+   (lambda ()
+     (js-promise-then undefined-raw-promise
+                      (lambda (value) value)))))
+
 (define resolve-message
   (catch-message
    (lambda ()
@@ -96,6 +139,18 @@
 (check-message non-constructor-reject-message
                "Promise is not available"
                "non-constructible Promise.reject message")
+(check-message null-wrap-message
+               "Promise-like external/raw"
+               "null raw Promise wrap message")
+(check-message undefined-wrap-message
+               "Promise-like external/raw"
+               "undefined raw Promise wrap message")
+(check-message null-raw-then-message
+               "js-promise?"
+               "null raw Promise then message")
+(check-message undefined-raw-then-message
+               "js-promise?"
+               "undefined raw Promise then message")
 (check-message catch-method-message
                "Promise.catch is not available"
                "missing Promise.catch message")

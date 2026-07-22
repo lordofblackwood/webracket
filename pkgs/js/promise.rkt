@@ -5,7 +5,8 @@
                   external?
                   procedure->external))
 
-(provide (struct-out js-promise)
+(provide (except-out (struct-out js-promise) js-promise?)
+         (rename-out [js-promise/surface? js-promise?])
          js-promise-wrap
          js-promise-unwrap
          js-promise-thenable?
@@ -23,12 +24,19 @@
 ;;   Wrap a JavaScript Promise-like value.
 (struct js-promise (raw) #:transparent)
 
+;; js-promise-raw-host-value? : any/c -> boolean?
+;;   Report whether raw is a non-nullish external host value.
+(define (js-promise-raw-host-value? raw)
+  (and (external? raw)
+       (not (js-nullish? raw))))
+
 ;; js-promise-thenable-method? : external/raw string? -> boolean?
 ;;   Report whether raw exposes a function-valued method called method-name.
 (define (js-promise-thenable-method? raw method-name)
-  (define method (js-ref/extern raw method-name))
-  (and (not (js-nullish? method))
-       (string=? (js-typeof method) "function")))
+  (and (js-promise-raw-host-value? raw)
+       (let ([method (js-ref/extern raw method-name)])
+         (and (not (js-nullish? method))
+              (string=? (js-typeof method) "function")))))
 
 ;; check-js-promise-host-method : symbol? external/raw string? string? -> void?
 ;;   Ensure a required Promise host method is available.
@@ -52,8 +60,7 @@
 ;; js-promise-wrap : external/raw -> js-promise?
 ;;   Wrap a Promise-like value after validating that it is thenable.
 (define (js-promise-wrap raw)
-  (unless (and (external? raw)
-               (js-promise-thenable-method? raw "then"))
+  (unless (js-promise-thenable-method? raw "then")
     (raise-argument-error 'js-promise-wrap "Promise-like external/raw" raw))
   (js-promise raw))
 
@@ -66,8 +73,12 @@
 ;;   Report whether v is a wrapped Promise-like value.
 (define (js-promise-thenable? v)
   (and (js-promise? v)
-       (external? (js-promise-unwrap v))
        (js-promise-thenable-method? (js-promise-unwrap v) "then")))
+
+;; js-promise/surface? : any/c -> boolean?
+;;   Report whether v is a wrapped Promise-like value.
+(define (js-promise/surface? v)
+  (js-promise-thenable? v))
 
 ;; js-promise-callback-cache : hash?
 ;;   Reuse stable external callbacks for Promise handlers.
