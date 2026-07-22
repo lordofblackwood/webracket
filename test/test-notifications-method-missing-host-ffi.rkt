@@ -40,7 +40,9 @@
     };
     globalThis.Notification = class Notification {
       static permission = 'default';
-      static requestPermission() { return thenable; }
+      static requestPermission() {
+        return missing === 'requestPermissionBadResult' ? 42 : thenable;
+      }
       constructor(title, options) {
         if (missing !== 'title') this.title = title;
         if (missing !== 'body') this.body = options && options.body || '';
@@ -153,6 +155,12 @@
    (lambda ()
      (notification-request-permission))))
 
+(define request-permission-result-message
+  (missing-method-message
+   "requestPermissionBadResult"
+   (lambda ()
+     (notification-request-permission))))
+
 (define permission-message
   (missing-method-message
    "permission"
@@ -258,6 +266,9 @@
 (check-message request-permission-message
                "Notification.requestPermission is not available"
                "missing Notification.requestPermission message")
+(check-message request-permission-result-message
+               "Notification.requestPermission result must be Promise-like"
+               "bad Notification.requestPermission result message")
 (check-message permission-message
                "Notification.permission is not available"
                "missing Notification.permission message")

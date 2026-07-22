@@ -101,8 +101,11 @@
 (define (clipboard-read-text value)
   (check-clipboard 'clipboard-read-text value)
   (check-clipboard-method 'clipboard-read-text value "readText")
-  (js-promise-wrap
-   (js-send/extern (clipboard-raw value) "readText" (vector))))
+  (js-promise-wrap-result
+   'clipboard-read-text
+   "readText"
+   (js-send/extern (clipboard-raw value) "readText" (vector))
+   "Clipboard"))
 
 ;; clipboard-write-text! : clipboard-info? (or/c string? symbol?) -> js-promise?
 ;;   Start an asynchronous clipboard text write and return a wrapped browser Promise.
@@ -110,5 +113,8 @@
   (check-clipboard 'clipboard-write-text! value)
   (check-clipboard-method 'clipboard-write-text! value "writeText")
   (define text* (clipboard-stringish->string 'clipboard-write-text! text))
-  (js-promise-wrap
-   (js-send/extern (clipboard-raw value) "writeText" (vector text*))))
+  (js-promise-wrap-result
+   'clipboard-write-text!
+   "writeText"
+   (js-send/extern (clipboard-raw value) "writeText" (vector text*))
+   "Clipboard"))

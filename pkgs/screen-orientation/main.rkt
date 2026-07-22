@@ -168,8 +168,11 @@
   (check-screen-orientation 'screen-orientation-lock! value)
   (check-screen-orientation-method 'screen-orientation-lock! value "lock")
   (define lock-type* (screen-orientation-lock-type->string 'screen-orientation-lock! lock-type))
-  (js-promise-wrap
-   (js-send/extern (screen-orientation-raw value) "lock" (vector lock-type*))))
+  (js-promise-wrap-result
+   'screen-orientation-lock!
+   "lock"
+   (js-send/extern (screen-orientation-raw value) "lock" (vector lock-type*))
+   "ScreenOrientation"))
 
 ;; screen-orientation-unlock! : screen-orientation-info? -> void?
 ;;   Remove an active orientation lock.

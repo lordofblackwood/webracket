@@ -8,6 +8,7 @@
 (provide (except-out (struct-out js-promise) js-promise?)
          (rename-out [js-promise/surface? js-promise?])
          js-promise-wrap
+         js-promise-wrap-result
          js-promise-unwrap
          js-promise-thenable?
          js-promise-resolved
@@ -57,12 +58,13 @@
   (check-js-promise-host-method who promise-ctor "Promise" method-name)
   promise-ctor)
 
-;; js-promise-wrap-result : symbol? string? any/c -> js-promise?
-;;   Wrap a Promise method result after checking that it is Promise-like.
-(define (js-promise-wrap-result who method-name raw)
+;; js-promise-wrap-result : symbol? string? any/c [string?] -> js-promise?
+;;   Wrap a host method result after checking that it is Promise-like.
+(define (js-promise-wrap-result who method-name raw [receiver-name "Promise"])
   (unless (js-promise-thenable-method? raw "then")
     (raise-arguments-error who
-                           (string-append "Promise."
+                           (string-append receiver-name
+                                          "."
                                           method-name
                                           " result must be Promise-like")))
   (js-promise raw))

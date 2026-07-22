@@ -33,6 +33,9 @@
 
 (js-eval
  "globalThis.__wrFullscreenBoundaryFakeElement = {};
+  globalThis.__wrFullscreenBoundaryBadPromiseElement = {
+    requestFullscreen() { return 42; }
+  };
   globalThis.__wrFullscreenBoundarySavedDocument = {};
   globalThis.__wrFullscreenBoundaryPatchDocument = (methodName) => {
     if (!Object.prototype.hasOwnProperty.call(globalThis.__wrFullscreenBoundarySavedDocument, methodName)) {
@@ -46,6 +49,17 @@
     });
   };
   globalThis.__wrFullscreenBoundaryPatchDocumentProperty = globalThis.__wrFullscreenBoundaryPatchDocument;
+  globalThis.__wrFullscreenBoundaryPatchDocumentBadResult = (methodName) => {
+    if (!Object.prototype.hasOwnProperty.call(globalThis.__wrFullscreenBoundarySavedDocument, methodName)) {
+      globalThis.__wrFullscreenBoundarySavedDocument[methodName] =
+        Object.getOwnPropertyDescriptor(document, methodName) || null;
+    }
+    Object.defineProperty(document, methodName, {
+      value() { return 42; },
+      configurable: true,
+      writable: true
+    });
+  };
   globalThis.__wrFullscreenBoundaryRestoreDocument = (methodName) => {
     const descriptor = globalThis.__wrFullscreenBoundarySavedDocument[methodName];
     if (descriptor) {
@@ -60,15 +74,20 @@
       globalThis.__wrFullscreenBoundaryRestoreDocument(methodName);
     }
     delete globalThis.__wrFullscreenBoundaryFakeElement;
+    delete globalThis.__wrFullscreenBoundaryBadPromiseElement;
     delete globalThis.__wrFullscreenBoundarySavedDocument;
     delete globalThis.__wrFullscreenBoundaryPatchDocument;
     delete globalThis.__wrFullscreenBoundaryPatchDocumentProperty;
+    delete globalThis.__wrFullscreenBoundaryPatchDocumentBadResult;
     delete globalThis.__wrFullscreenBoundaryRestoreDocument;
     delete globalThis.__wrFullscreenBoundaryRestoreAll;
   };")
 
 (define fake-element
   (js-eval "__wrFullscreenBoundaryFakeElement"))
+
+(define bad-promise-element
+  (js-eval "__wrFullscreenBoundaryBadPromiseElement"))
 
 (define (missing-document-method-message method thunk)
   (js-eval (string-append "__wrFullscreenBoundaryPatchDocument('"
@@ -90,12 +109,27 @@
                           "')"))
   message)
 
+(define (bad-document-result-message method thunk)
+  (js-eval (string-append "__wrFullscreenBoundaryPatchDocumentBadResult('"
+                          method
+                          "')"))
+  (define message (catch-message thunk))
+  (js-eval (string-append "__wrFullscreenBoundaryRestoreDocument('"
+                          method
+                          "')"))
+  message)
+
 (define callback (lambda args (void)))
 
 (define request-message
   (catch-message
    (lambda ()
      (fullscreen-request! fake-element))))
+
+(define request-result-message
+  (catch-message
+   (lambda ()
+     (fullscreen-request! bad-promise-element))))
 
 (define request-null-raw-message
   (catch-message
@@ -109,6 +143,12 @@
 
 (define exit-message
   (missing-document-method-message
+   "exitFullscreen"
+   (lambda ()
+     (fullscreen-exit!))))
+
+(define exit-result-message
+  (bad-document-result-message
    "exitFullscreen"
    (lambda ()
      (fullscreen-exit!))))
@@ -158,6 +198,9 @@
 (check-message request-message
                "Element.requestFullscreen is not available"
                "missing Element.requestFullscreen message")
+(check-message request-result-message
+               "Element.requestFullscreen result must be Promise-like"
+               "bad Element.requestFullscreen result message")
 (check-message request-null-raw-message
                "(or/c dom-element? external?)"
                "missing Element null raw message")
@@ -167,6 +210,9 @@
 (check-message exit-message
                "document.exitFullscreen is not available"
                "missing document.exitFullscreen message")
+(check-message exit-result-message
+               "document.exitFullscreen result must be Promise-like"
+               "bad document.exitFullscreen result message")
 (check-message add-change-message
                "document.addEventListener is not available"
                "missing change addEventListener message")

@@ -41,6 +41,11 @@
       readText() { return thenable; },
       writeText(_text) { return thenable; }
     };
+    if (missing === 'readTextBadResult') {
+      clip.readText = () => 42;
+    } else if (missing === 'writeTextBadResult') {
+      clip.writeText = (_text) => 42;
+    }
     delete clip[missing];
     return clip;
   };
@@ -72,6 +77,12 @@
 
 (define missing-write-clipboard
   (fake-clipboard "writeText"))
+
+(define bad-read-result-clipboard
+  (fake-clipboard "readTextBadResult"))
+
+(define bad-write-result-clipboard
+  (fake-clipboard "writeTextBadResult"))
 
 (define null-raw-clipboard
   (clipboard-info (js-null)))
@@ -115,6 +126,16 @@
    (lambda ()
      (clipboard-write-text! missing-write-clipboard "text"))))
 
+(define read-result-message
+  (catch-message
+   (lambda ()
+     (clipboard-read-text bad-read-result-clipboard))))
+
+(define write-result-message
+  (catch-message
+   (lambda ()
+     (clipboard-write-text! bad-write-result-clipboard "text"))))
+
 (define invalid-raw-message
   (catch-message
    (lambda ()
@@ -136,6 +157,12 @@
 (check-message write-message
                "Clipboard.writeText is not available"
                "missing Clipboard.writeText message")
+(check-message read-result-message
+               "Clipboard.readText result must be Promise-like"
+               "bad Clipboard.readText result message")
+(check-message write-result-message
+               "Clipboard.writeText result must be Promise-like"
+               "bad Clipboard.writeText result message")
 (check-message invalid-raw-message
                "clipboard-info?"
                "missing clipboard-info invalid raw message")

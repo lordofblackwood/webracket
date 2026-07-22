@@ -152,15 +152,21 @@
   (unless (fullscreen-elementish? element)
     (raise-argument-error 'fullscreen-request! "(or/c dom-element? external?)" element))
   (check-fullscreen-element-method 'fullscreen-request! element "requestFullscreen")
-  (js-promise-wrap
-   (js-send/extern (element-unwrap element) "requestFullscreen" (vector))))
+  (js-promise-wrap-result
+   'fullscreen-request!
+   "requestFullscreen"
+   (js-send/extern (element-unwrap element) "requestFullscreen" (vector))
+   "Element"))
 
 ;; fullscreen-exit! : -> js-promise?
 ;;   Exit fullscreen mode for the current document.
 (define (fullscreen-exit!)
   (check-fullscreen-document-method 'fullscreen-exit! "exitFullscreen")
-  (js-promise-wrap
-   (js-send/extern (fullscreen-document-raw) "exitFullscreen" (vector))))
+  (js-promise-wrap-result
+   'fullscreen-exit!
+   "exitFullscreen"
+   (js-send/extern (fullscreen-document-raw) "exitFullscreen" (vector))
+   "document"))
 
 ;; fullscreen-add-change-listener! : (or/c procedure? external?) -> external/raw
 ;;   Add a fullscreenchange listener to the current document.

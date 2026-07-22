@@ -187,8 +187,11 @@
                                   (js-var "Notification")
                                   "Notification"
                                   "requestPermission")
-  (js-promise-wrap
-   (js-send/extern (js-var "Notification") "requestPermission" (vector))))
+  (js-promise-wrap-result
+   'notification-request-permission
+   "requestPermission"
+   (js-send/extern (js-var "Notification") "requestPermission" (vector))
+   "Notification"))
 
 (define (make-notification title [options #f])
   (unless (notifications-supported?)

@@ -111,6 +111,9 @@
       addEventListener(_name, _callback) {},
       removeEventListener(_name, _callback) {}
     };
+    if (missing === 'lockBadResult') {
+      orientation.lock = (_type) => 42;
+    }
     delete orientation[missing];
     return orientation;
   };")
@@ -183,6 +186,9 @@
 
 (define missing-lock-orientation
   (fake-orientation "lock"))
+
+(define bad-lock-result-orientation
+  (fake-orientation "lockBadResult"))
 
 (define missing-unlock-orientation
   (fake-orientation "unlock"))
@@ -262,6 +268,11 @@
    (lambda ()
      (screen-orientation-lock! missing-lock-orientation 'portrait))))
 
+(define lock-result-message
+  (catch-message
+   (lambda ()
+     (screen-orientation-lock! bad-lock-result-orientation 'portrait))))
+
 (define unlock-message
   (catch-message
    (lambda ()
@@ -324,6 +335,9 @@
 (check-message lock-message
                "ScreenOrientation.lock is not available"
                "missing ScreenOrientation.lock message")
+(check-message lock-result-message
+               "ScreenOrientation.lock result must be Promise-like"
+               "bad ScreenOrientation.lock result message")
 (check-message unlock-message
                "ScreenOrientation.unlock is not available"
                "missing ScreenOrientation.unlock message")
