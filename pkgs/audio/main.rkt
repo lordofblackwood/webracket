@@ -138,6 +138,12 @@
   (and (audio-raw-host-value? raw)
        (string=? (js-typeof (js-ref/extern raw method-name)) "function")))
 
+;; audio-host-methods-present? : external/raw (listof string?) -> boolean?
+;;   Report whether raw exposes all named callable browser methods.
+(define (audio-host-methods-present? raw method-names)
+  (for/and ([method-name (in-list method-names)])
+    (audio-host-method-present? raw method-name)))
+
 ;; check-audio-host-method : symbol? external/raw string? string? -> void?
 ;;   Ensure a required browser method is available.
 (define (check-audio-host-method who raw receiver-name method-name)
@@ -154,6 +160,18 @@
   (and (audio-raw-host-value? raw)
        (not (js-undefined? (js-ref/extern raw property-name)))))
 
+;; audio-host-nullable-properties-present? : external/raw (listof string?) -> boolean?
+;;   Report whether raw exposes all named properties, allowing null values.
+(define (audio-host-nullable-properties-present? raw property-names)
+  (for/and ([property-name (in-list property-names)])
+    (audio-host-nullable-property-present? raw property-name)))
+
+;; audio-host-surface-present? : external/raw (listof string?) (listof string?) -> boolean?
+;;   Report whether raw exposes the requested browser property and method surface.
+(define (audio-host-surface-present? raw property-names method-names)
+  (and (audio-host-nullable-properties-present? raw property-names)
+       (audio-host-methods-present? raw method-names)))
+
 ;; check-audio-host-nullable-property : symbol? external/raw string? string? -> void?
 ;;   Ensure a required nullable browser property is available.
 (define (check-audio-host-nullable-property who raw receiver-name property-name)
@@ -164,110 +182,261 @@
                                           property-name
                                           " is not available"))))
 
-;; audio-context? : any/c -> boolean?
-;;   Check whether x is an AudioContext value.
-(define (audio-context? x)
+;; audio-context-host-value? : any/c -> boolean?
+;;   Check whether x is a raw AudioContext host value.
+(define (audio-context-host-value? x)
   (and (audio-raw-host-value? x)
        (audio-constructor-present? "AudioContext")
        (js-instanceof x (js-var "AudioContext"))))
 
-;; audio-node? : any/c -> boolean?
-;;   Check whether x is an AudioNode value.
-(define (audio-node? x)
+;; audio-node-host-value? : any/c -> boolean?
+;;   Check whether x is a raw AudioNode host value.
+(define (audio-node-host-value? x)
   (and (audio-raw-host-value? x)
        (audio-constructor-present? "AudioNode")
        (js-instanceof x (js-var "AudioNode"))))
 
-;; audio-param? : any/c -> boolean?
-;;   Check whether x is an AudioParam value.
-(define (audio-param? x)
+;; audio-param-host-value? : any/c -> boolean?
+;;   Check whether x is a raw AudioParam host value.
+(define (audio-param-host-value? x)
   (and (audio-raw-host-value? x)
        (audio-constructor-present? "AudioParam")
        (js-instanceof x (js-var "AudioParam"))))
 
-;; audio-buffer? : any/c -> boolean?
-;;   Check whether x is an AudioBuffer value.
-(define (audio-buffer? x)
+;; audio-buffer-host-value? : any/c -> boolean?
+;;   Check whether x is a raw AudioBuffer host value.
+(define (audio-buffer-host-value? x)
   (and (audio-raw-host-value? x)
        (audio-constructor-present? "AudioBuffer")
        (js-instanceof x (js-var "AudioBuffer"))))
 
-;; audio-gain-node? : any/c -> boolean?
-;;   Check whether x is a GainNode value.
-(define (audio-gain-node? x)
+;; audio-gain-node-host-value? : any/c -> boolean?
+;;   Check whether x is a raw GainNode host value.
+(define (audio-gain-node-host-value? x)
   (and (audio-raw-host-value? x)
        (audio-constructor-present? "GainNode")
        (js-instanceof x (js-var "GainNode"))))
 
-;; audio-oscillator-node? : any/c -> boolean?
-;;   Check whether x is an OscillatorNode value.
-(define (audio-oscillator-node? x)
+;; audio-oscillator-node-host-value? : any/c -> boolean?
+;;   Check whether x is a raw OscillatorNode host value.
+(define (audio-oscillator-node-host-value? x)
   (and (audio-raw-host-value? x)
        (audio-constructor-present? "OscillatorNode")
        (js-instanceof x (js-var "OscillatorNode"))))
 
-;; audio-buffer-source-node? : any/c -> boolean?
-;;   Check whether x is an AudioBufferSourceNode value.
-(define (audio-buffer-source-node? x)
+;; audio-buffer-source-node-host-value? : any/c -> boolean?
+;;   Check whether x is a raw AudioBufferSourceNode host value.
+(define (audio-buffer-source-node-host-value? x)
   (and (audio-raw-host-value? x)
        (audio-constructor-present? "AudioBufferSourceNode")
        (js-instanceof x (js-var "AudioBufferSourceNode"))))
 
-;; audio-analyser-node? : any/c -> boolean?
-;;   Check whether x is an AnalyserNode value.
-(define (audio-analyser-node? x)
+;; audio-analyser-node-host-value? : any/c -> boolean?
+;;   Check whether x is a raw AnalyserNode host value.
+(define (audio-analyser-node-host-value? x)
   (and (audio-raw-host-value? x)
        (audio-constructor-present? "AnalyserNode")
        (js-instanceof x (js-var "AnalyserNode"))))
 
-;; audio-biquad-filter-node? : any/c -> boolean?
-;;   Check whether x is a BiquadFilterNode value.
-(define (audio-biquad-filter-node? x)
+;; audio-biquad-filter-node-host-value? : any/c -> boolean?
+;;   Check whether x is a raw BiquadFilterNode host value.
+(define (audio-biquad-filter-node-host-value? x)
   (and (audio-raw-host-value? x)
        (audio-constructor-present? "BiquadFilterNode")
        (js-instanceof x (js-var "BiquadFilterNode"))))
 
-;; audio-constant-source-node? : any/c -> boolean?
-;;   Check whether x is a ConstantSourceNode value.
-(define (audio-constant-source-node? x)
+;; audio-constant-source-node-host-value? : any/c -> boolean?
+;;   Check whether x is a raw ConstantSourceNode host value.
+(define (audio-constant-source-node-host-value? x)
   (and (audio-raw-host-value? x)
        (audio-constructor-present? "ConstantSourceNode")
        (js-instanceof x (js-var "ConstantSourceNode"))))
 
-;; audio-dynamics-compressor-node? : any/c -> boolean?
-;;   Check whether x is a DynamicsCompressorNode value.
-(define (audio-dynamics-compressor-node? x)
+;; audio-dynamics-compressor-node-host-value? : any/c -> boolean?
+;;   Check whether x is a raw DynamicsCompressorNode host value.
+(define (audio-dynamics-compressor-node-host-value? x)
   (and (audio-raw-host-value? x)
        (audio-constructor-present? "DynamicsCompressorNode")
        (js-instanceof x (js-var "DynamicsCompressorNode"))))
 
-;; audio-panner-node? : any/c -> boolean?
-;;   Check whether x is a PannerNode value.
-(define (audio-panner-node? x)
+;; audio-panner-node-host-value? : any/c -> boolean?
+;;   Check whether x is a raw PannerNode host value.
+(define (audio-panner-node-host-value? x)
   (and (audio-raw-host-value? x)
        (audio-constructor-present? "PannerNode")
        (js-instanceof x (js-var "PannerNode"))))
 
-;; audio-stereo-panner-node? : any/c -> boolean?
-;;   Check whether x is a StereoPannerNode value.
-(define (audio-stereo-panner-node? x)
+;; audio-stereo-panner-node-host-value? : any/c -> boolean?
+;;   Check whether x is a raw StereoPannerNode host value.
+(define (audio-stereo-panner-node-host-value? x)
   (and (audio-raw-host-value? x)
        (audio-constructor-present? "StereoPannerNode")
        (js-instanceof x (js-var "StereoPannerNode"))))
 
-;; audio-channel-splitter-node? : any/c -> boolean?
-;;   Check whether x is a ChannelSplitterNode value.
-(define (audio-channel-splitter-node? x)
+;; audio-channel-splitter-node-host-value? : any/c -> boolean?
+;;   Check whether x is a raw ChannelSplitterNode host value.
+(define (audio-channel-splitter-node-host-value? x)
   (and (audio-raw-host-value? x)
        (audio-constructor-present? "ChannelSplitterNode")
        (js-instanceof x (js-var "ChannelSplitterNode"))))
 
-;; audio-channel-merger-node? : any/c -> boolean?
-;;   Check whether x is a ChannelMergerNode value.
-(define (audio-channel-merger-node? x)
+;; audio-channel-merger-node-host-value? : any/c -> boolean?
+;;   Check whether x is a raw ChannelMergerNode host value.
+(define (audio-channel-merger-node-host-value? x)
   (and (audio-raw-host-value? x)
        (audio-constructor-present? "ChannelMergerNode")
        (js-instanceof x (js-var "ChannelMergerNode"))))
+
+;; audio-context? : any/c -> boolean?
+;;   Check whether x is a usable AudioContext value.
+(define (audio-context? x)
+  (and (audio-context-host-value? x)
+       (audio-host-surface-present?
+        x
+        '("state" "currentTime" "sampleRate" "baseLatency" "outputLatency"
+          "destination" "listener" "onstatechange")
+        '("close" "resume" "suspend" "createGain" "createOscillator"
+          "createBufferSource" "createAnalyser" "createBiquadFilter"
+          "createConstantSource" "createChannelSplitter" "createChannelMerger"
+          "createDynamicsCompressor" "createPanner" "createStereoPanner"
+          "createBuffer" "createPeriodicWave" "decodeAudioData"
+          "addEventListener" "removeEventListener"))))
+
+;; audio-node-surface-present? : external/raw -> boolean?
+;;   Report whether raw exposes the common AudioNode surface.
+(define (audio-node-surface-present? raw)
+  (audio-host-surface-present?
+   raw
+   '("context")
+   '("connect" "disconnect" "addEventListener" "removeEventListener")))
+
+;; audio-node? : any/c -> boolean?
+;;   Check whether x is a usable AudioNode value.
+(define (audio-node? x)
+  (and (audio-node-host-value? x)
+       (audio-node-surface-present? x)))
+
+;; audio-param? : any/c -> boolean?
+;;   Check whether x is a usable AudioParam value.
+(define (audio-param? x)
+  (and (audio-param-host-value? x)
+       (audio-host-surface-present?
+        x
+        '("value")
+        '("setValueAtTime" "linearRampToValueAtTime"
+          "exponentialRampToValueAtTime" "setTargetAtTime"
+          "setValueCurveAtTime" "cancelScheduledValues"
+          "cancelAndHoldAtTime"))))
+
+;; audio-buffer? : any/c -> boolean?
+;;   Check whether x is a usable AudioBuffer value.
+(define (audio-buffer? x)
+  (and (audio-buffer-host-value? x)
+       (audio-host-surface-present?
+        x
+        '("length" "duration" "sampleRate" "numberOfChannels")
+        '("getChannelData"))))
+
+;; audio-gain-node? : any/c -> boolean?
+;;   Check whether x is a usable GainNode value.
+(define (audio-gain-node? x)
+  (and (audio-gain-node-host-value? x)
+       (audio-node-surface-present? x)
+       (audio-host-surface-present? x '("gain") '())))
+
+;; audio-oscillator-node? : any/c -> boolean?
+;;   Check whether x is a usable OscillatorNode value.
+(define (audio-oscillator-node? x)
+  (and (audio-oscillator-node-host-value? x)
+       (audio-node-surface-present? x)
+       (audio-host-surface-present?
+        x
+        '("type" "frequency" "detune" "onended")
+        '("start" "stop" "setPeriodicWave"))))
+
+;; audio-buffer-source-node? : any/c -> boolean?
+;;   Check whether x is a usable AudioBufferSourceNode value.
+(define (audio-buffer-source-node? x)
+  (and (audio-buffer-source-node-host-value? x)
+       (audio-node-surface-present? x)
+       (audio-host-surface-present?
+        x
+        '("buffer" "playbackRate" "detune" "loop" "loopStart" "loopEnd" "onended")
+        '("start" "stop"))))
+
+;; audio-analyser-node? : any/c -> boolean?
+;;   Check whether x is a usable AnalyserNode value.
+(define (audio-analyser-node? x)
+  (and (audio-analyser-node-host-value? x)
+       (audio-node-surface-present? x)
+       (audio-host-surface-present?
+        x
+        '("fftSize" "frequencyBinCount" "minDecibels" "maxDecibels"
+          "smoothingTimeConstant")
+        '("getByteFrequencyData" "getByteTimeDomainData"
+          "getFloatFrequencyData" "getFloatTimeDomainData"))))
+
+;; audio-biquad-filter-node? : any/c -> boolean?
+;;   Check whether x is a usable BiquadFilterNode value.
+(define (audio-biquad-filter-node? x)
+  (and (audio-biquad-filter-node-host-value? x)
+       (audio-node-surface-present? x)
+       (audio-host-surface-present?
+        x
+        '("type" "frequency" "detune" "Q" "gain")
+        '())))
+
+;; audio-constant-source-node? : any/c -> boolean?
+;;   Check whether x is a usable ConstantSourceNode value.
+(define (audio-constant-source-node? x)
+  (and (audio-constant-source-node-host-value? x)
+       (audio-node-surface-present? x)
+       (audio-host-surface-present?
+        x
+        '("offset" "onended")
+        '("start" "stop"))))
+
+;; audio-dynamics-compressor-node? : any/c -> boolean?
+;;   Check whether x is a usable DynamicsCompressorNode value.
+(define (audio-dynamics-compressor-node? x)
+  (and (audio-dynamics-compressor-node-host-value? x)
+       (audio-node-surface-present? x)
+       (audio-host-surface-present?
+        x
+        '("threshold" "knee" "ratio" "reduction" "attack" "release")
+        '())))
+
+;; audio-panner-node? : any/c -> boolean?
+;;   Check whether x is a usable PannerNode value.
+(define (audio-panner-node? x)
+  (and (audio-panner-node-host-value? x)
+       (audio-node-surface-present? x)
+       (audio-host-surface-present?
+        x
+        '("panningModel" "distanceModel" "positionX" "positionY" "positionZ"
+          "orientationX" "orientationY" "orientationZ" "refDistance"
+          "maxDistance" "rolloffFactor" "coneInnerAngle" "coneOuterAngle"
+          "coneOuterGain")
+        '())))
+
+;; audio-stereo-panner-node? : any/c -> boolean?
+;;   Check whether x is a usable StereoPannerNode value.
+(define (audio-stereo-panner-node? x)
+  (and (audio-stereo-panner-node-host-value? x)
+       (audio-node-surface-present? x)
+       (audio-host-surface-present? x '("pan") '())))
+
+;; audio-channel-splitter-node? : any/c -> boolean?
+;;   Check whether x is a usable ChannelSplitterNode value.
+(define (audio-channel-splitter-node? x)
+  (and (audio-channel-splitter-node-host-value? x)
+       (audio-node-surface-present? x)))
+
+;; audio-channel-merger-node? : any/c -> boolean?
+;;   Check whether x is a usable ChannelMergerNode value.
+(define (audio-channel-merger-node? x)
+  (and (audio-channel-merger-node-host-value? x)
+       (audio-node-surface-present? x)))
 
 ;; audio-periodic-wave-host-value? : any/c -> boolean?
 ;;   Report whether value is a raw or wrapped non-nullish PeriodicWave host value.
@@ -283,91 +452,91 @@
 ;; check-audio-context : symbol? any/c -> void?
 ;;   Ensure x is an AudioContext value.
 (define (check-audio-context who x)
-  (unless (audio-context? x)
+  (unless (audio-context-host-value? x)
     (raise-argument-error who "audio-context?" x)))
 
 ;; check-audio-node : symbol? any/c -> void?
 ;;   Ensure x is an AudioNode value.
 (define (check-audio-node who x)
-  (unless (audio-node? x)
+  (unless (audio-node-host-value? x)
     (raise-argument-error who "audio-node?" x)))
 
 ;; check-audio-gain-node : symbol? any/c -> void?
 ;;   Ensure x is a GainNode value.
 (define (check-audio-gain-node who x)
-  (unless (audio-gain-node? x)
+  (unless (audio-gain-node-host-value? x)
     (raise-argument-error who "audio-gain-node?" x)))
 
 ;; check-audio-oscillator-node : symbol? any/c -> void?
 ;;   Ensure x is an OscillatorNode value.
 (define (check-audio-oscillator-node who x)
-  (unless (audio-oscillator-node? x)
+  (unless (audio-oscillator-node-host-value? x)
     (raise-argument-error who "audio-oscillator-node?" x)))
 
 ;; check-audio-buffer-source-node : symbol? any/c -> void?
 ;;   Ensure x is an AudioBufferSourceNode value.
 (define (check-audio-buffer-source-node who x)
-  (unless (audio-buffer-source-node? x)
+  (unless (audio-buffer-source-node-host-value? x)
     (raise-argument-error who "audio-buffer-source-node?" x)))
 
 ;; check-audio-analyser-node : symbol? any/c -> void?
 ;;   Ensure x is an AnalyserNode value.
 (define (check-audio-analyser-node who x)
-  (unless (audio-analyser-node? x)
+  (unless (audio-analyser-node-host-value? x)
     (raise-argument-error who "audio-analyser-node?" x)))
 
 ;; check-audio-biquad-filter-node : symbol? any/c -> void?
 ;;   Ensure x is a BiquadFilterNode value.
 (define (check-audio-biquad-filter-node who x)
-  (unless (audio-biquad-filter-node? x)
+  (unless (audio-biquad-filter-node-host-value? x)
     (raise-argument-error who "audio-biquad-filter-node?" x)))
 
 ;; check-audio-constant-source-node : symbol? any/c -> void?
 ;;   Ensure x is a ConstantSourceNode value.
 (define (check-audio-constant-source-node who x)
-  (unless (audio-constant-source-node? x)
+  (unless (audio-constant-source-node-host-value? x)
     (raise-argument-error who "audio-constant-source-node?" x)))
 
 ;; check-audio-dynamics-compressor-node : symbol? any/c -> void?
 ;;   Ensure x is a DynamicsCompressorNode value.
 (define (check-audio-dynamics-compressor-node who x)
-  (unless (audio-dynamics-compressor-node? x)
+  (unless (audio-dynamics-compressor-node-host-value? x)
     (raise-argument-error who "audio-dynamics-compressor-node?" x)))
 
 ;; check-audio-panner-node : symbol? any/c -> void?
 ;;   Ensure x is a PannerNode value.
 (define (check-audio-panner-node who x)
-  (unless (audio-panner-node? x)
+  (unless (audio-panner-node-host-value? x)
     (raise-argument-error who "audio-panner-node?" x)))
 
 ;; check-audio-stereo-panner-node : symbol? any/c -> void?
 ;;   Ensure x is a StereoPannerNode value.
 (define (check-audio-stereo-panner-node who x)
-  (unless (audio-stereo-panner-node? x)
+  (unless (audio-stereo-panner-node-host-value? x)
     (raise-argument-error who "audio-stereo-panner-node?" x)))
 
 ;; check-audio-channel-splitter-node : symbol? any/c -> void?
 ;;   Ensure x is a ChannelSplitterNode value.
 (define (check-audio-channel-splitter-node who x)
-  (unless (audio-channel-splitter-node? x)
+  (unless (audio-channel-splitter-node-host-value? x)
     (raise-argument-error who "audio-channel-splitter-node?" x)))
 
 ;; check-audio-channel-merger-node : symbol? any/c -> void?
 ;;   Ensure x is a ChannelMergerNode value.
 (define (check-audio-channel-merger-node who x)
-  (unless (audio-channel-merger-node? x)
+  (unless (audio-channel-merger-node-host-value? x)
     (raise-argument-error who "audio-channel-merger-node?" x)))
 
 ;; check-audio-param : symbol? any/c -> void?
 ;;   Ensure x is an AudioParam value.
 (define (check-audio-param who x)
-  (unless (audio-param? x)
+  (unless (audio-param-host-value? x)
     (raise-argument-error who "audio-param?" x)))
 
 ;; check-audio-buffer : symbol? any/c -> void?
 ;;   Ensure x is an AudioBuffer value.
 (define (check-audio-buffer who x)
-  (unless (audio-buffer? x)
+  (unless (audio-buffer-host-value? x)
     (raise-argument-error who "audio-buffer?" x)))
 
 ;; check-audio-periodic-wave : symbol? any/c -> void?
@@ -516,7 +685,7 @@
 ;; audio-add-event-listener! : external? (or/c string? symbol?) (or/c procedure? external?) (or/c boolean? external?) ... -> external?
 ;;   Add an event listener and return the installed listener token.
 (define (audio-add-event-listener! target event-name listener . options)
-  (unless (or (audio-context? target) (audio-node? target))
+  (unless (or (audio-context-host-value? target) (audio-node-host-value? target))
     (raise-argument-error 'audio-add-event-listener! "audio-context? or audio-node?" target))
   (define event-name* (normalize-audio-stringish 'audio-add-event-listener! event-name))
   (define listener* (audio-listener->external 'audio-add-event-listener! listener))
@@ -537,7 +706,7 @@
 ;; audio-remove-event-listener! : external? (or/c string? symbol?) (or/c procedure? external?) (or/c boolean? external?) ... -> void?
 ;;   Remove a previously registered event listener.
 (define (audio-remove-event-listener! target event-name listener . options)
-  (unless (or (audio-context? target) (audio-node? target))
+  (unless (or (audio-context-host-value? target) (audio-node-host-value? target))
     (raise-argument-error 'audio-remove-event-listener! "audio-context? or audio-node?" target))
   (define event-name* (normalize-audio-stringish 'audio-remove-event-listener! event-name))
   (define listener* (audio-listener->external 'audio-remove-event-listener! listener))
@@ -740,7 +909,7 @@
 ;;   Connect one node to another node or param.
 (define (audio-node-connect node destination [output-index #f] [input-index #f])
   (check-audio-node 'audio-node-connect node)
-  (unless (or (audio-node? destination) (audio-param? destination))
+  (unless (or (audio-node-host-value? destination) (audio-param-host-value? destination))
     (raise-argument-error 'audio-node-connect "(or/c audio-node? audio-param?)" destination))
   (check-audio-optional-number 'audio-node-connect output-index)
   (check-audio-optional-number 'audio-node-connect input-index)
@@ -753,7 +922,9 @@
 ;;   Disconnect a node from the graph.
 (define (audio-node-disconnect node [destination #f] [output-index #f] [input-index #f])
   (check-audio-node 'audio-node-disconnect node)
-  (unless (or (eq? destination #f) (audio-node? destination) (audio-param? destination))
+  (unless (or (eq? destination #f)
+              (audio-node-host-value? destination)
+              (audio-param-host-value? destination))
     (raise-argument-error 'audio-node-disconnect "(or/c #f audio-node? audio-param?)" destination))
   (check-audio-optional-number 'audio-node-disconnect output-index)
   (check-audio-optional-number 'audio-node-disconnect input-index)
@@ -944,7 +1115,7 @@
 ;;   Set the current buffer.
 (define (audio-buffer-source-node-set-buffer! node buffer)
   (check-audio-buffer-source-node 'audio-buffer-source-node-set-buffer! node)
-  (unless (or (eq? buffer #f) (audio-buffer? buffer))
+  (unless (or (eq? buffer #f) (audio-buffer-host-value? buffer))
     (raise-argument-error 'audio-buffer-source-node-set-buffer! "(or/c #f audio-buffer?)" buffer))
   (js-audio-audio-buffer-source-node-set-buffer! node (if buffer buffer (js-null))))
 

@@ -71,7 +71,20 @@
 (js-eval
  "globalThis.__wrAudioBoundarySaved = {
     AudioContext: globalThis.AudioContext,
-    AudioNode: globalThis.AudioNode
+    AudioNode: globalThis.AudioNode,
+    AudioParam: globalThis.AudioParam,
+    AudioBuffer: globalThis.AudioBuffer,
+    GainNode: globalThis.GainNode,
+    OscillatorNode: globalThis.OscillatorNode,
+    AudioBufferSourceNode: globalThis.AudioBufferSourceNode,
+    AnalyserNode: globalThis.AnalyserNode,
+    BiquadFilterNode: globalThis.BiquadFilterNode,
+    ConstantSourceNode: globalThis.ConstantSourceNode,
+    DynamicsCompressorNode: globalThis.DynamicsCompressorNode,
+    PannerNode: globalThis.PannerNode,
+    StereoPannerNode: globalThis.StereoPannerNode,
+    ChannelSplitterNode: globalThis.ChannelSplitterNode,
+    ChannelMergerNode: globalThis.ChannelMergerNode
   };
   globalThis.AudioContext = {};
   globalThis.AudioNode = {};
@@ -153,13 +166,83 @@
 (js-eval
  "globalThis.AudioNode = class AudioNode {};
   globalThis.AudioContext = class AudioContext {};
+  globalThis.AudioParam = class AudioParam {};
+  globalThis.AudioBuffer = class AudioBuffer {};
+  globalThis.GainNode = class GainNode extends AudioNode {};
+  globalThis.OscillatorNode = class OscillatorNode extends AudioNode {};
+  globalThis.AudioBufferSourceNode = class AudioBufferSourceNode extends AudioNode {};
+  globalThis.AnalyserNode = class AnalyserNode extends AudioNode {};
+  globalThis.BiquadFilterNode = class BiquadFilterNode extends AudioNode {};
+  globalThis.ConstantSourceNode = class ConstantSourceNode extends AudioNode {};
+  globalThis.DynamicsCompressorNode = class DynamicsCompressorNode extends AudioNode {};
+  globalThis.PannerNode = class PannerNode extends AudioNode {};
+  globalThis.StereoPannerNode = class StereoPannerNode extends AudioNode {};
+  globalThis.ChannelSplitterNode = class ChannelSplitterNode extends AudioNode {};
+  globalThis.ChannelMergerNode = class ChannelMergerNode extends AudioNode {};
   globalThis.__wrAudioBoundaryNode = new AudioNode();")
 
 (define node-without-listeners
   (js-eval "globalThis.__wrAudioBoundaryNode"))
 (define context-without-handler
   (js-eval "new AudioContext()"))
+(define param-without-surface
+  (js-eval "new AudioParam()"))
+(define buffer-without-surface
+  (js-eval "new AudioBuffer()"))
+(define gain-without-surface
+  (js-eval "new GainNode()"))
+(define oscillator-without-surface
+  (js-eval "new OscillatorNode()"))
+(define buffer-source-without-surface
+  (js-eval "new AudioBufferSourceNode()"))
+(define analyser-without-surface
+  (js-eval "new AnalyserNode()"))
+(define biquad-without-surface
+  (js-eval "new BiquadFilterNode()"))
+(define constant-without-surface
+  (js-eval "new ConstantSourceNode()"))
+(define dynamics-without-surface
+  (js-eval "new DynamicsCompressorNode()"))
+(define panner-without-surface
+  (js-eval "new PannerNode()"))
+(define stereo-panner-without-surface
+  (js-eval "new StereoPannerNode()"))
+(define splitter-without-surface
+  (js-eval "new ChannelSplitterNode()"))
+(define merger-without-surface
+  (js-eval "new ChannelMergerNode()"))
 (define noop-listener (lambda (_evt) (void)))
+
+(check-false (audio-context? context-without-handler)
+             "audio-context? rejects missing context surface")
+(check-false (audio-node? node-without-listeners)
+             "audio-node? rejects missing node surface")
+(check-false (audio-param? param-without-surface)
+             "audio-param? rejects missing param surface")
+(check-false (audio-buffer? buffer-without-surface)
+             "audio-buffer? rejects missing buffer surface")
+(check-false (audio-gain-node? gain-without-surface)
+             "audio-gain-node? rejects missing gain surface")
+(check-false (audio-oscillator-node? oscillator-without-surface)
+             "audio-oscillator-node? rejects missing oscillator surface")
+(check-false (audio-buffer-source-node? buffer-source-without-surface)
+             "audio-buffer-source-node? rejects missing buffer-source surface")
+(check-false (audio-analyser-node? analyser-without-surface)
+             "audio-analyser-node? rejects missing analyser surface")
+(check-false (audio-biquad-filter-node? biquad-without-surface)
+             "audio-biquad-filter-node? rejects missing biquad surface")
+(check-false (audio-constant-source-node? constant-without-surface)
+             "audio-constant-source-node? rejects missing constant-source surface")
+(check-false (audio-dynamics-compressor-node? dynamics-without-surface)
+             "audio-dynamics-compressor-node? rejects missing dynamics surface")
+(check-false (audio-panner-node? panner-without-surface)
+             "audio-panner-node? rejects missing panner surface")
+(check-false (audio-stereo-panner-node? stereo-panner-without-surface)
+             "audio-stereo-panner-node? rejects missing stereo-panner surface")
+(check-false (audio-channel-splitter-node? splitter-without-surface)
+             "audio-channel-splitter-node? rejects missing splitter surface")
+(check-false (audio-channel-merger-node? merger-without-surface)
+             "audio-channel-merger-node? rejects missing merger surface")
 
 (define add-listener-message
   (catch-message
@@ -355,6 +438,19 @@
 (js-eval
  "globalThis.AudioContext = globalThis.__wrAudioBoundarySaved.AudioContext;
   globalThis.AudioNode = globalThis.__wrAudioBoundarySaved.AudioNode;
+  globalThis.AudioParam = globalThis.__wrAudioBoundarySaved.AudioParam;
+  globalThis.AudioBuffer = globalThis.__wrAudioBoundarySaved.AudioBuffer;
+  globalThis.GainNode = globalThis.__wrAudioBoundarySaved.GainNode;
+  globalThis.OscillatorNode = globalThis.__wrAudioBoundarySaved.OscillatorNode;
+  globalThis.AudioBufferSourceNode = globalThis.__wrAudioBoundarySaved.AudioBufferSourceNode;
+  globalThis.AnalyserNode = globalThis.__wrAudioBoundarySaved.AnalyserNode;
+  globalThis.BiquadFilterNode = globalThis.__wrAudioBoundarySaved.BiquadFilterNode;
+  globalThis.ConstantSourceNode = globalThis.__wrAudioBoundarySaved.ConstantSourceNode;
+  globalThis.DynamicsCompressorNode = globalThis.__wrAudioBoundarySaved.DynamicsCompressorNode;
+  globalThis.PannerNode = globalThis.__wrAudioBoundarySaved.PannerNode;
+  globalThis.StereoPannerNode = globalThis.__wrAudioBoundarySaved.StereoPannerNode;
+  globalThis.ChannelSplitterNode = globalThis.__wrAudioBoundarySaved.ChannelSplitterNode;
+  globalThis.ChannelMergerNode = globalThis.__wrAudioBoundarySaved.ChannelMergerNode;
   delete globalThis.__wrAudioBoundarySaved;
   delete globalThis.__wrAudioBoundaryPlain;
   delete globalThis.__wrAudioBoundaryNode;")
