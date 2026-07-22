@@ -75,6 +75,16 @@
   (and (worker-raw-host-value? raw)
        (not (js-undefined? (js-ref/extern raw property-name)))))
 
+;; worker-core-surface-present? : external/raw -> boolean?
+;;   Report whether raw has the required Worker surface.
+(define (worker-core-surface-present? raw)
+  (and (worker-method-present? raw "postMessage")
+       (worker-method-present? raw "terminate")
+       (worker-method-present? raw "addEventListener")
+       (worker-method-present? raw "removeEventListener")
+       (worker-nullable-property-present? raw "onmessage")
+       (worker-nullable-property-present? raw "onerror")))
+
 ;; worker-raw-host-value? : any/c -> boolean?
 ;;   Report whether raw is a non-nullish external host value.
 (define (worker-raw-host-value? raw)
@@ -89,6 +99,12 @@
 ;; worker? : any/c -> boolean?
 ;;   Report whether v is a wrapped browser Worker object.
 (define (worker? v)
+  (and (worker-host-value? v)
+       (worker-core-surface-present? (worker-raw v))))
+
+;; worker-host-value? : any/c -> boolean?
+;;   Report whether v wraps an external Worker-like host value.
+(define (worker-host-value? v)
   (and (worker-info? v)
        (worker-supported?)
        (worker-raw-host-value? (worker-raw v))
@@ -97,7 +113,7 @@
 ;; check-worker : symbol? any/c -> void?
 ;;   Ensure value is a wrapped Worker object.
 (define (check-worker who value)
-  (unless (worker? value)
+  (unless (worker-host-value? value)
     (raise-argument-error who "worker?" value)))
 
 ;; check-worker-method : symbol? worker? string? -> void?

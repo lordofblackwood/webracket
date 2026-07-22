@@ -140,6 +140,14 @@
             "decompression-stream? rejects null raw")
 (check-true (not (decompression-stream? undefined-raw-decompression-stream))
             "decompression-stream? rejects undefined raw")
+(check-true (not (compression-stream? (fake-compression-stream "readable")))
+            "compression-stream? rejects missing readable")
+(check-true (not (compression-stream? (fake-compression-stream "writable")))
+            "compression-stream? rejects missing writable")
+(check-true (not (decompression-stream? (fake-decompression-stream "readable")))
+            "decompression-stream? rejects missing readable")
+(check-true (not (decompression-stream? (fake-decompression-stream "writable")))
+            "decompression-stream? rejects missing writable")
 
 (define compression-message
   (missing-pipe-through-message

@@ -123,12 +123,24 @@
   (js-eval (string-append "__wrWorkerBoundaryInstallFake('"
                           missing
                           "');"))
-  (define worker (make-worker "worker.js"))
-  (check-true (worker? worker)
-              (string-append "worker? accepts fake Worker missing " missing))
-  worker)
+  (make-worker "worker.js"))
 
 (define callback (lambda args (void)))
+
+(check-true (worker? (fake-worker "none"))
+            "worker? accepts complete fake Worker")
+(check-true (not (worker? (fake-worker "postMessage")))
+            "worker? rejects missing postMessage")
+(check-true (not (worker? (fake-worker "terminate")))
+            "worker? rejects missing terminate")
+(check-true (not (worker? (fake-worker "addEventListener")))
+            "worker? rejects missing addEventListener")
+(check-true (not (worker? (fake-worker "removeEventListener")))
+            "worker? rejects missing removeEventListener")
+(check-true (not (worker? (fake-worker "onmessage")))
+            "worker? rejects missing onmessage")
+(check-true (not (worker? (fake-worker "onerror")))
+            "worker? rejects missing onerror")
 
 (define constructor-message
   (constructor-missing-message))
