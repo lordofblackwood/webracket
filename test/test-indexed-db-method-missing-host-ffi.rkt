@@ -159,6 +159,23 @@
 (check-true (not (indexed-db? undefined-raw-db))
             "indexed-db? rejects undefined raw")
 
+(define (indexed-db-predicate-after-missing-method method)
+  (js-eval (string-append "__wrIndexedDBBoundaryPatch('"
+                          method
+                          "')"))
+  (define ok? (indexed-db? db))
+  (js-eval (string-append "__wrIndexedDBBoundaryRestore('"
+                          method
+                          "')"))
+  ok?)
+
+(check-true (not (indexed-db-predicate-after-missing-method "open"))
+            "indexed-db? rejects missing open")
+(check-true (not (indexed-db-predicate-after-missing-method "deleteDatabase"))
+            "indexed-db? rejects missing deleteDatabase")
+(check-true (not (indexed-db-predicate-after-missing-method "cmp"))
+            "indexed-db? rejects missing cmp")
+
 (define (hide-indexed-db-constructor?)
   (js-truthy?
    (js-eval "__wrIndexedDBBoundaryHideConstructor()")))

@@ -57,7 +57,8 @@
 ;; indexed-db? : any/c -> boolean?
 ;;   Report whether v is a wrapped IndexedDB factory object.
 (define (indexed-db? v)
-  (indexed-db-host-value? v))
+  (and (indexed-db-host-value? v)
+       (indexed-db-core-methods-present? (indexed-db-raw v))))
 
 ;; indexed-db-host-value? : any/c -> boolean?
 ;;   Report whether v wraps a browser IDBFactory object.
@@ -75,6 +76,13 @@
        (let ([method (js-ref/extern raw method-name)])
          (and (not (js-nullish? method))
               (string=? (js-typeof method) "function")))))
+
+;; indexed-db-core-methods-present? : external/raw -> boolean?
+;;   Report whether raw has the required IDBFactory methods.
+(define (indexed-db-core-methods-present? raw)
+  (and (indexed-db-method-present? raw "open")
+       (indexed-db-method-present? raw "deleteDatabase")
+       (indexed-db-method-present? raw "cmp")))
 
 ;; check-indexed-db : symbol? any/c -> void?
 ;;   Ensure value wraps an external IDBFactory host value.

@@ -77,6 +77,39 @@
   (and (speech-raw-host-value? raw)
        (not (js-undefined? (js-ref/extern raw property-name)))))
 
+;; speech-synthesis-core-surface-present? : external/raw -> boolean?
+;;   Report whether raw has the required SpeechSynthesis surface.
+(define (speech-synthesis-core-surface-present? raw)
+  (and (speech-method-present? raw "speak")
+       (speech-method-present? raw "cancel")
+       (speech-method-present? raw "pause")
+       (speech-method-present? raw "resume")
+       (speech-method-present? raw "getVoices")
+       (speech-property-present? raw "speaking")
+       (speech-property-present? raw "paused")
+       (speech-property-present? raw "pending")))
+
+;; speech-utterance-core-surface-present? : external/raw -> boolean?
+;;   Report whether raw has the required SpeechSynthesisUtterance surface.
+(define (speech-utterance-core-surface-present? raw)
+  (and (speech-property-present? raw "text")
+       (speech-property-present? raw "lang")
+       (speech-property-present? raw "volume")
+       (speech-property-present? raw "rate")
+       (speech-property-present? raw "pitch")
+       (speech-nullable-property-present? raw "voice")
+       (speech-nullable-property-present? raw "onend")
+       (speech-nullable-property-present? raw "onerror")))
+
+;; speech-voice-core-surface-present? : external/raw -> boolean?
+;;   Report whether raw has the required SpeechSynthesisVoice surface.
+(define (speech-voice-core-surface-present? raw)
+  (and (speech-property-present? raw "name")
+       (speech-property-present? raw "lang")
+       (speech-property-present? raw "default")
+       (speech-property-present? raw "localService")
+       (speech-property-present? raw "voiceURI")))
+
 ;; speech-raw-host-value? : any/c -> boolean?
 ;;   Report whether raw is a non-nullish external host value.
 (define (speech-raw-host-value? raw)
@@ -109,13 +142,13 @@
 ;; check-speech-utterance : symbol? any/c -> void?
 ;;   Ensure value wraps an external SpeechSynthesisUtterance-like host value.
 (define (check-speech-utterance who value)
-  (unless (speech-utterance? value)
+  (unless (speech-utterance-host-value? value)
     (raise-argument-error who "speech-utterance?" value)))
 
 ;; check-speech-voice : symbol? any/c -> void?
 ;;   Ensure value wraps an external SpeechSynthesisVoice-like host value.
 (define (check-speech-voice who value)
-  (unless (speech-voice? value)
+  (unless (speech-voice-host-value? value)
     (raise-argument-error who "speech-voice?" value)))
 
 ;; check-speech-host-method : symbol? external/raw string? string? -> void?
@@ -156,7 +189,7 @@
   (define synthesis (speech-synthesis-raw/current))
   (and (not (js-nullish? synthesis))
        (speech-constructor-present? "SpeechSynthesisUtterance")
-       (speech-method-present? synthesis "speak")))
+       (speech-synthesis-core-surface-present? synthesis)))
 
 ;; web-speech-recognition-supported? : -> boolean?
 ;;   Report whether unprefixed or webkit-prefixed speech recognition is available.
@@ -173,7 +206,8 @@
 ;; speech-synthesis? : any/c -> boolean?
 ;;   Report whether v is a wrapped SpeechSynthesis object.
 (define (speech-synthesis? v)
-  (speech-synthesis-host-value? v))
+  (and (speech-synthesis-host-value? v)
+       (speech-synthesis-core-surface-present? (speech-synthesis-raw v))))
 
 ;; speech-synthesis-host-value? : any/c -> boolean?
 ;;   Report whether v wraps an external SpeechSynthesis-like host value.
@@ -184,12 +218,24 @@
 ;; speech-utterance? : any/c -> boolean?
 ;;   Report whether v is a wrapped SpeechSynthesisUtterance object.
 (define (speech-utterance? v)
+  (and (speech-utterance-host-value? v)
+       (speech-utterance-core-surface-present? (speech-utterance-raw v))))
+
+;; speech-utterance-host-value? : any/c -> boolean?
+;;   Report whether v wraps an external SpeechSynthesisUtterance-like host value.
+(define (speech-utterance-host-value? v)
   (and (speech-utterance-info? v)
        (speech-raw-host-value? (speech-utterance-raw v))))
 
 ;; speech-voice? : any/c -> boolean?
 ;;   Report whether v is a wrapped SpeechSynthesisVoice object.
 (define (speech-voice? v)
+  (and (speech-voice-host-value? v)
+       (speech-voice-core-surface-present? (speech-voice-raw v))))
+
+;; speech-voice-host-value? : any/c -> boolean?
+;;   Report whether v wraps an external SpeechSynthesisVoice-like host value.
+(define (speech-voice-host-value? v)
   (and (speech-voice-info? v)
        (speech-raw-host-value? (speech-voice-raw v))))
 

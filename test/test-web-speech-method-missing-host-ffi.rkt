@@ -168,6 +168,14 @@
                            missing
                            "')"))))
 
+(define (fake-utterance missing)
+  (js-eval (string-append "__wrSpeechBoundaryInstallUtterance('"
+                          missing
+                          "');"))
+  (define utterance (make-speech-utterance "hello"))
+  (js-eval "__wrSpeechBoundaryInstallUtterance();")
+  utterance)
+
 (define (fake-voice missing)
   (speech-voice-info
    (js-eval (string-append "__wrSpeechBoundaryFakeVoice('"
@@ -204,6 +212,55 @@
              "speech-voice? rejects null raw")
 (check-false (speech-voice? undefined-raw-voice)
              "speech-voice? rejects undefined raw")
+
+(check-false (speech-synthesis? (fake-synthesis "speak"))
+             "speech-synthesis? rejects missing speak")
+(check-false (speech-synthesis? (fake-synthesis "cancel"))
+             "speech-synthesis? rejects missing cancel")
+(check-false (speech-synthesis? (fake-synthesis "pause"))
+             "speech-synthesis? rejects missing pause")
+(check-false (speech-synthesis? (fake-synthesis "resume"))
+             "speech-synthesis? rejects missing resume")
+(check-false (speech-synthesis? (fake-synthesis "getVoices"))
+             "speech-synthesis? rejects missing getVoices")
+(check-false (speech-synthesis? (fake-synthesis "speaking"))
+             "speech-synthesis? rejects missing speaking")
+(check-false (speech-synthesis? (fake-synthesis "paused"))
+             "speech-synthesis? rejects missing paused")
+(check-false (speech-synthesis? (fake-synthesis "pending"))
+             "speech-synthesis? rejects missing pending")
+(js-eval "__wrSpeechBoundaryInstallSynthesis('cancel');")
+(check-false (web-speech-synthesis-supported?)
+             "web-speech-synthesis-supported? rejects broken synthesis surface")
+(js-eval "__wrSpeechBoundaryInstallSynthesis('none');")
+
+(check-false (speech-utterance? (fake-utterance "text"))
+             "speech-utterance? rejects missing text")
+(check-false (speech-utterance? (fake-utterance "lang"))
+             "speech-utterance? rejects missing lang")
+(check-false (speech-utterance? (fake-utterance "volume"))
+             "speech-utterance? rejects missing volume")
+(check-false (speech-utterance? (fake-utterance "rate"))
+             "speech-utterance? rejects missing rate")
+(check-false (speech-utterance? (fake-utterance "pitch"))
+             "speech-utterance? rejects missing pitch")
+(check-false (speech-utterance? (fake-utterance "voice"))
+             "speech-utterance? rejects missing voice")
+(check-false (speech-utterance? (fake-utterance "onend"))
+             "speech-utterance? rejects missing onend")
+(check-false (speech-utterance? (fake-utterance "onerror"))
+             "speech-utterance? rejects missing onerror")
+
+(check-false (speech-voice? (fake-voice "name"))
+             "speech-voice? rejects missing name")
+(check-false (speech-voice? (fake-voice "lang"))
+             "speech-voice? rejects missing lang")
+(check-false (speech-voice? (fake-voice "default"))
+             "speech-voice? rejects missing default")
+(check-false (speech-voice? (fake-voice "localService"))
+             "speech-voice? rejects missing localService")
+(check-false (speech-voice? (fake-voice "voiceURI"))
+             "speech-voice? rejects missing voiceURI")
 
 (define speak-message
   (catch-message
