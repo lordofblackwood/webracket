@@ -86,6 +86,12 @@
 ;; intersection-observer? : any/c -> boolean?
 ;;   Report whether v is a wrapped IntersectionObserver value.
 (define (intersection-observer? v)
+  (and (intersection-observer-host-value? v)
+       (intersection-observer-core-methods-present? (intersection-observer-raw v))))
+
+;; intersection-observer-host-value? : any/c -> boolean?
+;;   Report whether v wraps an external IntersectionObserver-like host value.
+(define (intersection-observer-host-value? v)
   (and (intersection-observer-info? v)
        (intersection-observer-supported?)
        (intersection-observer-raw-host-value? (intersection-observer-raw v))
@@ -98,6 +104,13 @@
        (let ([method (js-ref/extern raw method-name)])
          (and (not (js-nullish? method))
               (string=? (js-typeof method) "function")))))
+
+;; intersection-observer-core-methods-present? : external/raw -> boolean?
+;;   Report whether raw has the required IntersectionObserver methods.
+(define (intersection-observer-core-methods-present? raw)
+  (and (intersection-observer-host-method-present? raw "observe")
+       (intersection-observer-host-method-present? raw "unobserve")
+       (intersection-observer-host-method-present? raw "disconnect")))
 
 ;; intersection-observer-raw-host-value? : any/c -> boolean?
 ;;   Report whether raw is a non-nullish external host value.
@@ -229,7 +242,7 @@
 ;; intersection-observer-observe! : intersection-observer-info? (or/c dom-element? external?) -> void?
 ;;   Start observing a target element.
 (define (intersection-observer-observe! observer target)
-  (unless (intersection-observer? observer)
+  (unless (intersection-observer-host-value? observer)
     (raise-argument-error 'intersection-observer-observe! "intersection-observer-info?" observer))
   (check-intersection-observer-host-method 'intersection-observer-observe! observer "observe")
   (js-send/extern/nullish (intersection-observer-raw observer)
@@ -240,7 +253,7 @@
 ;; intersection-observer-unobserve! : intersection-observer-info? (or/c dom-element? external?) -> void?
 ;;   Stop observing a target element.
 (define (intersection-observer-unobserve! observer target)
-  (unless (intersection-observer? observer)
+  (unless (intersection-observer-host-value? observer)
     (raise-argument-error 'intersection-observer-unobserve! "intersection-observer-info?" observer))
   (check-intersection-observer-host-method 'intersection-observer-unobserve! observer "unobserve")
   (js-send/extern/nullish (intersection-observer-raw observer)
@@ -251,7 +264,7 @@
 ;; intersection-observer-disconnect! : intersection-observer-info? -> void?
 ;;   Disconnect the observer from all targets.
 (define (intersection-observer-disconnect! observer)
-  (unless (intersection-observer? observer)
+  (unless (intersection-observer-host-value? observer)
     (raise-argument-error 'intersection-observer-disconnect! "intersection-observer-info?" observer))
   (check-intersection-observer-host-method 'intersection-observer-disconnect! observer "disconnect")
   (js-send/extern/nullish (intersection-observer-raw observer) "disconnect" (vector))

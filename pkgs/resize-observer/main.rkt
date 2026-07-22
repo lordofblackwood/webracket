@@ -56,6 +56,12 @@
   raw)
 
 (define (resize-observer? v)
+  (and (resize-observer-host-value? v)
+       (resize-observer-core-methods-present? (resize-observer-raw v))))
+
+;; resize-observer-host-value? : any/c -> boolean?
+;;   Report whether v wraps an external ResizeObserver-like host value.
+(define (resize-observer-host-value? v)
   (and (resize-observer-info? v)
        (resize-observer-supported?)
        (resize-observer-raw-host-value? (resize-observer-raw v))
@@ -68,6 +74,13 @@
        (let ([method (js-ref/extern raw method-name)])
          (and (not (js-nullish? method))
               (string=? (js-typeof method) "function")))))
+
+;; resize-observer-core-methods-present? : external/raw -> boolean?
+;;   Report whether raw has the required ResizeObserver methods.
+(define (resize-observer-core-methods-present? raw)
+  (and (resize-observer-host-method-present? raw "observe")
+       (resize-observer-host-method-present? raw "unobserve")
+       (resize-observer-host-method-present? raw "disconnect")))
 
 ;; resize-observer-raw-host-value? : any/c -> boolean?
 ;;   Report whether raw is a non-nullish external host value.
@@ -149,7 +162,7 @@
                     callback)))))
 
 (define (resize-observer-observe! observer target [options #f])
-  (unless (resize-observer? observer)
+  (unless (resize-observer-host-value? observer)
     (raise-argument-error 'resize-observer-observe! "resize-observer-info?" observer))
   (check-resize-observer-host-method 'resize-observer-observe! observer "observe")
   (unless (or (eq? options #f) (resize-observer-options? options))
@@ -164,7 +177,7 @@
   (void))
 
 (define (resize-observer-unobserve! observer target)
-  (unless (resize-observer? observer)
+  (unless (resize-observer-host-value? observer)
     (raise-argument-error 'resize-observer-unobserve! "resize-observer-info?" observer))
   (check-resize-observer-host-method 'resize-observer-unobserve! observer "unobserve")
   (js-send/extern/nullish (resize-observer-raw observer)
@@ -173,7 +186,7 @@
   (void))
 
 (define (resize-observer-disconnect! observer)
-  (unless (resize-observer? observer)
+  (unless (resize-observer-host-value? observer)
     (raise-argument-error 'resize-observer-disconnect! "resize-observer-info?" observer))
   (check-resize-observer-host-method 'resize-observer-disconnect! observer "disconnect")
   (js-send/extern/nullish (resize-observer-raw observer) "disconnect" (vector))

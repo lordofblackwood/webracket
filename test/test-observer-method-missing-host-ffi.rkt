@@ -241,6 +241,18 @@
                           "')"))
   (catch-message thunk))
 
+(define (fake-intersection-observer missing-method)
+  (js-eval (string-append "__wrObserverBoundaryInstallIntersection('"
+                          missing-method
+                          "')"))
+  (make-intersection-observer callback))
+
+(define (fake-resize-observer missing-method)
+  (js-eval (string-append "__wrObserverBoundaryInstallResize('"
+                          missing-method
+                          "')"))
+  (make-resize-observer callback))
+
 (define (missing-intersection-constructor-message thunk)
   (js-eval "__wrObserverBoundaryHideIntersection();")
   (define message (catch-message thunk))
@@ -285,13 +297,29 @@
    (lambda ()
      (make-resize-observer callback))))
 
+(check-true (intersection-observer? (fake-intersection-observer "none"))
+            "intersection-observer? accepts complete fake observer")
+(check-true (not (intersection-observer? (fake-intersection-observer "observe")))
+            "intersection-observer? rejects missing observe")
+(check-true (not (intersection-observer? (fake-intersection-observer "unobserve")))
+            "intersection-observer? rejects missing unobserve")
+(check-true (not (intersection-observer? (fake-intersection-observer "disconnect")))
+            "intersection-observer? rejects missing disconnect")
+
+(check-true (resize-observer? (fake-resize-observer "none"))
+            "resize-observer? accepts complete fake observer")
+(check-true (not (resize-observer? (fake-resize-observer "observe")))
+            "resize-observer? rejects missing observe")
+(check-true (not (resize-observer? (fake-resize-observer "unobserve")))
+            "resize-observer? rejects missing unobserve")
+(check-true (not (resize-observer? (fake-resize-observer "disconnect")))
+            "resize-observer? rejects missing disconnect")
+
 (define intersection-observe-message
   (missing-intersection-message
    "observe"
    (lambda ()
      (define observer (make-intersection-observer callback))
-     (check-true (intersection-observer? observer)
-                 "intersection-observer? accepts fake host observer")
      (intersection-observer-observe! observer target))))
 
 (define intersection-unobserve-message
@@ -313,8 +341,6 @@
    "observe"
    (lambda ()
      (define observer (make-resize-observer callback))
-     (check-true (resize-observer? observer)
-                 "resize-observer? accepts fake host observer")
      (resize-observer-observe! observer target))))
 
 (define resize-unobserve-message
