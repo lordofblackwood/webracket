@@ -1264,8 +1264,24 @@ globalThis.mountWebRacketVFSAsync = (entries) => mountWebRacketVFSAsync(webracke
 await mountWebRacketVFSAsync(webracketVFS, globalThis.WebRacketVFSMounts);
 await preloadWebRacketVFSAsync(webracketVFS, globalThis.WebRacketVFSPreload);
 
+function memory_uint8array() {
+  return new hostUint8Array(memory.buffer);
+}
+
+function memory_bytes_slice(start, end) {
+  return hostUint8ArraySlice.call(memory_uint8array(), start, end);
+}
+
+function memory_bytes_set(bytes, start) {
+  hostUint8ArraySet.call(memory_uint8array(), bytes, start);
+}
+
+function uint8array_bytes_slice(bytes, start, end) {
+  return hostUint8ArraySlice.call(bytes, start, end);
+}
+
 function vfs_path_from_memory(start, len) {
-  const bytes = new hostUint8Array(memory.buffer).slice(start, start + len);
+  const bytes = memory_bytes_slice(start, start + len);
   return new TextDecoder().decode(bytes);
 }
 
@@ -1295,7 +1311,7 @@ function fasl_to_js_value(arr, i = 0) {
 
   function read_bytes() {
     const len = u32();
-    const b = arr.slice(i, i + len);
+    const b = uint8array_bytes_slice(arr, i, i + len);
     i += len;
     return b;
   }
@@ -2165,7 +2181,7 @@ export function make_callback(id) {
             if (fasl.length > CALLBACK_BUFFER_LENGTH) {
                 throw new RangeError('WebRacket callback argument FASL exceeds callback buffer');
             }
-            new hostUint8Array(memory.buffer).set(fasl, CALLBACK_BUFFER_BASE);
+            memory_bytes_set(fasl, CALLBACK_BUFFER_BASE);
             const len = callback_export(id, CALLBACK_BUFFER_BASE);
             const [ok, payload] =
                 fasl_to_js_value(new hostUint8Array(memory.buffer, CALLBACK_BUFFER_BASE, len))[0];
@@ -2224,7 +2240,7 @@ function to_fasl(v) {
   if (fasl.length > CALLBACK_BUFFER_LENGTH) {
     throw new RangeError('WebRacket FASL value exceeds callback buffer');
   }
-  new hostUint8Array(memory.buffer).set(fasl, CALLBACK_BUFFER_BASE);
+  memory_bytes_set(fasl, CALLBACK_BUFFER_BASE);
   return CALLBACK_BUFFER_BASE
 }
 
@@ -2255,7 +2271,7 @@ function wr_invoke_fasl(exported, payload) {
   if (fasl.length > CALLBACK_BUFFER_LENGTH) {
     throw new RangeError('WebRacket console bridge FASL exceeds callback buffer');
   }
-  new hostUint8Array(memory.buffer).set(fasl, CALLBACK_BUFFER_BASE);
+  memory_bytes_set(fasl, CALLBACK_BUFFER_BASE);
   const len = exported(CALLBACK_BUFFER_BASE);
   return fasl_to_js_value(new hostUint8Array(memory.buffer, CALLBACK_BUFFER_BASE, len))[0];
 }
@@ -2593,6 +2609,13 @@ const wasmModule
 	      const hostArray = Array;
 	      const hostUint8Array = Uint8Array;
 	      const hostUint8ArrayFrom = Uint8Array.from.bind(Uint8Array);
+	      const hostUint8ArrayPrototype = hostUint8Array && hostUint8Array.prototype;
+	      const hostUint8ArraySlice = hostUint8ArrayPrototype && hostUint8ArrayPrototype.slice;
+	      const hostUint8ArraySet = hostUint8ArrayPrototype && hostUint8ArrayPrototype.set;
+	      if (typeof hostUint8ArraySlice !== 'function' ||
+	          typeof hostUint8ArraySet !== 'function') {
+	          throw new Error('WebRacket requires Uint8Array slice/set.');
+	      }
 
 	      const wasmBuffer = await fs.readFile("@|out.wasm|");
       @|(if core-out
@@ -2663,6 +2686,13 @@ const wasmModule
 	       const hostArray = Array;
 	       const hostUint8Array = Uint8Array;
 	       const hostUint8ArrayFrom = Uint8Array.from.bind(Uint8Array);
+	       const hostUint8ArrayPrototype = hostUint8Array && hostUint8Array.prototype;
+	       const hostUint8ArraySlice = hostUint8ArrayPrototype && hostUint8ArrayPrototype.slice;
+	       const hostUint8ArraySet = hostUint8ArrayPrototype && hostUint8ArrayPrototype.set;
+	       if (typeof hostUint8ArraySlice !== 'function' ||
+	           typeof hostUint8ArraySet !== 'function') {
+	           throw new Error('WebRacket requires Uint8Array slice/set.');
+	       }
 	       const wasmUrl = "@|out.wasm|";
        const wasmResponse = await fetch(wasmUrl);
        if (!wasmResponse.ok) {

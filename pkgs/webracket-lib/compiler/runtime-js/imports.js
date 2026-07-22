@@ -21,6 +21,9 @@ const hostMath = Math;
 const hostDate = Date;
 const hostRegExp = typeof RegExp === 'undefined' ? null : RegExp;
 const hostImportUint8Array = Uint8Array;
+const hostImportUint8ArrayPrototype = hostImportUint8Array && hostImportUint8Array.prototype;
+const hostImportUint8ArraySlice = hostImportUint8ArrayPrototype && hostImportUint8ArrayPrototype.slice;
+const hostImportUint8ArraySet = hostImportUint8ArrayPrototype && hostImportUint8ArrayPrototype.set;
 const hostMathTrunc = typeof hostMath.trunc === 'function'
   ? hostMath.trunc.bind(hostMath)
   : null;
@@ -95,6 +98,10 @@ if (typeof hostBooleanValueOf !== 'function') {
 }
 if (typeof hostRegExpTest !== 'function') {
   throw new hostError('RegExp.test not available in this environment');
+}
+if (typeof hostImportUint8ArraySlice !== 'function' ||
+    typeof hostImportUint8ArraySet !== 'function') {
+  throw new hostError('Uint8Array slice/set not available in this environment');
 }
 if (!hostMathTrunc || !hostMathFloor || !hostMathMax) {
   throw new hostError('Math.trunc/floor/max not available in this environment');
@@ -603,6 +610,18 @@ function single_codepoint_or_original(cp, s) {
 
 function host_regexp_test(re, s) {
   return hostRegExpTest.call(re, s);
+}
+
+function primitive_memory_uint8array() {
+  return new hostImportUint8Array(memory.buffer);
+}
+
+function primitive_memory_bytes_slice(start, end) {
+  return hostImportUint8ArraySlice.call(primitive_memory_uint8array(), start, end);
+}
+
+function primitive_memory_bytes_set(bytes, start) {
+  hostImportUint8ArraySet.call(primitive_memory_uint8array(), bytes, start);
 }
 
 function call_js_method(obj, name, args, who) {
@@ -1288,7 +1307,7 @@ var imports = {
       'make_callback': make_callback,
       'js_output':   ((x)   => output_string.push(x)),
       'js_print_fasl': ((start, len) => {
-        const bytes = new hostImportUint8Array(memory.buffer).slice(start, start + len);
+        const bytes = primitive_memory_bytes_slice(start, start + len);
         const [v] = fasl_to_js_value(bytes);
         call_console_fallback('log', null, [v]);
       }),
@@ -1405,7 +1424,7 @@ var imports = {
           ];
           const bytes = js_value_to_fasl(payload);
           if (bytes.length > outMax) return -2;
-          new hostImportUint8Array(memory.buffer).set(bytes, outStart);
+          primitive_memory_bytes_set(bytes, outStart);
           return bytes.length;
         } catch (_) {
           return -1;
@@ -1415,7 +1434,7 @@ var imports = {
         try {
           const bytes = webracketVFS.readFile(vfs_path_from_memory(pathStart, pathLen));
           if (bytes.length > outMax) return -2;
-          new hostImportUint8Array(memory.buffer).set(bytes, outStart);
+          primitive_memory_bytes_set(bytes, outStart);
           return bytes.length;
         } catch (_) {
           return -1;
@@ -1423,7 +1442,7 @@ var imports = {
       }),
       'vfs_write_file': ((pathStart, pathLen, bytesStart, bytesLen) => {
         try {
-          const bytes = new hostImportUint8Array(memory.buffer).slice(bytesStart, bytesStart + bytesLen);
+          const bytes = primitive_memory_bytes_slice(bytesStart, bytesStart + bytesLen);
           webracketVFS.writeFile(vfs_path_from_memory(pathStart, pathLen), bytes);
           return 0;
         } catch (_) {
@@ -1482,7 +1501,7 @@ var imports = {
         try {
           const bytes = js_value_to_fasl(webracketVFS.rootList());
           if (bytes.length > outMax) return -2;
-          new hostImportUint8Array(memory.buffer).set(bytes, outStart);
+          primitive_memory_bytes_set(bytes, outStart);
           return bytes.length;
         } catch (_) {
           return -1;
@@ -1493,7 +1512,7 @@ var imports = {
           const names = webracketVFS.listDir(vfs_path_from_memory(pathStart, pathLen));
           const bytes = js_value_to_fasl(names);
           if (bytes.length > outMax) return -2;
-          new hostImportUint8Array(memory.buffer).set(bytes, outStart);
+          primitive_memory_bytes_set(bytes, outStart);
           return bytes.length;
         } catch (_) {
           return -1;

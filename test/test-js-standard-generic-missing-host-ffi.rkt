@@ -13,7 +13,10 @@
                   js-send/flonum
                   js-truthy?
                   js-undefined?
-                  js-value->string))
+                  js-value->string)
+         (only-in webracket/primitives
+                  file->bytes
+                  webracket-vfs-write-file))
 
 (define (check-true got label)
   (unless got
@@ -336,6 +339,30 @@
                    (exact-integer? (hash-ref stat 'inode)))
               label))
 
+(define vfs-uint8array-check-counter 0)
+
+;; check-vfs-uint8array-intrinsics : string? -> void?
+;;   Check VFS memory copies through cached Uint8Array intrinsics.
+(define (check-vfs-uint8array-intrinsics label)
+  (set! vfs-uint8array-check-counter
+        (add1 vfs-uint8array-check-counter))
+  (define n vfs-uint8array-check-counter)
+  (define path
+    (string-append "/tmp/webracket-uint8array-boundary-"
+                   (number->string n)
+                   ".txt"))
+  (define payload
+    (string->bytes/utf-8
+     (string-append "uint8array-boundary-"
+                    (number->string n))))
+  (webracket-vfs-write-file path payload)
+  (define stat (file-or-directory-stat path))
+  (check-true (and (equal? (file->bytes path) payload)
+                   (hash? stat)
+                   (equal? (hash-ref stat 'size)
+                           (bytes-length payload)))
+              label))
+
 ;; check-character-intrinsics : string? -> void?
 ;;   Check character operations that depend on cached JS string/array intrinsics.
 (define (check-character-intrinsics label)
@@ -478,6 +505,23 @@
                                                                        (js-eval "Array")))
                                                    "constructor checks with hidden Reflect.construct"))
                                      "constructor checks survive hidden Reflect.construct")
+
+(check-hidden-global/no-error "Uint8Array"
+                              (lambda () (check-vfs-uint8array-intrinsics
+                                          "VFS copies with hidden Uint8Array global"))
+                              "VFS copies survive hidden Uint8Array global")
+
+(check-hidden-prototype-method/no-error "Uint8Array"
+                                        "slice"
+                                        (lambda () (check-vfs-uint8array-intrinsics
+                                                    "VFS copies with hidden Uint8Array.prototype.slice"))
+                                        "VFS copies survive hidden Uint8Array.prototype.slice")
+
+(check-hidden-prototype-method/no-error "Uint8Array"
+                                        "set"
+                                        (lambda () (check-vfs-uint8array-intrinsics
+                                                    "VFS copies with hidden Uint8Array.prototype.set"))
+                                        "VFS copies survive hidden Uint8Array.prototype.set")
 
 (js-eval "__wrStandardGenericBoundaryRestoreAll();")
 
