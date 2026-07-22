@@ -6,6 +6,7 @@
          (only-in webracket/unsafe/array
                   js-undefined
                   js-nullish?
+                  js-truthy?
                   js-ref/extern
                   js-ref
                   js-send
@@ -196,6 +197,35 @@
   (check-iterator-host-method who object-ctor "Object" method-name)
   object-ctor)
 
+;; iterator-result-host-value? : any/c -> boolean?
+;;   Report whether value is an object-like JavaScript iterator result.
+(define (iterator-result-host-value? value)
+  (and (external? value)
+       (not (js-nullish? value))
+       (let ([kind (js-typeof value)])
+         (or (string=? kind "object")
+             (string=? kind "function")))))
+
+;; check-iterator-result : symbol? string? any/c -> external/raw
+;;   Return value after checking that it is an object-like iterator result.
+(define (check-iterator-result who method-name value)
+  (unless (iterator-result-host-value? value)
+    (raise-arguments-error who
+                           (string-append "Iterator."
+                                          method-name
+                                          " result must be an object")))
+  value)
+
+;; iterator-step-done? : external/raw -> boolean?
+;;   Read an iterator result's done flag using JavaScript truthiness.
+(define (iterator-step-done? step)
+  (js-truthy? (js-ref/extern step "done")))
+
+;; iterator-step-value : external/raw -> any/c
+;;   Read an iterator result's value field.
+(define (iterator-step-value step)
+  (js-ref step "value"))
+
 ;; iterable? : any/c -> boolean?
 ;;   Check whether a value has a callable [Symbol.iterator] method.
 (define (iterable? value)
@@ -244,9 +274,9 @@
 (define (iterator-collect-list iter)
   (let loop ([acc '()])
     (define step (iterator-next iter))
-    (if (js-ref step "done")
+    (if (iterator-step-done? step)
         (reverse acc)
-        (loop (cons (js-ref step "value") acc)))))
+        (loop (cons (iterator-step-value step) acc)))))
 
 ;; iterator-entry-key : (or/c vector? list?) -> any/c
 ;;   Read the key from an Object.entries entry.
@@ -332,11 +362,11 @@
           (iterator-result (js-undefined) #t)]
          [else
           (define step (iterator-next (list-ref sources current)))
-          (if (js-ref step "done")
+          (if (iterator-step-done? step)
               (begin
                 (set! current (add1 current))
                 (loop))
-              (iterator-result (js-ref step "value") #f))])))))
+              (iterator-result (iterator-step-value step) #f))])))))
 
 ;; iterator-zip : iterable? [or/c #f iterator-zip-options?] -> iterator?
 ;;   Zip a collection of iterables into a new Iterator.
@@ -357,13 +387,13 @@
         (iterator-result (js-undefined) #t)]
        [else
         (define steps (map iterator-next sources))
-        (if (ormap (lambda (step) (js-ref step "done")) steps)
+        (if (ormap iterator-step-done? steps)
             (begin
               (set! done? #t)
               (iterator-result (js-undefined) #t))
             (iterator-result
              (js-array/extern (list->vector (map (lambda (step)
-                                                   (js-ref step "value"))
+                                                   (iterator-step-value step))
                                                  steps)))
              #f))]))))
 
@@ -396,7 +426,7 @@
           (map (lambda (entry)
                  (cons (car entry) (iterator-next (cdr entry))))
                entries))
-        (if (ormap (lambda (entry) (js-ref (cdr entry) "done")) steps)
+        (if (ormap (lambda (entry) (iterator-step-done? (cdr entry))) steps)
             (begin
               (set! done? #t)
               (iterator-result (js-undefined) #t))
@@ -404,7 +434,7 @@
              (js-object (list->vector
                          (map (lambda (entry)
                                 (vector (car entry)
-                                        (js-ref (cdr entry) "value")))
+                                        (iterator-step-value (cdr entry))))
                               steps)))
              #f))]))))
 
@@ -414,7 +444,9 @@
   (unless (iterator? iter)
     (raise-argument-error 'iterator-next "iterator?" iter))
   (check-iterator-host-method 'iterator-next (iterator-raw iter) "Iterator" "next")
-  (js-send (iterator-raw iter) "next" (vector)))
+  (check-iterator-result 'iterator-next
+                         "next"
+                         (js-send/extern (iterator-raw iter) "next" (vector))))
 
 ;; iterator-return : iterator? [any/c] -> external/raw
 ;;   Ask an Iterator to finish early and return a final result.
@@ -422,7 +454,11 @@
   (unless (iterator? iter)
     (raise-argument-error 'iterator-return "iterator?" iter))
   (if (iterator-host-method-present? (iterator-raw iter) "return")
-      (js-send/extern (iterator-raw iter) "return" (vector value))
+      (check-iterator-result 'iterator-return
+                             "return"
+                             (js-send/extern (iterator-raw iter)
+                                             "return"
+                                             (vector value)))
       (iterator-result value #t)))
 
 ;; iterator-dispose! : iterator? -> void?
@@ -431,7 +467,11 @@
   (unless (iterator? iter)
     (raise-argument-error 'iterator-dispose! "iterator?" iter))
   (when (iterator-host-method-present? (iterator-raw iter) "return")
-    (js-send/value (iterator-raw iter) "return" (vector)))
+    (check-iterator-result 'iterator-dispose!
+                           "return"
+                           (js-send/extern (iterator-raw iter)
+                                           "return"
+                                           (vector))))
   (void))
 
 ;; iterator-symbol-iterator : iterator? -> iterator?
@@ -456,16 +496,16 @@
        (cond
          [(< skipped count)
           (define step (iterator-next source))
-          (if (js-ref step "done")
+          (if (iterator-step-done? step)
               (iterator-result (js-undefined) #t)
               (begin
                 (set! skipped (add1 skipped))
                 (loop)))]
          [else
           (define step (iterator-next source))
-          (if (js-ref step "done")
+          (if (iterator-step-done? step)
               (iterator-result (js-undefined) #t)
-              (iterator-result (js-ref step "value") #f))])))))
+              (iterator-result (iterator-step-value step) #f))])))))
 
 ;; iterator-every : iterator? (or/c procedure? external?) [any/c] -> boolean?
 ;;   Check whether every iterated value satisfies a predicate.
@@ -475,10 +515,10 @@
   (define source (iterator-from iter))
   (let loop ([index 0])
     (define step (iterator-next source))
-    (if (js-ref step "done")
+    (if (iterator-step-done? step)
         #t
         (and (iterator-call/callback callback
-                                     (list (js-ref step "value")
+                                     (list (iterator-step-value step)
                                            index
                                            source)
                                      this-arg)
@@ -495,13 +535,13 @@
      (let loop ([index 0])
        (define step (iterator-next source))
        (cond
-         [(js-ref step "done") (iterator-result (js-undefined) #t)]
+         [(iterator-step-done? step) (iterator-result (js-undefined) #t)]
          [(iterator-call/callback callback
-                                  (list (js-ref step "value")
+                                  (list (iterator-step-value step)
                                         index
                                         source)
                                   this-arg)
-          (iterator-result (js-ref step "value") #f)]
+          (iterator-result (iterator-step-value step) #f)]
          [else (loop (add1 index))])))))
 
 ;; iterator-find : iterator? (or/c procedure? external?) [any/c] -> any/c
@@ -513,13 +553,13 @@
   (let loop ([index 0])
     (define step (iterator-next source))
     (cond
-      [(js-ref step "done") #f]
+      [(iterator-step-done? step) #f]
       [(iterator-call/callback callback
-                               (list (js-ref step "value")
+                               (list (iterator-step-value step)
                                      index
                                      source)
                                this-arg)
-       (js-ref step "value")]
+       (iterator-step-value step)]
       [else (loop (add1 index))])))
 
 ;; iterator-flat-map : iterator? (or/c procedure? external?) [any/c] -> iterator?
@@ -535,19 +575,19 @@
        (cond
          [inner
           (define inner-step (iterator-next inner))
-          (if (js-ref inner-step "done")
+          (if (iterator-step-done? inner-step)
               (begin
                 (set! inner #f)
                 (loop index))
-              (iterator-result (js-ref inner-step "value") #f))]
+              (iterator-result (iterator-step-value inner-step) #f))]
          [else
           (define step (iterator-next source))
           (cond
-            [(js-ref step "done")
+            [(iterator-step-done? step)
              (iterator-result (js-undefined) #t)]
             [else
              (define mapped (iterator-call/callback callback
-                                                    (list (js-ref step "value")
+                                                    (list (iterator-step-value step)
                                                           index
                                                           source)
                                                     this-arg))
@@ -562,9 +602,9 @@
   (define source (iterator-from iter))
   (let loop ([index 0])
     (define step (iterator-next source))
-    (unless (js-ref step "done")
+    (unless (iterator-step-done? step)
       (void (iterator-call/callback callback
-                                    (list (js-ref step "value")
+                                    (list (iterator-step-value step)
                                           index
                                           source)
                                     this-arg))
@@ -581,10 +621,10 @@
   (iterator-make
    (lambda ()
      (define step (iterator-next source))
-     (if (js-ref step "done")
+     (if (iterator-step-done? step)
          (iterator-result (js-undefined) #t)
          (let ([mapped (iterator-call/callback callback
-                                                (list (js-ref step "value")
+                                                (list (iterator-step-value step)
                                                       index
                                                       source)
                                                 this-arg)])
@@ -603,7 +643,7 @@
   (let loop ()
     (define step (iterator-next source))
     (cond
-      [(js-ref step "done")
+      [(iterator-step-done? step)
        (if started?
            acc
            (raise-arguments-error 'iterator-reduce
@@ -611,13 +651,13 @@
       [started?
        (set! acc (iterator-call/callback callback
                                          (list acc
-                                               (js-ref step "value")
+                                               (iterator-step-value step)
                                                index
                                                source)))
        (set! index (add1 index))
        (loop)]
       [else
-       (set! acc (js-ref step "value"))
+       (set! acc (iterator-step-value step))
        (set! started? #t)
        (set! index (add1 index))
        (loop)])))
@@ -631,9 +671,9 @@
   (let loop ([index 0])
     (define step (iterator-next source))
     (cond
-      [(js-ref step "done") #f]
+      [(iterator-step-done? step) #f]
       [(iterator-call/callback callback
-                               (list (js-ref step "value")
+                               (list (iterator-step-value step)
                                      index
                                      source)
                                this-arg)
@@ -656,11 +696,11 @@
         (iterator-result (js-undefined) #t)]
        [else
         (define step (iterator-next source))
-        (if (js-ref step "done")
+        (if (iterator-step-done? step)
             (iterator-result (js-undefined) #t)
             (begin
               (set! taken (add1 taken))
-              (iterator-result (js-ref step "value") #f)))]))))
+              (iterator-result (iterator-step-value step) #f)))]))))
 
 ;; iterator->vector : iterator? -> vector?
 ;;   Collect an Iterator into a WebRacket vector.
@@ -670,6 +710,6 @@
   (list->vector
    (let loop ([acc '()] [source (iterator-from iter)])
      (define step (iterator-next source))
-     (if (js-ref step "done")
+     (if (iterator-step-done? step)
          (reverse acc)
-         (loop (cons (js-ref step "value") acc) source)))))
+         (loop (cons (iterator-step-value step) acc) source)))))

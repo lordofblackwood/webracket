@@ -69,6 +69,42 @@
 (define undefined-raw-iterator
   (make-iterator (js-undefined)))
 
+(js-eval
+ "globalThis.__wrIteratorBoundaryNoDoneResult = {
+    i: 0,
+    next() {
+      this.i += 1;
+      if (this.i === 1) return { value: 'first' };
+      return { done: true };
+    }
+  };
+  globalThis.__wrIteratorBoundaryNullNextResult = {
+    next() { return null; }
+  };
+  globalThis.__wrIteratorBoundaryNumberNextResult = {
+    next() { return 42; }
+  };
+  globalThis.__wrIteratorBoundaryNumberReturnResult = {
+    next() { return { done: true }; },
+    return() { return 42; }
+  };")
+
+(define no-done-result-iterator
+  (make-iterator
+   (js-eval "globalThis.__wrIteratorBoundaryNoDoneResult")))
+
+(define null-next-result-iterator
+  (make-iterator
+   (js-eval "globalThis.__wrIteratorBoundaryNullNextResult")))
+
+(define number-next-result-iterator
+  (make-iterator
+   (js-eval "globalThis.__wrIteratorBoundaryNumberNextResult")))
+
+(define number-return-result-iterator
+  (make-iterator
+   (js-eval "globalThis.__wrIteratorBoundaryNumberReturnResult")))
+
 (check-false (iterator? no-next-iterator)
              "iterator? rejects missing next")
 (check-false (iterator? null-raw-iterator)
@@ -81,6 +117,29 @@
              "iterable? rejects wrapped iterator with null raw")
 (check-false (iterable? undefined-raw-iterator)
              "iterable? rejects wrapped iterator with undefined raw")
+(check-equal (iterator-collect-list no-done-result-iterator)
+             '("first")
+             "iterator treats omitted done as false")
+
+(define null-next-result-message
+  (catch-message
+   (lambda ()
+     (iterator-next null-next-result-iterator))))
+
+(define number-next-result-message
+  (catch-message
+   (lambda ()
+     (iterator-next number-next-result-iterator))))
+
+(define number-return-result-message
+  (catch-message
+   (lambda ()
+     (iterator-return number-return-result-iterator))))
+
+(define dispose-return-result-message
+  (catch-message
+   (lambda ()
+     (iterator-dispose! number-return-result-iterator))))
 
 (define no-global-message
   (catch-message
@@ -186,12 +245,30 @@
 (check-message no-next-message
                "Iterator.next is not available"
                "missing Iterator.next message")
+(check-message null-next-result-message
+               "Iterator.next result must be an object"
+               "null Iterator.next result message")
+(check-message number-next-result-message
+               "Iterator.next result must be an object"
+               "number Iterator.next result message")
+(check-message number-return-result-message
+               "Iterator.return result must be an object"
+               "number Iterator.return result message")
+(check-message dispose-return-result-message
+               "Iterator.return result must be an object"
+               "number Iterator.return dispose message")
 (check-equal (js-ref return-result "done") #t "iterator-return fallback done")
 (check-equal (js-ref return-result "value") "finished" "iterator-return fallback value")
 (check-equal dispose-message #f "iterator-dispose! ignores missing return")
 (check-message object-entries-message
                "Object.entries is not available"
                "missing Object.entries message")
+
+(js-eval
+ "delete globalThis.__wrIteratorBoundaryNoDoneResult;
+  delete globalThis.__wrIteratorBoundaryNullNextResult;
+  delete globalThis.__wrIteratorBoundaryNumberNextResult;
+  delete globalThis.__wrIteratorBoundaryNumberReturnResult;")
 
 (js-log "js-iterator-method-missing-host-ffi-ok")
 #t
