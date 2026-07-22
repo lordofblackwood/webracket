@@ -2,7 +2,10 @@
 
 ;; Browser smoke for optional/deprecated document host functions.
 
-(require (only-in webracket/unsafe/document
+(require (only-in browser/document
+                  dom-document
+                  dom-document?)
+         (only-in webracket/unsafe/document
                   js-adopt-node
                   js-caret-range-from-point
                   js-close
@@ -48,6 +51,10 @@
   (unless got
     (error 'check-true label)))
 
+(define (check-false got label)
+  (when got
+    (error 'check-false label)))
+
 (define (catch-message thunk)
   (with-handlers ([exn:fail? exn-message])
     (thunk)
@@ -68,7 +75,15 @@
               label))
 
 (define js-null (js-eval "null"))
+(define js-undefined (js-eval "undefined"))
 (define js-document (js-eval "document"))
+(define raw-null-document (dom-document js-null))
+(define raw-undefined-document (dom-document js-undefined))
+
+(check-false (dom-document? raw-null-document)
+             "dom-document? rejects null raw")
+(check-false (dom-document? raw-undefined-document)
+             "dom-document? rejects undefined raw")
 
 (js-eval
  "globalThis.__wrDocumentValueBoundaryNames = [

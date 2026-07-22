@@ -3,7 +3,8 @@
 (require browser/element
          webracket/unsafe/document)
 
-(provide (all-defined-out)
+(provide (except-out (all-defined-out) dom-document?)
+         (rename-out [dom-document/surface? dom-document?])
          (all-from-out webracket/unsafe/document))
 
 ;;;
@@ -21,6 +22,12 @@
 ;; dom-document : external/raw -> dom-document?
 ;;   Wrap a browser Document object.
 (struct dom-document (raw) #:transparent)
+
+;; dom-document/surface? : any/c -> boolean?
+;;   Check whether value is a Document wrapper with a usable host value.
+(define (dom-document/surface? value)
+  (and (dom-document? value)
+       (shared-dom-raw-host-value? (dom-document-raw value))))
 
 ;; Document : -> dom-document?
 ;;   Read the current document object.
