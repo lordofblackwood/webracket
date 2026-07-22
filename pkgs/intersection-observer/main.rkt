@@ -18,7 +18,9 @@
                   external?
                   procedure->external))
 
-(provide (all-defined-out))
+(provide (except-out (all-defined-out)
+                     intersection-observer-entry-info?
+                     intersection-observer-entry-info-raw))
 
 ;;;
 ;;; IntersectionObserver wrappers
@@ -30,7 +32,9 @@
 
 ;; intersection-observer-entry : external/raw -> intersection-observer-entry?
 ;;   Wrap a browser IntersectionObserverEntry object.
-(struct intersection-observer-entry (raw) #:transparent)
+(struct intersection-observer-entry-info (raw)
+  #:transparent
+  #:constructor-name intersection-observer-entry)
 
 ;; observer-element-raw/checked : symbol? dom-element? -> external/raw
 ;;   Validate and unwrap a DOM element before passing it to observer host calls.
@@ -83,6 +87,11 @@
 (define (intersection-observer-raw value)
   (intersection-observer-info-raw value))
 
+;; intersection-observer-entry-raw : intersection-observer-entry? -> external/raw
+;;   Extract the raw browser IntersectionObserverEntry object.
+(define (intersection-observer-entry-raw value)
+  (intersection-observer-entry-info-raw value))
+
 ;; intersection-observer? : any/c -> boolean?
 ;;   Report whether v is a wrapped IntersectionObserver value.
 (define (intersection-observer? v)
@@ -118,6 +127,43 @@
   (and (external? raw)
        (not (js-nullish? raw))))
 
+;; intersection-observer-entry-host-value? : any/c -> boolean?
+;;   Report whether value wraps a non-null IntersectionObserverEntry-like host value.
+(define (intersection-observer-entry-host-value? value)
+  (and (intersection-observer-entry-info? value)
+       (intersection-observer-raw-host-value?
+        (intersection-observer-entry-raw value))))
+
+;; intersection-observer-entry-non-null-property-present? : external/raw string? -> boolean?
+;;   Report whether raw exposes a non-nullish entry property.
+(define (intersection-observer-entry-non-null-property-present? raw property-name)
+  (and (intersection-observer-raw-host-value? raw)
+       (not (js-nullish? (js-ref/extern raw property-name)))))
+
+;; intersection-observer-entry-nullable-property-present? : external/raw string? -> boolean?
+;;   Report whether raw exposes an entry property, allowing null values.
+(define (intersection-observer-entry-nullable-property-present? raw property-name)
+  (and (intersection-observer-raw-host-value? raw)
+       (not (js-undefined? (js-ref/extern raw property-name)))))
+
+;; intersection-observer-entry-core-properties-present? : external/raw -> boolean?
+;;   Report whether raw has the required IntersectionObserverEntry properties.
+(define (intersection-observer-entry-core-properties-present? raw)
+  (and (intersection-observer-entry-non-null-property-present? raw "target")
+       (intersection-observer-entry-non-null-property-present? raw "isIntersecting")
+       (intersection-observer-entry-non-null-property-present? raw "intersectionRatio")
+       (intersection-observer-entry-non-null-property-present? raw "boundingClientRect")
+       (intersection-observer-entry-non-null-property-present? raw "intersectionRect")
+       (intersection-observer-entry-nullable-property-present? raw "rootBounds")
+       (intersection-observer-entry-non-null-property-present? raw "time")))
+
+;; intersection-observer-entry? : any/c -> boolean?
+;;   Report whether value is a usable wrapped IntersectionObserverEntry value.
+(define (intersection-observer-entry? value)
+  (and (intersection-observer-entry-host-value? value)
+       (intersection-observer-entry-core-properties-present?
+        (intersection-observer-entry-raw value))))
+
 ;; check-intersection-observer-host-method : symbol? intersection-observer-info? string? -> void?
 ;;   Ensure a required IntersectionObserver host method is available.
 (define (check-intersection-observer-host-method who observer method-name)
@@ -132,6 +178,15 @@
 ;;   Ensure a required IntersectionObserverEntry property is available.
 (define (check-intersection-observer-entry-property who entry property-name)
   (when (js-undefined? (js-ref/extern (intersection-observer-entry-raw entry) property-name))
+    (raise-arguments-error who
+                           (string-append "IntersectionObserverEntry."
+                                          property-name
+                                          " is not available"))))
+
+;; check-intersection-observer-entry-non-null-property : symbol? intersection-observer-entry? string? -> void?
+;;   Ensure a required non-null IntersectionObserverEntry property is available.
+(define (check-intersection-observer-entry-non-null-property who entry property-name)
+  (when (js-nullish? (js-ref/extern (intersection-observer-entry-raw entry) property-name))
     (raise-arguments-error who
                            (string-append "IntersectionObserverEntry."
                                           property-name
@@ -273,61 +328,55 @@
 ;; intersection-observer-entry-target : intersection-observer-entry? -> dom-element?
 ;;   Read the observed target element.
 (define (intersection-observer-entry-target entry)
-  (unless (and (intersection-observer-entry? entry)
-               (intersection-observer-raw-host-value? (intersection-observer-entry-raw entry)))
+  (unless (intersection-observer-entry-host-value? entry)
     (raise-argument-error 'intersection-observer-entry-target "intersection-observer-entry?" entry))
-  (check-intersection-observer-entry-property 'intersection-observer-entry-target entry "target")
+  (check-intersection-observer-entry-non-null-property 'intersection-observer-entry-target entry "target")
   (element-wrap (js-ref/extern (intersection-observer-entry-raw entry) "target")))
 
 ;; intersection-observer-entry-is-intersecting? : intersection-observer-entry? -> boolean?
 ;;   Report whether the target currently intersects the root.
 (define (intersection-observer-entry-is-intersecting? entry)
-  (unless (and (intersection-observer-entry? entry)
-               (intersection-observer-raw-host-value? (intersection-observer-entry-raw entry)))
+  (unless (intersection-observer-entry-host-value? entry)
     (raise-argument-error 'intersection-observer-entry-is-intersecting? "intersection-observer-entry?" entry))
-  (check-intersection-observer-entry-property 'intersection-observer-entry-is-intersecting?
-                                              entry
-                                              "isIntersecting")
+  (check-intersection-observer-entry-non-null-property 'intersection-observer-entry-is-intersecting?
+                                                       entry
+                                                       "isIntersecting")
   (js-ref (intersection-observer-entry-raw entry) "isIntersecting"))
 
 ;; intersection-observer-entry-intersection-ratio : intersection-observer-entry? -> real?
 ;;   Read the current intersection ratio.
 (define (intersection-observer-entry-intersection-ratio entry)
-  (unless (and (intersection-observer-entry? entry)
-               (intersection-observer-raw-host-value? (intersection-observer-entry-raw entry)))
+  (unless (intersection-observer-entry-host-value? entry)
     (raise-argument-error 'intersection-observer-entry-intersection-ratio "intersection-observer-entry?" entry))
-  (check-intersection-observer-entry-property 'intersection-observer-entry-intersection-ratio
-                                              entry
-                                              "intersectionRatio")
+  (check-intersection-observer-entry-non-null-property 'intersection-observer-entry-intersection-ratio
+                                                       entry
+                                                       "intersectionRatio")
   (js-ref (intersection-observer-entry-raw entry) "intersectionRatio"))
 
 ;; intersection-observer-entry-bounding-client-rect : intersection-observer-entry? -> dom-rect?
 ;;   Read the target bounding rectangle.
 (define (intersection-observer-entry-bounding-client-rect entry)
-  (unless (and (intersection-observer-entry? entry)
-               (intersection-observer-raw-host-value? (intersection-observer-entry-raw entry)))
+  (unless (intersection-observer-entry-host-value? entry)
     (raise-argument-error 'intersection-observer-entry-bounding-client-rect "intersection-observer-entry?" entry))
-  (check-intersection-observer-entry-property 'intersection-observer-entry-bounding-client-rect
-                                              entry
-                                              "boundingClientRect")
+  (check-intersection-observer-entry-non-null-property 'intersection-observer-entry-bounding-client-rect
+                                                       entry
+                                                       "boundingClientRect")
   (dom-rect-wrap (js-ref/extern (intersection-observer-entry-raw entry) "boundingClientRect")))
 
 ;; intersection-observer-entry-intersection-rect : intersection-observer-entry? -> dom-rect?
 ;;   Read the current intersection rectangle.
 (define (intersection-observer-entry-intersection-rect entry)
-  (unless (and (intersection-observer-entry? entry)
-               (intersection-observer-raw-host-value? (intersection-observer-entry-raw entry)))
+  (unless (intersection-observer-entry-host-value? entry)
     (raise-argument-error 'intersection-observer-entry-intersection-rect "intersection-observer-entry?" entry))
-  (check-intersection-observer-entry-property 'intersection-observer-entry-intersection-rect
-                                              entry
-                                              "intersectionRect")
+  (check-intersection-observer-entry-non-null-property 'intersection-observer-entry-intersection-rect
+                                                       entry
+                                                       "intersectionRect")
   (dom-rect-wrap (js-ref/extern (intersection-observer-entry-raw entry) "intersectionRect")))
 
 ;; intersection-observer-entry-root-bounds : intersection-observer-entry? -> (or/c #f dom-rect?)
 ;;   Read the root bounds, if present.
 (define (intersection-observer-entry-root-bounds entry)
-  (unless (and (intersection-observer-entry? entry)
-               (intersection-observer-raw-host-value? (intersection-observer-entry-raw entry)))
+  (unless (intersection-observer-entry-host-value? entry)
     (raise-argument-error 'intersection-observer-entry-root-bounds "intersection-observer-entry?" entry))
   (check-intersection-observer-entry-property 'intersection-observer-entry-root-bounds
                                               entry
@@ -339,8 +388,7 @@
 ;; intersection-observer-entry-time : intersection-observer-entry? -> real?
 ;;   Read the high-resolution timestamp for the observation.
 (define (intersection-observer-entry-time entry)
-  (unless (and (intersection-observer-entry? entry)
-               (intersection-observer-raw-host-value? (intersection-observer-entry-raw entry)))
+  (unless (intersection-observer-entry-host-value? entry)
     (raise-argument-error 'intersection-observer-entry-time "intersection-observer-entry?" entry))
-  (check-intersection-observer-entry-property 'intersection-observer-entry-time entry "time")
+  (check-intersection-observer-entry-non-null-property 'intersection-observer-entry-time entry "time")
   (js-ref (intersection-observer-entry-raw entry) "time"))

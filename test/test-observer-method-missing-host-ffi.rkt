@@ -9,6 +9,7 @@
                   intersection-observer?
                   intersection-observer-disconnect!
                   intersection-observer-entry
+                  intersection-observer-entry?
                   intersection-observer-entry-bounding-client-rect
                   intersection-observer-entry-intersection-ratio
                   intersection-observer-entry-intersection-rect
@@ -26,6 +27,7 @@
                   resize-observer?
                   resize-observer-disconnect!
                   resize-observer-entry
+                  resize-observer-entry?
                   resize-observer-entry-content-rect
                   resize-observer-entry-target
                   resize-observer-observe!
@@ -131,7 +133,15 @@
       rootBounds: null,
       time: 12.5
     };
-    delete entry[missing];
+    if (missing === 'target-null') {
+      entry.target = null;
+    } else if (missing === 'boundingClientRect-null') {
+      entry.boundingClientRect = null;
+    } else if (missing === 'intersectionRect-null') {
+      entry.intersectionRect = null;
+    } else {
+      delete entry[missing];
+    }
     return entry;
   };
   globalThis.__wrObserverBoundaryFakeResizeEntry = (missing) => {
@@ -139,7 +149,13 @@
       target: globalThis.__wrObserverBoundaryTarget,
       contentRect: globalThis.__wrObserverBoundaryRect
     };
-    delete entry[missing];
+    if (missing === 'target-null') {
+      entry.target = null;
+    } else if (missing === 'contentRect-null') {
+      entry.contentRect = null;
+    } else {
+      delete entry[missing];
+    }
     return entry;
   };
   globalThis.__wrObserverBoundaryRestoreIntersection = () => {
@@ -315,6 +331,48 @@
 (check-true (not (resize-observer? (fake-resize-observer "disconnect")))
             "resize-observer? rejects missing disconnect")
 
+(check-true (intersection-observer-entry? (fake-intersection-entry "notAProperty"))
+            "intersection-observer-entry? accepts complete fake entry")
+(check-true (not (intersection-observer-entry? null-raw-intersection-entry))
+            "intersection-observer-entry? rejects null raw")
+(check-true (not (intersection-observer-entry? undefined-raw-intersection-entry))
+            "intersection-observer-entry? rejects undefined raw")
+(check-true (not (intersection-observer-entry? (fake-intersection-entry "target")))
+            "intersection-observer-entry? rejects missing target")
+(check-true (not (intersection-observer-entry? (fake-intersection-entry "target-null")))
+            "intersection-observer-entry? rejects null target")
+(check-true (not (intersection-observer-entry? (fake-intersection-entry "isIntersecting")))
+            "intersection-observer-entry? rejects missing isIntersecting")
+(check-true (not (intersection-observer-entry? (fake-intersection-entry "intersectionRatio")))
+            "intersection-observer-entry? rejects missing intersectionRatio")
+(check-true (not (intersection-observer-entry? (fake-intersection-entry "boundingClientRect")))
+            "intersection-observer-entry? rejects missing boundingClientRect")
+(check-true (not (intersection-observer-entry? (fake-intersection-entry "boundingClientRect-null")))
+            "intersection-observer-entry? rejects null boundingClientRect")
+(check-true (not (intersection-observer-entry? (fake-intersection-entry "intersectionRect")))
+            "intersection-observer-entry? rejects missing intersectionRect")
+(check-true (not (intersection-observer-entry? (fake-intersection-entry "intersectionRect-null")))
+            "intersection-observer-entry? rejects null intersectionRect")
+(check-true (not (intersection-observer-entry? (fake-intersection-entry "rootBounds")))
+            "intersection-observer-entry? rejects missing rootBounds")
+(check-true (not (intersection-observer-entry? (fake-intersection-entry "time")))
+            "intersection-observer-entry? rejects missing time")
+
+(check-true (resize-observer-entry? (fake-resize-entry "notAProperty"))
+            "resize-observer-entry? accepts complete fake entry")
+(check-true (not (resize-observer-entry? null-raw-resize-entry))
+            "resize-observer-entry? rejects null raw")
+(check-true (not (resize-observer-entry? undefined-raw-resize-entry))
+            "resize-observer-entry? rejects undefined raw")
+(check-true (not (resize-observer-entry? (fake-resize-entry "target")))
+            "resize-observer-entry? rejects missing target")
+(check-true (not (resize-observer-entry? (fake-resize-entry "target-null")))
+            "resize-observer-entry? rejects null target")
+(check-true (not (resize-observer-entry? (fake-resize-entry "contentRect")))
+            "resize-observer-entry? rejects missing contentRect")
+(check-true (not (resize-observer-entry? (fake-resize-entry "contentRect-null")))
+            "resize-observer-entry? rejects null contentRect")
+
 (define intersection-observe-message
   (missing-intersection-message
    "observe"
@@ -400,6 +458,11 @@
    (lambda ()
      (intersection-observer-entry-target (fake-intersection-entry "target")))))
 
+(define intersection-entry-target-null-message
+  (catch-message
+   (lambda ()
+     (intersection-observer-entry-target (fake-intersection-entry "target-null")))))
+
 (define intersection-entry-is-intersecting-message
   (catch-message
    (lambda ()
@@ -417,6 +480,12 @@
    (lambda ()
      (intersection-observer-entry-bounding-client-rect
       (fake-intersection-entry "boundingClientRect")))))
+
+(define intersection-entry-bounding-rect-null-message
+  (catch-message
+   (lambda ()
+     (intersection-observer-entry-bounding-client-rect
+      (fake-intersection-entry "boundingClientRect-null")))))
 
 (define intersection-entry-intersection-rect-message
   (catch-message
@@ -469,6 +538,11 @@
   (catch-message
    (lambda ()
      (resize-observer-entry-content-rect (fake-resize-entry "contentRect")))))
+
+(define resize-entry-content-rect-null-message
+  (catch-message
+   (lambda ()
+     (resize-observer-entry-content-rect (fake-resize-entry "contentRect-null")))))
 
 (define resize-observer-null-raw-message
   (catch-message
@@ -541,6 +615,9 @@
 (check-message intersection-entry-target-message
                "IntersectionObserverEntry.target is not available"
                "missing IntersectionObserverEntry.target message")
+(check-message intersection-entry-target-null-message
+               "IntersectionObserverEntry.target is not available"
+               "null IntersectionObserverEntry.target message")
 (check-message intersection-entry-is-intersecting-message
                "IntersectionObserverEntry.isIntersecting is not available"
                "missing IntersectionObserverEntry.isIntersecting message")
@@ -550,6 +627,9 @@
 (check-message intersection-entry-bounding-rect-message
                "IntersectionObserverEntry.boundingClientRect is not available"
                "missing IntersectionObserverEntry.boundingClientRect message")
+(check-message intersection-entry-bounding-rect-null-message
+               "IntersectionObserverEntry.boundingClientRect is not available"
+               "null IntersectionObserverEntry.boundingClientRect message")
 (check-message intersection-entry-intersection-rect-message
                "IntersectionObserverEntry.intersectionRect is not available"
                "missing IntersectionObserverEntry.intersectionRect message")
@@ -577,6 +657,9 @@
 (check-message resize-entry-content-rect-message
                "ResizeObserverEntry.contentRect is not available"
                "missing ResizeObserverEntry.contentRect message")
+(check-message resize-entry-content-rect-null-message
+               "ResizeObserverEntry.contentRect is not available"
+               "null ResizeObserverEntry.contentRect message")
 (check-message resize-observer-null-raw-message
                "resize-observer-info?"
                "missing ResizeObserver null raw message")
