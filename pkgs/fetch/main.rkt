@@ -83,6 +83,35 @@
                                           property-name
                                           " is not available"))))
 
+;; fetch-promise-like-result? : any/c -> boolean?
+;;   Report whether raw is a non-nullish external value with a callable then method.
+(define (fetch-promise-like-result? raw)
+  (and (fetch-raw-host-value? raw)
+       (let ([then (js-ref/extern raw "then")])
+         (and (not (js-nullish? then))
+              (string=? (js-typeof then) "function")))))
+
+;; fetch-check-promise-result : symbol? string? any/c -> external/raw
+;;   Validate that a Fetch API method returned a Promise-like raw value.
+(define (fetch-check-promise-result who display-name raw)
+  (unless (fetch-promise-like-result? raw)
+    (raise-arguments-error who
+                           (string-append display-name
+                                          " result must be Promise-like")))
+  raw)
+
+;; fetch-check-instance-result : symbol? string? string? any/c -> external/raw
+;;   Validate that a Fetch API method returned an instance of constructor-name.
+(define (fetch-check-instance-result who display-name constructor-name raw)
+  (check-fetch-constructor who constructor-name)
+  (unless (and (fetch-raw-host-value? raw)
+               (js-instanceof raw (js-var constructor-name)))
+    (raise-arguments-error who
+                           (string-append display-name
+                                          " result must be "
+                                          constructor-name)))
+  raw)
+
 ;; fetch-headers-info : external/raw -> fetch-headers-info?
 ;;   Wrap a browser Headers object.
 (struct fetch-headers-info (raw) #:transparent)
@@ -184,7 +213,12 @@
 (define (make-fetch-headers [init #f])
   (check-fetch-constructor 'make-fetch-headers "Headers")
   (define init* (fetch-resolve-optional init))
-  (fetch-headers (js-new (js-var "Headers") (vector init*))))
+  (fetch-headers
+   (fetch-check-instance-result
+    'make-fetch-headers
+    "Headers constructor"
+    "Headers"
+    (js-new (js-var "Headers") (vector init*)))))
 
 ;; make-fetch-request : any/c [any/c #f] -> fetch-request-info?
 ;;   Create a new Request object from an input and optional initializer.
@@ -192,10 +226,15 @@
   (check-fetch-constructor 'make-fetch-request "Request")
   (define input* (if (symbol? input) (symbol->string input) input))
   (define init* (fetch-resolve-optional init))
-  (fetch-request (js-new (js-var "Request") (vector input* init*))))
+  (fetch-request
+   (fetch-check-instance-result
+    'make-fetch-request
+    "Request constructor"
+    "Request"
+    (js-new (js-var "Request") (vector input* init*)))))
 
 ;; fetch : any/c [any/c #f] -> external/raw
-;;   Start a fetch request.
+;;   Start a fetch request and return the browser promise-like value.
 (define (fetch request [init #f])
   (define request*
     (cond
@@ -203,7 +242,10 @@
        (check-fetch-request 'fetch request)
        (fetch-request-raw request)]
       [else request]))
-  (js-window-fetch request* (fetch-resolve-optional init)))
+  (fetch-check-promise-result
+   'fetch
+   "window.fetch"
+   (js-window-fetch request* (fetch-resolve-optional init))))
 
 ;; fetch-request-method : fetch-request-info? -> any/c
 ;;   Read the request method.
@@ -243,7 +285,12 @@
                              (fetch-request-raw request)
                              "Request"
                              "headers")
-  (fetch-headers (js-ref (fetch-request-raw request) "headers")))
+  (fetch-headers
+   (fetch-check-instance-result
+    'fetch-request-headers
+    "Request.headers"
+    "Headers"
+    (js-ref (fetch-request-raw request) "headers"))))
 
 ;; fetch-request-clone : fetch-request-info? -> fetch-request-info?
 ;;   Clone a request.
@@ -253,7 +300,12 @@
                            (fetch-request-raw request)
                            "Request"
                            "clone")
-  (fetch-request (js-send/extern (fetch-request-raw request) "clone" (vector))))
+  (fetch-request
+   (fetch-check-instance-result
+    'fetch-request-clone
+    "Request.clone"
+    "Request"
+    (js-send/extern (fetch-request-raw request) "clone" (vector)))))
 
 ;; fetch-response-ok? : fetch-response-info? -> boolean?
 ;;   Report whether the response status is in the successful range.
@@ -323,7 +375,12 @@
                              (fetch-response-raw response)
                              "Response"
                              "headers")
-  (fetch-headers (js-ref (fetch-response-raw response) "headers")))
+  (fetch-headers
+   (fetch-check-instance-result
+    'fetch-response-headers
+    "Response.headers"
+    "Headers"
+    (js-ref (fetch-response-raw response) "headers"))))
 
 ;; fetch-response-clone : fetch-response-info? -> fetch-response-info?
 ;;   Clone a response.
@@ -333,7 +390,12 @@
                            (fetch-response-raw response)
                            "Response"
                            "clone")
-  (fetch-response (js-send/extern (fetch-response-raw response) "clone" (vector))))
+  (fetch-response
+   (fetch-check-instance-result
+    'fetch-response-clone
+    "Response.clone"
+    "Response"
+    (js-send/extern (fetch-response-raw response) "clone" (vector)))))
 
 ;; fetch-headers-get : fetch-headers-info? (or/c string? symbol?) -> (or/c #f string?)
 ;;   Read a header value by name.

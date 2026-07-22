@@ -56,12 +56,17 @@
 ;; observer-element-raw/checked : symbol? dom-element? -> external/raw
 ;;   Validate and unwrap a DOM element before passing it to observer host calls.
 (define (observer-element-raw/checked who element)
-  (define raw (dom-element-raw element))
+  (define raw (element-unwrap element))
   (unless (shared-dom-raw-host-value? raw)
     (raise-argument-error who
                           "dom-element with non-nullish raw value"
                           element))
   raw)
+
+;; observer-element-wrapper? : any/c -> boolean?
+;;   Report whether value is already a DOM wrapper accepted by element-unwrap.
+(define (observer-element-wrapper? value)
+  (not (eq? (element-unwrap value) value)))
 
 (define (resize-observer? v)
   (and (resize-observer-host-value? v)
@@ -180,7 +185,7 @@
 
 (define (observer-target->raw who target)
   (cond
-    [(dom-element? target) (observer-element-raw/checked who target)]
+    [(observer-element-wrapper? target) (observer-element-raw/checked who target)]
     [(resize-observer-raw-host-value? target) target]
     [else
      (raise-argument-error who "(or/c dom-element? external?)" target)]))

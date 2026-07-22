@@ -45,7 +45,8 @@
  "globalThis.__wrFetchBoundarySaved = {
     Headers: Object.getOwnPropertyDescriptor(globalThis, 'Headers') || null,
     Request: Object.getOwnPropertyDescriptor(globalThis, 'Request') || null,
-    Response: Object.getOwnPropertyDescriptor(globalThis, 'Response') || null
+    Response: Object.getOwnPropertyDescriptor(globalThis, 'Response') || null,
+    fetch: Object.getOwnPropertyDescriptor(globalThis, 'fetch') || null
   };
   globalThis.__wrFetchBoundaryRestoreConstructor = (kind) => {
     const saved = globalThis.__wrFetchBoundarySaved[kind];
@@ -71,6 +72,34 @@
     try {
       Object.defineProperty(globalThis, kind, {
         value: () => {},
+        configurable: true,
+        writable: true
+      });
+      return true;
+    } catch (_e) {
+      return false;
+    }
+  };
+  globalThis.__wrFetchBoundaryInstallBadConstructorResult = (kind) => {
+    try {
+      Object.defineProperty(globalThis, kind, {
+        value: class {
+          constructor() {
+            return {};
+          }
+        },
+        configurable: true,
+        writable: true
+      });
+      return true;
+    } catch (_e) {
+      return false;
+    }
+  };
+  globalThis.__wrFetchBoundaryInstallBadFetchResult = () => {
+    try {
+      Object.defineProperty(globalThis, 'fetch', {
+        value: () => 42,
         configurable: true,
         writable: true
       });
@@ -109,11 +138,17 @@
       constructor(input, _init) {
         if (kind !== 'Request' || missing !== 'url') this.url = String(input);
         if (kind !== 'Request' || missing !== 'method') this.method = 'GET';
-        if (kind !== 'Request' || missing !== 'headers') this.headers = new globalThis.Headers();
+        if (kind === 'Request' && missing === 'headersBadResult') {
+          this.headers = 42;
+        } else if (kind !== 'Request' || missing !== 'headers') {
+          this.headers = new globalThis.Headers();
+        }
         if (kind !== 'Request' || missing !== 'bodyUsed') this.bodyUsed = false;
       }
       clone() {
-        return new globalThis.Request(this.url);
+        return kind === 'Request' && missing === 'cloneBadResult'
+          ? 42
+          : new globalThis.Request(this.url);
       }
     };
     globalThis.Response = class Response {
@@ -124,10 +159,16 @@
         if (kind !== 'Response' || missing !== 'url') this.url = '';
         if (kind !== 'Response' || missing !== 'type') this.type = 'basic';
         if (kind !== 'Response' || missing !== 'bodyUsed') this.bodyUsed = false;
-        if (kind !== 'Response' || missing !== 'headers') this.headers = new globalThis.Headers();
+        if (kind === 'Response' && missing === 'headersBadResult') {
+          this.headers = 42;
+        } else if (kind !== 'Response' || missing !== 'headers') {
+          this.headers = new globalThis.Headers();
+        }
       }
       clone() {
-        return new globalThis.Response(null, {status: this.status});
+        return kind === 'Response' && missing === 'cloneBadResult'
+          ? 42
+          : new globalThis.Response(null, {status: this.status});
       }
     };
     delete globalThis[kind].prototype[missing];
@@ -136,10 +177,13 @@
     globalThis.__wrFetchBoundaryRestoreConstructor('Headers');
     globalThis.__wrFetchBoundaryRestoreConstructor('Request');
     globalThis.__wrFetchBoundaryRestoreConstructor('Response');
+    globalThis.__wrFetchBoundaryRestoreConstructor('fetch');
     delete globalThis.__wrFetchBoundarySaved;
     delete globalThis.__wrFetchBoundaryRestoreConstructor;
     delete globalThis.__wrFetchBoundaryHideConstructor;
     delete globalThis.__wrFetchBoundaryInstallNonConstructor;
+    delete globalThis.__wrFetchBoundaryInstallBadConstructorResult;
+    delete globalThis.__wrFetchBoundaryInstallBadFetchResult;
     delete globalThis.__wrFetchBoundaryInstall;
     delete globalThis.__wrFetchBoundaryRestore;
   };")
@@ -195,6 +239,16 @@
                            kind
                            "')"))))
 
+(define (install-fetch-bad-constructor-result? kind)
+  (js-truthy?
+   (js-eval (string-append "__wrFetchBoundaryInstallBadConstructorResult('"
+                           kind
+                           "')"))))
+
+(define (install-fetch-bad-result?)
+  (js-truthy?
+   (js-eval "__wrFetchBoundaryInstallBadFetchResult()")))
+
 (define (restore-fetch-constructor! kind)
   (js-eval (string-append "__wrFetchBoundaryRestoreConstructor('"
                           kind
@@ -223,6 +277,29 @@
      (restore-fetch-constructor! kind)
      #f]))
 
+(define (bad-constructor-result-message kind thunk)
+  (cond
+    [(install-fetch-bad-constructor-result? kind)
+     (catch-message/restoring
+      thunk
+      (lambda ()
+        (restore-fetch-constructor! kind)))]
+    [else
+     (restore-fetch-constructor! kind)
+     #f]))
+
+(define fetch-bad-result-message
+  (cond
+    [(install-fetch-bad-result?)
+     (catch-message/restoring
+      (lambda ()
+        (fetch "https://example.invalid/fetch"))
+      (lambda ()
+        (restore-fetch-constructor! "fetch")))]
+    [else
+     (restore-fetch-constructor! "fetch")
+     #f]))
+
 (define headers-constructor-message
   (missing-constructor-message
    "Headers"
@@ -231,6 +308,12 @@
 
 (define headers-non-constructor-message
   (non-constructor-message
+   "Headers"
+   (lambda ()
+     (make-fetch-headers))))
+
+(define headers-bad-constructor-result-message
+  (bad-constructor-result-message
    "Headers"
    (lambda ()
      (make-fetch-headers))))
@@ -249,6 +332,12 @@
 
 (define request-non-constructor-message
   (non-constructor-message
+   "Request"
+   (lambda ()
+     (make-fetch-request "https://example.invalid/fetch"))))
+
+(define request-bad-constructor-result-message
+  (bad-constructor-result-message
    "Request"
    (lambda ()
      (make-fetch-request "https://example.invalid/fetch"))))
@@ -330,6 +419,14 @@
                  "fetch-request? accepts fake host request")
      (fetch-request-clone request))))
 
+(define request-clone-result-message
+  (missing-fetch-method-message
+   "Request"
+   "cloneBadResult"
+   (lambda ()
+     (define request (make-fetch-request "https://example.invalid/fetch"))
+     (fetch-request-clone request))))
+
 (define (missing-request-property-message property thunk)
   (missing-fetch-method-message "Request" property thunk))
 
@@ -357,6 +454,12 @@
    (lambda ()
      (fetch-request-headers (make-fetch-request "https://example.invalid/fetch")))))
 
+(define request-headers-result-message
+  (missing-request-property-message
+   "headersBadResult"
+   (lambda ()
+     (fetch-request-headers (make-fetch-request "https://example.invalid/fetch")))))
+
 (define response-clone-message
   (missing-fetch-method-message
    "Response"
@@ -365,6 +468,14 @@
      (define response (fetch-response (js-eval "new Response(null, {status: 204})")))
      (check-true (fetch-response? response)
                  "fetch-response? accepts fake host response")
+     (fetch-response-clone response))))
+
+(define response-clone-result-message
+  (missing-fetch-method-message
+   "Response"
+   "cloneBadResult"
+   (lambda ()
+     (define response (fetch-response (js-eval "new Response(null, {status: 204})")))
      (fetch-response-clone response))))
 
 (define (missing-response-property-message property thunk)
@@ -412,6 +523,12 @@
    (lambda ()
      (fetch-response-headers (fetch-response (js-eval "new Response(null, {status: 204})"))))))
 
+(define response-headers-result-message
+  (missing-response-property-message
+   "headersBadResult"
+   (lambda ()
+     (fetch-response-headers (fetch-response (js-eval "new Response(null, {status: 204})"))))))
+
 (define headers-null-raw-message
   (catch-message
    (lambda ()
@@ -442,6 +559,10 @@
    (lambda ()
      (fetch-response-status undefined-raw-response))))
 
+(when fetch-bad-result-message
+  (check-message fetch-bad-result-message
+                 "window.fetch result must be Promise-like"
+                 "bad fetch result message"))
 (check-message headers-get-message
                "Headers.get is not available"
                "missing Headers.get message")
@@ -453,6 +574,10 @@
   (check-message headers-non-constructor-message
                  "Headers constructor is not available"
                  "non-constructible Headers constructor message"))
+(when headers-bad-constructor-result-message
+  (check-message headers-bad-constructor-result-message
+                 "Headers constructor result must be Headers"
+                 "bad Headers constructor result message"))
 (when headers-existing-wrapper-constructor-message
   (check-message headers-existing-wrapper-constructor-message
                  "Headers constructor is not available"
@@ -475,6 +600,9 @@
 (check-message request-clone-message
                "Request.clone is not available"
                "missing Request.clone message")
+(check-message request-clone-result-message
+               "Request.clone result must be Request"
+               "bad Request.clone result message")
 (check-message request-method-message
                "Request.method is not available"
                "missing Request.method message")
@@ -487,6 +615,9 @@
 (check-message request-headers-message
                "Request.headers is not available"
                "missing Request.headers message")
+(check-message request-headers-result-message
+               "Request.headers result must be Headers"
+               "bad Request.headers result message")
 (when request-constructor-message
   (check-message request-constructor-message
                  "Request constructor is not available"
@@ -495,6 +626,10 @@
   (check-message request-non-constructor-message
                  "Request constructor is not available"
                  "non-constructible Request constructor message"))
+(when request-bad-constructor-result-message
+  (check-message request-bad-constructor-result-message
+                 "Request constructor result must be Request"
+                 "bad Request constructor result message"))
 (when request-existing-wrapper-constructor-message
   (check-message request-existing-wrapper-constructor-message
                  "Request constructor is not available"
@@ -502,6 +637,9 @@
 (check-message response-clone-message
                "Response.clone is not available"
                "missing Response.clone message")
+(check-message response-clone-result-message
+               "Response.clone result must be Response"
+               "bad Response.clone result message")
 (check-message response-ok-message
                "Response.ok is not available"
                "missing Response.ok message")
@@ -523,6 +661,9 @@
 (check-message response-headers-message
                "Response.headers is not available"
                "missing Response.headers message")
+(check-message response-headers-result-message
+               "Response.headers result must be Headers"
+               "bad Response.headers result message")
 (check-message headers-null-raw-message
                "fetch-headers-info?"
                "missing Headers null raw message")

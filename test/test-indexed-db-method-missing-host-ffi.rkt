@@ -111,6 +111,18 @@
       writable: true
     });
   };
+  globalThis.__wrIndexedDBBoundaryPatchBadResult = (name) => {
+    const proto = IDBFactory.prototype;
+    if (!Object.prototype.hasOwnProperty.call(globalThis.__wrIndexedDBBoundarySaved, name)) {
+      globalThis.__wrIndexedDBBoundarySaved[name] =
+        Object.getOwnPropertyDescriptor(proto, name) || null;
+    }
+    Object.defineProperty(proto, name, {
+      value: () => 42,
+      configurable: true,
+      writable: true
+    });
+  };
   globalThis.__wrIndexedDBBoundaryRestore = (name) => {
     const proto = IDBFactory.prototype;
     const descriptor = globalThis.__wrIndexedDBBoundarySaved[name];
@@ -136,6 +148,7 @@
     delete globalThis.__wrIndexedDBBoundaryHideIndexedDB;
     delete globalThis.__wrIndexedDBBoundaryRestoreIndexedDB;
     delete globalThis.__wrIndexedDBBoundaryPatch;
+    delete globalThis.__wrIndexedDBBoundaryPatchBadResult;
     delete globalThis.__wrIndexedDBBoundaryRestore;
     delete globalThis.__wrIndexedDBBoundaryRestoreAll;
   };")
@@ -249,6 +262,16 @@
                           "')"))
   message)
 
+(define (bad-result-message method thunk)
+  (js-eval (string-append "__wrIndexedDBBoundaryPatchBadResult('"
+                          method
+                          "')"))
+  (define message (catch-message thunk))
+  (js-eval (string-append "__wrIndexedDBBoundaryRestore('"
+                          method
+                          "')"))
+  message)
+
 (define open-message
   (missing-method-message
    "open"
@@ -273,9 +296,30 @@
    (lambda ()
      (indexed-db-databases db))))
 
+(define open-result-message
+  (bad-result-message
+   "open"
+   (lambda ()
+     (indexed-db-open db "wr-bad-open-result"))))
+
+(define delete-result-message
+  (bad-result-message
+   "deleteDatabase"
+   (lambda ()
+     (indexed-db-delete-database! db "wr-bad-delete-result"))))
+
+(define databases-result-message
+  (bad-result-message
+   "databases"
+   (lambda ()
+     (indexed-db-databases db))))
+
 (check-message open-message
                "IDBFactory.open is not available"
                "missing IDBFactory.open message")
+(check-message open-result-message
+               "IDBFactory.open result must be an IndexedDB request"
+               "bad IDBFactory.open result message")
 (when constructor-message
   (check-message constructor-message
                  "IDBFactory constructor is not available"
@@ -297,12 +341,18 @@
 (check-message delete-message
                "IDBFactory.deleteDatabase is not available"
                "missing IDBFactory.deleteDatabase message")
+(check-message delete-result-message
+               "IDBFactory.deleteDatabase result must be an IndexedDB request"
+               "bad IDBFactory.deleteDatabase result message")
 (check-message cmp-message
                "IDBFactory.cmp is not available"
                "missing IDBFactory.cmp message")
 (check-message databases-message
                "IDBFactory.databases is not available"
                "missing IDBFactory.databases message")
+(check-message databases-result-message
+               "IDBFactory.databases result must be Promise-like"
+               "bad IDBFactory.databases result message")
 
 (js-eval "__wrIndexedDBBoundaryRestoreAll();")
 
