@@ -136,6 +136,26 @@
              "required executable not found in PATH: ~a"
              name)))
 
+;; env-ref* : (listof string?) (or/c string? #f) -> (or/c string? #f)
+;;   Return the first non-empty environment variable value from names.
+(define (env-ref* names fallback)
+  (or (for/or ([name (in-list names)])
+        (define value (and name (getenv name)))
+        (and value (not (string=? value "")) value))
+      fallback))
+
+;; configured-racket-command : -> string?
+;;   Return the Racket executable to use for child compiler processes.
+(define (configured-racket-command)
+  (or (env-ref* '("WEBRACKET_RACKET" "RACKET") #f)
+      (path->string (find-system-path 'exec-file))
+      "racket"))
+
+;; ensure-racket-executable : -> path?
+;;   Resolve the configured child Racket executable.
+(define (ensure-racket-executable)
+  (ensure-executable (configured-racket-command)))
+
 ;; run-command/capture : path-string? path-string? (listof string?) -> command-result?
 ;;   Run a command under `cwd`, capturing stdout/stderr and wall time in ms.
 (define (run-command/capture cwd exe args)
@@ -906,7 +926,7 @@ RKT
 (printf "  compiled-root: ~a\n" compiled-root)
 
 (define env-exe (ensure-executable "env"))
-(define racket-exe (ensure-executable "racket"))
+(define racket-exe (ensure-racket-executable))
 (precompile-compiler! temp-root env-exe compiled-root racket-exe)
 
 (define results

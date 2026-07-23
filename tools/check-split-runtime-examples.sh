@@ -6,6 +6,7 @@ ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 PORT="${SPLIT_RUNTIME_EXAMPLES_PORT:-10061}"
 TIMEOUT_SEC="${SPLIT_RUNTIME_EXAMPLES_TIMEOUT_SEC:-720}"
 RSS_LIMIT_MB="${SPLIT_RUNTIME_EXAMPLES_RSS_LIMIT_MB:-3500}"
+RACKET_BIN="${RACKET:-racket}"
 RUN_ID="$(date +%Y%m%d-%H%M%S)-$$"
 RUN_ROOT="${SPLIT_RUNTIME_EXAMPLES_TMP:-$ROOT_DIR/tmp/split-runtime-examples}/$RUN_ID"
 OUT_DIR="$RUN_ROOT/out"
@@ -25,6 +26,14 @@ SELECTED_CASES=0
 ALL_CASE_IDS=()
 ALL_GROUPS=()
 SMOKE_PAGES=()
+
+case "$RACKET_BIN" in
+  */*)
+    if [[ "$RACKET_BIN" != /* ]]; then
+      RACKET_BIN="$ROOT_DIR/$RACKET_BIN"
+    fi
+    ;;
+esac
 
 usage() {
   cat <<'USAGE'
@@ -158,7 +167,7 @@ compile_case() {
       /usr/bin/env \
         "PLTCOLLECTS=$ROOT_DIR/pkgs${PLTCOLLECTS:+:$PLTCOLLECTS}:" \
         "PLTCOMPILEDROOTS=$COMPILED_ROOT" \
-        racket "$ROOT_DIR/webracket.rkt" \
+        "$RACKET_BIN" "$ROOT_DIR/webracket.rkt" \
           --browser \
           --dest "$dest" \
           --provider-cache-dir "$PROVIDER_CACHE_DIR" \

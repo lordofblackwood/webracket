@@ -4,6 +4,7 @@ RACKET ?= ../racket/racket/bin/racket
 SMOKE_DIR := lib/web-easy/smoke
 SINGLE_COMPILE ?= run-browser-parity-profile-compile.sh
 SINGLE_PAGE ?= test-browser-parity-profile.html
+SPLIT_RUNTIME_BROWSER_COMPILED_ROOT ?= tmp/smoke-split-runtime-browser-compiled-root
 
 .PHONY: help goal1-fast smoke-ci smoke-headless-lite smoke-style smoke-theme smoke-theme-contracts smoke-theme-core smoke-theme-visual smoke-verify smoke-quick smoke-release smoke-one smoke-list smoke-commands smoke-compare-navbars smoke-compare-buttons smoke-compare-all smoke-solar-parity smoke-solar-sections smoke-solar-sections-gate smoke-split-runtime-readiness smoke-split-runtime-readiness-fast smoke-split-runtime-default smoke-split-runtime-default-fast smoke-split-runtime-provider-ffi smoke-split-runtime-browser smoke-split-runtime-browser-url smoke-split-runtime-browser-provider-runtime smoke-split-runtime-browser-provider-runtime-url smoke-split-runtime-prewarm smoke-split-runtime-warm-process smoke-split-runtime-provider-runtime smoke-split-runtime-provider-runtime-warm-process smoke-split-runtime-procedure-boundary smoke-split-runtime-examples smoke-split-runtime-examples-list smoke-split-runtime-examples-fast smoke-split-ffi-mixed-cache-browser smoke-split-ffi-mixed-cache-browser-list smoke-split-ffi-mixed-cache-browser-fast smoke-split-ffi-mixed-cache-browser-broad smoke-split-ffi-mixed-cache-browser-browser-group smoke-split-ffi-mixed-cache-browser-test-dir-group smoke-split-ffi-mixed-cache-browser-chunked smoke-split-ffi-mixed-cache-browser-chunk-1 smoke-split-ffi-mixed-cache-browser-chunk-2 smoke-split-ffi-mixed-cache-browser-chunk-3 smoke-split-ffi-mixed-cache-browser-chunk-4 smoke-treelist-shape dom-headless measure-letrec-test-basics measure-split-runtime-warm-process measure-split-runtime-provider-runtime measure-split-runtime-provider-runtime-warm-process
 
@@ -185,7 +186,8 @@ smoke-solar-sections-gate:
 	cd $(SMOKE_DIR) && SOLAR_SECTIONS_GATE_ONLY=1 ./check-solar-section-parity.sh
 
 smoke-split-runtime-browser:
-	python3 tools/run-guarded.py --timeout-sec 540 --rss-limit-mb 1800 -- racket -S pkgs tools/check-split-runtime-browser.rkt
+	mkdir -p $(SPLIT_RUNTIME_BROWSER_COMPILED_ROOT)
+	python3 tools/run-guarded.py --timeout-sec 540 --rss-limit-mb 1800 -- /usr/bin/env PLTCOMPILEDROOTS=$(SPLIT_RUNTIME_BROWSER_COMPILED_ROOT) racket -S pkgs tools/check-split-runtime-browser.rkt --isolate-compiled-root
 
 smoke-split-runtime-readiness:
 	$(MAKE) smoke-split-runtime-default
@@ -212,13 +214,16 @@ smoke-split-runtime-provider-ffi:
 	python3 tools/run-guarded.py --timeout-sec 420 --rss-limit-mb 4500 -- racket -S pkgs tools/check-split-runtime-default.rkt --jobs 4 --only provider-runtime-explicit-split-ffi-clean-provider-test-module-read-demand --only provider-runtime-provider-ffi-with-split-ffi-provider-runtime-provider-ffi-demand --only provider-runtime-local-provider-ffi-with-split-ffi-provider-ffi-demand
 
 smoke-split-runtime-browser-url:
-	python3 tools/run-guarded.py --timeout-sec 540 --rss-limit-mb 1800 -- racket -S pkgs tools/check-split-runtime-browser.rkt --shared-runtime-url
+	mkdir -p $(SPLIT_RUNTIME_BROWSER_COMPILED_ROOT)
+	python3 tools/run-guarded.py --timeout-sec 540 --rss-limit-mb 1800 -- /usr/bin/env PLTCOMPILEDROOTS=$(SPLIT_RUNTIME_BROWSER_COMPILED_ROOT) racket -S pkgs tools/check-split-runtime-browser.rkt --shared-runtime-url --isolate-compiled-root
 
 smoke-split-runtime-browser-provider-runtime:
-	python3 tools/run-guarded.py --timeout-sec 540 --rss-limit-mb 3500 -- racket -S pkgs tools/check-split-runtime-browser.rkt --source test/test-module-read-demand.rkt --split-runtime-provider-runtime
+	mkdir -p $(SPLIT_RUNTIME_BROWSER_COMPILED_ROOT)
+	python3 tools/run-guarded.py --timeout-sec 540 --rss-limit-mb 3500 -- /usr/bin/env PLTCOMPILEDROOTS=$(SPLIT_RUNTIME_BROWSER_COMPILED_ROOT) racket -S pkgs tools/check-split-runtime-browser.rkt --source test/test-module-read-demand.rkt --split-runtime-provider-runtime --isolate-compiled-root
 
 smoke-split-runtime-browser-provider-runtime-url:
-	python3 tools/run-guarded.py --timeout-sec 540 --rss-limit-mb 3500 -- racket -S pkgs tools/check-split-runtime-browser.rkt --source test/test-module-read-demand.rkt --shared-runtime-url --split-runtime-provider-runtime
+	mkdir -p $(SPLIT_RUNTIME_BROWSER_COMPILED_ROOT)
+	python3 tools/run-guarded.py --timeout-sec 540 --rss-limit-mb 3500 -- /usr/bin/env PLTCOMPILEDROOTS=$(SPLIT_RUNTIME_BROWSER_COMPILED_ROOT) racket -S pkgs tools/check-split-runtime-browser.rkt --source test/test-module-read-demand.rkt --shared-runtime-url --split-runtime-provider-runtime --isolate-compiled-root
 
 smoke-split-runtime-prewarm:
 	python3 tools/run-guarded.py --timeout-sec 600 --rss-limit-mb 4000 -- racket -S pkgs tools/check-split-runtime-prewarm.rkt --source test/test-lambda-variadic.rkt --extra-source test/test-values-errors.rkt --suite --jobs 4 --no-expect --reject '#f'

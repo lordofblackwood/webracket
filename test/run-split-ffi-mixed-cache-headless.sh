@@ -6,6 +6,7 @@ ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 PORT="${SPLIT_FFI_MIXED_CACHE_PORT:-10041}"
 TIMEOUT_SEC="${SPLIT_FFI_MIXED_CACHE_TIMEOUT_SEC:-720}"
 RSS_LIMIT_MB="${SPLIT_FFI_MIXED_CACHE_RSS_LIMIT_MB:-3500}"
+RACKET_BIN="${RACKET:-racket}"
 RUN_ID="$(date +%Y%m%d-%H%M%S)-$$"
 RUN_ROOT="${SPLIT_FFI_MIXED_CACHE_TMP:-$ROOT_DIR/tmp/split-ffi-mixed-cache-headless}/$RUN_ID"
 OUT_DIR="$RUN_ROOT/out"
@@ -31,6 +32,14 @@ ALL_GROUPS=()
 CANDIDATE_CASES=0
 SELECTED_CASES=0
 CASE_PASS=collect
+
+case "$RACKET_BIN" in
+  */*)
+    if [[ "$RACKET_BIN" != /* ]]; then
+      RACKET_BIN="$ROOT_DIR/$RACKET_BIN"
+    fi
+    ;;
+esac
 
 usage() {
   cat <<'USAGE'
@@ -175,7 +184,7 @@ compile_root_test() {
     --rss-limit-mb "$RSS_LIMIT_MB" \
     -- \
     /usr/bin/env PLTCOMPILEDROOTS="$COMPILED_ROOT" \
-    racket "$ROOT_DIR/webracket.rkt" \
+    "$RACKET_BIN" "$ROOT_DIR/webracket.rkt" \
       --browser \
       "${SPLIT_FFI_MODE_ARGS[@]}" \
       --dest "$OUT_DIR" \
@@ -197,7 +206,7 @@ compile_test_dir_test() {
       --rss-limit-mb "$RSS_LIMIT_MB" \
       -- \
       /usr/bin/env PLTCOMPILEDROOTS="$COMPILED_ROOT" \
-      racket "$ROOT_DIR/webracket.rkt" \
+      "$RACKET_BIN" "$ROOT_DIR/webracket.rkt" \
         --browser \
         "${SPLIT_FFI_MODE_ARGS[@]}" \
         --dest "$OUT_DIR" \
