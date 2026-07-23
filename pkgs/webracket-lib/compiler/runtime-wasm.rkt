@@ -16,9 +16,11 @@
                   current-split-runtime-reference-only?
                   current-split-runtime-ffi-in-core?
                   current-split-runtime-ffi-module?
+                  current-split-runtime-ffi-program-owned?
                   current-split-runtime-program-only-fast-path?)
          (only-in "private/structs.rkt"
-                  foreign-argument-types)
+                  foreign-argument-types
+                  foreign-racket-name)
          (only-in "private/wasm-utils.rkt"
                   $
                   prim:)
@@ -515,10 +517,7 @@
     (define (split-ffi-sidecar-unsafe?)
       (and (split-ffi-sidecar?)
            (memq 'unsafe-ffi-primitive used-primitives)))
-    (define split-program-described-primitive-names
-      (if (split-ffi-sidecar-unsafe?)
-          '(unsafe-ffi-primitive)
-          '()))
+    (define split-program-described-primitive-names '())
     (define split-program-described-primitive-name-set
       (for/hasheq ([name (in-list split-program-described-primitive-names)])
         (values name #t)))
@@ -528,8 +527,9 @@
            (not (split-ffi-sidecar?))
            (not (memq 'unsafe-ffi-primitive used-primitives))))
     (define (split-ffi-program-owned?)
-      (or (split-direct-ffi-program-side?)
-          (split-ffi-sidecar?)))
+      (and (current-split-runtime-ffi-program-owned?)
+           (or (split-direct-ffi-program-side?)
+               (split-ffi-sidecar?))))
 
     (define program-function-names
       (module-func-names dls))
@@ -595,6 +595,17 @@
       (runtime-primitive-initializer-forms split-program-described-primitives-sorted))
     (define unsafe-ffi-primitive-table-initializer-forms
       '((call $initialize-unsafe-ffi-primitive-table)))
+    (define (split-ffi-sidecar-needs-initializer?)
+      (or (split-ffi-sidecar-wide?)
+          (split-ffi-sidecar-unsafe?)))
+    (define (split-ffi-sidecar-registration-forms)
+      (if (split-ffi-sidecar-unsafe?)
+          (for/list ([f (in-list (runtime-ffi-state-active-foreigns ffi-state))])
+            (define pr (foreign-racket-name f))
+            `(call $register-unsafe-ffi-primitive!
+                   (global.get ,($ (string->symbol (~a "symbol:" pr))))
+                   (global.get ,($ (prim: pr)))))
+          '()))
     (define (split-program-ffi-foreigns)
       (if (split-direct-ffi-program-side?)
           (runtime-ffi-state-active-foreigns ffi-state)
@@ -605,12 +616,8 @@
                 [active-names (runtime-ffi-state-active-primitive-names ffi-state)])
             (append (map ffi-import-name active-foreigns)
                     (map $ active-names)
-                    (if (split-ffi-sidecar-wide?)
+                    (if (split-ffi-sidecar-needs-initializer?)
                         (list split-ffi-sidecar-initializer-name)
-                        '())
-                    (if (split-ffi-sidecar-unsafe?)
-                        '($unsafe-ffi-primitive
-                          $initialize-unsafe-ffi-primitive-table)
                         '())))
           '()))
     (define (split-program-console-bridge-function-names)
@@ -618,14 +625,9 @@
           ffi-console-bridge-helper-names
           '()))
     (define (split-program-ffi-global-names)
-      (append
-       (for/list ([name (in-list (runtime-ffi-state-active-primitive-names ffi-state))]
-                  #:when (split-ffi-program-owned?))
-         ($ (prim: name)))
-       (if (split-ffi-sidecar-unsafe?)
-           '($prim:unsafe-ffi-primitive
-             $unsafe-ffi-primitive-table)
-           '())))
+      (for/list ([name (in-list (runtime-ffi-state-active-primitive-names ffi-state))]
+                 #:when (split-ffi-program-owned?))
+        ($ (prim: name))))
     (define (split-ffi-sidecar-forms)
       (if (split-ffi-sidecar?)
           (append (runtime-ffi-state-active-imports-wat ffi-state)
@@ -634,17 +636,18 @@
     (define split-ffi-sidecar-initializer-name
       '$initialize-split-ffi-sidecar-primitives!)
     (define (split-ffi-sidecar-extra-forms)
-      (if (split-ffi-sidecar-wide?)
+      (if (split-ffi-sidecar-needs-initializer?)
           (append (runtime-ffi-state-primitive-global-forms ffi-state)
                   (list
                    `(func ,split-ffi-sidecar-initializer-name
                           ,@(runtime-ffi-state-primitive-initializer-forms
-                             ffi-state))))
+                             ffi-state)
+                          ,@(split-ffi-sidecar-registration-forms))))
           '()))
     (define (split-ffi-sidecar-function-names)
       (if (split-ffi-sidecar?)
           (append (map $ (runtime-ffi-state-active-primitive-names ffi-state))
-                  (if (split-ffi-sidecar-wide?)
+                  (if (split-ffi-sidecar-needs-initializer?)
                       (list split-ffi-sidecar-initializer-name)
                       '()))
           '()))
@@ -770,10 +773,14 @@
     ;;   Return FFI primitive initializers for the entry currently being built.
     (define (build-entry-ffi-primitive-initializer-forms _program-only?)
       (append
-       (if (split-ffi-sidecar-wide?)
+       (if (and (split-ffi-program-owned?)
+                (split-ffi-sidecar-needs-initializer?))
            `((call ,split-ffi-sidecar-initializer-name))
            '())
-       (runtime-ffi-state-primitive-initializer-forms ffi-state)))
+       (if (or (not (current-split-runtime?))
+               (split-ffi-program-owned?))
+           (runtime-ffi-state-primitive-initializer-forms ffi-state)
+           '())))
 
     ;; build-entry-function-form : [#:program-only? boolean?] -> datum?
     ;;   Build the program entry function using the current split/monolithic
@@ -852,12 +859,6 @@
            (runtime-ffi-state-primitive-global-forms ffi-state)
            '())
        split-program-primitive-global-forms
-       (if (split-ffi-sidecar-unsafe?)
-           unsafe-ffi-primitive-table-global-forms
-           '())
-       (if (split-ffi-sidecar-unsafe?)
-           (runtime-ffi-state-unsafe-primitive-helper-forms ffi-state)
-           '())
        dls
        (if console-bridge-enabled?
            (ffi-console-bridge-helper-forms console-bridge-bindings)
@@ -890,16 +891,14 @@
          ,@js-host-import-forms
 
          ;; FFI imports, generated wrappers, and unsafe primitive lookup helpers.
-         ,@(runtime-ffi-state-import-wrapper-helper-forms
-            ffi-state
-            #:unsafe-ffi-foreigns
-            (cond
-              [(split-ffi-sidecar-unsafe?)
-               (runtime-ffi-state-active-foreigns ffi-state)]
-              [(split-ffi-program-owned?)
-               '()]
-              [else
-               (runtime-ffi-state-active-foreigns ffi-state)]))
+         ,@(cond
+             [(or (split-ffi-sidecar?)
+                  (split-ffi-program-owned?))
+              (runtime-ffi-state-unsafe-primitive-helper-forms
+               ffi-state
+               #:unsafe-ffi-foreigns '())]
+             [else
+              (runtime-ffi-state-import-wrapper-helper-forms ffi-state)])
 
          ;;;
          ;;; Exceptions
@@ -946,7 +945,10 @@
 
          ;; Primitives (as values)
          ,@(runtime-primitive-state-global-forms primitive-state)
-         ,@(runtime-ffi-state-primitive-global-forms ffi-state)
+         ,@(if (and (split-ffi-sidecar?)
+                    (not (split-ffi-program-owned?)))
+               '()
+               (runtime-ffi-state-primitive-global-forms ffi-state))
 
          ,@closure-empty-free-global-forms
 
@@ -2126,11 +2128,13 @@
     (define stable-runtime-active-ffi-foreigns
       (runtime-ffi-state-active-foreigns ffi-state))
     (define stable-runtime-active-ffi-imports-wat
-      (if (split-ffi-program-owned?)
+      (if (or (split-ffi-sidecar?)
+              (split-ffi-program-owned?))
           '()
           (runtime-ffi-state-active-imports-wat ffi-state)))
     (define stable-runtime-active-ffi-funcs-wat
-      (if (split-ffi-program-owned?)
+      (if (or (split-ffi-sidecar?)
+              (split-ffi-program-owned?))
           '()
           (runtime-ffi-state-active-funcs-wat ffi-state)))
     (define split-runtime-request-fingerprint
@@ -2225,7 +2229,8 @@
       (and (current-split-runtime?)
            split-runtime-program-only-candidate?
            split-runtime-reference-compatible-now?
-           (or (split-ffi-program-owned?)
+           (or (split-ffi-sidecar?)
+               (split-ffi-program-owned?)
                (current-split-runtime-ffi-in-core?)
                (and (null? (runtime-ffi-state-active-foreigns ffi-state))
                     (null? (runtime-ffi-state-active-imports-wat ffi-state))

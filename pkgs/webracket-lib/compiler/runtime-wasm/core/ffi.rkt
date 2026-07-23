@@ -1615,19 +1615,34 @@
                     (unreachable)))
                (local.get $proc))
 
-         (func $initialize-unsafe-ffi-primitive-table
+         ;; ensure-unsafe-ffi-primitive-table : -> void
+         ;;   Lazily allocate the generated unsafe FFI primitive table.
+         (func $ensure-unsafe-ffi-primitive-table
                (if (ref.is_null (global.get $unsafe-ffi-primitive-table))
                    (then
                     (global.set $unsafe-ffi-primitive-table
                                 (ref.cast (ref $HashEqMutable)
-                                          (call $make-empty-hasheq)))
-                    ,@(for/list ([f (in-list active-ffi-foreigns)])
-                        (define pr (foreign-racket-name f))
-                        `(call $hasheq-set!/mutable/checked
-                               (ref.cast (ref $HashEqMutable)
-                                         (global.get $unsafe-ffi-primitive-table))
-                               (global.get ,($ (string->symbol (~a "symbol:" pr))))
-                               (global.get ,($ (prim: pr))))))))))
+                                          (call $make-empty-hasheq))))))
+
+         ;; register-unsafe-ffi-primitive! : symbol? procedure? -> void
+         ;;   Register a generated unsafe FFI primitive procedure in the core-owned table.
+         (func $register-unsafe-ffi-primitive!
+               (param $name (ref eq)) ;; quoted FFI primitive symbol
+               (param $proc (ref eq)) ;; primitive procedure value
+               (call $ensure-unsafe-ffi-primitive-table)
+               (call $hasheq-set!/mutable/checked
+                     (ref.cast (ref $HashEqMutable)
+                               (global.get $unsafe-ffi-primitive-table))
+                     (local.get $name)
+                     (local.get $proc)))
+
+         (func $initialize-unsafe-ffi-primitive-table
+               (call $ensure-unsafe-ffi-primitive-table)
+               ,@(for/list ([f (in-list active-ffi-foreigns)])
+                   (define pr (foreign-racket-name f))
+                   `(call $register-unsafe-ffi-primitive!
+                          (global.get ,($ (string->symbol (~a "symbol:" pr))))
+                          (global.get ,($ (prim: pr))))))))
 
 ;; ffi-runtime-only-form-ref : symbol? -> datum?
 ;;   Render the registered helper with the given Wasm function name.

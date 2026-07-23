@@ -236,6 +236,11 @@
 ;; run-invalid-case! : symbol? path-string? (listof string?) regexp? -> void?
 ;;   Check that invalid default-policy flag combinations are rejected.
 (define (run-invalid-case! mode temp-root extra-args expected-message)
+  (run-invalid-source-case! mode temp-root source-file extra-args expected-message))
+
+;; run-invalid-source-case! : symbol? path-string? path? (listof string?) regexp? -> void?
+;;   Check that an invalid compile for `source` is rejected.
+(define (run-invalid-source-case! mode temp-root source extra-args expected-message)
   (define racket-exe (ensure-executable "racket"))
   (define dest-dir (build-path temp-root (symbol->string mode)))
   (make-directory* dest-dir)
@@ -244,7 +249,7 @@
      (list "-S" "pkgs" "webracket.rkt"
            "--dest" (path->string dest-dir))
      extra-args
-     (list (path->string source-file))))
+     (list (path->string source))))
   (define result
     (run-command/capture repo-root racket-exe args))
   (define log-path
@@ -306,12 +311,86 @@ RKT
 
 (require (only-in webracket/unsafe/standard
                   js-eval
+                  js-truthy?
                   js-number-finite?))
 
-(unless (js-number-finite? (js-eval "42"))
+(unless (and (js-truthy? (js-eval "true"))
+             (js-number-finite? 42.0))
   (error 'standard-ffi-demand "expected finite JS number"))
 
 42
+RKT
+       out))
+    #:exists 'truncate/replace)
+  source)
+
+;; write-generated-provider-runtime-provider-ffi-source! : path-string? -> path?
+;;   Write a module whose provider fragment demands standard JS FFI directly.
+(define (write-generated-provider-runtime-provider-ffi-source! temp-root)
+  (define source-dir (build-path temp-root "sources"))
+  (make-directory* source-dir)
+  (define source (build-path source-dir "provider-runtime-provider-ffi-demand.rkt"))
+  (call-with-output-file source
+    (lambda (out)
+      (display
+       #<<RKT
+#lang webracket/base
+
+(require (only-in webracket/unsafe/standard
+                  js-eval
+                  js-truthy?
+                  js-number-finite?))
+
+(define parsed (read (open-input-string "42")))
+
+(unless (and (= parsed 42)
+             (js-truthy? (js-eval "true"))
+             (js-number-finite? 42.0))
+  (error 'provider-runtime-provider-ffi-demand "expected read and FFI demand"))
+
+42
+RKT
+       out))
+    #:exists 'truncate/replace)
+  source)
+
+;; write-generated-provider-runtime-local-provider-ffi-source! : path-string? -> path?
+;;   Write a local provider module that demands standard JS FFI.
+(define (write-generated-provider-runtime-local-provider-ffi-source! temp-root)
+  (define source-dir (build-path temp-root "sources" "provider-ffi"))
+  (make-directory* source-dir)
+  (define provider (build-path source-dir "ffi-provider.rkt"))
+  (define source (build-path source-dir "provider-ffi-demand.rkt"))
+  (call-with-output-file provider
+    (lambda (out)
+      (display
+       #<<RKT
+#lang webracket/base
+
+(require (only-in webracket/unsafe/standard
+                  js-eval
+                  js-truthy?
+                  js-number-finite?))
+
+(provide provider-answer)
+
+(define provider-answer
+  (if (and (js-truthy? (js-eval "true"))
+           (js-number-finite? 42.0))
+      42
+      0))
+RKT
+       out))
+    #:exists 'truncate/replace)
+  (call-with-output-file source
+    (lambda (out)
+      (display
+       #<<RKT
+#lang webracket/base
+
+(require "ffi-provider.rkt")
+
+provider-answer
 RKT
        out))
     #:exists 'truncate/replace)
@@ -326,12 +405,20 @@ RKT
           extra-source-files))
 (define standard-ffi-source
   (write-generated-standard-ffi-source! temp-root))
+(define provider-runtime-provider-ffi-source
+  (write-generated-provider-runtime-provider-ffi-source! temp-root))
+(define provider-runtime-local-provider-ffi-source
+  (write-generated-provider-runtime-local-provider-ffi-source! temp-root))
 
 (printf "Split runtime default check\n")
 (printf "  sources: ~a\n" (length default-source-files))
 (for ([source (in-list default-source-files)])
   (printf "    ~a\n" source))
 (printf "  ffi source: ~a\n" standard-ffi-source)
+(printf "  provider-runtime provider ffi source: ~a\n"
+        provider-runtime-provider-ffi-source)
+(printf "  provider-runtime local provider ffi source: ~a\n"
+        provider-runtime-local-provider-ffi-source)
 (printf "  temp:   ~a\n" temp-root)
 
 (for ([source (in-list default-source-files)])
@@ -348,6 +435,27 @@ RKT
            '("--no-split-runtime")
            #f
            #:run? #f)
+(run-case! 'provider-runtime-explicit-split-ffi-clean-provider
+           temp-root
+           module-read-demand-source
+           '("--split-runtime-provider-runtime" "--split-runtime-ffi-module")
+           #t
+           #:split-ffi? #f
+           #:run? #t)
+(run-case! 'provider-runtime-provider-ffi-with-split-ffi
+           temp-root
+           provider-runtime-provider-ffi-source
+           '("--split-runtime-provider-runtime" "--split-runtime-ffi-module")
+           #t
+           #:split-ffi? #t
+           #:run? #t)
+(run-case! 'provider-runtime-local-provider-ffi-with-split-ffi
+           temp-root
+           provider-runtime-local-provider-ffi-source
+           '("--split-runtime-provider-runtime" "--split-runtime-ffi-module")
+           #t
+           #:split-ffi? #t
+           #:run? #t)
 (run-invalid-case!
  'invalid-cache-reference-without-split
  temp-root
@@ -366,7 +474,7 @@ RKT
 
 (cond
   [(null? failures)
-   (printf "ok: default sidecar, default split FFI, explicit fallbacks, and invalid flag checks succeeded\n")
+   (printf "ok: default sidecar, default split FFI, provider-runtime boundary, provider-runtime FFI sidecar, explicit fallbacks, and invalid flag checks succeeded\n")
    (unless keep-temp?
      (delete-directory/files temp-root))
    (exit 0)]

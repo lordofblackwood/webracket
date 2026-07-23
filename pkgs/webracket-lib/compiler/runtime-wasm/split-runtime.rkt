@@ -1004,6 +1004,27 @@
                 #:unless (hash-ref sidecar-form-set form #f))
        form)]))
 
+;; sidecar-owned-import-form? : datum? split-form-indexes? -> boolean?
+;;   Check whether an import duplicates a definition owned by the sidecar.
+(define (sidecar-owned-import-form? form sidecar-index)
+  (cond
+    [(function-import-form? form)
+     (define name (module-func-name form))
+     (and name
+          (hash-has-key? (split-form-indexes-function-defs sidecar-index)
+                         name))]
+    [(global-import-form? form)
+     (define name (module-global-name form))
+     (and name
+          (hash-has-key? (split-form-indexes-global-defs sidecar-index)
+                         name))]
+    [(tag-import-form? form)
+     (define name (module-tag-name form))
+     (and name
+          (hash-has-key? (split-form-indexes-tag-defs sidecar-index)
+                         name))]
+    [else #f]))
+
 ;; declare-elem-form? : any/c -> boolean?
 ;;   Check whether form is an `elem declare funcref` declaration.
 (define (declare-elem-form? form)
@@ -1969,7 +1990,7 @@
                         #:unless (shared-program-prefix-form? form))
                form))
            (define-values (_ffi-imported-names
-                           ffi-core-import-forms
+                           raw-ffi-core-import-forms
                            _ffi-export-forms
                            ffi-data-forms)
              (classified-runtime-import/export+data-forms
@@ -1979,6 +2000,12 @@
               #:module import-module-name
               #:export-all? #t
               #:build-export-forms? #f))
+           (define ffi-core-import-forms
+             (for/list ([form (in-list raw-ffi-core-import-forms)]
+                        #:unless (sidecar-owned-import-form?
+                                  form
+                                  ffi-sidecar-index))
+               form))
            (define ffi-available-function-names
              (for/fold ([names (hash-copy
                                 (split-form-indexes-function-names
@@ -2436,6 +2463,11 @@
            ffi-sidecar-module-forms))
   (check-not-false
    (member '(global $prim:js-undefined (mut i32) (i32.const 0))
+           ffi-sidecar-module-forms))
+  (check-false
+   (member '(global $prim:js-undefined
+                    (import "core" "global:$prim:js-undefined")
+                    (mut i32))
            ffi-sidecar-module-forms))
   (check-not-false
    (member '(export "$initialize-split-ffi-sidecar-primitives!"

@@ -106,11 +106,14 @@
    (runtime-ffi-state-active-foreigns state)))
 
 ;; runtime-ffi-state-unsafe-primitive-helper-forms :
-;;   runtime-ffi-state? -> (listof datum?)
+;;   runtime-ffi-state? [#:unsafe-ffi-foreigns (listof foreign?)] -> (listof datum?)
 ;;   Render unsafe FFI lookup helpers for the active FFI primitive set.
-(define (runtime-ffi-state-unsafe-primitive-helper-forms state)
+(define (runtime-ffi-state-unsafe-primitive-helper-forms
+         state
+         #:unsafe-ffi-foreigns
+         [unsafe-ffi-foreigns (runtime-ffi-state-active-foreigns state)])
   (unsafe-ffi-runtime-only-helper-forms
-   (runtime-ffi-state-active-foreigns state)))
+   unsafe-ffi-foreigns))
 
 ;; active-ffi-primitive-names : (listof foreign?) (listof symbol?) boolean? -> (listof symbol?)
 ;;   Select the foreign primitive names needed by the current program.

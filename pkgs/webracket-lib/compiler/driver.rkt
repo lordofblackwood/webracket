@@ -140,6 +140,7 @@
                                     current-split-runtime-reference-only?
                                     current-split-runtime-ffi-in-core?
                                     current-split-runtime-ffi-module?
+                                    current-split-runtime-ffi-program-owned?
                                     current-split-runtime-program-only-fast-path?)
          (only-in "private/timings.rkt"
                   now-ms
@@ -1637,12 +1638,12 @@
 
 ;; module-bridge-provider-compiled-fragment-cache-version : exact-positive-integer?
 ;;   Bump when compiled provider-fragment WAT cache semantics change.
-(define module-bridge-provider-compiled-fragment-cache-version 4)
+(define module-bridge-provider-compiled-fragment-cache-version 5)
 
 ;; module-bridge-provider-compiled-fragment-cache-key :
 ;;   any/c #:browser? boolean? #:enable-cc-analysis? boolean?
 ;;   #:enable-simplify? boolean? #:split-runtime-reference? boolean?
-;;   #:split-runtime-ffi-in-core? boolean?
+;;   #:split-runtime-ffi-in-core? boolean? #:split-runtime-ffi-module? boolean?
 ;;   #:letrec-strategy symbol?
 ;;   #:provider-owned-primitive-aliases (listof symbol?) -> any/c
 ;;   Fingerprint the compiler/runtime options that affect provider-fragment WAT.
@@ -1653,6 +1654,7 @@
          #:enable-simplify? [enable-simplify? #f]
          #:split-runtime-reference? [split-runtime-reference? #f]
          #:split-runtime-ffi-in-core? [split-runtime-ffi-in-core? #f]
+         #:split-runtime-ffi-module? [split-runtime-ffi-module? #f]
          #:letrec-strategy [letrec-strategy 'scc]
          #:provider-owned-primitive-aliases [provider-owned-primitive-aliases '()])
   `(module-bridge-provider-compiled-fragment-wat-cache
@@ -1664,6 +1666,7 @@
     (enable-simplify? ,enable-simplify?)
     (split-runtime-reference? ,split-runtime-reference?)
     (split-runtime-ffi-in-core? ,split-runtime-ffi-in-core?)
+    (split-runtime-ffi-module? ,split-runtime-ffi-module?)
     (letrec-strategy ,letrec-strategy)
     (provider-owned-primitive-aliases
      ,(sort provider-owned-primitive-aliases symbol<?))))
@@ -4619,8 +4622,7 @@
     (if split-runtime-ffi-module-explicit?
         split-runtime-ffi-module?
         (and split-runtime?
-             (not split-runtime-core-only?)
-             (not split-runtime-provider-runtime?))))
+             (not split-runtime-core-only?))))
 
   (define t-preflight-start (now-ms))
 
@@ -4663,10 +4665,6 @@
   (when (and split-runtime-ffi-module/effective? split-runtime-core-only?)
     (error 'drive-compilation
            "`--split-runtime-ffi-module` cannot be combined with `--split-runtime-core-only`"))
-  (when (and split-runtime-ffi-module/effective? split-runtime-provider-runtime?)
-    (error 'drive-compilation
-           "`--split-runtime-ffi-module` cannot be combined with `--split-runtime-provider-runtime` yet"))
-
   ; Preflight: `-r` in Node mode requires a Node.js executable.
   (when (and node? run-after?)
     (check-node! 'drive-compilation))
@@ -4754,6 +4752,11 @@
                                                       '()]
                              #:split-runtime-ffi-in-core?
                              [split-runtime-ffi-in-core? #f]
+                             #:split-runtime-ffi-module?
+                             [split-runtime-ffi-module?
+                              split-runtime-ffi-module/effective?]
+                             #:split-runtime-ffi-program-owned?
+                             [split-runtime-ffi-program-owned? #t]
                              #:allow-split-program-only-fast-path?
                              [allow-split-program-only-fast-path? #t])
     (parameterize ([current-browser? browser?]
@@ -4786,7 +4789,9 @@
                    [current-split-runtime-ffi-in-core?
                     split-runtime-ffi-in-core?]
                    [current-split-runtime-ffi-module?
-                    split-runtime-ffi-module/effective?]
+                    split-runtime-ffi-module?]
+                   [current-split-runtime-ffi-program-owned?
+                    split-runtime-ffi-program-owned?]
                    [current-split-runtime-program-only-fast-path?
                     allow-split-program-only-fast-path?])
       (comp stx-to-compile)))
@@ -4815,6 +4820,18 @@
       (if split-runtime-provider-runtime?
           (module-bridge-provider-ffi-primitive-symbols provider-datum)
           '()))
+    (define provider-fragment-extra-used-primitives
+      (if (and split-runtime-provider-runtime?
+               (memq 'unsafe-ffi-primitive provider-runtime-ffi-primitives))
+          '(unsafe-ffi-primitive)
+          provider-runtime-ffi-primitives))
+    (define provider-runtime-ffi-in-core? #f)
+    (define split-runtime-ffi-module/provider-effective?
+      (and split-runtime-ffi-module/effective?
+           (not provider-runtime-ffi-in-core?)))
+    (define provider-fragment-split-runtime-ffi-module?
+      (and split-runtime-ffi-module/provider-effective?
+           (not split-runtime-provider-runtime?)))
     (define provider-fragment-fingerprint
       (module-bridge-provider-fragment-fingerprint fragment-split))
     (define compiled-cache-key
@@ -4824,7 +4841,8 @@
        #:enable-cc-analysis? enable-cc-analysis?
        #:enable-simplify? enable-simplify?
        #:split-runtime-reference? #t
-       #:split-runtime-ffi-in-core? split-runtime-provider-runtime?
+       #:split-runtime-ffi-in-core? provider-runtime-ffi-in-core?
+       #:split-runtime-ffi-module? provider-fragment-split-runtime-ffi-module?
        #:letrec-strategy letrec-strategy
        #:provider-owned-primitive-aliases provider-owned-primitive-aliases))
     (define provider-wat/cache #f)
@@ -4837,12 +4855,14 @@
                compiled-cache-key
                (lambda ()
                  (compiled-fragment->program-wat
-                  (compile-top-level
-                   (datum->syntax #f provider-datum)
-                   #:exported-top-level-globals interface-symbols
-                   #:extra-used-primitives provider-runtime-ffi-primitives
-                   #:split-runtime-ffi-in-core?
-                   split-runtime-provider-runtime?)))))
+                   (compile-top-level
+                    (datum->syntax #f provider-datum)
+                    #:exported-top-level-globals interface-symbols
+                    #:extra-used-primitives provider-fragment-extra-used-primitives
+                    #:split-runtime-ffi-in-core?
+                    provider-runtime-ffi-in-core?
+                    #:split-runtime-ffi-module?
+                    provider-fragment-split-runtime-ffi-module?)))))
             (record-provider-fragment-timing! "provider-fragment-cache"
                                               provider-cache-start)
             (hash-set! (current-webify-bridge-stats)
@@ -4869,7 +4889,11 @@
        #:imported-top-level-globals interface-symbols
        #:extra-used-primitives provider-runtime-ffi-primitives
        #:split-runtime-ffi-in-core?
-       split-runtime-provider-runtime?))
+       provider-runtime-ffi-in-core?
+       #:split-runtime-ffi-module?
+       split-runtime-ffi-module/provider-effective?
+       #:split-runtime-ffi-program-owned?
+       (not split-runtime-provider-runtime?)))
     (record-provider-fragment-timing! "program-fragment-compile"
                                       program-compile-start)
     (hash-set! (current-webify-bridge-stats)
@@ -4896,7 +4920,12 @@
                   (datum->syntax #f program-datum)
                   #:imported-top-level-globals interface-symbols
                   #:extra-used-primitives provider-runtime-ffi-primitives
-                  #:split-runtime-ffi-in-core? #t
+                  #:split-runtime-ffi-in-core?
+                  provider-runtime-ffi-in-core?
+                  #:split-runtime-ffi-module?
+                  split-runtime-ffi-module/provider-effective?
+                  #:split-runtime-ffi-program-owned?
+                  (not split-runtime-provider-runtime?)
                   #:allow-split-program-only-fast-path? #f))
                (record-provider-fragment-timing!
                 "program-fragment-compile-materializable-core"
@@ -5101,7 +5130,7 @@
                     #:ffi-out split-runtime-ffi-wasm-reference
                     #:core-provider-imports-from-core?
                     split-runtime-provider-runtime?
-                    #:core-initialize? #f
+                    #:core-initialize? split-runtime-provider-runtime?
                     #:core-provider-entry
                     (and split-runtime-provider-runtime? "provider-entry")
                     #:host (if node? 'node 'browser)

@@ -122,9 +122,7 @@
                                           #:provider-imports-from-core?
                                           [provider-imports-from-core? #f]
                                           #:initialize-core?
-                                          [initialize-core? #f]
-                                          #:provider-entry
-                                          [provider-entry #f])
+                                          [initialize-core? #f])
   (cond
     [core-buffer-name
      @~a{const coreRuntimeModule = await hostWebAssembly.compile(@|core-buffer-name|);
@@ -141,15 +139,23 @@ splitRuntimeCoreExports["$initialize-split-runtime-after-constants!"]();
 splitRuntimeCoreExports["$initialize-unsafe-ffi-primitive-table"]();
 splitRuntimeCoreExports["$initialize-split-runtime-after-ffi!"]();
 }
-              "")|@|(if provider-entry
-                       @~a{splitRuntimeCoreExports[@|(jsexpr->string provider-entry)|]();
-}
-                       "")|
+              "")|
 
 }]
-    [(or provider-imports-from-core? initialize-core? provider-entry)
+    [(or provider-imports-from-core? initialize-core?)
      (error 'runtime
             "core provider options require a split runtime core output")]
+    [else ""]))
+
+(define (split-core-provider-entry-call core-buffer-name provider-entry)
+  (cond
+    [(and core-buffer-name provider-entry)
+     @~a{splitRuntimeCoreExports[@|(jsexpr->string provider-entry)|]();
+
+}]
+    [provider-entry
+     (error 'runtime
+            "core provider entry requires a split runtime core output")]
     [else ""]))
 
 (define (split-ffi-runtime-instantiation ffi-buffer-name)
@@ -159,6 +165,10 @@ assert_ffi_exception_bridge_visible_imports(ffiRuntimeModule, imports, "split FF
 const ffiRuntimeInstance = await hostWebAssembly.instantiate(ffiRuntimeModule, imports);
 const splitRuntimeFfiExports = ffiRuntimeInstance.exports;
 imports["ffi"] = splitRuntimeFfiExports;
+const splitRuntimeFfiInitializer = splitRuntimeFfiExports["$initialize-split-ffi-sidecar-primitives!"];
+if (typeof splitRuntimeFfiInitializer === "function") {
+  splitRuntimeFfiInitializer();
+}
 
 }
       ""))
@@ -2498,9 +2508,9 @@ let splitRuntimeCoreExports = {};
 @|(split-core-runtime-instantiation
    core-buffer-name
    #:provider-imports-from-core? core-provider-imports-from-core?
-   #:initialize-core? core-initialize?
-   #:provider-entry core-provider-entry)|
+   #:initialize-core? core-initialize?)|
 @|(split-ffi-runtime-instantiation ffi-buffer-name)|
+@|(split-core-provider-entry-call core-buffer-name core-provider-entry)|
 
 const programModule = await hostWebAssembly.compile(wasmBuffer);
 assert_ffi_exception_bridge_visible_imports(programModule, imports, "program module");
@@ -2857,11 +2867,12 @@ const wasmModule
   (check-true  (regexp-match? #rx"WebRacket console bridge ready" browser-runtime/bridge))
   (check-false (regexp-match? #rx"console_bridge_enabled = true" browser-runtime/plain))
   (check-true  (regexp-match? #rx"coreWasmBuffer = await fs\\.readFile\\(\"runtime\\.wasm\"\\)" node-runtime/split))
-  (check-true  (regexp-match? #rx"splitRuntimeCoreExports = coreRuntimeModule\\.instance\\.exports" node-runtime/split))
+  (check-true  (regexp-match? #rx"splitRuntimeCoreExports = coreRuntimeInstance\\.exports" node-runtime/split))
   (check-true  (regexp-match? #rx"imports\\[\"core\"\\] = splitRuntimeCoreExports" node-runtime/split))
   (check-false (regexp-match? #rx"imports\\[\"provider\"\\]" node-runtime/split))
   (check-true  (regexp-match? #rx"ffiWasmBuffer = await fs\\.readFile\\(\"ffi\\.wasm\"\\)" node-runtime/ffi-split))
   (check-true  (regexp-match? #rx"imports\\[\"ffi\"\\] = splitRuntimeFfiExports" node-runtime/ffi-split))
+  (check-true  (regexp-match? #rx"splitRuntimeFfiInitializer" node-runtime/ffi-split))
   (check-true  (regexp-match? #rx"imports\\[\"provider\"\\] = splitRuntimeCoreExports" node-runtime/provider-split))
   (check-true  (regexp-match? #rx"\\$initialize-split-runtime-before-constants!" node-runtime/provider-split))
   (check-true  (regexp-match? #rx"\\$initialize-unsafe-ffi-primitive-table" node-runtime/provider-split))
