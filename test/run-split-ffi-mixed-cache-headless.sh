@@ -9,6 +9,7 @@ RSS_LIMIT_MB="${SPLIT_FFI_MIXED_CACHE_RSS_LIMIT_MB:-3500}"
 RUN_ID="$(date +%Y%m%d-%H%M%S)-$$"
 RUN_ROOT="${SPLIT_FFI_MIXED_CACHE_TMP:-$ROOT_DIR/tmp/split-ffi-mixed-cache-headless}/$RUN_ID"
 OUT_DIR="$RUN_ROOT/out"
+COMPILED_ROOT="$RUN_ROOT/compiled-root"
 PROVIDER_CACHE_DIR="$RUN_ROOT/provider-cache"
 RUNTIME_PROVIDER_CACHE_DIR="$RUN_ROOT/runtime-provider-cache"
 SERVER_LOG="$RUN_ROOT/server.log"
@@ -36,7 +37,7 @@ case "$SPLIT_FFI_MODE" in
     ;;
 esac
 
-mkdir -p "$OUT_DIR" "$PROVIDER_CACHE_DIR" "$RUNTIME_PROVIDER_CACHE_DIR"
+mkdir -p "$OUT_DIR" "$COMPILED_ROOT" "$PROVIDER_CACHE_DIR" "$RUNTIME_PROVIDER_CACHE_DIR"
 
 if [[ -z "$CHROME_EXECUTABLE" && -d "$PLAYWRIGHT_CACHE_ROOT" ]]; then
   CHROME_EXECUTABLE="$(
@@ -57,6 +58,7 @@ compile_root_test() {
     --timeout-sec "$TIMEOUT_SEC" \
     --rss-limit-mb "$RSS_LIMIT_MB" \
     -- \
+    /usr/bin/env PLTCOMPILEDROOTS="$COMPILED_ROOT" \
     racket "$ROOT_DIR/webracket.rkt" \
       --browser \
       "${SPLIT_FFI_MODE_ARGS[@]}" \
@@ -78,6 +80,7 @@ compile_test_dir_test() {
       --timeout-sec "$TIMEOUT_SEC" \
       --rss-limit-mb "$RSS_LIMIT_MB" \
       -- \
+      /usr/bin/env PLTCOMPILEDROOTS="$COMPILED_ROOT" \
       racket "$ROOT_DIR/webracket.rkt" \
         --browser \
         "${SPLIT_FFI_MODE_ARGS[@]}" \
