@@ -5,7 +5,7 @@ SMOKE_DIR := lib/web-easy/smoke
 SINGLE_COMPILE ?= run-browser-parity-profile-compile.sh
 SINGLE_PAGE ?= test-browser-parity-profile.html
 
-.PHONY: help goal1-fast smoke-ci smoke-headless-lite smoke-style smoke-theme smoke-theme-contracts smoke-theme-core smoke-theme-visual smoke-verify smoke-quick smoke-release smoke-one smoke-list smoke-commands smoke-compare-navbars smoke-compare-buttons smoke-compare-all smoke-solar-parity smoke-solar-sections smoke-solar-sections-gate smoke-split-runtime-readiness smoke-split-runtime-default smoke-split-runtime-default-fast smoke-split-runtime-provider-ffi smoke-split-runtime-browser smoke-split-runtime-browser-url smoke-split-runtime-browser-provider-runtime smoke-split-runtime-browser-provider-runtime-url smoke-split-runtime-prewarm smoke-split-runtime-warm-process smoke-split-runtime-provider-runtime smoke-split-runtime-provider-runtime-warm-process smoke-split-runtime-procedure-boundary smoke-treelist-shape dom-headless measure-letrec-test-basics measure-split-runtime-warm-process measure-split-runtime-provider-runtime measure-split-runtime-provider-runtime-warm-process
+.PHONY: help goal1-fast smoke-ci smoke-headless-lite smoke-style smoke-theme smoke-theme-contracts smoke-theme-core smoke-theme-visual smoke-verify smoke-quick smoke-release smoke-one smoke-list smoke-commands smoke-compare-navbars smoke-compare-buttons smoke-compare-all smoke-solar-parity smoke-solar-sections smoke-solar-sections-gate smoke-split-runtime-readiness smoke-split-runtime-default smoke-split-runtime-default-fast smoke-split-runtime-provider-ffi smoke-split-runtime-browser smoke-split-runtime-browser-url smoke-split-runtime-browser-provider-runtime smoke-split-runtime-browser-provider-runtime-url smoke-split-runtime-prewarm smoke-split-runtime-warm-process smoke-split-runtime-provider-runtime smoke-split-runtime-provider-runtime-warm-process smoke-split-runtime-procedure-boundary smoke-split-ffi-mixed-cache-browser smoke-split-ffi-mixed-cache-browser-list smoke-split-ffi-mixed-cache-browser-fast smoke-split-ffi-mixed-cache-browser-chunked smoke-split-ffi-mixed-cache-browser-chunk-1 smoke-split-ffi-mixed-cache-browser-chunk-2 smoke-split-ffi-mixed-cache-browser-chunk-3 smoke-split-ffi-mixed-cache-browser-chunk-4 smoke-treelist-shape dom-headless measure-letrec-test-basics measure-split-runtime-warm-process measure-split-runtime-provider-runtime measure-split-runtime-provider-runtime-warm-process
 
 help:
 	@echo "Available targets:"
@@ -43,6 +43,9 @@ help:
 	@echo "  smoke-split-runtime-provider-runtime  Run Node provider-runtime cache-reference smoke."
 	@echo "  smoke-split-runtime-provider-runtime-warm-process  Run provider-runtime through a warm compiler process."
 	@echo "  smoke-split-runtime-procedure-boundary  Run tiny Wasm-GC procedure boundary smoke."
+	@echo "  smoke-split-ffi-mixed-cache-browser  Run full split-FFI mixed-cache browser smoke."
+	@echo "  smoke-split-ffi-mixed-cache-browser-fast  Run compact split-FFI browser smoke."
+	@echo "  smoke-split-ffi-mixed-cache-browser-chunked  Run full split-FFI browser smoke in four chunks."
 	@echo "  smoke-treelist-shape  Run the compiler-private treelist shape validation smoke."
 	@echo "  dom-headless          Run the DOM browser wrapper suite."
 	@echo "  measure-letrec-test-basics  Run test-letrec first, then compare letrec strategies on test-basics."
@@ -135,6 +138,10 @@ smoke-list:
 	@echo "smoke-split-runtime-provider-runtime"
 	@echo "smoke-split-runtime-provider-runtime-warm-process"
 	@echo "smoke-split-runtime-procedure-boundary"
+	@echo "smoke-split-ffi-mixed-cache-browser"
+	@echo "smoke-split-ffi-mixed-cache-browser-list"
+	@echo "smoke-split-ffi-mixed-cache-browser-fast"
+	@echo "smoke-split-ffi-mixed-cache-browser-chunked"
 	@echo "smoke-treelist-shape"
 	@echo "dom-headless"
 
@@ -176,6 +183,7 @@ smoke-split-runtime-readiness:
 	$(MAKE) smoke-split-runtime-browser-url
 	$(MAKE) smoke-split-runtime-browser-provider-runtime-url
 	$(MAKE) smoke-split-runtime-provider-runtime
+	$(MAKE) smoke-split-ffi-mixed-cache-browser-fast
 
 smoke-split-runtime-default:
 	python3 tools/run-guarded.py --timeout-sec 900 --rss-limit-mb 4500 -- racket -S pkgs tools/check-split-runtime-default.rkt --jobs 4
@@ -218,6 +226,27 @@ dom-headless:
 
 smoke-split-ffi-mixed-cache-browser:
 	bash test/run-split-ffi-mixed-cache-headless.sh
+
+smoke-split-ffi-mixed-cache-browser-list:
+	bash test/run-split-ffi-mixed-cache-headless.sh --list-cases
+
+smoke-split-ffi-mixed-cache-browser-fast:
+	bash test/run-split-ffi-mixed-cache-headless.sh --only test-js-math-ffi --only test-dom-window-document
+
+smoke-split-ffi-mixed-cache-browser-chunked:
+	$(MAKE) -j4 smoke-split-ffi-mixed-cache-browser-chunk-1 smoke-split-ffi-mixed-cache-browser-chunk-2 smoke-split-ffi-mixed-cache-browser-chunk-3 smoke-split-ffi-mixed-cache-browser-chunk-4
+
+smoke-split-ffi-mixed-cache-browser-chunk-1:
+	bash test/run-split-ffi-mixed-cache-headless.sh --chunk 1/4
+
+smoke-split-ffi-mixed-cache-browser-chunk-2:
+	bash test/run-split-ffi-mixed-cache-headless.sh --chunk 2/4
+
+smoke-split-ffi-mixed-cache-browser-chunk-3:
+	bash test/run-split-ffi-mixed-cache-headless.sh --chunk 3/4
+
+smoke-split-ffi-mixed-cache-browser-chunk-4:
+	bash test/run-split-ffi-mixed-cache-headless.sh --chunk 4/4
 
 measure-letrec-test-basics:
 	racket tools/measure-letrec-test-basics.rkt

@@ -20,6 +20,122 @@ PLAYWRIGHT_CACHE_ROOT="${PLAYWRIGHT_BROWSERS_PATH:-$HOME/Library/Caches/ms-playw
 SMOKE_PAGES=()
 SPLIT_FFI_MODE="${SPLIT_FFI_MIXED_CACHE_MODE:-default}"
 SPLIT_FFI_MODE_ARGS=()
+LIST_CASES=0
+ONLY_CASES=()
+SKIP_CASES=()
+GROUP_CASES=()
+CHUNK_INDEX=0
+CHUNK_COUNT=0
+ALL_CASE_IDS=()
+ALL_GROUPS=()
+CANDIDATE_CASES=0
+SELECTED_CASES=0
+CASE_PASS=collect
+
+usage() {
+  cat <<'USAGE'
+Usage: test/run-split-ffi-mixed-cache-headless.sh [options]
+
+Options:
+  --list-cases         List available browser FFI cases and exit.
+  --only ID            Run only the named case; repeatable.
+  --skip ID            Skip the named case; repeatable.
+  --group GROUP        Run cases in the named group; repeatable.
+  --chunk N/M          Run chunk N of M after other selectors.
+  --help               Show this help.
+
+Useful environment:
+  SPLIT_FFI_MIXED_CACHE_MODE=default|explicit|inline
+  SPLIT_FFI_MIXED_CACHE_CHUNK=N/M
+USAGE
+}
+
+contains_value() {
+  local needle="$1"
+  shift
+  local value
+  for value in "$@"; do
+    if [ "$value" = "$needle" ]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+join_by_comma() {
+  local IFS=,
+  echo "$*"
+}
+
+parse_chunk_spec() {
+  local spec="$1"
+  if [[ ! "$spec" =~ ^([0-9]+)/([0-9]+)$ ]]; then
+    echo "Invalid chunk spec: $spec" >&2
+    echo "Expected N/M, for example 1/4." >&2
+    exit 2
+  fi
+  CHUNK_INDEX="${BASH_REMATCH[1]}"
+  CHUNK_COUNT="${BASH_REMATCH[2]}"
+  if [ "$CHUNK_INDEX" -lt 1 ] || [ "$CHUNK_COUNT" -lt 1 ] || [ "$CHUNK_INDEX" -gt "$CHUNK_COUNT" ]; then
+    echo "Invalid chunk spec: $spec" >&2
+    echo "Expected 1 <= N <= M." >&2
+    exit 2
+  fi
+}
+
+if [ -n "${SPLIT_FFI_MIXED_CACHE_CHUNK:-}" ]; then
+  parse_chunk_spec "$SPLIT_FFI_MIXED_CACHE_CHUNK"
+fi
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --help)
+      usage
+      exit 0
+      ;;
+    --list-cases)
+      LIST_CASES=1
+      shift
+      ;;
+    --only)
+      if [ "$#" -lt 2 ]; then
+        echo "--only requires a case id." >&2
+        exit 2
+      fi
+      ONLY_CASES+=("$2")
+      shift 2
+      ;;
+    --skip)
+      if [ "$#" -lt 2 ]; then
+        echo "--skip requires a case id." >&2
+        exit 2
+      fi
+      SKIP_CASES+=("$2")
+      shift 2
+      ;;
+    --group)
+      if [ "$#" -lt 2 ]; then
+        echo "--group requires a group name." >&2
+        exit 2
+      fi
+      GROUP_CASES+=("$2")
+      shift 2
+      ;;
+    --chunk)
+      if [ "$#" -lt 2 ]; then
+        echo "--chunk requires N/M." >&2
+        exit 2
+      fi
+      parse_chunk_spec "$2"
+      shift 2
+      ;;
+    *)
+      echo "Unknown option: $1" >&2
+      usage >&2
+      exit 2
+      ;;
+  esac
+done
 
 case "$SPLIT_FFI_MODE" in
   default)
@@ -93,27 +209,172 @@ compile_test_dir_test() {
   echo "PASS split-ffi compile test/$file"
 }
 
-compile_root_case() {
-  local page="$1"
-  local file="$2"
-  shift 2
-  compile_root_test "$file" "$@"
-  SMOKE_PAGES+=("$page")
-}
-
-compile_test_dir_case() {
-  local page="$1"
-  local file="$2"
-  shift 2
-  compile_test_dir_test "$file" "$@"
-  SMOKE_PAGES+=("$page")
-}
-
 join_smoke_pages() {
   local IFS=,
   echo "${SMOKE_PAGES[*]}"
 }
 
+case_id_from_page() {
+  local page="$1"
+  echo "${page%.html}"
+}
+
+case_groups() {
+  local kind="$1"
+  local page="$2"
+  local file="$3"
+  shift 3
+  local groups=(all "$kind")
+  local arg
+
+  if [[ "$page" == *missing-host* || "$file" == *missing-host* ]]; then
+    groups+=(missing-host)
+  fi
+  if [[ "$page" == *surface* || "$file" == *surface* ]]; then
+    groups+=(surface)
+  fi
+  if [[ "$page" == test-js-* || "$file" == test/test-js-* ]]; then
+    groups+=(js)
+  fi
+  if [[ "$page" == test-browser-* || "$file" == test/test-browser-* ]]; then
+    groups+=(browser)
+  fi
+  if [[ "$page" == test-dom-* || "$file" == test-dom* || "$file" == test/test-dom-* ]]; then
+    groups+=(dom)
+  fi
+  if [[ "$page" == test-rquery-* || "$file" == *rquery* ]]; then
+    groups+=(rquery)
+  fi
+  if [[ "$page" == *web-easy* || "$file" == *web-easy* ]]; then
+    groups+=(web-easy)
+  fi
+
+  for arg in "$@"; do
+    case "$arg" in
+      *standard.ffi) groups+=(standard) ;;
+      *dom.ffi) groups+=(dom) ;;
+      *audio.ffi) groups+=(audio) ;;
+      *array.ffi) groups+=(array) ;;
+      *console.ffi) groups+=(console) ;;
+      *image.ffi) groups+=(image) ;;
+      *websocket.ffi) groups+=(websocket) ;;
+    esac
+  done
+
+  printf '%s\n' "${groups[@]}"
+}
+
+remember_group() {
+  local group="$1"
+  if ! contains_value "$group" "${ALL_GROUPS[@]}"; then
+    ALL_GROUPS+=("$group")
+  fi
+}
+
+case_selector_matches() {
+  local case_id="$1"
+  shift
+  local groups=("$@")
+  local group
+
+  if contains_value "$case_id" "${SKIP_CASES[@]}"; then
+    return 1
+  fi
+
+  if [ "${#ONLY_CASES[@]}" -eq 0 ] && [ "${#GROUP_CASES[@]}" -eq 0 ]; then
+    return 0
+  fi
+
+  if contains_value "$case_id" "${ONLY_CASES[@]}"; then
+    return 0
+  fi
+
+  for group in "${groups[@]}"; do
+    if contains_value "$group" "${GROUP_CASES[@]}"; then
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+case_selected_for_run() {
+  local case_id="$1"
+  shift
+  local groups=("$@")
+  if ! case_selector_matches "$case_id" "${groups[@]}"; then
+    return 1
+  fi
+
+  CANDIDATE_CASES=$((CANDIDATE_CASES + 1))
+  if [ "$CHUNK_COUNT" -gt 0 ]; then
+    local offset=$((CHUNK_INDEX - 1))
+    local candidate_offset=$(((CANDIDATE_CASES - 1) % CHUNK_COUNT))
+    if [ "$candidate_offset" -ne "$offset" ]; then
+      return 1
+    fi
+  fi
+
+  return 0
+}
+
+handle_case() {
+  local kind="$1"
+  local page="$2"
+  local file="$3"
+  shift 3
+  local case_id
+  case_id="$(case_id_from_page "$page")"
+  local groups=()
+  local group
+  while IFS= read -r group; do
+    groups+=("$group")
+  done < <(case_groups "$kind" "$page" "$file" "$@")
+  local unique_groups=()
+  for group in "${groups[@]}"; do
+    if ! contains_value "$group" "${unique_groups[@]}"; then
+      unique_groups+=("$group")
+    fi
+  done
+  groups=("${unique_groups[@]}")
+
+  case "$CASE_PASS" in
+    collect)
+      ALL_CASE_IDS+=("$case_id")
+      for group in "${groups[@]}"; do
+        remember_group "$group"
+      done
+      if [ "$LIST_CASES" -eq 1 ]; then
+        printf "%s\tgroups=%s\tpage=%s\tsource=%s\n" \
+          "$case_id" \
+          "$(join_by_comma "${groups[@]}")" \
+          "$page" \
+          "$file"
+      fi
+      ;;
+    run)
+      if case_selected_for_run "$case_id" "${groups[@]}"; then
+        SELECTED_CASES=$((SELECTED_CASES + 1))
+        if [ "$kind" = "test-dir" ]; then
+          compile_test_dir_test "$file" "$@"
+        else
+          compile_root_test "$file" "$@"
+        fi
+        SMOKE_PAGES+=("$page")
+      fi
+      ;;
+  esac
+}
+
+compile_root_case() {
+  handle_case root "$@"
+}
+
+compile_test_dir_case() {
+  handle_case test-dir "$@"
+}
+
+register_cases() {
 compile_test_dir_case test-audio.html test-audio.rkt \
   --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/audio.ffi"
 compile_root_case test-audio-method-missing-host-ffi.html test/test-audio-method-missing-host-ffi.rkt \
@@ -301,6 +562,54 @@ compile_root_case test-dom-image.html test/test-dom-image.rkt \
   --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/dom.ffi"
 compile_root_case test-dom-canvas-media-image.html test/test-dom-canvas-media-image.rkt \
   --ffi "$ROOT_DIR/pkgs/webracket-lib/compiler/ffi/dom.ffi"
+}
+
+validate_case_selectors() {
+  local id
+  for id in "${ONLY_CASES[@]}"; do
+    if ! contains_value "$id" "${ALL_CASE_IDS[@]}"; then
+      echo "Unknown split-FFI browser case id: $id" >&2
+      exit 2
+    fi
+  done
+  for id in "${SKIP_CASES[@]}"; do
+    if ! contains_value "$id" "${ALL_CASE_IDS[@]}"; then
+      echo "Unknown split-FFI browser case id: $id" >&2
+      exit 2
+    fi
+  done
+
+  local group
+  for group in "${GROUP_CASES[@]}"; do
+    if ! contains_value "$group" "${ALL_GROUPS[@]}"; then
+      echo "Unknown split-FFI browser group: $group" >&2
+      echo "Known groups: $(join_by_comma "${ALL_GROUPS[@]}")" >&2
+      exit 2
+    fi
+  done
+}
+
+register_cases
+validate_case_selectors
+
+if [ "$LIST_CASES" -eq 1 ]; then
+  echo "Total cases: ${#ALL_CASE_IDS[@]}"
+  echo "Groups: $(join_by_comma "${ALL_GROUPS[@]}")"
+  exit 0
+fi
+
+CASE_PASS=run
+register_cases
+
+if [ "$SELECTED_CASES" -eq 0 ]; then
+  echo "No split-FFI browser cases selected." >&2
+  exit 1
+fi
+
+echo "Selected split-FFI browser cases: $SELECTED_CASES"
+if [ "$CHUNK_COUNT" -gt 0 ]; then
+  echo "Chunk: $CHUNK_INDEX/$CHUNK_COUNT from $CANDIDATE_CASES matching cases"
+fi
 
 if ! command -v node >/dev/null 2>&1; then
   echo "node is required for the DOM browser runner."
@@ -340,8 +649,9 @@ if [ -z "$SERVER_PID" ]; then
   exit 1
 fi
 
+READY_PAGE="${SMOKE_PAGES[0]}"
 for _ in 1 2 3 4 5 6 7 8 9 10; do
-  if curl -sf "$BASE_URL/test-js-string-symbol-ffi.html" >/dev/null; then
+  if curl -sf "$BASE_URL/$READY_PAGE" >/dev/null; then
     break
   fi
   sleep 1
@@ -353,7 +663,7 @@ if grep -q "Address already in use" "$SERVER_LOG"; then
   exit 1
 fi
 
-if ! curl -sf "$BASE_URL/test-js-string-symbol-ffi.html" >/dev/null; then
+if ! curl -sf "$BASE_URL/$READY_PAGE" >/dev/null; then
   echo "Split-FFI browser server did not become ready at $BASE_URL."
   cat "$SERVER_LOG"
   exit 1
