@@ -4,6 +4,7 @@ RACKET ?= ../racket/racket/bin/racket
 SMOKE_DIR := lib/web-easy/smoke
 SINGLE_COMPILE ?= run-browser-parity-profile-compile.sh
 SINGLE_PAGE ?= test-browser-parity-profile.html
+SPLIT_RUNTIME_TOOL_COMPILED_ROOT ?= tmp/smoke-split-runtime-tool-compiled-root
 SPLIT_RUNTIME_BROWSER_COMPILED_ROOT ?= tmp/smoke-split-runtime-browser-compiled-root
 
 .PHONY: help goal1-fast smoke-ci smoke-headless-lite smoke-style smoke-theme smoke-theme-contracts smoke-theme-core smoke-theme-visual smoke-verify smoke-quick smoke-release smoke-one smoke-list smoke-commands smoke-compare-navbars smoke-compare-buttons smoke-compare-all smoke-solar-parity smoke-solar-sections smoke-solar-sections-gate smoke-split-runtime-readiness smoke-split-runtime-readiness-fast smoke-split-runtime-default smoke-split-runtime-default-fast smoke-split-runtime-provider-ffi smoke-split-runtime-browser smoke-split-runtime-browser-url smoke-split-runtime-browser-provider-runtime smoke-split-runtime-browser-provider-runtime-url smoke-split-runtime-prewarm smoke-split-runtime-warm-process smoke-split-runtime-provider-runtime smoke-split-runtime-provider-runtime-warm-process smoke-split-runtime-procedure-boundary smoke-split-runtime-examples smoke-split-runtime-examples-list smoke-split-runtime-examples-fast smoke-split-ffi-mixed-cache-browser smoke-split-ffi-mixed-cache-browser-list smoke-split-ffi-mixed-cache-browser-fast smoke-split-ffi-mixed-cache-browser-broad smoke-split-ffi-mixed-cache-browser-browser-group smoke-split-ffi-mixed-cache-browser-test-dir-group smoke-split-ffi-mixed-cache-browser-chunked smoke-split-ffi-mixed-cache-browser-chunk-1 smoke-split-ffi-mixed-cache-browser-chunk-2 smoke-split-ffi-mixed-cache-browser-chunk-3 smoke-split-ffi-mixed-cache-browser-chunk-4 smoke-treelist-shape dom-headless measure-letrec-test-basics measure-split-runtime-warm-process measure-split-runtime-provider-runtime measure-split-runtime-provider-runtime-warm-process
@@ -226,16 +227,20 @@ smoke-split-runtime-browser-provider-runtime-url:
 	python3 tools/run-guarded.py --timeout-sec 540 --rss-limit-mb 3500 -- /usr/bin/env PLTCOMPILEDROOTS=$(SPLIT_RUNTIME_BROWSER_COMPILED_ROOT) racket -S pkgs tools/check-split-runtime-browser.rkt --source test/test-module-read-demand.rkt --shared-runtime-url --split-runtime-provider-runtime --isolate-compiled-root
 
 smoke-split-runtime-prewarm:
-	python3 tools/run-guarded.py --timeout-sec 600 --rss-limit-mb 4000 -- racket -S pkgs tools/check-split-runtime-prewarm.rkt --source test/test-lambda-variadic.rkt --extra-source test/test-values-errors.rkt --suite --jobs 4 --no-expect --reject '#f'
+	mkdir -p $(SPLIT_RUNTIME_TOOL_COMPILED_ROOT)
+	python3 tools/run-guarded.py --timeout-sec 600 --rss-limit-mb 4000 -- /usr/bin/env PLTCOMPILEDROOTS=$(SPLIT_RUNTIME_TOOL_COMPILED_ROOT) racket -S pkgs tools/check-split-runtime-prewarm.rkt --source test/test-lambda-variadic.rkt --extra-source test/test-values-errors.rkt --suite --jobs 4 --no-expect --reject '#f'
 
 smoke-split-runtime-warm-process:
-	python3 tools/run-guarded.py --timeout-sec 300 --rss-limit-mb 2500 -- racket -S pkgs tools/check-split-runtime-prewarm.rkt --source test/test-trivial.rkt --in-process --no-sidecar-check
+	mkdir -p $(SPLIT_RUNTIME_TOOL_COMPILED_ROOT)
+	python3 tools/run-guarded.py --timeout-sec 300 --rss-limit-mb 2500 -- /usr/bin/env PLTCOMPILEDROOTS=$(SPLIT_RUNTIME_TOOL_COMPILED_ROOT) racket -S pkgs tools/check-split-runtime-prewarm.rkt --source test/test-trivial.rkt --in-process --no-sidecar-check
 
 smoke-split-runtime-provider-runtime:
-	python3 tools/run-guarded.py --timeout-sec 480 --rss-limit-mb 3500 -- racket -S pkgs tools/check-split-runtime-prewarm.rkt --source test/test-module-read-demand.rkt --extra-source examples/minischeme/repro-local-mini-42.rkt --split-runtime-provider-runtime
+	mkdir -p $(SPLIT_RUNTIME_TOOL_COMPILED_ROOT)
+	python3 tools/run-guarded.py --timeout-sec 900 --rss-limit-mb 3500 -- /usr/bin/env PLTCOMPILEDROOTS=$(SPLIT_RUNTIME_TOOL_COMPILED_ROOT) racket -S pkgs tools/check-split-runtime-prewarm.rkt --source test/test-module-read-demand.rkt --extra-source examples/minischeme/repro-local-mini-42.rkt --split-runtime-provider-runtime --precompile-compiler --isolate-compiled-root
 
 smoke-split-runtime-provider-runtime-warm-process:
-	python3 tools/run-guarded.py --timeout-sec 480 --rss-limit-mb 3500 -- racket -S pkgs tools/check-split-runtime-prewarm.rkt --source test/test-module-read-demand.rkt --extra-source examples/minischeme/repro-local-mini-42.rkt --split-runtime-provider-runtime --in-process --no-sidecar-check
+	mkdir -p $(SPLIT_RUNTIME_TOOL_COMPILED_ROOT)
+	python3 tools/run-guarded.py --timeout-sec 480 --rss-limit-mb 3500 -- /usr/bin/env PLTCOMPILEDROOTS=$(SPLIT_RUNTIME_TOOL_COMPILED_ROOT) racket -S pkgs tools/check-split-runtime-prewarm.rkt --source test/test-module-read-demand.rkt --extra-source examples/minischeme/repro-local-mini-42.rkt --split-runtime-provider-runtime --in-process --no-sidecar-check
 
 smoke-split-runtime-procedure-boundary:
 	python3 tools/run-guarded.py --timeout-sec 60 --rss-limit-mb 1000 -- racket -S pkgs tools/check-split-runtime-procedure-boundary.rkt
@@ -317,10 +322,13 @@ measure-letrec-test-basics:
 	racket tools/measure-letrec-test-basics.rkt
 
 measure-split-runtime-warm-process:
-	python3 tools/run-guarded.py --timeout-sec 360 --rss-limit-mb 2500 -- racket -S pkgs tools/measure-split-runtime.rkt --prewarm-runtime-first --include-cache-reference --in-process
+	mkdir -p $(SPLIT_RUNTIME_TOOL_COMPILED_ROOT)
+	python3 tools/run-guarded.py --timeout-sec 360 --rss-limit-mb 2500 -- /usr/bin/env PLTCOMPILEDROOTS=$(SPLIT_RUNTIME_TOOL_COMPILED_ROOT) racket -S pkgs tools/measure-split-runtime.rkt --prewarm-runtime-first --include-cache-reference --in-process
 
 measure-split-runtime-provider-runtime:
-	python3 tools/run-guarded.py --timeout-sec 720 --rss-limit-mb 3500 -- racket -S pkgs tools/measure-split-runtime.rkt --source examples/minischeme/repro-local-mini-42.rkt --split-runtime-provider-runtime --prewarm-runtime-first --include-cache-reference
+	mkdir -p $(SPLIT_RUNTIME_TOOL_COMPILED_ROOT)
+	python3 tools/run-guarded.py --timeout-sec 720 --rss-limit-mb 3500 -- /usr/bin/env PLTCOMPILEDROOTS=$(SPLIT_RUNTIME_TOOL_COMPILED_ROOT) racket -S pkgs tools/measure-split-runtime.rkt --source examples/minischeme/repro-local-mini-42.rkt --split-runtime-provider-runtime --prewarm-runtime-first --include-cache-reference
 
 measure-split-runtime-provider-runtime-warm-process:
-	python3 tools/run-guarded.py --timeout-sec 720 --rss-limit-mb 3500 -- racket -S pkgs tools/measure-split-runtime.rkt --source examples/minischeme/repro-local-mini-42.rkt --split-runtime-provider-runtime --prewarm-runtime-first --include-cache-reference --in-process
+	mkdir -p $(SPLIT_RUNTIME_TOOL_COMPILED_ROOT)
+	python3 tools/run-guarded.py --timeout-sec 720 --rss-limit-mb 3500 -- /usr/bin/env PLTCOMPILEDROOTS=$(SPLIT_RUNTIME_TOOL_COMPILED_ROOT) racket -S pkgs tools/measure-split-runtime.rkt --source examples/minischeme/repro-local-mini-42.rkt --split-runtime-provider-runtime --prewarm-runtime-first --include-cache-reference --in-process
