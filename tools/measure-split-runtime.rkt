@@ -66,6 +66,21 @@
    split-program-function-count)
   #:transparent)
 
+;; phase-result :
+;;   symbol? boolean? real? (or/c real? #f) (or/c real? #f) path? string? string?
+;;   -> phase-result?
+;;   Summary of one extended phase-breakdown row.
+(struct phase-result
+  (name
+   ok?
+   wall-ms
+   driver-total
+   outside-driver
+   log-path
+   status-detail
+   stderr)
+  #:transparent)
+
 
 ;;; Repository Paths
 
@@ -104,6 +119,8 @@
 (define in-process? #f)
 (define compile-server? #f)
 (define frontend-cache? #f)
+(define phase-breakdown? #f)
+(define phase-breakdown-only? #f)
 
 ;; resolve-source-path : string? -> path?
 ;;   Resolve a user-provided source path relative to the repository root.
@@ -161,7 +178,14 @@
   (set! compile-server? #t)]
  [("--frontend-cache")
   "Pass --frontend-cache to measured compiles"
-  (set! frontend-cache? #t)])
+  (set! frontend-cache? #t)]
+ [("--phase-breakdown")
+  "Also print a fresh-process startup/require/compile/run phase breakdown"
+  (set! phase-breakdown? #t)]
+ [("--phase-breakdown-only")
+  "Only print the fresh-process phase breakdown; skip the normal mode table"
+  (set! phase-breakdown? #t)
+  (set! phase-breakdown-only? #t)])
 
 (when (and in-process? compile-server?)
   (raise-user-error 'measure-split-runtime
@@ -546,12 +570,13 @@
 (define (file-size/zero path)
   (if (file-exists? path) (file-size path) 0))
 
-;; mode-flags : symbol? path-string? path-string? -> (listof string?)
+;; mode-flags : symbol? path-string? path-string? [#:run? boolean?] -> (listof string?)
 ;;   Return WebRacket flags for one benchmark mode.
-(define (mode-flags mode provider-cache runtime-cache)
+(define (mode-flags mode provider-cache runtime-cache #:run? [run? #t])
   (append
    (append
-    '("--node" "--run" "--timings" "--no-stdlib")
+    (append '("--node" "--timings" "--no-stdlib")
+            (if run? '("--run") '()))
     (if frontend-cache?
         '("--frontend-cache")
         '()))
@@ -649,6 +674,154 @@
                                   "split-program-function-count")))
 
 
+;;; Extended Phase Breakdown
+
+;; phase-log-path : path-string? symbol? -> path?
+;;   Return the log path for an extended phase row.
+(define (phase-log-path temp-root name)
+  (build-path temp-root (format "phase-~a.log" name)))
+
+;; measure-command-phase :
+;;   symbol? path-string? path-string? path-string? (listof string?) -> phase-result?
+;;   Measure a plain subprocess phase.
+(define (measure-command-phase name temp-root cwd exe args)
+  (define-values (ok? stdout stderr wall-ms)
+    (run-command/capture cwd exe args))
+  (define log-path (phase-log-path temp-root name))
+  (write-log! log-path stdout stderr)
+  (phase-result name
+                ok?
+                wall-ms
+                #f
+                #f
+                log-path
+                (if ok? "ok" "failed")
+                stderr))
+
+;; measure-startup-phase-rows : path-string? path-string? -> (listof phase-result?)
+;;   Measure fresh Racket startup and compiler/tool module loading.
+(define (measure-startup-phase-rows racket-exe temp-root)
+  (list
+   (measure-command-phase
+    'racket-startup
+    temp-root
+    repo-root
+    racket-exe
+    '("-e" "(void)"))
+   (measure-command-phase
+    'racket-pkgs-startup
+    temp-root
+    repo-root
+    racket-exe
+    '("-S" "pkgs" "-e" "(void)"))
+   (measure-command-phase
+    'require-compiler-tools
+    temp-root
+    repo-root
+    racket-exe
+    '("-S" "pkgs"
+      "-t" "tools/prewarm-staged-providers.rkt"
+      "-t" "pkgs/webracket-lib/compiler/cli-lib.rkt"
+      "-t" "pkgs/webracket-lib/compiler/driver.rkt"
+      "-t" "pkgs/webracket-lib/compiler/runtime-wasm.rkt"))))
+
+;; split-cache-status-ok? : symbol? symbol? -> boolean?
+;;   Check whether a mode observed the expected split-runtime cache behavior.
+(define (split-cache-status-ok? mode split-status)
+  (case mode
+    [(split-cold) (eq? split-status 'miss-assembled)]
+    [(split-warm) (eq? split-status 'wasm-hit)]
+    [(split-cache-reference-warm) (eq? split-status 'wasm-reference-hit)]
+    [else #t]))
+
+;; phase-modes : -> (listof symbol?)
+;;   Return modes to use for compile/run phase breakdown.
+(define (phase-modes)
+  (append (if prewarm-runtime-first? '() '(split-cold))
+          '(monolithic split-warm)
+          (if include-cache-reference?
+              '(split-cache-reference-warm)
+              '())))
+
+;; measure-phase-compile+run :
+;;   symbol? path-string? path-string? path? path? path? (or/c regexp? #f)
+;;   -> (list phase-result? phase-result?)
+;;   Compile one mode without --run, then run the generated Node host separately.
+(define (measure-phase-compile+run mode
+                                   racket-exe
+                                   node-exe
+                                   temp-root
+                                   provider-cache
+                                   runtime-cache
+                                   expect-rx)
+  (define dest-dir
+    (build-path temp-root "phase-dest" (symbol->string mode)))
+  (when (directory-exists? dest-dir)
+    (delete-directory/files dest-dir))
+  (make-directory* dest-dir)
+  (define webracket-args
+    (append
+     (mode-flags mode provider-cache runtime-cache #:run? #f)
+     (list "--dest"
+           (path->string dest-dir)
+           (path->string source-file))))
+  (define-values (compile-ok? compile-stdout compile-stderr compile-wall-ms)
+    (run-command/capture repo-root
+                         racket-exe
+                         (append (list "-S" "pkgs" "webracket.rkt")
+                                 webracket-args)))
+  (define compile-log
+    (phase-log-path temp-root (string->symbol (format "~a-compile" mode))))
+  (write-log! compile-log compile-stdout compile-stderr)
+  (define transcript (string-append compile-stdout "\n" compile-stderr))
+  (define driver-total
+    (section-row-seconds transcript "Driver Timings" "total"))
+  (define outside-driver
+    (and driver-total
+         (- (/ compile-wall-ms 1000.0) driver-total)))
+  (define split-status
+    (transcript-split-cache-status transcript))
+  (define cache-ok?
+    (and (split-cache-status-ok? mode split-status)
+         (not (and provider-runtime?
+                   (memq mode '(split-warm split-cache-reference-warm))
+                   (transcript-provider-runtime-cold-work? transcript)))))
+  (define compile-phase
+    (phase-result (string->symbol (format "~a-compile" mode))
+                  (and compile-ok? cache-ok?)
+                  compile-wall-ms
+                  driver-total
+                  outside-driver
+                  compile-log
+                  (format "core-cache=~a" split-status)
+                  compile-stderr))
+  (define host-js
+    (generated-path dest-dir source-file ".js"))
+  (define-values (run-ok? run-stdout run-stderr run-wall-ms)
+    (if (and compile-ok? (file-exists? host-js))
+        (run-command/capture dest-dir
+                             node-exe
+                             (list (path->string (file-name-from-path host-js))))
+        (values #f "" "generated host JavaScript is missing\n" 0.0)))
+  (define run-log
+    (phase-log-path temp-root (string->symbol (format "~a-run" mode))))
+  (write-log! run-log run-stdout run-stderr)
+  (define output-ok?
+    (and run-ok?
+         (or (not expect-rx)
+             (regexp-match? expect-rx run-stdout))))
+  (define run-phase
+    (phase-result (string->symbol (format "~a-run" mode))
+                  output-ok?
+                  run-wall-ms
+                  #f
+                  #f
+                  run-log
+                  (if output-ok? "output-ok" "unexpected-output")
+                  run-stderr))
+  (list compile-phase run-phase))
+
+
 ;;; Reporting
 
 ;; result-status : mode-result? -> string?
@@ -681,6 +854,44 @@
 ;;   Render an optional table value.
 (define (format-maybe v)
   (or v "-"))
+
+;; format-phase-status : phase-result? -> string?
+;;   Return a compact status string for a phase row.
+(define (format-phase-status r)
+  (if (phase-result-ok? r) "ok" "failed"))
+
+;; print-phase-row : phase-result? -> void?
+;;   Print one extended phase-breakdown table row.
+(define (print-phase-row r)
+  (printf "~a\t~a\t~a\t~a\t~a\t~a\n"
+          (phase-result-name r)
+          (format-phase-status r)
+          (format-duration-ms (phase-result-wall-ms r))
+          (format-seconds (phase-result-driver-total r))
+          (format-seconds (phase-result-outside-driver r))
+          (phase-result-status-detail r)))
+
+;; print-phase-breakdown : (listof phase-result?) -> void?
+;;   Print the extended fresh-process startup/compile/run phase table.
+(define (print-phase-breakdown rows)
+  (printf "phase\tstatus\twall\tdriver-total\toutside-driver\tdetail\n")
+  (for ([row (in-list rows)])
+    (print-phase-row row)))
+
+;; print-phase-failure-details : phase-result? -> void?
+;;   Print log locations and stderr snippets for failed phase rows.
+(define (print-phase-failure-details r)
+  (unless (phase-result-ok? r)
+    (printf "\n~a failed\n" (phase-result-name r))
+    (printf "  log: ~a\n" (path->string (phase-result-log-path r)))
+    (unless (string=? (string-trim (phase-result-stderr r)) "")
+      (printf "  stderr tail:\n")
+      (for ([line (in-list (take-right (string-split (string-trim (phase-result-stderr r)) "\n")
+                                       (min 20
+                                            (length
+                                             (string-split (string-trim (phase-result-stderr r))
+                                                           "\n")))))])
+        (printf "    ~a\n" line)))))
 
 ;; print-row : mode-result? -> void?
 ;;   Print one benchmark table row.
@@ -767,7 +978,7 @@
      "--split-runtime-provider-runtime requires a #lang webracket/base or #lang webracket/full source: ~a"
      source-file))
   (define racket-exe (ensure-racket-executable))
-  (ensure-executable "node")
+  (define node-exe (ensure-executable "node"))
   (define temp-root
     (make-temporary-file "webracket-split-runtime-bench-~a"
                          'directory
@@ -830,6 +1041,22 @@
     (exit 1))
   (when precompile-compiler-first?
     (printf "precompile\tok\t~a\n" (format-duration-ms precompile-wall-ms)))
+  (define phase-startup-rows
+    (if phase-breakdown?
+        (measure-startup-phase-rows racket-exe temp-root)
+        '()))
+  (define phase-precompile-row
+    (if (and phase-breakdown? precompile-compiler-first?)
+        (list
+         (phase-result 'compiler-precompile
+                       precompile-ok?
+                       precompile-wall-ms
+                       #f
+                       #f
+                       (build-path temp-root "precompile-compiler.log")
+                       "raco-make"
+                       ""))
+        '()))
   (define-values (provider-prewarm-ok? provider-prewarm-wall-ms)
     (if prewarm-staged-providers-first?
         (prewarm-staged-provider-cache! racket-exe
@@ -844,6 +1071,18 @@
   (when prewarm-staged-providers-first?
     (printf "provider-prewarm\tok\t~a\n"
             (format-duration-ms provider-prewarm-wall-ms)))
+  (define phase-provider-prewarm-row
+    (if (and phase-breakdown? prewarm-staged-providers-first?)
+        (list
+         (phase-result 'staged-provider-prewarm
+                       provider-prewarm-ok?
+                       provider-prewarm-wall-ms
+                       #f
+                       #f
+                       (build-path temp-root "prewarm-staged-providers.log")
+                       "regexp/read/io-format"
+                       ""))
+        '()))
   (define-values (prewarm-ok? prewarm-wall-ms)
     (if prewarm-runtime-first?
         (prewarm-split-runtime-cache! racket-exe
@@ -857,6 +1096,20 @@
     (exit 1))
   (when prewarm-runtime-first?
     (printf "prewarm\tok\t~a\n" (format-duration-ms prewarm-wall-ms)))
+  (define phase-runtime-prewarm-row
+    (if (and phase-breakdown? prewarm-runtime-first?)
+        (list
+         (phase-result 'runtime-prewarm
+                       prewarm-ok?
+                       prewarm-wall-ms
+                       #f
+                       #f
+                       (build-path temp-root "prewarm-split-runtime.log")
+                       (if provider-runtime?
+                           "provider-runtime"
+                           "split-runtime")
+                       ""))
+        '()))
   (define-values (module-bridge-prewarm-ok? module-bridge-prewarm-wall-ms)
     (if prewarm-module-bridge-first?
         (prewarm-module-bridge-cache! racket-exe
@@ -872,11 +1125,56 @@
   (when prewarm-module-bridge-first?
     (printf "module-bridge-prewarm\tok\t~a\n"
             (format-duration-ms module-bridge-prewarm-wall-ms)))
+  (define phase-module-bridge-prewarm-row
+    (if (and phase-breakdown? prewarm-module-bridge-first?)
+        (list
+         (phase-result 'module-bridge-prewarm
+                       module-bridge-prewarm-ok?
+                       module-bridge-prewarm-wall-ms
+                       #f
+                       #f
+                       (build-path temp-root "prewarm-module-bridge.log")
+                       "compile-cache-warm"
+                       ""))
+        '()))
   (when (or precompile-compiler-first?
             prewarm-staged-providers-first?
             prewarm-module-bridge-first?
             prewarm-runtime-first?)
     (newline))
+  (define phase-compile-run-rows
+    (if phase-breakdown?
+        (append*
+         (for/list ([mode (in-list (phase-modes))])
+           (measure-phase-compile+run mode
+                                      racket-exe
+                                      node-exe
+                                      temp-root
+                                      provider-cache
+                                      runtime-cache
+                                      expected-output-regexp)))
+        '()))
+  (define phase-rows
+    (append phase-precompile-row
+            phase-startup-rows
+            phase-provider-prewarm-row
+            phase-runtime-prewarm-row
+            phase-module-bridge-prewarm-row
+            phase-compile-run-rows))
+  (when phase-breakdown?
+    (printf "=== Fresh Process Phase Breakdown ===\n")
+    (print-phase-breakdown phase-rows)
+    (for ([row (in-list phase-rows)])
+      (print-phase-failure-details row))
+    (newline))
+  (define phase-ok?
+    (andmap phase-result-ok? phase-rows))
+  (when phase-breakdown-only?
+    (when (and phase-ok? (not keep-temp?))
+      (delete-directory/files temp-root))
+    (unless phase-ok?
+      (exit 1))
+    (exit 0))
   (define split-cold
     (and (not prewarm-runtime-first?)
          (compile-mode 'split-cold
@@ -922,7 +1220,8 @@
   (for ([r (in-list results)])
     (print-failure-details r temp-root))
   (define ok?
-    (andmap successful-result? results))
+    (and phase-ok?
+         (andmap successful-result? results)))
   (when (and ok? (not keep-temp?))
     (delete-directory/files temp-root))
   (unless ok?
