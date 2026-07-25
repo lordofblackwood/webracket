@@ -1,6 +1,8 @@
 #lang webracket/base
 
 (require browser/dom
+         (only-in browser/element
+                  element-id)
          intersection-observer)
 
 (define (append-text-node! elem text)
@@ -58,7 +60,7 @@
           (define entry (vector-ref entries i))
           (if (intersection-observer-entry-is-intersecting? entry)
               (let* ([target (intersection-observer-entry-target entry)]
-                     [id (js-ref target "id")]
+                     [id (element-id target)]
                      [ratio (intersection-observer-entry-intersection-ratio entry)])
                 (loop (add1 i)
                       (format "Visible panel: ~a (~a)"

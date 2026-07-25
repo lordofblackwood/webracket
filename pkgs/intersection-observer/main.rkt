@@ -244,13 +244,26 @@
 ;; observer-entries->vector : external/raw -> vector?
 ;;   Convert a browser entries array to a vector of wrapped entries.
 (define (observer-entries->vector entries)
-  (define len (js-ref entries "length"))
-  (list->vector
-   (let loop ([i 0])
-     (if (= i len)
-         '()
-         (cons (intersection-observer-entry (js-index entries i))
-               (loop (add1 i)))))))
+  (cond
+    ;; JS callback arguments are FASL-decoded by the host bridge; a plain
+    ;; browser Array such as IntersectionObserver entries arrives here as a
+    ;; Racket vector of raw external entries.
+    [(vector? entries)
+     (let ([len (vector-length entries)])
+       (list->vector
+        (let loop ([i 0])
+          (if (= i len)
+              '()
+              (cons (intersection-observer-entry (vector-ref entries i))
+                    (loop (add1 i)))))))]
+    [else
+     (define len (js-ref entries "length"))
+     (list->vector
+      (let loop ([i 0])
+        (if (= i len)
+            '()
+            (cons (intersection-observer-entry (js-index entries i))
+                  (loop (add1 i))))))]))
 
 ;; intersection-observer-callback-cache : hash?
 ;;   Reuse stable external callbacks for observer handlers.

@@ -76,6 +76,34 @@
                                           " result must be array-like")))
   raw)
 
+;; gamepad-wrap/checked : symbol? string? any/c -> (or/c #f gamepad-info?)
+;;   Wrap a nullable Gamepad result and reject malformed non-null slots.
+(define (gamepad-wrap/checked who display-name raw)
+  (cond
+    [(or (not raw)
+         (null? raw)
+         (eq? raw (void))
+         (and (external? raw)
+              (js-nullish? raw)))
+     #f]
+    [else
+     (define value (gamepad-info raw))
+     (unless (gamepad? value)
+       (raise-arguments-error who
+                              (string-append display-name
+                                             " result must be Gamepad")))
+     value]))
+
+;; gamepad-button-wrap/checked : symbol? string? any/c -> gamepad-button-info?
+;;   Wrap a GamepadButton result and reject malformed button objects.
+(define (gamepad-button-wrap/checked who display-name raw)
+  (define value (gamepad-button-info raw))
+  (unless (gamepad-button? value)
+    (raise-arguments-error who
+                           (string-append display-name
+                                          " result must be GamepadButton")))
+  value)
+
 ;; gamepad-required-properties-present? : external/raw -> boolean?
 ;;   Report whether raw exposes the required Gamepad data properties.
 (define (gamepad-required-properties-present? raw)
@@ -199,7 +227,10 @@
   (check-gamepad-navigator-method 'gamepads "getGamepads")
   (define raw-gamepads (js-send/extern (js-window-navigator) "getGamepads" (vector)))
   (gamepad-vector-map
-   gamepad-wrap
+   (lambda (raw-gamepad)
+     (gamepad-wrap/checked 'gamepads
+                           "navigator.getGamepads slot"
+                           raw-gamepad))
    (js-array->vector
     (gamepad-check-array-like-result 'gamepads
                                      "navigator.getGamepads"
@@ -211,7 +242,9 @@
   (unless (gamepad-raw-host-value? event)
     (raise-argument-error 'gamepad-event-gamepad "external?" event))
   (check-gamepad-event-property 'gamepad-event-gamepad event "gamepad")
-  (gamepad-wrap (js-ref/extern event "gamepad")))
+  (gamepad-wrap/checked 'gamepad-event-gamepad
+                        "GamepadEvent.gamepad"
+                        (js-ref/extern event "gamepad")))
 
 ;; gamepad-id : gamepad? -> string?
 ;;   Read the browser-provided gamepad id.
@@ -265,7 +298,10 @@
   (check-gamepad 'gamepad-buttons value)
   (check-gamepad-property 'gamepad-buttons value "buttons")
   (gamepad-vector-map
-   gamepad-button-wrap
+   (lambda (raw-button)
+     (gamepad-button-wrap/checked 'gamepad-buttons
+                                  "Gamepad.buttons item"
+                                  raw-button))
    (js-array->vector
     (gamepad-check-array-like-result
      'gamepad-buttons
