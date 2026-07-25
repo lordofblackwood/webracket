@@ -204,8 +204,7 @@
   (if (webracket-compile-config-split-runtime-ffi-module-explicit? cfg)
       (webracket-compile-config-split-runtime-ffi-module? cfg)
       (and (webracket-compile-config-split-runtime? cfg)
-           (not (webracket-compile-config-split-runtime-core-only? cfg))
-           (not (webracket-compile-config-split-runtime-provider-runtime? cfg)))))
+           (not (webracket-compile-config-split-runtime-core-only? cfg)))))
 
 ;; parse-webracket-cli : [vector?] -> webracket-cli-command?
 ;;   Parse argv into a compile command or a local report/listing command.
@@ -863,6 +862,15 @@
      (webracket-compile-config-split-runtime-ffi-module-explicit? round-tripped))
     (check-false
      (compile-config-effective-split-runtime-ffi-module? round-tripped)))
+
+  (test-case "provider-runtime keeps auto split FFI requested"
+    (define cfg
+      (parse-compile-config
+       '("--split-runtime-provider-runtime" "source.rkt")))
+    (check-true (webracket-compile-config-split-runtime? cfg))
+    (check-true (webracket-compile-config-split-runtime-provider-runtime? cfg))
+    (check-false (webracket-compile-config-split-runtime-ffi-module-explicit? cfg))
+    (check-true (compile-config-effective-split-runtime-ffi-module? cfg)))
 
   (test-case "legacy compile-config datums default split-runtime fields"
     (define cfg (parse-compile-config '("source.rkt")))

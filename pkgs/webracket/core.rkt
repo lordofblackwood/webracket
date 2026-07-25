@@ -44,12 +44,22 @@
   (define collection-main (collection-file-path "main.rkt" "webracket"))
   (or (path-only collection-main) (current-directory)))
 
+(define-for-syntax (webracket-repo-root)
+  (simplify-path (build-path (webracket-collection-dir) 'up 'up)))
+
 (define-for-syntax (library-entrypoint-path lib-sym)
   (define collection-dir     (webracket-collection-dir))
   (define lib-dir            (build-path collection-dir "lib" (symbol->string lib-sym)))
   (define multi-main-path    (build-path lib-dir "main.rkt"))
   (define multi-browser-path (build-path lib-dir "main-browser.rkt"))
   (define single-file-path   (build-path collection-dir
+                                         "lib" "libs"
+                                         (string-append (symbol->string lib-sym) ".rkt")))
+  (define repo-root          (webracket-repo-root))
+  (define repo-lib-dir       (build-path repo-root "lib" (symbol->string lib-sym)))
+  (define repo-main-path     (build-path repo-lib-dir "main.rkt"))
+  (define repo-browser-path  (build-path repo-lib-dir "main-browser.rkt"))
+  (define repo-single-path   (build-path repo-root
                                          "lib" "libs"
                                          (string-append (symbol->string lib-sym) ".rkt")))
   (cond
@@ -69,8 +79,26 @@
                (string-append "entrypoint not found for library `"
                               (symbol->string lib-sym)
                               "`"))])]
+    [(directory-exists? repo-lib-dir)
+     (cond
+       [(browser-mode?)
+        (unless (file-exists? repo-browser-path)
+          (error 'include-lib
+                 (string-append "browser entrypoint not found for library `"
+                                (symbol->string lib-sym)
+                                "`")))
+        (values repo-browser-path #t)]
+       [(file-exists? repo-main-path)
+        (values repo-main-path #t)]
+       [else
+        (error 'include-lib
+               (string-append "entrypoint not found for library `"
+                              (symbol->string lib-sym)
+                              "`"))])]
     [(file-exists? single-file-path)
      (values single-file-path #f)]
+    [(file-exists? repo-single-path)
+     (values repo-single-path #f)]
     [else (values #f #f)]))
 
 ;; syntax-source-directory : syntax? -> path?
@@ -186,7 +214,9 @@
 ;;   Include or require a WebRacket library depending on layout.
 ;;   Single-file libraries come from `lib/libs/<lib-id>.rkt`.
 ;;   Multi-file libraries come from `lib/<lib-id>/main.rkt` or
-;;   `lib/<lib-id>/main-browser.rkt` when browser mode is active.
+;;   `lib/<lib-id>/main-browser.rkt` when browser mode is active. In a
+;;   checkout, legacy libraries under the repository-level `lib/` directory are
+;;   searched after the collection-local compatibility directory.
 ;;   Within one compilation run, the first include expands the library text
 ;;   and later includes of the same library expand to `(void)`.
 (define-syntax (include-lib stx)
@@ -203,25 +233,25 @@
        (unless (symbol? lib-sym)
          (raise-syntax-error who "expected a library identifier" stx lib-id-stx))
        (define lib-key lib-sym)
-       (when (hash-has-key? include-lib-seen lib-key)
-         (syntax/loc stx (void)))
-       (define-values (lib-path multi-file?)
-         (library-entrypoint-path lib-sym))
-       (unless lib-path
-         (raise-syntax-error who
-                             (string-append "unknown library `"
-                                            (symbol->string lib-sym) "`")
-                             stx
-                             lib-id-stx))
-       (hash-set! include-lib-seen lib-key #t)
-       (define lib-file
-         (relative-include-path-string
-          (syntax-source-directory lib-id-stx)
-          lib-path))
-       (datum->syntax stx
-                      `(include/reader ,lib-file read-syntax/skip-first-line)
-                      stx
-                      stx))]
+       (if (hash-has-key? include-lib-seen lib-key)
+           (syntax/loc stx (void))
+           (let-values ([(lib-path multi-file?)
+                         (library-entrypoint-path lib-sym)])
+             (unless lib-path
+               (raise-syntax-error who
+                                   (string-append "unknown library `"
+                                                  (symbol->string lib-sym) "`")
+                                   stx
+                                   lib-id-stx))
+             (hash-set! include-lib-seen lib-key #t)
+             (define lib-file
+               (relative-include-path-string
+                (syntax-source-directory lib-id-stx)
+                lib-path))
+             (datum->syntax stx
+                            `(include/reader ,lib-file read-syntax/skip-first-line)
+                            stx
+                            stx))))]
     [_
      (raise-syntax-error who "expected `(include-lib lib-id)`" stx)]))
 

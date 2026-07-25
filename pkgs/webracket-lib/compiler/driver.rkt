@@ -153,6 +153,7 @@
          (only-in "legacy-stdlib/module-exports.rkt"
                   stdlib-module-alias-symbols
                   stdlib-module-private-forms+bindings
+                  stdlib-module-private-files-forms+bindings
                   stdlib-definition-form-symbols)
          "webify/provider-cache.rkt"
          (only-in "webify/io-format-bridge.rkt"
@@ -551,6 +552,34 @@
         [else (void)])))
   (walk datum)
   found?)
+
+;; module-bridge-datum-contains-symbol? : any/c symbol? -> boolean?
+;;   Detect whether a datum tree contains the target symbol.
+(define (module-bridge-datum-contains-symbol? datum target)
+  (define found? #f)
+  (define visited-pairs (make-weak-hasheq))
+  (define (walk v)
+    (unless found?
+      (cond
+        [(symbol? v)
+         (when (eq? v target)
+           (set! found? #t))]
+        [(pair? v)
+         (unless (hash-ref visited-pairs v #f)
+           (hash-set! visited-pairs v #t)
+           (walk (car v))
+           (walk (cdr v)))]
+        [(vector? v)
+         (for ([elt (in-vector v)])
+           (walk elt))]
+        [else (void)])))
+  (walk datum)
+  found?)
+
+;; module-bridge-datum-needs-formatting-numbers? : any/c -> boolean?
+;;   Detect whether script input needs the legacy ~r/precision helper slice.
+(define (module-bridge-datum-needs-formatting-numbers? datum)
+  (module-bridge-datum-contains-symbol? datum '~r/precision))
 
 ;; module-bridge-datum-operator-count : any/c symbol? -> exact-nonnegative-integer?
 ;;   Count bridge operator calls while skipping quoted/template data.
@@ -3804,6 +3833,37 @@
         provider-form ...
         #,stx)))
 
+;; add-formatting-numbers-slice : syntax? -> syntax?
+;;   Prepend the tiny legacy formatting-numbers slice for ~r/precision demand.
+(define (add-formatting-numbers-slice stx)
+  (define-values (slice-forms bindings)
+    (stdlib-module-private-files-forms+bindings '("formatting-numbers.rkt")))
+  (define public->private
+    (for/hasheq ([binding (in-list bindings)])
+      (values (car binding) (cdr binding))))
+  (define public '~r/precision)
+  (define private (hash-ref public->private public #f))
+  (unless private
+    (error 'add-formatting-numbers-slice
+           "formatting-numbers slice did not define ~a"
+           public))
+  (define alias-forms
+    (append*
+     (for/list ([binding (in-list bindings)]
+                [i (in-naturals)])
+       (define public (car binding))
+       (define private (cdr binding))
+       (define cell (stdlib-cell-symbol i))
+       `((define ,cell (module-variable-make ',public))
+         (module-variable-define! ,cell ,private 'constant)
+         (define ,public (module-variable-ref ,cell))))))
+  (define forms (append slice-forms alias-forms))
+  (with-syntax ([(slice-form ...) (map (lambda (form) (datum->syntax stx form stx))
+                                       forms)])
+    #`(begin
+        slice-form ...
+        #,stx)))
+
 ;; add-module-stdlib : syntax? boolean? #:io-format-provider? boolean? #:expander-read-provider? boolean? #:expander-read-syntax-provider? boolean? -> syntax?
 ;;   Evaluate the selected stdlib root with private top-level names, publish
 ;;   chosen exports through module-variable cells, then append the user program.
@@ -3870,13 +3930,17 @@
 ;;   Compute public primitive names that must resolve through provider cells.
 (define (provider-owned-primitive-alias-symbols
          #:expander-read-provider? [expander-read-provider? #f]
-         #:io-format-provider? [io-format-provider? #f])
+         #:io-format-provider? [io-format-provider? #f]
+         #:formatting-numbers? [formatting-numbers? #f])
   (append webify-regexp-export-symbols
           (if expander-read-provider?
               webify-read-public-alias-symbols
               '())
           (if io-format-provider?
               webify-io-format-export-symbols
+              '())
+          (if formatting-numbers?
+              '(~r/precision)
               '())))
 
 ;;;
@@ -4440,6 +4504,13 @@
     (or source-needs-regexp-provider?
         effective-expander-read-provider?
         effective-expander-read-syntax-provider?))
+  (define source-needs-formatting-numbers?
+    (and (not module-input?)
+         (module-bridge-datum-needs-formatting-numbers?
+          (syntax->datum stx-for-compile))))
+  (define effective-formatting-numbers-slice?
+    (and source-needs-formatting-numbers?
+         (not effective-legacy-stdlib?)))
   (current-module-bridge-needs-regexp-provider? source-needs-regexp-provider?)
   (define stdlib-decision-rows
     (list
@@ -4511,7 +4582,17 @@
                              [effective-expander-read-provider?
                               "enabled-via-expander-read"]
                              [else
-                              "disabled"]))))
+                              "disabled"]))
+     (stdlib-decision-note "formatting-numbers-slice-mode"
+                           (cond
+                             [module-input?
+                              "skipped-module-input"]
+                             [effective-legacy-stdlib?
+                              "satisfied-legacy-stdlib"]
+                             [effective-formatting-numbers-slice?
+                              "enabled-script-demand"]
+                             [else
+                              "skipped-script-no-demand"]))))
 
   ; 2. Handle ffi-files.
   (define t-ffi-setup-start  (now-ms))
@@ -4544,7 +4625,7 @@
   ; 3. Prepend the standard library (if enabled)
   ;     "legacy-stdlib/stdlib-for-browser.rkt" includes "stdlib.rkt" and adds `sxml->dom`
   (define t-add-stdlib-start (now-ms))
-  (define stx-with-stdlib
+  (define stx-with-stdlib/base
     (cond
       [(current-source-module-language)
        (when (and verbose? stdlib?)
@@ -4616,6 +4697,15 @@
        (if (current-module-bridge-needs-regexp-provider?)
            (add-regexp-provider stx-for-compile)
            stx-for-compile)]))
+  (define stx-with-stdlib
+    (cond
+      [effective-formatting-numbers-slice?
+       (when verbose?
+         (displayln "Composing module stdlib-free `formatting-numbers` slice"
+                    (current-error-port)))
+       (add-formatting-numbers-slice stx-with-stdlib/base)]
+      [else
+       stx-with-stdlib/base]))
   (define t-add-stdlib-end (now-ms))
 
   (define split-runtime-ffi-module/effective?
@@ -4732,7 +4822,8 @@
   (define provider-owned-primitive-aliases
     (provider-owned-primitive-alias-symbols
      #:expander-read-provider? effective-expander-read-provider?
-     #:io-format-provider? effective-io-format-provider?))
+     #:io-format-provider? effective-io-format-provider?
+     #:formatting-numbers? effective-formatting-numbers-slice?))
   (define split-runtime-provider-fragment-cache?
     (and split-runtime?
          module-input?

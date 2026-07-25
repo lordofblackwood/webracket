@@ -14,6 +14,7 @@
 (provide stdlib-module-export-symbols
          stdlib-module-alias-symbols
          stdlib-module-private-forms+bindings
+         stdlib-module-private-files-forms+bindings
          stdlib-definition-form-symbols
          stdlib-node-files
          stdlib-browser-files
@@ -228,4 +229,24 @@
       (values (car binding) (cdr binding))))
   (values (map (λ (form) (rename-top-level-form renames form))
                (stdlib-root-forms browser?))
+          bindings))
+
+;; stdlib-module-private-files-forms+bindings : (listof path-string?)
+;;                                           -> (values (listof any/c)
+;;                                                      (listof (cons symbol? symbol?)))
+;;   Return renamed stdlib forms and public->private bindings for a file slice.
+(define (stdlib-module-private-files-forms+bindings filenames)
+  (define exports
+    (remove-duplicates
+     (append-map stdlib-file-export-symbols filenames)
+     eq?))
+  (define bindings
+    (for/list ([export (in-list exports)]
+               [i (in-naturals)])
+      (cons export (stdlib-private-symbol i))))
+  (define renames
+    (for/hash ([binding (in-list bindings)])
+      (values (car binding) (cdr binding))))
+  (values (map (λ (form) (rename-top-level-form renames form))
+               (append-map stdlib-file-forms filenames))
           bindings))

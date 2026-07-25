@@ -7,7 +7,7 @@ SINGLE_PAGE ?= test-browser-parity-profile.html
 SPLIT_RUNTIME_TOOL_COMPILED_ROOT ?= tmp/smoke-split-runtime-tool-compiled-root
 SPLIT_RUNTIME_BROWSER_COMPILED_ROOT ?= tmp/smoke-split-runtime-browser-compiled-root
 
-.PHONY: help goal1-fast smoke-ci smoke-headless-lite smoke-style smoke-theme smoke-theme-contracts smoke-theme-core smoke-theme-visual smoke-verify smoke-quick smoke-release smoke-one smoke-list smoke-commands smoke-compare-navbars smoke-compare-buttons smoke-compare-all smoke-solar-parity smoke-solar-sections smoke-solar-sections-gate smoke-split-runtime-readiness smoke-split-runtime-readiness-fast smoke-split-runtime-default smoke-split-runtime-default-fast smoke-split-runtime-provider-ffi smoke-split-runtime-browser smoke-split-runtime-browser-url smoke-split-runtime-browser-provider-runtime smoke-split-runtime-browser-provider-runtime-url smoke-split-runtime-prewarm smoke-split-runtime-warm-process smoke-split-runtime-provider-runtime smoke-split-runtime-provider-runtime-warm-process smoke-split-runtime-procedure-boundary smoke-split-runtime-examples smoke-split-runtime-examples-list smoke-split-runtime-examples-fast smoke-split-ffi-mixed-cache-browser smoke-split-ffi-mixed-cache-browser-list smoke-split-ffi-mixed-cache-browser-fast smoke-split-ffi-mixed-cache-browser-broad smoke-split-ffi-mixed-cache-browser-browser-group smoke-split-ffi-mixed-cache-browser-test-dir-group smoke-split-ffi-mixed-cache-browser-chunked smoke-split-ffi-mixed-cache-browser-chunk-1 smoke-split-ffi-mixed-cache-browser-chunk-2 smoke-split-ffi-mixed-cache-browser-chunk-3 smoke-split-ffi-mixed-cache-browser-chunk-4 smoke-treelist-shape dom-headless measure-letrec-test-basics measure-split-runtime-warm-process measure-split-runtime-provider-runtime measure-split-runtime-provider-runtime-warm-process
+.PHONY: help goal1-fast smoke-ci smoke-headless-lite smoke-style smoke-theme smoke-theme-contracts smoke-theme-core smoke-theme-visual smoke-verify smoke-quick smoke-release smoke-one smoke-list smoke-commands smoke-compare-navbars smoke-compare-buttons smoke-compare-all smoke-solar-parity smoke-solar-sections smoke-solar-sections-gate smoke-split-runtime-readiness smoke-split-runtime-readiness-fast smoke-split-runtime-default smoke-split-runtime-default-fast smoke-split-runtime-provider-ffi smoke-split-runtime-browser smoke-split-runtime-browser-url smoke-split-runtime-browser-provider-runtime smoke-split-runtime-browser-provider-runtime-url smoke-split-runtime-prewarm smoke-split-runtime-warm-process smoke-split-runtime-provider-runtime smoke-split-runtime-provider-runtime-warm-process smoke-split-runtime-procedure-boundary smoke-split-runtime-examples smoke-split-runtime-examples-list smoke-split-runtime-examples-audit smoke-split-runtime-examples-fast smoke-split-runtime-examples-chunked smoke-split-runtime-examples-chunk-1 smoke-split-runtime-examples-chunk-2 smoke-split-runtime-examples-chunk-3 smoke-split-runtime-examples-chunk-4 smoke-split-ffi-mixed-cache-browser smoke-split-ffi-mixed-cache-browser-list smoke-split-ffi-mixed-cache-browser-fast smoke-split-ffi-mixed-cache-browser-broad smoke-split-ffi-mixed-cache-browser-browser-group smoke-split-ffi-mixed-cache-browser-test-dir-group smoke-split-ffi-mixed-cache-browser-chunked smoke-split-ffi-mixed-cache-browser-chunk-1 smoke-split-ffi-mixed-cache-browser-chunk-2 smoke-split-ffi-mixed-cache-browser-chunk-3 smoke-split-ffi-mixed-cache-browser-chunk-4 smoke-treelist-shape dom-headless measure-letrec-test-basics measure-split-runtime-warm-process measure-split-runtime-provider-runtime measure-split-runtime-provider-runtime-warm-process
 
 help:
 	@echo "Available targets:"
@@ -46,8 +46,10 @@ help:
 	@echo "  smoke-split-runtime-provider-runtime  Run Node provider-runtime cache-reference smoke."
 	@echo "  smoke-split-runtime-provider-runtime-warm-process  Run provider-runtime through a warm compiler process."
 	@echo "  smoke-split-runtime-procedure-boundary  Run tiny Wasm-GC procedure boundary smoke."
-	@echo "  smoke-split-runtime-examples  Run compact real-example split-runtime browser smoke."
+	@echo "  smoke-split-runtime-examples  Run all registered real-example split-runtime browser smoke."
+	@echo "  smoke-split-runtime-examples-audit  Check example smoke manifest coverage."
 	@echo "  smoke-split-runtime-examples-fast  Run two real examples under default split-runtime."
+	@echo "  smoke-split-runtime-examples-chunked  Run all registered real examples in four chunks."
 	@echo "  smoke-split-ffi-mixed-cache-browser  Run full split-FFI mixed-cache browser smoke."
 	@echo "  smoke-split-ffi-mixed-cache-browser-fast  Run compact split-FFI browser smoke."
 	@echo "  smoke-split-ffi-mixed-cache-browser-broad  Run browser+test-dir split-FFI browser chunks."
@@ -147,7 +149,9 @@ smoke-list:
 	@echo "smoke-split-runtime-procedure-boundary"
 	@echo "smoke-split-runtime-examples"
 	@echo "smoke-split-runtime-examples-list"
+	@echo "smoke-split-runtime-examples-audit"
 	@echo "smoke-split-runtime-examples-fast"
+	@echo "smoke-split-runtime-examples-chunked"
 	@echo "smoke-split-ffi-mixed-cache-browser"
 	@echo "smoke-split-ffi-mixed-cache-browser-list"
 	@echo "smoke-split-ffi-mixed-cache-browser-fast"
@@ -251,8 +255,26 @@ smoke-split-runtime-examples:
 smoke-split-runtime-examples-list:
 	bash tools/check-split-runtime-examples.sh --list-cases
 
+smoke-split-runtime-examples-audit:
+	bash tools/check-split-runtime-examples.sh --audit-coverage
+
 smoke-split-runtime-examples-fast:
 	bash tools/check-split-runtime-examples.sh --only examples-hello-world-dom --only webeasy-hello-world
+
+smoke-split-runtime-examples-chunked:
+	$(MAKE) -j4 smoke-split-runtime-examples-chunk-1 smoke-split-runtime-examples-chunk-2 smoke-split-runtime-examples-chunk-3 smoke-split-runtime-examples-chunk-4
+
+smoke-split-runtime-examples-chunk-1:
+	bash tools/check-split-runtime-examples.sh --chunk 1/4
+
+smoke-split-runtime-examples-chunk-2:
+	bash tools/check-split-runtime-examples.sh --chunk 2/4
+
+smoke-split-runtime-examples-chunk-3:
+	bash tools/check-split-runtime-examples.sh --chunk 3/4
+
+smoke-split-runtime-examples-chunk-4:
+	bash tools/check-split-runtime-examples.sh --chunk 4/4
 
 smoke-treelist-shape:
 	racket tools/check-treelist-shape-smoke.rkt

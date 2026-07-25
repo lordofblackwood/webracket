@@ -9,7 +9,8 @@
          entry-support-forms
          entry-top-level-variable-initializer-forms)
 
-(require "../private/wasm-utils.rkt")
+(require "../private/wasm-utils.rkt"
+         "../private/parameters.rkt")
 
 ;; entry-support-forms : (listof datum?)
 ;;   Declare static exported entry support helpers.
@@ -60,7 +61,14 @@
 ;; entry-top-level-variable-initializer-forms : (listof variable?) -> (listof datum?)
 ;;   Initialize boxed top-level variables to undefined.
 (define (entry-top-level-variable-initializer-forms top-vars)
-  (for/list ([v (in-list top-vars)])
+  (define imported-names (current-imported-top-level-globals))
+  (define (top-var-source-symbol v)
+    (define name (symbol->string (TopVar v)))
+    (and (string-prefix? name "$$")
+         (string->symbol (substring name 2))))
+  (for/list ([v (in-list top-vars)]
+             #:unless (let ([sym (top-var-source-symbol v)])
+                         (and sym (set-member? imported-names sym))))
     `(global.set ,(TopVar v)
                  (struct.new $Boxed
                              (global.get $undefined)))

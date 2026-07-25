@@ -110,6 +110,16 @@
           (substring s 0 i)
           (loop (- i 1)))))
 
+  (define (join-strings strs sep)
+    (cond
+      [(null? strs) ""]
+      [else
+       (let loop ([rest (cdr strs)] [acc (car strs)])
+         (if (null? rest)
+             acc
+             (loop (cdr rest)
+                   (string-append acc sep (car rest)))))]))
+
   ;; ---- positional formatting ---------------------------------
   ;; abs-x is a non-negative flonum or exact integer; do NOT floor before calling.
   (define (format-positional abs-x)
@@ -165,7 +175,7 @@
                                (loop (list-tail chars g)
                                      (cdr gsizes)
                                      (cons (list->string (take chars g)) acc)))))])
-          (string-join slices group-sep))))
+          (join-strings slices group-sep))))
 
   ;; ---- exponential formatting --------------------------------
   (define (format-exponential abs-x)
