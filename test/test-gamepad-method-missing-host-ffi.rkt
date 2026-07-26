@@ -49,6 +49,8 @@
       gamepad.axes = 42;
     } else if (missing === 'buttonsBadResult') {
       gamepad.buttons = 42;
+    } else if (missing === 'buttonsBadItem') {
+      gamepad.buttons = [{}];
     } else {
       delete gamepad[missing];
     }
@@ -71,6 +73,8 @@
       delete event.gamepad;
     } else if (missing === 'gamepad-null') {
       event.gamepad = null;
+    } else if (missing === 'gamepadBadResult') {
+      event.gamepad = {};
     }
     return event;
   };
@@ -100,6 +104,19 @@
       writable: true
     });
   };
+  globalThis.__wrGamepadBoundaryPatchGamepadsBadSlot = () => {
+    const target = navigator;
+    const key = 'navigator.getGamepads';
+    if (!Object.prototype.hasOwnProperty.call(globalThis.__wrGamepadBoundarySaved, key)) {
+      globalThis.__wrGamepadBoundarySaved[key] =
+        Object.getOwnPropertyDescriptor(target, 'getGamepads') || null;
+    }
+    Object.defineProperty(target, 'getGamepads', {
+      value: () => [{}],
+      configurable: true,
+      writable: true
+    });
+  };
   globalThis.__wrGamepadBoundaryRestore = (targetName, methodName) => {
     const target = globalThis.__wrGamepadBoundaryTarget(targetName);
     const key = `${targetName}.${methodName}`;
@@ -123,6 +140,7 @@
     delete globalThis.__wrGamepadBoundaryFakeEvent;
     delete globalThis.__wrGamepadBoundaryPatch;
     delete globalThis.__wrGamepadBoundaryPatchBadResult;
+    delete globalThis.__wrGamepadBoundaryPatchGamepadsBadSlot;
     delete globalThis.__wrGamepadBoundaryRestore;
     delete globalThis.__wrGamepadBoundaryRestoreAll;
   };
@@ -252,6 +270,12 @@
                           "')"))
   message)
 
+(define (bad-gamepad-slot-message thunk)
+  (js-eval "__wrGamepadBoundaryPatchGamepadsBadSlot();")
+  (define message (catch-message thunk))
+  (js-eval "__wrGamepadBoundaryRestore('navigator', 'getGamepads')")
+  message)
+
 (define callback (lambda args (void)))
 
 (define (with-missing-navigator thunk)
@@ -277,6 +301,11 @@
   (bad-result-message
    "navigator"
    "getGamepads"
+   (lambda ()
+     (gamepads))))
+
+(define get-gamepads-slot-message
+  (bad-gamepad-slot-message
    (lambda ()
      (gamepads))))
 
@@ -353,6 +382,11 @@
    (lambda ()
      (gamepad-buttons (fake-gamepad "buttonsBadResult")))))
 
+(define buttons-item-message
+  (catch-message
+   (lambda ()
+     (gamepad-buttons (fake-gamepad "buttonsBadItem")))))
+
 (define button-pressed-message
   (catch-message
    (lambda ()
@@ -393,6 +427,11 @@
    (lambda ()
      (gamepad-event-gamepad (fake-event "gamepad")))))
 
+(define event-gamepad-result-message
+  (catch-message
+   (lambda ()
+     (gamepad-event-gamepad (fake-event "gamepadBadResult")))))
+
 (define event-null-raw-message
   (catch-message
    (lambda ()
@@ -412,6 +451,9 @@
 (check-message get-gamepads-result-message
                "navigator.getGamepads result must be array-like"
                "bad navigator.getGamepads result message")
+(check-message get-gamepads-slot-message
+               "navigator.getGamepads slot result must be Gamepad"
+               "bad navigator.getGamepads slot message")
 (check-message add-connected-message
                "window.addEventListener is not available"
                "missing add connected listener message")
@@ -451,6 +493,9 @@
 (check-message buttons-result-message
                "Gamepad.buttons result must be array-like"
                "bad Gamepad.buttons result message")
+(check-message buttons-item-message
+               "Gamepad.buttons item result must be GamepadButton"
+               "bad Gamepad.buttons item message")
 (check-message button-pressed-message
                "GamepadButton.pressed is not available"
                "missing GamepadButton.pressed message")
@@ -475,6 +520,9 @@
 (check-message event-gamepad-message
                "GamepadEvent.gamepad is not available"
                "missing GamepadEvent.gamepad message")
+(check-message event-gamepad-result-message
+               "GamepadEvent.gamepad result must be Gamepad"
+               "bad GamepadEvent.gamepad result message")
 (check-message event-null-raw-message
                "external?"
                "missing GamepadEvent null raw message")

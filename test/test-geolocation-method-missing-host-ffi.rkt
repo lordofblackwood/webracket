@@ -34,7 +34,13 @@
 (js-eval
  "globalThis.__wrGeolocationBoundaryFake = (missing) => {
     const geo = {
-      getCurrentPosition(_success, _error, _options) {},
+      getCurrentPosition(success, error, _options) {
+        if (missing === 'callbackBadPosition') {
+          success({ timestamp: 12345 });
+        } else if (missing === 'callbackBadError') {
+          error({ message: 'permission denied' });
+        }
+      },
       watchPosition(_success, _error, _options) {
         return missing === 'watchPositionBadResult' ? 'bad-watch-id' : 1;
       },
@@ -156,6 +162,12 @@
 (define bad-watch-position-result-geolocation
   (fake-geolocation "watchPositionBadResult"))
 
+(define bad-callback-position-geolocation
+  (fake-geolocation "callbackBadPosition"))
+
+(define bad-callback-error-geolocation
+  (fake-geolocation "callbackBadError"))
+
 (define missing-clear-watch-geolocation
   (fake-geolocation "clearWatch"))
 
@@ -265,6 +277,19 @@
      (geolocation-watch-position bad-watch-position-result-geolocation
                                  (lambda (_position) (void))))))
 
+(define callback-position-message
+  (catch-message
+   (lambda ()
+     (geolocation-get-current-position bad-callback-position-geolocation
+                                       (lambda (_position) (void))))))
+
+(define callback-error-message
+  (catch-message
+   (lambda ()
+     (geolocation-get-current-position bad-callback-error-geolocation
+                                       (lambda (_position) (void))
+                                       (lambda (_err) (void))))))
+
 (define clear-watch-message
   (catch-message
    (lambda ()
@@ -363,6 +388,12 @@
 (check-message watch-position-result-message
                "Geolocation.watchPosition result must be an exact nonnegative integer"
                "bad Geolocation.watchPosition result message")
+(check-message callback-position-message
+               "Geolocation success callback argument must be GeolocationPosition"
+               "bad Geolocation success callback argument message")
+(check-message callback-error-message
+               "Geolocation error callback argument must be GeolocationPositionError"
+               "bad Geolocation error callback argument message")
 (check-message clear-watch-message
                "Geolocation.clearWatch is not available"
                "missing Geolocation.clearWatch message")
