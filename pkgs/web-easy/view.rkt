@@ -728,28 +728,56 @@
           decorated-with-id
           (apply-extra-class/internal decorated-with-id class-value)))
 
+    ;; split-element-children/internal : symbol? list? (or/c #f list?) -> values list? any/c
+    ;;   Split mixed child/keyword payload into children and forwarded attrs.
+    (define (split-element-children/internal who args allowed-attrs)
+      (define-values (positional-rev attrs extra-attrs-rev)
+        (parse-element-call-args who args allowed-attrs))
+      (values (reverse positional-rev)
+              (merge-element-attrs who
+                                   attrs
+                                   (reverse extra-attrs-rev))))
+
     ;; apply-with-attrs/internal : procedure? list? list? -> any/c
     ;;   Apply a keyword-aware constructor with dynamic #:attrs.
     (define (apply-with-attrs/internal proc positional attrs)
+      (define-values (positional/final attrs/forwarded)
+        (split-element-children/internal 'apply-with-attrs/internal
+                                         positional
+                                         #f))
       (keyword-apply proc
                      '(#:attrs)
-                     (list attrs)
-                     positional))
+                     (list (merge-element-attrs 'apply-with-attrs/internal
+                                                attrs
+                                                attrs/forwarded))
+                     positional/final))
+
+    ;; layout-view/internal : symbol? symbol? list? -> view?
+    ;;   Construct a layout view after splitting root keyword attrs from children.
+    (define (layout-view/internal who kind children)
+      (define-values (children/final attrs/forwarded)
+        (split-element-children/internal who children #f))
+      (apply-root-decorators
+       (view kind '() children/final)
+       #f
+       #f
+       attrs/forwarded
+       who))
 
     ;; window : view? ... -> view?
     ;;   Construct a root window view with children.
     (define (window . children)
-      (view kind/window '() children))
+      (layout-view/internal 'window kind/window children))
 
     ;; vpanel : view? ... -> view?
     ;;   Construct a vertically stacked container view.
     (define (vpanel . children)
-      (view kind/vpanel '() children))
+      (layout-view/internal 'vpanel kind/vpanel children))
 
     ;; hpanel : view? ... -> view?
     ;;   Construct a horizontally stacked container view.
     (define (hpanel . children)
-      (view kind/hpanel '() children))
+      (layout-view/internal 'hpanel kind/hpanel children))
 
     ;; container : view? ... -> view?
     ;;   Construct a centered width-constrained layout container view.
@@ -2524,7 +2552,8 @@
 
     ;; Style : (or/c string? observable?) [#:attrs any/c] [#:* any/c] -> view?
     ;;   Construct a primitive HTML style element with generic keyword attrs.
-    (define/element Style html-element 'style)
+    (define/element Style html-element 'style
+      #:content-mode text-or-children)
 
     ;; Slot : view? ... [#:attrs any/c] [#:* any/c] -> view?
     ;;   Construct a primitive HTML slot element with children and generic keyword attrs.
