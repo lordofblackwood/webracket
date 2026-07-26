@@ -3,6 +3,9 @@
 ;;;
 ;;; Element wrappers
 ;;;
+
+(include-lib shared-library-structs)
+
 ;; element-stringish->string : symbol? any/c -> string?
 ;;   Normalize a string-like wrapper argument to a browser string.
 (define (element-stringish->string who v)

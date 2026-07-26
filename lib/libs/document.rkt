@@ -4,6 +4,8 @@
 ;;; Document wrappers
 ;;;
 
+(include-lib shared-library-structs)
+
 ;; document-stringish->string : symbol? any/c -> string?
 ;;   Normalize a string-like wrapper argument to a browser string.
 (define (document-stringish->string who v)

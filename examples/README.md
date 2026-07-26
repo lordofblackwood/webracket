@@ -26,6 +26,7 @@ are listed separately and are not intended to compile directly as tutorials.
 | Hello World 2 | `hello-world-2/hello-world.rkt` | `already-module` | Browser DOM example. |
 | Hello World 3 | `hello-world-3/hello-world-3.rkt` | `already-module` | Browser SXML example. |
 | Console Bridge | `console-bridge/console-bridge.rkt` | `already-module` | Browser console bridge example. |
+| Clipboard | `clipboard/clipboard-demo.rkt` | `already-module` | Module-based browser example for plain-text clipboard reads and writes. |
 | Xterm.js Demo | `xtermjs-demo/xtermjs-demo.rkt` | `already-module` | Browser terminal example. |
 | Pict | `pict/pict.rkt` | `already-module` | Module-based browser example with local assets and `generated/` output. |
 | MiniScheme | `minischeme/minischeme-page.rkt` | `module-based` | Browser REPL page backed by a module-based MiniScheme interpreter; uses staged reader support and an opt-in slow browser smoke. |

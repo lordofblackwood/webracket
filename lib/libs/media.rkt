@@ -4,6 +4,8 @@
 ;;; Media wrappers
 ;;;
 
+(include-lib shared-library-structs)
+
 ;; media-i32->boolean : integer? -> boolean?
 ;;   Convert a browser i32 flag to a boolean.
 (define (media-i32->boolean v)

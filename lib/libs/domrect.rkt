@@ -4,6 +4,8 @@
 ;;; DOMRect wrappers
 ;;;
 
+(include-lib shared-library-structs)
+
 ;; dom-rect-left : dom-rect? -> f64
 ;;   Read the left coordinate of a DOMRect.
 (define (dom-rect-left rect)
