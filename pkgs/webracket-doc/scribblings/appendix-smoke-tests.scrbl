@@ -1,7 +1,7 @@
 #lang scribble/manual
 
 @(require scribble/manual
-          scribble-tools
+          (only-in scribble-tools shellblock)
           "webracket-scribble-utils.rkt")
 
 @title[#:tag "smoke-tests"]{Appendix: Smoke Tests}

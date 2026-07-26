@@ -1,6 +1,5 @@
 #lang scribble/manual
-@(require scribble-tools
-          (only-in (lib "core.rkt" "webracket") include-lib))
+@(require (only-in scribble-tools shellblock shell-code))
 
 @title{Getting Started}
 
@@ -24,7 +23,9 @@ In practice, it gives you:
   @item{WebRacket compiles it to:
     @itemlist[
       @item{a @tt{.wasm} file (your program)}
-      @item{a small JavaScript loader}]}
+      @item{a reusable runtime @tt{.runtime.wasm} file}
+      @item{a generated browser host page}
+      @item{an FFI @tt{.ffi.wasm} file when browser or JavaScript library wrappers are needed}]}
   @item{The browser runs the result}]
 
 
@@ -89,11 +90,15 @@ Create a file named @tt{hello.rkt} with the following contents:
 Compile the program for the browser:
 
 @shellblock{
-racket webracket.rkt --browser hello.rkt
+racket webracket.rkt --browser --dest generated hello.rkt
 }
 
 This generates the files needed to run the program in a browser.
-The files are @tt{hello.html} and @tt{hello.wasm}.
+The exact set of generated files depends on the libraries the program
+uses. For this example, expect a host page @tt{hello.html}, the user
+program @tt{hello.wasm}, a reusable runtime @tt{hello.runtime.wasm},
+a label-map sidecar @tt{hello.wasm.map.sexp}, and possibly an FFI
+sidecar @tt{hello.ffi.wasm}. Keep the generated files together.
 
 @subsection{Step 3: Start a local web server}
 
@@ -102,6 +107,7 @@ directory containing the generated files:
 
 @margin-note{If the default port 8000 is already in use, add an @shell-code{-p 8001} to the command.}
 @shellblock{
+cd generated
 raco static-web
 }
 
@@ -111,7 +117,12 @@ in your browser.
 @subsection{Step 4: Open the page in your browser}
 
 Open the address shown by @shell-code{raco static-web}, then load
-@tt{hello.html}.
+@tt{hello.html}. With the default port, the page is:
+
+@centered{@url{http://localhost:8000/hello.html}}
+
+Serve the files over HTTP; do not open @tt{hello.html} directly as a
+@tt{file://} page.
 
 You should see a page containing the heading @tt{Hello World} and the
 text @tt{Have a nice day.}
@@ -139,21 +150,24 @@ A WebRacket program goes through the following steps:
 
 @itemlist[
   @item{You write a program in Racket.}
-  @item{The WebRacket compiler translates it to WebAssembly.}
-  @item{A small JavaScript loader starts the program in the browser.}
-  @item{The browser executes the result.}]
+  @item{The WebRacket compiler translates it to WebAssembly modules.}
+  @item{A generated host page loads the runtime, any FFI sidecar, and
+        the user program.}
+  @item{The browser executes the cooperating modules.}]
 
 In short:
 
-@centered{@tt{Racket → WebRacket compiler → WebAssembly + JavaScript → Browser}}
+@centered{@tt{Racket → WebRacket compiler → Wasm modules + host page → Browser}}
 
 @subsection{What runs where}
 
 A WebRacket program involves three parts:
 
 @itemlist[
-  @item{@bold{WebAssembly:} Your compiled program runs here.}
-  @item{@bold{JavaScript:} A small loader connects the program to the browser.}
+  @item{@bold{WebAssembly:} Your compiled program runs with reusable runtime
+        and FFI modules.}
+  @item{@bold{JavaScript:} The generated host page loads the Wasm modules and
+        connects them to the browser.}
   @item{@bold{The browser:} Provides the DOM and other APIs.}]
 
 Your Racket code does not run directly in JavaScript. Instead, it runs
