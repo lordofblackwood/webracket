@@ -110,7 +110,7 @@
   "Force refresh of the staged provider/runtime cache during prewarm."
   (set! force-prewarm? #t)]
  [("--shared-runtime-url")
-  "Compile with --split-runtime-core-url runtime.wasm and verify no per-program sidecar is produced."
+  "Compile with --split-runtime-core-url runtime.wasm and verify no local content-addressed sidecar is produced."
   (set! shared-runtime-url? #t)]
  [("--split-runtime-core-only")
   "Use the core-helper-only split runtime strategy for prewarm and compile."

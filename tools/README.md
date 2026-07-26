@@ -166,11 +166,12 @@ check-split-runtime-default.rkt
 -------------------------------
 Regression-style check for the public compiler default. It compiles and runs
 small Node programs without passing `--split-runtime`, then verifies the
-default output shape is split sidecar output: a program `.wasm`, a runtime
-`.runtime.wasm`, and a Node host. The default source set covers a trivial
-script, a module-language read-demand program, and a generated regexp-demand
-script. It also compiles and runs the same programs with `--no-split-runtime`
-and verifies that the monolithic opt-out does not emit a runtime sidecar.
+default output shape is split sidecar output: a program `.wasm`, a
+content-addressed `webracket-runtime-<fingerprint>.wasm`, and a Node host. The
+default source set covers a trivial script, a module-language read-demand
+program, and a generated regexp-demand script. It also compiles and runs the
+same programs with `--no-split-runtime` and verifies that the monolithic opt-out
+does not emit a runtime sidecar.
 
 Run:
 
@@ -361,8 +362,8 @@ private provider/runtime caches, prewarms the stable split-runtime wasm cache,
 then compiles and runs a tiny no-stdlib program in the explicit
 cache-reference mode. Reference-compatible user compiles must use the cached
 runtime wasm directly; programs that need a different runtime core are allowed
-to fall back to a per-program runtime sidecar, but still have to compile and
-run correctly.
+to fall back to a materialized content-addressed runtime sidecar, but still
+have to compile and run correctly.
 
 Run:
 
@@ -405,9 +406,9 @@ make smoke-split-runtime-provider-runtime-warm-process
 
 By default, each post-prewarm case is checked in both warm runtime modes:
 cache-reference output, where the generated Node host reads the cached
-`runtime.wasm` directly, and sidecar output, where the compiler materializes a
-warm `.runtime.wasm` next to the program. Use `--no-sidecar-check` for faster
-cache-reference-only runs:
+runtime wasm directly, and sidecar output, where the compiler materializes a
+warm `webracket-runtime-<fingerprint>.wasm` next to the program. Use
+`--no-sidecar-check` for faster cache-reference-only runs:
 
 ```sh
 racket -S pkgs tools/check-split-runtime-prewarm.rkt \
@@ -599,8 +600,8 @@ racket -S pkgs tools/check-split-runtime-browser.rkt \
 
 Use `--shared-runtime-url` to exercise the compile-once browser workflow where
 the generated page fetches a prewarmed shared `runtime.wasm` URL via
-`--split-runtime-core-url` instead of materializing a per-program
-`.runtime.wasm` sidecar:
+`--split-runtime-core-url` instead of materializing a local
+`webracket-runtime-<fingerprint>.wasm` sidecar:
 
 ```sh
 racket -S pkgs tools/check-split-runtime-browser.rkt \
@@ -640,7 +641,7 @@ racket -S pkgs tools/check-split-runtime-browser.rkt \
 ```
 
 Omit `--shared-runtime-url` to check the same provider-runtime browser path
-when the warm cached runtime is materialized as a per-program sidecar:
+when the warm cached runtime is materialized as a content-addressed sidecar:
 
 ```sh
 racket -S pkgs tools/check-split-runtime-browser.rkt \
