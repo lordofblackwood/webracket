@@ -8,6 +8,8 @@ compiled/
 /.local-tools/
 /html/
 /docs-notes/html/
+/docs/reference/
+/docs/pict/
 /lib/web-easy/tmp/
 /lib/web-easy/examples/**/generated/
 /examples/**/generated/
