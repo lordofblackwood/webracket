@@ -16,17 +16,16 @@ In practice, it gives you:
   @item{with direct access to browser APIs and JavaScript}]
 
 
-@subsection{How it works (at a glance)}
+@subsection{How it works}
 
 @itemlist[
   @item{You write a Racket program (@tt{.rkt})}
-  @item{WebRacket compiles it to:
+  @item{WebRacket compiles it to a number of WebAssembly (@tt{.wasm}) files.
     @itemlist[
-      @item{a @tt{.wasm} file (your program)}
-      @item{a content-addressed runtime @tt{.wasm} sidecar}
-      @item{a generated browser host page}
-      @item{a content-addressed FFI @tt{.wasm} sidecar when browser or
-            JavaScript library wrappers are needed}]}
+      @item{one corresponds to your program}
+      @item{one to the runtime (shared between programs)}
+      @item{one for FFI libraries}]}
+  @item{a webpage that loads the webassembly files}
   @item{The browser runs the result}]
 
 
@@ -63,7 +62,7 @@ You can access standard browser features such as:
 @section{Your First Program}
 
 This section shows a minimal WebRacket program that renders a simple
-Hello World page in the browser.
+"Hello World" page in the browser.
 
 @subsection{Step 1: Write a program}
 

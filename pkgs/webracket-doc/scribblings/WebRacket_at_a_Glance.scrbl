@@ -6,8 +6,8 @@ This is a high-level overview of WebRacket.
 
 @section{What is WebRacket?}
 
-WebRacket is a @bold{Racket-to-WebAssembly compiler and runtime} designed to run practical
-Racket programs directly in the browser.
+WebRacket is a @bold{Racket-to-WebAssembly compiler and runtime}
+designed to run practical Racket programs directly in the browser.
 
 It compiles a substantial subset of Racket to
 @hyperlink["https://webassembly.org/"]{WebAssembly}, which you can think of as
