@@ -84,6 +84,24 @@
                            "Geolocation.watchPosition result must be an exact nonnegative integer"))
   result)
 
+;; geolocation-position-wrap/checked : symbol? any/c -> geolocation-position?
+;;   Validate and wrap a position object supplied by a browser callback.
+(define (geolocation-position-wrap/checked who raw)
+  (define position (geolocation-position raw))
+  (unless (geolocation-position? position)
+    (raise-arguments-error who
+                           "Geolocation success callback argument must be GeolocationPosition"))
+  position)
+
+;; geolocation-position-error-wrap/checked : symbol? any/c -> geolocation-position-error?
+;;   Validate and wrap an error object supplied by a browser callback.
+(define (geolocation-position-error-wrap/checked who raw)
+  (define err (geolocation-position-error raw))
+  (unless (geolocation-position-error? err)
+    (raise-arguments-error who
+                           "Geolocation error callback argument must be GeolocationPositionError"))
+  err)
+
 ;; geolocation-position-raw : geolocation-position? -> external/raw
 ;;   Extract the raw GeolocationPosition object.
 (define (geolocation-position-raw value)
@@ -242,7 +260,7 @@
         (define external
           (procedure->external
            (lambda (raw-position)
-             (callback (geolocation-position raw-position))
+             (callback (geolocation-position-wrap/checked who raw-position))
              (void))))
         (hash-set! geolocation-success-callback-cache callback external)
         external])]
@@ -260,7 +278,7 @@
         (define external
           (procedure->external
            (lambda (raw-error)
-             (callback (geolocation-position-error raw-error))
+             (callback (geolocation-position-error-wrap/checked who raw-error))
              (void))))
         (hash-set! geolocation-error-callback-cache callback external)
         external])]
