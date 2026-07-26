@@ -2796,8 +2796,9 @@
                     (module-bridge-provider-fragment-fingerprint
                      changed-provider-fragment-split))
   (define sample-provider-fragment-cache-root
-    (let ([tmp-parent (build-path (current-directory) "tmp")])
-      (make-directory* tmp-parent)
+    (let ([tmp-parent (if (directory-exists? "/tmp")
+                          "/tmp"
+                          (find-system-path 'temp-dir))])
       (make-temporary-file "webracket-driver-provider-fragment-cache-~a"
                            'directory
                            tmp-parent)))

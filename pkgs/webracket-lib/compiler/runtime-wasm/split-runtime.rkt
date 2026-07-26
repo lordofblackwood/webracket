@@ -2516,8 +2516,9 @@
      $set-global-helper
      $tail-helper))
   (define split-boundary-cache-test-root
-    (let ([tmp-root (build-path (current-directory) "tmp")])
-      (make-directory* tmp-root)
+    (let ([tmp-root (if (directory-exists? "/tmp")
+                        "/tmp"
+                        (find-system-path 'temp-dir))])
       (make-temporary-file "webracket-split-boundary-cache-~a"
                            'directory
                            tmp-root)))
