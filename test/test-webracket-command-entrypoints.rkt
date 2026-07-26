@@ -108,6 +108,10 @@
               (format "~a --help-full omitted provider section:\n~a"
                       name
                       output))
+  (check-true (regexp-match? #rx"\n[ ]*\n[ ]+Provider and cache options\n" output)
+              (format "~a --help-full omitted blank line before provider section:\n~a"
+                      name
+                      output))
   (check-true (string-contains? output "--force-provider-cache-refresh")
               (format "~a --help-full omitted provider cache flags:\n~a"
                       name

@@ -474,6 +474,7 @@
      [("--host-file") filename "Filename for the host file"
                        (set! host-filename filename)]
      #:help-labels
+     ""
      " Target options"
      #:once-any
      [("-b" "--browser") "Generate code for browser."
@@ -483,6 +484,7 @@
                       (set! browser #f)
                       (set! nodejs #t)]
      #:help-labels
+     ""
      " Runtime and output options"
      #:once-each
      [("--split-runtime") "Emit split core-runtime/program Wasm modules (default)"
@@ -534,6 +536,7 @@
      [("--no-label-map-forms") "Omit (form ...) entries in .wasm.map.sexp (default)"
                                (set! label-map-forms #f)]
      #:help-labels
+     ""
      " Host integration options"
      #:once-each
      [("--exec-path-from-shell")
@@ -578,6 +581,7 @@
                         "Mount tar URL into VFS as VFS=SOURCE"
                         (add-vfs-tar-mount! 'url spec)]
      #:help-labels
+     ""
      " Compile-pipeline options"
      #:once-each
      [("--enable-cc-analysis") "Enable the new closure-conversion analysis"
@@ -603,6 +607,7 @@
       "Print each top-level expression result with print; useful for script-style tests"
       (set! print-top-level-results? #t)]
      #:help-labels
+     ""
      " Provider and cache options"
      #:once-each
      [("--stdlib") "Include the legacy standard library"
@@ -651,6 +656,7 @@
       "Regenerate provider cache artifacts even when fingerprints match"
       (set! force-provider-cache-refresh? #t)]
      #:help-labels
+     ""
      " Reporting and server options"
      #:once-each
      [("--timings") "Print timing breakdown for compilation steps"
@@ -678,6 +684,7 @@
      [("--server-stop") "Stop the local compile server and exit"
                         (set! server-command 'stop)]
      #:help-labels
+     ""
      " Debug and internal options"
      #:once-each
      [("--dump-passes") dir "Write per-pass dumps to directory <dir>"
