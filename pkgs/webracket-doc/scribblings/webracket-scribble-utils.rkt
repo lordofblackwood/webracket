@@ -10,6 +10,7 @@
           flag
           how-to-require
           compile-option-bar
+          warning-bar
           mdn-bar
           jsx-doc-url
           jsx-bar)
@@ -51,6 +52,15 @@
                            (literal-tt label)
                            (hspace 1)
                            (literal-tt options)))))))
+
+;; warning-bar : content? ... -> block?
+;;   Render a high-visibility warning banner.
+(define (warning-bar . content)
+  (make-table
+   (make-style "defmodule"
+               (list (background-color-property "#fff1f2")))
+   (list (list (para (append (list (hspace 1))
+                             content))))))
 
 ;; mdn-bar : string? string? -> block?
 ;;   Render an MDN banner linking to a browser API page.

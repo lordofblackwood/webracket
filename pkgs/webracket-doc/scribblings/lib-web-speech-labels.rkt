@@ -26,6 +26,7 @@
          speech-voice-default?
          speech-voice-local-service?
          speech-voice-uri
+         speech-utterance-set-voice!
          speech-utterance-on-end!
          speech-utterance-on-error!
          (struct-out speech-synthesis-info)
@@ -58,6 +59,7 @@
 (define speech-voice-default? any/c)
 (define speech-voice-local-service? any/c)
 (define speech-voice-uri any/c)
+(define speech-utterance-set-voice! any/c)
 (define speech-utterance-on-end! any/c)
 (define speech-utterance-on-error! any/c)
 (struct speech-synthesis-info (raw) #:transparent)

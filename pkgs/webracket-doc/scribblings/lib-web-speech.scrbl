@@ -107,6 +107,14 @@ Returns available voices as wrapped @tt{SpeechSynthesisVoice} values.
 @defproc[(speech-voice-local-service? [voice speech-voice?]) boolean?]{Returns whether the voice is provided locally.}
 @defproc[(speech-voice-uri [voice speech-voice?]) string?]{Returns the voice URI.}
 
+@defproc[(speech-utterance-set-voice! [utterance speech-utterance?]
+                                      [voice speech-voice?])
+         void?]{
+Sets the voice used by an utterance. Use this when an example or
+application should prefer a specific normal browser voice instead of leaving
+voice selection entirely to the browser.
+}
+
 @defproc[(speech-utterance-on-end! [utterance speech-utterance?]
                                    [callback (or/c procedure? external? #f)])
          void?]{

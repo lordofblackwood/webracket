@@ -44,6 +44,9 @@ The @tt{dom} library brings together browser-facing libraries for:
    @hyperlink["Library__fetch.html"]{@tt{fetch}}
    "HTTP request APIs for network access from browser programs.")
   (list
+   @hyperlink["Library__clipboard.html"]{@tt{clipboard}}
+   "Plain-text clipboard reads and writes through navigator.clipboard.")
+  (list
    @hyperlink["Library__storage.html"]{@tt{storage}}
    "Browser storage access for key/value persistence and retrieval.")
   (list
