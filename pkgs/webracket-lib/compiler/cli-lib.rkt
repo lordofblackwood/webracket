@@ -459,8 +459,6 @@
      #:help-labels
      " Common options"
      #:once-each
-     [("--help-full") "Show all compiler, cache, provider, and debug options"
-                       (parse-webracket-cli/full (vector "--help"))]
      [("-r" "--run") "Run after compilation (Node mode only)."
                      (set! run-after #t)]
      [("-v" "--verbose") "Compile with verbose messages"
@@ -491,30 +489,45 @@
                           (set! split-runtime? #t)]
      [("--no-split-runtime") "Emit the normal monolithic Wasm module"
                              (set! split-runtime? #f)]
+     #:help-labels
+     ""
+     #:once-each
      [("--split-runtime-cache-reference")
       "In Node split-runtime mode, read the stable runtime wasm directly from cache"
       (set! split-runtime-cache-reference? #t)]
      [("--no-split-runtime-cache-reference")
       "Materialize the split runtime wasm sidecar next to the program output (default)"
       (set! split-runtime-cache-reference? #f)]
+     #:help-labels
+     ""
+     #:once-each
      [("--split-runtime-core-url") url
       "In browser split-runtime mode, fetch the prewarmed runtime wasm from <url>"
       (set! split-runtime-core-url url)]
      [("--no-split-runtime-core-url")
       "Materialize the browser split runtime wasm sidecar next to the program output (default)"
       (set! split-runtime-core-url #f)]
+     #:help-labels
+     ""
+     #:once-each
      [("--split-runtime-core-only")
       "Split only registered core-runtime helpers into the shared runtime module"
       (set! split-runtime-core-only? #t)]
      [("--no-split-runtime-core-only")
       "Use the classified runtime/program split strategy (default)"
       (set! split-runtime-core-only? #f)]
+     #:help-labels
+     ""
+     #:once-each
      [("--split-runtime-provider-runtime")
       "In module split-runtime mode, merge cached provider fragments into the runtime sidecar"
       (set! split-runtime-provider-runtime? #t)]
      [("--no-split-runtime-provider-runtime")
       "Keep module-bridge provider fragments in the program module (default)"
       (set! split-runtime-provider-runtime? #f)]
+     #:help-labels
+     ""
+     #:once-each
      [("--split-runtime-ffi-module")
       "Emit active direct FFI wrappers as an FFI Wasm sidecar (default when compatible)"
       (set! split-runtime-ffi-module? #t)
@@ -523,14 +536,23 @@
       "Keep active direct FFI wrappers in the program module"
       (set! split-runtime-ffi-module? #f)
       (set! split-runtime-ffi-module-explicit? #t)]
+     #:help-labels
+     ""
+     #:once-each
      [("--tree-shake") "Tree shake runtime primitives (default)"
                        (set! tree-shake? #t)]
      [("--no-tree-shake") "Do not tree shake runtime primitives"
                           (set! tree-shake? #f)]
+     #:help-labels
+     ""
+     #:once-each
      [("--pretty-wat") "Write .wat with pretty formatting"
                        (set! pretty-wat? #t)]
      [("--no-pretty-wat") "Write .wat without pretty formatting (default)"
                           (set! pretty-wat? #f)]
+     #:help-labels
+     ""
+     #:once-each
      [("--label-map-forms") "Include heavyweight (form ...) entries in .wasm.map.sexp"
                             (set! label-map-forms #t)]
      [("--no-label-map-forms") "Omit (form ...) entries in .wasm.map.sexp (default)"
@@ -545,10 +567,15 @@
      [("--no-exec-path-from-shell")
       "Use the current process environment when finding wasm-tools"
       (set! exec-path-from-shell? #f)]
+     #:help-labels
+     ""
+     #:once-each
      [("--console-bridge") "Install the browser console bridge as globalThis.WR"
                            (set! console-bridge? #t)]
      [("--no-console-bridge") "Do not install the browser console bridge (default)"
                               (set! console-bridge? #f)]
+     #:help-labels
+     ""
      #:multi
      [("-l" "--link-flags") lf
                             "Add a flag <lf> for the linker"
@@ -594,6 +621,9 @@
      [("--no-frontend-cache")
       "Disable post-unexpand frontend syntax caching (default)"
       (set! frontend-cache? #f)]
+     #:help-labels
+     ""
+     #:once-each
      [("--module-bridge-elide-public-cells")
       "Expose safe module-bridge public exports as plain values"
       (set! module-bridge-elide-public-cells? #t)]
@@ -614,24 +644,36 @@
                    (set! stdlib? #t)]
      [("--no-stdlib") "Do not include the legacy standard library (default)"
                       (set! stdlib? #f)]
+     #:help-labels
+     ""
+     #:once-each
      [("--io-format-provider" "--stdlib-io-format-provider")
       "Compose staged original-Racket io/format provider (default for script-style input)"
       (set! stdlib-io-format-provider? #t)]
      [("--no-io-format-provider" "--no-stdlib-io-format-provider")
       "Disable staged original-Racket io/format provider for debugging"
       (set! stdlib-io-format-provider? #f)]
+     #:help-labels
+     ""
+     #:once-each
      [("--expander-read-provider")
       "Compose staged original-Racket expander/read provider with Webify-owned aliases"
       (set! expander-read-provider? #t)]
      [("--no-expander-read-provider")
       "Disable staged original-Racket expander/read provider (default)"
       (set! expander-read-provider? #f)]
+     #:help-labels
+     ""
+     #:once-each
      [("--expander-read-syntax-provider")
       "Compose private staged original-Racket read-syntax provider"
       (set! expander-read-syntax-provider? #t)]
      [("--no-expander-read-syntax-provider")
       "Disable private staged original-Racket read-syntax provider (default)"
       (set! expander-read-syntax-provider? #f)]
+     #:help-labels
+     ""
+     #:once-each
      [("--webracket-module-bridge")
       "Force #lang webracket/base or full through the module bridge"
       (set! webracket-module-bridge? #t)]
@@ -641,6 +683,9 @@
      [("--provider-substitutions")
       "Enable Goal 1 provider substitutions (default)"
       (set! provider-substitutions? #t)]
+     #:help-labels
+     ""
+     #:once-each
      [("--provider-cache-dir") dirname
                                "Use <dirname> for project provider/extraction caches"
                                (set! provider-cache-dir dirname)]

@@ -101,9 +101,25 @@
 (define (check-entrypoint-full-help name args)
   (define-values (status output)
     (run-racket args))
+  (define (check-blank-after-help-line help-line next-option)
+    (define pattern
+      (pregexp
+       (format "~a\n[ ]*\n[ ]+~a"
+               (regexp-quote help-line)
+               (regexp-quote next-option))))
+    (check-true (regexp-match? pattern output)
+                (format "~a --help-full omitted blank line after ~s before ~a:\n~a"
+                        name
+                        help-line
+                        next-option
+                        output)))
   (check-equal? status
                 0
                 (format "~a --help-full failed with output:\n~a" name output))
+  (check-false (string-contains? output "--help-full")
+               (format "~a --help-full repeated the already-selected help flag:\n~a"
+                       name
+                       output))
   (check-true (string-contains? output "Provider and cache options")
               (format "~a --help-full omitted provider section:\n~a"
                       name
@@ -127,7 +143,19 @@
   (check-true (string-contains? output "--internal-bind-treelist-debug-shape")
               (format "~a --help-full omitted internal flags:\n~a"
                       name
-                      output)))
+                      output))
+  (check-blank-after-help-line
+   "Emit the normal monolithic Wasm module"
+   "--split-runtime-cache-reference")
+  (check-blank-after-help-line
+   "Use the current process environment when finding wasm-tools"
+   "--console-bridge")
+  (check-blank-after-help-line
+   "Disable post-unexpand frontend syntax caching (default)"
+   "--module-bridge-elide-public-cells")
+  (check-blank-after-help-line
+   "Enable Goal 1 provider substitutions (default)"
+   "--provider-cache-dir"))
 
 ;; check-entrypoint-user-error : string? (listof string?) string? -> void?
 ;;   Check that a usage error is reported without an implementation stack.
