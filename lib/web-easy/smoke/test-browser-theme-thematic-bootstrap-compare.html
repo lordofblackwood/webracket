@@ -62,6 +62,46 @@
       opacity: 0.78;
     }
 
+    .we-preview.we-theme-lux .we-navigation-bar .we-navigation-bar-items > .we-button.we-navbar-brand.we-sample-lux-brand-heading {
+      display: inline-block;
+      font-size: 20px;
+      font-weight: 600;
+      letter-spacing: 3px;
+      margin-right: 32px;
+      padding-top: 5px;
+      padding-bottom: 5px;
+      text-transform: uppercase;
+    }
+
+    .we-preview.we-theme-lux .we-navigation-bar .we-navigation-bar-items > .we-button[aria-current="page"] {
+      box-shadow: none;
+    }
+
+    .we-preview.we-theme-sketchy .we-navigation-bar .we-navigation-bar-items > .we-button.we-navbar-brand.we-sample-lux-brand-heading {
+      display: inline-block;
+      font-family: "Cabin Sketch", cursive;
+      font-size: 20px;
+      font-weight: 400;
+      letter-spacing: normal;
+      line-height: 24px;
+      margin-right: 16px;
+      padding-top: 5px;
+      padding-bottom: 5px;
+      text-transform: none;
+    }
+
+    .we-preview.we-theme-sandstone .we-navigation-bar .we-navigation-bar-items > .we-button.we-navbar-brand.we-sample-lux-brand-heading {
+      display: inline-block;
+      font-size: 20px;
+      font-weight: 400;
+      letter-spacing: normal;
+      line-height: 24px;
+      margin-right: 16px;
+      padding-top: 5px;
+      padding-bottom: 5px;
+      text-transform: none;
+    }
+
     .controls {
       display: flex;
       align-items: center;
@@ -248,10 +288,47 @@
       font-weight: 600;
     }
 
+    .validation-stack {
+      display: grid;
+      gap: 10px;
+    }
+
+    .radio-stack {
+      display: grid;
+      gap: 10px;
+      margin-top: 2px;
+    }
+
     .check-stack {
       display: grid;
       gap: 10px;
       margin-top: 2px;
+    }
+
+    .we-progress-demo {
+      display: block;
+      width: 100%;
+      height: var(--we-progress-height, 1rem);
+      min-height: var(--we-progress-height, 1rem);
+      border-radius: var(--we-progress-radius, 999px);
+      overflow: hidden;
+      background: var(--we-progress-bg, #f3f3f3);
+      box-shadow: var(--we-progress-box-shadow, none);
+    }
+
+    .we-progress-demo-fill {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      color: var(--we-progress-bar-color, currentColor);
+      font-size: var(--we-progress-font-size, 0.75rem);
+      font-weight: 400;
+      opacity: 1;
+      text-shadow: none;
+      line-height: 1.5;
+      overflow: visible;
+      white-space: nowrap;
     }
 
     .dialog-wrap {
@@ -282,9 +359,125 @@
       gap: 8px;
     }
 
+    .popup-row {
+      display: grid;
+      gap: 12px;
+      justify-items: start;
+    }
+
+    .popup-anchor {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      position: relative;
+      z-index: 1;
+    }
+
+    .static-dropdown-trigger {
+      display: inline-flex !important;
+      align-items: center;
+      visibility: visible !important;
+      position: relative;
+      z-index: 1;
+    }
+
+    .static-dropdown-menu,
+    .static-we-menu {
+      display: block;
+      position: static !important;
+      inset: auto !important;
+      transform: none !important;
+      min-width: 220px;
+      margin: 0;
+    }
+
+    .overlay-demo-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .overlay-demo-grid > * {
+      min-width: 0;
+    }
+
+    .static-tooltip-wrap,
+    .static-popover-wrap {
+      position: relative;
+      min-height: 96px;
+      padding-top: 36px;
+    }
+
+    .static-tooltip,
+    .static-popover,
+    .static-we-tooltip,
+    .static-we-popover {
+      position: static;
+      display: inline-block;
+      margin: 0;
+    }
+
+    .static-btn-group {
+      display: grid;
+      gap: 12px;
+      justify-items: start;
+    }
+
+    .pill-demo-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .toolbar-demo {
+      display: grid;
+      gap: 12px;
+      justify-items: start;
+    }
+
+    .static-offcanvas,
+    .static-we-offcanvas {
+      position: static !important;
+      inset: auto !important;
+      transform: none !important;
+      visibility: visible !important;
+      display: block !important;
+      width: 100%;
+      max-width: none;
+      height: auto;
+    }
+
+    .static-offcanvas {
+      border: 0;
+      box-shadow: none;
+    }
+
+    .static-we-offcanvas {
+      padding: 16px;
+      box-shadow: none;
+    }
+
+    .offcanvas-demo-body {
+      display: grid;
+      gap: 10px;
+    }
+
+    .close-demo-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+    }
+
     @media (max-width: 1150px) {
       .compare-grid,
       .sample-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .overlay-demo-grid {
         grid-template-columns: 1fr;
       }
     }
@@ -560,6 +753,421 @@
                 </section>
               </div>
 
+              <div class="sample-grid">
+                <section class="sample-card">
+                  <h3>Alert Variants</h3>
+                  <div class="sample-body">
+                    <div class="sample-stack">
+                      <div class="alert alert-success d-flex align-items-center justify-content-between mb-0" role="alert">
+                        <span><strong>Ready.</strong> Visual checks are complete and the theme can be published.</span>
+                        <button type="button" class="btn-close" aria-label="Close"></button>
+                      </div>
+                      <div class="alert alert-danger d-flex align-items-center justify-content-between mb-0" role="alert">
+                        <span><strong>Blocked.</strong> One semantic token still differs from Bootstrap.</span>
+                        <button type="button" class="btn-close" aria-label="Close"></button>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+
+                <section class="sample-card">
+                  <h3>List Group Variants</h3>
+                  <div class="sample-body">
+                    <div class="list-group">
+                      <button type="button" class="list-group-item list-group-item-action active">Current item</button>
+                      <button type="button" class="list-group-item list-group-item-action">Release notes</button>
+                      <button type="button" class="list-group-item list-group-item-action">Deployment checklist</button>
+                    </div>
+                  </div>
+                </section>
+              </div>
+
+              <div class="sample-grid">
+                <section class="sample-card">
+                  <h3>Table Variants</h3>
+                  <div class="sample-body compare-table-wrap">
+                    <table class="table table-striped table-hover mb-0">
+                      <thead>
+                        <tr><th>Item</th><th>State</th><th>Owner</th></tr>
+                      </thead>
+                      <tbody>
+                        <tr><td>Build</td><td>Ready</td><td>Ops</td></tr>
+                        <tr class="table-active"><td>Docs</td><td>Review</td><td>Team</td></tr>
+                        <tr><td>Theme</td><td>Active</td><td>Design</td></tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </section>
+
+                <section class="sample-card">
+                  <h3>Progress Variants</h3>
+                  <div class="sample-body">
+                    <div class="sample-stack">
+                      <div class="progress" role="progressbar" aria-label="Success progress" aria-valuenow="68" aria-valuemin="0" aria-valuemax="100">
+                        <div class="progress-bar bg-success" style="width: 68%">68%</div>
+                      </div>
+                      <div class="progress" role="progressbar" aria-label="Warning progress" aria-valuenow="54" aria-valuemin="0" aria-valuemax="100">
+                        <div class="progress-bar bg-warning text-dark" style="width: 54%">54%</div>
+                      </div>
+                      <div class="progress" role="progressbar" aria-label="Danger progress" aria-valuenow="23" aria-valuemin="0" aria-valuemax="100">
+                        <div class="progress-bar bg-danger" style="width: 23%">23%</div>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+              </div>
+
+              <div class="sample-grid">
+                <section class="sample-card">
+                  <h3>Badge Variants</h3>
+                  <div class="sample-body">
+                    <div class="sample-stack">
+                      <div class="compare-badges">
+                        <span class="badge text-bg-primary">Primary</span>
+                        <span class="badge text-bg-secondary">Secondary</span>
+                        <span class="badge text-bg-success">Success</span>
+                        <span class="badge text-bg-danger">Danger</span>
+                        <span class="badge rounded-pill text-bg-warning">Pill Warning</span>
+                      </div>
+                      <div class="compare-badges">
+                        <span class="badge text-bg-info">Info</span>
+                        <span class="badge text-bg-light">Light</span>
+                        <span class="badge text-bg-dark">Dark</span>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+
+                <section class="sample-card">
+                  <h3>Pagination Variants</h3>
+                  <div class="sample-body">
+                    <div class="sample-stack">
+                      <nav aria-label="Pagination states">
+                        <ul class="pagination mb-0">
+                          <li class="page-item disabled"><span class="page-link">Prev</span></li>
+                          <li class="page-item active"><span class="page-link">1</span></li>
+                          <li class="page-item"><a class="page-link" href="#">2</a></li>
+                          <li class="page-item"><a class="page-link" href="#">3</a></li>
+                          <li class="page-item"><a class="page-link" href="#">Next</a></li>
+                        </ul>
+                      </nav>
+                      <nav aria-label="Long pagination">
+                        <ul class="pagination mb-0">
+                          <li class="page-item"><a class="page-link" href="#">First</a></li>
+                          <li class="page-item"><a class="page-link" href="#">Prev</a></li>
+                          <li class="page-item active"><span class="page-link">8</span></li>
+                          <li class="page-item"><a class="page-link" href="#">9</a></li>
+                          <li class="page-item"><a class="page-link" href="#">10</a></li>
+                          <li class="page-item"><a class="page-link" href="#">Next</a></li>
+                        </ul>
+                      </nav>
+                    </div>
+                  </div>
+                </section>
+              </div>
+
+              <div class="sample-grid">
+                <section class="sample-card">
+                  <h3>Breadcrumb Variants</h3>
+                  <div class="sample-body">
+                    <div class="sample-stack">
+                      <nav aria-label="Long breadcrumb">
+                        <ol class="breadcrumb mb-0">
+                          <li class="breadcrumb-item"><a href="#">Themes</a></li>
+                          <li class="breadcrumb-item"><a href="#">Sandstone</a></li>
+                          <li class="breadcrumb-item"><a href="#">Review</a></li>
+                          <li class="breadcrumb-item active" aria-current="page">Contrast Pass</li>
+                        </ol>
+                      </nav>
+                      <nav aria-label="Short breadcrumb">
+                        <ol class="breadcrumb mb-0">
+                          <li class="breadcrumb-item"><a href="#">Docs</a></li>
+                          <li class="breadcrumb-item active" aria-current="page">Components</li>
+                        </ol>
+                      </nav>
+                    </div>
+                  </div>
+                </section>
+
+                <section class="sample-card">
+                  <h3>Form Select Variants</h3>
+                  <div class="sample-body">
+                    <div class="form-stack">
+                      <div class="field-stack">
+                        <label for="bs-select-theme">Theme</label>
+                        <select id="bs-select-theme" class="form-select">
+                          <option>Lux</option>
+                          <option selected>Sandstone</option>
+                          <option>Sketchy</option>
+                        </select>
+                      </div>
+                      <div class="field-stack">
+                        <label for="bs-select-owner">Owner</label>
+                        <select id="bs-select-owner" class="form-select" disabled>
+                          <option selected>Design</option>
+                          <option>Ops</option>
+                          <option>Product</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+              </div>
+
+              <div class="sample-grid">
+                <section class="sample-card">
+                  <h3>Menus And Dropdowns</h3>
+                  <div class="sample-body">
+                    <div class="popup-row">
+                      <div class="popup-anchor">
+                        <button class="btn btn-secondary dropdown-toggle static-dropdown-trigger" type="button">Actions</button>
+                      </div>
+                      <ul class="dropdown-menu show static-dropdown-menu">
+                        <li><h6 class="dropdown-header">Theme Kit</h6></li>
+                        <li><button class="dropdown-item active" type="button">Preview</button></li>
+                        <li><button class="dropdown-item" type="button">Export CSS</button></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><button class="dropdown-item" type="button">Archive</button></li>
+                      </ul>
+                    </div>
+                  </div>
+                </section>
+
+                <section class="sample-card">
+                  <h3>Tooltip And Popover</h3>
+                  <div class="sample-body">
+                    <div class="overlay-demo-grid">
+                      <div class="static-tooltip-wrap">
+                        <div class="tooltip bs-tooltip-top show static-tooltip" role="tooltip">
+                          <div class="tooltip-arrow"></div>
+                          <div class="tooltip-inner">Theme preview refreshed.</div>
+                        </div>
+                      </div>
+                      <div class="static-popover-wrap">
+                        <div class="popover bs-popover-bottom show static-popover" role="tooltip">
+                          <div class="popover-arrow"></div>
+                          <h3 class="popover-header">Publish Theme</h3>
+                          <div class="popover-body">Keep the generated CSS and original Bootstrap fixture together for review.</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+              </div>
+
+              <div class="sample-grid">
+                <section class="sample-card">
+                  <h3>Button Groups</h3>
+                  <div class="sample-body">
+                    <div class="static-btn-group">
+                      <div class="btn-group" role="group" aria-label="View modes">
+                        <button type="button" class="btn btn-outline-primary active">Preview</button>
+                        <button type="button" class="btn btn-outline-primary">Source</button>
+                        <button type="button" class="btn btn-outline-primary">Diff</button>
+                      </div>
+                      <div class="btn-group-vertical" role="group" aria-label="Publish actions">
+                        <button type="button" class="btn btn-secondary">Save Draft</button>
+                        <button type="button" class="btn btn-secondary">Publish</button>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+
+              </div>
+
+              <div class="sample-grid">
+                <section class="sample-card">
+                  <h3>Input Groups And Validation</h3>
+                  <div class="sample-body">
+                    <div class="sample-stack">
+                      <div class="input-group">
+                        <span class="input-group-text">https://</span>
+                        <input type="text" class="form-control" value="theme-kit.example" aria-label="Theme host">
+                        <button class="btn btn-outline-secondary" type="button">Check</button>
+                      </div>
+                      <div class="validation-stack">
+                        <div>
+                          <input type="text" class="form-control is-valid" value="theme-kit" aria-label="Valid project name">
+                          <div class="valid-feedback d-block">Looks good.</div>
+                        </div>
+                        <div>
+                          <input type="text" class="form-control is-invalid" value="theme kit!" aria-label="Invalid project name">
+                          <div class="invalid-feedback d-block">Use letters, digits, or hyphens only.</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+
+                <section class="sample-card">
+                  <h3>Radio Group</h3>
+                  <div class="sample-body">
+                    <div class="radio-stack">
+                      <div class="form-check">
+                        <input class="form-check-input" type="radio" name="publish-mode" id="publish-preview" checked>
+                        <label class="form-check-label" for="publish-preview">Preview only</label>
+                      </div>
+                      <div class="form-check">
+                        <input class="form-check-input" type="radio" name="publish-mode" id="publish-staged">
+                        <label class="form-check-label" for="publish-staged">Stage for review</label>
+                      </div>
+                      <div class="form-check">
+                        <input class="form-check-input" type="radio" name="publish-mode" id="publish-live">
+                        <label class="form-check-label" for="publish-live">Publish immediately</label>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+              </div>
+
+              <div class="sample-grid">
+                <section class="sample-card">
+                  <h3>Range And Switches</h3>
+                  <div class="sample-body">
+                    <div class="sample-stack">
+                      <div class="field-stack">
+                        <label for="publish-readiness">Publish readiness</label>
+                        <input id="publish-readiness" class="form-range" type="range" min="0" max="100" value="68">
+                      </div>
+                      <div class="check-stack">
+                        <div class="form-check form-switch">
+                          <input class="form-check-input" type="checkbox" role="switch" id="switch-preview" checked>
+                          <label class="form-check-label" for="switch-preview">Enable live preview</label>
+                        </div>
+                        <div class="form-check form-switch">
+                          <input class="form-check-input" type="checkbox" role="switch" id="switch-publish">
+                          <label class="form-check-label" for="switch-publish">Publish when approved</label>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+
+                <section class="sample-card">
+                  <h3>Disabled States</h3>
+                  <div class="sample-body">
+                    <div class="sample-stack">
+                      <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                        <button class="btn btn-primary" type="button" disabled>Publish</button>
+                        <button class="btn btn-outline-secondary" type="button" disabled>Archive</button>
+                      </div>
+                      <div class="field-stack">
+                        <input type="text" class="form-control" value="theme-kit.example" disabled aria-label="Disabled host">
+                      </div>
+                      <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="disabled-updates" checked disabled>
+                        <label class="form-check-label" for="disabled-updates">Email updates</label>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+              </div>
+
+              <div class="sample-grid">
+                <section class="sample-card">
+                  <h3>Textarea And Helper Text</h3>
+                  <div class="sample-body">
+                    <div class="sample-stack">
+                      <div class="field-stack">
+                        <label for="release-notes">Release notes</label>
+                        <textarea id="release-notes" class="form-control" rows="4">Theme comparison notes and rollout checklist.</textarea>
+                        <div class="form-text">Summarize the final differences before publishing.</div>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+
+                <section class="sample-card">
+                  <h3>Checkbox Group</h3>
+                  <div class="sample-body">
+                    <div class="check-stack">
+                      <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="check-css" checked>
+                        <label class="form-check-label" for="check-css">Generated CSS attached</label>
+                      </div>
+                      <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="check-shots" checked>
+                        <label class="form-check-label" for="check-shots">Screenshots reviewed</label>
+                      </div>
+                      <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="check-notes">
+                        <label class="form-check-label" for="check-notes">Follow-up notes added</label>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+              </div>
+
+              <div class="sample-grid">
+                <section class="sample-card">
+                  <h3>Pill Navigation</h3>
+                  <div class="sample-body">
+                    <div class="sample-stack">
+                      <ul class="nav nav-pills pill-demo-row">
+                        <li class="nav-item"><button class="nav-link active" type="button">Preview</button></li>
+                        <li class="nav-item"><button class="nav-link" type="button">Tokens</button></li>
+                        <li class="nav-item"><button class="nav-link" type="button">Publish</button></li>
+                      </ul>
+                      <div class="sample-note">Compact pill-style section switching.</div>
+                    </div>
+                  </div>
+                </section>
+
+                <section class="sample-card">
+                  <h3>Toolbar Variants</h3>
+                  <div class="sample-body">
+                    <div class="toolbar-demo">
+                      <div class="btn-toolbar gap-2" role="toolbar" aria-label="Editor toolbar">
+                        <div class="btn-group" role="group" aria-label="History">
+                          <button type="button" class="btn btn-outline-secondary">Undo</button>
+                          <button type="button" class="btn btn-outline-secondary">Redo</button>
+                        </div>
+                        <div class="btn-group" role="group" aria-label="Formatting">
+                          <button type="button" class="btn btn-outline-primary active">Bold</button>
+                          <button type="button" class="btn btn-outline-primary">Italic</button>
+                          <button type="button" class="btn btn-outline-primary">Link</button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+              </div>
+
+              <div class="sample-grid">
+                <section class="sample-card">
+                  <h3>Offcanvas Panel</h3>
+                  <div class="sample-body">
+                    <div class="offcanvas offcanvas-end show static-offcanvas" tabindex="-1" aria-modal="false" role="dialog">
+                      <div class="offcanvas-header">
+                        <h5 class="offcanvas-title">Theme Drawer</h5>
+                        <button type="button" class="btn-close" aria-label="Close"></button>
+                      </div>
+                      <div class="offcanvas-body offcanvas-demo-body">
+                        <div>Review generated tokens before publishing the active theme.</div>
+                        <button type="button" class="btn btn-primary">Apply Changes</button>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+
+                <section class="sample-card">
+                  <h3>Close Buttons</h3>
+                  <div class="sample-body">
+                    <div class="sample-stack">
+                      <div class="close-demo-row">
+                        <button type="button" class="btn-close" aria-label="Close"></button>
+                        <div class="toast show" role="alert" aria-live="polite" aria-atomic="true" style="margin: 0;">
+                          <div class="toast-header">
+                            <strong class="me-auto">Dismissible</strong>
+                            <button type="button" class="btn-close" aria-label="Close"></button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+              </div>
+
             </div>
           </div>
         </div>
@@ -580,7 +1188,7 @@
                 <div class="sample-body">
                   <div class="we-navigation-bar">
                     <div class="we-navigation-bar-items">
-                      <button class="we-button we-button-ghost we-navbar-brand">Theme Kit</button>
+                      <button class="we-button we-button-ghost we-navbar-brand we-sample-lux-brand-heading">Theme Kit</button>
                       <button class="we-button we-button-ghost" aria-current="page">Overview</button>
                       <button class="we-button we-button-ghost">Tables</button>
                       <button class="we-button we-button-ghost">Dialogs</button>
@@ -623,11 +1231,11 @@
                     <div class="we-card">
                       <div class="we-card-header">Profile Summary</div>
                       <div class="we-card-body">
-                        <div class="we-heading">Alice Johnson</div>
-                        <div class="we-card-subtitle">Theme-focused sample content for cards, body text, and button emphasis.</div>
+                        <div class="we-card-title">Alice Johnson</div>
+                        <div class="we-card-text">Theme-focused sample content for cards, body text, and button emphasis.</div>
                         <div><button class="we-button we-button-primary">Open</button></div>
                       </div>
-                      <div class="we-card-footer">Updated 2 minutes ago</div>
+                      <div class="we-card-footer we-text-body-secondary">Updated 2 minutes ago</div>
                     </div>
                   </div>
                 </section>
@@ -649,10 +1257,14 @@
                   <h3>Table</h3>
                   <div class="sample-body compare-table-wrap">
                     <table class="we-table">
-                      <tr><th>Item</th><th>State</th><th>Owner</th></tr>
-                      <tr><td>Build</td><td>Ready</td><td>Ops</td></tr>
-                      <tr><td>Docs</td><td>Review</td><td>Team</td></tr>
-                      <tr><td>Theme</td><td>Active</td><td>Design</td></tr>
+                      <thead>
+                        <tr><th>Item</th><th>State</th><th>Owner</th></tr>
+                      </thead>
+                      <tbody>
+                        <tr><td>Build</td><td>Ready</td><td>Ops</td></tr>
+                        <tr><td>Docs</td><td>Review</td><td>Team</td></tr>
+                        <tr><td>Theme</td><td>Active</td><td>Design</td></tr>
+                      </tbody>
                     </table>
                   </div>
                 </section>
@@ -698,9 +1310,9 @@
                   <div class="sample-body">
                     <div class="we-dialog-demo">
                       <div class="we-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="we-dialog-title">
-                        <div class="we-dialog-header" style="display: flex; align-items: center; gap: 8px;">
+                        <div class="we-dialog-header">
                           <div id="we-dialog-title" class="we-dialog-title">Publish Theme</div>
-                          <button class="we-dialog-close" aria-label="Close">×</button>
+                          <button class="we-dialog-close" aria-label="Close"></button>
                         </div>
                         <div class="we-dialog-body">
                           <div class="we-dialog-description">Publish the current theme output and keep the original Bootstrap fixtures for comparison?</div>
@@ -781,8 +1393,418 @@
                   <h3>Progress</h3>
                   <div class="sample-body">
                     <div class="sample-stack">
-                      <progress class="we-progress we-progress-success" value="68" max="100">68%</progress>
-                      <progress class="we-progress we-progress-info" value="42" max="100">42%</progress>
+                      <div class="we-progress-demo" role="progressbar" aria-label="Progress success" aria-valuenow="68" aria-valuemin="0" aria-valuemax="100">
+                        <div class="we-progress-demo-fill we-progress-fill-success" style="width: 68%">68%</div>
+                      </div>
+                      <div class="we-progress-demo" role="progressbar" aria-label="Progress info" aria-valuenow="42" aria-valuemin="0" aria-valuemax="100">
+                        <div class="we-progress-demo-fill we-progress-fill-info" style="width: 42%">42%</div>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+              </div>
+
+              <div class="sample-grid">
+                <section class="sample-card">
+                  <h3>Alert Variants</h3>
+                  <div class="sample-body">
+                    <div class="sample-stack">
+                      <div class="we-alert we-alert-success" style="display: flex; align-items: center; justify-content: space-between; gap: 12px;">
+                        <span><span class="we-alert-title">Ready.</span> <span class="we-alert-body">Visual checks are complete and the theme can be published.</span></span>
+                        <button class="we-toast-close" aria-label="Close"></button>
+                      </div>
+                      <div class="we-alert we-alert-danger" style="display: flex; align-items: center; justify-content: space-between; gap: 12px;">
+                        <span><span class="we-alert-title">Blocked.</span> <span class="we-alert-body">One semantic token still differs from Bootstrap.</span></span>
+                        <button class="we-toast-close" aria-label="Close"></button>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+
+                <section class="sample-card">
+                  <h3>List Group Variants</h3>
+                  <div class="sample-body">
+                    <div class="we-list-group">
+                      <button class="we-list-group-item is-current">Current item</button>
+                      <button class="we-list-group-item">Release notes</button>
+                      <button class="we-list-group-item">Deployment checklist</button>
+                    </div>
+                  </div>
+                </section>
+              </div>
+
+              <div class="sample-grid">
+                <section class="sample-card">
+                  <h3>Table Variants</h3>
+                  <div class="sample-body compare-table-wrap">
+                    <table class="we-table we-table-striped we-table-hover">
+                      <thead>
+                        <tr><th>Item</th><th>State</th><th>Owner</th></tr>
+                      </thead>
+                      <tbody>
+                        <tr><td>Build</td><td>Ready</td><td>Ops</td></tr>
+                        <tr class="we-table-row-active"><td>Docs</td><td>Review</td><td>Team</td></tr>
+                        <tr><td>Theme</td><td>Active</td><td>Design</td></tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </section>
+
+                <section class="sample-card">
+                  <h3>Progress Variants</h3>
+                  <div class="sample-body">
+                    <div class="sample-stack">
+                      <div class="we-progress-demo" role="progressbar" aria-label="Success progress" aria-valuenow="68" aria-valuemin="0" aria-valuemax="100">
+                        <div class="we-progress-demo-fill we-progress-fill-success" style="width: 68%">68%</div>
+                      </div>
+                      <div class="we-progress-demo" role="progressbar" aria-label="Warning progress" aria-valuenow="54" aria-valuemin="0" aria-valuemax="100">
+                        <div class="we-progress-demo-fill we-progress-fill-warning" style="width: 54%">54%</div>
+                      </div>
+                      <div class="we-progress-demo" role="progressbar" aria-label="Danger progress" aria-valuenow="23" aria-valuemin="0" aria-valuemax="100">
+                        <div class="we-progress-demo-fill we-progress-fill-danger" style="width: 23%">23%</div>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+              </div>
+
+              <div class="sample-grid">
+                <section class="sample-card">
+                  <h3>Badge Variants</h3>
+                  <div class="sample-body">
+                    <div class="sample-stack">
+                      <div class="compare-badges">
+                        <span class="we-badge we-badge-primary">Primary</span>
+                        <span class="we-badge we-badge-secondary">Secondary</span>
+                        <span class="we-badge we-badge-success">Success</span>
+                        <span class="we-badge we-badge-danger">Danger</span>
+                        <span class="we-badge we-badge-warning we-badge-pill">Pill Warning</span>
+                      </div>
+                      <div class="compare-badges">
+                        <span class="we-badge we-badge-info">Info</span>
+                        <span class="we-badge we-badge-light">Light</span>
+                        <span class="we-badge we-badge-dark">Dark</span>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+
+                <section class="sample-card">
+                  <h3>Pagination Variants</h3>
+                  <div class="sample-body">
+                    <div class="sample-stack">
+                      <div class="we-pagination" aria-label="Pagination states">
+                        <button class="we-page-btn is-disabled">Prev</button>
+                        <button class="we-page-btn is-current">1</button>
+                        <button class="we-page-btn">2</button>
+                        <button class="we-page-btn">3</button>
+                        <button class="we-page-btn">Next</button>
+                      </div>
+                      <div class="we-pagination" aria-label="Long pagination">
+                        <button class="we-page-btn">First</button>
+                        <button class="we-page-btn">Prev</button>
+                        <button class="we-page-btn is-current">8</button>
+                        <button class="we-page-btn">9</button>
+                        <button class="we-page-btn">10</button>
+                        <button class="we-page-btn">Next</button>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+              </div>
+
+              <div class="sample-grid">
+                <section class="sample-card">
+                  <h3>Breadcrumb Variants</h3>
+                  <div class="sample-body">
+                    <div class="sample-stack">
+                      <div class="we-breadcrumb" aria-label="Long breadcrumb">
+                        <button class="we-breadcrumb-item">Themes</button>
+                        <span class="we-breadcrumb-sep">/</span>
+                        <button class="we-breadcrumb-item">Sandstone</button>
+                        <span class="we-breadcrumb-sep">/</span>
+                        <button class="we-breadcrumb-item">Review</button>
+                        <span class="we-breadcrumb-sep">/</span>
+                        <button class="we-breadcrumb-item is-current">Contrast Pass</button>
+                      </div>
+                      <div class="we-breadcrumb" aria-label="Short breadcrumb">
+                        <button class="we-breadcrumb-item">Docs</button>
+                        <span class="we-breadcrumb-sep">/</span>
+                        <button class="we-breadcrumb-item is-current">Components</button>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+
+                <section class="sample-card">
+                  <h3>Form Select Variants</h3>
+                  <div class="sample-body">
+                    <div class="form-stack">
+                      <div class="field-stack">
+                        <label for="we-select-theme">Theme</label>
+                        <select id="we-select-theme" class="we-input">
+                          <option>Lux</option>
+                          <option selected>Sandstone</option>
+                          <option>Sketchy</option>
+                        </select>
+                      </div>
+                      <div class="field-stack">
+                        <label for="we-select-owner">Owner</label>
+                        <select id="we-select-owner" class="we-input" disabled>
+                          <option selected>Design</option>
+                          <option>Ops</option>
+                          <option>Product</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+              </div>
+
+              <div class="sample-grid">
+                <section class="sample-card">
+                  <h3>Menus And Dropdowns</h3>
+                  <div class="sample-body">
+                      <div class="popup-row">
+                        <div class="popup-anchor">
+                          <button class="we-button we-button-secondary we-menu-label" aria-expanded="true">Actions</button>
+                        </div>
+                        <div class="we-menu-popup static-we-menu">
+                        <div class="we-menu-header">Theme Kit</div>
+                        <button class="we-menu-item is-current">Preview</button>
+                        <button class="we-menu-item">Export CSS</button>
+                        <div class="we-divider"></div>
+                        <button class="we-menu-item">Archive</button>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+
+                <section class="sample-card">
+                  <h3>Tooltip And Popover</h3>
+                  <div class="sample-body">
+                    <div class="overlay-demo-grid">
+                      <div class="static-tooltip-wrap">
+                        <div class="we-tooltip-bubble static-we-tooltip">Theme preview refreshed.</div>
+                      </div>
+                      <div class="static-popover-wrap">
+                        <div class="we-popover-panel static-we-popover">
+                          <div class="we-popover-arrow"></div>
+                          <div class="we-popover-header">
+                            <div class="we-popover-title">Publish Theme</div>
+                          </div>
+                          <div class="we-popover-body">Keep the generated CSS and original Bootstrap fixture together for review.</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+              </div>
+
+              <div class="sample-grid">
+                <section class="sample-card">
+                  <h3>Button Groups</h3>
+                  <div class="sample-body">
+                    <div class="static-btn-group">
+                      <div class="we-button-group" role="group" aria-label="View modes">
+                        <button class="we-button we-button-outline-primary is-active" aria-pressed="true">Preview</button>
+                        <button class="we-button we-button-outline-primary">Source</button>
+                        <button class="we-button we-button-outline-primary">Diff</button>
+                      </div>
+                      <div class="we-button-group-vertical" role="group" aria-label="Publish actions">
+                        <button class="we-button we-button-secondary">Save Draft</button>
+                        <button class="we-button we-button-secondary">Publish</button>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+
+              </div>
+
+              <div class="sample-grid">
+                <section class="sample-card">
+                  <h3>Input Groups And Validation</h3>
+                  <div class="sample-body">
+                    <div class="sample-stack">
+                      <div class="we-input-group">
+                        <span class="we-input-group-text">https://</span>
+                        <input class="we-input" type="text" value="theme-kit.example" aria-label="Theme host">
+                        <button class="we-button we-button-outline-secondary">Check</button>
+                      </div>
+                      <div class="validation-stack">
+                        <div class="field-stack">
+                          <input class="we-input is-valid" type="text" value="theme-kit" aria-label="Valid project name">
+                          <div class="we-feedback is-valid">Looks good.</div>
+                        </div>
+                        <div class="field-stack">
+                          <input class="we-input is-invalid" type="text" value="theme kit!" aria-label="Invalid project name">
+                          <div class="we-feedback is-invalid">Use letters, digits, or hyphens only.</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+
+                <section class="sample-card">
+                  <h3>Radio Group</h3>
+                  <div class="sample-body">
+                    <div class="radio-stack">
+                      <label class="we-choice-row">
+                        <input class="we-radio" type="radio" name="we-publish-mode" checked>
+                        <span>Preview only</span>
+                      </label>
+                      <label class="we-choice-row">
+                        <input class="we-radio" type="radio" name="we-publish-mode">
+                        <span>Stage for review</span>
+                      </label>
+                      <label class="we-choice-row">
+                        <input class="we-radio" type="radio" name="we-publish-mode">
+                        <span>Publish immediately</span>
+                      </label>
+                    </div>
+                  </div>
+                </section>
+              </div>
+
+              <div class="sample-grid">
+                <section class="sample-card">
+                  <h3>Range And Switches</h3>
+                  <div class="sample-body">
+                    <div class="sample-stack">
+                      <div class="field-stack">
+                        <label for="we-publish-readiness">Publish readiness</label>
+                        <input id="we-publish-readiness" class="we-range" type="range" min="0" max="100" value="68">
+                      </div>
+                      <div class="check-stack">
+                        <div class="we-switch-row we-form-check">
+                          <input id="we-switch-preview" class="we-checkbox we-switch-control" type="checkbox" checked>
+                          <label for="we-switch-preview">Enable live preview</label>
+                        </div>
+                        <div class="we-switch-row we-form-check">
+                          <input id="we-switch-publish" class="we-checkbox we-switch-control" type="checkbox">
+                          <label for="we-switch-publish">Publish when approved</label>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+
+                <section class="sample-card">
+                  <h3>Disabled States</h3>
+                  <div class="sample-body">
+                    <div class="sample-stack">
+                      <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                        <button class="we-button we-button-primary" disabled>Publish</button>
+                        <button class="we-button we-button-outline-secondary" disabled>Archive</button>
+                      </div>
+                      <div class="field-stack">
+                        <input class="we-input" type="text" value="theme-kit.example" disabled aria-label="Disabled host">
+                      </div>
+                      <label class="we-choice-row we-form-check">
+                        <input class="we-checkbox" type="checkbox" checked disabled>
+                        <span>Email updates</span>
+                      </label>
+                    </div>
+                  </div>
+                </section>
+              </div>
+
+              <div class="sample-grid">
+                <section class="sample-card">
+                  <h3>Textarea And Helper Text</h3>
+                  <div class="sample-body">
+                    <div class="sample-stack">
+                      <div class="field-stack">
+                        <label for="we-release-notes">Release notes</label>
+                        <textarea id="we-release-notes" class="we-input" rows="4">Theme comparison notes and rollout checklist.</textarea>
+                        <div class="we-help-text">Summarize the final differences before publishing.</div>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+
+                <section class="sample-card">
+                  <h3>Checkbox Group</h3>
+                  <div class="sample-body">
+                    <div class="check-stack">
+                      <label class="we-choice-row we-form-check">
+                        <input class="we-checkbox" type="checkbox" checked>
+                        <span>Generated CSS attached</span>
+                      </label>
+                      <label class="we-choice-row we-form-check">
+                        <input class="we-checkbox" type="checkbox" checked>
+                        <span>Screenshots reviewed</span>
+                      </label>
+                      <label class="we-choice-row we-form-check">
+                        <input class="we-checkbox" type="checkbox">
+                        <span>Follow-up notes added</span>
+                      </label>
+                    </div>
+                  </div>
+                </section>
+              </div>
+
+              <div class="sample-grid">
+                <section class="sample-card">
+                  <h3>Pill Navigation</h3>
+                  <div class="sample-body">
+                    <div class="sample-stack">
+                      <div class="we-button-group" role="tablist" aria-label="Pill navigation">
+                        <button class="we-button we-button-outline-primary is-active" aria-pressed="true">Preview</button>
+                        <button class="we-button we-button-outline-primary">Tokens</button>
+                        <button class="we-button we-button-outline-primary">Publish</button>
+                      </div>
+                      <div class="sample-note">Compact pill-style section switching.</div>
+                    </div>
+                  </div>
+                </section>
+
+                <section class="sample-card">
+                  <h3>Toolbar Variants</h3>
+                  <div class="sample-body">
+                    <div class="toolbar-demo">
+                      <div class="we-toolbar-group" role="toolbar" aria-label="History toolbar">
+                        <button class="we-button we-button-outline-secondary">Undo</button>
+                        <button class="we-button we-button-outline-secondary">Redo</button>
+                      </div>
+                      <div class="we-toolbar-group" role="toolbar" aria-label="Formatting toolbar">
+                        <button class="we-button we-button-outline-primary is-active" aria-pressed="true">Bold</button>
+                        <button class="we-button we-button-outline-primary">Italic</button>
+                        <button class="we-button we-button-outline-primary">Link</button>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+              </div>
+
+              <div class="sample-grid">
+                <section class="sample-card">
+                  <h3>Offcanvas Panel</h3>
+                  <div class="sample-body">
+                    <div class="we-offcanvas-panel static-we-offcanvas" role="dialog" aria-modal="false">
+                      <button class="we-close-button" aria-label="Close"></button>
+                      <div class="we-popover-title">Theme Drawer</div>
+                      <div class="offcanvas-demo-body">
+                        <div>Review generated tokens before publishing the active theme.</div>
+                        <button class="we-button we-button-primary">Apply Changes</button>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+
+                <section class="sample-card">
+                  <h3>Close Buttons</h3>
+                  <div class="sample-body">
+                    <div class="sample-stack">
+                      <div class="close-demo-row">
+                        <button class="we-close-button" aria-label="Close"></button>
+                        <div class="we-toast" style="margin: 0;">
+                          <div class="we-toast-header">
+                            <span class="we-toast-title">Dismissible</span>
+                            <button class="we-toast-close" aria-label="Close"></button>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </section>

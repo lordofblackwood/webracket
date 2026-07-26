@@ -48,6 +48,7 @@ mtime_seconds() {
 if [ "${SMOKE_FORCE_COMPILE:-0}" != "1" ]; then
   if [ -f "generated/$BASENAME.html" ] \
     && [ -f "generated/$BASENAME.wasm" ] \
+    && [ -f "generated/$BASENAME.runtime.wasm" ] \
     && [ -f "generated/$BASENAME.wat" ]; then
     newest_source=0
     for src in "$WEB_EASY_DIR"/*.rkt "$WEB_EASY_DIR/smoke"/*.rkt; do
@@ -68,6 +69,12 @@ fi
 racket ../../../webracket.rkt --browser --ffi dom "$EXAMPLE_RKT"
 
 for ext in html js wasm wasm.map.sexp wat; do
+  SRC="$BASENAME.$ext"
+  if [ -f "$SRC" ]; then
+    mv -f "$SRC" "generated/$SRC"
+  fi
+done
+for ext in runtime.wasm runtime.wat; do
   SRC="$BASENAME.$ext"
   if [ -f "$SRC" ]; then
     mv -f "$SRC" "generated/$SRC"

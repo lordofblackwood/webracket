@@ -1951,6 +1951,7 @@
                      [allowed-attrs-stx (datum->syntax stx (list 'quote allowed-attrs) stx stx)]
                      [required-kws-stx (datum->syntax stx (list 'quote required-kws) stx stx)]
                      [required-any-kws-stx (datum->syntax stx (list 'quote required-any-kws) stx stx)]
+                     [content-item->child-view-id (datum->syntax #'base 'content-item->child-view/internal #'base #'base)]
                      [expected-count-stx (datum->syntax stx count-expr-datum stx stx)])
          (cond
            [(and (eq? base-sym 'html-element) (equal? count-datum 0))
@@ -1965,6 +1966,21 @@
                 (base fixed ...
                       ""
                       #:attrs attrs))]
+           [(eq? base-sym 'html-element-children)
+            #'(define (name . all-args)
+                (define-values (positional attrs)
+                  (normalize-element-call 'name/sym
+                                          all-args
+                                          expected-count-stx
+                                          allowed-attrs-stx
+                                          required-kws-stx
+                                          required-any-kws-stx))
+                (apply base
+                       (append (list fixed ...)
+                               (map (lambda (item)
+                                      (content-item->child-view-id 'name/sym item))
+                                    positional)
+                               (list #:attrs attrs))))]
            [else
             #'(define (name . all-args)
                 (define-values (positional attrs)
@@ -2026,6 +2042,7 @@
        (with-syntax ([name/sym (datum->syntax #'name (syntax-e #'name) #'name #'name)]
                      [allowed-attrs-stx (datum->syntax stx (list 'quote allowed-attrs) stx stx)]
                      [required-kws-stx (datum->syntax stx (list 'quote required-kws) stx stx)]
+                     [content-item->child-view-id (datum->syntax #'base 'content-item->child-view/internal #'base #'base)]
                      [expected-count-stx (datum->syntax stx count-expr-datum stx stx)])
          (cond
            [(and (eq? base-sym 'html-element) (equal? count-datum 0))
@@ -2040,6 +2057,21 @@
                 (base fixed ...
                       ""
                       #:attrs attrs))]
+           [(eq? base-sym 'html-element-children)
+            #'(define (name . all-args)
+                (define-values (positional attrs)
+                  (normalize-element-call 'name/sym
+                                          all-args
+                                          expected-count-stx
+                                          allowed-attrs-stx
+                                          required-kws-stx
+                                          '()))
+                (apply base
+                       (append (list fixed ...)
+                               (map (lambda (item)
+                                      (content-item->child-view-id 'name/sym item))
+                                    positional)
+                               (list #:attrs attrs))))]
            [else
             #'(define (name . all-args)
                 (define-values (positional attrs)

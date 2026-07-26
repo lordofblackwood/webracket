@@ -26,6 +26,22 @@
 (append-text-node! speak-button "Speak")
 (append-text-node! cancel-button "Cancel")
 
+(define (normal-voice)
+  (and synth
+       (let ([voices (speech-synthesis-voices synth)])
+         (let loop ([i 0] [fallback #f])
+           (cond
+             [(= i (vector-length voices)) fallback]
+             [else
+              (define voice (vector-ref voices i))
+              (cond
+                [(speech-voice-default? voice) voice]
+                [(and (not fallback)
+                      (string=? (speech-voice-lang voice) "en-US"))
+                 (loop (add1 i) voice)]
+                [else
+                 (loop (add1 i) fallback)])])))))
+
 (define (speak!)
   (cond
     [synth
@@ -33,6 +49,9 @@
        (make-speech-utterance
         "Hello from WebRacket"
         (make-speech-utterance-options "en-US" 1 1 1)))
+     (define voice (normal-voice))
+     (when voice
+       (speech-utterance-set-voice! utterance voice))
      (speech-utterance-on-end!
       utterance
       (lambda (_event)

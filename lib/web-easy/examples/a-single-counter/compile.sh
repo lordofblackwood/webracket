@@ -11,7 +11,7 @@ BASENAME="a-single-counter"
 
 racket "$ROOT_DIR/webracket.rkt" --browser --ffi dom "$BASENAME.rkt"
 
-for ext in html js wasm wasm.map.sexp wat; do
+for ext in html js wasm wasm.map.sexp wat runtime.wasm runtime.wat; do
   src="$BASENAME.$ext"
   if [ -f "$src" ]; then
     mv -f "$src" "generated/$src"
