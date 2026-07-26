@@ -90,8 +90,12 @@ Create a file named @tt{hello.rkt} with the following contents:
 Compile the program for the browser:
 
 @shellblock{
-racket webracket.rkt --browser --dest generated hello.rkt
+webracket --browser --dest generated hello.rkt
 }
+
+The same compiler is also available as @shell-code{raco webracket}.
+When working from an uninstalled source checkout, use
+@shell-code{racket webracket.rkt} in place of @shell-code{webracket}.
 
 This generates the files needed to run the program in a browser.
 The exact set of generated files depends on the libraries the program

@@ -23,7 +23,7 @@ Compile a browser program with @(flag "--console-bridge"). Use
 @(flag "--dest") to keep generated files in one directory:
 
 @shellblock{
-racket webracket.rkt --browser --console-bridge --dest generated counter.rkt
+webracket --browser --console-bridge --dest generated counter.rkt
 }
 
 This writes files such as @tt{generated/counter.html} and
@@ -59,7 +59,7 @@ WR.names()
 Compile it:
 
 @shellblock{
-racket webracket.rkt --browser --console-bridge --dest generated counter.rkt
+webracket --browser --console-bridge --dest generated counter.rkt
 }
 
 Serve the project directory, then open @tt{generated/counter.html}. In the

@@ -1,0 +1,104 @@
+#lang racket/base
+
+(require rackunit
+         racket/path
+         racket/port
+         racket/runtime-path
+         racket/string
+         racket/system
+         setup/getinfo)
+
+(define-runtime-path repo-root "..")
+
+;; maybe-local-racket-path : -> (or/c path? #f)
+;;   Prefer the sibling local Racket checkout when present.
+(define (maybe-local-racket-path)
+  (define p
+    (simplify-path
+     (build-path repo-root 'up "racket" "racket" "bin" "racket")))
+  (and (file-exists? p) p))
+
+;; racket-path : path?
+;;   Pick one Racket executable for the subprocess checks.
+(define racket-path
+  (or (maybe-local-racket-path)
+      (find-executable-path "racket")))
+
+;; skip! : string? -> none
+;;   Exit cleanly with a visible skip reason.
+(define (skip! msg)
+  (displayln (string-append "SKIP: " msg))
+  (exit 0))
+
+(unless racket-path
+  (skip! "could not find a Racket executable"))
+
+(define pkgs-dir
+  (build-path repo-root "pkgs"))
+(define webracket-package-dir
+  (build-path pkgs-dir "webracket"))
+
+;; run-racket : (listof string?) -> (values exact-integer? string?)
+;;   Run a checkout-local Racket command and collect combined output.
+(define (run-racket args)
+  (define stdout (open-output-string))
+  (define stderr (open-output-string))
+  (define status
+    (parameterize ([current-output-port stdout]
+                   [current-error-port stderr])
+      (apply system*/exit-code racket-path args)))
+  (values status
+          (string-append (get-output-string stdout)
+                         (get-output-string stderr))))
+
+;; check-entrypoint-help : string? (listof string?) -> void?
+;;   Check that one public entrypoint reaches the shared CLI help.
+(define (check-entrypoint-help name args)
+  (define-values (status output)
+    (run-racket args))
+  (check-equal? status
+                0
+                (format "~a --help failed with output:\n~a" name output))
+  (check-true (string-contains? output "webracket")
+              (format "~a --help did not look like WebRacket help:\n~a"
+                      name
+                      output))
+  (check-true (string-contains? output "--browser")
+              (format "~a --help omitted compiler flags:\n~a"
+                      name
+                      output)))
+
+;; test-command-module : -> void?
+;;   Check the installed launcher target module directly.
+(define (test-command-module)
+  (check-entrypoint-help
+   "webracket module"
+   (list "-S" (path->string pkgs-dir)
+         "-l" "webracket/command"
+         "--" "--help")))
+
+;; test-package-metadata : -> void?
+;;   Check the package metadata that installs `webracket` and `raco webracket`.
+(define (test-package-metadata)
+  (define info
+    (get-info/full webracket-package-dir))
+  (check-equal? (info 'racket-launcher-names (lambda () #f))
+                '("webracket"))
+  (check-equal? (info 'racket-launcher-libraries (lambda () #f))
+                '("command.rkt"))
+  (check-equal? (info 'raco-commands (lambda () #f))
+                '(("webracket"
+                   webracket/command
+                   "compile Racket programs to WebAssembly"
+                   #f))))
+
+(define (test-entrypoints)
+  (test-command-module)
+  (test-package-metadata))
+
+(module+ test
+  (test-entrypoints))
+
+(module+ main
+  (test-entrypoints)
+  (displayln "ok"))

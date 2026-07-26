@@ -89,7 +89,7 @@ To enable it, compile your browser program with
 @(flag "--console-bridge"):
 
 @shellblock{
-racket webracket.rkt --browser --console-bridge counter.rkt
+webracket --browser --console-bridge counter.rkt
 }
 
 This generates the usual browser output files, such as:
@@ -127,7 +127,7 @@ There is also a checked-in example in the repository:
 Compile it:
 
 @shellblock{
-racket webracket.rkt --browser --console-bridge counter.rkt
+webracket --browser --console-bridge counter.rkt
 }
 
 Serve the generated files from the directory where they were written:
