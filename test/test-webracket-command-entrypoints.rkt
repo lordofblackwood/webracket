@@ -136,6 +136,10 @@
               (format "~a --help-full omitted manual FFI flags:\n~a"
                       name
                       output))
+  (check-false (string-contains? output "--link-flags")
+               (format "~a --help-full printed removed linker flags:\n~a"
+                       name
+                       output))
   (check-true (string-contains? output "Debug and internal options")
               (format "~a --help-full omitted debug section:\n~a"
                       name

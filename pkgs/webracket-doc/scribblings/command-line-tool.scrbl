@@ -268,11 +268,10 @@ Legacy standard library inclusion:
   @item{@(flag "--no-stdlib"): Do not include the legacy standard library (default).}
 ]
 
-Manual FFI and linker flags:
+Manual FFI:
 
 @itemlist[
   @item{@(flag "--ffi <file>"): Add an @tt{.ffi} input file; may be repeated.}
-  @item{@(flag "-l") / @(flag "--link-flags <flag>"): Accepted but currently ignored by the driver.}
 ]
 
 Legacy examples:

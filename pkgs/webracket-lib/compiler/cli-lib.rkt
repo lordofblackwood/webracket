@@ -62,7 +62,6 @@
    console-bridge?                        ; install the browser console bridge
    browser                                ; target browser host generation
    nodejs                                 ; target Node host generation
-   link-flags                             ; reserved linker flags from the legacy surface
    ffi-files                              ; extra .ffi files to merge into the compile
    vfs-preloads                           ; VFS preload specs for the generated host
    vfs-mounts                             ; VFS mount specs for the generated host
@@ -118,7 +117,6 @@
     (console-bridge? . ,(webracket-compile-config-console-bridge? cfg))
     (browser . ,(webracket-compile-config-browser cfg))
     (nodejs . ,(webracket-compile-config-nodejs cfg))
-    (link-flags . ,(webracket-compile-config-link-flags cfg))
     (ffi-files . ,(webracket-compile-config-ffi-files cfg))
     (vfs-preloads . ,(webracket-compile-config-vfs-preloads cfg))
     (vfs-mounts . ,(webracket-compile-config-vfs-mounts cfg))
@@ -181,7 +179,6 @@
    (ref 'console-bridge?)
    (ref 'browser)
    (ref 'nodejs)
-   (ref 'link-flags)
    (ref 'ffi-files)
    (ref 'vfs-preloads)
    (ref 'vfs-mounts)
@@ -219,8 +216,6 @@
     "--split-runtime-core-url"
     "--provider-cache-dir"
     "--runtime-provider-cache-dir"
-    "-l"
-    "--link-flags"
     "--ffi"
     "--vfs-file"
     "--vfs-url"
@@ -340,7 +335,6 @@
   (define console-bridge? #f)
   (define browser #f)
   (define nodejs #t)
-  (define link-flags '())
   (define ffi-files '())
   (define vfs-preloads '())
   (define vfs-mounts '())
@@ -577,9 +571,6 @@
      #:help-labels
      ""
      #:multi
-     [("-l" "--link-flags") lf
-                            "Add a flag <lf> for the linker"
-                            (set! link-flags (cons lf link-flags))]
      [("--ffi") ffi-file
                 "Add a legacy/manual .ffi file"
                 (set! ffi-files (cons ffi-file ffi-files))]
@@ -813,7 +804,6 @@
        console-bridge?
        browser
        nodejs
-       (reverse link-flags)
        ffi-files
        (reverse vfs-preloads)
        (reverse vfs-mounts)
