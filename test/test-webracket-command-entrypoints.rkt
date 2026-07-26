@@ -71,6 +71,26 @@
               (format "~a --help omitted full-help pointer:\n~a"
                       name
                       output))
+  (check-true (string-contains? output "Node mode only")
+              (format "~a --help did not explain --run target:\n~a"
+                      name
+                      output))
+  (check-true (string-contains? output "--server-start")
+              (format "~a --help omitted server start:\n~a"
+                      name
+                      output))
+  (check-true (string-contains? output "--server-status")
+              (format "~a --help omitted server status:\n~a"
+                      name
+                      output))
+  (check-true (string-contains? output "--server-stop")
+              (format "~a --help omitted server stop:\n~a"
+                      name
+                      output))
+  (check-false (string-contains? output "--ffi")
+               (format "~a --help printed legacy manual FFI flags:\n~a"
+                       name
+                       output))
   (check-false (string-contains? output "--force-provider-cache-refresh")
                (format "~a --help printed detailed provider flags:\n~a"
                        name
@@ -90,6 +110,10 @@
                       output))
   (check-true (string-contains? output "--force-provider-cache-refresh")
               (format "~a --help-full omitted provider cache flags:\n~a"
+                      name
+                      output))
+  (check-true (string-contains? output "--ffi")
+              (format "~a --help-full omitted manual FFI flags:\n~a"
                       name
                       output))
   (check-true (string-contains? output "Debug and internal options")

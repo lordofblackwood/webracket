@@ -271,13 +271,17 @@
     "  -b, --browser              Generate browser output.\n"
     "  -n, --node                 Generate Node.js output (default).\n"
     "  --dest <dir>               Write default outputs under <dir>.\n"
-    "  -r, --run                  Run the program after compilation.\n"
-    "  --ffi <file>               Add a .ffi file.\n"
+    "  -r, --run                  Run after compilation (Node mode only).\n"
     "  --no-split-runtime         Emit a monolithic Wasm module.\n"
+    "\n"
+    "Compile server:\n"
+    "  --server-start             Run the local compile server in the foreground.\n"
     "  --server-status            Print local compile server status.\n"
+    "  --server-stop              Stop the local compile server.\n"
     "\n"
     "Examples:\n"
     "  webracket hello.rkt\n"
+    "  webracket --node --run hello.rkt\n"
     "  webracket --browser --dest generated hello.rkt\n"
     "  raco webracket --help-full\n"
     "\n"
@@ -457,7 +461,7 @@
      #:once-each
      [("--help-full") "Show all compiler, cache, provider, and debug options"
                        (parse-webracket-cli/full (vector "--help"))]
-     [("-r" "--run") "Run the program after compilation."
+     [("-r" "--run") "Run after compilation (Node mode only)."
                      (set! run-after #t)]
      [("-v" "--verbose") "Compile with verbose messages"
                          (set! verbose-mode #t)]
@@ -547,7 +551,7 @@
                             "Add a flag <lf> for the linker"
                             (set! link-flags (cons lf link-flags))]
      [("--ffi") ffi-file
-                "Add .ffi file"
+                "Add a legacy/manual .ffi file"
                 (set! ffi-files (cons ffi-file ffi-files))]
      [("--vfs-file") spec
                      "Preload Node host file into VFS as VFS=SOURCE"
