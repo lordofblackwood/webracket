@@ -5,6 +5,7 @@ compiled/
 *.bak
 \#*
 .\#*
+__pycache__/
 /.local-tools/
 /html/
 /docs-notes/html/
