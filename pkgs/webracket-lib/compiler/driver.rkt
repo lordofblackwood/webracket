@@ -4026,31 +4026,53 @@
                            (default-output-path ".html"))))
   (compilation-output-paths out-wat out-wasm out-map out-host))
 
-;; path-replace-extension+suffix : path-string? string? string? -> path?
-;;   Replace a path's extension after adding a suffix to the stem.
-(define (path-replace-extension+suffix p suffix ext)
-  (define base (path-replace-extension p ""))
-  (string->path (format "~a~a~a" (path->string base) suffix ext)))
+;; content-addressed-sidecar-path : path-string? string? string? string? -> path?
+;;   Return a content-addressed sidecar path in the same directory as sibling.
+(define (content-addressed-sidecar-path sibling prefix fingerprint ext)
+  (define sidecar-name (format "~a-~a~a" prefix fingerprint ext))
+  (define sibling-dir (path-only sibling))
+  (if sibling-dir
+      (build-path sibling-dir sidecar-name)
+      (string->path sidecar-name)))
 
-;; split-runtime-wat-path : path-string? -> path?
-;;   Return the sidecar WAT path for the experimental split runtime module.
-(define (split-runtime-wat-path out-wat)
-  (path-replace-extension+suffix out-wat ".runtime" ".wat"))
+;; split-runtime-sidecar-fingerprint : any/c (-> list?) -> string?
+;;   Return the stable fingerprint for a split-runtime sidecar.
+(define (split-runtime-sidecar-fingerprint cache-key module-thunk)
+  (if cache-key
+      (split-runtime-core-cache-key-fingerprint cache-key)
+      (split-runtime-core-fingerprint (module-thunk))))
 
-;; split-runtime-wasm-path : path-string? -> path?
-;;   Return the sidecar Wasm path for the experimental split runtime module.
-(define (split-runtime-wasm-path out-wasm)
-  (path-replace-extension+suffix out-wasm ".runtime" ".wasm"))
+;; split-runtime-wat-path : path-string? string? boolean? -> path?
+;;   Return the content-addressed sidecar WAT path for the split runtime module.
+(define (split-runtime-wat-path out-wat fingerprint pretty-wat?)
+  (content-addressed-sidecar-path out-wat
+                                  "webracket-runtime"
+                                  fingerprint
+                                  (format ".~a.wat"
+                                          (if pretty-wat?
+                                              "pretty"
+                                              "compact"))))
 
-;; split-runtime-ffi-wat-path : path-string? -> path?
-;;   Return the sidecar WAT path for a split FFI module.
-(define (split-runtime-ffi-wat-path out-wat)
-  (path-replace-extension+suffix out-wat ".ffi" ".wat"))
+;; split-runtime-wasm-path : path-string? string? -> path?
+;;   Return the content-addressed sidecar Wasm path for the split runtime module.
+(define (split-runtime-wasm-path out-wasm fingerprint)
+  (content-addressed-sidecar-path out-wasm "webracket-runtime" fingerprint ".wasm"))
 
-;; split-runtime-ffi-wasm-path : path-string? -> path?
-;;   Return the sidecar Wasm path for a split FFI module.
-(define (split-runtime-ffi-wasm-path out-wasm)
-  (path-replace-extension+suffix out-wasm ".ffi" ".wasm"))
+;; split-runtime-ffi-wat-path : path-string? string? boolean? -> path?
+;;   Return the content-addressed sidecar WAT path for a split FFI module.
+(define (split-runtime-ffi-wat-path out-wat fingerprint pretty-wat?)
+  (content-addressed-sidecar-path out-wat
+                                  "webracket-ffi"
+                                  fingerprint
+                                  (format ".~a.wat"
+                                          (if pretty-wat?
+                                              "pretty"
+                                              "compact"))))
+
+;; split-runtime-ffi-wasm-path : path-string? string? -> path?
+;;   Return the content-addressed sidecar Wasm path for a split FFI module.
+(define (split-runtime-ffi-wasm-path out-wasm fingerprint)
+  (content-addressed-sidecar-path out-wasm "webracket-ffi" fingerprint ".wasm"))
 
 ;; split-runtime-core-cache-wasm-path : string? -> path?
 ;;   Return the stable cache path for an assembled split core runtime module.
@@ -4772,36 +4794,20 @@
   (define out-wasm (compilation-output-paths-wasm output-paths))
   (define out-map  (compilation-output-paths-map output-paths))
   (define out-host (compilation-output-paths-host output-paths))
-  (define runtime-wat  (and split-runtime? (split-runtime-wat-path out-wat)))
-  (define runtime-wasm (and split-runtime? (split-runtime-wasm-path out-wasm)))
-  (define ffi-wat
-    (and split-runtime? split-runtime-ffi-module/effective?
-         (split-runtime-ffi-wat-path out-wat)))
-  (define ffi-wasm
-    (and split-runtime? split-runtime-ffi-module/effective?
-         (split-runtime-ffi-wasm-path out-wasm)))
 
   ; Preflight: ensure output files do not collide.
   (ensure-distinct-output-files!
    'drive-compilation
-   (append
-    (list (cons "WAT output file"       out-wat)
-          (cons "Wasm output file"      out-wasm)
-          (cons "label-map output file" out-map)
-          (cons "host output file"      out-host))
-    (if (and split-runtime? (not split-runtime-core-url))
-        (list (cons "split runtime WAT output file" runtime-wat)
-              (cons "split runtime Wasm output file" runtime-wasm))
-        '())))
+   (list (cons "WAT output file"       out-wat)
+         (cons "Wasm output file"      out-wasm)
+         (cons "label-map output file" out-map)
+         (cons "host output file"      out-host)))
 
   ; Preflight: ensure output locations are writable.
   (ensure-output-path-writable! 'drive-compilation out-wat  "WAT output file")
   (ensure-output-path-writable! 'drive-compilation out-wasm "Wasm output file")
   (ensure-output-path-writable! 'drive-compilation out-map  "label-map output file")
   (ensure-output-path-writable! 'drive-compilation out-host "host output file")
-  (when (and split-runtime? (not split-runtime-core-url))
-    (ensure-output-path-writable! 'drive-compilation runtime-wat "split runtime WAT output file")
-    (ensure-output-path-writable! 'drive-compilation runtime-wasm "split runtime Wasm output file"))
   
   ; Preflight: ensure wasm-tools exists and can run.
   (initialize-assembler-environment!
@@ -5103,22 +5109,58 @@
   (define split-ffi-module
     (and split-runtime?
          (split-runtime-modules-ffi-module split-modules)))
-  (when split-ffi-module
+  (define split-runtime-sidecar-path-needed?
+    (and split-runtime?
+         (not split-runtime-core-url)))
+  (define materialize-split-runtime-sidecar?
+    (and split-runtime-sidecar-path-needed?
+         (not split-runtime-cache-reference?)))
+  (define runtime-fingerprint
+    (and split-runtime-sidecar-path-needed?
+         (split-runtime-sidecar-fingerprint
+          (split-runtime-modules-core-cache-key split-modules)
+          (lambda ()
+            (split-runtime-modules-core-module split-modules)))))
+  (define runtime-wat
+    (and split-runtime-sidecar-path-needed?
+         (split-runtime-wat-path out-wat runtime-fingerprint pretty-wat?)))
+  (define runtime-wasm
+    (and split-runtime-sidecar-path-needed?
+         (split-runtime-wasm-path out-wasm runtime-fingerprint)))
+  (define ffi-fingerprint
+    (and split-ffi-module
+         (split-runtime-sidecar-fingerprint
+          (split-runtime-modules-ffi-cache-key split-modules)
+          (lambda () split-ffi-module))))
+  (define ffi-wat
+    (and split-ffi-module
+         (split-runtime-ffi-wat-path out-wat ffi-fingerprint pretty-wat?)))
+  (define ffi-wasm
+    (and split-ffi-module
+         (split-runtime-ffi-wasm-path out-wasm ffi-fingerprint)))
+  (define sidecar-output-files
+    (append
+     (if split-runtime-sidecar-path-needed?
+         (list (cons "split runtime WAT output file" runtime-wat)
+               (cons "split runtime Wasm output file" runtime-wasm))
+         '())
+     (if split-ffi-module
+         (list (cons "split FFI WAT output file" ffi-wat)
+               (cons "split FFI Wasm output file" ffi-wasm))
+         '())))
+  (when (pair? sidecar-output-files)
     (ensure-distinct-output-files!
      'drive-compilation
      (append
       (list (cons "WAT output file"       out-wat)
             (cons "Wasm output file"      out-wasm)
             (cons "label-map output file" out-map)
-            (cons "host output file"      out-host)
-            (cons "split FFI WAT output file" ffi-wat)
-            (cons "split FFI Wasm output file" ffi-wasm))
-      (if (and split-runtime? (not split-runtime-core-url))
-          (list (cons "split runtime WAT output file" runtime-wat)
-                (cons "split runtime Wasm output file" runtime-wasm))
-          '())))
-    (ensure-output-path-writable! 'drive-compilation ffi-wat "split FFI WAT output file")
-    (ensure-output-path-writable! 'drive-compilation ffi-wasm "split FFI Wasm output file"))
+            (cons "host output file"      out-host))
+      sidecar-output-files))
+    (for ([output-file (in-list sidecar-output-files)])
+      (ensure-output-path-writable! 'drive-compilation
+                                    (cdr output-file)
+                                    (car output-file))))
   (when (and split-runtime? verbose?)
     (displayln
      (format "Split runtime imports: ~a runtime definitions"

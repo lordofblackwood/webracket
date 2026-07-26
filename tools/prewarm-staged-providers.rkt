@@ -110,16 +110,21 @@
             #:key path->string)
       '()))
 
-;; split-runtime-generated-path : path-string? path? string? -> path?
-;;   Return a generated split-runtime sidecar artifact path in `dest-dir`.
-(define (split-runtime-generated-path dest-dir source ext)
-  (define base
-    (path-replace-extension (file-name-from-path source) #""))
-  (build-path dest-dir
-              (string->path
-               (format "~a.runtime~a"
-                       (path->string base)
-                       ext))))
+;; content-sidecar-paths : path-string? string? -> (listof path?)
+;;   Return content-addressed Wasm sidecars with the given filename prefix.
+(define (content-sidecar-paths dest-dir prefix)
+  (define sidecar-rx
+    (regexp
+     (format "^~a-[0-9a-f]+\\.wasm$"
+             (regexp-quote prefix))))
+  (sort
+   (for/list ([path (in-list (directory-list dest-dir #:build? #t))]
+              #:when
+              (regexp-match? sidecar-rx
+                             (path->string (file-name-from-path path))))
+     path)
+   string<?
+   #:key path->string))
 
 ;; copy-runtime-wasm-out! : path? path-string? -> void?
 ;;   Copy the selected cached runtime wasm to a caller-provided output path.
@@ -427,12 +432,14 @@
     (error 'prewarm-provider-runtime!
            "provider-runtime prewarm compile exited with code ~a"
            exit-code))
-  (define runtime-wasm
-    (split-runtime-generated-path dest-dir source-path ".wasm"))
-  (unless (file-exists? runtime-wasm)
+  (define runtime-wasms
+    (content-sidecar-paths dest-dir "webracket-runtime"))
+  (unless (= (length runtime-wasms) 1)
     (error 'prewarm-provider-runtime!
-           "provider-runtime prewarm did not materialize a runtime wasm sidecar: ~a"
-           runtime-wasm))
+           "provider-runtime prewarm materialized ~a runtime wasm sidecars, expected exactly one: ~a"
+           (length runtime-wasms)
+           runtime-wasms))
+  (define runtime-wasm (car runtime-wasms))
   (when runtime-wasm-out
     (copy-runtime-wasm-out! runtime-wasm runtime-wasm-out))
   (delete-directory/files work-dir))

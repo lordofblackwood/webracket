@@ -248,6 +248,39 @@
                   (= (bytes-length bs) 4)
                   (bytes=? bs #"\0asm")))))))
 
+;; content-sidecar-paths : path-string? string? -> (listof path?)
+;;   Return content-addressed Wasm sidecars with the given filename prefix.
+(define (content-sidecar-paths dest-dir prefix)
+  (define sidecar-rx
+    (regexp
+     (format "^~a-[0-9a-f]+\\.wasm$"
+             (regexp-quote prefix))))
+  (sort
+   (for/list ([path (in-list (directory-list dest-dir #:build? #t))]
+              #:when
+              (regexp-match? sidecar-rx
+                             (path->string (file-name-from-path path))))
+     path)
+   string<?
+   #:key path->string))
+
+;; single-valid-sidecar-failures : symbol? string? (listof path?) -> (listof string?)
+;;   Return failures unless paths contains exactly one valid Wasm sidecar.
+(define (single-valid-sidecar-failures mode label paths)
+  (cond
+    [(not (= (length paths) 1))
+     (list (format "~a produced ~a ~a sidecars, expected exactly one: ~a"
+                   mode
+                   (length paths)
+                   label
+                   paths))]
+    [(not (wasm-magic? (car paths)))
+     (list (format "~a did not produce a valid ~a sidecar: ~a"
+                   mode
+                   label
+                   (car paths)))]
+    [else '()]))
+
 
 ;;; Case Model
 
@@ -500,8 +533,8 @@ RKT
   (define base (generated-basename source))
   (define host-js (build-path dest-dir (string-append base ".js")))
   (define program-wasm (build-path dest-dir (string-append base ".wasm")))
-  (define runtime-wasm (build-path dest-dir (string-append base ".runtime.wasm")))
-  (define ffi-wasm (build-path dest-dir (string-append base ".ffi.wasm")))
+  (define runtime-wasms (content-sidecar-paths dest-dir "webracket-runtime"))
+  (define ffi-wasms (content-sidecar-paths dest-dir "webracket-ffi"))
   (define failures '())
   (unless (file-exists? host-js)
     (set! failures
@@ -515,31 +548,29 @@ RKT
                 failures)))
   (cond
     [split-runtime?
-     (unless (wasm-magic? runtime-wasm)
-       (set! failures
-             (cons (format "~a did not produce valid runtime sidecar: ~a"
-                           mode
-                           runtime-wasm)
-                   failures)))]
-    [(file-exists? runtime-wasm)
      (set! failures
-           (cons (format "~a unexpectedly produced runtime sidecar: ~a"
+           (append (single-valid-sidecar-failures mode
+                                                  "runtime"
+                                                  runtime-wasms)
+                   failures))]
+    [(pair? runtime-wasms)
+     (set! failures
+           (cons (format "~a unexpectedly produced runtime sidecars: ~a"
                          mode
-                         runtime-wasm)
+                         runtime-wasms)
                  failures))])
   (cond
     [split-ffi?
-     (unless (wasm-magic? ffi-wasm)
-       (set! failures
-             (cons (format "~a did not produce valid FFI sidecar: ~a"
-                           mode
-                           ffi-wasm)
-                   failures)))]
-    [(file-exists? ffi-wasm)
      (set! failures
-           (cons (format "~a unexpectedly produced FFI sidecar: ~a"
+           (append (single-valid-sidecar-failures mode
+                                                  "FFI"
+                                                  ffi-wasms)
+                   failures))]
+    [(pair? ffi-wasms)
+     (set! failures
+           (cons (format "~a unexpectedly produced FFI sidecars: ~a"
                          mode
-                         ffi-wasm)
+                         ffi-wasms)
                  failures))])
   (reverse failures))
 

@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+shopt -s nullglob
 
 # Compile a browser smoke/parity example and move generated artifacts to ./generated.
 if [ "$#" -ne 2 ]; then
@@ -48,7 +49,7 @@ mtime_seconds() {
 if [ "${SMOKE_FORCE_COMPILE:-0}" != "1" ]; then
   if [ -f "generated/$BASENAME.html" ] \
     && [ -f "generated/$BASENAME.wasm" ] \
-    && [ -f "generated/$BASENAME.runtime.wasm" ] \
+    && compgen -G "generated/webracket-runtime-*.wasm" >/dev/null \
     && [ -f "generated/$BASENAME.wat" ]; then
     newest_source=0
     for src in "$WEB_EASY_DIR"/*.rkt "$WEB_EASY_DIR/smoke"/*.rkt; do
@@ -74,8 +75,8 @@ for ext in html js wasm wasm.map.sexp wat; do
     mv -f "$SRC" "generated/$SRC"
   fi
 done
-for ext in runtime.wasm runtime.wat; do
-  SRC="$BASENAME.$ext"
+for SRC in webracket-runtime-*.wasm webracket-runtime-*.wat \
+           webracket-ffi-*.wasm webracket-ffi-*.wat; do
   if [ -f "$SRC" ]; then
     mv -f "$SRC" "generated/$SRC"
   fi

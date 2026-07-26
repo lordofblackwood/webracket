@@ -23,9 +23,10 @@ In practice, it gives you:
   @item{WebRacket compiles it to:
     @itemlist[
       @item{a @tt{.wasm} file (your program)}
-      @item{a reusable runtime @tt{.runtime.wasm} file}
+      @item{a content-addressed runtime @tt{.wasm} sidecar}
       @item{a generated browser host page}
-      @item{an FFI @tt{.ffi.wasm} file when browser or JavaScript library wrappers are needed}]}
+      @item{a content-addressed FFI @tt{.wasm} sidecar when browser or
+            JavaScript library wrappers are needed}]}
   @item{The browser runs the result}]
 
 
@@ -96,9 +97,11 @@ racket webracket.rkt --browser --dest generated hello.rkt
 This generates the files needed to run the program in a browser.
 The exact set of generated files depends on the libraries the program
 uses. For this example, expect a host page @tt{hello.html}, the user
-program @tt{hello.wasm}, a reusable runtime @tt{hello.runtime.wasm},
-a label-map sidecar @tt{hello.wasm.map.sexp}, and possibly an FFI
-sidecar @tt{hello.ffi.wasm}. Keep the generated files together.
+program @tt{hello.wasm}, a reusable runtime sidecar named like
+@tt{webracket-runtime-<fingerprint>.wasm}, a label-map sidecar
+@tt{hello.wasm.map.sexp}, and possibly an FFI sidecar named like
+@tt{webracket-ffi-<fingerprint>.wasm}. Keep the generated files
+together.
 
 @subsection{Step 3: Start a local web server}
 

@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+shopt -s nullglob
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -309,8 +310,9 @@ compile_case() {
     echo "Missing generated wasm: $dest/${page%.html}.wasm" >&2
     exit 1
   fi
-  if [ ! -f "$dest/${page%.html}.runtime.wasm" ]; then
-    echo "Missing split runtime sidecar: $dest/${page%.html}.runtime.wasm" >&2
+  runtime_sidecars=("$dest"/webracket-runtime-*.wasm)
+  if [ "${#runtime_sidecars[@]}" -ne 1 ]; then
+    echo "Expected one split runtime sidecar in $dest, found ${#runtime_sidecars[@]}" >&2
     exit 1
   fi
   echo "PASS split-runtime example compile $id"

@@ -22,9 +22,11 @@ The overall goal is to compile a WebRacket source file, such as a
 @tt{#lang webracket/base} module, to WebAssembly.
 
 By default, WebRacket emits split-runtime output: a program @tt{.wasm}, a
-runtime @tt{.runtime.wasm} sidecar, and a generated host support file.
-Programs that use direct JavaScript FFI wrappers also emit an @tt{.ffi.wasm}
-sidecar by default:
+content-addressed runtime sidecar named like
+@tt{webracket-runtime-<fingerprint>.wasm}, and a generated host support
+file. Programs that use direct JavaScript FFI wrappers also emit a
+content-addressed FFI sidecar named like
+@tt{webracket-ffi-<fingerprint>.wasm} by default:
 
 @itemlist[
   @item{Node mode: a @tt{.js} host file that loads and runs the program and
@@ -157,6 +159,11 @@ For input @tt{program.rkt}, default outputs are:
         for inspection and debugging.}
   @item{@tt{program.wasm}: Binary WebAssembly module produced from @tt{.wat}.
         This is the executable artifact.}
+  @item{@tt{webracket-runtime-<fingerprint>.wasm}: Runtime sidecar used by
+        split-runtime output. The fingerprint is stable for identical runtime
+        contents, so multiple programs can share the same runtime file.}
+  @item{@tt{webracket-ffi-<fingerprint>.wasm}: Optional FFI sidecar emitted
+        when direct JavaScript FFI wrappers are active.}
   @item{@tt{program.wasm.map.sexp}: Label map sidecar metadata used to map
         generated code labels back to source-oriented information.}
   @item{@tt{program.js} (Node mode default): Host support/runtime file that
@@ -294,8 +301,8 @@ Runtime output options:
   @item{@(flag "--split-runtime"): Emit split program/runtime Wasm output (default).}
   @item{@(flag "--no-split-runtime"): Emit one monolithic Wasm module.}
   @item{@(flag "--split-runtime-cache-reference"): In Node split-runtime mode, read the stable runtime Wasm directly from the runtime cache. This requires the cache to be prewarmed.}
-  @item{@(flag "--no-split-runtime-cache-reference"): Materialize the runtime sidecar next to the program output (default).}
-  @item{@(flag "--split-runtime-core-url <url>"): In browser split-runtime mode, fetch a prewarmed runtime Wasm from @tt{<url>} instead of materializing a per-program runtime sidecar.}
+  @item{@(flag "--no-split-runtime-cache-reference"): Materialize the content-addressed runtime sidecar next to the program output (default).}
+  @item{@(flag "--split-runtime-core-url <url>"): In browser split-runtime mode, fetch a prewarmed runtime Wasm from @tt{<url>} instead of materializing a local runtime sidecar.}
   @item{@(flag "--no-split-runtime-core-url"): Materialize the browser runtime sidecar next to the program output (default).}
   @item{@(flag "--split-runtime-core-only"): Split only registered core-runtime helpers into the runtime module.}
   @item{@(flag "--no-split-runtime-core-only"): Use the classified runtime/program split strategy (default).}

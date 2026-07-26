@@ -258,6 +258,22 @@
                        (path->string base)
                        ext))))
 
+;; content-sidecar-paths : path-string? string? -> (listof path?)
+;;   Return content-addressed Wasm sidecars with the given filename prefix.
+(define (content-sidecar-paths dest-dir prefix)
+  (define sidecar-rx
+    (regexp
+     (format "^~a-[0-9a-f]+\\.wasm$"
+             (regexp-quote prefix))))
+  (sort
+   (for/list ([path (in-list (directory-list dest-dir #:build? #t))]
+              #:when
+              (regexp-match? sidecar-rx
+                             (path->string (file-name-from-path path))))
+     path)
+   string<?
+   #:key path->string))
+
 ;; wasm-magic? : path-string? -> boolean?
 ;;   Check whether path starts with the WebAssembly magic bytes.
 (define (wasm-magic? path)
@@ -1141,21 +1157,28 @@ JS
 
   (define html-path (generated-path dest-dir source-file ".html"))
   (define program-wasm (generated-path dest-dir source-file ".wasm"))
-  (define runtime-sidecar-wasm (split-runtime-generated-path dest-dir source-file ".wasm"))
+  (define runtime-sidecar-wasms
+    (content-sidecar-paths dest-dir "webracket-runtime"))
+  (when (and (not shared-runtime-url?)
+             (not (= (length runtime-sidecar-wasms) 1)))
+    (record-failure! "browser sidecar compile produced ~a runtime sidecars, expected exactly one: ~a"
+                     (length runtime-sidecar-wasms)
+                     runtime-sidecar-wasms))
   (define runtime-wasm
     (if shared-runtime-url?
         shared-runtime-wasm
-        runtime-sidecar-wasm))
+        (and (= (length runtime-sidecar-wasms) 1)
+             (car runtime-sidecar-wasms))))
   (for ([artifact (in-list (list html-path program-wasm runtime-wasm))])
-    (unless (file-exists? artifact)
+    (unless (and artifact (file-exists? artifact))
       (record-failure! "missing generated artifact: ~a" artifact)))
   (when (and shared-runtime-url?
-             (file-exists? runtime-sidecar-wasm))
-    (record-failure! "shared-url compile unexpectedly produced runtime sidecar: ~a"
-                     runtime-sidecar-wasm))
+             (pair? runtime-sidecar-wasms))
+    (record-failure! "shared-url compile unexpectedly produced runtime sidecars: ~a"
+                     runtime-sidecar-wasms))
   (unless (wasm-magic? program-wasm)
     (record-failure! "program wasm is missing WebAssembly magic bytes: ~a" program-wasm))
-  (unless (wasm-magic? runtime-wasm)
+  (unless (and runtime-wasm (wasm-magic? runtime-wasm))
     (record-failure! "runtime wasm is missing WebAssembly magic bytes: ~a" runtime-wasm))
   (when (and expected-runtime-wasm
              (file-exists? expected-runtime-wasm)

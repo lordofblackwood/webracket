@@ -570,6 +570,28 @@
 (define (file-size/zero path)
   (if (file-exists? path) (file-size path) 0))
 
+;; content-sidecar-paths : path-string? string? -> (listof path?)
+;;   Return content-addressed Wasm sidecars with the given filename prefix.
+(define (content-sidecar-paths dest-dir prefix)
+  (define sidecar-rx
+    (regexp
+     (format "^~a-[0-9a-f]+\\.wasm$"
+             (regexp-quote prefix))))
+  (sort
+   (for/list ([path (in-list (directory-list dest-dir #:build? #t))]
+              #:when
+              (regexp-match? sidecar-rx
+                             (path->string (file-name-from-path path))))
+     path)
+   string<?
+   #:key path->string))
+
+;; sidecar-size/zero : path-string? string? -> exact-nonnegative-integer?
+;;   Return the total size of content-addressed sidecars with prefix.
+(define (sidecar-size/zero dest-dir prefix)
+  (for/sum ([path (in-list (content-sidecar-paths dest-dir prefix))])
+    (file-size/zero path)))
+
 ;; mode-flags : symbol? path-string? path-string? [#:run? boolean?] -> (listof string?)
 ;;   Return WebRacket flags for one benchmark mode.
 (define (mode-flags mode provider-cache runtime-cache #:run? [run? #t])
@@ -628,8 +650,6 @@
   (define transcript (string-append stdout "\n" stderr))
   (define program-wasm
     (generated-path dest-dir source-file ".wasm"))
-  (define runtime-wasm
-    (generated-path dest-dir source-file ".runtime.wasm"))
   (define expect-ok?
     (and ok?
          (or (not expect-rx)
@@ -661,7 +681,7 @@
                (section-row-seconds transcript "Compile Pipeline" "assemble")
                (section-row-seconds transcript "Generate-Code Phases" "generate-runtime")
                (file-size/zero program-wasm)
-               (file-size/zero runtime-wasm)
+               (sidecar-size/zero dest-dir "webracket-runtime")
                split-status
                (section-row-value transcript
                                   "Runtime Generation Metrics"

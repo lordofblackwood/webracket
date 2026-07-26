@@ -450,7 +450,7 @@
       "Use the classified runtime/program split strategy (default)"
       (set! split-runtime-core-only? #f)]
      [("--split-runtime-provider-runtime")
-     "In module split-runtime mode, merge cached provider fragments into runtime.wasm"
+     "In module split-runtime mode, merge cached provider fragments into the runtime sidecar"
      (set! split-runtime-provider-runtime? #t)]
      [("--no-split-runtime-provider-runtime")
       "Keep module-bridge provider fragments in the program module (default)"

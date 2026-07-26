@@ -16,8 +16,15 @@ racket "$ROOT_DIR/webracket.rkt" --browser \
   --wat-file "$OUTPUT_BASENAME.wat" \
   "$SOURCE"
 
-for ext in html js wasm wasm.map.sexp wat runtime.wasm runtime.wat; do
+for ext in html js wasm wasm.map.sexp wat; do
   src="$OUTPUT_BASENAME.$ext"
+  if [ -f "$src" ]; then
+    mv -f "$src" "generated/$src"
+  fi
+done
+
+for src in webracket-runtime-*.wasm webracket-runtime-*.wat \
+           webracket-ffi-*.wasm webracket-ffi-*.wat; do
   if [ -f "$src" ]; then
     mv -f "$src" "generated/$src"
   fi

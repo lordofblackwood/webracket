@@ -362,6 +362,22 @@
                      (read-byte in))
                    '(0 97 115 109))))))
 
+;; content-sidecar-paths : path-string? string? -> (listof path?)
+;;   Return content-addressed Wasm sidecars with the given filename prefix.
+(define (content-sidecar-paths dest-dir prefix)
+  (define sidecar-rx
+    (regexp
+     (format "^~a-[0-9a-f]+\\.wasm$"
+             (regexp-quote prefix))))
+  (sort
+   (for/list ([path (in-list (directory-list dest-dir #:build? #t))]
+              #:when
+              (regexp-match? sidecar-rx
+                             (path->string (file-name-from-path path))))
+     path)
+   string<?
+   #:key path->string))
+
 ;; cached-runtime-wasm-files : path-string? -> (listof path?)
 ;;   Return non-lock runtime wasm files in the stable split-runtime cache.
 (define (cached-runtime-wasm-files runtime-cache)
@@ -1012,24 +1028,32 @@ RKT
 
   (define program-wasm
     (generated-path dest-dir (check-case-source case) ".wasm"))
-  (define runtime-sidecar-wasm
-    (generated-path dest-dir (check-case-source case) ".runtime.wasm"))
+  (define runtime-sidecar-wasms
+    (content-sidecar-paths dest-dir "webracket-runtime"))
   (unless (file-exists? program-wasm)
     (record-failure! "~a: did not produce program wasm: ~a"
                      (check-case-name case)
                      program-wasm))
   (when (and reference-compatible?
              cache-reference-mode?
-             (file-exists? runtime-sidecar-wasm))
-    (record-failure! "~a: cache-reference compile unexpectedly produced runtime sidecar: ~a"
+             (pair? runtime-sidecar-wasms))
+    (record-failure! "~a: cache-reference compile unexpectedly produced runtime sidecars: ~a"
                      (check-case-name case)
-                     runtime-sidecar-wasm))
+                     runtime-sidecar-wasms))
   (when (and reference-compatible?
              sidecar-output-mode?
-             (not (file-exists? runtime-sidecar-wasm)))
-    (record-failure! "~a: sidecar compile did not produce runtime sidecar: ~a"
+             (not (= (length runtime-sidecar-wasms) 1)))
+    (record-failure! "~a: sidecar compile produced ~a runtime sidecars, expected exactly one: ~a"
                      (check-case-name case)
-                     runtime-sidecar-wasm))
+                     (length runtime-sidecar-wasms)
+                     runtime-sidecar-wasms))
+  (when (and reference-compatible?
+             sidecar-output-mode?
+             (= (length runtime-sidecar-wasms) 1)
+             (not (wasm-magic? (car runtime-sidecar-wasms))))
+    (record-failure! "~a: sidecar compile produced invalid runtime sidecar: ~a"
+                     (check-case-name case)
+                     (car runtime-sidecar-wasms)))
   compile-result)
 
 ;; prewarm-provider-runtime-case! :
