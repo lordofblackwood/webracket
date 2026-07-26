@@ -284,32 +284,36 @@
   (define (add-vfs-preload-entry! entry)
     (define path (hash-ref entry 'path))
     (when (duplicate-vfs-target? vfs-preloads path)
-      (error 'webracket (format "duplicate VFS preload target path: ~a" path)))
+      (raise-user-error 'webracket "duplicate VFS preload target path: ~a" path))
     (when (for/or ([mount (in-list vfs-mounts)])
             (vfs-subpath-or-same? path (hash-ref mount 'path)))
-      (error 'webracket (format "VFS preload target is inside mounted backend: ~a" path)))
+      (raise-user-error 'webracket
+                        "VFS preload target is inside mounted backend: ~a"
+                        path))
     (set! vfs-preloads (cons entry vfs-preloads)))
 
   (define (add-vfs-mount-entry! entry)
     (define path (hash-ref entry 'path))
     (when (duplicate-vfs-target? vfs-mounts path)
-      (error 'webracket (format "duplicate VFS mount target path: ~a" path)))
+      (raise-user-error 'webracket "duplicate VFS mount target path: ~a" path))
     (when (for/or ([preload (in-list vfs-preloads)])
             (vfs-subpath-or-same? (hash-ref preload 'path) path))
-      (error 'webracket (format "VFS mount target contains preload target: ~a" path)))
+      (raise-user-error 'webracket
+                        "VFS mount target contains preload target: ~a"
+                        path))
     (set! vfs-mounts (cons entry vfs-mounts)))
 
   (define (validate-vfs-preload-path! who path)
     (when (string=? path "")
-      (error who "VFS preload target path is empty"))
+      (raise-user-error who "VFS preload target path is empty"))
     (unless (regexp-match? #px"^/" path)
-      (error who (format "VFS preload target path must be absolute, got: ~a" path)))
+      (raise-user-error who "VFS preload target path must be absolute, got: ~a" path))
     (when (regexp-match? #rx#"\0" path)
-      (error who (format "VFS preload target path contains NUL: ~a" path))))
+      (raise-user-error who "VFS preload target path contains NUL: ~a" path)))
 
   (define (validate-vfs-base64-source! who source)
     (unless (regexp-match? #px"^([A-Za-z0-9+/]{4})*([A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$" source)
-      (error who (format "VFS preload base64 source is invalid: ~a" source))))
+      (raise-user-error who "VFS preload base64 source is invalid: ~a" source)))
 
   (define (parse-vfs-preload who kind spec)
     (match (regexp-match #px"^([^=]+)=(.*)$" spec)
@@ -317,11 +321,11 @@
        (validate-vfs-preload-path! who path)
        (when (and (string=? source "")
                   (not (memq kind '(text base64))))
-         (error who (format "VFS preload source is empty: ~a" spec)))
+         (raise-user-error who "VFS preload source is empty: ~a" spec))
        (when (eq? kind 'base64)
          (validate-vfs-base64-source! who source))
        (hasheq 'path path 'kind kind 'source source)]
-      [_ (error who (format "expected VFS=SOURCE, got: ~a" spec))]))
+      [_ (raise-user-error who "expected VFS=SOURCE, got: ~a" spec)]))
 
   (define (add-vfs-preload! kind spec)
     (add-vfs-preload-entry! (parse-vfs-preload 'webracket kind spec)))
@@ -376,8 +380,10 @@
      [("--dump-passes-limit") n "Dump at most <n> passes (0 means no dumps)"
                                (define maybe-n (string->number n))
                                (unless (and maybe-n (exact-integer? maybe-n) (>= maybe-n 0))
-                                 (error 'webracket
-                                        (format "--dump-passes-limit expects an exact nonnegative integer, got: ~a" n)))
+                                 (raise-user-error
+                                  'webracket
+                                  "--dump-passes-limit expects an exact nonnegative integer, got: ~a"
+                                  n))
                                (set! dump-passes-limit maybe-n)]
      [("--timings") "Print timing breakdown for compilation steps"
                     (set! timings? #t)]
@@ -574,7 +580,7 @@
 
   (define (ensure-no-positional-filenames! who)
     (unless (null? positional-filenames)
-      (error who "does not accept source filenames")))
+      (raise-user-error who "does not accept source filenames")))
 
   (cond
     [list-primitives?
@@ -593,9 +599,9 @@
       #f)]
     [else
      (unless (= (length positional-filenames) 1)
-       (error 'webracket
-              (format "expected exactly one source filename, got ~a"
-                      (length positional-filenames))))
+       (raise-user-error 'webracket
+                         "expected exactly one source filename, got ~a"
+                         (length positional-filenames)))
      (set! source-filename (car positional-filenames))
      (webracket-cli-command
       'compile

@@ -68,6 +68,25 @@
                       name
                       output)))
 
+;; check-entrypoint-user-error : string? (listof string?) string? -> void?
+;;   Check that a usage error is reported without an implementation stack.
+(define (check-entrypoint-user-error name args expected-message)
+  (define-values (status output)
+    (run-racket args))
+  (check-not-equal? status
+                    0
+                    (format "~a unexpectedly succeeded with output:\n~a"
+                            name
+                            output))
+  (check-true (string-contains? output expected-message)
+              (format "~a omitted expected user error:\n~a"
+                      name
+                      output))
+  (check-false (string-contains? output "context...")
+               (format "~a printed an implementation stack:\n~a"
+                       name
+                       output)))
+
 ;; test-command-module : -> void?
 ;;   Check the installed launcher target module directly.
 (define (test-command-module)
@@ -75,7 +94,12 @@
    "webracket module"
    (list "-S" (path->string pkgs-dir)
          "-l" "webracket/command"
-         "--" "--help")))
+         "--" "--help"))
+  (check-entrypoint-user-error
+   "webracket module"
+   (list "-S" (path->string pkgs-dir)
+         "-l" "webracket/command")
+   "webracket: expected exactly one source filename, got 0"))
 
 ;; test-package-metadata : -> void?
 ;;   Check the package metadata that installs `webracket` and `raco webracket`.
