@@ -206,9 +206,100 @@
       (and (webracket-compile-config-split-runtime? cfg)
            (not (webracket-compile-config-split-runtime-core-only? cfg)))))
 
+;; help-argument-flags : (listof string?)
+;;   Command-line flags whose following argument should not be scanned as help.
+(define help-argument-flags
+  '("--wat-file"
+    "--wasm-file"
+    "--host-file"
+    "--dest"
+    "--dump-passes"
+    "--dump-passes-limit"
+    "--tree-shake-report"
+    "--split-runtime-core-url"
+    "--provider-cache-dir"
+    "--runtime-provider-cache-dir"
+    "-l"
+    "--link-flags"
+    "--ffi"
+    "--vfs-file"
+    "--vfs-url"
+    "--vfs-text"
+    "--vfs-base64"
+    "--vfs-mkdir"
+    "--vfs-dir"
+    "--vfs-tar-file"
+    "--vfs-tar-url"))
+
+;; help-argument-flag? : string? -> boolean?
+;;   Check whether flag consumes the following token as an argument.
+(define (help-argument-flag? flag)
+  (and (member flag help-argument-flags) #t))
+
+;; short-help-flag? : string? -> boolean?
+;;   Check whether arg asks for concise help.
+(define (short-help-flag? arg)
+  (or (equal? arg "--help")
+      (equal? arg "-h")
+      (and (regexp-match? #px"^-[^-]" arg)
+           (regexp-match? #px"h" arg))))
+
+;; webracket-cli-help-mode : vector? -> (or/c 'short 'full #f)
+;;   Return the first explicit help request before `--`.
+(define (webracket-cli-help-mode argv)
+  (let loop ([args (vector->list argv)])
+    (cond
+      [(null? args) #f]
+      [(equal? (car args) "--") #f]
+      [(equal? (car args) "--help-full") 'full]
+      [(short-help-flag? (car args)) 'short]
+      [(and (help-argument-flag? (car args))
+            (pair? (cdr args)))
+       (loop (cddr args))]
+      [else (loop (cdr args))])))
+
+;; print-webracket-short-help : -> void?
+;;   Print the concise first-contact help for `webracket --help`.
+(define (print-webracket-short-help)
+  (display
+   (string-append
+    "usage: webracket [ <option> ... ] <source.rkt>\n"
+    "\n"
+    "Compile Racket programs to WebAssembly.\n"
+    "\n"
+    "Common options:\n"
+    "  -b, --browser              Generate browser output.\n"
+    "  -n, --node                 Generate Node.js output (default).\n"
+    "  --dest <dir>               Write default outputs under <dir>.\n"
+    "  -r, --run                  Run the program after compilation.\n"
+    "  --ffi <file>               Add a .ffi file.\n"
+    "  --no-split-runtime         Emit a monolithic Wasm module.\n"
+    "  --server-status            Print local compile server status.\n"
+    "\n"
+    "Examples:\n"
+    "  webracket hello.rkt\n"
+    "  webracket --browser --dest generated hello.rkt\n"
+    "  raco webracket --help-full\n"
+    "\n"
+    "Help:\n"
+    "  -h, --help                 Show this concise help.\n"
+    "  --help-full                Show all compiler, cache, provider, and debug options.\n")))
+
 ;; parse-webracket-cli : [vector?] -> webracket-cli-command?
 ;;   Parse argv into a compile command or a local report/listing command.
 (define (parse-webracket-cli [argv (current-command-line-arguments)])
+  (case (webracket-cli-help-mode argv)
+    [(short)
+     (print-webracket-short-help)
+     (exit 0)]
+    [(full)
+     (parse-webracket-cli/full (vector "--help"))]
+    [else
+     (parse-webracket-cli/full argv)]))
+
+;; parse-webracket-cli/full : vector? -> webracket-cli-command?
+;;   Parse argv with the full command-line specification.
+(define (parse-webracket-cli/full argv)
   (define run-after #f)
   (define verbose-mode #f)
   (define wat-filename #f)
@@ -358,81 +449,38 @@
     (command-line
      #:program "webracket"
      #:argv argv
+     #:usage-help
+     "Compile <source.rkt> to WebAssembly."
+     "Use `webracket --help` for a concise overview."
+     #:help-labels
+     " Common options"
      #:once-each
+     [("--help-full") "Show all compiler, cache, provider, and debug options"
+                       (parse-webracket-cli/full (vector "--help"))]
      [("-r" "--run") "Run the program after compilation."
                      (set! run-after #t)]
      [("-v" "--verbose") "Compile with verbose messages"
                          (set! verbose-mode #t)]
+     [("--dest") dirname "Write default outputs under <dir>"
+                 (set! dest-dir dirname)]
      [("--wat-file") filename "Filename for the wat file"
                       (set! wat-filename filename)]
      [("--wasm-file") filename "Filename for the wasm file"
                        (set! wasm-filename filename)]
      [("--host-file") filename "Filename for the host file"
                        (set! host-filename filename)]
-     [("--dest") dirname "Write default outputs under <dir>"
-                 (set! dest-dir dirname)]
-     [("--label-map-forms") "Include heavyweight (form ...) entries in .wasm.map.sexp"
-                            (set! label-map-forms #t)]
-     [("--no-label-map-forms") "Omit (form ...) entries in .wasm.map.sexp (default)"
-                               (set! label-map-forms #f)]
-     [("--dump-passes") dir "Write per-pass dumps to directory <dir>"
-                        (set! dump-passes-dir dir)]
-     [("--dump-passes-limit") n "Dump at most <n> passes (0 means no dumps)"
-                               (define maybe-n (string->number n))
-                               (unless (and maybe-n (exact-integer? maybe-n) (>= maybe-n 0))
-                                 (raise-user-error
-                                  'webracket
-                                  "--dump-passes-limit expects an exact nonnegative integer, got: ~a"
-                                  n))
-                               (set! dump-passes-limit maybe-n)]
-     [("--timings") "Print timing breakdown for compilation steps"
-                    (set! timings? #t)]
-     [("--alpha-rename-profile")
-      "Print alpha-rename/pass1 counters and helper timings"
-      (set! alpha-rename-profile? #t)]
-     [("--simplify-profile")
-      "Print simplify-LFE rule and shape diagnostics"
-      (set! simplify-profile? #t)]
-     [("--pretty-wat") "Write .wat with pretty formatting"
-                       (set! pretty-wat? #t)]
-     [("--no-pretty-wat") "Write .wat without pretty formatting (default)"
-                          (set! pretty-wat? #f)]
-     [("--exec-path-from-shell")
-      "Import PATH/MANPATH from the login shell before finding wasm-tools (default)"
-      (set! exec-path-from-shell? #t)]
-     [("--no-exec-path-from-shell")
-      "Use the current process environment when finding wasm-tools"
-      (set! exec-path-from-shell? #f)]
-     [("--list-primitives") "Print the list of all primitives and exit"
-                            (set! list-primitives? #t)]
-     [("--list-provider-slices") "Print original-Racket provider slices and exit"
-                                 (set! list-provider-slices? #t)]
-     [("--server-start") "Run the local compile server in the foreground"
-                         (set! server-command 'start)]
-     [("--server-status") "Print local compile server status and exit"
-                          (set! server-command 'status)]
-     [("--server-stop") "Stop the local compile server and exit"
-                        (set! server-command 'stop)]
-     [("--enable-cc-analysis") "Enable the new closure-conversion analysis"
-                               (set! enable-cc-analysis? #t)]
-     [("--enable-simplify") "Run the early simplify-LFE pass"
-                            (set! enable-simplify? #t)]
-     [("--frontend-cache")
-      "Cache post-unexpand frontend syntax in the project provider cache"
-      (set! frontend-cache? #t)]
-     [("--no-frontend-cache")
-      "Disable post-unexpand frontend syntax caching (default)"
-      (set! frontend-cache? #f)]
-     [("--module-bridge-elide-public-cells")
-      "Expose safe module-bridge public exports as plain values"
-      (set! module-bridge-elide-public-cells? #t)]
-     [("--tree-shake") "Tree shake runtime primitives (default)"
-                       (set! tree-shake? #t)]
-     [("--no-tree-shake") "Do not tree shake runtime primitives"
-                          (set! tree-shake? #f)]
-     [("--tree-shake-report") filename
-                              "Write the runtime primitive report to <filename>"
-                              (set! tree-shake-report filename)]
+     #:help-labels
+     " Target options"
+     #:once-any
+     [("-b" "--browser") "Generate code for browser."
+                         (set! nodejs #f)
+                         (set! browser #t)]
+     [("-n" "--node") "Generate code for Node.js"
+                      (set! browser #f)
+                      (set! nodejs #t)]
+     #:help-labels
+     " Runtime and output options"
+     #:once-each
      [("--split-runtime") "Emit split core-runtime/program Wasm modules (default)"
                           (set! split-runtime? #t)]
      [("--no-split-runtime") "Emit the normal monolithic Wasm module"
@@ -456,8 +504,8 @@
       "Use the classified runtime/program split strategy (default)"
       (set! split-runtime-core-only? #f)]
      [("--split-runtime-provider-runtime")
-     "In module split-runtime mode, merge cached provider fragments into the runtime sidecar"
-     (set! split-runtime-provider-runtime? #t)]
+      "In module split-runtime mode, merge cached provider fragments into the runtime sidecar"
+      (set! split-runtime-provider-runtime? #t)]
      [("--no-split-runtime-provider-runtime")
       "Keep module-bridge provider fragments in the program module (default)"
       (set! split-runtime-provider-runtime? #f)]
@@ -469,6 +517,78 @@
       "Keep active direct FFI wrappers in the program module"
       (set! split-runtime-ffi-module? #f)
       (set! split-runtime-ffi-module-explicit? #t)]
+     [("--tree-shake") "Tree shake runtime primitives (default)"
+                       (set! tree-shake? #t)]
+     [("--no-tree-shake") "Do not tree shake runtime primitives"
+                          (set! tree-shake? #f)]
+     [("--pretty-wat") "Write .wat with pretty formatting"
+                       (set! pretty-wat? #t)]
+     [("--no-pretty-wat") "Write .wat without pretty formatting (default)"
+                          (set! pretty-wat? #f)]
+     [("--label-map-forms") "Include heavyweight (form ...) entries in .wasm.map.sexp"
+                            (set! label-map-forms #t)]
+     [("--no-label-map-forms") "Omit (form ...) entries in .wasm.map.sexp (default)"
+                               (set! label-map-forms #f)]
+     #:help-labels
+     " Host integration options"
+     #:once-each
+     [("--exec-path-from-shell")
+      "Import PATH/MANPATH from the login shell before finding wasm-tools (default)"
+      (set! exec-path-from-shell? #t)]
+     [("--no-exec-path-from-shell")
+      "Use the current process environment when finding wasm-tools"
+      (set! exec-path-from-shell? #f)]
+     [("--console-bridge") "Install the browser console bridge as globalThis.WR"
+                           (set! console-bridge? #t)]
+     [("--no-console-bridge") "Do not install the browser console bridge (default)"
+                              (set! console-bridge? #f)]
+     #:multi
+     [("-l" "--link-flags") lf
+                            "Add a flag <lf> for the linker"
+                            (set! link-flags (cons lf link-flags))]
+     [("--ffi") ffi-file
+                "Add .ffi file"
+                (set! ffi-files (cons ffi-file ffi-files))]
+     [("--vfs-file") spec
+                     "Preload Node host file into VFS as VFS=SOURCE"
+                     (add-vfs-preload! 'file spec)]
+     [("--vfs-url") spec
+                    "Preload URL into VFS as VFS=SOURCE"
+                    (add-vfs-preload! 'url spec)]
+     [("--vfs-text") spec
+                     "Preload inline text into VFS as VFS=TEXT"
+                     (add-vfs-preload! 'text spec)]
+     [("--vfs-base64") spec
+                       "Preload inline base64 bytes into VFS as VFS=BASE64"
+                       (add-vfs-preload! 'base64 spec)]
+     [("--vfs-mkdir") path
+                      "Preload empty VFS directory"
+                      (add-vfs-mkdir! path)]
+     [("--vfs-dir") spec
+                    "Preload Node host directory into VFS as VFS=SOURCE"
+                    (add-vfs-preload! 'directory spec)]
+     [("--vfs-tar-file") spec
+                         "Mount Node host tar into VFS as VFS=SOURCE"
+                         (add-vfs-tar-mount! 'file spec)]
+     [("--vfs-tar-url") spec
+                        "Mount tar URL into VFS as VFS=SOURCE"
+                        (add-vfs-tar-mount! 'url spec)]
+     #:help-labels
+     " Compile-pipeline options"
+     #:once-each
+     [("--enable-cc-analysis") "Enable the new closure-conversion analysis"
+                               (set! enable-cc-analysis? #t)]
+     [("--enable-simplify") "Run the early simplify-LFE pass"
+                            (set! enable-simplify? #t)]
+     [("--frontend-cache")
+      "Cache post-unexpand frontend syntax in the project provider cache"
+      (set! frontend-cache? #t)]
+     [("--no-frontend-cache")
+      "Disable post-unexpand frontend syntax caching (default)"
+      (set! frontend-cache? #f)]
+     [("--module-bridge-elide-public-cells")
+      "Expose safe module-bridge public exports as plain values"
+      (set! module-bridge-elide-public-cells? #t)]
      [("--letrec-basic") "Use the basic letrec lowering strategy"
                          (set! letrec-strategy 'basic)]
      [("--letrec-waddell") "Use the Waddell letrec lowering strategy"
@@ -478,16 +598,9 @@
      [("--print-top-level-results")
       "Print each top-level expression result with print; useful for script-style tests"
       (set! print-top-level-results? #t)]
-     [("--internal-bind-treelist-debug-shape")
-      "Enable compiler recognition of the private treelist shape hook for internal smokes"
-      (set! internal-bind-treelist-debug-shape? #t)]
-     [("--internal-bind-immutable-hash-debug-shape")
-      "Enable compiler recognition of the private immutable hash shape hook for internal smokes"
-      (set! internal-bind-immutable-hash-debug-shape? #t)]
-     [("--console-bridge") "Install the browser console bridge as globalThis.WR"
-                           (set! console-bridge? #t)]
-     [("--no-console-bridge") "Do not install the browser console bridge (default)"
-                              (set! console-bridge? #f)]
+     #:help-labels
+     " Provider and cache options"
+     #:once-each
      [("--stdlib") "Include the legacy standard library"
                    (set! stdlib? #t)]
      [("--no-stdlib") "Do not include the legacy standard library (default)"
@@ -525,9 +638,6 @@
      [("--runtime-provider-cache-dir") dirname
                                        "Use <dirname> for stable runtime provider caches"
                                        (set! runtime-provider-cache-dir dirname)]
-     [("--provider-cache-report")
-      "Print installed-provider report cache entries and exit"
-      (set! provider-cache-report? #t)]
      [("--clear-provider-cache") "Delete the project provider cache directory before compiling"
                                  (set! clear-provider-cache? #t)]
      [("--clear-runtime-provider-cache")
@@ -536,45 +646,52 @@
      [("--force-provider-cache-refresh")
       "Regenerate provider cache artifacts even when fingerprints match"
       (set! force-provider-cache-refresh? #t)]
-     #:once-any
-     [("-b" "--browser") "Generate code for browser."
-                         (set! nodejs #f)
-                         (set! browser #t)]
-     [("-n" "--node") "Generate code for Node.js"
-                      (set! browser #f)
-                      (set! nodejs #t)]
-     #:multi
-     [("-l" "--link-flags") lf
-                            "Add a flag <lf> for the linker"
-                            (set! link-flags (cons lf link-flags))]
-     #:multi
-     [("--ffi") ffi-file
-                "Add .ffi file"
-                (set! ffi-files (cons ffi-file ffi-files))]
-     [("--vfs-file") spec
-                     "Preload Node host file into VFS as VFS=SOURCE"
-                     (add-vfs-preload! 'file spec)]
-     [("--vfs-url") spec
-                    "Preload URL into VFS as VFS=SOURCE"
-                    (add-vfs-preload! 'url spec)]
-     [("--vfs-text") spec
-                     "Preload inline text into VFS as VFS=TEXT"
-                     (add-vfs-preload! 'text spec)]
-     [("--vfs-base64") spec
-                       "Preload inline base64 bytes into VFS as VFS=BASE64"
-                       (add-vfs-preload! 'base64 spec)]
-     [("--vfs-mkdir") path
-                      "Preload empty VFS directory"
-                      (add-vfs-mkdir! path)]
-     [("--vfs-dir") spec
-                    "Preload Node host directory into VFS as VFS=SOURCE"
-                    (add-vfs-preload! 'directory spec)]
-     [("--vfs-tar-file") spec
-                         "Mount Node host tar into VFS as VFS=SOURCE"
-                         (add-vfs-tar-mount! 'file spec)]
-     [("--vfs-tar-url") spec
-                        "Mount tar URL into VFS as VFS=SOURCE"
-                        (add-vfs-tar-mount! 'url spec)]
+     #:help-labels
+     " Reporting and server options"
+     #:once-each
+     [("--timings") "Print timing breakdown for compilation steps"
+                    (set! timings? #t)]
+     [("--alpha-rename-profile")
+      "Print alpha-rename/pass1 counters and helper timings"
+      (set! alpha-rename-profile? #t)]
+     [("--simplify-profile")
+      "Print simplify-LFE rule and shape diagnostics"
+      (set! simplify-profile? #t)]
+     [("--list-primitives") "Print the list of all primitives and exit"
+                            (set! list-primitives? #t)]
+     [("--list-provider-slices") "Print original-Racket provider slices and exit"
+                                 (set! list-provider-slices? #t)]
+     [("--provider-cache-report")
+      "Print installed-provider report cache entries and exit"
+      (set! provider-cache-report? #t)]
+     [("--tree-shake-report") filename
+                              "Write the runtime primitive report to <filename>"
+                              (set! tree-shake-report filename)]
+     [("--server-start") "Run the local compile server in the foreground"
+                         (set! server-command 'start)]
+     [("--server-status") "Print local compile server status and exit"
+                          (set! server-command 'status)]
+     [("--server-stop") "Stop the local compile server and exit"
+                        (set! server-command 'stop)]
+     #:help-labels
+     " Debug and internal options"
+     #:once-each
+     [("--dump-passes") dir "Write per-pass dumps to directory <dir>"
+                        (set! dump-passes-dir dir)]
+     [("--dump-passes-limit") n "Dump at most <n> passes (0 means no dumps)"
+                               (define maybe-n (string->number n))
+                               (unless (and maybe-n (exact-integer? maybe-n) (>= maybe-n 0))
+                                 (raise-user-error
+                                  'webracket
+                                  "--dump-passes-limit expects an exact nonnegative integer, got: ~a"
+                                  n))
+                               (set! dump-passes-limit maybe-n)]
+     [("--internal-bind-treelist-debug-shape")
+      "Enable compiler recognition of the private treelist shape hook for internal smokes"
+      (set! internal-bind-treelist-debug-shape? #t)]
+     [("--internal-bind-immutable-hash-debug-shape")
+      "Enable compiler recognition of the private immutable hash shape hook for internal smokes"
+      (set! internal-bind-immutable-hash-debug-shape? #t)]
      #:args filenames
      filenames))
 

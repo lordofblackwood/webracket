@@ -66,6 +66,39 @@
   (check-true (string-contains? output "--browser")
               (format "~a --help omitted compiler flags:\n~a"
                       name
+                      output))
+  (check-true (string-contains? output "--help-full")
+              (format "~a --help omitted full-help pointer:\n~a"
+                      name
+                      output))
+  (check-false (string-contains? output "--force-provider-cache-refresh")
+               (format "~a --help printed detailed provider flags:\n~a"
+                       name
+                       output)))
+
+;; check-entrypoint-full-help : string? (listof string?) -> void?
+;;   Check that the detailed help includes grouped expert options.
+(define (check-entrypoint-full-help name args)
+  (define-values (status output)
+    (run-racket args))
+  (check-equal? status
+                0
+                (format "~a --help-full failed with output:\n~a" name output))
+  (check-true (string-contains? output "Provider and cache options")
+              (format "~a --help-full omitted provider section:\n~a"
+                      name
+                      output))
+  (check-true (string-contains? output "--force-provider-cache-refresh")
+              (format "~a --help-full omitted provider cache flags:\n~a"
+                      name
+                      output))
+  (check-true (string-contains? output "Debug and internal options")
+              (format "~a --help-full omitted debug section:\n~a"
+                      name
+                      output))
+  (check-true (string-contains? output "--internal-bind-treelist-debug-shape")
+              (format "~a --help-full omitted internal flags:\n~a"
+                      name
                       output)))
 
 ;; check-entrypoint-user-error : string? (listof string?) string? -> void?
@@ -95,6 +128,11 @@
    (list "-S" (path->string pkgs-dir)
          "-l" "webracket/command"
          "--" "--help"))
+  (check-entrypoint-full-help
+   "webracket module"
+   (list "-S" (path->string pkgs-dir)
+         "-l" "webracket/command"
+         "--" "--help-full"))
   (check-entrypoint-user-error
    "webracket module"
    (list "-S" (path->string pkgs-dir)

@@ -25,6 +25,10 @@ All three forms accept the same options:
   @item{No source file together with @(flag "--list-primitives") (listing mode).}
 ]
 
+Use @shell-code{webracket --help} or @shell-code{raco help webracket} for a
+concise overview. Use @shell-code{webracket --help-full} for the complete,
+grouped option reference.
+
 @section{Overview}
 
 The overall goal is to compile a WebRacket source file, such as a
