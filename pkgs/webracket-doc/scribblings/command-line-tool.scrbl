@@ -366,8 +366,8 @@ through the server.  Server state defaults to a checkout-local
   @item{@shell-code{webracket --node --dump-passes tmp/passes --dump-passes-limit 25 program.rkt}}
   @item{@shell-code{webracket --node --timings program.rkt}}
   @item{@shell-code{webracket --node --pretty-wat program.rkt}}
-  @item{@shell-code{webracket --node --vfs-tar-file /assets=./assets.tgz}}
-  @item{@shell-code{webracket --browser --vfs-tar-url /assets=./assets.tgz program.rkt}}
+  @item{@shell-code{webracket --node --vfs-tar-file /assets=./assets.tgz program.rkt}}
+  @item{@shell-code{webracket --browser --vfs-tar-url /assets=https://example.com/assets.tgz program.rkt}}
   @item{@shell-code{webracket --browser --expander-read-provider program.rkt}}
 ]
 
