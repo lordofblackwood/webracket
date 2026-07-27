@@ -5,20 +5,27 @@
 
 @title{Command-Line Tool}
 
-This chapter is the current command-line reference for WebRacket. For
-installation and first-run walkthroughs, see the website Quick Start and
-Installation pages.
+This chapter documents the current WebRacket command-line compiler.
+For installation and first-run walkthroughs,
+see the website Quick Start and Installation pages.
 
-The installed entrypoints are:
+There are two ways the compiler can be invoked from the command line.
+Either as a direct shell command or as a @shell-code{raco} subcommand.
 
 @itemlist[
-  @item{@shell-code{webracket ...}: the primary compiler launcher.}
-  @item{@shell-code{raco webracket ...}: the equivalent Racket-native tool command.}
-]
+  @item{@shell-code{webracket <arguments>}}
+  @item{@shell-code{raco webracket <arguments>}}
+ ]
 
-When working from an uninstalled source checkout, use
-@shell-code{racket webracket.rkt ...} as a checkout-local fallback.
-All three forms accept the same options:
+@margin-note{In order to add the Racket launchers to your PATH environment variable,
+you can use DrRacket. In the menu "Help" choose the menu item 
+"Configure Command Line for Racket".}
+The @shell-code{webracket} command is installed as a "launcher" when, the 
+@racket[webracket] package is installed. Alternatively, you can invoke
+the compiler as @shell-code{raco webracket}. The two ways of invoking
+the compiler are equivalent.
+
+The arguments for the @shell-code{webracket} command are:
 
 @itemlist[
   @item{One source file plus optional flags (compile mode).}
@@ -26,20 +33,23 @@ All three forms accept the same options:
 ]
 
 Use @shell-code{webracket --help} or @shell-code{raco help webracket} for a
-concise overview. Use @shell-code{webracket --help-full} for the complete,
-grouped option reference.
+concise overview.
+
+Use @shell-code{webracket --help-full} or @shell-code{raco webracket --full-help}
+for a complete reference.
+
 
 @section{Overview}
 
 The overall goal is to compile a WebRacket source file, such as a
 @tt{#lang webracket/base} module, to WebAssembly.
 
-By default, WebRacket emits split-runtime output: a program @tt{.wasm}, a
-content-addressed runtime sidecar named like
-@tt{webracket-runtime-<fingerprint>.wasm}, and a generated host support
-file. Programs that use direct JavaScript FFI wrappers also emit a
-content-addressed FFI sidecar named like
-@tt{webracket-ffi-<fingerprint>.wasm} by default:
+@margin-note{The "reuseable runtime" is program independent and can be used multiple programs.}
+By default, WebRacket writes a small set of files that work together:
+a program @tt{.wasm} file, a reusable runtime @tt{.wasm} file, and a
+generated host file. Programs that use direct JavaScript FFI wrappers
+also get a reusable FFI @tt{.wasm} file.
+
 
 @itemlist[
   @item{Node mode: a @tt{.js} host file that loads and runs the program and
@@ -48,39 +58,15 @@ content-addressed FFI sidecar named like
         and runtime Wasm modules in the browser.}
 ]
 
-So the normal output is a small set of files that work together: program
-artifacts, reusable sidecar modules, metadata, and host-side runtime support.
+So the normal output is a small set of files that work together.
 
-To keep source directories tidy, prefer writing generated files to a
-separate directory:
+To keep source directories tidy, use @shell-code{--dest <dir>} to
+write the generated files to a separate directory:
 
 @shellblock{
 webracket --browser --dest generated program.rkt
 }
 
-@section{Canonical Invocation}
-
-@shellblock{
-webracket [option ...] <filename>
-}
-
-Equivalent @tt{raco} invocation:
-
-@shellblock{
-raco webracket [option ...] <filename>
-}
-
-Checkout-local invocation:
-
-@shellblock{
-racket webracket.rkt [option ...] <filename>
-}
-
-Primitive listing mode:
-
-@shellblock{
-webracket --list-primitives
-}
 
 @section{Quick Start (CLI)}
 
@@ -95,6 +81,9 @@ Compile and run immediately in Node mode:
 @shellblock{
 webracket --node --run program.rkt
 }
+
+In most cases, you will want to use @shell-code{--dest generated} as well.
+
 
 @section{Common Tasks}
 
@@ -116,8 +105,8 @@ Choose a destination directory for the default outputs:
 webracket --node --dest out program.rkt
 }
 
-Explicit `--wat-file`, `--wasm-file`, and `--host-file` options still take
-precedence over `--dest`.
+Explicit @shell-code{--wat-file}, @shell-code{--wasm-file}, and @shell-code{--host-file}
+options still take precedence over @shell-code{--dest}.
 
 Target browser host generation:
 
@@ -125,14 +114,20 @@ Target browser host generation:
 webracket --browser program.rkt
 }
 
-Browser output must be served over HTTP. Do not open the generated
-@tt{.html} file directly as a @tt{file://} page.
+Browser output must be served over HTTP. In most cases, you will want to use
+a local web-server during development. If you attempt to open the host @tt{.html} file
+directly, the browser security will block the loading of the WebAssembly files.
 
+@margin-note{The console bridge installs a global object @tt{WR} in the
+JavaScript environment. You can use this to inspect and call exposed WebRacket bindings
+from the JavaScript console. This is mainly useful while debugging.}
 Target browser host generation with the browser console bridge enabled:
 
 @shellblock{
 webracket --browser --console-bridge program.rkt
 }
+
+@section{Compiler Debugging}
 
 Dump compiler passes (limit to 25 dumps):
 
@@ -146,7 +141,7 @@ Print timing information:
 webracket --node --timings program.rkt
 }
 
-Write pretty-formatted WAT (default is non-pretty):
+Write pretty-formatted WAT (default is a single line):
 
 @shellblock{
 webracket --node --pretty-wat program.rkt
@@ -158,22 +153,7 @@ Print all known primitives:
 webracket --list-primitives
 }
 
-@section{Operational Constraints}
 
-@itemlist[
-  @item{@(flag "--run") cannot be used together with @(flag "--browser").}
-  @item{Compile mode requires exactly one source filename.}
-  @item{Listing mode (@(flag "--list-primitives")) requires no source filename.}
-  @item{When using @(flag "--run") in Node mode, a working @tt{node} executable with WebAssembly @tt{exnref} support is required.}
-  @item{A working @tt{wasm-tools} installation is required for WAT-to-WASM assembly.}
-  @item{Output paths must be distinct (program WAT, program WASM, map sidecar, and host output cannot collide).}
-  @item{Output locations must be writable.}
-  @item{@(flag "--dump-passes-limit <n>") requires an exact nonnegative integer.}
-]
-
-See @secref["Installation"] for Node version guidance. Current Node 24 LTS
-and Node 26 enable WebAssembly @tt{exnref} by default; older supported Node
-lines may require @(flag "--experimental-wasm-exnref").
 
 @section{Output Files And Defaults}
 
@@ -389,3 +369,21 @@ through the server.  Server state defaults to a checkout-local
   @item{@shell-code{webracket --browser --vfs-tar-url /assets=./assets.tgz program.rkt}}
   @item{@shell-code{webracket --browser --expander-read-provider program.rkt}}
 ]
+
+
+@section{Operational Constraints}
+
+@itemlist[
+  @item{@(flag "--run") cannot be used together with @(flag "--browser").}
+  @item{Compile mode requires exactly one source filename.}
+  @item{Listing mode (@(flag "--list-primitives")) requires no source filename.}
+  @item{When using @(flag "--run") in Node mode, a working @tt{node} executable with WebAssembly @tt{exnref} support is required.}
+  @item{A working @tt{wasm-tools} installation is required for WAT-to-WASM assembly.}
+  @item{Output paths must be distinct (program WAT, program WASM, map sidecar, and host output cannot collide).}
+  @item{Output locations must be writable.}
+  @item{@(flag "--dump-passes-limit <n>") requires an exact nonnegative integer.}
+]
+
+See @secref["Installation"] for Node version guidance. Current Node 24 LTS
+and Node 26 enable WebAssembly @tt{exnref} by default; older supported Node
+lines may require @(flag "--experimental-wasm-exnref").
