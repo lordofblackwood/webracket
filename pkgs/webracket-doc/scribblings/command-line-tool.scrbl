@@ -20,7 +20,7 @@ Either as a direct shell command or as a @shell-code{raco} subcommand.
 @margin-note{In order to add the Racket launchers to your PATH environment variable,
 you can use DrRacket. In the menu "Help" choose the menu item 
 "Configure Command Line for Racket".}
-The @shell-code{webracket} command is installed as a "launcher" when, the 
+The @shell-code{webracket} command is installed as a "launcher" when the 
 @racket[webracket] package is installed. Alternatively, you can invoke
 the compiler as @shell-code{raco webracket}. The two ways of invoking
 the compiler are equivalent.
@@ -35,7 +35,7 @@ The arguments for the @shell-code{webracket} command are:
 Use @shell-code{webracket --help} or @shell-code{raco help webracket} for a
 concise overview.
 
-Use @shell-code{webracket --help-full} or @shell-code{raco webracket --full-help}
+Use @shell-code{webracket --help-full} or @shell-code{raco webracket --help-full}
 for a complete reference.
 
 
@@ -44,7 +44,7 @@ for a complete reference.
 The overall goal is to compile a WebRacket source file, such as a
 @tt{#lang webracket/base} module, to WebAssembly.
 
-@margin-note{The "reuseable runtime" is program independent and can be used multiple programs.}
+@margin-note{The "reusable runtime" is program independent and can be used by multiple programs.}
 By default, WebRacket writes a small set of files that work together:
 a program @tt{.wasm} file, a reusable runtime @tt{.wasm} file, and a
 generated host file. Programs that use direct JavaScript FFI wrappers
@@ -115,8 +115,8 @@ webracket --browser program.rkt
 }
 
 Browser output must be served over HTTP. In most cases, you will want to use
-a local web-server during development. If you attempt to open the host @tt{.html} file
-directly, the browser security will block the loading of the WebAssembly files.
+a local web server during development. If you attempt to open the host @tt{.html} file
+directly, the browser security policy will block the loading of the WebAssembly files.
 
 @margin-note{The console bridge installs a global object @tt{WR} in the
 JavaScript environment. You can use this to inspect and call exposed WebRacket bindings
@@ -342,7 +342,8 @@ The local compile server reduces compiler startup costs by keeping one
 Racket process warm across repeated compiles.  It is especially useful
 with prewarmed split-runtime caches, where the user program can avoid
 both rebuilding the shared runtime and reloading the compiler process.
-Set @tt{WEBRACKET_COMPILE_SERVER=1} to route ordinary compile commands
+Starting the server does not by itself route compiles through it;
+set @tt{WEBRACKET_COMPILE_SERVER=1} to route ordinary compile commands
 through the server.  Server state defaults to a checkout-local
 @filepath{tmp/webracket-compile-server-...} directory; set
 @tt{WEBRACKET_COMPILE_SERVER_STATE_DIR} to choose a different location.
@@ -365,7 +366,7 @@ through the server.  Server state defaults to a checkout-local
   @item{@shell-code{webracket --node --dump-passes tmp/passes --dump-passes-limit 25 program.rkt}}
   @item{@shell-code{webracket --node --timings program.rkt}}
   @item{@shell-code{webracket --node --pretty-wat program.rkt}}
-  @item{@shell-code{webracket --node --vfs-text /app/message.txt=hello program.rkt}}
+  @item{@shell-code{webracket --node --vfs-tar-file /assets=./assets.tgz}}
   @item{@shell-code{webracket --browser --vfs-tar-url /assets=./assets.tgz program.rkt}}
   @item{@shell-code{webracket --browser --expander-read-provider program.rkt}}
 ]
