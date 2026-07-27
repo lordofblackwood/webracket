@@ -28,8 +28,11 @@ A WebRacket program is processed in several stages:
 @itemlist[
   @item{The source file is read into syntax objects.}
   @item{The program is expanded using the Racket expander.}
-  @item{The expanded program is compiled to WebAssembly text (WAT).}
-  @item{The WAT is assembled into a WebAssembly module (@tt{.wasm}).}
+  @item{The expanded program is compiled to WebAssembly text (WAT) for the
+        program module.}
+  @item{The program WAT is assembled into a WebAssembly module (@tt{.wasm});
+        split-runtime output also uses reusable runtime and FFI sidecar
+        modules.}
   @item{A small host file (HTML or JavaScript) is generated.}
 ]
 

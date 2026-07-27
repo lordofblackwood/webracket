@@ -48,8 +48,8 @@ content-addressed FFI sidecar named like
         and runtime Wasm modules in the browser.}
 ]
 
-So the normal output is a small set of files that work together: compile
-artifact(s), metadata, and host-side runtime support.
+So the normal output is a small set of files that work together: program
+artifacts, reusable sidecar modules, metadata, and host-side runtime support.
 
 To keep source directories tidy, prefer writing generated files to a
 separate directory:
@@ -166,7 +166,7 @@ webracket --list-primitives
   @item{Listing mode (@(flag "--list-primitives")) requires no source filename.}
   @item{When using @(flag "--run") in Node mode, a working @tt{node} executable with WebAssembly @tt{exnref} support is required.}
   @item{A working @tt{wasm-tools} installation is required for WAT-to-WASM assembly.}
-  @item{Output paths must be distinct (WAT, WASM, map sidecar, and host output cannot collide).}
+  @item{Output paths must be distinct (program WAT, program WASM, map sidecar, and host output cannot collide).}
   @item{Output locations must be writable.}
   @item{@(flag "--dump-passes-limit <n>") requires an exact nonnegative integer.}
 ]
@@ -180,10 +180,10 @@ lines may require @(flag "--experimental-wasm-exnref").
 For input @tt{program.rkt}, default outputs are:
 
 @itemlist[
-  @item{@tt{program.wat}: Text-form WebAssembly produced by the compiler. Useful
+  @item{@tt{program.wat}: Text-form WebAssembly for the program module. Useful
         for inspection and debugging.}
-  @item{@tt{program.wasm}: Binary WebAssembly module produced from @tt{.wat}.
-        This is the executable artifact.}
+  @item{@tt{program.wasm}: Binary WebAssembly for the program module, produced
+        from @tt{program.wat}.}
   @item{@tt{webracket-runtime-<fingerprint>.wasm}: Runtime sidecar used by
         split-runtime output. The fingerprint is stable for identical runtime
         contents, so multiple programs can share the same runtime file.}
@@ -192,11 +192,11 @@ For input @tt{program.rkt}, default outputs are:
   @item{@tt{program.wasm.map.sexp}: Label map sidecar metadata used to map
         generated code labels back to source-oriented information.}
   @item{@tt{program.js} (Node mode default): Host support/runtime file that
-        loads the @tt{.wasm} module and provides the environment needed to run
-        in Node.js.}
+        loads the program module and any split runtime/FFI sidecar modules,
+        then provides the environment needed to run in Node.js.}
   @item{@tt{program.html} (browser mode default): Host support/runtime file that
-        loads the @tt{.wasm} module and provides the environment needed to run
-        in a browser.}
+        loads the program module and any split runtime/FFI sidecar modules,
+        then provides the environment needed to run in a browser.}
 ]
 
 @section{Complete Option Reference}
@@ -217,9 +217,9 @@ Target selection (mutually exclusive):
 Output path options:
 
 @itemlist[
-  @item{@(flag "--wat-file <path>"): Explicit WAT output path.}
-  @item{@(flag "--wasm-file <path>"): Explicit WASM output path.}
-  @item{@(flag "--host-file <path>"): Explicit host output path.}
+  @item{@(flag "--wat-file <path>"): Explicit program WAT output path.}
+  @item{@(flag "--wasm-file <path>"): Explicit program WASM output path.}
+  @item{@(flag "--host-file <path>"): Explicit generated host output path.}
   @item{@(flag "--dest <dir>"): Write the default outputs under @tt{<dir>}.}
 ]
 

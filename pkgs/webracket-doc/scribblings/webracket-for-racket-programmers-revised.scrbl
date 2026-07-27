@@ -49,8 +49,10 @@ A WebRacket module is processed in several stages:
   @item{The source file is read and expanded by Racket.}
   @item{The module graph and required WebRacket support code are extracted.}
   @item{The expanded program is lowered through WebRacket's compiler passes.}
-  @item{The compiler emits WebAssembly text (WAT).}
-  @item{@tt{wasm-tools} assembles the WAT into a @tt{.wasm} module.}
+  @item{The compiler emits WebAssembly text (WAT) for the program module.}
+  @item{@tt{wasm-tools} assembles the program WAT into a @tt{.wasm} module;
+        split-runtime output also uses reusable runtime and FFI sidecar
+        modules.}
   @item{WebRacket writes a host file: JavaScript for Node mode, or HTML for
         browser mode.}
 ]

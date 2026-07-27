@@ -4798,14 +4798,14 @@
   ; Preflight: ensure output files do not collide.
   (ensure-distinct-output-files!
    'drive-compilation
-   (list (cons "WAT output file"       out-wat)
-         (cons "Wasm output file"      out-wasm)
-         (cons "label-map output file" out-map)
-         (cons "host output file"      out-host)))
+   (list (cons "program WAT output file"  out-wat)
+         (cons "program Wasm output file" out-wasm)
+         (cons "label-map output file"    out-map)
+         (cons "host output file"         out-host)))
 
   ; Preflight: ensure output locations are writable.
-  (ensure-output-path-writable! 'drive-compilation out-wat  "WAT output file")
-  (ensure-output-path-writable! 'drive-compilation out-wasm "Wasm output file")
+  (ensure-output-path-writable! 'drive-compilation out-wat  "program WAT output file")
+  (ensure-output-path-writable! 'drive-compilation out-wasm "program Wasm output file")
   (ensure-output-path-writable! 'drive-compilation out-map  "label-map output file")
   (ensure-output-path-writable! 'drive-compilation out-host "host output file")
   
@@ -5152,10 +5152,10 @@
     (ensure-distinct-output-files!
      'drive-compilation
      (append
-      (list (cons "WAT output file"       out-wat)
-            (cons "Wasm output file"      out-wasm)
-            (cons "label-map output file" out-map)
-            (cons "host output file"      out-host))
+      (list (cons "program WAT output file"  out-wat)
+            (cons "program Wasm output file" out-wasm)
+            (cons "label-map output file"    out-map)
+            (cons "host output file"         out-host))
       sidecar-output-files))
     (for ([output-file (in-list sidecar-output-files)])
       (ensure-output-path-writable! 'drive-compilation
@@ -5167,7 +5167,7 @@
              (length (split-runtime-modules-imported-names split-modules)))
      (current-error-port)))
   (write-wat-to-file out-wat program-wat #:pretty? pretty-wat?)
-  (ensure-generated-file-exists! 'drive-compilation out-wat "WAT output file")
+  (ensure-generated-file-exists! 'drive-compilation out-wat "program WAT output file")
   (define t-write-wat-end (now-ms))
 
   ; 7. Compile the wat-file to wasm using `wat->wasm` from `assembler.rkt`

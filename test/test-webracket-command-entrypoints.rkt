@@ -136,6 +136,22 @@
               (format "~a --help-full omitted manual FFI flags:\n~a"
                       name
                       output))
+  (check-true (string-contains? output "program .wat file")
+              (format "~a --help-full did not identify --wat-file as program output:\n~a"
+                      name
+                      output))
+  (check-true (string-contains? output "program .wasm file")
+              (format "~a --help-full did not identify --wasm-file as program output:\n~a"
+                      name
+                      output))
+  (check-false (string-contains? output "Filename for the wasm file")
+               (format "~a --help-full used pre-split-runtime wasm wording:\n~a"
+                       name
+                       output))
+  (check-false (string-contains? output "Filename for the wat file")
+               (format "~a --help-full used pre-split-runtime wat wording:\n~a"
+                       name
+                       output))
   (check-false (string-contains? output "--link-flags")
                (format "~a --help-full printed removed linker flags:\n~a"
                        name

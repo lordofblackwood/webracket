@@ -30,8 +30,8 @@
 (struct webracket-compile-config
   (run-after                              ; run the generated Node host after compilation
    verbose-mode                           ; enable verbose compiler and provider-cache logging
-   wat-filename                           ; explicit .wat output path, or #f for default
-   wasm-filename                          ; explicit .wasm output path, or #f for default
+   wat-filename                           ; explicit program .wat output path, or #f for default
+   wasm-filename                          ; explicit program .wasm output path, or #f for default
    host-filename                          ; explicit host-file output path, or #f for default
    dest-dir                               ; destination directory for default outputs
    label-map-forms                        ; include heavyweight form entries in the label map
@@ -459,11 +459,11 @@
                          (set! verbose-mode #t)]
      [("--dest") dirname "Write default outputs under <dir>"
                  (set! dest-dir dirname)]
-     [("--wat-file") filename "Filename for the wat file"
+     [("--wat-file") filename "Filename for the program .wat file"
                       (set! wat-filename filename)]
-     [("--wasm-file") filename "Filename for the wasm file"
+     [("--wasm-file") filename "Filename for the program .wasm file"
                        (set! wasm-filename filename)]
-     [("--host-file") filename "Filename for the host file"
+     [("--host-file") filename "Filename for the generated host file"
                        (set! host-filename filename)]
      #:help-labels
      ""

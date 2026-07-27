@@ -2757,7 +2757,7 @@ const wasmModule
          const isAbsolutePath = wasmUrl.startsWith("/");
          const hint = isAbsolutePath
            ? "Likely cause: HTML was generated using an absolute input path. Rebuild from the output directory so the URL is relative (e.g. test-browser.wasm)."
-           : "Check that the .wasm file exists next to this .html file and is served by your web server.";
+           : "Check that the program .wasm file exists next to this .html file and is served by your web server.";
          throw new Error(
            `Failed to fetch wasm '${wasmUrl}' (HTTP ${wasmResponse.status} ${wasmResponse.statusText}). ${hint}`
          );
@@ -3080,7 +3080,7 @@ const wasmModule
       (λ ()
         (wat-pretty-write x))
       #:exists 'replace))
-  ; 2. Compile the wat file into a wasm file.
+  ; 2. Compile the program wat file into a program wasm file.
   (define wasm-tools
     (wasm-tools-executable
      #:exec-path-from-shell? exec-path-from-shell?))
