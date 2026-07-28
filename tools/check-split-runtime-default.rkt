@@ -4,7 +4,7 @@
 ;;;
 
 ;; This smoke verifies the public default policy:
-;; compiling without `--split-runtime` emits and runs split-runtime sidecar
+;; compiling without `--split-runtime` emits and runs split-runtime
 ;; output, while explicit fallbacks still work. Cases are named so expensive
 ;; subsets can be run independently or in parallel.
 
@@ -265,17 +265,17 @@
    #:key path->string))
 
 ;; single-valid-sidecar-failures : symbol? string? (listof path?) -> (listof string?)
-;;   Return failures unless paths contains exactly one valid Wasm sidecar.
+;;   Return failures unless paths contains exactly one valid Wasm file.
 (define (single-valid-sidecar-failures mode label paths)
   (cond
     [(not (= (length paths) 1))
-     (list (format "~a produced ~a ~a sidecars, expected exactly one: ~a"
+     (list (format "~a produced ~a ~a wasm files, expected exactly one: ~a"
                    mode
                    (length paths)
                    label
                    paths))]
     [(not (wasm-magic? (car paths)))
-     (list (format "~a did not produce a valid ~a sidecar: ~a"
+     (list (format "~a did not produce a valid ~a wasm file: ~a"
                    mode
                    label
                    (car paths)))]
@@ -555,7 +555,7 @@ RKT
                    failures))]
     [(pair? runtime-wasms)
      (set! failures
-           (cons (format "~a unexpectedly produced runtime sidecars: ~a"
+           (cons (format "~a unexpectedly produced runtime wasm files: ~a"
                          mode
                          runtime-wasms)
                  failures))])
@@ -568,7 +568,7 @@ RKT
                    failures))]
     [(pair? ffi-wasms)
      (set! failures
-           (cons (format "~a unexpectedly produced FFI sidecars: ~a"
+           (cons (format "~a unexpectedly produced FFI wasm files: ~a"
                          mode
                          ffi-wasms)
                  failures))])
@@ -838,11 +838,11 @@ RKT
   (append*
    (for/list ([source (in-list default-source-files)])
      (list
-      (valid-case 'default-sidecar
+      (valid-case 'default-split-runtime
                   source
                   '()
                   #t
-                  #:groups '(default sidecar))
+                  #:groups '(default split-runtime))
       (valid-case 'explicit-monolithic
                   source
                   '("--no-split-runtime")
@@ -857,7 +857,7 @@ RKT
                #t
                #:split-ffi? #t
                #:run? #f
-               #:groups '(default ffi sidecar))
+               #:groups '(default ffi split-ffi))
    (valid-case 'explicit-inline-ffi
                standard-ffi-source
                '("--no-split-runtime-ffi-module")

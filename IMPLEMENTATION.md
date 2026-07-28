@@ -6,7 +6,7 @@ it is hard to connect the error back to the original Racket source. A simple sou
 it possible to resolve those labels to file/line/column positions.
 
 Usage
-After compilation, a sidecar file is written next to the wasm file with the suffix
+After compilation, a label-map file is written next to the wasm file with the suffix
 `.wasm.map.sexp`. Each entry maps a generated label to a source location. The
 original form can be included explicitly for heavyweight debugging.
 
@@ -27,7 +27,7 @@ Example entry:
   (label "label.9176"
          (src "test/test-basics.rkt" 42 7 15))
 
-When you see `label.9176` in a stack trace, search the sidecar file for that label to
+When you see `label.9176` in a stack trace, search the label-map file for that label to
 identify the original source location.
 
 Implementation

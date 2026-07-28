@@ -116,7 +116,7 @@ racket tools/find-callback-source.rkt path/to/program.wasm.map.sexp label.4054
 
 @section{Requirements}
 
-The tool expects the generated source map sidecar file produced by the normal
+The tool expects the generated source map file produced by the normal
 WebRacket compiler flow:
 
 @itemlist[

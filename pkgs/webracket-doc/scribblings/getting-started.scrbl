@@ -100,11 +100,10 @@ When working from an uninstalled source checkout, use
 This generates the files needed to run the program in a browser.
 The exact set of generated files depends on the libraries the program
 uses. For this example, expect a host page @tt{hello.html}, the user
-program @tt{hello.wasm}, a reusable runtime sidecar named like
-@tt{webracket-runtime-<fingerprint>.wasm}, a label-map sidecar
-@tt{hello.wasm.map.sexp}, and possibly an FFI sidecar named like
-@tt{webracket-ffi-<fingerprint>.wasm}. Keep the generated files
-together.
+program @tt{hello.wasm}, a reusable runtime module named like
+@tt{webracket-runtime-<fingerprint>.wasm}, a label-map file
+@tt{hello.wasm.map.sexp}, and possibly a reusable FFI module named like
+@tt{webracket-ffi-<fingerprint>.wasm}. Keep the generated files together.
 
 @subsection{Step 3: Start a local web server}
 
@@ -157,7 +156,7 @@ A WebRacket program goes through the following steps:
 @itemlist[
   @item{You write a program in Racket.}
   @item{The WebRacket compiler translates it to WebAssembly modules.}
-  @item{A generated host page loads the runtime, any FFI sidecar, and
+  @item{A generated host page loads the runtime, any FFI module, and
         the user program.}
   @item{The browser executes the cooperating modules.}]
 

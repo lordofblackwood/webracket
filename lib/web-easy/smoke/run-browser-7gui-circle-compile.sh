@@ -16,7 +16,7 @@ if [ ! -f "$EXAMPLE_DIR/generated/7gui-circle.html" ] \
   runtime_sidecars=("$EXAMPLE_DIR/generated"/webracket-runtime-*.wasm)
 fi
 if [ "${#runtime_sidecars[@]}" -eq 0 ]; then
-  echo "Missing split runtime sidecar in $EXAMPLE_DIR/generated" >&2
+  echo "Missing split runtime wasm in $EXAMPLE_DIR/generated" >&2
   exit 1
 fi
 

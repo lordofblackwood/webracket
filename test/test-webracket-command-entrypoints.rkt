@@ -87,6 +87,10 @@
               (format "~a --help omitted server stop:\n~a"
                       name
                       output))
+  (check-true (string-contains? output "WEBRACKET_COMPILE_SERVER=1")
+              (format "~a --help omitted compile server opt-in:\n~a"
+                      name
+                      output))
   (check-false (string-contains? output "--ffi")
                (format "~a --help printed legacy manual FFI flags:\n~a"
                        name

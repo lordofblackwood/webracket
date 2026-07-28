@@ -31,8 +31,7 @@ A WebRacket program is processed in several stages:
   @item{The expanded program is compiled to WebAssembly text (WAT) for the
         program module.}
   @item{The program WAT is assembled into a WebAssembly module (@tt{.wasm});
-        split-runtime output also uses reusable runtime and FFI sidecar
-        modules.}
+        split-runtime output also uses reusable runtime and FFI modules.}
   @item{A small host file (HTML or JavaScript) is generated.}
 ]
 

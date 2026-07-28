@@ -110,7 +110,7 @@
   "Force refresh of the staged provider/runtime cache during prewarm."
   (set! force-prewarm? #t)]
  [("--shared-runtime-url")
-  "Compile with --split-runtime-core-url runtime.wasm and verify no local content-addressed sidecar is produced."
+  "Compile with --split-runtime-core-url runtime.wasm and verify no local content-addressed runtime file is produced."
   (set! shared-runtime-url? #t)]
  [("--split-runtime-core-only")
   "Use the core-helper-only split runtime strategy for prewarm and compile."
@@ -959,7 +959,7 @@ JS
   (printf "  runtime mode:  ~a\n"
           (if shared-runtime-url?
               (format "shared url (~a)" shared-runtime-url)
-              "sidecar"))
+              "materialized-runtime"))
   (printf "  split mode:    ~a\n"
           (cond
             [provider-runtime? "provider-runtime"]
@@ -1016,7 +1016,7 @@ JS
     (record-failure! "prewarm command failed; see ~a" prewarm-log))
   (when provider-runtime?
     (unless (file-exists? provider-runtime-prewarm-wasm)
-      (record-failure! "provider-runtime prewarm did not produce runtime wasm sidecar: ~a"
+      (record-failure! "provider-runtime prewarm did not produce runtime wasm: ~a"
                        provider-runtime-prewarm-wasm))
     (when (and shared-runtime-url?
                (file-exists? provider-runtime-prewarm-wasm))
@@ -1144,11 +1144,11 @@ JS
   (when (and (not shared-runtime-url?)
              (transcript-contains? compile-result
                                    #rx"split-runtime-core:reference-wasm-hit"))
-    (record-failure! "browser sidecar compile used reference mode"))
+    (record-failure! "browser materialized-runtime compile used reference mode"))
   (when (and shared-runtime-url?
              (transcript-contains? compile-result
                                    #rx"split-runtime-core:materialize-wasm-hit"))
-    (record-failure! "browser shared-url compile materialized a runtime sidecar"))
+    (record-failure! "browser shared-url compile wrote a runtime wasm file"))
   (define cached-wasm-snapshot-after-compile
     (cached-runtime-wasm-snapshot runtime-cache))
   (unless (equal? cached-wasm-snapshot-after-compile
@@ -1161,7 +1161,7 @@ JS
     (content-sidecar-paths dest-dir "webracket-runtime"))
   (when (and (not shared-runtime-url?)
              (not (= (length runtime-sidecar-wasms) 1)))
-    (record-failure! "browser sidecar compile produced ~a runtime sidecars, expected exactly one: ~a"
+    (record-failure! "browser materialized-runtime compile produced ~a runtime wasm files, expected exactly one: ~a"
                      (length runtime-sidecar-wasms)
                      runtime-sidecar-wasms))
   (define runtime-wasm
@@ -1174,7 +1174,7 @@ JS
       (record-failure! "missing generated artifact: ~a" artifact)))
   (when (and shared-runtime-url?
              (pair? runtime-sidecar-wasms))
-    (record-failure! "shared-url compile unexpectedly produced runtime sidecars: ~a"
+    (record-failure! "shared-url compile unexpectedly produced runtime wasm files: ~a"
                      runtime-sidecar-wasms))
   (unless (wasm-magic? program-wasm)
     (record-failure! "program wasm is missing WebAssembly magic bytes: ~a" program-wasm))

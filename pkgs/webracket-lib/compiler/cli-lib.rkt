@@ -8,6 +8,8 @@
 
 (require racket/format
          racket/match
+         (only-in raco/command-name
+                  current-command-name)
          "driver.rkt"
          (only-in "webify/provider-slices.rkt"
                   provider-slice-report-lines))
@@ -53,8 +55,8 @@
    split-runtime-core-url                  ; browser URL for a prewarmed split runtime wasm, or #f
    split-runtime-core-only?                ; split only registered core-runtime helpers
    split-runtime-provider-runtime?         ; merge module-bridge providers into the split runtime
-   split-runtime-ffi-module?               ; place direct split FFI wrappers in an FFI Wasm sidecar
-   split-runtime-ffi-module-explicit?      ; user explicitly selected/disabled split FFI sidecar mode
+   split-runtime-ffi-module?               ; place direct split FFI wrappers in a separate FFI Wasm module
+   split-runtime-ffi-module-explicit?      ; user explicitly selected/disabled split FFI module mode
    letrec-strategy                        ; letrec lowering strategy symbol
    print-top-level-results?               ; print top-level results for script-style runs
    internal-bind-treelist-debug-shape?    ; internal treelist shape debug hook
@@ -196,7 +198,7 @@
    (ref 'force-provider-cache-refresh?)))
 
 ;; compile-config-effective-split-runtime-ffi-module? : webracket-compile-config? -> boolean?
-;;   Return whether this config enables the split FFI sidecar mode.
+;;   Return whether this config enables the split FFI module mode.
 (define (compile-config-effective-split-runtime-ffi-module? cfg)
   (if (webracket-compile-config-split-runtime-ffi-module-explicit? cfg)
       (webracket-compile-config-split-runtime-ffi-module? cfg)
@@ -253,12 +255,48 @@
        (loop (cddr args))]
       [else (loop (cdr args))])))
 
-;; print-webracket-short-help : -> void?
+;; path-base-name-string : any/c -> (or/c string? #f)
+;;   Return the final path component as a string when `v` is a path.
+(define (path-base-name-string v)
+  (define name (and (path? v) (file-name-from-path v)))
+  (and name (path->string name)))
+
+;; command-name=? : (or/c string? #f) string? -> boolean?
+;;   Compare command names case-insensitively for launcher detection.
+(define (command-name=? name expected)
+  (and name (string-ci=? name expected)))
+
+;; current-webracket-command-form : -> string?
+;;   Return the command form to use in help examples.
+(define (current-webracket-command-form)
+  (define raco-command-name
+    (current-command-name))
+  (define exec-name
+    (path-base-name-string (find-system-path 'exec-file)))
+  (define run-name
+    (path-base-name-string (find-system-path 'run-file)))
+  (cond
+    [(equal? raco-command-name "webracket")
+     "raco webracket"]
+    [(or (command-name=? exec-name "raco")
+         (command-name=? exec-name "raco.exe"))
+     "raco webracket"]
+    [(or (command-name=? exec-name "racket")
+         (command-name=? exec-name "racket.exe"))
+     (if (command-name=? run-name "webracket.rkt")
+         "racket webracket.rkt"
+         "webracket")]
+    [(and exec-name (not (string=? exec-name "")))
+     exec-name]
+    [else
+     "webracket"]))
+
+;; print-webracket-short-help : [string?] -> void?
 ;;   Print the concise first-contact help for `webracket --help`.
-(define (print-webracket-short-help)
+(define (print-webracket-short-help [command-form (current-webracket-command-form)])
   (display
    (string-append
-    "usage: webracket [ <option> ... ] <source.rkt>\n"
+    (format "usage: ~a [ <option> ... ] <source.rkt>\n" command-form)
     "\n"
     "Compile Racket programs to WebAssembly.\n"
     "\n"
@@ -273,32 +311,37 @@
     "  --server-start             Run the local compile server in the foreground.\n"
     "  --server-status            Print local compile server status.\n"
     "  --server-stop              Stop the local compile server.\n"
+    "  WEBRACKET_COMPILE_SERVER=1 Route compiles through it (auto-starts if needed).\n"
     "\n"
     "Examples:\n"
-    "  webracket hello.rkt\n"
-    "  webracket --node --run hello.rkt\n"
-    "  webracket --browser --dest generated hello.rkt\n"
-    "  raco webracket --help-full\n"
+    (format "  ~a hello.rkt\n" command-form)
+    (format "  ~a --node --run hello.rkt\n" command-form)
+    (format "  ~a --browser --dest generated hello.rkt\n" command-form)
+    (format "  ~a --help-full\n" command-form)
     "\n"
     "Help:\n"
     "  -h, --help                 Show this concise help.\n"
     "  --help-full                Show all compiler, cache, provider, and debug options.\n")))
 
-;; parse-webracket-cli : [vector?] -> webracket-cli-command?
+;; parse-webracket-cli : [vector?] [#:command-form string?] -> webracket-cli-command?
 ;;   Parse argv into a compile command or a local report/listing command.
-(define (parse-webracket-cli [argv (current-command-line-arguments)])
+(define (parse-webracket-cli [argv (current-command-line-arguments)]
+                             #:command-form [command-form (current-webracket-command-form)])
   (case (webracket-cli-help-mode argv)
     [(short)
-     (print-webracket-short-help)
+     (print-webracket-short-help command-form)
      (exit 0)]
     [(full)
-     (parse-webracket-cli/full (vector "--help"))]
+     (parse-webracket-cli/full (vector "--help")
+                               #:command-form command-form)]
     [else
-     (parse-webracket-cli/full argv)]))
+     (parse-webracket-cli/full argv
+                               #:command-form command-form)]))
 
-;; parse-webracket-cli/full : vector? -> webracket-cli-command?
+;; parse-webracket-cli/full : vector? [#:command-form string?] -> webracket-cli-command?
 ;;   Parse argv with the full command-line specification.
-(define (parse-webracket-cli/full argv)
+(define (parse-webracket-cli/full argv
+                                  #:command-form [command-form (current-webracket-command-form)])
   (define run-after #f)
   (define verbose-mode #f)
   (define wat-filename #f)
@@ -445,11 +488,11 @@
 
   (define positional-filenames
     (command-line
-     #:program "webracket"
+     #:program command-form
      #:argv argv
      #:usage-help
      "Compile <source.rkt> to WebAssembly."
-     "Use `webracket --help` for a concise overview."
+     "Use --help for a concise overview."
      #:help-labels
      " Common options"
      #:once-each
@@ -490,7 +533,7 @@
       "In Node split-runtime mode, read the stable runtime wasm directly from cache"
       (set! split-runtime-cache-reference? #t)]
      [("--no-split-runtime-cache-reference")
-      "Materialize the split runtime wasm sidecar next to the program output (default)"
+      "Write the reusable runtime wasm next to the program output (default)"
       (set! split-runtime-cache-reference? #f)]
      #:help-labels
      ""
@@ -499,7 +542,7 @@
       "In browser split-runtime mode, fetch the prewarmed runtime wasm from <url>"
       (set! split-runtime-core-url url)]
      [("--no-split-runtime-core-url")
-      "Materialize the browser split runtime wasm sidecar next to the program output (default)"
+      "Write the browser runtime wasm next to the program output (default)"
       (set! split-runtime-core-url #f)]
      #:help-labels
      ""
@@ -514,7 +557,7 @@
      ""
      #:once-each
      [("--split-runtime-provider-runtime")
-      "In module split-runtime mode, merge cached provider fragments into the runtime sidecar"
+      "In module split-runtime mode, merge cached provider fragments into the runtime module"
       (set! split-runtime-provider-runtime? #t)]
      [("--no-split-runtime-provider-runtime")
       "Keep module-bridge provider fragments in the program module (default)"
@@ -523,7 +566,7 @@
      ""
      #:once-each
      [("--split-runtime-ffi-module")
-      "Emit active direct FFI wrappers as an FFI Wasm sidecar (default when compatible)"
+      "Emit active direct FFI wrappers as a separate FFI Wasm module (default when compatible)"
       (set! split-runtime-ffi-module? #t)
       (set! split-runtime-ffi-module-explicit? #t)]
      [("--no-split-runtime-ffi-module")
@@ -946,9 +989,16 @@
       [other
        (fail-check (format "expected compile command, got: ~v" other))]))
 
-  ;; check-split-runtime-sidecar-defaults : webracket-compile-config? -> void?
+  ;; short-help-output : string? -> string?
+  ;;   Render concise help for a chosen command form.
+  (define (short-help-output command-form)
+    (with-output-to-string
+      (lambda ()
+        (print-webracket-short-help command-form))))
+
+  ;; check-split-runtime-defaults : webracket-compile-config? -> void?
   ;;   Check that split runtime and auto split FFI are enabled by default.
-  (define (check-split-runtime-sidecar-defaults cfg)
+  (define (check-split-runtime-defaults cfg)
     (check-true (webracket-compile-config-split-runtime? cfg))
     (check-false (webracket-compile-config-split-runtime-cache-reference? cfg))
     (check-false (webracket-compile-config-split-runtime-core-url cfg))
@@ -969,9 +1019,9 @@
     (check-false (webracket-compile-config-split-runtime-ffi-module? cfg))
     (check-false (compile-config-effective-split-runtime-ffi-module? cfg)))
 
-  (test-case "compile mode is split-runtime sidecar by default"
+  (test-case "compile mode is split-runtime by default"
     (define cfg (parse-compile-config '("source.rkt")))
-    (check-split-runtime-sidecar-defaults cfg))
+    (check-split-runtime-defaults cfg))
 
   (test-case "explicit no-split-runtime keeps monolithic mode"
     (define cfg (parse-compile-config '("--no-split-runtime" "source.rkt")))
@@ -1041,6 +1091,27 @@
     (check-false (webracket-compile-config-split-runtime-ffi-module-explicit? cfg))
     (check-true (compile-config-effective-split-runtime-ffi-module? cfg)))
 
+  (test-case "short help examples use selected command form"
+    (define output (short-help-output "raco webracket"))
+    (check-true (string-contains? output
+                                  "usage: raco webracket [ <option> ... ] <source.rkt>"))
+    (check-true (string-contains? output "  raco webracket hello.rkt\n"))
+    (check-true (string-contains? output
+                                  "  raco webracket --browser --dest generated hello.rkt\n"))
+    (check-true (string-contains? output "  raco webracket --help-full\n"))
+    (check-false (string-contains? output "\n  webracket hello.rkt\n")))
+
+  (test-case "raco command name selects raco help examples"
+    (parameterize ([current-command-name "webracket"])
+      (check-equal? (current-webracket-command-form)
+                    "raco webracket")))
+
+  (test-case "short help explains compile server opt-in"
+    (define output (short-help-output "webracket"))
+    (check-true (string-contains? output "WEBRACKET_COMPILE_SERVER=1"))
+    (check-true (string-contains? output
+                                  "Route compiles through it (auto-starts if needed).")))
+
   (test-case "legacy compile-config datums default split-runtime fields"
     (define cfg (parse-compile-config '("source.rkt")))
     (define split-runtime-keys
@@ -1055,5 +1126,5 @@
       (for/list ([entry (in-list (compile-config->datum cfg))]
                  #:unless (memq (car entry) split-runtime-keys))
         entry))
-    (check-split-runtime-sidecar-defaults
+    (check-split-runtime-defaults
      (datum->compile-config legacy-datum))))

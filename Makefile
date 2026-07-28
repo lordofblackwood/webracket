@@ -34,12 +34,12 @@ help:
 	@echo "  smoke-solar-sections-gate  Run quick per-section Solar2 RMSE threshold gate."
 	@echo "  smoke-split-runtime-readiness  Run the focused split-runtime default-readiness gate."
 	@echo "  smoke-split-runtime-readiness-fast  Run the compact split-runtime default-readiness gate."
-	@echo "  smoke-split-runtime-default  Run default sidecar and explicit monolithic compile/run smoke."
+	@echo "  smoke-split-runtime-default  Run default split-runtime and explicit monolithic compile/run smoke."
 	@echo "  smoke-split-runtime-default-fast  Run a compact default/split-FFI slice."
 	@echo "  smoke-split-runtime-provider-ffi  Run provider-runtime split-FFI default-check cases."
-	@echo "  smoke-split-runtime-browser  Run cached split-runtime browser sidecar smoke."
+	@echo "  smoke-split-runtime-browser  Run cached split-runtime browser smoke."
 	@echo "  smoke-split-runtime-browser-url  Run cached split-runtime browser shared runtime URL smoke."
-	@echo "  smoke-split-runtime-browser-provider-runtime  Run browser provider-runtime sidecar smoke."
+	@echo "  smoke-split-runtime-browser-provider-runtime  Run browser provider-runtime smoke."
 	@echo "  smoke-split-runtime-browser-provider-runtime-url  Run browser provider-runtime shared URL smoke."
 	@echo "  smoke-split-runtime-prewarm  Run representative cached split-runtime compile/run fixtures."
 	@echo "  smoke-split-runtime-warm-process  Run cached split-runtime through a warm compiler process."
@@ -213,7 +213,7 @@ smoke-split-runtime-default:
 	python3 tools/run-guarded.py --timeout-sec 900 --rss-limit-mb 4500 -- racket -S pkgs tools/check-split-runtime-default.rkt --jobs 4
 
 smoke-split-runtime-default-fast:
-	python3 tools/run-guarded.py --timeout-sec 360 --rss-limit-mb 3000 -- racket -S pkgs tools/check-split-runtime-default.rkt --jobs 4 --only default-sidecar-test-trivial --only explicit-monolithic-test-trivial --only default-split-ffi-standard-ffi-demand --only invalid-explicit-split-ffi-without-split
+	python3 tools/run-guarded.py --timeout-sec 360 --rss-limit-mb 3000 -- racket -S pkgs tools/check-split-runtime-default.rkt --jobs 4 --only default-split-runtime-test-trivial --only explicit-monolithic-test-trivial --only default-split-ffi-standard-ffi-demand --only invalid-explicit-split-ffi-without-split
 
 smoke-split-runtime-provider-ffi:
 	python3 tools/run-guarded.py --timeout-sec 420 --rss-limit-mb 4500 -- racket -S pkgs tools/check-split-runtime-default.rkt --jobs 4 --only provider-runtime-explicit-split-ffi-clean-provider-test-module-read-demand --only provider-runtime-provider-ffi-with-split-ffi-provider-runtime-provider-ffi-demand --only provider-runtime-local-provider-ffi-with-split-ffi-provider-ffi-demand
@@ -236,7 +236,7 @@ smoke-split-runtime-prewarm:
 
 smoke-split-runtime-warm-process:
 	mkdir -p $(SPLIT_RUNTIME_TOOL_COMPILED_ROOT)
-	python3 tools/run-guarded.py --timeout-sec 300 --rss-limit-mb 2500 -- /usr/bin/env PLTCOMPILEDROOTS=$(SPLIT_RUNTIME_TOOL_COMPILED_ROOT) racket -S pkgs tools/check-split-runtime-prewarm.rkt --source test/test-trivial.rkt --in-process --no-sidecar-check
+	python3 tools/run-guarded.py --timeout-sec 300 --rss-limit-mb 2500 -- /usr/bin/env PLTCOMPILEDROOTS=$(SPLIT_RUNTIME_TOOL_COMPILED_ROOT) racket -S pkgs tools/check-split-runtime-prewarm.rkt --source test/test-trivial.rkt --in-process --no-materialized-runtime-check
 
 smoke-split-runtime-provider-runtime:
 	mkdir -p $(SPLIT_RUNTIME_TOOL_COMPILED_ROOT)
@@ -244,7 +244,7 @@ smoke-split-runtime-provider-runtime:
 
 smoke-split-runtime-provider-runtime-warm-process:
 	mkdir -p $(SPLIT_RUNTIME_TOOL_COMPILED_ROOT)
-	python3 tools/run-guarded.py --timeout-sec 480 --rss-limit-mb 3500 -- /usr/bin/env PLTCOMPILEDROOTS=$(SPLIT_RUNTIME_TOOL_COMPILED_ROOT) racket -S pkgs tools/check-split-runtime-prewarm.rkt --source test/test-module-read-demand.rkt --extra-source examples/minischeme/repro-local-mini-42.rkt --split-runtime-provider-runtime --in-process --no-sidecar-check
+	python3 tools/run-guarded.py --timeout-sec 480 --rss-limit-mb 3500 -- /usr/bin/env PLTCOMPILEDROOTS=$(SPLIT_RUNTIME_TOOL_COMPILED_ROOT) racket -S pkgs tools/check-split-runtime-prewarm.rkt --source test/test-module-read-demand.rkt --extra-source examples/minischeme/repro-local-mini-42.rkt --split-runtime-provider-runtime --in-process --no-materialized-runtime-check
 
 smoke-split-runtime-procedure-boundary:
 	python3 tools/run-guarded.py --timeout-sec 60 --rss-limit-mb 1000 -- racket -S pkgs tools/check-split-runtime-procedure-boundary.rkt

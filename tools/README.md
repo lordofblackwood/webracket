@@ -166,12 +166,12 @@ check-split-runtime-default.rkt
 -------------------------------
 Regression-style check for the public compiler default. It compiles and runs
 small Node programs without passing `--split-runtime`, then verifies the
-default output shape is split sidecar output: a program `.wasm`, a
-content-addressed `webracket-runtime-<fingerprint>.wasm`, and a Node host. The
-default source set covers a trivial script, a module-language read-demand
-program, and a generated regexp-demand script. It also compiles and runs the
-same programs with `--no-split-runtime` and verifies that the monolithic opt-out
-does not emit a runtime sidecar.
+default output shape: a program `.wasm`, a content-addressed
+`webracket-runtime-<fingerprint>.wasm`, and a Node host. The default source set
+covers a trivial script, a module-language read-demand program, and a generated
+regexp-demand script. It also compiles and runs the same programs with
+`--no-split-runtime` and verifies that the monolithic opt-out does not emit a
+separate runtime module.
 
 Run:
 
@@ -191,7 +191,7 @@ split-runtime readiness gate
 the split-runtime default, runtime cache lookup, provider-runtime merge path, or
 browser shared-runtime URL path. It runs the default output-shape check, the
 browser shared-runtime URL smoke, the provider-runtime browser URL smoke, and
-the provider-runtime Node cache-reference/sidecar smoke. It is intentionally
+the provider-runtime Node cache-reference/materialized-runtime smoke. It is intentionally
 part of `make smoke-release`, not `make smoke-quick`, because it compiles
 provider-runtime fixtures and usually takes minutes rather than seconds.
 
@@ -226,7 +226,7 @@ racket -S pkgs tools/measure-split-runtime.rkt \
 
 Use `--include-cache-reference` to also measure Node output generated with
 `--split-runtime-cache-reference`, where warm runs read the cached runtime wasm
-directly instead of materializing a sidecar next to the program.
+directly instead of writing a runtime wasm next to the program.
 
 Use `--split-runtime-core-only` to benchmark the helper-only split strategy,
 where only registered core-runtime helpers move into the shared runtime module
@@ -362,8 +362,8 @@ private provider/runtime caches, prewarms the stable split-runtime wasm cache,
 then compiles and runs a tiny no-stdlib program in the explicit
 cache-reference mode. Reference-compatible user compiles must use the cached
 runtime wasm directly; programs that need a different runtime core are allowed
-to fall back to a materialized content-addressed runtime sidecar, but still
-have to compile and run correctly.
+to fall back to a materialized content-addressed runtime module, but still have
+to compile and run correctly.
 
 Run:
 
@@ -406,14 +406,14 @@ make smoke-split-runtime-provider-runtime-warm-process
 
 By default, each post-prewarm case is checked in both warm runtime modes:
 cache-reference output, where the generated Node host reads the cached
-runtime wasm directly, and sidecar output, where the compiler materializes a
-warm `webracket-runtime-<fingerprint>.wasm` next to the program. Use
-`--no-sidecar-check` for faster cache-reference-only runs:
+runtime wasm directly, and materialized-runtime output, where the compiler
+writes a warm `webracket-runtime-<fingerprint>.wasm` next to the program. Use
+`--no-materialized-runtime-check` for faster cache-reference-only runs:
 
 ```sh
 racket -S pkgs tools/check-split-runtime-prewarm.rkt \
   --suite \
-  --no-sidecar-check
+  --no-materialized-runtime-check
 ```
 
 Use `--in-process` to run the post-prewarm compile/run cases serially in the
@@ -577,8 +577,8 @@ Regression-style browser check for the compile-once split-runtime workflow. It
 creates private provider/runtime caches, prewarms the stable split-runtime wasm
 cache, compiles a tiny no-stdlib browser program in the default split-runtime
 mode, routes generated artifact requests through Playwright, then verifies that
-the browser fetches both the program wasm and the runtime sidecar wasm and that
-the program prints the expected result.
+the browser fetches both the program wasm and the runtime wasm and that the
+program prints the expected result.
 
 By default, this checker leaves the normal Racket compiled-file roots alone.
 Use `--isolate-compiled-root` only when checking behavior under a private cold
@@ -601,7 +601,7 @@ racket -S pkgs tools/check-split-runtime-browser.rkt \
 Use `--shared-runtime-url` to exercise the compile-once browser workflow where
 the generated page fetches a prewarmed shared `runtime.wasm` URL via
 `--split-runtime-core-url` instead of materializing a local
-`webracket-runtime-<fingerprint>.wasm` sidecar:
+`webracket-runtime-<fingerprint>.wasm` file:
 
 ```sh
 racket -S pkgs tools/check-split-runtime-browser.rkt \
@@ -641,7 +641,8 @@ racket -S pkgs tools/check-split-runtime-browser.rkt \
 ```
 
 Omit `--shared-runtime-url` to check the same provider-runtime browser path
-when the warm cached runtime is materialized as a content-addressed sidecar:
+when the warm cached runtime is materialized as a content-addressed runtime
+file:
 
 ```sh
 racket -S pkgs tools/check-split-runtime-browser.rkt \
@@ -661,7 +662,7 @@ The shared runtime URL variant is available as:
 make smoke-split-runtime-browser-url
 ```
 
-The provider-runtime sidecar variant is available as:
+The provider-runtime materialized-runtime variant is available as:
 
 ```sh
 make smoke-split-runtime-browser-provider-runtime
@@ -713,7 +714,8 @@ racket -S pkgs tools/prewarm-staged-providers.rkt \
 
 Use `--mode provider-runtime` with a `#lang webracket/base` or
 `#lang webracket/full` source to prewarm the experimental provider-fragment
-runtime cache. This compiles the source in split-provider-runtime sidecar mode
+runtime cache. This compiles the source in split-provider-runtime
+materialized-runtime mode
 without running it, so the source-specific provider-augmented runtime is cached
 before the later user compile. With `--runtime-wasm-out`, the materialized
 runtime can be copied to the stable browser URL used by

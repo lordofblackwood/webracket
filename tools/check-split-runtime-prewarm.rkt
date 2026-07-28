@@ -6,7 +6,7 @@
 ;; This regression-style check verifies the compile-once split-runtime workflow:
 ;; prewarm the stable runtime cache, then compile and run user programs whose
 ;; generated Node hosts either reference the cached runtime wasm directly or
-;; materialize a warm runtime sidecar next to the program wasm.
+;; materialize a warm runtime wasm next to the program wasm.
 
 
 ;;; Imports
@@ -132,8 +132,8 @@
  [("--frontend-cache")
   "Pass --frontend-cache to post-prewarm compiles."
   (set! frontend-cache? #t)]
- [("--no-sidecar-check")
-  "Skip warm sidecar compile/run checks; only check cache-reference output."
+ [("--no-materialized-runtime-check")
+  "Skip warm materialized-runtime compile/run checks; only check cache-reference output."
   (set! sidecar-check? #f)]
  [("--keep-temp")
   "Keep the temporary check directory after a successful run."
@@ -993,7 +993,7 @@ RKT
                        (check-case-name case)))
     (when (transcript-contains? compile-result
                                 #rx"split-runtime-core:materialize-wasm-hit")
-      (record-failure! "~a: materialized a runtime wasm sidecar instead of referencing cache"
+      (record-failure! "~a: wrote a runtime wasm file instead of referencing cache"
                        (check-case-name case))))
   (when (and sidecar-mode? reference-compatible?)
     (unless (transcript-contains? compile-result
@@ -1002,7 +1002,7 @@ RKT
                        (check-case-name case)))
     (when (transcript-contains? compile-result
                                 #rx"split-runtime-core:reference-wasm-hit")
-      (record-failure! "~a: referenced cached runtime wasm instead of materializing sidecar"
+      (record-failure! "~a: referenced cached runtime wasm instead of writing a runtime wasm file"
                        (check-case-name case)))
     (when (transcript-contains? compile-result
                                 #rx"split-runtime-core:assemble-wasm")
@@ -1014,7 +1014,7 @@ RKT
                (transcript-contains? compile-result
                                      #rx"split-boundary-cache-preflight-hit\\? *: *yes")
                (not program-only-fast-path?))
-      (record-failure! "~a: warm sidecar compile did not take the program-only fast path"
+      (record-failure! "~a: warm materialized-runtime compile did not take the program-only fast path"
                        (check-case-name case))))
   (when (and provider-runtime?
              (or cache-reference-mode? sidecar-mode?)
@@ -1037,13 +1037,13 @@ RKT
   (when (and reference-compatible?
              cache-reference-mode?
              (pair? runtime-sidecar-wasms))
-    (record-failure! "~a: cache-reference compile unexpectedly produced runtime sidecars: ~a"
+    (record-failure! "~a: cache-reference compile unexpectedly produced runtime wasm files: ~a"
                      (check-case-name case)
                      runtime-sidecar-wasms))
   (when (and reference-compatible?
              sidecar-output-mode?
              (not (= (length runtime-sidecar-wasms) 1)))
-    (record-failure! "~a: sidecar compile produced ~a runtime sidecars, expected exactly one: ~a"
+    (record-failure! "~a: materialized-runtime compile produced ~a runtime wasm files, expected exactly one: ~a"
                      (check-case-name case)
                      (length runtime-sidecar-wasms)
                      runtime-sidecar-wasms))
@@ -1051,7 +1051,7 @@ RKT
              sidecar-output-mode?
              (= (length runtime-sidecar-wasms) 1)
              (not (wasm-magic? (car runtime-sidecar-wasms))))
-    (record-failure! "~a: sidecar compile produced invalid runtime sidecar: ~a"
+    (record-failure! "~a: materialized-runtime compile produced an invalid runtime wasm: ~a"
                      (check-case-name case)
                      (car runtime-sidecar-wasms)))
   compile-result)
@@ -1206,7 +1206,7 @@ RKT
           (if precompile-compiler? "compiler/tools" "no"))
   (printf "  frontend cache: ~a\n"
           (if frontend-cache? "enabled" "disabled"))
-  (printf "  sidecar check: ~a\n"
+  (printf "  materialized runtime check: ~a\n"
           (if sidecar-check? "enabled" "disabled"))
   (printf "  jobs:          ~a\n"
           (if (compile-runner-serial?)
@@ -1413,12 +1413,12 @@ RKT
                         racket-exe
                         provider-cache
                         runtime-cache
-                        (build-path dest-dir "sidecar")
+                        (build-path dest-dir "runtime-file")
                         temp-root
                         #:expect-module-bridge-result-cache-hit?
                         module-bridge-result-cache-check?
                         #:runtime-mode 'sidecar
-                        #:log-prefix "compile-sidecar")
+                        #:log-prefix "compile-runtime-file")
         '()))
 
   (define cached-wasm-snapshot-after-warm-checks
@@ -1469,7 +1469,7 @@ RKT
                 (format "~as" (format-seconds (command-result-wall-ms result))))
               ", ")
              (if sidecar-check?
-                 (format " sidecar=[~a]"
+                 (format " materialized-runtime=[~a]"
                          (string-join
                           (for/list ([result (in-list sidecar-results)])
                             (format "~as" (format-seconds

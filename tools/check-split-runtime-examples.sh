@@ -312,7 +312,7 @@ compile_case() {
   fi
   runtime_sidecars=("$dest"/webracket-runtime-*.wasm)
   if [ "${#runtime_sidecars[@]}" -ne 1 ]; then
-    echo "Expected one split runtime sidecar in $dest, found ${#runtime_sidecars[@]}" >&2
+    echo "Expected one split runtime wasm in $dest, found ${#runtime_sidecars[@]}" >&2
     exit 1
   fi
   echo "PASS split-runtime example compile $id"
