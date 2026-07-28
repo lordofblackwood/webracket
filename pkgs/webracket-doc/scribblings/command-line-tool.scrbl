@@ -164,20 +164,21 @@ For input @tt{program.rkt}, default outputs are:
         for inspection and debugging.}
   @item{@tt{program.wasm}: Binary WebAssembly for the program module, produced
         from @tt{program.wat}.}
-  @item{@tt{webracket-runtime-<fingerprint>.wasm}: Runtime sidecar used by
-        split-runtime output. The fingerprint is stable for identical runtime
-        contents, so multiple programs can share the same runtime file.}
-  @item{@tt{webracket-ffi-<fingerprint>.wasm}: Optional FFI sidecar emitted
-        when direct JavaScript FFI wrappers are active.}
-  @item{@tt{program.wasm.map.sexp}: Label map sidecar metadata used to map
-        generated code labels back to source-oriented information.}
-  @item{@tt{program.js} (Node mode default): Host support/runtime file that
-        loads the program module and any split runtime/FFI sidecar modules,
-        then provides the environment needed to run in Node.js.}
-  @item{@tt{program.html} (browser mode default): Host support/runtime file that
-        loads the program module and any split runtime/FFI sidecar modules,
-        then provides the environment needed to run in a browser.}
+  @item{@tt{webracket-runtime-<fingerprint>.wasm}: Reusable runtime module.
+        The fingerprint is stable for identical runtime contents, so multiple
+        programs can share the same runtime file.}
+  @item{@tt{webracket-ffi-<fingerprint>.wasm}: Optional reusable FFI module,
+        emitted when direct JavaScript FFI wrappers are active.}
+  @item{@tt{program.wasm.map.sexp}: Label-map metadata used to map generated
+        code labels back to source-oriented information.}
+  @item{@tt{program.js} (Node mode default): Host support file that loads the
+        program module and any reusable runtime/FFI modules, then provides the
+        environment needed to run in Node.js.}
+  @item{@tt{program.html} (browser mode default): Host support file that loads
+        the program module and any reusable runtime/FFI modules, then provides
+        the environment needed to run in a browser.}
 ]
+
 
 @section{Complete Option Reference}
 
@@ -302,19 +303,25 @@ Staged provider options:
 Runtime output options:
 
 @itemlist[
-  @item{@(flag "--split-runtime"): Emit split program/runtime Wasm output (default).}
+  @item{@(flag "--split-runtime"): Emit separate program and runtime Wasm modules (default).}
   @item{@(flag "--no-split-runtime"): Emit one monolithic Wasm module.}
-  @item{@(flag "--split-runtime-cache-reference"): In Node split-runtime mode, read the stable runtime Wasm directly from the runtime cache. This requires the cache to be prewarmed.}
-  @item{@(flag "--no-split-runtime-cache-reference"): Materialize the content-addressed runtime sidecar next to the program output (default).}
-  @item{@(flag "--split-runtime-core-url <url>"): In browser split-runtime mode, fetch a prewarmed runtime Wasm from @tt{<url>} instead of materializing a local runtime sidecar.}
-  @item{@(flag "--no-split-runtime-core-url"): Materialize the browser runtime sidecar next to the program output (default).}
+  @item{@(flag "--split-runtime-cache-reference"): In Node split-runtime mode,
+        read the stable runtime Wasm directly from the runtime cache. This requires the cache to be prewarmed.}
+  @item{@(flag "--no-split-runtime-cache-reference"): Write the
+        content-addressed runtime Wasm file next to the program output (default).}
+  @item{@(flag "--split-runtime-core-url <url>"): In browser split-runtime mode,
+        fetch a prewarmed runtime Wasm file from @tt{<url>} instead of writing a local runtime file.}
+  @item{@(flag "--no-split-runtime-core-url"): Write the browser runtime Wasm file next to the program output (default).}
   @item{@(flag "--split-runtime-core-only"): Split only registered core-runtime helpers into the runtime module.}
   @item{@(flag "--no-split-runtime-core-only"): Use the classified runtime/program split strategy (default).}
-  @item{@(flag "--split-runtime-provider-runtime"): For module-language input, merge cached module-bridge provider fragments into the split runtime.}
+  @item{@(flag "--split-runtime-provider-runtime"): For module-language input, merge cached module-bridge provider fragments into the runtime module.}
   @item{@(flag "--no-split-runtime-provider-runtime"): Keep module-bridge provider fragments in the program module (default).}
-  @item{@(flag "--split-runtime-ffi-module"): Explicitly emit active direct FFI wrappers as an FFI Wasm sidecar. This is the default in compatible split-runtime modes when FFI wrappers are active.}
+  @item{@(flag "--split-runtime-ffi-module"): Explicitly emit active direct FFI
+        wrappers as a separate FFI Wasm module. This is the default in compatible split-runtime modes when FFI wrappers are active.}
   @item{@(flag "--no-split-runtime-ffi-module"): Keep active direct FFI wrappers in the program module.}
 ]
+
+
 
 Experimental compiler options:
 
@@ -380,7 +387,7 @@ through the server.  Server state defaults to a checkout-local
   @item{Listing mode (@(flag "--list-primitives")) requires no source filename.}
   @item{When using @(flag "--run") in Node mode, a working @tt{node} executable with WebAssembly @tt{exnref} support is required.}
   @item{A working @tt{wasm-tools} installation is required for WAT-to-WASM assembly.}
-  @item{Output paths must be distinct (program WAT, program WASM, map sidecar, and host output cannot collide).}
+  @item{Output paths must be distinct: the program WAT, program WASM, label-map, and host output files cannot collide.}
   @item{Output locations must be writable.}
   @item{@(flag "--dump-passes-limit <n>") requires an exact nonnegative integer.}
 ]
