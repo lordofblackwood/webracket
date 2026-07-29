@@ -76,6 +76,7 @@
    "--bs-body-font-size" "1rem"
    "--bs-body-font-weight" "400"
    "--bs-body-line-height" "1.5"
+   "--bs-border-width" "1px"
    "--bs-border-radius-sm" "0.25rem"
    "--bs-border-radius" "0.375rem"
    "--bs-border-radius-lg" "0.5rem"
@@ -296,11 +297,75 @@
        (not (member (string-downcase (string-trim value))
                     '("initial" "inherit" "unset" "revert" "revert-layer")))))
 
+;; resolved-concrete-css-value : string? (string? -> (or/c string? #f)) -> (or/c string? #f)
+;;   Resolve vars in authored CSS and reject unresolved var(...) placeholders.
+(define (resolved-concrete-css-value value lookup)
+  (and (present-css-value? value)
+       (let ([resolved (resolve-css-value value lookup)])
+         (and (meaningful-css-value? resolved)
+              (not (regexp-match? css-var-regexp resolved))
+              resolved))))
+
+;; last-direct-declaration-value : css-stylesheet? (listof string?) string? procedure? -> (or/c string? #f)
+;;   Return the last meaningful authored declaration for exact Bootstrap selector groups.
+(define (last-direct-declaration-value rules selectors property lookup)
+  (and (css-stylesheet? rules)
+       (for/or ([declaration (in-list
+                              (reverse
+                               (css-find-declarations-in-selector-groups
+                                rules
+                                selectors
+                                property)))])
+         (resolved-concrete-css-value (css-declaration-value declaration) lookup))))
+
 ;; extract-component-styles : (hash/c string? string?) css-stylesheet? -> (hash/c symbol? string?)
 ;;   Extract component-level Bootstrap styles that need more than root token mapping.
 (define (extract-component-styles props rules)
   (define-values (nav-style-ref nav-custom-ref)
     (make-computed-selector-refs props rules))
+  (define (present-ref value)
+    (and (present-css-value? value) value))
+  (define (nav-context-custom-ref selectors key)
+    (for/or ([selector (in-list selectors)])
+      (present-ref (nav-custom-ref selector key))))
+  (define (bootstrap-context-ref selectors key)
+    (or (nav-context-custom-ref selectors key)
+        (present-ref (hash-ref props key #f))
+        (present-ref (hash-ref bootstrap-defaults key #f))))
+  (define pill-context-selectors
+    '(".nav-pills .nav-link" ".nav-pills" ".nav"))
+  (define (pill-context-ref key)
+    (bootstrap-context-ref pill-context-selectors key))
+  (define (pill-direct-ref selectors property)
+    (last-direct-declaration-value rules
+                                   selectors
+                                   property
+                                   pill-context-ref))
+  (define (direct-declaration-exists? selectors properties)
+    (and (css-stylesheet? rules)
+         (for/or ([property (in-list properties)])
+           (pair?
+            (css-find-declarations-in-selector-groups rules
+                                                      selectors
+                                                      property)))))
+  (define (meaningful-style-ref selector property)
+    (define value (nav-style-ref selector property))
+    (and (meaningful-css-value? value)
+         (not (regexp-match? css-var-regexp value))
+         value))
+  (define pill-link-selectors
+    '(".nav-pills .nav-link" ".nav-link"))
+  (define pill-border-authored?
+    (direct-declaration-exists?
+     pill-link-selectors
+     '("border"
+       "border-style"
+       "border-width"
+       "border-color"
+       "border-top"
+       "border-top-style"
+       "border-top-width"
+       "border-top-color")))
   (define nav-link-color
     (selector-ref* nav-custom-ref
                    '(".navbar-nav" ".nav" ".nav-link")
@@ -433,19 +498,77 @@
     (or (nav-custom-ref ".nav-tabs" "--bs-nav-tabs-link-active-border-color")
         (nav-style-ref ".nav-tabs .nav-link.active" "border-color")))
   (define pill-color
-    (or (nav-style-ref ".nav-pills .nav-link" "color")
+    (or (pill-direct-ref '(".nav-pills .nav-link" ".nav-link") "color")
+        (pill-context-ref "--bs-nav-link-color")
+        (pill-context-ref "--bs-link-color")
+        (hash-ref props "--bs-body-color" #f)
         nav-link-color))
+  (define pill-font-size
+    (or (pill-direct-ref '(".nav-pills .nav-link" ".nav-link") "font-size")
+        (pill-context-ref "--bs-nav-link-font-size")
+        (hash-ref props "--bs-body-font-size" #f)
+        (hash-ref bootstrap-defaults "--bs-body-font-size" #f)))
+  (define pill-font-weight
+    (or (pill-direct-ref '(".nav-pills .nav-link" ".nav-link") "font-weight")
+        (pill-context-ref "--bs-nav-link-font-weight")
+        (hash-ref props "--bs-body-font-weight" #f)
+        (hash-ref bootstrap-defaults "--bs-body-font-weight" #f)))
+  (define pill-line-height
+    (or (pill-direct-ref '(".nav-pills .nav-link" ".nav-link") "line-height")
+        (pill-context-ref "--bs-nav-link-line-height")
+        (hash-ref props "--bs-body-line-height" #f)
+        (hash-ref bootstrap-defaults "--bs-body-line-height" #f)))
+  (define pill-text-transform
+    (or (pill-direct-ref '(".nav-pills .nav-link" ".nav-link") "text-transform")
+        "none"))
+  (define pill-padding-x
+    (or (meaningful-style-ref ".nav-pills .nav-link" "padding-left")
+        (nav-custom-ref ".nav-pills" "--bs-nav-link-padding-x")
+        (nav-custom-ref ".nav" "--bs-nav-link-padding-x")
+        (nav-style-ref ".nav-link" "padding-left")))
+  (define pill-padding-y
+    (or (meaningful-style-ref ".nav-pills .nav-link" "padding-top")
+        (nav-custom-ref ".nav-pills" "--bs-nav-link-padding-y")
+        (nav-custom-ref ".nav" "--bs-nav-link-padding-y")
+        (nav-style-ref ".nav-link" "padding-top")))
+  (define pill-border-shorthand
+    (pill-direct-ref pill-link-selectors "border"))
+  (define pill-border-shorthand-none?
+    (and (string? pill-border-shorthand)
+         (regexp-match? #px"^0(?:\\.0+)?(?:px|rem|em)?$"
+                        (string-downcase (string-trim pill-border-shorthand)))))
+  (define pill-border-width
+    (if pill-border-authored?
+        (nav-style-ref ".nav-pills .nav-link" "border-width")
+        "0"))
+  (define pill-border-style
+    (cond
+      [pill-border-shorthand-none?
+       "none"]
+      [pill-border-authored?
+       (nav-style-ref ".nav-pills .nav-link" "border-style")]
+      [else
+       "none"]))
   (define pill-border
-    (nav-style-ref ".nav-pills .nav-link" "border-color"))
+    (if (and (string? pill-border-style)
+             (string-ci=? (string-trim pill-border-style) "none"))
+        pill-color
+        (nav-style-ref ".nav-pills .nav-link" "border-color")))
   (define pill-active-color
     (or (nav-custom-ref ".nav-pills" "--bs-nav-pills-link-active-color")
         (nav-style-ref ".nav-pills .nav-link.active" "color")))
   (define pill-active-bg
     (or (nav-custom-ref ".nav-pills" "--bs-nav-pills-link-active-bg")
         (nav-style-ref ".nav-pills .nav-link.active" "background-color")))
+  (define pill-active-border
+    (if (and (string? pill-border-style)
+             (string-ci=? (string-trim pill-border-style) "none"))
+        pill-active-color
+        (or (nav-style-ref ".nav-pills .nav-link.active" "border-color")
+            pill-border)))
   (define pill-radius
-    (or (nav-custom-ref ".nav-pills" "--bs-nav-pills-border-radius")
-        (nav-style-ref ".nav-pills .nav-link" "border-radius")))
+    (or (pill-direct-ref '(".nav-pills .nav-link") "border-radius")
+        "0"))
   (define-values (computed-style-ref computed-custom-ref)
     (make-computed-selector-refs props rules))
   (define dropdown-bg
@@ -605,6 +728,18 @@
         (computed-style-ref "h3.popover-header" "font-weight")))
   (define-values (button-style-ref button-custom-ref)
     (make-computed-selector-refs props rules))
+  (define button-context-selectors
+    '(".btn" "button"))
+  (define (button-context-ref key)
+    (or (for/or ([selector (in-list button-context-selectors)])
+          (present-ref (button-custom-ref selector key)))
+        (present-ref (hash-ref props key #f))
+        (present-ref (hash-ref bootstrap-defaults key #f))))
+  (define (button-direct-ref selectors property)
+    (last-direct-declaration-value rules
+                                   selectors
+                                   property
+                                   button-context-ref))
   (define btn-padding-x
     (or (button-custom-ref ".btn" "--bs-btn-padding-x")
         (button-style-ref ".btn" "padding-left")))
@@ -620,6 +755,12 @@
   (define btn-line-height
     (or (button-style-ref ".btn" "line-height")
         (button-custom-ref ".btn" "--bs-btn-line-height")))
+  (define btn-border-width
+    (or (button-direct-ref '(".btn") "border-width")
+        (button-custom-ref ".btn" "--bs-btn-border-width")
+        (button-style-ref ".btn" "border-width")
+        (hash-ref props "--bs-border-width" #f)
+        (hash-ref bootstrap-defaults "--bs-border-width" #f)))
   (define btn-radius
     (or (button-style-ref ".btn" "border-radius")
         (button-style-ref "button" "border-radius")))
@@ -665,11 +806,25 @@
   (define btn-light-hover-border
     (or (button-custom-ref ".btn-light" "--bs-btn-hover-border-color")
         (button-style-ref ".btn-light:hover" "border-color")))
+  (define btn-outline-border-width
+    (or (button-direct-ref '(".btn-outline-primary"
+                             ".btn-outline-secondary"
+                             "[class*=btn-outline-]")
+                           "border-width")
+        (selector-ref* button-custom-ref
+                       '(".btn-outline-primary" ".btn-outline-secondary" ".btn")
+                       "--bs-btn-border-width")
+        (selector-ref* button-style-ref
+                       '(".btn-outline-primary" ".btn-outline-secondary" ".btn")
+                       "border-width")
+        btn-border-width))
   (define btn-outline-secondary-color
-    (or (button-custom-ref ".btn-outline-secondary" "--bs-btn-color")
+    (or (button-direct-ref '(".btn-outline-secondary") "color")
+        (button-custom-ref ".btn-outline-secondary" "--bs-btn-color")
         (button-style-ref ".btn-outline-secondary" "color")))
   (define btn-outline-secondary-border
-    (or (button-custom-ref ".btn-outline-secondary" "--bs-btn-border-color")
+    (or (button-direct-ref '(".btn-outline-secondary") "border-color")
+        (button-custom-ref ".btn-outline-secondary" "--bs-btn-border-color")
         (button-style-ref ".btn-outline-secondary" "border-color")))
   (define btn-outline-secondary-hover-bg
     (or (button-custom-ref ".btn-outline-secondary" "--bs-btn-hover-bg")
@@ -989,9 +1144,18 @@
   (define toast-body-padding
     (or (toast-style-ref ".toast-body" "padding")
         toast-padding-x))
+  (define close-button-color-raw
+    (or (toast-style-ref ".btn-close" "color")
+        (toast-custom-ref ".btn-close" "--bs-btn-close-color")))
   (define close-button-color
-    (or (toast-custom-ref ".btn-close" "--bs-btn-close-color")
-        (toast-style-ref ".btn-close" "color")))
+    close-button-color-raw)
+  (define toast-close-color
+    (cond
+      [(and (string? close-button-color-raw)
+            (string-ci=? (string-trim close-button-color-raw) "inherit"))
+       toast-header-color]
+      [else
+       close-button-color-raw]))
   (define close-button-bg
     (or (toast-custom-ref ".btn-close" "--bs-btn-close-bg")
         (toast-style-ref ".btn-close" "background-image")))
@@ -1038,13 +1202,44 @@
     (or (offcanvas-custom-ref ".offcanvas" "--bs-offcanvas-padding-y")
         (offcanvas-style-ref ".offcanvas-header" "padding-top")
         (offcanvas-style-ref ".offcanvas-body" "padding-top")))
+  (define (offcanvas-context-ref key)
+    (or (present-ref (offcanvas-custom-ref ".offcanvas" key))
+        (present-ref (offcanvas-custom-ref ".offcanvas-title" key))
+        (present-ref (offcanvas-custom-ref "h5" key))
+        (present-ref (hash-ref props key #f))
+        (present-ref (hash-ref bootstrap-defaults key #f))))
+  (define (offcanvas-direct-ref selectors property)
+    (last-direct-declaration-value rules
+                                   selectors
+                                   property
+                                   offcanvas-context-ref))
+  (define offcanvas-title-font-family
+    (or (offcanvas-direct-ref '(".offcanvas-title" "h5.offcanvas-title") "font-family")
+        (offcanvas-style-ref "h5" "font-family")
+        (offcanvas-style-ref ".offcanvas-title" "font-family")))
+  (define offcanvas-title-letter-spacing
+    (or (offcanvas-direct-ref '(".offcanvas-title" "h5.offcanvas-title") "letter-spacing")
+        (offcanvas-style-ref "h5" "letter-spacing")
+        (offcanvas-style-ref ".offcanvas-title" "letter-spacing")))
+  (define offcanvas-title-text-transform
+    (or (offcanvas-direct-ref '(".offcanvas-title" "h5.offcanvas-title") "text-transform")
+        (offcanvas-style-ref "h5" "text-transform")
+        (offcanvas-style-ref ".offcanvas-title" "text-transform")))
   (define offcanvas-title-line-height
     (or (offcanvas-custom-ref ".offcanvas" "--bs-offcanvas-title-line-height")
-        (offcanvas-style-ref ".offcanvas-title" "line-height")))
+        (offcanvas-style-ref ".offcanvas-title" "line-height")
+        (offcanvas-style-ref "h5" "line-height")))
+  (define offcanvas-title-color
+    (let ([title-color
+           (or (offcanvas-style-ref ".offcanvas-title" "color")
+               (offcanvas-style-ref "h5" "color"))])
+      (and (meaningful-css-value? title-color) title-color)))
   (define offcanvas-title-font-size
-    (offcanvas-style-ref ".offcanvas-title" "font-size"))
+    (or (offcanvas-style-ref ".offcanvas-title" "font-size")
+        (offcanvas-style-ref "h5" "font-size")))
   (define offcanvas-title-font-weight
-    (offcanvas-style-ref ".offcanvas-title" "font-weight"))
+    (or (offcanvas-style-ref ".offcanvas-title" "font-weight")
+        (offcanvas-style-ref "h5" "font-weight")))
   (define-values (alert-style-ref alert-custom-ref)
     (make-computed-selector-refs props rules))
   (define alert-base-color-direct
@@ -1576,9 +1771,18 @@
         'tab-active-bg tab-active-bg
         'tab-active-border tab-active-border
         'pill-color pill-color
+        'pill-font-size pill-font-size
+        'pill-font-weight pill-font-weight
+        'pill-line-height pill-line-height
+        'pill-text-transform pill-text-transform
+        'pill-padding-x pill-padding-x
+        'pill-padding-y pill-padding-y
         'pill-border pill-border
+        'pill-border-width pill-border-width
+        'pill-border-style pill-border-style
         'pill-active-color pill-active-color
         'pill-active-bg pill-active-bg
+        'pill-active-border pill-active-border
         'pill-radius pill-radius
         'dropdown-bg dropdown-bg
         'dropdown-color dropdown-color
@@ -1632,6 +1836,8 @@
         'btn-font-size btn-font-size
         'btn-font-weight btn-font-weight
         'btn-line-height btn-line-height
+        'btn-border-width btn-border-width
+        'btn-outline-border-width btn-outline-border-width
         'btn-radius btn-radius
         'btn-text-transform btn-text-transform
         'btn-secondary-bg btn-secondary-bg
@@ -1743,6 +1949,7 @@
         'toast-header-bg toast-header-bg
         'toast-header-border-color toast-header-border-color
         'toast-body-padding toast-body-padding
+        'toast-close-color toast-close-color
         'close-button-color close-button-color
         'close-button-bg close-button-bg
         'close-button-glyph close-button-glyph
@@ -1757,7 +1964,11 @@
         'offcanvas-shadow offcanvas-shadow
         'offcanvas-padding-x offcanvas-padding-x
         'offcanvas-padding-y offcanvas-padding-y
+        'offcanvas-title-font-family offcanvas-title-font-family
+        'offcanvas-title-letter-spacing offcanvas-title-letter-spacing
+        'offcanvas-title-text-transform offcanvas-title-text-transform
         'offcanvas-title-line-height offcanvas-title-line-height
+        'offcanvas-title-color offcanvas-title-color
         'offcanvas-title-font-size offcanvas-title-font-size
         'offcanvas-title-font-weight offcanvas-title-font-weight
         'alert-primary-bg alert-primary-bg
@@ -1942,6 +2153,12 @@
 ;; bootstrap-props->theme-model : (hash/c string? string?) [(or/c css-stylesheet? #f)] -> bootstrap-theme?
 ;;   Normalize Bootstrap custom properties into a small semantic theme model.
 (define (bootstrap-props->theme-model props [rules #f])
+  (define-values (theme-style-ref _theme-custom-ref)
+    (make-computed-selector-refs props rules))
+  (define headings-font-family
+    (or (prop-ref* props "--bs-headings-font-family")
+        (theme-style-ref "h5" "font-family")
+        (prop-ref* props "--bs-body-font-family")))
   (bootstrap-theme
    (prop-ref* props "--bs-body-color")
    (prop-ref* props "--bs-body-bg")
@@ -1956,7 +2173,7 @@
    (prop-ref* props "--bs-light")
    (prop-ref* props "--bs-dark")
    (prop-ref* props "--bs-body-font-family")
-   (prop-ref* props "--bs-headings-font-family" "--bs-body-font-family")
+   headings-font-family
    "0.875rem"
    (prop-ref* props "--bs-body-font-size")
    "1.15rem"
@@ -2571,15 +2788,42 @@
   (define pill-color
     (or (theme-component-ref theme 'pill-color)
         navbar-link-color))
+  (define pill-font-size
+    (or (theme-component-ref theme 'pill-font-size)
+        nav-font-size))
+  (define pill-font-weight
+    (or (theme-component-ref theme 'pill-font-weight)
+        nav-font-weight))
+  (define pill-line-height
+    (or (theme-component-ref theme 'pill-line-height)
+        (bootstrap-theme-line-height-base theme)))
+  (define pill-text-transform
+    (or (theme-component-ref theme 'pill-text-transform)
+        "none"))
+  (define pill-padding-x
+    (or (theme-component-ref theme 'pill-padding-x)
+        nav-link-padding-x))
+  (define pill-padding-y
+    (or (theme-component-ref theme 'pill-padding-y)
+        nav-link-padding-y))
   (define pill-border
     (or (theme-component-ref theme 'pill-border)
         "transparent"))
+  (define pill-border-width
+    (or (theme-component-ref theme 'pill-border-width)
+        "0"))
+  (define pill-border-style
+    (or (theme-component-ref theme 'pill-border-style)
+        "solid"))
   (define pill-active-color
     (or (theme-component-ref theme 'pill-active-color)
         (derive-on-color focus-base)))
   (define pill-active-bg
     (or (theme-component-ref theme 'pill-active-bg)
         (bootstrap-theme-primary theme)))
+  (define pill-active-border
+    (or (theme-component-ref theme 'pill-active-border)
+        pill-border))
   (define pill-radius
     (or (theme-component-ref theme 'pill-radius)
         (bootstrap-theme-radius-pill theme)))
@@ -2745,6 +2989,12 @@
   (define button-line-height
     (or (theme-component-ref theme 'btn-line-height)
         "1.25"))
+  (define button-border-width
+    (or (theme-component-ref theme 'btn-border-width)
+        "1px"))
+  (define button-outline-border-width
+    (or (theme-component-ref theme 'btn-outline-border-width)
+        button-border-width))
   (define button-radius
     (or (theme-component-ref theme 'btn-radius)
         "0"))
@@ -3084,7 +3334,10 @@
         toast-padding-x))
   (define close-button-color
     (or (theme-component-ref theme 'close-button-color)
-        "#000"))
+        (bootstrap-theme-fg theme)))
+  (define toast-close-color
+    (or (theme-component-ref theme 'toast-close-color)
+        close-button-color))
   (define close-button-glyph
     (or (theme-component-ref theme 'close-button-glyph)
         "\"✕\""))
@@ -3118,9 +3371,21 @@
   (define offcanvas-padding-y
     (or (theme-component-ref theme 'offcanvas-padding-y)
         "1rem"))
+  (define offcanvas-title-font-family
+    (or (theme-component-ref theme 'offcanvas-title-font-family)
+        (bootstrap-theme-font-family-heading theme)))
+  (define offcanvas-title-letter-spacing
+    (or (theme-component-ref theme 'offcanvas-title-letter-spacing)
+        "normal"))
+  (define offcanvas-title-text-transform
+    (or (theme-component-ref theme 'offcanvas-title-text-transform)
+        "none"))
   (define offcanvas-title-line-height
     (or (theme-component-ref theme 'offcanvas-title-line-height)
         (bootstrap-theme-line-height-base theme)))
+  (define offcanvas-title-color
+    (or (theme-component-ref theme 'offcanvas-title-color)
+        offcanvas-color))
   (define offcanvas-title-font-size
     (or (theme-component-ref theme 'offcanvas-title-font-size)
         (bootstrap-theme-font-size-lg theme)))
@@ -3829,15 +4094,26 @@
     (cons "--we-tab-active-color" tab-active-color)
     (cons "--we-tab-active-border-color" tab-active-border)
     (cons "--we-pill-color" pill-color)
+    (cons "--we-pill-font-size" pill-font-size)
+    (cons "--we-pill-font-weight" pill-font-weight)
+    (cons "--we-pill-line-height" pill-line-height)
+    (cons "--we-pill-text-transform" pill-text-transform)
+    (cons "--we-pill-padding-x" pill-padding-x)
+    (cons "--we-pill-padding-y" pill-padding-y)
     (cons "--we-pill-border-color" pill-border)
+    (cons "--we-pill-border-width" pill-border-width)
+    (cons "--we-pill-border-style" pill-border-style)
     (cons "--we-pill-active-color" pill-active-color)
     (cons "--we-pill-active-bg" pill-active-bg)
+    (cons "--we-pill-active-border-color" pill-active-border)
     (cons "--we-pill-radius" pill-radius)
     (cons "--we-button-padding-x" button-padding-x)
     (cons "--we-button-padding-y" button-padding-y)
     (cons "--we-button-font-size" button-font-size)
     (cons "--we-button-font-weight" button-font-weight)
     (cons "--we-button-line-height" button-line-height)
+    (cons "--we-button-border-width" button-border-width)
+    (cons "--we-button-outline-border-width" button-outline-border-width)
     (cons "--we-button-radius" button-radius)
     (cons "--we-button-text-transform" button-text-transform)
     (cons "--we-button-secondary-bg" button-secondary-bg)
@@ -3949,6 +4225,7 @@
     (cons "--we-toast-header-bg" toast-header-bg)
     (cons "--we-toast-header-border-color" toast-header-border-color)
     (cons "--we-toast-body-padding" toast-body-padding)
+    (cons "--we-toast-close-color" toast-close-color)
     (cons "--we-tooltip-bg" tooltip-bg)
     (cons "--we-tooltip-color" tooltip-color)
     (cons "--we-tooltip-font-size" tooltip-font-size)
@@ -3989,7 +4266,11 @@
     (cons "--we-offcanvas-shadow" offcanvas-shadow)
     (cons "--we-offcanvas-padding-x" offcanvas-padding-x)
     (cons "--we-offcanvas-padding-y" offcanvas-padding-y)
+    (cons "--we-offcanvas-title-font-family" offcanvas-title-font-family)
+    (cons "--we-offcanvas-title-letter-spacing" offcanvas-title-letter-spacing)
+    (cons "--we-offcanvas-title-text-transform" offcanvas-title-text-transform)
     (cons "--we-offcanvas-title-line-height" offcanvas-title-line-height)
+    (cons "--we-offcanvas-title-color" offcanvas-title-color)
     (cons "--we-offcanvas-title-font-size" offcanvas-title-font-size)
     (cons "--we-offcanvas-title-font-weight" offcanvas-title-font-weight)
     (cons "--we-alert-primary-bg" alert-primary-bg)
@@ -4426,12 +4707,33 @@
      "  --bs-nav-link-color: #55595c;\n"
      "  --bs-nav-link-hover-color: #1a1a1a;\n"
      "}\n"
+     ".nav-link {\n"
+     "  display: block;\n"
+     "  padding: var(--bs-nav-link-padding-y) var(--bs-nav-link-padding-x);\n"
+     "  border: 0 solid transparent;\n"
+     "  color: var(--bs-nav-link-color);\n"
+     "  font-size: 1rem;\n"
+     "  font-weight: 300;\n"
+     "  line-height: 1.5;\n"
+     "}\n"
      ".nav-tabs {\n"
      "  --bs-nav-tabs-border-color: #e0e1e2;\n"
      "  --bs-nav-tabs-link-hover-border-color: #f0f1f2 #f0f1f2 #e0e1e2;\n"
      "  --bs-nav-tabs-link-active-color: #000;\n"
      "  --bs-nav-tabs-link-active-bg: #fff;\n"
      "  --bs-nav-tabs-link-active-border-color: #e0e1e2 #e0e1e2 #fff;\n"
+     "}\n"
+     ".nav-pills {\n"
+     "  --bs-nav-pills-border-radius: 0.375rem;\n"
+     "  --bs-nav-pills-link-active-color: #fff;\n"
+     "  --bs-nav-pills-link-active-bg: #1a1a1a;\n"
+     "}\n"
+     ".nav-pills .nav-link {\n"
+     "  border-radius: var(--bs-nav-pills-border-radius);\n"
+     "}\n"
+     ".nav-pills .nav-link.active {\n"
+     "  color: var(--bs-nav-pills-link-active-color);\n"
+     "  background-color: var(--bs-nav-pills-link-active-bg);\n"
      "}\n"
      ".navbar {\n"
      "  --bs-navbar-color: rgba(0, 0, 0, 0.3);\n"
@@ -4447,6 +4749,76 @@
      "}\n"
      ".nav-tabs .nav-link {\n"
      "  background-color: rgba(237, 238, 239, 0.977);\n"
+     "}\n"))
+
+  (define pill-luxlike-bootstrap
+    (string-append
+     ":root {\n"
+     "  --bs-body-color: #1a1a1a;\n"
+     "  --bs-body-bg: #ffffff;\n"
+     "  --bs-border-color: #e0e1e2;\n"
+     "  --bs-primary: #1a1a1a;\n"
+     "  --bs-link-color: #1a1a1a;\n"
+     "  --bs-body-font-size: 1rem;\n"
+     "  --bs-body-font-weight: 300;\n"
+     "  --bs-body-line-height: 1.5;\n"
+     "}\n"
+     ".nav {\n"
+     "  --bs-nav-link-padding-x: 1rem;\n"
+     "  --bs-nav-link-padding-y: 0.5rem;\n"
+     "  --bs-nav-link-font-size: ;\n"
+     "  --bs-nav-link-font-weight: ;\n"
+     "  --bs-nav-link-color: var(--bs-link-color);\n"
+     "}\n"
+     ".nav-link {\n"
+     "  display: block;\n"
+     "  padding: var(--bs-nav-link-padding-y) var(--bs-nav-link-padding-x);\n"
+     "  color: var(--bs-nav-link-color);\n"
+     "  font-size: var(--bs-nav-link-font-size);\n"
+     "  font-weight: var(--bs-nav-link-font-weight);\n"
+     "  line-height: var(--bs-nav-link-line-height);\n"
+     "}\n"
+     ".nav-pills {\n"
+     "  --bs-nav-pills-link-active-color: #fff;\n"
+     "  --bs-nav-pills-link-active-bg: #1a1a1a;\n"
+     "}\n"
+     ".nav-pills .nav-link.active {\n"
+     "  color: var(--bs-nav-pills-link-active-color);\n"
+     "  background-color: var(--bs-nav-pills-link-active-bg);\n"
+     "}\n"
+     ".navbar {\n"
+     "  font-size: 0.875rem;\n"
+     "  font-weight: 600;\n"
+     "  text-transform: uppercase;\n"
+     "}\n"))
+
+  (define pill-sketchylike-bootstrap
+    (string-append
+     ":root {\n"
+     "  --bs-body-color: #333333;\n"
+     "  --bs-body-bg: #ffffff;\n"
+     "  --bs-border-color: #333333;\n"
+     "  --bs-primary: #333333;\n"
+     "  --bs-body-font-size: 1rem;\n"
+     "  --bs-body-font-weight: 700;\n"
+     "  --bs-body-line-height: 1.5;\n"
+     "}\n"
+     ".nav {\n"
+     "  --bs-nav-link-padding-x: 1rem;\n"
+     "  --bs-nav-link-padding-y: 0.5rem;\n"
+     "  --bs-nav-link-font-weight: ;\n"
+     "  --bs-nav-link-color: #333333;\n"
+     "}\n"
+     ".nav-link {\n"
+     "  padding: var(--bs-nav-link-padding-y) var(--bs-nav-link-padding-x);\n"
+     "  color: var(--bs-nav-link-color);\n"
+     "  font-weight: var(--bs-nav-link-font-weight);\n"
+     "}\n"
+     ".nav-pills .nav-link {\n"
+     "  border-radius: 255px 25px 225px 25px/25px 225px 25px 255px;\n"
+     "}\n"
+     ".navbar {\n"
+     "  font-weight: 600;\n"
      "}\n"))
 
   (define overlay-bootstrap
@@ -4513,6 +4885,25 @@
      ".popover-header {\n"
      "  font-size: 1rem;\n"
      "  font-weight: 600;\n"
+     "}\n"
+     ".offcanvas {\n"
+     "  --bs-offcanvas-bg: #ffffff;\n"
+     "  --bs-offcanvas-color: #55595c;\n"
+     "  --bs-offcanvas-padding-x: 1rem;\n"
+     "  --bs-offcanvas-padding-y: 1rem;\n"
+     "  --bs-offcanvas-title-line-height: 1.5;\n"
+     "}\n"
+     ".offcanvas-title {\n"
+     "  margin-bottom: 0;\n"
+     "}\n"
+     "h5 {\n"
+     "  color: #1a1a1a;\n"
+     "  font-family: \"Cabin Sketch\", cursive;\n"
+     "  font-size: 1rem;\n"
+     "  font-weight: 600;\n"
+     "  line-height: 1.5;\n"
+     "  letter-spacing: 3px;\n"
+     "  text-transform: uppercase;\n"
      "}\n"))
 
   (define button-card-bootstrap
@@ -4531,6 +4922,7 @@
       "  --bs-btn-font-size: 1rem;\n"
       "  --bs-btn-font-weight: 600;\n"
       "  --bs-btn-line-height: 1.5rem;\n"
+      "  --bs-btn-border-width: 1px;\n"
       "  --bs-btn-border-radius: 0.375rem;\n"
       "  text-transform: uppercase;\n"
       "}\n"
@@ -4557,6 +4949,10 @@
      "  --bs-btn-hover-color: #000;\n"
      "  --bs-btn-hover-bg: #f0f1f2;\n"
      "  --bs-btn-hover-border-color: #f0f1f2;\n"
+     "  border-color: #f8f9fa;\n"
+     "}\n"
+     "[class*=btn-outline-] {\n"
+     "  border-width: 2px;\n"
      "}\n"
      ".btn-success {\n"
      "  --bs-btn-color: #fff;\n"
@@ -4977,6 +5373,25 @@
     (check-equal? (bootstrap-theme-font-family-heading theme)
                   "system-ui, sans-serif"))
 
+  (test-case "authored heading font family feeds theme model"
+    (define rules
+      (read-css-rules
+       (string-append
+        ":root {\n"
+        "  --bs-body-color: #212529;\n"
+        "  --bs-body-bg: #fff;\n"
+        "  --bs-body-font-family: Neucha, sans-serif;\n"
+        "}\n"
+        "h6, .h6, h5, .h5, h4, .h4, h3, .h3, h2, .h2, h1, .h1 {\n"
+        "  font-family: \"Cabin Sketch\", cursive;\n"
+        "}\n")))
+    (define theme
+      (bootstrap-props->theme-model
+       (extract-bootstrap-theme/rules rules ":root")
+       rules))
+    (check-equal? (bootstrap-theme-font-family-heading theme)
+                  "\"Cabin Sketch\", cursive"))
+
   (test-case "bootstrap mapping keeps body font weight when present"
     (define theme
       (bootstrap-props->theme-model
@@ -5074,14 +5489,57 @@
     (check-equal? (hash-ref token-map "--we-nav-text-transform")
                   "uppercase")
     (check-equal? (hash-ref token-map "--we-tab-active-border-color")
-                  "#e0e1e2 #e0e1e2 #fff"))
+                  "#e0e1e2 #e0e1e2 #fff")
+    (check-equal? (hash-ref token-map "--we-pill-font-size") "1rem")
+    (check-equal? (hash-ref token-map "--we-pill-font-weight") "300")
+    (check-equal? (hash-ref token-map "--we-pill-line-height") "1.5")
+    (check-equal? (hash-ref token-map "--we-pill-padding-x") "1rem")
+    (check-equal? (hash-ref token-map "--we-pill-radius") "0.375rem")
+    (check-equal? (hash-ref token-map "--we-pill-border-width") "0")
+    (check-equal? (hash-ref token-map "--we-pill-border-style") "solid")
+    (check-equal? (hash-ref token-map "--we-pill-active-bg") "#1a1a1a"))
+
+  (test-case "pill extraction ignores navbar typography when nav vars are empty"
+    (define rules (read-css-rules pill-luxlike-bootstrap))
+    (define token-map (bootstrap-rules->token-map rules))
+    (check-equal? (hash-ref token-map "--we-pill-color") "#1a1a1a")
+    (check-equal? (hash-ref token-map "--we-pill-font-size") "1rem")
+    (check-equal? (hash-ref token-map "--we-pill-font-weight") "300")
+    (check-equal? (hash-ref token-map "--we-pill-line-height") "1.5")
+    (check-equal? (hash-ref token-map "--we-pill-border-color") "#1a1a1a")
+    (check-equal? (hash-ref token-map "--we-pill-border-style") "none")
+    (check-equal? (hash-ref token-map "--we-pill-radius") "0"))
+
+  (test-case "pill extraction preserves authored pill selector radius"
+    (define rules (read-css-rules pill-sketchylike-bootstrap))
+    (define token-map (bootstrap-rules->token-map rules))
+    (check-equal? (hash-ref token-map "--we-pill-font-weight") "700")
+    (check-equal? (hash-ref token-map "--we-pill-radius")
+                  "255px 25px 225px 25px/25px 225px 25px 255px"))
+
+  (test-case "pill extraction preserves authored text transform"
+    (define rules
+      (read-css-rules
+       (string-append
+        ":root {\n"
+        "  --bs-body-color: #3e3f3a;\n"
+        "  --bs-body-bg: #ffffff;\n"
+        "}\n"
+        ".sandstone, .nav-pills .nav-link {\n"
+        "  text-transform: uppercase;\n"
+        "}\n")))
+    (define token-map (bootstrap-rules->token-map rules))
+    (check-equal? (hash-ref token-map "--we-pill-text-transform") "uppercase"))
 
   (test-case "component rule extraction feeds button card and badge tokens"
     (define rules (read-css-rules button-card-bootstrap))
     (define token-map (bootstrap-rules->token-map rules))
     (check-equal? (hash-ref token-map "--we-button-padding-x") "1.5rem")
     (check-equal? (hash-ref token-map "--we-button-text-transform") "uppercase")
+    (check-equal? (hash-ref token-map "--we-button-border-width") "1px")
+    (check-equal? (hash-ref token-map "--we-button-outline-border-width") "2px")
     (check-equal? (hash-ref token-map "--we-button-radius") "0")
+    (check-equal? (hash-ref token-map "--we-button-outline-secondary-border") "#f8f9fa")
     (check-equal? (hash-ref token-map "--we-button-secondary-bg") "#fff")
     (check-equal? (hash-ref token-map "--we-button-success-color") "#fff")
     (check-equal? (hash-ref token-map "--we-button-danger-color") "#fff")
@@ -5179,7 +5637,14 @@
     (check-equal? (hash-ref token-map "--we-popover-arrow-height") "0.5rem")
     (check-equal? (hash-ref token-map "--we-popover-header-bg") "#f7f7f7")
     (check-equal? (hash-ref token-map "--we-popover-body-padding-x") "1rem")
-    (check-equal? (hash-ref token-map "--we-popover-title-font-weight") "600"))
+    (check-equal? (hash-ref token-map "--we-popover-title-font-weight") "600")
+    (check-equal? (hash-ref token-map "--we-offcanvas-title-color") "#1a1a1a")
+    (check-equal? (hash-ref token-map "--we-offcanvas-title-font-family")
+                  "\"Cabin Sketch\", cursive")
+    (check-equal? (hash-ref token-map "--we-offcanvas-title-letter-spacing") "3px")
+    (check-equal? (hash-ref token-map "--we-offcanvas-title-text-transform") "uppercase")
+    (check-equal? (hash-ref token-map "--we-offcanvas-title-font-size") "1rem")
+    (check-equal? (hash-ref token-map "--we-offcanvas-title-font-weight") "600"))
 
   (test-case "descendant selectors feed overlay typography tokens"
     (define sandstone-overlay-bootstrap
@@ -5285,6 +5750,27 @@
     (check-equal? (hash-ref token-map "--we-toast-body-padding") "0.75rem")
     (check-equal? (hash-ref token-map "--we-close-button-opacity") "0.5")
     (check-equal? (hash-ref token-map "--we-close-button-radius") "0"))
+
+  (test-case "inherited close button color feeds contextual toast close"
+    (define rules
+      (read-css-rules
+       (string-append
+        ":root {\n"
+        "  --bs-body-color: #212529;\n"
+        "  --bs-body-bg: #ffffff;\n"
+        "  --bs-border-color: #333333;\n"
+        "  --bs-primary: #333333;\n"
+        "}\n"
+        ".btn-close {\n"
+        "  --bs-btn-close-color: inherit;\n"
+        "  color: var(--bs-btn-close-color);\n"
+        "}\n"
+        ".toast-header {\n"
+        "  color: #333333;\n"
+        "}\n")))
+    (define token-map (bootstrap-rules->token-map rules))
+    (check-equal? (hash-ref token-map "--we-close-button-color") "#212529")
+    (check-equal? (hash-ref token-map "--we-toast-close-color") "#333333"))
 
   (test-case "component rule extraction preserves alert variant overrides"
     (define css

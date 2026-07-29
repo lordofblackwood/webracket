@@ -455,8 +455,8 @@
     }
 
     .static-we-offcanvas {
-      padding: 16px;
-      box-shadow: none;
+      padding: 0 !important;
+      box-shadow: none !important;
     }
 
     .offcanvas-demo-body {
@@ -1749,10 +1749,12 @@
                   <h3>Pill Navigation</h3>
                   <div class="sample-body">
                     <div class="sample-stack">
-                      <div class="we-button-group" role="tablist" aria-label="Pill navigation">
-                        <button class="we-button we-button-outline-primary is-active" aria-pressed="true">Preview</button>
-                        <button class="we-button we-button-outline-primary">Tokens</button>
-                        <button class="we-button we-button-outline-primary">Publish</button>
+                      <div class="we-tab-panel we-tab-style-pills">
+                        <div class="we-tab-list pill-demo-row" role="tablist" aria-label="Pill navigation">
+                          <button class="we-tab-btn is-selected" role="tab" aria-selected="true">Preview</button>
+                          <button class="we-tab-btn" role="tab" aria-selected="false">Tokens</button>
+                          <button class="we-tab-btn" role="tab" aria-selected="false">Publish</button>
+                        </div>
                       </div>
                       <div class="sample-note">Compact pill-style section switching.</div>
                     </div>
@@ -1781,10 +1783,12 @@
                 <section class="sample-card">
                   <h3>Offcanvas Panel</h3>
                   <div class="sample-body">
-                    <div class="we-offcanvas-panel static-we-offcanvas" role="dialog" aria-modal="false">
-                      <button class="we-close-button" aria-label="Close"></button>
-                      <div class="we-popover-title">Theme Drawer</div>
-                      <div class="offcanvas-demo-body">
+                    <div class="we-offcanvas-panel is-end static-we-offcanvas" role="dialog" aria-modal="false">
+                      <div class="we-offcanvas-header">
+                        <h5 class="we-offcanvas-title">Theme Drawer</h5>
+                        <button class="we-close-button" aria-label="Close"></button>
+                      </div>
+                      <div class="we-offcanvas-body offcanvas-demo-body">
                         <div>Review generated tokens before publishing the active theme.</div>
                         <button class="we-button we-button-primary">Apply Changes</button>
                       </div>
