@@ -7,7 +7,7 @@ SINGLE_PAGE ?= test-browser-parity-profile.html
 SPLIT_RUNTIME_TOOL_COMPILED_ROOT ?= tmp/smoke-split-runtime-tool-compiled-root
 SPLIT_RUNTIME_BROWSER_COMPILED_ROOT ?= tmp/smoke-split-runtime-browser-compiled-root
 
-.PHONY: help goal1-fast smoke-ci smoke-headless-lite smoke-style smoke-theme smoke-theme-contracts smoke-theme-core smoke-theme-visual smoke-verify smoke-quick smoke-release smoke-one smoke-list smoke-commands smoke-compare-navbars smoke-compare-buttons smoke-compare-all smoke-solar-parity smoke-solar-sections smoke-solar-sections-gate smoke-split-runtime-readiness smoke-split-runtime-readiness-fast smoke-split-runtime-default smoke-split-runtime-default-fast smoke-split-runtime-provider-ffi smoke-split-runtime-browser smoke-split-runtime-browser-url smoke-split-runtime-browser-provider-runtime smoke-split-runtime-browser-provider-runtime-url smoke-split-runtime-prewarm smoke-split-runtime-warm-process smoke-split-runtime-provider-runtime smoke-split-runtime-provider-runtime-warm-process smoke-split-runtime-procedure-boundary smoke-split-runtime-examples smoke-split-runtime-examples-list smoke-split-runtime-examples-audit smoke-split-runtime-examples-fast smoke-split-runtime-examples-chunked smoke-split-runtime-examples-chunk-1 smoke-split-runtime-examples-chunk-2 smoke-split-runtime-examples-chunk-3 smoke-split-runtime-examples-chunk-4 smoke-split-ffi-mixed-cache-browser smoke-split-ffi-mixed-cache-browser-list smoke-split-ffi-mixed-cache-browser-fast smoke-split-ffi-mixed-cache-browser-broad smoke-split-ffi-mixed-cache-browser-browser-group smoke-split-ffi-mixed-cache-browser-test-dir-group smoke-split-ffi-mixed-cache-browser-chunked smoke-split-ffi-mixed-cache-browser-chunk-1 smoke-split-ffi-mixed-cache-browser-chunk-2 smoke-split-ffi-mixed-cache-browser-chunk-3 smoke-split-ffi-mixed-cache-browser-chunk-4 smoke-treelist-shape dom-headless measure-letrec-test-basics measure-split-runtime-warm-process measure-split-runtime-provider-runtime measure-split-runtime-provider-runtime-warm-process
+.PHONY: help goal1-fast smoke-ci smoke-headless-lite smoke-style smoke-theme smoke-theme-contracts smoke-theme-core smoke-theme-visual smoke-verify smoke-quick smoke-release smoke-one smoke-list smoke-commands smoke-compare-navbars smoke-compare-buttons smoke-compare-all smoke-thematic-bootstrap-compare smoke-solar-parity smoke-solar-sections smoke-solar-sections-gate smoke-split-runtime-readiness smoke-split-runtime-readiness-fast smoke-split-runtime-default smoke-split-runtime-default-fast smoke-split-runtime-provider-ffi smoke-split-runtime-browser smoke-split-runtime-browser-url smoke-split-runtime-browser-provider-runtime smoke-split-runtime-browser-provider-runtime-url smoke-split-runtime-prewarm smoke-split-runtime-warm-process smoke-split-runtime-provider-runtime smoke-split-runtime-provider-runtime-warm-process smoke-split-runtime-procedure-boundary smoke-split-runtime-examples smoke-split-runtime-examples-list smoke-split-runtime-examples-audit smoke-split-runtime-examples-fast smoke-split-runtime-examples-chunked smoke-split-runtime-examples-chunk-1 smoke-split-runtime-examples-chunk-2 smoke-split-runtime-examples-chunk-3 smoke-split-runtime-examples-chunk-4 smoke-split-ffi-mixed-cache-browser smoke-split-ffi-mixed-cache-browser-list smoke-split-ffi-mixed-cache-browser-fast smoke-split-ffi-mixed-cache-browser-broad smoke-split-ffi-mixed-cache-browser-browser-group smoke-split-ffi-mixed-cache-browser-test-dir-group smoke-split-ffi-mixed-cache-browser-chunked smoke-split-ffi-mixed-cache-browser-chunk-1 smoke-split-ffi-mixed-cache-browser-chunk-2 smoke-split-ffi-mixed-cache-browser-chunk-3 smoke-split-ffi-mixed-cache-browser-chunk-4 smoke-treelist-shape dom-headless measure-letrec-test-basics measure-split-runtime-warm-process measure-split-runtime-provider-runtime measure-split-runtime-provider-runtime-warm-process
 
 help:
 	@echo "Available targets:"
@@ -29,6 +29,7 @@ help:
 	@echo "  smoke-compare-navbars Run Bootswatch-vs-solar2 navbar compare sweep."
 	@echo "  smoke-compare-buttons Run Bootswatch-vs-solar2 button compare sweep."
 	@echo "  smoke-compare-all     Run both compare sweeps."
+	@echo "  smoke-thematic-bootstrap-compare  Run Thematic Bootstrap compare computed-style gate."
 	@echo "  smoke-solar-parity    Run full Solar2 parity sweep (accordion/navbar/forms/tables/list/progress)."
 	@echo "  smoke-solar-sections  Run per-section Solar2 parity report (with RMSE per section)."
 	@echo "  smoke-solar-sections-gate  Run quick per-section Solar2 RMSE threshold gate."
@@ -130,6 +131,7 @@ smoke-list:
 	@echo "smoke-compare-navbars"
 	@echo "smoke-compare-buttons"
 	@echo "smoke-compare-all"
+	@echo "smoke-thematic-bootstrap-compare"
 	@echo "smoke-solar-parity"
 	@echo "smoke-solar-sections"
 	@echo "smoke-solar-sections-gate"
@@ -180,6 +182,9 @@ smoke-compare-buttons:
 	cd $(SMOKE_DIR) && for r in solid disabled outline sizes; do node ./compare-buttons.cjs $$r; done
 
 smoke-compare-all: smoke-compare-buttons smoke-compare-navbars
+
+smoke-thematic-bootstrap-compare:
+	cd $(SMOKE_DIR) && ./check-thematic-bootstrap-compare.sh
 
 smoke-solar-parity:
 	cd $(SMOKE_DIR) && ./check-solar-parity-sweep.sh

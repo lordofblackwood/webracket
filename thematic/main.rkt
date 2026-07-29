@@ -39,6 +39,7 @@
    font-size-md
    font-size-lg
    line-height-base
+   letter-spacing-base
    font-weight-normal
    font-weight-semibold
    font-weight-bold
@@ -655,9 +656,21 @@
     (or (computed-custom-ref ".tooltip" "--bs-tooltip-color")
         (computed-style-ref ".tooltip-inner" "color")))
   (define tooltip-font-size
-    (or (computed-custom-ref ".tooltip" "--bs-tooltip-font-size")
+    (or (computed-style-ref ".tooltip-inner" "font-size")
         (computed-style-ref ".tooltip" "font-size")
-        (computed-style-ref ".tooltip-inner" "font-size")))
+        (computed-custom-ref ".tooltip" "--bs-tooltip-font-size")))
+  (define tooltip-font-weight
+    (or (computed-style-ref ".tooltip-inner" "font-weight")
+        (computed-style-ref ".tooltip" "font-weight")))
+  (define tooltip-line-height
+    (or (computed-style-ref ".tooltip-inner" "line-height")
+        (computed-style-ref ".tooltip" "line-height")))
+  (define tooltip-letter-spacing
+    (or (computed-style-ref ".tooltip-inner" "letter-spacing")
+        (computed-style-ref ".tooltip" "letter-spacing")))
+  (define tooltip-text-transform
+    (or (computed-style-ref ".tooltip-inner" "text-transform")
+        (computed-style-ref ".tooltip" "text-transform")))
   (define tooltip-radius
     (or (computed-style-ref ".tooltip-inner" "border-radius")
         (computed-custom-ref ".tooltip" "--bs-tooltip-border-radius")))
@@ -670,6 +683,17 @@
   (define tooltip-padding-y
     (or (computed-custom-ref ".tooltip" "--bs-tooltip-padding-y")
         (computed-style-ref ".tooltip-inner" "padding-top")))
+  (define tooltip-border-width
+    (or (computed-style-ref ".tooltip-inner" "border-width")
+        (computed-style-ref ".tooltip-inner" "border-top-width")
+        "0"))
+  (define tooltip-border-color
+    (or (computed-style-ref ".tooltip-inner" "border-color")
+        (computed-style-ref ".tooltip-inner" "border-top-color")
+        tooltip-bg))
+  (define tooltip-shadow
+    (or (computed-style-ref ".tooltip-inner" "box-shadow")
+        (computed-style-ref ".tooltip" "box-shadow")))
   (define popover-bg
     (or (computed-custom-ref ".popover" "--bs-popover-bg")
         (computed-style-ref ".popover" "background-color")))
@@ -677,8 +701,16 @@
     (or (computed-custom-ref ".popover" "--bs-popover-max-width")
         (computed-style-ref ".popover" "max-width")))
   (define popover-font-size
-    (or (computed-custom-ref ".popover" "--bs-popover-font-size")
-        (computed-style-ref ".popover" "font-size")))
+    (or (computed-style-ref ".popover" "font-size")
+        (computed-custom-ref ".popover" "--bs-popover-font-size")))
+  (define popover-font-weight
+    (computed-style-ref ".popover" "font-weight"))
+  (define popover-line-height
+    (computed-style-ref ".popover" "line-height"))
+  (define popover-letter-spacing
+    (computed-style-ref ".popover" "letter-spacing"))
+  (define popover-text-transform
+    (computed-style-ref ".popover" "text-transform"))
   (define popover-color
     (or (computed-custom-ref ".popover" "--bs-popover-body-color")
         (computed-custom-ref ".popover" "--bs-popover-color")
@@ -720,12 +752,22 @@
   (define popover-body-padding-y
     (or (computed-custom-ref ".popover" "--bs-popover-body-padding-y")
         (computed-style-ref ".popover-body" "padding-top")))
+  (define popover-title-font-family
+    (or (computed-style-ref ".popover-header" "font-family")
+        (computed-style-ref ".popover" "font-family")))
   (define popover-title-font-size
-    (or (computed-style-ref ".popover-header" "font-size")
+    (or (computed-custom-ref ".popover" "--bs-popover-header-font-size")
+        (computed-style-ref ".popover-header" "font-size")
         (computed-custom-ref ".popover-header" "--bs-popover-header-font-size")))
   (define popover-title-font-weight
     (or (computed-style-ref ".popover-header" "font-weight")
         (computed-style-ref "h3.popover-header" "font-weight")))
+  (define popover-title-line-height
+    (computed-style-ref ".popover-header" "line-height"))
+  (define popover-title-letter-spacing
+    (computed-style-ref ".popover-header" "letter-spacing"))
+  (define popover-title-text-transform
+    (computed-style-ref ".popover-header" "text-transform"))
   (define-values (button-style-ref button-custom-ref)
     (make-computed-selector-refs props rules))
   (define button-context-selectors
@@ -1491,6 +1533,10 @@
         (check-style-ref ".form-check-input[type=checkbox]" "border-radius")
         (check-style-ref ".form-check-input" "border-radius")
         "0"))
+  (define radio-radius
+    (or (check-style-ref ".form-check-input[type=radio]" "border-radius")
+        (check-style-ref "[type=radio]" "border-radius")
+        "50%"))
   (define check-focus-border-color
     (check-style-ref ".form-check-input:focus" "border-color"))
   (define check-focus-shadow
@@ -1502,6 +1548,9 @@
   (define check-checked-icon
     (or (check-custom-ref ".form-check-input:checked[type=checkbox]" "--bs-form-check-bg-image")
         (check-style-ref ".form-check-input:checked[type=checkbox]" "background-image")))
+  (define radio-checked-icon
+    (or (check-custom-ref ".form-check-input:checked[type=radio]" "--bs-form-check-bg-image")
+        (check-style-ref ".form-check-input:checked[type=radio]" "background-image")))
   (define check-disabled-opacity
     (check-style-ref ".form-check-input:disabled" "opacity"))
   (define check-before-display
@@ -1809,13 +1858,24 @@
         'tooltip-bg tooltip-bg
         'tooltip-color tooltip-color
         'tooltip-font-size tooltip-font-size
+        'tooltip-font-weight tooltip-font-weight
+        'tooltip-line-height tooltip-line-height
+        'tooltip-letter-spacing tooltip-letter-spacing
+        'tooltip-text-transform tooltip-text-transform
         'tooltip-radius tooltip-radius
         'tooltip-opacity tooltip-opacity
         'tooltip-padding-x tooltip-padding-x
         'tooltip-padding-y tooltip-padding-y
+        'tooltip-border-width tooltip-border-width
+        'tooltip-border-color tooltip-border-color
+        'tooltip-shadow tooltip-shadow
         'popover-bg popover-bg
         'popover-max-width popover-max-width
         'popover-font-size popover-font-size
+        'popover-font-weight popover-font-weight
+        'popover-line-height popover-line-height
+        'popover-letter-spacing popover-letter-spacing
+        'popover-text-transform popover-text-transform
         'popover-color popover-color
         'popover-border-color popover-border-color
         'popover-border-width popover-border-width
@@ -1829,8 +1889,12 @@
         'popover-header-padding-y popover-header-padding-y
         'popover-body-padding-x popover-body-padding-x
         'popover-body-padding-y popover-body-padding-y
+        'popover-title-font-family popover-title-font-family
         'popover-title-font-size popover-title-font-size
         'popover-title-font-weight popover-title-font-weight
+        'popover-title-line-height popover-title-line-height
+        'popover-title-letter-spacing popover-title-letter-spacing
+        'popover-title-text-transform popover-title-text-transform
         'btn-padding-x btn-padding-x
         'btn-padding-y btn-padding-y
         'btn-font-size btn-font-size
@@ -2056,11 +2120,13 @@
         'check-size check-size
         'check-height check-height
         'check-radius check-radius
+        'radio-radius radio-radius
         'check-focus-border-color check-focus-border-color
         'check-focus-shadow check-focus-shadow
         'check-checked-bg check-checked-bg
         'check-checked-border-color check-checked-border-color
         'check-checked-icon check-checked-icon
+        'radio-checked-icon radio-checked-icon
         'check-disabled-opacity check-disabled-opacity
         'check-before-display check-before-display
         'check-before-position check-before-position
@@ -2159,6 +2225,9 @@
     (or (prop-ref* props "--bs-headings-font-family")
         (theme-style-ref "h5" "font-family")
         (prop-ref* props "--bs-body-font-family")))
+  (define body-letter-spacing
+    (or (theme-style-ref "body" "letter-spacing")
+        "normal"))
   (bootstrap-theme
    (prop-ref* props "--bs-body-color")
    (prop-ref* props "--bs-body-bg")
@@ -2178,6 +2247,7 @@
    (prop-ref* props "--bs-body-font-size")
    "1.15rem"
    (prop-ref* props "--bs-body-line-height")
+   body-letter-spacing
    (or (hash-ref props "--bs-body-font-weight" #f)
        (and rules
             (hash-ref (css-compute-style-for-selector-group rules
@@ -2901,6 +2971,18 @@
   (define tooltip-font-size
     (or (theme-component-ref theme 'tooltip-font-size)
         (bootstrap-theme-font-size-sm theme)))
+  (define tooltip-font-weight
+    (or (theme-component-ref theme 'tooltip-font-weight)
+        (bootstrap-theme-font-weight-normal theme)))
+  (define tooltip-line-height
+    (or (theme-component-ref theme 'tooltip-line-height)
+        (bootstrap-theme-line-height-base theme)))
+  (define tooltip-letter-spacing
+    (or (theme-component-ref theme 'tooltip-letter-spacing)
+        "normal"))
+  (define tooltip-text-transform
+    (or (theme-component-ref theme 'tooltip-text-transform)
+        "none"))
   (define tooltip-radius
     (or (theme-component-ref theme 'tooltip-radius)
         (bootstrap-theme-radius-sm theme)))
@@ -2913,6 +2995,9 @@
   (define tooltip-padding-y
     (or (theme-component-ref theme 'tooltip-padding-y)
         "0.25rem"))
+  (define tooltip-border-width
+    (or (theme-component-ref theme 'tooltip-border-width)
+        "0"))
   (define tooltip-border-color
     (or (theme-component-ref theme 'tooltip-border-color)
         tooltip-bg))
@@ -2929,6 +3014,18 @@
   (define popover-font-size
     (or (theme-component-ref theme 'popover-font-size)
         (bootstrap-theme-font-size-sm theme)))
+  (define popover-font-weight
+    (or (theme-component-ref theme 'popover-font-weight)
+        (bootstrap-theme-font-weight-normal theme)))
+  (define popover-line-height
+    (or (theme-component-ref theme 'popover-line-height)
+        (bootstrap-theme-line-height-base theme)))
+  (define popover-letter-spacing
+    (or (theme-component-ref theme 'popover-letter-spacing)
+        "normal"))
+  (define popover-text-transform
+    (or (theme-component-ref theme 'popover-text-transform)
+        "none"))
   (define popover-color
     (or (theme-component-ref theme 'popover-color)
         (bootstrap-theme-fg theme)))
@@ -2955,7 +3052,7 @@
         (hash-ref surface-map 'surface-muted)))
   (define popover-header-color
     (or (theme-component-ref theme 'popover-header-color)
-        (rgb->css emphasis-fg)))
+        popover-color))
   (define popover-header-padding-x
     (or (theme-component-ref theme 'popover-header-padding-x)
         "0.75rem"))
@@ -2968,12 +3065,24 @@
   (define popover-body-padding-y
     (or (theme-component-ref theme 'popover-body-padding-y)
         "0.5rem"))
+  (define popover-title-font-family
+    (or (theme-component-ref theme 'popover-title-font-family)
+        (bootstrap-theme-font-family-heading theme)))
   (define popover-title-font-size
     (or (theme-component-ref theme 'popover-title-font-size)
         (bootstrap-theme-font-size-lg theme)))
   (define popover-title-font-weight
     (or (theme-component-ref theme 'popover-title-font-weight)
         (bootstrap-theme-font-weight-semibold theme)))
+  (define popover-title-line-height
+    (or (theme-component-ref theme 'popover-title-line-height)
+        "1.2"))
+  (define popover-title-letter-spacing
+    (or (theme-component-ref theme 'popover-title-letter-spacing)
+        "normal"))
+  (define popover-title-text-transform
+    (or (theme-component-ref theme 'popover-title-text-transform)
+        "none"))
   (define button-padding-x
     (or (theme-component-ref theme 'btn-padding-x)
         "0.75rem"))
@@ -3689,6 +3798,9 @@
   (define check-radius
     (or (theme-component-ref theme 'check-radius)
         "0"))
+  (define radio-radius
+    (or (theme-component-ref theme 'radio-radius)
+        "50%"))
   (define check-focus-border-color
     (or (theme-component-ref theme 'check-focus-border-color)
         field-focus-border-color))
@@ -3705,6 +3817,11 @@
     (if custom-check-pseudo?
         "none"
         (or (theme-component-ref theme 'check-checked-icon)
+            "none")))
+  (define radio-checked-icon
+    (if custom-check-pseudo?
+        "none"
+        (or (theme-component-ref theme 'radio-checked-icon)
             "none")))
   (define check-disabled-opacity
     (or (theme-component-ref theme 'check-disabled-opacity)
@@ -4229,16 +4346,25 @@
     (cons "--we-tooltip-bg" tooltip-bg)
     (cons "--we-tooltip-color" tooltip-color)
     (cons "--we-tooltip-font-size" tooltip-font-size)
+    (cons "--we-tooltip-font-weight" tooltip-font-weight)
+    (cons "--we-tooltip-line-height" tooltip-line-height)
+    (cons "--we-tooltip-letter-spacing" tooltip-letter-spacing)
+    (cons "--we-tooltip-text-transform" tooltip-text-transform)
     (cons "--we-tooltip-radius" tooltip-radius)
     (cons "--we-tooltip-opacity" tooltip-opacity)
     (cons "--we-tooltip-padding-x" tooltip-padding-x)
     (cons "--we-tooltip-padding-y" tooltip-padding-y)
+    (cons "--we-tooltip-border-width" tooltip-border-width)
     (cons "--we-tooltip-border-color" tooltip-border-color)
     (cons "--we-tooltip-shadow" tooltip-shadow)
     (cons "--we-tooltip-arrow-size" tooltip-arrow-size)
     (cons "--we-popover-bg" popover-bg)
     (cons "--we-popover-max-width" popover-max-width)
     (cons "--we-popover-font-size" popover-font-size)
+    (cons "--we-popover-font-weight" popover-font-weight)
+    (cons "--we-popover-line-height" popover-line-height)
+    (cons "--we-popover-letter-spacing" popover-letter-spacing)
+    (cons "--we-popover-text-transform" popover-text-transform)
     (cons "--we-popover-color" popover-color)
     (cons "--we-popover-border-color" popover-border-color)
     (cons "--we-popover-border-width" popover-border-width)
@@ -4252,8 +4378,12 @@
     (cons "--we-popover-header-padding-y" popover-header-padding-y)
     (cons "--we-popover-body-padding-x" popover-body-padding-x)
     (cons "--we-popover-body-padding-y" popover-body-padding-y)
+    (cons "--we-popover-title-font-family" popover-title-font-family)
     (cons "--we-popover-title-font-size" popover-title-font-size)
     (cons "--we-popover-title-font-weight" popover-title-font-weight)
+    (cons "--we-popover-title-line-height" popover-title-line-height)
+    (cons "--we-popover-title-letter-spacing" popover-title-letter-spacing)
+    (cons "--we-popover-title-text-transform" popover-title-text-transform)
     (cons "--we-close-button-color" close-button-color)
     (cons "--we-close-glyph" close-button-glyph)
     (cons "--we-close-button-opacity" close-button-opacity)
@@ -4363,11 +4493,13 @@
     (cons "--we-check-font-size" check-font-size)
     (cons "--we-check-line-height" check-line-height)
     (cons "--we-check-radius" check-radius)
+    (cons "--we-radio-radius" radio-radius)
     (cons "--we-check-focus-border-color" check-focus-border-color)
     (cons "--we-check-focus-shadow" check-focus-shadow)
     (cons "--we-check-checked-bg" check-checked-bg)
     (cons "--we-check-checked-border-color" check-checked-border-color)
     (cons "--we-check-checked-icon" check-checked-icon)
+    (cons "--we-radio-checked-icon" radio-checked-icon)
     (cons "--we-check-disabled-opacity" check-disabled-opacity)
     (cons "--we-check-before-display" check-before-display)
     (cons "--we-check-before-position" check-before-position)
@@ -4492,6 +4624,7 @@
     (cons "--we-font-size-md" (bootstrap-theme-font-size-md theme))
     (cons "--we-font-size-lg" (bootstrap-theme-font-size-lg theme))
     (cons "--we-line-height-base" (bootstrap-theme-line-height-base theme))
+    (cons "--we-letter-spacing-base" (bootstrap-theme-letter-spacing-base theme))
     (cons "--we-font-weight-normal" (bootstrap-theme-font-weight-normal theme))
     (cons "--we-font-weight-semibold" (bootstrap-theme-font-weight-semibold theme))
     (cons "--we-font-weight-bold" (bootstrap-theme-font-weight-bold theme))
@@ -4528,6 +4661,7 @@
    "  font-size: var(--we-font-size-md);\n"
    "  font-weight: var(--we-font-weight-normal);\n"
    "  line-height: var(--we-line-height-base);\n"
+   "  letter-spacing: var(--we-letter-spacing-base);\n"
    "  margin: 0;\n"
    "  padding: 0;\n"
    "}\n\n"))
@@ -4864,6 +4998,14 @@
      "  --bs-tooltip-border-radius: 0;\n"
      "  --bs-tooltip-opacity: 1;\n"
      "}\n"
+     ".tooltip-inner {\n"
+     "  border: 0;\n"
+     "  font-weight: 500;\n"
+     "  line-height: 1.25;\n"
+     "  letter-spacing: normal;\n"
+     "  text-transform: uppercase;\n"
+     "  box-shadow: none;\n"
+     "}\n"
      ".popover {\n"
      "  --bs-popover-bg: #ffffff;\n"
      "  --bs-popover-max-width: 276px;\n"
@@ -4883,8 +5025,12 @@
      "  --bs-popover-body-padding-y: 0.5rem;\n"
      "}\n"
      ".popover-header {\n"
+     "  font-family: \"Cabin Sketch\", cursive;\n"
      "  font-size: 1rem;\n"
      "  font-weight: 600;\n"
+     "  line-height: 1.2;\n"
+     "  letter-spacing: 3px;\n"
+     "  text-transform: uppercase;\n"
      "}\n"
      ".offcanvas {\n"
      "  --bs-offcanvas-bg: #ffffff;\n"
@@ -5103,6 +5249,9 @@
      "}\n"
      ".form-check-input:checked[type=checkbox] {\n"
      "  --bs-form-check-bg-image: url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3e%3cpath fill='none' stroke='%23fff' stroke-linecap='round' stroke-linejoin='round' stroke-width='3' d='m6 10 3 3 6-6'/%3e%3c/svg%3e\");\n"
+     "}\n"
+     ".form-check-input:checked[type=radio] {\n"
+     "  --bs-form-check-bg-image: url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='-4 -4 8 8'%3e%3ccircle r='2' fill='%23fff'/%3e%3c/svg%3e\");\n"
      "}\n"
      ".form-check-input:disabled {\n"
      "  opacity: 0.5;\n"
@@ -5392,6 +5541,25 @@
     (check-equal? (bootstrap-theme-font-family-heading theme)
                   "\"Cabin Sketch\", cursive"))
 
+  (test-case "authored body letter spacing feeds theme model"
+    (define rules
+      (read-css-rules
+       (string-append
+        ":root {\n"
+        "  --bs-body-color: #212529;\n"
+        "  --bs-body-bg: #fff;\n"
+        "}\n"
+        "body {\n"
+        "  letter-spacing: 1px;\n"
+        "}\n")))
+    (define theme
+      (bootstrap-props->theme-model
+       (extract-bootstrap-theme/rules rules ":root")
+       rules))
+    (define token-map (bootstrap-rules->token-map rules))
+    (check-equal? (bootstrap-theme-letter-spacing-base theme) "1px")
+    (check-equal? (hash-ref token-map "--we-letter-spacing-base") "1px"))
+
   (test-case "bootstrap mapping keeps body font weight when present"
     (define theme
       (bootstrap-props->theme-model
@@ -5587,6 +5755,8 @@
     (check-equal? (hash-ref token-map "--we-check-size") "1em")
     (check-equal? (hash-ref token-map "--we-check-checked-bg") "#1a1a1a")
     (check-true (regexp-match? #px"^url\\(" (hash-ref token-map "--we-check-checked-icon")))
+    (check-equal? (hash-ref token-map "--we-radio-radius") "50%")
+    (check-true (regexp-match? #px"^url\\(" (hash-ref token-map "--we-radio-checked-icon")))
     (check-equal? (hash-ref token-map "--we-switch-width") "2em")
     (check-true (regexp-match? #px"^url\\(" (hash-ref token-map "--we-switch-bg-icon")))
     (check-equal? (hash-ref token-map "--we-range-height") "1.5rem")
@@ -5630,14 +5800,26 @@
     (check-equal? (hash-ref token-map "--we-menu-item-active-fg") "#ffffff")
     (check-equal? (hash-ref token-map "--we-tooltip-bg") "#1a1a1a")
     (check-equal? (hash-ref token-map "--we-tooltip-color") "#ffffff")
+    (check-equal? (hash-ref token-map "--we-tooltip-font-weight") "500")
+    (check-equal? (hash-ref token-map "--we-tooltip-line-height") "1.25")
+    (check-equal? (hash-ref token-map "--we-tooltip-letter-spacing") "normal")
+    (check-equal? (hash-ref token-map "--we-tooltip-text-transform") "uppercase")
     (check-equal? (hash-ref token-map "--we-tooltip-radius") "0")
+    (check-equal? (hash-ref token-map "--we-tooltip-border-width") "0")
+    (check-equal? (hash-ref token-map "--we-tooltip-shadow") "none")
     (check-equal? (hash-ref token-map "--we-popover-max-width") "276px")
     (check-equal? (hash-ref token-map "--we-popover-font-size") "0.875rem")
     (check-equal? (hash-ref token-map "--we-popover-arrow-width") "1rem")
     (check-equal? (hash-ref token-map "--we-popover-arrow-height") "0.5rem")
     (check-equal? (hash-ref token-map "--we-popover-header-bg") "#f7f7f7")
     (check-equal? (hash-ref token-map "--we-popover-body-padding-x") "1rem")
+    (check-equal? (hash-ref token-map "--we-popover-title-font-family")
+                  "\"Cabin Sketch\", cursive")
+    (check-equal? (hash-ref token-map "--we-popover-title-font-size") "1rem")
     (check-equal? (hash-ref token-map "--we-popover-title-font-weight") "600")
+    (check-equal? (hash-ref token-map "--we-popover-title-line-height") "1.2")
+    (check-equal? (hash-ref token-map "--we-popover-title-letter-spacing") "3px")
+    (check-equal? (hash-ref token-map "--we-popover-title-text-transform") "uppercase")
     (check-equal? (hash-ref token-map "--we-offcanvas-title-color") "#1a1a1a")
     (check-equal? (hash-ref token-map "--we-offcanvas-title-font-family")
                   "\"Cabin Sketch\", cursive")

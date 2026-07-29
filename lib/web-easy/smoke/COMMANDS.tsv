@@ -23,3 +23,4 @@ make	make smoke-release	Run smoke-commands + smoke-quick + smoke-ci.
 make	make smoke-list	Print canonical commands.
 make	make smoke-commands	Regenerate COMMANDS.tsv.
 make	make smoke-one SINGLE_COMPILE=... SINGLE_PAGE=...	Run one page headless via Make variables.
+make	make smoke-thematic-bootstrap-compare	Run Thematic Bootstrap compare computed-style gate.

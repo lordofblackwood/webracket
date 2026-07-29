@@ -41,6 +41,7 @@ OUT_FILE="$SCRIPT_DIR/COMMANDS.tsv"
   echo -e "make\tmake smoke-list\tPrint canonical commands."
   echo -e "make\tmake smoke-commands\tRegenerate COMMANDS.tsv."
   echo -e "make\tmake smoke-one SINGLE_COMPILE=... SINGLE_PAGE=...\tRun one page headless via Make variables."
+  echo -e "make\tmake smoke-thematic-bootstrap-compare\tRun Thematic Bootstrap compare computed-style gate."
 } > "$OUT_FILE"
 
 echo "Wrote $OUT_FILE"
