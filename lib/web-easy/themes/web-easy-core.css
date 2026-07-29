@@ -48,6 +48,21 @@
   align-items: center;
 }
 
+/* Navigation bars: shared flex structure; themes own colors and spacing. */
+.we-navigation-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.we-navigation-bar-items {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--we-space-sm, 4px);
+  flex: 1 1 auto;
+}
+
 /* Navbar search controls: keep input and button heights aligned. */
 .we-navigation-bar .we-hpanel {
   align-items: stretch;

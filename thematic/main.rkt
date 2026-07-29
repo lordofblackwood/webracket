@@ -342,6 +342,34 @@
                                    selectors
                                    property
                                    pill-context-ref))
+  (define tab-context-selectors
+    '(".nav-tabs .nav-link" ".nav-tabs" ".nav"))
+  (define (tab-context-ref key)
+    (bootstrap-context-ref tab-context-selectors key))
+  (define (tab-direct-ref selectors property)
+    (last-direct-declaration-value rules
+                                   selectors
+                                   property
+                                   tab-context-ref))
+  (define (box-shorthand-side value side)
+    (and (present-css-value? value)
+         (not (regexp-match? #px"[()]" value))
+         (let ([parts (string-split (string-trim value))])
+           (and (pair? parts)
+                (case (length parts)
+                  [(1) (first parts)]
+                  [(2) (case side
+                         [(top bottom) (first parts)]
+                         [else (second parts)])]
+                  [(3) (case side
+                         [(top) (first parts)]
+                         [(left right) (second parts)]
+                         [else (third parts)])]
+                  [else (case side
+                          [(top) (first parts)]
+                          [(right) (second parts)]
+                          [(bottom) (third parts)]
+                          [else (fourth parts)])])))))
   (define (direct-declaration-exists? selectors properties)
     (and (css-stylesheet? rules)
          (for/or ([property (in-list properties)])
@@ -403,8 +431,27 @@
                      ".nav-pills .nav-link"
                      ".navbar")
                    "text-transform"))
+  (define nav-line-height
+    (selector-ref* nav-style-ref
+                   '(".navbar .nav-link"
+                     ".navbar-nav .nav-link"
+                     ".nav-tabs .nav-link"
+                     ".nav-pills .nav-link"
+                     ".navbar"
+                     ".nav-link")
+                   "line-height"))
+  (define nav-letter-spacing
+    (selector-ref* nav-style-ref
+                   '(".navbar .nav-link"
+                     ".navbar-nav .nav-link"
+                     ".nav-tabs .nav-link"
+                     ".nav-pills .nav-link"
+                     ".navbar"
+                     ".nav-link")
+                   "letter-spacing"))
   (define nav-link-padding-y
-    (or (selector-ref* nav-custom-ref
+    (or (meaningful-style-ref ".navbar-nav .nav-link" "padding-top")
+        (selector-ref* nav-custom-ref
                        '(".navbar-nav" ".nav")
                        "--bs-nav-link-padding-y")
         (selector-ref* nav-style-ref
@@ -453,27 +500,101 @@
   (define navbar-link-disabled
     (or (nav-custom-ref ".navbar" "--bs-navbar-disabled-color")
         nav-link-disabled))
+  (define navbar-border-width
+    (or (selector-ref* nav-style-ref
+                       '(".navbar.border" ".border" ".navbar")
+                       "border-width")
+        (hash-ref props "--bs-border-width" #f)))
+  (define navbar-border-style
+    (or (selector-ref* nav-style-ref
+                       '(".navbar.border" ".border" ".navbar")
+                       "border-style")
+        (hash-ref props "--bs-border-style" #f)))
+  (define navbar-radius
+    (or (selector-ref* nav-style-ref
+                       '(".navbar.rounded" ".rounded" ".navbar")
+                       "border-radius")
+        (hash-ref props "--bs-border-radius" #f)))
+  (define navbar-padding-x
+    (or (selector-ref* nav-style-ref
+                       '(".navbar.px-3" ".px-3")
+                       "padding-left")
+        (nav-custom-ref ".navbar" "--bs-navbar-padding-x")
+        (nav-style-ref ".navbar" "padding-left")))
+  (define navbar-padding-y
+    (or (selector-ref* nav-style-ref
+                       '(".navbar.py-2" ".py-2")
+                       "padding-top")
+        (nav-custom-ref ".navbar" "--bs-navbar-padding-y")
+        (nav-style-ref ".navbar" "padding-top")))
+  (define navbar-font-size
+    (or (nav-style-ref ".navbar" "font-size")
+        (hash-ref props "--bs-body-font-size" #f)))
+  (define navbar-font-weight
+    (or (nav-style-ref ".navbar" "font-weight")
+        (hash-ref props "--bs-body-font-weight" #f)))
+  (define navbar-line-height
+    (or (nav-style-ref ".navbar" "line-height")
+        (hash-ref props "--bs-body-line-height" #f)))
+  (define navbar-letter-spacing
+    (or (nav-style-ref ".navbar" "letter-spacing")
+        (hash-ref props "--bs-body-letter-spacing" #f)))
+  (define navbar-text-transform
+    (or (nav-style-ref ".navbar" "text-transform")
+        "none"))
+  (define tab-link-selectors
+    '(".nav-tabs .nav-link" ".nav-link"))
+  (define tab-padding-shorthand
+    (tab-direct-ref tab-link-selectors "padding"))
   (define tab-border-color
     (or (nav-custom-ref ".nav-tabs" "--bs-nav-tabs-border-color")
         (nav-style-ref ".nav-tabs .nav-link" "border-color")))
   (define tab-border-width
-    (or (nav-style-ref ".nav-link" "border-width")
-        (nav-custom-ref ".nav-tabs" "--bs-nav-tabs-border-width")
+    (or (nav-custom-ref ".nav-tabs" "--bs-nav-tabs-border-width")
         (nav-style-ref ".nav-tabs .nav-link" "border-width")
+        (nav-style-ref ".nav-link" "border-width")
         (hash-ref props "--bs-border-width" #f)))
+  (define tab-padding-x
+    (or (meaningful-style-ref ".nav-tabs .nav-link" "padding-left")
+        (box-shorthand-side tab-padding-shorthand 'left)
+        (tab-context-ref "--bs-nav-link-padding-x")
+        (nav-style-ref ".nav-link" "padding-left")))
+  (define tab-padding-y
+    (or (meaningful-style-ref ".nav-tabs .nav-link" "padding-top")
+        (box-shorthand-side tab-padding-shorthand 'top)
+        (tab-context-ref "--bs-nav-link-padding-y")
+        (nav-style-ref ".nav-link" "padding-top")))
   (define tab-font-size
-    (or (nav-style-ref ".nav-tabs .nav-link" "font-size")
+    (or (tab-direct-ref tab-link-selectors "font-size")
+        (nav-style-ref ".nav-tabs .nav-link" "font-size")
+        (tab-context-ref "--bs-nav-link-font-size")
         (nav-style-ref ".nav-link" "font-size")
         (hash-ref props "--bs-body-font-size" #f)
         "1rem"))
   (define tab-font-weight
-    (or (nav-style-ref ".nav-tabs .nav-link.active" "font-weight")
+    (or (tab-direct-ref
+         '(".nav-tabs .nav-link.active" ".nav-tabs .nav-link" ".nav-link")
+         "font-weight")
+        (nav-style-ref ".nav-tabs .nav-link.active" "font-weight")
         (nav-style-ref ".nav-tabs .nav-link" "font-weight")
+        (tab-context-ref "--bs-nav-link-font-weight")
         (nav-style-ref ".nav-link" "font-weight")
         (hash-ref props "--bs-body-font-weight" #f)
         "400"))
+  (define tab-line-height
+    (or (tab-direct-ref tab-link-selectors "line-height")
+        (nav-style-ref ".nav-tabs .nav-link" "line-height")
+        (tab-context-ref "--bs-nav-link-line-height")
+        (nav-style-ref ".nav-link" "line-height")
+        (hash-ref props "--bs-body-line-height" #f)
+        "1.5"))
+  (define tab-letter-spacing
+    (or (tab-direct-ref tab-link-selectors "letter-spacing")
+        (nav-style-ref ".nav-tabs .nav-link" "letter-spacing")
+        (nav-style-ref ".nav-link" "letter-spacing")))
   (define tab-text-transform
-    (or (nav-style-ref ".nav-tabs .nav-link" "text-transform")
+    (or (tab-direct-ref tab-link-selectors "text-transform")
+        (nav-style-ref ".nav-tabs .nav-link" "text-transform")
         (nav-style-ref ".nav-link" "text-transform")
         "none"))
   (define tab-border-radius
@@ -519,6 +640,10 @@
         (pill-context-ref "--bs-nav-link-line-height")
         (hash-ref props "--bs-body-line-height" #f)
         (hash-ref bootstrap-defaults "--bs-body-line-height" #f)))
+  (define pill-letter-spacing
+    (or (pill-direct-ref '(".nav-pills .nav-link" ".nav-link") "letter-spacing")
+        (meaningful-style-ref ".nav-pills .nav-link" "letter-spacing")
+        "normal"))
   (define pill-text-transform
     (or (pill-direct-ref '(".nav-pills .nav-link" ".nav-link") "text-transform")
         "none"))
@@ -1801,6 +1926,8 @@
         'nav-font-size nav-font-size
         'nav-font-weight nav-font-weight
         'nav-text-transform nav-text-transform
+        'nav-line-height nav-line-height
+        'nav-letter-spacing nav-letter-spacing
         'nav-link-padding-y nav-link-padding-y
         'nav-link-padding-x nav-link-padding-x
         'navbar-brand-size navbar-brand-size
@@ -1811,8 +1938,26 @@
         'navbar-link-hover navbar-link-hover
         'navbar-link-active navbar-link-active
         'navbar-link-disabled navbar-link-disabled
+        'navbar-border-width navbar-border-width
+        'navbar-border-style navbar-border-style
+        'navbar-radius navbar-radius
+        'navbar-padding-x navbar-padding-x
+        'navbar-padding-y navbar-padding-y
+        'navbar-font-size navbar-font-size
+        'navbar-font-weight navbar-font-weight
+        'navbar-line-height navbar-line-height
+        'navbar-letter-spacing navbar-letter-spacing
+        'navbar-text-transform navbar-text-transform
         'tab-border-color tab-border-color
+        'tab-border-width tab-border-width
+        'tab-padding-x tab-padding-x
+        'tab-padding-y tab-padding-y
         'tab-border-radius tab-border-radius
+        'tab-font-size tab-font-size
+        'tab-font-weight tab-font-weight
+        'tab-line-height tab-line-height
+        'tab-letter-spacing tab-letter-spacing
+        'tab-text-transform tab-text-transform
         'tab-hover-border tab-hover-border
         'tab-bg tab-bg
         'tab-color tab-color
@@ -1823,6 +1968,7 @@
         'pill-font-size pill-font-size
         'pill-font-weight pill-font-weight
         'pill-line-height pill-line-height
+        'pill-letter-spacing pill-letter-spacing
         'pill-text-transform pill-text-transform
         'pill-padding-x pill-padding-x
         'pill-padding-y pill-padding-y
@@ -2777,6 +2923,39 @@
     (or (theme-component-ref theme 'navbar-link-disabled)
         (theme-component-ref theme 'nav-link-disabled)
         fg-muted))
+  (define navbar-border-width
+    (or (theme-component-ref theme 'navbar-border-width)
+        (theme-prop-ref theme "--bs-border-width")
+        (hash-ref bootstrap-defaults "--bs-border-width" #f)
+        "1px"))
+  (define navbar-border-style
+    (or (theme-component-ref theme 'navbar-border-style)
+        (theme-prop-ref theme "--bs-border-style")
+        "solid"))
+  (define navbar-radius
+    (or (theme-component-ref theme 'navbar-radius)
+        (bootstrap-theme-radius-md theme)))
+  (define navbar-padding-x
+    (or (theme-component-ref theme 'navbar-padding-x)
+        "1rem"))
+  (define navbar-padding-y
+    (or (theme-component-ref theme 'navbar-padding-y)
+        "0.5rem"))
+  (define navbar-font-size
+    (or (theme-component-ref theme 'navbar-font-size)
+        (bootstrap-theme-font-size-md theme)))
+  (define navbar-font-weight
+    (or (theme-component-ref theme 'navbar-font-weight)
+        (bootstrap-theme-font-weight-normal theme)))
+  (define navbar-line-height
+    (or (theme-component-ref theme 'navbar-line-height)
+        (bootstrap-theme-line-height-base theme)))
+  (define navbar-letter-spacing
+    (or (theme-component-ref theme 'navbar-letter-spacing)
+        (bootstrap-theme-letter-spacing-base theme)))
+  (define navbar-text-transform
+    (or (theme-component-ref theme 'navbar-text-transform)
+        "none"))
   (define navbar-brand-color
     (or (theme-component-ref theme 'navbar-brand-color)
         navbar-link-active))
@@ -2803,10 +2982,16 @@
         (bootstrap-theme-font-size-md theme)))
   (define nav-font-weight
     (or (theme-component-ref theme 'nav-font-weight)
-        (bootstrap-theme-font-weight-semibold theme)))
+        (bootstrap-theme-font-weight-normal theme)))
   (define nav-text-transform
     (or (theme-component-ref theme 'nav-text-transform)
         "none"))
+  (define nav-line-height
+    (or (theme-component-ref theme 'nav-line-height)
+        (bootstrap-theme-line-height-base theme)))
+  (define nav-letter-spacing
+    (or (theme-component-ref theme 'nav-letter-spacing)
+        (bootstrap-theme-letter-spacing-base theme)))
   (define nav-link-padding-x
     (or (theme-component-ref theme 'nav-link-padding-x)
         "0.75rem"))
@@ -2829,6 +3014,12 @@
     (or (theme-component-ref theme 'tab-border-width)
         (hash-ref bootstrap-defaults "--bs-border-width" #f)
         "1px"))
+  (define tab-padding-x
+    (or (theme-component-ref theme 'tab-padding-x)
+        nav-link-padding-x))
+  (define tab-padding-y
+    (or (theme-component-ref theme 'tab-padding-y)
+        nav-link-padding-y))
   (define tab-font-size
     (or (theme-component-ref theme 'tab-font-size)
         (hash-ref bootstrap-defaults "--bs-body-font-size" #f)
@@ -2837,6 +3028,12 @@
     (or (theme-component-ref theme 'tab-font-weight)
         (hash-ref bootstrap-defaults "--bs-body-font-weight" #f)
         "400"))
+  (define tab-line-height
+    (or (theme-component-ref theme 'tab-line-height)
+        (bootstrap-theme-line-height-base theme)))
+  (define tab-letter-spacing
+    (or (theme-component-ref theme 'tab-letter-spacing)
+        (bootstrap-theme-letter-spacing-base theme)))
   (define tab-text-transform
     (or (theme-component-ref theme 'tab-text-transform)
         "none"))
@@ -2867,6 +3064,9 @@
   (define pill-line-height
     (or (theme-component-ref theme 'pill-line-height)
         (bootstrap-theme-line-height-base theme)))
+  (define pill-letter-spacing
+    (or (theme-component-ref theme 'pill-letter-spacing)
+        "normal"))
   (define pill-text-transform
     (or (theme-component-ref theme 'pill-text-transform)
         "none"))
@@ -4185,6 +4385,16 @@
     (cons "--we-navbar-link-hover-color" navbar-link-hover)
     (cons "--we-navbar-link-active-color" navbar-link-active)
     (cons "--we-navbar-link-disabled-color" navbar-link-disabled)
+    (cons "--we-navbar-border-width" navbar-border-width)
+    (cons "--we-navbar-border-style" navbar-border-style)
+    (cons "--we-navbar-radius" navbar-radius)
+    (cons "--we-navbar-padding-x" navbar-padding-x)
+    (cons "--we-navbar-padding-y" navbar-padding-y)
+    (cons "--we-navbar-font-size" navbar-font-size)
+    (cons "--we-navbar-font-weight" navbar-font-weight)
+    (cons "--we-navbar-line-height" navbar-line-height)
+    (cons "--we-navbar-letter-spacing" navbar-letter-spacing)
+    (cons "--we-navbar-text-transform" navbar-text-transform)
     (cons "--we-navbar-brand-color" navbar-brand-color)
     (cons "--we-navbar-brand-hover-color" navbar-brand-hover)
     (cons "--we-navbar-brand-font-size" navbar-brand-size)
@@ -4196,14 +4406,20 @@
     (cons "--we-nav-font-size" nav-font-size)
     (cons "--we-nav-font-weight" nav-font-weight)
     (cons "--we-nav-text-transform" nav-text-transform)
+    (cons "--we-nav-line-height" nav-line-height)
+    (cons "--we-nav-letter-spacing" nav-letter-spacing)
     (cons "--we-nav-link-padding-x" nav-link-padding-x)
     (cons "--we-nav-link-padding-y" nav-link-padding-y)
     (cons "--we-tab-bg" tab-bg)
     (cons "--we-tab-color" tab-color)
     (cons "--we-tab-border-color" tab-border-color)
     (cons "--we-tab-border-width" tab-border-width)
+    (cons "--we-tab-padding-x" tab-padding-x)
+    (cons "--we-tab-padding-y" tab-padding-y)
     (cons "--we-tab-font-size" tab-font-size)
     (cons "--we-tab-font-weight" tab-font-weight)
+    (cons "--we-tab-line-height" tab-line-height)
+    (cons "--we-tab-letter-spacing" tab-letter-spacing)
     (cons "--we-tab-text-transform" tab-text-transform)
     (cons "--we-tab-border-radius" tab-border-radius)
     (cons "--we-tab-hover-border-color" tab-hover-border)
@@ -4214,6 +4430,7 @@
     (cons "--we-pill-font-size" pill-font-size)
     (cons "--we-pill-font-weight" pill-font-weight)
     (cons "--we-pill-line-height" pill-line-height)
+    (cons "--we-pill-letter-spacing" pill-letter-spacing)
     (cons "--we-pill-text-transform" pill-text-transform)
     (cons "--we-pill-padding-x" pill-padding-x)
     (cons "--we-pill-padding-y" pill-padding-y)
@@ -4831,9 +5048,26 @@
      "  --bs-body-color: #55595c;\n"
      "  --bs-body-bg: #ffffff;\n"
      "  --bs-border-color: #e0e1e2;\n"
+     "  --bs-border-width: 2px;\n"
+     "  --bs-border-style: solid;\n"
+     "  --bs-border-radius: 0.375rem;\n"
      "  --bs-primary: #1a1a1a;\n"
      "  --bs-secondary-bg: #f8f9fa;\n"
      "  --bs-tertiary-bg: #f8f9fa;\n"
+     "}\n"
+     ".border {\n"
+     "  border: var(--bs-border-width) var(--bs-border-style) var(--bs-border-color);\n"
+     "}\n"
+     ".rounded {\n"
+     "  border-radius: var(--bs-border-radius);\n"
+     "}\n"
+     ".px-3 {\n"
+     "  padding-left: 1rem;\n"
+     "  padding-right: 1rem;\n"
+     "}\n"
+     ".py-2 {\n"
+     "  padding-top: 0.5rem;\n"
+     "  padding-bottom: 0.5rem;\n"
      "}\n"
      ".nav {\n"
      "  --bs-nav-link-padding-x: 1rem;\n"
@@ -4851,6 +5085,7 @@
      "  line-height: 1.5;\n"
      "}\n"
      ".nav-tabs {\n"
+     "  --bs-nav-tabs-border-width: var(--bs-border-width);\n"
      "  --bs-nav-tabs-border-color: #e0e1e2;\n"
      "  --bs-nav-tabs-link-hover-border-color: #f0f1f2 #f0f1f2 #e0e1e2;\n"
      "  --bs-nav-tabs-link-active-color: #000;\n"
@@ -4879,10 +5114,24 @@
      "  --bs-navbar-brand-margin-end: 1rem;\n"
      "  font-size: 0.875rem;\n"
      "  font-weight: 600;\n"
+     "  line-height: 1.5;\n"
+     "  letter-spacing: 1px;\n"
      "  text-transform: uppercase;\n"
      "}\n"
+     ".navbar-nav .nav-link {\n"
+     "  padding-top: 0.715rem;\n"
+     "  padding-bottom: 0.715rem;\n"
+     "  line-height: 1.5;\n"
+     "  letter-spacing: 1px;\n"
+     "}\n"
      ".nav-tabs .nav-link {\n"
+     "  padding: 0.5rem 0.9rem;\n"
      "  background-color: rgba(237, 238, 239, 0.977);\n"
+     "  font-size: 0.8125rem;\n"
+     "  font-weight: 500;\n"
+     "  line-height: 1.4;\n"
+     "  letter-spacing: 0.5px;\n"
+     "  text-transform: uppercase;\n"
      "}\n"))
 
   (define pill-luxlike-bootstrap
@@ -5654,13 +5903,36 @@
     (define token-map (bootstrap-rules->token-map rules))
     (check-equal? (hash-ref token-map "--we-navbar-link-color")
                   "rgba(0, 0, 0, 0.3)")
+    (check-equal? (hash-ref token-map "--we-navbar-border-width") "2px")
+    (check-equal? (hash-ref token-map "--we-navbar-border-style") "solid")
+    (check-equal? (hash-ref token-map "--we-navbar-radius") "0.375rem")
+    (check-equal? (hash-ref token-map "--we-navbar-padding-x") "1rem")
+    (check-equal? (hash-ref token-map "--we-navbar-padding-y") "0.5rem")
+    (check-equal? (hash-ref token-map "--we-navbar-font-size") "0.875rem")
+    (check-equal? (hash-ref token-map "--we-navbar-font-weight") "600")
+    (check-equal? (hash-ref token-map "--we-navbar-line-height") "1.5")
+    (check-equal? (hash-ref token-map "--we-navbar-letter-spacing") "1px")
+    (check-equal? (hash-ref token-map "--we-navbar-text-transform")
+                  "uppercase")
     (check-equal? (hash-ref token-map "--we-nav-text-transform")
                   "uppercase")
+    (check-equal? (hash-ref token-map "--we-nav-line-height") "1.5")
+    (check-equal? (hash-ref token-map "--we-nav-letter-spacing") "1px")
+    (check-equal? (hash-ref token-map "--we-nav-link-padding-y") "0.715rem")
     (check-equal? (hash-ref token-map "--we-tab-active-border-color")
                   "#e0e1e2 #e0e1e2 #fff")
+    (check-equal? (hash-ref token-map "--we-tab-border-width") "2px")
+    (check-equal? (hash-ref token-map "--we-tab-padding-x") "0.9rem")
+    (check-equal? (hash-ref token-map "--we-tab-padding-y") "0.5rem")
+    (check-equal? (hash-ref token-map "--we-tab-font-size") "0.8125rem")
+    (check-equal? (hash-ref token-map "--we-tab-font-weight") "500")
+    (check-equal? (hash-ref token-map "--we-tab-line-height") "1.4")
+    (check-equal? (hash-ref token-map "--we-tab-letter-spacing") "0.5px")
+    (check-equal? (hash-ref token-map "--we-tab-text-transform") "uppercase")
     (check-equal? (hash-ref token-map "--we-pill-font-size") "1rem")
     (check-equal? (hash-ref token-map "--we-pill-font-weight") "300")
     (check-equal? (hash-ref token-map "--we-pill-line-height") "1.5")
+    (check-equal? (hash-ref token-map "--we-pill-letter-spacing") "normal")
     (check-equal? (hash-ref token-map "--we-pill-padding-x") "1rem")
     (check-equal? (hash-ref token-map "--we-pill-radius") "0.375rem")
     (check-equal? (hash-ref token-map "--we-pill-border-width") "0")
@@ -5674,6 +5946,7 @@
     (check-equal? (hash-ref token-map "--we-pill-font-size") "1rem")
     (check-equal? (hash-ref token-map "--we-pill-font-weight") "300")
     (check-equal? (hash-ref token-map "--we-pill-line-height") "1.5")
+    (check-equal? (hash-ref token-map "--we-pill-letter-spacing") "normal")
     (check-equal? (hash-ref token-map "--we-pill-border-color") "#1a1a1a")
     (check-equal? (hash-ref token-map "--we-pill-border-style") "none")
     (check-equal? (hash-ref token-map "--we-pill-radius") "0"))
@@ -5694,9 +5967,11 @@
         "  --bs-body-bg: #ffffff;\n"
         "}\n"
         ".sandstone, .nav-pills .nav-link {\n"
+        "  letter-spacing: 0.02em;\n"
         "  text-transform: uppercase;\n"
         "}\n")))
     (define token-map (bootstrap-rules->token-map rules))
+    (check-equal? (hash-ref token-map "--we-pill-letter-spacing") "0.02em")
     (check-equal? (hash-ref token-map "--we-pill-text-transform") "uppercase"))
 
   (test-case "component rule extraction feeds button card and badge tokens"
