@@ -203,6 +203,7 @@ Error behavior:
 | Function | Input types | Output type | Example | Use when |
 |---|---|---|---|---|
 | [`js-typeof`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/typeof) | `(extern)` | `(string)` | `(js-typeof (js-var "Math"))` | you need JS `typeof` classification. |
+| [`js-constructible?`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/new) | `(extern)` | `(boolean)` | `(js-constructible? (js-Date))` | you need to check whether an extern can be used with `js-new`. |
 | [`js-value->string`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/String) | `(extern)` | `(string)` | `(js-value->string (js-send/extern (js-array/extern (vector 1 2)) "join" (vector ",")))` | you need JS string coercion for an extern value. |
 | [`js-instanceof`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/instanceof) | `(extern extern)` | `(boolean)` | `(js-instanceof (js-array/extern (vector)) (js-ref (js-global-this) "Array"))` | you need JS `instanceof` check. |
 | [`js-operator`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators) | `(string/symbol value)` | `(extern/raw)` | `(js-operator "+" (vector 1 2))` | you need dynamic operator application. |
@@ -442,4 +443,4 @@ For constructor-like globals, a safe check is:
 
 ## Chapter 6 — Coverage Checklist
 
-This document covers **132** functions from `ffi/standard.ffi`.
+This document covers **133** functions from `ffi/standard.ffi`.

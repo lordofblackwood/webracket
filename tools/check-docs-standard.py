@@ -3,13 +3,13 @@
 Consistency checks for FFI docs against their .ffi sources.
 
 Currently checked pairs:
-- DOCS-standard.md vs ffi/standard.ffi
-- DOCS-dom.md vs ffi/dom.ffi
-- DOCS-js.md vs ffi/js.ffi
-- DOCS-math.md vs ffi/math.ffi
-- DOCS-jsxgraph.md vs ffi/jsxgraph.ffi
-- DOCS-xtermjs.md vs ffi/xtermjs.ffi
-- DOCS-websocket.md vs ffi/websocket.ffi
+- DOCS-standard.md vs pkgs/webracket-lib/compiler/ffi/standard.ffi
+- DOCS-dom.md vs pkgs/webracket-lib/compiler/ffi/dom.ffi
+- DOCS-js.md vs pkgs/webracket-lib/compiler/ffi/js.ffi
+- DOCS-math.md vs pkgs/webracket-lib/compiler/ffi/math.ffi
+- DOCS-jsxgraph.md vs pkgs/webracket-lib/compiler/ffi/jsxgraph.ffi
+- DOCS-xtermjs.md vs pkgs/webracket-lib/compiler/ffi/xtermjs.ffi
+- DOCS-websocket.md vs pkgs/webracket-lib/compiler/ffi/websocket.ffi
 
 Checks per document:
 - every documented table function exists in the target .ffi
@@ -31,6 +31,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
+FFI_ROOT = ROOT / "pkgs" / "webracket-lib" / "compiler" / "ffi"
 FN_PATTERN = r"(?:js|jsx|xterm|websocket)-[^`)\s]+"
 
 
@@ -52,7 +53,7 @@ CONFIGS: tuple[DocCheckConfig, ...] = (
     DocCheckConfig(
         label="standard",
         doc_path=ROOT / "DOCS-standard.md",
-        ffi_path=ROOT / "ffi" / "standard.ffi",
+        ffi_path=FFI_ROOT / "standard.ffi",
         coverage_patterns=(
             r"This document covers \*\*(\d+)\*\* functions from `ffi/standard\.ffi`\.",
         ),
@@ -61,7 +62,7 @@ CONFIGS: tuple[DocCheckConfig, ...] = (
     DocCheckConfig(
         label="dom",
         doc_path=ROOT / "DOCS-dom.md",
-        ffi_path=ROOT / "ffi" / "dom.ffi",
+        ffi_path=FFI_ROOT / "dom.ffi",
         coverage_patterns=(
             r"- Total documented functions: \*\*(\d+)\*\*",
             r"This document covers \*\*(\d+)\*\* functions from `ffi/dom\.ffi`\.",
@@ -79,7 +80,7 @@ CONFIGS: tuple[DocCheckConfig, ...] = (
     DocCheckConfig(
         label="js",
         doc_path=ROOT / "DOCS-js.md",
-        ffi_path=ROOT / "ffi" / "js.ffi",
+        ffi_path=FFI_ROOT / "js.ffi",
         coverage_patterns=(
             r"- Total documented functions: \*\*(\d+)\*\*",
             r"This document covers \*\*(\d+)\*\* functions from `ffi/js\.ffi`\.",
@@ -91,7 +92,7 @@ CONFIGS: tuple[DocCheckConfig, ...] = (
     DocCheckConfig(
         label="math",
         doc_path=ROOT / "DOCS-math.md",
-        ffi_path=ROOT / "ffi" / "math.ffi",
+        ffi_path=FFI_ROOT / "math.ffi",
         coverage_patterns=(
             r"- Total documented functions: \*\*(\d+)\*\*",
             r"This document covers \*\*(\d+)\*\* functions from `ffi/math\.ffi`\.",
@@ -103,7 +104,7 @@ CONFIGS: tuple[DocCheckConfig, ...] = (
     DocCheckConfig(
         label="jsxgraph",
         doc_path=ROOT / "DOCS-jsxgraph.md",
-        ffi_path=ROOT / "ffi" / "jsxgraph.ffi",
+        ffi_path=FFI_ROOT / "jsxgraph.ffi",
         coverage_patterns=(
             r"- Total documented functions: \*\*(\d+)\*\*",
             r"This document covers \*\*(\d+)\*\* functions from `ffi/jsxgraph\.ffi`\.",
@@ -117,7 +118,7 @@ CONFIGS: tuple[DocCheckConfig, ...] = (
     DocCheckConfig(
         label="xtermjs",
         doc_path=ROOT / "DOCS-xtermjs.md",
-        ffi_path=ROOT / "ffi" / "xtermjs.ffi",
+        ffi_path=FFI_ROOT / "xtermjs.ffi",
         coverage_patterns=(
             r"- Total documented functions: \*\*(\d+)\*\*",
             r"This document covers \*\*(\d+)\*\* functions from `ffi/xtermjs\.ffi`\.",
@@ -130,7 +131,7 @@ CONFIGS: tuple[DocCheckConfig, ...] = (
     DocCheckConfig(
         label="websocket",
         doc_path=ROOT / "DOCS-websocket.md",
-        ffi_path=ROOT / "ffi" / "websocket.ffi",
+        ffi_path=FFI_ROOT / "websocket.ffi",
         coverage_patterns=(
             r"- Total documented functions: \*\*(\d+)\*\*",
             r"This document covers \*\*(\d+)\*\* functions from `ffi/websocket\.ffi`\.",

@@ -5,10 +5,7 @@ on:
     branches:
       - main
     paths:
-      - "scribblings/**"
-      - "compiler.rkt"
-      - "primitives.rkt"
-      - "runtime-wasm.rkt"
+      - "pkgs/**"
       - "webracket.rkt"
       - "web-site/public/**"
       - ".github/workflows/pages.yml"
@@ -66,11 +63,10 @@ jobs:
           fi
           wasm-tools --version
 
-      - name: Link local webracket collection
-        run: raco link "$GITHUB_WORKSPACE"
-
       - name: Render WebRacket manual
-        run: raco scribble --htmls --dest html scribblings/webracket.scrbl
+        env:
+          PLTCOLLECTS: ${{ github.workspace }}/pkgs:
+        run: raco scribble --htmls --dest html pkgs/webracket-doc/scribblings/webracket.scrbl
 
       - name: Publish manual under /webracket/
         run: |
