@@ -82,11 +82,17 @@ html.we-theme-lux-boost {
   --we-navbar-brand-color: #1a1a1a;
   --we-navbar-brand-hover-color: #1a1a1a;
   --we-navbar-brand-font-size: 1.25rem;
+  --we-navbar-brand-font-family: "Nunito Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
   --we-navbar-brand-font-weight: 300;
-  --we-navbar-brand-letter-spacing: 0;
-  --we-navbar-brand-text-transform: none;
+  --we-navbar-brand-letter-spacing: 1px;
+  --we-navbar-brand-text-transform: uppercase;
   --we-navbar-brand-padding-y: 0.3125rem;
   --we-navbar-brand-gap: 1rem;
+  --we-navbar-brand-heading-font-family: "Nunito Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+  --we-navbar-brand-heading-font-weight: 600;
+  --we-navbar-brand-heading-line-height: 1.2;
+  --we-navbar-brand-heading-letter-spacing: 3px;
+  --we-navbar-brand-heading-text-transform: uppercase;
   --we-nav-font-size: 0.875rem;
   --we-nav-font-weight: 600;
   --we-nav-text-transform: uppercase;
@@ -655,6 +661,10 @@ html.we-theme-lux-boost {
   --we-radius-pill: 50rem;
   --we-font-family-base: "Nunito Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
   --we-font-family-heading: "Nunito Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+  --we-heading-font-weight: 600;
+  --we-heading-line-height: 1.2;
+  --we-heading-letter-spacing: 3px;
+  --we-heading-text-transform: uppercase;
   --we-font-size-sm: 0.875rem;
   --we-font-size-md: 1rem;
   --we-font-size-lg: 1.15rem;
@@ -1882,13 +1892,13 @@ html.we-theme-lux-boost .we-navigation-bar .we-navbar-brand {
   background: transparent;
   box-shadow: none;
   color: var(--we-navbar-brand-color);
-  font-family: var(--we-font-family-base);
+  font-family: var(--we-navbar-brand-font-family, var(--we-font-family-base));
   font-size: var(--we-navbar-brand-font-size);
   font-weight: var(--we-navbar-brand-font-weight, var(--we-font-weight-normal));
-  letter-spacing: var(--we-navbar-brand-letter-spacing, 0);
+  letter-spacing: var(--we-navbar-brand-letter-spacing, var(--we-navbar-letter-spacing, 0));
   margin-right: var(--we-navbar-brand-gap);
   padding: var(--we-navbar-brand-padding-y, var(--we-nav-link-padding-y)) 0;
-  text-transform: var(--we-navbar-brand-text-transform, none);
+  text-transform: var(--we-navbar-brand-text-transform, var(--we-navbar-text-transform, none));
 }
 
 html.we-theme-lux-boost .we-navigation-bar .we-navbar-brand:hover,
@@ -2798,6 +2808,11 @@ html.we-theme-lux-boost .we-progress.we-progress-animated::-moz-progress-bar {
 html.we-theme-lux-boost .we-heading,
 html.we-theme-lux-boost .we-display-heading {
   color: var(--we-table-header-fg);
+  font-family: var(--we-font-family-heading);
+  font-weight: var(--we-heading-font-weight);
+  line-height: var(--we-heading-line-height);
+  letter-spacing: var(--we-heading-letter-spacing);
+  text-transform: var(--we-heading-text-transform);
 }
 
 html.we-theme-lux-boost .we-lead {

@@ -171,6 +171,10 @@ html.we-theme-light {
   --we-radius-pill: 999px;
   --we-font-family-base: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --we-font-family-heading: var(--we-font-family-base);
+  --we-heading-font-weight: 500;
+  --we-heading-line-height: 1.2;
+  --we-heading-letter-spacing: var(--we-letter-spacing-base);
+  --we-heading-text-transform: none;
   --we-font-size-sm: 0.875rem;
   --we-font-size-md: 1rem;
   --we-font-size-lg: 1.15rem;
@@ -1445,13 +1449,13 @@ html.we-theme-light .we-navigation-bar .we-navbar-brand {
   background: transparent;
   box-shadow: none;
   color: var(--we-navbar-brand-color);
-  font-family: var(--we-font-family-base);
+  font-family: var(--we-navbar-brand-font-family, var(--we-font-family-base));
   font-size: var(--we-navbar-brand-font-size);
   font-weight: var(--we-navbar-brand-font-weight, var(--we-font-weight-normal));
-  letter-spacing: var(--we-navbar-brand-letter-spacing, 0);
+  letter-spacing: var(--we-navbar-brand-letter-spacing, var(--we-navbar-letter-spacing, 0));
   margin-right: var(--we-navbar-brand-gap);
   padding: var(--we-navbar-brand-padding-y, var(--we-nav-link-padding-y)) 0;
-  text-transform: var(--we-navbar-brand-text-transform, none);
+  text-transform: var(--we-navbar-brand-text-transform, var(--we-navbar-text-transform, none));
 }
 
 html.we-theme-light .we-navigation-bar .we-navbar-brand:hover,
@@ -2361,6 +2365,11 @@ html.we-theme-light .we-progress.we-progress-animated::-moz-progress-bar {
 html.we-theme-light .we-heading,
 html.we-theme-light .we-display-heading {
   color: var(--we-table-header-fg);
+  font-family: var(--we-font-family-heading);
+  font-weight: var(--we-heading-font-weight);
+  line-height: var(--we-heading-line-height);
+  letter-spacing: var(--we-heading-letter-spacing);
+  text-transform: var(--we-heading-text-transform);
 }
 
 html.we-theme-light .we-lead {

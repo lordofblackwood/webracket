@@ -35,6 +35,10 @@
    dark
    font-family-base
    font-family-heading
+   heading-font-weight
+   heading-line-height
+   heading-letter-spacing
+   heading-text-transform
    font-size-sm
    font-size-md
    font-size-lg
@@ -433,11 +437,22 @@
             (css-find-declarations-in-selector-groups rules
                                                       selectors
                                                       property)))))
-  (define (meaningful-style-ref selector property)
+  (define (meaningful-style-ref selector property [fallback #f])
     (define value (nav-style-ref selector property))
-    (and (meaningful-css-value? value)
-         (not (regexp-match? css-var-regexp value))
-         value))
+    (or (and (meaningful-css-value? value)
+             (not (regexp-match? css-var-regexp value))
+             value)
+        fallback))
+  (define heading-font-family
+    (selector-ref* meaningful-style-ref '(".h1" "h1") "font-family"))
+  (define heading-font-weight
+    (selector-ref* meaningful-style-ref '(".h1" "h1") "font-weight"))
+  (define heading-line-height
+    (selector-ref* meaningful-style-ref '(".h1" "h1") "line-height"))
+  (define heading-letter-spacing
+    (selector-ref* meaningful-style-ref '(".h1" "h1") "letter-spacing"))
+  (define heading-text-transform
+    (selector-ref* meaningful-style-ref '(".h1" "h1") "text-transform"))
   (define pill-link-selectors
     '(".nav-pills .nav-link" ".nav-link"))
   (define pill-border-authored?
@@ -526,12 +541,16 @@
   (define navbar-brand-size
     (or (nav-custom-ref ".navbar" "--bs-navbar-brand-font-size")
         (nav-style-ref ".navbar-brand" "font-size")))
+  (define navbar-brand-font-family
+    (meaningful-style-ref ".navbar-brand" "font-family"))
   (define navbar-brand-font-weight
-    (nav-style-ref ".navbar-brand" "font-weight"))
+    (meaningful-style-ref ".navbar-brand" "font-weight"))
+  (define navbar-brand-line-height
+    (meaningful-style-ref ".navbar-brand" "line-height"))
   (define navbar-brand-letter-spacing
-    (nav-style-ref ".navbar-brand" "letter-spacing"))
+    (meaningful-style-ref ".navbar-brand" "letter-spacing"))
   (define navbar-brand-text-transform
-    (nav-style-ref ".navbar-brand" "text-transform"))
+    (meaningful-style-ref ".navbar-brand" "text-transform"))
   (define navbar-brand-padding-y
     (or (custom-direct-ref '(".navbar") "--bs-navbar-brand-padding-y")
         (navbar-direct-ref '(".navbar") "--bs-navbar-brand-padding-y")
@@ -546,6 +565,21 @@
   (define navbar-brand-hover
     (or (nav-custom-ref ".navbar" "--bs-navbar-brand-hover-color")
         (nav-style-ref ".navbar-brand:hover" "color")))
+  (define navbar-brand-heading-font-family
+    (or navbar-brand-font-family
+        heading-font-family))
+  (define navbar-brand-heading-font-weight
+    (or navbar-brand-font-weight
+        heading-font-weight))
+  (define navbar-brand-heading-line-height
+    (or navbar-brand-line-height
+        heading-line-height))
+  (define navbar-brand-heading-letter-spacing
+    (or navbar-brand-letter-spacing
+        heading-letter-spacing))
+  (define navbar-brand-heading-text-transform
+    (or navbar-brand-text-transform
+        heading-text-transform))
   (define navbar-link-color
     (or (nav-custom-ref ".navbar" "--bs-navbar-color")
         nav-link-color))
@@ -2448,6 +2482,7 @@
         'nav-link-padding-y nav-link-padding-y
         'nav-link-padding-x nav-link-padding-x
         'navbar-brand-size navbar-brand-size
+        'navbar-brand-font-family navbar-brand-font-family
         'navbar-brand-font-weight navbar-brand-font-weight
         'navbar-brand-letter-spacing navbar-brand-letter-spacing
         'navbar-brand-text-transform navbar-brand-text-transform
@@ -2455,6 +2490,11 @@
         'navbar-brand-gap navbar-brand-gap
         'navbar-brand-color navbar-brand-color
         'navbar-brand-hover navbar-brand-hover
+        'navbar-brand-heading-font-family navbar-brand-heading-font-family
+        'navbar-brand-heading-font-weight navbar-brand-heading-font-weight
+        'navbar-brand-heading-line-height navbar-brand-heading-line-height
+        'navbar-brand-heading-letter-spacing navbar-brand-heading-letter-spacing
+        'navbar-brand-heading-text-transform navbar-brand-heading-text-transform
         'navbar-link-color navbar-link-color
         'navbar-link-hover navbar-link-hover
         'navbar-link-active navbar-link-active
@@ -3000,6 +3040,24 @@
     (or (prop-ref* props "--bs-headings-font-family")
         (theme-style-ref "h5" "font-family")
         (prop-ref* props "--bs-body-font-family")))
+  (define headings-font-weight
+    (or (prop-ref* props "--bs-headings-font-weight")
+        (theme-style-ref ".h1" "font-weight")
+        (theme-style-ref "h1" "font-weight")
+        "500"))
+  (define headings-line-height
+    (or (prop-ref* props "--bs-headings-line-height")
+        (theme-style-ref ".h1" "line-height")
+        (theme-style-ref "h1" "line-height")
+        "1.2"))
+  (define headings-letter-spacing
+    (or (theme-style-ref ".h1" "letter-spacing")
+        (theme-style-ref "h1" "letter-spacing")
+        "normal"))
+  (define headings-text-transform
+    (or (theme-style-ref ".h1" "text-transform")
+        (theme-style-ref "h1" "text-transform")
+        "none"))
   (define body-letter-spacing
     (or (theme-style-ref "body" "letter-spacing")
         "normal"))
@@ -3018,6 +3076,10 @@
    (prop-ref* props "--bs-dark")
    (prop-ref* props "--bs-body-font-family")
    headings-font-family
+   headings-font-weight
+   headings-line-height
+   headings-letter-spacing
+   headings-text-transform
    "0.875rem"
    (prop-ref* props "--bs-body-font-size")
    "1.15rem"
@@ -3594,15 +3656,18 @@
   (define navbar-brand-size
     (or (theme-component-ref theme 'navbar-brand-size)
         (bootstrap-theme-font-size-lg theme)))
+  (define navbar-brand-font-family
+    (or (theme-component-ref theme 'navbar-brand-font-family)
+        (bootstrap-theme-font-family-base theme)))
   (define navbar-brand-font-weight
     (or (theme-component-ref theme 'navbar-brand-font-weight)
         (bootstrap-theme-font-weight-normal theme)))
   (define navbar-brand-letter-spacing
     (or (theme-component-ref theme 'navbar-brand-letter-spacing)
-        "0"))
+        navbar-letter-spacing))
   (define navbar-brand-text-transform
     (or (theme-component-ref theme 'navbar-brand-text-transform)
-        "none"))
+        navbar-text-transform))
   (define navbar-brand-gap
     (or (theme-component-ref theme 'navbar-brand-gap)
         "1rem"))
@@ -3630,6 +3695,22 @@
   (define navbar-brand-padding-y
     (or (theme-component-ref theme 'navbar-brand-padding-y)
         nav-link-padding-y))
+  (define navbar-brand-heading-font-family
+    (or (theme-component-ref theme 'navbar-brand-heading-font-family)
+        (theme-component-ref theme 'navbar-brand-font-family)
+        (bootstrap-theme-font-family-heading theme)))
+  (define navbar-brand-heading-font-weight
+    (or (theme-component-ref theme 'navbar-brand-heading-font-weight)
+        (bootstrap-theme-heading-font-weight theme)))
+  (define navbar-brand-heading-line-height
+    (or (theme-component-ref theme 'navbar-brand-heading-line-height)
+        (bootstrap-theme-heading-line-height theme)))
+  (define navbar-brand-heading-letter-spacing
+    (or (theme-component-ref theme 'navbar-brand-heading-letter-spacing)
+        (bootstrap-theme-heading-letter-spacing theme)))
+  (define navbar-brand-heading-text-transform
+    (or (theme-component-ref theme 'navbar-brand-heading-text-transform)
+        (bootstrap-theme-heading-text-transform theme)))
   (define tab-bg
     (or (theme-component-ref theme 'tab-bg)
         (hash-ref surface-map 'surface-muted)))
@@ -5353,11 +5434,17 @@
     (cons "--we-navbar-brand-color" navbar-brand-color)
     (cons "--we-navbar-brand-hover-color" navbar-brand-hover)
     (cons "--we-navbar-brand-font-size" navbar-brand-size)
+    (cons "--we-navbar-brand-font-family" navbar-brand-font-family)
     (cons "--we-navbar-brand-font-weight" navbar-brand-font-weight)
     (cons "--we-navbar-brand-letter-spacing" navbar-brand-letter-spacing)
     (cons "--we-navbar-brand-text-transform" navbar-brand-text-transform)
     (cons "--we-navbar-brand-padding-y" navbar-brand-padding-y)
     (cons "--we-navbar-brand-gap" navbar-brand-gap)
+    (cons "--we-navbar-brand-heading-font-family" navbar-brand-heading-font-family)
+    (cons "--we-navbar-brand-heading-font-weight" navbar-brand-heading-font-weight)
+    (cons "--we-navbar-brand-heading-line-height" navbar-brand-heading-line-height)
+    (cons "--we-navbar-brand-heading-letter-spacing" navbar-brand-heading-letter-spacing)
+    (cons "--we-navbar-brand-heading-text-transform" navbar-brand-heading-text-transform)
     (cons "--we-nav-font-size" nav-font-size)
     (cons "--we-nav-font-weight" nav-font-weight)
     (cons "--we-nav-text-transform" nav-text-transform)
@@ -5890,6 +5977,10 @@
     (cons "--we-radius-pill" (bootstrap-theme-radius-pill theme))
     (cons "--we-font-family-base" (bootstrap-theme-font-family-base theme))
     (cons "--we-font-family-heading" (bootstrap-theme-font-family-heading theme))
+    (cons "--we-heading-font-weight" (bootstrap-theme-heading-font-weight theme))
+    (cons "--we-heading-line-height" (bootstrap-theme-heading-line-height theme))
+    (cons "--we-heading-letter-spacing" (bootstrap-theme-heading-letter-spacing theme))
+    (cons "--we-heading-text-transform" (bootstrap-theme-heading-text-transform theme))
     (cons "--we-font-size-sm" (bootstrap-theme-font-size-sm theme))
     (cons "--we-font-size-md" (bootstrap-theme-font-size-md theme))
     (cons "--we-font-size-lg" (bootstrap-theme-font-size-lg theme))
@@ -6106,6 +6197,13 @@
      "  --bs-primary: #1a1a1a;\n"
      "  --bs-secondary-bg: #f8f9fa;\n"
      "  --bs-tertiary-bg: #f8f9fa;\n"
+     "}\n"
+     "h1, .h1 {\n"
+     "  font-family: \"Display Face\", sans-serif;\n"
+     "  font-weight: 600;\n"
+     "  line-height: 1.2;\n"
+     "  letter-spacing: 3px;\n"
+     "  text-transform: uppercase;\n"
      "}\n"
      ".border {\n"
      "  border: var(--bs-border-width) var(--bs-border-style) var(--bs-border-color);\n"
@@ -7036,6 +7134,11 @@
   (test-case "component rule extraction feeds navbar and tab tokens"
     (define rules (read-css-rules nav-bootstrap))
     (define token-map (bootstrap-rules->token-map rules))
+    (check-equal? (hash-ref token-map "--we-heading-font-weight") "600")
+    (check-equal? (hash-ref token-map "--we-heading-line-height") "1.2")
+    (check-equal? (hash-ref token-map "--we-heading-letter-spacing") "3px")
+    (check-equal? (hash-ref token-map "--we-heading-text-transform")
+                  "uppercase")
     (check-equal? (hash-ref token-map "--we-navbar-link-color")
                   "rgba(0, 0, 0, 0.3)")
     (check-equal? (hash-ref token-map "--we-navbar-border-width") "2px")
@@ -7051,6 +7154,20 @@
                   "uppercase")
     (check-equal? (hash-ref token-map "--we-navbar-brand-padding-y")
                   "0.3125rem")
+    (check-equal? (hash-ref token-map "--we-navbar-brand-letter-spacing")
+                  "1px")
+    (check-equal? (hash-ref token-map "--we-navbar-brand-text-transform")
+                  "uppercase")
+    (check-equal? (hash-ref token-map "--we-navbar-brand-heading-font-family")
+                  "\"Display Face\", sans-serif")
+    (check-equal? (hash-ref token-map "--we-navbar-brand-heading-font-weight")
+                  "600")
+    (check-equal? (hash-ref token-map "--we-navbar-brand-heading-line-height")
+                  "1.2")
+    (check-equal? (hash-ref token-map "--we-navbar-brand-heading-letter-spacing")
+                  "3px")
+    (check-equal? (hash-ref token-map "--we-navbar-brand-heading-text-transform")
+                  "uppercase")
     (check-equal? (hash-ref token-map "--we-nav-text-transform")
                   "uppercase")
     (check-equal? (hash-ref token-map "--we-nav-line-height") "1.5")
@@ -7077,6 +7194,30 @@
     (check-equal? (hash-ref token-map "--we-pill-border-width") "0")
     (check-equal? (hash-ref token-map "--we-pill-border-style") "solid")
     (check-equal? (hash-ref token-map "--we-pill-active-bg") "#1a1a1a"))
+
+  (test-case "brand heading sample keeps explicit navbar brand typography"
+    (define rules
+      (read-css-rules
+       (string-append
+        ":root { --bs-body-color: #111; --bs-body-bg: #fff; }\n"
+        "h1, .h1 {\n"
+        "  font-family: \"Display Face\", sans-serif;\n"
+        "  font-weight: 600;\n"
+        "  line-height: 1.2;\n"
+        "}\n"
+        ".navbar-brand {\n"
+        "  font-family: \"Brand Face\", serif;\n"
+        "  font-weight: 400;\n"
+        "}\n")))
+    (define token-map (bootstrap-rules->token-map rules))
+    (check-equal? (hash-ref token-map "--we-navbar-brand-font-family")
+                  "\"Brand Face\", serif")
+    (check-equal? (hash-ref token-map "--we-navbar-brand-heading-font-family")
+                  "\"Brand Face\", serif")
+    (check-equal? (hash-ref token-map "--we-navbar-brand-heading-font-weight")
+                  "400")
+    (check-equal? (hash-ref token-map "--we-navbar-brand-heading-line-height")
+                  "1.2"))
 
   (test-case "pill extraction ignores navbar typography when nav vars are empty"
     (define rules (read-css-rules pill-luxlike-bootstrap))
