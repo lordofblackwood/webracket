@@ -476,6 +476,7 @@ html.we-theme-lux {
   --we-check-color: #000;
   --we-check-border-color: #e0e1e2;
   --we-check-border-width: 0;
+  --we-check-border-style: solid;
   --we-check-size: 1em;
   --we-check-height: 1em;
   --we-check-font-size: 1rem;
@@ -546,6 +547,7 @@ html.we-theme-lux {
   --we-switch-after-checked-bg: #f0f1f2;
   --we-switch-label-margin-left: 0;
   --we-range-height: 1.5rem;
+  --we-range-radius: 0;
   --we-range-color: #101010;
   --we-range-track-height: 0.5rem;
   --we-range-track-bg: #f0f1f2;
@@ -2864,7 +2866,7 @@ html.we-theme-lux .we-checkbox:not(.we-switch-control) {
   background-repeat: no-repeat;
   background-position: center;
   background-size: contain;
-  border: var(--we-check-border-width) solid var(--we-check-border-color);
+  border: var(--we-check-border-width) var(--we-check-border-style, solid) var(--we-check-border-color);
   border-radius: var(--we-check-radius);
   vertical-align: top;
 }
@@ -2950,7 +2952,7 @@ html.we-theme-lux .we-radio-input {
   background-repeat: no-repeat;
   background-position: center;
   background-size: contain;
-  border: var(--we-check-border-width) solid var(--we-check-border-color);
+  border: var(--we-check-border-width) var(--we-check-border-style, solid) var(--we-check-border-color);
   border-radius: var(--we-radio-radius, 50%);
   vertical-align: top;
   accent-color: var(--we-primary);
@@ -2983,6 +2985,7 @@ html.we-theme-lux .we-range {
   color: var(--we-range-color, #101010);
   height: var(--we-range-height, 1.5rem);
   padding: 0;
+  border-radius: var(--we-range-radius, 0);
   appearance: none;
   -webkit-appearance: none;
   -moz-appearance: none;
@@ -3090,7 +3093,8 @@ html.we-theme-lux .we-switch-control {
   margin-left: var(--we-switch-margin-left, 0);
   width: var(--we-switch-width);
   height: var(--we-check-height, var(--we-check-size));
-  border: var(--we-check-border-width) solid var(--we-check-border-color);
+  min-height: 0;
+  border: var(--we-check-border-width) var(--we-check-border-style, solid) var(--we-check-border-color);
   border-radius: var(--we-switch-radius);
   background-color: var(--we-check-bg);
   background-image: var(--we-switch-bg-icon);

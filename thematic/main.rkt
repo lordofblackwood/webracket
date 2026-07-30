@@ -2072,6 +2072,11 @@
         (check-style-ref ".form-check-input" "border-width")
         (prop-ref* props "--bs-border-width")
         field-border-width))
+  (define check-border-style
+    (or (check-style-ref "[type=checkbox]" "border-style")
+        (check-style-ref ".form-check-input" "border-style")
+        (hash-ref props "--bs-border-style" #f)
+        "solid"))
   (define check-size
     (or (check-style-ref "[type=checkbox]" "width")
         (check-style-ref ".form-check-input" "width")))
@@ -2222,6 +2227,9 @@
     (make-computed-selector-refs props rules))
   (define range-height
     (range-style-ref ".form-range" "height"))
+  (define range-radius
+    (or (range-style-ref ".form-range" "border-radius")
+        (range-style-ref "input" "border-radius")))
   (define range-color
     (or (range-style-ref ".form-range" "color")
         "#101010"))
@@ -2803,6 +2811,7 @@
         'check-color check-color
         'check-border-color check-border-color
         'check-border-width check-border-width
+        'check-border-style check-border-style
         'check-size check-size
         'check-height check-height
         'check-radius check-radius
@@ -2871,6 +2880,7 @@
         'switch-after-checked-bg switch-after-checked-bg
         'switch-label-margin-left switch-label-margin-left
         'range-height range-height
+        'range-radius range-radius
         'range-color range-color
         'range-track-height range-track-height
         'range-track-bg range-track-bg
@@ -4818,6 +4828,9 @@
         "0"
         (or (theme-component-ref theme 'check-border-width)
             field-border-width)))
+  (define check-border-style
+    (or (theme-component-ref theme 'check-border-style)
+        (if custom-check-pseudo? "none" "solid")))
   (define check-size
     (or (theme-component-ref theme 'check-size)
         "1em"))
@@ -5022,6 +5035,9 @@
   (define range-height
     (or (theme-component-ref theme 'range-height)
         "1.5rem"))
+  (define range-radius
+    (or (theme-component-ref theme 'range-radius)
+        "0"))
   (define range-color
     (or (theme-component-ref theme 'range-color)
         "#101010"))
@@ -5638,6 +5654,7 @@
     (cons "--we-check-color" check-color)
     (cons "--we-check-border-color" check-border-color)
     (cons "--we-check-border-width" check-border-width)
+    (cons "--we-check-border-style" check-border-style)
     (cons "--we-check-size" check-size)
     (cons "--we-check-height" check-height)
     (cons "--we-check-font-size" check-font-size)
@@ -5708,6 +5725,7 @@
     (cons "--we-switch-after-checked-bg" switch-after-checked-bg)
     (cons "--we-switch-label-margin-left" switch-label-margin-left)
     (cons "--we-range-height" range-height)
+    (cons "--we-range-radius" range-radius)
     (cons "--we-range-color" range-color)
     (cons "--we-range-track-height" range-track-height)
     (cons "--we-range-track-bg" range-track-bg)
@@ -7063,12 +7081,14 @@
     (check-equal? (hash-ref token-map "--we-check-color") "#000")
     (check-equal? (hash-ref token-map "--we-check-size") "1em")
     (check-equal? (hash-ref token-map "--we-check-checked-bg") "#1a1a1a")
+    (check-equal? (hash-ref token-map "--we-check-border-style") "solid")
     (check-true (regexp-match? #px"^url\\(" (hash-ref token-map "--we-check-checked-icon")))
     (check-equal? (hash-ref token-map "--we-radio-radius") "50%")
     (check-true (regexp-match? #px"^url\\(" (hash-ref token-map "--we-radio-checked-icon")))
     (check-equal? (hash-ref token-map "--we-switch-width") "2em")
     (check-true (regexp-match? #px"^url\\(" (hash-ref token-map "--we-switch-bg-icon")))
     (check-equal? (hash-ref token-map "--we-range-height") "1.5rem")
+    (check-equal? (hash-ref token-map "--we-range-radius") "0")
     (check-equal? (hash-ref token-map "--we-range-color") "#101010")
     (check-equal? (hash-ref token-map "--we-range-track-height") "0.5rem")
     (check-equal? (hash-ref token-map "--we-range-track-bg") "#f0f1f2")

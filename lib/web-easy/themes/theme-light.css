@@ -2433,7 +2433,7 @@ html.we-theme-light .we-checkbox:not(.we-switch-control) {
   background-repeat: no-repeat;
   background-position: center;
   background-size: contain;
-  border: var(--we-check-border-width) solid var(--we-check-border-color);
+  border: var(--we-check-border-width) var(--we-check-border-style, solid) var(--we-check-border-color);
   border-radius: var(--we-check-radius);
   vertical-align: top;
 }
@@ -2519,7 +2519,7 @@ html.we-theme-light .we-radio-input {
   background-repeat: no-repeat;
   background-position: center;
   background-size: contain;
-  border: var(--we-check-border-width) solid var(--we-check-border-color);
+  border: var(--we-check-border-width) var(--we-check-border-style, solid) var(--we-check-border-color);
   border-radius: var(--we-radio-radius, 50%);
   vertical-align: top;
   accent-color: var(--we-primary);
@@ -2552,6 +2552,7 @@ html.we-theme-light .we-range {
   color: var(--we-range-color, #101010);
   height: var(--we-range-height, 1.5rem);
   padding: 0;
+  border-radius: var(--we-range-radius, 0);
   appearance: none;
   -webkit-appearance: none;
   -moz-appearance: none;
@@ -2659,7 +2660,8 @@ html.we-theme-light .we-switch-control {
   margin-left: var(--we-switch-margin-left, 0);
   width: var(--we-switch-width);
   height: var(--we-check-height, var(--we-check-size));
-  border: var(--we-check-border-width) solid var(--we-check-border-color);
+  min-height: 0;
+  border: var(--we-check-border-width) var(--we-check-border-style, solid) var(--we-check-border-color);
   border-radius: var(--we-switch-radius);
   background-color: var(--we-check-bg);
   background-image: var(--we-switch-bg-icon);
