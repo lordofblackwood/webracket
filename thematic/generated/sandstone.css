@@ -103,6 +103,7 @@ html.we-theme-sandstone {
   --we-tab-bg: #f8f5f0;
   --we-tab-color: #8e8c84;
   --we-tab-border-color: #dfd7ca;
+  --we-tab-link-border-color: #dfd7ca;
   --we-tab-border-width: 1px;
   --we-tab-padding-x: 0.9rem;
   --we-tab-padding-y: 0.5rem;
@@ -1498,12 +1499,12 @@ html.we-theme-sandstone .we-tab-list {
 }
 
 html.we-theme-sandstone .we-tab-btn {
-  min-width: 88px;
+  min-width: var(--we-tab-min-width, 0);
   min-height: 0;
   padding: var(--we-tab-padding-y) var(--we-tab-padding-x);
-  border: var(--we-tab-border-width, 1px) solid var(--we-tab-border-color);
+  border: var(--we-tab-border-width, 1px) solid var(--we-tab-link-border-color, var(--we-tab-border-color));
   border-radius: var(--we-tab-border-radius) var(--we-tab-border-radius) 0 0;
-  border-bottom: none;
+  border-bottom: var(--we-tab-border-width, 1px) solid var(--we-tab-link-border-color, var(--we-tab-border-color));
   background: var(--we-tab-bg);
   color: var(--we-tab-color);
   font-family: var(--we-font-family-base);
@@ -1522,7 +1523,7 @@ html.we-theme-sandstone .we-tab-btn + .we-tab-btn {
 
 html.we-theme-sandstone .we-tab-btn:hover,
 html.we-theme-sandstone .we-tab-btn:focus-visible {
-  border-color: var(--we-tab-border-color);
+  border-color: var(--we-tab-hover-border-color, var(--we-tab-border-color));
   background: var(--we-tab-bg);
   color: var(--we-tab-color);
 }
@@ -1538,7 +1539,7 @@ html.we-theme-sandstone .we-tab-btn.is-selected {
 }
 
 html.we-theme-sandstone .we-tab-btn.is-disabled {
-  border-color: var(--we-tab-border-color);
+  border-color: var(--we-tab-link-border-color, var(--we-tab-border-color));
   background: var(--we-tab-bg);
   color: var(--we-fg-muted);
 }

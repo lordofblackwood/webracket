@@ -639,9 +639,15 @@
     '(".nav-tabs .nav-link" ".nav-link"))
   (define tab-padding-shorthand
     (tab-direct-ref tab-link-selectors "padding"))
+  (define tab-border-shorthand
+    (tab-direct-ref tab-link-selectors "border"))
   (define tab-border-color
     (or (nav-custom-ref ".nav-tabs" "--bs-nav-tabs-border-color")
         (nav-style-ref ".nav-tabs .nav-link" "border-color")))
+  (define tab-link-border-color
+    (or (tab-direct-ref tab-link-selectors "border-color")
+        (border-shorthand-color tab-border-shorthand)
+        "transparent"))
   (define tab-border-width
     (or (nav-custom-ref ".nav-tabs" "--bs-nav-tabs-border-width")
         (nav-style-ref ".nav-tabs .nav-link" "border-width")
@@ -665,14 +671,11 @@
         (hash-ref props "--bs-body-font-size" #f)
         "1rem"))
   (define tab-font-weight
-    (or (tab-direct-ref
-         '(".nav-tabs .nav-link.active" ".nav-tabs .nav-link" ".nav-link")
-         "font-weight")
-        (nav-style-ref ".nav-tabs .nav-link.active" "font-weight")
+    (or (tab-direct-ref tab-link-selectors "font-weight")
         (nav-style-ref ".nav-tabs .nav-link" "font-weight")
         (tab-context-ref "--bs-nav-link-font-weight")
-        (nav-style-ref ".nav-link" "font-weight")
         (hash-ref props "--bs-body-font-weight" #f)
+        (nav-style-ref ".nav-link" "font-weight")
         "400"))
   (define tab-line-height
     (or (tab-direct-ref tab-link-selectors "line-height")
@@ -699,9 +702,14 @@
     (or (nav-custom-ref ".nav-tabs" "--bs-nav-tabs-link-hover-border-color")
         (nav-style-ref ".nav-tabs .nav-link:hover" "border-color")))
   (define tab-bg
-    (nav-style-ref ".nav-tabs .nav-link" "background-color"))
+    (or (tab-direct-ref tab-link-selectors "background-color")
+        (nav-style-ref ".nav-tabs .nav-link" "background-color")
+        "transparent"))
   (define tab-color
-    (or (nav-style-ref ".nav-tabs .nav-link" "color")
+    (or (tab-direct-ref tab-link-selectors "color")
+        (nav-style-ref ".nav-tabs .nav-link" "color")
+        (tab-context-ref "--bs-nav-link-color")
+        (nav-style-ref ".nav-link" "color")
         nav-link-color))
   (define tab-active-color
     (or (nav-custom-ref ".nav-tabs" "--bs-nav-tabs-link-active-color")
@@ -2510,6 +2518,7 @@
         'navbar-letter-spacing navbar-letter-spacing
         'navbar-text-transform navbar-text-transform
         'tab-border-color tab-border-color
+        'tab-link-border-color tab-link-border-color
         'tab-border-width tab-border-width
         'tab-padding-x tab-padding-x
         'tab-padding-y tab-padding-y
@@ -3599,10 +3608,12 @@
   (define navbar-border
     (or (theme-prop-ref theme "--bs-border-color")
         control-border))
+  (define nav-link-color
+    (or (theme-component-ref theme 'nav-link-color)
+        fg-muted))
   (define navbar-link-color
     (or (theme-component-ref theme 'navbar-link-color)
-        (theme-component-ref theme 'nav-link-color)
-        fg-muted))
+        nav-link-color))
   (define navbar-link-hover
     (or (theme-component-ref theme 'navbar-link-hover)
         (theme-component-ref theme 'nav-link-hover)
@@ -3713,13 +3724,17 @@
         (bootstrap-theme-heading-text-transform theme)))
   (define tab-bg
     (or (theme-component-ref theme 'tab-bg)
-        (hash-ref surface-map 'surface-muted)))
+        "transparent"))
   (define tab-color
     (or (theme-component-ref theme 'tab-color)
+        nav-link-color
         navbar-link-color))
   (define tab-border-color
     (or (theme-component-ref theme 'tab-border-color)
         control-border))
+  (define tab-link-border-color
+    (or (theme-component-ref theme 'tab-link-border-color)
+        "transparent"))
   (define tab-border-width
     (or (theme-component-ref theme 'tab-border-width)
         (hash-ref bootstrap-defaults "--bs-border-width" #f)
@@ -5455,6 +5470,7 @@
     (cons "--we-tab-bg" tab-bg)
     (cons "--we-tab-color" tab-color)
     (cons "--we-tab-border-color" tab-border-color)
+    (cons "--we-tab-link-border-color" tab-link-border-color)
     (cons "--we-tab-border-width" tab-border-width)
     (cons "--we-tab-padding-x" tab-padding-x)
     (cons "--we-tab-padding-y" tab-padding-y)
@@ -7177,6 +7193,11 @@
                   "#e0e1e2 #e0e1e2 #fff")
     (check-equal? (hash-ref token-map "--we-tab-active-border-bottom-color")
                   "#fff")
+    (check-equal? (hash-ref token-map "--we-tab-color") "#55595c")
+    (check-equal? (hash-ref token-map "--we-tab-bg")
+                  "rgba(237, 238, 239, 0.977)")
+    (check-equal? (hash-ref token-map "--we-tab-link-border-color")
+                  "transparent")
     (check-equal? (hash-ref token-map "--we-tab-border-width") "2px")
     (check-equal? (hash-ref token-map "--we-tab-padding-x") "0.9rem")
     (check-equal? (hash-ref token-map "--we-tab-padding-y") "0.5rem")
