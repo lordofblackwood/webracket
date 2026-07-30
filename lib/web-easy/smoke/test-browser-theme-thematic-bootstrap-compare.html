@@ -1864,11 +1864,21 @@
       "sandstone-boost": { bootstrap: "sandstone", web: "sandstone-boost", label: "Sandstone Boost" }
     };
 
-    function scopeWeThemeCss(themeName, cssText) {
-      const exact = "html.we-theme-" + themeName;
-      return cssText
-        .replaceAll(exact + " body", WE_CORE_SELECTOR + ".we-theme-" + themeName)
-        .replaceAll(exact, WE_CORE_SELECTOR + ".we-theme-" + themeName);
+    function webThemeNames(theme) {
+      const names = [theme.web];
+      if (theme.bootstrap && theme.bootstrap !== theme.web) names.push(theme.bootstrap);
+      return names;
+    }
+
+    function scopeWeThemeCss(theme, cssText) {
+      return webThemeNames(theme)
+        .sort((a, b) => b.length - a.length)
+        .reduce((text, themeName) => {
+          const exact = "html.we-theme-" + themeName;
+          return text
+            .replaceAll(exact + " body", WE_CORE_SELECTOR + ".we-theme-" + themeName)
+            .replaceAll(exact, WE_CORE_SELECTOR + ".we-theme-" + themeName);
+        }, cssText);
     }
 
     async function applyTheme(name) {
@@ -1880,10 +1890,10 @@
       document.getElementById("bootstrap-theme-link").href = "./generated/bootstrap-" + theme.bootstrap + "-scoped.css";
 
       const wePreview = document.getElementById("we-preview");
-      wePreview.className = "we-preview we-theme-" + theme.web;
+      wePreview.className = "we-preview " + webThemeNames(theme).map((themeName) => "we-theme-" + themeName).join(" ");
 
       const css = await fetch("./generated/thematic-" + theme.web + ".css").then((r) => r.text());
-      document.getElementById("we-theme-style").textContent = scopeWeThemeCss(theme.web, css);
+      document.getElementById("we-theme-style").textContent = scopeWeThemeCss(theme, css);
     }
 
     const params = new URLSearchParams(window.location.search);
