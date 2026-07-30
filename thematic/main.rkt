@@ -1287,10 +1287,15 @@
     (or (surface-custom-ref ".badge" "--bs-badge-color")
         (surface-style-ref ".badge" "color")))
   (define badge-secondary-color
-    (or (surface-style-ref ".badge.bg-secondary, .badge.bg-light" "color")
+    (or (surface-style-ref ".badge.text-bg-secondary" "color")
+        (surface-style-ref ".text-bg-secondary" "color")
+        (surface-style-ref ".badge.bg-secondary, .badge.bg-light" "color")
         (surface-style-ref ".badge.bg-secondary" "color")))
   (define badge-light-color
-    (or (surface-style-ref ".badge.bg-secondary, .badge.bg-light" "color")
+    (or (surface-style-ref ".badge.text-bg-light" "color")
+        (surface-style-ref ".text-bg-light" "color")
+        (surface-style-ref ".badge.bg-light" "color")
+        (surface-style-ref ".badge.bg-secondary, .badge.bg-light" "color")
         (surface-style-ref ".badge.bg-light" "color")))
   (define-values (navmetric-style-ref navmetric-custom-ref)
     (make-computed-selector-refs props rules))
@@ -2144,6 +2149,15 @@
         (field-style-ref "textarea" "min-height")))
   (define-values (check-style-ref check-custom-ref)
     (make-computed-selector-refs props rules))
+  (define (check-context-ref key)
+    (or (present-ref (check-custom-ref ".form-check-input" key))
+        (present-ref (hash-ref props key #f))
+        (present-ref (hash-ref bootstrap-defaults key #f))))
+  (define (check-direct-ref selectors property)
+    (last-direct-declaration-value rules
+                                   selectors
+                                   property
+                                   check-context-ref))
   (define check-bg
     (or (check-custom-ref ".form-check-input" "--bs-form-check-bg")
         (check-style-ref ".form-check-input" "background-color")))
@@ -2194,6 +2208,22 @@
         (check-style-ref ".form-check-input:checked[type=radio]" "background-image")))
   (define check-disabled-opacity
     (check-style-ref ".form-check-input:disabled" "opacity"))
+  (define check-disabled-color
+    (check-direct-ref '(".form-check-input:disabled") "color"))
+  (define check-disabled-bg
+    (check-direct-ref '(".form-check-input:disabled") "background-color"))
+  (define check-disabled-border-color
+    (check-direct-ref '(".form-check-input:disabled") "border-color"))
+  (define check-checked-disabled-bg
+    (or (check-direct-ref '(".form-check-input:checked:disabled"
+                            ".form-check-input:disabled:checked")
+                          "background-color")
+        (check-style-ref ".form-check-input:checked:disabled" "background-color")))
+  (define check-checked-disabled-border-color
+    (or (check-direct-ref '(".form-check-input:checked:disabled"
+                            ".form-check-input:disabled:checked")
+                          "border-color")
+        (check-style-ref ".form-check-input:checked:disabled" "border-color")))
   (define check-before-display
     (check-style-ref "[type=checkbox]::before" "display"))
   (define check-before-position
@@ -2949,6 +2979,11 @@
         'check-checked-icon check-checked-icon
         'radio-checked-icon radio-checked-icon
         'check-disabled-opacity check-disabled-opacity
+        'check-disabled-color check-disabled-color
+        'check-disabled-bg check-disabled-bg
+        'check-disabled-border-color check-disabled-border-color
+        'check-checked-disabled-bg check-checked-disabled-bg
+        'check-checked-disabled-border-color check-checked-disabled-border-color
         'check-before-display check-before-display
         'check-before-position check-before-position
         'check-before-content check-before-content
@@ -5056,6 +5091,21 @@
   (define check-disabled-opacity
     (or (theme-component-ref theme 'check-disabled-opacity)
         "0.5"))
+  (define check-disabled-color
+    (or (theme-component-ref theme 'check-disabled-color)
+        "rgb(84, 84, 84)"))
+  (define check-disabled-bg
+    (or (theme-component-ref theme 'check-disabled-bg)
+        check-bg))
+  (define check-disabled-border-color
+    (or (theme-component-ref theme 'check-disabled-border-color)
+        check-border-color))
+  (define check-checked-disabled-bg
+    (or (theme-component-ref theme 'check-checked-disabled-bg)
+        check-checked-bg))
+  (define check-checked-disabled-border-color
+    (or (theme-component-ref theme 'check-checked-disabled-border-color)
+        check-checked-border-color))
   (define check-before-position
     (or (theme-component-ref theme 'check-before-position)
         "static"))
@@ -5871,6 +5921,11 @@
     (cons "--we-check-checked-icon" check-checked-icon)
     (cons "--we-radio-checked-icon" radio-checked-icon)
     (cons "--we-check-disabled-opacity" check-disabled-opacity)
+    (cons "--we-check-disabled-color" check-disabled-color)
+    (cons "--we-check-disabled-bg" check-disabled-bg)
+    (cons "--we-check-disabled-border-color" check-disabled-border-color)
+    (cons "--we-check-checked-disabled-bg" check-checked-disabled-bg)
+    (cons "--we-check-checked-disabled-border-color" check-checked-disabled-border-color)
     (cons "--we-check-before-display" check-before-display)
     (cons "--we-check-before-position" check-before-position)
     (cons "--we-check-before-content" check-before-content)
@@ -6718,7 +6773,14 @@
      "  --bs-form-check-bg-image: url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='-4 -4 8 8'%3e%3ccircle r='2' fill='%23fff'/%3e%3c/svg%3e\");\n"
      "}\n"
      ".form-check-input:disabled {\n"
+     "  color: #545454;\n"
+     "  background-color: #d9dade;\n"
+     "  border-color: #caced1;\n"
      "  opacity: 0.5;\n"
+     "}\n"
+     ".form-check-input:checked:disabled {\n"
+     "  background-color: #121212;\n"
+     "  border-color: #343434;\n"
      "}\n"
      ".form-switch .form-check-input {\n"
      "  --bs-form-switch-bg: url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='-4 -4 8 8'%3e%3ccircle r='3' fill='rgba%280, 0, 0, 0.25%29'/%3e%3c/svg%3e\");\n"
@@ -7363,6 +7425,12 @@
     (check-equal? (hash-ref token-map "--we-check-size") "1em")
     (check-equal? (hash-ref token-map "--we-check-checked-bg") "#1a1a1a")
     (check-equal? (hash-ref token-map "--we-check-border-style") "solid")
+    (check-equal? (hash-ref token-map "--we-check-disabled-opacity") "0.5")
+    (check-equal? (hash-ref token-map "--we-check-disabled-color") "#545454")
+    (check-equal? (hash-ref token-map "--we-check-disabled-bg") "#d9dade")
+    (check-equal? (hash-ref token-map "--we-check-disabled-border-color") "#caced1")
+    (check-equal? (hash-ref token-map "--we-check-checked-disabled-bg") "#121212")
+    (check-equal? (hash-ref token-map "--we-check-checked-disabled-border-color") "#343434")
     (check-true (regexp-match? #px"^url\\(" (hash-ref token-map "--we-check-checked-icon")))
     (check-equal? (hash-ref token-map "--we-radio-radius") "50%")
     (check-true (regexp-match? #px"^url\\(" (hash-ref token-map "--we-radio-checked-icon")))

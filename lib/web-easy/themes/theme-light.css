@@ -2547,8 +2547,14 @@ html.we-theme-light .we-checkbox:not(.we-switch-control):checked {
 
 html.we-theme-light .we-checkbox:not(.we-switch-control):disabled {
   opacity: var(--we-check-disabled-opacity);
-  background-color: color-mix(in srgb, var(--we-check-bg) 75%, white 25%);
-  border-color: color-mix(in srgb, var(--we-check-border-color) 70%, white 30%);
+  color: var(--we-check-disabled-color, rgb(84, 84, 84));
+  background-color: var(--we-check-disabled-bg, var(--we-check-bg));
+  border-color: var(--we-check-disabled-border-color, var(--we-check-border-color));
+}
+
+html.we-theme-light .we-checkbox:not(.we-switch-control):checked:disabled {
+  background-color: var(--we-check-checked-disabled-bg, var(--we-check-checked-bg));
+  border-color: var(--we-check-checked-disabled-border-color, var(--we-check-checked-border-color));
 }
 
 html.we-theme-light .we-slider {
@@ -2596,8 +2602,14 @@ html.we-theme-light .we-radio-input:checked {
 
 html.we-theme-light .we-radio-input:disabled {
   opacity: var(--we-check-disabled-opacity);
-  background-color: color-mix(in srgb, var(--we-check-bg) 75%, white 25%);
-  border-color: color-mix(in srgb, var(--we-check-border-color) 70%, white 30%);
+  color: var(--we-check-disabled-color, rgb(84, 84, 84));
+  background-color: var(--we-check-disabled-bg, var(--we-check-bg));
+  border-color: var(--we-check-disabled-border-color, var(--we-check-border-color));
+}
+
+html.we-theme-light .we-radio-input:checked:disabled {
+  background-color: var(--we-check-checked-disabled-bg, var(--we-check-checked-bg));
+  border-color: var(--we-check-checked-disabled-border-color, var(--we-check-checked-border-color));
 }
 
 html.we-theme-light .we-range {
@@ -2773,8 +2785,14 @@ html.we-theme-light .we-switch-control:checked::after {
 
 html.we-theme-light .we-switch-control:disabled {
   opacity: var(--we-check-disabled-opacity);
-  background-color: color-mix(in srgb, var(--we-check-bg) 75%, white 25%);
-  border-color: color-mix(in srgb, var(--we-check-border-color) 70%, white 30%);
+  color: var(--we-check-disabled-color, rgb(84, 84, 84));
+  background-color: var(--we-check-disabled-bg, var(--we-check-bg));
+  border-color: var(--we-check-disabled-border-color, var(--we-check-border-color));
+}
+
+html.we-theme-light .we-switch-control:checked:disabled {
+  background-color: var(--we-check-checked-disabled-bg, var(--we-check-checked-bg));
+  border-color: var(--we-check-checked-disabled-border-color, var(--we-check-checked-border-color));
 }
 
 html.we-theme-light .we-switch-control:focus {

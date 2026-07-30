@@ -198,8 +198,8 @@ html.we-theme-sketchy {
   --we-badge-line-height: 1;
   --we-badge-radius: 255px 25px 225px 25px/25px 225px 25px 255px;
   --we-badge-color: #fff;
-  --we-badge-secondary-color: #000000;
-  --we-badge-light-color: #555;
+  --we-badge-secondary-color: #fff;
+  --we-badge-light-color: #000;
   --we-accordion-bg: #fff;
   --we-accordion-border-color: #dee2e6;
   --we-accordion-border-width: 2px;
@@ -502,6 +502,11 @@ html.we-theme-sketchy {
   --we-check-checked-icon: none;
   --we-radio-checked-icon: none;
   --we-check-disabled-opacity: 0.5;
+  --we-check-disabled-color: rgb(84, 84, 84);
+  --we-check-disabled-bg: #fff;
+  --we-check-disabled-border-color: #333;
+  --we-check-checked-disabled-bg: #333;
+  --we-check-checked-disabled-border-color: #333;
   --we-check-before-display: inline-block;
   --we-check-before-position: absolute;
   --we-check-before-content: "";
@@ -2989,8 +2994,14 @@ html.we-theme-sketchy .we-checkbox:not(.we-switch-control):checked {
 
 html.we-theme-sketchy .we-checkbox:not(.we-switch-control):disabled {
   opacity: var(--we-check-disabled-opacity);
-  background-color: color-mix(in srgb, var(--we-check-bg) 75%, white 25%);
-  border-color: color-mix(in srgb, var(--we-check-border-color) 70%, white 30%);
+  color: var(--we-check-disabled-color, rgb(84, 84, 84));
+  background-color: var(--we-check-disabled-bg, var(--we-check-bg));
+  border-color: var(--we-check-disabled-border-color, var(--we-check-border-color));
+}
+
+html.we-theme-sketchy .we-checkbox:not(.we-switch-control):checked:disabled {
+  background-color: var(--we-check-checked-disabled-bg, var(--we-check-checked-bg));
+  border-color: var(--we-check-checked-disabled-border-color, var(--we-check-checked-border-color));
 }
 
 html.we-theme-sketchy .we-slider {
@@ -3038,8 +3049,14 @@ html.we-theme-sketchy .we-radio-input:checked {
 
 html.we-theme-sketchy .we-radio-input:disabled {
   opacity: var(--we-check-disabled-opacity);
-  background-color: color-mix(in srgb, var(--we-check-bg) 75%, white 25%);
-  border-color: color-mix(in srgb, var(--we-check-border-color) 70%, white 30%);
+  color: var(--we-check-disabled-color, rgb(84, 84, 84));
+  background-color: var(--we-check-disabled-bg, var(--we-check-bg));
+  border-color: var(--we-check-disabled-border-color, var(--we-check-border-color));
+}
+
+html.we-theme-sketchy .we-radio-input:checked:disabled {
+  background-color: var(--we-check-checked-disabled-bg, var(--we-check-checked-bg));
+  border-color: var(--we-check-checked-disabled-border-color, var(--we-check-checked-border-color));
 }
 
 html.we-theme-sketchy .we-range {
@@ -3215,8 +3232,14 @@ html.we-theme-sketchy .we-switch-control:checked::after {
 
 html.we-theme-sketchy .we-switch-control:disabled {
   opacity: var(--we-check-disabled-opacity);
-  background-color: color-mix(in srgb, var(--we-check-bg) 75%, white 25%);
-  border-color: color-mix(in srgb, var(--we-check-border-color) 70%, white 30%);
+  color: var(--we-check-disabled-color, rgb(84, 84, 84));
+  background-color: var(--we-check-disabled-bg, var(--we-check-bg));
+  border-color: var(--we-check-disabled-border-color, var(--we-check-border-color));
+}
+
+html.we-theme-sketchy .we-switch-control:checked:disabled {
+  background-color: var(--we-check-checked-disabled-bg, var(--we-check-checked-bg));
+  border-color: var(--we-check-checked-disabled-border-color, var(--we-check-checked-border-color));
 }
 
 html.we-theme-sketchy .we-switch-control:focus {
