@@ -307,27 +307,32 @@
     }
 
     .we-progress-demo {
-      display: block;
+      display: flex;
+      box-sizing: border-box;
       width: 100%;
       height: var(--we-progress-height, 1rem);
       min-height: var(--we-progress-height, 1rem);
+      border: var(--we-progress-border-width, 0) var(--we-progress-border-style, none) var(--we-progress-border-color, transparent);
       border-radius: var(--we-progress-radius, 999px);
       overflow: hidden;
       background: var(--we-progress-bg, #f3f3f3);
       box-shadow: var(--we-progress-box-shadow, none);
+      font-size: var(--we-progress-font-size, 0.75rem);
+      line-height: var(--we-line-height-base, 1.5);
     }
 
     .we-progress-demo-fill {
       display: flex;
+      flex-direction: column;
       align-items: center;
       justify-content: center;
       height: 100%;
       color: var(--we-progress-bar-color, currentColor);
       font-size: var(--we-progress-font-size, 0.75rem);
-      font-weight: 400;
+      font-weight: var(--we-font-weight-normal, 400);
       opacity: 1;
       text-shadow: none;
-      line-height: 1.5;
+      line-height: var(--we-line-height-base, 1.5);
       overflow: visible;
       white-space: nowrap;
     }
@@ -389,8 +394,15 @@
       position: static !important;
       inset: auto !important;
       transform: none !important;
-      min-width: 220px;
       margin: 0;
+    }
+
+    .static-dropdown-menu {
+      min-width: 10rem;
+    }
+
+    .static-we-menu {
+      min-width: var(--we-menu-popup-min-width, 10rem);
     }
 
     .overlay-demo-grid {
@@ -1412,11 +1424,11 @@
                     <div class="sample-stack">
                       <div class="we-alert we-alert-success" style="display: flex; align-items: center; justify-content: space-between; gap: 12px;">
                         <span><span class="we-alert-title">Ready.</span> <span class="we-alert-body">Visual checks are complete and the theme can be published.</span></span>
-                        <button class="we-toast-close" aria-label="Close"></button>
+                        <button class="we-close-button" aria-label="Close"></button>
                       </div>
                       <div class="we-alert we-alert-danger" style="display: flex; align-items: center; justify-content: space-between; gap: 12px;">
                         <span><span class="we-alert-title">Blocked.</span> <span class="we-alert-body">One semantic token still differs from Bootstrap.</span></span>
-                        <button class="we-toast-close" aria-label="Close"></button>
+                        <button class="we-close-button" aria-label="Close"></button>
                       </div>
                     </div>
                   </div>

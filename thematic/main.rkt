@@ -319,6 +319,45 @@
                                 property)))])
          (resolved-concrete-css-value (css-declaration-value declaration) lookup))))
 
+;; border-none-value? : (or/c string? #f) -> boolean?
+;;   Detect authored border shorthands that explicitly remove a border.
+(define (border-none-value? value)
+  (and value (regexp-match? #px"(^|\\s)none(\\s|$)" value)))
+
+;; border-width-token? : string? -> boolean?
+;;   Identify simple border-width tokens inside resolved border shorthands.
+(define (border-width-token? token)
+  (or (member (string-downcase token) '("thin" "medium" "thick"))
+      (regexp-match? #px"^(?:0|[0-9]*\\.?[0-9]+(?:px|rem|em|%)?)$" token)))
+
+;; border-style-token? : string? -> boolean?
+;;   Identify CSS border style keywords inside resolved border shorthands.
+(define (border-style-token? token)
+  (member (string-downcase token)
+          '("none" "hidden" "dotted" "dashed" "solid" "double"
+            "groove" "ridge" "inset" "outset")))
+
+;; border-shorthand-width : (or/c string? #f) -> (or/c string? #f)
+;;   Extract a simple width token from a resolved border shorthand.
+(define (border-shorthand-width value)
+  (and (present-css-value? value)
+       (not (regexp-match? #px"[()]" value))
+       (for/or ([part (in-list (string-split (string-trim value)))]
+                #:when (border-width-token? part))
+         part)))
+
+;; border-shorthand-color : (or/c string? #f) -> (or/c string? #f)
+;;   Extract a simple color token from a resolved border shorthand.
+(define (border-shorthand-color value)
+  (and (present-css-value? value)
+       (not (regexp-match? #px"[()]" value))
+       (let ([parts (filter (lambda (part)
+                              (not (or (border-width-token? part)
+                                       (border-style-token? part))))
+                            (string-split (string-trim value)))])
+         (and (pair? parts)
+              (string-join parts " ")))))
+
 ;; extract-component-styles : (hash/c string? string?) css-stylesheet? -> (hash/c symbol? string?)
 ;;   Extract component-level Bootstrap styles that need more than root token mapping.
 (define (extract-component-styles props rules)
@@ -715,12 +754,15 @@
   (define dropdown-border-width
     (or (computed-custom-ref ".dropdown-menu" "--bs-dropdown-border-width")
         (computed-style-ref ".dropdown-menu" "border-width")))
+  (define dropdown-min-width
+    (or (computed-custom-ref ".dropdown-menu" "--bs-dropdown-min-width")
+        (computed-style-ref ".dropdown-menu" "min-width")))
   (define dropdown-radius
     (or (computed-style-ref ".dropdown-menu" "border-radius")
-        (computed-custom-ref ".dropdown-menu" "--bs-dropdown-border-radius")))
+        "0"))
   (define dropdown-shadow
-    (or (computed-custom-ref ".dropdown-menu" "--bs-dropdown-box-shadow")
-        (computed-style-ref ".dropdown-menu" "box-shadow")))
+    (or (computed-style-ref ".dropdown-menu" "box-shadow")
+        "none"))
   (define dropdown-padding-y
     (or (computed-custom-ref ".dropdown-menu" "--bs-dropdown-padding-y")
         (computed-style-ref ".dropdown-menu" "padding-top")))
@@ -743,17 +785,25 @@
     (or (computed-custom-ref ".dropdown-menu" "--bs-dropdown-item-padding-y")
         (computed-style-ref ".dropdown-item" "padding-top")))
   (define dropdown-item-font-size
-    (selector-ref* computed-style-ref
-                   '(".dropdown-menu .dropdown-item" ".dropdown-item")
-                   "font-size"))
+    (or (selector-ref* computed-style-ref
+                       '(".dropdown-menu .dropdown-item" ".dropdown-item")
+                       "font-size")
+        (computed-style-ref ".dropdown-menu" "font-size")
+        (computed-custom-ref ".dropdown-menu" "--bs-dropdown-font-size")))
   (define dropdown-item-font-weight
     (selector-ref* computed-style-ref
                    '(".dropdown-menu .dropdown-item" ".dropdown-item")
                    "font-weight"))
+  (define dropdown-item-line-height
+    (or (selector-ref* computed-style-ref
+                       '(".dropdown-menu .dropdown-item" ".dropdown-item")
+                       "line-height")
+        (computed-style-ref ".dropdown-menu" "line-height")))
   (define dropdown-item-text-transform
-    (selector-ref* computed-style-ref
-                   '(".dropdown-menu .dropdown-item" ".dropdown-item")
-                   "text-transform"))
+    (or (selector-ref* computed-style-ref
+                       '(".dropdown-menu .dropdown-item" ".dropdown-item")
+                       "text-transform")
+        (computed-style-ref ".dropdown-menu" "text-transform")))
   (define dropdown-item-radius
     (computed-style-ref ".dropdown-item" "border-radius"))
   (define dropdown-item-hover-bg
@@ -1025,6 +1075,9 @@
         (button-style-ref ".btn-danger" "color")))
   (define-values (surface-style-ref surface-custom-ref)
     (make-computed-selector-refs props rules))
+  (define (surface-custom-ref/meaningful selector key)
+    (define value (surface-custom-ref selector key))
+    (and (meaningful-css-value? value) value))
   (define card-bg
     (or (surface-custom-ref ".card" "--bs-card-bg")
         (surface-style-ref ".card" "background-color")))
@@ -1036,16 +1089,19 @@
   (define card-border-color
     (or (surface-custom-ref ".card" "--bs-card-border-color")
         (surface-style-ref ".card" "border-color")))
+  (define card-border-width
+    (or (surface-custom-ref ".card" "--bs-card-border-width")
+        (surface-style-ref ".card" "border-top-width")))
   (define card-cap-bg
-    (or (selector-ref* surface-style-ref
+    (or (surface-custom-ref/meaningful ".card" "--bs-card-cap-bg")
+        (selector-ref* surface-style-ref
                        '(".card-header" ".card-footer")
-                       "background-color")
-        (surface-custom-ref ".card" "--bs-card-cap-bg")))
+                       "background-color")))
   (define card-cap-color
-    (or (selector-ref* surface-style-ref
-                       '(".card-header" ".card-footer")
-                       "color")
-        (surface-custom-ref ".card" "--bs-card-cap-color")))
+    (or (surface-custom-ref/meaningful ".card" "--bs-card-cap-color")
+        (surface-custom-ref/meaningful ".card" "--bs-card-color")
+        (hash-ref props "--bs-body-color" #f)
+        (surface-style-ref ".card" "color")))
   (define card-cap-padding-x
     (or (surface-custom-ref ".card" "--bs-card-cap-padding-x")
         (surface-style-ref ".card-header" "padding-left")))
@@ -1058,6 +1114,27 @@
   (define card-body-padding-y
     (or (surface-custom-ref ".card" "--bs-card-spacer-y")
         (surface-style-ref ".card-body" "padding-top")))
+  (define card-title-margin-bottom
+    (or (surface-custom-ref ".card" "--bs-card-title-spacer-y")
+        (surface-style-ref ".card-title" "margin-bottom")))
+  (define card-title-font-family
+    (or (surface-style-ref ".card h5" "font-family")
+        (surface-style-ref "h5" "font-family")))
+  (define card-title-font-size
+    (or (surface-style-ref ".card h5" "font-size")
+        (surface-style-ref "h5" "font-size")))
+  (define card-title-font-weight
+    (or (surface-style-ref ".card h5" "font-weight")
+        (surface-style-ref "h5" "font-weight")))
+  (define card-title-line-height
+    (or (surface-style-ref ".card h5" "line-height")
+        (surface-style-ref "h5" "line-height")))
+  (define card-title-letter-spacing
+    (or (surface-style-ref ".card h5" "letter-spacing")
+        (surface-style-ref "h5" "letter-spacing")))
+  (define card-title-text-transform
+    (or (surface-style-ref ".card h5" "text-transform")
+        (surface-style-ref "h5" "text-transform")))
   (define badge-padding-x
     (or (surface-custom-ref ".badge" "--bs-badge-padding-x")
         (surface-style-ref ".badge" "padding-left")))
@@ -1227,6 +1304,12 @@
     (and (meaningful-css-value? progress-box-shadow-direct)
          (not (regexp-match? css-var-regexp progress-box-shadow-direct))
          progress-box-shadow-direct))
+  (define progress-border-width
+    (navmetric-style-ref ".progress" "border-top-width"))
+  (define progress-border-style
+    (navmetric-style-ref ".progress" "border-top-style"))
+  (define progress-border-color
+    (navmetric-style-ref ".progress" "border-top-color"))
   (define progress-bar-color
     (or (navmetric-custom-ref ".progress" "--bs-progress-bar-color")
         (navmetric-custom-ref ".progress-stacked" "--bs-progress-bar-color")
@@ -1235,6 +1318,11 @@
     (or (navmetric-custom-ref ".progress" "--bs-progress-bar-bg")
         (navmetric-custom-ref ".progress-stacked" "--bs-progress-bar-bg")
         (navmetric-style-ref ".progress-bar" "background-color")))
+  (define progress-warning-color
+    (or (navmetric-style-ref ".progress-bar.bg-warning.text-dark" "color")
+        (navmetric-style-ref ".bg-warning.text-dark" "color")
+        (navmetric-style-ref ".text-dark" "color")
+        progress-bar-color))
   (define breadcrumb-divider-color
     (or (navmetric-custom-ref ".breadcrumb" "--bs-breadcrumb-divider-color")
         (navmetric-style-ref ".breadcrumb-item + .breadcrumb-item::before" "color")))
@@ -1267,6 +1355,15 @@
         (hash-ref props "--bs-link-color" #f)))
   (define-values (toast-style-ref toast-custom-ref)
     (make-computed-selector-refs props rules))
+  (define (toast-context-ref key)
+    (or (toast-custom-ref ".toast" key)
+        (hash-ref props key #f)
+        (hash-ref bootstrap-defaults key #f)))
+  (define (toast-direct-ref selectors property)
+    (last-direct-declaration-value rules
+                                   selectors
+                                   property
+                                   toast-context-ref))
   (define toast-padding-x
     (or (toast-custom-ref ".toast" "--bs-toast-padding-x")
         (toast-style-ref ".toast-header" "padding-left")
@@ -1277,6 +1374,9 @@
   (define toast-font-size
     (or (toast-custom-ref ".toast" "--bs-toast-font-size")
         (toast-style-ref ".toast" "font-size")))
+  (define toast-max-width
+    (or (toast-custom-ref ".toast" "--bs-toast-max-width")
+        (toast-style-ref ".toast" "width")))
   (define toast-color
     (or (toast-custom-ref ".toast" "--bs-toast-color")
         (toast-style-ref ".toast" "color")
@@ -1308,6 +1408,16 @@
   (define toast-header-border-color
     (or (toast-custom-ref ".toast" "--bs-toast-header-border-color")
         (toast-style-ref ".toast-header" "border-bottom-color")))
+  (define toast-header-font-family
+    (toast-style-ref ".toast-header" "font-family"))
+  (define toast-header-font-weight
+    (toast-style-ref ".toast-header" "font-weight"))
+  (define toast-header-radius-top-left
+    (or (toast-direct-ref '(".toast-header") "border-top-left-radius")
+        (toast-style-ref ".toast-header" "border-top-left-radius")))
+  (define toast-header-radius-top-right
+    (or (toast-direct-ref '(".toast-header") "border-top-right-radius")
+        (toast-style-ref ".toast-header" "border-top-right-radius")))
   (define toast-body-padding
     (or (toast-style-ref ".toast-body" "padding")
         toast-padding-x))
@@ -1409,6 +1519,17 @@
         (offcanvas-style-ref "h5" "font-weight")))
   (define-values (alert-style-ref alert-custom-ref)
     (make-computed-selector-refs props rules))
+  (define (alert-context-ref key)
+    (or (alert-custom-ref ".alert" key)
+        (hash-ref props key #f)
+        (hash-ref bootstrap-defaults key #f)))
+  (define (alert-direct-ref selectors property)
+    (last-direct-declaration-value rules
+                                   selectors
+                                   property
+                                   alert-context-ref))
+  (define alert-border-shorthand
+    (alert-direct-ref '(".alert") "border"))
   (define alert-base-color-direct
     (alert-style-ref ".alert" "color"))
   (define alert-base-color-var
@@ -1417,6 +1538,19 @@
     (or (and (meaningful-css-value? alert-base-color-direct)
              alert-base-color-direct)
         alert-base-color-var))
+  (define alert-padding-x
+    (or (alert-custom-ref ".alert" "--bs-alert-padding-x")
+        (alert-style-ref ".alert" "padding-left")))
+  (define alert-padding-y
+    (or (alert-custom-ref ".alert" "--bs-alert-padding-y")
+        (alert-style-ref ".alert" "padding-top")))
+  (define alert-border-width
+    (or (border-shorthand-width alert-border-shorthand)
+        (alert-style-ref ".alert" "border-width")))
+  (define alert-border-style
+    (alert-style-ref ".alert" "border-style"))
+  (define alert-radius
+    (alert-style-ref ".alert" "border-radius"))
   (define (alert-tone-bg tone)
     (or (alert-style-ref (format ".alert-~a" tone) "background-color")
         (alert-custom-ref (format ".alert-~a" tone) "--bs-alert-bg")))
@@ -1457,14 +1591,66 @@
   (define alert-dark-color (alert-tone-color "dark"))
   (define-values (list-table-style-ref list-table-custom-ref)
     (make-computed-selector-refs props rules))
+  (define (list-group-context-ref key)
+    (or (list-table-custom-ref ".list-group-item" key)
+        (list-table-custom-ref ".list-group" key)
+        (hash-ref props key #f)
+        (hash-ref bootstrap-defaults key #f)))
+  (define (list-group-direct-ref selector property)
+    (last-direct-declaration-value rules
+                                   (list selector)
+                                   property
+                                   list-group-context-ref))
+  (define (table-context-ref key)
+    (or (list-table-custom-ref ".table" key)
+        (hash-ref props key #f)
+        (hash-ref bootstrap-defaults key #f)))
+  (define (table-direct-ref selectors property)
+    (last-direct-declaration-value rules
+                                   selectors
+                                   property
+                                   table-context-ref))
   (define list-group-bg
     (or (list-table-custom-ref ".list-group" "--bs-list-group-bg")
         (list-table-style-ref ".list-group-item" "background-color")))
+  (define list-group-shell-bg
+    (list-table-style-ref ".list-group" "background-color"))
+  (define list-group-shell-border-color
+    (list-table-style-ref ".list-group" "border-color"))
+  (define list-group-shell-border-style
+    (list-table-style-ref ".list-group" "border-style"))
+  (define list-group-shell-border-width
+    (list-table-style-ref ".list-group" "border-width"))
+  (define list-group-shell-overflow
+    (list-table-style-ref ".list-group" "overflow"))
   (define list-group-border-color
     (or (list-table-custom-ref ".list-group" "--bs-list-group-border-color")
         (list-table-style-ref ".list-group-item" "border-color")))
   (define list-group-border-width
-    (list-table-style-ref ".list-group" "border-width"))
+    (or (list-table-custom-ref ".list-group" "--bs-list-group-border-width")
+        (list-table-style-ref ".list-group-item" "border-width")
+        (list-table-style-ref ".list-group" "border-width")))
+  (define list-group-border-style
+    (or (list-table-style-ref ".list-group-item" "border-style")
+        (list-table-style-ref ".list-group" "border-style")))
+  (define (list-group-side-border selector edge part)
+    (define side-shorthand
+      (list-group-direct-ref selector (format "border-~a" edge)))
+    (cond
+      [(border-none-value? side-shorthand)
+       (cond
+         [(equal? part "width") "0px"]
+         [(equal? part "style") "none"]
+         [else #f])]
+      [else
+       (list-table-style-ref selector
+                             (format "border-~a-~a" edge part))]))
+  (define (list-group-item-border edge part)
+    (list-group-side-border ".list-group-item" edge part))
+  (define (list-group-first-border edge part)
+    (list-group-side-border ".list-group-item:first-child" edge part))
+  (define (list-group-last-border edge part)
+    (list-group-side-border ".list-group-item:last-child" edge part))
   (define list-group-radius
     (list-table-style-ref ".list-group" "border-radius"))
   (define list-group-item-radius
@@ -1478,6 +1664,26 @@
   (define list-group-color
     (or (list-table-custom-ref ".list-group" "--bs-list-group-color")
         (list-table-style-ref ".list-group-item" "color")))
+  (define list-group-action-color
+    (or (list-table-custom-ref ".list-group" "--bs-list-group-action-color")
+        (list-table-style-ref ".list-group-item-action" "color")
+        list-group-color))
+  (define list-group-font-size
+    (or (list-table-style-ref ".list-group-item-action" "font-size")
+        (list-table-style-ref ".list-group-item" "font-size")))
+  (define list-group-font-weight
+    (or (list-table-style-ref ".list-group-item-action" "font-weight")
+        (list-table-style-ref ".list-group-item" "font-weight")))
+  (define list-group-line-height
+    (or (list-table-style-ref ".list-group-item-action" "line-height")
+        (list-table-style-ref ".list-group-item" "line-height")
+        (hash-ref props "--bs-body-line-height" #f)))
+  (define list-group-letter-spacing
+    (or (list-table-style-ref ".list-group-item-action" "letter-spacing")
+        (list-table-style-ref ".list-group-item" "letter-spacing")))
+  (define list-group-text-transform
+    (or (list-table-style-ref ".list-group-item-action" "text-transform")
+        (list-table-style-ref ".list-group-item" "text-transform")))
   (define list-group-active-bg
     (or (list-table-custom-ref ".list-group" "--bs-list-group-active-bg")
         (list-table-style-ref ".list-group-item.active" "background-color")))
@@ -1505,23 +1711,40 @@
   (define table-active-bg
     (or (list-table-custom-ref ".table" "--bs-table-active-bg")
         (list-table-style-ref ".table-active" "background-color")))
+  (define table-cell-selector
+    ".table > :not(caption) > * > *")
+  (define table-cell-override-selectors
+    '(".table th" ".table td"))
+  (define table-cell-padding-override
+    (table-direct-ref table-cell-override-selectors "padding"))
   (define table-cell-padding-x
-    (or (list-table-custom-ref ".table" "--bs-table-cell-padding-x")
+    (or (table-direct-ref table-cell-override-selectors "padding-left")
+        (box-shorthand-side table-cell-padding-override 'left)
+        (list-table-style-ref table-cell-selector "padding-left")
+        (list-table-custom-ref ".table" "--bs-table-cell-padding-x")
         (list-table-style-ref ".table th" "padding-left")
         (list-table-style-ref ".table td" "padding-left")))
   (define table-cell-padding-y
-    (or (list-table-custom-ref ".table" "--bs-table-cell-padding-y")
+    (or (table-direct-ref table-cell-override-selectors "padding-top")
+        (box-shorthand-side table-cell-padding-override 'top)
+        (list-table-style-ref table-cell-selector "padding-top")
+        (list-table-custom-ref ".table" "--bs-table-cell-padding-y")
         (list-table-style-ref ".table th" "padding-top")
         (list-table-style-ref ".table td" "padding-top")))
   (define table-border-width
-    (or (list-table-style-ref ".table > :not(caption) > * > *" "border-bottom-width")
+    (or (list-table-style-ref table-cell-selector "border-bottom-width")
         (list-table-style-ref ".table td" "border-bottom-width")
         (list-table-style-ref ".table th" "border-bottom-width")))
   (define table-header-color
-    (let ([header-color (list-table-style-ref ".table th" "color")])
+    (let ([header-color (or (table-direct-ref '(".table th") "color")
+                            (table-direct-ref table-cell-override-selectors "color"))])
       (if (meaningful-css-value? header-color)
           header-color
           table-color)))
+  (define table-header-font-family
+    (or (list-table-style-ref ".table th" "font-family")
+        (list-table-style-ref table-cell-selector "font-family")
+        (list-table-style-ref "th" "font-family")))
   (define table-header-font-size
     (or (list-table-style-ref "th" "font-size")
         (list-table-style-ref ".table th" "font-size")))
@@ -1537,6 +1760,20 @@
         (list-table-style-ref "body" "font-weight")))
   (define-values (field-style-ref field-custom-ref)
     (make-computed-selector-refs props rules))
+  (define field-context-selectors
+    '(".form-control" ".form-select"))
+  (define (field-context-ref key)
+    (or (for/or ([selector (in-list field-context-selectors)])
+          (field-custom-ref selector key))
+        (hash-ref props key #f)
+        (hash-ref bootstrap-defaults key #f)))
+  (define (field-direct-ref selectors property)
+    (last-direct-declaration-value rules
+                                   selectors
+                                   property
+                                   field-context-ref))
+  (define field-border-shorthand
+    (field-direct-ref field-context-selectors "border"))
   (define field-bg
     (selector-ref* field-style-ref
                    '(".form-control" ".form-select")
@@ -1546,14 +1783,16 @@
                    '(".form-control" ".form-select")
                    "color"))
   (define field-border-color
-    (or (hash-ref props "--bs-border-color" #f)
+    (or (border-shorthand-color field-border-shorthand)
         (selector-ref* field-style-ref
                        '(".form-control" ".form-select")
-                       "border-color")))
+                       "border-color")
+        (hash-ref props "--bs-border-color" #f)))
   (define field-border-width
-    (selector-ref* field-style-ref
-                   '(".form-control" ".form-select")
-                   "border-width"))
+    (or (border-shorthand-width field-border-shorthand)
+        (selector-ref* field-style-ref
+                       '(".form-control" ".form-select")
+                       "border-width")))
   (define field-radius
     (selector-ref* field-style-ref
                    '(".form-control" ".form-select")
@@ -1593,13 +1832,46 @@
   (define field-focus-border-color
     (or (field-style-ref ".form-control:focus" "border-color")
         (field-style-ref ".form-select:focus" "border-color")))
+  (define field-disabled-bg
+    (or (field-direct-ref '(".form-control:disabled") "background-color")
+        (field-style-ref ".form-control:disabled" "background-color")
+        (field-style-ref ".form-select:disabled" "background-color")))
+  (define field-disabled-color
+    (or (field-direct-ref '(".form-control:disabled") "color")
+        field-color))
+  (define field-disabled-border-color
+    (or (field-direct-ref '(".form-control:disabled") "border-color")
+        (field-style-ref ".form-control:disabled" "border-color")
+        field-border-color))
+  (define field-disabled-opacity
+    (or (field-direct-ref '(".form-control:disabled") "opacity")
+        (field-style-ref ".form-control:disabled" "opacity")
+        (field-style-ref ".form-select:disabled" "opacity")))
+  (define field-select-disabled-bg
+    (or (field-direct-ref '(".form-select:disabled") "background-color")
+        (field-style-ref ".form-select:disabled" "background-color")
+        field-disabled-bg))
+  (define field-select-disabled-color
+    (or (field-direct-ref '(".form-select:disabled") "color")
+        field-disabled-color))
+  (define field-select-disabled-border-color
+    (or (field-direct-ref '(".form-select:disabled") "border-color")
+        (field-style-ref ".form-select:disabled" "border-color")
+        field-disabled-border-color))
+  (define field-select-disabled-opacity
+    (or (field-direct-ref '(".form-select:disabled") "opacity")
+        (field-style-ref ".form-select:disabled" "opacity")
+        field-disabled-opacity))
   (define input-group-addon-bg
     (field-style-ref ".input-group-text" "background-color"))
   (define input-group-addon-color
     (field-style-ref ".input-group-text" "color"))
+  (define input-group-addon-border-shorthand
+    (field-direct-ref '(".input-group-text") "border"))
   (define input-group-addon-border-color
-    (or (hash-ref props "--bs-border-color" #f)
-        (field-style-ref ".input-group-text" "border-color")))
+    (or (border-shorthand-color input-group-addon-border-shorthand)
+        (field-style-ref ".input-group-text" "border-color")
+        (hash-ref props "--bs-border-color" #f)))
   (define input-group-addon-padding-x
     (field-style-ref ".input-group-text" "padding-left"))
   (define input-group-addon-padding-y
@@ -1634,6 +1906,9 @@
   (define textarea-line-height
     (or (field-style-ref "textarea.form-control" "line-height")
         (field-style-ref "textarea" "line-height")))
+  (define textarea-min-height
+    (or (field-style-ref "textarea.form-control" "min-height")
+        (field-style-ref "textarea" "min-height")))
   (define-values (check-style-ref check-custom-ref)
     (make-computed-selector-refs props rules))
   (define check-bg
@@ -1983,6 +2258,7 @@
         'dropdown-color dropdown-color
         'dropdown-border-color dropdown-border-color
         'dropdown-border-width dropdown-border-width
+        'dropdown-min-width dropdown-min-width
         'dropdown-radius dropdown-radius
         'dropdown-shadow dropdown-shadow
         'dropdown-padding-y dropdown-padding-y
@@ -1995,6 +2271,7 @@
         'dropdown-item-padding-y dropdown-item-padding-y
         'dropdown-item-font-size dropdown-item-font-size
         'dropdown-item-font-weight dropdown-item-font-weight
+        'dropdown-item-line-height dropdown-item-line-height
         'dropdown-item-text-transform dropdown-item-text-transform
         'dropdown-item-radius dropdown-item-radius
         'dropdown-item-hover-bg dropdown-item-hover-bg
@@ -2079,12 +2356,20 @@
         'card-radius card-radius
         'card-shadow card-shadow
         'card-border-color card-border-color
+        'card-border-width card-border-width
         'card-cap-bg card-cap-bg
         'card-cap-color card-cap-color
         'card-cap-padding-x card-cap-padding-x
         'card-cap-padding-y card-cap-padding-y
         'card-body-padding-x card-body-padding-x
         'card-body-padding-y card-body-padding-y
+        'card-title-margin-bottom card-title-margin-bottom
+        'card-title-font-family card-title-font-family
+        'card-title-font-size card-title-font-size
+        'card-title-font-weight card-title-font-weight
+        'card-title-line-height card-title-line-height
+        'card-title-letter-spacing card-title-letter-spacing
+        'card-title-text-transform card-title-text-transform
         'badge-padding-x badge-padding-x
         'badge-padding-y badge-padding-y
         'badge-font-size badge-font-size
@@ -2134,8 +2419,12 @@
         'progress-bg progress-bg
         'progress-radius progress-radius
         'progress-box-shadow progress-box-shadow
+        'progress-border-width progress-border-width
+        'progress-border-style progress-border-style
+        'progress-border-color progress-border-color
         'progress-bar-color progress-bar-color
         'progress-bar-bg progress-bar-bg
+        'progress-warning-color progress-warning-color
         'breadcrumb-divider-color breadcrumb-divider-color
         'breadcrumb-padding-x breadcrumb-padding-x
         'breadcrumb-padding-y breadcrumb-padding-y
@@ -2149,6 +2438,7 @@
         'toast-padding-x toast-padding-x
         'toast-padding-y toast-padding-y
         'toast-font-size toast-font-size
+        'toast-max-width toast-max-width
         'toast-color toast-color
         'toast-bg toast-bg
         'toast-border-width toast-border-width
@@ -2158,6 +2448,10 @@
         'toast-header-color toast-header-color
         'toast-header-bg toast-header-bg
         'toast-header-border-color toast-header-border-color
+        'toast-header-font-family toast-header-font-family
+        'toast-header-font-weight toast-header-font-weight
+        'toast-header-radius-top-left toast-header-radius-top-left
+        'toast-header-radius-top-right toast-header-radius-top-right
         'toast-body-padding toast-body-padding
         'toast-close-color toast-close-color
         'close-button-color close-button-color
@@ -2181,6 +2475,11 @@
         'offcanvas-title-color offcanvas-title-color
         'offcanvas-title-font-size offcanvas-title-font-size
         'offcanvas-title-font-weight offcanvas-title-font-weight
+        'alert-padding-x alert-padding-x
+        'alert-padding-y alert-padding-y
+        'alert-border-width alert-border-width
+        'alert-border-style alert-border-style
+        'alert-radius alert-radius
         'alert-primary-bg alert-primary-bg
         'alert-primary-border alert-primary-border
         'alert-primary-color alert-primary-color
@@ -2206,13 +2505,43 @@
         'alert-dark-border alert-dark-border
         'alert-dark-color alert-dark-color
         'list-group-bg list-group-bg
+        'list-group-shell-bg list-group-shell-bg
+        'list-group-shell-border-color list-group-shell-border-color
+        'list-group-shell-border-style list-group-shell-border-style
+        'list-group-shell-border-width list-group-shell-border-width
+        'list-group-shell-overflow list-group-shell-overflow
         'list-group-border-color list-group-border-color
         'list-group-border-width list-group-border-width
+        'list-group-border-style list-group-border-style
+        'list-group-item-border-top-width (list-group-item-border "top" "width")
+        'list-group-item-border-top-style (list-group-item-border "top" "style")
+        'list-group-item-border-top-color (list-group-item-border "top" "color")
+        'list-group-item-border-right-width (list-group-item-border "right" "width")
+        'list-group-item-border-right-style (list-group-item-border "right" "style")
+        'list-group-item-border-right-color (list-group-item-border "right" "color")
+        'list-group-item-border-bottom-width (list-group-item-border "bottom" "width")
+        'list-group-item-border-bottom-style (list-group-item-border "bottom" "style")
+        'list-group-item-border-bottom-color (list-group-item-border "bottom" "color")
+        'list-group-item-border-left-width (list-group-item-border "left" "width")
+        'list-group-item-border-left-style (list-group-item-border "left" "style")
+        'list-group-item-border-left-color (list-group-item-border "left" "color")
+        'list-group-first-border-top-width (list-group-first-border "top" "width")
+        'list-group-first-border-top-style (list-group-first-border "top" "style")
+        'list-group-first-border-top-color (list-group-first-border "top" "color")
+        'list-group-last-border-bottom-width (list-group-last-border "bottom" "width")
+        'list-group-last-border-bottom-style (list-group-last-border "bottom" "style")
+        'list-group-last-border-bottom-color (list-group-last-border "bottom" "color")
         'list-group-radius list-group-radius
         'list-group-item-radius list-group-item-radius
         'list-group-padding-x list-group-padding-x
         'list-group-padding-y list-group-padding-y
         'list-group-color list-group-color
+        'list-group-action-color list-group-action-color
+        'list-group-font-size list-group-font-size
+        'list-group-font-weight list-group-font-weight
+        'list-group-line-height list-group-line-height
+        'list-group-letter-spacing list-group-letter-spacing
+        'list-group-text-transform list-group-text-transform
         'list-group-active-bg list-group-active-bg
         'list-group-active-color list-group-active-color
         'list-group-active-border list-group-active-border
@@ -2226,6 +2555,7 @@
         'table-cell-padding-y table-cell-padding-y
         'table-border-width table-border-width
         'table-header-color table-header-color
+        'table-header-font-family table-header-font-family
         'table-header-font-size table-header-font-size
         'table-header-font-weight table-header-font-weight
         'table-header-text-transform table-header-text-transform
@@ -2244,6 +2574,14 @@
         'field-select-padding-right field-select-padding-right
         'field-focus-bg field-focus-bg
         'field-focus-border-color field-focus-border-color
+        'field-disabled-bg field-disabled-bg
+        'field-disabled-color field-disabled-color
+        'field-disabled-border-color field-disabled-border-color
+        'field-disabled-opacity field-disabled-opacity
+        'field-select-disabled-bg field-select-disabled-bg
+        'field-select-disabled-color field-select-disabled-color
+        'field-select-disabled-border-color field-select-disabled-border-color
+        'field-select-disabled-opacity field-select-disabled-opacity
         'input-group-addon-bg input-group-addon-bg
         'input-group-addon-color input-group-addon-color
         'input-group-addon-border-color input-group-addon-border-color
@@ -2260,6 +2598,7 @@
         'textarea-border-width textarea-border-width
         'textarea-radius textarea-radius
         'textarea-line-height textarea-line-height
+        'textarea-min-height textarea-min-height
         'check-bg check-bg
         'check-border-color check-border-color
         'check-border-width check-border-width
@@ -3106,6 +3445,9 @@
   (define menu-popup-border-width
     (or (theme-component-ref theme 'dropdown-border-width)
         "1px"))
+  (define menu-popup-min-width
+    (or (theme-component-ref theme 'dropdown-min-width)
+        "10rem"))
   (define menu-popup-radius
     (or (theme-component-ref theme 'dropdown-radius)
         (bootstrap-theme-radius-md theme)))
@@ -3143,6 +3485,9 @@
   (define menu-item-font-weight
     (or (theme-component-ref theme 'dropdown-item-font-weight)
         (bootstrap-theme-font-weight-normal theme)))
+  (define menu-item-line-height
+    (or (theme-component-ref theme 'dropdown-item-line-height)
+        (bootstrap-theme-line-height-base theme)))
   (define menu-item-text-transform
     (or (theme-component-ref theme 'dropdown-item-text-transform)
         "none"))
@@ -3400,12 +3745,15 @@
   (define card-border-color
     (or (theme-component-ref theme 'card-border-color)
         separator))
+  (define card-border-width
+    (or (theme-component-ref theme 'card-border-width)
+        "1px"))
   (define card-cap-bg
     (or (theme-component-ref theme 'card-cap-bg)
         (hash-ref surface-map 'surface-subtle)))
   (define card-cap-color
     (or (theme-component-ref theme 'card-cap-color)
-        fg-muted))
+        (bootstrap-theme-fg theme)))
   (define card-cap-padding-x
     (or (theme-component-ref theme 'card-cap-padding-x)
         "0.85rem"))
@@ -3418,6 +3766,27 @@
   (define card-body-padding-y
     (or (theme-component-ref theme 'card-body-padding-y)
         "0.85rem"))
+  (define card-title-margin-bottom
+    (or (theme-component-ref theme 'card-title-margin-bottom)
+        "0.5rem"))
+  (define card-title-font-family
+    (or (theme-component-ref theme 'card-title-font-family)
+        (bootstrap-theme-font-family-heading theme)))
+  (define card-title-font-size
+    (or (theme-component-ref theme 'card-title-font-size)
+        "1.25rem"))
+  (define card-title-font-weight
+    (or (theme-component-ref theme 'card-title-font-weight)
+        (bootstrap-theme-font-weight-normal theme)))
+  (define card-title-line-height
+    (or (theme-component-ref theme 'card-title-line-height)
+        "1.2"))
+  (define card-title-letter-spacing
+    (or (theme-component-ref theme 'card-title-letter-spacing)
+        (bootstrap-theme-letter-spacing-base theme)))
+  (define card-title-text-transform
+    (or (theme-component-ref theme 'card-title-text-transform)
+        "none"))
   (define badge-padding-x
     (or (theme-component-ref theme 'badge-padding-x)
         "0.65em"))
@@ -3565,12 +3934,24 @@
   (define progress-box-shadow
     (or (theme-component-ref theme 'progress-box-shadow)
         "none"))
+  (define progress-border-width
+    (or (theme-component-ref theme 'progress-border-width)
+        "0px"))
+  (define progress-border-style
+    (or (theme-component-ref theme 'progress-border-style)
+        "none"))
+  (define progress-border-color
+    (or (theme-component-ref theme 'progress-border-color)
+        "transparent"))
   (define progress-bar-color
     (or (theme-component-ref theme 'progress-bar-color)
         "#fff"))
   (define progress-bar-bg
     (or (theme-component-ref theme 'progress-bar-bg)
         (bootstrap-theme-primary theme)))
+  (define progress-warning-color
+    (or (theme-component-ref theme 'progress-warning-color)
+        progress-bar-color))
   (define breadcrumb-divider-color
     (or (theme-component-ref theme 'breadcrumb-divider-color)
         fg-muted))
@@ -3611,6 +3992,9 @@
   (define toast-font-size
     (or (theme-component-ref theme 'toast-font-size)
         "0.875rem"))
+  (define toast-max-width
+    (or (theme-component-ref theme 'toast-max-width)
+        "350px"))
   (define toast-color
     (or (theme-component-ref theme 'toast-color)
         (bootstrap-theme-fg theme)))
@@ -3638,6 +4022,18 @@
   (define toast-header-border-color
     (or (theme-component-ref theme 'toast-header-border-color)
         separator))
+  (define toast-header-font-family
+    (or (theme-component-ref theme 'toast-header-font-family)
+        (bootstrap-theme-font-family-base theme)))
+  (define toast-header-font-weight
+    (or (theme-component-ref theme 'toast-header-font-weight)
+        (bootstrap-theme-font-weight-normal theme)))
+  (define toast-header-radius-top-left
+    (or (theme-component-ref theme 'toast-header-radius-top-left)
+        "inherit"))
+  (define toast-header-radius-top-right
+    (or (theme-component-ref theme 'toast-header-radius-top-right)
+        "inherit"))
   (define toast-body-padding
     (or (theme-component-ref theme 'toast-body-padding)
         toast-padding-x))
@@ -3704,6 +4100,21 @@
   (define (alert-token tone role fallback)
     (or (theme-component-ref theme (string->symbol (format "alert-~a-~a" tone role)))
         fallback))
+  (define alert-padding-x
+    (or (theme-component-ref theme 'alert-padding-x)
+        "1rem"))
+  (define alert-padding-y
+    (or (theme-component-ref theme 'alert-padding-y)
+        "1rem"))
+  (define alert-border-width
+    (or (theme-component-ref theme 'alert-border-width)
+        "1px"))
+  (define alert-border-style
+    (or (theme-component-ref theme 'alert-border-style)
+        "solid"))
+  (define alert-radius
+    (or (theme-component-ref theme 'alert-radius)
+        "0"))
   (define alert-primary-bg
     (alert-token "primary" "bg"
                  (or (theme-prop-ref theme "--bs-primary-bg-subtle")
@@ -3803,12 +4214,76 @@
   (define list-group-bg
     (or (theme-component-ref theme 'list-group-bg)
         (hash-ref surface-map 'surface)))
+  (define list-group-shell-bg
+    (or (theme-component-ref theme 'list-group-shell-bg)
+        "transparent"))
+  (define list-group-shell-border-color
+    (or (theme-component-ref theme 'list-group-shell-border-color)
+        "transparent"))
+  (define list-group-shell-border-style
+    (or (theme-component-ref theme 'list-group-shell-border-style)
+        "solid"))
+  (define list-group-shell-border-width
+    (or (theme-component-ref theme 'list-group-shell-border-width)
+        "0"))
+  (define list-group-shell-overflow
+    (or (theme-component-ref theme 'list-group-shell-overflow)
+        "visible"))
   (define list-group-border-color
     (or (theme-component-ref theme 'list-group-border-color)
         separator))
   (define list-group-border-width
     (or (theme-component-ref theme 'list-group-border-width)
         "1px"))
+  (define list-group-border-style
+    (or (theme-component-ref theme 'list-group-border-style)
+        "solid"))
+  (define (list-group-item-border edge part fallback)
+    (or (theme-component-ref theme
+                             (string->symbol
+                              (format "list-group-item-border-~a-~a" edge part)))
+        fallback))
+  (define list-group-item-border-top-width
+    (list-group-item-border "top" "width" list-group-border-width))
+  (define list-group-item-border-top-style
+    (list-group-item-border "top" "style" list-group-border-style))
+  (define list-group-item-border-top-color
+    (list-group-item-border "top" "color" list-group-border-color))
+  (define list-group-item-border-right-width
+    (list-group-item-border "right" "width" list-group-border-width))
+  (define list-group-item-border-right-style
+    (list-group-item-border "right" "style" list-group-border-style))
+  (define list-group-item-border-right-color
+    (list-group-item-border "right" "color" list-group-border-color))
+  (define list-group-item-border-bottom-width
+    (list-group-item-border "bottom" "width" list-group-border-width))
+  (define list-group-item-border-bottom-style
+    (list-group-item-border "bottom" "style" list-group-border-style))
+  (define list-group-item-border-bottom-color
+    (list-group-item-border "bottom" "color" list-group-border-color))
+  (define list-group-item-border-left-width
+    (list-group-item-border "left" "width" list-group-border-width))
+  (define list-group-item-border-left-style
+    (list-group-item-border "left" "style" list-group-border-style))
+  (define list-group-item-border-left-color
+    (list-group-item-border "left" "color" list-group-border-color))
+  (define (list-group-edge-border position edge part fallback)
+    (or (theme-component-ref theme
+                             (string->symbol
+                              (format "list-group-~a-border-~a-~a" position edge part)))
+        fallback))
+  (define list-group-first-border-top-width
+    (list-group-edge-border "first" "top" "width" list-group-item-border-top-width))
+  (define list-group-first-border-top-style
+    (list-group-edge-border "first" "top" "style" list-group-item-border-top-style))
+  (define list-group-first-border-top-color
+    (list-group-edge-border "first" "top" "color" list-group-item-border-top-color))
+  (define list-group-last-border-bottom-width
+    (list-group-edge-border "last" "bottom" "width" list-group-item-border-bottom-width))
+  (define list-group-last-border-bottom-style
+    (list-group-edge-border "last" "bottom" "style" list-group-item-border-bottom-style))
+  (define list-group-last-border-bottom-color
+    (list-group-edge-border "last" "bottom" "color" list-group-item-border-bottom-color))
   (define list-group-radius
     (or (theme-component-ref theme 'list-group-radius)
         "0"))
@@ -3824,6 +4299,24 @@
   (define list-group-color
     (or (theme-component-ref theme 'list-group-color)
         (bootstrap-theme-fg theme)))
+  (define list-group-action-color
+    (or (theme-component-ref theme 'list-group-action-color)
+        list-group-color))
+  (define list-group-font-size
+    (or (theme-component-ref theme 'list-group-font-size)
+        (bootstrap-theme-font-size-md theme)))
+  (define list-group-font-weight
+    (or (theme-component-ref theme 'list-group-font-weight)
+        "400"))
+  (define list-group-line-height
+    (or (theme-component-ref theme 'list-group-line-height)
+        (bootstrap-theme-line-height-base theme)))
+  (define list-group-letter-spacing
+    (or (theme-component-ref theme 'list-group-letter-spacing)
+        "normal"))
+  (define list-group-text-transform
+    (or (theme-component-ref theme 'list-group-text-transform)
+        "none"))
   (define list-group-active-bg
     (or (theme-component-ref theme 'list-group-active-bg)
         bg-selected))
@@ -3863,7 +4356,10 @@
         "1px"))
   (define table-header-color
     (or (theme-component-ref theme 'table-header-color)
-        (rgb->css emphasis-fg)))
+        table-color))
+  (define table-header-font-family
+    (or (theme-component-ref theme 'table-header-font-family)
+        (bootstrap-theme-font-family-base theme)))
   (define table-header-font-size
     (or (theme-component-ref theme 'table-header-font-size)
         (bootstrap-theme-font-size-md theme)))
@@ -3916,6 +4412,32 @@
   (define field-focus-border-color
     (or (theme-component-ref theme 'field-focus-border-color)
         control-border-focus))
+  (define field-disabled-bg
+    (or (theme-component-ref theme 'field-disabled-bg)
+        (theme-prop-ref theme "--bs-secondary-bg")
+        bg-disabled))
+  (define field-disabled-color
+    (or (theme-component-ref theme 'field-disabled-color)
+        (theme-prop-ref theme "--bs-secondary-color")
+        fg-muted))
+  (define field-disabled-border-color
+    (or (theme-component-ref theme 'field-disabled-border-color)
+        field-border-color))
+  (define field-disabled-opacity
+    (or (theme-component-ref theme 'field-disabled-opacity)
+        "1"))
+  (define field-select-disabled-bg
+    (or (theme-component-ref theme 'field-select-disabled-bg)
+        field-disabled-bg))
+  (define field-select-disabled-color
+    (or (theme-component-ref theme 'field-select-disabled-color)
+        field-disabled-color))
+  (define field-select-disabled-border-color
+    (or (theme-component-ref theme 'field-select-disabled-border-color)
+        field-disabled-border-color))
+  (define field-select-disabled-opacity
+    (or (theme-component-ref theme 'field-select-disabled-opacity)
+        field-disabled-opacity))
   (define input-group-addon-bg
     (or (theme-component-ref theme 'input-group-addon-bg)
         (hash-ref surface-map 'surface-muted)))
@@ -3964,6 +4486,9 @@
   (define textarea-line-height
     (or (theme-component-ref theme 'textarea-line-height)
         (bootstrap-theme-line-height-base theme)))
+  (define textarea-min-height
+    (or (theme-component-ref theme 'textarea-min-height)
+        "auto"))
   (define check-bg
     (or (theme-component-ref theme 'check-bg)
         field-bg))
@@ -4360,6 +4885,7 @@
     (cons "--we-menu-popup-bg" menu-popup-bg)
     (cons "--we-menu-popup-border-color" menu-popup-border-color)
     (cons "--we-menu-popup-border-width" menu-popup-border-width)
+    (cons "--we-menu-popup-min-width" menu-popup-min-width)
     (cons "--we-menu-popup-radius" menu-popup-radius)
     (cons "--we-menu-popup-shadow" menu-popup-shadow)
     (cons "--we-menu-popup-padding-y" menu-popup-padding-y)
@@ -4372,6 +4898,7 @@
     (cons "--we-menu-item-padding-y" menu-item-padding-y)
     (cons "--we-menu-item-font-size" menu-item-font-size)
     (cons "--we-menu-item-font-weight" menu-item-font-weight)
+    (cons "--we-menu-item-line-height" menu-item-line-height)
     (cons "--we-menu-item-text-transform" menu-item-text-transform)
     (cons "--we-menu-item-radius" menu-item-radius)
     (cons "--we-menu-item-hover-bg" menu-item-hover-bg)
@@ -4479,12 +5006,20 @@
     (cons "--we-card-radius" card-radius)
     (cons "--we-card-shadow" card-shadow)
     (cons "--we-card-border-color" card-border-color)
+    (cons "--we-card-border-width" card-border-width)
     (cons "--we-card-cap-bg" card-cap-bg)
     (cons "--we-card-cap-color" card-cap-color)
     (cons "--we-card-cap-padding-x" card-cap-padding-x)
     (cons "--we-card-cap-padding-y" card-cap-padding-y)
     (cons "--we-card-body-padding-x" card-body-padding-x)
     (cons "--we-card-body-padding-y" card-body-padding-y)
+    (cons "--we-card-title-margin-bottom" card-title-margin-bottom)
+    (cons "--we-card-title-font-family" card-title-font-family)
+    (cons "--we-card-title-font-size" card-title-font-size)
+    (cons "--we-card-title-font-weight" card-title-font-weight)
+    (cons "--we-card-title-line-height" card-title-line-height)
+    (cons "--we-card-title-letter-spacing" card-title-letter-spacing)
+    (cons "--we-card-title-text-transform" card-title-text-transform)
     (cons "--we-badge-padding-x" badge-padding-x)
     (cons "--we-badge-padding-y" badge-padding-y)
     (cons "--we-badge-font-size" badge-font-size)
@@ -4534,8 +5069,12 @@
     (cons "--we-progress-bg" progress-bg)
     (cons "--we-progress-radius" progress-radius)
     (cons "--we-progress-box-shadow" progress-box-shadow)
+    (cons "--we-progress-border-width" progress-border-width)
+    (cons "--we-progress-border-style" progress-border-style)
+    (cons "--we-progress-border-color" progress-border-color)
     (cons "--we-progress-bar-color" progress-bar-color)
     (cons "--we-progress-bar-bg" progress-bar-bg)
+    (cons "--we-progress-warning-color" progress-warning-color)
     (cons "--we-breadcrumb-divider-color" breadcrumb-divider-color)
     (cons "--we-breadcrumb-padding-x" breadcrumb-padding-x)
     (cons "--we-breadcrumb-padding-y" breadcrumb-padding-y)
@@ -4549,6 +5088,7 @@
     (cons "--we-toast-padding-x" toast-padding-x)
     (cons "--we-toast-padding-y" toast-padding-y)
     (cons "--we-toast-font-size" toast-font-size)
+    (cons "--we-toast-max-width" toast-max-width)
     (cons "--we-toast-color" toast-color)
     (cons "--we-toast-bg" toast-bg)
     (cons "--we-toast-border-width" toast-border-width)
@@ -4558,6 +5098,10 @@
     (cons "--we-toast-header-color" toast-header-color)
     (cons "--we-toast-header-bg" toast-header-bg)
     (cons "--we-toast-header-border-color" toast-header-border-color)
+    (cons "--we-toast-header-font-family" toast-header-font-family)
+    (cons "--we-toast-header-font-weight" toast-header-font-weight)
+    (cons "--we-toast-header-radius-top-left" toast-header-radius-top-left)
+    (cons "--we-toast-header-radius-top-right" toast-header-radius-top-right)
     (cons "--we-toast-body-padding" toast-body-padding)
     (cons "--we-toast-close-color" toast-close-color)
     (cons "--we-tooltip-bg" tooltip-bg)
@@ -4620,6 +5164,11 @@
     (cons "--we-offcanvas-title-color" offcanvas-title-color)
     (cons "--we-offcanvas-title-font-size" offcanvas-title-font-size)
     (cons "--we-offcanvas-title-font-weight" offcanvas-title-font-weight)
+    (cons "--we-alert-padding-x" alert-padding-x)
+    (cons "--we-alert-padding-y" alert-padding-y)
+    (cons "--we-alert-border-width" alert-border-width)
+    (cons "--we-alert-border-style" alert-border-style)
+    (cons "--we-alert-radius" alert-radius)
     (cons "--we-alert-primary-bg" alert-primary-bg)
     (cons "--we-alert-primary-border" alert-primary-border)
     (cons "--we-alert-primary-color" alert-primary-color)
@@ -4645,13 +5194,43 @@
     (cons "--we-alert-dark-border" alert-dark-border)
     (cons "--we-alert-dark-color" alert-dark-color)
     (cons "--we-list-group-bg" list-group-bg)
+    (cons "--we-list-group-shell-bg" list-group-shell-bg)
+    (cons "--we-list-group-shell-border-color" list-group-shell-border-color)
+    (cons "--we-list-group-shell-border-style" list-group-shell-border-style)
+    (cons "--we-list-group-shell-border-width" list-group-shell-border-width)
+    (cons "--we-list-group-shell-overflow" list-group-shell-overflow)
     (cons "--we-list-group-border-color" list-group-border-color)
     (cons "--we-list-group-border-width" list-group-border-width)
+    (cons "--we-list-group-border-style" list-group-border-style)
+    (cons "--we-list-group-item-border-top-width" list-group-item-border-top-width)
+    (cons "--we-list-group-item-border-top-style" list-group-item-border-top-style)
+    (cons "--we-list-group-item-border-top-color" list-group-item-border-top-color)
+    (cons "--we-list-group-item-border-right-width" list-group-item-border-right-width)
+    (cons "--we-list-group-item-border-right-style" list-group-item-border-right-style)
+    (cons "--we-list-group-item-border-right-color" list-group-item-border-right-color)
+    (cons "--we-list-group-item-border-bottom-width" list-group-item-border-bottom-width)
+    (cons "--we-list-group-item-border-bottom-style" list-group-item-border-bottom-style)
+    (cons "--we-list-group-item-border-bottom-color" list-group-item-border-bottom-color)
+    (cons "--we-list-group-item-border-left-width" list-group-item-border-left-width)
+    (cons "--we-list-group-item-border-left-style" list-group-item-border-left-style)
+    (cons "--we-list-group-item-border-left-color" list-group-item-border-left-color)
+    (cons "--we-list-group-first-border-top-width" list-group-first-border-top-width)
+    (cons "--we-list-group-first-border-top-style" list-group-first-border-top-style)
+    (cons "--we-list-group-first-border-top-color" list-group-first-border-top-color)
+    (cons "--we-list-group-last-border-bottom-width" list-group-last-border-bottom-width)
+    (cons "--we-list-group-last-border-bottom-style" list-group-last-border-bottom-style)
+    (cons "--we-list-group-last-border-bottom-color" list-group-last-border-bottom-color)
     (cons "--we-list-group-radius" list-group-radius)
     (cons "--we-list-group-item-radius" list-group-item-radius)
     (cons "--we-list-group-padding-x" list-group-padding-x)
     (cons "--we-list-group-padding-y" list-group-padding-y)
     (cons "--we-list-group-color" list-group-color)
+    (cons "--we-list-group-action-color" list-group-action-color)
+    (cons "--we-list-group-font-size" list-group-font-size)
+    (cons "--we-list-group-font-weight" list-group-font-weight)
+    (cons "--we-list-group-line-height" list-group-line-height)
+    (cons "--we-list-group-letter-spacing" list-group-letter-spacing)
+    (cons "--we-list-group-text-transform" list-group-text-transform)
     (cons "--we-list-group-active-bg" list-group-active-bg)
     (cons "--we-list-group-active-color" list-group-active-color)
     (cons "--we-list-group-active-border-color" list-group-active-border)
@@ -4665,6 +5244,7 @@
     (cons "--we-table-cell-padding-y" table-cell-padding-y)
     (cons "--we-table-border-width" table-border-width)
     (cons "--we-table-header-color" table-header-color)
+    (cons "--we-table-header-font-family" table-header-font-family)
     (cons "--we-table-header-font-size" table-header-font-size)
     (cons "--we-table-header-font-weight" table-header-font-weight)
     (cons "--we-table-header-text-transform" table-header-text-transform)
@@ -4686,6 +5266,14 @@
               "calc(var(--we-field-padding-x) * 3)"))
     (cons "--we-field-focus-bg" field-focus-bg)
     (cons "--we-field-focus-border-color" field-focus-border-color)
+    (cons "--we-field-disabled-bg" field-disabled-bg)
+    (cons "--we-field-disabled-color" field-disabled-color)
+    (cons "--we-field-disabled-border-color" field-disabled-border-color)
+    (cons "--we-field-disabled-opacity" field-disabled-opacity)
+    (cons "--we-field-select-disabled-bg" field-select-disabled-bg)
+    (cons "--we-field-select-disabled-color" field-select-disabled-color)
+    (cons "--we-field-select-disabled-border-color" field-select-disabled-border-color)
+    (cons "--we-field-select-disabled-opacity" field-select-disabled-opacity)
     (cons "--we-input-group-addon-bg" input-group-addon-bg)
     (cons "--we-input-group-addon-color" input-group-addon-color)
     (cons "--we-input-group-addon-border-color" input-group-addon-border-color)
@@ -4702,6 +5290,7 @@
     (cons "--we-textarea-border-width" textarea-border-width)
     (cons "--we-textarea-radius" textarea-radius)
     (cons "--we-textarea-line-height" textarea-line-height)
+    (cons "--we-textarea-min-height" textarea-min-height)
     (cons "--we-check-bg" check-bg)
     (cons "--we-check-border-color" check-border-color)
     (cons "--we-check-border-width" check-border-width)
@@ -4846,7 +5435,6 @@
     (cons "--we-font-weight-semibold" (bootstrap-theme-font-weight-semibold theme))
     (cons "--we-font-weight-bold" (bootstrap-theme-font-weight-bold theme))
     (cons "--we-menu-popup-offset" "2px")
-    (cons "--we-menu-popup-min-width" "150px")
     (cons "--we-menu-popup-gap" "0px"))))
 
 ;; token-block->string : string? (listof (cons/c string? string?)) -> string?
@@ -5410,6 +5998,7 @@
      "  --bs-body-color: #55595c;\n"
      "  --bs-body-bg: #ffffff;\n"
      "  --bs-body-font-weight: 300;\n"
+     "  --bs-body-line-height: 1.5;\n"
      "  --bs-border-color: #e0e1e2;\n"
      "  --bs-secondary-color: rgba(85, 89, 92, 0.75);\n"
      "  --bs-emphasis-color: #1a1a1a;\n"
@@ -5419,12 +6008,23 @@
      ".list-group {\n"
      "  --bs-list-group-bg: var(--bs-body-bg);\n"
      "  --bs-list-group-border-color: var(--bs-border-color);\n"
+     "  --bs-list-group-border-width: 1px;\n"
      "  --bs-list-group-item-padding-x: 1rem;\n"
      "  --bs-list-group-item-padding-y: 0.5rem;\n"
      "  --bs-list-group-color: var(--bs-body-color);\n"
+     "  --bs-list-group-action-color: var(--bs-secondary-color);\n"
      "  --bs-list-group-active-color: #fff;\n"
      "  --bs-list-group-active-bg: #1a1a1a;\n"
      "  --bs-list-group-active-border-color: #1a1a1a;\n"
+     "}\n"
+     ".list-group-item {\n"
+     "  padding: var(--bs-list-group-item-padding-y) var(--bs-list-group-item-padding-x);\n"
+     "  color: var(--bs-list-group-color);\n"
+     "  background-color: var(--bs-list-group-bg);\n"
+     "  border: var(--bs-list-group-border-width) solid var(--bs-list-group-border-color);\n"
+     "}\n"
+     ".list-group-item-action {\n"
+     "  color: var(--bs-list-group-action-color);\n"
      "}\n"
      ".table {\n"
      "  --bs-table-bg: var(--bs-body-bg);\n"
@@ -5453,7 +6053,7 @@
      ".form-control {\n"
      "  color: #55595c;\n"
      "  background-color: #f0f1f2;\n"
-     "  border: 0 solid #e0e1e2;\n"
+     "  border: 0 solid #b0b1b2;\n"
      "  border-radius: 0;\n"
      "  padding: 0.75rem 1.5rem;\n"
      "  font-size: 1rem;\n"
@@ -5463,15 +6063,29 @@
      "  background-color: #f0f1f2;\n"
      "  border-color: #1a1a1a;\n"
      "}\n"
+     ".form-control:disabled {\n"
+     "  color: #55595c;\n"
+     "  background-color: #e0e1e2;\n"
+     "  border-color: #d0d1d2;\n"
+     "  opacity: 1;\n"
+     "}\n"
+     "textarea.form-control {\n"
+     "  min-height: 3rem;\n"
+     "}\n"
      ".form-select {\n"
      "  --bs-form-select-bg-img: url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%2355595c' stroke-linecap='round' stroke-linejoin='round'%3e%3cpath d='m2 5 6 6 6-6'/%3e%3c/svg%3e\");\n"
      "  color: #55595c;\n"
      "  background-color: #f0f1f2;\n"
-     "  border: 0 solid #e0e1e2;\n"
+     "  border: 0 solid #b0b1b2;\n"
      "  border-radius: 0;\n"
      "  padding: 0.75rem 4.5rem 0.75rem 1.5rem;\n"
      "  font-size: 1rem;\n"
      "  font-weight: 300;\n"
+     "}\n"
+     ".form-select:disabled {\n"
+     "  color: #919aa1;\n"
+     "  background-color: #e0e1e2;\n"
+     "  border-color: #c9cacc;\n"
      "}\n"
      ".input-group-text {\n"
      "  padding: 0.75rem 1.5rem;\n"
@@ -5479,7 +6093,7 @@
      "  font-weight: 300;\n"
      "  color: #55595c;\n"
      "  background-color: #e0e1e2;\n"
-     "  border: 0 solid #e0e1e2;\n"
+     "  border: 0 solid #a0a1a2;\n"
      "}\n"
      ".form-check-input {\n"
      "  --bs-form-check-bg: #f0f1f2;\n"
@@ -5713,6 +6327,7 @@
      ".toast {\n"
      "  --bs-toast-padding-x: 0.75rem;\n"
      "  --bs-toast-padding-y: 0.5rem;\n"
+     "  --bs-toast-max-width: 350px;\n"
      "  --bs-toast-font-size: 0.875rem;\n"
      "  --bs-toast-bg: rgba(255, 255, 255, 0.85);\n"
      "  --bs-toast-border-width: 0;\n"
@@ -5721,6 +6336,12 @@
      "  --bs-toast-header-color: rgba(85, 89, 92, 0.75);\n"
      "  --bs-toast-header-bg: transparent;\n"
      "  --bs-toast-header-border-color: rgba(0, 0, 0, 0.175);\n"
+     "}\n"
+     ".toast-header {\n"
+     "  font-family: \"Cabin Sketch\", cursive;\n"
+     "  font-weight: 500;\n"
+     "  border-top-left-radius: 4px;\n"
+     "  border-top-right-radius: 6px;\n"
      "}\n"
      ".toast-body {\n"
      "  padding: 0.75rem;\n"
@@ -6006,7 +6627,13 @@
     (define rules (read-css-rules list-table-bootstrap))
     (define token-map (bootstrap-rules->token-map rules))
     (check-equal? (hash-ref token-map "--we-list-group-active-bg") "#1a1a1a")
+    (check-equal? (hash-ref token-map "--we-list-group-action-color")
+                  "rgba(85, 89, 92, 0.75)")
+    (check-equal? (hash-ref token-map "--we-list-group-bg") "#ffffff")
+    (check-equal? (hash-ref token-map "--we-list-group-border-width") "1px")
+    (check-equal? (hash-ref token-map "--we-list-group-item-border-left-width") "1px")
     (check-equal? (hash-ref token-map "--we-list-group-padding-x") "1rem")
+    (check-equal? (hash-ref token-map "--we-list-group-line-height") "1.5")
     (check-equal? (hash-ref token-map "--we-table-border-color") "rgba(0, 0, 0, 0.05)")
     (check-equal? (hash-ref token-map "--we-table-cell-padding-x") "1.5rem")
     (check-equal? (hash-ref token-map "--we-table-header-text-transform") "uppercase")
@@ -6017,16 +6644,25 @@
     (define token-map (bootstrap-rules->token-map rules))
     (check-equal? (hash-ref token-map "--we-field-bg") "#f0f1f2")
     (check-equal? (hash-ref token-map "--we-input-group-addon-bg") "#e0e1e2")
+    (check-equal? (hash-ref token-map "--we-input-group-addon-border-color") "#a0a1a2")
     (check-equal? (hash-ref token-map "--we-input-group-addon-font-weight") "300")
     (check-equal? (hash-ref token-map "--we-field-border-width") "0")
+    (check-equal? (hash-ref token-map "--we-field-border-color") "#b0b1b2")
     (check-equal? (hash-ref token-map "--we-field-padding-x") "1.5rem")
     (check-equal? (hash-ref token-map "--we-field-font-weight") "300")
+    (check-equal? (hash-ref token-map "--we-field-disabled-bg") "#e0e1e2")
+    (check-equal? (hash-ref token-map "--we-field-disabled-color") "#55595c")
+    (check-equal? (hash-ref token-map "--we-field-disabled-border-color") "#d0d1d2")
+    (check-equal? (hash-ref token-map "--we-field-disabled-opacity") "1")
+    (check-equal? (hash-ref token-map "--we-field-select-disabled-color") "#919aa1")
+    (check-equal? (hash-ref token-map "--we-field-select-disabled-border-color") "#c9cacc")
     (check-equal? (hash-ref token-map "--we-field-valid-color") "#198754")
     (check-equal? (hash-ref token-map "--we-field-invalid-color") "#dc3545")
     (check-true (regexp-match? #px"^url\\(" (hash-ref token-map "--we-field-valid-icon")))
     (check-true (regexp-match? #px"^url\\(" (hash-ref token-map "--we-field-invalid-icon")))
     (check-true (regexp-match? #px"^url\\(" (hash-ref token-map "--we-field-select-icon")))
     (check-equal? (hash-ref token-map "--we-field-select-padding-right") "4.5rem")
+    (check-equal? (hash-ref token-map "--we-textarea-min-height") "3rem")
     (check-equal? (hash-ref token-map "--we-check-size") "1em")
     (check-equal? (hash-ref token-map "--we-check-checked-bg") "#1a1a1a")
     (check-true (regexp-match? #px"^url\\(" (hash-ref token-map "--we-check-checked-icon")))
@@ -6182,8 +6818,10 @@
        " --bs-accordion-inner-border-radius: calc(var(--bs-border-radius) - (var(--bs-border-width))); }\n"
        ".pagination { --bs-pagination-border-radius: var(--bs-border-radius); }\n"
        ".pagination .page-link { border-radius: 425px 255px 25px 25px/25px 25px 5px 25px; }\n"
-       ".list-group { border: 2px solid #333; border-radius: 45px 15px 35px 5px/15px 5px 15px 65px; }\n"
-       ".list-group-item { border-radius: 255px 5px 225px 5px/25px 225px 25px 255px; }\n"))
+       ".list-group { overflow: hidden; background-color: #333; border: 2px solid #333; border-radius: 45px 15px 35px 5px/15px 5px 15px 65px; }\n"
+       ".list-group-item { border: 2px solid #333; border-right: none; border-left: none; border-radius: 255px 5px 225px 5px/25px 225px 25px 255px; }\n"
+       ".list-group-item:first-child { border-top: none; }\n"
+       ".list-group-item:last-child { border-bottom: none; }\n"))
     (define rules (read-css-rules css))
     (define token-map (bootstrap-rules->token-map rules))
     (check-equal? (hash-ref token-map "--we-accordion-radius") "25px")
@@ -6193,6 +6831,15 @@
                   "425px 255px 25px 25px/25px 25px 5px 25px")
     (check-equal? (hash-ref token-map "--we-pagination-edge-radius") "25px")
     (check-equal? (hash-ref token-map "--we-list-group-border-width") "2px")
+    (check-equal? (hash-ref token-map "--we-list-group-shell-border-width") "2px")
+    (check-equal? (hash-ref token-map "--we-list-group-shell-bg") "#333")
+    (check-equal? (hash-ref token-map "--we-list-group-shell-overflow") "hidden")
+    (check-equal? (hash-ref token-map "--we-list-group-item-border-right-width") "0px")
+    (check-equal? (hash-ref token-map "--we-list-group-item-border-right-style") "none")
+    (check-equal? (hash-ref token-map "--we-list-group-first-border-top-width") "0px")
+    (check-equal? (hash-ref token-map "--we-list-group-first-border-top-style") "none")
+    (check-equal? (hash-ref token-map "--we-list-group-last-border-bottom-width") "0px")
+    (check-equal? (hash-ref token-map "--we-list-group-last-border-bottom-style") "none")
     (check-equal? (hash-ref token-map "--we-list-group-item-radius")
                   "255px 5px 225px 5px/25px 225px 25px 255px"))
 
@@ -6202,8 +6849,14 @@
     (check-equal? (hash-ref token-map "--we-breadcrumb-link-color") "#1a1a1a")
     (check-equal? (hash-ref token-map "--we-breadcrumb-active-color") "rgba(85, 89, 92, 0.75)")
     (check-equal? (hash-ref token-map "--we-toast-font-size") "0.875rem")
+    (check-equal? (hash-ref token-map "--we-toast-max-width") "350px")
     (check-equal? (hash-ref token-map "--we-toast-bg") "rgba(255, 255, 255, 0.85)")
     (check-equal? (hash-ref token-map "--we-toast-border-width") "0")
+    (check-equal? (hash-ref token-map "--we-toast-header-font-family")
+                  "\"Cabin Sketch\", cursive")
+    (check-equal? (hash-ref token-map "--we-toast-header-font-weight") "500")
+    (check-equal? (hash-ref token-map "--we-toast-header-radius-top-left") "4px")
+    (check-equal? (hash-ref token-map "--we-toast-header-radius-top-right") "6px")
     (check-equal? (hash-ref token-map "--we-toast-body-padding") "0.75rem")
     (check-equal? (hash-ref token-map "--we-close-button-opacity") "0.5")
     (check-equal? (hash-ref token-map "--we-close-button-radius") "0"))
@@ -6241,7 +6894,11 @@
        "}\n"
        ".alert {\n"
        "  --bs-alert-color: inherit;\n"
+       "  --bs-alert-padding-x: 1rem;\n"
+       "  --bs-alert-padding-y: 1rem;\n"
        "  color: var(--bs-alert-color);\n"
+       "  border: 0 solid transparent;\n"
+       "  border-radius: 0;\n"
        "}\n"
        ".alert-warning {\n"
        "  --bs-alert-color: var(--bs-warning-text-emphasis);\n"
@@ -6251,6 +6908,10 @@
        ".alert { color: #fff; }\n"))
     (define rules (read-css-rules css))
     (define token-map (bootstrap-rules->token-map rules))
+    (check-equal? (hash-ref token-map "--we-alert-padding-x") "1rem")
+    (check-equal? (hash-ref token-map "--we-alert-padding-y") "1rem")
+    (check-equal? (hash-ref token-map "--we-alert-border-width") "0")
+    (check-equal? (hash-ref token-map "--we-alert-radius") "0")
     (check-equal? (hash-ref token-map "--we-alert-warning-bg") "#f47c3c")
     (check-equal? (hash-ref token-map "--we-alert-warning-border") "#fbcbb1")
     (check-equal? (hash-ref token-map "--we-alert-warning-color") "#fff"))
