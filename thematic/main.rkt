@@ -5095,6 +5095,7 @@
         "1px"))
   (define dialog-title-color
     (or (theme-component-ref theme 'modal-title-color)
+        dialog-color
         (rgb->css emphasis-fg)))
   (define dialog-title-font-size
     (or (theme-component-ref theme 'modal-title-font-size)
@@ -7070,6 +7071,25 @@
     (check-equal? (hash-ref token-map "--we-dialog-title-letter-spacing") "3px")
     (check-equal? (hash-ref token-map "--we-dialog-title-text-transform") "uppercase")
     (check-true (regexp-match? #px"^url\\(" (hash-ref token-map "--we-dialog-close-icon"))))
+
+  (test-case "dialog title color falls back to dialog content color"
+    (define rules
+      (read-css-rules
+       (string-append
+        ":root {\n"
+        "  --bs-body-color: #3e3f3a;\n"
+        "  --bs-body-bg: #ffffff;\n"
+        "}\n"
+        ".modal-content {\n"
+        "  color: #3e3f3a;\n"
+        "  background-color: #ffffff;\n"
+        "}\n"
+        ".modal-title {\n"
+        "  font-size: 1rem;\n"
+        "}\n")))
+    (define token-map (bootstrap-rules->token-map rules))
+    (check-equal? (hash-ref token-map "--we-dialog-color") "#3e3f3a")
+    (check-equal? (hash-ref token-map "--we-dialog-title-color") "#3e3f3a"))
 
   (test-case "component rule extraction feeds accordion tokens"
     (define rules (read-css-rules accordion-bootstrap))
