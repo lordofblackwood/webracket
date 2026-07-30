@@ -110,6 +110,7 @@ html.we-theme-superhero {
   --we-tab-active-bg: #0f2537;
   --we-tab-active-color: #ebebeb;
   --we-tab-active-border-color: #4e5d6c;
+  --we-tab-active-border-bottom-color: #4e5d6c;
   --we-pill-color: #ebebeb;
   --we-pill-font-size: 1rem;
   --we-pill-font-weight: 400;
@@ -1519,7 +1520,7 @@ html.we-theme-superhero .we-tab-btn:focus-visible {
 html.we-theme-superhero .we-tab-btn.is-selected {
   border-color: var(--we-tab-active-border-color);
   /* Active tab sits in front and merges into the content panel. */
-  border-bottom: var(--we-tab-border-width, 1px) solid var(--we-tab-active-bg);
+  border-bottom: var(--we-tab-border-width, 1px) solid var(--we-tab-active-border-bottom-color, var(--we-tab-active-bg));
   background: var(--we-tab-active-bg);
   color: var(--we-tab-active-color);
   font-weight: var(--we-tab-font-weight, var(--we-nav-font-weight));

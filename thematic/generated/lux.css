@@ -110,6 +110,7 @@ html.we-theme-lux {
   --we-tab-active-bg: #fff;
   --we-tab-active-color: #000;
   --we-tab-active-border-color: #e0e1e2 #e0e1e2 #fff;
+  --we-tab-active-border-bottom-color: #fff;
   --we-pill-color: #1a1a1a;
   --we-pill-font-size: 1rem;
   --we-pill-font-weight: 300;
@@ -1519,7 +1520,7 @@ html.we-theme-lux .we-tab-btn:focus-visible {
 html.we-theme-lux .we-tab-btn.is-selected {
   border-color: var(--we-tab-active-border-color);
   /* Active tab sits in front and merges into the content panel. */
-  border-bottom: var(--we-tab-border-width, 1px) solid var(--we-tab-active-bg);
+  border-bottom: var(--we-tab-border-width, 1px) solid var(--we-tab-active-border-bottom-color, var(--we-tab-active-bg));
   background: var(--we-tab-active-bg);
   color: var(--we-tab-active-color);
   font-weight: var(--we-tab-font-weight, var(--we-nav-font-weight));

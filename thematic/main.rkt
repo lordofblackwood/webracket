@@ -678,6 +678,9 @@
   (define tab-active-border
     (or (nav-custom-ref ".nav-tabs" "--bs-nav-tabs-link-active-border-color")
         (nav-style-ref ".nav-tabs .nav-link.active" "border-color")))
+  (define tab-active-border-bottom
+    (or (box-shorthand-side tab-active-border 'bottom)
+        tab-active-border))
   (define pill-color
     (or (pill-direct-ref '(".nav-pills .nav-link" ".nav-link") "color")
         (pill-context-ref "--bs-nav-link-color")
@@ -2482,6 +2485,7 @@
         'tab-active-color tab-active-color
         'tab-active-bg tab-active-bg
         'tab-active-border tab-active-border
+        'tab-active-border-bottom tab-active-border-bottom
         'pill-color pill-color
         'pill-font-size pill-font-size
         'pill-font-weight pill-font-weight
@@ -3677,6 +3681,9 @@
   (define tab-active-border
     (or (theme-component-ref theme 'tab-active-border)
         bg-selected))
+  (define tab-active-border-bottom
+    (or (theme-component-ref theme 'tab-active-border-bottom)
+        tab-active-bg))
   (define pill-color
     (or (theme-component-ref theme 'pill-color)
         navbar-link-color))
@@ -5374,6 +5381,7 @@
     (cons "--we-tab-active-bg" tab-active-bg)
     (cons "--we-tab-active-color" tab-active-color)
     (cons "--we-tab-active-border-color" tab-active-border)
+    (cons "--we-tab-active-border-bottom-color" tab-active-border-bottom)
     (cons "--we-pill-color" pill-color)
     (cons "--we-pill-font-size" pill-font-size)
     (cons "--we-pill-font-weight" pill-font-weight)
@@ -7050,6 +7058,8 @@
     (check-equal? (hash-ref token-map "--we-nav-link-padding-y") "0.715rem")
     (check-equal? (hash-ref token-map "--we-tab-active-border-color")
                   "#e0e1e2 #e0e1e2 #fff")
+    (check-equal? (hash-ref token-map "--we-tab-active-border-bottom-color")
+                  "#fff")
     (check-equal? (hash-ref token-map "--we-tab-border-width") "2px")
     (check-equal? (hash-ref token-map "--we-tab-padding-x") "0.9rem")
     (check-equal? (hash-ref token-map "--we-tab-padding-y") "0.5rem")
