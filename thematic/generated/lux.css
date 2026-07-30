@@ -85,7 +85,7 @@ html.we-theme-lux {
   --we-navbar-brand-font-weight: 300;
   --we-navbar-brand-letter-spacing: 0;
   --we-navbar-brand-text-transform: none;
-  --we-navbar-brand-padding-y: 0.715rem;
+  --we-navbar-brand-padding-y: 0.3125rem;
   --we-navbar-brand-gap: 1rem;
   --we-nav-font-size: 0.875rem;
   --we-nav-font-weight: 600;
@@ -420,6 +420,7 @@ html.we-theme-lux {
   --we-table-striped-bg: rgba(0, 0, 0, 0.05);
   --we-table-hover-bg: rgba(0, 0, 0, 0.075);
   --we-table-active-bg: rgba(0, 0, 0, 0.1);
+  --we-table-font-size: 1rem;
   --we-table-cell-padding-x: 1.5rem;
   --we-table-cell-padding-y: 1.5rem;
   --we-table-border-width: 0;
@@ -604,42 +605,42 @@ html.we-theme-lux {
   --we-popup-border: #e0e1e2;
   --we-popup-shadow: var(--we-shadow-md);
   --we-primary: #1a1a1a;
-  --we-primary-on: #ffffff;
+  --we-primary-on: #fff;
   --we-primary-emphasis: #0a0a0a;
   --we-primary-subtle: #d1d1d1;
   --we-primary-border: #a3a3a3;
   --we-secondary: #fff;
-  --we-secondary-on: #111827;
+  --we-secondary-on: #000;
   --we-secondary-emphasis: #666666;
   --we-secondary-subtle: #ffffff;
   --we-secondary-border: #f1f2f2;
   --we-success: #4bbf73;
-  --we-success-on: #111827;
+  --we-success-on: #fff;
   --we-success-emphasis: #1e4c2e;
   --we-success-subtle: #dbf2e3;
   --we-success-border: #b7e5c7;
   --we-info: #1f9bcf;
-  --we-info-on: #111827;
+  --we-info-on: #fff;
   --we-info-emphasis: #0c3e53;
   --we-info-subtle: #d2ebf5;
   --we-info-border: #a5d7ec;
   --we-warning: #f0ad4e;
-  --we-warning-on: #111827;
+  --we-warning-on: #fff;
   --we-warning-emphasis: #60451f;
   --we-warning-subtle: #fcefdc;
   --we-warning-border: #f9deb8;
   --we-danger: #d9534f;
-  --we-danger-on: #111827;
+  --we-danger-on: #fff;
   --we-danger-emphasis: #572120;
   --we-danger-subtle: #f7dddc;
   --we-danger-border: #f0bab9;
   --we-light: #f0f1f2;
-  --we-light-on: #111827;
+  --we-light-on: #000;
   --we-light-emphasis: #55595c;
   --we-light-subtle: #fcfcfd;
   --we-light-border: #f0f1f2;
   --we-dark: #343a40;
-  --we-dark-on: #ffffff;
+  --we-dark-on: #fff;
   --we-dark-emphasis: #55595c;
   --we-dark-subtle: #cdcecf;
   --we-dark-border: #adb5bd;
@@ -1601,7 +1602,7 @@ html.we-theme-lux .we-dialog-panel {
   border-width: var(--we-dialog-border-width);
   border-style: solid;
   border-radius: var(--we-dialog-radius);
-  background: linear-gradient(var(--we-dialog-bg), var(--we-dialog-bg)), var(--we-surface);
+  background: var(--we-dialog-bg);
   color: var(--we-dialog-color);
   box-shadow: var(--we-dialog-shadow);
 }
@@ -2215,6 +2216,7 @@ html.we-theme-lux .we-table {
   border-collapse: collapse;
   background: var(--we-table-bg);
   color: var(--we-table-color);
+  font-size: var(--we-table-font-size, var(--we-font-size-md));
 }
 
 html.we-theme-lux .we-table th,
@@ -3220,7 +3222,7 @@ html.we-theme-lux .we-modal-panel {
   flex-direction: column;
   border: var(--we-dialog-border-width) solid var(--we-dialog-border-color);
   border-radius: var(--we-dialog-radius);
-  background: linear-gradient(var(--we-dialog-bg), var(--we-dialog-bg)), var(--we-surface);
+  background: var(--we-dialog-bg);
   color: var(--we-dialog-color);
   box-shadow: var(--we-dialog-shadow);
 }

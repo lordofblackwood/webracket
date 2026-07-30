@@ -1166,7 +1166,7 @@ html.we-theme-light .we-dialog-panel {
   border-width: var(--we-dialog-border-width);
   border-style: solid;
   border-radius: var(--we-dialog-radius);
-  background: linear-gradient(var(--we-dialog-bg), var(--we-dialog-bg)), var(--we-surface);
+  background: var(--we-dialog-bg);
   color: var(--we-dialog-color);
   box-shadow: var(--we-dialog-shadow);
 }
@@ -1780,6 +1780,7 @@ html.we-theme-light .we-table {
   border-collapse: collapse;
   background: var(--we-table-bg);
   color: var(--we-table-color);
+  font-size: var(--we-table-font-size, var(--we-font-size-md));
 }
 
 html.we-theme-light .we-table th,
@@ -2785,7 +2786,7 @@ html.we-theme-light .we-modal-panel {
   flex-direction: column;
   border: var(--we-dialog-border-width) solid var(--we-dialog-border-color);
   border-radius: var(--we-dialog-radius);
-  background: linear-gradient(var(--we-dialog-bg), var(--we-dialog-bg)), var(--we-surface);
+  background: var(--we-dialog-bg);
   color: var(--we-dialog-color);
   box-shadow: var(--we-dialog-shadow);
 }

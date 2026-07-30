@@ -394,6 +394,19 @@
                                    selectors
                                    property
                                    tab-context-ref))
+  (define (custom-direct-ref selectors key)
+    (and (css-stylesheet? rules)
+         (present-ref
+          (hash-ref (css-collect-custom-properties-in-selector-groups rules selectors)
+                    key
+                    #f))))
+  (define (navbar-context-ref key)
+    (bootstrap-context-ref '(".navbar") key))
+  (define (navbar-direct-ref selectors property)
+    (last-direct-declaration-value rules
+                                   selectors
+                                   property
+                                   navbar-context-ref))
   (define (box-shorthand-side value side)
     (and (present-css-value? value)
          (not (regexp-match? #px"[()]" value))
@@ -520,7 +533,10 @@
   (define navbar-brand-text-transform
     (nav-style-ref ".navbar-brand" "text-transform"))
   (define navbar-brand-padding-y
-    (nav-style-ref ".navbar-brand" "padding-top"))
+    (or (custom-direct-ref '(".navbar") "--bs-navbar-brand-padding-y")
+        (navbar-direct-ref '(".navbar") "--bs-navbar-brand-padding-y")
+        (nav-custom-ref ".navbar" "--bs-navbar-brand-padding-y")
+        (nav-style-ref ".navbar-brand" "padding-top")))
   (define navbar-brand-gap
     (or (nav-custom-ref ".navbar" "--bs-navbar-brand-margin-end")
         (nav-style-ref ".navbar-brand" "margin-right")))
@@ -1030,6 +1046,9 @@
   (define btn-text-transform
     (or (button-style-ref ".btn" "text-transform")
         "none"))
+  (define btn-primary-color
+    (or (button-custom-ref ".btn-primary" "--bs-btn-color")
+        (button-style-ref ".btn-primary" "color")))
   (define btn-secondary-bg
     (or (button-custom-ref ".btn-secondary" "--bs-btn-bg")
         (button-style-ref ".btn-secondary" "background-color")))
@@ -1124,6 +1143,9 @@
   (define btn-danger-color
     (or (button-custom-ref ".btn-danger" "--bs-btn-color")
         (button-style-ref ".btn-danger" "color")))
+  (define btn-dark-color
+    (or (button-custom-ref ".btn-dark" "--bs-btn-color")
+        (button-style-ref ".btn-dark" "color")))
   (define-values (surface-style-ref surface-custom-ref)
     (make-computed-selector-refs props rules))
   (define (surface-custom-ref/meaningful selector key)
@@ -1852,6 +1874,9 @@
   (define table-active-bg
     (or (list-table-custom-ref ".table" "--bs-table-active-bg")
         (list-table-style-ref ".table-active" "background-color")))
+  (define table-font-size
+    (or (table-direct-ref '(".table") "font-size")
+        (list-table-style-ref ".table" "font-size")))
   (define table-cell-selector
     ".table > :not(caption) > * > *")
   (define table-cell-override-selectors
@@ -1892,7 +1917,9 @@
         (list-table-style-ref table-cell-selector "font-family")
         (list-table-style-ref "th" "font-family")))
   (define table-header-font-size
-    (or (list-table-style-ref "th" "font-size")
+    (or (table-direct-ref '(".table th") "font-size")
+        table-font-size
+        (list-table-style-ref "th" "font-size")
         (list-table-style-ref ".table th" "font-size")))
   (define table-header-font-weight
     (or (list-table-style-ref ".table th" "font-weight")
@@ -2418,6 +2445,10 @@
         'nav-link-padding-y nav-link-padding-y
         'nav-link-padding-x nav-link-padding-x
         'navbar-brand-size navbar-brand-size
+        'navbar-brand-font-weight navbar-brand-font-weight
+        'navbar-brand-letter-spacing navbar-brand-letter-spacing
+        'navbar-brand-text-transform navbar-brand-text-transform
+        'navbar-brand-padding-y navbar-brand-padding-y
         'navbar-brand-gap navbar-brand-gap
         'navbar-brand-color navbar-brand-color
         'navbar-brand-hover navbar-brand-hover
@@ -2546,6 +2577,7 @@
         'btn-outline-border-width btn-outline-border-width
         'btn-radius btn-radius
         'btn-text-transform btn-text-transform
+        'btn-primary-color btn-primary-color
         'btn-secondary-bg btn-secondary-bg
         'btn-secondary-border btn-secondary-border
         'btn-secondary-color btn-secondary-color
@@ -2572,6 +2604,7 @@
         'btn-info-color btn-info-color
         'btn-warning-color btn-warning-color
         'btn-danger-color btn-danger-color
+        'btn-dark-color btn-dark-color
         'card-bg card-bg
         'card-radius card-radius
         'card-shadow card-shadow
@@ -2792,6 +2825,7 @@
         'table-striped-bg table-striped-bg
         'table-hover-bg table-hover-bg
         'table-active-bg table-active-bg
+        'table-font-size table-font-size
         'table-cell-padding-x table-cell-padding-x
         'table-cell-padding-y table-cell-padding-y
         'table-border-width table-border-width
@@ -4685,6 +4719,9 @@
   (define table-active-bg
     (or (theme-component-ref theme 'table-active-bg)
         (hash-ref surface-map 'surface-active)))
+  (define table-font-size
+    (or (theme-component-ref theme 'table-font-size)
+        (bootstrap-theme-font-size-md theme)))
   (define table-cell-padding-x
     (or (theme-component-ref theme 'table-cell-padding-x)
         "0.75rem"))
@@ -5206,6 +5243,9 @@
        (define parsed
          (or (parse-css-color source-text)
              (parse-css-color (hash-ref bootstrap-defaults (string-append "--bs-" name)))))
+       (define on-color
+         (or (theme-component-ref theme (string->symbol (format "btn-~a-color" name)))
+             (derive-on-color parsed)))
        (define subtle
          (let ([explicit (parse-css-color (theme-prop-ref theme (format "--bs-~a-bg-subtle" name)))]
                [derived (derive-subtle-color parsed bg dark?)])
@@ -5230,7 +5270,7 @@
          (or (theme-prop-ref theme (format "--bs-~a-text-emphasis" name))
              (rgb->css (derive-emphasis-color parsed dark?))))
        (list (cons (format "--we-~a" name) source-text)
-             (cons (format "--we-~a-on" name) (derive-on-color parsed))
+             (cons (format "--we-~a-on" name) on-color)
              (cons (format "--we-~a-emphasis" name) emphasis)
              (cons (format "--we-~a-subtle" name) subtle)
              (cons (format "--we-~a-border" name) border*)))
@@ -5644,6 +5684,7 @@
     (cons "--we-table-striped-bg" table-striped-bg)
     (cons "--we-table-hover-bg" table-hover-bg)
     (cons "--we-table-active-bg" table-active-bg)
+    (cons "--we-table-font-size" table-font-size)
     (cons "--we-table-cell-padding-x" table-cell-padding-x)
     (cons "--we-table-cell-padding-y" table-cell-padding-y)
     (cons "--we-table-border-width" table-border-width)
@@ -6114,6 +6155,7 @@
      "  --bs-navbar-brand-color: #1a1a1a;\n"
      "  --bs-navbar-brand-hover-color: #1a1a1a;\n"
      "  --bs-navbar-brand-font-size: 1.25rem;\n"
+     "  --bs-navbar-brand-padding-y: 0.3125rem;\n"
      "  --bs-navbar-brand-margin-end: 1rem;\n"
      "  font-size: 0.875rem;\n"
      "  font-weight: 600;\n"
@@ -6342,6 +6384,9 @@
      "  --bs-btn-hover-bg: #f0f1f2;\n"
      "  --bs-btn-hover-border-color: #f0f1f2;\n"
      "}\n"
+     ".btn-primary {\n"
+     "  --bs-btn-color: #fff;\n"
+     "}\n"
      ".btn-light {\n"
      "  --bs-btn-color: #000;\n"
      "  --bs-btn-bg: #f0f1f2;\n"
@@ -6370,6 +6415,9 @@
      "  --bs-btn-color: #fff;\n"
      "}\n"
      ".btn-danger {\n"
+     "  --bs-btn-color: #fff;\n"
+     "}\n"
+     ".btn-dark {\n"
      "  --bs-btn-color: #fff;\n"
      "}\n"
      ".card {\n"
@@ -6461,6 +6509,7 @@
      "  --bs-table-striped-bg: rgba(26, 26, 26, 0.05);\n"
      "  --bs-table-active-bg: rgba(26, 26, 26, 0.1);\n"
      "  --bs-table-hover-bg: rgba(26, 26, 26, 0.075);\n"
+     "  font-size: 0.875rem;\n"
      "}\n"
      ".table th,\n"
      ".table td {\n"
@@ -6992,6 +7041,8 @@
     (check-equal? (hash-ref token-map "--we-navbar-letter-spacing") "1px")
     (check-equal? (hash-ref token-map "--we-navbar-text-transform")
                   "uppercase")
+    (check-equal? (hash-ref token-map "--we-navbar-brand-padding-y")
+                  "0.3125rem")
     (check-equal? (hash-ref token-map "--we-nav-text-transform")
                   "uppercase")
     (check-equal? (hash-ref token-map "--we-nav-line-height") "1.5")
@@ -7063,6 +7114,8 @@
     (check-equal? (hash-ref token-map "--we-button-radius") "0")
     (check-equal? (hash-ref token-map "--we-button-outline-secondary-border") "#f8f9fa")
     (check-equal? (hash-ref token-map "--we-button-secondary-bg") "#fff")
+    (check-equal? (hash-ref token-map "--we-primary-on") "#fff")
+    (check-equal? (hash-ref token-map "--we-dark-on") "#fff")
     (check-equal? (hash-ref token-map "--we-button-success-color") "#fff")
     (check-equal? (hash-ref token-map "--we-button-danger-color") "#fff")
     (check-equal? (hash-ref token-map "--we-card-radius") "0")
@@ -7101,7 +7154,9 @@
     (check-equal? (hash-ref token-map "--we-list-group-line-height") "1.5")
     (check-equal? (hash-ref token-map "--we-table-border-color") "rgba(0, 0, 0, 0.05)")
     (check-equal? (hash-ref token-map "--we-table-border-top-width") "0px")
+    (check-equal? (hash-ref token-map "--we-table-font-size") "0.875rem")
     (check-equal? (hash-ref token-map "--we-table-cell-padding-x") "1.5rem")
+    (check-equal? (hash-ref token-map "--we-table-header-font-size") "0.875rem")
     (check-equal? (hash-ref token-map "--we-table-header-text-transform") "uppercase")
     (check-equal? (hash-ref token-map "--we-table-body-font-weight") "300"))
 

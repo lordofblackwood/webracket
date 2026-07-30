@@ -85,7 +85,7 @@ html.we-theme-superhero {
   --we-navbar-brand-font-weight: 400;
   --we-navbar-brand-letter-spacing: 0;
   --we-navbar-brand-text-transform: none;
-  --we-navbar-brand-padding-y: 0.5rem;
+  --we-navbar-brand-padding-y: 0.3125rem;
   --we-navbar-brand-gap: 1rem;
   --we-nav-font-size: 1rem;
   --we-nav-font-weight: 400;
@@ -420,13 +420,14 @@ html.we-theme-superhero {
   --we-table-striped-bg: rgba(0, 0, 0, 0.05);
   --we-table-hover-bg: rgba(255, 255, 255, 0.075);
   --we-table-active-bg: rgba(0, 0, 0, 0.1);
+  --we-table-font-size: 0.875rem;
   --we-table-cell-padding-x: 0.5rem;
   --we-table-cell-padding-y: 0.5rem;
   --we-table-border-width: 1px;
   --we-table-border-top-width: 0px;
   --we-table-header-color: #ebebeb;
   --we-table-header-font-family: Lato, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
-  --we-table-header-font-size: 1rem;
+  --we-table-header-font-size: 0.875rem;
   --we-table-header-font-weight: 700;
   --we-table-header-text-transform: none;
   --we-table-body-font-weight: 400;
@@ -604,42 +605,42 @@ html.we-theme-superhero {
   --we-popup-border: #ced4da;
   --we-popup-shadow: var(--we-shadow-md);
   --we-primary: #df6919;
-  --we-primary-on: #111827;
+  --we-primary-on: #fff;
   --we-primary-emphasis: #592a0a;
   --we-primary-subtle: #f9e1d1;
   --we-primary-border: #f2c3a3;
   --we-secondary: #4e5d6c;
-  --we-secondary-on: #ffffff;
+  --we-secondary-on: #fff;
   --we-secondary-emphasis: #1f252b;
   --we-secondary-subtle: #dcdfe2;
   --we-secondary-border: #b8bec4;
   --we-success: #5cb85c;
-  --we-success-on: #111827;
+  --we-success-on: #fff;
   --we-success-emphasis: #254a25;
   --we-success-subtle: #def1de;
   --we-success-border: #bee3be;
   --we-info: #5bc0de;
-  --we-info-on: #111827;
+  --we-info-on: #fff;
   --we-info-emphasis: #244d59;
   --we-info-subtle: #def2f8;
   --we-info-border: #bde6f2;
   --we-warning: #ffc107;
-  --we-warning-on: #111827;
+  --we-warning-on: #fff;
   --we-warning-emphasis: #664d03;
   --we-warning-subtle: #fff3cd;
   --we-warning-border: #ffe69c;
   --we-danger: #d9534f;
-  --we-danger-on: #111827;
+  --we-danger-on: #fff;
   --we-danger-emphasis: #572120;
   --we-danger-subtle: #f7dddc;
   --we-danger-border: #f0bab9;
   --we-light: #abb6c2;
-  --we-light-on: #111827;
+  --we-light-on: #fff;
   --we-light-emphasis: #495057;
   --we-light-subtle: #3e5061;
   --we-light-border: #dee2e6;
   --we-dark: #20374c;
-  --we-dark-on: #ffffff;
+  --we-dark-on: #fff;
   --we-dark-emphasis: #495057;
   --we-dark-subtle: #adb5bd;
   --we-dark-border: #868e96;
@@ -1601,7 +1602,7 @@ html.we-theme-superhero .we-dialog-panel {
   border-width: var(--we-dialog-border-width);
   border-style: solid;
   border-radius: var(--we-dialog-radius);
-  background: linear-gradient(var(--we-dialog-bg), var(--we-dialog-bg)), var(--we-surface);
+  background: var(--we-dialog-bg);
   color: var(--we-dialog-color);
   box-shadow: var(--we-dialog-shadow);
 }
@@ -2215,6 +2216,7 @@ html.we-theme-superhero .we-table {
   border-collapse: collapse;
   background: var(--we-table-bg);
   color: var(--we-table-color);
+  font-size: var(--we-table-font-size, var(--we-font-size-md));
 }
 
 html.we-theme-superhero .we-table th,
@@ -3220,7 +3222,7 @@ html.we-theme-superhero .we-modal-panel {
   flex-direction: column;
   border: var(--we-dialog-border-width) solid var(--we-dialog-border-color);
   border-radius: var(--we-dialog-radius);
-  background: linear-gradient(var(--we-dialog-bg), var(--we-dialog-bg)), var(--we-surface);
+  background: var(--we-dialog-bg);
   color: var(--we-dialog-color);
   box-shadow: var(--we-dialog-shadow);
 }

@@ -82,10 +82,10 @@ html.we-theme-sketchy {
   --we-navbar-brand-color: rgba(0, 0, 0, 1);
   --we-navbar-brand-hover-color: rgba(0, 0, 0, 1);
   --we-navbar-brand-font-size: 1.25rem;
-  --we-navbar-brand-font-weight: 700;
+  --we-navbar-brand-font-weight: 400;
   --we-navbar-brand-letter-spacing: 0;
   --we-navbar-brand-text-transform: none;
-  --we-navbar-brand-padding-y: 0.5rem;
+  --we-navbar-brand-padding-y: 0.3125rem;
   --we-navbar-brand-gap: 1rem;
   --we-nav-font-size: 1rem;
   --we-nav-font-weight: 700;
@@ -420,6 +420,7 @@ html.we-theme-sketchy {
   --we-table-striped-bg: rgba(0, 0, 0, 0.05);
   --we-table-hover-bg: #fff;
   --we-table-active-bg: rgba(0, 0, 0, 0.1);
+  --we-table-font-size: 1rem;
   --we-table-cell-padding-x: 0.5rem;
   --we-table-cell-padding-y: 0.5rem;
   --we-table-border-width: 2px;
@@ -604,42 +605,42 @@ html.we-theme-sketchy {
   --we-popup-border: #dee2e6;
   --we-popup-shadow: var(--we-shadow-md);
   --we-primary: #333;
-  --we-primary-on: #ffffff;
+  --we-primary-on: #fff;
   --we-primary-emphasis: #141414;
   --we-primary-subtle: #d6d6d6;
   --we-primary-border: #adadad;
   --we-secondary: #555;
-  --we-secondary-on: #ffffff;
+  --we-secondary-on: #fff;
   --we-secondary-emphasis: #222222;
   --we-secondary-subtle: #dddddd;
   --we-secondary-border: #bbbbbb;
   --we-success: #28a745;
-  --we-success-on: #111827;
+  --we-success-on: #fff;
   --we-success-emphasis: #10431c;
   --we-success-subtle: #d4edda;
   --we-success-border: #a9dcb5;
   --we-info: #17a2b8;
-  --we-info-on: #111827;
+  --we-info-on: #fff;
   --we-info-emphasis: #09414a;
   --we-info-subtle: #d1ecf1;
   --we-info-border: #a2dae3;
   --we-warning: #ffc107;
-  --we-warning-on: #111827;
+  --we-warning-on: #fff;
   --we-warning-emphasis: #664d03;
   --we-warning-subtle: #fff3cd;
   --we-warning-border: #ffe69c;
   --we-danger: #dc3545;
-  --we-danger-on: #ffffff;
+  --we-danger-on: #fff;
   --we-danger-emphasis: #58151c;
   --we-danger-subtle: #f8d7da;
   --we-danger-border: #f1aeb5;
   --we-light: #fff;
-  --we-light-on: #111827;
+  --we-light-on: #000;
   --we-light-emphasis: #555;
   --we-light-subtle: #fcfcfd;
   --we-light-border: #f7f7f9;
   --we-dark: #555;
-  --we-dark-on: #ffffff;
+  --we-dark-on: #fff;
   --we-dark-emphasis: #555;
   --we-dark-subtle: #cccccc;
   --we-dark-border: #aaaaaa;
@@ -1601,7 +1602,7 @@ html.we-theme-sketchy .we-dialog-panel {
   border-width: var(--we-dialog-border-width);
   border-style: solid;
   border-radius: var(--we-dialog-radius);
-  background: linear-gradient(var(--we-dialog-bg), var(--we-dialog-bg)), var(--we-surface);
+  background: var(--we-dialog-bg);
   color: var(--we-dialog-color);
   box-shadow: var(--we-dialog-shadow);
 }
@@ -2215,6 +2216,7 @@ html.we-theme-sketchy .we-table {
   border-collapse: collapse;
   background: var(--we-table-bg);
   color: var(--we-table-color);
+  font-size: var(--we-table-font-size, var(--we-font-size-md));
 }
 
 html.we-theme-sketchy .we-table th,
@@ -3220,7 +3222,7 @@ html.we-theme-sketchy .we-modal-panel {
   flex-direction: column;
   border: var(--we-dialog-border-width) solid var(--we-dialog-border-color);
   border-radius: var(--we-dialog-radius);
-  background: linear-gradient(var(--we-dialog-bg), var(--we-dialog-bg)), var(--we-surface);
+  background: var(--we-dialog-bg);
   color: var(--we-dialog-color);
   box-shadow: var(--we-dialog-shadow);
 }
