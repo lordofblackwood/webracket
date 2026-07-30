@@ -193,6 +193,7 @@ html.we-theme-light {
   --we-tooltip-padding-x: 0.5rem;
   --we-tooltip-padding-y: 0.25rem;
   --we-tooltip-border-width: 1px;
+  --we-tooltip-border-style: solid;
   --we-tooltip-border-color: #1a1a1a;
   --we-tooltip-shadow: none;
   --we-tooltip-arrow-size: 0.5rem;
@@ -2054,7 +2055,7 @@ html.we-theme-light .we-button-group-vertical > .we-button:not(:last-child) {
 html.we-theme-light .we-tooltip-bubble {
   position: relative;
   padding: var(--we-tooltip-padding-y) var(--we-tooltip-padding-x);
-  border: var(--we-tooltip-border-width, 1px) solid var(--we-tooltip-border-color);
+  border: var(--we-tooltip-border-width, 1px) var(--we-tooltip-border-style, solid) var(--we-tooltip-border-color);
   border-radius: var(--we-tooltip-radius);
   background: var(--we-tooltip-bg);
   color: var(--we-tooltip-color);
@@ -2064,7 +2065,6 @@ html.we-theme-light .we-tooltip-bubble {
   line-height: var(--we-tooltip-line-height, 1.5);
   letter-spacing: var(--we-tooltip-letter-spacing, normal);
   text-transform: var(--we-tooltip-text-transform, none);
-  opacity: var(--we-tooltip-opacity);
   white-space: normal;
   max-width: 18rem;
   text-align: center;

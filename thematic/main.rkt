@@ -885,9 +885,14 @@
     (or (computed-style-ref ".tooltip-inner" "border-width")
         (computed-style-ref ".tooltip-inner" "border-top-width")
         "0"))
+  (define tooltip-border-style
+    (or (computed-style-ref ".tooltip-inner" "border-style")
+        (computed-style-ref ".tooltip-inner" "border-top-style")
+        "none"))
   (define tooltip-border-color
     (or (computed-style-ref ".tooltip-inner" "border-color")
         (computed-style-ref ".tooltip-inner" "border-top-color")
+        (and (string-ci=? tooltip-border-style "none") "currentColor")
         tooltip-bg))
   (define tooltip-shadow
     (or (computed-style-ref ".tooltip-inner" "box-shadow")
@@ -2458,6 +2463,7 @@
         'tooltip-padding-x tooltip-padding-x
         'tooltip-padding-y tooltip-padding-y
         'tooltip-border-width tooltip-border-width
+        'tooltip-border-style tooltip-border-style
         'tooltip-border-color tooltip-border-color
         'tooltip-shadow tooltip-shadow
         'popover-bg popover-bg
@@ -3755,8 +3761,12 @@
   (define tooltip-border-width
     (or (theme-component-ref theme 'tooltip-border-width)
         "0"))
+  (define tooltip-border-style
+    (or (theme-component-ref theme 'tooltip-border-style)
+        "solid"))
   (define tooltip-border-color
     (or (theme-component-ref theme 'tooltip-border-color)
+        (and (string-ci=? tooltip-border-style "none") "currentColor")
         tooltip-bg))
   (define tooltip-shadow
     (or (theme-component-ref theme 'tooltip-shadow)
@@ -5444,6 +5454,7 @@
     (cons "--we-tooltip-padding-x" tooltip-padding-x)
     (cons "--we-tooltip-padding-y" tooltip-padding-y)
     (cons "--we-tooltip-border-width" tooltip-border-width)
+    (cons "--we-tooltip-border-style" tooltip-border-style)
     (cons "--we-tooltip-border-color" tooltip-border-color)
     (cons "--we-tooltip-shadow" tooltip-shadow)
     (cons "--we-tooltip-arrow-size" tooltip-arrow-size)
@@ -7134,6 +7145,8 @@
     (check-equal? (hash-ref token-map "--we-tooltip-text-transform") "uppercase")
     (check-equal? (hash-ref token-map "--we-tooltip-radius") "0")
     (check-equal? (hash-ref token-map "--we-tooltip-border-width") "0")
+    (check-equal? (hash-ref token-map "--we-tooltip-border-style") "none")
+    (check-equal? (hash-ref token-map "--we-tooltip-border-color") "currentColor")
     (check-equal? (hash-ref token-map "--we-tooltip-shadow") "none")
     (check-equal? (hash-ref token-map "--we-popover-max-width") "276px")
     (check-equal? (hash-ref token-map "--we-popover-font-size") "0.875rem")
