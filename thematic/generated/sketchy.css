@@ -40,6 +40,11 @@ html.we-theme-sketchy {
   --we-menu-popup-radius: 555px 25px 25px 25px/25px 25px 25px 555px;
   --we-menu-popup-shadow: none;
   --we-menu-popup-padding-y: 0.5rem;
+  --we-menu-popup-font-size: 1rem;
+  --we-menu-popup-font-weight: 700;
+  --we-menu-popup-line-height: 1.5;
+  --we-menu-popup-letter-spacing: normal;
+  --we-menu-popup-text-transform: none;
   --we-menu-header-color: #868e96;
   --we-menu-header-padding-x: 1rem;
   --we-menu-header-padding-y: 0.5rem;
@@ -137,6 +142,7 @@ html.we-theme-sketchy {
   --we-button-primary-disabled-bg: #333;
   --we-button-primary-disabled-border: #333;
   --we-button-primary-disabled-color: #fff;
+  --we-button-disabled-opacity: 0.65;
   --we-button-light-bg: #fff;
   --we-button-light-border: #fff;
   --we-button-light-color: #000;
@@ -173,8 +179,14 @@ html.we-theme-sketchy {
   --we-card-title-text-transform: none;
   --we-badge-padding-x: 1.2em;
   --we-badge-padding-y: 0.5em;
+  --we-badge-padding-top: 0.5em;
+  --we-badge-padding-right: 1.2em;
+  --we-badge-padding-bottom: 0.5em;
+  --we-badge-padding-left: 1.2em;
+  --we-badge-font-family: Neucha, -apple-system, system-ui, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --we-badge-font-size: 0.75em;
   --we-badge-font-weight: 700;
+  --we-badge-line-height: 1;
   --we-badge-radius: 255px 25px 225px 25px/25px 225px 25px 255px;
   --we-badge-color: #fff;
   --we-badge-secondary-color: #000000;
@@ -189,17 +201,27 @@ html.we-theme-sketchy {
   --we-accordion-button-padding-y: 1rem;
   --we-accordion-button-color: #212529;
   --we-accordion-button-bg: #fff;
+  --we-accordion-button-font-size: 1rem;
+  --we-accordion-button-font-weight: 400;
+  --we-accordion-button-line-height: 1.2;
+  --we-accordion-button-letter-spacing: normal;
+  --we-accordion-button-text-transform: none;
   --we-accordion-icon: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23212529' stroke-linecap='round' stroke-linejoin='round'%3e%3cpath d='m2 5 6 6 6-6'/%3e%3c/svg%3e");
   --we-accordion-active-icon: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23141414' stroke-linecap='round' stroke-linejoin='round'%3e%3cpath d='m2 5 6 6 6-6'/%3e%3c/svg%3e");
   --we-accordion-icon-width: 1.25rem;
   --we-accordion-icon-transform: rotate(-180deg);
   --we-accordion-active-color: #141414;
   --we-accordion-active-bg: #d6d6d6;
+  --we-accordion-active-shadow: inset 0 calc(-1 * 2px) 0 #dee2e6;
   --we-accordion-body-padding-x: 1.25rem;
   --we-accordion-body-padding-y: 1rem;
   --we-pagination-padding-x: 0.75rem;
   --we-pagination-padding-y: 0.375rem;
   --we-pagination-font-size: 1rem;
+  --we-pagination-font-weight: 700;
+  --we-pagination-line-height: 1.5;
+  --we-pagination-letter-spacing: normal;
+  --we-pagination-text-transform: none;
   --we-pagination-color: #333;
   --we-pagination-bg: #fff;
   --we-pagination-border-width: 2px;
@@ -234,6 +256,11 @@ html.we-theme-sketchy {
   --we-breadcrumb-border-color: #333;
   --we-breadcrumb-border-width: 2px;
   --we-breadcrumb-item-padding-x: 0.5rem;
+  --we-breadcrumb-font-size: 1rem;
+  --we-breadcrumb-font-weight: 700;
+  --we-breadcrumb-line-height: 1.5;
+  --we-breadcrumb-letter-spacing: normal;
+  --we-breadcrumb-text-transform: none;
   --we-breadcrumb-active-color: rgba(33, 37, 41, 0.75);
   --we-breadcrumb-link-color: #333;
   --we-toast-padding-x: 0.75rem;
@@ -281,7 +308,7 @@ html.we-theme-sketchy {
   --we-popover-border-color: #333;
   --we-popover-border-width: 2px;
   --we-popover-radius: 45px 85px 15px 25px/15px 10px 35px 555px;
-  --we-popover-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+  --we-popover-shadow: none;
   --we-popover-arrow-width: 1rem;
   --we-popover-arrow-height: 0.5rem;
   --we-popover-header-bg: #f7f7f9;
@@ -290,9 +317,9 @@ html.we-theme-sketchy {
   --we-popover-header-padding-y: 0.5rem;
   --we-popover-body-padding-x: 1rem;
   --we-popover-body-padding-y: 1rem;
-  --we-popover-title-font-family: Neucha, -apple-system, system-ui, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --we-popover-title-font-family: "Cabin Sketch", cursive;
   --we-popover-title-font-size: 1rem;
-  --we-popover-title-font-weight: 600;
+  --we-popover-title-font-weight: 500;
   --we-popover-title-line-height: 1.2;
   --we-popover-title-letter-spacing: normal;
   --we-popover-title-text-transform: none;
@@ -436,11 +463,16 @@ html.we-theme-sketchy {
   --we-field-invalid-color: #dc3545;
   --we-field-invalid-border-color: #dc3545;
   --we-field-invalid-icon: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' width='12' height='12' fill='none' stroke='%23dc3545'%3e%3ccircle cx='6' cy='6' r='4.5'/%3e%3cpath stroke-linejoin='round' d='M5.8 3.6h.4L6 6.5z'/%3e%3ccircle cx='6' cy='8.2' r='.6' fill='%23dc3545' stroke='none'/%3e%3c/svg%3e");
+  --we-help-text-color: rgba(33, 37, 41, 0.75);
+  --we-help-text-font-size: 0.875em;
+  --we-help-text-font-weight: 700;
+  --we-help-text-line-height: 1.5;
   --we-textarea-border-width: 2px;
   --we-textarea-radius: 55px 225px 15px 25px/25px 25px 35px 355px;
   --we-textarea-line-height: 1.5;
   --we-textarea-min-height: calc(1.5em + 0.75rem + calc(2px * 2));
   --we-check-bg: #fff;
+  --we-check-color: #000;
   --we-check-border-color: #333;
   --we-check-border-width: 0;
   --we-check-size: 0;
@@ -513,6 +545,7 @@ html.we-theme-sketchy {
   --we-switch-after-checked-bg: #333;
   --we-switch-label-margin-left: 0.5em;
   --we-range-height: 1.5rem;
+  --we-range-color: #101010;
   --we-range-track-height: 0.5rem;
   --we-range-track-bg: #f7f7f9;
   --we-range-track-radius: 1rem;
@@ -542,6 +575,7 @@ html.we-theme-sketchy {
   --we-dialog-title-color: #000000;
   --we-dialog-title-font-size: 1.25rem;
   --we-dialog-title-font-weight: 500;
+  --we-dialog-title-letter-spacing: normal;
   --we-dialog-title-text-transform: none;
   --we-dialog-close-icon: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='inherit'%3e%3cpath d='M.293.293a1 1 0 0 1 1.414 0L8 6.586 14.293.293a1 1 0 1 1 1.414 1.414L9.414 8l6.293 6.293a1 1 0 0 1-1.414 1.414L8 9.414l-6.293 6.293a1 1 0 0 1-1.414-1.414L6.586 8 .293 1.707a1 1 0 0 1 0-1.414'/%3e%3c/svg%3e");
   --we-input-placeholder: rgba(33, 37, 41, 0.500);
@@ -722,6 +756,12 @@ html.we-theme-sketchy .we-menu-popup {
   border-radius: var(--we-menu-popup-radius);
   background: var(--we-menu-popup-bg);
   box-shadow: var(--we-menu-popup-shadow);
+  font-family: var(--we-font-family-base);
+  font-size: var(--we-menu-popup-font-size, var(--we-font-size-md));
+  font-weight: var(--we-menu-popup-font-weight, var(--we-font-weight-normal));
+  line-height: var(--we-menu-popup-line-height, var(--we-line-height-base));
+  letter-spacing: var(--we-menu-popup-letter-spacing, normal);
+  text-transform: var(--we-menu-popup-text-transform, none);
 }
 
 html.we-theme-sketchy .we-menu-header {
@@ -901,7 +941,7 @@ html.we-theme-sketchy .we-button:disabled {
   background: var(--we-bg-disabled);
   border-color: var(--we-control-border-disabled);
   color: #8a94a6;
-  opacity: 0.7;
+  opacity: var(--we-button-disabled-opacity, 0.65);
   cursor: not-allowed;
 }
 
@@ -1709,10 +1749,11 @@ html.we-theme-sketchy .we-accordion-trigger {
   background: var(--we-accordion-button-bg, var(--we-surface-subtle));
   color: var(--we-accordion-button-color, var(--we-fg));
   font-family: var(--we-font-family-base);
-  font-size: 1rem;
-  font-weight: 400;
-  letter-spacing: normal;
-  text-transform: none;
+  font-size: var(--we-accordion-button-font-size, 1rem);
+  font-weight: var(--we-accordion-button-font-weight, 400);
+  line-height: var(--we-accordion-button-line-height, var(--we-line-height-base));
+  letter-spacing: var(--we-accordion-button-letter-spacing, normal);
+  text-transform: var(--we-accordion-button-text-transform, none);
 }
 
 /* Right-side indicator (Bootstrap-like) points to collapsed content. */
@@ -1736,8 +1777,9 @@ html.we-theme-sketchy .we-accordion-trigger:hover {
 /* Open state rotates indicator downward and visually connects to the panel. */
 html.we-theme-sketchy .we-accordion-trigger.is-open {
   background: var(--we-accordion-active-bg, var(--we-accordion-button-bg, var(--we-surface-subtle)));
-  border-bottom: var(--we-accordion-border-width, 1px) solid var(--we-accordion-border-color, var(--we-separator));
+  border-bottom: 0;
   border-radius: 0;
+  box-shadow: var(--we-accordion-active-shadow, none);
   color: var(--we-accordion-active-color, var(--we-accordion-button-color, var(--we-fg)));
 }
 
@@ -2205,11 +2247,15 @@ html.we-theme-sketchy .we-badge {
   border: 0;
   background: var(--we-surface-muted);
   color: var(--we-badge-color);
-  font-family: var(--we-font-family-heading);
+  font-family: var(--we-badge-font-family, var(--we-font-family-base));
   font-size: var(--we-badge-font-size);
   font-weight: var(--we-badge-font-weight);
-  line-height: 1;
-  padding: var(--we-badge-padding-y) var(--we-badge-padding-x);
+  line-height: var(--we-badge-line-height, 1);
+  padding:
+    var(--we-badge-padding-top, var(--we-badge-padding-y))
+    var(--we-badge-padding-right, var(--we-badge-padding-x))
+    var(--we-badge-padding-bottom, var(--we-badge-padding-y))
+    var(--we-badge-padding-left, var(--we-badge-padding-x));
   border-radius: var(--we-badge-radius);
 }
 
@@ -2231,14 +2277,10 @@ html.we-theme-sketchy .we-badge-shape-square .we-badge {
 
 html.we-theme-sketchy .we-badge-shape-pill .we-badge {
   border-radius: var(--we-radius-pill);
-  padding-left: 0.62rem;
-  padding-right: 0.62rem;
 }
 
 html.we-theme-sketchy .we-badge.we-badge-pill {
   border-radius: var(--we-radius-pill);
-  padding-left: 0.62rem;
-  padding-right: 0.62rem;
 }
 
 /* Navigation helpers for breadcrumb/pagination. */
@@ -2262,14 +2304,16 @@ html.we-theme-sketchy .we-breadcrumb .we-breadcrumb-item {
   border-radius: 0;
   color: var(--we-breadcrumb-link-color);
   font-family: var(--we-font-family-base);
-  font-weight: var(--we-font-weight-normal);
-  line-height: 1.35;
+  font-size: var(--we-breadcrumb-font-size, var(--we-font-size-md));
+  font-weight: var(--we-breadcrumb-font-weight, var(--we-font-weight-normal));
+  line-height: var(--we-breadcrumb-line-height, var(--we-line-height-base));
+  letter-spacing: var(--we-breadcrumb-letter-spacing, var(--we-letter-spacing-base));
   padding: 0;
   margin: 0;
   min-height: 0;
   text-align: left;
   text-decoration: none;
-  text-transform: none;
+  text-transform: var(--we-breadcrumb-text-transform, none);
 }
 
 html.we-theme-sketchy .we-breadcrumb .we-breadcrumb-item:hover {
@@ -2292,9 +2336,9 @@ html.we-theme-sketchy .we-breadcrumb-item.is-current {
   background: transparent;
   border: 0;
   color: var(--we-breadcrumb-active-color);
-  font-weight: var(--we-font-weight-normal);
+  font-weight: var(--we-breadcrumb-font-weight, var(--we-font-weight-normal));
   text-decoration: none;
-  text-transform: none;
+  text-transform: var(--we-breadcrumb-text-transform, none);
 }
 
 html.we-theme-sketchy .we-pagination {
@@ -2310,7 +2354,7 @@ html.we-theme-sketchy .we-page-btn.is-current {
   background: var(--we-pagination-active-bg);
   border: var(--we-pagination-border-width) solid var(--we-pagination-active-border-color);
   color: var(--we-pagination-active-color);
-  font-weight: var(--we-font-weight-normal);
+  font-weight: var(--we-pagination-font-weight, var(--we-font-weight-normal));
   text-decoration: none;
 }
 
@@ -2322,12 +2366,13 @@ html.we-theme-sketchy .we-page-btn {
   color: var(--we-pagination-color);
   font-family: var(--we-font-family-base);
   font-size: var(--we-pagination-font-size);
-  font-weight: var(--we-font-weight-normal);
-  line-height: 1.5;
+  font-weight: var(--we-pagination-font-weight, var(--we-font-weight-normal));
+  line-height: var(--we-pagination-line-height, var(--we-line-height-base));
+  letter-spacing: var(--we-pagination-letter-spacing, var(--we-letter-spacing-base));
   min-height: 0;
   display: block;
   padding: var(--we-pagination-padding-y) var(--we-pagination-padding-x);
-  text-transform: none;
+  text-transform: var(--we-pagination-text-transform, none);
 }
 
 html.we-theme-sketchy .we-pagination .we-page-btn + .we-page-btn {
@@ -2777,10 +2822,10 @@ html.we-theme-sketchy .we-group-legend {
 
 html.we-theme-sketchy .we-form-help,
 html.we-theme-sketchy .we-help-text {
-  color: #6f809a;
-  font-size: 0.875em;
-  font-weight: var(--we-field-font-weight, inherit);
-  line-height: 1.4;
+  color: var(--we-help-text-color, var(--we-fg-muted));
+  font-size: var(--we-help-text-font-size, 0.875em);
+  font-weight: var(--we-help-text-font-weight, var(--we-field-font-weight, inherit));
+  line-height: var(--we-help-text-line-height, var(--we-line-height-base));
 }
 
 html.we-theme-sketchy .we-form-check {
@@ -2810,6 +2855,7 @@ html.we-theme-sketchy .we-checkbox:not(.we-switch-control) {
   font-size: var(--we-check-font-size, 1rem);
   font-family: inherit;
   line-height: var(--we-check-line-height, var(--we-body-line-height, 1.5));
+  color: var(--we-check-color, #000);
   width: var(--we-check-size);
   height: var(--we-check-height, var(--we-check-size));
   margin-top: 0.25em;
@@ -2895,6 +2941,7 @@ html.we-theme-sketchy .we-radio-input {
   font-size: var(--we-check-font-size, 1rem);
   font-family: inherit;
   line-height: var(--we-check-line-height, var(--we-body-line-height, 1.5));
+  color: var(--we-check-color, #000);
   width: var(--we-check-size);
   height: var(--we-check-height, var(--we-check-size));
   margin-top: 0.25em;
@@ -2933,7 +2980,7 @@ html.we-theme-sketchy .we-range {
   font-family: inherit;
   font-size: var(--we-font-size-md, 1rem);
   line-height: var(--we-body-line-height, 1.5);
-  color: var(--we-fg);
+  color: var(--we-range-color, #101010);
   height: var(--we-range-height, 1.5rem);
   padding: 0;
   appearance: none;
@@ -3037,6 +3084,7 @@ html.we-theme-sketchy .we-switch-control {
   font-family: inherit;
   font-size: inherit;
   line-height: var(--we-check-line-height, var(--we-body-line-height, 1.5));
+  color: var(--we-check-color, #000);
   margin: 0;
   margin-top: 0.25em;
   margin-left: var(--we-switch-margin-left, 0);
@@ -3269,6 +3317,7 @@ html.we-theme-sketchy .we-tooltip-title {
   font-size: var(--we-dialog-title-font-size);
   font-weight: var(--we-dialog-title-font-weight, var(--we-font-weight-normal));
   color: var(--we-dialog-title-color);
+  letter-spacing: var(--we-dialog-title-letter-spacing, var(--we-letter-spacing-base));
   text-transform: var(--we-dialog-title-text-transform);
 }
 

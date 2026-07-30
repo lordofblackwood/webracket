@@ -766,6 +766,17 @@
   (define dropdown-padding-y
     (or (computed-custom-ref ".dropdown-menu" "--bs-dropdown-padding-y")
         (computed-style-ref ".dropdown-menu" "padding-top")))
+  (define dropdown-font-size
+    (or (computed-style-ref ".dropdown-menu" "font-size")
+        (computed-custom-ref ".dropdown-menu" "--bs-dropdown-font-size")))
+  (define dropdown-font-weight
+    (computed-style-ref ".dropdown-menu" "font-weight"))
+  (define dropdown-line-height
+    (computed-style-ref ".dropdown-menu" "line-height"))
+  (define dropdown-letter-spacing
+    (computed-style-ref ".dropdown-menu" "letter-spacing"))
+  (define dropdown-text-transform
+    (computed-style-ref ".dropdown-menu" "text-transform"))
   (define dropdown-header-color
     (or (computed-custom-ref ".dropdown-menu" "--bs-dropdown-header-color")
         (computed-style-ref ".dropdown-header" "color")))
@@ -846,9 +857,21 @@
   (define tooltip-text-transform
     (or (computed-style-ref ".tooltip-inner" "text-transform")
         (computed-style-ref ".tooltip" "text-transform")))
+  (define tooltip-radius-authored?
+    (direct-declaration-exists? '(".tooltip-inner") '("border-radius")))
+  (define (tooltip-context-ref key)
+    (or (computed-custom-ref ".tooltip-inner" key)
+        (computed-custom-ref ".tooltip" key)
+        (present-ref (hash-ref props key #f))
+        (present-ref (hash-ref bootstrap-defaults key #f))))
   (define tooltip-radius
-    (or (computed-style-ref ".tooltip-inner" "border-radius")
-        (computed-custom-ref ".tooltip" "--bs-tooltip-border-radius")))
+    (if tooltip-radius-authored?
+        (or (last-direct-declaration-value rules
+                                           '(".tooltip-inner")
+                                           "border-radius"
+                                           tooltip-context-ref)
+            (computed-style-ref ".tooltip-inner" "border-radius"))
+        "0"))
   (define tooltip-opacity
     (or (computed-custom-ref ".tooltip" "--bs-tooltip-opacity")
         (computed-style-ref ".tooltip" "opacity")))
@@ -897,12 +920,18 @@
   (define popover-border-width
     (or (computed-custom-ref ".popover" "--bs-popover-border-width")
         (computed-style-ref ".popover" "border-width")))
+  (define popover-radius-authored?
+    (direct-declaration-exists? '(".popover") '("border-radius")))
   (define popover-radius
-    (or (computed-style-ref ".popover" "border-radius")
-        (computed-custom-ref ".popover" "--bs-popover-border-radius")))
+    (if popover-radius-authored?
+        (computed-style-ref ".popover" "border-radius")
+        "0"))
+  (define popover-shadow-authored?
+    (direct-declaration-exists? '(".popover") '("box-shadow")))
   (define popover-shadow
-    (or (computed-custom-ref ".popover" "--bs-popover-box-shadow")
-        (computed-style-ref ".popover" "box-shadow")))
+    (if popover-shadow-authored?
+        (computed-style-ref ".popover" "box-shadow")
+        "none"))
   (define popover-arrow-width
     (or (computed-custom-ref ".popover" "--bs-popover-arrow-width")
         "1rem"))
@@ -927,22 +956,28 @@
   (define popover-body-padding-y
     (or (computed-custom-ref ".popover" "--bs-popover-body-padding-y")
         (computed-style-ref ".popover-body" "padding-top")))
+  (define (selector-direct-style-ref selector property)
+    (and (direct-declaration-exists? (list selector) (list property))
+         (computed-style-ref selector property)))
+  (define (popover-title-ref property)
+    (or (selector-direct-style-ref ".popover-header" property)
+        (computed-style-ref "h5" property)
+        (computed-style-ref ".popover-header" property)))
   (define popover-title-font-family
-    (or (computed-style-ref ".popover-header" "font-family")
+    (or (popover-title-ref "font-family")
         (computed-style-ref ".popover" "font-family")))
   (define popover-title-font-size
     (or (computed-custom-ref ".popover" "--bs-popover-header-font-size")
-        (computed-style-ref ".popover-header" "font-size")
+        (popover-title-ref "font-size")
         (computed-custom-ref ".popover-header" "--bs-popover-header-font-size")))
   (define popover-title-font-weight
-    (or (computed-style-ref ".popover-header" "font-weight")
-        (computed-style-ref "h3.popover-header" "font-weight")))
+    (popover-title-ref "font-weight"))
   (define popover-title-line-height
-    (computed-style-ref ".popover-header" "line-height"))
+    (popover-title-ref "line-height"))
   (define popover-title-letter-spacing
-    (computed-style-ref ".popover-header" "letter-spacing"))
+    (popover-title-ref "letter-spacing"))
   (define popover-title-text-transform
-    (computed-style-ref ".popover-header" "text-transform"))
+    (popover-title-ref "text-transform"))
   (define-values (button-style-ref button-custom-ref)
     (make-computed-selector-refs props rules))
   (define button-context-selectors
@@ -1008,6 +1043,11 @@
   (define btn-primary-disabled-color
     (or (button-custom-ref ".btn-primary" "--bs-btn-disabled-color")
         (button-style-ref ".btn-primary:disabled" "color")))
+  (define btn-disabled-opacity
+    (or (button-custom-ref ".btn" "--bs-btn-disabled-opacity")
+        (selector-ref* button-style-ref
+                       '(".btn:disabled" ".btn.disabled" ".btn-primary:disabled")
+                       "opacity")))
   (define btn-light-bg
     (or (button-custom-ref ".btn-light" "--bs-btn-bg")
         (button-style-ref ".btn-light" "background-color")))
@@ -1141,12 +1181,28 @@
   (define badge-padding-y
     (or (surface-custom-ref ".badge" "--bs-badge-padding-y")
         (surface-style-ref ".badge" "padding-top")))
+  (define badge-padding-top
+    (or (surface-style-ref ".badge" "padding-top")
+        badge-padding-y))
+  (define badge-padding-right
+    (or (surface-style-ref ".badge" "padding-right")
+        badge-padding-x))
+  (define badge-padding-bottom
+    (or (surface-style-ref ".badge" "padding-bottom")
+        badge-padding-y))
+  (define badge-padding-left
+    (or (surface-style-ref ".badge" "padding-left")
+        badge-padding-x))
+  (define badge-font-family
+    (surface-style-ref ".badge" "font-family"))
   (define badge-font-size
     (or (surface-custom-ref ".badge" "--bs-badge-font-size")
         (surface-style-ref ".badge" "font-size")))
   (define badge-font-weight
     (or (surface-custom-ref ".badge" "--bs-badge-font-weight")
         (surface-style-ref ".badge" "font-weight")))
+  (define badge-line-height
+    (surface-style-ref ".badge" "line-height"))
   (define badge-radius
     (surface-style-ref ".badge" "border-radius"))
   (define badge-color
@@ -1160,6 +1216,16 @@
         (surface-style-ref ".badge.bg-light" "color")))
   (define-values (navmetric-style-ref navmetric-custom-ref)
     (make-computed-selector-refs props rules))
+  (define (accordion-context-ref key)
+    (or (navmetric-custom-ref ".accordion-button" key)
+        (navmetric-custom-ref ".accordion" key)
+        (present-ref (hash-ref props key #f))
+        (present-ref (hash-ref bootstrap-defaults key #f))))
+  (define (accordion-button-direct-ref property)
+    (last-direct-declaration-value rules
+                                   '(".accordion-button")
+                                   property
+                                   accordion-context-ref))
   (define accordion-bg
     (or (navmetric-custom-ref ".accordion" "--bs-accordion-bg")
         (navmetric-style-ref ".accordion-item" "background-color")))
@@ -1192,6 +1258,17 @@
   (define accordion-button-bg
     (or (navmetric-custom-ref ".accordion" "--bs-accordion-btn-bg")
         (navmetric-style-ref ".accordion-button" "background-color")))
+  (define accordion-button-font-size
+    (or (accordion-button-direct-ref "font-size")
+        (navmetric-style-ref ".accordion-button" "font-size")))
+  (define accordion-button-font-weight
+    (accordion-button-direct-ref "font-weight"))
+  (define accordion-button-line-height
+    (accordion-button-direct-ref "line-height"))
+  (define accordion-button-letter-spacing
+    (accordion-button-direct-ref "letter-spacing"))
+  (define accordion-button-text-transform
+    (accordion-button-direct-ref "text-transform"))
   (define accordion-icon
     (navmetric-custom-ref ".accordion" "--bs-accordion-btn-icon"))
   (define accordion-active-icon
@@ -1203,10 +1280,21 @@
     (navmetric-custom-ref ".accordion" "--bs-accordion-btn-icon-transform"))
   (define accordion-active-color
     (or (navmetric-custom-ref ".accordion" "--bs-accordion-active-color")
-        (navmetric-style-ref ".accordion-button:not(.collapsed)" "color")))
+        (last-direct-declaration-value rules
+                                       '(".accordion-button:not(.collapsed)")
+                                       "color"
+                                       accordion-context-ref)))
   (define accordion-active-bg
     (or (navmetric-custom-ref ".accordion" "--bs-accordion-active-bg")
-        (navmetric-style-ref ".accordion-button:not(.collapsed)" "background-color")))
+        (last-direct-declaration-value rules
+                                       '(".accordion-button:not(.collapsed)")
+                                       "background-color"
+                                       accordion-context-ref)))
+  (define accordion-active-shadow
+    (last-direct-declaration-value rules
+                                   '(".accordion-button:not(.collapsed)")
+                                   "box-shadow"
+                                   accordion-context-ref))
   (define accordion-body-padding-x
     (or (navmetric-custom-ref ".accordion" "--bs-accordion-body-padding-x")
         (navmetric-style-ref ".accordion-body" "padding-left")))
@@ -1222,6 +1310,25 @@
   (define pagination-font-size
     (or (navmetric-custom-ref ".pagination" "--bs-pagination-font-size")
         (navmetric-style-ref ".page-link" "font-size")))
+  (define pagination-font-weight
+    (or (selector-ref* navmetric-style-ref
+                       '(".pagination .page-link" ".page-link" ".pagination")
+                       "font-weight")
+        (hash-ref props "--bs-body-font-weight" #f)))
+  (define pagination-line-height
+    (or (selector-ref* navmetric-style-ref
+                       '(".pagination .page-link" ".page-link" ".pagination")
+                       "line-height")
+        (hash-ref props "--bs-body-line-height" #f)))
+  (define pagination-letter-spacing
+    (selector-ref* navmetric-style-ref
+                   '(".pagination .page-link" ".page-link" ".pagination" "body")
+                   "letter-spacing"))
+  (define pagination-text-transform
+    (or (selector-ref* navmetric-style-ref
+                       '(".pagination .page-link" ".page-link" ".pagination")
+                       "text-transform")
+        "none"))
   (define pagination-color
     (or (navmetric-custom-ref ".pagination" "--bs-pagination-color")
         (navmetric-style-ref ".page-link" "color")))
@@ -1347,6 +1454,29 @@
   (define breadcrumb-item-padding-x
     (or (navmetric-custom-ref ".breadcrumb" "--bs-breadcrumb-item-padding-x")
         (navmetric-style-ref ".breadcrumb-item + .breadcrumb-item" "padding-left")))
+  (define breadcrumb-font-size
+    (selector-ref* navmetric-style-ref
+                   '(".breadcrumb-item a" ".breadcrumb-item.active" ".breadcrumb-item" ".breadcrumb" "body")
+                   "font-size"))
+  (define breadcrumb-font-weight
+    (or (selector-ref* navmetric-style-ref
+                       '(".breadcrumb-item a" ".breadcrumb-item.active" ".breadcrumb-item" ".breadcrumb")
+                       "font-weight")
+        (hash-ref props "--bs-body-font-weight" #f)))
+  (define breadcrumb-line-height
+    (or (selector-ref* navmetric-style-ref
+                       '(".breadcrumb-item a" ".breadcrumb-item.active" ".breadcrumb-item" ".breadcrumb")
+                       "line-height")
+        (hash-ref props "--bs-body-line-height" #f)))
+  (define breadcrumb-letter-spacing
+    (selector-ref* navmetric-style-ref
+                   '(".breadcrumb-item a" ".breadcrumb-item.active" ".breadcrumb-item" ".breadcrumb" "body")
+                   "letter-spacing"))
+  (define breadcrumb-text-transform
+    (or (selector-ref* navmetric-style-ref
+                       '(".breadcrumb-item a" ".breadcrumb-item.active" ".breadcrumb-item" ".breadcrumb")
+                       "text-transform")
+        "none"))
   (define breadcrumb-active-color
     (or (navmetric-custom-ref ".breadcrumb" "--bs-breadcrumb-item-active-color")
         (navmetric-style-ref ".breadcrumb-item.active" "color")))
@@ -1896,6 +2026,18 @@
         (field-style-ref ".form-control.is-invalid" "border-color")))
   (define field-invalid-icon
     (field-style-ref ".form-control.is-invalid" "background-image"))
+  (define help-text-color
+    (or (field-style-ref ".form-text" "color")
+        (hash-ref props "--bs-secondary-color" #f)))
+  (define help-text-font-size
+    (or (field-style-ref ".form-text" "font-size")
+        "0.875em"))
+  (define help-text-font-weight
+    (or (field-style-ref ".form-text" "font-weight")
+        (hash-ref props "--bs-body-font-weight" #f)))
+  (define help-text-line-height
+    (or (field-style-ref ".form-text" "line-height")
+        (hash-ref props "--bs-body-line-height" #f)))
   (define textarea-border-width
     (or (field-style-ref "textarea.form-control" "border-width")
         (field-style-ref "textarea" "border-width")
@@ -1914,6 +2056,9 @@
   (define check-bg
     (or (check-custom-ref ".form-check-input" "--bs-form-check-bg")
         (check-style-ref ".form-check-input" "background-color")))
+  (define check-color
+    (or (check-style-ref ".form-check-input" "color")
+        "#000"))
   (define check-border-color
     (or (check-style-ref "[type=checkbox]" "border-color")
         (check-style-ref ".form-check-input" "border-color")))
@@ -2072,6 +2217,9 @@
     (make-computed-selector-refs props rules))
   (define range-height
     (range-style-ref ".form-range" "height"))
+  (define range-color
+    (or (range-style-ref ".form-range" "color")
+        "#101010"))
   (define range-track-height
     (or (range-style-ref ".form-range::-webkit-slider-runnable-track" "height")
         (range-style-ref ".form-range::-moz-range-track" "height")))
@@ -2129,10 +2277,22 @@
                        "border-width")
         (dialog-custom-ref ".modal-content" "--bs-modal-border-width")
         (dialog-custom-ref ".modal" "--bs-modal-border-width")))
+  (define modal-content-radius-authored?
+    (direct-declaration-exists? '(".modal-content") '("border-radius")))
+  (define (dialog-context-ref key)
+    (or (dialog-custom-ref ".modal-content" key)
+        (dialog-custom-ref ".modal" key)
+        (present-ref (hash-ref props key #f))
+        (present-ref (hash-ref bootstrap-defaults key #f))))
   (define modal-radius
-    (selector-ref* dialog-style-ref
-                   '(".modal-content" ".modal")
-                   "border-radius"))
+    (and modal-content-radius-authored?
+         (or (last-direct-declaration-value rules
+                                            '(".modal-content")
+                                            "border-radius"
+                                            dialog-context-ref)
+             (selector-ref* dialog-style-ref
+                            '(".modal-content" ".modal")
+                            "border-radius"))))
   (define modal-shadow
     (selector-ref* dialog-style-ref
                    '(".modal-content" ".modal")
@@ -2183,18 +2343,21 @@
         (dialog-style-ref ".modal" "border-top-width")
         (dialog-custom-ref ".modal-footer" "--bs-modal-footer-border-width")
         (dialog-custom-ref ".modal" "--bs-modal-footer-border-width")))
+  (define (modal-title-ref property)
+    (or (selector-direct-style-ref ".modal-title" property)
+        (dialog-style-ref "h5" property)
+        (dialog-style-ref ".modal-title" property)))
   (define modal-title-color
-    (let ([title-color (dialog-style-ref ".modal-title" "color")])
+    (let ([title-color (modal-title-ref "color")])
       (and (meaningful-css-value? title-color) title-color)))
   (define modal-title-font-size
-    (or (dialog-style-ref ".modal-title" "font-size")
-        (dialog-style-ref "h5" "font-size")))
+    (modal-title-ref "font-size"))
   (define modal-title-font-weight
-    (or (dialog-style-ref ".modal-title" "font-weight")
-        (dialog-style-ref "h5" "font-weight")))
+    (modal-title-ref "font-weight"))
+  (define modal-title-letter-spacing
+    (modal-title-ref "letter-spacing"))
   (define modal-title-text-transform
-    (or (dialog-style-ref ".modal-title" "text-transform")
-        (dialog-style-ref "h5" "text-transform")))
+    (modal-title-ref "text-transform"))
   (hash 'nav-link-color nav-link-color
         'nav-link-hover nav-link-hover
         'nav-link-disabled nav-link-disabled
@@ -2262,6 +2425,11 @@
         'dropdown-radius dropdown-radius
         'dropdown-shadow dropdown-shadow
         'dropdown-padding-y dropdown-padding-y
+        'dropdown-font-size dropdown-font-size
+        'dropdown-font-weight dropdown-font-weight
+        'dropdown-line-height dropdown-line-height
+        'dropdown-letter-spacing dropdown-letter-spacing
+        'dropdown-text-transform dropdown-text-transform
         'dropdown-header-color dropdown-header-color
         'dropdown-header-padding-x dropdown-header-padding-x
         'dropdown-header-padding-y dropdown-header-padding-y
@@ -2335,6 +2503,7 @@
         'btn-primary-disabled-bg btn-primary-disabled-bg
         'btn-primary-disabled-border btn-primary-disabled-border
         'btn-primary-disabled-color btn-primary-disabled-color
+        'btn-disabled-opacity btn-disabled-opacity
         'btn-light-bg btn-light-bg
         'btn-light-border btn-light-border
         'btn-light-color btn-light-color
@@ -2372,8 +2541,14 @@
         'card-title-text-transform card-title-text-transform
         'badge-padding-x badge-padding-x
         'badge-padding-y badge-padding-y
+        'badge-padding-top badge-padding-top
+        'badge-padding-right badge-padding-right
+        'badge-padding-bottom badge-padding-bottom
+        'badge-padding-left badge-padding-left
+        'badge-font-family badge-font-family
         'badge-font-size badge-font-size
         'badge-font-weight badge-font-weight
+        'badge-line-height badge-line-height
         'badge-radius badge-radius
         'badge-color badge-color
         'badge-secondary-color badge-secondary-color
@@ -2388,17 +2563,27 @@
         'accordion-button-padding-y accordion-button-padding-y
         'accordion-button-color accordion-button-color
         'accordion-button-bg accordion-button-bg
+        'accordion-button-font-size accordion-button-font-size
+        'accordion-button-font-weight accordion-button-font-weight
+        'accordion-button-line-height accordion-button-line-height
+        'accordion-button-letter-spacing accordion-button-letter-spacing
+        'accordion-button-text-transform accordion-button-text-transform
         'accordion-icon accordion-icon
         'accordion-active-icon accordion-active-icon
         'accordion-icon-width accordion-icon-width
         'accordion-icon-transform accordion-icon-transform
         'accordion-active-color accordion-active-color
         'accordion-active-bg accordion-active-bg
+        'accordion-active-shadow accordion-active-shadow
         'accordion-body-padding-x accordion-body-padding-x
         'accordion-body-padding-y accordion-body-padding-y
         'pagination-padding-x pagination-padding-x
         'pagination-padding-y pagination-padding-y
         'pagination-font-size pagination-font-size
+        'pagination-font-weight pagination-font-weight
+        'pagination-line-height pagination-line-height
+        'pagination-letter-spacing pagination-letter-spacing
+        'pagination-text-transform pagination-text-transform
         'pagination-color pagination-color
         'pagination-bg pagination-bg
         'pagination-border-width pagination-border-width
@@ -2433,6 +2618,11 @@
         'breadcrumb-border-color breadcrumb-border-color
         'breadcrumb-border-width breadcrumb-border-width
         'breadcrumb-item-padding-x breadcrumb-item-padding-x
+        'breadcrumb-font-size breadcrumb-font-size
+        'breadcrumb-font-weight breadcrumb-font-weight
+        'breadcrumb-line-height breadcrumb-line-height
+        'breadcrumb-letter-spacing breadcrumb-letter-spacing
+        'breadcrumb-text-transform breadcrumb-text-transform
         'breadcrumb-active-color breadcrumb-active-color
         'breadcrumb-link-color breadcrumb-link-color
         'toast-padding-x toast-padding-x
@@ -2595,11 +2785,16 @@
         'field-invalid-color field-invalid-color
         'field-invalid-border-color field-invalid-border-color
         'field-invalid-icon field-invalid-icon
+        'help-text-color help-text-color
+        'help-text-font-size help-text-font-size
+        'help-text-font-weight help-text-font-weight
+        'help-text-line-height help-text-line-height
         'textarea-border-width textarea-border-width
         'textarea-radius textarea-radius
         'textarea-line-height textarea-line-height
         'textarea-min-height textarea-min-height
         'check-bg check-bg
+        'check-color check-color
         'check-border-color check-border-color
         'check-border-width check-border-width
         'check-size check-size
@@ -2670,6 +2865,7 @@
         'switch-after-checked-bg switch-after-checked-bg
         'switch-label-margin-left switch-label-margin-left
         'range-height range-height
+        'range-color range-color
         'range-track-height range-track-height
         'range-track-bg range-track-bg
         'range-track-radius range-track-radius
@@ -2699,6 +2895,7 @@
         'modal-title-color modal-title-color
         'modal-title-font-size modal-title-font-size
         'modal-title-font-weight modal-title-font-weight
+        'modal-title-letter-spacing modal-title-letter-spacing
         'modal-title-text-transform modal-title-text-transform))
 
 ;; bootstrap-props->theme-model : (hash/c string? string?) [(or/c css-stylesheet? #f)] -> bootstrap-theme?
@@ -3457,6 +3654,21 @@
   (define menu-popup-padding-y
     (or (theme-component-ref theme 'dropdown-padding-y)
         "0.5rem"))
+  (define menu-popup-font-size
+    (or (theme-component-ref theme 'dropdown-font-size)
+        (bootstrap-theme-font-size-md theme)))
+  (define menu-popup-font-weight
+    (or (theme-component-ref theme 'dropdown-font-weight)
+        (bootstrap-theme-font-weight-normal theme)))
+  (define menu-popup-line-height
+    (or (theme-component-ref theme 'dropdown-line-height)
+        (bootstrap-theme-line-height-base theme)))
+  (define menu-popup-letter-spacing
+    (or (theme-component-ref theme 'dropdown-letter-spacing)
+        (bootstrap-theme-letter-spacing-base theme)))
+  (define menu-popup-text-transform
+    (or (theme-component-ref theme 'dropdown-text-transform)
+        "none"))
   (define menu-header-color
     (or (theme-component-ref theme 'dropdown-header-color)
         fg-muted))
@@ -3684,6 +3896,9 @@
   (define button-primary-disabled-color
     (or (theme-component-ref theme 'btn-primary-disabled-color)
         "#fff"))
+  (define button-disabled-opacity
+    (or (theme-component-ref theme 'btn-disabled-opacity)
+        "0.65"))
   (define button-light-bg
     (or (theme-component-ref theme 'btn-light-bg)
         (bootstrap-theme-light theme)))
@@ -3793,12 +4008,30 @@
   (define badge-padding-y
     (or (theme-component-ref theme 'badge-padding-y)
         "0.35em"))
+  (define badge-padding-top
+    (or (theme-component-ref theme 'badge-padding-top)
+        badge-padding-y))
+  (define badge-padding-right
+    (or (theme-component-ref theme 'badge-padding-right)
+        badge-padding-x))
+  (define badge-padding-bottom
+    (or (theme-component-ref theme 'badge-padding-bottom)
+        badge-padding-y))
+  (define badge-padding-left
+    (or (theme-component-ref theme 'badge-padding-left)
+        badge-padding-x))
+  (define badge-font-family
+    (or (theme-component-ref theme 'badge-font-family)
+        (bootstrap-theme-font-family-base theme)))
   (define badge-font-size
     (or (theme-component-ref theme 'badge-font-size)
         "0.75em"))
   (define badge-font-weight
     (or (theme-component-ref theme 'badge-font-weight)
         (bootstrap-theme-font-weight-semibold theme)))
+  (define badge-line-height
+    (or (theme-component-ref theme 'badge-line-height)
+        "1"))
   (define badge-radius
     (or (theme-component-ref theme 'badge-radius)
         "0"))
@@ -3841,6 +4074,21 @@
   (define accordion-button-bg
     (or (theme-component-ref theme 'accordion-button-bg)
         (hash-ref surface-map 'surface-subtle)))
+  (define accordion-button-font-size
+    (or (theme-component-ref theme 'accordion-button-font-size)
+        (bootstrap-theme-font-size-md theme)))
+  (define accordion-button-font-weight
+    (or (theme-component-ref theme 'accordion-button-font-weight)
+        "400"))
+  (define accordion-button-line-height
+    (or (theme-component-ref theme 'accordion-button-line-height)
+        "1.2"))
+  (define accordion-button-letter-spacing
+    (or (theme-component-ref theme 'accordion-button-letter-spacing)
+        "normal"))
+  (define accordion-button-text-transform
+    (or (theme-component-ref theme 'accordion-button-text-transform)
+        "none"))
   (define accordion-icon
     (or (theme-component-ref theme 'accordion-icon)
         "none"))
@@ -3859,6 +4107,9 @@
   (define accordion-active-bg
     (or (theme-component-ref theme 'accordion-active-bg)
         accordion-button-bg))
+  (define accordion-active-shadow
+    (or (theme-component-ref theme 'accordion-active-shadow)
+        "none"))
   (define accordion-body-padding-x
     (or (theme-component-ref theme 'accordion-body-padding-x)
         "1rem"))
@@ -3874,6 +4125,18 @@
   (define pagination-font-size
     (or (theme-component-ref theme 'pagination-font-size)
         (bootstrap-theme-font-size-md theme)))
+  (define pagination-font-weight
+    (or (theme-component-ref theme 'pagination-font-weight)
+        (bootstrap-theme-font-weight-normal theme)))
+  (define pagination-line-height
+    (or (theme-component-ref theme 'pagination-line-height)
+        (bootstrap-theme-line-height-base theme)))
+  (define pagination-letter-spacing
+    (or (theme-component-ref theme 'pagination-letter-spacing)
+        (bootstrap-theme-letter-spacing-base theme)))
+  (define pagination-text-transform
+    (or (theme-component-ref theme 'pagination-text-transform)
+        "none"))
   (define pagination-color
     (or (theme-component-ref theme 'pagination-color)
         fg-muted))
@@ -3976,6 +4239,21 @@
   (define breadcrumb-item-padding-x
     (or (theme-component-ref theme 'breadcrumb-item-padding-x)
         "0.5rem"))
+  (define breadcrumb-font-size
+    (or (theme-component-ref theme 'breadcrumb-font-size)
+        (bootstrap-theme-font-size-md theme)))
+  (define breadcrumb-font-weight
+    (or (theme-component-ref theme 'breadcrumb-font-weight)
+        (bootstrap-theme-font-weight-normal theme)))
+  (define breadcrumb-line-height
+    (or (theme-component-ref theme 'breadcrumb-line-height)
+        (bootstrap-theme-line-height-base theme)))
+  (define breadcrumb-letter-spacing
+    (or (theme-component-ref theme 'breadcrumb-letter-spacing)
+        (bootstrap-theme-letter-spacing-base theme)))
+  (define breadcrumb-text-transform
+    (or (theme-component-ref theme 'breadcrumb-text-transform)
+        "none"))
   (define breadcrumb-active-color
     (or (theme-component-ref theme 'breadcrumb-active-color)
         fg-muted))
@@ -4477,6 +4755,19 @@
   (define field-invalid-icon
     (or (theme-component-ref theme 'field-invalid-icon)
         "none"))
+  (define help-text-color
+    (or (theme-component-ref theme 'help-text-color)
+        (theme-prop-ref theme "--bs-secondary-color")
+        fg-muted))
+  (define help-text-font-size
+    (or (theme-component-ref theme 'help-text-font-size)
+        "0.875em"))
+  (define help-text-font-weight
+    (or (theme-component-ref theme 'help-text-font-weight)
+        field-font-weight))
+  (define help-text-line-height
+    (or (theme-component-ref theme 'help-text-line-height)
+        (bootstrap-theme-line-height-base theme)))
   (define textarea-border-width
     (or (theme-component-ref theme 'textarea-border-width)
         field-border-width))
@@ -4492,6 +4783,9 @@
   (define check-bg
     (or (theme-component-ref theme 'check-bg)
         field-bg))
+  (define check-color
+    (or (theme-component-ref theme 'check-color)
+        "#000"))
   (define check-before-display
     (or (theme-component-ref theme 'check-before-display)
         "none"))
@@ -4718,6 +5012,9 @@
   (define range-height
     (or (theme-component-ref theme 'range-height)
         "1.5rem"))
+  (define range-color
+    (or (theme-component-ref theme 'range-color)
+        "#101010"))
   (define range-track-height
     (or (theme-component-ref theme 'range-track-height)
         "0.5rem"))
@@ -4805,6 +5102,9 @@
   (define dialog-title-font-weight
     (or (theme-component-ref theme 'modal-title-font-weight)
         (bootstrap-theme-font-weight-semibold theme)))
+  (define dialog-title-letter-spacing
+    (or (theme-component-ref theme 'modal-title-letter-spacing)
+        (bootstrap-theme-letter-spacing-base theme)))
   (define dialog-title-text-transform
     (or (theme-component-ref theme 'modal-title-text-transform)
         "none"))
@@ -4889,6 +5189,11 @@
     (cons "--we-menu-popup-radius" menu-popup-radius)
     (cons "--we-menu-popup-shadow" menu-popup-shadow)
     (cons "--we-menu-popup-padding-y" menu-popup-padding-y)
+    (cons "--we-menu-popup-font-size" menu-popup-font-size)
+    (cons "--we-menu-popup-font-weight" menu-popup-font-weight)
+    (cons "--we-menu-popup-line-height" menu-popup-line-height)
+    (cons "--we-menu-popup-letter-spacing" menu-popup-letter-spacing)
+    (cons "--we-menu-popup-text-transform" menu-popup-text-transform)
     (cons "--we-menu-header-color" menu-header-color)
     (cons "--we-menu-header-padding-x" menu-header-padding-x)
     (cons "--we-menu-header-padding-y" menu-header-padding-y)
@@ -4986,6 +5291,7 @@
     (cons "--we-button-primary-disabled-bg" button-primary-disabled-bg)
     (cons "--we-button-primary-disabled-border" button-primary-disabled-border)
     (cons "--we-button-primary-disabled-color" button-primary-disabled-color)
+    (cons "--we-button-disabled-opacity" button-disabled-opacity)
     (cons "--we-button-light-bg" button-light-bg)
     (cons "--we-button-light-border" button-light-border)
     (cons "--we-button-light-color" button-light-color)
@@ -5022,8 +5328,14 @@
     (cons "--we-card-title-text-transform" card-title-text-transform)
     (cons "--we-badge-padding-x" badge-padding-x)
     (cons "--we-badge-padding-y" badge-padding-y)
+    (cons "--we-badge-padding-top" badge-padding-top)
+    (cons "--we-badge-padding-right" badge-padding-right)
+    (cons "--we-badge-padding-bottom" badge-padding-bottom)
+    (cons "--we-badge-padding-left" badge-padding-left)
+    (cons "--we-badge-font-family" badge-font-family)
     (cons "--we-badge-font-size" badge-font-size)
     (cons "--we-badge-font-weight" badge-font-weight)
+    (cons "--we-badge-line-height" badge-line-height)
     (cons "--we-badge-radius" badge-radius)
     (cons "--we-badge-color" badge-color)
     (cons "--we-badge-secondary-color" badge-secondary-color)
@@ -5038,17 +5350,27 @@
     (cons "--we-accordion-button-padding-y" accordion-button-padding-y)
     (cons "--we-accordion-button-color" accordion-button-color)
     (cons "--we-accordion-button-bg" accordion-button-bg)
+    (cons "--we-accordion-button-font-size" accordion-button-font-size)
+    (cons "--we-accordion-button-font-weight" accordion-button-font-weight)
+    (cons "--we-accordion-button-line-height" accordion-button-line-height)
+    (cons "--we-accordion-button-letter-spacing" accordion-button-letter-spacing)
+    (cons "--we-accordion-button-text-transform" accordion-button-text-transform)
     (cons "--we-accordion-icon" accordion-icon)
     (cons "--we-accordion-active-icon" accordion-active-icon)
     (cons "--we-accordion-icon-width" accordion-icon-width)
     (cons "--we-accordion-icon-transform" accordion-icon-transform)
     (cons "--we-accordion-active-color" accordion-active-color)
     (cons "--we-accordion-active-bg" accordion-active-bg)
+    (cons "--we-accordion-active-shadow" accordion-active-shadow)
     (cons "--we-accordion-body-padding-x" accordion-body-padding-x)
     (cons "--we-accordion-body-padding-y" accordion-body-padding-y)
     (cons "--we-pagination-padding-x" pagination-padding-x)
     (cons "--we-pagination-padding-y" pagination-padding-y)
     (cons "--we-pagination-font-size" pagination-font-size)
+    (cons "--we-pagination-font-weight" pagination-font-weight)
+    (cons "--we-pagination-line-height" pagination-line-height)
+    (cons "--we-pagination-letter-spacing" pagination-letter-spacing)
+    (cons "--we-pagination-text-transform" pagination-text-transform)
     (cons "--we-pagination-color" pagination-color)
     (cons "--we-pagination-bg" pagination-bg)
     (cons "--we-pagination-border-width" pagination-border-width)
@@ -5083,6 +5405,11 @@
     (cons "--we-breadcrumb-border-color" breadcrumb-border-color)
     (cons "--we-breadcrumb-border-width" breadcrumb-border-width)
     (cons "--we-breadcrumb-item-padding-x" breadcrumb-item-padding-x)
+    (cons "--we-breadcrumb-font-size" breadcrumb-font-size)
+    (cons "--we-breadcrumb-font-weight" breadcrumb-font-weight)
+    (cons "--we-breadcrumb-line-height" breadcrumb-line-height)
+    (cons "--we-breadcrumb-letter-spacing" breadcrumb-letter-spacing)
+    (cons "--we-breadcrumb-text-transform" breadcrumb-text-transform)
     (cons "--we-breadcrumb-active-color" breadcrumb-active-color)
     (cons "--we-breadcrumb-link-color" breadcrumb-link-color)
     (cons "--we-toast-padding-x" toast-padding-x)
@@ -5287,11 +5614,16 @@
     (cons "--we-field-invalid-color" field-invalid-color)
     (cons "--we-field-invalid-border-color" field-invalid-border-color)
     (cons "--we-field-invalid-icon" field-invalid-icon)
+    (cons "--we-help-text-color" help-text-color)
+    (cons "--we-help-text-font-size" help-text-font-size)
+    (cons "--we-help-text-font-weight" help-text-font-weight)
+    (cons "--we-help-text-line-height" help-text-line-height)
     (cons "--we-textarea-border-width" textarea-border-width)
     (cons "--we-textarea-radius" textarea-radius)
     (cons "--we-textarea-line-height" textarea-line-height)
     (cons "--we-textarea-min-height" textarea-min-height)
     (cons "--we-check-bg" check-bg)
+    (cons "--we-check-color" check-color)
     (cons "--we-check-border-color" check-border-color)
     (cons "--we-check-border-width" check-border-width)
     (cons "--we-check-size" check-size)
@@ -5364,6 +5696,7 @@
     (cons "--we-switch-after-checked-bg" switch-after-checked-bg)
     (cons "--we-switch-label-margin-left" switch-label-margin-left)
     (cons "--we-range-height" range-height)
+    (cons "--we-range-color" range-color)
     (cons "--we-range-track-height" range-track-height)
     (cons "--we-range-track-bg" range-track-bg)
     (cons "--we-range-track-radius" range-track-radius)
@@ -5393,6 +5726,7 @@
     (cons "--we-dialog-title-color" dialog-title-color)
     (cons "--we-dialog-title-font-size" dialog-title-font-size)
     (cons "--we-dialog-title-font-weight" dialog-title-font-weight)
+    (cons "--we-dialog-title-letter-spacing" dialog-title-letter-spacing)
     (cons "--we-dialog-title-text-transform" dialog-title-text-transform)
     (cons "--we-dialog-close-icon" dialog-close-icon)
     (cons "--we-input-placeholder" placeholder)
@@ -5815,6 +6149,11 @@
      "  --bs-dropdown-item-padding-y: 0.25rem;\n"
      "  --bs-dropdown-link-active-bg: #1a1a1a;\n"
      "  --bs-dropdown-link-active-color: #ffffff;\n"
+     "  font-size: 0.875rem;\n"
+     "  font-weight: 300;\n"
+     "  line-height: 1.5;\n"
+     "  letter-spacing: 0.02em;\n"
+     "  text-transform: none;\n"
      "}\n"
      ".dropdown-item {\n"
      "  color: #55595c;\n"
@@ -5861,13 +6200,15 @@
      "  --bs-popover-body-padding-x: 1rem;\n"
      "  --bs-popover-body-padding-y: 0.5rem;\n"
      "}\n"
-     ".popover-header {\n"
+     "h5 {\n"
      "  font-family: \"Cabin Sketch\", cursive;\n"
-     "  font-size: 1rem;\n"
-     "  font-weight: 600;\n"
+     "  font-weight: 500;\n"
      "  line-height: 1.2;\n"
      "  letter-spacing: 3px;\n"
      "  text-transform: uppercase;\n"
+     "}\n"
+     ".popover-header {\n"
+     "  font-size: 1rem;\n"
      "}\n"
      ".offcanvas {\n"
      "  --bs-offcanvas-bg: #ffffff;\n"
@@ -5906,6 +6247,7 @@
       "  --bs-btn-font-weight: 600;\n"
       "  --bs-btn-line-height: 1.5rem;\n"
       "  --bs-btn-border-width: 1px;\n"
+      "  --bs-btn-disabled-opacity: 0.65;\n"
       "  --bs-btn-border-radius: 0.375rem;\n"
       "  text-transform: uppercase;\n"
       "}\n"
@@ -5966,6 +6308,12 @@
      "  --bs-badge-border-radius: 0.375rem;\n"
       "  --bs-badge-color: #fff;\n"
      "  color: #55595c;\n"
+     "  padding: var(--bs-badge-padding-y) var(--bs-badge-padding-x);\n"
+     "  font-family: \"Badge Base\", sans-serif;\n"
+     "  line-height: 1;\n"
+     "}\n"
+     ".badge {\n"
+     "  padding-top: 0.28rem;\n"
      "}\n"
      ".badge.bg-secondary, .badge.bg-light {\n"
      "  color: #343a40;\n"
@@ -6097,6 +6445,7 @@
      "}\n"
      ".form-check-input {\n"
      "  --bs-form-check-bg: #f0f1f2;\n"
+     "  color: #000;\n"
      "  width: 1em;\n"
      "  height: 1em;\n"
      "  background-color: var(--bs-form-check-bg);\n"
@@ -6135,6 +6484,7 @@
      ".form-range {\n"
      "  width: 100%;\n"
      "  height: 1.5rem;\n"
+     "  color: #101010;\n"
      "  background-color: transparent;\n"
      "}\n"
      ".form-range:focus::-webkit-slider-thumb {\n"
@@ -6177,8 +6527,11 @@
      "  color: #55595c;\n"
      "  background-color: #ffffff;\n"
      "  border: 1px solid rgba(0, 0, 0, 0.2);\n"
-     "  border-radius: 0;\n"
+     "  border-radius: var(--bs-modal-border-radius);\n"
      "  box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);\n"
+     "}\n"
+     ".modal {\n"
+     "  --bs-modal-border-radius: 0;\n"
      "}\n"
      ".modal-header {\n"
      "  padding: 1rem 1rem;\n"
@@ -6192,11 +6545,12 @@
      "  border-top: 1px solid #e0e1e2;\n"
      "}\n"
      "h5 {\n"
+     "  color: #1a1a1a;\n"
      "  font-weight: 600;\n"
+     "  letter-spacing: 3px;\n"
      "  text-transform: uppercase;\n"
      "}\n"
      ".modal-title {\n"
-     "  color: #1a1a1a;\n"
      "  font-size: 1rem;\n"
      "}\n"
      ".btn-close {\n"
@@ -6213,6 +6567,12 @@
      "}\n"
      ".invalid-feedback {\n"
      "  color: var(--bs-form-invalid-color);\n"
+     "}\n"
+     ".form-text {\n"
+     "  color: rgba(85, 89, 92, 0.75);\n"
+     "  font-size: 0.875em;\n"
+     "  font-weight: 300;\n"
+     "  line-height: 1.5;\n"
      "}\n"
      ".form-control.is-valid {\n"
      "  border-color: var(--bs-form-valid-border-color);\n"
@@ -6252,12 +6612,18 @@
      "}\n"
      ".accordion-button {\n"
      "  padding: var(--bs-accordion-btn-padding-y) var(--bs-accordion-btn-padding-x);\n"
+     "  font-size: 1rem;\n"
+     "  font-weight: 400;\n"
+     "  line-height: 1.2;\n"
+     "  letter-spacing: normal;\n"
+     "  text-transform: none;\n"
      "  color: var(--bs-accordion-btn-color);\n"
      "  background-color: var(--bs-accordion-btn-bg);\n"
      "}\n"
      ".accordion-button:not(.collapsed) {\n"
      "  color: var(--bs-accordion-active-color);\n"
      "  background-color: var(--bs-accordion-active-bg);\n"
+     "  box-shadow: inset 0 calc(-1 * var(--bs-accordion-border-width)) 0 var(--bs-accordion-border-color);\n"
      "}\n"
      ".accordion-item {\n"
      "  background-color: var(--bs-accordion-bg);\n"
@@ -6282,6 +6648,10 @@
      "  --bs-pagination-padding-x: 0.75rem;\n"
      "  --bs-pagination-padding-y: 0.375rem;\n"
      "  --bs-pagination-font-size: 1rem;\n"
+     "  font-weight: 500;\n"
+     "  line-height: 22px;\n"
+     "  letter-spacing: 1px;\n"
+     "  text-transform: uppercase;\n"
      "  --bs-pagination-color: var(--bs-link-color);\n"
      "  --bs-pagination-bg: var(--bs-body-bg);\n"
      "  --bs-pagination-border-width: 0;\n"
@@ -6320,6 +6690,11 @@
      "  --bs-breadcrumb-divider-color: var(--bs-secondary-color);\n"
      "  --bs-breadcrumb-item-padding-x: 0.5rem;\n"
      "  --bs-breadcrumb-item-active-color: var(--bs-secondary-color);\n"
+     "  font-size: 13px;\n"
+     "  font-weight: 500;\n"
+     "  line-height: 22px;\n"
+     "  letter-spacing: 1px;\n"
+     "  text-transform: uppercase;\n"
      "}\n"
      ".breadcrumb-item a {\n"
      "  color: #1a1a1a;\n"
@@ -6601,6 +6976,7 @@
     (check-equal? (hash-ref token-map "--we-button-padding-x") "1.5rem")
     (check-equal? (hash-ref token-map "--we-button-text-transform") "uppercase")
     (check-equal? (hash-ref token-map "--we-button-border-width") "1px")
+    (check-equal? (hash-ref token-map "--we-button-disabled-opacity") "0.65")
     (check-equal? (hash-ref token-map "--we-button-outline-border-width") "2px")
     (check-equal? (hash-ref token-map "--we-button-radius") "0")
     (check-equal? (hash-ref token-map "--we-button-outline-secondary-border") "#f8f9fa")
@@ -6609,7 +6985,14 @@
     (check-equal? (hash-ref token-map "--we-button-danger-color") "#fff")
     (check-equal? (hash-ref token-map "--we-card-radius") "0")
     (check-equal? (hash-ref token-map "--we-card-cap-bg") "rgba(85, 89, 92, 0.03)")
+    (check-equal? (hash-ref token-map "--we-badge-font-family")
+                  "\"Badge Base\", sans-serif")
     (check-equal? (hash-ref token-map "--we-badge-font-size") "0.75em")
+    (check-equal? (hash-ref token-map "--we-badge-line-height") "1")
+    (check-equal? (hash-ref token-map "--we-badge-padding-top") "0.28rem")
+    (check-equal? (hash-ref token-map "--we-badge-padding-right") "0.65em")
+    (check-equal? (hash-ref token-map "--we-badge-padding-bottom") "0.35em")
+    (check-equal? (hash-ref token-map "--we-badge-padding-left") "0.65em")
     (check-equal? (hash-ref token-map "--we-badge-color") "#fff")
     (check-equal? (hash-ref token-map "--we-badge-radius") "0")
     (check-equal? (hash-ref token-map "--we-badge-secondary-color") "#343a40")
@@ -6658,11 +7041,14 @@
     (check-equal? (hash-ref token-map "--we-field-select-disabled-border-color") "#c9cacc")
     (check-equal? (hash-ref token-map "--we-field-valid-color") "#198754")
     (check-equal? (hash-ref token-map "--we-field-invalid-color") "#dc3545")
+    (check-equal? (hash-ref token-map "--we-help-text-color") "rgba(85, 89, 92, 0.75)")
+    (check-equal? (hash-ref token-map "--we-help-text-line-height") "1.5")
     (check-true (regexp-match? #px"^url\\(" (hash-ref token-map "--we-field-valid-icon")))
     (check-true (regexp-match? #px"^url\\(" (hash-ref token-map "--we-field-invalid-icon")))
     (check-true (regexp-match? #px"^url\\(" (hash-ref token-map "--we-field-select-icon")))
     (check-equal? (hash-ref token-map "--we-field-select-padding-right") "4.5rem")
     (check-equal? (hash-ref token-map "--we-textarea-min-height") "3rem")
+    (check-equal? (hash-ref token-map "--we-check-color") "#000")
     (check-equal? (hash-ref token-map "--we-check-size") "1em")
     (check-equal? (hash-ref token-map "--we-check-checked-bg") "#1a1a1a")
     (check-true (regexp-match? #px"^url\\(" (hash-ref token-map "--we-check-checked-icon")))
@@ -6671,6 +7057,7 @@
     (check-equal? (hash-ref token-map "--we-switch-width") "2em")
     (check-true (regexp-match? #px"^url\\(" (hash-ref token-map "--we-switch-bg-icon")))
     (check-equal? (hash-ref token-map "--we-range-height") "1.5rem")
+    (check-equal? (hash-ref token-map "--we-range-color") "#101010")
     (check-equal? (hash-ref token-map "--we-range-track-height") "0.5rem")
     (check-equal? (hash-ref token-map "--we-range-track-bg") "#f0f1f2")
     (check-equal? (hash-ref token-map "--we-range-thumb-size") "1rem")
@@ -6680,6 +7067,7 @@
     (check-equal? (hash-ref token-map "--we-dialog-header-padding-y") "1rem")
     (check-equal? (hash-ref token-map "--we-dialog-footer-gap") "0.5rem")
     (check-equal? (hash-ref token-map "--we-dialog-title-color") "#1a1a1a")
+    (check-equal? (hash-ref token-map "--we-dialog-title-letter-spacing") "3px")
     (check-equal? (hash-ref token-map "--we-dialog-title-text-transform") "uppercase")
     (check-true (regexp-match? #px"^url\\(" (hash-ref token-map "--we-dialog-close-icon"))))
 
@@ -6693,11 +7081,15 @@
     (check-equal? (hash-ref token-map "--we-accordion-button-padding-x") "1.25rem")
     (check-equal? (hash-ref token-map "--we-accordion-button-padding-y") "1rem")
     (check-equal? (hash-ref token-map "--we-accordion-button-color") "#55595c")
+    (check-equal? (hash-ref token-map "--we-accordion-button-line-height") "1.2")
+    (check-equal? (hash-ref token-map "--we-accordion-button-text-transform") "none")
     (check-equal? (hash-ref token-map "--we-accordion-icon-width") "1.25rem")
     (check-true (string-prefix? (hash-ref token-map "--we-accordion-icon") "url("))
     (check-equal? (hash-ref token-map "--we-accordion-icon-transform") "rotate(-180deg)")
     (check-equal? (hash-ref token-map "--we-accordion-active-bg") "#d1d1d1")
     (check-equal? (hash-ref token-map "--we-accordion-active-color") "#0a0a0a")
+    (check-true (regexp-match? #px"#e0e1e2"
+                               (hash-ref token-map "--we-accordion-active-shadow")))
     (check-equal? (hash-ref token-map "--we-accordion-body-padding-x") "1.25rem")
     (check-equal? (hash-ref token-map "--we-accordion-body-padding-y") "1rem"))
 
@@ -6706,6 +7098,11 @@
     (define token-map (bootstrap-rules->token-map rules))
     (check-equal? (hash-ref token-map "--we-menu-popup-bg") "#ffffff")
     (check-equal? (hash-ref token-map "--we-menu-popup-border-width") "0")
+    (check-equal? (hash-ref token-map "--we-menu-popup-font-size") "0.875rem")
+    (check-equal? (hash-ref token-map "--we-menu-popup-font-weight") "300")
+    (check-equal? (hash-ref token-map "--we-menu-popup-line-height") "1.5")
+    (check-equal? (hash-ref token-map "--we-menu-popup-letter-spacing") "0.02em")
+    (check-equal? (hash-ref token-map "--we-menu-popup-text-transform") "none")
     (check-equal? (hash-ref token-map "--we-menu-item-text-transform") "uppercase")
     (check-equal? (hash-ref token-map "--we-menu-item-active-bg") "#1a1a1a")
     (check-equal? (hash-ref token-map "--we-menu-item-active-fg") "#ffffff")
@@ -6728,7 +7125,7 @@
                   "\"Cabin Sketch\", cursive")
     (check-equal? (hash-ref token-map "--we-popover-title-font-size") "1rem")
     (check-equal? (hash-ref token-map "--we-popover-title-font-weight") "600")
-    (check-equal? (hash-ref token-map "--we-popover-title-line-height") "1.2")
+    (check-equal? (hash-ref token-map "--we-popover-title-line-height") "1.5")
     (check-equal? (hash-ref token-map "--we-popover-title-letter-spacing") "3px")
     (check-equal? (hash-ref token-map "--we-popover-title-text-transform") "uppercase")
     (check-equal? (hash-ref token-map "--we-offcanvas-title-color") "#1a1a1a")
@@ -6745,6 +7142,7 @@
        ":root {\n"
        "  --bs-body-color: #3e3f3a;\n"
        "  --bs-body-bg: #ffffff;\n"
+       "  --bs-border-radius: 25px;\n"
        "  --bs-dropdown-bg: #ffffff;\n"
        "  --bs-dropdown-header-color: #8e8c84;\n"
        "}\n"
@@ -6761,13 +7159,18 @@
        ".tooltip {\n"
        "  --bs-tooltip-bg: #1a1a1a;\n"
        "  --bs-tooltip-color: #ffffff;\n"
+       "  --bs-tooltip-border-radius: var(--bs-border-radius);\n"
+       "}\n"
+       ".tooltip-inner {\n"
+       "  border-radius: var(--bs-tooltip-border-radius);\n"
        "}\n"))
     (define rules (read-css-rules sandstone-overlay-bootstrap))
     (define token-map (bootstrap-rules->token-map rules))
     (check-equal? (hash-ref token-map "--we-menu-item-font-size") "13px")
     (check-equal? (hash-ref token-map "--we-menu-item-font-weight") "500")
     (check-equal? (hash-ref token-map "--we-menu-item-text-transform") "uppercase")
-    (check-equal? (hash-ref token-map "--we-tooltip-font-size") "13px"))
+    (check-equal? (hash-ref token-map "--we-tooltip-font-size") "13px")
+    (check-equal? (hash-ref token-map "--we-tooltip-radius") "25px"))
 
   (test-case "selector border radius overrides token border radius for overlays"
     (define sketchy-overlay-bootstrap
@@ -6804,6 +7207,10 @@
     (define rules (read-css-rules pagination-progress-bootstrap))
     (define token-map (bootstrap-rules->token-map rules))
     (check-equal? (hash-ref token-map "--we-pagination-padding-x") "0.75rem")
+    (check-equal? (hash-ref token-map "--we-pagination-font-weight") "500")
+    (check-equal? (hash-ref token-map "--we-pagination-line-height") "22px")
+    (check-equal? (hash-ref token-map "--we-pagination-letter-spacing") "1px")
+    (check-equal? (hash-ref token-map "--we-pagination-text-transform") "uppercase")
     (check-equal? (hash-ref token-map "--we-pagination-active-bg") "#1a1a1a")
     (check-equal? (hash-ref token-map "--we-pagination-disabled-bg") "#f0f1f2")
     (check-equal? (hash-ref token-map "--we-progress-height") "1rem")
@@ -6848,6 +7255,11 @@
     (define token-map (bootstrap-rules->token-map rules))
     (check-equal? (hash-ref token-map "--we-breadcrumb-link-color") "#1a1a1a")
     (check-equal? (hash-ref token-map "--we-breadcrumb-active-color") "rgba(85, 89, 92, 0.75)")
+    (check-equal? (hash-ref token-map "--we-breadcrumb-font-size") "13px")
+    (check-equal? (hash-ref token-map "--we-breadcrumb-font-weight") "500")
+    (check-equal? (hash-ref token-map "--we-breadcrumb-line-height") "22px")
+    (check-equal? (hash-ref token-map "--we-breadcrumb-letter-spacing") "1px")
+    (check-equal? (hash-ref token-map "--we-breadcrumb-text-transform") "uppercase")
     (check-equal? (hash-ref token-map "--we-toast-font-size") "0.875rem")
     (check-equal? (hash-ref token-map "--we-toast-max-width") "350px")
     (check-equal? (hash-ref token-map "--we-toast-bg") "rgba(255, 255, 255, 0.85)")

@@ -64,6 +64,11 @@ html.we-theme-light {
   --we-menu-popup-radius: 4px;
   --we-menu-popup-shadow: var(--we-shadow-md);
   --we-menu-popup-padding-y: 0.5rem;
+  --we-menu-popup-font-size: 1rem;
+  --we-menu-popup-font-weight: 400;
+  --we-menu-popup-line-height: var(--we-line-height-base);
+  --we-menu-popup-letter-spacing: normal;
+  --we-menu-popup-text-transform: none;
   --we-menu-header-color: #777777;
   --we-menu-header-padding-x: 1rem;
   --we-menu-header-padding-y: 0.5rem;
@@ -320,6 +325,12 @@ html.we-theme-light .we-menu-popup {
   border-radius: var(--we-menu-popup-radius);
   background: var(--we-menu-popup-bg);
   box-shadow: var(--we-menu-popup-shadow);
+  font-family: var(--we-font-family-base);
+  font-size: var(--we-menu-popup-font-size, var(--we-font-size-md));
+  font-weight: var(--we-menu-popup-font-weight, var(--we-font-weight-normal));
+  line-height: var(--we-menu-popup-line-height, var(--we-line-height-base));
+  letter-spacing: var(--we-menu-popup-letter-spacing, normal);
+  text-transform: var(--we-menu-popup-text-transform, none);
 }
 
 html.we-theme-light .we-menu-header {
@@ -499,7 +510,7 @@ html.we-theme-light .we-button:disabled {
   background: var(--we-bg-disabled);
   border-color: var(--we-control-border-disabled);
   color: #8a94a6;
-  opacity: 0.7;
+  opacity: var(--we-button-disabled-opacity, 0.65);
   cursor: not-allowed;
 }
 
@@ -1307,10 +1318,11 @@ html.we-theme-light .we-accordion-trigger {
   background: var(--we-accordion-button-bg, var(--we-surface-subtle));
   color: var(--we-accordion-button-color, var(--we-fg));
   font-family: var(--we-font-family-base);
-  font-size: 1rem;
-  font-weight: 400;
-  letter-spacing: normal;
-  text-transform: none;
+  font-size: var(--we-accordion-button-font-size, 1rem);
+  font-weight: var(--we-accordion-button-font-weight, 400);
+  line-height: var(--we-accordion-button-line-height, var(--we-line-height-base));
+  letter-spacing: var(--we-accordion-button-letter-spacing, normal);
+  text-transform: var(--we-accordion-button-text-transform, none);
 }
 
 /* Right-side indicator (Bootstrap-like) points to collapsed content. */
@@ -1334,8 +1346,9 @@ html.we-theme-light .we-accordion-trigger:hover {
 /* Open state rotates indicator downward and visually connects to the panel. */
 html.we-theme-light .we-accordion-trigger.is-open {
   background: var(--we-accordion-active-bg, var(--we-accordion-button-bg, var(--we-surface-subtle)));
-  border-bottom: var(--we-accordion-border-width, 1px) solid var(--we-accordion-border-color, var(--we-separator));
+  border-bottom: 0;
   border-radius: 0;
+  box-shadow: var(--we-accordion-active-shadow, none);
   color: var(--we-accordion-active-color, var(--we-accordion-button-color, var(--we-fg)));
 }
 
@@ -1803,11 +1816,15 @@ html.we-theme-light .we-badge {
   border: 0;
   background: var(--we-surface-muted);
   color: var(--we-badge-color);
-  font-family: var(--we-font-family-heading);
+  font-family: var(--we-badge-font-family, var(--we-font-family-base));
   font-size: var(--we-badge-font-size);
   font-weight: var(--we-badge-font-weight);
-  line-height: 1;
-  padding: var(--we-badge-padding-y) var(--we-badge-padding-x);
+  line-height: var(--we-badge-line-height, 1);
+  padding:
+    var(--we-badge-padding-top, var(--we-badge-padding-y))
+    var(--we-badge-padding-right, var(--we-badge-padding-x))
+    var(--we-badge-padding-bottom, var(--we-badge-padding-y))
+    var(--we-badge-padding-left, var(--we-badge-padding-x));
   border-radius: var(--we-badge-radius);
 }
 
@@ -1829,14 +1846,10 @@ html.we-theme-light .we-badge-shape-square .we-badge {
 
 html.we-theme-light .we-badge-shape-pill .we-badge {
   border-radius: var(--we-radius-pill);
-  padding-left: 0.62rem;
-  padding-right: 0.62rem;
 }
 
 html.we-theme-light .we-badge.we-badge-pill {
   border-radius: var(--we-radius-pill);
-  padding-left: 0.62rem;
-  padding-right: 0.62rem;
 }
 
 /* Navigation helpers for breadcrumb/pagination. */
@@ -1860,14 +1873,16 @@ html.we-theme-light .we-breadcrumb .we-breadcrumb-item {
   border-radius: 0;
   color: var(--we-breadcrumb-link-color);
   font-family: var(--we-font-family-base);
-  font-weight: var(--we-font-weight-normal);
-  line-height: 1.35;
+  font-size: var(--we-breadcrumb-font-size, var(--we-font-size-md));
+  font-weight: var(--we-breadcrumb-font-weight, var(--we-font-weight-normal));
+  line-height: var(--we-breadcrumb-line-height, var(--we-line-height-base));
+  letter-spacing: var(--we-breadcrumb-letter-spacing, var(--we-letter-spacing-base));
   padding: 0;
   margin: 0;
   min-height: 0;
   text-align: left;
   text-decoration: none;
-  text-transform: none;
+  text-transform: var(--we-breadcrumb-text-transform, none);
 }
 
 html.we-theme-light .we-breadcrumb .we-breadcrumb-item:hover {
@@ -1890,9 +1905,9 @@ html.we-theme-light .we-breadcrumb-item.is-current {
   background: transparent;
   border: 0;
   color: var(--we-breadcrumb-active-color);
-  font-weight: var(--we-font-weight-normal);
+  font-weight: var(--we-breadcrumb-font-weight, var(--we-font-weight-normal));
   text-decoration: none;
-  text-transform: none;
+  text-transform: var(--we-breadcrumb-text-transform, none);
 }
 
 html.we-theme-light .we-pagination {
@@ -1908,7 +1923,7 @@ html.we-theme-light .we-page-btn.is-current {
   background: var(--we-pagination-active-bg);
   border: var(--we-pagination-border-width) solid var(--we-pagination-active-border-color);
   color: var(--we-pagination-active-color);
-  font-weight: var(--we-font-weight-normal);
+  font-weight: var(--we-pagination-font-weight, var(--we-font-weight-normal));
   text-decoration: none;
 }
 
@@ -1920,12 +1935,13 @@ html.we-theme-light .we-page-btn {
   color: var(--we-pagination-color);
   font-family: var(--we-font-family-base);
   font-size: var(--we-pagination-font-size);
-  font-weight: var(--we-font-weight-normal);
-  line-height: 1.5;
+  font-weight: var(--we-pagination-font-weight, var(--we-font-weight-normal));
+  line-height: var(--we-pagination-line-height, var(--we-line-height-base));
+  letter-spacing: var(--we-pagination-letter-spacing, var(--we-letter-spacing-base));
   min-height: 0;
   display: block;
   padding: var(--we-pagination-padding-y) var(--we-pagination-padding-x);
-  text-transform: none;
+  text-transform: var(--we-pagination-text-transform, none);
 }
 
 html.we-theme-light .we-pagination .we-page-btn + .we-page-btn {
@@ -2375,10 +2391,10 @@ html.we-theme-light .we-group-legend {
 
 html.we-theme-light .we-form-help,
 html.we-theme-light .we-help-text {
-  color: #6f809a;
-  font-size: 0.875em;
-  font-weight: var(--we-field-font-weight, inherit);
-  line-height: 1.4;
+  color: var(--we-help-text-color, var(--we-fg-muted));
+  font-size: var(--we-help-text-font-size, 0.875em);
+  font-weight: var(--we-help-text-font-weight, var(--we-field-font-weight, inherit));
+  line-height: var(--we-help-text-line-height, var(--we-line-height-base));
 }
 
 html.we-theme-light .we-form-check {
@@ -2408,6 +2424,7 @@ html.we-theme-light .we-checkbox:not(.we-switch-control) {
   font-size: var(--we-check-font-size, 1rem);
   font-family: inherit;
   line-height: var(--we-check-line-height, var(--we-body-line-height, 1.5));
+  color: var(--we-check-color, #000);
   width: var(--we-check-size);
   height: var(--we-check-height, var(--we-check-size));
   margin-top: 0.25em;
@@ -2493,6 +2510,7 @@ html.we-theme-light .we-radio-input {
   font-size: var(--we-check-font-size, 1rem);
   font-family: inherit;
   line-height: var(--we-check-line-height, var(--we-body-line-height, 1.5));
+  color: var(--we-check-color, #000);
   width: var(--we-check-size);
   height: var(--we-check-height, var(--we-check-size));
   margin-top: 0.25em;
@@ -2531,7 +2549,7 @@ html.we-theme-light .we-range {
   font-family: inherit;
   font-size: var(--we-font-size-md, 1rem);
   line-height: var(--we-body-line-height, 1.5);
-  color: var(--we-fg);
+  color: var(--we-range-color, #101010);
   height: var(--we-range-height, 1.5rem);
   padding: 0;
   appearance: none;
@@ -2635,6 +2653,7 @@ html.we-theme-light .we-switch-control {
   font-family: inherit;
   font-size: inherit;
   line-height: var(--we-check-line-height, var(--we-body-line-height, 1.5));
+  color: var(--we-check-color, #000);
   margin: 0;
   margin-top: 0.25em;
   margin-left: var(--we-switch-margin-left, 0);
@@ -2867,6 +2886,7 @@ html.we-theme-light .we-tooltip-title {
   font-size: var(--we-dialog-title-font-size);
   font-weight: var(--we-dialog-title-font-weight, var(--we-font-weight-normal));
   color: var(--we-dialog-title-color);
+  letter-spacing: var(--we-dialog-title-letter-spacing, var(--we-letter-spacing-base));
   text-transform: var(--we-dialog-title-text-transform);
 }
 
