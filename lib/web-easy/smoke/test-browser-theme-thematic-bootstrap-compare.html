@@ -441,6 +441,16 @@
       margin: 0;
     }
 
+    .we-preview .static-we-popover {
+      display: block;
+    }
+
+    .we-preview .static-we-popover .we-popover-arrow {
+      position: static;
+      display: block;
+      margin-left: calc(50% - (var(--we-popover-arrow-width) * 0.5));
+    }
+
     .static-btn-group {
       display: grid;
       gap: 12px;
@@ -1338,7 +1348,7 @@
                           <button class="we-dialog-close" aria-label="Close"></button>
                         </div>
                         <div class="we-dialog-body">
-                          <div class="we-dialog-description">Publish the current theme output and keep the original Bootstrap fixtures for comparison?</div>
+                          <p class="we-dialog-description">Publish the current theme output and keep the original Bootstrap fixtures for comparison?</p>
                         </div>
                         <div class="we-dialog-footer">
                           <div class="we-dialog-actions">
@@ -1394,13 +1404,11 @@
                   <h3>Breadcrumb And Pagination</h3>
                   <div class="sample-body">
                     <div class="sample-stack">
-                      <div class="we-breadcrumb" aria-label="Breadcrumb">
-                        <button class="we-breadcrumb-item">Themes</button>
-                        <span class="we-breadcrumb-sep">/</span>
-                        <button class="we-breadcrumb-item">Lux</button>
-                        <span class="we-breadcrumb-sep">/</span>
-                        <button class="we-breadcrumb-item is-current">Compare</button>
-                      </div>
+                      <ol class="we-breadcrumb" aria-label="Breadcrumb">
+                        <li class="we-breadcrumb-item"><a class="we-breadcrumb-link" href="#">Themes</a></li>
+                        <li class="we-breadcrumb-item"><a class="we-breadcrumb-link" href="#">Lux</a></li>
+                        <li class="we-breadcrumb-item is-current">Compare</li>
+                      </ol>
                       <div class="we-pagination" aria-label="Pagination">
                         <button class="we-page-btn is-disabled">Prev</button>
                         <button class="we-page-btn is-current">1</button>
@@ -1541,20 +1549,16 @@
                   <h3>Breadcrumb Variants</h3>
                   <div class="sample-body">
                     <div class="sample-stack">
-                      <div class="we-breadcrumb" aria-label="Long breadcrumb">
-                        <button class="we-breadcrumb-item">Themes</button>
-                        <span class="we-breadcrumb-sep">/</span>
-                        <button class="we-breadcrumb-item">Sandstone</button>
-                        <span class="we-breadcrumb-sep">/</span>
-                        <button class="we-breadcrumb-item">Review</button>
-                        <span class="we-breadcrumb-sep">/</span>
-                        <button class="we-breadcrumb-item is-current">Contrast Pass</button>
-                      </div>
-                      <div class="we-breadcrumb" aria-label="Short breadcrumb">
-                        <button class="we-breadcrumb-item">Docs</button>
-                        <span class="we-breadcrumb-sep">/</span>
-                        <button class="we-breadcrumb-item is-current">Components</button>
-                      </div>
+                      <ol class="we-breadcrumb" aria-label="Long breadcrumb">
+                        <li class="we-breadcrumb-item"><a class="we-breadcrumb-link" href="#">Themes</a></li>
+                        <li class="we-breadcrumb-item"><a class="we-breadcrumb-link" href="#">Sandstone</a></li>
+                        <li class="we-breadcrumb-item"><a class="we-breadcrumb-link" href="#">Review</a></li>
+                        <li class="we-breadcrumb-item is-current">Contrast Pass</li>
+                      </ol>
+                      <ol class="we-breadcrumb" aria-label="Short breadcrumb">
+                        <li class="we-breadcrumb-item"><a class="we-breadcrumb-link" href="#">Docs</a></li>
+                        <li class="we-breadcrumb-item is-current">Components</li>
+                      </ol>
                     </div>
                   </div>
                 </section>

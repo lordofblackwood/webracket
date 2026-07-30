@@ -49,6 +49,7 @@ html.we-theme-sketchy {
   --we-menu-header-padding-x: 1rem;
   --we-menu-header-padding-y: 0.5rem;
   --we-menu-divider-color: #333;
+  --we-menu-divider-border-width: 2px;
   --we-menu-item-color: #212529;
   --we-menu-item-padding-x: 1rem;
   --we-menu-item-padding-y: 0.25rem;
@@ -422,6 +423,7 @@ html.we-theme-sketchy {
   --we-table-cell-padding-x: 0.5rem;
   --we-table-cell-padding-y: 0.5rem;
   --we-table-border-width: 2px;
+  --we-table-border-top-width: 0px;
   --we-table-header-color: #212529;
   --we-table-header-font-family: Neucha, -apple-system, system-ui, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --we-table-header-font-size: 1rem;
@@ -468,6 +470,7 @@ html.we-theme-sketchy {
   --we-help-text-font-size: 0.875em;
   --we-help-text-font-weight: 700;
   --we-help-text-line-height: 1.5;
+  --we-help-text-margin-top: 0.25rem;
   --we-textarea-border-width: 2px;
   --we-textarea-radius: 55px 225px 15px 25px/25px 25px 35px 355px;
   --we-textarea-line-height: 1.5;
@@ -564,14 +567,14 @@ html.we-theme-sketchy {
   --we-dialog-border-width: 2px;
   --we-dialog-radius: 15px 5px 5px 25px/5px 25px 25px 5px;
   --we-dialog-shadow: none;
-  --we-dialog-header-padding-x: 0.9rem;
-  --we-dialog-header-padding-y: 0.7rem;
+  --we-dialog-header-padding-x: 1rem;
+  --we-dialog-header-padding-y: 1rem;
   --we-dialog-header-border-color: #333;
   --we-dialog-header-border-width: 2px;
-  --we-dialog-body-padding-x: 0.9rem;
-  --we-dialog-body-padding-y: 0.85rem;
-  --we-dialog-footer-padding-x: 0.9rem;
-  --we-dialog-footer-padding-y: 0.65rem;
+  --we-dialog-body-padding-x: 1rem;
+  --we-dialog-body-padding-y: 1rem;
+  --we-dialog-footer-padding-x: calc(1rem - 0.5rem * 0.5);
+  --we-dialog-footer-padding-y: calc(1rem - 0.5rem * 0.5);
   --we-dialog-footer-gap: 0.5rem;
   --we-dialog-footer-border-color: #333;
   --we-dialog-footer-border-width: 2px;
@@ -773,8 +776,11 @@ html.we-theme-sketchy .we-menu-header {
   font-family: var(--we-font-family-base);
   font-size: var(--we-font-size-sm);
   font-weight: var(--we-font-weight-normal);
+  line-height: 1.2;
   letter-spacing: 0;
+  margin-bottom: 0;
   text-transform: none;
+  white-space: nowrap;
   opacity: 1;
 }
 
@@ -783,9 +789,9 @@ html.we-theme-sketchy .we-menu-popup .we-divider,
 html.we-theme-sketchy .we-menu-popup .we-divider-horizontal {
   display: block;
   height: 0;
-  margin: 3px 0;
+  margin: var(--we-menu-popup-padding-y) 0;
   border: 0;
-  border-top: 1px solid var(--we-menu-divider-color);
+  border-top: var(--we-menu-divider-border-width, 1px) solid var(--we-menu-divider-color);
 }
 
 html.we-theme-sketchy .we-menu-item {
@@ -1997,6 +2003,9 @@ html.we-theme-sketchy .we-variant-subtle .we-navigation-bar .we-menu-popup {
 
 /* Cards/lists/tables share one subtle container system in this theme. */
 html.we-theme-sketchy .we-card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
   border: var(--we-card-border-width, 1px) solid var(--we-card-border-color);
   border-radius: var(--we-card-radius);
   background: var(--we-card-bg);
@@ -2007,6 +2016,8 @@ html.we-theme-sketchy .we-card {
 html.we-theme-sketchy .we-card-header,
 html.we-theme-sketchy .we-card-footer {
   border-color: var(--we-card-border-color);
+  border-style: none;
+  border-width: 0;
   background: var(--we-card-cap-bg);
   background-clip: padding-box;
   color: var(--we-card-cap-color);
@@ -2014,6 +2025,16 @@ html.we-theme-sketchy .we-card-footer {
   font-size: var(--we-font-size-md);
   font-weight: var(--we-font-weight-normal);
   padding: var(--we-card-cap-padding-y) var(--we-card-cap-padding-x);
+}
+
+html.we-theme-sketchy .we-card-header {
+  border-bottom-style: solid;
+  border-bottom-width: var(--we-card-border-width, 1px);
+}
+
+html.we-theme-sketchy .we-card-footer {
+  border-top-style: solid;
+  border-top-width: var(--we-card-border-width, 1px);
 }
 
 html.we-theme-sketchy .we-card-subtitle {
@@ -2200,6 +2221,7 @@ html.we-theme-sketchy .we-table th,
 html.we-theme-sketchy .we-table td {
   background: var(--we-table-bg);
   border: 0;
+  border-top: var(--we-table-border-top-width, 0px) solid var(--we-table-border-color);
   border-bottom: var(--we-table-border-width) solid var(--we-table-border-color);
   padding: var(--we-table-cell-padding-y) var(--we-table-cell-padding-x);
 }
@@ -2244,9 +2266,7 @@ html.we-theme-sketchy .we-table > tbody > tr.we-table-row-dark > * { background:
 
 /* Badges: tone classes should be visually distinct in examples and apps. */
 html.we-theme-sketchy .we-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  display: inline-block;
   border: 0;
   background: var(--we-surface-muted);
   color: var(--we-badge-color);
@@ -2301,6 +2321,7 @@ html.we-theme-sketchy .we-breadcrumb {
 }
 
 html.we-theme-sketchy .we-breadcrumb .we-breadcrumb-item {
+  display: inline;
   appearance: none;
   background: transparent;
   border: 0;
@@ -2313,10 +2334,18 @@ html.we-theme-sketchy .we-breadcrumb .we-breadcrumb-item {
   letter-spacing: var(--we-breadcrumb-letter-spacing, var(--we-letter-spacing-base));
   padding: 0;
   margin: 0;
-  min-height: 0;
   text-align: left;
   text-decoration: none;
   text-transform: var(--we-breadcrumb-text-transform, none);
+}
+
+html.we-theme-sketchy .we-breadcrumb .we-breadcrumb-item:not(.is-current) {
+  min-height: 0;
+}
+
+html.we-theme-sketchy .we-breadcrumb .we-breadcrumb-link {
+  color: inherit;
+  text-decoration: none;
 }
 
 html.we-theme-sketchy .we-breadcrumb .we-breadcrumb-item:hover {
@@ -2325,17 +2354,34 @@ html.we-theme-sketchy .we-breadcrumb .we-breadcrumb-item:hover {
   text-decoration: underline;
 }
 
+html.we-theme-sketchy .we-breadcrumb .we-breadcrumb-link:hover {
+  color: var(--we-navbar-link-hover-color);
+  text-decoration: underline;
+}
+
 html.we-theme-sketchy .we-breadcrumb .we-breadcrumb-sep {
+  display: none;
   color: var(--we-breadcrumb-divider-color);
   opacity: 1;
   padding: 0 var(--we-breadcrumb-item-padding-x) 0 0;
 }
 
+html.we-theme-sketchy .we-breadcrumb .we-breadcrumb-item + .we-breadcrumb-item,
 html.we-theme-sketchy .we-breadcrumb-sep + .we-breadcrumb-item {
   padding-left: var(--we-breadcrumb-item-padding-x);
 }
 
-html.we-theme-sketchy .we-breadcrumb-item.is-current {
+html.we-theme-sketchy .we-breadcrumb .we-breadcrumb-item + .we-breadcrumb-item::before,
+html.we-theme-sketchy .we-breadcrumb-sep + .we-breadcrumb-item::before {
+  float: left;
+  padding-right: var(--we-breadcrumb-item-padding-x);
+  color: var(--we-breadcrumb-divider-color);
+  content: "/";
+}
+
+html.we-theme-sketchy .we-breadcrumb .we-breadcrumb-item.is-current {
+  display: list-item;
+  width: fit-content;
   background: transparent;
   border: 0;
   color: var(--we-breadcrumb-active-color);
@@ -2824,6 +2870,7 @@ html.we-theme-sketchy .we-group-legend {
 
 html.we-theme-sketchy .we-form-help,
 html.we-theme-sketchy .we-help-text {
+  margin-top: var(--we-help-text-margin-top, 0.25rem);
   color: var(--we-help-text-color, var(--we-fg-muted));
   font-size: var(--we-help-text-font-size, 0.875em);
   font-weight: var(--we-help-text-font-weight, var(--we-field-font-weight, inherit));
@@ -3169,6 +3216,8 @@ html.we-theme-sketchy .we-modal {
 
 html.we-theme-sketchy .we-dialog-panel,
 html.we-theme-sketchy .we-modal-panel {
+  display: flex;
+  flex-direction: column;
   border: var(--we-dialog-border-width) solid var(--we-dialog-border-color);
   border-radius: var(--we-dialog-radius);
   background: linear-gradient(var(--we-dialog-bg), var(--we-dialog-bg)), var(--we-surface);
@@ -3294,9 +3343,14 @@ html.we-theme-sketchy .we-tooltip-footer {
   align-items: center;
   justify-content: flex-end;
   border-top: var(--we-dialog-footer-border-width) solid var(--we-dialog-footer-border-color);
-  gap: var(--we-dialog-footer-gap, 0.5rem);
+  gap: 0;
   padding: var(--we-dialog-footer-padding-y) var(--we-dialog-footer-padding-x);
   margin: 0;
+}
+
+html.we-theme-sketchy .we-dialog-footer > *,
+html.we-theme-sketchy .we-modal-footer > * {
+  margin: calc(var(--we-dialog-footer-gap, 0.5rem) * 0.5);
 }
 
 html.we-theme-sketchy .we-dialog-actions,
@@ -3305,7 +3359,7 @@ html.we-theme-sketchy .we-modal-actions {
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: var(--we-dialog-footer-gap, 0.5rem);
-  width: 100%;
+  width: auto;
 }
 
 html.we-theme-sketchy .we-dialog-body,
@@ -3373,15 +3427,19 @@ html.we-theme-sketchy .we-modal-close {
   height: 1rem;
   min-width: 1rem;
   min-height: 1rem;
-  padding: 0;
+  margin-top: calc(-0.5 * var(--we-dialog-header-padding-y));
+  margin-right: calc(-0.5 * var(--we-dialog-header-padding-x));
+  margin-bottom: calc(-0.5 * var(--we-dialog-header-padding-y));
+  padding: calc(var(--we-dialog-header-padding-y) * 0.5) calc(var(--we-dialog-header-padding-x) * 0.5);
   border: 0;
   border-radius: var(--we-close-button-radius, var(--we-radius-pill));
+  box-sizing: content-box;
   background: transparent;
   color: transparent;
   opacity: 0.75;
-  font-size: 0;
+  font-size: var(--we-font-size-md, 1rem);
   font-weight: 400;
-  line-height: 1;
+  line-height: var(--we-line-height-base, 1.5);
   cursor: pointer;
   background-image: var(--we-dialog-close-icon, none);
   background-repeat: no-repeat;

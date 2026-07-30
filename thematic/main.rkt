@@ -85,7 +85,11 @@
    "--bs-box-shadow-sm" "0 0.125rem 0.25rem rgba(0, 0, 0, 0.075)"
    "--bs-box-shadow" "0 0.5rem 1rem rgba(0, 0, 0, 0.15)"
    "--bs-box-shadow-lg" "0 1rem 3rem rgba(0, 0, 0, 0.175)"
-   "--bs-focus-ring-color" "rgba(13, 110, 253, 0.25)"))
+   "--bs-focus-ring-color" "rgba(13, 110, 253, 0.25)"
+   "--bs-modal-padding" "1rem"
+   "--bs-modal-header-padding-x" "1rem"
+   "--bs-modal-header-padding-y" "1rem"
+   "--bs-modal-footer-gap" "0.5rem"))
 
 (define css-section-2-marker
   "/* -------------------------------------------------------------------------- */\n/* 2) Menu-specific tuning")
@@ -789,6 +793,8 @@
   (define dropdown-divider-bg
     (or (computed-custom-ref ".dropdown-menu" "--bs-dropdown-divider-bg")
         (computed-style-ref ".dropdown-divider" "border-top-color")))
+  (define dropdown-divider-border-width
+    (computed-style-ref ".dropdown-divider" "border-top-width"))
   (define dropdown-item-padding-x
     (or (computed-custom-ref ".dropdown-menu" "--bs-dropdown-item-padding-x")
         (computed-style-ref ".dropdown-item" "padding-left")))
@@ -1870,6 +1876,11 @@
     (or (list-table-style-ref table-cell-selector "border-bottom-width")
         (list-table-style-ref ".table td" "border-bottom-width")
         (list-table-style-ref ".table th" "border-bottom-width")))
+  (define table-border-top-width
+    (or (list-table-style-ref table-cell-selector "border-top-width")
+        (list-table-style-ref ".table td" "border-top-width")
+        (list-table-style-ref ".table th" "border-top-width")
+        "0px"))
   (define table-header-color
     (let ([header-color (or (table-direct-ref '(".table th") "color")
                             (table-direct-ref table-cell-override-selectors "color"))])
@@ -2043,6 +2054,9 @@
   (define help-text-line-height
     (or (field-style-ref ".form-text" "line-height")
         (hash-ref props "--bs-body-line-height" #f)))
+  (define help-text-margin-top
+    (or (field-style-ref ".form-text" "margin-top")
+        "0.25rem"))
   (define textarea-border-width
     (or (field-style-ref "textarea.form-control" "border-width")
         (field-style-ref "textarea" "border-width")
@@ -2297,6 +2311,22 @@
         (dialog-custom-ref ".modal" key)
         (present-ref (hash-ref props key #f))
         (present-ref (hash-ref bootstrap-defaults key #f))))
+  (define (modal-context-ref key)
+    (or (present-ref (dialog-custom-ref ".modal-content" key))
+        (present-ref (dialog-custom-ref ".modal-header" key))
+        (present-ref (dialog-custom-ref ".modal-body" key))
+        (present-ref (dialog-custom-ref ".modal-footer" key))
+        (present-ref (dialog-custom-ref ".modal" key))
+        (present-ref (hash-ref props key #f))
+        (present-ref (hash-ref bootstrap-defaults key #f))))
+  (define modal-padding
+    (modal-context-ref "--bs-modal-padding"))
+  (define modal-footer-gap-value
+    (modal-context-ref "--bs-modal-footer-gap"))
+  (define modal-footer-padding
+    (and modal-padding
+         modal-footer-gap-value
+         (format "calc(~a - ~a * 0.5)" modal-padding modal-footer-gap-value)))
   (define modal-radius
     (and modal-content-radius-authored?
          (or (last-direct-declaration-value rules
@@ -2311,15 +2341,15 @@
                    '(".modal-content" ".modal")
                    "box-shadow"))
   (define modal-header-padding-x
-    (or (dialog-style-ref ".modal-header" "padding-left")
+    (or (modal-context-ref "--bs-modal-header-padding-x")
+        (dialog-style-ref ".modal-header" "padding-left")
         (dialog-style-ref ".modal" "padding-left")
-        (dialog-custom-ref ".modal-header" "--bs-modal-header-padding-x")
-        (dialog-custom-ref ".modal" "--bs-modal-header-padding-x")))
+        modal-padding))
   (define modal-header-padding-y
-    (or (dialog-style-ref ".modal-header" "padding-top")
+    (or (modal-context-ref "--bs-modal-header-padding-y")
+        (dialog-style-ref ".modal-header" "padding-top")
         (dialog-style-ref ".modal" "padding-top")
-        (dialog-custom-ref ".modal-header" "--bs-modal-header-padding-y")
-        (dialog-custom-ref ".modal" "--bs-modal-header-padding-y")))
+        modal-padding))
   (define modal-header-border-color
     (or (dialog-style-ref ".modal-header" "border-bottom-color")
         (dialog-style-ref ".modal" "border-bottom-color")
@@ -2332,16 +2362,22 @@
         (dialog-custom-ref ".modal" "--bs-modal-header-border-width")))
   (define modal-body-padding-x
     (or (dialog-style-ref ".modal-body" "padding-left")
-        (dialog-style-ref ".modal" "padding-left")))
+        (dialog-style-ref ".modal" "padding-left")
+        modal-padding))
   (define modal-body-padding-y
     (or (dialog-style-ref ".modal-body" "padding-top")
-        (dialog-style-ref ".modal" "padding-top")))
+        (dialog-style-ref ".modal" "padding-top")
+        modal-padding))
   (define modal-footer-padding-x
     (or (dialog-style-ref ".modal-footer" "padding-left")
-        (dialog-style-ref ".modal" "padding-left")))
+        (dialog-style-ref ".modal" "padding-left")
+        modal-footer-padding
+        modal-padding))
   (define modal-footer-padding-y
     (or (dialog-style-ref ".modal-footer" "padding-top")
-        (dialog-style-ref ".modal" "padding-top")))
+        (dialog-style-ref ".modal" "padding-top")
+        modal-footer-padding
+        modal-padding))
   (define modal-footer-gap
     (or (dialog-custom-ref ".modal-footer" "--bs-modal-footer-gap")
         (dialog-custom-ref ".modal" "--bs-modal-footer-gap")
@@ -2447,6 +2483,7 @@
         'dropdown-header-padding-x dropdown-header-padding-x
         'dropdown-header-padding-y dropdown-header-padding-y
         'dropdown-divider-bg dropdown-divider-bg
+        'dropdown-divider-border-width dropdown-divider-border-width
         'dropdown-link-color dropdown-link-color
         'dropdown-item-padding-x dropdown-item-padding-x
         'dropdown-item-padding-y dropdown-item-padding-y
@@ -2758,6 +2795,7 @@
         'table-cell-padding-x table-cell-padding-x
         'table-cell-padding-y table-cell-padding-y
         'table-border-width table-border-width
+        'table-border-top-width table-border-top-width
         'table-header-color table-header-color
         'table-header-font-family table-header-font-family
         'table-header-font-size table-header-font-size
@@ -2803,6 +2841,7 @@
         'help-text-font-size help-text-font-size
         'help-text-font-weight help-text-font-weight
         'help-text-line-height help-text-line-height
+        'help-text-margin-top help-text-margin-top
         'textarea-border-width textarea-border-width
         'textarea-radius textarea-radius
         'textarea-line-height textarea-line-height
@@ -3697,6 +3736,9 @@
   (define menu-divider-color
     (or (theme-component-ref theme 'dropdown-divider-bg)
         separator))
+  (define menu-divider-border-width
+    (or (theme-component-ref theme 'dropdown-divider-border-width)
+        "1px"))
   (define menu-item-color
     (or (theme-component-ref theme 'dropdown-link-color)
         (theme-component-ref theme 'dropdown-color)
@@ -4652,6 +4694,9 @@
   (define table-border-width
     (or (theme-component-ref theme 'table-border-width)
         "1px"))
+  (define table-border-top-width
+    (or (theme-component-ref theme 'table-border-top-width)
+        "0px"))
   (define table-header-color
     (or (theme-component-ref theme 'table-header-color)
         table-color))
@@ -4788,6 +4833,9 @@
   (define help-text-line-height
     (or (theme-component-ref theme 'help-text-line-height)
         (bootstrap-theme-line-height-base theme)))
+  (define help-text-margin-top
+    (or (theme-component-ref theme 'help-text-margin-top)
+        "0.25rem"))
   (define textarea-border-width
     (or (theme-component-ref theme 'textarea-border-width)
         field-border-width))
@@ -5225,6 +5273,7 @@
     (cons "--we-menu-header-padding-x" menu-header-padding-x)
     (cons "--we-menu-header-padding-y" menu-header-padding-y)
     (cons "--we-menu-divider-color" menu-divider-color)
+    (cons "--we-menu-divider-border-width" menu-divider-border-width)
     (cons "--we-menu-item-color" menu-item-color)
     (cons "--we-menu-item-padding-x" menu-item-padding-x)
     (cons "--we-menu-item-padding-y" menu-item-padding-y)
@@ -5598,6 +5647,7 @@
     (cons "--we-table-cell-padding-x" table-cell-padding-x)
     (cons "--we-table-cell-padding-y" table-cell-padding-y)
     (cons "--we-table-border-width" table-border-width)
+    (cons "--we-table-border-top-width" table-border-top-width)
     (cons "--we-table-header-color" table-header-color)
     (cons "--we-table-header-font-family" table-header-font-family)
     (cons "--we-table-header-font-size" table-header-font-size)
@@ -5646,6 +5696,7 @@
     (cons "--we-help-text-font-size" help-text-font-size)
     (cons "--we-help-text-font-weight" help-text-font-weight)
     (cons "--we-help-text-line-height" help-text-line-height)
+    (cons "--we-help-text-margin-top" help-text-margin-top)
     (cons "--we-textarea-border-width" textarea-border-width)
     (cons "--we-textarea-radius" textarea-radius)
     (cons "--we-textarea-line-height" textarea-line-height)
@@ -6603,6 +6654,7 @@
      "  font-size: 0.875em;\n"
      "  font-weight: 300;\n"
      "  line-height: 1.5;\n"
+     "  margin-top: 0.25rem;\n"
      "}\n"
      ".form-control.is-valid {\n"
      "  border-color: var(--bs-form-valid-border-color);\n"
@@ -7048,6 +7100,7 @@
     (check-equal? (hash-ref token-map "--we-list-group-padding-x") "1rem")
     (check-equal? (hash-ref token-map "--we-list-group-line-height") "1.5")
     (check-equal? (hash-ref token-map "--we-table-border-color") "rgba(0, 0, 0, 0.05)")
+    (check-equal? (hash-ref token-map "--we-table-border-top-width") "0px")
     (check-equal? (hash-ref token-map "--we-table-cell-padding-x") "1.5rem")
     (check-equal? (hash-ref token-map "--we-table-header-text-transform") "uppercase")
     (check-equal? (hash-ref token-map "--we-table-body-font-weight") "300"))
@@ -7073,6 +7126,7 @@
     (check-equal? (hash-ref token-map "--we-field-invalid-color") "#dc3545")
     (check-equal? (hash-ref token-map "--we-help-text-color") "rgba(85, 89, 92, 0.75)")
     (check-equal? (hash-ref token-map "--we-help-text-line-height") "1.5")
+    (check-equal? (hash-ref token-map "--we-help-text-margin-top") "0.25rem")
     (check-true (regexp-match? #px"^url\\(" (hash-ref token-map "--we-field-valid-icon")))
     (check-true (regexp-match? #px"^url\\(" (hash-ref token-map "--we-field-invalid-icon")))
     (check-true (regexp-match? #px"^url\\(" (hash-ref token-map "--we-field-select-icon")))
@@ -7122,6 +7176,37 @@
     (check-equal? (hash-ref token-map "--we-dialog-color") "#3e3f3a")
     (check-equal? (hash-ref token-map "--we-dialog-title-color") "#3e3f3a"))
 
+  (test-case "dialog spacing falls back to modal custom properties"
+    (define rules
+      (read-css-rules
+       (string-append
+        ":root {\n"
+        "  --bs-body-color: #212529;\n"
+        "  --bs-body-bg: #ffffff;\n"
+        "}\n"
+        ".modal {\n"
+        "  --bs-modal-padding: 1rem;\n"
+        "  --bs-modal-header-padding-x: 1rem;\n"
+        "  --bs-modal-header-padding-y: 1rem;\n"
+        "  --bs-modal-footer-gap: 0.5rem;\n"
+        "}\n"
+        ".modal-header {\n"
+        "  padding: var(--bs-modal-header-padding-y) var(--bs-modal-header-padding-x);\n"
+        "}\n"
+        ".modal-body {\n"
+        "  padding: var(--bs-modal-padding);\n"
+        "}\n"
+        ".modal-footer {\n"
+        "  padding: calc(var(--bs-modal-padding) - var(--bs-modal-footer-gap) * 0.5);\n"
+        "}\n")))
+    (define token-map (bootstrap-rules->token-map rules))
+    (check-equal? (hash-ref token-map "--we-dialog-header-padding-x") "1rem")
+    (check-equal? (hash-ref token-map "--we-dialog-header-padding-y") "1rem")
+    (check-equal? (hash-ref token-map "--we-dialog-body-padding-x") "1rem")
+    (check-equal? (hash-ref token-map "--we-dialog-body-padding-y") "1rem")
+    (check-equal? (hash-ref token-map "--we-dialog-footer-padding-x") "calc(1rem - 0.5rem * 0.5)")
+    (check-equal? (hash-ref token-map "--we-dialog-footer-padding-y") "calc(1rem - 0.5rem * 0.5)"))
+
   (test-case "component rule extraction feeds accordion tokens"
     (define rules (read-css-rules accordion-bootstrap))
     (define token-map (bootstrap-rules->token-map rules))
@@ -7149,6 +7234,7 @@
     (define token-map (bootstrap-rules->token-map rules))
     (check-equal? (hash-ref token-map "--we-menu-popup-bg") "#ffffff")
     (check-equal? (hash-ref token-map "--we-menu-popup-border-width") "0")
+    (check-equal? (hash-ref token-map "--we-menu-divider-border-width") "1px")
     (check-equal? (hash-ref token-map "--we-menu-popup-font-size") "0.875rem")
     (check-equal? (hash-ref token-map "--we-menu-popup-font-weight") "300")
     (check-equal? (hash-ref token-map "--we-menu-popup-line-height") "1.5")

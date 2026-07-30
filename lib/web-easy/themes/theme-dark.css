@@ -70,6 +70,7 @@ html.we-theme-dark {
   --we-menu-header-padding-x: 1rem;
   --we-menu-header-padding-y: 0.5rem;
   --we-menu-divider-color: #5f6f8a;
+  --we-menu-divider-border-width: 1px;
   --we-menu-item-color: #d9e2f3;
   --we-menu-item-padding-x: 1rem;
   --we-menu-item-padding-y: 0.35rem;
@@ -275,8 +276,11 @@ html.we-theme-dark .we-menu-header {
   color: var(--we-menu-header-color);
   font-size: var(--we-font-size-sm);
   font-weight: var(--we-font-weight-normal);
+  line-height: 1.2;
   letter-spacing: 0.06em;
+  margin-bottom: 0;
   text-transform: uppercase;
+  white-space: nowrap;
   opacity: 0.85;
 }
 
@@ -285,9 +289,9 @@ html.we-theme-dark .we-menu-popup .we-divider,
 html.we-theme-dark .we-menu-popup .we-divider-horizontal {
   display: block;
   height: 0;
-  margin: 3px 0;
+  margin: var(--we-menu-popup-padding-y) 0;
   border: 0;
-  border-top: 1px solid var(--we-menu-divider-color);
+  border-top: var(--we-menu-divider-border-width, 1px) solid var(--we-menu-divider-color);
 }
 
 html.we-theme-dark .we-menu-label {
@@ -354,8 +358,11 @@ html.we-theme-dark .we-menu-header {
   font-family: var(--we-font-family-base);
   font-size: var(--we-font-size-sm);
   font-weight: var(--we-font-weight-normal);
+  line-height: 1.2;
   letter-spacing: 0;
+  margin-bottom: 0;
   text-transform: none;
+  white-space: nowrap;
   opacity: 1;
 }
 
@@ -1561,6 +1568,9 @@ html.we-theme-dark .we-variant-subtle .we-navigation-bar .we-menu-popup {
 
 /* Cards/lists/tables share one subtle container system in this theme. */
 html.we-theme-dark .we-card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
   border: var(--we-card-border-width, 1px) solid var(--we-card-border-color);
   border-radius: var(--we-card-radius);
   background: var(--we-card-bg);
@@ -1571,6 +1581,8 @@ html.we-theme-dark .we-card {
 html.we-theme-dark .we-card-header,
 html.we-theme-dark .we-card-footer {
   border-color: var(--we-card-border-color);
+  border-style: none;
+  border-width: 0;
   background: var(--we-card-cap-bg);
   background-clip: padding-box;
   color: var(--we-card-cap-color);
@@ -1578,6 +1590,16 @@ html.we-theme-dark .we-card-footer {
   font-size: var(--we-font-size-md);
   font-weight: var(--we-font-weight-normal);
   padding: var(--we-card-cap-padding-y) var(--we-card-cap-padding-x);
+}
+
+html.we-theme-dark .we-card-header {
+  border-bottom-style: solid;
+  border-bottom-width: var(--we-card-border-width, 1px);
+}
+
+html.we-theme-dark .we-card-footer {
+  border-top-style: solid;
+  border-top-width: var(--we-card-border-width, 1px);
 }
 
 html.we-theme-dark .we-card-subtitle {
@@ -1764,6 +1786,7 @@ html.we-theme-dark .we-table th,
 html.we-theme-dark .we-table td {
   background: var(--we-table-bg);
   border: 0;
+  border-top: var(--we-table-border-top-width, 0px) solid var(--we-table-border-color);
   border-bottom: var(--we-table-border-width) solid var(--we-table-border-color);
   padding: var(--we-table-cell-padding-y) var(--we-table-cell-padding-x);
 }
@@ -1808,9 +1831,7 @@ html.we-theme-dark .we-table > tbody > tr.we-table-row-dark > * { background: va
 
 /* Badges: tone classes should be visually distinct in examples and apps. */
 html.we-theme-dark .we-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  display: inline-block;
   border: 0;
   background: var(--we-surface-muted);
   color: var(--we-badge-color);
@@ -1865,6 +1886,7 @@ html.we-theme-dark .we-breadcrumb {
 }
 
 html.we-theme-dark .we-breadcrumb .we-breadcrumb-item {
+  display: inline;
   appearance: none;
   background: transparent;
   border: 0;
@@ -1877,10 +1899,18 @@ html.we-theme-dark .we-breadcrumb .we-breadcrumb-item {
   letter-spacing: var(--we-breadcrumb-letter-spacing, var(--we-letter-spacing-base));
   padding: 0;
   margin: 0;
-  min-height: 0;
   text-align: left;
   text-decoration: none;
   text-transform: var(--we-breadcrumb-text-transform, none);
+}
+
+html.we-theme-dark .we-breadcrumb .we-breadcrumb-item:not(.is-current) {
+  min-height: 0;
+}
+
+html.we-theme-dark .we-breadcrumb .we-breadcrumb-link {
+  color: inherit;
+  text-decoration: none;
 }
 
 html.we-theme-dark .we-breadcrumb .we-breadcrumb-item:hover {
@@ -1889,17 +1919,34 @@ html.we-theme-dark .we-breadcrumb .we-breadcrumb-item:hover {
   text-decoration: underline;
 }
 
+html.we-theme-dark .we-breadcrumb .we-breadcrumb-link:hover {
+  color: var(--we-navbar-link-hover-color);
+  text-decoration: underline;
+}
+
 html.we-theme-dark .we-breadcrumb .we-breadcrumb-sep {
+  display: none;
   color: var(--we-breadcrumb-divider-color);
   opacity: 1;
   padding: 0 var(--we-breadcrumb-item-padding-x) 0 0;
 }
 
+html.we-theme-dark .we-breadcrumb .we-breadcrumb-item + .we-breadcrumb-item,
 html.we-theme-dark .we-breadcrumb-sep + .we-breadcrumb-item {
   padding-left: var(--we-breadcrumb-item-padding-x);
 }
 
-html.we-theme-dark .we-breadcrumb-item.is-current {
+html.we-theme-dark .we-breadcrumb .we-breadcrumb-item + .we-breadcrumb-item::before,
+html.we-theme-dark .we-breadcrumb-sep + .we-breadcrumb-item::before {
+  float: left;
+  padding-right: var(--we-breadcrumb-item-padding-x);
+  color: var(--we-breadcrumb-divider-color);
+  content: "/";
+}
+
+html.we-theme-dark .we-breadcrumb .we-breadcrumb-item.is-current {
+  display: list-item;
+  width: fit-content;
   background: transparent;
   border: 0;
   color: var(--we-breadcrumb-active-color);
@@ -2388,6 +2435,7 @@ html.we-theme-dark .we-group-legend {
 
 html.we-theme-dark .we-form-help,
 html.we-theme-dark .we-help-text {
+  margin-top: var(--we-help-text-margin-top, 0.25rem);
   color: var(--we-help-text-color, var(--we-fg-muted));
   font-size: var(--we-help-text-font-size, 0.875em);
   font-weight: var(--we-help-text-font-weight, var(--we-field-font-weight, inherit));
@@ -2732,6 +2780,8 @@ html.we-theme-dark .we-modal {
 
 html.we-theme-dark .we-dialog-panel,
 html.we-theme-dark .we-modal-panel {
+  display: flex;
+  flex-direction: column;
   border: var(--we-dialog-border-width) solid var(--we-dialog-border-color);
   border-radius: var(--we-dialog-radius);
   background: linear-gradient(var(--we-dialog-bg), var(--we-dialog-bg)), var(--we-surface);
@@ -2857,9 +2907,14 @@ html.we-theme-dark .we-tooltip-footer {
   align-items: center;
   justify-content: flex-end;
   border-top: var(--we-dialog-footer-border-width) solid var(--we-dialog-footer-border-color);
-  gap: var(--we-dialog-footer-gap, 0.5rem);
+  gap: 0;
   padding: var(--we-dialog-footer-padding-y) var(--we-dialog-footer-padding-x);
   margin: 0;
+}
+
+html.we-theme-dark .we-dialog-footer > *,
+html.we-theme-dark .we-modal-footer > * {
+  margin: calc(var(--we-dialog-footer-gap, 0.5rem) * 0.5);
 }
 
 html.we-theme-dark .we-dialog-actions,
@@ -2868,7 +2923,7 @@ html.we-theme-dark .we-modal-actions {
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: var(--we-dialog-footer-gap, 0.5rem);
-  width: 100%;
+  width: auto;
 }
 
 html.we-theme-dark .we-dialog-body,
@@ -2936,15 +2991,19 @@ html.we-theme-dark .we-modal-close {
   height: 1rem;
   min-width: 1rem;
   min-height: 1rem;
-  padding: 0;
+  margin-top: calc(-0.5 * var(--we-dialog-header-padding-y));
+  margin-right: calc(-0.5 * var(--we-dialog-header-padding-x));
+  margin-bottom: calc(-0.5 * var(--we-dialog-header-padding-y));
+  padding: calc(var(--we-dialog-header-padding-y) * 0.5) calc(var(--we-dialog-header-padding-x) * 0.5);
   border: 0;
   border-radius: var(--we-close-button-radius, var(--we-radius-pill));
+  box-sizing: content-box;
   background: transparent;
   color: transparent;
   opacity: 0.72;
-  font-size: 0;
+  font-size: var(--we-font-size-md, 1rem);
   font-weight: 400;
-  line-height: 1;
+  line-height: var(--we-line-height-base, 1.5);
   cursor: pointer;
   background-image: var(--we-dialog-close-icon, none);
   background-repeat: no-repeat;
