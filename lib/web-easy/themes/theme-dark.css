@@ -1655,7 +1655,14 @@ html.we-theme-dark .we-card-footer {
 }
 
 html.we-theme-dark .we-card-subtitle {
-  color: var(--we-fg-muted);
+  margin: var(--we-card-subtitle-margin-top, -0.25rem) 0 var(--we-card-subtitle-margin-bottom, 0) 0;
+  color: var(--we-card-subtitle-color, inherit);
+  font-family: var(--we-card-subtitle-font-family, var(--we-font-family-heading));
+  font-size: var(--we-card-subtitle-font-size, var(--we-font-size-md));
+  font-weight: var(--we-card-subtitle-font-weight, var(--we-font-weight-normal));
+  line-height: var(--we-card-subtitle-line-height, 1.2);
+  letter-spacing: var(--we-card-subtitle-letter-spacing, var(--we-letter-spacing-base));
+  text-transform: var(--we-card-subtitle-text-transform, none);
 }
 
 html.we-theme-dark .we-card-title {
@@ -3307,7 +3314,7 @@ html.we-theme-dark .we-card-media {
 
 html.we-theme-dark .we-card-media-text,
 html.we-theme-dark .we-card-action-text {
-  color: #b5c6e2;
+  color: var(--we-card-action-text-color, var(--we-primary));
 }
 
 html.we-theme-dark .we-card-actions {

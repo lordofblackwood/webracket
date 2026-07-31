@@ -208,6 +208,16 @@ html.we-theme-lux {
   --we-card-title-line-height: 1.2;
   --we-card-title-letter-spacing: 3px;
   --we-card-title-text-transform: uppercase;
+  --we-card-subtitle-font-family: "Nunito Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+  --we-card-subtitle-font-size: 0.75rem;
+  --we-card-subtitle-font-weight: 600;
+  --we-card-subtitle-line-height: 1.2;
+  --we-card-subtitle-letter-spacing: 3px;
+  --we-card-subtitle-text-transform: uppercase;
+  --we-card-subtitle-color: #55595c;
+  --we-card-subtitle-margin-top: -0.25rem;
+  --we-card-subtitle-margin-bottom: 0;
+  --we-card-action-text-color: #1a1a1a;
   --we-badge-padding-x: 0.65em;
   --we-badge-padding-y: 0.35em;
   --we-badge-padding-top: 0.28rem;
@@ -2181,7 +2191,14 @@ html.we-theme-lux .we-card-footer {
 }
 
 html.we-theme-lux .we-card-subtitle {
-  color: var(--we-fg-muted);
+  margin: var(--we-card-subtitle-margin-top, -0.25rem) 0 var(--we-card-subtitle-margin-bottom, 0) 0;
+  color: var(--we-card-subtitle-color, inherit);
+  font-family: var(--we-card-subtitle-font-family, var(--we-font-family-heading));
+  font-size: var(--we-card-subtitle-font-size, var(--we-font-size-md));
+  font-weight: var(--we-card-subtitle-font-weight, var(--we-font-weight-normal));
+  line-height: var(--we-card-subtitle-line-height, 1.2);
+  letter-spacing: var(--we-card-subtitle-letter-spacing, var(--we-letter-spacing-base));
+  text-transform: var(--we-card-subtitle-text-transform, none);
 }
 
 html.we-theme-lux .we-card-title {
@@ -3836,7 +3853,7 @@ html.we-theme-lux .we-card-media {
 
 html.we-theme-lux .we-card-media-text,
 html.we-theme-lux .we-card-action-text {
-  color: #3b5274;
+  color: var(--we-card-action-text-color, var(--we-primary));
 }
 
 html.we-theme-lux .we-card-actions {

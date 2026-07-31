@@ -208,6 +208,16 @@ html.we-theme-sketchy {
   --we-card-title-line-height: 1.2;
   --we-card-title-letter-spacing: normal;
   --we-card-title-text-transform: none;
+  --we-card-subtitle-font-family: "Cabin Sketch", cursive;
+  --we-card-subtitle-font-size: 1rem;
+  --we-card-subtitle-font-weight: 500;
+  --we-card-subtitle-line-height: 1.2;
+  --we-card-subtitle-letter-spacing: normal;
+  --we-card-subtitle-text-transform: none;
+  --we-card-subtitle-color: #212529;
+  --we-card-subtitle-margin-top: -0.25rem;
+  --we-card-subtitle-margin-bottom: 0;
+  --we-card-action-text-color: #333;
   --we-badge-padding-x: 1.2em;
   --we-badge-padding-y: 0.5em;
   --we-badge-padding-top: 0.5em;
@@ -2181,7 +2191,14 @@ html.we-theme-sketchy .we-card-footer {
 }
 
 html.we-theme-sketchy .we-card-subtitle {
-  color: var(--we-fg-muted);
+  margin: var(--we-card-subtitle-margin-top, -0.25rem) 0 var(--we-card-subtitle-margin-bottom, 0) 0;
+  color: var(--we-card-subtitle-color, inherit);
+  font-family: var(--we-card-subtitle-font-family, var(--we-font-family-heading));
+  font-size: var(--we-card-subtitle-font-size, var(--we-font-size-md));
+  font-weight: var(--we-card-subtitle-font-weight, var(--we-font-weight-normal));
+  line-height: var(--we-card-subtitle-line-height, 1.2);
+  letter-spacing: var(--we-card-subtitle-letter-spacing, var(--we-letter-spacing-base));
+  text-transform: var(--we-card-subtitle-text-transform, none);
 }
 
 html.we-theme-sketchy .we-card-title {
@@ -3836,7 +3853,7 @@ html.we-theme-sketchy .we-card-media {
 
 html.we-theme-sketchy .we-card-media-text,
 html.we-theme-sketchy .we-card-action-text {
-  color: #3b5274;
+  color: var(--we-card-action-text-color, var(--we-primary));
 }
 
 html.we-theme-sketchy .we-card-actions {

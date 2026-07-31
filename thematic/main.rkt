@@ -1428,6 +1428,44 @@
   (define card-title-text-transform
     (or (surface-style-ref ".card h5" "text-transform")
         (surface-style-ref "h5" "text-transform")))
+  (define card-subtitle-font-family
+    (or (surface-style-ref "h6.card-subtitle" "font-family")
+        (surface-style-ref ".card h6" "font-family")
+        (surface-style-ref "h6" "font-family")))
+  (define card-subtitle-font-size
+    (or (surface-style-ref "h6.card-subtitle" "font-size")
+        (surface-style-ref ".card h6" "font-size")
+        (surface-style-ref "h6" "font-size")))
+  (define card-subtitle-font-weight
+    (or (surface-style-ref "h6.card-subtitle" "font-weight")
+        (surface-style-ref ".card h6" "font-weight")
+        (surface-style-ref "h6" "font-weight")))
+  (define card-subtitle-line-height
+    (or (surface-style-ref "h6.card-subtitle" "line-height")
+        (surface-style-ref ".card h6" "line-height")
+        (surface-style-ref "h6" "line-height")))
+  (define card-subtitle-letter-spacing
+    (or (surface-style-ref "h6.card-subtitle" "letter-spacing")
+        (surface-style-ref ".card h6" "letter-spacing")
+        (surface-style-ref "h6" "letter-spacing")))
+  (define card-subtitle-text-transform
+    (or (surface-style-ref "h6.card-subtitle" "text-transform")
+        (surface-style-ref ".card h6" "text-transform")
+        (surface-style-ref "h6" "text-transform")))
+  (define card-subtitle-color
+    (or (surface-style-ref "h6.card-subtitle" "color")
+        (surface-style-ref ".card-subtitle" "color")
+        (surface-style-ref ".card" "color")))
+  (define card-subtitle-margin-top
+    (or (surface-style-ref "h6.card-subtitle" "margin-top")
+        (surface-style-ref ".card-subtitle" "margin-top")))
+  (define card-subtitle-margin-bottom
+    (or (surface-style-ref "h6.card-subtitle" "margin-bottom")
+        (surface-style-ref ".card-subtitle" "margin-bottom")))
+  (define card-action-text-color
+    (or (surface-style-ref "a.card-link" "color")
+        (surface-style-ref ".card-link" "color")
+        (hash-ref props "--bs-link-color" #f)))
   (define badge-padding-x
     (or (surface-custom-ref ".badge" "--bs-badge-padding-x")
         (surface-style-ref ".badge" "padding-left")))
@@ -3156,6 +3194,16 @@
         'card-title-line-height card-title-line-height
         'card-title-letter-spacing card-title-letter-spacing
         'card-title-text-transform card-title-text-transform
+        'card-subtitle-font-family card-subtitle-font-family
+        'card-subtitle-font-size card-subtitle-font-size
+        'card-subtitle-font-weight card-subtitle-font-weight
+        'card-subtitle-line-height card-subtitle-line-height
+        'card-subtitle-letter-spacing card-subtitle-letter-spacing
+        'card-subtitle-text-transform card-subtitle-text-transform
+        'card-subtitle-color card-subtitle-color
+        'card-subtitle-margin-top card-subtitle-margin-top
+        'card-subtitle-margin-bottom card-subtitle-margin-bottom
+        'card-action-text-color card-action-text-color
         'badge-padding-x badge-padding-x
         'badge-padding-y badge-padding-y
         'badge-padding-top badge-padding-top
@@ -4838,6 +4886,37 @@
   (define card-title-text-transform
     (or (theme-component-ref theme 'card-title-text-transform)
         "none"))
+  (define card-subtitle-font-family
+    (or (theme-component-ref theme 'card-subtitle-font-family)
+        (bootstrap-theme-font-family-heading theme)))
+  (define card-subtitle-font-size
+    (or (theme-component-ref theme 'card-subtitle-font-size)
+        (bootstrap-theme-font-size-md theme)))
+  (define card-subtitle-font-weight
+    (or (theme-component-ref theme 'card-subtitle-font-weight)
+        (bootstrap-theme-font-weight-normal theme)))
+  (define card-subtitle-line-height
+    (or (theme-component-ref theme 'card-subtitle-line-height)
+        "1.2"))
+  (define card-subtitle-letter-spacing
+    (or (theme-component-ref theme 'card-subtitle-letter-spacing)
+        (bootstrap-theme-letter-spacing-base theme)))
+  (define card-subtitle-text-transform
+    (or (theme-component-ref theme 'card-subtitle-text-transform)
+        "none"))
+  (define card-subtitle-color
+    (or (theme-component-ref theme 'card-subtitle-color)
+        (bootstrap-theme-fg theme)))
+  (define card-subtitle-margin-top
+    (or (theme-component-ref theme 'card-subtitle-margin-top)
+        "-0.25rem"))
+  (define card-subtitle-margin-bottom
+    (or (theme-component-ref theme 'card-subtitle-margin-bottom)
+        "0"))
+  (define card-action-text-color
+    (or (theme-component-ref theme 'card-action-text-color)
+        (theme-prop-ref theme "--bs-link-color")
+        (bootstrap-theme-primary theme)))
   (define badge-padding-x
     (or (theme-component-ref theme 'badge-padding-x)
         "0.65em"))
@@ -6410,6 +6489,16 @@
     (cons "--we-card-title-line-height" card-title-line-height)
     (cons "--we-card-title-letter-spacing" card-title-letter-spacing)
     (cons "--we-card-title-text-transform" card-title-text-transform)
+    (cons "--we-card-subtitle-font-family" card-subtitle-font-family)
+    (cons "--we-card-subtitle-font-size" card-subtitle-font-size)
+    (cons "--we-card-subtitle-font-weight" card-subtitle-font-weight)
+    (cons "--we-card-subtitle-line-height" card-subtitle-line-height)
+    (cons "--we-card-subtitle-letter-spacing" card-subtitle-letter-spacing)
+    (cons "--we-card-subtitle-text-transform" card-subtitle-text-transform)
+    (cons "--we-card-subtitle-color" card-subtitle-color)
+    (cons "--we-card-subtitle-margin-top" card-subtitle-margin-top)
+    (cons "--we-card-subtitle-margin-bottom" card-subtitle-margin-bottom)
+    (cons "--we-card-action-text-color" card-action-text-color)
     (cons "--we-badge-padding-x" badge-padding-x)
     (cons "--we-badge-padding-y" badge-padding-y)
     (cons "--we-badge-padding-top" badge-padding-top)
@@ -7427,6 +7516,7 @@
      "  --bs-primary: #1a1a1a;\n"
      "  --bs-secondary: #fff;\n"
      "  --bs-light: #f0f1f2;\n"
+     "  --bs-link-color: #1a1a1a;\n"
      "}\n"
      ".btn {\n"
       "  --bs-btn-padding-x: 1.5rem;\n"
@@ -7517,6 +7607,22 @@
      ".card-footer {\n"
      "  border-bottom-left-radius: 0.6rem;\n"
      "  border-bottom-right-radius: 0.7rem;\n"
+     "}\n"
+     "h6 {\n"
+     "  color: #55595c;\n"
+     "  font-family: \"Subtitle Face\", sans-serif;\n"
+     "  font-size: 0.875rem;\n"
+     "  font-weight: 500;\n"
+     "  line-height: 1.2;\n"
+     "  letter-spacing: 0.03em;\n"
+     "  text-transform: uppercase;\n"
+     "}\n"
+     ".card-subtitle {\n"
+     "  margin-top: -0.25rem;\n"
+     "  margin-bottom: 0;\n"
+     "}\n"
+     ".card-link {\n"
+     "  color: var(--bs-link-color);\n"
      "}\n"
      ".badge {\n"
      "  --bs-badge-padding-x: 0.65em;\n"
@@ -8336,6 +8442,17 @@
     (check-equal? (hash-ref token-map "--we-card-header-radius-top-right") "0.5rem")
     (check-equal? (hash-ref token-map "--we-card-footer-radius-bottom-left") "0.6rem")
     (check-equal? (hash-ref token-map "--we-card-footer-radius-bottom-right") "0.7rem")
+    (check-equal? (hash-ref token-map "--we-card-subtitle-font-family")
+                  "\"Subtitle Face\", sans-serif")
+    (check-equal? (hash-ref token-map "--we-card-subtitle-font-size") "0.875rem")
+    (check-equal? (hash-ref token-map "--we-card-subtitle-font-weight") "500")
+    (check-equal? (hash-ref token-map "--we-card-subtitle-line-height") "1.2")
+    (check-equal? (hash-ref token-map "--we-card-subtitle-letter-spacing") "0.03em")
+    (check-equal? (hash-ref token-map "--we-card-subtitle-text-transform") "uppercase")
+    (check-equal? (hash-ref token-map "--we-card-subtitle-color") "#55595c")
+    (check-equal? (hash-ref token-map "--we-card-subtitle-margin-top") "-0.25rem")
+    (check-equal? (hash-ref token-map "--we-card-subtitle-margin-bottom") "0")
+    (check-equal? (hash-ref token-map "--we-card-action-text-color") "#1a1a1a")
     (check-equal? (hash-ref token-map "--we-badge-font-family")
                   "\"Badge Base\", sans-serif")
     (check-equal? (hash-ref token-map "--we-badge-font-size") "0.75em")
