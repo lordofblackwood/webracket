@@ -1715,6 +1715,42 @@
     (toast-style-ref ".toast-header" "font-family"))
   (define toast-header-font-weight
     (toast-style-ref ".toast-header" "font-weight"))
+  (define toast-title-font-family
+    (or (toast-style-ref ".toast-header strong" "font-family")
+        (toast-style-ref "strong" "font-family")))
+  (define toast-title-font-size
+    (or (toast-style-ref ".toast-header strong" "font-size")
+        toast-font-size))
+  (define toast-title-font-weight
+    (or (toast-style-ref ".toast-header strong" "font-weight")
+        (toast-style-ref "strong" "font-weight")))
+  (define toast-title-line-height
+    (or (toast-style-ref ".toast-header strong" "line-height")
+        (toast-style-ref "strong" "line-height")))
+  (define toast-title-letter-spacing
+    (or (toast-style-ref ".toast-header strong" "letter-spacing")
+        (toast-style-ref "strong" "letter-spacing")))
+  (define toast-title-text-transform
+    (or (toast-style-ref ".toast-header strong" "text-transform")
+        (toast-style-ref "strong" "text-transform")))
+  (define toast-meta-font-family
+    (or (toast-style-ref ".toast-header small" "font-family")
+        (toast-style-ref "small" "font-family")))
+  (define toast-meta-font-size
+    (or (toast-style-ref ".toast-header small" "font-size")
+        (toast-style-ref "small" "font-size")))
+  (define toast-meta-font-weight
+    (or (toast-style-ref ".toast-header small" "font-weight")
+        (toast-style-ref "small" "font-weight")))
+  (define toast-meta-line-height
+    (or (toast-style-ref ".toast-header small" "line-height")
+        (toast-style-ref "small" "line-height")))
+  (define toast-meta-letter-spacing
+    (or (toast-style-ref ".toast-header small" "letter-spacing")
+        (toast-style-ref "small" "letter-spacing")))
+  (define toast-meta-text-transform
+    (or (toast-style-ref ".toast-header small" "text-transform")
+        (toast-style-ref "small" "text-transform")))
   (define toast-header-radius-top-left
     (or (toast-direct-ref '(".toast-header") "border-top-left-radius")
         (toast-style-ref ".toast-header" "border-top-left-radius")))
@@ -2953,6 +2989,18 @@
         'toast-header-border-color toast-header-border-color
         'toast-header-font-family toast-header-font-family
         'toast-header-font-weight toast-header-font-weight
+        'toast-title-font-family toast-title-font-family
+        'toast-title-font-size toast-title-font-size
+        'toast-title-font-weight toast-title-font-weight
+        'toast-title-line-height toast-title-line-height
+        'toast-title-letter-spacing toast-title-letter-spacing
+        'toast-title-text-transform toast-title-text-transform
+        'toast-meta-font-family toast-meta-font-family
+        'toast-meta-font-size toast-meta-font-size
+        'toast-meta-font-weight toast-meta-font-weight
+        'toast-meta-line-height toast-meta-line-height
+        'toast-meta-letter-spacing toast-meta-letter-spacing
+        'toast-meta-text-transform toast-meta-text-transform
         'toast-header-radius-top-left toast-header-radius-top-left
         'toast-header-radius-top-right toast-header-radius-top-right
         'toast-body-padding toast-body-padding
@@ -4752,6 +4800,42 @@
   (define toast-header-font-weight
     (or (theme-component-ref theme 'toast-header-font-weight)
         (bootstrap-theme-font-weight-normal theme)))
+  (define toast-title-font-family
+    (or (theme-component-ref theme 'toast-title-font-family)
+        "inherit"))
+  (define toast-title-font-size
+    (or (theme-component-ref theme 'toast-title-font-size)
+        toast-font-size))
+  (define toast-title-font-weight
+    (or (theme-component-ref theme 'toast-title-font-weight)
+        "bolder"))
+  (define toast-title-line-height
+    (or (theme-component-ref theme 'toast-title-line-height)
+        "inherit"))
+  (define toast-title-letter-spacing
+    (or (theme-component-ref theme 'toast-title-letter-spacing)
+        "inherit"))
+  (define toast-title-text-transform
+    (or (theme-component-ref theme 'toast-title-text-transform)
+        "inherit"))
+  (define toast-meta-font-family
+    (or (theme-component-ref theme 'toast-meta-font-family)
+        "inherit"))
+  (define toast-meta-font-size
+    (or (theme-component-ref theme 'toast-meta-font-size)
+        "0.875em"))
+  (define toast-meta-font-weight
+    (or (theme-component-ref theme 'toast-meta-font-weight)
+        "inherit"))
+  (define toast-meta-line-height
+    (or (theme-component-ref theme 'toast-meta-line-height)
+        (bootstrap-theme-line-height-base theme)))
+  (define toast-meta-letter-spacing
+    (or (theme-component-ref theme 'toast-meta-letter-spacing)
+        "inherit"))
+  (define toast-meta-text-transform
+    (or (theme-component-ref theme 'toast-meta-text-transform)
+        "inherit"))
   (define toast-header-radius-top-left
     (or (theme-component-ref theme 'toast-header-radius-top-left)
         "inherit"))
@@ -5959,6 +6043,18 @@
     (cons "--we-toast-header-border-color" toast-header-border-color)
     (cons "--we-toast-header-font-family" toast-header-font-family)
     (cons "--we-toast-header-font-weight" toast-header-font-weight)
+    (cons "--we-toast-title-font-family" toast-title-font-family)
+    (cons "--we-toast-title-font-size" toast-title-font-size)
+    (cons "--we-toast-title-font-weight" toast-title-font-weight)
+    (cons "--we-toast-title-line-height" toast-title-line-height)
+    (cons "--we-toast-title-letter-spacing" toast-title-letter-spacing)
+    (cons "--we-toast-title-text-transform" toast-title-text-transform)
+    (cons "--we-toast-meta-font-family" toast-meta-font-family)
+    (cons "--we-toast-meta-font-size" toast-meta-font-size)
+    (cons "--we-toast-meta-font-weight" toast-meta-font-weight)
+    (cons "--we-toast-meta-line-height" toast-meta-line-height)
+    (cons "--we-toast-meta-letter-spacing" toast-meta-letter-spacing)
+    (cons "--we-toast-meta-text-transform" toast-meta-text-transform)
     (cons "--we-toast-header-radius-top-left" toast-header-radius-top-left)
     (cons "--we-toast-header-radius-top-right" toast-header-radius-top-right)
     (cons "--we-toast-body-padding" toast-body-padding)
@@ -7297,6 +7393,7 @@
      ":root {\n"
      "  --bs-body-color: #55595c;\n"
      "  --bs-body-bg: #ffffff;\n"
+     "  --bs-body-line-height: 1.5;\n"
      "  --bs-border-color-translucent: rgba(0, 0, 0, 0.175);\n"
      "  --bs-link-color: #1a1a1a;\n"
      "  --bs-secondary-color: rgba(85, 89, 92, 0.75);\n"
@@ -7335,6 +7432,12 @@
      "}\n"
      ".toast-body {\n"
      "  padding: 0.75rem;\n"
+     "}\n"
+     "strong {\n"
+     "  font-weight: bolder;\n"
+     "}\n"
+     "small, .small {\n"
+     "  font-size: 0.875em;\n"
      "}\n"
      ".btn-close {\n"
      "  --bs-btn-close-color: #000;\n"
@@ -8036,6 +8139,10 @@
     (check-equal? (hash-ref token-map "--we-toast-header-font-family")
                   "\"Cabin Sketch\", cursive")
     (check-equal? (hash-ref token-map "--we-toast-header-font-weight") "500")
+    (check-equal? (hash-ref token-map "--we-toast-title-font-family") "inherit")
+    (check-equal? (hash-ref token-map "--we-toast-title-font-weight") "bolder")
+    (check-equal? (hash-ref token-map "--we-toast-meta-font-size") "0.875em")
+    (check-equal? (hash-ref token-map "--we-toast-meta-line-height") "1.5")
     (check-equal? (hash-ref token-map "--we-toast-header-radius-top-left") "4px")
     (check-equal? (hash-ref token-map "--we-toast-header-radius-top-right") "6px")
     (check-equal? (hash-ref token-map "--we-toast-body-padding") "0.75rem")

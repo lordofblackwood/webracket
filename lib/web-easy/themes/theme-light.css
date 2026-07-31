@@ -935,14 +935,17 @@ html.we-theme-light .we-toast-header {
 
 html.we-theme-light .we-toast-title {
   display: block;
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   margin: 0;
+  margin-right: auto;
   padding: 0;
   color: inherit;
-  font-family: inherit;
-  font-size: var(--we-toast-font-size);
-  font-weight: var(--we-font-weight-bold);
-  line-height: inherit;
+  font-family: var(--we-toast-title-font-family, inherit);
+  font-size: var(--we-toast-title-font-size, var(--we-toast-font-size));
+  font-weight: var(--we-toast-title-font-weight, bolder);
+  line-height: var(--we-toast-title-line-height, inherit);
+  letter-spacing: var(--we-toast-title-letter-spacing, inherit);
+  text-transform: var(--we-toast-title-text-transform, inherit);
 }
 
 html.we-theme-light .we-toast-meta {
@@ -951,10 +954,12 @@ html.we-theme-light .we-toast-meta {
   margin: 0;
   padding: 0;
   color: inherit;
-  font-family: inherit;
-  font-size: var(--we-toast-font-size);
-  font-weight: var(--we-font-weight-normal);
-  line-height: inherit;
+  font-family: var(--we-toast-meta-font-family, inherit);
+  font-size: var(--we-toast-meta-font-size, 0.875em);
+  font-weight: var(--we-toast-meta-font-weight, inherit);
+  line-height: var(--we-toast-meta-line-height, var(--we-line-height-base, 1.5));
+  letter-spacing: var(--we-toast-meta-letter-spacing, inherit);
+  text-transform: var(--we-toast-meta-text-transform, inherit);
   white-space: nowrap;
 }
 
@@ -1004,7 +1009,7 @@ html.we-theme-light .we-toast .we-toast-close {
   min-height: auto;
   margin-top: 0;
   margin-left: var(--we-toast-padding-x);
-  margin-right: 0;
+  margin-right: calc(-0.5 * var(--we-toast-padding-x));
   border: 0;
   border-radius: var(--we-close-button-radius, 0);
   background: transparent;
