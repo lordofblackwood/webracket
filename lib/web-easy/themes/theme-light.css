@@ -186,6 +186,12 @@ html.we-theme-light {
   --we-heading-line-height: 1.2;
   --we-heading-letter-spacing: var(--we-letter-spacing-base);
   --we-heading-text-transform: none;
+  --we-lead-color: var(--we-fg);
+  --we-lead-font-size: 1.25rem;
+  --we-lead-font-weight: 300;
+  --we-lead-line-height: var(--we-line-height-base);
+  --we-lead-letter-spacing: var(--we-letter-spacing-base);
+  --we-lead-text-transform: none;
   --we-font-size-sm: 0.875rem;
   --we-font-size-md: 1rem;
   --we-font-size-lg: 1.15rem;
@@ -2618,7 +2624,13 @@ html.we-theme-light .we-display-heading {
 }
 
 html.we-theme-light .we-lead {
-  color: var(--we-secondary-emphasis);
+  color: var(--we-lead-color, var(--we-fg));
+  font-family: var(--we-font-family-base);
+  font-size: var(--we-lead-font-size, 1.25rem);
+  font-weight: var(--we-lead-font-weight, 300);
+  line-height: var(--we-lead-line-height, var(--we-line-height-base));
+  letter-spacing: var(--we-lead-letter-spacing, var(--we-letter-spacing-base));
+  text-transform: var(--we-lead-text-transform, none);
 }
 
 html.we-theme-light .we-blockquote-quote {

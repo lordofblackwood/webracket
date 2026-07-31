@@ -463,6 +463,18 @@
     (selector-ref* meaningful-style-ref '(".h1" "h1") "letter-spacing"))
   (define heading-text-transform
     (selector-ref* meaningful-style-ref '(".h1" "h1") "text-transform"))
+  (define lead-color
+    (selector-ref* meaningful-style-ref '(".lead") "color"))
+  (define lead-font-size
+    (selector-ref* meaningful-style-ref '(".lead") "font-size"))
+  (define lead-font-weight
+    (selector-ref* meaningful-style-ref '(".lead") "font-weight"))
+  (define lead-line-height
+    (selector-ref* meaningful-style-ref '(".lead") "line-height"))
+  (define lead-letter-spacing
+    (selector-ref* meaningful-style-ref '(".lead") "letter-spacing"))
+  (define lead-text-transform
+    (selector-ref* meaningful-style-ref '(".lead") "text-transform"))
   (define pill-link-selectors
     '(".nav-pills .nav-link" ".nav-link"))
   (define pill-border-authored?
@@ -3139,6 +3151,12 @@
         'navbar-brand-heading-line-height navbar-brand-heading-line-height
         'navbar-brand-heading-letter-spacing navbar-brand-heading-letter-spacing
         'navbar-brand-heading-text-transform navbar-brand-heading-text-transform
+        'lead-color lead-color
+        'lead-font-size lead-font-size
+        'lead-font-weight lead-font-weight
+        'lead-line-height lead-line-height
+        'lead-letter-spacing lead-letter-spacing
+        'lead-text-transform lead-text-transform
         'navbar-link-color navbar-link-color
         'navbar-link-hover navbar-link-hover
         'navbar-link-active navbar-link-active
@@ -4376,6 +4394,24 @@
     (hash-ref surface-map 'surface-hover))
   (define fg-muted
     (rgb->css secondary-fg))
+  (define lead-color
+    (or (theme-component-ref theme 'lead-color)
+        (bootstrap-theme-fg theme)))
+  (define lead-font-size
+    (or (theme-component-ref theme 'lead-font-size)
+        "1.25rem"))
+  (define lead-font-weight
+    (or (theme-component-ref theme 'lead-font-weight)
+        "300"))
+  (define lead-line-height
+    (or (theme-component-ref theme 'lead-line-height)
+        (bootstrap-theme-line-height-base theme)))
+  (define lead-letter-spacing
+    (or (theme-component-ref theme 'lead-letter-spacing)
+        (bootstrap-theme-letter-spacing-base theme)))
+  (define lead-text-transform
+    (or (theme-component-ref theme 'lead-text-transform)
+        "none"))
   (define border-muted
     (rgb->css (mix-colors border bg 0.18)))
   (define border-hover-rgb
@@ -7329,6 +7365,12 @@
     (cons "--we-heading-line-height" (bootstrap-theme-heading-line-height theme))
     (cons "--we-heading-letter-spacing" (bootstrap-theme-heading-letter-spacing theme))
     (cons "--we-heading-text-transform" (bootstrap-theme-heading-text-transform theme))
+    (cons "--we-lead-color" lead-color)
+    (cons "--we-lead-font-size" lead-font-size)
+    (cons "--we-lead-font-weight" lead-font-weight)
+    (cons "--we-lead-line-height" lead-line-height)
+    (cons "--we-lead-letter-spacing" lead-letter-spacing)
+    (cons "--we-lead-text-transform" lead-text-transform)
     (cons "--we-font-size-sm" (bootstrap-theme-font-size-sm theme))
     (cons "--we-font-size-md" (bootstrap-theme-font-size-md theme))
     (cons "--we-font-size-lg" (bootstrap-theme-font-size-lg theme))
@@ -8695,6 +8737,32 @@
     (check-equal? (hash-ref token-map "--we-pill-border-width") "0")
     (check-equal? (hash-ref token-map "--we-pill-border-style") "solid")
     (check-equal? (hash-ref token-map "--we-pill-active-bg") "#1a1a1a"))
+
+  (test-case "component rule extraction feeds lead typography tokens"
+    (define rules
+      (read-css-rules
+       (string-append
+        ":root {\n"
+        "  --bs-body-color: #212529;\n"
+        "  --bs-body-bg: #ffffff;\n"
+        "  --bs-body-font-family: system-ui, sans-serif;\n"
+        "  --bs-body-line-height: 1.5;\n"
+        "}\n"
+        ".lead {\n"
+        "  color: #334455;\n"
+        "  font-size: 1.35rem;\n"
+        "  font-weight: 300;\n"
+        "  line-height: 1.4;\n"
+        "  letter-spacing: 0.02em;\n"
+        "  text-transform: uppercase;\n"
+        "}\n")))
+    (define token-map (bootstrap-rules->token-map rules))
+    (check-equal? (hash-ref token-map "--we-lead-color") "#334455")
+    (check-equal? (hash-ref token-map "--we-lead-font-size") "1.35rem")
+    (check-equal? (hash-ref token-map "--we-lead-font-weight") "300")
+    (check-equal? (hash-ref token-map "--we-lead-line-height") "1.4")
+    (check-equal? (hash-ref token-map "--we-lead-letter-spacing") "0.02em")
+    (check-equal? (hash-ref token-map "--we-lead-text-transform") "uppercase"))
 
   (test-case "brand heading sample keeps explicit navbar brand typography"
     (define rules
