@@ -549,6 +549,27 @@ html.we-theme-lux-boost {
   --we-field-select-disabled-color: #919aa1;
   --we-field-select-disabled-border-color: #e0e1e2;
   --we-field-select-disabled-opacity: 1;
+  --we-floating-control-height: calc(3.5rem + calc(0 * 2));
+  --we-floating-control-min-height: calc(3.5rem + calc(0 * 2));
+  --we-floating-control-line-height: 1.25;
+  --we-floating-control-padding-x: 1.5rem;
+  --we-floating-control-padding-y: 1rem;
+  --we-floating-control-filled-padding-top: 1.625rem;
+  --we-floating-control-filled-padding-bottom: 0.625rem;
+  --we-floating-label-color: rgba(85, 89, 92, 0.65);
+  --we-floating-label-font-family: "Nunito Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+  --we-floating-label-font-size: 1rem;
+  --we-floating-label-font-weight: 300;
+  --we-floating-label-line-height: 1.5;
+  --we-floating-label-letter-spacing: 1px;
+  --we-floating-label-text-transform: none;
+  --we-floating-label-padding-x: 1.5rem;
+  --we-floating-label-padding-y: 1rem;
+  --we-floating-label-border-width: 0;
+  --we-floating-label-border-style: solid;
+  --we-floating-label-border-color: transparent;
+  --we-floating-label-transform: scale(0.85) translateY(-0.5rem) translateX(0.15rem);
+  --we-floating-label-transform-origin: 0 0;
   --we-input-group-addon-bg: #e0e1e2;
   --we-input-group-addon-color: #55595c;
   --we-input-group-addon-border-color: #e0e1e2;
@@ -1011,6 +1032,68 @@ html.we-theme-lux-boost .we-input {
   line-height: var(--we-field-line-height, var(--we-body-line-height, 1.5));
   font-weight: var(--we-field-font-weight);
   padding: var(--we-field-padding-y) var(--we-field-padding-x);
+}
+
+html.we-theme-lux-boost .we-floating-field {
+  position: relative;
+}
+
+html.we-theme-lux-boost .we-floating-field > .we-floating-control,
+html.we-theme-lux-boost .we-floating-field > input.we-input.we-floating-control,
+html.we-theme-lux-boost .we-floating-field > textarea.we-input.we-floating-control,
+html.we-theme-lux-boost .we-floating-field > select.we-input.we-floating-control {
+  display: block;
+  width: 100%;
+  height: var(--we-floating-control-height);
+  min-height: var(--we-floating-control-min-height, var(--we-floating-control-height));
+  line-height: var(--we-floating-control-line-height, 1.25);
+  padding: var(--we-floating-control-padding-y, 1rem) var(--we-floating-control-padding-x, var(--we-field-padding-x));
+}
+
+html.we-theme-lux-boost .we-floating-field > .we-floating-control:not(:placeholder-shown),
+html.we-theme-lux-boost .we-floating-field > .we-floating-control.has-value,
+html.we-theme-lux-boost .we-floating-field > input.we-input.we-floating-control:not(:placeholder-shown),
+html.we-theme-lux-boost .we-floating-field > input.we-input.we-floating-control.has-value,
+html.we-theme-lux-boost .we-floating-field > textarea.we-input.we-floating-control:not(:placeholder-shown),
+html.we-theme-lux-boost .we-floating-field > textarea.we-input.we-floating-control.has-value,
+html.we-theme-lux-boost .we-floating-field > select.we-input.we-floating-control,
+html.we-theme-lux-boost .we-floating-field > select.we-input.we-floating-control.has-value {
+  padding-top: var(--we-floating-control-filled-padding-top, 1.625rem);
+  padding-bottom: var(--we-floating-control-filled-padding-bottom, 0.625rem);
+}
+
+html.we-theme-lux-boost .we-floating-field > .we-floating-label {
+  display: inline-block;
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 2;
+  max-width: 100%;
+  height: 100%;
+  padding: var(--we-floating-label-padding-y, 1rem) var(--we-floating-label-padding-x, var(--we-field-padding-x));
+  overflow: hidden;
+  color: var(--we-floating-label-color, var(--we-fg-muted));
+  text-align: start;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  pointer-events: none;
+  border:
+    var(--we-floating-label-border-width, var(--we-field-border-width))
+    var(--we-floating-label-border-style, solid)
+    var(--we-floating-label-border-color, transparent);
+  transform-origin: var(--we-floating-label-transform-origin, 0 0);
+  font-family: var(--we-floating-label-font-family, var(--we-font-family-base));
+  font-size: var(--we-floating-label-font-size, var(--we-field-font-size));
+  font-weight: var(--we-floating-label-font-weight, var(--we-field-font-weight));
+  line-height: var(--we-floating-label-line-height, var(--we-field-line-height));
+  letter-spacing: var(--we-floating-label-letter-spacing, var(--we-letter-spacing-base, normal));
+  text-transform: var(--we-floating-label-text-transform, none);
+}
+
+html.we-theme-lux-boost .we-floating-field > .we-floating-control:not(:placeholder-shown) ~ .we-floating-label,
+html.we-theme-lux-boost .we-floating-field > .we-floating-control.has-value ~ .we-floating-label,
+html.we-theme-lux-boost .we-floating-field > .we-floating-select ~ .we-floating-label {
+  transform: var(--we-floating-label-transform, scale(0.85) translateY(-0.5rem) translateX(0.15rem));
 }
 
 html.we-theme-lux-boost .we-input-group {

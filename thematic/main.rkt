@@ -2594,6 +2594,82 @@
   (define help-text-margin-top
     (or (field-style-ref ".form-text" "margin-top")
         "0.25rem"))
+  (define floating-control-height
+    (field-direct-ref '(".form-floating > .form-control") "height"))
+  (define floating-control-min-height
+    (field-direct-ref '(".form-floating > .form-control") "min-height"))
+  (define floating-control-line-height
+    (field-direct-ref '(".form-floating > .form-control") "line-height"))
+  (define floating-control-padding-shorthand
+    (field-direct-ref '(".form-floating > .form-control") "padding"))
+  (define floating-control-padding-x
+    (or (field-direct-ref '(".form-floating > .form-control") "padding-left")
+        (box-shorthand-side floating-control-padding-shorthand 'left)))
+  (define floating-control-padding-y
+    (or (field-direct-ref '(".form-floating > .form-control") "padding-top")
+        (box-shorthand-side floating-control-padding-shorthand 'top)))
+  (define floating-control-filled-padding-top
+    (field-direct-ref '(".form-floating > .form-control:not(:placeholder-shown)") "padding-top"))
+  (define floating-control-filled-padding-bottom
+    (field-direct-ref '(".form-floating > .form-control:not(:placeholder-shown)") "padding-bottom"))
+  (define (floating-label-ref property)
+    (or (field-direct-ref '(".form-floating > .form-control:not(:placeholder-shown) ~ label"
+                            ".form-floating > .form-control:focus ~ label"
+                            ".form-floating > label")
+                          property)
+        (field-style-ref ".form-floating > label" property)
+        (field-style-ref "label" property)))
+  (define floating-label-color
+    (floating-label-ref "color"))
+  (define floating-label-font-family
+    (floating-label-ref "font-family"))
+  (define floating-label-font-size
+    (floating-label-ref "font-size"))
+  (define floating-label-font-weight
+    (floating-label-ref "font-weight"))
+  (define floating-label-line-height
+    (floating-label-ref "line-height"))
+  (define floating-label-letter-spacing
+    (or (field-direct-ref '(".form-floating > .form-control:not(:placeholder-shown) ~ label"
+                            ".form-floating > .form-control:focus ~ label"
+                            ".form-floating > label")
+                          "letter-spacing")
+        (hash-ref props "--bs-body-letter-spacing" #f)))
+  (define floating-label-text-transform
+    (floating-label-ref "text-transform"))
+  (define floating-label-padding-shorthand
+    (field-direct-ref '(".form-floating > label") "padding"))
+  (define floating-label-padding-x
+    (or (field-direct-ref '(".form-floating > label") "padding-left")
+        (box-shorthand-side floating-label-padding-shorthand 'left)
+        "0.75rem"))
+  (define floating-label-padding-y
+    (or (field-direct-ref '(".form-floating > label") "padding-top")
+        (box-shorthand-side floating-label-padding-shorthand 'top)
+        "1rem"))
+  (define floating-label-border-shorthand
+    (field-direct-ref '(".form-floating > label") "border"))
+  (define floating-label-border-width
+    (or (field-direct-ref '(".form-floating > label") "border-width")
+        (border-shorthand-width floating-label-border-shorthand)
+        field-border-width))
+  (define floating-label-border-style
+    (or (field-direct-ref '(".form-floating > label") "border-style")
+        (and (border-none-value? floating-label-border-shorthand) "none")
+        (and (present-css-value? floating-label-border-shorthand) "solid")
+        "solid"))
+  (define floating-label-border-color
+    (or (field-direct-ref '(".form-floating > label") "border-color")
+        (border-shorthand-color floating-label-border-shorthand)
+        "transparent"))
+  (define floating-label-transform
+    (or (field-direct-ref '(".form-floating > .form-control:not(:placeholder-shown) ~ label"
+                            ".form-floating > .form-control:focus ~ label")
+                          "transform")
+        "scale(0.85) translateY(-0.5rem) translateX(0.15rem)"))
+  (define floating-label-transform-origin
+    (or (field-direct-ref '(".form-floating > label") "transform-origin")
+        "0 0"))
   (define textarea-border-width
     (or (field-style-ref "textarea.form-control" "border-width")
         (field-style-ref "textarea" "border-width")
@@ -3569,6 +3645,27 @@
         'field-select-disabled-color field-select-disabled-color
         'field-select-disabled-border-color field-select-disabled-border-color
         'field-select-disabled-opacity field-select-disabled-opacity
+        'floating-control-height floating-control-height
+        'floating-control-min-height floating-control-min-height
+        'floating-control-line-height floating-control-line-height
+        'floating-control-padding-x floating-control-padding-x
+        'floating-control-padding-y floating-control-padding-y
+        'floating-control-filled-padding-top floating-control-filled-padding-top
+        'floating-control-filled-padding-bottom floating-control-filled-padding-bottom
+        'floating-label-color floating-label-color
+        'floating-label-font-family floating-label-font-family
+        'floating-label-font-size floating-label-font-size
+        'floating-label-font-weight floating-label-font-weight
+        'floating-label-line-height floating-label-line-height
+        'floating-label-letter-spacing floating-label-letter-spacing
+        'floating-label-text-transform floating-label-text-transform
+        'floating-label-padding-x floating-label-padding-x
+        'floating-label-padding-y floating-label-padding-y
+        'floating-label-border-width floating-label-border-width
+        'floating-label-border-style floating-label-border-style
+        'floating-label-border-color floating-label-border-color
+        'floating-label-transform floating-label-transform
+        'floating-label-transform-origin floating-label-transform-origin
         'input-group-addon-bg input-group-addon-bg
         'input-group-addon-color input-group-addon-color
         'input-group-addon-border-color input-group-addon-border-color
@@ -5869,6 +5966,70 @@
   (define field-select-disabled-opacity
     (or (theme-component-ref theme 'field-select-disabled-opacity)
         field-disabled-opacity))
+  (define floating-control-height
+    (or (theme-component-ref theme 'floating-control-height)
+        "calc(3.5rem + var(--we-field-border-width, 1px) + var(--we-field-border-width, 1px))"))
+  (define floating-control-min-height
+    (or (theme-component-ref theme 'floating-control-min-height)
+        floating-control-height))
+  (define floating-control-line-height
+    (or (theme-component-ref theme 'floating-control-line-height)
+        "1.25"))
+  (define floating-control-padding-x
+    (or (theme-component-ref theme 'floating-control-padding-x)
+        field-padding-x))
+  (define floating-control-padding-y
+    (or (theme-component-ref theme 'floating-control-padding-y)
+        "1rem"))
+  (define floating-control-filled-padding-top
+    (or (theme-component-ref theme 'floating-control-filled-padding-top)
+        "1.625rem"))
+  (define floating-control-filled-padding-bottom
+    (or (theme-component-ref theme 'floating-control-filled-padding-bottom)
+        "0.625rem"))
+  (define floating-label-color
+    (or (theme-component-ref theme 'floating-label-color)
+        (theme-prop-ref theme "--bs-secondary-color")
+        fg-muted))
+  (define floating-label-font-family
+    (or (theme-component-ref theme 'floating-label-font-family)
+        (bootstrap-theme-font-family-base theme)))
+  (define floating-label-font-size
+    (or (theme-component-ref theme 'floating-label-font-size)
+        field-font-size))
+  (define floating-label-font-weight
+    (or (theme-component-ref theme 'floating-label-font-weight)
+        field-font-weight))
+  (define floating-label-line-height
+    (or (theme-component-ref theme 'floating-label-line-height)
+        field-line-height))
+  (define floating-label-letter-spacing
+    (or (theme-component-ref theme 'floating-label-letter-spacing)
+        (bootstrap-theme-letter-spacing-base theme)))
+  (define floating-label-text-transform
+    (or (theme-component-ref theme 'floating-label-text-transform)
+        "none"))
+  (define floating-label-padding-x
+    (or (theme-component-ref theme 'floating-label-padding-x)
+        field-padding-x))
+  (define floating-label-padding-y
+    (or (theme-component-ref theme 'floating-label-padding-y)
+        "1rem"))
+  (define floating-label-border-width
+    (or (theme-component-ref theme 'floating-label-border-width)
+        field-border-width))
+  (define floating-label-border-style
+    (or (theme-component-ref theme 'floating-label-border-style)
+        "solid"))
+  (define floating-label-border-color
+    (or (theme-component-ref theme 'floating-label-border-color)
+        "transparent"))
+  (define floating-label-transform
+    (or (theme-component-ref theme 'floating-label-transform)
+        "scale(0.85) translateY(-0.5rem) translateX(0.15rem)"))
+  (define floating-label-transform-origin
+    (or (theme-component-ref theme 'floating-label-transform-origin)
+        "0 0"))
   (define input-group-addon-bg
     (or (theme-component-ref theme 'input-group-addon-bg)
         (hash-ref surface-map 'surface-muted)))
@@ -6935,6 +7096,27 @@
     (cons "--we-field-select-disabled-color" field-select-disabled-color)
     (cons "--we-field-select-disabled-border-color" field-select-disabled-border-color)
     (cons "--we-field-select-disabled-opacity" field-select-disabled-opacity)
+    (cons "--we-floating-control-height" floating-control-height)
+    (cons "--we-floating-control-min-height" floating-control-min-height)
+    (cons "--we-floating-control-line-height" floating-control-line-height)
+    (cons "--we-floating-control-padding-x" floating-control-padding-x)
+    (cons "--we-floating-control-padding-y" floating-control-padding-y)
+    (cons "--we-floating-control-filled-padding-top" floating-control-filled-padding-top)
+    (cons "--we-floating-control-filled-padding-bottom" floating-control-filled-padding-bottom)
+    (cons "--we-floating-label-color" floating-label-color)
+    (cons "--we-floating-label-font-family" floating-label-font-family)
+    (cons "--we-floating-label-font-size" floating-label-font-size)
+    (cons "--we-floating-label-font-weight" floating-label-font-weight)
+    (cons "--we-floating-label-line-height" floating-label-line-height)
+    (cons "--we-floating-label-letter-spacing" floating-label-letter-spacing)
+    (cons "--we-floating-label-text-transform" floating-label-text-transform)
+    (cons "--we-floating-label-padding-x" floating-label-padding-x)
+    (cons "--we-floating-label-padding-y" floating-label-padding-y)
+    (cons "--we-floating-label-border-width" floating-label-border-width)
+    (cons "--we-floating-label-border-style" floating-label-border-style)
+    (cons "--we-floating-label-border-color" floating-label-border-color)
+    (cons "--we-floating-label-transform" floating-label-transform)
+    (cons "--we-floating-label-transform-origin" floating-label-transform-origin)
     (cons "--we-input-group-addon-bg" input-group-addon-bg)
     (cons "--we-input-group-addon-color" input-group-addon-color)
     (cons "--we-input-group-addon-border-color" input-group-addon-border-color)
@@ -7887,6 +8069,25 @@
      "  background-color: #e0e1e2;\n"
      "  border: 0 solid #a0a1a2;\n"
      "}\n"
+     ".form-floating > .form-control {\n"
+     "  height: 3.5rem;\n"
+     "  min-height: 3.5rem;\n"
+     "  line-height: 1.25;\n"
+     "  padding: 1rem 1.5rem;\n"
+     "}\n"
+     ".form-floating > .form-control:not(:placeholder-shown) {\n"
+     "  padding-top: 1.625rem;\n"
+     "  padding-bottom: 0.625rem;\n"
+     "}\n"
+     ".form-floating > label {\n"
+     "  padding: 1rem 1.5rem;\n"
+     "  color: rgba(85, 89, 92, 0.75);\n"
+     "  border: 0 solid transparent;\n"
+     "  transform-origin: 0 0;\n"
+     "}\n"
+     ".form-floating > .form-control:not(:placeholder-shown) ~ label {\n"
+     "  transform: scale(0.85) translateY(-0.5rem) translateX(0.15rem);\n"
+     "}\n"
      "label {\n"
      "  font-size: 0.875rem;\n"
      "  font-weight: 600;\n"
@@ -8629,6 +8830,13 @@
     (check-equal? (hash-ref token-map "--we-field-disabled-opacity") "1")
     (check-equal? (hash-ref token-map "--we-field-select-disabled-color") "#919aa1")
     (check-equal? (hash-ref token-map "--we-field-select-disabled-border-color") "#c9cacc")
+    (check-equal? (hash-ref token-map "--we-floating-control-height") "3.5rem")
+    (check-equal? (hash-ref token-map "--we-floating-control-filled-padding-top") "1.625rem")
+    (check-equal? (hash-ref token-map "--we-floating-label-padding-x") "1.5rem")
+    (check-equal? (hash-ref token-map "--we-floating-label-color")
+                  "rgba(85, 89, 92, 0.75)")
+    (check-equal? (hash-ref token-map "--we-floating-label-transform")
+                  "scale(0.85) translateY(-0.5rem) translateX(0.15rem)")
     (check-equal? (hash-ref token-map "--we-field-valid-color") "#198754")
     (check-equal? (hash-ref token-map "--we-field-invalid-color") "#dc3545")
     (check-equal? (hash-ref token-map "--we-help-text-color") "rgba(85, 89, 92, 0.75)")
