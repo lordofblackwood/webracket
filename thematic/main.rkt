@@ -373,6 +373,10 @@
     (make-computed-selector-refs props rules))
   (define (present-ref value)
     (and (present-css-value? value) value))
+  (define (present-authored-ref value)
+    (and (string? value)
+         (not (string-empty-or-whitespace? value))
+         value))
   (define (nav-context-custom-ref selectors key)
     (for/or ([selector (in-list selectors)])
       (present-ref (nav-custom-ref selector key))))
@@ -401,6 +405,12 @@
   (define (custom-direct-ref selectors key)
     (and (css-stylesheet? rules)
          (present-ref
+          (hash-ref (css-collect-custom-properties-in-selector-groups rules selectors)
+                    key
+                    #f))))
+  (define (custom-direct-token-ref selectors key)
+    (and (css-stylesheet? rules)
+         (present-authored-ref
           (hash-ref (css-collect-custom-properties-in-selector-groups rules selectors)
                     key
                     #f))))
@@ -1714,11 +1724,16 @@
   (define toast-body-padding
     (or (toast-style-ref ".toast-body" "padding")
         toast-padding-x))
+  (define close-button-color-token
+    (custom-direct-token-ref '(".btn-close") "--bs-btn-close-color"))
   (define close-button-color-raw
-    (or (toast-style-ref ".btn-close" "color")
-        (toast-custom-ref ".btn-close" "--bs-btn-close-color")))
+    (or close-button-color-token
+        (toast-style-ref ".btn-close" "color")))
   (define close-button-color
-    close-button-color-raw)
+    (if (and (string? close-button-color-raw)
+             (string-ci=? (string-trim close-button-color-raw) "inherit"))
+        "currentColor"
+        close-button-color-raw))
   (define toast-close-color
     (cond
       [(and (string? close-button-color-raw)
@@ -1844,6 +1859,21 @@
     (alert-style-ref ".alert" "border-style"))
   (define alert-radius
     (alert-style-ref ".alert" "border-radius"))
+  (define alert-title-font-family
+    (or (alert-style-ref ".alert strong" "font-family")
+        (alert-style-ref "strong" "font-family")))
+  (define alert-title-font-weight
+    (or (alert-style-ref ".alert strong" "font-weight")
+        (alert-style-ref "strong" "font-weight")))
+  (define alert-title-line-height
+    (or (alert-style-ref ".alert strong" "line-height")
+        (alert-style-ref "strong" "line-height")))
+  (define alert-title-letter-spacing
+    (or (alert-style-ref ".alert strong" "letter-spacing")
+        (alert-style-ref "strong" "letter-spacing")))
+  (define alert-title-text-transform
+    (or (alert-style-ref ".alert strong" "text-transform")
+        (alert-style-ref "strong" "text-transform")))
   (define (alert-tone-bg tone)
     (or (alert-style-ref (format ".alert-~a" tone) "background-color")
         (alert-custom-ref (format ".alert-~a" tone) "--bs-alert-bg")))
@@ -2953,6 +2983,11 @@
         'alert-border-width alert-border-width
         'alert-border-style alert-border-style
         'alert-radius alert-radius
+        'alert-title-font-family alert-title-font-family
+        'alert-title-font-weight alert-title-font-weight
+        'alert-title-line-height alert-title-line-height
+        'alert-title-letter-spacing alert-title-letter-spacing
+        'alert-title-text-transform alert-title-text-transform
         'alert-primary-bg alert-primary-bg
         'alert-primary-border alert-primary-border
         'alert-primary-color alert-primary-color
@@ -3502,6 +3537,17 @@
   (define value
     (hash-ref (bootstrap-theme-component-styles theme) key (lambda () fallback)))
   (if (or (not (present-css-value? value))
+          (regexp-match? #px"var\\(\\s*--bs-" value))
+      fallback
+      value))
+
+;; theme-component-token-ref : bootstrap-theme? symbol? [string?] -> (or/c string? #f)
+;;   Read authored component tokens that may intentionally use CSS keywords.
+(define (theme-component-token-ref theme key [fallback #f])
+  (define value
+    (hash-ref (bootstrap-theme-component-styles theme) key (lambda () fallback)))
+  (if (or (not (string? value))
+          (string-empty-or-whitespace? value)
           (regexp-match? #px"var\\(\\s*--bs-" value))
       fallback
       value))
@@ -4716,7 +4762,7 @@
     (or (theme-component-ref theme 'toast-body-padding)
         toast-padding-x))
   (define close-button-color
-    (or (theme-component-ref theme 'close-button-color)
+    (or (theme-component-token-ref theme 'close-button-color)
         (bootstrap-theme-fg theme)))
   (define toast-close-color
     (or (theme-component-ref theme 'toast-close-color)
@@ -4793,6 +4839,21 @@
   (define alert-radius
     (or (theme-component-ref theme 'alert-radius)
         "0"))
+  (define alert-title-font-family
+    (or (theme-component-ref theme 'alert-title-font-family)
+        "inherit"))
+  (define alert-title-font-weight
+    (or (theme-component-ref theme 'alert-title-font-weight)
+        "bolder"))
+  (define alert-title-line-height
+    (or (theme-component-ref theme 'alert-title-line-height)
+        "inherit"))
+  (define alert-title-letter-spacing
+    (or (theme-component-ref theme 'alert-title-letter-spacing)
+        "inherit"))
+  (define alert-title-text-transform
+    (or (theme-component-ref theme 'alert-title-text-transform)
+        "inherit"))
   (define alert-primary-bg
     (alert-token "primary" "bg"
                  (or (theme-prop-ref theme "--bs-primary-bg-subtle")
@@ -5973,6 +6034,11 @@
     (cons "--we-alert-border-width" alert-border-width)
     (cons "--we-alert-border-style" alert-border-style)
     (cons "--we-alert-radius" alert-radius)
+    (cons "--we-alert-title-font-family" alert-title-font-family)
+    (cons "--we-alert-title-font-weight" alert-title-font-weight)
+    (cons "--we-alert-title-line-height" alert-title-line-height)
+    (cons "--we-alert-title-letter-spacing" alert-title-letter-spacing)
+    (cons "--we-alert-title-text-transform" alert-title-text-transform)
     (cons "--we-alert-primary-bg" alert-primary-bg)
     (cons "--we-alert-primary-border" alert-primary-border)
     (cons "--we-alert-primary-color" alert-primary-color)
@@ -7994,7 +8060,7 @@
         "  color: #333333;\n"
         "}\n")))
     (define token-map (bootstrap-rules->token-map rules))
-    (check-equal? (hash-ref token-map "--we-close-button-color") "#212529")
+    (check-equal? (hash-ref token-map "--we-close-button-color") "currentColor")
     (check-equal? (hash-ref token-map "--we-toast-close-color") "#333333"))
 
   (test-case "component rule extraction preserves alert variant overrides"

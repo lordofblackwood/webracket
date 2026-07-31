@@ -372,6 +372,11 @@ html.we-theme-lux-boost {
   --we-alert-border-width: 0;
   --we-alert-border-style: solid;
   --we-alert-radius: 0;
+  --we-alert-title-font-family: inherit;
+  --we-alert-title-font-weight: bolder;
+  --we-alert-title-line-height: inherit;
+  --we-alert-title-letter-spacing: inherit;
+  --we-alert-title-text-transform: inherit;
   --we-alert-primary-bg: #d1d1d1;
   --we-alert-primary-border: #a3a3a3;
   --we-alert-primary-color: #0a0a0a;
@@ -3329,7 +3334,11 @@ html.we-theme-lux-boost .we-placeholder {
 /* 9) Rich Component Internals (alert/dialog/popover/carousel/scrollspy)       */
 /* -------------------------------------------------------------------------- */
 html.we-theme-lux-boost .we-alert-title {
-  font-weight: var(--we-font-weight-normal);
+  font-family: var(--we-alert-title-font-family, inherit);
+  font-weight: var(--we-alert-title-font-weight, bolder);
+  line-height: var(--we-alert-title-line-height, inherit);
+  letter-spacing: var(--we-alert-title-letter-spacing, inherit);
+  text-transform: var(--we-alert-title-text-transform, inherit);
   color: inherit;
 }
 
@@ -3344,31 +3353,32 @@ html.we-theme-lux-boost .we-alert-link {
 
 html.we-theme-lux-boost .we-alert-dismiss {
   position: absolute;
-  top: 0.6rem;
-  right: 0.65rem;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 1.5rem;
-  height: 1.5rem;
-  min-width: 1.5rem;
-  min-height: 1.5rem;
-  padding: 0;
+  top: 0;
+  right: 0;
+  z-index: 2;
+  display: block;
+  box-sizing: content-box;
+  width: 1em;
+  height: 1em;
+  min-width: 1em;
+  min-height: auto;
+  padding: 1.25rem 1rem;
   border: 0;
-  border-radius: var(--we-radius-pill);
-  background: transparent;
-  color: #476489;
-  opacity: 0.75;
-  font-size: 1.4rem;
+  border-radius: var(--we-close-button-radius, 0);
+  background-color: transparent;
+  color: var(--we-close-button-color, #000);
+  opacity: var(--we-close-button-opacity, 0.5);
+  font-size: var(--we-font-size-md, 1rem);
   font-weight: 400;
-  line-height: 1;
+  line-height: var(--we-line-height-base, 1.5);
+  text-transform: none;
   cursor: pointer;
 }
 
 html.we-theme-lux-boost .we-alert-dismiss:hover {
-  background: rgba(41, 74, 110, 0.12);
-  color: #2c4f76;
-  opacity: 1;
+  background-color: transparent;
+  color: var(--we-close-button-color, #000);
+  opacity: var(--we-close-button-hover-opacity, 0.75);
 }
 
 html.we-theme-lux-boost .we-alert-dismiss:focus-visible {
@@ -3382,7 +3392,7 @@ html.we-theme-lux-boost .we-alert {
 }
 
 html.we-theme-lux-boost .we-alert:has(.we-alert-dismiss) {
-  padding-right: calc(2rem + 1rem + 0.75rem);
+  padding-right: 3rem;
 }
 
 html.we-theme-lux-boost .we-alert-layout-inline {
@@ -3517,7 +3527,7 @@ html.we-theme-lux-boost .we-modal-close {
   width: 1rem;
   height: 1rem;
   min-width: 1rem;
-  min-height: 1rem;
+  min-height: auto;
   margin-top: calc(-0.5 * var(--we-dialog-header-padding-y));
   margin-right: calc(-0.5 * var(--we-dialog-header-padding-x));
   margin-bottom: calc(-0.5 * var(--we-dialog-header-padding-y));
@@ -3526,11 +3536,12 @@ html.we-theme-lux-boost .we-modal-close {
   border-radius: var(--we-close-button-radius, var(--we-radius-pill));
   box-sizing: content-box;
   background: transparent;
-  color: transparent;
-  opacity: 0.75;
+  color: var(--we-close-button-color, #000);
+  opacity: var(--we-close-button-opacity, 0.5);
   font-size: var(--we-font-size-md, 1rem);
   font-weight: 400;
   line-height: var(--we-line-height-base, 1.5);
+  text-transform: none;
   cursor: pointer;
   background-image: var(--we-dialog-close-icon, none);
   background-repeat: no-repeat;
