@@ -316,7 +316,9 @@ html.we-theme-sandstone-boost {
   --we-tooltip-border-style: none;
   --we-tooltip-border-color: currentColor;
   --we-tooltip-shadow: none;
-  --we-tooltip-arrow-size: 0.5rem;
+  --we-tooltip-arrow-width: 0.8rem;
+  --we-tooltip-arrow-height: 0.4rem;
+  --we-tooltip-arrow-size: 0.4rem;
   --we-popover-bg: #fff;
   --we-popover-max-width: 276px;
   --we-popover-font-size: 0.875rem;
@@ -2593,13 +2595,14 @@ html.we-theme-sandstone-boost .we-tooltip-bubble {
 html.we-theme-sandstone-boost .we-tooltip-bubble::before {
   content: "";
   position: absolute;
-  top: calc(-1 * var(--we-tooltip-arrow-size));
+  bottom: calc(-1 * var(--we-tooltip-arrow-height, var(--we-tooltip-arrow-size)));
   left: 0.85rem;
   width: 0;
   height: 0;
-  border-left: var(--we-tooltip-arrow-size) solid transparent;
-  border-right: var(--we-tooltip-arrow-size) solid transparent;
-  border-bottom: var(--we-tooltip-arrow-size) solid var(--we-tooltip-bg);
+  border-left: calc(var(--we-tooltip-arrow-width, calc(var(--we-tooltip-arrow-size) * 2)) * 0.5) solid transparent;
+  border-right: calc(var(--we-tooltip-arrow-width, calc(var(--we-tooltip-arrow-size) * 2)) * 0.5) solid transparent;
+  border-top: var(--we-tooltip-arrow-height, var(--we-tooltip-arrow-size)) solid var(--we-tooltip-bg);
+  border-bottom: 0 solid transparent;
 }
 
 html.we-theme-sandstone-boost .we-popover-panel {

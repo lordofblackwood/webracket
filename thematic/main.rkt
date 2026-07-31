@@ -996,6 +996,10 @@
   (define tooltip-shadow
     (or (computed-style-ref ".tooltip-inner" "box-shadow")
         (computed-style-ref ".tooltip" "box-shadow")))
+  (define tooltip-arrow-width
+    (computed-custom-ref ".tooltip" "--bs-tooltip-arrow-width"))
+  (define tooltip-arrow-height
+    (computed-custom-ref ".tooltip" "--bs-tooltip-arrow-height"))
   (define popover-bg
     (or (computed-custom-ref ".popover" "--bs-popover-bg")
         (computed-style-ref ".popover" "background-color")))
@@ -2723,6 +2727,8 @@
         'tooltip-border-style tooltip-border-style
         'tooltip-border-color tooltip-border-color
         'tooltip-shadow tooltip-shadow
+        'tooltip-arrow-width tooltip-arrow-width
+        'tooltip-arrow-height tooltip-arrow-height
         'popover-bg popover-bg
         'popover-max-width popover-max-width
         'popover-font-size popover-font-size
@@ -4123,7 +4129,12 @@
   (define tooltip-shadow
     (or (theme-component-ref theme 'tooltip-shadow)
         "none"))
-  (define tooltip-arrow-size "0.5rem")
+  (define tooltip-arrow-width
+    (or (theme-component-ref theme 'tooltip-arrow-width)
+        "0.8rem"))
+  (define tooltip-arrow-height
+    (or (theme-component-ref theme 'tooltip-arrow-height)
+        "0.4rem"))
   (define popover-bg
     (or (theme-component-ref theme 'popover-bg)
         popup-bg))
@@ -5897,7 +5908,9 @@
     (cons "--we-tooltip-border-style" tooltip-border-style)
     (cons "--we-tooltip-border-color" tooltip-border-color)
     (cons "--we-tooltip-shadow" tooltip-shadow)
-    (cons "--we-tooltip-arrow-size" tooltip-arrow-size)
+    (cons "--we-tooltip-arrow-width" tooltip-arrow-width)
+    (cons "--we-tooltip-arrow-height" tooltip-arrow-height)
+    (cons "--we-tooltip-arrow-size" tooltip-arrow-height)
     (cons "--we-popover-bg" popover-bg)
     (cons "--we-popover-max-width" popover-max-width)
     (cons "--we-popover-font-size" popover-font-size)
@@ -6663,6 +6676,8 @@
      "  --bs-tooltip-padding-y: 0.35rem;\n"
      "  --bs-tooltip-border-radius: 0;\n"
      "  --bs-tooltip-opacity: 1;\n"
+     "  --bs-tooltip-arrow-width: 0.8rem;\n"
+     "  --bs-tooltip-arrow-height: 0.4rem;\n"
      "}\n"
      ".tooltip-inner {\n"
      "  border: 0;\n"
@@ -7774,6 +7789,8 @@
     (check-equal? (hash-ref token-map "--we-tooltip-border-style") "none")
     (check-equal? (hash-ref token-map "--we-tooltip-border-color") "currentColor")
     (check-equal? (hash-ref token-map "--we-tooltip-shadow") "none")
+    (check-equal? (hash-ref token-map "--we-tooltip-arrow-width") "0.8rem")
+    (check-equal? (hash-ref token-map "--we-tooltip-arrow-height") "0.4rem")
     (check-equal? (hash-ref token-map "--we-popover-max-width") "276px")
     (check-equal? (hash-ref token-map "--we-popover-font-size") "0.875rem")
     (check-equal? (hash-ref token-map "--we-popover-arrow-width") "1rem")
