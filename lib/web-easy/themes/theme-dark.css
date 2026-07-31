@@ -978,6 +978,32 @@ html.we-theme-dark .we-choice {
     var(--we-field-padding-x);
 }
 
+html.we-theme-dark select.we-input.we-input-sm,
+html.we-theme-dark select.we-input-sm,
+html.we-theme-dark .we-choice.we-input-sm {
+  min-height: var(--we-field-select-sm-min-height, auto);
+  border-radius: var(--we-field-select-sm-radius, var(--we-field-select-radius, var(--we-field-radius, var(--we-radius-md))));
+  font-size: var(--we-field-select-sm-font-size, var(--we-field-sm-font-size, var(--we-font-size-sm, 0.875rem)));
+  padding:
+    var(--we-field-select-sm-padding-y, var(--we-field-sm-padding-y, 0.25rem))
+    var(--we-field-select-padding-right, calc(var(--we-field-padding-x) * 3))
+    var(--we-field-select-sm-padding-y, var(--we-field-sm-padding-y, 0.25rem))
+    var(--we-field-select-sm-padding-x, var(--we-field-sm-padding-x, 0.5rem));
+}
+
+html.we-theme-dark select.we-input.we-input-lg,
+html.we-theme-dark select.we-input-lg,
+html.we-theme-dark .we-choice.we-input-lg {
+  min-height: var(--we-field-select-lg-min-height, auto);
+  border-radius: var(--we-field-select-lg-radius, var(--we-field-select-radius, var(--we-field-radius, var(--we-radius-md))));
+  font-size: var(--we-field-select-lg-font-size, var(--we-field-lg-font-size, 1.25rem));
+  padding:
+    var(--we-field-select-lg-padding-y, var(--we-field-lg-padding-y, 0.5rem))
+    var(--we-field-select-padding-right, calc(var(--we-field-padding-x) * 3))
+    var(--we-field-select-lg-padding-y, var(--we-field-lg-padding-y, 0.5rem))
+    var(--we-field-select-lg-padding-x, var(--we-field-lg-padding-x, 1rem));
+}
+
 /* The close icon is CSS-driven; override this selector to use another glyph. */
 html.we-theme-dark .we-close-button-icon::before {
   content: var(--we-close-glyph, "✕");

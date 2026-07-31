@@ -535,6 +535,14 @@ html.we-theme-lux {
   --we-field-border-width: 0;
   --we-field-radius: 0;
   --we-field-select-radius: 0;
+  --we-field-select-sm-padding-x: 1rem;
+  --we-field-select-sm-padding-y: 0.5rem;
+  --we-field-select-sm-font-size: 0.875rem;
+  --we-field-select-sm-radius: 0;
+  --we-field-select-lg-padding-x: 2rem;
+  --we-field-select-lg-padding-y: 2rem;
+  --we-field-select-lg-font-size: 1.25rem;
+  --we-field-select-lg-radius: 0;
   --we-field-padding-x: 1.5rem;
   --we-field-padding-y: 0.75rem;
   --we-field-font-size: 1rem;
@@ -1567,6 +1575,32 @@ html.we-theme-lux .we-choice {
     var(--we-field-select-padding-right, calc(var(--we-field-padding-x) * 3))
     var(--we-field-padding-y)
     var(--we-field-padding-x);
+}
+
+html.we-theme-lux select.we-input.we-input-sm,
+html.we-theme-lux select.we-input-sm,
+html.we-theme-lux .we-choice.we-input-sm {
+  min-height: var(--we-field-select-sm-min-height, auto);
+  border-radius: var(--we-field-select-sm-radius, var(--we-field-select-radius, var(--we-field-radius, var(--we-radius-md))));
+  font-size: var(--we-field-select-sm-font-size, var(--we-field-sm-font-size, var(--we-font-size-sm, 0.875rem)));
+  padding:
+    var(--we-field-select-sm-padding-y, var(--we-field-sm-padding-y, 0.25rem))
+    var(--we-field-select-padding-right, calc(var(--we-field-padding-x) * 3))
+    var(--we-field-select-sm-padding-y, var(--we-field-sm-padding-y, 0.25rem))
+    var(--we-field-select-sm-padding-x, var(--we-field-sm-padding-x, 0.5rem));
+}
+
+html.we-theme-lux select.we-input.we-input-lg,
+html.we-theme-lux select.we-input-lg,
+html.we-theme-lux .we-choice.we-input-lg {
+  min-height: var(--we-field-select-lg-min-height, auto);
+  border-radius: var(--we-field-select-lg-radius, var(--we-field-select-radius, var(--we-field-radius, var(--we-radius-md))));
+  font-size: var(--we-field-select-lg-font-size, var(--we-field-lg-font-size, 1.25rem));
+  padding:
+    var(--we-field-select-lg-padding-y, var(--we-field-lg-padding-y, 0.5rem))
+    var(--we-field-select-padding-right, calc(var(--we-field-padding-x) * 3))
+    var(--we-field-select-lg-padding-y, var(--we-field-lg-padding-y, 0.5rem))
+    var(--we-field-select-lg-padding-x, var(--we-field-lg-padding-x, 1rem));
 }
 
 html.we-theme-lux select:focus-visible,

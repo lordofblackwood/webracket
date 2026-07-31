@@ -2530,6 +2530,10 @@
     '(".form-control.form-control-sm" ".form-control-sm"))
   (define field-lg-selectors
     '(".form-control.form-control-lg" ".form-control-lg"))
+  (define field-select-sm-selectors
+    '(".form-select.form-select-sm" ".form-select-sm"))
+  (define field-select-lg-selectors
+    '(".form-select.form-select-lg" ".form-select-lg"))
   (define (field-context-ref key)
     (or (for/or ([selector (in-list field-context-selectors)])
           (field-custom-ref selector key))
@@ -2541,6 +2545,9 @@
                                    property
                                    field-context-ref))
   (define (field-size-radius selectors)
+    (or (field-direct-ref selectors "border-radius")
+        (selector-ref* field-style-ref selectors "border-radius")))
+  (define (field-select-size-radius selectors)
     (or (field-direct-ref selectors "border-radius")
         (selector-ref* field-style-ref selectors "border-radius")))
   (define field-border-shorthand
@@ -2571,6 +2578,26 @@
   (define field-select-radius
     (or (field-style-ref ".form-select" "border-radius")
         field-radius))
+  (define field-select-sm-padding-x
+    (selector-ref* field-style-ref field-select-sm-selectors "padding-left"))
+  (define field-select-sm-padding-y
+    (selector-ref* field-style-ref field-select-sm-selectors "padding-top"))
+  (define field-select-sm-font-size
+    (selector-ref* field-style-ref field-select-sm-selectors "font-size"))
+  (define field-select-sm-radius
+    (field-select-size-radius '(".form-select.form-select-sm"
+                                ".form-select-sm"
+                                ".form-select")))
+  (define field-select-lg-padding-x
+    (selector-ref* field-style-ref field-select-lg-selectors "padding-left"))
+  (define field-select-lg-padding-y
+    (selector-ref* field-style-ref field-select-lg-selectors "padding-top"))
+  (define field-select-lg-font-size
+    (selector-ref* field-style-ref field-select-lg-selectors "font-size"))
+  (define field-select-lg-radius
+    (field-select-size-radius '(".form-select.form-select-lg"
+                                ".form-select-lg"
+                                ".form-select")))
   (define field-padding-x
     (selector-ref* field-style-ref
                    '(".form-control" ".form-select")
@@ -3776,6 +3803,14 @@
         'field-border-width field-border-width
         'field-radius field-radius
         'field-select-radius field-select-radius
+        'field-select-sm-padding-x field-select-sm-padding-x
+        'field-select-sm-padding-y field-select-sm-padding-y
+        'field-select-sm-font-size field-select-sm-font-size
+        'field-select-sm-radius field-select-sm-radius
+        'field-select-lg-padding-x field-select-lg-padding-x
+        'field-select-lg-padding-y field-select-lg-padding-y
+        'field-select-lg-font-size field-select-lg-font-size
+        'field-select-lg-radius field-select-lg-radius
         'field-padding-x field-padding-x
         'field-padding-y field-padding-y
         'field-font-size field-font-size
@@ -6222,6 +6257,30 @@
   (define field-lg-min-height
     (or (theme-component-ref theme 'field-lg-min-height)
         "calc(1.5em + 1rem + calc(var(--we-field-border-width, 1px) * 2))"))
+  (define field-select-sm-padding-x
+    (or (theme-component-ref theme 'field-select-sm-padding-x)
+        field-sm-padding-x))
+  (define field-select-sm-padding-y
+    (or (theme-component-ref theme 'field-select-sm-padding-y)
+        field-sm-padding-y))
+  (define field-select-sm-font-size
+    (or (theme-component-ref theme 'field-select-sm-font-size)
+        field-sm-font-size))
+  (define field-select-sm-radius
+    (or (theme-component-ref theme 'field-select-sm-radius)
+        field-sm-radius))
+  (define field-select-lg-padding-x
+    (or (theme-component-ref theme 'field-select-lg-padding-x)
+        field-lg-padding-x))
+  (define field-select-lg-padding-y
+    (or (theme-component-ref theme 'field-select-lg-padding-y)
+        field-lg-padding-y))
+  (define field-select-lg-font-size
+    (or (theme-component-ref theme 'field-select-lg-font-size)
+        field-lg-font-size))
+  (define field-select-lg-radius
+    (or (theme-component-ref theme 'field-select-lg-radius)
+        field-lg-radius))
   (define field-focus-bg
     (or (theme-component-ref theme 'field-focus-bg)
         field-bg))
@@ -7368,6 +7427,14 @@
     (cons "--we-field-border-width" field-border-width)
     (cons "--we-field-radius" field-radius)
     (cons "--we-field-select-radius" field-select-radius)
+    (cons "--we-field-select-sm-padding-x" field-select-sm-padding-x)
+    (cons "--we-field-select-sm-padding-y" field-select-sm-padding-y)
+    (cons "--we-field-select-sm-font-size" field-select-sm-font-size)
+    (cons "--we-field-select-sm-radius" field-select-sm-radius)
+    (cons "--we-field-select-lg-padding-x" field-select-lg-padding-x)
+    (cons "--we-field-select-lg-padding-y" field-select-lg-padding-y)
+    (cons "--we-field-select-lg-font-size" field-select-lg-font-size)
+    (cons "--we-field-select-lg-radius" field-select-lg-radius)
     (cons "--we-field-padding-x" field-padding-x)
     (cons "--we-field-padding-y" field-padding-y)
     (cons "--we-field-font-size" field-font-size)
@@ -8413,6 +8480,20 @@
      "  background-color: #e0e1e2;\n"
      "  border-color: #c9cacc;\n"
      "}\n"
+     ".form-select-sm {\n"
+     "  padding-top: 0.25rem;\n"
+     "  padding-bottom: 0.25rem;\n"
+     "  padding-left: 0.75rem;\n"
+     "  font-size: 0.875rem;\n"
+     "  border-radius: 0.125rem;\n"
+     "}\n"
+     ".form-select-lg {\n"
+     "  padding-top: 0.5rem;\n"
+     "  padding-bottom: 0.5rem;\n"
+     "  padding-left: 1.75rem;\n"
+     "  font-size: 1.25rem;\n"
+     "  border-radius: 0.25rem;\n"
+     "}\n"
      ".input-group-text {\n"
      "  padding: 0.75rem 1.5rem;\n"
      "  font-size: 1rem;\n"
@@ -9258,6 +9339,14 @@
     (check-equal? (hash-ref token-map "--we-field-lg-radius") "0.25rem")
     (check-equal? (hash-ref token-map "--we-field-lg-min-height")
                   "calc(1.5em + 1rem + calc(0 * 2))")
+    (check-equal? (hash-ref token-map "--we-field-select-sm-padding-x") "0.75rem")
+    (check-equal? (hash-ref token-map "--we-field-select-sm-padding-y") "0.25rem")
+    (check-equal? (hash-ref token-map "--we-field-select-sm-font-size") "0.875rem")
+    (check-equal? (hash-ref token-map "--we-field-select-sm-radius") "0.125rem")
+    (check-equal? (hash-ref token-map "--we-field-select-lg-padding-x") "1.75rem")
+    (check-equal? (hash-ref token-map "--we-field-select-lg-padding-y") "0.5rem")
+    (check-equal? (hash-ref token-map "--we-field-select-lg-font-size") "1.25rem")
+    (check-equal? (hash-ref token-map "--we-field-select-lg-radius") "0.25rem")
     (check-equal? (hash-ref token-map "--we-field-disabled-bg") "#e0e1e2")
     (check-equal? (hash-ref token-map "--we-field-disabled-color") "#55595c")
     (check-equal? (hash-ref token-map "--we-field-disabled-border-color") "#d0d1d2")
