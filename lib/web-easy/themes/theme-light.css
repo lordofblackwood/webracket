@@ -91,6 +91,9 @@ html.we-theme-light {
   --we-menu-item-hover-fg: #1a1f2b;
   --we-menu-item-active-bg: #e7f0ff;
   --we-menu-item-active-fg: #1a1f2b;
+  --we-menu-item-disabled-color: #6f7f99;
+  --we-menu-item-disabled-bg: transparent;
+  --we-menu-item-disabled-opacity: 1;
   /* Active tab bottom border color. */
   --we-tab-active-border:  #e7f0ff;
   --we-navbar-border-width: 1px;
@@ -402,6 +405,14 @@ html.we-theme-light .we-menu-item[aria-current='page'] {
   background: var(--we-menu-item-active-bg);
   color: var(--we-menu-item-active-fg);
   font-weight: var(--we-menu-item-font-weight);
+}
+
+html.we-theme-light .we-menu-item.is-disabled,
+html.we-theme-light .we-menu-item:disabled {
+  background: var(--we-menu-item-disabled-bg, transparent);
+  color: var(--we-menu-item-disabled-color, var(--we-fg-muted));
+  opacity: var(--we-menu-item-disabled-opacity, 1);
+  pointer-events: none;
 }
 
 html.we-theme-light .we-menu-label:focus-visible,

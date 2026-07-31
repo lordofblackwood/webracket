@@ -68,6 +68,9 @@ html.we-theme-sketchy {
   --we-menu-item-hover-fg: #212529;
   --we-menu-item-active-bg: #333;
   --we-menu-item-active-fg: #fff;
+  --we-menu-item-disabled-color: rgba(33, 37, 41, 0.5);
+  --we-menu-item-disabled-bg: transparent;
+  --we-menu-item-disabled-opacity: 1;
   --we-tab-active-border: #d6d6d6;
   --we-navbar-bg: #f8f9fa;
   --we-navbar-border: #dee2e6;
@@ -986,6 +989,14 @@ html.we-theme-sketchy .we-menu-item[aria-current='page'] {
   background: var(--we-menu-item-active-bg);
   color: var(--we-menu-item-active-fg);
   font-weight: var(--we-menu-item-font-weight);
+}
+
+html.we-theme-sketchy .we-menu-item.is-disabled,
+html.we-theme-sketchy .we-menu-item:disabled {
+  background: var(--we-menu-item-disabled-bg, transparent);
+  color: var(--we-menu-item-disabled-color, var(--we-fg-muted));
+  opacity: var(--we-menu-item-disabled-opacity, 1);
+  pointer-events: none;
 }
 
 html.we-theme-sketchy .we-menu-label:focus-visible,

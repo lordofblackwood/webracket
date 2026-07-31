@@ -68,6 +68,9 @@ html.we-theme-sandstone-boost {
   --we-menu-item-hover-fg: #8e8c84;
   --we-menu-item-active-bg: #f8f5f0;
   --we-menu-item-active-fg: #8e8c84;
+  --we-menu-item-disabled-color: rgba(62, 63, 58, 0.5);
+  --we-menu-item-disabled-bg: transparent;
+  --we-menu-item-disabled-opacity: 1;
   --we-tab-active-border: rgba(212, 221, 230, 0.931);
   --we-navbar-bg: #f8f9fa;
   --we-navbar-border: #dfd7ca;
@@ -986,6 +989,14 @@ html.we-theme-sandstone-boost .we-menu-item[aria-current='page'] {
   background: var(--we-menu-item-active-bg);
   color: var(--we-menu-item-active-fg);
   font-weight: var(--we-menu-item-font-weight);
+}
+
+html.we-theme-sandstone-boost .we-menu-item.is-disabled,
+html.we-theme-sandstone-boost .we-menu-item:disabled {
+  background: var(--we-menu-item-disabled-bg, transparent);
+  color: var(--we-menu-item-disabled-color, var(--we-fg-muted));
+  opacity: var(--we-menu-item-disabled-opacity, 1);
+  pointer-events: none;
 }
 
 html.we-theme-sandstone-boost .we-menu-label:focus-visible,

@@ -68,6 +68,9 @@ html.we-theme-superhero {
   --we-menu-item-hover-fg: #ebebeb;
   --we-menu-item-active-bg: #df6919;
   --we-menu-item-active-fg: #fff;
+  --we-menu-item-disabled-color: rgba(235, 235, 235, 0.5);
+  --we-menu-item-disabled-bg: transparent;
+  --we-menu-item-disabled-opacity: 1;
   --we-tab-active-border: #f9e1d1;
   --we-navbar-bg: #ebebeb;
   --we-navbar-border: #ced4da;
@@ -986,6 +989,14 @@ html.we-theme-superhero .we-menu-item[aria-current='page'] {
   background: var(--we-menu-item-active-bg);
   color: var(--we-menu-item-active-fg);
   font-weight: var(--we-menu-item-font-weight);
+}
+
+html.we-theme-superhero .we-menu-item.is-disabled,
+html.we-theme-superhero .we-menu-item:disabled {
+  background: var(--we-menu-item-disabled-bg, transparent);
+  color: var(--we-menu-item-disabled-color, var(--we-fg-muted));
+  opacity: var(--we-menu-item-disabled-opacity, 1);
+  pointer-events: none;
 }
 
 html.we-theme-superhero .we-menu-label:focus-visible,

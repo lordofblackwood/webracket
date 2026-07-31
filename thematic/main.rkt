@@ -944,6 +944,19 @@
         (selector-ref* computed-style-ref
                        '(".dropdown-item.active" ".dropdown-item:active")
                        "color")))
+  (define dropdown-item-disabled-color
+    (or (computed-custom-ref ".dropdown-menu" "--bs-dropdown-link-disabled-color")
+        (selector-ref* computed-style-ref
+                       '(".dropdown-item.disabled" ".dropdown-item:disabled")
+                       "color")))
+  (define dropdown-item-disabled-bg
+    (selector-ref* computed-style-ref
+                   '(".dropdown-item.disabled" ".dropdown-item:disabled")
+                   "background-color"))
+  (define dropdown-item-disabled-opacity
+    (selector-ref* computed-style-ref
+                   '(".dropdown-item.disabled" ".dropdown-item:disabled")
+                   "opacity"))
   (define tooltip-bg
     (or (computed-custom-ref ".tooltip" "--bs-tooltip-bg")
         (computed-style-ref ".tooltip-inner" "background-color")))
@@ -3209,6 +3222,9 @@
         'dropdown-item-hover-color dropdown-item-hover-color
         'dropdown-item-active-bg dropdown-item-active-bg
         'dropdown-item-active-color dropdown-item-active-color
+        'dropdown-item-disabled-color dropdown-item-disabled-color
+        'dropdown-item-disabled-bg dropdown-item-disabled-bg
+        'dropdown-item-disabled-opacity dropdown-item-disabled-opacity
         'tooltip-bg tooltip-bg
         'tooltip-color tooltip-color
         'tooltip-font-size tooltip-font-size
@@ -4715,6 +4731,15 @@
   (define menu-item-active-fg
     (or (theme-component-ref theme 'dropdown-item-active-color)
         (rgb->css emphasis-fg)))
+  (define menu-item-disabled-color
+    (or (theme-component-ref theme 'dropdown-item-disabled-color)
+        fg-muted))
+  (define menu-item-disabled-bg
+    (or (theme-component-ref theme 'dropdown-item-disabled-bg)
+        "transparent"))
+  (define menu-item-disabled-opacity
+    (or (theme-component-ref theme 'dropdown-item-disabled-opacity)
+        "1"))
   (define tooltip-bg
     (or (theme-component-ref theme 'tooltip-bg)
         popup-bg))
@@ -6613,6 +6638,9 @@
     (cons "--we-menu-item-hover-fg" menu-item-hover-fg)
     (cons "--we-menu-item-active-bg" menu-item-active-bg)
     (cons "--we-menu-item-active-fg" menu-item-active-fg)
+    (cons "--we-menu-item-disabled-color" menu-item-disabled-color)
+    (cons "--we-menu-item-disabled-bg" menu-item-disabled-bg)
+    (cons "--we-menu-item-disabled-opacity" menu-item-disabled-opacity)
     (cons "--we-tab-active-border" bg-selected)
     (cons "--we-navbar-bg" navbar-bg)
     (cons "--we-navbar-border" navbar-border)
@@ -7698,6 +7726,7 @@
      "  --bs-dropdown-item-padding-y: 0.25rem;\n"
      "  --bs-dropdown-link-active-bg: #1a1a1a;\n"
      "  --bs-dropdown-link-active-color: #ffffff;\n"
+     "  --bs-dropdown-link-disabled-color: #adb5bd;\n"
      "  font-size: 0.875rem;\n"
      "  font-weight: 300;\n"
      "  line-height: 1.5;\n"
@@ -7721,6 +7750,11 @@
      ".dropdown-item:hover {\n"
      "  color: #1a1a1a;\n"
      "  background-color: #f0f1f2;\n"
+     "}\n"
+     ".dropdown-item.disabled,\n"
+     ".dropdown-item:disabled {\n"
+     "  color: var(--bs-dropdown-link-disabled-color);\n"
+     "  background-color: transparent;\n"
      "}\n"
      ".tooltip {\n"
      "  --bs-tooltip-bg: #1a1a1a;\n"
@@ -8983,6 +9017,9 @@
     (check-equal? (hash-ref token-map "--we-menu-item-text-transform") "uppercase")
     (check-equal? (hash-ref token-map "--we-menu-item-active-bg") "#1a1a1a")
     (check-equal? (hash-ref token-map "--we-menu-item-active-fg") "#ffffff")
+    (check-equal? (hash-ref token-map "--we-menu-item-disabled-color") "#adb5bd")
+    (check-equal? (hash-ref token-map "--we-menu-item-disabled-bg") "transparent")
+    (check-equal? (hash-ref token-map "--we-menu-item-disabled-opacity") "1")
     (check-equal? (hash-ref token-map "--we-tooltip-bg") "#1a1a1a")
     (check-equal? (hash-ref token-map "--we-tooltip-color") "#ffffff")
     (check-equal? (hash-ref token-map "--we-tooltip-font-weight") "500")
