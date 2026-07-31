@@ -144,6 +144,7 @@ html.we-theme-superhero {
   --we-button-font-size: 1rem;
   --we-button-font-weight: 400;
   --we-button-line-height: 1.5;
+  --we-button-letter-spacing: revert;
   --we-button-border-width: 1px;
   --we-button-outline-border-width: 1px;
   --we-button-radius: 0;
@@ -154,6 +155,9 @@ html.we-theme-superhero {
   --we-button-secondary-hover-bg: #424f5c;
   --we-button-secondary-hover-border: #3e4a56;
   --we-button-secondary-hover-color: #fff;
+  --we-button-secondary-active-bg: #3e4a56;
+  --we-button-secondary-active-border: #3b4651;
+  --we-button-secondary-active-color: #fff;
   --we-button-primary-disabled-bg: #df6919;
   --we-button-primary-disabled-border: #df6919;
   --we-button-primary-disabled-color: #fff;
@@ -765,7 +769,7 @@ html.we-theme-superhero .we-menu-label {
   appearance: none;
   display: inline-flex;
   align-items: center;
-  gap: 0.45rem;
+  gap: 0.255em;
   padding: 4px 10px;
   /* Transparent border reserves space so state changes do not shift layout. */
   border: 1px solid color-mix(in srgb, var(--we-menu-divider-color) 72%, var(--we-menu-popup-bg));
@@ -779,9 +783,9 @@ html.we-theme-superhero .we-menu-label[aria-expanded]::after {
   content: "";
   width: 0;
   height: 0;
-  border-left: 0.28rem solid transparent;
-  border-right: 0.28rem solid transparent;
-  border-top: 0.34rem solid currentColor;
+  border-left: 0.3em solid transparent;
+  border-right: 0.3em solid transparent;
+  border-top: 0.3em solid currentColor;
   opacity: 0.82;
 }
 
@@ -802,6 +806,7 @@ html.we-theme-superhero .we-menu-label[aria-expanded='true']::after {
 }
 
 html.we-theme-superhero .we-button.we-menu-label {
+  display: inline-flex;
   background: var(--we-button-secondary-bg);
   border-color: var(--we-button-secondary-border);
   color: var(--we-button-secondary-color);
@@ -811,11 +816,16 @@ html.we-theme-superhero .we-button.we-menu-label {
   text-transform: var(--we-button-text-transform);
 }
 
-html.we-theme-superhero .we-button.we-menu-label:hover,
-html.we-theme-superhero .we-button.we-menu-label[aria-expanded='true'] {
+html.we-theme-superhero .we-button.we-menu-label:hover {
   background: var(--we-button-secondary-hover-bg);
   border-color: var(--we-button-secondary-hover-border);
   color: var(--we-button-secondary-hover-color);
+}
+
+html.we-theme-superhero .we-button.we-menu-label[aria-expanded='true'] {
+  background: var(--we-button-secondary-active-bg, var(--we-button-secondary-hover-bg));
+  border-color: var(--we-button-secondary-active-border, var(--we-button-secondary-hover-border));
+  color: var(--we-button-secondary-active-color, var(--we-button-secondary-hover-color));
 }
 
 html.we-theme-superhero .we-menu-popup {
@@ -1119,7 +1129,15 @@ html.we-theme-superhero .we-button {
   font-size: var(--we-button-font-size);
   font-weight: var(--we-button-font-weight);
   line-height: var(--we-button-line-height);
+  letter-spacing: var(--we-button-letter-spacing, revert);
   text-transform: var(--we-button-text-transform);
+}
+
+html.we-theme-superhero .we-button {
+  display: inline-block;
+  text-align: center;
+  text-decoration: none;
+  vertical-align: middle;
 }
 
 /* The close icon is CSS-driven; override this selector to use another glyph. */

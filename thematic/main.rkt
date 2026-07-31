@@ -1134,6 +1134,8 @@
   (define btn-line-height
     (or (button-style-ref ".btn" "line-height")
         (button-custom-ref ".btn" "--bs-btn-line-height")))
+  (define btn-letter-spacing
+    (button-direct-ref '(".btn") "letter-spacing"))
   (define btn-border-width
     (or (button-direct-ref '(".btn") "border-width")
         (button-custom-ref ".btn" "--bs-btn-border-width")
@@ -1164,6 +1166,18 @@
   (define btn-secondary-hover-border
     (or (button-custom-ref ".btn-secondary" "--bs-btn-hover-border-color")
         (button-style-ref ".btn-secondary:hover" "border-color")))
+  (define btn-secondary-active-bg
+    (or (button-custom-ref ".btn-secondary" "--bs-btn-active-bg")
+        (button-style-ref ".btn-secondary.show" "background-color")
+        (button-style-ref ".btn-secondary.active" "background-color")))
+  (define btn-secondary-active-border
+    (or (button-custom-ref ".btn-secondary" "--bs-btn-active-border-color")
+        (button-style-ref ".btn-secondary.show" "border-color")
+        (button-style-ref ".btn-secondary.active" "border-color")))
+  (define btn-secondary-active-color
+    (or (button-custom-ref ".btn-secondary" "--bs-btn-active-color")
+        (button-style-ref ".btn-secondary.show" "color")
+        (button-style-ref ".btn-secondary.active" "color")))
   (define btn-primary-disabled-bg
     (or (button-custom-ref ".btn-primary" "--bs-btn-disabled-bg")
         (button-style-ref ".btn-primary:disabled" "background-color")))
@@ -2870,6 +2884,7 @@
         'btn-font-size btn-font-size
         'btn-font-weight btn-font-weight
         'btn-line-height btn-line-height
+        'btn-letter-spacing btn-letter-spacing
         'btn-border-width btn-border-width
         'btn-outline-border-width btn-outline-border-width
         'btn-radius btn-radius
@@ -2880,6 +2895,9 @@
         'btn-secondary-color btn-secondary-color
         'btn-secondary-hover-bg btn-secondary-hover-bg
         'btn-secondary-hover-border btn-secondary-hover-border
+        'btn-secondary-active-bg btn-secondary-active-bg
+        'btn-secondary-active-border btn-secondary-active-border
+        'btn-secondary-active-color btn-secondary-active-color
         'btn-primary-disabled-bg btn-primary-disabled-bg
         'btn-primary-disabled-border btn-primary-disabled-border
         'btn-primary-disabled-color btn-primary-disabled-color
@@ -4380,6 +4398,9 @@
   (define button-line-height
     (or (theme-component-ref theme 'btn-line-height)
         "1.25"))
+  (define button-letter-spacing
+    (or (theme-component-ref theme 'btn-letter-spacing)
+        "revert"))
   (define button-border-width
     (or (theme-component-ref theme 'btn-border-width)
         "1px"))
@@ -4412,6 +4433,15 @@
   (define button-secondary-hover-color
     (or (theme-component-ref theme 'btn-outline-secondary-hover-color)
         button-secondary-color))
+  (define button-secondary-active-bg
+    (or (theme-component-ref theme 'btn-secondary-active-bg)
+        button-secondary-hover-bg))
+  (define button-secondary-active-border
+    (or (theme-component-ref theme 'btn-secondary-active-border)
+        button-secondary-hover-border))
+  (define button-secondary-active-color
+    (or (theme-component-ref theme 'btn-secondary-active-color)
+        button-secondary-hover-color))
   (define button-primary-disabled-bg
     (or (theme-component-ref theme 'btn-primary-disabled-bg)
         (bootstrap-theme-primary theme)))
@@ -5954,6 +5984,7 @@
     (cons "--we-button-font-size" button-font-size)
     (cons "--we-button-font-weight" button-font-weight)
     (cons "--we-button-line-height" button-line-height)
+    (cons "--we-button-letter-spacing" button-letter-spacing)
     (cons "--we-button-border-width" button-border-width)
     (cons "--we-button-outline-border-width" button-outline-border-width)
     (cons "--we-button-radius" button-radius)
@@ -5964,6 +5995,9 @@
     (cons "--we-button-secondary-hover-bg" button-secondary-hover-bg)
     (cons "--we-button-secondary-hover-border" button-secondary-hover-border)
     (cons "--we-button-secondary-hover-color" button-secondary-hover-color)
+    (cons "--we-button-secondary-active-bg" button-secondary-active-bg)
+    (cons "--we-button-secondary-active-border" button-secondary-active-border)
+    (cons "--we-button-secondary-active-color" button-secondary-active-color)
     (cons "--we-button-primary-disabled-bg" button-primary-disabled-bg)
     (cons "--we-button-primary-disabled-border" button-primary-disabled-border)
     (cons "--we-button-primary-disabled-color" button-primary-disabled-color)
@@ -7002,6 +7036,7 @@
       "  --bs-btn-border-width: 1px;\n"
       "  --bs-btn-disabled-opacity: 0.65;\n"
       "  --bs-btn-border-radius: 0.375rem;\n"
+      "  letter-spacing: 0.02em;\n"
       "  text-transform: uppercase;\n"
       "}\n"
      "button {\n"
@@ -7013,6 +7048,9 @@
      "  --bs-btn-border-color: #fff;\n"
      "  --bs-btn-hover-bg: #f0f1f2;\n"
      "  --bs-btn-hover-border-color: #f0f1f2;\n"
+     "  --bs-btn-active-color: #000;\n"
+     "  --bs-btn-active-bg: #e0e1e2;\n"
+     "  --bs-btn-active-border-color: #d0d1d2;\n"
      "}\n"
      ".btn-primary {\n"
      "  --bs-btn-color: #fff;\n"
@@ -7823,6 +7861,7 @@
     (define rules (read-css-rules button-card-bootstrap))
     (define token-map (bootstrap-rules->token-map rules))
     (check-equal? (hash-ref token-map "--we-button-padding-x") "1.5rem")
+    (check-equal? (hash-ref token-map "--we-button-letter-spacing") "0.02em")
     (check-equal? (hash-ref token-map "--we-button-text-transform") "uppercase")
     (check-equal? (hash-ref token-map "--we-button-border-width") "1px")
     (check-equal? (hash-ref token-map "--we-button-disabled-opacity") "0.65")
@@ -7830,6 +7869,9 @@
     (check-equal? (hash-ref token-map "--we-button-radius") "0")
     (check-equal? (hash-ref token-map "--we-button-outline-secondary-border") "#f8f9fa")
     (check-equal? (hash-ref token-map "--we-button-secondary-bg") "#fff")
+    (check-equal? (hash-ref token-map "--we-button-secondary-active-bg") "#e0e1e2")
+    (check-equal? (hash-ref token-map "--we-button-secondary-active-border") "#d0d1d2")
+    (check-equal? (hash-ref token-map "--we-button-secondary-active-color") "#000")
     (check-equal? (hash-ref token-map "--we-primary-on") "#fff")
     (check-equal? (hash-ref token-map "--we-dark-on") "#fff")
     (check-equal? (hash-ref token-map "--we-button-success-color") "#fff")

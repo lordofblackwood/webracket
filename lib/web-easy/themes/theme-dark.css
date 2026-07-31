@@ -314,7 +314,7 @@ html.we-theme-dark .we-menu-label {
   appearance: none;
   display: inline-flex;
   align-items: center;
-  gap: 0.45rem;
+  gap: 0.255em;
   padding: 4px 10px;
   /* Transparent border reserves space so state changes do not shift layout. */
   border: 1px solid color-mix(in srgb, var(--we-menu-divider-color) 72%, var(--we-menu-popup-bg));
@@ -328,9 +328,9 @@ html.we-theme-dark .we-menu-label[aria-expanded]::after {
   content: "";
   width: 0;
   height: 0;
-  border-left: 0.28rem solid transparent;
-  border-right: 0.28rem solid transparent;
-  border-top: 0.34rem solid currentColor;
+  border-left: 0.3em solid transparent;
+  border-right: 0.3em solid transparent;
+  border-top: 0.3em solid currentColor;
   opacity: 0.82;
 }
 
@@ -351,6 +351,7 @@ html.we-theme-dark .we-menu-label[aria-expanded='true']::after {
 }
 
 html.we-theme-dark .we-button.we-menu-label {
+  display: inline-flex;
   background: var(--we-button-secondary-bg);
   border-color: var(--we-button-secondary-border);
   color: var(--we-button-secondary-color);
@@ -360,11 +361,16 @@ html.we-theme-dark .we-button.we-menu-label {
   text-transform: var(--we-button-text-transform);
 }
 
-html.we-theme-dark .we-button.we-menu-label:hover,
-html.we-theme-dark .we-button.we-menu-label[aria-expanded='true'] {
+html.we-theme-dark .we-button.we-menu-label:hover {
   background: var(--we-button-secondary-hover-bg);
   border-color: var(--we-button-secondary-hover-border);
   color: var(--we-button-secondary-hover-color);
+}
+
+html.we-theme-dark .we-button.we-menu-label[aria-expanded='true'] {
+  background: var(--we-button-secondary-active-bg, var(--we-button-secondary-hover-bg));
+  border-color: var(--we-button-secondary-active-border, var(--we-button-secondary-hover-border));
+  color: var(--we-button-secondary-active-color, var(--we-button-secondary-hover-color));
 }
 
 html.we-theme-dark .we-menu-header {
@@ -622,7 +628,15 @@ html.we-theme-dark .we-button {
   font-size: var(--we-button-font-size);
   font-weight: var(--we-button-font-weight);
   line-height: var(--we-button-line-height);
+  letter-spacing: var(--we-button-letter-spacing, revert);
   text-transform: var(--we-button-text-transform);
+}
+
+html.we-theme-dark .we-button {
+  display: inline-block;
+  text-align: center;
+  text-decoration: none;
+  vertical-align: middle;
 }
 
 html.we-theme-dark button:not(:disabled):hover,
