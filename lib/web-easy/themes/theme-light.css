@@ -501,6 +501,26 @@ html.we-theme-light .we-input {
   padding: var(--we-field-padding-y) var(--we-field-padding-x);
 }
 
+html.we-theme-light .we-input.we-input-sm,
+html.we-theme-light input.we-input.we-input-sm:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+html.we-theme-light textarea.we-input.we-input-sm {
+  min-height: var(--we-field-sm-min-height, calc(1.5em + 0.5rem + calc(var(--we-field-border-width, 1px) * 2)));
+  border-radius: var(--we-field-sm-radius, var(--we-radius-sm, var(--we-field-radius)));
+  font-size: var(--we-field-sm-font-size, var(--we-font-size-sm, 0.875rem));
+  line-height: var(--we-field-sm-line-height, var(--we-field-line-height, var(--we-body-line-height, 1.5)));
+  padding: var(--we-field-sm-padding-y, 0.25rem) var(--we-field-sm-padding-x, 0.5rem);
+}
+
+html.we-theme-light .we-input.we-input-lg,
+html.we-theme-light input.we-input.we-input-lg:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+html.we-theme-light textarea.we-input.we-input-lg {
+  min-height: var(--we-field-lg-min-height, calc(1.5em + 1rem + calc(var(--we-field-border-width, 1px) * 2)));
+  border-radius: var(--we-field-lg-radius, var(--we-radius-lg, var(--we-field-radius)));
+  font-size: var(--we-field-lg-font-size, 1.25rem);
+  line-height: var(--we-field-lg-line-height, var(--we-field-line-height, var(--we-body-line-height, 1.5)));
+  padding: var(--we-field-lg-padding-y, 0.5rem) var(--we-field-lg-padding-x, 1rem);
+}
+
 html.we-theme-light .we-floating-field {
   position: relative;
 }

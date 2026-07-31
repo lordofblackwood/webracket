@@ -540,6 +540,18 @@ html.we-theme-sandstone {
   --we-field-font-size: 1rem;
   --we-field-line-height: 1.5;
   --we-field-font-weight: 400;
+  --we-field-sm-padding-x: 0.5rem;
+  --we-field-sm-padding-y: 0.25rem;
+  --we-field-sm-font-size: 0.875rem;
+  --we-field-sm-line-height: 1.5;
+  --we-field-sm-radius: 0.25rem;
+  --we-field-sm-min-height: calc(1.5em + 0.5rem + calc(1px * 2));
+  --we-field-lg-padding-x: 1rem;
+  --we-field-lg-padding-y: 0.5rem;
+  --we-field-lg-font-size: 1.25rem;
+  --we-field-lg-line-height: 1.5;
+  --we-field-lg-radius: 0.5rem;
+  --we-field-lg-min-height: calc(1.5em + 1rem + calc(1px * 2));
   --we-field-select-icon: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%233e3f3a' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e");
   --we-field-select-padding-right: 2.25rem;
   --we-field-focus-bg: #fff;
@@ -1083,6 +1095,26 @@ html.we-theme-sandstone .we-input {
   line-height: var(--we-field-line-height, var(--we-body-line-height, 1.5));
   font-weight: var(--we-field-font-weight);
   padding: var(--we-field-padding-y) var(--we-field-padding-x);
+}
+
+html.we-theme-sandstone .we-input.we-input-sm,
+html.we-theme-sandstone input.we-input.we-input-sm:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+html.we-theme-sandstone textarea.we-input.we-input-sm {
+  min-height: var(--we-field-sm-min-height, calc(1.5em + 0.5rem + calc(var(--we-field-border-width, 1px) * 2)));
+  border-radius: var(--we-field-sm-radius, var(--we-radius-sm, var(--we-field-radius)));
+  font-size: var(--we-field-sm-font-size, var(--we-font-size-sm, 0.875rem));
+  line-height: var(--we-field-sm-line-height, var(--we-field-line-height, var(--we-body-line-height, 1.5)));
+  padding: var(--we-field-sm-padding-y, 0.25rem) var(--we-field-sm-padding-x, 0.5rem);
+}
+
+html.we-theme-sandstone .we-input.we-input-lg,
+html.we-theme-sandstone input.we-input.we-input-lg:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+html.we-theme-sandstone textarea.we-input.we-input-lg {
+  min-height: var(--we-field-lg-min-height, calc(1.5em + 1rem + calc(var(--we-field-border-width, 1px) * 2)));
+  border-radius: var(--we-field-lg-radius, var(--we-radius-lg, var(--we-field-radius)));
+  font-size: var(--we-field-lg-font-size, 1.25rem);
+  line-height: var(--we-field-lg-line-height, var(--we-field-line-height, var(--we-body-line-height, 1.5)));
+  padding: var(--we-field-lg-padding-y, 0.5rem) var(--we-field-lg-padding-x, 1rem);
 }
 
 html.we-theme-sandstone .we-floating-field {

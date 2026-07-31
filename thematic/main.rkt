@@ -2526,6 +2526,10 @@
     (make-computed-selector-refs props rules))
   (define field-context-selectors
     '(".form-control" ".form-select"))
+  (define field-sm-selectors
+    '(".form-control.form-control-sm" ".form-control-sm"))
+  (define field-lg-selectors
+    '(".form-control.form-control-lg" ".form-control-lg"))
   (define (field-context-ref key)
     (or (for/or ([selector (in-list field-context-selectors)])
           (field-custom-ref selector key))
@@ -2536,6 +2540,9 @@
                                    selectors
                                    property
                                    field-context-ref))
+  (define (field-size-radius selectors)
+    (or (field-direct-ref selectors "border-radius")
+        (selector-ref* field-style-ref selectors "border-radius")))
   (define field-border-shorthand
     (field-direct-ref field-context-selectors "border"))
   (define field-bg
@@ -2585,6 +2592,34 @@
     (or (field-style-ref ".form-control" "font-weight")
         (field-style-ref ".form-select" "font-weight")
         (hash-ref props "--bs-body-font-weight" #f)))
+  (define field-sm-padding-x
+    (selector-ref* field-style-ref field-sm-selectors "padding-left"))
+  (define field-sm-padding-y
+    (selector-ref* field-style-ref field-sm-selectors "padding-top"))
+  (define field-sm-font-size
+    (selector-ref* field-style-ref field-sm-selectors "font-size"))
+  (define field-sm-line-height
+    (selector-ref* field-style-ref field-sm-selectors "line-height"))
+  (define field-sm-radius
+    (field-size-radius '(".form-control.form-control-sm"
+                         ".form-control-sm"
+                         ".form-control")))
+  (define field-sm-min-height
+    (selector-ref* field-style-ref field-sm-selectors "min-height"))
+  (define field-lg-padding-x
+    (selector-ref* field-style-ref field-lg-selectors "padding-left"))
+  (define field-lg-padding-y
+    (selector-ref* field-style-ref field-lg-selectors "padding-top"))
+  (define field-lg-font-size
+    (selector-ref* field-style-ref field-lg-selectors "font-size"))
+  (define field-lg-line-height
+    (selector-ref* field-style-ref field-lg-selectors "line-height"))
+  (define field-lg-radius
+    (field-size-radius '(".form-control.form-control-lg"
+                         ".form-control-lg"
+                         ".form-control")))
+  (define field-lg-min-height
+    (selector-ref* field-style-ref field-lg-selectors "min-height"))
   (define field-select-icon
     (or (field-custom-ref ".form-select" "--bs-form-select-bg-img")
         (field-style-ref ".form-select" "background-image")))
@@ -3745,6 +3780,18 @@
         'field-padding-y field-padding-y
         'field-font-size field-font-size
         'field-font-weight field-font-weight
+        'field-sm-padding-x field-sm-padding-x
+        'field-sm-padding-y field-sm-padding-y
+        'field-sm-font-size field-sm-font-size
+        'field-sm-line-height field-sm-line-height
+        'field-sm-radius field-sm-radius
+        'field-sm-min-height field-sm-min-height
+        'field-lg-padding-x field-lg-padding-x
+        'field-lg-padding-y field-lg-padding-y
+        'field-lg-font-size field-lg-font-size
+        'field-lg-line-height field-lg-line-height
+        'field-lg-radius field-lg-radius
+        'field-lg-min-height field-lg-min-height
         'field-select-icon field-select-icon
         'field-select-padding-right field-select-padding-right
         'field-focus-bg field-focus-bg
@@ -6139,6 +6186,42 @@
   (define field-font-weight
     (or (theme-component-ref theme 'field-font-weight)
         (bootstrap-theme-font-weight-normal theme)))
+  (define field-sm-padding-x
+    (or (theme-component-ref theme 'field-sm-padding-x)
+        "0.5rem"))
+  (define field-sm-padding-y
+    (or (theme-component-ref theme 'field-sm-padding-y)
+        "0.25rem"))
+  (define field-sm-font-size
+    (or (theme-component-ref theme 'field-sm-font-size)
+        (bootstrap-theme-font-size-sm theme)))
+  (define field-sm-line-height
+    (or (theme-component-ref theme 'field-sm-line-height)
+        field-line-height))
+  (define field-sm-radius
+    (or (theme-component-ref theme 'field-sm-radius)
+        (bootstrap-theme-radius-sm theme)))
+  (define field-sm-min-height
+    (or (theme-component-ref theme 'field-sm-min-height)
+        "calc(1.5em + 0.5rem + calc(var(--we-field-border-width, 1px) * 2))"))
+  (define field-lg-padding-x
+    (or (theme-component-ref theme 'field-lg-padding-x)
+        "1rem"))
+  (define field-lg-padding-y
+    (or (theme-component-ref theme 'field-lg-padding-y)
+        "0.5rem"))
+  (define field-lg-font-size
+    (or (theme-component-ref theme 'field-lg-font-size)
+        "1.25rem"))
+  (define field-lg-line-height
+    (or (theme-component-ref theme 'field-lg-line-height)
+        field-line-height))
+  (define field-lg-radius
+    (or (theme-component-ref theme 'field-lg-radius)
+        (bootstrap-theme-radius-lg theme)))
+  (define field-lg-min-height
+    (or (theme-component-ref theme 'field-lg-min-height)
+        "calc(1.5em + 1rem + calc(var(--we-field-border-width, 1px) * 2))"))
   (define field-focus-bg
     (or (theme-component-ref theme 'field-focus-bg)
         field-bg))
@@ -7290,6 +7373,18 @@
     (cons "--we-field-font-size" field-font-size)
     (cons "--we-field-line-height" field-line-height)
     (cons "--we-field-font-weight" field-font-weight)
+    (cons "--we-field-sm-padding-x" field-sm-padding-x)
+    (cons "--we-field-sm-padding-y" field-sm-padding-y)
+    (cons "--we-field-sm-font-size" field-sm-font-size)
+    (cons "--we-field-sm-line-height" field-sm-line-height)
+    (cons "--we-field-sm-radius" field-sm-radius)
+    (cons "--we-field-sm-min-height" field-sm-min-height)
+    (cons "--we-field-lg-padding-x" field-lg-padding-x)
+    (cons "--we-field-lg-padding-y" field-lg-padding-y)
+    (cons "--we-field-lg-font-size" field-lg-font-size)
+    (cons "--we-field-lg-line-height" field-lg-line-height)
+    (cons "--we-field-lg-radius" field-lg-radius)
+    (cons "--we-field-lg-min-height" field-lg-min-height)
     (cons "--we-field-select-icon" (or (theme-component-ref theme 'field-select-icon) "none"))
     (cons "--we-field-select-padding-right"
           (or (theme-component-ref theme 'field-select-padding-right)
@@ -8286,6 +8381,20 @@
      "  border-color: #d0d1d2;\n"
      "  opacity: 1;\n"
      "}\n"
+     ".form-control-sm {\n"
+     "  min-height: calc(1.5em + 0.5rem + calc(0 * 2));\n"
+     "  padding: 0.25rem 0.75rem;\n"
+     "  font-size: 0.875rem;\n"
+     "  line-height: 1.5;\n"
+     "  border-radius: 0.125rem;\n"
+     "}\n"
+     ".form-control-lg {\n"
+     "  min-height: calc(1.5em + 1rem + calc(0 * 2));\n"
+     "  padding: 0.5rem 1.75rem;\n"
+     "  font-size: 1.25rem;\n"
+     "  line-height: 1.5;\n"
+     "  border-radius: 0.25rem;\n"
+     "}\n"
      "textarea.form-control {\n"
      "  min-height: 3rem;\n"
      "}\n"
@@ -9139,6 +9248,16 @@
     (check-equal? (hash-ref token-map "--we-field-border-color") "#b0b1b2")
     (check-equal? (hash-ref token-map "--we-field-padding-x") "1.5rem")
     (check-equal? (hash-ref token-map "--we-field-font-weight") "300")
+    (check-equal? (hash-ref token-map "--we-field-sm-padding-x") "0.75rem")
+    (check-equal? (hash-ref token-map "--we-field-sm-font-size") "0.875rem")
+    (check-equal? (hash-ref token-map "--we-field-sm-radius") "0.125rem")
+    (check-equal? (hash-ref token-map "--we-field-sm-min-height")
+                  "calc(1.5em + 0.5rem + calc(0 * 2))")
+    (check-equal? (hash-ref token-map "--we-field-lg-padding-x") "1.75rem")
+    (check-equal? (hash-ref token-map "--we-field-lg-font-size") "1.25rem")
+    (check-equal? (hash-ref token-map "--we-field-lg-radius") "0.25rem")
+    (check-equal? (hash-ref token-map "--we-field-lg-min-height")
+                  "calc(1.5em + 1rem + calc(0 * 2))")
     (check-equal? (hash-ref token-map "--we-field-disabled-bg") "#e0e1e2")
     (check-equal? (hash-ref token-map "--we-field-disabled-color") "#55595c")
     (check-equal? (hash-ref token-map "--we-field-disabled-border-color") "#d0d1d2")
