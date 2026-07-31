@@ -1028,6 +1028,11 @@
   (define popover-border-width
     (or (computed-custom-ref ".popover" "--bs-popover-border-width")
         (computed-style-ref ".popover" "border-width")))
+  (define popover-arrow-border-color
+    (or (selector-ref* computed-custom-ref
+                       '(".popover .popover-arrow" ".popover")
+                       "--bs-popover-arrow-border")
+        popover-border-color))
   (define popover-radius-authored?
     (direct-declaration-exists? '(".popover") '("border-radius")))
   (define popover-radius
@@ -2739,6 +2744,7 @@
         'popover-color popover-color
         'popover-border-color popover-border-color
         'popover-border-width popover-border-width
+        'popover-arrow-border-color popover-arrow-border-color
         'popover-radius popover-radius
         'popover-shadow popover-shadow
         'popover-arrow-width popover-arrow-width
@@ -4177,6 +4183,9 @@
   (define popover-arrow-height
     (or (theme-component-ref theme 'popover-arrow-height)
         "0.5rem"))
+  (define popover-arrow-border-color
+    (or (theme-component-ref theme 'popover-arrow-border-color)
+        popover-border-color))
   (define popover-header-bg
     (or (theme-component-ref theme 'popover-header-bg)
         (hash-ref surface-map 'surface-muted)))
@@ -5925,6 +5934,7 @@
     (cons "--we-popover-shadow" popover-shadow)
     (cons "--we-popover-arrow-width" popover-arrow-width)
     (cons "--we-popover-arrow-height" popover-arrow-height)
+    (cons "--we-popover-arrow-border-color" popover-arrow-border-color)
     (cons "--we-popover-header-bg" popover-header-bg)
     (cons "--we-popover-header-color" popover-header-color)
     (cons "--we-popover-header-padding-x" popover-header-padding-x)
@@ -6698,6 +6708,7 @@
      "  --bs-popover-box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);\n"
      "  --bs-popover-arrow-width: 1rem;\n"
      "  --bs-popover-arrow-height: 0.5rem;\n"
+     "  --bs-popover-arrow-border: #c9c9c9;\n"
      "  --bs-popover-header-bg: #f7f7f7;\n"
      "  --bs-popover-header-color: #1a1a1a;\n"
      "  --bs-popover-header-padding-x: 1rem;\n"
@@ -7795,6 +7806,7 @@
     (check-equal? (hash-ref token-map "--we-popover-font-size") "0.875rem")
     (check-equal? (hash-ref token-map "--we-popover-arrow-width") "1rem")
     (check-equal? (hash-ref token-map "--we-popover-arrow-height") "0.5rem")
+    (check-equal? (hash-ref token-map "--we-popover-arrow-border-color") "#c9c9c9")
     (check-equal? (hash-ref token-map "--we-popover-header-bg") "#f7f7f7")
     (check-equal? (hash-ref token-map "--we-popover-body-padding-x") "1rem")
     (check-equal? (hash-ref token-map "--we-popover-body-radius-bottom-left") "0.25rem")

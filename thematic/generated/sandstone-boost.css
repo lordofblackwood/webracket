@@ -333,6 +333,7 @@ html.we-theme-sandstone-boost {
   --we-popover-shadow: none;
   --we-popover-arrow-width: 1rem;
   --we-popover-arrow-height: 0.5rem;
+  --we-popover-arrow-border-color: rgba(0, 0, 0, 0.175);
   --we-popover-header-bg: #f8f5f0;
   --we-popover-header-color: #3e3f3a;
   --we-popover-header-padding-x: 1rem;
@@ -2638,27 +2639,34 @@ html.we-theme-sandstone-boost .we-popover-panel::before {
 
 html.we-theme-sandstone-boost .we-popover-arrow {
   position: absolute;
-  top: calc(-1 * var(--we-popover-arrow-height));
+  top: calc(-1 * (var(--we-popover-arrow-height) + var(--we-popover-border-width)));
   left: calc(50% - (var(--we-popover-arrow-width) * 0.5));
   width: var(--we-popover-arrow-width);
   height: var(--we-popover-arrow-height);
-  overflow: hidden;
+  overflow: visible;
   z-index: 2;
 }
 
-html.we-theme-sandstone-boost .we-popover-arrow::before {
+html.we-theme-sandstone-boost .we-popover-arrow::before,
+html.we-theme-sandstone-boost .we-popover-arrow::after {
   position: absolute;
-  top: calc(var(--we-popover-arrow-height) * 0.5);
-  left: calc(50% - (var(--we-popover-arrow-height) * 0.5));
-  width: var(--we-popover-arrow-height);
-  height: var(--we-popover-arrow-height);
+  display: block;
+  width: 0;
+  height: 0;
   content: "";
-  background:
-    linear-gradient(var(--we-popover-header-bg), var(--we-popover-header-bg)),
-    var(--we-popover-bg);
-  border-top: var(--we-popover-border-width) solid var(--we-popover-border-color);
-  border-left: var(--we-popover-border-width) solid var(--we-popover-border-color);
-  transform: rotate(45deg);
+  border-color: transparent;
+  border-style: solid;
+  border-width: 0 calc(var(--we-popover-arrow-width) * 0.5) var(--we-popover-arrow-height);
+}
+
+html.we-theme-sandstone-boost .we-popover-arrow::before {
+  top: 0;
+  border-bottom-color: var(--we-popover-arrow-border-color, var(--we-popover-border-color));
+}
+
+html.we-theme-sandstone-boost .we-popover-arrow::after {
+  top: var(--we-popover-border-width);
+  border-bottom-color: var(--we-popover-bg);
 }
 
 html.we-theme-sandstone-boost .we-offcanvas-panel {
