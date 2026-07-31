@@ -2304,6 +2304,42 @@
                                    selectors
                                    property
                                    check-context-ref))
+  (define form-check-label-selectors
+    '(".form-check-label" "label"))
+  (define form-check-label-font-family
+    (selector-ref* check-style-ref
+                   form-check-label-selectors
+                   "font-family"))
+  (define form-check-label-font-size
+    (or (selector-ref* check-style-ref
+                       form-check-label-selectors
+                       "font-size")
+        (hash-ref props "--bs-body-font-size" #f)))
+  (define form-check-label-font-weight
+    (or (selector-ref* check-style-ref
+                       form-check-label-selectors
+                       "font-weight")
+        (hash-ref props "--bs-body-font-weight" #f)))
+  (define form-check-label-line-height
+    (or (selector-ref* check-style-ref
+                       form-check-label-selectors
+                       "line-height")
+        (hash-ref props "--bs-body-line-height" #f)))
+  (define form-check-label-letter-spacing
+    (or (selector-ref* check-style-ref
+                       form-check-label-selectors
+                       "letter-spacing")
+        (hash-ref props "--bs-body-letter-spacing" #f)))
+  (define form-check-label-text-transform
+    (or (selector-ref* check-style-ref
+                       form-check-label-selectors
+                       "text-transform")
+        "none"))
+  (define form-check-label-color
+    (or (selector-ref* check-style-ref
+                       form-check-label-selectors
+                       "color")
+        (hash-ref props "--bs-body-color" #f)))
   (define check-bg
     (or (check-custom-ref ".form-check-input" "--bs-form-check-bg")
         (check-style-ref ".form-check-input" "background-color")))
@@ -3204,6 +3240,13 @@
         'check-after-font-size check-after-font-size
         'check-after-line-height check-after-line-height
         'check-after-color check-after-color
+        'form-check-label-font-family form-check-label-font-family
+        'form-check-label-font-size form-check-label-font-size
+        'form-check-label-font-weight form-check-label-font-weight
+        'form-check-label-line-height form-check-label-line-height
+        'form-check-label-letter-spacing form-check-label-letter-spacing
+        'form-check-label-text-transform form-check-label-text-transform
+        'form-check-label-color form-check-label-color
         'form-check-padding-left form-check-padding-left
         'form-check-input-margin-left form-check-input-margin-left
         'switch-width switch-width
@@ -5476,6 +5519,27 @@
   (define check-after-color
     (or (theme-component-ref theme 'check-after-color)
         check-checked-border-color))
+  (define form-check-label-font-family
+    (or (theme-component-ref theme 'form-check-label-font-family)
+        (bootstrap-theme-font-family-base theme)))
+  (define form-check-label-font-size
+    (or (theme-component-ref theme 'form-check-label-font-size)
+        (bootstrap-theme-font-size-md theme)))
+  (define form-check-label-font-weight
+    (or (theme-component-ref theme 'form-check-label-font-weight)
+        (bootstrap-theme-font-weight-normal theme)))
+  (define form-check-label-line-height
+    (or (theme-component-ref theme 'form-check-label-line-height)
+        (bootstrap-theme-line-height-base theme)))
+  (define form-check-label-letter-spacing
+    (or (theme-component-ref theme 'form-check-label-letter-spacing)
+        (bootstrap-theme-letter-spacing-base theme)))
+  (define form-check-label-text-transform
+    (or (theme-component-ref theme 'form-check-label-text-transform)
+        "none"))
+  (define form-check-label-color
+    (or (theme-component-ref theme 'form-check-label-color)
+        (bootstrap-theme-fg theme)))
   (define form-check-padding-left
     (or (theme-component-ref theme 'form-check-padding-left)
         "1.5em"))
@@ -6308,6 +6372,13 @@
     (cons "--we-check-after-font-size" check-after-font-size)
     (cons "--we-check-after-line-height" check-after-line-height)
     (cons "--we-check-after-color" check-after-color)
+    (cons "--we-form-check-label-font-family" form-check-label-font-family)
+    (cons "--we-form-check-label-font-size" form-check-label-font-size)
+    (cons "--we-form-check-label-font-weight" form-check-label-font-weight)
+    (cons "--we-form-check-label-line-height" form-check-label-line-height)
+    (cons "--we-form-check-label-letter-spacing" form-check-label-letter-spacing)
+    (cons "--we-form-check-label-text-transform" form-check-label-text-transform)
+    (cons "--we-form-check-label-color" form-check-label-color)
     (cons "--we-form-check-padding-left" form-check-padding-left)
     (cons "--we-form-check-input-margin-left" form-check-input-margin-left)
     (cons "--we-switch-width" switch-width)
@@ -7140,6 +7211,14 @@
      "  background-color: #e0e1e2;\n"
      "  border: 0 solid #a0a1a2;\n"
      "}\n"
+     "label {\n"
+     "  font-size: 0.875rem;\n"
+     "  font-weight: 600;\n"
+     "  line-height: 1.25;\n"
+     "  letter-spacing: 0.02em;\n"
+     "  text-transform: uppercase;\n"
+     "  color: #333333;\n"
+     "}\n"
      ".form-check-input {\n"
      "  --bs-form-check-bg: #f0f1f2;\n"
      "  color: #000;\n"
@@ -7841,6 +7920,12 @@
     (check-true (regexp-match? #px"^url\\(" (hash-ref token-map "--we-check-checked-icon")))
     (check-equal? (hash-ref token-map "--we-radio-radius") "50%")
     (check-true (regexp-match? #px"^url\\(" (hash-ref token-map "--we-radio-checked-icon")))
+    (check-equal? (hash-ref token-map "--we-form-check-label-font-size") "0.875rem")
+    (check-equal? (hash-ref token-map "--we-form-check-label-font-weight") "600")
+    (check-equal? (hash-ref token-map "--we-form-check-label-line-height") "1.25")
+    (check-equal? (hash-ref token-map "--we-form-check-label-letter-spacing") "0.02em")
+    (check-equal? (hash-ref token-map "--we-form-check-label-text-transform") "uppercase")
+    (check-equal? (hash-ref token-map "--we-form-check-label-color") "#333333")
     (check-equal? (hash-ref token-map "--we-switch-width") "2em")
     (check-true (regexp-match? #px"^url\\(" (hash-ref token-map "--we-switch-bg-icon")))
     (check-equal? (hash-ref token-map "--we-range-height") "1.5rem")

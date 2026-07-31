@@ -2494,8 +2494,16 @@ html.we-theme-light .we-form-check {
 }
 
 html.we-theme-light .we-form-check > span,
-html.we-theme-light .we-form-check > label {
+html.we-theme-light .we-form-check > label,
+html.we-theme-light .we-choice-row > span {
   display: inline-block;
+  font-family: var(--we-form-check-label-font-family, inherit);
+  font-size: var(--we-form-check-label-font-size, inherit);
+  font-weight: var(--we-form-check-label-font-weight, inherit);
+  line-height: var(--we-form-check-label-line-height, inherit);
+  letter-spacing: var(--we-form-check-label-letter-spacing, inherit);
+  text-transform: var(--we-form-check-label-text-transform, inherit);
+  color: var(--we-form-check-label-color, inherit);
 }
 
 html.we-theme-light .we-checkbox:disabled ~ span,
