@@ -1083,19 +1083,32 @@ html.we-theme-sketchy textarea.we-input {
   min-height: var(--we-textarea-min-height, auto);
 }
 
+html.we-theme-sketchy input.we-input.is-valid:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+html.we-theme-sketchy input.we-input.is-invalid:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+html.we-theme-sketchy select.we-input.is-valid,
+html.we-theme-sketchy select.we-input.is-invalid,
+html.we-theme-sketchy textarea.we-input.is-valid,
+html.we-theme-sketchy textarea.we-input.is-invalid,
 html.we-theme-sketchy .we-input.is-valid,
 html.we-theme-sketchy .we-input.is-invalid {
   background-position: right var(--we-field-padding-x) center;
   background-repeat: no-repeat;
   background-size: 1rem 1rem;
-  padding-right: calc(var(--we-field-padding-x) * 2 + 1rem);
+  min-height: 0;
+  padding-right: calc(1.5em + var(--we-field-padding-x));
 }
 
+html.we-theme-sketchy input.we-input.is-valid:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+html.we-theme-sketchy select.we-input.is-valid,
+html.we-theme-sketchy textarea.we-input.is-valid,
 html.we-theme-sketchy .we-input.is-valid {
   border-color: var(--we-field-valid-border-color);
   background-image: var(--we-field-valid-icon);
 }
 
+html.we-theme-sketchy input.we-input.is-invalid:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+html.we-theme-sketchy select.we-input.is-invalid,
+html.we-theme-sketchy textarea.we-input.is-invalid,
 html.we-theme-sketchy .we-input.is-invalid {
   border-color: var(--we-field-invalid-border-color);
   background-image: var(--we-field-invalid-icon);
