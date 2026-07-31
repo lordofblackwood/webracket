@@ -2931,8 +2931,17 @@ html.we-theme-dark .we-divider-vertical {
 }
 
 html.we-theme-dark .we-placeholder {
-  border-color: #52617c;
-  background: var(--we-surface-muted);
+  display: inline-block;
+  min-height: var(--we-placeholder-min-height, 1em);
+  vertical-align: var(--we-placeholder-vertical-align, middle);
+  cursor: var(--we-placeholder-cursor, wait);
+  border: 0;
+  background-color: var(--we-placeholder-bg, currentColor);
+  opacity: var(--we-placeholder-opacity, 0.5);
+}
+
+html.we-theme-dark .we-placeholder-text {
+  min-height: var(--we-placeholder-min-height, 1em);
 }
 
 /* -------------------------------------------------------------------------- */

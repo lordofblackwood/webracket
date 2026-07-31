@@ -280,6 +280,11 @@ html.we-theme-sandstone-boost {
   --we-spinner-border-right-color: transparent;
   --we-spinner-radius: 50%;
   --we-spinner-animation-speed: 1.5s;
+  --we-placeholder-min-height: 1em;
+  --we-placeholder-vertical-align: middle;
+  --we-placeholder-cursor: wait;
+  --we-placeholder-bg: currentColor;
+  --we-placeholder-opacity: 0.5;
   --we-breadcrumb-divider-color: rgba(62, 63, 58, 0.75);
   --we-breadcrumb-padding-x: 0.75rem;
   --we-breadcrumb-padding-y: 0.375rem;
@@ -3428,8 +3433,17 @@ html.we-theme-sandstone-boost .we-divider-vertical {
 }
 
 html.we-theme-sandstone-boost .we-placeholder {
-  border-color: #ccd7e8;
-  background: var(--we-surface-muted);
+  display: inline-block;
+  min-height: var(--we-placeholder-min-height, 1em);
+  vertical-align: var(--we-placeholder-vertical-align, middle);
+  cursor: var(--we-placeholder-cursor, wait);
+  border: 0;
+  background-color: var(--we-placeholder-bg, currentColor);
+  opacity: var(--we-placeholder-opacity, 0.5);
+}
+
+html.we-theme-sandstone-boost .we-placeholder-text {
+  min-height: var(--we-placeholder-min-height, 1em);
 }
 
 /* -------------------------------------------------------------------------- */

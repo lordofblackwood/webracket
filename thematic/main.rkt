@@ -1617,13 +1617,13 @@
         (navmetric-style-ref ".bg-warning.text-dark" "color")
         (navmetric-style-ref ".text-dark" "color")
         progress-bar-color))
-  (define (spinner-context-ref key)
+  (define (component-context-ref key)
     (hash-ref props key #f))
   (define (spinner-direct-ref selectors property)
     (last-direct-declaration-value rules
                                    selectors
                                    property
-                                   spinner-context-ref))
+                                   component-context-ref))
   (define spinner-border-shorthand
     (spinner-direct-ref '(".spinner-border") "border"))
   (define spinner-width
@@ -1656,6 +1656,26 @@
   (define spinner-animation-speed
     (or (computed-custom-ref ".spinner-border" "--bs-spinner-animation-speed")
         "0.75s"))
+  (define (placeholder-direct-ref selectors property)
+    (last-direct-declaration-value rules
+                                   selectors
+                                   property
+                                   component-context-ref))
+  (define placeholder-min-height
+    (or (computed-style-ref ".placeholder" "min-height")
+        "1em"))
+  (define placeholder-vertical-align
+    (or (computed-style-ref ".placeholder" "vertical-align")
+        "middle"))
+  (define placeholder-cursor
+    (or (computed-style-ref ".placeholder" "cursor")
+        "wait"))
+  (define placeholder-bg
+    (or (placeholder-direct-ref '(".placeholder") "background-color")
+        "currentColor"))
+  (define placeholder-opacity
+    (or (computed-style-ref ".placeholder" "opacity")
+        "0.5"))
   (define breadcrumb-divider-color
     (or (navmetric-custom-ref ".breadcrumb" "--bs-breadcrumb-divider-color")
         (navmetric-style-ref ".breadcrumb-item + .breadcrumb-item::before" "color")))
@@ -3061,6 +3081,11 @@
         'spinner-border-right-color spinner-border-right-color
         'spinner-radius spinner-radius
         'spinner-animation-speed spinner-animation-speed
+        'placeholder-min-height placeholder-min-height
+        'placeholder-vertical-align placeholder-vertical-align
+        'placeholder-cursor placeholder-cursor
+        'placeholder-bg placeholder-bg
+        'placeholder-opacity placeholder-opacity
         'breadcrumb-divider-color breadcrumb-divider-color
         'breadcrumb-padding-x breadcrumb-padding-x
         'breadcrumb-padding-y breadcrumb-padding-y
@@ -4857,6 +4882,21 @@
   (define spinner-animation-speed
     (or (theme-component-ref theme 'spinner-animation-speed)
         "0.75s"))
+  (define placeholder-min-height
+    (or (theme-component-ref theme 'placeholder-min-height)
+        "1em"))
+  (define placeholder-vertical-align
+    (or (theme-component-ref theme 'placeholder-vertical-align)
+        "middle"))
+  (define placeholder-cursor
+    (or (theme-component-ref theme 'placeholder-cursor)
+        "wait"))
+  (define placeholder-bg
+    (or (theme-component-ref theme 'placeholder-bg)
+        "currentColor"))
+  (define placeholder-opacity
+    (or (theme-component-ref theme 'placeholder-opacity)
+        "0.5"))
   (define breadcrumb-divider-color
     (or (theme-component-ref theme 'breadcrumb-divider-color)
         fg-muted))
@@ -6195,6 +6235,11 @@
     (cons "--we-spinner-border-right-color" spinner-border-right-color)
     (cons "--we-spinner-radius" spinner-radius)
     (cons "--we-spinner-animation-speed" spinner-animation-speed)
+    (cons "--we-placeholder-min-height" placeholder-min-height)
+    (cons "--we-placeholder-vertical-align" placeholder-vertical-align)
+    (cons "--we-placeholder-cursor" placeholder-cursor)
+    (cons "--we-placeholder-bg" placeholder-bg)
+    (cons "--we-placeholder-opacity" placeholder-opacity)
     (cons "--we-breadcrumb-divider-color" breadcrumb-divider-color)
     (cons "--we-breadcrumb-padding-x" breadcrumb-padding-x)
     (cons "--we-breadcrumb-padding-y" breadcrumb-padding-y)
@@ -7604,6 +7649,14 @@
      "  border: var(--bs-spinner-border-width) solid currentcolor;\n"
      "  border-right-color: transparent;\n"
      "  border-radius: 50%;\n"
+     "}\n"
+     ".placeholder {\n"
+     "  display: inline-block;\n"
+     "  min-height: 1em;\n"
+     "  vertical-align: middle;\n"
+     "  cursor: wait;\n"
+     "  background-color: currentcolor;\n"
+     "  opacity: 0.5;\n"
      "}\n"))
 
   (define breadcrumb-toast-bootstrap
@@ -8303,7 +8356,7 @@
     (check-equal? (hash-ref token-map "--we-popover-radius")
                   "45px 85px 15px 25px/15px 10px 35px 555px"))
 
-  (test-case "component rule extraction feeds pagination and progress tokens"
+  (test-case "component rule extraction feeds pagination progress spinner and placeholder tokens"
     (define rules (read-css-rules pagination-progress-bootstrap))
     (define token-map (bootstrap-rules->token-map rules))
     (check-equal? (hash-ref token-map "--we-pagination-padding-x") "0.75rem")
@@ -8319,7 +8372,10 @@
     (check-equal? (hash-ref token-map "--we-spinner-width") "2rem")
     (check-equal? (hash-ref token-map "--we-spinner-border-width") "0.25em")
     (check-equal? (hash-ref token-map "--we-spinner-border-color") "currentcolor")
-    (check-equal? (hash-ref token-map "--we-spinner-border-right-color") "transparent"))
+    (check-equal? (hash-ref token-map "--we-spinner-border-right-color") "transparent")
+    (check-equal? (hash-ref token-map "--we-placeholder-min-height") "1em")
+    (check-equal? (hash-ref token-map "--we-placeholder-bg") "currentcolor")
+    (check-equal? (hash-ref token-map "--we-placeholder-opacity") "0.5"))
 
   (test-case "component rule extraction preserves selector geometry"
     (define css
