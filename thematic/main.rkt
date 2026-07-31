@@ -2016,6 +2016,27 @@
                                    selectors
                                    property
                                    alert-context-ref))
+  (define (alert-tone-context-ref tone key)
+    (or (alert-custom-ref (format ".alert-~a" tone) key)
+        (alert-context-ref key)))
+  (define (alert-link-direct-ref property)
+    (last-direct-declaration-value rules
+                                   '(".alert .alert-link"
+                                     ".alert a"
+                                     ".alert-link")
+                                   property
+                                   alert-context-ref))
+  (define (alert-tone-link-direct-ref tone property)
+    (last-direct-declaration-value rules
+                                   (list (format ".alert-~a .alert-link" tone)
+                                         (format ".alert-~a a:not(.btn)" tone)
+                                         (format ".alert-~a a" tone)
+                                         ".alert .alert-link"
+                                         ".alert a"
+                                         ".alert-link")
+                                   property
+                                   (lambda (key)
+                                     (alert-tone-context-ref tone key))))
   (define alert-border-shorthand
     (alert-direct-ref '(".alert") "border"))
   (define alert-base-color-direct
@@ -2054,6 +2075,25 @@
   (define alert-title-text-transform
     (or (alert-style-ref ".alert strong" "text-transform")
         (alert-style-ref "strong" "text-transform")))
+  (define alert-link-color
+    (or (alert-link-direct-ref "color")
+        (alert-custom-ref ".alert" "--bs-alert-link-color")
+        "inherit"))
+  (define alert-link-font-family
+    (or (alert-link-direct-ref "font-family")
+        (alert-style-ref ".alert-link" "font-family")))
+  (define alert-link-font-weight
+    (or (alert-link-direct-ref "font-weight")
+        (alert-style-ref ".alert-link" "font-weight")))
+  (define alert-link-line-height
+    (or (alert-link-direct-ref "line-height")
+        (alert-style-ref ".alert-link" "line-height")))
+  (define alert-link-letter-spacing
+    (or (alert-link-direct-ref "letter-spacing")
+        (alert-style-ref ".alert-link" "letter-spacing")))
+  (define alert-link-text-transform
+    (or (alert-link-direct-ref "text-transform")
+        (alert-style-ref ".alert-link" "text-transform")))
   (define (alert-tone-bg tone)
     (or (alert-style-ref (format ".alert-~a" tone) "background-color")
         (alert-custom-ref (format ".alert-~a" tone) "--bs-alert-bg")))
@@ -2068,30 +2108,43 @@
     (or (and (meaningful-css-value? direct) direct)
         alert-base-color
         via-var))
+  (define (alert-tone-link-color tone)
+    (or (alert-tone-link-direct-ref tone "color")
+        (alert-custom-ref (format ".alert-~a" tone) "--bs-alert-link-color")
+        alert-link-color
+        (alert-tone-color tone)))
   (define alert-primary-bg (alert-tone-bg "primary"))
   (define alert-primary-border (alert-tone-border "primary"))
   (define alert-primary-color (alert-tone-color "primary"))
+  (define alert-primary-link-color (alert-tone-link-color "primary"))
   (define alert-secondary-bg (alert-tone-bg "secondary"))
   (define alert-secondary-border (alert-tone-border "secondary"))
   (define alert-secondary-color (alert-tone-color "secondary"))
+  (define alert-secondary-link-color (alert-tone-link-color "secondary"))
   (define alert-success-bg (alert-tone-bg "success"))
   (define alert-success-border (alert-tone-border "success"))
   (define alert-success-color (alert-tone-color "success"))
+  (define alert-success-link-color (alert-tone-link-color "success"))
   (define alert-info-bg (alert-tone-bg "info"))
   (define alert-info-border (alert-tone-border "info"))
   (define alert-info-color (alert-tone-color "info"))
+  (define alert-info-link-color (alert-tone-link-color "info"))
   (define alert-warning-bg (alert-tone-bg "warning"))
   (define alert-warning-border (alert-tone-border "warning"))
   (define alert-warning-color (alert-tone-color "warning"))
+  (define alert-warning-link-color (alert-tone-link-color "warning"))
   (define alert-danger-bg (alert-tone-bg "danger"))
   (define alert-danger-border (alert-tone-border "danger"))
   (define alert-danger-color (alert-tone-color "danger"))
+  (define alert-danger-link-color (alert-tone-link-color "danger"))
   (define alert-light-bg (alert-tone-bg "light"))
   (define alert-light-border (alert-tone-border "light"))
   (define alert-light-color (alert-tone-color "light"))
+  (define alert-light-link-color (alert-tone-link-color "light"))
   (define alert-dark-bg (alert-tone-bg "dark"))
   (define alert-dark-border (alert-tone-border "dark"))
   (define alert-dark-color (alert-tone-color "dark"))
+  (define alert-dark-link-color (alert-tone-link-color "dark"))
   (define-values (list-table-style-ref list-table-custom-ref)
     (make-computed-selector-refs props rules))
   (define (list-group-context-ref key)
@@ -2214,15 +2267,26 @@
   (define table-active-bg
     (or (list-table-custom-ref ".table" "--bs-table-active-bg")
         (list-table-style-ref ".table-active" "background-color")))
+  (define table-accent-bg
+    (or (list-table-custom-ref ".table" "--bs-table-accent-bg")
+        "transparent"))
+  (define table-cell-shadow
+    (format "inset 0 0 0 9999px ~a" table-accent-bg))
   (define table-font-size
     (or (table-direct-ref '(".table") "font-size")
         (list-table-style-ref ".table" "font-size")))
   (define table-cell-selector
     ".table > :not(caption) > * > *")
+  (define table-sm-cell-selector
+    ".table-sm > :not(caption) > * > *")
   (define table-cell-override-selectors
     '(".table th" ".table td"))
+  (define table-sm-cell-selectors
+    (list table-sm-cell-selector ".table-sm th" ".table-sm td"))
   (define table-cell-padding-override
     (table-direct-ref table-cell-override-selectors "padding"))
+  (define table-sm-cell-padding-override
+    (table-direct-ref table-sm-cell-selectors "padding"))
   (define table-cell-padding-x
     (or (table-direct-ref table-cell-override-selectors "padding-left")
         (box-shorthand-side table-cell-padding-override 'left)
@@ -2237,6 +2301,18 @@
         (list-table-custom-ref ".table" "--bs-table-cell-padding-y")
         (list-table-style-ref ".table th" "padding-top")
         (list-table-style-ref ".table td" "padding-top")))
+  (define table-sm-cell-padding-x
+    (or (table-direct-ref table-sm-cell-selectors "padding-left")
+        (box-shorthand-side table-sm-cell-padding-override 'left)
+        (list-table-style-ref table-sm-cell-selector "padding-left")
+        (list-table-style-ref ".table-sm th" "padding-left")
+        (list-table-style-ref ".table-sm td" "padding-left")))
+  (define table-sm-cell-padding-y
+    (or (table-direct-ref table-sm-cell-selectors "padding-top")
+        (box-shorthand-side table-sm-cell-padding-override 'top)
+        (list-table-style-ref table-sm-cell-selector "padding-top")
+        (list-table-style-ref ".table-sm th" "padding-top")
+        (list-table-style-ref ".table-sm td" "padding-top")))
   (define table-border-width
     (or (list-table-style-ref table-cell-selector "border-bottom-width")
         (list-table-style-ref ".table td" "border-bottom-width")
@@ -3242,30 +3318,44 @@
         'alert-title-line-height alert-title-line-height
         'alert-title-letter-spacing alert-title-letter-spacing
         'alert-title-text-transform alert-title-text-transform
+        'alert-link-color alert-link-color
+        'alert-link-font-family alert-link-font-family
+        'alert-link-font-weight alert-link-font-weight
+        'alert-link-line-height alert-link-line-height
+        'alert-link-letter-spacing alert-link-letter-spacing
+        'alert-link-text-transform alert-link-text-transform
         'alert-primary-bg alert-primary-bg
         'alert-primary-border alert-primary-border
         'alert-primary-color alert-primary-color
+        'alert-primary-link-color alert-primary-link-color
         'alert-secondary-bg alert-secondary-bg
         'alert-secondary-border alert-secondary-border
         'alert-secondary-color alert-secondary-color
+        'alert-secondary-link-color alert-secondary-link-color
         'alert-success-bg alert-success-bg
         'alert-success-border alert-success-border
         'alert-success-color alert-success-color
+        'alert-success-link-color alert-success-link-color
         'alert-info-bg alert-info-bg
         'alert-info-border alert-info-border
         'alert-info-color alert-info-color
+        'alert-info-link-color alert-info-link-color
         'alert-warning-bg alert-warning-bg
         'alert-warning-border alert-warning-border
         'alert-warning-color alert-warning-color
+        'alert-warning-link-color alert-warning-link-color
         'alert-danger-bg alert-danger-bg
         'alert-danger-border alert-danger-border
         'alert-danger-color alert-danger-color
+        'alert-danger-link-color alert-danger-link-color
         'alert-light-bg alert-light-bg
         'alert-light-border alert-light-border
         'alert-light-color alert-light-color
+        'alert-light-link-color alert-light-link-color
         'alert-dark-bg alert-dark-bg
         'alert-dark-border alert-dark-border
         'alert-dark-color alert-dark-color
+        'alert-dark-link-color alert-dark-link-color
         'list-group-bg list-group-bg
         'list-group-shell-bg list-group-shell-bg
         'list-group-shell-border-color list-group-shell-border-color
@@ -3313,9 +3403,12 @@
         'table-striped-bg table-striped-bg
         'table-hover-bg table-hover-bg
         'table-active-bg table-active-bg
+        'table-cell-shadow table-cell-shadow
         'table-font-size table-font-size
         'table-cell-padding-x table-cell-padding-x
         'table-cell-padding-y table-cell-padding-y
+        'table-sm-cell-padding-x table-sm-cell-padding-x
+        'table-sm-cell-padding-y table-sm-cell-padding-y
         'table-border-width table-border-width
         'table-border-top-width table-border-top-width
         'table-header-color table-header-color
@@ -5229,6 +5322,24 @@
   (define alert-title-text-transform
     (or (theme-component-ref theme 'alert-title-text-transform)
         "inherit"))
+  (define alert-link-color
+    (or (theme-component-ref theme 'alert-link-color)
+        "inherit"))
+  (define alert-link-font-family
+    (or (theme-component-ref theme 'alert-link-font-family)
+        "inherit"))
+  (define alert-link-font-weight
+    (or (theme-component-ref theme 'alert-link-font-weight)
+        "700"))
+  (define alert-link-line-height
+    (or (theme-component-ref theme 'alert-link-line-height)
+        "inherit"))
+  (define alert-link-letter-spacing
+    (or (theme-component-ref theme 'alert-link-letter-spacing)
+        "inherit"))
+  (define alert-link-text-transform
+    (or (theme-component-ref theme 'alert-link-text-transform)
+        "inherit"))
   (define alert-primary-bg
     (alert-token "primary" "bg"
                  (or (theme-prop-ref theme "--bs-primary-bg-subtle")
@@ -5241,6 +5352,9 @@
     (alert-token "primary" "color"
                  (or (theme-prop-ref theme "--bs-primary-text-emphasis")
                      (bootstrap-theme-primary theme))))
+  (define alert-primary-link-color
+    (or (theme-component-ref theme 'alert-primary-link-color)
+        alert-primary-color))
   (define alert-secondary-bg
     (alert-token "secondary" "bg"
                  (or (theme-prop-ref theme "--bs-secondary-bg-subtle")
@@ -5253,6 +5367,9 @@
     (alert-token "secondary" "color"
                  (or (theme-prop-ref theme "--bs-secondary-text-emphasis")
                      (bootstrap-theme-secondary theme))))
+  (define alert-secondary-link-color
+    (or (theme-component-ref theme 'alert-secondary-link-color)
+        alert-secondary-color))
   (define alert-success-bg
     (alert-token "success" "bg"
                  (or (theme-prop-ref theme "--bs-success-bg-subtle")
@@ -5265,6 +5382,9 @@
     (alert-token "success" "color"
                  (or (theme-prop-ref theme "--bs-success-text-emphasis")
                      (bootstrap-theme-success theme))))
+  (define alert-success-link-color
+    (or (theme-component-ref theme 'alert-success-link-color)
+        alert-success-color))
   (define alert-info-bg
     (alert-token "info" "bg"
                  (or (theme-prop-ref theme "--bs-info-bg-subtle")
@@ -5277,6 +5397,9 @@
     (alert-token "info" "color"
                  (or (theme-prop-ref theme "--bs-info-text-emphasis")
                      (bootstrap-theme-info theme))))
+  (define alert-info-link-color
+    (or (theme-component-ref theme 'alert-info-link-color)
+        alert-info-color))
   (define alert-warning-bg
     (alert-token "warning" "bg"
                  (or (theme-prop-ref theme "--bs-warning-bg-subtle")
@@ -5289,6 +5412,9 @@
     (alert-token "warning" "color"
                  (or (theme-prop-ref theme "--bs-warning-text-emphasis")
                      (bootstrap-theme-warning theme))))
+  (define alert-warning-link-color
+    (or (theme-component-ref theme 'alert-warning-link-color)
+        alert-warning-color))
   (define alert-danger-bg
     (alert-token "danger" "bg"
                  (or (theme-prop-ref theme "--bs-danger-bg-subtle")
@@ -5301,6 +5427,9 @@
     (alert-token "danger" "color"
                  (or (theme-prop-ref theme "--bs-danger-text-emphasis")
                      (bootstrap-theme-danger theme))))
+  (define alert-danger-link-color
+    (or (theme-component-ref theme 'alert-danger-link-color)
+        alert-danger-color))
   (define alert-light-bg
     (alert-token "light" "bg"
                  (or (theme-prop-ref theme "--bs-light-bg-subtle")
@@ -5313,6 +5442,9 @@
     (alert-token "light" "color"
                  (or (theme-prop-ref theme "--bs-light-text-emphasis")
                      (bootstrap-theme-light theme))))
+  (define alert-light-link-color
+    (or (theme-component-ref theme 'alert-light-link-color)
+        alert-light-color))
   (define alert-dark-bg
     (alert-token "dark" "bg"
                  (or (theme-prop-ref theme "--bs-dark-bg-subtle")
@@ -5325,6 +5457,9 @@
     (alert-token "dark" "color"
                  (or (theme-prop-ref theme "--bs-dark-text-emphasis")
                      (bootstrap-theme-dark theme))))
+  (define alert-dark-link-color
+    (or (theme-component-ref theme 'alert-dark-link-color)
+        alert-dark-color))
   (define list-group-bg
     (or (theme-component-ref theme 'list-group-bg)
         (hash-ref surface-map 'surface)))
@@ -5459,6 +5594,9 @@
   (define table-active-bg
     (or (theme-component-ref theme 'table-active-bg)
         (hash-ref surface-map 'surface-active)))
+  (define table-cell-shadow
+    (or (theme-component-ref theme 'table-cell-shadow)
+        "none"))
   (define table-font-size
     (or (theme-component-ref theme 'table-font-size)
         (bootstrap-theme-font-size-md theme)))
@@ -5468,6 +5606,12 @@
   (define table-cell-padding-y
     (or (theme-component-ref theme 'table-cell-padding-y)
         "0.5rem"))
+  (define table-sm-cell-padding-x
+    (or (theme-component-ref theme 'table-sm-cell-padding-x)
+        "0.25rem"))
+  (define table-sm-cell-padding-y
+    (or (theme-component-ref theme 'table-sm-cell-padding-y)
+        "0.25rem"))
   (define table-border-width
     (or (theme-component-ref theme 'table-border-width)
         "1px"))
@@ -6473,30 +6617,44 @@
     (cons "--we-alert-title-line-height" alert-title-line-height)
     (cons "--we-alert-title-letter-spacing" alert-title-letter-spacing)
     (cons "--we-alert-title-text-transform" alert-title-text-transform)
+    (cons "--we-alert-link-color" alert-link-color)
+    (cons "--we-alert-link-font-family" alert-link-font-family)
+    (cons "--we-alert-link-font-weight" alert-link-font-weight)
+    (cons "--we-alert-link-line-height" alert-link-line-height)
+    (cons "--we-alert-link-letter-spacing" alert-link-letter-spacing)
+    (cons "--we-alert-link-text-transform" alert-link-text-transform)
     (cons "--we-alert-primary-bg" alert-primary-bg)
     (cons "--we-alert-primary-border" alert-primary-border)
     (cons "--we-alert-primary-color" alert-primary-color)
+    (cons "--we-alert-primary-link-color" alert-primary-link-color)
     (cons "--we-alert-secondary-bg" alert-secondary-bg)
     (cons "--we-alert-secondary-border" alert-secondary-border)
     (cons "--we-alert-secondary-color" alert-secondary-color)
+    (cons "--we-alert-secondary-link-color" alert-secondary-link-color)
     (cons "--we-alert-success-bg" alert-success-bg)
     (cons "--we-alert-success-border" alert-success-border)
     (cons "--we-alert-success-color" alert-success-color)
+    (cons "--we-alert-success-link-color" alert-success-link-color)
     (cons "--we-alert-info-bg" alert-info-bg)
     (cons "--we-alert-info-border" alert-info-border)
     (cons "--we-alert-info-color" alert-info-color)
+    (cons "--we-alert-info-link-color" alert-info-link-color)
     (cons "--we-alert-warning-bg" alert-warning-bg)
     (cons "--we-alert-warning-border" alert-warning-border)
     (cons "--we-alert-warning-color" alert-warning-color)
+    (cons "--we-alert-warning-link-color" alert-warning-link-color)
     (cons "--we-alert-danger-bg" alert-danger-bg)
     (cons "--we-alert-danger-border" alert-danger-border)
     (cons "--we-alert-danger-color" alert-danger-color)
+    (cons "--we-alert-danger-link-color" alert-danger-link-color)
     (cons "--we-alert-light-bg" alert-light-bg)
     (cons "--we-alert-light-border" alert-light-border)
     (cons "--we-alert-light-color" alert-light-color)
+    (cons "--we-alert-light-link-color" alert-light-link-color)
     (cons "--we-alert-dark-bg" alert-dark-bg)
     (cons "--we-alert-dark-border" alert-dark-border)
     (cons "--we-alert-dark-color" alert-dark-color)
+    (cons "--we-alert-dark-link-color" alert-dark-link-color)
     (cons "--we-list-group-bg" list-group-bg)
     (cons "--we-list-group-shell-bg" list-group-shell-bg)
     (cons "--we-list-group-shell-border-color" list-group-shell-border-color)
@@ -6544,9 +6702,12 @@
     (cons "--we-table-striped-bg" table-striped-bg)
     (cons "--we-table-hover-bg" table-hover-bg)
     (cons "--we-table-active-bg" table-active-bg)
+    (cons "--we-table-cell-shadow" table-cell-shadow)
     (cons "--we-table-font-size" table-font-size)
     (cons "--we-table-cell-padding-x" table-cell-padding-x)
     (cons "--we-table-cell-padding-y" table-cell-padding-y)
+    (cons "--we-table-sm-cell-padding-x" table-sm-cell-padding-x)
+    (cons "--we-table-sm-cell-padding-y" table-sm-cell-padding-y)
     (cons "--we-table-border-width" table-border-width)
     (cons "--we-table-border-top-width" table-border-top-width)
     (cons "--we-table-header-color" table-header-color)
@@ -7437,15 +7598,23 @@
      "  --bs-table-striped-bg: rgba(26, 26, 26, 0.05);\n"
      "  --bs-table-active-bg: rgba(26, 26, 26, 0.1);\n"
      "  --bs-table-hover-bg: rgba(26, 26, 26, 0.075);\n"
+     "  --bs-table-accent-bg: rgba(26, 26, 26, 0.02);\n"
      "  font-size: 0.875rem;\n"
      "}\n"
      ".table th,\n"
      ".table td {\n"
      "  padding: 1.5rem;\n"
      "}\n"
+     ".table-sm > :not(caption) > * > * {\n"
+     "  padding: 0.25rem 0.25rem;\n"
+     "}\n"
      "th {\n"
      "  font-size: 0.875rem;\n"
      "  text-transform: uppercase;\n"
+     "}\n"
+     ".table-sm th,\n"
+     ".table-sm td {\n"
+     "  padding: 0.75rem;\n"
      "}\n"))
 
   (define forms-modal-bootstrap
@@ -8201,8 +8370,13 @@
     (check-equal? (hash-ref token-map "--we-list-group-line-height") "1.5")
     (check-equal? (hash-ref token-map "--we-table-border-color") "rgba(0, 0, 0, 0.05)")
     (check-equal? (hash-ref token-map "--we-table-border-top-width") "0px")
+    (check-equal? (hash-ref token-map "--we-table-cell-shadow")
+                  "inset 0 0 0 9999px rgba(26, 26, 26, 0.02)")
     (check-equal? (hash-ref token-map "--we-table-font-size") "0.875rem")
     (check-equal? (hash-ref token-map "--we-table-cell-padding-x") "1.5rem")
+    (check-equal? (hash-ref token-map "--we-table-cell-padding-y") "1.5rem")
+    (check-equal? (hash-ref token-map "--we-table-sm-cell-padding-x") "0.75rem")
+    (check-equal? (hash-ref token-map "--we-table-sm-cell-padding-y") "0.75rem")
     (check-equal? (hash-ref token-map "--we-table-header-font-size") "0.875rem")
     (check-equal? (hash-ref token-map "--we-table-header-text-transform") "uppercase")
     (check-equal? (hash-ref token-map "--we-table-body-font-weight") "300"))
@@ -8609,8 +8783,13 @@
        "}\n"
        ".alert-warning {\n"
        "  --bs-alert-color: var(--bs-warning-text-emphasis);\n"
+       "  --bs-alert-link-color: #4e2813;\n"
        "  background-color: #f47c3c;\n"
        "  border-color: #fbcbb1;\n"
+       "}\n"
+       ".alert-link {\n"
+       "  font-weight: 700;\n"
+       "  color: var(--bs-alert-link-color);\n"
        "}\n"
        ".alert { color: #fff; }\n"))
     (define rules (read-css-rules css))
@@ -8619,9 +8798,11 @@
     (check-equal? (hash-ref token-map "--we-alert-padding-y") "1rem")
     (check-equal? (hash-ref token-map "--we-alert-border-width") "0")
     (check-equal? (hash-ref token-map "--we-alert-radius") "0")
+    (check-equal? (hash-ref token-map "--we-alert-link-font-weight") "700")
     (check-equal? (hash-ref token-map "--we-alert-warning-bg") "#f47c3c")
     (check-equal? (hash-ref token-map "--we-alert-warning-border") "#fbcbb1")
-    (check-equal? (hash-ref token-map "--we-alert-warning-color") "#fff"))
+    (check-equal? (hash-ref token-map "--we-alert-warning-color") "#fff")
+    (check-equal? (hash-ref token-map "--we-alert-warning-link-color") "#4e2813"))
 
   (test-case "extract-top-level-imports preserves font imports"
     (check-equal? (extract-top-level-imports import-bootstrap)

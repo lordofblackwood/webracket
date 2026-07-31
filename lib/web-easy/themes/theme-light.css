@@ -1841,6 +1841,7 @@ html.we-theme-light .we-table td {
   border-top: var(--we-table-border-top-width, 0px) solid var(--we-table-border-color);
   border-bottom: var(--we-table-border-width) solid var(--we-table-border-color);
   padding: var(--we-table-cell-padding-y) var(--we-table-cell-padding-x);
+  box-shadow: var(--we-table-cell-shadow, none);
 }
 
 html.we-theme-light .we-table th {
@@ -2963,8 +2964,45 @@ html.we-theme-light .we-alert-body {
 }
 
 html.we-theme-light .we-alert-link {
-  color: inherit;
+  color: var(--we-alert-link-color, inherit);
+  font-family: var(--we-alert-link-font-family, inherit);
+  font-weight: var(--we-alert-link-font-weight, 700);
+  line-height: var(--we-alert-link-line-height, inherit);
+  letter-spacing: var(--we-alert-link-letter-spacing, inherit);
+  text-transform: var(--we-alert-link-text-transform, inherit);
   text-underline-offset: 2px;
+}
+
+html.we-theme-light .we-alert-primary .we-alert-link {
+  color: var(--we-alert-primary-link-color, var(--we-alert-link-color, inherit));
+}
+
+html.we-theme-light .we-alert-secondary .we-alert-link {
+  color: var(--we-alert-secondary-link-color, var(--we-alert-link-color, inherit));
+}
+
+html.we-theme-light .we-alert-success .we-alert-link {
+  color: var(--we-alert-success-link-color, var(--we-alert-link-color, inherit));
+}
+
+html.we-theme-light .we-alert-info .we-alert-link {
+  color: var(--we-alert-info-link-color, var(--we-alert-link-color, inherit));
+}
+
+html.we-theme-light .we-alert-warning .we-alert-link {
+  color: var(--we-alert-warning-link-color, var(--we-alert-link-color, inherit));
+}
+
+html.we-theme-light .we-alert-danger .we-alert-link {
+  color: var(--we-alert-danger-link-color, var(--we-alert-link-color, inherit));
+}
+
+html.we-theme-light .we-alert-light .we-alert-link {
+  color: var(--we-alert-light-link-color, var(--we-alert-link-color, inherit));
+}
+
+html.we-theme-light .we-alert-dark .we-alert-link {
+  color: var(--we-alert-dark-link-color, var(--we-alert-link-color, inherit));
 }
 
 html.we-theme-light .we-alert-dismiss {
@@ -3291,11 +3329,12 @@ html.we-theme-light .we-table-caption {
 html.we-theme-light .we-table.we-table-borderless th,
 html.we-theme-light .we-table.we-table-borderless td {
   border-color: transparent;
+  border-bottom-width: 0;
 }
 
 html.we-theme-light .we-table.we-table-sm th,
 html.we-theme-light .we-table.we-table-sm td {
-  padding: 2px 6px;
+  padding: var(--we-table-sm-cell-padding-y, 0.25rem) var(--we-table-sm-cell-padding-x, 0.25rem);
 }
 
 html.we-theme-light .we-link {
