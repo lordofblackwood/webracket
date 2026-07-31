@@ -48,6 +48,12 @@ html.we-theme-superhero {
   --we-menu-header-color: #868e96;
   --we-menu-header-padding-x: 1rem;
   --we-menu-header-padding-y: 0.5rem;
+  --we-menu-header-font-family: Lato, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+  --we-menu-header-font-size: 0.875rem;
+  --we-menu-header-font-weight: 500;
+  --we-menu-header-line-height: 1.2;
+  --we-menu-header-letter-spacing: normal;
+  --we-menu-header-text-transform: none;
   --we-menu-divider-color: rgba(0, 0, 0, 0.15);
   --we-menu-divider-border-width: 1px;
   --we-menu-item-color: #ebebeb;
@@ -803,13 +809,13 @@ html.we-theme-superhero .we-menu-popup {
 html.we-theme-superhero .we-menu-header {
   padding: var(--we-menu-header-padding-y) var(--we-menu-header-padding-x);
   color: var(--we-menu-header-color);
-  font-family: var(--we-font-family-base);
-  font-size: var(--we-font-size-sm);
-  font-weight: var(--we-font-weight-normal);
-  line-height: 1.2;
-  letter-spacing: 0;
+  font-family: var(--we-menu-header-font-family, var(--we-font-family-base));
+  font-size: var(--we-menu-header-font-size, var(--we-font-size-sm));
+  font-weight: var(--we-menu-header-font-weight, var(--we-font-weight-normal));
+  line-height: var(--we-menu-header-line-height, 1.2);
+  letter-spacing: var(--we-menu-header-letter-spacing, 0);
   margin-bottom: 0;
-  text-transform: none;
+  text-transform: var(--we-menu-header-text-transform, none);
   white-space: nowrap;
   opacity: 1;
 }

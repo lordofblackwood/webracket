@@ -69,6 +69,12 @@ html.we-theme-dark {
   --we-menu-header-color: #aab7cf;
   --we-menu-header-padding-x: 1rem;
   --we-menu-header-padding-y: 0.5rem;
+  --we-menu-header-font-family: var(--we-font-family-base);
+  --we-menu-header-font-size: var(--we-font-size-sm);
+  --we-menu-header-font-weight: var(--we-font-weight-normal);
+  --we-menu-header-line-height: 1.2;
+  --we-menu-header-letter-spacing: 0.06em;
+  --we-menu-header-text-transform: uppercase;
   --we-menu-divider-color: #5f6f8a;
   --we-menu-divider-border-width: 1px;
   --we-menu-item-color: #d9e2f3;
@@ -280,12 +286,13 @@ html.we-theme-dark .we-menu-popup {
 html.we-theme-dark .we-menu-header {
   padding: var(--we-menu-header-padding-y) var(--we-menu-header-padding-x);
   color: var(--we-menu-header-color);
-  font-size: var(--we-font-size-sm);
-  font-weight: var(--we-font-weight-normal);
-  line-height: 1.2;
-  letter-spacing: 0.06em;
+  font-family: var(--we-menu-header-font-family, var(--we-font-family-base));
+  font-size: var(--we-menu-header-font-size, var(--we-font-size-sm));
+  font-weight: var(--we-menu-header-font-weight, var(--we-font-weight-normal));
+  line-height: var(--we-menu-header-line-height, 1.2);
+  letter-spacing: var(--we-menu-header-letter-spacing, 0.06em);
   margin-bottom: 0;
-  text-transform: uppercase;
+  text-transform: var(--we-menu-header-text-transform, uppercase);
   white-space: nowrap;
   opacity: 0.85;
 }

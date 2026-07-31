@@ -842,6 +842,26 @@
     (computed-style-ref ".dropdown-menu" "letter-spacing"))
   (define dropdown-text-transform
     (computed-style-ref ".dropdown-menu" "text-transform"))
+  (define (dropdown-context-ref key)
+    (or (present-ref (computed-custom-ref ".dropdown-menu" key))
+        (present-ref (computed-custom-ref ".dropdown-header" key))
+        (present-ref (hash-ref props key #f))
+        (present-ref (hash-ref bootstrap-defaults key #f))))
+  (define (dropdown-direct-ref selectors property)
+    (last-direct-declaration-value rules
+                                   selectors
+                                   property
+                                   dropdown-context-ref))
+  (define (dropdown-header-typography-ref property)
+    (or (dropdown-direct-ref '("h6.dropdown-header"
+                               ".dropdown-menu .dropdown-header"
+                               ".dropdown-header")
+                             property)
+        (dropdown-direct-ref '("h6" ".h6") property)
+        (selector-ref* computed-style-ref
+                       '(".dropdown-menu .dropdown-header" ".dropdown-header")
+                       property)
+        (computed-style-ref ".dropdown-menu" property)))
   (define dropdown-header-color
     (or (computed-custom-ref ".dropdown-menu" "--bs-dropdown-header-color")
         (computed-style-ref ".dropdown-header" "color")))
@@ -851,6 +871,18 @@
   (define dropdown-header-padding-y
     (or (computed-custom-ref ".dropdown-menu" "--bs-dropdown-header-padding-y")
         (computed-style-ref ".dropdown-header" "padding-top")))
+  (define dropdown-header-font-family
+    (dropdown-header-typography-ref "font-family"))
+  (define dropdown-header-font-size
+    (dropdown-header-typography-ref "font-size"))
+  (define dropdown-header-font-weight
+    (dropdown-header-typography-ref "font-weight"))
+  (define dropdown-header-line-height
+    (dropdown-header-typography-ref "line-height"))
+  (define dropdown-header-letter-spacing
+    (dropdown-header-typography-ref "letter-spacing"))
+  (define dropdown-header-text-transform
+    (dropdown-header-typography-ref "text-transform"))
   (define dropdown-divider-bg
     (or (computed-custom-ref ".dropdown-menu" "--bs-dropdown-divider-bg")
         (computed-style-ref ".dropdown-divider" "border-top-color")))
@@ -2656,6 +2688,12 @@
         'dropdown-header-color dropdown-header-color
         'dropdown-header-padding-x dropdown-header-padding-x
         'dropdown-header-padding-y dropdown-header-padding-y
+        'dropdown-header-font-family dropdown-header-font-family
+        'dropdown-header-font-size dropdown-header-font-size
+        'dropdown-header-font-weight dropdown-header-font-weight
+        'dropdown-header-line-height dropdown-header-line-height
+        'dropdown-header-letter-spacing dropdown-header-letter-spacing
+        'dropdown-header-text-transform dropdown-header-text-transform
         'dropdown-divider-bg dropdown-divider-bg
         'dropdown-divider-border-width dropdown-divider-border-width
         'dropdown-link-color dropdown-link-color
@@ -3977,6 +4015,24 @@
   (define menu-header-padding-y
     (or (theme-component-ref theme 'dropdown-header-padding-y)
         "0.5rem"))
+  (define menu-header-font-family
+    (or (theme-component-ref theme 'dropdown-header-font-family)
+        (bootstrap-theme-font-family-base theme)))
+  (define menu-header-font-size
+    (or (theme-component-ref theme 'dropdown-header-font-size)
+        menu-popup-font-size))
+  (define menu-header-font-weight
+    (or (theme-component-ref theme 'dropdown-header-font-weight)
+        menu-popup-font-weight))
+  (define menu-header-line-height
+    (or (theme-component-ref theme 'dropdown-header-line-height)
+        menu-popup-line-height))
+  (define menu-header-letter-spacing
+    (or (theme-component-ref theme 'dropdown-header-letter-spacing)
+        menu-popup-letter-spacing))
+  (define menu-header-text-transform
+    (or (theme-component-ref theme 'dropdown-header-text-transform)
+        menu-popup-text-transform))
   (define menu-divider-color
     (or (theme-component-ref theme 'dropdown-divider-bg)
         separator))
@@ -5573,6 +5629,12 @@
     (cons "--we-menu-header-color" menu-header-color)
     (cons "--we-menu-header-padding-x" menu-header-padding-x)
     (cons "--we-menu-header-padding-y" menu-header-padding-y)
+    (cons "--we-menu-header-font-family" menu-header-font-family)
+    (cons "--we-menu-header-font-size" menu-header-font-size)
+    (cons "--we-menu-header-font-weight" menu-header-font-weight)
+    (cons "--we-menu-header-line-height" menu-header-line-height)
+    (cons "--we-menu-header-letter-spacing" menu-header-letter-spacing)
+    (cons "--we-menu-header-text-transform" menu-header-text-transform)
     (cons "--we-menu-divider-color" menu-divider-color)
     (cons "--we-menu-divider-border-width" menu-divider-border-width)
     (cons "--we-menu-item-color" menu-item-color)
@@ -6574,6 +6636,14 @@
      "  line-height: 1.5;\n"
      "  letter-spacing: 0.02em;\n"
      "  text-transform: none;\n"
+     "}\n"
+     ".dropdown-header {\n"
+     "  font-family: \"Menu Header\", sans-serif;\n"
+     "  font-size: 0.75rem;\n"
+     "  font-weight: 600;\n"
+     "  line-height: 1.25;\n"
+     "  letter-spacing: 0.08em;\n"
+     "  text-transform: uppercase;\n"
      "}\n"
      ".dropdown-item {\n"
      "  color: #55595c;\n"
@@ -7683,6 +7753,13 @@
     (check-equal? (hash-ref token-map "--we-menu-popup-line-height") "1.5")
     (check-equal? (hash-ref token-map "--we-menu-popup-letter-spacing") "0.02em")
     (check-equal? (hash-ref token-map "--we-menu-popup-text-transform") "none")
+    (check-equal? (hash-ref token-map "--we-menu-header-font-family")
+                  "\"Menu Header\", sans-serif")
+    (check-equal? (hash-ref token-map "--we-menu-header-font-size") "0.75rem")
+    (check-equal? (hash-ref token-map "--we-menu-header-font-weight") "600")
+    (check-equal? (hash-ref token-map "--we-menu-header-line-height") "1.25")
+    (check-equal? (hash-ref token-map "--we-menu-header-letter-spacing") "0.08em")
+    (check-equal? (hash-ref token-map "--we-menu-header-text-transform") "uppercase")
     (check-equal? (hash-ref token-map "--we-menu-item-text-transform") "uppercase")
     (check-equal? (hash-ref token-map "--we-menu-item-active-bg") "#1a1a1a")
     (check-equal? (hash-ref token-map "--we-menu-item-active-fg") "#ffffff")
@@ -7736,6 +7813,13 @@
        "  line-height: 22px;\n"
        "  text-transform: uppercase;\n"
        "}\n"
+       "h6, .h6 {\n"
+       "  font-family: \"Header Face\", serif;\n"
+       "  font-weight: 500;\n"
+       "  line-height: 1.2;\n"
+       "  letter-spacing: 0.04em;\n"
+       "  text-transform: uppercase;\n"
+       "}\n"
        ".dropdown-header {\n"
        "  font-size: 0.875rem;\n"
        "  color: #8e8c84;\n"
@@ -7753,6 +7837,12 @@
     (check-equal? (hash-ref token-map "--we-menu-item-font-size") "13px")
     (check-equal? (hash-ref token-map "--we-menu-item-font-weight") "500")
     (check-equal? (hash-ref token-map "--we-menu-item-text-transform") "uppercase")
+    (check-equal? (hash-ref token-map "--we-menu-header-font-family")
+                  "\"Header Face\", serif")
+    (check-equal? (hash-ref token-map "--we-menu-header-font-weight") "500")
+    (check-equal? (hash-ref token-map "--we-menu-header-line-height") "1.2")
+    (check-equal? (hash-ref token-map "--we-menu-header-letter-spacing") "0.04em")
+    (check-equal? (hash-ref token-map "--we-menu-header-text-transform") "uppercase")
     (check-equal? (hash-ref token-map "--we-tooltip-font-size") "13px")
     (check-equal? (hash-ref token-map "--we-tooltip-radius") "25px"))
 
