@@ -2707,6 +2707,16 @@ html.we-theme-sketchy .we-offcanvas-header {
     var(--we-offcanvas-padding-x, var(--we-space-md, 8px));
 }
 
+html.we-theme-sketchy .we-offcanvas-header .we-close-button {
+  padding:
+    calc(var(--we-offcanvas-padding-y, var(--we-space-md, 8px)) * 0.5)
+    calc(var(--we-offcanvas-padding-x, var(--we-space-md, 8px)) * 0.5);
+  margin-top: calc(-0.5 * var(--we-offcanvas-padding-y, var(--we-space-md, 8px)));
+  margin-right: calc(-0.5 * var(--we-offcanvas-padding-x, var(--we-space-md, 8px)));
+  margin-bottom: calc(-0.5 * var(--we-offcanvas-padding-y, var(--we-space-md, 8px)));
+  margin-left: auto;
+}
+
 html.we-theme-sketchy .we-offcanvas-body {
   padding:
     var(--we-offcanvas-padding-y, var(--we-space-md, 8px))
