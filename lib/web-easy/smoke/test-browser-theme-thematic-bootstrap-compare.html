@@ -255,6 +255,14 @@
       gap: 12px;
     }
 
+    .bs-preview .input-group-demo-stack > .input-group,
+    .we-preview .input-group-demo-stack > .we-input-group,
+    .bs-preview .input-group-demo-stack > .validation-stack,
+    .we-preview .input-group-demo-stack > .validation-stack {
+      width: 30rem !important;
+      max-width: 100%;
+    }
+
     .spinner-demo-row {
       display: flex;
       align-items: center;
@@ -1151,11 +1159,25 @@
                 <section class="sample-card">
                   <h3>Input Groups And Validation</h3>
                   <div class="sample-body">
-                    <div class="sample-stack">
+                    <div class="sample-stack input-group-demo-stack">
                       <div class="input-group">
                         <span class="input-group-text">https://</span>
                         <input type="text" class="form-control" value="theme-kit.example" aria-label="Theme host">
                         <button class="btn btn-outline-secondary" type="button">Check</button>
+                      </div>
+                      <div class="input-group input-group-sm">
+                        <span class="input-group-text">@</span>
+                        <input type="text" class="form-control" value="theme-kit" aria-label="Compact handle">
+                        <button class="btn btn-outline-secondary" type="button">Go</button>
+                      </div>
+                      <div class="input-group input-group-lg">
+                        <span class="input-group-text">Theme</span>
+                        <select class="form-select" aria-label="Large theme selector">
+                          <option>Lux</option>
+                          <option selected>Sandstone</option>
+                          <option>Sketchy</option>
+                        </select>
+                        <button class="btn btn-outline-secondary" type="button">Apply</button>
                       </div>
                       <div class="validation-stack">
                         <div>
@@ -1957,11 +1979,25 @@
                 <section class="sample-card">
                   <h3>Input Groups And Validation</h3>
                   <div class="sample-body">
-                    <div class="sample-stack">
+                    <div class="sample-stack input-group-demo-stack">
                       <div class="we-input-group">
                         <span class="we-input-group-text">https://</span>
                         <input class="we-input" type="text" value="theme-kit.example" aria-label="Theme host">
                         <button class="we-button we-button-outline-secondary">Check</button>
+                      </div>
+                      <div class="we-input-group we-input-group-sm">
+                        <span class="we-input-group-text">@</span>
+                        <input class="we-input" type="text" value="theme-kit" aria-label="Compact handle">
+                        <button class="we-button we-button-outline-secondary">Go</button>
+                      </div>
+                      <div class="we-input-group we-input-group-lg">
+                        <span class="we-input-group-text">Theme</span>
+                        <select class="we-input" aria-label="Large theme selector">
+                          <option>Lux</option>
+                          <option selected>Sandstone</option>
+                          <option>Sketchy</option>
+                        </select>
+                        <button class="we-button we-button-outline-secondary">Apply</button>
                       </div>
                       <div class="validation-stack">
                         <div class="field-stack">

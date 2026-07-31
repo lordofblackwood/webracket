@@ -597,18 +597,54 @@ html.we-theme-dark .we-input-group {
   width: 100%;
 }
 
-html.we-theme-dark .we-input-group > * {
-  min-width: 0;
-}
-
 html.we-theme-dark .we-input-group > .we-input,
 html.we-theme-dark .we-input-group > .we-choice,
 html.we-theme-dark .we-input-group > input,
 html.we-theme-dark .we-input-group > select,
 html.we-theme-dark .we-input-group > textarea {
+  min-width: 0;
   position: relative;
   flex: 1 1 auto;
   width: 1%;
+}
+
+html.we-theme-dark .we-input-group.we-input-group-sm > .we-input,
+html.we-theme-dark .we-input-group.we-input-group-sm > input.we-input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+html.we-theme-dark .we-input-group.we-input-group-sm > select.we-input,
+html.we-theme-dark .we-input-group.we-input-group-sm > textarea.we-input,
+html.we-theme-dark .we-input-group.we-input-group-sm > .we-choice,
+html.we-theme-dark .we-input-group.we-input-group-sm > input,
+html.we-theme-dark .we-input-group.we-input-group-sm > select,
+html.we-theme-dark .we-input-group.we-input-group-sm > textarea,
+html.we-theme-dark .we-input-group.we-input-group-sm > .we-input-group-text,
+html.we-theme-dark .we-input-group.we-input-group-sm > .we-button {
+  padding: var(--we-input-group-sm-padding-y, var(--we-field-sm-padding-y, 0.25rem)) var(--we-input-group-sm-padding-x, var(--we-field-sm-padding-x, 0.5rem));
+  font-size: var(--we-input-group-sm-font-size, var(--we-field-sm-font-size, var(--we-font-size-sm, 0.875rem)));
+  border-radius: var(--we-input-group-sm-radius, var(--we-field-sm-radius, var(--we-radius-sm, var(--we-field-radius))));
+}
+
+html.we-theme-dark .we-input-group.we-input-group-lg > .we-input,
+html.we-theme-dark .we-input-group.we-input-group-lg > input.we-input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+html.we-theme-dark .we-input-group.we-input-group-lg > select.we-input,
+html.we-theme-dark .we-input-group.we-input-group-lg > textarea.we-input,
+html.we-theme-dark .we-input-group.we-input-group-lg > .we-choice,
+html.we-theme-dark .we-input-group.we-input-group-lg > input,
+html.we-theme-dark .we-input-group.we-input-group-lg > select,
+html.we-theme-dark .we-input-group.we-input-group-lg > textarea,
+html.we-theme-dark .we-input-group.we-input-group-lg > .we-input-group-text,
+html.we-theme-dark .we-input-group.we-input-group-lg > .we-button {
+  padding: var(--we-input-group-lg-padding-y, var(--we-field-lg-padding-y, 0.5rem)) var(--we-input-group-lg-padding-x, var(--we-field-lg-padding-x, 1rem));
+  font-size: var(--we-input-group-lg-font-size, var(--we-field-lg-font-size, 1.25rem));
+  border-radius: var(--we-input-group-lg-radius, var(--we-field-lg-radius, var(--we-radius-lg, var(--we-field-radius))));
+}
+
+html.we-theme-dark .we-input-group.we-input-group-sm > select,
+html.we-theme-dark .we-input-group.we-input-group-sm > select.we-input,
+html.we-theme-dark .we-input-group.we-input-group-sm > .we-choice,
+html.we-theme-dark .we-input-group.we-input-group-lg > select,
+html.we-theme-dark .we-input-group.we-input-group-lg > select.we-input,
+html.we-theme-dark .we-input-group.we-input-group-lg > .we-choice {
+  padding-right: var(--we-input-group-select-padding-right, var(--we-field-select-padding-right, calc(var(--we-field-padding-x) * 3)));
 }
 
 html.we-theme-dark .we-input-group > :not(:first-child) {
@@ -645,6 +681,11 @@ html.we-theme-dark .we-input-group > textarea:not(:first-child):not(:last-child)
   border-bottom-left-radius: 0;
   border-top-right-radius: 0;
   border-bottom-right-radius: 0;
+}
+
+html.we-theme-dark .we-input-group > select.we-input:not(:first-child):not(:last-child),
+html.we-theme-dark .we-input-group > select:not(:first-child):not(:last-child) {
+  border-radius: var(--we-input-group-select-middle-radius, 0);
 }
 
 html.we-theme-dark .we-input-group-text {

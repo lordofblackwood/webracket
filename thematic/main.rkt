@@ -327,6 +327,23 @@
                                 property)))])
          (resolved-concrete-css-value (css-declaration-value declaration) lookup))))
 
+;; last-important-direct-declaration-value : css-stylesheet? (listof string?) string? procedure? -> (or/c string? #f)
+;;   Return the last meaningful important declaration for exact Bootstrap selector groups.
+(define (last-important-direct-declaration-value rules selectors property lookup)
+  (and (css-stylesheet? rules)
+       (for/or ([declaration (in-list
+                              (reverse
+                               (css-find-declarations-in-selector-groups
+                                rules
+                                selectors
+                                property)))])
+         (and (css-declaration-important? declaration)
+              (resolved-concrete-css-value
+               (regexp-replace #px"(?i:\\s*!important\\s*$)"
+                               (css-declaration-value declaration)
+                               "")
+               lookup)))))
+
 ;; border-none-value? : (or/c string? #f) -> boolean?
 ;;   Detect authored border shorthands that explicitly remove a border.
 (define (border-none-value? value)
@@ -2706,6 +2723,44 @@
     (field-style-ref ".input-group-text" "font-size"))
   (define input-group-addon-font-weight
     (field-style-ref ".input-group-text" "font-weight"))
+  (define input-group-sm-selectors
+    '(".input-group-sm > .form-control"
+      ".input-group-sm > .form-select"
+      ".input-group-sm > .input-group-text"
+      ".input-group-sm > .btn"))
+  (define input-group-lg-selectors
+    '(".input-group-lg > .form-control"
+      ".input-group-lg > .form-select"
+      ".input-group-lg > .input-group-text"
+      ".input-group-lg > .btn"))
+  (define input-group-sm-padding-x
+    (selector-ref* field-style-ref input-group-sm-selectors "padding-left"))
+  (define input-group-sm-padding-y
+    (selector-ref* field-style-ref input-group-sm-selectors "padding-top"))
+  (define input-group-sm-font-size
+    (selector-ref* field-style-ref input-group-sm-selectors "font-size"))
+  (define input-group-sm-radius
+    (or (field-direct-ref input-group-sm-selectors "border-radius")
+        field-sm-radius))
+  (define input-group-lg-padding-x
+    (selector-ref* field-style-ref input-group-lg-selectors "padding-left"))
+  (define input-group-lg-padding-y
+    (selector-ref* field-style-ref input-group-lg-selectors "padding-top"))
+  (define input-group-lg-font-size
+    (selector-ref* field-style-ref input-group-lg-selectors "font-size"))
+  (define input-group-lg-radius
+    (or (field-direct-ref input-group-lg-selectors "border-radius")
+        field-lg-radius))
+  (define input-group-select-padding-right
+    (selector-ref* field-style-ref
+                   '(".input-group-sm > .form-select"
+                     ".input-group-lg > .form-select")
+                   "padding-right"))
+  (define input-group-select-middle-radius
+    (last-important-direct-declaration-value rules
+                                             '("select" "select.form-control")
+                                             "border-radius"
+                                             field-context-ref))
   (define field-valid-color
     (or (hash-ref props "--bs-form-valid-color" #f)
         (field-style-ref ".valid-feedback" "color")))
@@ -3867,6 +3922,16 @@
         'input-group-addon-padding-y input-group-addon-padding-y
         'input-group-addon-font-size input-group-addon-font-size
         'input-group-addon-font-weight input-group-addon-font-weight
+        'input-group-sm-padding-x input-group-sm-padding-x
+        'input-group-sm-padding-y input-group-sm-padding-y
+        'input-group-sm-font-size input-group-sm-font-size
+        'input-group-sm-radius input-group-sm-radius
+        'input-group-lg-padding-x input-group-lg-padding-x
+        'input-group-lg-padding-y input-group-lg-padding-y
+        'input-group-lg-font-size input-group-lg-font-size
+        'input-group-lg-radius input-group-lg-radius
+        'input-group-select-padding-right input-group-select-padding-right
+        'input-group-select-middle-radius input-group-select-middle-radius
         'field-valid-color field-valid-color
         'field-valid-border-color field-valid-border-color
         'field-valid-icon field-valid-icon
@@ -6398,6 +6463,37 @@
   (define input-group-addon-font-weight
     (or (theme-component-ref theme 'input-group-addon-font-weight)
         field-font-weight))
+  (define input-group-sm-padding-x
+    (or (theme-component-ref theme 'input-group-sm-padding-x)
+        field-sm-padding-x))
+  (define input-group-sm-padding-y
+    (or (theme-component-ref theme 'input-group-sm-padding-y)
+        field-sm-padding-y))
+  (define input-group-sm-font-size
+    (or (theme-component-ref theme 'input-group-sm-font-size)
+        field-sm-font-size))
+  (define input-group-sm-radius
+    (or (theme-component-ref theme 'input-group-sm-radius)
+        field-sm-radius))
+  (define input-group-lg-padding-x
+    (or (theme-component-ref theme 'input-group-lg-padding-x)
+        field-lg-padding-x))
+  (define input-group-lg-padding-y
+    (or (theme-component-ref theme 'input-group-lg-padding-y)
+        field-lg-padding-y))
+  (define input-group-lg-font-size
+    (or (theme-component-ref theme 'input-group-lg-font-size)
+        field-lg-font-size))
+  (define input-group-lg-radius
+    (or (theme-component-ref theme 'input-group-lg-radius)
+        field-lg-radius))
+  (define input-group-select-padding-right
+    (or (theme-component-ref theme 'input-group-select-padding-right)
+        (theme-component-ref theme 'field-select-padding-right)
+        "3rem"))
+  (define input-group-select-middle-radius
+    (or (theme-component-ref theme 'input-group-select-middle-radius)
+        "0"))
   (define field-valid-color
     (or (theme-component-ref theme 'field-valid-color)
         (bootstrap-theme-success theme)))
@@ -7494,6 +7590,16 @@
     (cons "--we-input-group-addon-padding-y" input-group-addon-padding-y)
     (cons "--we-input-group-addon-font-size" input-group-addon-font-size)
     (cons "--we-input-group-addon-font-weight" input-group-addon-font-weight)
+    (cons "--we-input-group-sm-padding-x" input-group-sm-padding-x)
+    (cons "--we-input-group-sm-padding-y" input-group-sm-padding-y)
+    (cons "--we-input-group-sm-font-size" input-group-sm-font-size)
+    (cons "--we-input-group-sm-radius" input-group-sm-radius)
+    (cons "--we-input-group-lg-padding-x" input-group-lg-padding-x)
+    (cons "--we-input-group-lg-padding-y" input-group-lg-padding-y)
+    (cons "--we-input-group-lg-font-size" input-group-lg-font-size)
+    (cons "--we-input-group-lg-radius" input-group-lg-radius)
+    (cons "--we-input-group-select-padding-right" input-group-select-padding-right)
+    (cons "--we-input-group-select-middle-radius" input-group-select-middle-radius)
     (cons "--we-field-valid-color" field-valid-color)
     (cons "--we-field-valid-border-color" field-valid-border-color)
     (cons "--we-field-valid-icon" field-valid-icon)
@@ -8494,6 +8600,9 @@
      "  font-size: 1.25rem;\n"
      "  border-radius: 0.25rem;\n"
      "}\n"
+     "select {\n"
+     "  border-radius: 1.125rem !important;\n"
+     "}\n"
      ".input-group-text {\n"
      "  padding: 0.75rem 1.5rem;\n"
      "  font-size: 1rem;\n"
@@ -8501,6 +8610,19 @@
      "  color: #55595c;\n"
      "  background-color: #e0e1e2;\n"
      "  border: 0 solid #a0a1a2;\n"
+     "}\n"
+     ".input-group-sm > .form-control, .input-group-sm > .form-select, .input-group-sm > .input-group-text, .input-group-sm > .btn {\n"
+     "  padding: 0.25rem 0.625rem;\n"
+     "  font-size: 0.875rem;\n"
+     "  border-radius: 0.125rem;\n"
+     "}\n"
+     ".input-group-lg > .form-control, .input-group-lg > .form-select, .input-group-lg > .input-group-text, .input-group-lg > .btn {\n"
+     "  padding: 0.5rem 1.625rem;\n"
+     "  font-size: 1.25rem;\n"
+     "  border-radius: 0.25rem;\n"
+     "}\n"
+     ".input-group-lg > .form-select, .input-group-sm > .form-select {\n"
+     "  padding-right: 4rem;\n"
      "}\n"
      ".form-floating > .form-control {\n"
      "  height: 3.5rem;\n"
@@ -9325,6 +9447,16 @@
     (check-equal? (hash-ref token-map "--we-input-group-addon-bg") "#e0e1e2")
     (check-equal? (hash-ref token-map "--we-input-group-addon-border-color") "#a0a1a2")
     (check-equal? (hash-ref token-map "--we-input-group-addon-font-weight") "300")
+    (check-equal? (hash-ref token-map "--we-input-group-sm-padding-x") "0.625rem")
+    (check-equal? (hash-ref token-map "--we-input-group-sm-padding-y") "0.25rem")
+    (check-equal? (hash-ref token-map "--we-input-group-sm-font-size") "0.875rem")
+    (check-equal? (hash-ref token-map "--we-input-group-sm-radius") "0.125rem")
+    (check-equal? (hash-ref token-map "--we-input-group-lg-padding-x") "1.625rem")
+    (check-equal? (hash-ref token-map "--we-input-group-lg-padding-y") "0.5rem")
+    (check-equal? (hash-ref token-map "--we-input-group-lg-font-size") "1.25rem")
+    (check-equal? (hash-ref token-map "--we-input-group-lg-radius") "0.25rem")
+    (check-equal? (hash-ref token-map "--we-input-group-select-padding-right") "4rem")
+    (check-equal? (hash-ref token-map "--we-input-group-select-middle-radius") "1.125rem")
     (check-equal? (hash-ref token-map "--we-field-border-width") "0")
     (check-equal? (hash-ref token-map "--we-field-border-color") "#b0b1b2")
     (check-equal? (hash-ref token-map "--we-field-padding-x") "1.5rem")
