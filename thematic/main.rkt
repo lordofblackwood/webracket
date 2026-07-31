@@ -475,6 +475,62 @@
     (selector-ref* meaningful-style-ref '(".lead") "letter-spacing"))
   (define lead-text-transform
     (selector-ref* meaningful-style-ref '(".lead") "text-transform"))
+  (define blockquote-selectors
+    '(".blockquote" "blockquote"))
+  (define blockquote-footer-selectors
+    '(".blockquote-footer"))
+  (define (blockquote-ref property)
+    (selector-ref* meaningful-style-ref blockquote-selectors property))
+  (define (blockquote-margin-ref property)
+    (selector-ref* nav-style-ref blockquote-selectors property))
+  (define (blockquote-footer-ref property)
+    (selector-ref* meaningful-style-ref blockquote-footer-selectors property))
+  (define (blockquote-footer-margin-ref property)
+    (selector-ref* nav-style-ref blockquote-footer-selectors property))
+  (define blockquote-color
+    (blockquote-ref "color"))
+  (define blockquote-font-family
+    (blockquote-ref "font-family"))
+  (define blockquote-font-size
+    (blockquote-ref "font-size"))
+  (define blockquote-font-weight
+    (blockquote-ref "font-weight"))
+  (define blockquote-line-height
+    (blockquote-ref "line-height"))
+  (define blockquote-letter-spacing
+    (blockquote-ref "letter-spacing"))
+  (define blockquote-text-transform
+    (blockquote-ref "text-transform"))
+  (define blockquote-margin-top
+    (blockquote-margin-ref "margin-top"))
+  (define blockquote-margin-right
+    (blockquote-margin-ref "margin-right"))
+  (define blockquote-margin-bottom
+    (blockquote-margin-ref "margin-bottom"))
+  (define blockquote-margin-left
+    (blockquote-margin-ref "margin-left"))
+  (define blockquote-footer-color
+    (blockquote-footer-ref "color"))
+  (define blockquote-footer-font-family
+    (blockquote-footer-ref "font-family"))
+  (define blockquote-footer-font-size
+    (blockquote-footer-ref "font-size"))
+  (define blockquote-footer-font-weight
+    (blockquote-footer-ref "font-weight"))
+  (define blockquote-footer-line-height
+    (blockquote-footer-ref "line-height"))
+  (define blockquote-footer-letter-spacing
+    (blockquote-footer-ref "letter-spacing"))
+  (define blockquote-footer-text-transform
+    (blockquote-footer-ref "text-transform"))
+  (define blockquote-footer-margin-top
+    (blockquote-footer-margin-ref "margin-top"))
+  (define blockquote-footer-margin-right
+    (blockquote-footer-margin-ref "margin-right"))
+  (define blockquote-footer-margin-bottom
+    (blockquote-footer-margin-ref "margin-bottom"))
+  (define blockquote-footer-margin-left
+    (blockquote-footer-margin-ref "margin-left"))
   (define pill-link-selectors
     '(".nav-pills .nav-link" ".nav-link"))
   (define pill-border-authored?
@@ -3157,6 +3213,28 @@
         'lead-line-height lead-line-height
         'lead-letter-spacing lead-letter-spacing
         'lead-text-transform lead-text-transform
+        'blockquote-color blockquote-color
+        'blockquote-font-family blockquote-font-family
+        'blockquote-font-size blockquote-font-size
+        'blockquote-font-weight blockquote-font-weight
+        'blockquote-line-height blockquote-line-height
+        'blockquote-letter-spacing blockquote-letter-spacing
+        'blockquote-text-transform blockquote-text-transform
+        'blockquote-margin-top blockquote-margin-top
+        'blockquote-margin-right blockquote-margin-right
+        'blockquote-margin-bottom blockquote-margin-bottom
+        'blockquote-margin-left blockquote-margin-left
+        'blockquote-footer-color blockquote-footer-color
+        'blockquote-footer-font-family blockquote-footer-font-family
+        'blockquote-footer-font-size blockquote-footer-font-size
+        'blockquote-footer-font-weight blockquote-footer-font-weight
+        'blockquote-footer-line-height blockquote-footer-line-height
+        'blockquote-footer-letter-spacing blockquote-footer-letter-spacing
+        'blockquote-footer-text-transform blockquote-footer-text-transform
+        'blockquote-footer-margin-top blockquote-footer-margin-top
+        'blockquote-footer-margin-right blockquote-footer-margin-right
+        'blockquote-footer-margin-bottom blockquote-footer-margin-bottom
+        'blockquote-footer-margin-left blockquote-footer-margin-left
         'navbar-link-color navbar-link-color
         'navbar-link-hover navbar-link-hover
         'navbar-link-active navbar-link-active
@@ -4412,6 +4490,72 @@
   (define lead-text-transform
     (or (theme-component-ref theme 'lead-text-transform)
         "none"))
+  (define blockquote-color
+    (or (theme-component-ref theme 'blockquote-color)
+        (bootstrap-theme-fg theme)))
+  (define blockquote-font-family
+    (or (theme-component-ref theme 'blockquote-font-family)
+        (bootstrap-theme-font-family-base theme)))
+  (define blockquote-font-size
+    (or (theme-component-ref theme 'blockquote-font-size)
+        "1.25rem"))
+  (define blockquote-font-weight
+    (or (theme-component-ref theme 'blockquote-font-weight)
+        (bootstrap-theme-font-weight-normal theme)))
+  (define blockquote-line-height
+    (or (theme-component-ref theme 'blockquote-line-height)
+        (bootstrap-theme-line-height-base theme)))
+  (define blockquote-letter-spacing
+    (or (theme-component-ref theme 'blockquote-letter-spacing)
+        (bootstrap-theme-letter-spacing-base theme)))
+  (define blockquote-text-transform
+    (or (theme-component-ref theme 'blockquote-text-transform)
+        "none"))
+  (define blockquote-margin-top
+    (or (theme-component-ref theme 'blockquote-margin-top)
+        "0"))
+  (define blockquote-margin-right
+    (or (theme-component-ref theme 'blockquote-margin-right)
+        "0"))
+  (define blockquote-margin-bottom
+    (or (theme-component-ref theme 'blockquote-margin-bottom)
+        "1rem"))
+  (define blockquote-margin-left
+    (or (theme-component-ref theme 'blockquote-margin-left)
+        "0"))
+  (define blockquote-footer-color
+    (or (theme-component-ref theme 'blockquote-footer-color)
+        fg-muted))
+  (define blockquote-footer-font-family
+    (or (theme-component-ref theme 'blockquote-footer-font-family)
+        (bootstrap-theme-font-family-base theme)))
+  (define blockquote-footer-font-size
+    (or (theme-component-ref theme 'blockquote-footer-font-size)
+        "0.875em"))
+  (define blockquote-footer-font-weight
+    (or (theme-component-ref theme 'blockquote-footer-font-weight)
+        (bootstrap-theme-font-weight-normal theme)))
+  (define blockquote-footer-line-height
+    (or (theme-component-ref theme 'blockquote-footer-line-height)
+        (bootstrap-theme-line-height-base theme)))
+  (define blockquote-footer-letter-spacing
+    (or (theme-component-ref theme 'blockquote-footer-letter-spacing)
+        (bootstrap-theme-letter-spacing-base theme)))
+  (define blockquote-footer-text-transform
+    (or (theme-component-ref theme 'blockquote-footer-text-transform)
+        "none"))
+  (define blockquote-footer-margin-top
+    (or (theme-component-ref theme 'blockquote-footer-margin-top)
+        "-1rem"))
+  (define blockquote-footer-margin-right
+    (or (theme-component-ref theme 'blockquote-footer-margin-right)
+        "0"))
+  (define blockquote-footer-margin-bottom
+    (or (theme-component-ref theme 'blockquote-footer-margin-bottom)
+        "1rem"))
+  (define blockquote-footer-margin-left
+    (or (theme-component-ref theme 'blockquote-footer-margin-left)
+        "0"))
   (define border-muted
     (rgb->css (mix-colors border bg 0.18)))
   (define border-hover-rgb
@@ -7371,6 +7515,29 @@
     (cons "--we-lead-line-height" lead-line-height)
     (cons "--we-lead-letter-spacing" lead-letter-spacing)
     (cons "--we-lead-text-transform" lead-text-transform)
+    (cons "--we-blockquote-color" blockquote-color)
+    (cons "--we-blockquote-font-family" blockquote-font-family)
+    (cons "--we-blockquote-font-size" blockquote-font-size)
+    (cons "--we-blockquote-font-weight" blockquote-font-weight)
+    (cons "--we-blockquote-line-height" blockquote-line-height)
+    (cons "--we-blockquote-letter-spacing" blockquote-letter-spacing)
+    (cons "--we-blockquote-text-transform" blockquote-text-transform)
+    (cons "--we-blockquote-margin-top" blockquote-margin-top)
+    (cons "--we-blockquote-margin-right" blockquote-margin-right)
+    (cons "--we-blockquote-margin-bottom" blockquote-margin-bottom)
+    (cons "--we-blockquote-margin-left" blockquote-margin-left)
+    (cons "--we-blockquote-footer-color" blockquote-footer-color)
+    (cons "--we-blockquote-footer-font-family" blockquote-footer-font-family)
+    (cons "--we-blockquote-footer-font-size" blockquote-footer-font-size)
+    (cons "--we-blockquote-footer-font-weight" blockquote-footer-font-weight)
+    (cons "--we-blockquote-footer-line-height" blockquote-footer-line-height)
+    (cons "--we-blockquote-footer-letter-spacing" blockquote-footer-letter-spacing)
+    (cons "--we-blockquote-footer-text-transform" blockquote-footer-text-transform)
+    (cons "--we-blockquote-footer-margin-top" blockquote-footer-margin-top)
+    (cons "--we-blockquote-footer-margin-right" blockquote-footer-margin-right)
+    (cons "--we-blockquote-footer-margin-bottom" blockquote-footer-margin-bottom)
+    (cons "--we-blockquote-footer-margin-left" blockquote-footer-margin-left)
+    (cons "--we-blockquote-footer-prefix" "\"\\2014\\00a0\"")
     (cons "--we-font-size-sm" (bootstrap-theme-font-size-sm theme))
     (cons "--we-font-size-md" (bootstrap-theme-font-size-md theme))
     (cons "--we-font-size-lg" (bootstrap-theme-font-size-lg theme))
@@ -8763,6 +8930,52 @@
     (check-equal? (hash-ref token-map "--we-lead-line-height") "1.4")
     (check-equal? (hash-ref token-map "--we-lead-letter-spacing") "0.02em")
     (check-equal? (hash-ref token-map "--we-lead-text-transform") "uppercase"))
+
+  (test-case "component rule extraction feeds blockquote typography tokens"
+    (define rules
+      (read-css-rules
+       (string-append
+        ":root {\n"
+        "  --bs-body-color: #212529;\n"
+        "  --bs-body-bg: #ffffff;\n"
+        "  --bs-body-font-family: system-ui, sans-serif;\n"
+        "  --bs-body-line-height: 1.5;\n"
+        "}\n"
+        ".blockquote {\n"
+        "  color: #334455;\n"
+        "  font-size: 1.4rem;\n"
+        "  font-weight: 500;\n"
+        "  line-height: 1.35;\n"
+        "  letter-spacing: 0.01em;\n"
+        "  text-transform: none;\n"
+        "  margin-top: 0;\n"
+        "  margin-right: 0;\n"
+        "  margin-bottom: 1.25rem;\n"
+        "  margin-left: 0;\n"
+        "}\n"
+        ".blockquote-footer {\n"
+        "  color: #667788;\n"
+        "  font-size: 0.875em;\n"
+        "  font-weight: 400;\n"
+        "  line-height: 1.5;\n"
+        "  letter-spacing: 0.03em;\n"
+        "  text-transform: uppercase;\n"
+        "  margin-top: -1.25rem;\n"
+        "  margin-right: 0;\n"
+        "  margin-bottom: 1rem;\n"
+        "  margin-left: 0;\n"
+        "}\n")))
+    (define token-map (bootstrap-rules->token-map rules))
+    (check-equal? (hash-ref token-map "--we-blockquote-color") "#334455")
+    (check-equal? (hash-ref token-map "--we-blockquote-font-size") "1.4rem")
+    (check-equal? (hash-ref token-map "--we-blockquote-font-weight") "500")
+    (check-equal? (hash-ref token-map "--we-blockquote-line-height") "1.35")
+    (check-equal? (hash-ref token-map "--we-blockquote-letter-spacing") "0.01em")
+    (check-equal? (hash-ref token-map "--we-blockquote-margin-bottom") "1.25rem")
+    (check-equal? (hash-ref token-map "--we-blockquote-footer-color") "#667788")
+    (check-equal? (hash-ref token-map "--we-blockquote-footer-font-size") "0.875em")
+    (check-equal? (hash-ref token-map "--we-blockquote-footer-text-transform") "uppercase")
+    (check-equal? (hash-ref token-map "--we-blockquote-footer-margin-top") "-1.25rem"))
 
   (test-case "brand heading sample keeps explicit navbar brand typography"
     (define rules

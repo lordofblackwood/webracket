@@ -825,6 +825,29 @@ html.we-theme-sketchy {
   --we-lead-line-height: 1.5;
   --we-lead-letter-spacing: normal;
   --we-lead-text-transform: none;
+  --we-blockquote-color: #212529;
+  --we-blockquote-font-family: Neucha, -apple-system, system-ui, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --we-blockquote-font-size: 1.25rem;
+  --we-blockquote-font-weight: 700;
+  --we-blockquote-line-height: 1.5;
+  --we-blockquote-letter-spacing: normal;
+  --we-blockquote-text-transform: none;
+  --we-blockquote-margin-top: 0;
+  --we-blockquote-margin-right: 0;
+  --we-blockquote-margin-bottom: 1rem;
+  --we-blockquote-margin-left: 0;
+  --we-blockquote-footer-color: #868e96;
+  --we-blockquote-footer-font-family: Neucha, -apple-system, system-ui, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --we-blockquote-footer-font-size: 0.875em;
+  --we-blockquote-footer-font-weight: 700;
+  --we-blockquote-footer-line-height: 1.5;
+  --we-blockquote-footer-letter-spacing: normal;
+  --we-blockquote-footer-text-transform: none;
+  --we-blockquote-footer-margin-top: -1rem;
+  --we-blockquote-footer-margin-right: 0;
+  --we-blockquote-footer-margin-bottom: 1rem;
+  --we-blockquote-footer-margin-left: 0;
+  --we-blockquote-footer-prefix: "\2014\00a0";
   --we-font-size-sm: 0.875rem;
   --we-font-size-md: 1rem;
   --we-font-size-lg: 1.15rem;
@@ -3218,11 +3241,41 @@ html.we-theme-sketchy .we-lead {
 }
 
 html.we-theme-sketchy .we-blockquote-quote {
-  color: var(--we-primary-emphasis);
+  display: block;
+  margin:
+    var(--we-blockquote-margin-top, 0)
+    var(--we-blockquote-margin-right, 0)
+    var(--we-blockquote-margin-bottom, 1rem)
+    var(--we-blockquote-margin-left, 0);
+  padding: 0;
+  color: var(--we-blockquote-color, var(--we-fg));
+  font-family: var(--we-blockquote-font-family, var(--we-font-family-base));
+  font-size: var(--we-blockquote-font-size, 1.25rem);
+  font-weight: var(--we-blockquote-font-weight, var(--we-font-weight-normal));
+  line-height: var(--we-blockquote-line-height, var(--we-line-height-base));
+  letter-spacing: var(--we-blockquote-letter-spacing, var(--we-letter-spacing-base));
+  text-transform: var(--we-blockquote-text-transform, none);
 }
 
 html.we-theme-sketchy .we-blockquote-attrib {
-  color: var(--we-secondary-emphasis);
+  display: block;
+  margin:
+    var(--we-blockquote-footer-margin-top, -1rem)
+    var(--we-blockquote-footer-margin-right, 0)
+    var(--we-blockquote-footer-margin-bottom, 1rem)
+    var(--we-blockquote-footer-margin-left, 0);
+  padding: 0;
+  color: var(--we-blockquote-footer-color, var(--we-fg-muted));
+  font-family: var(--we-blockquote-footer-font-family, var(--we-font-family-base));
+  font-size: var(--we-blockquote-footer-font-size, 0.875em);
+  font-weight: var(--we-blockquote-footer-font-weight, var(--we-font-weight-normal));
+  line-height: var(--we-blockquote-footer-line-height, var(--we-line-height-base));
+  letter-spacing: var(--we-blockquote-footer-letter-spacing, var(--we-letter-spacing-base));
+  text-transform: var(--we-blockquote-footer-text-transform, none);
+}
+
+html.we-theme-sketchy .we-blockquote-attrib::before {
+  content: var(--we-blockquote-footer-prefix, "\2014\00a0");
 }
 
 html.we-theme-sketchy .we-heading-subtitle {
