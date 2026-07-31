@@ -271,6 +271,15 @@ html.we-theme-sandstone-boost {
   --we-progress-bar-color: #325d88;
   --we-progress-bar-bg: #325d88;
   --we-progress-warning-color: rgba(62, 63, 58, 1);
+  --we-spinner-width: 2rem;
+  --we-spinner-height: 2rem;
+  --we-spinner-vertical-align: -0.125em;
+  --we-spinner-border-width: 0.25em;
+  --we-spinner-border-style: solid;
+  --we-spinner-border-color: currentColor;
+  --we-spinner-border-right-color: transparent;
+  --we-spinner-radius: 50%;
+  --we-spinner-animation-speed: 1.5s;
   --we-breadcrumb-divider-color: rgba(62, 63, 58, 0.75);
   --we-breadcrumb-padding-x: 0.75rem;
   --we-breadcrumb-padding-y: 0.375rem;
@@ -2407,6 +2416,37 @@ html.we-theme-sandstone-boost .we-badge-shape-pill .we-badge {
 
 html.we-theme-sandstone-boost .we-badge.we-badge-pill {
   border-radius: var(--we-radius-pill);
+}
+
+/* Spinners mirror Bootstrap's border spinner while keeping the web-easy label hook. */
+html.we-theme-sandstone-boost .we-spinner {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--we-spinner-gap, var(--we-space-sm, 4px));
+  align-self: flex-start;
+  color: var(--we-spinner-color, currentColor);
+}
+
+html.we-theme-sandstone-boost .we-spinner-icon {
+  display: inline-block;
+  width: var(--we-spinner-width, 2rem);
+  height: var(--we-spinner-height, 2rem);
+  vertical-align: var(--we-spinner-vertical-align, -0.125em);
+  border:
+    var(--we-spinner-border-width, 0.25em)
+    var(--we-spinner-border-style, solid)
+    var(--we-spinner-border-color, currentColor);
+  border-right-color: var(--we-spinner-border-right-color, transparent);
+  border-radius: var(--we-spinner-radius, 50%);
+  animation: we-spin var(--we-spinner-animation-speed, 0.75s) linear infinite;
+}
+
+html.we-theme-sandstone-boost .we-spinner-label {
+  color: var(--we-spinner-label-color, currentColor);
+}
+
+@keyframes we-spin {
+  to { transform: rotate(360deg); }
 }
 
 /* Navigation helpers for breadcrumb/pagination. */

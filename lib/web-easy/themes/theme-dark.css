@@ -1922,6 +1922,37 @@ html.we-theme-dark .we-badge.we-badge-pill {
   border-radius: var(--we-radius-pill);
 }
 
+/* Spinners mirror Bootstrap's border spinner while keeping the web-easy label hook. */
+html.we-theme-dark .we-spinner {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--we-spinner-gap, var(--we-space-sm, 4px));
+  align-self: flex-start;
+  color: var(--we-spinner-color, currentColor);
+}
+
+html.we-theme-dark .we-spinner-icon {
+  display: inline-block;
+  width: var(--we-spinner-width, 2rem);
+  height: var(--we-spinner-height, 2rem);
+  vertical-align: var(--we-spinner-vertical-align, -0.125em);
+  border:
+    var(--we-spinner-border-width, 0.25em)
+    var(--we-spinner-border-style, solid)
+    var(--we-spinner-border-color, currentColor);
+  border-right-color: var(--we-spinner-border-right-color, transparent);
+  border-radius: var(--we-spinner-radius, 50%);
+  animation: we-spin var(--we-spinner-animation-speed, 0.75s) linear infinite;
+}
+
+html.we-theme-dark .we-spinner-label {
+  color: var(--we-spinner-label-color, currentColor);
+}
+
+@keyframes we-spin {
+  to { transform: rotate(360deg); }
+}
+
 /* Navigation helpers for breadcrumb/pagination. */
 html.we-theme-dark .we-breadcrumb {
   display: flex;

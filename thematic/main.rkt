@@ -1617,6 +1617,45 @@
         (navmetric-style-ref ".bg-warning.text-dark" "color")
         (navmetric-style-ref ".text-dark" "color")
         progress-bar-color))
+  (define (spinner-context-ref key)
+    (hash-ref props key #f))
+  (define (spinner-direct-ref selectors property)
+    (last-direct-declaration-value rules
+                                   selectors
+                                   property
+                                   spinner-context-ref))
+  (define spinner-border-shorthand
+    (spinner-direct-ref '(".spinner-border") "border"))
+  (define spinner-width
+    (or (computed-custom-ref ".spinner-border" "--bs-spinner-width")
+        (computed-style-ref ".spinner-border" "width")))
+  (define spinner-height
+    (or (computed-custom-ref ".spinner-border" "--bs-spinner-height")
+        (computed-style-ref ".spinner-border" "height")))
+  (define spinner-vertical-align
+    (or (computed-custom-ref ".spinner-border" "--bs-spinner-vertical-align")
+        (computed-style-ref ".spinner-border" "vertical-align")))
+  (define spinner-border-width
+    (or (computed-custom-ref ".spinner-border" "--bs-spinner-border-width")
+        (border-shorthand-width spinner-border-shorthand)
+        (computed-style-ref ".spinner-border" "border-top-width")))
+  (define spinner-border-style
+    (or (computed-style-ref ".spinner-border" "border-top-style")
+        "solid"))
+  (define spinner-border-color
+    (or (spinner-direct-ref '(".spinner-border") "border-top-color")
+        (spinner-direct-ref '(".spinner-border") "border-color")
+        (border-shorthand-color spinner-border-shorthand)
+        "currentColor"))
+  (define spinner-border-right-color
+    (or (spinner-direct-ref '(".spinner-border") "border-right-color")
+        "transparent"))
+  (define spinner-radius
+    (or (computed-style-ref ".spinner-border" "border-radius")
+        "50%"))
+  (define spinner-animation-speed
+    (or (computed-custom-ref ".spinner-border" "--bs-spinner-animation-speed")
+        "0.75s"))
   (define breadcrumb-divider-color
     (or (navmetric-custom-ref ".breadcrumb" "--bs-breadcrumb-divider-color")
         (navmetric-style-ref ".breadcrumb-item + .breadcrumb-item::before" "color")))
@@ -3013,6 +3052,15 @@
         'progress-bar-color progress-bar-color
         'progress-bar-bg progress-bar-bg
         'progress-warning-color progress-warning-color
+        'spinner-width spinner-width
+        'spinner-height spinner-height
+        'spinner-vertical-align spinner-vertical-align
+        'spinner-border-width spinner-border-width
+        'spinner-border-style spinner-border-style
+        'spinner-border-color spinner-border-color
+        'spinner-border-right-color spinner-border-right-color
+        'spinner-radius spinner-radius
+        'spinner-animation-speed spinner-animation-speed
         'breadcrumb-divider-color breadcrumb-divider-color
         'breadcrumb-padding-x breadcrumb-padding-x
         'breadcrumb-padding-y breadcrumb-padding-y
@@ -4782,6 +4830,33 @@
   (define progress-warning-color
     (or (theme-component-ref theme 'progress-warning-color)
         progress-bar-color))
+  (define spinner-width
+    (or (theme-component-ref theme 'spinner-width)
+        "2rem"))
+  (define spinner-height
+    (or (theme-component-ref theme 'spinner-height)
+        "2rem"))
+  (define spinner-vertical-align
+    (or (theme-component-ref theme 'spinner-vertical-align)
+        "-0.125em"))
+  (define spinner-border-width
+    (or (theme-component-ref theme 'spinner-border-width)
+        "0.25em"))
+  (define spinner-border-style
+    (or (theme-component-ref theme 'spinner-border-style)
+        "solid"))
+  (define spinner-border-color
+    (or (theme-component-ref theme 'spinner-border-color)
+        "currentColor"))
+  (define spinner-border-right-color
+    (or (theme-component-ref theme 'spinner-border-right-color)
+        "transparent"))
+  (define spinner-radius
+    (or (theme-component-ref theme 'spinner-radius)
+        "50%"))
+  (define spinner-animation-speed
+    (or (theme-component-ref theme 'spinner-animation-speed)
+        "0.75s"))
   (define breadcrumb-divider-color
     (or (theme-component-ref theme 'breadcrumb-divider-color)
         fg-muted))
@@ -6111,6 +6186,15 @@
     (cons "--we-progress-bar-color" progress-bar-color)
     (cons "--we-progress-bar-bg" progress-bar-bg)
     (cons "--we-progress-warning-color" progress-warning-color)
+    (cons "--we-spinner-width" spinner-width)
+    (cons "--we-spinner-height" spinner-height)
+    (cons "--we-spinner-vertical-align" spinner-vertical-align)
+    (cons "--we-spinner-border-width" spinner-border-width)
+    (cons "--we-spinner-border-style" spinner-border-style)
+    (cons "--we-spinner-border-color" spinner-border-color)
+    (cons "--we-spinner-border-right-color" spinner-border-right-color)
+    (cons "--we-spinner-radius" spinner-radius)
+    (cons "--we-spinner-animation-speed" spinner-animation-speed)
     (cons "--we-breadcrumb-divider-color" breadcrumb-divider-color)
     (cons "--we-breadcrumb-padding-x" breadcrumb-padding-x)
     (cons "--we-breadcrumb-padding-y" breadcrumb-padding-y)
@@ -7503,6 +7587,23 @@
      "  --bs-progress-box-shadow: none;\n"
      "  --bs-progress-bar-color: #fff;\n"
      "  --bs-progress-bar-bg: #1a1a1a;\n"
+     "}\n"
+     ".spinner-grow,\n"
+     ".spinner-border {\n"
+     "  display: inline-block;\n"
+     "  width: var(--bs-spinner-width);\n"
+     "  height: var(--bs-spinner-height);\n"
+     "  vertical-align: var(--bs-spinner-vertical-align);\n"
+     "}\n"
+     ".spinner-border {\n"
+     "  --bs-spinner-width: 2rem;\n"
+     "  --bs-spinner-height: 2rem;\n"
+     "  --bs-spinner-vertical-align: -0.125em;\n"
+     "  --bs-spinner-border-width: 0.25em;\n"
+     "  --bs-spinner-animation-speed: 0.75s;\n"
+     "  border: var(--bs-spinner-border-width) solid currentcolor;\n"
+     "  border-right-color: transparent;\n"
+     "  border-radius: 50%;\n"
      "}\n"))
 
   (define breadcrumb-toast-bootstrap
@@ -8214,7 +8315,11 @@
     (check-equal? (hash-ref token-map "--we-pagination-disabled-bg") "#f0f1f2")
     (check-equal? (hash-ref token-map "--we-progress-height") "1rem")
     (check-equal? (hash-ref token-map "--we-progress-radius") "0")
-    (check-equal? (hash-ref token-map "--we-progress-bar-bg") "#1a1a1a"))
+    (check-equal? (hash-ref token-map "--we-progress-bar-bg") "#1a1a1a")
+    (check-equal? (hash-ref token-map "--we-spinner-width") "2rem")
+    (check-equal? (hash-ref token-map "--we-spinner-border-width") "0.25em")
+    (check-equal? (hash-ref token-map "--we-spinner-border-color") "currentcolor")
+    (check-equal? (hash-ref token-map "--we-spinner-border-right-color") "transparent"))
 
   (test-case "component rule extraction preserves selector geometry"
     (define css
