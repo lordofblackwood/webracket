@@ -801,13 +801,15 @@ html.we-theme-light .we-button-outline-light { background: var(--we-surface); bo
 html.we-theme-light .we-button-outline-dark { background: transparent; border-color: var(--we-dark); color: var(--we-dark); }
 
 html.we-theme-light .we-button-lg {
-  padding: 8px 14px;
-  font-size: var(--we-font-size-lg);
+  padding: var(--we-button-lg-padding-y, 0.5rem) var(--we-button-lg-padding-x, 1rem);
+  border-radius: var(--we-button-lg-radius, var(--we-radius-lg));
+  font-size: var(--we-button-lg-font-size, var(--we-font-size-lg));
 }
 
 html.we-theme-light .we-button-sm {
-  padding: 3px 9px;
-  font-size: var(--we-font-size-sm);
+  padding: var(--we-button-sm-padding-y, 0.25rem) var(--we-button-sm-padding-x, 0.5rem);
+  border-radius: var(--we-button-sm-radius, var(--we-radius-sm));
+  font-size: var(--we-button-sm-font-size, var(--we-font-size-sm));
 }
 
 /* Pagination links should look like buttons, not underlined text links. */

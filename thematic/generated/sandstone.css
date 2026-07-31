@@ -149,6 +149,14 @@ html.we-theme-sandstone {
   --we-button-outline-border-width: 1px;
   --we-button-radius: 0.375rem;
   --we-button-text-transform: uppercase;
+  --we-button-lg-padding-x: 1rem;
+  --we-button-lg-padding-y: 0.5rem;
+  --we-button-lg-font-size: 13px;
+  --we-button-lg-radius: 0.5rem;
+  --we-button-sm-padding-x: 0.5rem;
+  --we-button-sm-padding-y: 0.25rem;
+  --we-button-sm-font-size: 13px;
+  --we-button-sm-radius: 0.25rem;
   --we-button-secondary-bg: #8e8c84;
   --we-button-secondary-border: #8e8c84;
   --we-button-secondary-color: #fff;
@@ -1303,13 +1311,15 @@ html.we-theme-sandstone .we-button-outline-light { background: var(--we-surface)
 html.we-theme-sandstone .we-button-outline-dark { background: transparent; border-color: var(--we-dark); color: var(--we-dark); }
 
 html.we-theme-sandstone .we-button-lg {
-  padding: 8px 14px;
-  font-size: var(--we-font-size-lg);
+  padding: var(--we-button-lg-padding-y, 0.5rem) var(--we-button-lg-padding-x, 1rem);
+  border-radius: var(--we-button-lg-radius, var(--we-radius-lg));
+  font-size: var(--we-button-lg-font-size, var(--we-font-size-lg));
 }
 
 html.we-theme-sandstone .we-button-sm {
-  padding: 3px 9px;
-  font-size: var(--we-font-size-sm);
+  padding: var(--we-button-sm-padding-y, 0.25rem) var(--we-button-sm-padding-x, 0.5rem);
+  border-radius: var(--we-button-sm-radius, var(--we-radius-sm));
+  font-size: var(--we-button-sm-font-size, var(--we-font-size-sm));
 }
 
 /* Pagination links should look like buttons, not underlined text links. */

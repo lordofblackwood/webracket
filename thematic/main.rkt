@@ -1119,6 +1119,17 @@
                                    selectors
                                    property
                                    button-context-ref))
+  (define (button-size-context-ref size-selector key)
+    (or (present-ref (button-custom-ref size-selector key))
+        (present-ref (button-custom-ref ".btn" key))
+        (present-ref (hash-ref props key #f))
+        (present-ref (hash-ref bootstrap-defaults key #f))))
+  (define (button-size-direct-ref size-selector selectors property)
+    (last-direct-declaration-value rules
+                                   selectors
+                                   property
+                                   (lambda (key)
+                                     (button-size-context-ref size-selector key))))
   (define btn-padding-x
     (or (button-custom-ref ".btn" "--bs-btn-padding-x")
         (button-style-ref ".btn" "padding-left")))
@@ -1148,6 +1159,66 @@
   (define btn-text-transform
     (or (button-style-ref ".btn" "text-transform")
         "none"))
+  (define btn-lg-padding-x
+    (or (button-size-direct-ref ".btn-lg"
+                                '(".btn" ".btn-lg" ".btn-group-lg > .btn")
+                                "padding-left")
+        (button-style-ref ".btn.btn-lg" "padding-left")
+        (selector-ref* button-custom-ref
+                       '(".btn.btn-lg" ".btn-lg")
+                       "--bs-btn-padding-x")))
+  (define btn-lg-padding-y
+    (or (button-size-direct-ref ".btn-lg"
+                                '(".btn" ".btn-lg" ".btn-group-lg > .btn")
+                                "padding-top")
+        (button-style-ref ".btn.btn-lg" "padding-top")
+        (selector-ref* button-custom-ref
+                       '(".btn.btn-lg" ".btn-lg")
+                       "--bs-btn-padding-y")))
+  (define btn-lg-font-size
+    (or (button-size-direct-ref ".btn-lg"
+                                '(".btn" ".btn-lg" ".btn-group-lg > .btn")
+                                "font-size")
+        (button-style-ref ".btn.btn-lg" "font-size")
+        (selector-ref* button-custom-ref
+                       '(".btn.btn-lg" ".btn-lg")
+                       "--bs-btn-font-size")))
+  (define btn-lg-radius
+    (or (button-size-direct-ref ".btn-lg"
+                                '(".btn" ".btn-lg" ".btn-group-lg > .btn")
+                                "border-radius")
+        (button-style-ref ".btn.btn-lg" "border-radius")
+        btn-radius))
+  (define btn-sm-padding-x
+    (or (button-size-direct-ref ".btn-sm"
+                                '(".btn" ".btn-sm" ".btn-group-sm > .btn")
+                                "padding-left")
+        (button-style-ref ".btn.btn-sm" "padding-left")
+        (selector-ref* button-custom-ref
+                       '(".btn.btn-sm" ".btn-sm")
+                       "--bs-btn-padding-x")))
+  (define btn-sm-padding-y
+    (or (button-size-direct-ref ".btn-sm"
+                                '(".btn" ".btn-sm" ".btn-group-sm > .btn")
+                                "padding-top")
+        (button-style-ref ".btn.btn-sm" "padding-top")
+        (selector-ref* button-custom-ref
+                       '(".btn.btn-sm" ".btn-sm")
+                       "--bs-btn-padding-y")))
+  (define btn-sm-font-size
+    (or (button-size-direct-ref ".btn-sm"
+                                '(".btn" ".btn-sm" ".btn-group-sm > .btn")
+                                "font-size")
+        (button-style-ref ".btn.btn-sm" "font-size")
+        (selector-ref* button-custom-ref
+                       '(".btn.btn-sm" ".btn-sm")
+                       "--bs-btn-font-size")))
+  (define btn-sm-radius
+    (or (button-size-direct-ref ".btn-sm"
+                                '(".btn" ".btn-sm" ".btn-group-sm > .btn")
+                                "border-radius")
+        (button-style-ref ".btn.btn-sm" "border-radius")
+        btn-radius))
   (define btn-primary-color
     (or (button-custom-ref ".btn-primary" "--bs-btn-color")
         (button-style-ref ".btn-primary" "color")))
@@ -2948,6 +3019,14 @@
         'btn-outline-border-width btn-outline-border-width
         'btn-radius btn-radius
         'btn-text-transform btn-text-transform
+        'btn-lg-padding-x btn-lg-padding-x
+        'btn-lg-padding-y btn-lg-padding-y
+        'btn-lg-font-size btn-lg-font-size
+        'btn-lg-radius btn-lg-radius
+        'btn-sm-padding-x btn-sm-padding-x
+        'btn-sm-padding-y btn-sm-padding-y
+        'btn-sm-font-size btn-sm-font-size
+        'btn-sm-radius btn-sm-radius
         'btn-primary-color btn-primary-color
         'btn-secondary-bg btn-secondary-bg
         'btn-secondary-border btn-secondary-border
@@ -4486,6 +4565,30 @@
   (define button-text-transform
     (or (theme-component-ref theme 'btn-text-transform)
         "none"))
+  (define button-lg-padding-x
+    (or (theme-component-ref theme 'btn-lg-padding-x)
+        "1rem"))
+  (define button-lg-padding-y
+    (or (theme-component-ref theme 'btn-lg-padding-y)
+        "0.5rem"))
+  (define button-lg-font-size
+    (or (theme-component-ref theme 'btn-lg-font-size)
+        (bootstrap-theme-font-size-lg theme)))
+  (define button-lg-radius
+    (or (theme-component-ref theme 'btn-lg-radius)
+        (bootstrap-theme-radius-lg theme)))
+  (define button-sm-padding-x
+    (or (theme-component-ref theme 'btn-sm-padding-x)
+        "0.5rem"))
+  (define button-sm-padding-y
+    (or (theme-component-ref theme 'btn-sm-padding-y)
+        "0.25rem"))
+  (define button-sm-font-size
+    (or (theme-component-ref theme 'btn-sm-font-size)
+        (bootstrap-theme-font-size-sm theme)))
+  (define button-sm-radius
+    (or (theme-component-ref theme 'btn-sm-radius)
+        (bootstrap-theme-radius-sm theme)))
   (define button-secondary-bg
     (or (theme-component-ref theme 'btn-secondary-bg)
         (rgb->css (or secondary-bg (mix-colors bg fg 0.08)))))
@@ -6104,6 +6207,14 @@
     (cons "--we-button-outline-border-width" button-outline-border-width)
     (cons "--we-button-radius" button-radius)
     (cons "--we-button-text-transform" button-text-transform)
+    (cons "--we-button-lg-padding-x" button-lg-padding-x)
+    (cons "--we-button-lg-padding-y" button-lg-padding-y)
+    (cons "--we-button-lg-font-size" button-lg-font-size)
+    (cons "--we-button-lg-radius" button-lg-radius)
+    (cons "--we-button-sm-padding-x" button-sm-padding-x)
+    (cons "--we-button-sm-padding-y" button-sm-padding-y)
+    (cons "--we-button-sm-font-size" button-sm-font-size)
+    (cons "--we-button-sm-radius" button-sm-radius)
     (cons "--we-button-secondary-bg" button-secondary-bg)
     (cons "--we-button-secondary-border" button-secondary-border)
     (cons "--we-button-secondary-color" button-secondary-color)
@@ -7166,8 +7277,20 @@
       "  --bs-btn-disabled-opacity: 0.65;\n"
       "  --bs-btn-border-radius: 0.375rem;\n"
       "  letter-spacing: 0.02em;\n"
-      "  text-transform: uppercase;\n"
+     "  text-transform: uppercase;\n"
       "}\n"
+     ".btn-lg {\n"
+     "  --bs-btn-padding-y: 1rem;\n"
+     "  --bs-btn-padding-x: 2rem;\n"
+     "  --bs-btn-font-size: 1.25rem;\n"
+     "  --bs-btn-border-radius: 0.5rem;\n"
+     "}\n"
+     ".btn-sm {\n"
+     "  --bs-btn-padding-y: 0.25rem;\n"
+     "  --bs-btn-padding-x: 0.75rem;\n"
+     "  --bs-btn-font-size: 0.8125rem;\n"
+     "  --bs-btn-border-radius: 0.25rem;\n"
+     "}\n"
      "button {\n"
      "  border-radius: 0;\n"
      "}\n"
@@ -8021,6 +8144,14 @@
     (check-equal? (hash-ref token-map "--we-button-disabled-opacity") "0.65")
     (check-equal? (hash-ref token-map "--we-button-outline-border-width") "2px")
     (check-equal? (hash-ref token-map "--we-button-radius") "0")
+    (check-equal? (hash-ref token-map "--we-button-lg-padding-x") "2rem")
+    (check-equal? (hash-ref token-map "--we-button-lg-padding-y") "1rem")
+    (check-equal? (hash-ref token-map "--we-button-lg-font-size") "1.25rem")
+    (check-equal? (hash-ref token-map "--we-button-lg-radius") "0")
+    (check-equal? (hash-ref token-map "--we-button-sm-padding-x") "0.75rem")
+    (check-equal? (hash-ref token-map "--we-button-sm-padding-y") "0.25rem")
+    (check-equal? (hash-ref token-map "--we-button-sm-font-size") "0.8125rem")
+    (check-equal? (hash-ref token-map "--we-button-sm-radius") "0")
     (check-equal? (hash-ref token-map "--we-button-outline-secondary-border") "#f8f9fa")
     (check-equal? (hash-ref token-map "--we-button-secondary-bg") "#fff")
     (check-equal? (hash-ref token-map "--we-button-secondary-active-bg") "#e0e1e2")
