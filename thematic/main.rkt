@@ -2262,6 +2262,14 @@
     (or (list-table-custom-ref ".list-group" "--bs-list-group-action-color")
         (list-table-style-ref ".list-group-item-action" "color")
         list-group-color))
+  (define list-group-disabled-color
+    (or (list-table-custom-ref ".list-group" "--bs-list-group-disabled-color")
+        (list-table-style-ref ".list-group-item.disabled" "color")
+        list-group-color))
+  (define list-group-disabled-bg
+    (or (list-table-custom-ref ".list-group" "--bs-list-group-disabled-bg")
+        (list-table-style-ref ".list-group-item.disabled" "background-color")
+        list-group-bg))
   (define list-group-font-size
     (or (list-table-style-ref ".list-group-item-action" "font-size")
         (list-table-style-ref ".list-group-item" "font-size")))
@@ -3485,6 +3493,8 @@
         'list-group-padding-y list-group-padding-y
         'list-group-color list-group-color
         'list-group-action-color list-group-action-color
+        'list-group-disabled-color list-group-disabled-color
+        'list-group-disabled-bg list-group-disabled-bg
         'list-group-font-size list-group-font-size
         'list-group-font-weight list-group-font-weight
         'list-group-line-height list-group-line-height
@@ -5702,6 +5712,12 @@
   (define list-group-action-color
     (or (theme-component-ref theme 'list-group-action-color)
         list-group-color))
+  (define list-group-disabled-color
+    (or (theme-component-ref theme 'list-group-disabled-color)
+        (rgb->css secondary-fg)))
+  (define list-group-disabled-bg
+    (or (theme-component-ref theme 'list-group-disabled-bg)
+        list-group-bg))
   (define list-group-font-size
     (or (theme-component-ref theme 'list-group-font-size)
         (bootstrap-theme-font-size-md theme)))
@@ -6864,6 +6880,8 @@
     (cons "--we-list-group-padding-y" list-group-padding-y)
     (cons "--we-list-group-color" list-group-color)
     (cons "--we-list-group-action-color" list-group-action-color)
+    (cons "--we-list-group-disabled-color" list-group-disabled-color)
+    (cons "--we-list-group-disabled-bg" list-group-disabled-bg)
     (cons "--we-list-group-font-size" list-group-font-size)
     (cons "--we-list-group-font-weight" list-group-font-weight)
     (cons "--we-list-group-line-height" list-group-line-height)
@@ -7772,6 +7790,8 @@
      "  --bs-list-group-item-padding-y: 0.5rem;\n"
      "  --bs-list-group-color: var(--bs-body-color);\n"
      "  --bs-list-group-action-color: var(--bs-secondary-color);\n"
+     "  --bs-list-group-disabled-color: var(--bs-secondary-color);\n"
+     "  --bs-list-group-disabled-bg: var(--bs-list-group-bg);\n"
      "  --bs-list-group-active-color: #fff;\n"
      "  --bs-list-group-active-bg: #1a1a1a;\n"
      "  --bs-list-group-active-border-color: #1a1a1a;\n"
@@ -7784,6 +7804,10 @@
      "}\n"
      ".list-group-item-action {\n"
      "  color: var(--bs-list-group-action-color);\n"
+     "}\n"
+     ".list-group-item.disabled {\n"
+     "  color: var(--bs-list-group-disabled-color);\n"
+     "  background-color: var(--bs-list-group-disabled-bg);\n"
      "}\n"
      ".table {\n"
      "  --bs-table-bg: var(--bs-body-bg);\n"
@@ -8567,6 +8591,9 @@
     (check-equal? (hash-ref token-map "--we-list-group-active-bg") "#1a1a1a")
     (check-equal? (hash-ref token-map "--we-list-group-action-color")
                   "rgba(85, 89, 92, 0.75)")
+    (check-equal? (hash-ref token-map "--we-list-group-disabled-color")
+                  "rgba(85, 89, 92, 0.75)")
+    (check-equal? (hash-ref token-map "--we-list-group-disabled-bg") "#ffffff")
     (check-equal? (hash-ref token-map "--we-list-group-bg") "#ffffff")
     (check-equal? (hash-ref token-map "--we-list-group-border-width") "1px")
     (check-equal? (hash-ref token-map "--we-list-group-item-border-left-width") "1px")
@@ -8880,10 +8907,10 @@
     (check-equal? (hash-ref token-map "--we-progress-bar-bg") "#1a1a1a")
     (check-equal? (hash-ref token-map "--we-spinner-width") "2rem")
     (check-equal? (hash-ref token-map "--we-spinner-border-width") "0.25em")
-    (check-equal? (hash-ref token-map "--we-spinner-border-color") "currentcolor")
+    (check-equal? (hash-ref token-map "--we-spinner-border-color") "currentColor")
     (check-equal? (hash-ref token-map "--we-spinner-border-right-color") "transparent")
     (check-equal? (hash-ref token-map "--we-placeholder-min-height") "1em")
-    (check-equal? (hash-ref token-map "--we-placeholder-bg") "currentcolor")
+    (check-equal? (hash-ref token-map "--we-placeholder-bg") "currentColor")
     (check-equal? (hash-ref token-map "--we-placeholder-opacity") "0.5"))
 
   (test-case "component rule extraction preserves selector geometry"

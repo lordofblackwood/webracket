@@ -496,6 +496,8 @@ html.we-theme-sketchy {
   --we-list-group-padding-y: 0.5rem;
   --we-list-group-color: #212529;
   --we-list-group-action-color: #333;
+  --we-list-group-disabled-color: rgba(33, 37, 41, 0.75);
+  --we-list-group-disabled-bg: #fff;
   --we-list-group-font-size: 1rem;
   --we-list-group-font-weight: 400;
   --we-list-group-line-height: 1.5;
@@ -2381,6 +2383,17 @@ html.we-theme-sketchy .we-list-group-item.is-active {
   background: var(--we-list-group-active-bg);
   border-color: var(--we-list-group-active-border-color);
   color: var(--we-list-group-active-color);
+}
+
+html.we-theme-sketchy .we-list-group-item.is-disabled,
+html.we-theme-sketchy .we-list-group-item:disabled {
+  pointer-events: none;
+  background: var(--we-list-group-disabled-bg, var(--we-list-group-bg));
+  border-right-color: var(--we-list-group-item-border-right-color, var(--we-list-group-border-color));
+  border-left-color: var(--we-list-group-item-border-left-color, var(--we-list-group-border-color));
+  color: var(--we-list-group-disabled-color, var(--we-fg-muted));
+  opacity: 1;
+  cursor: default;
 }
 
 html.we-theme-sketchy .we-list-group-item .we-badge {

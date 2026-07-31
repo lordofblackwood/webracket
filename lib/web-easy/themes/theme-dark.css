@@ -1823,6 +1823,17 @@ html.we-theme-dark .we-list-group-item.is-active {
   color: var(--we-list-group-active-color);
 }
 
+html.we-theme-dark .we-list-group-item.is-disabled,
+html.we-theme-dark .we-list-group-item:disabled {
+  pointer-events: none;
+  background: var(--we-list-group-disabled-bg, var(--we-list-group-bg));
+  border-right-color: var(--we-list-group-item-border-right-color, var(--we-list-group-border-color));
+  border-left-color: var(--we-list-group-item-border-left-color, var(--we-list-group-border-color));
+  color: var(--we-list-group-disabled-color, var(--we-fg-muted));
+  opacity: 1;
+  cursor: default;
+}
+
 html.we-theme-dark .we-list-group-item .we-badge {
   display: inline-flex;
   align-items: center;
