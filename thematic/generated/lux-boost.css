@@ -999,6 +999,17 @@ html.we-theme-lux-boost .we-menu-item:disabled {
   pointer-events: none;
 }
 
+html.we-theme-lux-boost .we-menu-text {
+  display: block;
+  padding: var(--we-menu-item-padding-y) var(--we-menu-item-padding-x);
+  color: var(--we-menu-item-color);
+  font-family: var(--we-font-family-base);
+  font-size: var(--we-menu-popup-font-size, var(--we-font-size-md));
+  font-weight: var(--we-menu-popup-font-weight, var(--we-font-weight-normal));
+  line-height: var(--we-menu-popup-line-height, var(--we-line-height-base));
+  text-transform: var(--we-menu-popup-text-transform, none);
+}
+
 html.we-theme-lux-boost .we-menu-label:focus-visible,
 html.we-theme-lux-boost .we-menu-item:focus-visible {
   /* Keep ring tight to widget edges so menu geometry stays stable. */
