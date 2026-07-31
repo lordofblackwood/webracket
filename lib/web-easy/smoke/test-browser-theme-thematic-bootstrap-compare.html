@@ -454,6 +454,31 @@
       align-items: center;
     }
 
+    .scrollspy-demo {
+      display: grid;
+      grid-template-columns: minmax(120px, max-content) minmax(0, 1fr);
+      gap: 12px;
+      align-items: start;
+    }
+
+    .scrollspy-demo-nav {
+      gap: 4px;
+      align-items: stretch;
+    }
+
+    .scrollspy-demo-sections {
+      display: grid;
+      gap: 8px;
+      max-height: 150px;
+      overflow: auto;
+    }
+
+    .scrollspy-demo-sections section {
+      display: grid;
+      gap: 2px;
+      min-height: 52px;
+    }
+
     .toolbar-demo {
       display: grid;
       gap: 12px;
@@ -510,7 +535,8 @@
 
     @media (max-width: 1150px) {
       .compare-grid,
-      .sample-grid {
+      .sample-grid,
+      .scrollspy-demo {
         grid-template-columns: 1fr;
       }
 
@@ -1217,6 +1243,31 @@
                         <span class="carousel-control-next-icon" aria-hidden="true"></span>
                         <span class="visually-hidden">Next</span>
                       </button>
+                    </div>
+                  </div>
+                </section>
+              </div>
+
+              <div class="sample-grid">
+                <section class="sample-card">
+                  <h3>Scrollspy</h3>
+                  <div class="sample-body">
+                    <div class="scrollspy-demo">
+                      <nav id="bs-scrollspy-demo-nav" class="nav nav-pills flex-column scrollspy-demo-nav" aria-label="Scrollspy navigation">
+                        <button class="nav-link active" type="button" aria-current="true">Overview</button>
+                        <button class="nav-link" type="button">Tokens</button>
+                        <button class="nav-link" type="button">Publish</button>
+                      </nav>
+                      <div class="scrollspy-demo-sections" data-bs-spy="scroll" data-bs-target="#bs-scrollspy-demo-nav" tabindex="0">
+                        <section>
+                          <strong>Overview</strong>
+                          <span>Theme summary and visual audit.</span>
+                        </section>
+                        <section>
+                          <strong>Tokens</strong>
+                          <span>Extracted Bootstrap values.</span>
+                        </section>
+                      </div>
                     </div>
                   </div>
                 </section>
@@ -1941,6 +1992,31 @@
                           <button class="we-carousel-indicator" data-we-widget="carousel-indicator" aria-label="Slide 3"></button>
                         </div>
                         <button class="we-button we-carousel-nav we-carousel-next" data-we-widget="carousel-next">Next</button>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+              </div>
+
+              <div class="sample-grid">
+                <section class="sample-card">
+                  <h3>Scrollspy</h3>
+                  <div class="sample-body">
+                    <div class="we-scrollspy scrollspy-demo" role="navigation" data-we-widget="scrollspy">
+                      <nav class="we-scrollspy-nav scrollspy-demo-nav" data-we-widget="scrollspy-nav" aria-label="Scrollspy navigation">
+                        <button class="we-scrollspy-item is-current" aria-current="true" data-we-widget="scrollspy-item">Overview</button>
+                        <button class="we-scrollspy-item" aria-current="false" data-we-widget="scrollspy-item">Tokens</button>
+                        <button class="we-scrollspy-item" aria-current="false" data-we-widget="scrollspy-item">Publish</button>
+                      </nav>
+                      <div class="we-scrollspy-sections scrollspy-demo-sections" data-we-widget="scrollspy-sections">
+                        <section class="we-scrollspy-section" data-we-widget="scrollspy-section">
+                          <strong>Overview</strong>
+                          <span>Theme summary and visual audit.</span>
+                        </section>
+                        <section class="we-scrollspy-section" data-we-widget="scrollspy-section">
+                          <strong>Tokens</strong>
+                          <span>Extracted Bootstrap values.</span>
+                        </section>
                       </div>
                     </div>
                   </div>
