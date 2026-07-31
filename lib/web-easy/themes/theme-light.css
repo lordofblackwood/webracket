@@ -1601,11 +1601,15 @@ html.we-theme-light .we-card-footer {
 html.we-theme-light .we-card-header {
   border-bottom-style: solid;
   border-bottom-width: var(--we-card-border-width, 1px);
+  border-top-left-radius: var(--we-card-header-radius-top-left, 0);
+  border-top-right-radius: var(--we-card-header-radius-top-right, 0);
 }
 
 html.we-theme-light .we-card-footer {
   border-top-style: solid;
   border-top-width: var(--we-card-border-width, 1px);
+  border-bottom-left-radius: var(--we-card-footer-radius-bottom-left, 0);
+  border-bottom-right-radius: var(--we-card-footer-radius-bottom-right, 0);
 }
 
 html.we-theme-light .we-card-subtitle {
@@ -2925,6 +2929,9 @@ html.we-theme-light .we-tooltip-header {
   align-items: center;
   gap: 8px;
   border-bottom: var(--we-dialog-header-border-width) solid var(--we-dialog-header-border-color);
+  background: var(--we-dialog-header-bg, transparent);
+  border-top-left-radius: var(--we-dialog-header-radius-top-left, 0);
+  border-top-right-radius: var(--we-dialog-header-radius-top-right, 0);
   padding: var(--we-dialog-header-padding-y) var(--we-dialog-header-padding-x);
   margin: 0;
 }
@@ -2938,6 +2945,9 @@ html.we-theme-light .we-tooltip-footer {
   align-items: center;
   justify-content: flex-end;
   border-top: var(--we-dialog-footer-border-width) solid var(--we-dialog-footer-border-color);
+  background: var(--we-dialog-footer-bg, transparent);
+  border-bottom-left-radius: var(--we-dialog-footer-radius-bottom-left, 0);
+  border-bottom-right-radius: var(--we-dialog-footer-radius-bottom-right, 0);
   gap: 0;
   padding: var(--we-dialog-footer-padding-y) var(--we-dialog-footer-padding-x);
   margin: 0;
@@ -3011,8 +3021,8 @@ html.we-theme-light .we-popover-title {
 html.we-theme-light .we-popover-body {
   padding: var(--we-popover-body-padding-y) var(--we-popover-body-padding-x);
   color: var(--we-popover-color);
-  border-bottom-left-radius: inherit;
-  border-bottom-right-radius: inherit;
+  border-bottom-left-radius: var(--we-popover-body-radius-bottom-left, inherit);
+  border-bottom-right-radius: var(--we-popover-body-radius-bottom-right, inherit);
 }
 
 html.we-theme-light .we-dialog-close,

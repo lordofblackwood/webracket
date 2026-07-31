@@ -177,6 +177,10 @@ html.we-theme-superhero {
   --we-card-cap-color: #ebebeb;
   --we-card-cap-padding-x: 1rem;
   --we-card-cap-padding-y: 0.5rem;
+  --we-card-header-radius-top-left: 0;
+  --we-card-header-radius-top-right: 0;
+  --we-card-footer-radius-bottom-left: 0;
+  --we-card-footer-radius-bottom-right: 0;
   --we-card-body-padding-x: 1rem;
   --we-card-body-padding-y: 1rem;
   --we-card-title-margin-bottom: 0.5rem;
@@ -327,6 +331,8 @@ html.we-theme-superhero {
   --we-popover-header-padding-y: 0.5rem;
   --we-popover-body-padding-x: 1rem;
   --we-popover-body-padding-y: 1rem;
+  --we-popover-body-radius-bottom-left: 0;
+  --we-popover-body-radius-bottom-right: 0;
   --we-popover-title-font-family: Lato, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
   --we-popover-title-font-size: 1rem;
   --we-popover-title-font-weight: 500;
@@ -585,6 +591,9 @@ html.we-theme-superhero {
   --we-dialog-header-padding-y: 1rem;
   --we-dialog-header-border-color: rgba(0, 0, 0, 0.2);
   --we-dialog-header-border-width: 1px;
+  --we-dialog-header-bg: rgba(255, 255, 255, 0.075);
+  --we-dialog-header-radius-top-left: calc(0 - (1px));
+  --we-dialog-header-radius-top-right: calc(0 - (1px));
   --we-dialog-body-padding-x: 1rem;
   --we-dialog-body-padding-y: 1rem;
   --we-dialog-footer-padding-x: calc(1rem - 0.5rem * 0.5);
@@ -592,6 +601,9 @@ html.we-theme-superhero {
   --we-dialog-footer-gap: 0.5rem;
   --we-dialog-footer-border-color: rgba(0, 0, 0, 0.2);
   --we-dialog-footer-border-width: 1px;
+  --we-dialog-footer-bg: rgba(255, 255, 255, 0.075);
+  --we-dialog-footer-radius-bottom-left: calc(0 - (1px));
+  --we-dialog-footer-radius-bottom-right: calc(0 - (1px));
   --we-dialog-title-color: #ebebeb;
   --we-dialog-title-font-size: 1.25rem;
   --we-dialog-title-font-weight: 500;
@@ -2048,11 +2060,15 @@ html.we-theme-superhero .we-card-footer {
 html.we-theme-superhero .we-card-header {
   border-bottom-style: solid;
   border-bottom-width: var(--we-card-border-width, 1px);
+  border-top-left-radius: var(--we-card-header-radius-top-left, 0);
+  border-top-right-radius: var(--we-card-header-radius-top-right, 0);
 }
 
 html.we-theme-superhero .we-card-footer {
   border-top-style: solid;
   border-top-width: var(--we-card-border-width, 1px);
+  border-bottom-left-radius: var(--we-card-footer-radius-bottom-left, 0);
+  border-bottom-right-radius: var(--we-card-footer-radius-bottom-right, 0);
 }
 
 html.we-theme-superhero .we-card-subtitle {
@@ -3372,6 +3388,9 @@ html.we-theme-superhero .we-tooltip-header {
   align-items: center;
   gap: 8px;
   border-bottom: var(--we-dialog-header-border-width) solid var(--we-dialog-header-border-color);
+  background: var(--we-dialog-header-bg, transparent);
+  border-top-left-radius: var(--we-dialog-header-radius-top-left, 0);
+  border-top-right-radius: var(--we-dialog-header-radius-top-right, 0);
   padding: var(--we-dialog-header-padding-y) var(--we-dialog-header-padding-x);
   margin: 0;
 }
@@ -3385,6 +3404,9 @@ html.we-theme-superhero .we-tooltip-footer {
   align-items: center;
   justify-content: flex-end;
   border-top: var(--we-dialog-footer-border-width) solid var(--we-dialog-footer-border-color);
+  background: var(--we-dialog-footer-bg, transparent);
+  border-bottom-left-radius: var(--we-dialog-footer-radius-bottom-left, 0);
+  border-bottom-right-radius: var(--we-dialog-footer-radius-bottom-right, 0);
   gap: 0;
   padding: var(--we-dialog-footer-padding-y) var(--we-dialog-footer-padding-x);
   margin: 0;
@@ -3458,8 +3480,8 @@ html.we-theme-superhero .we-popover-title {
 html.we-theme-superhero .we-popover-body {
   padding: var(--we-popover-body-padding-y) var(--we-popover-body-padding-x);
   color: var(--we-popover-color);
-  border-bottom-left-radius: inherit;
-  border-bottom-right-radius: inherit;
+  border-bottom-left-radius: var(--we-popover-body-radius-bottom-left, inherit);
+  border-bottom-right-radius: var(--we-popover-body-radius-bottom-right, inherit);
 }
 
 html.we-theme-superhero .we-dialog-close,

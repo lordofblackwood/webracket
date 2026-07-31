@@ -1028,6 +1028,10 @@
   (define popover-body-padding-y
     (or (computed-custom-ref ".popover" "--bs-popover-body-padding-y")
         (computed-style-ref ".popover-body" "padding-top")))
+  (define popover-body-radius-bottom-left
+    (computed-style-ref ".popover-body" "border-bottom-left-radius"))
+  (define popover-body-radius-bottom-right
+    (computed-style-ref ".popover-body" "border-bottom-right-radius"))
   (define (selector-direct-style-ref selector property)
     (and (direct-declaration-exists? (list selector) (list property))
          (computed-style-ref selector property)))
@@ -1196,6 +1200,15 @@
   (define (surface-custom-ref/meaningful selector key)
     (define value (surface-custom-ref selector key))
     (and (meaningful-css-value? value) value))
+  (define (surface-context-ref key)
+    (or (present-ref (surface-custom-ref ".card" key))
+        (present-ref (hash-ref props key #f))
+        (present-ref (hash-ref bootstrap-defaults key #f))))
+  (define (surface-direct-ref selectors property)
+    (last-direct-declaration-value rules
+                                   selectors
+                                   property
+                                   surface-context-ref))
   (define card-bg
     (or (surface-custom-ref ".card" "--bs-card-bg")
         (surface-style-ref ".card" "background-color")))
@@ -1226,6 +1239,32 @@
   (define card-cap-padding-y
     (or (surface-custom-ref ".card" "--bs-card-cap-padding-y")
         (surface-style-ref ".card-header" "padding-top")))
+  (define card-inner-radius
+    (surface-custom-ref/meaningful ".card" "--bs-card-inner-border-radius"))
+  (define card-header-radius-top-left
+    (or card-inner-radius
+        (surface-direct-ref '(".card-header:first-child"
+                              ".card > .card-header:first-child")
+                            "border-top-left-radius")
+        (surface-style-ref ".card-header" "border-top-left-radius")))
+  (define card-header-radius-top-right
+    (or card-inner-radius
+        (surface-direct-ref '(".card-header:first-child"
+                              ".card > .card-header:first-child")
+                            "border-top-right-radius")
+        (surface-style-ref ".card-header" "border-top-right-radius")))
+  (define card-footer-radius-bottom-left
+    (or card-inner-radius
+        (surface-direct-ref '(".card-footer:last-child"
+                              ".card > .card-footer:last-child")
+                            "border-bottom-left-radius")
+        (surface-style-ref ".card-footer" "border-bottom-left-radius")))
+  (define card-footer-radius-bottom-right
+    (or card-inner-radius
+        (surface-direct-ref '(".card-footer:last-child"
+                              ".card > .card-footer:last-child")
+                            "border-bottom-right-radius")
+        (surface-style-ref ".card-footer" "border-bottom-right-radius")))
   (define card-body-padding-x
     (or (surface-custom-ref ".card" "--bs-card-spacer-x")
         (surface-style-ref ".card-body" "padding-left")))
@@ -2421,6 +2460,11 @@
         (present-ref (dialog-custom-ref ".modal" key))
         (present-ref (hash-ref props key #f))
         (present-ref (hash-ref bootstrap-defaults key #f))))
+  (define (modal-direct-ref selectors property)
+    (last-direct-declaration-value rules
+                                   selectors
+                                   property
+                                   modal-context-ref))
   (define modal-padding
     (modal-context-ref "--bs-modal-padding"))
   (define modal-footer-gap-value
@@ -2462,6 +2506,14 @@
         (dialog-style-ref ".modal" "border-bottom-width")
         (dialog-custom-ref ".modal-header" "--bs-modal-header-border-width")
         (dialog-custom-ref ".modal" "--bs-modal-header-border-width")))
+  (define modal-header-bg
+    (dialog-style-ref ".modal-header" "background-color"))
+  (define modal-header-radius-top-left
+    (or (modal-direct-ref '(".modal-header") "border-top-left-radius")
+        (dialog-style-ref ".modal-header" "border-top-left-radius")))
+  (define modal-header-radius-top-right
+    (or (modal-direct-ref '(".modal-header") "border-top-right-radius")
+        (dialog-style-ref ".modal-header" "border-top-right-radius")))
   (define modal-body-padding-x
     (or (dialog-style-ref ".modal-body" "padding-left")
         (dialog-style-ref ".modal" "padding-left")
@@ -2494,6 +2546,14 @@
         (dialog-style-ref ".modal" "border-top-width")
         (dialog-custom-ref ".modal-footer" "--bs-modal-footer-border-width")
         (dialog-custom-ref ".modal" "--bs-modal-footer-border-width")))
+  (define modal-footer-bg
+    (dialog-style-ref ".modal-footer" "background-color"))
+  (define modal-footer-radius-bottom-left
+    (or (modal-direct-ref '(".modal-footer") "border-bottom-left-radius")
+        (dialog-style-ref ".modal-footer" "border-bottom-left-radius")))
+  (define modal-footer-radius-bottom-right
+    (or (modal-direct-ref '(".modal-footer") "border-bottom-right-radius")
+        (dialog-style-ref ".modal-footer" "border-bottom-right-radius")))
   (define (modal-title-ref property)
     (or (selector-direct-style-ref ".modal-title" property)
         (dialog-style-ref "h5" property)
@@ -2645,6 +2705,8 @@
         'popover-header-padding-y popover-header-padding-y
         'popover-body-padding-x popover-body-padding-x
         'popover-body-padding-y popover-body-padding-y
+        'popover-body-radius-bottom-left popover-body-radius-bottom-left
+        'popover-body-radius-bottom-right popover-body-radius-bottom-right
         'popover-title-font-family popover-title-font-family
         'popover-title-font-size popover-title-font-size
         'popover-title-font-weight popover-title-font-weight
@@ -2697,6 +2759,10 @@
         'card-cap-color card-cap-color
         'card-cap-padding-x card-cap-padding-x
         'card-cap-padding-y card-cap-padding-y
+        'card-header-radius-top-left card-header-radius-top-left
+        'card-header-radius-top-right card-header-radius-top-right
+        'card-footer-radius-bottom-left card-footer-radius-bottom-left
+        'card-footer-radius-bottom-right card-footer-radius-bottom-right
         'card-body-padding-x card-body-padding-x
         'card-body-padding-y card-body-padding-y
         'card-title-margin-bottom card-title-margin-bottom
@@ -3062,6 +3128,9 @@
         'modal-header-padding-y modal-header-padding-y
         'modal-header-border-color modal-header-border-color
         'modal-header-border-width modal-header-border-width
+        'modal-header-bg modal-header-bg
+        'modal-header-radius-top-left modal-header-radius-top-left
+        'modal-header-radius-top-right modal-header-radius-top-right
         'modal-body-padding-x modal-body-padding-x
         'modal-body-padding-y modal-body-padding-y
         'modal-footer-padding-x modal-footer-padding-x
@@ -3069,6 +3138,9 @@
         'modal-footer-gap modal-footer-gap
         'modal-footer-border-color modal-footer-border-color
         'modal-footer-border-width modal-footer-border-width
+        'modal-footer-bg modal-footer-bg
+        'modal-footer-radius-bottom-left modal-footer-radius-bottom-left
+        'modal-footer-radius-bottom-right modal-footer-radius-bottom-right
         'modal-title-color modal-title-color
         'modal-title-font-size modal-title-font-size
         'modal-title-font-weight modal-title-font-weight
@@ -4056,6 +4128,12 @@
   (define popover-body-padding-y
     (or (theme-component-ref theme 'popover-body-padding-y)
         "0.5rem"))
+  (define popover-body-radius-bottom-left
+    (or (theme-component-ref theme 'popover-body-radius-bottom-left)
+        "0"))
+  (define popover-body-radius-bottom-right
+    (or (theme-component-ref theme 'popover-body-radius-bottom-right)
+        "0"))
   (define popover-title-font-family
     (or (theme-component-ref theme 'popover-title-font-family)
         (bootstrap-theme-font-family-heading theme)))
@@ -4209,6 +4287,18 @@
   (define card-cap-padding-y
     (or (theme-component-ref theme 'card-cap-padding-y)
         "0.6rem"))
+  (define card-header-radius-top-left
+    (or (theme-component-ref theme 'card-header-radius-top-left)
+        "0"))
+  (define card-header-radius-top-right
+    (or (theme-component-ref theme 'card-header-radius-top-right)
+        "0"))
+  (define card-footer-radius-bottom-left
+    (or (theme-component-ref theme 'card-footer-radius-bottom-left)
+        "0"))
+  (define card-footer-radius-bottom-right
+    (or (theme-component-ref theme 'card-footer-radius-bottom-right)
+        "0"))
   (define card-body-padding-x
     (or (theme-component-ref theme 'card-body-padding-x)
         "0.85rem"))
@@ -5336,6 +5426,15 @@
   (define dialog-header-border-width
     (or (theme-component-ref theme 'modal-header-border-width)
         "1px"))
+  (define dialog-header-bg
+    (or (theme-component-ref theme 'modal-header-bg)
+        "transparent"))
+  (define dialog-header-radius-top-left
+    (or (theme-component-ref theme 'modal-header-radius-top-left)
+        "0"))
+  (define dialog-header-radius-top-right
+    (or (theme-component-ref theme 'modal-header-radius-top-right)
+        "0"))
   (define dialog-body-padding-x
     (or (theme-component-ref theme 'modal-body-padding-x)
         "0.9rem"))
@@ -5357,6 +5456,15 @@
   (define dialog-footer-border-width
     (or (theme-component-ref theme 'modal-footer-border-width)
         "1px"))
+  (define dialog-footer-bg
+    (or (theme-component-ref theme 'modal-footer-bg)
+        "transparent"))
+  (define dialog-footer-radius-bottom-left
+    (or (theme-component-ref theme 'modal-footer-radius-bottom-left)
+        "0"))
+  (define dialog-footer-radius-bottom-right
+    (or (theme-component-ref theme 'modal-footer-radius-bottom-right)
+        "0"))
   (define dialog-title-color
     (or (theme-component-ref theme 'modal-title-color)
         dialog-color
@@ -5594,6 +5702,10 @@
     (cons "--we-card-cap-color" card-cap-color)
     (cons "--we-card-cap-padding-x" card-cap-padding-x)
     (cons "--we-card-cap-padding-y" card-cap-padding-y)
+    (cons "--we-card-header-radius-top-left" card-header-radius-top-left)
+    (cons "--we-card-header-radius-top-right" card-header-radius-top-right)
+    (cons "--we-card-footer-radius-bottom-left" card-footer-radius-bottom-left)
+    (cons "--we-card-footer-radius-bottom-right" card-footer-radius-bottom-right)
     (cons "--we-card-body-padding-x" card-body-padding-x)
     (cons "--we-card-body-padding-y" card-body-padding-y)
     (cons "--we-card-title-margin-bottom" card-title-margin-bottom)
@@ -5744,6 +5856,8 @@
     (cons "--we-popover-header-padding-y" popover-header-padding-y)
     (cons "--we-popover-body-padding-x" popover-body-padding-x)
     (cons "--we-popover-body-padding-y" popover-body-padding-y)
+    (cons "--we-popover-body-radius-bottom-left" popover-body-radius-bottom-left)
+    (cons "--we-popover-body-radius-bottom-right" popover-body-radius-bottom-right)
     (cons "--we-popover-title-font-family" popover-title-font-family)
     (cons "--we-popover-title-font-size" popover-title-font-size)
     (cons "--we-popover-title-font-weight" popover-title-font-weight)
@@ -6004,6 +6118,9 @@
     (cons "--we-dialog-header-padding-y" dialog-header-padding-y)
     (cons "--we-dialog-header-border-color" dialog-header-border-color)
     (cons "--we-dialog-header-border-width" dialog-header-border-width)
+    (cons "--we-dialog-header-bg" dialog-header-bg)
+    (cons "--we-dialog-header-radius-top-left" dialog-header-radius-top-left)
+    (cons "--we-dialog-header-radius-top-right" dialog-header-radius-top-right)
     (cons "--we-dialog-body-padding-x" dialog-body-padding-x)
     (cons "--we-dialog-body-padding-y" dialog-body-padding-y)
     (cons "--we-dialog-footer-padding-x" dialog-footer-padding-x)
@@ -6011,6 +6128,9 @@
     (cons "--we-dialog-footer-gap" dialog-footer-gap)
     (cons "--we-dialog-footer-border-color" dialog-footer-border-color)
     (cons "--we-dialog-footer-border-width" dialog-footer-border-width)
+    (cons "--we-dialog-footer-bg" dialog-footer-bg)
+    (cons "--we-dialog-footer-radius-bottom-left" dialog-footer-radius-bottom-left)
+    (cons "--we-dialog-footer-radius-bottom-right" dialog-footer-radius-bottom-right)
     (cons "--we-dialog-title-color" dialog-title-color)
     (cons "--we-dialog-title-font-size" dialog-title-font-size)
     (cons "--we-dialog-title-font-weight" dialog-title-font-weight)
@@ -6510,6 +6630,10 @@
      ".popover-header {\n"
      "  font-size: 1rem;\n"
      "}\n"
+     ".popover-body {\n"
+     "  border-bottom-left-radius: 0.25rem;\n"
+     "  border-bottom-right-radius: 0.5rem;\n"
+     "}\n"
      ".offcanvas {\n"
      "  --bs-offcanvas-bg: #ffffff;\n"
      "  --bs-offcanvas-color: #55595c;\n"
@@ -6604,8 +6728,16 @@
       "  --bs-card-cap-bg: rgba(85, 89, 92, 0.03);\n"
       "  --bs-card-bg: #fff;\n"
       "  --bs-card-spacer-x: 1rem;\n"
-      "  --bs-card-spacer-y: 1rem;\n"
+     "  --bs-card-spacer-y: 1rem;\n"
       "}\n"
+     ".card-header {\n"
+     "  border-top-left-radius: 0.4rem;\n"
+     "  border-top-right-radius: 0.5rem;\n"
+     "}\n"
+     ".card-footer {\n"
+     "  border-bottom-left-radius: 0.6rem;\n"
+     "  border-bottom-right-radius: 0.7rem;\n"
+     "}\n"
      ".badge {\n"
      "  --bs-badge-padding-x: 0.65em;\n"
      "  --bs-badge-padding-y: 0.35em;\n"
@@ -6848,15 +6980,21 @@
      "  --bs-modal-border-radius: 0;\n"
      "}\n"
      ".modal-header {\n"
+     "  background-color: #f8f9fa;\n"
      "  padding: 1rem 1rem;\n"
      "  border-bottom: 1px solid #e0e1e2;\n"
+     "  border-top-left-radius: 0.5rem;\n"
+     "  border-top-right-radius: 0.5rem;\n"
      "}\n"
      ".modal-body {\n"
      "  padding: 1rem;\n"
      "}\n"
      ".modal-footer {\n"
+     "  background-color: #f1f3f5;\n"
      "  padding: 1rem;\n"
      "  border-top: 1px solid #e0e1e2;\n"
+     "  border-bottom-left-radius: 0.5rem;\n"
+     "  border-bottom-right-radius: 0.5rem;\n"
      "}\n"
      "h5 {\n"
      "  color: #1a1a1a;\n"
@@ -7354,6 +7492,10 @@
     (check-equal? (hash-ref token-map "--we-button-danger-color") "#fff")
     (check-equal? (hash-ref token-map "--we-card-radius") "0")
     (check-equal? (hash-ref token-map "--we-card-cap-bg") "rgba(85, 89, 92, 0.03)")
+    (check-equal? (hash-ref token-map "--we-card-header-radius-top-left") "0.4rem")
+    (check-equal? (hash-ref token-map "--we-card-header-radius-top-right") "0.5rem")
+    (check-equal? (hash-ref token-map "--we-card-footer-radius-bottom-left") "0.6rem")
+    (check-equal? (hash-ref token-map "--we-card-footer-radius-bottom-right") "0.7rem")
     (check-equal? (hash-ref token-map "--we-badge-font-family")
                   "\"Badge Base\", sans-serif")
     (check-equal? (hash-ref token-map "--we-badge-font-size") "0.75em")
@@ -7446,7 +7588,13 @@
     (check-equal? (hash-ref token-map "--we-range-thumb-active-bg") "#bababa")
     (check-equal? (hash-ref token-map "--we-dialog-border-color") "rgba(0, 0, 0, 0.2)")
     (check-equal? (hash-ref token-map "--we-dialog-header-padding-y") "1rem")
+    (check-equal? (hash-ref token-map "--we-dialog-header-bg") "#f8f9fa")
+    (check-equal? (hash-ref token-map "--we-dialog-header-radius-top-left") "0.5rem")
+    (check-equal? (hash-ref token-map "--we-dialog-header-radius-top-right") "0.5rem")
     (check-equal? (hash-ref token-map "--we-dialog-footer-gap") "0.5rem")
+    (check-equal? (hash-ref token-map "--we-dialog-footer-bg") "#f1f3f5")
+    (check-equal? (hash-ref token-map "--we-dialog-footer-radius-bottom-left") "0.5rem")
+    (check-equal? (hash-ref token-map "--we-dialog-footer-radius-bottom-right") "0.5rem")
     (check-equal? (hash-ref token-map "--we-dialog-title-color") "#1a1a1a")
     (check-equal? (hash-ref token-map "--we-dialog-title-letter-spacing") "3px")
     (check-equal? (hash-ref token-map "--we-dialog-title-text-transform") "uppercase")
@@ -7555,6 +7703,8 @@
     (check-equal? (hash-ref token-map "--we-popover-arrow-height") "0.5rem")
     (check-equal? (hash-ref token-map "--we-popover-header-bg") "#f7f7f7")
     (check-equal? (hash-ref token-map "--we-popover-body-padding-x") "1rem")
+    (check-equal? (hash-ref token-map "--we-popover-body-radius-bottom-left") "0.25rem")
+    (check-equal? (hash-ref token-map "--we-popover-body-radius-bottom-right") "0.5rem")
     (check-equal? (hash-ref token-map "--we-popover-title-font-family")
                   "\"Cabin Sketch\", cursive")
     (check-equal? (hash-ref token-map "--we-popover-title-font-size") "1rem")
