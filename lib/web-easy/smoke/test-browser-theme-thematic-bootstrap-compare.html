@@ -494,6 +494,20 @@
       align-items: center;
     }
 
+    .carousel-demo-slide {
+      display: grid;
+      min-height: 150px;
+      place-items: center;
+      background:
+        linear-gradient(135deg, rgba(0, 0, 0, 0.42), rgba(0, 0, 0, 0.14)),
+        linear-gradient(135deg, #5a6b7e, #26384c);
+      color: #ffffff;
+      font-size: 1.15rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
     @media (max-width: 1150px) {
       .compare-grid,
       .sample-grid {
@@ -1175,6 +1189,34 @@
                         <input class="form-check-input" type="checkbox" id="check-notes">
                         <label class="form-check-label" for="check-notes">Follow-up notes added</label>
                       </div>
+                    </div>
+                  </div>
+                </section>
+              </div>
+
+              <div class="sample-grid">
+                <section class="sample-card">
+                  <h3>Carousel</h3>
+                  <div class="sample-body">
+                    <div id="bs-carousel-demo" class="carousel slide">
+                      <div class="carousel-indicators">
+                        <button type="button" data-bs-target="#bs-carousel-demo" data-bs-slide-to="0" class="active" aria-current="true" aria-label="Slide 1"></button>
+                        <button type="button" data-bs-target="#bs-carousel-demo" data-bs-slide-to="1" aria-label="Slide 2"></button>
+                        <button type="button" data-bs-target="#bs-carousel-demo" data-bs-slide-to="2" aria-label="Slide 3"></button>
+                      </div>
+                      <div class="carousel-inner">
+                        <div class="carousel-item active">
+                          <div class="carousel-demo-slide">Theme Preview</div>
+                        </div>
+                      </div>
+                      <button class="carousel-control-prev" type="button" data-bs-target="#bs-carousel-demo" data-bs-slide="prev">
+                        <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+                        <span class="visually-hidden">Previous</span>
+                      </button>
+                      <button class="carousel-control-next" type="button" data-bs-target="#bs-carousel-demo" data-bs-slide="next">
+                        <span class="carousel-control-next-icon" aria-hidden="true"></span>
+                        <span class="visually-hidden">Next</span>
+                      </button>
                     </div>
                   </div>
                 </section>
@@ -1878,6 +1920,28 @@
                         <input class="we-checkbox" type="checkbox">
                         <span>Follow-up notes added</span>
                       </label>
+                    </div>
+                  </div>
+                </section>
+              </div>
+
+              <div class="sample-grid">
+                <section class="sample-card">
+                  <h3>Carousel</h3>
+                  <div class="sample-body">
+                    <div class="we-carousel" tabindex="0" data-we-widget="carousel">
+                      <div class="we-carousel-viewport" data-we-widget="carousel-viewport">
+                        <div class="carousel-demo-slide">Theme Preview</div>
+                      </div>
+                      <div class="we-carousel-controls" data-we-widget="carousel-controls">
+                        <button class="we-button we-carousel-nav we-carousel-prev" data-we-widget="carousel-prev">Prev</button>
+                        <div class="we-carousel-indicators" data-we-widget="carousel-indicators">
+                          <button class="we-carousel-indicator is-current" data-we-widget="carousel-indicator" aria-label="Slide 1"></button>
+                          <button class="we-carousel-indicator" data-we-widget="carousel-indicator" aria-label="Slide 2"></button>
+                          <button class="we-carousel-indicator" data-we-widget="carousel-indicator" aria-label="Slide 3"></button>
+                        </div>
+                        <button class="we-button we-carousel-nav we-carousel-next" data-we-widget="carousel-next">Next</button>
+                      </div>
                     </div>
                   </div>
                 </section>

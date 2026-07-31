@@ -3861,32 +3861,117 @@ html.we-theme-lux-boost .we-offcanvas-panel > .we-close-button:focus-visible {
 }
 
 html.we-theme-lux-boost .we-carousel-controls {
-  border-top: 1px solid #d6e0ef;
-  padding-top: 6px;
+  border-top: 0;
+  padding-top: 0;
 }
 
 html.we-theme-lux-boost .we-carousel-nav,
 html.we-theme-lux-boost .we-carousel-prev,
 html.we-theme-lux-boost .we-carousel-next {
-  border: 1px solid #9fb4d6;
-  border-radius: var(--we-radius-md);
-  background: #f7fbff;
-  color: #2f4f7f;
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 15%;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: #fff;
+  text-align: center;
+  filter: var(--we-carousel-control-icon-filter, none);
+  opacity: 0.5;
+  font-size: 0;
+}
+
+html.we-theme-lux-boost .we-carousel-prev {
+  left: 0;
+}
+
+html.we-theme-lux-boost .we-carousel-next {
+  right: 0;
 }
 
 html.we-theme-lux-boost .we-carousel-nav:hover,
 html.we-theme-lux-boost .we-carousel-prev:hover,
 html.we-theme-lux-boost .we-carousel-next:hover {
-  background: #e9f0fb;
+  background: none;
+  color: #fff;
+  opacity: 0.9;
+}
+
+html.we-theme-lux-boost .we-carousel-nav::before {
+  content: "";
+  display: inline-block;
+  width: 2rem;
+  height: 2rem;
+  background-repeat: no-repeat;
+  background-position: 50%;
+  background-size: 100% 100%;
+}
+
+html.we-theme-lux-boost .we-carousel-prev::before {
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='%23fff'%3e%3cpath d='M11.354 1.646a.5.5 0 0 1 0 .708L5.707 8l5.647 5.646a.5.5 0 0 1-.708.708l-6-6a.5.5 0 0 1 0-.708l6-6a.5.5 0 0 1 .708 0'/%3e%3c/svg%3e");
+}
+
+html.we-theme-lux-boost .we-carousel-next::before {
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='%23fff'%3e%3cpath d='M4.646 1.646a.5.5 0 0 1 .708 0l6 6a.5.5 0 0 1 0 .708l-6 6a.5.5 0 0 1-.708-.708L10.293 8 4.646 2.354a.5.5 0 0 1 0-.708'/%3e%3c/svg%3e");
+}
+
+html.we-theme-lux-boost .we-carousel {
+  position: relative;
+}
+
+html.we-theme-lux-boost .we-carousel-viewport {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+}
+
+html.we-theme-lux-boost .we-carousel-indicators {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 2;
+  display: flex;
+  justify-content: center;
+  padding: 0;
+  margin-right: 15%;
+  margin-bottom: 1rem;
+  margin-left: 15%;
 }
 
 html.we-theme-lux-boost .we-carousel-indicator {
-  border: 1px solid #9fb4d6;
-  background: #ffffff;
+  box-sizing: content-box;
+  flex: 0 1 auto;
+  width: 30px;
+  height: 3px;
+  min-height: 0;
+  padding: 0;
+  margin-right: 3px;
+  margin-left: 3px;
+  text-indent: -999px;
+  cursor: pointer;
+  border: 0;
+  border-top: 10px solid transparent;
+  border-bottom: 10px solid transparent;
+  border-radius: 0;
+  background: var(--we-carousel-indicator-active-bg, #fff);
+  background-clip: padding-box;
+  opacity: 0.5;
 }
 
 html.we-theme-lux-boost .we-carousel-indicator.is-current {
-  background: #e7f0ff;
+  background-color: var(--we-carousel-indicator-active-bg, #fff);
+  background-clip: padding-box;
+  border-color: transparent;
+  opacity: 1;
 }
 
 html.we-theme-lux-boost .we-scrollspy-nav {
