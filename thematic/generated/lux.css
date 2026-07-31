@@ -996,9 +996,8 @@ html.we-theme-lux .we-input-group-text {
 html.we-theme-lux .we-input-group > .we-button {
   position: relative;
   z-index: 1;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  display: block;
+  text-align: center;
 }
 
 html.we-theme-lux button:disabled,
