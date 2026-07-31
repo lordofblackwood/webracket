@@ -1881,14 +1881,61 @@ html.we-theme-dark .we-table > tbody > tr.we-table-row-active > * {
   box-shadow: inset 0 0 0 9999px var(--we-table-active-bg);
 }
 
-html.we-theme-dark .we-table > tbody > tr.we-table-row-primary > * { background: var(--we-primary-subtle); }
-html.we-theme-dark .we-table > tbody > tr.we-table-row-secondary > * { background: var(--we-secondary-subtle); }
-html.we-theme-dark .we-table > tbody > tr.we-table-row-success > * { background: var(--we-success-subtle); }
-html.we-theme-dark .we-table > tbody > tr.we-table-row-info > * { background: var(--we-info-subtle); }
-html.we-theme-dark .we-table > tbody > tr.we-table-row-warning > * { background: var(--we-warning-subtle); }
-html.we-theme-dark .we-table > tbody > tr.we-table-row-danger > * { background: var(--we-danger-subtle); }
-html.we-theme-dark .we-table > tbody > tr.we-table-row-light > * { background: var(--we-light-subtle); }
-html.we-theme-dark .we-table > tbody > tr.we-table-row-dark > * { background: var(--we-dark-subtle); }
+html.we-theme-dark .we-table > tbody > tr.we-table-row-primary > * {
+  background: var(--we-table-row-primary-bg, var(--we-primary-subtle));
+  color: var(--we-table-row-primary-color, var(--we-table-color));
+  border-color: var(--we-table-row-primary-border-color, var(--we-primary-border));
+  box-shadow: var(--we-table-cell-shadow, none);
+}
+
+html.we-theme-dark .we-table > tbody > tr.we-table-row-secondary > * {
+  background: var(--we-table-row-secondary-bg, var(--we-secondary-subtle));
+  color: var(--we-table-row-secondary-color, var(--we-table-color));
+  border-color: var(--we-table-row-secondary-border-color, var(--we-secondary-border));
+  box-shadow: var(--we-table-cell-shadow, none);
+}
+
+html.we-theme-dark .we-table > tbody > tr.we-table-row-success > * {
+  background: var(--we-table-row-success-bg, var(--we-success-subtle));
+  color: var(--we-table-row-success-color, var(--we-table-color));
+  border-color: var(--we-table-row-success-border-color, var(--we-success-border));
+  box-shadow: var(--we-table-cell-shadow, none);
+}
+
+html.we-theme-dark .we-table > tbody > tr.we-table-row-info > * {
+  background: var(--we-table-row-info-bg, var(--we-info-subtle));
+  color: var(--we-table-row-info-color, var(--we-table-color));
+  border-color: var(--we-table-row-info-border-color, var(--we-info-border));
+  box-shadow: var(--we-table-cell-shadow, none);
+}
+
+html.we-theme-dark .we-table > tbody > tr.we-table-row-warning > * {
+  background: var(--we-table-row-warning-bg, var(--we-warning-subtle));
+  color: var(--we-table-row-warning-color, var(--we-table-color));
+  border-color: var(--we-table-row-warning-border-color, var(--we-warning-border));
+  box-shadow: var(--we-table-cell-shadow, none);
+}
+
+html.we-theme-dark .we-table > tbody > tr.we-table-row-danger > * {
+  background: var(--we-table-row-danger-bg, var(--we-danger-subtle));
+  color: var(--we-table-row-danger-color, var(--we-table-color));
+  border-color: var(--we-table-row-danger-border-color, var(--we-danger-border));
+  box-shadow: var(--we-table-cell-shadow, none);
+}
+
+html.we-theme-dark .we-table > tbody > tr.we-table-row-light > * {
+  background: var(--we-table-row-light-bg, var(--we-light-subtle));
+  color: var(--we-table-row-light-color, var(--we-table-color));
+  border-color: var(--we-table-row-light-border-color, var(--we-light-border));
+  box-shadow: var(--we-table-cell-shadow, none);
+}
+
+html.we-theme-dark .we-table > tbody > tr.we-table-row-dark > * {
+  background: var(--we-table-row-dark-bg, var(--we-dark-subtle));
+  color: var(--we-table-row-dark-color, var(--we-table-color));
+  border-color: var(--we-table-row-dark-border-color, var(--we-dark-border));
+  box-shadow: var(--we-table-cell-shadow, none);
+}
 
 /* Badges: tone classes should be visually distinct in examples and apps. */
 html.we-theme-dark .we-badge {

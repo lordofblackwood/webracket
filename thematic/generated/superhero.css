@@ -720,41 +720,65 @@ html.we-theme-superhero {
   --we-primary-emphasis: #592a0a;
   --we-primary-subtle: #f9e1d1;
   --we-primary-border: #f2c3a3;
+  --we-table-row-primary-bg: #df6919;
+  --we-table-row-primary-color: #fff;
+  --we-table-row-primary-border-color: #e58747;
   --we-secondary: #4e5d6c;
   --we-secondary-on: #fff;
   --we-secondary-emphasis: #1f252b;
   --we-secondary-subtle: #dcdfe2;
   --we-secondary-border: #b8bec4;
+  --we-table-row-secondary-bg: #4e5d6c;
+  --we-table-row-secondary-color: #fff;
+  --we-table-row-secondary-border-color: #717d89;
   --we-success: #5cb85c;
   --we-success-on: #fff;
   --we-success-emphasis: #254a25;
   --we-success-subtle: #def1de;
   --we-success-border: #bee3be;
+  --we-table-row-success-bg: #5cb85c;
+  --we-table-row-success-color: #fff;
+  --we-table-row-success-border-color: #7dc67d;
   --we-info: #5bc0de;
   --we-info-on: #fff;
   --we-info-emphasis: #244d59;
   --we-info-subtle: #def2f8;
   --we-info-border: #bde6f2;
+  --we-table-row-info-bg: #5bc0de;
+  --we-table-row-info-color: #fff;
+  --we-table-row-info-border-color: #7ccde5;
   --we-warning: #ffc107;
   --we-warning-on: #fff;
   --we-warning-emphasis: #664d03;
   --we-warning-subtle: #fff3cd;
   --we-warning-border: #ffe69c;
+  --we-table-row-warning-bg: #ffc107;
+  --we-table-row-warning-color: #fff;
+  --we-table-row-warning-border-color: #ffcd39;
   --we-danger: #d9534f;
   --we-danger-on: #fff;
   --we-danger-emphasis: #572120;
   --we-danger-subtle: #f7dddc;
   --we-danger-border: #f0bab9;
+  --we-table-row-danger-bg: #d9534f;
+  --we-table-row-danger-color: #fff;
+  --we-table-row-danger-border-color: #e17572;
   --we-light: #abb6c2;
   --we-light-on: #fff;
   --we-light-emphasis: #495057;
   --we-light-subtle: #3e5061;
   --we-light-border: #dee2e6;
+  --we-table-row-light-bg: #abb6c2;
+  --we-table-row-light-color: #fff;
+  --we-table-row-light-border-color: #bcc5ce;
   --we-dark: #20374c;
   --we-dark-on: #fff;
   --we-dark-emphasis: #495057;
   --we-dark-subtle: #adb5bd;
   --we-dark-border: #868e96;
+  --we-table-row-dark-bg: #20374c;
+  --we-table-row-dark-color: #fff;
+  --we-table-row-dark-border-color: #4d5f70;
   --we-space-xs: 2px;
   --we-space-sm: 4px;
   --we-space-md: 8px;
@@ -2417,14 +2441,61 @@ html.we-theme-superhero .we-table > tbody > tr.we-table-row-active > * {
   box-shadow: inset 0 0 0 9999px var(--we-table-active-bg);
 }
 
-html.we-theme-superhero .we-table > tbody > tr.we-table-row-primary > * { background: var(--we-primary-subtle); }
-html.we-theme-superhero .we-table > tbody > tr.we-table-row-secondary > * { background: var(--we-secondary-subtle); }
-html.we-theme-superhero .we-table > tbody > tr.we-table-row-success > * { background: var(--we-success-subtle); }
-html.we-theme-superhero .we-table > tbody > tr.we-table-row-info > * { background: var(--we-info-subtle); }
-html.we-theme-superhero .we-table > tbody > tr.we-table-row-warning > * { background: var(--we-warning-subtle); }
-html.we-theme-superhero .we-table > tbody > tr.we-table-row-danger > * { background: var(--we-danger-subtle); }
-html.we-theme-superhero .we-table > tbody > tr.we-table-row-light > * { background: var(--we-light-subtle); }
-html.we-theme-superhero .we-table > tbody > tr.we-table-row-dark > * { background: var(--we-dark-subtle); }
+html.we-theme-superhero .we-table > tbody > tr.we-table-row-primary > * {
+  background: var(--we-table-row-primary-bg, var(--we-primary-subtle));
+  color: var(--we-table-row-primary-color, var(--we-table-color));
+  border-color: var(--we-table-row-primary-border-color, var(--we-primary-border));
+  box-shadow: var(--we-table-cell-shadow, none);
+}
+
+html.we-theme-superhero .we-table > tbody > tr.we-table-row-secondary > * {
+  background: var(--we-table-row-secondary-bg, var(--we-secondary-subtle));
+  color: var(--we-table-row-secondary-color, var(--we-table-color));
+  border-color: var(--we-table-row-secondary-border-color, var(--we-secondary-border));
+  box-shadow: var(--we-table-cell-shadow, none);
+}
+
+html.we-theme-superhero .we-table > tbody > tr.we-table-row-success > * {
+  background: var(--we-table-row-success-bg, var(--we-success-subtle));
+  color: var(--we-table-row-success-color, var(--we-table-color));
+  border-color: var(--we-table-row-success-border-color, var(--we-success-border));
+  box-shadow: var(--we-table-cell-shadow, none);
+}
+
+html.we-theme-superhero .we-table > tbody > tr.we-table-row-info > * {
+  background: var(--we-table-row-info-bg, var(--we-info-subtle));
+  color: var(--we-table-row-info-color, var(--we-table-color));
+  border-color: var(--we-table-row-info-border-color, var(--we-info-border));
+  box-shadow: var(--we-table-cell-shadow, none);
+}
+
+html.we-theme-superhero .we-table > tbody > tr.we-table-row-warning > * {
+  background: var(--we-table-row-warning-bg, var(--we-warning-subtle));
+  color: var(--we-table-row-warning-color, var(--we-table-color));
+  border-color: var(--we-table-row-warning-border-color, var(--we-warning-border));
+  box-shadow: var(--we-table-cell-shadow, none);
+}
+
+html.we-theme-superhero .we-table > tbody > tr.we-table-row-danger > * {
+  background: var(--we-table-row-danger-bg, var(--we-danger-subtle));
+  color: var(--we-table-row-danger-color, var(--we-table-color));
+  border-color: var(--we-table-row-danger-border-color, var(--we-danger-border));
+  box-shadow: var(--we-table-cell-shadow, none);
+}
+
+html.we-theme-superhero .we-table > tbody > tr.we-table-row-light > * {
+  background: var(--we-table-row-light-bg, var(--we-light-subtle));
+  color: var(--we-table-row-light-color, var(--we-table-color));
+  border-color: var(--we-table-row-light-border-color, var(--we-light-border));
+  box-shadow: var(--we-table-cell-shadow, none);
+}
+
+html.we-theme-superhero .we-table > tbody > tr.we-table-row-dark > * {
+  background: var(--we-table-row-dark-bg, var(--we-dark-subtle));
+  color: var(--we-table-row-dark-color, var(--we-table-color));
+  border-color: var(--we-table-row-dark-border-color, var(--we-dark-border));
+  box-shadow: var(--we-table-cell-shadow, none);
+}
 
 /* Badges: tone classes should be visually distinct in examples and apps. */
 html.we-theme-superhero .we-badge {

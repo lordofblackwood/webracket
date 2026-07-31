@@ -720,41 +720,65 @@ html.we-theme-sandstone {
   --we-primary-emphasis: #142536;
   --we-primary-subtle: #d6dfe7;
   --we-primary-border: #adbecf;
+  --we-table-row-primary-bg: #d6dfe7;
+  --we-table-row-primary-color: #3e3f3a;
+  --we-table-row-primary-border-color: #abb2b9;
   --we-secondary: #8e8c84;
   --we-secondary-on: #fff;
   --we-secondary-emphasis: #393835;
   --we-secondary-subtle: #e8e8e6;
   --we-secondary-border: #d2d1ce;
+  --we-table-row-secondary-bg: #e8e8e6;
+  --we-table-row-secondary-color: #3e3f3a;
+  --we-table-row-secondary-border-color: #babab8;
   --we-success: #93c54b;
   --we-success-on: #fff;
   --we-success-emphasis: #3b4f1e;
   --we-success-subtle: #e9f3db;
   --we-success-border: #d4e8b7;
+  --we-table-row-success-bg: #e9f3db;
+  --we-table-row-success-color: #3e3f3a;
+  --we-table-row-success-border-color: #bac2af;
   --we-info: #29abe0;
   --we-info-on: #fff;
   --we-info-emphasis: #10445a;
   --we-info-subtle: #d4eef9;
   --we-info-border: #a9ddf3;
+  --we-table-row-info-bg: #d4eef9;
+  --we-table-row-info-color: #3e3f3a;
+  --we-table-row-info-border-color: #aabec7;
   --we-warning: #f47c3c;
   --we-warning-on: #fff;
   --we-warning-emphasis: #623218;
   --we-warning-subtle: #fde5d8;
   --we-warning-border: #fbcbb1;
+  --we-table-row-warning-bg: #fde5d8;
+  --we-table-row-warning-color: #3e3f3a;
+  --we-table-row-warning-border-color: #cab7ad;
   --we-danger: #d9534f;
   --we-danger-on: #fff;
   --we-danger-emphasis: #572120;
   --we-danger-subtle: #f7dddc;
   --we-danger-border: #f0bab9;
+  --we-table-row-danger-bg: #f7dddc;
+  --we-table-row-danger-color: #3e3f3a;
+  --we-table-row-danger-border-color: #c6b1b0;
   --we-light: #f8f5f0;
   --we-light-on: #000;
   --we-light-emphasis: #495057;
   --we-light-subtle: #fcfcfd;
   --we-light-border: #f8f5f0;
+  --we-table-row-light-bg: #f8f5f0;
+  --we-table-row-light-color: #3e3f3a;
+  --we-table-row-light-border-color: #c6c4c0;
   --we-dark: #3e3f3a;
   --we-dark-on: #fff;
   --we-dark-emphasis: #495057;
   --we-dark-subtle: #ced4da;
   --we-dark-border: #98978b;
+  --we-table-row-dark-bg: #3e3f3a;
+  --we-table-row-dark-color: #fff;
+  --we-table-row-dark-border-color: #656561;
   --we-space-xs: 2px;
   --we-space-sm: 4px;
   --we-space-md: 8px;
@@ -2417,14 +2441,61 @@ html.we-theme-sandstone .we-table > tbody > tr.we-table-row-active > * {
   box-shadow: inset 0 0 0 9999px var(--we-table-active-bg);
 }
 
-html.we-theme-sandstone .we-table > tbody > tr.we-table-row-primary > * { background: var(--we-primary-subtle); }
-html.we-theme-sandstone .we-table > tbody > tr.we-table-row-secondary > * { background: var(--we-secondary-subtle); }
-html.we-theme-sandstone .we-table > tbody > tr.we-table-row-success > * { background: var(--we-success-subtle); }
-html.we-theme-sandstone .we-table > tbody > tr.we-table-row-info > * { background: var(--we-info-subtle); }
-html.we-theme-sandstone .we-table > tbody > tr.we-table-row-warning > * { background: var(--we-warning-subtle); }
-html.we-theme-sandstone .we-table > tbody > tr.we-table-row-danger > * { background: var(--we-danger-subtle); }
-html.we-theme-sandstone .we-table > tbody > tr.we-table-row-light > * { background: var(--we-light-subtle); }
-html.we-theme-sandstone .we-table > tbody > tr.we-table-row-dark > * { background: var(--we-dark-subtle); }
+html.we-theme-sandstone .we-table > tbody > tr.we-table-row-primary > * {
+  background: var(--we-table-row-primary-bg, var(--we-primary-subtle));
+  color: var(--we-table-row-primary-color, var(--we-table-color));
+  border-color: var(--we-table-row-primary-border-color, var(--we-primary-border));
+  box-shadow: var(--we-table-cell-shadow, none);
+}
+
+html.we-theme-sandstone .we-table > tbody > tr.we-table-row-secondary > * {
+  background: var(--we-table-row-secondary-bg, var(--we-secondary-subtle));
+  color: var(--we-table-row-secondary-color, var(--we-table-color));
+  border-color: var(--we-table-row-secondary-border-color, var(--we-secondary-border));
+  box-shadow: var(--we-table-cell-shadow, none);
+}
+
+html.we-theme-sandstone .we-table > tbody > tr.we-table-row-success > * {
+  background: var(--we-table-row-success-bg, var(--we-success-subtle));
+  color: var(--we-table-row-success-color, var(--we-table-color));
+  border-color: var(--we-table-row-success-border-color, var(--we-success-border));
+  box-shadow: var(--we-table-cell-shadow, none);
+}
+
+html.we-theme-sandstone .we-table > tbody > tr.we-table-row-info > * {
+  background: var(--we-table-row-info-bg, var(--we-info-subtle));
+  color: var(--we-table-row-info-color, var(--we-table-color));
+  border-color: var(--we-table-row-info-border-color, var(--we-info-border));
+  box-shadow: var(--we-table-cell-shadow, none);
+}
+
+html.we-theme-sandstone .we-table > tbody > tr.we-table-row-warning > * {
+  background: var(--we-table-row-warning-bg, var(--we-warning-subtle));
+  color: var(--we-table-row-warning-color, var(--we-table-color));
+  border-color: var(--we-table-row-warning-border-color, var(--we-warning-border));
+  box-shadow: var(--we-table-cell-shadow, none);
+}
+
+html.we-theme-sandstone .we-table > tbody > tr.we-table-row-danger > * {
+  background: var(--we-table-row-danger-bg, var(--we-danger-subtle));
+  color: var(--we-table-row-danger-color, var(--we-table-color));
+  border-color: var(--we-table-row-danger-border-color, var(--we-danger-border));
+  box-shadow: var(--we-table-cell-shadow, none);
+}
+
+html.we-theme-sandstone .we-table > tbody > tr.we-table-row-light > * {
+  background: var(--we-table-row-light-bg, var(--we-light-subtle));
+  color: var(--we-table-row-light-color, var(--we-table-color));
+  border-color: var(--we-table-row-light-border-color, var(--we-light-border));
+  box-shadow: var(--we-table-cell-shadow, none);
+}
+
+html.we-theme-sandstone .we-table > tbody > tr.we-table-row-dark > * {
+  background: var(--we-table-row-dark-bg, var(--we-dark-subtle));
+  color: var(--we-table-row-dark-color, var(--we-table-color));
+  border-color: var(--we-table-row-dark-border-color, var(--we-dark-border));
+  box-shadow: var(--we-table-cell-shadow, none);
+}
 
 /* Badges: tone classes should be visually distinct in examples and apps. */
 html.we-theme-sandstone .we-badge {

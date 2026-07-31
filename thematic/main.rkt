@@ -2305,6 +2305,54 @@
   (define table-active-bg
     (or (list-table-custom-ref ".table" "--bs-table-active-bg")
         (list-table-style-ref ".table-active" "background-color")))
+  (define (transparent-color-value? value)
+    (and value
+         (member (string-downcase (string-trim value))
+                 '("transparent"
+                   "rgba(0, 0, 0, 0)"
+                   "rgba(0,0,0,0)"))))
+  (define (table-tone-cell-bg tone)
+    (for/or ([selector (in-list (list (format ".table-~a td" tone)
+                                      (format ".table-~a th" tone)))])
+      (define value
+        (list-table-style-ref selector "background-color"))
+      (and (meaningful-css-value? value)
+           (not (transparent-color-value? value))
+           value)))
+  (define (table-tone-bg tone)
+    (or (table-tone-cell-bg tone)
+        (list-table-custom-ref (format ".table-~a" tone) "--bs-table-bg")
+        (list-table-style-ref (format ".table-~a" tone) "background-color")))
+  (define (table-tone-color tone)
+    (or (list-table-custom-ref (format ".table-~a" tone) "--bs-table-color")
+        (list-table-style-ref (format ".table-~a" tone) "color")))
+  (define (table-tone-border-color tone)
+    (or (list-table-custom-ref (format ".table-~a" tone) "--bs-table-border-color")
+        (list-table-style-ref (format ".table-~a" tone) "border-color")))
+  (define table-primary-bg (table-tone-bg "primary"))
+  (define table-primary-color (table-tone-color "primary"))
+  (define table-primary-border-color (table-tone-border-color "primary"))
+  (define table-secondary-bg (table-tone-bg "secondary"))
+  (define table-secondary-color (table-tone-color "secondary"))
+  (define table-secondary-border-color (table-tone-border-color "secondary"))
+  (define table-success-bg (table-tone-bg "success"))
+  (define table-success-color (table-tone-color "success"))
+  (define table-success-border-color (table-tone-border-color "success"))
+  (define table-info-bg (table-tone-bg "info"))
+  (define table-info-color (table-tone-color "info"))
+  (define table-info-border-color (table-tone-border-color "info"))
+  (define table-warning-bg (table-tone-bg "warning"))
+  (define table-warning-color (table-tone-color "warning"))
+  (define table-warning-border-color (table-tone-border-color "warning"))
+  (define table-danger-bg (table-tone-bg "danger"))
+  (define table-danger-color (table-tone-color "danger"))
+  (define table-danger-border-color (table-tone-border-color "danger"))
+  (define table-light-bg (table-tone-bg "light"))
+  (define table-light-color (table-tone-color "light"))
+  (define table-light-border-color (table-tone-border-color "light"))
+  (define table-dark-bg (table-tone-bg "dark"))
+  (define table-dark-color (table-tone-color "dark"))
+  (define table-dark-border-color (table-tone-border-color "dark"))
   (define table-accent-bg
     (or (list-table-custom-ref ".table" "--bs-table-accent-bg")
         "transparent"))
@@ -3451,6 +3499,30 @@
         'table-striped-bg table-striped-bg
         'table-hover-bg table-hover-bg
         'table-active-bg table-active-bg
+        'table-primary-bg table-primary-bg
+        'table-primary-color table-primary-color
+        'table-primary-border-color table-primary-border-color
+        'table-secondary-bg table-secondary-bg
+        'table-secondary-color table-secondary-color
+        'table-secondary-border-color table-secondary-border-color
+        'table-success-bg table-success-bg
+        'table-success-color table-success-color
+        'table-success-border-color table-success-border-color
+        'table-info-bg table-info-bg
+        'table-info-color table-info-color
+        'table-info-border-color table-info-border-color
+        'table-warning-bg table-warning-bg
+        'table-warning-color table-warning-color
+        'table-warning-border-color table-warning-border-color
+        'table-danger-bg table-danger-bg
+        'table-danger-color table-danger-color
+        'table-danger-border-color table-danger-border-color
+        'table-light-bg table-light-bg
+        'table-light-color table-light-color
+        'table-light-border-color table-light-border-color
+        'table-dark-bg table-dark-bg
+        'table-dark-color table-dark-color
+        'table-dark-border-color table-dark-border-color
         'table-cell-shadow table-cell-shadow
         'table-font-size table-font-size
         'table-cell-padding-x table-cell-padding-x
@@ -6286,11 +6358,26 @@
        (define emphasis
          (or (theme-prop-ref theme (format "--bs-~a-text-emphasis" name))
              (rgb->css (derive-emphasis-color parsed dark?))))
+       (define table-row-bg
+         (or (theme-component-ref theme (string->symbol (format "table-~a-bg" name)))
+             subtle))
+       (define table-row-color
+         (or (theme-component-ref theme (string->symbol (format "table-~a-color" name)))
+             (let ([parsed-bg (parse-css-color table-row-bg)])
+               (if parsed-bg
+                   (derive-on-color parsed-bg)
+                   on-color))))
+       (define table-row-border
+         (or (theme-component-ref theme (string->symbol (format "table-~a-border-color" name)))
+             border*))
        (list (cons (format "--we-~a" name) source-text)
              (cons (format "--we-~a-on" name) on-color)
              (cons (format "--we-~a-emphasis" name) emphasis)
              (cons (format "--we-~a-subtle" name) subtle)
-             (cons (format "--we-~a-border" name) border*)))
+             (cons (format "--we-~a-border" name) border*)
+             (cons (format "--we-table-row-~a-bg" name) table-row-bg)
+             (cons (format "--we-table-row-~a-color" name) table-row-color)
+             (cons (format "--we-table-row-~a-border-color" name) table-row-border)))
      semantic-bases))
   (append
    (list

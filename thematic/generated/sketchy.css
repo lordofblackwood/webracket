@@ -720,41 +720,65 @@ html.we-theme-sketchy {
   --we-primary-emphasis: #141414;
   --we-primary-subtle: #d6d6d6;
   --we-primary-border: #adadad;
+  --we-table-row-primary-bg: #d6d6d6;
+  --we-table-row-primary-color: #212529;
+  --we-table-row-primary-border-color: #ababab;
   --we-secondary: #555;
   --we-secondary-on: #fff;
   --we-secondary-emphasis: #222222;
   --we-secondary-subtle: #dddddd;
   --we-secondary-border: #bbbbbb;
+  --we-table-row-secondary-bg: #dddddd;
+  --we-table-row-secondary-color: #212529;
+  --we-table-row-secondary-border-color: #b1b1b1;
   --we-success: #28a745;
   --we-success-on: #fff;
   --we-success-emphasis: #10431c;
   --we-success-subtle: #d4edda;
   --we-success-border: #a9dcb5;
+  --we-table-row-success-bg: #d4edda;
+  --we-table-row-success-color: #212529;
+  --we-table-row-success-border-color: #aabeae;
   --we-info: #17a2b8;
   --we-info-on: #fff;
   --we-info-emphasis: #09414a;
   --we-info-subtle: #d1ecf1;
   --we-info-border: #a2dae3;
+  --we-table-row-info-bg: #d1ecf1;
+  --we-table-row-info-color: #212529;
+  --we-table-row-info-border-color: #a7bdc1;
   --we-warning: #ffc107;
   --we-warning-on: #fff;
   --we-warning-emphasis: #664d03;
   --we-warning-subtle: #fff3cd;
   --we-warning-border: #ffe69c;
+  --we-table-row-warning-bg: #fff3cd;
+  --we-table-row-warning-color: #212529;
+  --we-table-row-warning-border-color: #ccc2a4;
   --we-danger: #dc3545;
   --we-danger-on: #fff;
   --we-danger-emphasis: #58151c;
   --we-danger-subtle: #f8d7da;
   --we-danger-border: #f1aeb5;
+  --we-table-row-danger-bg: #f8d7da;
+  --we-table-row-danger-color: #212529;
+  --we-table-row-danger-border-color: #c6acae;
   --we-light: #fff;
   --we-light-on: #000;
   --we-light-emphasis: #555;
   --we-light-subtle: #fcfcfd;
   --we-light-border: #f7f7f9;
+  --we-table-row-light-bg: #fff;
+  --we-table-row-light-color: #212529;
+  --we-table-row-light-border-color: #cccccc;
   --we-dark: #555;
   --we-dark-on: #fff;
   --we-dark-emphasis: #555;
   --we-dark-subtle: #cccccc;
   --we-dark-border: #aaaaaa;
+  --we-table-row-dark-bg: #333;
+  --we-table-row-dark-color: #fff;
+  --we-table-row-dark-border-color: #777777;
   --we-space-xs: 2px;
   --we-space-sm: 4px;
   --we-space-md: 8px;
@@ -2417,14 +2441,61 @@ html.we-theme-sketchy .we-table > tbody > tr.we-table-row-active > * {
   box-shadow: inset 0 0 0 9999px var(--we-table-active-bg);
 }
 
-html.we-theme-sketchy .we-table > tbody > tr.we-table-row-primary > * { background: var(--we-primary-subtle); }
-html.we-theme-sketchy .we-table > tbody > tr.we-table-row-secondary > * { background: var(--we-secondary-subtle); }
-html.we-theme-sketchy .we-table > tbody > tr.we-table-row-success > * { background: var(--we-success-subtle); }
-html.we-theme-sketchy .we-table > tbody > tr.we-table-row-info > * { background: var(--we-info-subtle); }
-html.we-theme-sketchy .we-table > tbody > tr.we-table-row-warning > * { background: var(--we-warning-subtle); }
-html.we-theme-sketchy .we-table > tbody > tr.we-table-row-danger > * { background: var(--we-danger-subtle); }
-html.we-theme-sketchy .we-table > tbody > tr.we-table-row-light > * { background: var(--we-light-subtle); }
-html.we-theme-sketchy .we-table > tbody > tr.we-table-row-dark > * { background: var(--we-dark-subtle); }
+html.we-theme-sketchy .we-table > tbody > tr.we-table-row-primary > * {
+  background: var(--we-table-row-primary-bg, var(--we-primary-subtle));
+  color: var(--we-table-row-primary-color, var(--we-table-color));
+  border-color: var(--we-table-row-primary-border-color, var(--we-primary-border));
+  box-shadow: var(--we-table-cell-shadow, none);
+}
+
+html.we-theme-sketchy .we-table > tbody > tr.we-table-row-secondary > * {
+  background: var(--we-table-row-secondary-bg, var(--we-secondary-subtle));
+  color: var(--we-table-row-secondary-color, var(--we-table-color));
+  border-color: var(--we-table-row-secondary-border-color, var(--we-secondary-border));
+  box-shadow: var(--we-table-cell-shadow, none);
+}
+
+html.we-theme-sketchy .we-table > tbody > tr.we-table-row-success > * {
+  background: var(--we-table-row-success-bg, var(--we-success-subtle));
+  color: var(--we-table-row-success-color, var(--we-table-color));
+  border-color: var(--we-table-row-success-border-color, var(--we-success-border));
+  box-shadow: var(--we-table-cell-shadow, none);
+}
+
+html.we-theme-sketchy .we-table > tbody > tr.we-table-row-info > * {
+  background: var(--we-table-row-info-bg, var(--we-info-subtle));
+  color: var(--we-table-row-info-color, var(--we-table-color));
+  border-color: var(--we-table-row-info-border-color, var(--we-info-border));
+  box-shadow: var(--we-table-cell-shadow, none);
+}
+
+html.we-theme-sketchy .we-table > tbody > tr.we-table-row-warning > * {
+  background: var(--we-table-row-warning-bg, var(--we-warning-subtle));
+  color: var(--we-table-row-warning-color, var(--we-table-color));
+  border-color: var(--we-table-row-warning-border-color, var(--we-warning-border));
+  box-shadow: var(--we-table-cell-shadow, none);
+}
+
+html.we-theme-sketchy .we-table > tbody > tr.we-table-row-danger > * {
+  background: var(--we-table-row-danger-bg, var(--we-danger-subtle));
+  color: var(--we-table-row-danger-color, var(--we-table-color));
+  border-color: var(--we-table-row-danger-border-color, var(--we-danger-border));
+  box-shadow: var(--we-table-cell-shadow, none);
+}
+
+html.we-theme-sketchy .we-table > tbody > tr.we-table-row-light > * {
+  background: var(--we-table-row-light-bg, var(--we-light-subtle));
+  color: var(--we-table-row-light-color, var(--we-table-color));
+  border-color: var(--we-table-row-light-border-color, var(--we-light-border));
+  box-shadow: var(--we-table-cell-shadow, none);
+}
+
+html.we-theme-sketchy .we-table > tbody > tr.we-table-row-dark > * {
+  background: var(--we-table-row-dark-bg, var(--we-dark-subtle));
+  color: var(--we-table-row-dark-color, var(--we-table-color));
+  border-color: var(--we-table-row-dark-border-color, var(--we-dark-border));
+  box-shadow: var(--we-table-cell-shadow, none);
+}
 
 /* Badges: tone classes should be visually distinct in examples and apps. */
 html.we-theme-sketchy .we-badge {

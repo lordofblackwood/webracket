@@ -720,41 +720,65 @@ html.we-theme-lux {
   --we-primary-emphasis: #0a0a0a;
   --we-primary-subtle: #d1d1d1;
   --we-primary-border: #a3a3a3;
+  --we-table-row-primary-bg: #d1d1d1;
+  --we-table-row-primary-color: #55595c;
+  --we-table-row-primary-border-color: #a7a7a7;
   --we-secondary: #fff;
   --we-secondary-on: #000;
   --we-secondary-emphasis: #666666;
   --we-secondary-subtle: #ffffff;
   --we-secondary-border: #f1f2f2;
+  --we-table-row-secondary-bg: white;
+  --we-table-row-secondary-color: #55595c;
+  --we-table-row-secondary-border-color: #cccccc;
   --we-success: #4bbf73;
   --we-success-on: #fff;
   --we-success-emphasis: #1e4c2e;
   --we-success-subtle: #dbf2e3;
   --we-success-border: #b7e5c7;
+  --we-table-row-success-bg: #dbf2e3;
+  --we-table-row-success-color: #55595c;
+  --we-table-row-success-border-color: #afc2b6;
   --we-info: #1f9bcf;
   --we-info-on: #fff;
   --we-info-emphasis: #0c3e53;
   --we-info-subtle: #d2ebf5;
   --we-info-border: #a5d7ec;
+  --we-table-row-info-bg: #d2ebf5;
+  --we-table-row-info-color: #55595c;
+  --we-table-row-info-border-color: #a8bcc4;
   --we-warning: #f0ad4e;
   --we-warning-on: #fff;
   --we-warning-emphasis: #60451f;
   --we-warning-subtle: #fcefdc;
   --we-warning-border: #f9deb8;
+  --we-table-row-warning-bg: #fcefdc;
+  --we-table-row-warning-color: #55595c;
+  --we-table-row-warning-border-color: #cabfb0;
   --we-danger: #d9534f;
   --we-danger-on: #fff;
   --we-danger-emphasis: #572120;
   --we-danger-subtle: #f7dddc;
   --we-danger-border: #f0bab9;
+  --we-table-row-danger-bg: #f7dddc;
+  --we-table-row-danger-color: #55595c;
+  --we-table-row-danger-border-color: #c6b1b0;
   --we-light: #f0f1f2;
   --we-light-on: #000;
   --we-light-emphasis: #55595c;
   --we-light-subtle: #fcfcfd;
   --we-light-border: #f0f1f2;
+  --we-table-row-light-bg: #f0f1f2;
+  --we-table-row-light-color: #55595c;
+  --we-table-row-light-border-color: #c0c1c2;
   --we-dark: #343a40;
   --we-dark-on: #fff;
   --we-dark-emphasis: #55595c;
   --we-dark-subtle: #cdcecf;
   --we-dark-border: #adb5bd;
+  --we-table-row-dark-bg: #343a40;
+  --we-table-row-dark-color: #fff;
+  --we-table-row-dark-border-color: #5d6166;
   --we-space-xs: 2px;
   --we-space-sm: 4px;
   --we-space-md: 8px;
@@ -2417,14 +2441,61 @@ html.we-theme-lux .we-table > tbody > tr.we-table-row-active > * {
   box-shadow: inset 0 0 0 9999px var(--we-table-active-bg);
 }
 
-html.we-theme-lux .we-table > tbody > tr.we-table-row-primary > * { background: var(--we-primary-subtle); }
-html.we-theme-lux .we-table > tbody > tr.we-table-row-secondary > * { background: var(--we-secondary-subtle); }
-html.we-theme-lux .we-table > tbody > tr.we-table-row-success > * { background: var(--we-success-subtle); }
-html.we-theme-lux .we-table > tbody > tr.we-table-row-info > * { background: var(--we-info-subtle); }
-html.we-theme-lux .we-table > tbody > tr.we-table-row-warning > * { background: var(--we-warning-subtle); }
-html.we-theme-lux .we-table > tbody > tr.we-table-row-danger > * { background: var(--we-danger-subtle); }
-html.we-theme-lux .we-table > tbody > tr.we-table-row-light > * { background: var(--we-light-subtle); }
-html.we-theme-lux .we-table > tbody > tr.we-table-row-dark > * { background: var(--we-dark-subtle); }
+html.we-theme-lux .we-table > tbody > tr.we-table-row-primary > * {
+  background: var(--we-table-row-primary-bg, var(--we-primary-subtle));
+  color: var(--we-table-row-primary-color, var(--we-table-color));
+  border-color: var(--we-table-row-primary-border-color, var(--we-primary-border));
+  box-shadow: var(--we-table-cell-shadow, none);
+}
+
+html.we-theme-lux .we-table > tbody > tr.we-table-row-secondary > * {
+  background: var(--we-table-row-secondary-bg, var(--we-secondary-subtle));
+  color: var(--we-table-row-secondary-color, var(--we-table-color));
+  border-color: var(--we-table-row-secondary-border-color, var(--we-secondary-border));
+  box-shadow: var(--we-table-cell-shadow, none);
+}
+
+html.we-theme-lux .we-table > tbody > tr.we-table-row-success > * {
+  background: var(--we-table-row-success-bg, var(--we-success-subtle));
+  color: var(--we-table-row-success-color, var(--we-table-color));
+  border-color: var(--we-table-row-success-border-color, var(--we-success-border));
+  box-shadow: var(--we-table-cell-shadow, none);
+}
+
+html.we-theme-lux .we-table > tbody > tr.we-table-row-info > * {
+  background: var(--we-table-row-info-bg, var(--we-info-subtle));
+  color: var(--we-table-row-info-color, var(--we-table-color));
+  border-color: var(--we-table-row-info-border-color, var(--we-info-border));
+  box-shadow: var(--we-table-cell-shadow, none);
+}
+
+html.we-theme-lux .we-table > tbody > tr.we-table-row-warning > * {
+  background: var(--we-table-row-warning-bg, var(--we-warning-subtle));
+  color: var(--we-table-row-warning-color, var(--we-table-color));
+  border-color: var(--we-table-row-warning-border-color, var(--we-warning-border));
+  box-shadow: var(--we-table-cell-shadow, none);
+}
+
+html.we-theme-lux .we-table > tbody > tr.we-table-row-danger > * {
+  background: var(--we-table-row-danger-bg, var(--we-danger-subtle));
+  color: var(--we-table-row-danger-color, var(--we-table-color));
+  border-color: var(--we-table-row-danger-border-color, var(--we-danger-border));
+  box-shadow: var(--we-table-cell-shadow, none);
+}
+
+html.we-theme-lux .we-table > tbody > tr.we-table-row-light > * {
+  background: var(--we-table-row-light-bg, var(--we-light-subtle));
+  color: var(--we-table-row-light-color, var(--we-table-color));
+  border-color: var(--we-table-row-light-border-color, var(--we-light-border));
+  box-shadow: var(--we-table-cell-shadow, none);
+}
+
+html.we-theme-lux .we-table > tbody > tr.we-table-row-dark > * {
+  background: var(--we-table-row-dark-bg, var(--we-dark-subtle));
+  color: var(--we-table-row-dark-color, var(--we-table-color));
+  border-color: var(--we-table-row-dark-border-color, var(--we-dark-border));
+  box-shadow: var(--we-table-cell-shadow, none);
+}
 
 /* Badges: tone classes should be visually distinct in examples and apps. */
 html.we-theme-lux .we-badge {
