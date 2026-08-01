@@ -84,6 +84,10 @@
     get-output-bytes
     read-line
     read-bytes-line
+    file-position*
+    port-count-lines!
+    port-counts-lines?
+    port-next-location
     read-byte-or-special
     read-char-or-special
     peek-byte-or-special
@@ -126,7 +130,13 @@
   '((read-byte:input-port-closed "read-byte: input port is closed")
     (peek-byte:input-port-closed "peek-byte: input port is closed")
     (write-byte:output-port-closed "write-byte: output port is closed")
-    (flush-output:output-port-closed "flush-output: output port is closed")))
+    (flush-output:output-port-closed "flush-output: output port is closed")
+    (file-position*:input-port-closed "file-position*: input port is closed")
+    (file-position*:output-port-closed "file-position*: output port is closed")
+    (port-count-lines!:input-port-closed "port-count-lines!: input port is closed")
+    (port-count-lines!:output-port-closed "port-count-lines!: output port is closed")
+    (port-next-location:input-port-closed "port-next-location: input port is closed")
+    (port-next-location:output-port-closed "port-next-location: output port is closed")))
 
 ;; port-current-global-forms : (listof datum?)
 ;;   Declare globals for current input, output, and error ports.
@@ -891,6 +901,26 @@
      (func $port-count-lines! (type $Prim1)
            (param $p (ref eq))
            (result   (ref eq))
+
+           (local $port (ref $Port))
+
+           (if (i32.eqz (call $port-like?/i32 (local.get $p)))
+               (then (call $raise-argument-error1
+                           (global.get $symbol:port-count-lines!)
+                           (global.get $string:port?)
+                           (local.get $p))
+                     (unreachable)))
+           (if (ref.test (ref $Port) (local.get $p))
+               (then
+                (local.set $port (ref.cast (ref $Port) (local.get $p)))
+                (if (struct.get $Port $closed (local.get $port))
+                    (then
+                     (if (ref.test (ref $OutputPort) (local.get $p))
+                         (then (call $raise-output-port-closed
+                                     (global.get $string:port-count-lines!:output-port-closed)))
+                         (else (call $raise-input-port-closed
+                                     (global.get $string:port-count-lines!:input-port-closed))))
+                     (unreachable)))))
            (global.get $void))
 
      ;; Note:
@@ -898,6 +928,20 @@
      (func $port-counts-lines? (type $Prim1)
            (param $p (ref eq))
            (result   (ref eq))
+
+           (local $port (ref $Port))
+
+           (if (i32.eqz (call $port-like?/i32 (local.get $p)))
+               (then (call $raise-argument-error1
+                           (global.get $symbol:port-counts-lines?)
+                           (global.get $string:port?)
+                           (local.get $p))
+                     (unreachable)))
+           (if (ref.test (ref $Port) (local.get $p))
+               (then
+                (local.set $port (ref.cast (ref $Port) (local.get $p)))
+                (if (struct.get $Port $closed (local.get $port))
+                    (then (return (global.get $false))))))
            (global.get $true))
 
      ;; file-position* : port? -> (or/c exact-nonnegative-integer? #f)
@@ -918,10 +962,11 @@
                      (unreachable)))
            (local.set $port (ref.cast (ref $Port) (local.get $p)))
            (if (struct.get $Port $closed (local.get $port))
-               (then (call $raise-argument-error1
-                           (global.get $symbol:file-position*)
-                           (global.get $string:port?)
-                           (local.get $p))
+               (then (if (ref.test (ref $OutputPort) (local.get $p))
+                         (then (call $raise-output-port-closed
+                                     (global.get $string:file-position*:output-port-closed)))
+                         (else (call $raise-input-port-closed
+                                     (global.get $string:file-position*:input-port-closed))))
                      (unreachable)))
            (if (ref.test (ref $InputPort) (local.get $p))
                (then (return (ref.i31
@@ -943,21 +988,31 @@
 
            (local $port (ref null $Port))
            (local $loc  (ref null $Location))
+           (local $original (ref eq))
            ;; 1. Check and cast $p to (ref $Port). Some Goal 1 formatter
            ;; paths can pass higher-level port wrappers before WebRacket
            ;; fully models prop:input-port/prop:output-port. Preserve the
            ;; Reference-mandated three-result shape; when possible, resolve
            ;; prop:output-port to the underlying native port first.
+           (local.set $original (local.get $p))
            (if (ref.test (ref $Port) (local.get $p))
                (then (local.set $port (ref.cast (ref $Port) (local.get $p))))
                (else
                 (local.set $p (call $prop-output-port-target (local.get $p)))
                 (if (ref.test (ref $Port) (local.get $p))
                     (then (local.set $port (ref.cast (ref $Port) (local.get $p))))
-                    (else (return (array.new_fixed $Values 3
-                                                   (global.get $false)
-                                                   (global.get $false)
-                                                   (global.get $false)))))))
+                    (else (call $raise-argument-error1
+                                (global.get $symbol:port-next-location)
+                                (global.get $string:port?)
+                                (local.get $original))
+                          (unreachable)))))
+           (if (struct.get $Port $closed (local.get $port))
+               (then (if (ref.test (ref $OutputPort) (local.get $p))
+                         (then (call $raise-output-port-closed
+                                     (global.get $string:port-next-location:output-port-closed)))
+                         (else (call $raise-input-port-closed
+                                     (global.get $string:port-next-location:input-port-closed))))
+                     (unreachable)))
            ;; 2. Get location struct from the port
            (local.set $loc (struct.get $Port $loc (local.get $port)))
            ;; 3. Extract and return as fixed array of 3 elements
@@ -1465,13 +1520,15 @@
 
            ;; --- Ensure read-in is either an input port or a one-argument procedure ---
            (if (i32.eqz (i32.or (ref.test (ref $InputPort) (local.get $read))
-                                (ref.test (ref $Procedure) (local.get $read))))
+                                (ref.eq (call $procedure? (local.get $read))
+                                        (global.get $true))))
                (then (call $raise-argument-error1
                            (global.get $symbol:make-input-port)
                            (global.get $string:input-port-read-contract)
                            (local.get $read))
                      (unreachable)))
-           (if (ref.test (ref $Procedure) (local.get $read))
+           (if (ref.eq (call $procedure? (local.get $read))
+                       (global.get $true))
                (then (drop (call $check-procedure-arity/who
                                   (global.get $symbol:make-input-port)
                                   (global.get $string:input-port-read-contract)
@@ -1482,13 +1539,15 @@
            (if (i32.eqz (ref.eq (local.get $peek) (global.get $false)))
                (then
                 (if (i32.eqz (i32.or (ref.test (ref $InputPort) (local.get $peek))
-                                     (ref.test (ref $Procedure) (local.get $peek))))
+                                     (ref.eq (call $procedure? (local.get $peek))
+                                             (global.get $true))))
                     (then (call $raise-argument-error1
                                 (global.get $symbol:make-input-port)
                                 (global.get $string:input-port-peek-contract)
                                 (local.get $peek))
                           (unreachable)))
-                (if (ref.test (ref $Procedure) (local.get $peek))
+                (if (ref.eq (call $procedure? (local.get $peek))
+                            (global.get $true))
                     (then (drop (call $check-procedure-arity/who
                                        (global.get $symbol:make-input-port)
                                        (global.get $string:input-port-peek-contract)
@@ -1595,13 +1654,15 @@
                         (br $loop)))
 
            (if (i32.eqz (i32.or (ref.test (ref $OutputPort) (local.get $write))
-                                (ref.test (ref $Procedure) (local.get $write))))
+                                (ref.eq (call $procedure? (local.get $write))
+                                        (global.get $true))))
                (then (call $raise-argument-error1
                            (global.get $symbol:make-output-port)
                            (global.get $string:output-port-write-contract)
                            (local.get $write))
                      (unreachable)))
-           (if (ref.test (ref $Procedure) (local.get $write))
+           (if (ref.eq (call $procedure? (local.get $write))
+                       (global.get $true))
                (then (drop (call $check-procedure-arity/who
                                   (global.get $symbol:make-output-port)
                                   (global.get $string:output-port-write-contract)

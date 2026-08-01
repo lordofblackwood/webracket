@@ -238,6 +238,13 @@ Current remaining raw-stub classes:
   - Custom input/output port constructors now use semantic `procedure?` when
     accepting procedure handlers, so plain structures are rejected even though
     structures share the low-level `$Procedure` representation.
+  - Basic public port/location helpers now validate their `port?` contracts
+    before falling through to no-op bootstrap behavior. This covers
+    `port-count-lines!`, `port-counts-lines?`, and `port-next-location`.
+    `file-position*` and `port-next-location` now report catchable closed-port
+    exceptions instead of a misleading fallback contract error or stale
+    location values. Full line-counting state parity remains separate:
+    WebRacket still treats open string ports as already line-counted.
 
 - `events.rkt` and `semaphores.rkt`:
   - `handle-evt`, `sync/timeout`, and `call-with-semaphore` now use semantic

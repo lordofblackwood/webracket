@@ -476,7 +476,8 @@
                                (unreachable)))
                      (if (ref.eq (local.get $handler-raw) (global.get $missing))
                          (then (return (global.get $default-port-write-handler-value))))
-                     (if (i32.eqz (ref.test (ref $Procedure) (local.get $handler-raw)))
+                     (if (ref.eq (call $procedure? (local.get $handler-raw))
+                                 (global.get $false))
                          (then (call $raise-argument-error1
                                      (global.get $symbol:port-write-handler)
                                      (global.get $string:procedure?)
@@ -505,7 +506,8 @@
                                (unreachable)))
                      (if (ref.eq (local.get $handler-raw) (global.get $missing))
                          (then (return (global.get $default-port-display-handler-value))))
-                     (if (i32.eqz (ref.test (ref $Procedure) (local.get $handler-raw)))
+                     (if (ref.eq (call $procedure? (local.get $handler-raw))
+                                 (global.get $false))
                          (then (call $raise-argument-error1
                                      (global.get $symbol:port-display-handler)
                                      (global.get $string:procedure?)
@@ -536,7 +538,8 @@
                                (unreachable)))
                      (if (ref.eq (local.get $handler-raw) (global.get $missing))
                          (then (return (global.get $default-port-print-handler-value))))
-                     (if (i32.eqz (ref.test (ref $Procedure) (local.get $handler-raw)))
+                     (if (ref.eq (call $procedure? (local.get $handler-raw))
+                                 (global.get $false))
                          (then (call $raise-argument-error1
                                      (global.get $symbol:port-print-handler)
                                      (global.get $string:procedure?)

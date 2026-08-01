@@ -14,9 +14,78 @@
                    (string-contains? message needle))
                  needles))))
 
+(define (catch-fail/contains? thunk . needles)
+  (let ([message
+         (with-handlers ([exn:fail?
+                          (lambda (exn)
+                            (exn-message exn))])
+           (thunk)
+           #f)])
+    (and message
+         (andmap (lambda (needle)
+                   (string-contains? message needle))
+                 needles))))
+
 (struct sink (port) #:property prop:output-port 0)
+(struct port-handler-plain ())
+
+(define port-handler-plain-given
+  "given: #(struct port-handler-plain)")
 
 (list
+ (list "basic output port contracts are catchable"
+       (and
+        (catch-contract/contains?
+         (lambda () (current-output-port 42))
+         "current-output-port"
+         "output-port?"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (current-error-port 42))
+         "current-error-port"
+         "output-port?"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (flush-output 42))
+         "flush-output"
+         "output-port?"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (close-output-port 42))
+         "close-output-port"
+         "output-port?"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (port-writes-atomic? 42))
+         "port-writes-atomic?"
+         "output-port?"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (port-writes-special? 42))
+         "port-writes-special?"
+         "output-port?"
+         "given: 42")))
+ (list "closed output port location errors are catchable"
+       (let ([port (open-output-string)])
+         (close-output-port port)
+         (and
+          (catch-fail/contains?
+           (lambda () (port-count-lines! port))
+           "port-count-lines!"
+           "output port is closed")
+          (equal? (port-counts-lines? port) #f)
+          (catch-fail/contains?
+           (lambda () (file-position* port))
+           "file-position*"
+           "output port is closed")
+          (catch-fail/contains?
+           (lambda () (port-next-location port))
+           "port-next-location"
+           "output port is closed")
+          (catch-fail/contains?
+           (lambda () (flush-output port))
+           "flush-output"
+           "output port is closed"))))
  (list "call-with-output-string procedure errors are catchable"
        (and
         (catch-contract/contains?
@@ -36,6 +105,14 @@
          "make-output-port"
          "(or/c output-port? (procedure-arity-includes/c 5))"
          "given: 42")
+        (catch-contract/contains?
+         (lambda () (make-output-port 'custom
+                                      always-evt
+                                      (port-handler-plain)
+                                      (lambda () (void))))
+         "make-output-port"
+         "(or/c output-port? (procedure-arity-includes/c 5))"
+         port-handler-plain-given)
         (catch-contract/contains?
          (lambda () (make-output-port 'custom always-evt (lambda (bs start end nonblock? breakable?) 0) 42))
          "make-output-port"
@@ -68,6 +145,89 @@
          "default-port-print-handler"
          "(or/c 0 1)"
          "given: 2")))
+ (list "port handler setters reject plain structs as non-procedures"
+       (and
+        (catch-contract/contains?
+         (lambda () (port-write-handler (open-output-string)
+                                        (port-handler-plain)))
+         "port-write-handler"
+         "procedure?"
+         port-handler-plain-given)
+        (catch-contract/contains?
+         (lambda () (port-display-handler (open-output-string)
+                                          (port-handler-plain)))
+         "port-display-handler"
+         "procedure?"
+         port-handler-plain-given)
+        (catch-contract/contains?
+         (lambda () (port-print-handler (open-output-string)
+                                        (port-handler-plain)))
+         "port-print-handler"
+         "procedure?"
+         port-handler-plain-given)))
+ (list "single byte and char writers reject bad arguments with who"
+       (and
+        (catch-contract/contains?
+         (lambda () (write-byte 'bad (open-output-bytes)))
+         "write-byte"
+         "byte?"
+         "given: 'bad")
+        (catch-contract/contains?
+         (lambda () (write-byte -1 (open-output-bytes)))
+         "write-byte"
+         "byte?"
+         "given: -1")
+        (catch-contract/contains?
+         (lambda () (write-byte 256 (open-output-bytes)))
+         "write-byte"
+         "byte?"
+         "given: 256")
+        (catch-contract/contains?
+         (lambda () (write-byte 65 42))
+         "write-byte"
+         "output-port?"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (write-char 65 (open-output-string)))
+         "write-char"
+         "char?"
+         "given: 65")
+        (catch-contract/contains?
+         (lambda () (write-char #\A 42))
+         "write-char"
+         "output-port?"
+         "given: 42")))
+ (list "get-output-bytes errors are catchable with who"
+       (and
+        (catch-contract/contains?
+         (lambda () (get-output-bytes 42))
+         "get-output-bytes"
+         "(and/c output-port? string-port?)"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (get-output-bytes (open-output-bytes) #f -1))
+         "get-output-bytes"
+         "exact-nonnegative-integer?"
+         "given: -1")
+        (catch-contract/contains?
+         (lambda () (get-output-bytes (open-output-bytes) #f 0 -1))
+         "get-output-bytes"
+         "(or/c exact-nonnegative-integer? #f)"
+         "given: -1")
+        (catch-contract/contains?
+         (lambda ()
+           (let ([port (open-output-bytes)])
+             (write-bytes #"abc" port)
+             (get-output-bytes port #f 4)))
+         "get-output-bytes"
+         "starting index is out of range")
+        (catch-contract/contains?
+         (lambda ()
+           (let ([port (open-output-bytes)])
+             (write-bytes #"abc" port)
+             (get-output-bytes port #f 1 4)))
+         "get-output-bytes"
+         "ending index is out of range")))
  (list "write-bytes discards unusable prop:output-port wrappers"
        (and (output-port? (sink 42))
             (equal? (write-bytes #"abc" (sink 42)) 3)
