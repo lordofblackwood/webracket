@@ -1354,6 +1354,9 @@
                (if (ref.test (ref $Symbol) (local.get $v))
                    (then (return (call $format/write:symbol
                                        (ref.cast (ref $Symbol) (local.get $v))))))
+               (if (ref.test (ref $Keyword) (local.get $v))
+                   (then (return (call $format/write:keyword
+                                       (ref.cast (ref $Keyword) (local.get $v))))))
                (if (ref.test (ref $Pair) (local.get $v))
                    (then (return (call $format/write:pair
                                        (local.get $v)))))
@@ -1416,14 +1419,16 @@
                      (i32.or
                       (ref.test (ref $Symbol) (local.get $v))
                       (i32.or
-                       (ref.test (ref $Pair) (local.get $v))
+                       (ref.test (ref $Keyword) (local.get $v))
                        (i32.or
-                        (ref.test (ref $MPair) (local.get $v))
+                        (ref.test (ref $Pair) (local.get $v))
                         (i32.or
-                         (ref.test (ref $Vector) (local.get $v))
+                         (ref.test (ref $MPair) (local.get $v))
                          (i32.or
-                          (ref.test (ref $Hash) (local.get $v))
-                          (ref.test (ref $Box) (local.get $v)))))))))
+                          (ref.test (ref $Vector) (local.get $v))
+                          (i32.or
+                           (ref.test (ref $Hash) (local.get $v))
+                           (ref.test (ref $Box) (local.get $v))))))))))
                    (then
                     (return
                      (call $string-append/2
@@ -1616,6 +1621,104 @@
                (local.set $out (call $make-i32growable-array
                                       (i32.add (i32.const 2)
                                                (i32.mul (local.get $len) (i32.const 2)))))
+               (if (i32.eq (local.get $style) (i32.const 2))
+                   (then (call $i32growable-array-add! (local.get $out) (i32.const 124)))) ;; |
+               (local.set $i (i32.const 0))
+               (block $done
+                      (loop $loop
+                            (br_if $done (i32.ge_u (local.get $i) (local.get $len)))
+                            (local.set $cp
+                                       (array.get $I32Array
+                                                  (local.get $arr)
+                                                  (local.get $i)))
+                            (if (i32.eq (local.get $cp) (i32.const 124)) ;; |
+                                (then
+                                 (call $i32growable-array-add! (local.get $out) (i32.const 92)) ;; \
+                                 (call $i32growable-array-add! (local.get $out) (local.get $cp))
+                                 (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                                 (br $loop)))
+                            (call $i32growable-array-add! (local.get $out) (local.get $cp))
+                            (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                            (br $loop)))
+               (if (i32.eq (local.get $style) (i32.const 2))
+                   (then (call $i32growable-array-add! (local.get $out) (i32.const 124)))) ;; |
+               (call $i32growable-array->immutable-string (local.get $out)))
+
+         ;; format/keyword-write-style/i32 : string? -> exact-integer?
+         ;;   Return 0 for bare, 1 for backslash-escaped bare, and 2 for
+         ;;   vertical-bar quoted keyword-name output.
+         (func $format/keyword-write-style/i32
+               (param $name (ref $String))
+               (result      i32)
+
+               (local $arr   (ref $I32Array))
+               (local $len   i32)
+               (local $i     i32)
+               (local $cp    i32)
+               (local $first i32)
+               (local $style i32)
+
+               (local.set $arr (struct.get $String $codepoints (local.get $name)))
+               (local.set $len (array.len (local.get $arr)))
+               (if (i32.eqz (local.get $len))
+                   (then (return (i32.const 0))))
+               (local.set $first (array.get $I32Array (local.get $arr) (i32.const 0)))
+               (if (i32.eq (local.get $first) (i32.const 35)) ;; #
+                   (then (return (i32.const 2))))
+               (if (i32.and (i32.eq (local.get $len) (i32.const 1))
+                            (i32.eq (local.get $first) (i32.const 46))) ;; .
+                   (then (return (i32.const 2))))
+               (local.set $style (i32.const 0))
+               (local.set $i (i32.const 0))
+               (block $done
+                      (loop $loop
+                            (br_if $done (i32.ge_u (local.get $i) (local.get $len)))
+                            (local.set $cp
+                                       (array.get $I32Array
+                                                  (local.get $arr)
+                                                  (local.get $i)))
+                            (if (i32.eq (local.get $cp) (i32.const 124)) ;; |
+                                (then
+                                 (local.set $style (i32.const 1))
+                                 (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                                 (br $loop)))
+                            (if (i32.eqz (call $format/symbol-simple-bare-char?/i32
+                                               (local.get $cp)))
+                                (then (return (i32.const 2))))
+                            (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                            (br $loop)))
+               (local.get $style))
+
+         ;; format/write:keyword : keyword? -> string?
+         ;;   Render keywords for write/print mode.
+         (func $format/write:keyword
+               (param $kw (ref $Keyword))
+               (result    (ref $String))
+
+               (local $name  (ref $String))
+               (local $arr   (ref $I32Array))
+               (local $out   (ref $I32GrowableArray))
+               (local $len   i32)
+               (local $i     i32)
+               (local $cp    i32)
+               (local $style i32)
+
+               (local.set $name (struct.get $Keyword $str (local.get $kw)))
+               (local.set $style (call $format/keyword-write-style/i32 (local.get $name)))
+               (if (i32.eqz (local.get $style))
+                   (then (return (call $string-append/2
+                                       (global.get $string:hash-colon)
+                                       (local.get $name)))))
+
+               (local.set $arr (struct.get $String $codepoints (local.get $name)))
+               (local.set $len (array.len (local.get $arr)))
+               (local.set $out (call $make-i32growable-array
+                                      (i32.add (i32.const 4)
+                                               (i32.mul (local.get $len) (i32.const 2)))))
+               (call $i32growable-array-add-string!
+                     (local.get $out)
+                     (ref.cast (ref $String)
+                               (global.get $string:hash-colon)))
                (if (i32.eq (local.get $style) (i32.const 2))
                    (then (call $i32growable-array-add! (local.get $out) (i32.const 124)))) ;; |
                (local.set $i (i32.const 0))

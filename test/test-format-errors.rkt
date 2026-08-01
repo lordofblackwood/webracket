@@ -143,6 +143,20 @@
        (catch-contract/contains?
         (lambda () (format (string->symbol "a b")))
         "format" "string?" "given: '|a b|"))
+ (list "format renders keywords in display and write modes"
+       (and (equal? (format "~a" (quote #:x)) "#:x")
+            (equal? (format "~s" (quote #:x)) "#:x")
+            (equal? (format "~a" (string->keyword "a b")) "#:a b")
+            (equal? (format "~s" (string->keyword "a b")) "#:|a b|")
+            (equal? (format "~s" (string->keyword "")) "#:")
+            (equal? (format "~s" (string->keyword "a|b")) "#:a\\|b")
+            (equal? (format "~s" (string->keyword ".")) "#:|.|")
+            (equal? (format "~s" (string->keyword "1")) "#:1")
+            (equal? (format "~s" (string->keyword "#x")) "#:|#x|")))
+ (list "format error messages render keywords in write mode"
+       (catch-contract/contains?
+        (lambda () (format (string->keyword "a b")))
+        "format" "string?" "given: '#:|a b|"))
  (list "format renders characters in display and write modes"
        (and (equal? (format "~a" #\a) "a")
             (equal? (format "~s" #\a) "#\\a")
