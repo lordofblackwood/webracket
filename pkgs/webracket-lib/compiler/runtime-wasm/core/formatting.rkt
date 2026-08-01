@@ -168,10 +168,14 @@
     (format-arg-count-prefix    "format: format string requires ")
     (format-arg-count-mid       " arguments, given ")
     (format-arg-count-args      "; arguments were:")
+    (format-bad-character-prefix "format: format string requires a character, given something else\n  bad argument: ")
+    (format-bad-exact-integer-prefix "format: format string requires a exact integer, given something else\n  bad argument: ")
     (format-ill-formed-prefix   "format: ill-formed pattern string\n  explanation: ")
     (format-ill-formed-dangling "cannot end in `~`")
     (format-ill-formed-tag-prefix "tag `~")
     (format-ill-formed-tag-suffix "` not allowed")
+    (format-ill-formed-dot      "tag `~.` not followed by `a`, `s`, or `v`")
+    (format-ellipsis            "...")
     (format-display:got-boxed   "internal formatter encountered boxed value")
     (format-display:got-box     "internal formatter encountered box value")
     (format-display:got-values  "internal formatter encountered values")
@@ -576,29 +580,16 @@
                      (array.new_fixed $Args 0))
                (unreachable))
 
-         ;; raise-format:bad-argument-count : i32 i32 list? -> none
-         ;;   Report a Racket-style format argument-count error.
-         (func $raise-format:bad-argument-count
-               (param $required i32)
-               (param $given    i32)
-               (param $args     (ref eq))
+         ;; format/add-arguments-summary! : growable-array? exact-integer? list? -> void?
+         ;;   Append the Racket-style "; arguments were:" suffix to a format error.
+         (func $format/add-arguments-summary!
+               (param $out   (ref $GrowableArray))
+               (param $given i32)
+               (param $args  (ref eq))
 
-               (local $out       (ref $GrowableArray))
-               (local $message   (ref $String))
-               (local $scan      (ref eq))
-               (local $arg-pair  (ref $Pair))
+               (local $scan     (ref eq))
+               (local $arg-pair (ref $Pair))
 
-               (local.set $out (call $make-growable-array (i32.const 10)))
-               (call $growable-array-add! (local.get $out)
-                     (ref.cast (ref $String)
-                               (global.get $string:format-arg-count-prefix)))
-               (call $growable-array-add! (local.get $out)
-                     (call $i32->string (local.get $required)))
-               (call $growable-array-add! (local.get $out)
-                     (ref.cast (ref $String)
-                               (global.get $string:format-arg-count-mid)))
-               (call $growable-array-add! (local.get $out)
-                     (call $i32->string (local.get $given)))
                (if (i32.gt_u (local.get $given) (i32.const 0))
                    (then
                     (call $growable-array-add! (local.get $out)
@@ -607,8 +598,10 @@
                     (local.set $scan (local.get $args))
                     (block $done
                            (loop $loop
-                                 (br_if $done (ref.eq (local.get $scan) (global.get $null)))
-                                 (if (i32.eqz (ref.test (ref $Pair) (local.get $scan)))
+                                 (br_if $done (ref.eq (local.get $scan)
+                                                      (global.get $null)))
+                                 (if (i32.eqz (ref.test (ref $Pair)
+                                                        (local.get $scan)))
                                      (then (br $done)))
                                  (local.set $arg-pair
                                             (ref.cast (ref $Pair)
@@ -624,7 +617,33 @@
                                  (local.set $scan
                                             (struct.get $Pair $d
                                                         (local.get $arg-pair)))
-                                 (br $loop)))))
+                                 (br $loop))))))
+
+         ;; raise-format:bad-argument-count : i32 i32 list? -> none
+         ;;   Report a Racket-style format argument-count error.
+         (func $raise-format:bad-argument-count
+               (param $required i32)
+               (param $given    i32)
+               (param $args     (ref eq))
+
+               (local $out     (ref $GrowableArray))
+               (local $message (ref $String))
+
+               (local.set $out (call $make-growable-array (i32.const 10)))
+               (call $growable-array-add! (local.get $out)
+                     (ref.cast (ref $String)
+                               (global.get $string:format-arg-count-prefix)))
+               (call $growable-array-add! (local.get $out)
+                     (call $i32->string (local.get $required)))
+               (call $growable-array-add! (local.get $out)
+                     (ref.cast (ref $String)
+                               (global.get $string:format-arg-count-mid)))
+               (call $growable-array-add! (local.get $out)
+                     (call $i32->string (local.get $given)))
+               (call $format/add-arguments-summary!
+                     (local.get $out)
+                     (local.get $given)
+                     (local.get $args))
                (local.set $message
                           (call $growable-array-of-strings->string
                                 (local.get $out)))
@@ -643,10 +662,8 @@
                (param $given       i32)
                (param $args        (ref eq))
 
-               (local $out       (ref $GrowableArray))
-               (local $message   (ref $String))
-               (local $scan      (ref eq))
-               (local $arg-pair  (ref $Pair))
+               (local $out     (ref $GrowableArray))
+               (local $message (ref $String))
 
                (local.set $out (call $make-growable-array (i32.const 8)))
                (call $growable-array-add! (local.get $out)
@@ -654,32 +671,10 @@
                                (global.get $string:format-ill-formed-prefix)))
                (call $growable-array-add! (local.get $out)
                      (local.get $explanation))
-               (if (i32.gt_u (local.get $given) (i32.const 0))
-                   (then
-                    (call $growable-array-add! (local.get $out)
-                          (ref.cast (ref $String)
-                                    (global.get $string:format-arg-count-args)))
-                    (local.set $scan (local.get $args))
-                    (block $done
-                           (loop $loop
-                                 (br_if $done (ref.eq (local.get $scan) (global.get $null)))
-                                 (if (i32.eqz (ref.test (ref $Pair) (local.get $scan)))
-                                     (then (br $done)))
-                                 (local.set $arg-pair
-                                            (ref.cast (ref $Pair)
-                                                      (local.get $scan)))
-                                 (call $growable-array-add! (local.get $out)
-                                       (ref.cast (ref $String)
-                                                 (global.get $string:space)))
-                                 (call $growable-array-add! (local.get $out)
-                                       (call $format/print
-                                             (struct.get $Pair $a
-                                                         (local.get $arg-pair))
-                                             (global.get $missing)))
-                                 (local.set $scan
-                                            (struct.get $Pair $d
-                                                        (local.get $arg-pair)))
-                                 (br $loop)))))
+               (call $format/add-arguments-summary!
+                     (local.get $out)
+                     (local.get $given)
+                     (local.get $args))
                (local.set $message
                           (call $growable-array-of-strings->string
                                 (local.get $out)))
@@ -691,12 +686,94 @@
                            (global.get $true)))
                (unreachable))
 
+         ;; raise-format:bad-directive-argument : string? any/c i32 list? -> none
+         ;;   Report a Racket-style format directive argument-type error.
+         (func $raise-format:bad-directive-argument
+               (param $prefix (ref $String))
+               (param $bad    (ref eq))
+               (param $given  i32)
+               (param $args   (ref eq))
+
+               (local $out     (ref $GrowableArray))
+               (local $message (ref $String))
+
+               (local.set $out (call $make-growable-array (i32.const 8)))
+               (call $growable-array-add! (local.get $out)
+                     (local.get $prefix))
+               (call $growable-array-add! (local.get $out)
+                     (call $format/print
+                           (local.get $bad)
+                           (global.get $missing)))
+               (call $format/add-arguments-summary!
+                     (local.get $out)
+                     (local.get $given)
+                     (local.get $args))
+               (local.set $message
+                          (call $growable-array-of-strings->string
+                                (local.get $out)))
+               (drop (call $raise
+                           (call $exn:fail:contract/make
+                                 (local.get $message)
+                                 (call $current-continuation-marks
+                                       (global.get $missing)))
+                           (global.get $true)))
+               (unreachable))
+
+         ;; format/truncate-to-error-print-width : string? -> string?
+         ;;   Truncate a rendered value according to the current error-print-width.
+         (func $format/truncate-to-error-print-width
+               (param $text (ref $String))
+               (result      (ref $String))
+
+               (local $width-raw (ref eq))
+               (local $width     i32)
+               (local $len       i32)
+               (local $prefix-len i32)
+
+               (local.set $width-raw
+                          (call $error-print-width (global.get $missing)))
+               (if (i32.eqz (ref.test (ref i31) (local.get $width-raw)))
+                   (then (return (local.get $text))))
+               (local.set $width
+                          (i32.shr_s
+                           (i31.get_s
+                            (ref.cast (ref i31) (local.get $width-raw)))
+                           (i32.const 1)))
+               (if (i32.lt_s (local.get $width) (i32.const 3))
+                   (then (return (local.get $text))))
+               (local.set $len (call $string-length/checked/i32
+                                     (local.get $text)))
+               (if (i32.le_u (local.get $len) (local.get $width))
+                   (then (return (local.get $text))))
+               (if (i32.le_u (local.get $width) (i32.const 3))
+                   (then
+                    (return
+                     (ref.cast (ref $String)
+                               (call $substring
+                                     (global.get $string:format-ellipsis)
+                                     ,(Imm 0)
+                                     (ref.i31
+                                      (i32.shl (local.get $width)
+                                               (i32.const 1))))))))
+               (local.set $prefix-len
+                          (i32.sub (local.get $width) (i32.const 3)))
+               (call $string-append/2
+                     (call $substring
+                           (local.get $text)
+                           ,(Imm 0)
+                           (ref.i31
+                            (i32.shl (local.get $prefix-len)
+                                     (i32.const 1))))
+                     (global.get $string:format-ellipsis)))
+
          ;; format : string? any/c ... -> string?
          ;;   Small runtime formatter for bootstrap/error paths. It supports
          ;;   `~a`/`~A` and `~e`/`~E` via WebRacket's existing generic value
          ;;   renderer, `~s`/`~S` through a narrow write-like path, and
-         ;;   `~v`/`~V` through the print-like path. Full Racket `format`
-         ;;   semantics should come from the staged io/format provider.
+         ;;   `~v`/`~V` through the print-like path, plus character, integer
+         ;;   radix, and truncating `~.` directives used by error paths. Full
+         ;;   Racket `format` semantics should come from the staged io/format
+         ;;   provider.
          (func $format (type $Prim>=1)
                (param $fmt-raw (ref eq)) ;; format string
                (param $args    (ref eq)) ;; rest values
@@ -708,7 +785,9 @@
                (local $args*    (ref eq))
                (local $scan     (ref eq))
                (local $arg-pair (ref $Pair))
+               (local $value    (ref eq))
                (local $part     (ref $String))
+               (local $radix    (ref eq))
                (local $len      i32)
                (local $i        i32)
                (local $cp       i32)
@@ -796,6 +875,178 @@
                                        (local.get $out)
                                        (i32.const 10))
                                  (br $loop)))
+                            (if (i32.or
+                                 (i32.eq (local.get $next) (i32.const 99))  ;; '~c'
+                                 (i32.eq (local.get $next) (i32.const 67))) ;; '~C'
+                                (then
+                                 (local.set $needed
+                                            (i32.add (local.get $needed) (i32.const 1)))
+                                 (if (i32.eqz (ref.test (ref $Pair) (local.get $args*)))
+                                     (then (call $raise-format:bad-argument-count
+                                                 (local.get $needed)
+                                                 (local.get $given)
+                                                 (local.get $args))
+                                           (unreachable)))
+                                 (local.set $arg-pair
+                                            (ref.cast (ref $Pair) (local.get $args*)))
+                                 (local.set $value
+                                            (struct.get $Pair $a
+                                                        (local.get $arg-pair)))
+                                 (if (ref.eq (call $char? (local.get $value))
+                                             (global.get $false))
+                                     (then
+                                      (call $raise-format:bad-directive-argument
+                                            (ref.cast (ref $String)
+                                                      (global.get $string:format-bad-character-prefix))
+                                            (local.get $value)
+                                            (local.get $given)
+                                            (local.get $args))
+                                      (unreachable)))
+                                 (local.set $part
+                                            (call $format/display:char
+                                                  (local.get $value)))
+                                 (call $i32growable-array-add-string!
+                                       (local.get $out)
+                                       (local.get $part))
+                                 (local.set $args*
+                                            (struct.get $Pair $d
+                                                        (local.get $arg-pair)))
+                                 (br $loop)))
+                            (if (i32.or
+                                 (i32.or
+                                  (i32.eq (local.get $next) (i32.const 98))  ;; '~b'
+                                  (i32.eq (local.get $next) (i32.const 66))) ;; '~B'
+                                 (i32.or
+                                  (i32.or
+                                   (i32.eq (local.get $next) (i32.const 111)) ;; '~o'
+                                   (i32.eq (local.get $next) (i32.const 79))) ;; '~O'
+                                  (i32.or
+                                   (i32.eq (local.get $next) (i32.const 120)) ;; '~x'
+                                   (i32.eq (local.get $next) (i32.const 88))))) ;; '~X'
+                                (then
+                                 (local.set $needed
+                                            (i32.add (local.get $needed) (i32.const 1)))
+                                 (if (i32.eqz (ref.test (ref $Pair) (local.get $args*)))
+                                     (then (call $raise-format:bad-argument-count
+                                                 (local.get $needed)
+                                                 (local.get $given)
+                                                 (local.get $args))
+                                           (unreachable)))
+                                 (local.set $arg-pair
+                                            (ref.cast (ref $Pair) (local.get $args*)))
+                                 (local.set $value
+                                            (struct.get $Pair $a
+                                                        (local.get $arg-pair)))
+                                 (if (ref.eq (call $exact-integer? (local.get $value))
+                                             (global.get $false))
+                                     (then
+                                      (call $raise-format:bad-directive-argument
+                                            (ref.cast (ref $String)
+                                                      (global.get $string:format-bad-exact-integer-prefix))
+                                            (local.get $value)
+                                            (local.get $given)
+                                            (local.get $args))
+                                      (unreachable)))
+                                 (local.set $radix
+                                            (if (result (ref eq))
+                                                (i32.or
+                                                 (i32.eq (local.get $next) (i32.const 98))
+                                                 (i32.eq (local.get $next) (i32.const 66)))
+                                                (then ,(Imm 2))
+                                                (else
+                                                 (if (result (ref eq))
+                                                     (i32.or
+                                                      (i32.eq (local.get $next) (i32.const 111))
+                                                      (i32.eq (local.get $next) (i32.const 79)))
+                                                     (then ,(Imm 8))
+                                                     (else ,(Imm 16))))))
+                                 (local.set $part
+                                            (ref.cast (ref $String)
+                                                      (call $number->string
+                                                            (local.get $value)
+                                                            (local.get $radix))))
+                                 (call $i32growable-array-add-string!
+                                       (local.get $out)
+                                       (local.get $part))
+                                 (local.set $args*
+                                            (struct.get $Pair $d
+                                                        (local.get $arg-pair)))
+                                 (br $loop)))
+                            (if (i32.eq (local.get $next) (i32.const 46)) ;; '~.'
+                                (then
+                                 (if (i32.ge_u (local.get $i) (local.get $len))
+                                     (then
+                                      (call $raise-format:ill-formed-pattern
+                                            (ref.cast (ref $String)
+                                                      (global.get $string:format-ill-formed-dot))
+                                            (local.get $given)
+                                            (local.get $args))
+                                      (unreachable)))
+                                 (local.set $next
+                                            (array.get $I32Array
+                                                       (local.get $fmt-arr)
+                                                       (local.get $i)))
+                                 (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                                 (if (i32.or
+                                      (i32.or
+                                       (i32.eq (local.get $next) (i32.const 97))  ;; '~.a'
+                                       (i32.eq (local.get $next) (i32.const 65))) ;; '~.A'
+                                      (i32.or
+                                       (i32.or
+                                        (i32.eq (local.get $next) (i32.const 115)) ;; '~.s'
+                                        (i32.eq (local.get $next) (i32.const 83))) ;; '~.S'
+                                       (i32.or
+                                        (i32.eq (local.get $next) (i32.const 118)) ;; '~.v'
+                                        (i32.eq (local.get $next) (i32.const 86))))) ;; '~.V'
+                                     (then
+                                      (local.set $needed
+                                                 (i32.add (local.get $needed) (i32.const 1)))
+                                      (if (i32.eqz (ref.test (ref $Pair) (local.get $args*)))
+                                          (then (call $raise-format:bad-argument-count
+                                                      (local.get $needed)
+                                                      (local.get $given)
+                                                      (local.get $args))
+                                                (unreachable)))
+                                      (local.set $arg-pair
+                                                 (ref.cast (ref $Pair) (local.get $args*)))
+                                      (local.set $value
+                                                 (struct.get $Pair $a
+                                                             (local.get $arg-pair)))
+                                      (local.set $part
+                                                 (if (result (ref $String))
+                                                     (i32.or
+                                                      (i32.eq (local.get $next)
+                                                              (i32.const 97))
+                                                      (i32.eq (local.get $next)
+                                                              (i32.const 65)))
+                                                     (then (call $format/display
+                                                                 (local.get $value)))
+                                                     (else
+                                                      (if (result (ref $String))
+                                                          (i32.or
+                                                           (i32.eq (local.get $next)
+                                                                   (i32.const 118))
+                                                           (i32.eq (local.get $next)
+                                                                   (i32.const 86)))
+                                                          (then (call $format/print
+                                                                      (local.get $value)
+                                                                      (global.get $missing)))
+                                                          (else (call $format/write
+                                                                      (local.get $value)))))))
+                                      (call $i32growable-array-add-string!
+                                            (local.get $out)
+                                            (call $format/truncate-to-error-print-width
+                                                  (local.get $part)))
+                                      (local.set $args*
+                                                 (struct.get $Pair $d
+                                                             (local.get $arg-pair)))
+                                      (br $loop)))
+                                 (call $raise-format:ill-formed-pattern
+                                       (ref.cast (ref $String)
+                                                 (global.get $string:format-ill-formed-dot))
+                                       (local.get $given)
+                                       (local.get $args))
+                                 (unreachable)))
                             (if (i32.or
                                  (i32.or
                                   (i32.eq (local.get $next) (i32.const 97))  ;; '~a'

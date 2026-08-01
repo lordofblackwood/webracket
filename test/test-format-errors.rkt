@@ -72,6 +72,18 @@
          "format"
          "ill-formed pattern string"
          "tag `~q` not allowed"
+         "arguments were: 1")
+        (catch-contract/contains?
+         (lambda () (format "~." 1))
+         "format"
+         "ill-formed pattern string"
+         "tag `~.` not followed by"
+         "arguments were: 1")
+        (catch-contract/contains?
+         (lambda () (format "~.q" 1))
+         "format"
+         "ill-formed pattern string"
+         "tag `~.` not followed by"
          "arguments were: 1")))
  (list "format print mode quotes expressions"
        (and (equal? (format "~v" '(1 2)) "'(1 2)")
@@ -81,6 +93,42 @@
        (and (equal? (format "~A" 'sample) "sample")
             (equal? (format "~S" "x") "\"x\"")
             (equal? (format "~V" 'sample) "'sample")))
+ (list "format accepts character and numeric directives"
+       (and (equal? (format "~c/~C" #\A #\Z) "A/Z")
+            (equal? (format "~b ~B ~o ~O ~x ~X" 5 5 9 9 31 31)
+                    "101 101 11 11 1f 1f")))
+ (list "format character and numeric directive errors are catchable"
+       (and
+        (catch-contract/contains?
+         (lambda () (format "~c" 1))
+         "format"
+         "requires a character"
+         "bad argument: 1"
+         "arguments were: 1")
+        (catch-contract/contains?
+         (lambda () (format "~b" 1.5))
+         "format"
+         "requires a exact integer"
+         "bad argument: 1.5"
+         "arguments were: 1.5")
+        (catch-contract/contains?
+         (lambda () (format "~x" #f))
+         "format"
+         "requires a exact integer"
+         "bad argument: #f"
+         "arguments were: #f")))
+ (list "format truncation directives use error-print-width"
+       (let ([old (error-print-width)])
+         (error-print-width 5)
+         (let ([ok (and (equal? (format "~.a" "abcdef") "ab...")
+                        (equal? (format "~.A" "abcdef") "ab...")
+                        (equal? (format "~.s" "abcdef") "\"a...")
+                        (equal? (format "~.S" "abcdef") "\"a...")
+                        (equal? (format "~.v" "abcdef") "\"a...")
+                        (equal? (format "~.V" '(1 2 3)) "'(...")
+                        (equal? (format "~.a" '(1 2 3)) "(1..."))])
+           (error-print-width old)
+           ok)))
  (list "format renders mutable pairs without traps"
        (and (equal? (format "~a" (mcons 'x 'y)) "{x . y}")
             (equal? (format "~s" (mcons 'x 'y)) "{x . y}")

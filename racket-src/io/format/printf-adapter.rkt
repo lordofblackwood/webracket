@@ -30,8 +30,8 @@
 
 (define PRINT-MODE/UNQUOTED 0)
 
-;; Adapter parameter defaults chosen to match Racket's ordinary error printing.
-(define error-print-width (make-parameter 1024))
+;; Re-export racket/base's `error-print-width` so `~.` directives observe the
+;; same parameter that user programs set.
 (define print-boolean-long-form (make-parameter #f))
 (define print-unreadable (make-parameter #t))
 
@@ -60,20 +60,49 @@
   (define core-o (->core-output-port o who))
   ((port-print-handler core-o) v core-o mode))
 
+;; truncate-to-width : string? any/c -> string?
+;;   Apply Racket's error-print-width truncation convention.
+(define (truncate-to-width str width)
+  (cond
+    [(not (exact-nonnegative-integer? width)) str]
+    [(<= (string-length str) width) str]
+    [(<= width 3) (substring "..." 0 width)]
+    [else (string-append (substring str 0 (- width 3)) "...")]))
+
+;; call-with-limited-output : output-port? any/c (output-port? -> any/c) -> void?
+;;   Render through a temporary string port when a max length is requested.
+(define (call-with-limited-output o max-length proc)
+  (cond
+    [(not (exact-nonnegative-integer? max-length))
+     (proc o)]
+    [else
+     (define tmp (open-output-string))
+     (proc tmp)
+     (write-string (truncate-to-width (get-output-string tmp) max-length) o)]))
+
 ;; do-display : symbol? any/c output-port? [exact-nonnegative-integer?] -> void?
-;;   Width-aware display adapter. The initial WebRacket bridge ignores width.
+;;   Width-aware display adapter.
 (define (do-display who v o [max-length #f])
-  (display-via-handler who v o))
+  (call-with-limited-output
+   o max-length
+   (lambda (out)
+     (display-via-handler who v out))))
 
 ;; do-write : symbol? any/c output-port? [exact-nonnegative-integer?] -> void?
-;;   Width-aware write adapter. The initial WebRacket bridge ignores width.
+;;   Width-aware write adapter.
 (define (do-write who v o [max-length #f])
-  (write-via-handler who v o))
+  (call-with-limited-output
+   o max-length
+   (lambda (out)
+     (write-via-handler who v out))))
 
 ;; do-print : symbol? any/c output-port? any/c [exact-nonnegative-integer?] -> void?
-;;   Width-aware print adapter. The initial WebRacket bridge ignores width.
+;;   Width-aware print adapter.
 (define (do-print who v o mode [max-length #f])
-  (print-via-handler who v o mode))
+  (call-with-limited-output
+   o max-length
+   (lambda (out)
+     (print-via-handler who v out mode))))
 
 ;; error-value->string : any/c -> string?
 ;;   Minimal error-value formatter used by format/printf.rkt error paths.
@@ -83,8 +112,4 @@
     (write-via-handler 'error-value->string v o))
   (define str (get-output-string o))
   (define width (error-print-width))
-  (cond
-    [(not (exact-nonnegative-integer? width)) str]
-    [(<= (string-length str) width) str]
-    [(<= width 3) (substring str 0 width)]
-    [else (string-append (substring str 0 (- width 3)) "...")]))
+  (truncate-to-width str width))
