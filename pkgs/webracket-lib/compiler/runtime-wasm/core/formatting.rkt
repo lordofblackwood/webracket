@@ -122,6 +122,9 @@
      (hash-less-custodian        "#<custodian>")
      (hash-less-custodian-box    "#<custodian-box>")
      (hash-less-security-guard   "#<security-guard>")
+     (hash-less-environment-variables "#<environment-variables>")
+     (hash-less-module-path-index "#<module-path-index>")
+     (hash-less-resolved-module-path "#<resolved-module-path>")
      (hash-less-regexp           "#<regexp>"))))
 
 ;; formatting-runtime-symbol-constants : (listof symbol?)
@@ -142,6 +145,8 @@
     (close-brace                "}")
     (dot-space                  ". ")
     (space-dot-space            " . ")
+    (date-prefix                "#(struct:date ")
+    (date-star-prefix           "#(struct:date* ")
     (vector-prefix              "#(")
     (values-prefix              "(values")
     (unquoted-printing-string?  "unquoted-printing-string?")
@@ -768,7 +773,8 @@
                                                   (local.get $cw-name)
                                                   (local.get $cw-sentinel)))
                     (if (i32.eqz (ref.eq (local.get $cw-val) (local.get $cw-sentinel)))
-                        (then (if (ref.test (ref $Procedure) (local.get $cw-val))
+                        (then (if (ref.eq (call $procedure? (local.get $cw-val))
+                                          (global.get $true))
                                   (then (local.set $cw-proc
                                                    (ref.cast (ref $Procedure)
                                                              (local.get $cw-val)))
@@ -789,16 +795,17 @@
                    (then (return (call $format/display:primitive-procedure
                                        (ref.cast (ref $PrimitiveProcedure) (local.get $v))))))
                ;; --- Case: procedure ---
-               (if (ref.test (ref $Procedure) (local.get $v))
+               (if (ref.eq (call $procedure? (local.get $v))
+                           (global.get $true))
                    (then (return (call $format/display:procedure
                                        (ref.cast (ref $Procedure) (local.get $v))))))
                ;; --- Case: string ---
                (if (ref.test (ref $String) (local.get $v))
                    (then (return (ref.cast (ref $String) (local.get $v)))))
                ;; --- Case: bytes ---
-                (if (ref.test (ref $Bytes) (local.get $v))
-                    (then (return (call $format/display:bytes
-                                        (ref.cast (ref $Bytes) (local.get $v))))))
+               (if (ref.test (ref $Bytes) (local.get $v))
+                   (then (return (call $format/display:bytes
+                                       (ref.cast (ref $Bytes) (local.get $v))))))
                ;; --- Case: pair ---
                (if (ref.test (ref $Pair) (local.get $v))
                    (then (return (call $format/display:pair
@@ -827,14 +834,22 @@
                (if (ref.test (ref $Keyword) (local.get $v))
                    (then (return (call $format/display:keyword
                                        (ref.cast (ref $Keyword) (local.get $v))))))
-	               ;; --- Case: flonum ---
-	               (if (ref.test (ref $Flonum) (local.get $v))
-	                   (then (return (call $format/display:flonum
-	                                       (ref.cast (ref $Flonum) (local.get $v))))))
-	               ;; --- Case: complex ---
-	               (if (ref.test (ref $Complex) (local.get $v))
-	                   (then (return (call $format/display:complex
-	                                       (ref.cast (ref $Complex) (local.get $v))))))
+               ;; --- Case: flonum ---
+               (if (ref.test (ref $Flonum) (local.get $v))
+                   (then (return (call $format/display:flonum
+                                       (ref.cast (ref $Flonum) (local.get $v))))))
+               ;; --- Case: complex ---
+               (if (ref.test (ref $Complex) (local.get $v))
+                   (then (return (call $format/display:complex
+                                       (ref.cast (ref $Complex) (local.get $v))))))
+               ;; --- Case: date* (must appear before date) ---
+               (if (ref.test (ref $DateStar) (local.get $v))
+                   (then (return (call $format/display:date-star
+                                       (ref.cast (ref $DateStar) (local.get $v))))))
+               ;; --- Case: date ---
+               (if (ref.test (ref $Date) (local.get $v))
+                   (then (return (call $format/display:date
+                                       (ref.cast (ref $Date) (local.get $v))))))
                ;; --- Case: values ---
                (if (ref.test (ref $Values) (local.get $v))
                    (then (return (call $format/display:values
@@ -870,6 +885,12 @@
                (if (ref.test (ref $VariableReference) (local.get $v))
                    (then (return (call $format/display:variable-reference
                                        (ref.cast (ref $VariableReference) (local.get $v))))))
+               (if (ref.test (ref $ModulePathIndex) (local.get $v))
+                   (then (return (ref.cast (ref $String)
+                                           (global.get $string:hash-less-module-path-index)))))
+               (if (ref.test (ref $ResolvedModulePath) (local.get $v))
+                   (then (return (ref.cast (ref $String)
+                                           (global.get $string:hash-less-resolved-module-path)))))
                ;; --- Case: struct-type-property ---
                (if (ref.test (ref $StructTypeProperty) (local.get $v))
                    (then (return (call $format/display:struct-type-property
@@ -962,6 +983,9 @@
                (if (ref.test (ref $SecurityGuard) (local.get $v))
                    (then (return (ref.cast (ref $String)
                                            (global.get $string:hash-less-security-guard)))))
+               (if (ref.test (ref $EnvironmentVariables) (local.get $v))
+                   (then (return (ref.cast (ref $String)
+                                           (global.get $string:hash-less-environment-variables)))))
                ;; --- Fallback ---
                (call $raise-format/display:unknown-datatype (local.get $v))
                (unreachable))
@@ -1004,6 +1028,148 @@
                                                        (local.get $source)))))))
                (ref.cast (ref $String) (global.get $string:hash-less-regexp)))
 
+         ;; format/date-add-field! : growable-array? any/c boolean? -> void?
+         ;;   Append one date field using display mode or write mode.
+         (func $format/date-add-field!
+               (param $out    (ref $GrowableArray))
+               (param $v      (ref eq))
+               (param $write? i32)
+               (if (local.get $write?)
+                   (then (call $growable-array-add! (local.get $out)
+                               (call $format/write (local.get $v))))
+                   (else (call $growable-array-add! (local.get $out)
+                               (call $format/display (local.get $v))))))
+
+         ;; format/date-add-space-field! : growable-array? any/c boolean? -> void?
+         ;;   Append a field preceded by the struct field separator.
+         (func $format/date-add-space-field!
+               (param $out    (ref $GrowableArray))
+               (param $v      (ref eq))
+               (param $write? i32)
+               (call $growable-array-add! (local.get $out)
+                     (ref.cast (ref $String)
+                               (global.get $string:space)))
+               (call $format/date-add-field!
+                     (local.get $out)
+                     (local.get $v)
+                     (local.get $write?)))
+
+         ;; format/date-fields-into! : growable-array? date? boolean? -> void?
+         ;;   Append the fields shared by date and date* in Racket's struct order.
+         (func $format/date-fields-into!
+               (param $out    (ref $GrowableArray))
+               (param $d      (ref $Date))
+               (param $write? i32)
+               (call $format/date-add-field!
+                     (local.get $out)
+                     (struct.get $Date $second (local.get $d))
+                     (local.get $write?))
+               (call $format/date-add-space-field!
+                     (local.get $out)
+                     (struct.get $Date $minute (local.get $d))
+                     (local.get $write?))
+               (call $format/date-add-space-field!
+                     (local.get $out)
+                     (struct.get $Date $hour (local.get $d))
+                     (local.get $write?))
+               (call $format/date-add-space-field!
+                     (local.get $out)
+                     (struct.get $Date $day (local.get $d))
+                     (local.get $write?))
+               (call $format/date-add-space-field!
+                     (local.get $out)
+                     (struct.get $Date $month (local.get $d))
+                     (local.get $write?))
+               (call $format/date-add-space-field!
+                     (local.get $out)
+                     (struct.get $Date $year (local.get $d))
+                     (local.get $write?))
+               (call $format/date-add-space-field!
+                     (local.get $out)
+                     (struct.get $Date $week-day (local.get $d))
+                     (local.get $write?))
+               (call $format/date-add-space-field!
+                     (local.get $out)
+                     (struct.get $Date $year-day (local.get $d))
+                     (local.get $write?))
+               (call $format/date-add-space-field!
+                     (local.get $out)
+                     (struct.get $Date $dst? (local.get $d))
+                     (local.get $write?))
+               (call $format/date-add-space-field!
+                     (local.get $out)
+                     (struct.get $Date $time-zone-offset (local.get $d))
+                     (local.get $write?)))
+
+         ;; format/display:date : date? -> string?
+         ;;   Render date values using Racket's transparent struct notation.
+         (func $format/display:date
+               (param $d (ref $Date))
+               (result   (ref $String))
+
+               (local $out (ref $GrowableArray))
+
+               (local.set $out (call $make-growable-array (i32.const 16)))
+               (call $growable-array-add! (local.get $out)
+                     (ref.cast (ref $String)
+                               (global.get $string:date-prefix)))
+               (call $format/date-fields-into!
+                     (local.get $out)
+                     (local.get $d)
+                     (i32.const 0))
+               (call $growable-array-add! (local.get $out)
+                     (ref.cast (ref $String)
+                               (global.get $string:close-paren)))
+               (call $growable-array-of-strings->string (local.get $out)))
+
+         ;; format/date-star : date*? boolean? -> string?
+         ;;   Render date* values, writing the timezone string when requested by ~s.
+         (func $format/date-star
+               (param $d      (ref $DateStar))
+               (param $write? i32)
+               (result        (ref $String))
+
+               (local $out (ref $GrowableArray))
+
+               (local.set $out (call $make-growable-array (i32.const 20)))
+               (call $growable-array-add! (local.get $out)
+                     (ref.cast (ref $String)
+                               (global.get $string:date-star-prefix)))
+               (call $format/date-fields-into!
+                     (local.get $out)
+                     (local.get $d)
+                     (local.get $write?))
+               (call $format/date-add-space-field!
+                     (local.get $out)
+                     (struct.get $DateStar $nanosecond (local.get $d))
+                     (local.get $write?))
+               (call $format/date-add-space-field!
+                     (local.get $out)
+                     (struct.get $DateStar $time-zone-name (local.get $d))
+                     (local.get $write?))
+               (call $growable-array-add! (local.get $out)
+                     (ref.cast (ref $String)
+                               (global.get $string:close-paren)))
+               (call $growable-array-of-strings->string (local.get $out)))
+
+         ;; format/display:date-star : date*? -> string?
+         ;;   Render date* values in display mode.
+         (func $format/display:date-star
+               (param $d (ref $DateStar))
+               (result   (ref $String))
+               (call $format/date-star
+                     (local.get $d)
+                     (i32.const 0)))
+
+         ;; format/write:date-star : date*? -> string?
+         ;;   Render date* values in write mode.
+         (func $format/write:date-star
+               (param $d (ref $DateStar))
+               (result   (ref $String))
+               (call $format/date-star
+                     (local.get $d)
+                     (i32.const 1)))
+
          ;; format/write : any/c -> string?
          ;;   Render a value using the subset of write/print-like conventions
          ;;   needed by bootstrap `format` for `~s` and `~v`. Values without a
@@ -1025,6 +1191,12 @@
                (if (ref.test (ref $Vector) (local.get $v))
                    (then (return (call $format/write:vector
                                        (ref.cast (ref $Vector) (local.get $v))))))
+               (if (ref.test (ref $DateStar) (local.get $v))
+                   (then (return (call $format/write:date-star
+                                       (ref.cast (ref $DateStar) (local.get $v))))))
+               (if (ref.test (ref $Date) (local.get $v))
+                   (then (return (call $format/display:date
+                                       (ref.cast (ref $Date) (local.get $v))))))
                (call $format/display (local.get $v)))
 
          ;; format/print : any/c [0-or-1] -> string?
@@ -1397,8 +1569,9 @@
                (local $mask-str   (ref $String))
                (local $ga         (ref $GrowableArray))
 
-               ;; Step 1: type check and cast
-               (if (i32.eqz (ref.test (ref $Procedure) (local.get $v)))
+               ;; Step 1: semantic procedure check and cast
+               (if (ref.eq (call $procedure? (local.get $v))
+                           (global.get $false))
                    (then (call $raise-argument-error:procedure-expected (local.get $v))))
                (local.set $p (ref.cast (ref $Procedure) (local.get $v)))
                ;; Step 2: extract fields

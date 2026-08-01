@@ -56,6 +56,31 @@
               (equal? (format "~a" cust) "#<custodian>")
               (equal? (format "~a" (make-custodian-box cust 1)) "#<custodian-box>")
               (equal? (format "~a" (current-security-guard)) "#<security-guard>"))))
+ (list "format renders module-path reflection values without traps"
+       (let* ([mpi (module-path-index-join 'racket/base #f)]
+              [resolved (module-path-index-resolve mpi)])
+         (and (equal? (format "~a" mpi) "#<module-path-index>")
+              (equal? (format "~s" resolved) "#<resolved-module-path>"))))
+ (list "format renders date and environment values without traps"
+       (let ([d (date 0 0 0 1 1 1970 4 0 #f 0)]
+             [ds (seconds->date 0 #f)]
+             [env (current-environment-variables)])
+         (and (equal? (format "~a" d)
+                      "#(struct:date 0 0 0 1 1 1970 4 0 #f 0)")
+              (equal? (format "~a" ds)
+                      "#(struct:date* 0 0 0 1 1 1970 4 0 #f 0 0 UTC)")
+              (equal? (format "~s" ds)
+                      "#(struct:date* 0 0 0 1 1 1970 4 0 #f 0 0 \"UTC\")")
+              (equal? (format "~a" env) "#<environment-variables>")
+              (equal? (format "~s" env) "#<environment-variables>"))))
+ (list "format error messages render date and environment values"
+       (and
+        (catch-contract/contains?
+         (lambda () (format (seconds->date 0 #f)))
+         "format" "string?" "given: #(struct:date*" "UTC")
+        (catch-contract/contains?
+         (lambda () (format (current-environment-variables)))
+         "format" "string?" "given: #<environment-variables>")))
  (list "format renders regexp values without traps"
        (and (equal? (format "~a" (webracket-literal-regexp "a")) "#rx\"a\"")
             (equal? (format "~a" (webracket-literal-pregexp "a")) "#px\"a\"")
