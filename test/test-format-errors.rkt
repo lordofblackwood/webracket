@@ -60,6 +60,23 @@
          "format"
          "format string requires 2 arguments, given 1"
          "arguments were: 1")))
+ (list "format ill-formed pattern errors are catchable"
+       (and
+        (catch-contract/contains?
+         (lambda () (format "~"))
+         "format"
+         "ill-formed pattern string"
+         "cannot end in `~`")
+        (catch-contract/contains?
+         (lambda () (format "~q" 1))
+         "format"
+         "ill-formed pattern string"
+         "tag `~q` not allowed"
+         "arguments were: 1")))
+ (list "format print mode quotes expressions"
+       (and (equal? (format "~v" '(1 2)) "'(1 2)")
+            (equal? (format "~v" 'sample) "'sample")
+            (equal? (format "~v" (box "x")) "'#&\"x\"")))
  (list "format renders mutable pairs without traps"
        (and (equal? (format "~a" (mcons 'x 'y)) "{x . y}")
             (equal? (format "~s" (mcons 'x 'y)) "{x . y}")

@@ -168,6 +168,10 @@
     (format-arg-count-prefix    "format: format string requires ")
     (format-arg-count-mid       " arguments, given ")
     (format-arg-count-args      "; arguments were:")
+    (format-ill-formed-prefix   "format: ill-formed pattern string\n  explanation: ")
+    (format-ill-formed-dangling "cannot end in `~`")
+    (format-ill-formed-tag-prefix "tag `~")
+    (format-ill-formed-tag-suffix "` not allowed")
     (format-display:got-boxed   "internal formatter encountered boxed value")
     (format-display:got-box     "internal formatter encountered box value")
     (format-display:got-values  "internal formatter encountered values")
@@ -632,12 +636,67 @@
                            (global.get $true)))
                (unreachable))
 
+         ;; raise-format:ill-formed-pattern : string? i32 list? -> none
+         ;;   Report a Racket-style ill-formed format pattern error.
+         (func $raise-format:ill-formed-pattern
+               (param $explanation (ref $String))
+               (param $given       i32)
+               (param $args        (ref eq))
+
+               (local $out       (ref $GrowableArray))
+               (local $message   (ref $String))
+               (local $scan      (ref eq))
+               (local $arg-pair  (ref $Pair))
+
+               (local.set $out (call $make-growable-array (i32.const 8)))
+               (call $growable-array-add! (local.get $out)
+                     (ref.cast (ref $String)
+                               (global.get $string:format-ill-formed-prefix)))
+               (call $growable-array-add! (local.get $out)
+                     (local.get $explanation))
+               (if (i32.gt_u (local.get $given) (i32.const 0))
+                   (then
+                    (call $growable-array-add! (local.get $out)
+                          (ref.cast (ref $String)
+                                    (global.get $string:format-arg-count-args)))
+                    (local.set $scan (local.get $args))
+                    (block $done
+                           (loop $loop
+                                 (br_if $done (ref.eq (local.get $scan) (global.get $null)))
+                                 (if (i32.eqz (ref.test (ref $Pair) (local.get $scan)))
+                                     (then (br $done)))
+                                 (local.set $arg-pair
+                                            (ref.cast (ref $Pair)
+                                                      (local.get $scan)))
+                                 (call $growable-array-add! (local.get $out)
+                                       (ref.cast (ref $String)
+                                                 (global.get $string:space)))
+                                 (call $growable-array-add! (local.get $out)
+                                       (call $format/print
+                                             (struct.get $Pair $a
+                                                         (local.get $arg-pair))
+                                             (global.get $missing)))
+                                 (local.set $scan
+                                            (struct.get $Pair $d
+                                                        (local.get $arg-pair)))
+                                 (br $loop)))))
+               (local.set $message
+                          (call $growable-array-of-strings->string
+                                (local.get $out)))
+               (drop (call $raise
+                           (call $exn:fail:contract/make
+                                 (local.get $message)
+                                 (call $current-continuation-marks
+                                       (global.get $missing)))
+                           (global.get $true)))
+               (unreachable))
+
          ;; format : string? any/c ... -> string?
          ;;   Small runtime formatter for bootstrap/error paths. It supports
          ;;   `~a` and `~e` via WebRacket's existing generic value renderer,
-         ;;   and `~s`/`~v` through a narrow write-like path that quotes
-         ;;   strings. Full Racket `format` semantics should come from the
-         ;;   staged io/format provider.
+         ;;   `~s` through a narrow write-like path, and `~v` through the
+         ;;   print-like path. Full Racket `format` semantics should come from
+         ;;   the staged io/format provider.
          (func $format (type $Prim>=1)
                (param $fmt-raw (ref eq)) ;; format string
                (param $args    (ref eq)) ;; rest values
@@ -656,6 +715,7 @@
                (local $next     i32)
                (local $needed   i32)
                (local $given    i32)
+               (local $tag-out  (ref $I32GrowableArray))
 
                (if (i32.eqz (ref.test (ref $String) (local.get $fmt-raw)))
                    (then (call $raise-argument-error1
@@ -710,10 +770,12 @@
                             (local.set $i (i32.add (local.get $i) (i32.const 1)))
                             (if (i32.ge_u (local.get $i) (local.get $len))
                                 (then
-                                 (call $i32growable-array-add!
-                                       (local.get $out)
-                                       (i32.const 126))
-                                 (br $done)))
+                                 (call $raise-format:ill-formed-pattern
+                                       (ref.cast (ref $String)
+                                                 (global.get $string:format-ill-formed-dangling))
+                                       (local.get $given)
+                                       (local.get $args))
+                                 (unreachable)))
                             (local.set $next
                                        (array.get $I32Array
                                                   (local.get $fmt-arr)
@@ -792,15 +854,25 @@
                                                         (local.get $arg-pair)))
                                  (br $loop)))
 
-                            ;; Unknown escapes are preserved literally. This is
-                            ;; intentionally forgiving for bootstrap messages.
+                            (local.set $tag-out
+                                       (call $make-i32growable-array (i32.const 16)))
+                            (call $i32growable-array-add-string!
+                                  (local.get $tag-out)
+                                  (ref.cast (ref $String)
+                                            (global.get $string:format-ill-formed-tag-prefix)))
                             (call $i32growable-array-add!
-                                  (local.get $out)
-                                  (i32.const 126))
-                            (call $i32growable-array-add!
-                                  (local.get $out)
+                                  (local.get $tag-out)
                                   (local.get $next))
-                            (br $loop)))
+                            (call $i32growable-array-add-string!
+                                  (local.get $tag-out)
+                                  (ref.cast (ref $String)
+                                            (global.get $string:format-ill-formed-tag-suffix)))
+                            (call $raise-format:ill-formed-pattern
+                                  (call $i32growable-array->immutable-string
+                                        (local.get $tag-out))
+                                  (local.get $given)
+                                  (local.get $args))
+                            (unreachable)))
 
                (if (i32.gt_u (local.get $given) (local.get $needed))
                    (then (call $raise-format:bad-argument-count
