@@ -35,6 +35,27 @@
         "fprintf"
         "string?"
         "given: 42"))
+ (list "format argument count errors are catchable"
+       (and
+        (catch-contract/contains?
+         (lambda () (format "~a"))
+         "format"
+         "format string requires 1 arguments, given 0")
+        (catch-contract/contains?
+         (lambda () (format "" 1))
+         "format"
+         "format string requires 0 arguments, given 1"
+         "arguments were: 1")
+        (catch-contract/contains?
+         (lambda () (format "~a" 1 2))
+         "format"
+         "format string requires 1 arguments, given 2"
+         "arguments were: 1 2")
+        (catch-contract/contains?
+         (lambda () (format "~a ~s" 1))
+         "format"
+         "format string requires 2 arguments, given 1"
+         "arguments were: 1")))
  (list "format renders mutable pairs without traps"
        (and (equal? (format "~a" (mcons 'x 'y)) "{x . y}")
             (equal? (format "~s" (mcons 'x 'y)) "{x . y}")
