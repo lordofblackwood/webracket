@@ -366,9 +366,8 @@
                (call $growable-array-add! (local.get $out)
                      (global.get $string:arity-error:given))
                (call $growable-array-add! (local.get $out)
-                     (call $format/print
-                           (local.get $got)
-                           (global.get $missing)))
+                     (call $format/error-value->string
+                           (local.get $got)))
                (local.set $message
                           (call $growable-array-of-strings->string (local.get $out)))
 
@@ -4458,9 +4457,8 @@
                (call $growable-array-add! (local.get $out)
                      (global.get $string:contract-result-prefix))
                (call $growable-array-add! (local.get $out)
-                     (call $format/print
-                           (local.get $result)
-                           (global.get $missing)))
+                     (call $format/error-value->string
+                           (local.get $result)))
                (local.set $message
                           (call $growable-array-of-strings->string (local.get $out)))
 
@@ -4497,9 +4495,8 @@
                (call $growable-array-add! (local.get $out)
                      (global.get $string:arity-error:given))
                (call $growable-array-add! (local.get $out)
-                     (call $format/print
-                           (local.get $got)
-                           (global.get $missing)))
+                     (call $format/error-value->string
+                           (local.get $got)))
                (call $growable-array-add! (local.get $out)
                      (global.get $string:argument-position-prefix))
                (local.set $argument-no (i32.add (local.get $pos) (i32.const 1)))
@@ -4549,11 +4546,10 @@
                                       (call $growable-array-add! (local.get $out)
                                             (global.get $string:other-argument-line))
                                       (call $growable-array-add! (local.get $out)
-                                            (call $format/print
+                                            (call $format/error-value->string
                                                   (array.get $Args
                                                              (local.get $rest-args)
-                                                             (local.get $i))
-                                                  (global.get $missing)))))
+                                                             (local.get $i))))))
                                  (local.set $i
                                             (i32.add (local.get $i) (i32.const 1)))
                                  (br $loop)))))
@@ -4805,10 +4801,9 @@
                             (call $growable-array-add! (local.get $out)
                                   (global.get $string:space))
                             (call $growable-array-add! (local.get $out)
-                                  (call $format/print
+                                  (call $format/error-value->string
                                         (struct.get $Pair $a
-                                                    (local.get $arg-pair))
-                                        (global.get $missing)))
+                                                    (local.get $arg-pair))))
                             (local.set $args*
                                        (struct.get $Pair $d
                                                    (local.get $arg-pair)))
@@ -4885,9 +4880,8 @@
                                            (call $growable-array-add! (local.get $out)
                                                  (global.get $string:argument-field-separator))
                                            (call $growable-array-add! (local.get $out)
-                                                 (call $format/print
-                                                       (local.get $field)
-                                                       (global.get $missing)))
+                                                 (call $format/error-value->string
+                                                       (local.get $field)))
                                            (local.set $full-message
                                                       (call $growable-array-of-strings->string
                                                             (local.get $out)))
@@ -4905,11 +4899,10 @@
                                  (call $growable-array-add! (local.get $out)
                                        (global.get $string:argument-field-separator))
                                  (call $growable-array-add! (local.get $out)
-                                       (call $format/print
+                                       (call $format/error-value->string
                                              (array.get $Args
                                                         (local.get $rest-args)
-                                                        (i32.add (local.get $i) (i32.const 1)))
-                                             (global.get $missing)))
+                                                        (i32.add (local.get $i) (i32.const 1)))))
                                  (local.set $i
                                             (i32.add (local.get $i) (i32.const 2)))
                                  (br $loop)))))

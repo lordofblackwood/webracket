@@ -559,9 +559,13 @@
                ;;   Bootstrap default for error-value->string-handler.
                (func $default-error-value->string-handler (type $Prim2)
                      (param $v   (ref eq)) ;; value to render
-                     (param $len (ref eq)) ;; maximum length, currently ignored
+                     (param $len (ref eq)) ;; maximum length
                      (result     (ref eq))
-                     (call $format/display (local.get $v)))
+                     (call $format/truncate-to-width
+                           (call $format/print
+                                 (local.get $v)
+                                 (global.get $missing))
+                           (local.get $len)))
 
                ;; default-error-syntax->string-handler : any/c (or/c exact-nonnegative-integer? #f) -> string?
                ;;   Bootstrap default for error-syntax->string-handler.

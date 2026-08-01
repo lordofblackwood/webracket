@@ -69,6 +69,14 @@
     [(<= width 3) (substring "..." 0 width)]
     [else (string-append (substring str 0 (- width 3)) "...")]))
 
+;; clip-to-width : string? any/c -> string?
+;;   Clip handler output to error-print-width.
+(define (clip-to-width str width)
+  (cond
+    [(not (exact-nonnegative-integer? width)) str]
+    [(<= (string-length str) width) str]
+    [else (substring str 0 width)]))
+
 ;; call-with-limited-output : output-port? any/c (output-port? -> any/c) -> void?
 ;;   Render through a temporary string port when a max length is requested.
 (define (call-with-limited-output o max-length proc)
@@ -105,11 +113,15 @@
      (print-via-handler who v out mode))))
 
 ;; error-value->string : any/c -> string?
-;;   Minimal error-value formatter used by format/printf.rkt error paths.
+;;   Minimal error-value formatter used by format/printf.rkt `~e` and error paths.
 (define (error-value->string v)
-  (define o (open-output-string))
-  (parameterize ([print-unreadable #t])
-    (write-via-handler 'error-value->string v o))
-  (define str (get-output-string o))
   (define width (error-print-width))
-  (truncate-to-width str width))
+  (define result
+    (parameterize ([print-unreadable #t])
+      ((error-value->string-handler) v width)))
+  (define str
+    (cond
+      [(string? result) result]
+      [(bytes? result) (bytes->string/utf-8 result #\?)]
+      [else "..."]))
+  (clip-to-width str width))

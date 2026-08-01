@@ -719,19 +719,17 @@
                            (global.get $true)))
                (unreachable))
 
-         ;; format/truncate-to-error-print-width : string? -> string?
-         ;;   Truncate a rendered value according to the current error-print-width.
-         (func $format/truncate-to-error-print-width
+         ;; format/truncate-to-width : string? any/c -> string?
+         ;;   Truncate a rendered value according to an explicit width.
+         (func $format/truncate-to-width
                (param $text (ref $String))
+               (param $width-raw (ref eq))
                (result      (ref $String))
 
-               (local $width-raw (ref eq))
-               (local $width     i32)
-               (local $len       i32)
+               (local $width      i32)
+               (local $len        i32)
                (local $prefix-len i32)
 
-               (local.set $width-raw
-                          (call $error-print-width (global.get $missing)))
                (if (i32.eqz (ref.test (ref i31) (local.get $width-raw)))
                    (then (return (local.get $text))))
                (local.set $width
@@ -766,10 +764,58 @@
                                      (i32.const 1))))
                      (global.get $string:format-ellipsis)))
 
+         ;; format/truncate-to-error-print-width : string? -> string?
+         ;;   Truncate a rendered value according to the current error-print-width.
+         (func $format/truncate-to-error-print-width
+               (param $text (ref $String))
+               (result      (ref $String))
+
+               (call $format/truncate-to-width
+                     (local.get $text)
+                     (call $error-print-width (global.get $missing))))
+
+         ;; format/error-value->string : any/c -> string?
+         ;;   Render a value with the current error-value->string-handler.
+         (func $format/error-value->string
+               (param $v (ref eq))
+               (result   (ref $String))
+
+               (local $handler (ref $Procedure))
+               (local $result  (ref eq))
+
+               (local.set $handler
+                          (ref.cast (ref $Procedure)
+                                    (call $error-value->string-handler
+                                          (global.get $missing))))
+               (local.set $result
+                          (call_ref $ProcedureInvoker
+                                    (local.get $handler)
+                                    (array.new_fixed $Args 2
+                                                     (local.get $v)
+                                                     (call $error-print-width
+                                                           (global.get $missing)))
+                                    (struct.get $Procedure $invoke
+                                                (local.get $handler))))
+               (if (ref.test (ref $String) (local.get $result))
+                   (then
+                    (return
+                     (call $format/truncate-to-error-print-width
+                           (ref.cast (ref $String) (local.get $result))))))
+               (if (ref.test (ref $Bytes) (local.get $result))
+                   (then
+                    (return
+                     (call $format/truncate-to-error-print-width
+                           (call $bytes->string/utf-8/defaults
+                                 (ref.cast (ref $Bytes)
+                                           (local.get $result)))))))
+               (ref.cast (ref $String)
+                         (global.get $string:format-ellipsis)))
+
          ;; format : string? any/c ... -> string?
          ;;   Small runtime formatter for bootstrap/error paths. It supports
-         ;;   `~a`/`~A` and `~e`/`~E` via WebRacket's existing generic value
-         ;;   renderer, `~s`/`~S` through a narrow write-like path, and
+         ;;   `~a`/`~A` via WebRacket's existing generic value renderer,
+         ;;   `~e`/`~E` via the current error-value->string-handler,
+         ;;   `~s`/`~S` through a narrow write-like path, and
          ;;   `~v`/`~V` through the print-like path, plus character, integer
          ;;   radix, and truncating `~.` directives used by error paths. Full
          ;;   Racket `format` semantics should come from the staged io/format
@@ -1065,10 +1111,20 @@
                                            (unreachable)))
                                  (local.set $arg-pair
                                             (ref.cast (ref $Pair) (local.get $args*)))
+                                 (local.set $value
+                                            (struct.get $Pair $a
+                                                        (local.get $arg-pair)))
                                  (local.set $part
-                                            (call $format/display
-                                                  (struct.get $Pair $a
-                                                              (local.get $arg-pair))))
+                                            (if (result (ref $String))
+                                                (i32.or
+                                                 (i32.eq (local.get $next)
+                                                         (i32.const 97))
+                                                 (i32.eq (local.get $next)
+                                                         (i32.const 65)))
+                                                (then (call $format/display
+                                                            (local.get $value)))
+                                                (else (call $format/error-value->string
+                                                            (local.get $value)))))
                                  (call $i32growable-array-add-string!
                                        (local.get $out)
                                        (local.get $part))

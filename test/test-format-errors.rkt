@@ -129,6 +129,49 @@
                         (equal? (format "~.a" '(1 2 3)) "(1..."))])
            (error-print-width old)
            ok)))
+ (list "format error-value directive uses Racket-style default printing"
+       (and (equal? (format "~e" "abcdef") "\"abcdef\"")
+            (equal? (format "~E" (string->symbol "a b")) "'|a b|")
+            (equal? (format "~e" '(1 "x" #:k)) "'(1 \"x\" #:k)")
+            (equal? (format "~e" (box "x")) "'#&\"x\"")))
+ (list "format error-value directive uses error-print-width"
+       (let ([old (error-print-width)])
+         (error-print-width 5)
+         (let ([ok (and (equal? (format "~e" "abcdef") "\"a...")
+                        (equal? (format "~e" '(1 2 3)) "'(..."))])
+           (error-print-width old)
+           ok)))
+ (list "format error-value directive uses error-value->string-handler"
+       (let ([old (error-value->string-handler)]
+             [width-text (number->string (error-print-width))])
+         (error-value->string-handler
+          (lambda (v width)
+            (string-append
+             "custom:"
+             (cond
+               [(symbol? v) (symbol->string v)]
+               [(number? v) (number->string v)]
+               [else "value"])
+             "/"
+             (number->string width))))
+         (let ([ok (and (equal? (format "~e" 'abc)
+                                (string-append "custom:abc/" width-text))
+                        (catch-contract/contains?
+                         (lambda () (format 42))
+                         "format"
+                         "string?"
+                         (string-append "given: custom:42/" width-text)))])
+           (error-value->string-handler old)
+           ok)))
+ (list "format error-value directive handles byte and non-string handler results"
+       (let ([old (error-value->string-handler)])
+         (error-value->string-handler (lambda (_v _width) #"bytes-result"))
+         (let ([bytes-ok (equal? (format "~e" 'abc) "bytes-result")])
+           (error-value->string-handler (lambda (_v _width) #f))
+           (let ([ok (and bytes-ok
+                          (equal? (format "~e" 'abc) "..."))])
+             (error-value->string-handler old)
+             ok))))
  (list "format renders mutable pairs without traps"
        (and (equal? (format "~a" (mcons 'x 'y)) "{x . y}")
             (equal? (format "~s" (mcons 'x 'y)) "{x . y}")
