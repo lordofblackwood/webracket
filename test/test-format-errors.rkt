@@ -14,6 +14,12 @@
                    (string-contains? message needle))
                  needles))))
 
+(struct format-plain (a b))
+(struct format-writable ()
+  #:property prop:custom-write
+  (lambda (_self out _mode)
+    (display "writable" out)))
+
 (list
  (list "format string type errors are catchable with who"
        (catch-contract/contains?
@@ -157,6 +163,17 @@
        (catch-contract/contains?
         (lambda () (format (string->keyword "a b")))
         "format" "string?" "given: '#:|a b|"))
+ (list "format renders ordinary structs with write-mode fields"
+       (let ([plain (format-plain "x" 'a)]
+             [kw    (format-plain (quote #:k) "x")])
+         (and (equal? (format "~a" plain) "#(struct format-plain x a)")
+              (equal? (format "~s" plain) "#(struct format-plain \"x\" a)")
+              (equal? (format "~s" kw) "#(struct format-plain #:k \"x\")")
+              (equal? (format "~s" (format-writable)) "writable"))))
+ (list "format error messages render ordinary struct fields in write mode"
+       (catch-contract/contains?
+        (lambda () (format (format-plain "x" 'a)))
+        "format" "string?" "given: #(struct format-plain \"x\" a)"))
  (list "format renders characters in display and write modes"
        (and (equal? (format "~a" #\a) "a")
             (equal? (format "~s" #\a) "#\\a")

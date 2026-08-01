@@ -1371,6 +1371,9 @@
                                        (ref.cast (ref $StencilVector) (local.get $v))))))
                (if (ref.eq (call $srcloc? (local.get $v)) (global.get $true))
                    (then (return (call $format/write:srcloc (local.get $v)))))
+               (if (ref.test (ref $Struct) (local.get $v))
+                   (then (return (call $format/write:struct
+                                       (ref.cast (ref $Struct) (local.get $v))))))
                (if (ref.test (ref $Box) (local.get $v))
                    (then (return (call $format/write:box
                                        (ref.cast (ref $Box) (local.get $v))))))
@@ -1741,6 +1744,74 @@
                (if (i32.eq (local.get $style) (i32.const 2))
                    (then (call $i32growable-array-add! (local.get $out) (i32.const 124)))) ;; |
                (call $i32growable-array->immutable-string (local.get $out)))
+
+         ;; format/write:struct : struct? -> string?
+         ;;   Render ordinary structs with write-mode field formatting while
+         ;;   preserving existing custom-write behavior.
+         (func $format/write:struct
+               (param $s (ref $Struct))
+               (result   (ref $String))
+
+               (local $type        (ref $StructType))
+               (local $name        (ref eq))
+               (local $fields      (ref $Array))
+               (local $n           i32)
+               (local $i           i32)
+               (local $out         (ref $GrowableArray))
+               (local $cw-sentinel (ref eq))
+               (local $cw-name     (ref $Symbol))
+               (local $cw-val      (ref eq))
+               (local $cw-proc     (ref $Procedure))
+
+               (local.set $type   (struct.get $Struct     $type   (local.get $s)))
+               (local.set $name   (struct.get $StructType $name   (local.get $type)))
+               (local.set $fields (struct.get $Struct     $fields (local.get $s)))
+               (local.set $n      (array.len (local.get $fields)))
+               (local.set $cw-name
+                          (ref.cast (ref $Symbol)
+                                    (global.get $symbol:prop:custom-write)))
+               (local.set $cw-sentinel (call $cons (global.get $false) (global.get $false)))
+               (local.set $cw-val
+                          (call $struct-type-property-lookup-by-name
+                                (local.get $type)
+                                (local.get $cw-name)
+                                (local.get $cw-sentinel)))
+               (if (i32.eqz (ref.eq (local.get $cw-val) (local.get $cw-sentinel)))
+                   (then
+                    (if (ref.eq (call $procedure? (local.get $cw-val))
+                                (global.get $true))
+                        (then
+                         (local.set $cw-proc
+                                    (ref.cast (ref $Procedure)
+                                              (local.get $cw-val)))
+                         (return (call $format/display:struct/custom-write
+                                       (local.get $s)
+                                       (local.get $cw-proc)))))))
+
+               (local.set $out (call $make-growable-array (i32.const 8)))
+               (call $growable-array-add! (local.get $out)
+                     (ref.cast (ref $String)
+                               (global.get $string:struct-open)))
+               (call $growable-array-add! (local.get $out)
+                     (call $format/write (local.get $name)))
+               (local.set $i (i32.const 0))
+               (block $done
+                      (loop $loop
+                            (br_if $done (i32.ge_u (local.get $i) (local.get $n)))
+                            (call $growable-array-add! (local.get $out)
+                                  (ref.cast (ref $String)
+                                            (global.get $string:space)))
+                            (call $growable-array-add! (local.get $out)
+                                  (call $format/write
+                                        (array.get $Array
+                                                   (local.get $fields)
+                                                   (local.get $i))))
+                            (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                            (br $loop)))
+               (call $growable-array-add! (local.get $out)
+                     (ref.cast (ref $String)
+                               (global.get $string:close-paren)))
+               (call $growable-array-of-strings->string (local.get $out)))
 
          ;; format/write:bytes : bytes? -> string?
          ;;   Render bytes in quoted byte-string notation.
