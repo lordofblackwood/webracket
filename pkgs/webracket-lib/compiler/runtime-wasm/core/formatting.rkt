@@ -1066,7 +1066,7 @@
                (if (ref.test (ref $Bytes) (local.get $source))
                    (then (return (call $string-append/2
                                        (local.get $prefix)
-                                       (call $format/display:bytes
+                                       (call $format/write:bytes
                                              (ref.cast (ref $Bytes)
                                                        (local.get $source)))))))
                (ref.cast (ref $String) (global.get $string:hash-less-regexp)))
@@ -1495,7 +1495,7 @@
          (func $format/write:bytes
                (param $bs (ref $Bytes))
                (result    (ref $String))
-               (call $format/display:bytes (local.get $bs)))
+               (call $format/write:bytes/quoted (local.get $bs)))
 
          ;; format/write:pair : pair? -> string?
          ;;   Render pairs recursively using write/print conventions.
@@ -1904,8 +1904,21 @@
                      (struct.get $Keyword $str
                                  (ref.cast (ref $Keyword) (local.get $v)))))
 
-
+         ;; format/display:bytes : bytes? -> string?
+         ;;   Render bytes for display mode by mapping bytes to Latin-1 chars.
          (func $format/display:bytes
+               (param $bs (ref $Bytes))
+               (result    (ref $String))
+               (ref.cast (ref $String)
+                         (call $bytes->string/latin-1
+                               (local.get $bs)
+                               (global.get $false)
+                               (global.get $missing)
+                               (global.get $missing))))
+
+         ;; format/write:bytes/quoted : bytes? -> string?
+         ;;   Render bytes in Racket's quoted byte-string notation.
+         (func $format/write:bytes/quoted
                (param $bs (ref $Bytes))
                (result    (ref $String))
 
@@ -1929,7 +1942,7 @@
                                 (i32.add (i32.const 2)
                                          (i32.mul (local.get $len) (i32.const 4)))))
 
-               ;; Emit the bytes display prefix:  #"
+               ;; Emit the quoted bytes prefix:  #"
                (call $growable-array-add! (local.get $out)
                      (global.get $string:bytes-prefix))
 
@@ -1986,7 +1999,7 @@
                             (local.set $i (i32.add (local.get $i) (i32.const 1)))
                             (br $loop)))
 
-               ;; Close the display with a trailing quote and materialize the final string
+               ;; Close the quoted form with a trailing quote and materialize the final string
                (call $growable-array-add! (local.get $out)
                      (global.get $string:double-quote))
                (call $growable-array-of-strings->string (local.get $out)))

@@ -113,7 +113,8 @@
          (lambda () (format (srcloc "file" 1 2 3 4)))
          "format" "string?" "given: #(struct:srcloc \"file\" 1 2 3 4)")))
  (list "format write mode preserves container element quoting"
-       (and (equal? (format "~s" #"abc") "#\"abc\"")
+       (and (equal? (format "~a" #"abc") "abc")
+            (equal? (format "~s" #"abc") "#\"abc\"")
             (equal? (format "~s" (box "x")) "#&\"x\"")
             (equal? (format "~s" (hash 'a "x")) "#hash((a . \"x\"))")
             (equal? (format "~s" (hasheq 'a "x")) "#hasheq((a . \"x\"))")))
