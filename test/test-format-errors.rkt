@@ -83,6 +83,35 @@
            (let-values ([(prop pred acc) (make-impersonator-property 'demo)])
              (format prop)))
          "format" "string?" "given: #<impersonator-property>")))
+ (list "format renders graph and location values without traps"
+       (let ([sv       (stencil-vector #b101 'a "b")]
+             [empty-sv (stencil-vector 0)]
+             [loc      (srcloc "file" 1 2 3 4)])
+         (and (equal? (format "~a" (make-ephemeron 'k 'v)) "#<ephemeron>")
+              (equal? (format "~s" (make-placeholder 'x)) "#<placeholder>")
+              (equal? (format "~a" (make-hash-placeholder '((a . 1)))) "#<hash-placeholder>")
+              (equal? (format "~a" sv) "#<stencil 5: a b>")
+              (equal? (format "~s" sv) "#<stencil 5: a \"b\">")
+              (equal? (format "~a" empty-sv) "#<stencil 0>")
+              (equal? (format "~a" loc) "#(struct:srcloc file 1 2 3 4)")
+              (equal? (format "~s" loc) "#(struct:srcloc \"file\" 1 2 3 4)"))))
+ (list "format error messages render graph and location values"
+       (and
+        (catch-contract/contains?
+         (lambda () (format (make-ephemeron 'k 'v)))
+         "format" "string?" "given: #<ephemeron>")
+        (catch-contract/contains?
+         (lambda () (format (make-placeholder 'x)))
+         "format" "string?" "given: #<placeholder>")
+        (catch-contract/contains?
+         (lambda () (format (make-hash-placeholder '((a . 1)))))
+         "format" "string?" "given: #<hash-placeholder>")
+        (catch-contract/contains?
+         (lambda () (format (stencil-vector #b1 'x)))
+         "format" "string?" "given: #<stencil 1: x>")
+        (catch-contract/contains?
+         (lambda () (format (srcloc "file" 1 2 3 4)))
+         "format" "string?" "given: #(struct:srcloc \"file\" 1 2 3 4)")))
  (list "format renders module-path reflection values without traps"
        (let* ([mpi (module-path-index-join 'racket/base #f)]
               [resolved (module-path-index-resolve mpi)])

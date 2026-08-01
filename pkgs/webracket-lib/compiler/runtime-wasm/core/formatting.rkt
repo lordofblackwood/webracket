@@ -101,6 +101,9 @@
    path-display-formatting-runtime-string-constants
    '((hash-less-input-port       "#<input-port>")
      (hash-less-output-port      "#<output-port>")
+     (hash-less-ephemeron        "#<ephemeron>")
+     (hash-less-placeholder      "#<placeholder>")
+     (hash-less-hash-placeholder "#<hash-placeholder>")
      (hash-less-treelist         "#<treelist>")
      (hash-less-treelist-colon-space "#<treelist: ")
      (hash-less-semaphore        "#<semaphore>")
@@ -151,6 +154,9 @@
     (space-dot-space            " . ")
     (date-prefix                "#(struct:date ")
     (date-star-prefix           "#(struct:date* ")
+    (srcloc-prefix              "#(struct:srcloc ")
+    (stencil-prefix             "#<stencil ")
+    (stencil-prefix-colon-space ": ")
     (vector-prefix              "#(")
     (values-prefix              "(values")
     (unquoted-printing-string?  "unquoted-printing-string?")
@@ -761,9 +767,12 @@
                ;; --- Case: unsafe-undefined ---
                (if (ref.eq (local.get $v) (global.get $unsafe-undefined))
                    (then (return (ref.cast (ref $String) (global.get $string:unsafe-undefined)))))
-                ;; --- Case: syntax ---
+               ;; --- Case: syntax ---
                (if (ref.eq (call $syntax? (local.get $v)) (global.get $true))
                    (then (return (call $format/display:syntax (local.get $v)))))
+               ;; --- Case: srcloc (must appear before generic struct) ---
+               (if (ref.eq (call $srcloc? (local.get $v)) (global.get $true))
+                   (then (return (call $format/display:srcloc (local.get $v)))))
                ;; --- Case: struct (must appear before procedure) ---
                (if (ref.test (ref $Struct) (local.get $v))
                    (then
@@ -822,6 +831,10 @@
                (if (ref.test (ref $Vector) (local.get $v))
                    (then (return (call $format/display:vector
                                        (ref.cast (ref $Vector) (local.get $v))))))
+               ;; --- Case: stencil vector ---
+               (if (ref.test (ref $StencilVector) (local.get $v))
+                   (then (return (call $format/display:stencil-vector
+                                       (ref.cast (ref $StencilVector) (local.get $v))))))
                ;; --- Case: treelist ---
                (if (ref.test (ref $Treelist) (local.get $v))
                    (then (return (call $format/display:treelist
@@ -866,6 +879,10 @@
                (if (ref.test (ref $External) (local.get $v))
                    (then (return (call $format/display:external
                                        (ref.cast (ref $External) (local.get $v))))))
+               ;; --- Case: ephemeron ---
+               (if (ref.test (ref $Ephemeron) (local.get $v))
+                   (then (return (ref.cast (ref $String)
+                                           (global.get $string:hash-less-ephemeron)))))
                ;; --- Case: regexp ---
                (if (ref.test (ref $Regexp) (local.get $v))
                    (then (return (call $format/display:regexp
@@ -881,6 +898,13 @@
                (if (ref.test (ref $Hash) (local.get $v))
                    (then (local.set $hash (ref.cast (ref $Hash) (local.get $v)))
                          (return (call $format/display:hash (local.get $hash)))))
+               ;; --- Case: reader graph placeholders ---
+               (if (ref.test (ref $HashPlaceholder) (local.get $v))
+                   (then (return (ref.cast (ref $String)
+                                           (global.get $string:hash-less-hash-placeholder)))))
+               (if (ref.test (ref $Placeholder) (local.get $v))
+                   (then (return (ref.cast (ref $String)
+                                           (global.get $string:hash-less-placeholder)))))
                ;; --- Case: namespace ---
                (if (ref.test (ref $Namespace) (local.get $v))
                    (then (return (call $format/display:namespace
@@ -1047,9 +1071,9 @@
                                                        (local.get $source)))))))
                (ref.cast (ref $String) (global.get $string:hash-less-regexp)))
 
-         ;; format/date-add-field! : growable-array? any/c boolean? -> void?
-         ;;   Append one date field using display mode or write mode.
-         (func $format/date-add-field!
+         ;; format/add-field! : growable-array? any/c boolean? -> void?
+         ;;   Append one field using display mode or write mode.
+         (func $format/add-field!
                (param $out    (ref $GrowableArray))
                (param $v      (ref eq))
                (param $write? i32)
@@ -1059,16 +1083,16 @@
                    (else (call $growable-array-add! (local.get $out)
                                (call $format/display (local.get $v))))))
 
-         ;; format/date-add-space-field! : growable-array? any/c boolean? -> void?
+         ;; format/add-space-field! : growable-array? any/c boolean? -> void?
          ;;   Append a field preceded by the struct field separator.
-         (func $format/date-add-space-field!
+         (func $format/add-space-field!
                (param $out    (ref $GrowableArray))
                (param $v      (ref eq))
                (param $write? i32)
                (call $growable-array-add! (local.get $out)
                      (ref.cast (ref $String)
                                (global.get $string:space)))
-               (call $format/date-add-field!
+               (call $format/add-field!
                      (local.get $out)
                      (local.get $v)
                      (local.get $write?)))
@@ -1079,43 +1103,43 @@
                (param $out    (ref $GrowableArray))
                (param $d      (ref $Date))
                (param $write? i32)
-               (call $format/date-add-field!
+               (call $format/add-field!
                      (local.get $out)
                      (struct.get $Date $second (local.get $d))
                      (local.get $write?))
-               (call $format/date-add-space-field!
+               (call $format/add-space-field!
                      (local.get $out)
                      (struct.get $Date $minute (local.get $d))
                      (local.get $write?))
-               (call $format/date-add-space-field!
+               (call $format/add-space-field!
                      (local.get $out)
                      (struct.get $Date $hour (local.get $d))
                      (local.get $write?))
-               (call $format/date-add-space-field!
+               (call $format/add-space-field!
                      (local.get $out)
                      (struct.get $Date $day (local.get $d))
                      (local.get $write?))
-               (call $format/date-add-space-field!
+               (call $format/add-space-field!
                      (local.get $out)
                      (struct.get $Date $month (local.get $d))
                      (local.get $write?))
-               (call $format/date-add-space-field!
+               (call $format/add-space-field!
                      (local.get $out)
                      (struct.get $Date $year (local.get $d))
                      (local.get $write?))
-               (call $format/date-add-space-field!
+               (call $format/add-space-field!
                      (local.get $out)
                      (struct.get $Date $week-day (local.get $d))
                      (local.get $write?))
-               (call $format/date-add-space-field!
+               (call $format/add-space-field!
                      (local.get $out)
                      (struct.get $Date $year-day (local.get $d))
                      (local.get $write?))
-               (call $format/date-add-space-field!
+               (call $format/add-space-field!
                      (local.get $out)
                      (struct.get $Date $dst? (local.get $d))
                      (local.get $write?))
-               (call $format/date-add-space-field!
+               (call $format/add-space-field!
                      (local.get $out)
                      (struct.get $Date $time-zone-offset (local.get $d))
                      (local.get $write?)))
@@ -1158,11 +1182,11 @@
                      (local.get $out)
                      (local.get $d)
                      (local.get $write?))
-               (call $format/date-add-space-field!
+               (call $format/add-space-field!
                      (local.get $out)
                      (struct.get $DateStar $nanosecond (local.get $d))
                      (local.get $write?))
-               (call $format/date-add-space-field!
+               (call $format/add-space-field!
                      (local.get $out)
                      (struct.get $DateStar $time-zone-name (local.get $d))
                      (local.get $write?))
@@ -1189,6 +1213,127 @@
                      (local.get $d)
                      (i32.const 1)))
 
+         ;; format/srcloc : srcloc? boolean? -> string?
+         ;;   Render srcloc values using Racket's transparent struct notation.
+         (func $format/srcloc
+               (param $loc    (ref eq))
+               (param $write? i32)
+               (result        (ref $String))
+
+               (local $out (ref $GrowableArray))
+
+               (local.set $out (call $make-growable-array (i32.const 12)))
+               (call $growable-array-add! (local.get $out)
+                     (ref.cast (ref $String)
+                               (global.get $string:srcloc-prefix)))
+               (call $format/add-field!
+                     (local.get $out)
+                     (call $srcloc-source (local.get $loc))
+                     (local.get $write?))
+               (call $format/add-space-field!
+                     (local.get $out)
+                     (call $srcloc-line (local.get $loc))
+                     (local.get $write?))
+               (call $format/add-space-field!
+                     (local.get $out)
+                     (call $srcloc-column (local.get $loc))
+                     (local.get $write?))
+               (call $format/add-space-field!
+                     (local.get $out)
+                     (call $srcloc-position (local.get $loc))
+                     (local.get $write?))
+               (call $format/add-space-field!
+                     (local.get $out)
+                     (call $srcloc-span (local.get $loc))
+                     (local.get $write?))
+               (call $growable-array-add! (local.get $out)
+                     (ref.cast (ref $String)
+                               (global.get $string:close-paren)))
+               (call $growable-array-of-strings->string (local.get $out)))
+
+         ;; format/display:srcloc : srcloc? -> string?
+         ;;   Render srcloc values in display mode.
+         (func $format/display:srcloc
+               (param $loc (ref eq))
+               (result     (ref $String))
+               (call $format/srcloc
+                     (local.get $loc)
+                     (i32.const 0)))
+
+         ;; format/write:srcloc : srcloc? -> string?
+         ;;   Render srcloc values in write mode.
+         (func $format/write:srcloc
+               (param $loc (ref eq))
+               (result     (ref $String))
+               (call $format/srcloc
+                     (local.get $loc)
+                     (i32.const 1)))
+
+         ;; format/stencil-vector : stencil-vector? boolean? -> string?
+         ;;   Render stencil vectors using Racket's #<stencil ...> convention.
+         (func $format/stencil-vector
+               (param $sv     (ref $StencilVector))
+               (param $write? i32)
+               (result        (ref $String))
+
+               (local $out  (ref $GrowableArray))
+               (local $arr  (ref $Array))
+               (local $len  i32)
+               (local $mask i32)
+               (local $i    i32)
+
+               (local.set $arr  (struct.get $StencilVector $slots (local.get $sv)))
+               (local.set $len  (array.len (local.get $arr)))
+               (local.set $mask (struct.get $StencilVector $mask (local.get $sv)))
+               (local.set $out  (call $make-growable-array (i32.const 8)))
+               (call $growable-array-add! (local.get $out)
+                     (ref.cast (ref $String)
+                               (global.get $string:stencil-prefix)))
+               (call $growable-array-add! (local.get $out)
+                     (call $i32->string (local.get $mask)))
+               (if (i32.ne (local.get $mask) (i32.const 0))
+                   (then
+                    (call $growable-array-add! (local.get $out)
+                          (ref.cast (ref $String)
+                                    (global.get $string:stencil-prefix-colon-space)))))
+               (local.set $i (i32.const 0))
+               (block $done
+                      (loop $loop
+                            (br_if $done (i32.ge_u (local.get $i) (local.get $len)))
+                            (call $format/add-field!
+                                  (local.get $out)
+                                  (array.get $Array (local.get $arr) (local.get $i))
+                                  (local.get $write?))
+                            (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                            (if (i32.lt_u (local.get $i) (local.get $len))
+                                (then
+                                 (call $growable-array-add! (local.get $out)
+                                       (ref.cast (ref $String)
+                                                 (global.get $string:space)))))
+                            (br $loop)))
+               (call $growable-array-add! (local.get $out)
+                     (ref.cast (ref $String)
+                               (global.get $string:syntax-close)))
+               (call $growable-array-of-strings->string (local.get $out)))
+
+         ;; format/display:stencil-vector : stencil-vector? -> string?
+         ;;   Render stencil vectors in display mode.
+         (func $format/display:stencil-vector
+               (param $sv (ref $StencilVector))
+               (result    (ref $String))
+               (call $format/stencil-vector
+                     (local.get $sv)
+                     (i32.const 0)))
+
+         ;; format/write:stencil-vector : stencil-vector? -> string?
+         ;;   Render stencil vectors in write mode.
+         (func $format/write:stencil-vector
+               (param $sv (ref $StencilVector))
+               (result    (ref $String))
+               (call $format/stencil-vector
+                     (local.get $sv)
+                     (i32.const 1)))
+
          ;; format/write : any/c -> string?
          ;;   Render a value using the subset of write/print-like conventions
          ;;   needed by bootstrap `format` for `~s` and `~v`. Values without a
@@ -1210,6 +1355,11 @@
                (if (ref.test (ref $Vector) (local.get $v))
                    (then (return (call $format/write:vector
                                        (ref.cast (ref $Vector) (local.get $v))))))
+               (if (ref.test (ref $StencilVector) (local.get $v))
+                   (then (return (call $format/write:stencil-vector
+                                       (ref.cast (ref $StencilVector) (local.get $v))))))
+               (if (ref.eq (call $srcloc? (local.get $v)) (global.get $true))
+                   (then (return (call $format/write:srcloc (local.get $v)))))
                (if (ref.test (ref $DateStar) (local.get $v))
                    (then (return (call $format/write:date-star
                                        (ref.cast (ref $DateStar) (local.get $v))))))
