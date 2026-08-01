@@ -128,6 +128,15 @@
         (catch-contract/contains?
          (lambda () (format (hash 'a "x")))
          "format" "string?" "given: '#hash((a . \"x\"))")))
+ (list "format renders characters in display and write modes"
+       (and (equal? (format "~a" #\a) "a")
+            (equal? (format "~s" #\a) "#\\a")
+            (equal? (format "~a" #\space) " ")
+            (equal? (format "~s" #\space) "#\\space")))
+ (list "format error messages render characters in write mode"
+       (catch-contract/contains?
+        (lambda () (format #\a))
+        "format" "string?" "given: #\\a"))
  (list "format renders module-path reflection values without traps"
        (let* ([mpi (module-path-index-join 'racket/base #f)]
               [resolved (module-path-index-resolve mpi)])

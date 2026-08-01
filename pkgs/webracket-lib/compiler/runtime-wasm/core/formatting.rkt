@@ -1349,6 +1349,8 @@
                (if (ref.test (ref $Bytes) (local.get $v))
                    (then (return (call $format/write:bytes
                                        (ref.cast (ref $Bytes) (local.get $v))))))
+               (if (ref.eq (call $char? (local.get $v)) (global.get $true))
+                   (then (return (call $format/write:char (local.get $v)))))
                (if (ref.test (ref $Pair) (local.get $v))
                    (then (return (call $format/write:pair
                                        (local.get $v)))))
@@ -2488,9 +2490,28 @@
                      (ref.cast (ref $String) (global.get $string:syntax-close)))
                (call $growable-array-of-strings->string (local.get $out)))
 
-
-         ; Note: This uses the write conventions instead of display.
+         ;; format/display:char : char? -> string?
+         ;;   Render a character for display mode as the character itself.
          (func $format/display:char
+               (param $v (ref eq))
+               (result   (ref $String))
+
+               (local $cp i32)
+
+               ;; Check if input is a character immediate
+               (if (i32.or (i32.eqz (ref.test (ref i31) (local.get $v)))
+                           (i32.ne (i32.and (i31.get_u (ref.cast (ref i31) (local.get $v)))
+                                            (i32.const ,char-mask))
+                                   (i32.const ,char-tag)))
+                   (then (call $raise-check-char (local.get $v))))
+               ;; Decode character
+               (local.set $cp (i32.shr_u (i31.get_u (ref.cast (ref i31) (local.get $v)))
+                                         (i32.const ,char-shift)))
+               (call $make-string/checked (i32.const 1) (local.get $cp)))
+
+         ;; format/write:char : char? -> string?
+         ;;   Render a character for write/print mode using #\ notation.
+         (func $format/write:char
                (param $v (ref eq))
                (result   (ref $String))
 
