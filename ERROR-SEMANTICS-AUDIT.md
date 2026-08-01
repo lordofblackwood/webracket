@@ -121,7 +121,9 @@ python3 tools/classify-error-fixtures.py --jobs 4
 ```
 
 The harness writes compile outputs and logs under `/tmp/` by default. It reports
-each fixture as one of:
+one progress line for each completed fixture, then prints a final markdown
+summary table. Use `--quiet` to suppress the progress lines. Each fixture is
+classified as one of:
 
 - `pass`: fixture compiled, ran, and did not print a failing `#f` row.
 - `fixture-failure`: fixture ran but one or more rows printed `#f`.

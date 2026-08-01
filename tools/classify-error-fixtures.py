@@ -103,6 +103,11 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Print commands without running them.",
     )
+    parser.add_argument(
+        "--quiet",
+        action="store_true",
+        help="Suppress per-fixture progress lines.",
+    )
     return parser.parse_args()
 
 
@@ -232,6 +237,14 @@ def print_markdown(rows: list[dict[str, str]]) -> None:
         )
 
 
+def print_progress(row: dict[str, str], completed: int, total: int) -> None:
+    print(
+        f"[{completed}/{total}] {row['status']} {row['fixture']} - {row['detail']}",
+        file=sys.stderr,
+        flush=True,
+    )
+
+
 def main() -> int:
     args = parse_args()
     if args.jobs < 1:
@@ -244,12 +257,29 @@ def main() -> int:
     stamp = time.strftime("%Y%m%d-%H%M%S")
     run_root = args.tmp_root / f"webracket-error-fixture-audit-{stamp}"
     run_root.mkdir(parents=True, exist_ok=True)
+    total = len(fixtures)
     if args.dry_run:
-        rows = [run_fixture(args, fixture, run_root) for fixture in fixtures]
+        rows = []
+        for index, fixture in enumerate(fixtures, start=1):
+            row = run_fixture(args, fixture, run_root)
+            rows.append(row)
+            if not args.quiet:
+                print_progress(row, index, total)
     else:
         with concurrent.futures.ThreadPoolExecutor(max_workers=args.jobs) as pool:
-            futures = [pool.submit(run_fixture, args, fixture, run_root) for fixture in fixtures]
-            rows = [future.result() for future in futures]
+            futures = [
+                pool.submit(run_fixture, args, fixture, run_root)
+                for fixture in fixtures
+            ]
+            rows = []
+            for index, future in enumerate(
+                concurrent.futures.as_completed(futures),
+                start=1,
+            ):
+                row = future.result()
+                rows.append(row)
+                if not args.quiet:
+                    print_progress(row, index, total)
     rows.sort(key=lambda row: row["fixture"])
     print(f"run-root: `{run_root}`")
     print()
