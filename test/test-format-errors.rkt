@@ -56,6 +56,33 @@
               (equal? (format "~a" cust) "#<custodian>")
               (equal? (format "~a" (make-custodian-box cust 1)) "#<custodian-box>")
               (equal? (format "~a" (current-security-guard)) "#<security-guard>"))))
+ (list "format renders weak boxes and control values without traps"
+       (let-values ([(prop pred acc) (make-impersonator-property 'demo)])
+         (and (equal? (format "~a" (make-weak-box 1)) "#<weak-box>")
+              (equal? (format "~s" (make-continuation-mark-key 'k))
+                      "#<continuation-mark-key>")
+              (equal? (format "~a" (current-continuation-marks))
+                      "#<continuation-mark-set>")
+              (equal? (format "~a" (current-parameterization))
+                      "#<parameterization>")
+              (equal? (format "~s" prop)
+                      "#<impersonator-property>"))))
+ (list "format error messages render weak boxes and control values"
+       (and
+        (catch-contract/contains?
+         (lambda () (format (make-weak-box 1)))
+         "format" "string?" "given: #<weak-box>")
+        (catch-contract/contains?
+         (lambda () (format (make-continuation-mark-key 'k)))
+         "format" "string?" "given: #<continuation-mark-key>")
+        (catch-contract/contains?
+         (lambda () (format (current-parameterization)))
+         "format" "string?" "given: #<parameterization>")
+        (catch-contract/contains?
+         (lambda ()
+           (let-values ([(prop pred acc) (make-impersonator-property 'demo)])
+             (format prop)))
+         "format" "string?" "given: #<impersonator-property>")))
  (list "format renders module-path reflection values without traps"
        (let* ([mpi (module-path-index-join 'racket/base #f)]
               [resolved (module-path-index-resolve mpi)])

@@ -116,12 +116,16 @@
      (hash-less-bytes-converter  "#<bytes-converter>")
      (hash-less-pseudo-random-generator "#<pseudo-random-generator>")
      (hash-less-uninterruptible-lock "#<uninterruptible-lock>")
+     (hash-less-weak-box         "#<weak-box>")
      (hash-less-thread           "#<thread>")
      (hash-less-thread-group     "#<thread-group>")
      (hash-less-thread-cell      "#<thread-cell>")
+     (hash-less-continuation-mark-key "#<continuation-mark-key>")
      (hash-less-custodian        "#<custodian>")
      (hash-less-custodian-box    "#<custodian-box>")
      (hash-less-security-guard   "#<security-guard>")
+     (hash-less-parameterization "#<parameterization>")
+     (hash-less-impersonator-property "#<impersonator-property>")
      (hash-less-environment-variables "#<environment-variables>")
      (hash-less-module-path-index "#<module-path-index>")
      (hash-less-resolved-module-path "#<resolved-module-path>")
@@ -826,6 +830,10 @@
                (if (ref.test (ref $Box) (local.get $v))
                    (then (return (call $format/display:box
                                        (ref.cast (ref $Box) (local.get $v))))))
+               ;; --- Case: weak box ---
+               (if (ref.test (ref $WeakBox) (local.get $v))
+                   (then (return (ref.cast (ref $String)
+                                           (global.get $string:hash-less-weak-box)))))
                ;; --- Case: symbol ---
                (if (ref.test (ref $Symbol) (local.get $v))
                    (then (return (call $format/display:symbol
@@ -881,6 +889,10 @@
                (if (ref.test (ref $ContinuationMarkSet) (local.get $v))
                    (then (return (ref.cast (ref $String)
                                            (global.get $string:continuation-mark-set)))))
+               ;; --- Case: continuation-mark-key ---
+               (if (ref.test (ref $ContinuationMarkKey) (local.get $v))
+                   (then (return (ref.cast (ref $String)
+                                           (global.get $string:hash-less-continuation-mark-key)))))
                ;; --- Case: variable-reference ---
                (if (ref.test (ref $VariableReference) (local.get $v))
                    (then (return (call $format/display:variable-reference
@@ -895,6 +907,10 @@
                (if (ref.test (ref $StructTypeProperty) (local.get $v))
                    (then (return (call $format/display:struct-type-property
                                        (ref.cast (ref $StructTypeProperty) (local.get $v))))))
+               ;; --- Case: impersonator-property ---
+               (if (ref.test (ref $ImpersonatorProperty) (local.get $v))
+                   (then (return (ref.cast (ref $String)
+                                           (global.get $string:hash-less-impersonator-property)))))
                ;; --- Case: linklet ---
                (if (ref.test (ref $Linklet) (local.get $v))
                    (then (return (ref.cast (ref $String)
@@ -983,6 +999,9 @@
                (if (ref.test (ref $SecurityGuard) (local.get $v))
                    (then (return (ref.cast (ref $String)
                                            (global.get $string:hash-less-security-guard)))))
+               (if (ref.test (ref $Parameterization) (local.get $v))
+                   (then (return (ref.cast (ref $String)
+                                           (global.get $string:hash-less-parameterization)))))
                (if (ref.test (ref $EnvironmentVariables) (local.get $v))
                    (then (return (ref.cast (ref $String)
                                            (global.get $string:hash-less-environment-variables)))))
