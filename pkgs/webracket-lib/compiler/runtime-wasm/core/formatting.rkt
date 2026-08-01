@@ -353,9 +353,10 @@
 
                (local.get $prop-val))
 
-         (func $format/display:struct/custom-write
+         (func $format/struct/custom-write
                (param $s    (ref $Struct))
                (param $proc (ref $Procedure))
+               (param $mode (ref eq))
                (result      (ref $String))
 
                (local $port (ref $OutputStringPort))
@@ -369,7 +370,7 @@
                (local.set $args (array.new $Args (global.get $null) (i32.const 3)))
                (array.set $Args (local.get $args) (i32.const 0) (local.get $s))
                (array.set $Args (local.get $args) (i32.const 1) (local.get $port))
-               (array.set $Args (local.get $args) (i32.const 2) (global.get $false))
+               (array.set $Args (local.get $args) (i32.const 2) (local.get $mode))
                (drop (call_ref $ProcedureInvoker
                                (local.get $proc)
                                (local.get $args)
@@ -773,9 +774,16 @@
                                  (local.set $arg-pair
                                             (ref.cast (ref $Pair) (local.get $args*)))
                                  (local.set $part
-                                            (call $format/write
-                                                  (struct.get $Pair $a
-                                                              (local.get $arg-pair))))
+                                            (if (result (ref $String))
+                                                (i32.eq (local.get $next)
+                                                        (i32.const 118))
+                                                (then (call $format/print
+                                                            (struct.get $Pair $a
+                                                                        (local.get $arg-pair))
+                                                            (global.get $missing)))
+                                                (else (call $format/write
+                                                            (struct.get $Pair $a
+                                                                        (local.get $arg-pair))))))
                                  (call $i32growable-array-add-string!
                                        (local.get $out)
                                        (local.get $part))
@@ -890,9 +898,10 @@
                                   (then (local.set $cw-proc
                                                    (ref.cast (ref $Procedure)
                                                              (local.get $cw-val)))
-                                        (return (call $format/display:struct/custom-write
+                                        (return (call $format/struct/custom-write
                                                       (local.get $struct)
-                                                      (local.get $cw-proc))))))
+                                                      (local.get $cw-proc)
+                                                      (global.get $false))))))
                         (else (return (call $format/display:struct (local.get $struct)))))))
                ;; --- Case: closure ---
                (if (ref.test (ref $Closure) (local.get $v))
@@ -1502,6 +1511,12 @@
 
                (local $quote? i32)
                (local $text   (ref $String))
+               (local $struct      (ref $Struct))
+               (local $struct-type (ref $StructType))
+               (local $cw-sentinel (ref eq))
+               (local $cw-name     (ref $Symbol))
+               (local $cw-val      (ref eq))
+               (local $cw-proc     (ref $Procedure))
 
                (local.set $quote? (i32.const 0))
                (if (ref.eq (call $parameter-value-or-global
@@ -1516,6 +1531,29 @@
                              (then
                               (if (i32.eqz (call $fixnum->i32 (local.get $quote-depth)))
                                   (then (local.set $quote? (i32.const 1))))))))))
+               (if (ref.test (ref $Struct) (local.get $v))
+                   (then
+                    (local.set $struct      (ref.cast (ref $Struct) (local.get $v)))
+                    (local.set $struct-type (struct.get $Struct $type (local.get $struct)))
+                    (local.set $cw-name     (ref.cast (ref $Symbol)
+                                                      (global.get $symbol:prop:custom-write)))
+                    (local.set $cw-sentinel (call $cons (global.get $false) (global.get $false)))
+                    (local.set $cw-val      (call $struct-type-property-lookup-by-name
+                                                  (local.get $struct-type)
+                                                  (local.get $cw-name)
+                                                  (local.get $cw-sentinel)))
+                    (if (i32.eqz (ref.eq (local.get $cw-val) (local.get $cw-sentinel)))
+                        (then
+                         (if (ref.eq (call $procedure? (local.get $cw-val))
+                                     (global.get $true))
+                             (then
+                              (local.set $cw-proc
+                                         (ref.cast (ref $Procedure)
+                                                   (local.get $cw-val)))
+                              (return (call $format/struct/custom-write
+                                            (local.get $struct)
+                                            (local.get $cw-proc)
+                                            ,(Imm 0)))))))))
                (local.set $text (call $format/write (local.get $v)))
                (if (i32.and
                     (local.get $quote?)
@@ -1886,9 +1924,10 @@
                          (local.set $cw-proc
                                     (ref.cast (ref $Procedure)
                                               (local.get $cw-val)))
-                         (return (call $format/display:struct/custom-write
+                         (return (call $format/struct/custom-write
                                        (local.get $s)
-                                       (local.get $cw-proc)))))))
+                                       (local.get $cw-proc)
+                                       (global.get $true)))))))
 
                (local.set $out (call $make-growable-array (i32.const 8)))
                (call $growable-array-add! (local.get $out)

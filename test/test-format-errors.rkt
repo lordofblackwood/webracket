@@ -19,6 +19,10 @@
   #:property prop:custom-write
   (lambda (_self out _mode)
     (display "writable" out)))
+(struct format-mode-writable ()
+  #:property prop:custom-write
+  (lambda (_self out mode)
+    (display mode out)))
 
 (list
  (list "format string type errors are catchable with who"
@@ -191,6 +195,11 @@
               (equal? (format "~s" plain) "#(struct format-plain \"x\" a)")
               (equal? (format "~s" kw) "#(struct format-plain #:k \"x\")")
               (equal? (format "~s" (format-writable)) "writable"))))
+ (list "format passes custom-write mode argument"
+       (let ([v (format-mode-writable)])
+         (and (equal? (format "~a" v) "#f")
+              (equal? (format "~s" v) "#t")
+              (equal? (format "~v" v) "0"))))
  (list "format error messages render ordinary struct fields in write mode"
        (catch-contract/contains?
         (lambda () (format (format-plain "x" 'a)))
