@@ -693,10 +693,10 @@
 
          ;; format : string? any/c ... -> string?
          ;;   Small runtime formatter for bootstrap/error paths. It supports
-         ;;   `~a` and `~e` via WebRacket's existing generic value renderer,
-         ;;   `~s` through a narrow write-like path, and `~v` through the
-         ;;   print-like path. Full Racket `format` semantics should come from
-         ;;   the staged io/format provider.
+         ;;   `~a`/`~A` and `~e`/`~E` via WebRacket's existing generic value
+         ;;   renderer, `~s`/`~S` through a narrow write-like path, and
+         ;;   `~v`/`~V` through the print-like path. Full Racket `format`
+         ;;   semantics should come from the staged io/format provider.
          (func $format (type $Prim>=1)
                (param $fmt-raw (ref eq)) ;; format string
                (param $args    (ref eq)) ;; rest values
@@ -797,8 +797,12 @@
                                        (i32.const 10))
                                  (br $loop)))
                             (if (i32.or
-                                 (i32.eq (local.get $next) (i32.const 97))  ;; '~a'
-                                 (i32.eq (local.get $next) (i32.const 101))) ;; '~e'
+                                 (i32.or
+                                  (i32.eq (local.get $next) (i32.const 97))  ;; '~a'
+                                  (i32.eq (local.get $next) (i32.const 65))) ;; '~A'
+                                 (i32.or
+                                  (i32.eq (local.get $next) (i32.const 101)) ;; '~e'
+                                  (i32.eq (local.get $next) (i32.const 69)))) ;; '~E'
                                 (then
                                  (local.set $needed
                                             (i32.add (local.get $needed) (i32.const 1)))
@@ -822,8 +826,12 @@
                                                         (local.get $arg-pair)))
                                  (br $loop)))
                             (if (i32.or
-                                 (i32.eq (local.get $next) (i32.const 115)) ;; '~s'
-                                 (i32.eq (local.get $next) (i32.const 118))) ;; '~v'
+                                 (i32.or
+                                  (i32.eq (local.get $next) (i32.const 115)) ;; '~s'
+                                  (i32.eq (local.get $next) (i32.const 83))) ;; '~S'
+                                 (i32.or
+                                  (i32.eq (local.get $next) (i32.const 118)) ;; '~v'
+                                  (i32.eq (local.get $next) (i32.const 86)))) ;; '~V'
                                 (then
                                  (local.set $needed
                                             (i32.add (local.get $needed) (i32.const 1)))
@@ -837,8 +845,11 @@
                                             (ref.cast (ref $Pair) (local.get $args*)))
                                  (local.set $part
                                             (if (result (ref $String))
-                                                (i32.eq (local.get $next)
-                                                        (i32.const 118))
+                                                (i32.or
+                                                 (i32.eq (local.get $next)
+                                                         (i32.const 118))
+                                                 (i32.eq (local.get $next)
+                                                         (i32.const 86)))
                                                 (then (call $format/print
                                                             (struct.get $Pair $a
                                                                         (local.get $arg-pair))

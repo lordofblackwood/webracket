@@ -77,6 +77,10 @@
        (and (equal? (format "~v" '(1 2)) "'(1 2)")
             (equal? (format "~v" 'sample) "'sample")
             (equal? (format "~v" (box "x")) "'#&\"x\"")))
+ (list "format accepts uppercase value directives"
+       (and (equal? (format "~A" 'sample) "sample")
+            (equal? (format "~S" "x") "\"x\"")
+            (equal? (format "~V" 'sample) "'sample")))
  (list "format renders mutable pairs without traps"
        (and (equal? (format "~a" (mcons 'x 'y)) "{x . y}")
             (equal? (format "~s" (mcons 'x 'y)) "{x . y}")
@@ -216,7 +220,8 @@
        (let ([v (format-mode-writable)])
          (and (equal? (format "~a" v) "#f")
               (equal? (format "~s" v) "#t")
-              (equal? (format "~v" v) "0"))))
+              (equal? (format "~v" v) "0")
+              (equal? (format "~V" v) "0"))))
  (list "format error messages render ordinary struct fields in write mode"
        (catch-contract/contains?
         (lambda () (format (format-plain "x" 'a)))
