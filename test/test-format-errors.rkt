@@ -129,6 +129,20 @@
         (catch-contract/contains?
          (lambda () (format (hash 'a "x")))
          "format" "string?" "given: '#hash((a . \"x\"))")))
+ (list "format renders symbols in display and write modes"
+       (and (equal? (format "~a" (string->symbol "a b")) "a b")
+            (equal? (format "~s" 'abc) "abc")
+            (equal? (format "~s" (string->symbol "a b")) "|a b|")
+            (equal? (format "~s" (string->symbol "")) "||")
+            (equal? (format "~s" (string->symbol "#:x")) "|#:x|")
+            (equal? (format "~s" (string->symbol "a|b")) "a\\|b")
+            (equal? (format "~s" (string->symbol "|")) "\\|")
+            (equal? (format "~s" (string->symbol ".")) "|.|")
+            (equal? (format "~s" (string->symbol "1")) "|1|")))
+ (list "format error messages render symbols in write mode"
+       (catch-contract/contains?
+        (lambda () (format (string->symbol "a b")))
+        "format" "string?" "given: '|a b|"))
  (list "format renders characters in display and write modes"
        (and (equal? (format "~a" #\a) "a")
             (equal? (format "~s" #\a) "#\\a")

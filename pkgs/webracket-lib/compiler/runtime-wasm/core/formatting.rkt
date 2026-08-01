@@ -1351,6 +1351,9 @@
                                        (ref.cast (ref $Bytes) (local.get $v))))))
                (if (ref.eq (call $char? (local.get $v)) (global.get $true))
                    (then (return (call $format/write:char (local.get $v)))))
+               (if (ref.test (ref $Symbol) (local.get $v))
+                   (then (return (call $format/write:symbol
+                                       (ref.cast (ref $Symbol) (local.get $v))))))
                (if (ref.test (ref $Pair) (local.get $v))
                    (then (return (call $format/write:pair
                                        (local.get $v)))))
@@ -1488,6 +1491,152 @@
                             (local.set $i (i32.add (local.get $i) (i32.const 1)))
                             (br $loop)))
                (call $i32growable-array-add! (local.get $out) (i32.const 34)) ;; '"'
+               (call $i32growable-array->immutable-string (local.get $out)))
+
+         ;; format/symbol-simple-bare-char?/i32 : codepoint -> boolean
+         ;;   Check the common non-delimiting characters that Racket writes
+         ;;   without vertical bars in symbol names.
+         (func $format/symbol-simple-bare-char?/i32
+               (param $cp i32)
+               (result    i32)
+
+               (if (i32.and (i32.ge_u (local.get $cp) (i32.const 65))
+                            (i32.le_u (local.get $cp) (i32.const 90)))
+                   (then (return (i32.const 1))))
+               (if (i32.and (i32.ge_u (local.get $cp) (i32.const 97))
+                            (i32.le_u (local.get $cp) (i32.const 122)))
+                   (then (return (i32.const 1))))
+               (if (i32.and (i32.ge_u (local.get $cp) (i32.const 48))
+                            (i32.le_u (local.get $cp) (i32.const 57)))
+                   (then (return (i32.const 1))))
+               (if (i32.eq (local.get $cp) (i32.const 33))  ;; !
+                   (then (return (i32.const 1))))
+               (if (i32.eq (local.get $cp) (i32.const 35))  ;; #
+                   (then (return (i32.const 1))))
+               (if (i32.and (i32.ge_u (local.get $cp) (i32.const 36))
+                            (i32.le_u (local.get $cp) (i32.const 38))) ;; $ % &
+                   (then (return (i32.const 1))))
+               (if (i32.eq (local.get $cp) (i32.const 42))  ;; *
+                   (then (return (i32.const 1))))
+               (if (i32.eq (local.get $cp) (i32.const 43))  ;; +
+                   (then (return (i32.const 1))))
+               (if (i32.eq (local.get $cp) (i32.const 45))  ;; -
+                   (then (return (i32.const 1))))
+               (if (i32.eq (local.get $cp) (i32.const 46))  ;; .
+                   (then (return (i32.const 1))))
+               (if (i32.eq (local.get $cp) (i32.const 47))  ;; /
+                   (then (return (i32.const 1))))
+               (if (i32.eq (local.get $cp) (i32.const 58))  ;; :
+                   (then (return (i32.const 1))))
+               (if (i32.and (i32.ge_u (local.get $cp) (i32.const 60))
+                            (i32.le_u (local.get $cp) (i32.const 64))) ;; < = > ? @
+                   (then (return (i32.const 1))))
+               (if (i32.eq (local.get $cp) (i32.const 94))  ;; ^
+                   (then (return (i32.const 1))))
+               (if (i32.eq (local.get $cp) (i32.const 95))  ;; _
+                   (then (return (i32.const 1))))
+               (if (i32.eq (local.get $cp) (i32.const 126)) ;; ~
+                   (then (return (i32.const 1))))
+               (i32.const 0))
+
+         ;; format/symbol-write-style/i32 : string? -> exact-integer?
+         ;;   Return 0 for bare, 1 for backslash-escaped bare, and 2 for
+         ;;   vertical-bar quoted symbol output.
+         (func $format/symbol-write-style/i32
+               (param $name (ref $String))
+               (result      i32)
+
+               (local $arr   (ref $I32Array))
+               (local $len   i32)
+               (local $i     i32)
+               (local $cp    i32)
+               (local $first i32)
+               (local $style i32)
+
+               (local.set $arr (struct.get $String $codepoints (local.get $name)))
+               (local.set $len (array.len (local.get $arr)))
+               (if (i32.eqz (local.get $len))
+                   (then (return (i32.const 2))))
+               (local.set $first (array.get $I32Array (local.get $arr) (i32.const 0)))
+               (if (i32.eq (local.get $first) (i32.const 35)) ;; #
+                   (then (return (i32.const 2))))
+               (if (i32.and (i32.eq (local.get $len) (i32.const 1))
+                            (i32.or
+                             (i32.eq (local.get $first) (i32.const 46)) ;; .
+                             (i32.and (i32.ge_u (local.get $first) (i32.const 48))
+                                      (i32.le_u (local.get $first) (i32.const 57)))))
+                   (then (return (i32.const 2))))
+               (if (i32.and (i32.ge_u (local.get $first) (i32.const 48))
+                            (i32.le_u (local.get $first) (i32.const 57)))
+                   (then (return (i32.const 2)))) ;; conservative numeric/readable case
+               (local.set $style (i32.const 0))
+               (local.set $i (i32.const 0))
+               (block $done
+                      (loop $loop
+                            (br_if $done (i32.ge_u (local.get $i) (local.get $len)))
+                            (local.set $cp
+                                       (array.get $I32Array
+                                                  (local.get $arr)
+                                                  (local.get $i)))
+                            (if (i32.eq (local.get $cp) (i32.const 124)) ;; |
+                                (then
+                                 (local.set $style (i32.const 1))
+                                 (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                                 (br $loop)))
+                            (if (i32.eqz (call $format/symbol-simple-bare-char?/i32
+                                               (local.get $cp)))
+                                (then (return (i32.const 2))))
+                            (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                            (br $loop)))
+               (local.get $style))
+
+         ;; format/write:symbol : symbol? -> string?
+         ;;   Render symbols for write/print mode, including common reader
+         ;;   escapes used in Racket error messages.
+         (func $format/write:symbol
+               (param $sym (ref $Symbol))
+               (result     (ref $String))
+
+               (local $name  (ref $String))
+               (local $arr   (ref $I32Array))
+               (local $out   (ref $I32GrowableArray))
+               (local $len   i32)
+               (local $i     i32)
+               (local $cp    i32)
+               (local $style i32)
+
+               (local.set $name (ref.cast (ref $String)
+                                           (call $symbol->string (local.get $sym))))
+               (local.set $style (call $format/symbol-write-style/i32 (local.get $name)))
+               (if (i32.eqz (local.get $style))
+                   (then (return (local.get $name))))
+
+               (local.set $arr (struct.get $String $codepoints (local.get $name)))
+               (local.set $len (array.len (local.get $arr)))
+               (local.set $out (call $make-i32growable-array
+                                      (i32.add (i32.const 2)
+                                               (i32.mul (local.get $len) (i32.const 2)))))
+               (if (i32.eq (local.get $style) (i32.const 2))
+                   (then (call $i32growable-array-add! (local.get $out) (i32.const 124)))) ;; |
+               (local.set $i (i32.const 0))
+               (block $done
+                      (loop $loop
+                            (br_if $done (i32.ge_u (local.get $i) (local.get $len)))
+                            (local.set $cp
+                                       (array.get $I32Array
+                                                  (local.get $arr)
+                                                  (local.get $i)))
+                            (if (i32.eq (local.get $cp) (i32.const 124)) ;; |
+                                (then
+                                 (call $i32growable-array-add! (local.get $out) (i32.const 92)) ;; \
+                                 (call $i32growable-array-add! (local.get $out) (local.get $cp))
+                                 (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                                 (br $loop)))
+                            (call $i32growable-array-add! (local.get $out) (local.get $cp))
+                            (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                            (br $loop)))
+               (if (i32.eq (local.get $style) (i32.const 2))
+                   (then (call $i32growable-array-add! (local.get $out) (i32.const 124)))) ;; |
                (call $i32growable-array->immutable-string (local.get $out)))
 
          ;; format/write:bytes : bytes? -> string?
