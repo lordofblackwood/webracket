@@ -1369,6 +1369,9 @@
                (if (ref.test (ref $StencilVector) (local.get $v))
                    (then (return (call $format/write:stencil-vector
                                        (ref.cast (ref $StencilVector) (local.get $v))))))
+               (if (ref.test (ref $Treelist) (local.get $v))
+                   (then (return (call $format/write:treelist
+                                       (ref.cast (ref $Treelist) (local.get $v))))))
                (if (ref.eq (call $srcloc? (local.get $v)) (global.get $true))
                    (then (return (call $format/write:srcloc (local.get $v)))))
                (if (ref.test (ref $Struct) (local.get $v))
@@ -2501,18 +2504,18 @@
                (call $growable-array-of-strings->string (local.get $out)))
 
          ;; format/display:treelist : (ref $Treelist) -> (ref $String)
-         ;;   Format a treelist in display mode as #<treelist> or #<treelist: elem ...>.
+         ;;   Format a treelist as #<treelist> or #<treelist: elem ...>.
          (func $format/display:treelist-node-into!
                (param $node    (ref $TreelistNode))
                (param $height  i32)
                (param $out     (ref $GrowableArray))
                (param $emitted i32)
+               (param $write?  i32)
                (result i32)
                (local $children (ref $Array))
                (local $count    i32)
                (local $i        i32)
                (local $elem     (ref eq))
-               (local $str      (ref $String))
                (local $child    (ref $TreelistNode))
                (local.set $children (call $treelist-node-children (local.get $node)))
                (local.set $count    (array.len (local.get $children)))
@@ -2529,8 +2532,15 @@
                                                                            (global.get $string:space)))))
                                  (local.set $elem
                                             (array.get $Array (local.get $children) (local.get $i)))
-                                 (local.set $str (call $format/display (local.get $elem)))
-                                 (call $growable-array-add! (local.get $out) (local.get $str))
+                                 (if (local.get $write?)
+                                     (then
+                                      (call $growable-array-add!
+                                            (local.get $out)
+                                            (call $format/write (local.get $elem))))
+                                     (else
+                                      (call $growable-array-add!
+                                            (local.get $out)
+                                            (call $format/display (local.get $elem)))))
                                  (local.set $emitted (i32.add (local.get $emitted) (i32.const 1)))
                                  (local.set $i (i32.add (local.get $i) (i32.const 1)))
                                  (br $leaf)))
@@ -2547,7 +2557,8 @@
                                              (local.get $child)
                                              (i32.sub (local.get $height) (i32.const 1))
                                              (local.get $out)
-                                             (local.get $emitted)))
+                                             (local.get $emitted)
+                                             (local.get $write?)))
                             (local.set $i (i32.add (local.get $i) (i32.const 1)))
                             (br $loop)))
                (local.get $emitted))
@@ -2571,7 +2582,36 @@
                                 (struct.get $Treelist $root (local.get $tl))
                                 (struct.get $Treelist $height (local.get $tl))
                                 (local.get $out)
+                                (i32.const 0)
                                 (i32.const 0)))
+               (call $growable-array-add! (local.get $out)
+                                          (ref.cast (ref $String)
+                                                    (global.get $string:->)))
+               (call $growable-array-of-strings->string (local.get $out)))
+
+         ;; format/write:treelist : treelist? -> string?
+         ;;   Render treelist elements recursively using write/print conventions.
+         (func $format/write:treelist (param $tl (ref $Treelist)) (result (ref $String))
+               (local $out     (ref $GrowableArray))
+               (local $len     i32)
+               (local $emitted i32)
+
+               (local.set $len (struct.get $Treelist $size (local.get $tl)))
+               (if (i32.eqz (local.get $len))
+                   (then
+                    (return (ref.cast (ref $String)
+                                      (global.get $string:hash-less-treelist)))))
+               (local.set $out (call $make-growable-array (i32.const 8)))
+               (call $growable-array-add! (local.get $out)
+                                          (ref.cast (ref $String)
+                                                    (global.get $string:hash-less-treelist-colon-space)))
+               (local.set $emitted
+                          (call $format/display:treelist-node-into!
+                                (struct.get $Treelist $root (local.get $tl))
+                                (struct.get $Treelist $height (local.get $tl))
+                                (local.get $out)
+                                (i32.const 0)
+                                (i32.const 1)))
                (call $growable-array-add! (local.get $out)
                                           (ref.cast (ref $String)
                                                     (global.get $string:->)))

@@ -174,6 +174,16 @@
        (catch-contract/contains?
         (lambda () (format (format-plain "x" 'a)))
         "format" "string?" "given: #(struct format-plain \"x\" a)"))
+ (list "format renders treelists with write-mode elements"
+       (let ([plain (treelist 1 "x" 'a)]
+             [kw    (treelist (quote #:k) "x")])
+         (and (equal? (format "~a" plain) "#<treelist: 1 x a>")
+              (equal? (format "~s" plain) "#<treelist: 1 \"x\" a>")
+              (equal? (format "~s" kw) "#<treelist: #:k \"x\">"))))
+ (list "format error messages render treelist elements in write mode"
+       (catch-contract/contains?
+        (lambda () (format (treelist "x")))
+        "format" "string?" "given: #<treelist: \"x\">"))
  (list "format renders characters in display and write modes"
        (and (equal? (format "~a" #\a) "a")
             (equal? (format "~s" #\a) "#\\a")
