@@ -1346,6 +1346,9 @@
                (if (ref.test (ref $String) (local.get $v))
                    (then (return (call $format/write:string
                                        (ref.cast (ref $String) (local.get $v))))))
+               (if (ref.test (ref $Bytes) (local.get $v))
+                   (then (return (call $format/write:bytes
+                                       (ref.cast (ref $Bytes) (local.get $v))))))
                (if (ref.test (ref $Pair) (local.get $v))
                    (then (return (call $format/write:pair
                                        (local.get $v)))))
@@ -1360,6 +1363,12 @@
                                        (ref.cast (ref $StencilVector) (local.get $v))))))
                (if (ref.eq (call $srcloc? (local.get $v)) (global.get $true))
                    (then (return (call $format/write:srcloc (local.get $v)))))
+               (if (ref.test (ref $Box) (local.get $v))
+                   (then (return (call $format/write:box
+                                       (ref.cast (ref $Box) (local.get $v))))))
+               (if (ref.test (ref $Hash) (local.get $v))
+                   (then (return (call $format/write:hash
+                                       (ref.cast (ref $Hash) (local.get $v))))))
                (if (ref.test (ref $DateStar) (local.get $v))
                    (then (return (call $format/write:date-star
                                        (ref.cast (ref $DateStar) (local.get $v))))))
@@ -1478,6 +1487,13 @@
                             (br $loop)))
                (call $i32growable-array-add! (local.get $out) (i32.const 34)) ;; '"'
                (call $i32growable-array->immutable-string (local.get $out)))
+
+         ;; format/write:bytes : bytes? -> string?
+         ;;   Render bytes in quoted byte-string notation.
+         (func $format/write:bytes
+               (param $bs (ref $Bytes))
+               (result    (ref $String))
+               (call $format/display:bytes (local.get $bs)))
 
          ;; format/write:pair : pair? -> string?
          ;;   Render pairs recursively using write/print conventions.
@@ -1627,6 +1643,39 @@
                (call $growable-array-add! (local.get $out)
                                         (ref.cast (ref $String)
                                                  (global.get $string:close-paren)))
+               (call $growable-array-of-strings->string (local.get $out)))
+
+         ;; format/write:hash : hash? -> string?
+         ;;   Render hashes recursively using write/print conventions.
+         (func $format/write:hash
+               (param $ht (ref $Hash))
+               (result (ref $String))
+
+               (local $alist      (ref eq))
+               (local $alist-str  (ref $String))
+               (local $prefix     (ref $String))
+               (local $out        (ref $GrowableArray))
+
+               (local.set $alist (call $hash->list
+                                       (ref.cast (ref eq) (local.get $ht))
+                                       (global.get $false)))
+               (local.set $alist-str (call $format/write:assoc (local.get $alist)))
+
+               (local.set $prefix (ref.cast (ref $String)
+                                            (global.get $string:hash-hash)))
+               (if (ref.test (ref $HashEq) (local.get $ht))
+                   (then (local.set $prefix (ref.cast (ref $String)
+                                                      (global.get $string:hash-hasheq)))))
+               (if (ref.test (ref $HashEqv) (local.get $ht))
+                   (then (local.set $prefix (ref.cast (ref $String)
+                                                      (global.get $string:hash-hasheqv)))))
+               (if (ref.test (ref $HashEqualAlways) (local.get $ht))
+                   (then (local.set $prefix (ref.cast (ref $String)
+                                                      (global.get $string:hash-hashalw)))))
+
+               (local.set $out (call $make-growable-array (i32.const 2)))
+               (call $growable-array-add! (local.get $out) (local.get $prefix))
+               (call $growable-array-add! (local.get $out) (local.get $alist-str))
                (call $growable-array-of-strings->string (local.get $out)))
 
          (func $format/display:hash
@@ -2240,6 +2289,23 @@
                ;; Combine and return
                (call $growable-array-of-strings->string (local.get $out)))
 
+         ;; format/write:box : box? -> string?
+         ;;   Render boxes recursively using write/print conventions.
+         (func $format/write:box
+               (param $b (ref $Box))
+               (result   (ref $String))
+
+               (local $val     (ref eq))
+               (local $val-str (ref $String))
+               (local $out     (ref $GrowableArray))
+
+               (local.set $val (struct.get $Box $v (local.get $b)))
+               (local.set $val-str (call $format/write (local.get $val)))
+               (local.set $out (call $make-growable-array (i32.const 3)))
+               (call $growable-array-add! (local.get $out) (global.get $string:box-prefix))
+               (call $growable-array-add! (local.get $out) (local.get $val-str))
+               (call $growable-array-of-strings->string (local.get $out)))
+
          (func $raise-format/display:vector:expected-values
                (call $raise-arguments-error
                      (global.get $symbol:format)
@@ -2342,6 +2408,57 @@
                (call $growable-array-add! (local.get $out)
                                         (ref.cast (ref $String)
                                                  (global.get $string:close-paren)))
+               (call $growable-array-of-strings->string (local.get $out)))
+
+         ;; format/write:assoc : (listof pair?) -> string?
+         ;;   Render association lists recursively using write/print conventions.
+         (func $format/write:assoc
+               (param $alist (ref eq))
+               (result       (ref $String))
+
+               (local $out       (ref $GrowableArray))
+               (local $cursor    (ref eq))
+               (local $cell      (ref $Pair))
+               (local $entry     (ref eq))
+               (local $entry-str (ref $String))
+               (local $first?    i32)
+
+               (if (ref.eq (local.get $alist) (global.get $null))
+                   (then (return (ref.cast (ref $String) (global.get $string:null)))))
+
+               (local.set $out    (call $make-growable-array (i32.const 8)))
+               (local.set $cursor (local.get $alist))
+               (local.set $first? (i32.const 1))
+
+               (call $growable-array-add! (local.get $out)
+                     (ref.cast (ref $String)
+                               (global.get $string:open-paren)))
+               (block $done
+                      (loop $walk
+                            (br_if $done (ref.eq (local.get $cursor) (global.get $null)))
+                            (if (i32.eqz (ref.test (ref $Pair) (local.get $cursor)))
+                                (then (call $raise-format/display:pair:expected-pair
+                                            (local.get $cursor))
+                                      (unreachable)))
+                            (local.set $cell (ref.cast (ref $Pair) (local.get $cursor)))
+                            (local.set $entry (struct.get $Pair $a (local.get $cell)))
+                            (if (i32.eqz (ref.test (ref $Pair) (local.get $entry)))
+                                (then (call $raise-format/display:pair:expected-pair
+                                            (local.get $entry))
+                                      (unreachable)))
+                            (if (i32.eqz (local.get $first?))
+                                (then (call $growable-array-add! (local.get $out)
+                                            (ref.cast (ref $String)
+                                                      (global.get $string:space))))
+                                (else (local.set $first? (i32.const 0))))
+                            (local.set $entry-str (call $format/write (local.get $entry)))
+                            (call $growable-array-add! (local.get $out) (local.get $entry-str))
+                            (local.set $cursor (struct.get $Pair $d (local.get $cell)))
+                            (br $walk)))
+
+               (call $growable-array-add! (local.get $out)
+                     (ref.cast (ref $String)
+                               (global.get $string:close-paren)))
                (call $growable-array-of-strings->string (local.get $out)))
 
          (func $format/display:unquoted-printing-string

@@ -112,6 +112,22 @@
         (catch-contract/contains?
          (lambda () (format (srcloc "file" 1 2 3 4)))
          "format" "string?" "given: #(struct:srcloc \"file\" 1 2 3 4)")))
+ (list "format write mode preserves container element quoting"
+       (and (equal? (format "~s" #"abc") "#\"abc\"")
+            (equal? (format "~s" (box "x")) "#&\"x\"")
+            (equal? (format "~s" (hash 'a "x")) "#hash((a . \"x\"))")
+            (equal? (format "~s" (hasheq 'a "x")) "#hasheq((a . \"x\"))")))
+ (list "format error messages render write-mode containers"
+       (and
+        (catch-contract/contains?
+         (lambda () (format #"abc"))
+         "format" "string?" "given: #\"abc\"")
+        (catch-contract/contains?
+         (lambda () (format (box "x")))
+         "format" "string?" "given: '#&\"x\"")
+        (catch-contract/contains?
+         (lambda () (format (hash 'a "x")))
+         "format" "string?" "given: '#hash((a . \"x\"))")))
  (list "format renders module-path reflection values without traps"
        (let* ([mpi (module-path-index-join 'racket/base #f)]
               [resolved (module-path-index-resolve mpi)])
