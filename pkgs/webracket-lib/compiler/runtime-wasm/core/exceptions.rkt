@@ -46,6 +46,7 @@
     (other-argument-line "\n   ")
     (argument-field-prefix "\n  ")
     (argument-field-separator ": ")
+    (contract-result-prefix "\n  result: ")
     (raise-arguments-error-missing-value "missing value after field string")
     (raise-arguments-error-string "string")
     (error-prefix "error: ")
@@ -423,13 +424,15 @@
                (local $handler-result (ref eq))
 
                ;; Validate handler argument.
-               (if (i32.eqz (ref.test (ref $Procedure) (local.get $handler)))
+               (if (ref.eq (call $procedure? (local.get $handler))
+                           (global.get $false))
                    (then (call $call-with-exception-handler:procedure-expected-as-handler
                                (local.get $handler))
                          (unreachable)))
 
                ;; Validate thunk argument.
-               (if (i32.eqz (ref.test (ref $Procedure) (local.get $thunk)))
+               (if (ref.eq (call $procedure? (local.get $thunk))
+                           (global.get $false))
                    (then (call $call-with-exception-handler:procedure-expected-as-thunk
                                (local.get $thunk))
                          (unreachable)))
@@ -505,15 +508,18 @@
                (local $exn-val      (ref eq))
 
                ;; Validate the predicate, handler, and thunk arguments.
-               (if (i32.eqz (ref.test (ref $Procedure) (local.get $pred)))
+               (if (ref.eq (call $procedure? (local.get $pred))
+                           (global.get $false))
                    (then (call $catch:procedure-expected-for-predicate
                                (local.get $pred))
                          (unreachable)))
-               (if (i32.eqz (ref.test (ref $Procedure) (local.get $handler)))
+               (if (ref.eq (call $procedure? (local.get $handler))
+                           (global.get $false))
                    (then (call $catch:procedure-expected-for-handler
                                (local.get $handler))
                          (unreachable)))
-               (if (i32.eqz (ref.test (ref $Procedure) (local.get $thunk)))
+               (if (ref.eq (call $procedure? (local.get $thunk))
+                           (global.get $false))
                    (then (call $catch:procedure-expected-for-thunk
                                (local.get $thunk))
                          (unreachable)))
@@ -612,7 +618,8 @@
                (local $exn-val      (ref eq))
 
                ;; Validate thunk argument.
-               (if (i32.eqz (ref.test (ref $Procedure) (local.get $thunk)))
+               (if (ref.eq (call $procedure? (local.get $thunk))
+                           (global.get $false))
                    (then (call $catch*:procedure-expected-for-thunk (local.get $thunk))
                          (unreachable)))
 
@@ -655,10 +662,12 @@
                             (local.set $pred-val (struct.get $Pair $a (local.get $pred-pair)))
                             (local.set $handler-val (struct.get $Pair $a (local.get $handler-pair)))
 
-                            (if (i32.eqz (ref.test (ref $Procedure) (local.get $pred-val)))
+                            (if (ref.eq (call $procedure? (local.get $pred-val))
+                                        (global.get $false))
                                 (then (call $catch*:procedure-expected-for-predicate (local.get $pred-val))
                                       (unreachable)))
-                            (if (i32.eqz (ref.test (ref $Procedure) (local.get $handler-val)))
+                            (if (ref.eq (call $procedure? (local.get $handler-val))
+                                        (global.get $false))
                                 (then (call $catch*:procedure-expected-for-handler (local.get $handler-val))
                                       (unreachable)))
                             (local.set $pred-node (struct.get $Pair $d (local.get $pred-pair)))
@@ -716,11 +725,13 @@
                             (local.set $pred-tail    (struct.get $Pair $d  (local.get $pred-pair)))
                             (local.set $handler-tail (struct.get $Pair $d  (local.get $handler-pair)))
 
-                            (if (i32.eqz (ref.test (ref $Procedure) (local.get $pred-val)))
-                                (then (call $raise-argument-error:procedure-expected (local.get $pred-val))
+                            (if (ref.eq (call $procedure? (local.get $pred-val))
+                                        (global.get $false))
+                                (then (call $catch*:procedure-expected-for-predicate (local.get $pred-val))
                                       (unreachable)))
-                            (if (i32.eqz (ref.test (ref $Procedure) (local.get $handler-val)))
-                                (then (call $raise-argument-error:procedure-expected (local.get $handler-val))
+                            (if (ref.eq (call $procedure? (local.get $handler-val))
+                                        (global.get $false))
+                                (then (call $catch*:procedure-expected-for-handler (local.get $handler-val))
                                       (unreachable)))
 
                             (local.set $pred-proc (ref.cast (ref $Procedure) (local.get $pred-val)))
@@ -4427,6 +4438,39 @@
                      (global.get $string:valid-argument)
                      (local.get $x)))
 
+         ;; raise-result-error : symbol? string? any/c -> none
+         ;;   Raise a contract error for a bad callback result.
+         (func $raise-result-error
+               (param $who      (ref eq))
+               (param $expected (ref eq))
+               (param $result   (ref eq))
+
+               (local $out     (ref $GrowableArray))
+               (local $message (ref $String))
+
+               (local.set $out (call $make-growable-array (i32.const 5)))
+               (call $growable-array-add! (local.get $out)
+                     (call $format/display (local.get $who)))
+               (call $growable-array-add! (local.get $out)
+                     (global.get $string:contract-violation:prefix))
+               (call $growable-array-add! (local.get $out)
+                     (ref.cast (ref $String) (local.get $expected)))
+               (call $growable-array-add! (local.get $out)
+                     (global.get $string:contract-result-prefix))
+               (call $growable-array-add! (local.get $out)
+                     (call $format/print
+                           (local.get $result)
+                           (global.get $missing)))
+               (local.set $message
+                          (call $growable-array-of-strings->string (local.get $out)))
+
+               (call $raise
+                     (call $exn:fail:contract/make
+                           (local.get $message)
+                           (call $current-continuation-marks (global.get $missing)))
+                     (global.get $true))
+               (unreachable))
+
          (func $raise-argument-error/position
                (param $who       (ref eq))
                (param $expected  (ref eq))
@@ -5038,6 +5082,7 @@
       $exn?
       $exn-message
       $error
+      $raise-result-error
       $raise-arguments-error
       $raise-expected-fixnum)
     bootstrap-error-runtime-only-helper-names

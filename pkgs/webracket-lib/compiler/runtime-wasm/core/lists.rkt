@@ -654,6 +654,15 @@
                             (global.get $string:argminmax-procedure)
                             (local.get $proc))
                       (unreachable)))
+            (local.set $f (ref.cast (ref $Procedure) (local.get $proc)))
+            (if (i32.eqz (call $procedure-arity-includes?/checked/i32
+                               (local.get $f)
+                               (i32.const 1)))
+                (then (call $raise-argument-error1
+                            (global.get ,who)
+                            (global.get $string:argminmax-procedure)
+                            (local.get $proc))
+                      (unreachable)))
             ;; Ensure lst is a non-empty proper list
             (if (ref.eq (local.get $lst) (global.get $null))
                 (then (call $raise-argument-error1
@@ -667,7 +676,6 @@
                             (global.get $string:non-empty-list?)
                             (local.get $lst))
                       (unreachable)))
-            (local.set $f    (ref.cast (ref $Procedure) (local.get $proc)))
             (local.set $finv (struct.get $Procedure $invoke (local.get $f)))
 
             ;; Prepare argument array
@@ -681,6 +689,12 @@
                                         (local.get $f)
                                         (local.get $args)
                                         (local.get $finv)))
+            (if (ref.eq (call $real? (local.get $bestv)) (global.get $false))
+                (then (call $raise-result-error
+                            (global.get ,who)
+                            (global.get $string:real?)
+                            (local.get $bestv))
+                      (unreachable)))
             (local.set $cur (struct.get $Pair $d (local.get $pair)))
 
             (block $done
@@ -697,6 +711,12 @@
                                               (local.get $f)
                                               (local.get $args)
                                               (local.get $finv)))
+                         (if (ref.eq (call $real? (local.get $val)) (global.get $false))
+                             (then (call $raise-result-error
+                                         (global.get ,who)
+                                         (global.get $string:real?)
+                                         (local.get $val))
+                                   (unreachable)))
                          (if (ref.eq (call ,cmp (local.get $bestv) (local.get $val))
                                      (global.get $true))
                              (then (local.set $best  (local.get $elem))

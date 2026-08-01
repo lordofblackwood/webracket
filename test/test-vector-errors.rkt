@@ -14,6 +14,10 @@
                    (string-contains? message needle))
                  needles))))
 
+(struct vector-plain ())
+
+(define vector-plain-given "given: #(struct vector-plain)")
+
 (list
  (list "make-vector length errors are catchable with who"
        (and
@@ -27,6 +31,24 @@
          "make-vector"
          "valid-vector-length?"
          "given: -1")))
+ (list "vector-extend length errors match public contracts"
+       (and
+        (catch-contract/contains?
+         (lambda () (vector-extend '#(a b) #f))
+         "vector-extend"
+         "exact-nonnegative-integer?"
+         "given: #f")
+        (catch-contract/contains?
+         (lambda () (vector-extend '#(a b) -1))
+         "vector-extend"
+         "exact-nonnegative-integer?"
+         "given: -1")
+        (catch-contract/contains?
+         (lambda () (vector-extend '#(a b) 1))
+         "vector-extend"
+         "new length is shorter than existing length"
+         "new length: 1"
+         "existing length: 2")))
  (list "build-vector length errors are catchable with who"
        (and
         (catch-contract/contains?
@@ -40,11 +62,69 @@
          "exact-nonnegative-integer?"
          "given: -1")))
  (list "build-vector procedure errors are catchable with who"
-       (catch-contract/contains?
-        (lambda () (build-vector 1 #f))
-        "build-vector"
-        "(exact-nonnegative-integer? . -> . any/c)"
-        "given: #f"))
+       (and
+        (catch-contract/contains?
+         (lambda () (build-vector 1 #f))
+         "build-vector"
+         "(exact-nonnegative-integer? . -> . any/c)"
+         "given: #f")
+        (catch-contract/contains?
+         (lambda () (build-vector 1 (lambda () 1)))
+         "build-vector"
+         "(exact-nonnegative-integer? . -> . any/c)"
+         "given:")))
+ (list "vector procedure positions reject plain structs"
+       (and
+        (catch-contract/contains?
+         (lambda () (build-vector 1 (vector-plain)))
+         "build-vector"
+         "(exact-nonnegative-integer? . -> . any/c)"
+         vector-plain-given)
+        (catch-contract/contains?
+         (lambda () (vector-map (vector-plain) '#(1)))
+         "vector-map"
+         "procedure?"
+         vector-plain-given)
+        (catch-contract/contains?
+         (lambda () (vector-map! (vector-plain) (vector 1)))
+         "vector-map!"
+         "procedure?"
+         vector-plain-given)
+        (catch-contract/contains?
+         (lambda () (vector-count (vector-plain) '#(1)))
+         "vector-count"
+         "procedure?"
+         vector-plain-given)
+        (catch-contract/contains?
+         (lambda () (vector-argmin (vector-plain) '#(1)))
+         "vector-argmin"
+         "(any/c . -> . real?)"
+         vector-plain-given)
+        (catch-contract/contains?
+         (lambda () (vector-filter (vector-plain) '#(1)))
+         "vector-filter"
+         "(any/c . -> . any/c)"
+         vector-plain-given)
+        (catch-contract/contains?
+         (lambda () (vector-filter-not (vector-plain) '#(1)))
+         "vector-filter-not"
+         "(any/c . -> . any/c)"
+         vector-plain-given)
+        (catch-contract/contains?
+         (lambda () (vector-member 1 '#(1) (vector-plain)))
+         "vector-member"
+         "procedure?"
+         vector-plain-given)
+        (catch-contract/contains?
+         (lambda () (vector-sort '#(1 2) (vector-plain)))
+         "vector-sort"
+         "(any/c any/c . -> . any/c)"
+         vector-plain-given)
+        (catch-contract/contains?
+         (lambda () (vector-sort! (vector 1 2) (vector-plain)))
+         "vector-sort!"
+         "(any/c any/c . -> . any/c)"
+         vector-plain-given)))
  (list "vector map/count procedure errors are catchable with who"
        (and
         (catch-contract/contains?
@@ -104,7 +184,27 @@
          (lambda () (vector-argmax values '#()))
          "vector-argmax"
          "(and/c vector? (lambda (v) (positive? (vector-length v))))"
-         "given: '#()")))
+         "given: '#()")
+        (catch-contract/contains?
+         (lambda () (vector-argmin (lambda () 1) '#(1)))
+         "vector-argmin"
+         "(any/c . -> . real?)"
+         "given:")
+        (catch-contract/contains?
+         (lambda () (vector-argmax (lambda () 1) '#(1)))
+         "vector-argmax"
+         "(any/c . -> . real?)"
+         "given:")
+        (catch-contract/contains?
+         (lambda () (vector-argmin (lambda (x) 'a) '#(1)))
+         "vector-argmin"
+         "expected: real?"
+         "result: 'a")
+        (catch-contract/contains?
+         (lambda () (vector-argmax (lambda (x) 'a) '#(1)))
+         "vector-argmax"
+         "expected: real?"
+         "result: 'a")))
  (list "vector filter/search procedure errors are catchable with who"
        (and
         (catch-contract/contains?
@@ -121,7 +221,17 @@
          (lambda () (vector-member 1 '#(1) #f))
          "vector-member"
          "procedure?"
-         "given: #f")))
+         "given: #f")
+        (catch-contract/contains?
+         (lambda () (vector-filter (lambda () #t) '#(1)))
+         "vector-filter"
+         "(any/c . -> . any/c)"
+         "given:")
+        (catch-contract/contains?
+         (lambda () (vector-filter-not (lambda () #t) '#(1)))
+         "vector-filter-not"
+         "(any/c . -> . any/c)"
+         "given:")))
  (list "vector sort procedure errors are catchable with who"
        (and
         (catch-contract/contains?
@@ -133,7 +243,17 @@
          (lambda () (vector-sort! (vector 1) #f))
          "vector-sort!"
          "(any/c any/c . -> . any/c)"
-         "given: #f")))
+         "given: #f")
+        (catch-contract/contains?
+         (lambda () (vector-sort '#(2 1) (lambda (x) #t)))
+         "vector-sort"
+         "(any/c any/c . -> . any/c)"
+         "given:")
+        (catch-contract/contains?
+         (lambda () (vector-sort! (vector 2 1) (lambda (x) #t)))
+         "vector-sort!"
+         "(any/c any/c . -> . any/c)"
+         "given:")))
  (list "negative vector element indexes preserve the public contract"
        (and
         (catch-contract/contains?

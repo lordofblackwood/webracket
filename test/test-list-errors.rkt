@@ -358,6 +358,26 @@
          "(any/c . -> . real?)"
          "given: #f")
         (catch-contract/contains?
+         (lambda () (argmax (lambda () 1) '(1)))
+         "argmax"
+         "(any/c . -> . real?)"
+         "given:")
+        (catch-contract/contains?
+         (lambda () (argmin (lambda () 1) '(1)))
+         "argmin"
+         "(any/c . -> . real?)"
+         "given:")
+        (catch-contract/contains?
+         (lambda () (argmax (lambda (x) 'a) '(1)))
+         "argmax"
+         "expected: real?"
+         "result: 'a")
+        (catch-contract/contains?
+         (lambda () (argmin (lambda (x) 'a) '(1)))
+         "argmin"
+         "expected: real?"
+         "result: 'a")
+        (catch-contract/contains?
          (lambda () (filter #f '(1 2)))
          "filter"
          "(any/c . -> . any/c)"

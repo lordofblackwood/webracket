@@ -35,6 +35,9 @@
     (mutable-vector?            "(and/c vector? (not/c immutable?))")
     (valid-vector-index         "valid vector index")
     (valid-vector-length        "valid-vector-length?")
+    (vector-extend-shorter      "new length is shorter than existing length")
+    (vector-extend-new-length   "new length")
+    (vector-extend-existing-length "existing length")
     (vector-index-out-of-range  ": index is out of range")
     (vector-index-out-of-range-empty ": index is out of range for empty vector")
     (vector-starting-index-out-of-range ": starting index is out of range")
@@ -845,10 +848,16 @@
                         (unreachable)))
 
               ;; --- Check procedure ---
-              (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
+              (if (ref.eq (call $procedure? (local.get $proc))
+                          (global.get $false))
                   (then (call $raise-build-vector:procedure-expected (local.get $proc))
                         (unreachable)))
-              (local.set $f    (ref.cast (ref $Procedure) (local.get $proc)))
+              (local.set $f (ref.cast (ref $Procedure) (local.get $proc)))
+              (if (i32.eqz (call $procedure-arity-includes?/checked/i32
+                                 (local.get $f)
+                                 (i32.const 1)))
+                  (then (call $raise-build-vector:procedure-expected (local.get $proc))
+                        (unreachable)))
               (local.set $finv (struct.get $Procedure $invoke (local.get $f)))
 
               ;; Delegate
@@ -1470,16 +1479,15 @@
                (param $v        (ref $Vector))
                (param $new-size (ref eq))
                (param $len      i32)
-               (call $raise-argument-error1
+               (call $raise-arguments-error
                      (global.get $symbol:vector-extend)
-                     (global.get $string:valid-vector-length)
-                     (local.get $new-size)))
-
-         ; TODO:
-         ;   Error message in original vector-extend
-         ;     vector-extend: new length is shorter than existing length
-         ;       new length: 3
-         ;       existing length: 7
+                     (global.get $string:vector-extend-shorter)
+                     (array.new_fixed $Args 4
+                                      (global.get $string:vector-extend-new-length)
+                                      (local.get $new-size)
+                                      (global.get $string:vector-extend-existing-length)
+                                      (ref.i31 (i32.shl (local.get $len) (i32.const 1)))))
+               (unreachable))
 
          (func $vector-extend (type $Prim23)
                (param $v        (ref eq))  ;; vector
@@ -1504,13 +1512,24 @@
                (if (ref.test (ref i31) (local.get $new-size))
                    (then (local.set $ns (i31.get_s (ref.cast (ref i31) (local.get $new-size))))
                          (if (i32.and (local.get $ns) (i32.const 1))
-                             (then (call $raise-check-fixnum/who
+                             (then (call $raise-argument-error1
                                          (global.get $symbol:vector-extend)
-                                         (local.get $new-size))))
+                                         (global.get $string:exact-nonnegative-integer?)
+                                         (local.get $new-size))
+                                   (unreachable)))
                          (local.set $ns (i32.shr_s (local.get $ns) (i32.const 1))))
-                   (else (call $raise-check-fixnum/who
+                   (else (call $raise-argument-error1
                                (global.get $symbol:vector-extend)
-                               (local.get $new-size))))
+                               (global.get $string:exact-nonnegative-integer?)
+                               (local.get $new-size))
+                         (unreachable)))
+
+               (if (i32.lt_s (local.get $ns) (i32.const 0))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:vector-extend)
+                               (global.get $string:exact-nonnegative-integer?)
+                               (local.get $new-size))
+                         (unreachable)))
 
                (local.set $fill (if (result (ref eq))
                                     (ref.eq (local.get $val) (global.get $missing))
@@ -2016,7 +2035,8 @@
               (local.set $vec0 (global.get $dummy-vector))
 
               ;; Validate procedure first, matching Racket's argument order.
-              (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
+              (if (ref.eq (call $procedure? (local.get $proc))
+                          (global.get $false))
                   (then (call $raise-vector-argument-error/who
                               (global.get $symbol:vector-map)
                               (global.get $string:procedure?)
@@ -2081,7 +2101,8 @@
               (local $tmp     (ref eq))
 
               ;; 1) Validate procedure
-              (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
+              (if (ref.eq (call $procedure? (local.get $proc))
+                          (global.get $false))
                   (then (call $raise-vector-argument-error/who
                               (local.get $who)
                               (global.get $string:procedure?)
@@ -2215,7 +2236,8 @@
               (local $cnt     i32)
 
               ;; 1) Validate procedure
-              (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
+              (if (ref.eq (call $procedure? (local.get $proc))
+                          (global.get $false))
                   (then (call $raise-vector-argument-error/who
                               (global.get $symbol:vector-count)
                               (global.get $string:procedure?)
@@ -2365,13 +2387,22 @@
                       (local.set $vector (global.get $dummy-vector))
 
                       ;; Validate procedure
-                      (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
+                      (if (ref.eq (call $procedure? (local.get $proc))
+                                  (global.get $false))
                           (then (call $raise-vector-argument-error/who
                                       (global.get ,who)
                                       (global.get $string:vector-unary-real-procedure)
                                       (local.get $proc))
                                 (unreachable)))
                       (local.set $f    (ref.cast (ref $Procedure) (local.get $proc)))
+                      (if (i32.eqz (call $procedure-arity-includes?/checked/i32
+                                         (local.get $f)
+                                         (i32.const 1)))
+                          (then (call $raise-vector-argument-error/who
+                                      (global.get ,who)
+                                      (global.get $string:vector-unary-real-procedure)
+                                      (local.get $proc))
+                                (unreachable)))
                       (local.set $finv (struct.get $Procedure $invoke (local.get $f)))
 
                       ;; Validate vector
@@ -2398,6 +2429,13 @@
                                                   (local.get $f)
                                                   (local.get $args)
                                                   (local.get $finv)))
+                      (if (ref.eq (call $real? (local.get $bestv))
+                                  (global.get $false))
+                          (then (call $raise-result-error
+                                      (global.get ,who)
+                                      (global.get $string:real?)
+                                      (local.get $bestv))
+                                (unreachable)))
                       (local.set $i (i32.const 1))
                       ;; Iterate remaining elements
                       (block $done
@@ -2411,6 +2449,13 @@
                                                              (local.get $f)
                                                              (local.get $args)
                                                              (local.get $finv)))
+                                   (if (ref.eq (call $real? (local.get $val))
+                                               (global.get $false))
+                                       (then (call $raise-result-error
+                                                   (global.get ,who)
+                                                   (global.get $string:real?)
+                                                   (local.get $val))
+                                             (unreachable)))
                                    (if (ref.eq (call ,cmp (local.get $bestv) (local.get $val))
                                                (global.get $true))
                                        (then (local.set $best  (local.get $elem))
@@ -2457,13 +2502,22 @@
               (local $arr   (ref $Array))
 
               ;; 1) Validate procedure
-              (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
+              (if (ref.eq (call $procedure? (local.get $proc))
+                          (global.get $false))
                   (then (call $raise-vector-argument-error/who
                               (local.get $who)
                               (global.get $string:vector-unary-any-procedure)
                               (local.get $proc))
                         (unreachable)))
               (local.set $f    (ref.cast (ref $Procedure) (local.get $proc)))
+              (if (i32.eqz (call $procedure-arity-includes?/checked/i32
+                                 (local.get $f)
+                                 (i32.const 1)))
+                  (then (call $raise-vector-argument-error/who
+                              (local.get $who)
+                              (global.get $string:vector-unary-any-procedure)
+                              (local.get $proc))
+                        (unreachable)))
               (local.set $finv (struct.get $Procedure $invoke (local.get $f)))
               ;; 2) Validate vector
               (local.set $v (global.get $dummy-vector))
@@ -2613,7 +2667,8 @@
                                   (global.get $symbol:vector-member)
                                   (local.get $vec))))
 
-                  (if (i32.eqz (ref.test (ref $Procedure) (local.get $same?)))
+                  (if (ref.eq (call $procedure? (local.get $same?))
+                              (global.get $false))
                       (then (call $raise-vector-argument-error/who
                                   (global.get $symbol:vector-member)
                                   (global.get $string:procedure?)
@@ -2904,13 +2959,22 @@
                         (unreachable)))
 
               ;; Validate procedure
-              (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
+              (if (ref.eq (call $procedure? (local.get $proc))
+                          (global.get $false))
                   (then (call $raise-vector-argument-error/who
                               (global.get $symbol:vector-sort!)
                               (global.get $string:vector-binary-any-procedure)
                               (local.get $proc))
                         (unreachable)))
               (local.set $f    (ref.cast (ref $Procedure) (local.get $proc)))
+              (if (i32.eqz (call $procedure-arity-includes?/checked/i32
+                                 (local.get $f)
+                                 (i32.const 2)))
+                  (then (call $raise-vector-argument-error/who
+                              (global.get $symbol:vector-sort!)
+                              (global.get $string:vector-binary-any-procedure)
+                              (local.get $proc))
+                        (unreachable)))
               (local.set $finv (struct.get $Procedure $invoke (local.get $f)))
               (local.set $call (array.new $Args (global.get $null) (i32.const 2)))
 
@@ -2955,9 +3019,20 @@
               (result       (ref eq))
 
               (local $copy (ref eq))
+              (local $f    (ref $Procedure))
 
               ;; Validate procedure
-              (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
+              (if (ref.eq (call $procedure? (local.get $proc))
+                          (global.get $false))
+                  (then (call $raise-vector-argument-error/who
+                              (global.get $symbol:vector-sort)
+                              (global.get $string:vector-binary-any-procedure)
+                              (local.get $proc))
+                        (unreachable)))
+              (local.set $f (ref.cast (ref $Procedure) (local.get $proc)))
+              (if (i32.eqz (call $procedure-arity-includes?/checked/i32
+                                 (local.get $f)
+                                 (i32.const 2)))
                   (then (call $raise-vector-argument-error/who
                               (global.get $symbol:vector-sort)
                               (global.get $string:vector-binary-any-procedure)

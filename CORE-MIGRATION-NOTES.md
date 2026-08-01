@@ -198,6 +198,14 @@ Current remaining raw-stub classes:
     but positive indexes that cannot step through pairs report an index error.
   - `take`, `drop`, `take-right`, and `drop-right` length failures now report
     the required element/pair count and print the original offending value.
+  - `argmin` and `argmax` now validate the callback's one-argument contract
+    before traversing the list, and validate that each callback result is
+    `real?`, including the first result for single-element lists.
+
+- `exceptions.rkt`:
+  - `$raise-result-error` is a shared helper for callback-result contract
+    failures. It raises catchable `exn:fail:contract` values with the public
+    `who`, `expected: ...`, and `result: ...` fields.
 
 - `checkers.rkt`:
   - `$match:error` now raises a catchable `exn:fail` value instead of raising a
@@ -335,6 +343,8 @@ Current remaining raw-stub classes:
     `vector-map`, `vector-map!`, and `vector-count` intentionally still mirror
     Racket's `procedure?` contract and let application report callback arity
     mismatches.
+  - `vector-argmin` and `vector-argmax` now validate that each callback result
+    is `real?`, including the first result for single-element vectors.
 
 - `structs.rkt`:
   - `$check-struct-type` is a shared validator that receives an explicit `who`
