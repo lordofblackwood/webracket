@@ -3417,9 +3417,9 @@
                                                 (lambda () (filter-map list '(a . b))))
                            (catch-contract/who? "partition"
                                                 (lambda () (partition 42 '(a))))
-                           (catch-contract/who? "append-map"
+                           (catch-contract/who? "map"
                                                 (lambda () (append-map 42 '(a))))
-                           (catch-contract/who? "append-map"
+                           (catch-contract/who? "map"
                                                 (lambda () (append-map list '(a . b))))
                            (catch-contract/who? "sort"
                                                 (lambda () (sort '(a . b) <)))
@@ -7057,32 +7057,32 @@
                        (catch-contract/contains?
                         (lambda () (hash-for-each (make-hash '((a . 1))) 42))
                         "hash-for-each"
-                        "procedure?"
+                        "(procedure-arity-includes/c 2)"
                         "given: 42")
                        (catch-contract/contains?
                         (lambda () (hash-for-each (hash 'a 1) 42))
                         "hash-for-each"
-                        "procedure?"
+                        "(procedure-arity-includes/c 2)"
                         "given: 42")
                        (catch-contract/contains?
                         (lambda () (hash-map (make-hash '((a . 1))) 42))
                         "hash-map"
-                        "procedure?"
+                        "(procedure-arity-includes/c 2)"
                         "given: 42")
                        (catch-contract/contains?
                         (lambda () (hash-map (hash 'a 1) 42))
                         "hash-map"
-                        "procedure?"
+                        "(procedure-arity-includes/c 2)"
                         "given: 42")
                        (catch-contract/contains?
                         (lambda () (hash-map/copy (make-hash '((a . 1))) 42))
                         "hash-map/copy"
-                        "procedure?"
+                        "(procedure-arity-includes/c 2)"
                         "given: 42")
                        (catch-contract/contains?
                         (lambda () (hash-map/copy (hash 'a 1) 42))
                         "hash-map/copy"
-                        "procedure?"
+                        "(procedure-arity-includes/c 2)"
                         "given: 42")
                        (catch-contract/contains?
                         (lambda () (hash-filter (make-hash '((a . 1))) 42))
@@ -7122,12 +7122,12 @@
                        (catch-contract/contains?
                         (lambda () (hash-update (hash 'a 1) 'a 42))
                         "hash-update"
-                        "procedure?"
+                        "(any/c . -> . any/c)"
                         "given: 42")
                        (catch-contract/contains?
                         (lambda () (hash-update! (make-hash '((a . 1))) 'a 42))
                         "hash-update!"
-                        "procedure?"
+                        "(any/c . -> . any/c)"
                         "given: 42"))))
 
               (list "immutable hash map/copy and filters"

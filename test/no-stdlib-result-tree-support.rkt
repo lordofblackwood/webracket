@@ -36,6 +36,10 @@
   (index name ok? message)
   #:transparent)
 
+(struct false-leaf
+  (path labels)
+  #:transparent)
+
 ;; make-no-stdlib-result-tree-fixture : path-string? [#:timeout-seconds exact-positive-integer?] [#:chunked? boolean?] [#:max-datum-bytes exact-positive-integer?] -> no-stdlib-result-tree-fixture?
 ;;   Build a generated-output fixture description for the parallel checker.
 (define (make-no-stdlib-result-tree-fixture path
@@ -144,27 +148,62 @@
 (define (read-single-datum output)
   (define in (open-input-string output))
   (define datum (read in))
-  (check-false (eof-object? datum) "test program should print one result datum")
+  (when (eof-object? datum)
+    (raise-user-error 'read-single-datum
+                      "test program should print one result datum"))
   (define trailing (read in))
-  (check-true (eof-object? trailing)
-              "test program should not print extra data after the result datum")
+  (unless (eof-object? trailing)
+    (raise-user-error
+     'read-single-datum
+     "test program should not print extra data after the result datum"))
   datum)
 
-;; false-leaf-paths : any/c -> (listof (listof any/c))
-;;   Find false leaves in a nested result tree.
-(define (false-leaf-paths datum)
+;; false-leaf-locations : any/c -> (listof false-leaf?)
+;;   Find false leaves in a nested result tree, preserving nearby labels.
+(define (false-leaf-locations datum)
   (let loop ([v datum] [path '()])
     (cond
-      [(eq? v #f) (list (reverse path))]
+      [(eq? v #f) (list (false-leaf (reverse path) '()))]
       [(pair? v)
        (append* (for/list ([child (in-list v)]
                            [index (in-naturals)])
-                  (loop child (cons index path))))]
+                  (define child-locations
+                    (loop child (cons index path)))
+                  (if (and (zero? index) (string? child))
+                      child-locations
+                      (attach-parent-label v child-locations))))]
       [(vector? v)
        (append* (for/list ([child (in-vector v)]
                            [index (in-naturals)])
                   (loop child (cons index path))))]
       [else '()])))
+
+;; attach-parent-label : any/c (listof false-leaf?) -> (listof false-leaf?)
+;;   Attach a leading string label from a list node to child false-leaf reports.
+(define (attach-parent-label v locations)
+  (cond
+    [(and (pair? v) (string? (car v)))
+     (for/list ([location (in-list locations)])
+       (false-leaf (false-leaf-path location)
+                   (cons (car v) (false-leaf-labels location))))]
+    [else locations]))
+
+;; false-leaf-paths : any/c -> (listof (listof any/c))
+;;   Find false leaves in a nested result tree.
+(define (false-leaf-paths datum)
+  (map false-leaf-path (false-leaf-locations datum)))
+
+;; false-leaf->string : false-leaf? -> string?
+;;   Render a false-leaf report with labels and the raw tree path.
+(define (false-leaf->string location)
+  (define labels (false-leaf-labels location))
+  (define label-text
+    (if (null? labels)
+        "<unlabeled>"
+        (string-join labels " > ")))
+  (format "~a at result-tree path ~s"
+          label-text
+          (false-leaf-path location)))
 
 ;; list-form-datum? : any/c -> boolean?
 ;;   Check whether datum is a source-level `(list ...)` form.
@@ -252,12 +291,15 @@
 ;;   Check one no-stdlib result-tree program output.
 (define (check-result-tree-output test-path output)
   (define datum (read-single-datum output))
-  (define failures (false-leaf-paths datum))
-  (check-equal? (length failures)
-                0
-                (format "~a false leaves at result-tree paths: ~s"
-                        test-path
-                        failures)))
+  (define failures (false-leaf-locations datum))
+  (unless (null? failures)
+    (raise-user-error
+     'check-result-tree-output
+     "~a false leaves:\n~a"
+     test-path
+     (string-join
+      (map false-leaf->string failures)
+      "\n"))))
 
 ;; check-no-stdlib-result-tree : path-string? [#:timeout-seconds exact-positive-integer?] -> void?
 ;;   Run a no-stdlib WebRacket result-tree program with bounded resources.
@@ -306,7 +348,12 @@
                    repo-root
                    #:timeout-seconds timeout-seconds
                    #:memory-mb 4096))
-  (check-equal? status 0 (format "~a\n~a" (chunk-job-name job) output))
+  (unless (zero? status)
+    (raise-user-error 'run-chunk-job!
+                      "~a exited with status ~a\n~a"
+                      (chunk-job-name job)
+                      status
+                      output))
   (check-result-tree-output (chunk-job-name job) output))
 
 ;; run-chunk-job/capture : chunk-job? exact-positive-integer? -> chunk-result?
@@ -335,6 +382,14 @@
   (format "~a failed:\n~a"
           (chunk-result-name result)
           (chunk-result-message result)))
+
+;; report-chunk-result! : chunk-result? -> void?
+;;   Print a one-line progress report for a completed result-tree chunk.
+(define (report-chunk-result! result)
+  (printf "result-tree-chunk: ~a ~a\n"
+          (if (chunk-result-ok? result) "ok" "failed")
+          (chunk-result-name result))
+  (flush-output))
 
 ;; check-no-stdlib-result-tree-chunks/parallel :
 ;;   (listof chunk-job?) exact-positive-integer? [#:jobs exact-positive-integer?] -> void?
@@ -366,7 +421,9 @@
     (async-channel-put job-ch done))
   (define results
     (for/list ([_ (in-range chunk-count)])
-      (async-channel-get result-ch)))
+      (define result (async-channel-get result-ch))
+      (report-chunk-result! result)
+      result))
   (for ([worker (in-list workers)])
     (thread-wait worker))
   (define failures
@@ -459,6 +516,14 @@
           (no-stdlib-result-tree-fixture-path (fixture-result-fixture result))
           (fixture-result-message result)))
 
+;; report-fixture-result! : fixture-result? -> void?
+;;   Print a one-line progress report for a completed generated-output fixture.
+(define (report-fixture-result! result)
+  (printf "result-tree-fixture: ~a ~a\n"
+          (if (fixture-result-ok? result) "ok" "failed")
+          (no-stdlib-result-tree-fixture-path (fixture-result-fixture result)))
+  (flush-output))
+
 ;; check-no-stdlib-result-tree-fixtures/parallel : (listof no-stdlib-result-tree-fixture?) [#:jobs exact-positive-integer?] -> void?
 ;;   Run independent generated-output fixtures with a bounded worker pool.
 (define (check-no-stdlib-result-tree-fixtures/parallel fixtures #:jobs [jobs 4])
@@ -487,7 +552,9 @@
     (async-channel-put job-ch done))
   (define results
     (for/list ([_ (in-range fixture-count)])
-      (async-channel-get result-ch)))
+      (define result (async-channel-get result-ch))
+      (report-fixture-result! result)
+      result))
   (for ([worker (in-list workers)])
     (thread-wait worker))
   (define failures
