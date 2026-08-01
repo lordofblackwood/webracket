@@ -37,6 +37,15 @@
     (list-at-least-elements-suffix " elements")
     (list-at-least-pairs-prefix "a (possibly improper) list with at least ")
     (list-at-least-pairs-suffix " pairs")
+    (list-procedure "procedure?")
+    (build-list-procedure "(exact-nonnegative-integer? . -> . any/c)")
+    (memf-procedure "(any/c . -> any/c)")
+    (list-unary-procedure "(any/c . -> . any/c)")
+    (list-index-predicate "(-> any/c any/c)")
+    (list-index-comparator "(-> any/c any/c any/c)")
+    (list-binary-comparator "(any/c any/c . -> . any/c)")
+    (member-comparator "(procedure-arity-includes/c 2)")
+    (argminmax-procedure "(any/c . -> . real?)")
     (range:non-zero-step "(and/c real? (not/c zero?))")))
 
 ;; list-runtime-symbol-constants : (listof symbol?)
@@ -459,9 +468,19 @@
                   `((if (ref.eq (local.get $same?) (global.get $missing))
                         (then (local.set $use-proc (i32.const 0)))
                         (else
-                         (if (i32.eqz (ref.test (ref $Procedure) (local.get $same?)))
-                             (then (call $raise-argument-error:procedure-expected/who
+                         (if (ref.eq (call $procedure? (local.get $same?))
+                                     (global.get $false))
+                             (then (call $raise-argument-error1
                                          (global.get ,who)
+                                         (global.get $string:member-comparator)
+                                         (local.get $same?))
+                                   (unreachable)))
+                         (if (i32.eqz (call $procedure-arity-includes?/checked/i32
+                                            (ref.cast (ref $Procedure) (local.get $same?))
+                                            (i32.const 2)))
+                             (then (call $raise-argument-error1
+                                         (global.get ,who)
+                                         (global.get $string:member-comparator)
                                          (local.get $same?))
                                    (unreachable)))
                          (local.set $use-proc (i32.const 1))))
@@ -531,9 +550,19 @@
                   `((if (ref.eq (local.get $same?) (global.get $missing))
                         (then (local.set $use-proc (i32.const 0)))
                         (else
-                         (if (i32.eqz (ref.test (ref $Procedure) (local.get $same?)))
-                             (then (call $raise-argument-error:procedure-expected/who
+                         (if (ref.eq (call $procedure? (local.get $same?))
+                                     (global.get $false))
+                             (then (call $raise-argument-error1
                                          (global.get ,who)
+                                         (global.get $string:list-binary-comparator)
+                                         (local.get $same?))
+                                   (unreachable)))
+                         (if (i32.eqz (call $procedure-arity-includes?/checked/i32
+                                            (ref.cast (ref $Procedure) (local.get $same?))
+                                            (i32.const 2)))
+                             (then (call $raise-argument-error1
+                                         (global.get ,who)
+                                         (global.get $string:list-binary-comparator)
                                          (local.get $same?))
                                    (unreachable)))
                          (local.set $use-proc (i32.const 1))))
@@ -618,9 +647,11 @@
             (local $cur   (ref eq))
 
             ;; Check that proc is a procedure and fetch its invoker
-            (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
-                (then (call $raise-argument-error:procedure-expected/who
+            (if (ref.eq (call $procedure? (local.get $proc))
+                        (global.get $false))
+                (then (call $raise-argument-error1
                             (global.get ,who)
+                            (global.get $string:argminmax-procedure)
                             (local.get $proc))
                       (unreachable)))
             ;; Ensure lst is a non-empty proper list
@@ -1878,10 +1909,16 @@
               (local $elem (ref eq))
               (local $r    (ref eq))
 
-              (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
-                  (then (call $raise-argument-error:procedure-expected/who
+              (if (ref.eq (call $procedure? (local.get $proc))
+                          (global.get $false))
+                  (then (call $raise-argument-error/position
                               (global.get $symbol:dropf)
-                              (local.get $proc))
+                              (global.get $string:list-procedure)
+                              (i32.const 1)
+                              (local.get $proc)
+                              (array.new_fixed $Args 2
+                                               (local.get $lst)
+                                               (local.get $proc)))
                         (unreachable)))
               (local.set $f    (ref.cast (ref $Procedure) (local.get $proc)))
               (local.set $finv (struct.get $Procedure $invoke (local.get $f)))
@@ -1939,10 +1976,16 @@
               (local.set $tail   (global.get $null))
               (local.set $rev    (global.get $null))
 
-              (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
-                  (then (call $raise-argument-error:procedure-expected/who
+              (if (ref.eq (call $procedure? (local.get $proc))
+                          (global.get $false))
+                  (then (call $raise-argument-error/position
                               (global.get $symbol:dropf-right)
-                              (local.get $proc))
+                              (global.get $string:list-procedure)
+                              (i32.const 1)
+                              (local.get $proc)
+                              (array.new_fixed $Args 2
+                                               (local.get $lst)
+                                               (local.get $proc)))
                         (unreachable)))
               (local.set $f    (ref.cast (ref $Procedure) (local.get $proc)))
               (local.set $finv (struct.get $Procedure $invoke (local.get $f)))
@@ -2017,10 +2060,16 @@
               (local $prefix (ref eq))
               (local $suffix (ref eq))
 
-              (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
-                  (then (call $raise-argument-error:procedure-expected/who
+              (if (ref.eq (call $procedure? (local.get $proc))
+                          (global.get $false))
+                  (then (call $raise-argument-error/position
                               (global.get $symbol:splitf-at)
-                              (local.get $proc))
+                              (global.get $string:list-procedure)
+                              (i32.const 1)
+                              (local.get $proc)
+                              (array.new_fixed $Args 2
+                                               (local.get $lst)
+                                               (local.get $proc)))
                         (unreachable)))
 
               (local.set $f      (ref.cast (ref $Procedure) (local.get $proc)))
@@ -2096,10 +2145,16 @@
               (local.set $prefix       (global.get $null))
               (local.set $suffix       (global.get $null))
 
-              (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
-                  (then (call $raise-argument-error:procedure-expected/who
+              (if (ref.eq (call $procedure? (local.get $proc))
+                          (global.get $false))
+                  (then (call $raise-argument-error/position
                               (global.get $symbol:splitf-at-right)
-                              (local.get $proc))
+                              (global.get $string:list-procedure)
+                              (i32.const 1)
+                              (local.get $proc)
+                              (array.new_fixed $Args 2
+                                               (local.get $lst)
+                                               (local.get $proc)))
                         (unreachable)))
 
               (local.set $f            (ref.cast (ref $Procedure) (local.get $proc)))
@@ -2209,12 +2264,22 @@
               (local $args (ref $Args))
               (local $res  (ref eq))
 
-              (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
-                  (then (call $raise-argument-error:procedure-expected/who
+              (if (ref.eq (call $procedure? (local.get $proc))
+                          (global.get $false))
+                  (then (call $raise-argument-error1
                               (global.get $symbol:memf)
+                              (global.get $string:memf-procedure)
                               (local.get $proc))
                         (unreachable)))
               (local.set $f    (ref.cast (ref $Procedure) (local.get $proc)))
+              (if (i32.eqz (call $procedure-arity-includes?/checked/i32
+                                 (local.get $f)
+                                 (i32.const 1)))
+                  (then (call $raise-argument-error1
+                              (global.get $symbol:memf)
+                              (global.get $string:memf-procedure)
+                              (local.get $proc))
+                        (unreachable)))
               (local.set $finv (struct.get $Procedure $invoke (local.get $f)))
               (local.set $args (array.new $Args (global.get $null) (i32.const 1)))
 
@@ -2286,12 +2351,22 @@
               (local $args       (ref $Args))
               (local $res        (ref eq))
 
-              (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
-                  (then (call $raise-argument-error:procedure-expected/who
+              (if (ref.eq (call $procedure? (local.get $proc))
+                          (global.get $false))
+                  (then (call $raise-argument-error1
                               (global.get $symbol:assf)
+                              (global.get $string:list-unary-procedure)
                               (local.get $proc))
                         (unreachable)))
               (local.set $f    (ref.cast (ref $Procedure) (local.get $proc)))
+              (if (i32.eqz (call $procedure-arity-includes?/checked/i32
+                                 (local.get $f)
+                                 (i32.const 1)))
+                  (then (call $raise-argument-error1
+                              (global.get $symbol:assf)
+                              (global.get $string:list-unary-procedure)
+                              (local.get $proc))
+                        (unreachable)))
               (local.set $finv (struct.get $Procedure $invoke (local.get $f)))
               (local.set $args (array.new $Args (global.get $null) (i32.const 1)))
 
@@ -2343,12 +2418,22 @@
               (local $args (ref $Args))
               (local $res  (ref eq))
 
-              (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
-                  (then (call $raise-argument-error:procedure-expected/who
+              (if (ref.eq (call $procedure? (local.get $proc))
+                          (global.get $false))
+                  (then (call $raise-argument-error1
                               (global.get $symbol:findf)
+                              (global.get $string:list-unary-procedure)
                               (local.get $proc))
                         (unreachable)))
               (local.set $f    (ref.cast (ref $Procedure) (local.get $proc)))
+              (if (i32.eqz (call $procedure-arity-includes?/checked/i32
+                                 (local.get $f)
+                                 (i32.const 1)))
+                  (then (call $raise-argument-error1
+                              (global.get $symbol:findf)
+                              (global.get $string:list-unary-procedure)
+                              (local.get $proc))
+                        (unreachable)))
               (local.set $finv (struct.get $Procedure $invoke (local.get $f)))
               (local.set $args (array.new $Args (global.get $null) (i32.const 1)))
 
@@ -2399,13 +2484,24 @@
               (if (ref.eq (local.get $same?) (global.get $missing))
                   (then (local.set $use-proc (i32.const 0)))
                   (else
-                   (if (i32.eqz (ref.test (ref $Procedure) (local.get $same?)))
+                   (if (ref.eq (call $procedure? (local.get $same?))
+                               (global.get $false))
                        (then
-                        (call $raise-argument-error:procedure-expected/who
-                              (global.get $symbol:index-of)
-                              (local.get $same?))
-                        (unreachable)))
-                   (local.set $use-proc (i32.const 1))))
+                          (call $raise-argument-error1
+                                (global.get $symbol:index-of)
+                                (global.get $string:list-index-comparator)
+                                (local.get $same?))
+                          (unreachable)))
+                     (if (i32.eqz (call $procedure-arity-includes?/checked/i32
+                                        (ref.cast (ref $Procedure) (local.get $same?))
+                                        (i32.const 2)))
+                         (then
+                          (call $raise-argument-error1
+                                (global.get $symbol:index-of)
+                                (global.get $string:list-index-comparator)
+                                (local.get $same?))
+                          (unreachable)))
+                     (local.set $use-proc (i32.const 1))))
 
               ;; Unconditionally allocate args buffer once; overwrite each iteration.
               (local.set $args (array.new $Args (global.get $null) (i32.const 2)))
@@ -2475,13 +2571,23 @@
               (local $i     i32)
 
               ;; Ensure proc is a procedure
-              (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
-                  (then (call $raise-argument-error:procedure-expected/who
-                              (global.get $symbol:index-where)
-                              (local.get $proc))
-                        (unreachable)))
-              (local.set $f    (ref.cast (ref $Procedure) (local.get $proc)))
-              (local.set $finv (struct.get $Procedure $invoke (local.get $f)))
+                (if (ref.eq (call $procedure? (local.get $proc))
+                            (global.get $false))
+                    (then (call $raise-argument-error1
+                                (global.get $symbol:index-where)
+                                (global.get $string:list-index-predicate)
+                                (local.get $proc))
+                          (unreachable)))
+                (local.set $f    (ref.cast (ref $Procedure) (local.get $proc)))
+                (if (i32.eqz (call $procedure-arity-includes?/checked/i32
+                                   (local.get $f)
+                                   (i32.const 1)))
+                    (then (call $raise-argument-error1
+                                (global.get $symbol:index-where)
+                                (global.get $string:list-index-predicate)
+                                (local.get $proc))
+                          (unreachable)))
+                (local.set $finv (struct.get $Procedure $invoke (local.get $f)))
               (local.set $args (array.new $Args (global.get $null) (i32.const 1)))
 
               (local.set $cur (local.get $xs))
@@ -2535,13 +2641,24 @@
               (if (ref.eq (local.get $same?) (global.get $missing))
                   (then (local.set $use-proc (i32.const 0)))
                   (else
-                   (if (i32.eqz (ref.test (ref $Procedure) (local.get $same?)))
+                   (if (ref.eq (call $procedure? (local.get $same?))
+                               (global.get $false))
                        (then
-                        (call $raise-argument-error:procedure-expected/who
-                              (global.get $symbol:indexes-of)
-                              (local.get $same?))
-                        (unreachable)))
-                   (local.set $use-proc (i32.const 1))))
+                          (call $raise-argument-error1
+                                (global.get $symbol:indexes-of)
+                                (global.get $string:list-index-comparator)
+                                (local.get $same?))
+                          (unreachable)))
+                     (if (i32.eqz (call $procedure-arity-includes?/checked/i32
+                                        (ref.cast (ref $Procedure) (local.get $same?))
+                                        (i32.const 2)))
+                         (then
+                          (call $raise-argument-error1
+                                (global.get $symbol:indexes-of)
+                                (global.get $string:list-index-comparator)
+                                (local.get $same?))
+                          (unreachable)))
+                     (local.set $use-proc (i32.const 1))))
 
               ;; Unconditionally allocate args buffer once; we overwrite each iteration.
               (local.set $args (array.new $Args (global.get $null) (i32.const 2)))
@@ -2620,13 +2737,23 @@
               (local $acc   (ref eq))
 
               ;; Ensure proc is a procedure
-              (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
-                  (then (call $raise-argument-error:procedure-expected/who
-                              (global.get $symbol:indexes-where)
-                              (local.get $proc))
-                        (unreachable)))
-              (local.set $f    (ref.cast (ref $Procedure) (local.get $proc)))
-              (local.set $finv (struct.get $Procedure $invoke (local.get $f)))
+                (if (ref.eq (call $procedure? (local.get $proc))
+                            (global.get $false))
+                    (then (call $raise-argument-error1
+                                (global.get $symbol:indexes-where)
+                                (global.get $string:list-index-predicate)
+                                (local.get $proc))
+                          (unreachable)))
+                (local.set $f    (ref.cast (ref $Procedure) (local.get $proc)))
+                (if (i32.eqz (call $procedure-arity-includes?/checked/i32
+                                   (local.get $f)
+                                   (i32.const 1)))
+                    (then (call $raise-argument-error1
+                                (global.get $symbol:indexes-where)
+                                (global.get $string:list-index-predicate)
+                                (local.get $proc))
+                          (unreachable)))
+                (local.set $finv (struct.get $Procedure $invoke (local.get $f)))
               (local.set $args (array.new $Args (global.get $null) (i32.const 1)))
 
               (local.set $cur (local.get $xs))
@@ -2689,24 +2816,44 @@
                                              (struct.get $Procedure $invoke (local.get $same-f))))
 
               ;; Ensure proc is a procedure and fetch invoker
-              (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
-                  (then (call $raise-argument-error:procedure-expected/who
-                              (global.get $symbol:group-by)
-                              (local.get $proc))
-                        (unreachable)))
-              (local.set $f    (ref.cast (ref $Procedure) (local.get $proc)))
-              (local.set $finv (struct.get $Procedure $invoke (local.get $f)))
+                (if (ref.eq (call $procedure? (local.get $proc))
+                            (global.get $false))
+                    (then (call $raise-argument-error1
+                                (global.get $symbol:group-by)
+                                (global.get $string:list-index-predicate)
+                                (local.get $proc))
+                          (unreachable)))
+                (local.set $f    (ref.cast (ref $Procedure) (local.get $proc)))
+                (if (i32.eqz (call $procedure-arity-includes?/checked/i32
+                                   (local.get $f)
+                                   (i32.const 1)))
+                    (then (call $raise-argument-error1
+                                (global.get $symbol:group-by)
+                                (global.get $string:list-index-predicate)
+                                (local.get $proc))
+                          (unreachable)))
+                (local.set $finv (struct.get $Procedure $invoke (local.get $f)))
 
               ;; Handle optional comparator
               (if (ref.eq (local.get $same?) (global.get $missing))
                   (then (local.set $use-proc (i32.const 0)))
                   (else
-                   (if (i32.eqz (ref.test (ref $Procedure) (local.get $same?)))
-                       (then (call $raise-argument-error:procedure-expected/who
-                                   (global.get $symbol:group-by)
-                                   (local.get $same?))
-                             (unreachable)))
-                   (local.set $use-proc (i32.const 1))
+                     (if (ref.eq (call $procedure? (local.get $same?))
+                                 (global.get $false))
+                         (then (call $raise-argument-error1
+                                     (global.get $symbol:group-by)
+                                     (global.get $string:list-binary-comparator)
+                                     (local.get $same?))
+                               (unreachable)))
+                     (if (i32.eqz (call $procedure-arity-includes?/checked/i32
+                                        (ref.cast (ref $Procedure) (local.get $same?))
+                                        (i32.const 2)))
+                         (then (call $raise-argument-error1
+                                     (global.get $symbol:group-by)
+                                     (global.get $string:list-binary-comparator)
+                                     (local.get $same?))
+                               (unreachable)))
+                     (local.set $use-proc (i32.const 1))
                    (local.set $same-f   (ref.cast (ref $Procedure) (local.get $same?)))
                    (local.set $same-inv (struct.get $Procedure $invoke (local.get $same-f)))))
 
@@ -2939,7 +3086,8 @@
              (local $r      (ref eq))
 
              ;; 1) Check that $proc is a procedure and fetch its invoker
-             (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
+             (if (ref.eq (call $procedure? (local.get $proc))
+                         (global.get $false))
                  (then (call $raise-argument-error:procedure-expected/who
                              (global.get $symbol:map)
                              (local.get $proc))
@@ -3079,7 +3227,8 @@
              (local $r      (ref eq))
 
              ;; 1) Check that $proc is a procedure and fetch its invoker
-             (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
+             (if (ref.eq (call $procedure? (local.get $proc))
+                         (global.get $false))
                  (then (call $raise-argument-error:procedure-expected/who
                              (global.get $symbol:andmap)
                              (local.get $proc))
@@ -3203,7 +3352,8 @@
              (local $r      (ref eq))
 
              ;; 1) Check that $proc is a procedure and fetch its invoker
-             (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
+             (if (ref.eq (call $procedure? (local.get $proc))
+                         (global.get $false))
                  (then (call $raise-argument-error:procedure-expected/who
                              (global.get $symbol:ormap)
                              (local.get $proc))
@@ -3331,7 +3481,8 @@
              (local $stop   i32)
 
              ;; 1) Check that $proc is a procedure and fetch its invoker
-             (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
+             (if (ref.eq (call $procedure? (local.get $proc))
+                         (global.get $false))
                  (then (call $raise-argument-error:procedure-expected/who
                              (global.get $symbol:for-each)
                              (local.get $proc))
@@ -3448,14 +3599,24 @@
              (local $acc  (ref eq))
              (local $res  (ref eq))
 
-             ;; 1) Check that $proc is a procedure and fetch its invoker
-             (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
-                 (then (call $raise-argument-error:procedure-expected/who
-                             (global.get $symbol:filter)
-                             (local.get $proc))
-                       (unreachable)))
-             (local.set $f    (ref.cast (ref $Procedure) (local.get $proc)))
-             (local.set $finv (struct.get $Procedure $invoke (local.get $f)))
+            ;; 1) Check that $proc is a procedure and fetch its invoker
+              (if (ref.eq (call $procedure? (local.get $proc))
+                          (global.get $false))
+                  (then (call $raise-argument-error1
+                              (global.get $symbol:filter)
+                              (global.get $string:list-unary-procedure)
+                              (local.get $proc))
+                        (unreachable)))
+               (local.set $f    (ref.cast (ref $Procedure) (local.get $proc)))
+               (if (i32.eqz (call $procedure-arity-includes?/checked/i32
+                                  (local.get $f)
+                                  (i32.const 1)))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:filter)
+                               (global.get $string:list-unary-procedure)
+                               (local.get $proc))
+                         (unreachable)))
+               (local.set $finv (struct.get $Procedure $invoke (local.get $f)))
 
              ;; 2) Prepare argument array for predicate
              (local.set $call (array.new $Args (global.get $null) (i32.const 1)))
@@ -3529,7 +3690,8 @@
               (local $r      (ref eq))
 
               ;; 1) Check that $proc is a procedure and fetch its invoker
-              (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
+              (if (ref.eq (call $procedure? (local.get $proc))
+                          (global.get $false))
                   (then (call $raise-argument-error:procedure-expected/who
                               (global.get $symbol:filter-map)
                               (local.get $proc))
@@ -3694,14 +3856,24 @@
              (local $acc  (ref eq))
              (local $res  (ref eq))
 
-             ;; 1) Check that $proc is a procedure and fetch its invoker
-             (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
-                 (then (call $raise-argument-error:procedure-expected/who
-                             (global.get $symbol:filter-not)
-                             (local.get $proc))
-                       (unreachable)))
-             (local.set $f    (ref.cast (ref $Procedure) (local.get $proc)))
-             (local.set $finv (struct.get $Procedure $invoke (local.get $f)))
+            ;; 1) Check that $proc is a procedure and fetch its invoker
+              (if (ref.eq (call $procedure? (local.get $proc))
+                          (global.get $false))
+                  (then (call $raise-argument-error1
+                              (global.get $symbol:filter-not)
+                              (global.get $string:list-unary-procedure)
+                              (local.get $proc))
+                        (unreachable)))
+               (local.set $f    (ref.cast (ref $Procedure) (local.get $proc)))
+               (if (i32.eqz (call $procedure-arity-includes?/checked/i32
+                                  (local.get $f)
+                                  (i32.const 1)))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:filter-not)
+                               (global.get $string:list-unary-procedure)
+                               (local.get $proc))
+                         (unreachable)))
+               (local.set $finv (struct.get $Procedure $invoke (local.get $f)))
 
              ;; 2) Prepare argument array for predicate
              (local.set $call (array.new $Args (global.get $null) (i32.const 1)))
@@ -3766,13 +3938,23 @@
               (local $acc-f (ref eq))
 
               ;; 1) Check that $proc is a procedure and fetch its invoker
-              (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
-                  (then (call $raise-argument-error:procedure-expected/who
-                              (global.get $symbol:partition)
-                              (local.get $proc))
-                        (unreachable)))
-              (local.set $f    (ref.cast (ref $Procedure) (local.get $proc)))
-              (local.set $finv (struct.get $Procedure $invoke (local.get $f)))
+                (if (ref.eq (call $procedure? (local.get $proc))
+                            (global.get $false))
+                    (then (call $raise-argument-error1
+                                (global.get $symbol:partition)
+                                (global.get $string:list-unary-procedure)
+                                (local.get $proc))
+                          (unreachable)))
+                (local.set $f    (ref.cast (ref $Procedure) (local.get $proc)))
+                (if (i32.eqz (call $procedure-arity-includes?/checked/i32
+                                   (local.get $f)
+                                   (i32.const 1)))
+                    (then (call $raise-argument-error1
+                                (global.get $symbol:partition)
+                                (global.get $string:list-unary-procedure)
+                                (local.get $proc))
+                          (unreachable)))
+                (local.set $finv (struct.get $Procedure $invoke (local.get $f)))
 
               ;; 2) Prepare argument array for predicate
               (local.set $call (array.new $Args (global.get $null) (i32.const 1)))
@@ -3835,15 +4017,25 @@
                  (then (local.set $proc (global.get $prim:equal?)))
                  (else
                   ;; Type check $proc
-                  (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
-                      (then
-                       (call $raise-argument-error:procedure-expected/who
-                             (global.get $symbol:remove)
-                             (local.get $proc))
-                       (unreachable))
-                      (else))))
-             (local.set $f    (ref.cast (ref $Procedure) (local.get $proc)))
-             (local.set $finv (struct.get $Procedure $invoke (local.get $f)))
+                    (if (ref.eq (call $procedure? (local.get $proc))
+                                (global.get $false))
+                        (then
+                         (call $raise-argument-error1
+                               (global.get $symbol:remove)
+                               (global.get $string:list-binary-comparator)
+                               (local.get $proc))
+                         (unreachable))
+                        (else))))
+               (local.set $f    (ref.cast (ref $Procedure) (local.get $proc)))
+               (if (i32.eqz (call $procedure-arity-includes?/checked/i32
+                                  (local.get $f)
+                                  (i32.const 2)))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:remove)
+                               (global.get $string:list-binary-comparator)
+                               (local.get $proc))
+                         (unreachable)))
+               (local.set $finv (struct.get $Procedure $invoke (local.get $f)))
              (local.set $args (array.new $Args (global.get $null) (i32.const 2)))
              (array.set $Args (local.get $args) (i32.const 0) (local.get $v))
 
@@ -3955,14 +4147,24 @@
              (local $r     (ref eq))
              (local $found i32)
 
-             ;; Ensure proc is a procedure
-             (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
-                 (then (call $raise-argument-error:procedure-expected/who
-                             (local.get $who)
-                             (local.get $proc))
-                       (unreachable)))
-             (local.set $f    (ref.cast (ref $Procedure) (local.get $proc)))
-             (local.set $finv (struct.get $Procedure $invoke (local.get $f)))
+            ;; Ensure proc is a procedure
+              (if (ref.eq (call $procedure? (local.get $proc))
+                          (global.get $false))
+                  (then (call $raise-argument-error1
+                              (local.get $who)
+                              (global.get $string:list-index-predicate)
+                              (local.get $proc))
+                        (unreachable)))
+               (local.set $f    (ref.cast (ref $Procedure) (local.get $proc)))
+               (if (i32.eqz (call $procedure-arity-includes?/checked/i32
+                                  (local.get $f)
+                                  (i32.const 1)))
+                   (then (call $raise-argument-error1
+                               (local.get $who)
+                               (global.get $string:list-index-predicate)
+                               (local.get $proc))
+                         (unreachable)))
+               (local.set $finv (struct.get $Procedure $invoke (local.get $f)))
              (local.set $args (array.new $Args (global.get $null) (i32.const 1)))
 
              ;; Iterate through list
@@ -4028,13 +4230,23 @@
              (if (ref.eq (local.get $proc) (global.get $missing))
                  (then (local.set $proc (global.get $prim:equal?)))
                  (else
-                  (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
-                      (then (call $raise-argument-error:procedure-expected/who
-                                  (global.get $symbol:remove*)
-                                  (local.get $proc))
-                            (unreachable)))))
+                    (if (ref.eq (call $procedure? (local.get $proc))
+                                (global.get $false))
+                        (then (call $raise-argument-error1
+                                    (global.get $symbol:remove*)
+                                    (global.get $string:list-binary-comparator)
+                                    (local.get $proc))
+                              (unreachable)))))
+               (if (i32.eqz (call $procedure-arity-includes?/checked/i32
+                                  (ref.cast (ref $Procedure) (local.get $proc))
+                                  (i32.const 2)))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:remove*)
+                               (global.get $string:list-binary-comparator)
+                               (local.get $proc))
+                         (unreachable)))
 
-             ;; If v-lst is empty, return original list
+               ;; If v-lst is empty, return original list
              (if (ref.eq (local.get $v-lst) (global.get $null))
                  (then (return (local.get $lst))))
 
@@ -4209,12 +4421,22 @@
                              (global.get $string:list?)
                              (local.get $xs))
                        (unreachable)))
-             (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
-                 (then (call $raise-argument-error:procedure-expected/who
+            (if (ref.eq (call $procedure? (local.get $proc))
+                        (global.get $false))
+                (then (call $raise-argument-error1
+                            (global.get $symbol:sort)
+                            (global.get $string:list-binary-comparator)
+                            (local.get $proc))
+                      (unreachable)))
+             (local.set $f    (ref.cast (ref $Procedure) (local.get $proc)))
+             (if (i32.eqz (call $procedure-arity-includes?/checked/i32
+                                (local.get $f)
+                                (i32.const 2)))
+                 (then (call $raise-argument-error1
                              (global.get $symbol:sort)
+                             (global.get $string:list-binary-comparator)
                              (local.get $proc))
                        (unreachable)))
-             (local.set $f    (ref.cast (ref $Procedure) (local.get $proc)))
              (local.set $finv (struct.get $Procedure $invoke (local.get $f)))
              (local.set $call (array.new $Args (global.get $null) (i32.const 2)))
 
@@ -4254,19 +4476,39 @@
                              (global.get $string:list?)
                              (local.get $xs))
                        (unreachable)))
-             (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
-                 (then (call $raise-argument-error:procedure-expected/who
+            (if (ref.eq (call $procedure? (local.get $proc))
+                        (global.get $false))
+                (then (call $raise-argument-error1
+                            (global.get $symbol:sort)
+                            (global.get $string:list-binary-comparator)
+                            (local.get $proc))
+                      (unreachable)))
+            (if (ref.eq (call $procedure? (local.get $key-proc))
+                        (global.get $false))
+                (then (call $raise-argument-error1
+                            (global.get $symbol:sort)
+                            (global.get $string:list-unary-procedure)
+                            (local.get $key-proc))
+                      (unreachable)))
+             (local.set $f        (ref.cast (ref $Procedure) (local.get $proc)))
+             (if (i32.eqz (call $procedure-arity-includes?/checked/i32
+                                (local.get $f)
+                                (i32.const 2)))
+                 (then (call $raise-argument-error1
                              (global.get $symbol:sort)
+                             (global.get $string:list-binary-comparator)
                              (local.get $proc))
                        (unreachable)))
-             (if (i32.eqz (ref.test (ref $Procedure) (local.get $key-proc)))
-                 (then (call $raise-argument-error:procedure-expected/who
-                             (global.get $symbol:sort)
-                             (local.get $key-proc))
-                       (unreachable)))
-             (local.set $f        (ref.cast (ref $Procedure) (local.get $proc)))
              (local.set $finv     (struct.get $Procedure $invoke (local.get $f)))
              (local.set $key-f    (ref.cast (ref $Procedure) (local.get $key-proc)))
+             (if (i32.eqz (call $procedure-arity-includes?/checked/i32
+                                (local.get $key-f)
+                                (i32.const 1)))
+                 (then (call $raise-argument-error1
+                             (global.get $symbol:sort)
+                             (global.get $string:list-unary-procedure)
+                             (local.get $key-proc))
+                       (unreachable)))
              (local.set $key-finv (struct.get $Procedure $invoke (local.get $key-f)))
              (local.set $less-call (array.new $Args (global.get $null) (i32.const 2)))
              (local.set $key-call  (array.new $Args (global.get $null) (i32.const 1)))
@@ -5030,12 +5272,22 @@
                        (unreachable)))
 
              ;; Check procedure and fetch invoker
-             (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
-                 (then (call $raise-argument-error:procedure-expected/who
+             (if (ref.eq (call $procedure? (local.get $proc))
+                         (global.get $false))
+                 (then (call $raise-argument-error1
                              (global.get $symbol:build-list)
+                             (global.get $string:build-list-procedure)
                              (local.get $proc))
                        (unreachable)))
              (local.set $f    (ref.cast (ref $Procedure) (local.get $proc)))
+             (if (i32.eqz (call $procedure-arity-includes?/checked/i32
+                                (local.get $f)
+                                (i32.const 1)))
+                 (then (call $raise-argument-error1
+                             (global.get $symbol:build-list)
+                             (global.get $string:build-list-procedure)
+                             (local.get $proc))
+                       (unreachable)))
              (local.set $finv (struct.get $Procedure $invoke (local.get $f)))
 
              ;; Delegate
@@ -5688,11 +5940,13 @@
                              (local.get $i))
                        (unreachable)))
 
-             (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
-                 (then (call $raise-argument-error:procedure-expected/who
-                             (global.get $symbol:list-update)
-                             (local.get $proc))
-                       (unreachable)))
+            (if (ref.eq (call $procedure? (local.get $proc))
+                        (global.get $false))
+                (then (call $raise-argument-error1
+                            (global.get $symbol:list-update)
+                            (global.get $string:list-index-predicate)
+                            (local.get $proc))
+                      (unreachable)))
              (local.set $f    (ref.cast (ref $Procedure) (local.get $proc)))
              (local.set $finv (struct.get $Procedure $invoke (local.get $f)))
              (local.set $args (array.new $Args (global.get $null) (i32.const 1)))
@@ -5833,9 +6087,10 @@
              (local $new     (ref $Pair))
 
               ;; 1) Check that $proc is a procedure and fetch its invoker
-              (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
+              (if (ref.eq (call $procedure? (local.get $proc))
+                          (global.get $false))
                   (then (call $raise-argument-error:procedure-expected/who
-                              (global.get $symbol:append-map)
+                              (global.get $symbol:map)
                               (local.get $proc))
                         (unreachable)))
               (local.set $f    (ref.cast (ref $Procedure) (local.get $proc)))
@@ -6005,7 +6260,8 @@
              (local $cnt    i32)
 
              ;; 1) Check that $proc is a procedure and fetch its invoker
-             (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
+             (if (ref.eq (call $procedure? (local.get $proc))
+                         (global.get $false))
                  (then (call $raise-argument-error:procedure-expected/who
                              (global.get $symbol:count)
                              (local.get $proc))
@@ -6210,7 +6466,8 @@
              (local $r    (ref eq))
 
              ;; Ensure $proc is a procedure and fetch its invoker
-             (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
+             (if (ref.eq (call $procedure? (local.get $proc))
+                         (global.get $false))
                  (then (call $raise-argument-error:procedure-expected/who
                              (global.get $symbol:foldl)
                              (local.get $proc))
@@ -6266,7 +6523,8 @@
              (local $r     (ref eq))
 
              ;; Ensure $proc is a procedure and fetch its invoker
-             (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
+             (if (ref.eq (call $procedure? (local.get $proc))
+                         (global.get $false))
                  (then (call $raise-argument-error:procedure-expected/who
                              (global.get $symbol:foldl)
                              (local.get $proc))
@@ -6336,7 +6594,8 @@
              (local $r      (ref eq))
 
              ;; Check that $proc is a procedure and fetch its invoker
-             (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
+             (if (ref.eq (call $procedure? (local.get $proc))
+                         (global.get $false))
                  (then (call $raise-argument-error:procedure-expected/who
                              (global.get $symbol:foldl)
                              (local.get $proc))
@@ -6529,7 +6788,8 @@
              (local $f    (ref $Procedure))
              (local $finv (ref $ProcedureInvoker))
 
-             (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
+             (if (ref.eq (call $procedure? (local.get $proc))
+                         (global.get $false))
                  (then (call $raise-argument-error:procedure-expected/who
                              (global.get $symbol:foldr)
                              (local.get $proc))
@@ -6604,7 +6864,8 @@
              (local $f    (ref $Procedure))
              (local $finv (ref $ProcedureInvoker))
 
-             (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
+             (if (ref.eq (call $procedure? (local.get $proc))
+                         (global.get $false))
                  (then (call $raise-argument-error:procedure-expected/who
                              (global.get $symbol:foldr)
                              (local.get $proc))
@@ -6704,7 +6965,8 @@
              (local $lists  (ref $Args))
              (local $i      i32)
 
-             (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
+             (if (ref.eq (call $procedure? (local.get $proc))
+                         (global.get $false))
                  (then (call $raise-argument-error:procedure-expected/who
                              (global.get $symbol:foldr)
                              (local.get $proc))
@@ -7023,10 +7285,16 @@
              (local $elem (ref eq))
              (local $acc  (ref eq))
 
-            (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
-                 (then (call $raise-argument-error:procedure-expected/who
+            (if (ref.eq (call $procedure? (local.get $proc))
+                        (global.get $false))
+                 (then (call $raise-argument-error/position
                              (global.get $symbol:takef)
-                             (local.get $proc))
+                             (global.get $string:list-procedure)
+                             (i32.const 1)
+                             (local.get $proc)
+                             (array.new_fixed $Args 2
+                                              (local.get $xs)
+                                              (local.get $proc)))
                        (unreachable)))
 
              (local.set $f   (ref.cast (ref $Procedure) (local.get $proc)))
@@ -7075,10 +7343,16 @@
              (local $elem   (ref eq))
              (local $suffix (ref eq))
 
-            (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
-                 (then (call $raise-argument-error:procedure-expected/who
+            (if (ref.eq (call $procedure? (local.get $proc))
+                        (global.get $false))
+                 (then (call $raise-argument-error/position
                              (global.get $symbol:takef-right)
-                             (local.get $proc))
+                             (global.get $string:list-procedure)
+                             (i32.const 1)
+                             (local.get $proc)
+                             (array.new_fixed $Args 2
+                                              (local.get $xs)
+                                              (local.get $proc)))
                        (unreachable)))
 
              (local.set $f    (ref.cast (ref $Procedure) (local.get $proc)))
@@ -7132,12 +7406,22 @@
              (if (ref.eq (local.get $same?) (global.get $missing))
                  (then (local.set $use-proc (i32.const 0)))
                  (else
-                  (if (i32.eqz (ref.test (ref $Procedure) (local.get $same?)))
-                      (then (call $raise-argument-error:procedure-expected/who
+                  (if (ref.eq (call $procedure? (local.get $same?))
+                              (global.get $false))
+                      (then (call $raise-argument-error1
                                   (global.get $symbol:list-prefix?)
+                                  (global.get $string:list-binary-comparator)
                                   (local.get $same?))
                             (unreachable))
                       (else))
+                  (if (i32.eqz (call $procedure-arity-includes?/checked/i32
+                                     (ref.cast (ref $Procedure) (local.get $same?))
+                                     (i32.const 2)))
+                      (then (call $raise-argument-error1
+                                  (global.get $symbol:list-prefix?)
+                                  (global.get $string:list-binary-comparator)
+                                  (local.get $same?))
+                            (unreachable)))
                   (local.set $use-proc (i32.const 1))))
 
              (if (ref.eq (call $list? (local.get $l)) (global.get $false))
@@ -7228,12 +7512,22 @@
              (if (ref.eq (local.get $same?) (global.get $missing))
                  (then (local.set $use-proc (i32.const 0)))
                  (else
-                  (if (i32.eqz (ref.test (ref $Procedure) (local.get $same?)))
-                      (then (call $raise-argument-error:procedure-expected/who
+                  (if (ref.eq (call $procedure? (local.get $same?))
+                              (global.get $false))
+                      (then (call $raise-argument-error1
                                   (global.get $symbol:take-common-prefix)
+                                  (global.get $string:list-binary-comparator)
                                   (local.get $same?))
                             (unreachable))
                       (else))
+                  (if (i32.eqz (call $procedure-arity-includes?/checked/i32
+                                     (ref.cast (ref $Procedure) (local.get $same?))
+                                     (i32.const 2)))
+                      (then (call $raise-argument-error1
+                                  (global.get $symbol:take-common-prefix)
+                                  (global.get $string:list-binary-comparator)
+                                  (local.get $same?))
+                            (unreachable)))
                   (local.set $use-proc (i32.const 1))))
 
              (if (ref.eq (call $list? (local.get $l)) (global.get $false))
@@ -7325,12 +7619,22 @@
              (if (ref.eq (local.get $same?) (global.get $missing))
                  (then (local.set $use-proc (i32.const 0)))
                  (else
-                  (if (i32.eqz (ref.test (ref $Procedure) (local.get $same?)))
-                      (then (call $raise-argument-error:procedure-expected/who
+                  (if (ref.eq (call $procedure? (local.get $same?))
+                              (global.get $false))
+                      (then (call $raise-argument-error1
                                   (global.get $symbol:drop-common-prefix)
+                                  (global.get $string:list-binary-comparator)
                                   (local.get $same?))
                             (unreachable))
                       (else))
+                  (if (i32.eqz (call $procedure-arity-includes?/checked/i32
+                                     (ref.cast (ref $Procedure) (local.get $same?))
+                                     (i32.const 2)))
+                      (then (call $raise-argument-error1
+                                  (global.get $symbol:drop-common-prefix)
+                                  (global.get $string:list-binary-comparator)
+                                  (local.get $same?))
+                            (unreachable)))
                   (local.set $use-proc (i32.const 1))))
 
              (if (ref.eq (call $list? (local.get $l)) (global.get $false))
@@ -7421,12 +7725,22 @@
              (if (ref.eq (local.get $same?) (global.get $missing))
                  (then (local.set $use-proc (i32.const 0)))
                  (else
-                  (if (i32.eqz (ref.test (ref $Procedure) (local.get $same?)))
-                      (then (call $raise-argument-error:procedure-expected/who
+                  (if (ref.eq (call $procedure? (local.get $same?))
+                              (global.get $false))
+                      (then (call $raise-argument-error1
                                   (global.get $symbol:split-common-prefix)
+                                  (global.get $string:list-binary-comparator)
                                   (local.get $same?))
                             (unreachable))
                       (else))
+                  (if (i32.eqz (call $procedure-arity-includes?/checked/i32
+                                     (ref.cast (ref $Procedure) (local.get $same?))
+                                     (i32.const 2)))
+                      (then (call $raise-argument-error1
+                                  (global.get $symbol:split-common-prefix)
+                                  (global.get $string:list-binary-comparator)
+                                  (local.get $same?))
+                            (unreachable)))
                   (local.set $use-proc (i32.const 1))))
 
              (if (ref.eq (call $list? (local.get $l)) (global.get $false))

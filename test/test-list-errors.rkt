@@ -2,19 +2,495 @@
 ;;
 ;; Compile this file with `--no-stdlib`.
 
+(define (catch-contract/message thunk)
+  (with-handlers ([exn:fail:contract?
+                   (lambda (exn)
+                     (exn-message exn))])
+    (thunk)
+    #f))
+
 (define (catch-contract/contains? thunk . needles)
-  (let ([message
-         (with-handlers ([exn:fail:contract?
-                          (lambda (exn)
-                            (exn-message exn))])
-           (thunk)
-           #f)])
+  (let ([message (catch-contract/message thunk)])
     (and message
          (andmap (lambda (needle)
                    (string-contains? message needle))
                  needles))))
 
+(define (catch-contract/prefix+contains? thunk prefix . needles)
+  (let ([message (catch-contract/message thunk)])
+    (and message
+         (<= (string-length prefix) (string-length message))
+         (string=? (substring message 0 (string-length prefix)) prefix)
+         (andmap (lambda (needle)
+                   (string-contains? message needle))
+                 needles))))
+
+(struct list-plain ())
+
+(define list-plain-given "given: #(struct list-plain)")
+
 (list
+   (list "make-list/build-list constructor errors preserve public contracts"
+         (and
+        (catch-contract/contains?
+         (lambda () (make-list #f 'x))
+         "make-list"
+         "exact-nonnegative-integer?"
+         "given: #f")
+        (catch-contract/contains?
+         (lambda () (make-list -1 'x))
+         "make-list"
+         "exact-nonnegative-integer?"
+         "given: -1")
+        (catch-contract/contains?
+         (lambda () (build-list #f values))
+         "build-list"
+         "exact-nonnegative-integer?"
+         "given: #f")
+        (catch-contract/contains?
+         (lambda () (build-list -1 values))
+         "build-list"
+         "exact-nonnegative-integer?"
+         "given: -1")
+          (catch-contract/contains?
+           (lambda () (build-list 1 #f))
+           "build-list"
+           "(exact-nonnegative-integer? . -> . any/c)"
+           "given: #f")
+        (catch-contract/contains?
+         (lambda () (build-list 1 (lambda () 'x)))
+         "build-list"
+         "(exact-nonnegative-integer? . -> . any/c)"
+         "given:")
+        (catch-contract/contains?
+         (lambda () (build-list 1 (lambda (x y) x)))
+         "build-list"
+         "(exact-nonnegative-integer? . -> . any/c)"
+         "given:")))
+   (list "list higher-order procedure positions reject plain structs"
+         (and
+          (catch-contract/contains?
+           (lambda () (build-list 1 (list-plain)))
+           "build-list"
+           "(exact-nonnegative-integer? . -> . any/c)"
+           list-plain-given)
+          (catch-contract/contains?
+           (lambda () (memf (list-plain) '(1 2)))
+           "memf"
+           "(any/c . -> any/c)"
+           list-plain-given)
+          (catch-contract/contains?
+           (lambda () (assf (list-plain) '((1 . a))))
+           "assf"
+           "(any/c . -> . any/c)"
+           list-plain-given)
+          (catch-contract/contains?
+           (lambda () (findf (list-plain) '(1 2)))
+           "findf"
+           "(any/c . -> . any/c)"
+           list-plain-given)
+          (catch-contract/contains?
+           (lambda () (map (list-plain) '(1 2)))
+           "map"
+           "procedure?"
+           list-plain-given)
+          (catch-contract/contains?
+           (lambda () (andmap (list-plain) '(1 2)))
+           "andmap"
+           "procedure?"
+           list-plain-given)
+          (catch-contract/contains?
+           (lambda () (ormap (list-plain) '(1 2)))
+           "ormap"
+           "procedure?"
+           list-plain-given)
+          (catch-contract/contains?
+           (lambda () (for-each (list-plain) '(1 2)))
+           "for-each"
+           "procedure?"
+           list-plain-given)
+          (catch-contract/contains?
+           (lambda () (filter-map (list-plain) '(1 2)))
+           "filter-map"
+           "procedure?"
+           list-plain-given)
+          (catch-contract/prefix+contains?
+           (lambda () (append-map (list-plain) '(1 2)))
+           "map:"
+           "procedure?"
+           list-plain-given)
+          (catch-contract/contains?
+           (lambda () (count (list-plain) '(1 2)))
+           "count"
+           "procedure?"
+           list-plain-given)
+          (catch-contract/contains?
+           (lambda () (foldl (list-plain) 0 '(1 2)))
+           "foldl"
+           "procedure?"
+           list-plain-given)
+          (catch-contract/contains?
+           (lambda () (foldr (list-plain) 0 '(1 2)))
+           "foldr"
+           "procedure?"
+           list-plain-given)))
+   (list "list optional procedure positions reject plain structs"
+         (and
+          (catch-contract/contains?
+           (lambda () (member 1 '(1 2) (list-plain)))
+           "member"
+           "(procedure-arity-includes/c 2)"
+           list-plain-given)
+          (catch-contract/contains?
+           (lambda () (assoc 1 '((1 . a)) (list-plain)))
+           "assoc"
+           "(any/c any/c . -> . any/c)"
+           list-plain-given)
+          (catch-contract/contains?
+           (lambda () (index-of '(1 2) 1 (list-plain)))
+           "index-of"
+           "(-> any/c any/c any/c)"
+           list-plain-given)
+          (catch-contract/contains?
+           (lambda () (indexes-of '(1 2) 1 (list-plain)))
+           "indexes-of"
+           "(-> any/c any/c any/c)"
+           list-plain-given)
+          (catch-contract/contains?
+           (lambda () (group-by values '(1 2) (list-plain)))
+           "group-by"
+           "(any/c any/c . -> . any/c)"
+           list-plain-given)
+          (catch-contract/contains?
+           (lambda () (remove 1 '(1 2) (list-plain)))
+           "remove"
+           "(any/c any/c . -> . any/c)"
+           list-plain-given)
+          (catch-contract/contains?
+           (lambda () (sort '(1 2) (list-plain)))
+           "sort"
+           "(any/c any/c . -> . any/c)"
+           list-plain-given)
+          (catch-contract/contains?
+           (lambda () (sort/expanded-keywords '(1 2) < 'key (list-plain) 'cache-keys? #f))
+           "sort"
+           "(any/c . -> . any/c)"
+           list-plain-given)
+          (catch-contract/contains?
+           (lambda () (takef '(1 2) (list-plain)))
+           "takef"
+           "procedure?"
+           list-plain-given)
+          (catch-contract/contains?
+           (lambda () (list-prefix? '(1) '(1) (list-plain)))
+           "list-prefix?"
+           "(any/c any/c . -> . any/c)"
+           list-plain-given)))
+   (list "list search predicate errors use public contracts"
+       (and
+        (catch-contract/contains?
+         (lambda () (memf #f '(1 2)))
+         "memf"
+         "(any/c . -> any/c)"
+         "given: #f")
+        (catch-contract/contains?
+         (lambda () (assf #f '((1 . a))))
+         "assf"
+         "(any/c . -> . any/c)"
+         "given: #f")
+        (catch-contract/contains?
+         (lambda () (findf #f '(1 2)))
+         "findf"
+         "(any/c . -> . any/c)"
+         "given: #f")
+        (catch-contract/contains?
+         (lambda () (index-where '(1 2) #f))
+         "index-where"
+         "(-> any/c any/c)"
+         "given: #f")
+        (catch-contract/contains?
+         (lambda () (indexes-where '(1 2) #f))
+         "indexes-where"
+         "(-> any/c any/c)"
+         "given: #f")
+        (catch-contract/contains?
+         (lambda () (group-by #f '(1 2)))
+         "group-by"
+         "(-> any/c any/c)"
+         "given: #f")
+        (catch-contract/contains?
+         (lambda () (memf (lambda () #t) '(1 2)))
+         "memf"
+         "(any/c . -> any/c)"
+         "given:")
+        (catch-contract/contains?
+         (lambda () (assf (lambda () #t) '((1 . a))))
+         "assf"
+         "(any/c . -> . any/c)"
+         "given:")
+        (catch-contract/contains?
+         (lambda () (findf (lambda () #t) '(1 2)))
+         "findf"
+         "(any/c . -> . any/c)"
+         "given:")
+        (catch-contract/contains?
+         (lambda () (index-where '(1 2) (lambda () #t)))
+         "index-where"
+         "(-> any/c any/c)"
+         "given:")
+        (catch-contract/contains?
+         (lambda () (indexes-where '(1 2) (lambda () #t)))
+         "indexes-where"
+         "(-> any/c any/c)"
+         "given:")
+        (catch-contract/contains?
+         (lambda () (group-by (lambda () 'k) '(1 2)))
+         "group-by"
+         "(-> any/c any/c)"
+         "given:")))
+ (list "list optional comparator errors use public contracts"
+       (and
+        (catch-contract/contains?
+         (lambda () (member 1 '(1 2) #f))
+         "member"
+         "(procedure-arity-includes/c 2)"
+         "given: #f")
+        (catch-contract/contains?
+         (lambda () (assoc 1 '((1 . a)) #f))
+         "assoc"
+         "(any/c any/c . -> . any/c)"
+         "given: #f")
+        (catch-contract/contains?
+         (lambda () (index-of '(1 2) 1 #f))
+         "index-of"
+         "(-> any/c any/c any/c)"
+         "given: #f")
+        (catch-contract/contains?
+         (lambda () (indexes-of '(1 2) 1 #f))
+         "indexes-of"
+         "(-> any/c any/c any/c)"
+         "given: #f")
+        (catch-contract/contains?
+         (lambda () (group-by (lambda (x) x) '(1 2) #f))
+         "group-by"
+         "(any/c any/c . -> . any/c)"
+         "given: #f")
+        (catch-contract/contains?
+         (lambda () (list-prefix? '(1) '(1) #f))
+         "list-prefix?"
+         "(any/c any/c . -> . any/c)"
+         "given: #f")
+        (catch-contract/contains?
+         (lambda () (take-common-prefix '(1) '(1) #f))
+         "take-common-prefix"
+         "(any/c any/c . -> . any/c)"
+         "given: #f")
+        (catch-contract/contains?
+         (lambda () (drop-common-prefix '(1) '(1) #f))
+         "drop-common-prefix"
+         "(any/c any/c . -> . any/c)"
+         "given: #f")
+        (catch-contract/contains?
+         (lambda () (split-common-prefix '(1) '(1) #f))
+         "split-common-prefix"
+         "(any/c any/c . -> . any/c)"
+         "given: #f")
+        (catch-contract/contains?
+         (lambda () (member 1 '(1 2) (lambda (x) #t)))
+         "member"
+         "(procedure-arity-includes/c 2)"
+         "given:")
+        (catch-contract/contains?
+         (lambda () (assoc 1 '((1 . a)) (lambda (x) #t)))
+         "assoc"
+         "(any/c any/c . -> . any/c)"
+         "given:")
+        (catch-contract/contains?
+         (lambda () (index-of '(1 2) 1 (lambda (x) #t)))
+         "index-of"
+         "(-> any/c any/c any/c)"
+         "given:")
+        (catch-contract/contains?
+         (lambda () (indexes-of '(1 2) 1 (lambda (x) #t)))
+         "indexes-of"
+         "(-> any/c any/c any/c)"
+         "given:")
+        (catch-contract/contains?
+         (lambda () (group-by values '(1 2) (lambda (x) #t)))
+         "group-by"
+         "(any/c any/c . -> . any/c)"
+         "given:")
+        (catch-contract/contains?
+         (lambda () (list-prefix? '(1) '(1) (lambda (x) #t)))
+         "list-prefix?"
+         "(any/c any/c . -> . any/c)"
+         "given:")
+        (catch-contract/contains?
+         (lambda () (take-common-prefix '(1) '(1) (lambda (x) #t)))
+         "take-common-prefix"
+         "(any/c any/c . -> . any/c)"
+         "given:")
+        (catch-contract/contains?
+         (lambda () (drop-common-prefix '(1) '(1) (lambda (x) #t)))
+         "drop-common-prefix"
+         "(any/c any/c . -> . any/c)"
+         "given:")
+        (catch-contract/contains?
+         (lambda () (split-common-prefix '(1) '(1) (lambda (x) #t)))
+         "split-common-prefix"
+         "(any/c any/c . -> . any/c)"
+         "given:")))
+ (list "list filter/removal/sort procedure errors use public contracts"
+       (and
+        (catch-contract/contains?
+         (lambda () (list-update '(1 2) 0 #f))
+         "list-update"
+         "(-> any/c any/c)"
+         "given: #f")
+        (catch-contract/contains?
+         (lambda () (argmax #f '(1 2)))
+         "argmax"
+         "(any/c . -> . real?)"
+         "given: #f")
+        (catch-contract/contains?
+         (lambda () (argmin #f '(1 2)))
+         "argmin"
+         "(any/c . -> . real?)"
+         "given: #f")
+        (catch-contract/contains?
+         (lambda () (filter #f '(1 2)))
+         "filter"
+         "(any/c . -> . any/c)"
+         "given: #f")
+        (catch-contract/contains?
+         (lambda () (filter-not #f '(1 2)))
+         "filter-not"
+         "(any/c . -> . any/c)"
+         "given: #f")
+        (catch-contract/contains?
+         (lambda () (partition #f '(1 2)))
+         "partition"
+         "(any/c . -> . any/c)"
+         "given: #f")
+        (catch-contract/contains?
+         (lambda () (remove 1 '(1 2) #f))
+         "remove"
+         "(any/c any/c . -> . any/c)"
+         "given: #f")
+        (catch-contract/contains?
+         (lambda () (remove* '(1) '(1 2) #f))
+         "remove*"
+         "(any/c any/c . -> . any/c)"
+         "given: #f")
+        (catch-contract/contains?
+         (lambda () (remf #f '(1 2)))
+         "remf"
+         "(-> any/c any/c)"
+         "given: #f")
+        (catch-contract/contains?
+         (lambda () (remf* #f '(1 2)))
+         "remf*"
+         "(-> any/c any/c)"
+         "given: #f")
+        (catch-contract/contains?
+         (lambda () (sort '(1 2) #f))
+         "sort"
+         "(any/c any/c . -> . any/c)"
+         "given: #f")
+        (catch-contract/contains?
+         (lambda () (filter (lambda () #t) '(1 2)))
+         "filter"
+         "(any/c . -> . any/c)"
+         "given:")
+        (catch-contract/contains?
+         (lambda () (filter-not (lambda () #t) '(1 2)))
+         "filter-not"
+         "(any/c . -> . any/c)"
+         "given:")
+        (catch-contract/contains?
+         (lambda () (partition (lambda () #t) '(1 2)))
+         "partition"
+         "(any/c . -> . any/c)"
+         "given:")
+        (catch-contract/contains?
+         (lambda () (remove 1 '(1 2) (lambda (x) #t)))
+         "remove"
+         "(any/c any/c . -> . any/c)"
+         "given:")
+        (catch-contract/contains?
+         (lambda () (remove* '(1) '(1 2) (lambda (x) #t)))
+         "remove*"
+         "(any/c any/c . -> . any/c)"
+         "given:")
+        (catch-contract/contains?
+         (lambda () (remf (lambda () #t) '(1 2)))
+         "remf"
+         "(-> any/c any/c)"
+         "given:")
+        (catch-contract/contains?
+         (lambda () (remf* (lambda () #t) '(1 2)))
+         "remf*"
+         "(-> any/c any/c)"
+         "given:")
+        (catch-contract/contains?
+         (lambda () (sort '(1 2) (lambda (x) #t)))
+         "sort"
+         "(any/c any/c . -> . any/c)"
+         "given:")
+        (catch-contract/contains?
+         (lambda () (sort/expanded-keywords '(1 2) < 'key (lambda () 1) 'cache-keys? #f))
+         "sort"
+         "(any/c . -> . any/c)"
+         "given:")))
+ (list "fixed list predicate errors include argument position"
+       (and
+        (catch-contract/contains?
+         (lambda () (dropf '(1 2) #f))
+         "dropf"
+         "expected: procedure?"
+         "given: #f"
+         "argument position: 2nd"
+         "'(1 2)")
+        (catch-contract/contains?
+         (lambda () (dropf-right '(1 2) #f))
+         "dropf-right"
+         "expected: procedure?"
+         "given: #f"
+         "argument position: 2nd"
+         "'(1 2)")
+        (catch-contract/contains?
+         (lambda () (splitf-at '(1 2) #f))
+         "splitf-at"
+         "expected: procedure?"
+         "given: #f"
+         "argument position: 2nd"
+         "'(1 2)")
+        (catch-contract/contains?
+         (lambda () (splitf-at-right '(1 2) #f))
+         "splitf-at-right"
+         "expected: procedure?"
+         "given: #f"
+         "argument position: 2nd"
+         "'(1 2)")
+        (catch-contract/contains?
+         (lambda () (takef '(1 2) #f))
+         "takef"
+         "expected: procedure?"
+         "given: #f"
+         "argument position: 2nd"
+         "'(1 2)")
+        (catch-contract/contains?
+         (lambda () (takef-right '(1 2) #f))
+         "takef-right"
+         "expected: procedure?"
+         "given: #f"
+         "argument position: 2nd"
+         "'(1 2)")
+        (catch-contract/prefix+contains?
+         (lambda () (append-map #f '(1 2)))
+         "map:"
+         "expected: procedure?"
+         "given: #f")))
  (list "list-ref/list-tail index errors include range context"
        (and
         (catch-contract/contains?

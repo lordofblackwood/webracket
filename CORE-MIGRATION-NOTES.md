@@ -52,12 +52,33 @@ Current remaining raw-stub classes:
     concrete dispatch guards, so they currently use `hash-ref`/`hash?` for the
     fallback message rather than trying to expose a non-public concrete helper
     name.
+  - Public higher-order hash callbacks now use semantic `procedure?` instead of
+    raw `$Procedure` representation checks. `hash-for-each`, `hash-map`, and
+    `hash-map/copy` also check `(procedure-arity-includes/c 2)` once at the
+    public wrapper before entering the iteration loop. `hash-update` and
+    `hash-update!` similarly check the one-argument updater contract before
+    reading/updating the table. Optional failure/default arguments still use
+    semantic `procedure?` to decide whether to call a thunk, so plain
+    structures remain ordinary default values rather than accidental thunks.
+
+- `lists.rkt`:
+  - Public list callbacks whose contracts imply a fixed arity now check that
+    arity at the wrapper boundary before entering trusted iteration helpers.
+    This covers `build-list`, unary search/filter/remove predicates, binary
+    optional comparators, `sort` comparators, `sort` key functions, and common
+    prefix comparators. The `/checked` list loops still assume their callers
+    have already validated length, list shape, and callback arity.
 
 - `strings.rkt` and `bytes.rkt`:
   - `$raise-check-string`, `$raise-bad-string-index`, and
     `$raise-expected-mutable-bytes` now raise catchable contract errors, but
     they still appear to be legacy/unused stubs. Public string and bytes
     primitives mostly route through newer helpers that preserve `who`.
+  - `build-string` now validates its callback with semantic `procedure?` and
+    Racket's `(exact-nonnegative-integer? . -> . char?)` contract, including an
+    up-front one-argument arity check before the callback is invoked. Callback
+    result errors intentionally continue to report through `string-set!`, which
+    matches Racket.
   - `$raise-invalid-utf8-input`, `$raise-invalid-utf8-start`, and
     `$raise-invalid-utf8-end` in `strings.rkt` now raise catchable fallback
     errors, but still appear unreferenced; the public `bytes->string/utf-8`
@@ -108,6 +129,16 @@ Current remaining raw-stub classes:
   - `$raise-apply-final-arg-not-list` now prints the offending final argument
     in its `given:` line, so strings and symbols are rendered like Racket
     contract errors instead of display-rendered.
+  - Public procedure-valued contracts now use semantic `procedure?` instead of
+    raw `$Procedure` representation checks. This matters because WebRacket
+    stores all structures under `$Procedure` for fast application, but plain
+    structures are not Racket procedures unless they have `prop:procedure` or
+    `prop:checked-procedure`.
+  - Arity-query helpers deliberately keep Racket's special behavior for plain
+    structures: `procedure-arity` reports `()`, `procedure-arity-mask` reports
+    `0`, and `procedure-arity-includes?` reports `#f` after validating the arity
+    index. They should not be converted blindly to semantic `procedure?`
+    contracts.
   - Legacy placeholders such as `$raise-arity-mismatch` and
     `$raise-arity-error:exactly`/`$raise-arity-error:at-least` now raise
     catchable `exn:fail:contract:arity` values. They remain unused
@@ -153,6 +184,12 @@ Current remaining raw-stub classes:
   - Some numeric conversion helpers still use older validation shapes; audit
     those separately before claiming complete numeric parity.
 
+- `flonums.rkt`:
+  - Public flonum arithmetic, conversion, math, and `flbit-field` error paths
+    now have focused generated-output coverage in `test/test-flonum-errors.rkt`
+    to prove their contract exceptions are catchable and preserve public `who`.
+    Unsafe flonum helpers remain trusted fast paths.
+
 - `lists.rkt`:
   - Positive out-of-range `list-ref`, `list-tail`, `list-set`, and
     `list-update` errors now report list index context instead of incorrectly
@@ -189,6 +226,47 @@ Current remaining raw-stub classes:
     `(procedure-arity-includes/c 1)` contract error for non-procedures and
     zero-arity procedures instead of returning the internal `$error` sentinel.
 
+- `ports.rkt`:
+  - Custom input/output port constructors now use semantic `procedure?` when
+    accepting procedure handlers, so plain structures are rejected even though
+    structures share the low-level `$Procedure` representation.
+
+- `events.rkt` and `semaphores.rkt`:
+  - `handle-evt`, `sync/timeout`, and `call-with-semaphore` now use semantic
+    `procedure?` checks for procedure-valued arguments. This keeps plain
+    structures out of callback paths while preserving applicable structs as
+    procedures. `sync/timeout` and `call-with-semaphore` still check their
+    zero-argument thunk contracts once at the wrapper boundary before invoking
+    those thunks.
+
+- `wills.rkt`:
+  - `will-register` now validates its callback with semantic `procedure?` and
+    Racket's `(procedure-arity-includes/c 1)` contract, so plain structures no
+    longer pass the low-level `$Procedure` representation test.
+
+- `security.rkt`:
+  - `make-security-guard` now reports Racket's arity-specific hook contracts
+    instead of generic `procedure?`: file guard
+    `(procedure-arity-includes/c 3)`, network guard
+    `(procedure-arity-includes/c 4)`, and optional link guard
+    `(or/c #f (procedure-arity-includes/c 3))`.
+
+- `filesystem.rkt`:
+  - Public file callbacks now validate Racket's richer procedure contracts
+    before opening or modifying VFS paths. `call-with-input-file` and
+    `call-with-input-file*` check `(input-port? . -> . any)`;
+    `call-with-output-file` and `call-with-output-file*` check
+    `(output-port? . -> . any)`; `with-input-from-file` and
+    `with-output-to-file` check `(-> any)`; and
+    `file-or-directory-modify-seconds` checks `(procedure-arity-includes/c 0)`
+    for an explicit failure thunk. This matches Racket's error ordering where a
+    bad callback contract is reported even if the path would also fail.
+
+- `ffi.rkt`:
+  - `procedure->external` and callback bridge procedure lookups now use semantic
+    `procedure?` instead of raw `$Procedure` representation checks, so plain
+    structures are not exported/called as JavaScript callbacks.
+
 - `boxes.rkt`:
   - Internal compiler-box helpers `unboxed`, `set-boxed!`, and
     `initialize-boxed!` now raise catchable `boxed?` contract errors for bad
@@ -212,6 +290,25 @@ Current remaining raw-stub classes:
   - Reassigning an instance variable marked constant now raises a catchable
     contract error instead of logging and trapping.
 
+- `reflection.rkt`:
+  - `module-path-index-join` now validates its optional submodule list as
+    `(or/c #f (non-empty-listof symbol?))`, preserves Racket's public contract
+    strings for path/base errors, and reports invalid path/base or path/submodule
+    combinations as catchable argument errors instead of accepting malformed
+    indexes.
+  - Formatting now treats `module-path-index` and `resolved-module-path` values as
+    opaque `#<...>` values so reflection errors can print their details without
+    recursively falling into the unknown-datatype formatter path.
+  - `syntax-original?` and `syntax-tainted?` now validate their `syntax?`
+    argument before returning WebRacket's current conservative `#f` metadata
+    result.
+
+- `syntax.rkt`:
+  - Syntax phase arguments for `identifier-binding`, `free-identifier=?`,
+    `bound-identifier=?`, and `make-syntax-delta-introducer` now validate and
+    report the Racket `phase?` contract. `free-identifier=?` previously ignored
+    malformed optional phase arguments entirely.
+
 - `treelists.rkt`:
   - Positive out-of-range indexes for `treelist-ref`, `treelist-set`,
     `treelist-insert`, and `treelist-delete` now raise catchable range-style
@@ -231,6 +328,13 @@ Current remaining raw-stub classes:
   - `vector-copy`, `vector-copy!`, `vector->values`, `vector-sort`, and
     `vector-sort!` now distinguish start-index, end-index, end-before-start, and
     target-capacity range failures with catchable Racket-style contract errors.
+  - Public vector callback contracts that name an arity now check that arity at
+    the wrapper/template boundary instead of falling through to callback
+    invocation. This covers `build-vector`, `vector-argmin`, `vector-argmax`,
+    `vector-filter`, `vector-filter-not`, `vector-sort`, and `vector-sort!`.
+    `vector-map`, `vector-map!`, and `vector-count` intentionally still mirror
+    Racket's `procedure?` contract and let application report callback arity
+    mismatches.
 
 - `structs.rkt`:
   - `$check-struct-type` is a shared validator that receives an explicit `who`
