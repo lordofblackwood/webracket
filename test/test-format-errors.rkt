@@ -432,6 +432,38 @@
               (equal? (format "~a" ch) "#<channel>")
               (equal? (format "~s" (channel-put-evt ch 'x)) "#<channel-put-evt>")
               (equal? (format "~a" (handle-evt always-evt values)) "#<handle-evt>"))))
+ (list "format renders port, namespace, reflection, and random values"
+       (let ([ns-text (format "~a" (current-namespace))])
+         (and (equal? (format "~a" (current-input-port)) "#<input-port>")
+              (equal? (format "~s" (open-output-string)) "#<output-port>")
+              (string-contains? ns-text "#<namespace")
+              (equal? (format "~a" (#%variable-reference)) "#<variable-reference>")
+              (equal? (format "~a" prop:procedure)
+                      "#<struct-type-property:procedure>")
+              (equal? (format "~a" prop:checked-procedure)
+                      "#<struct-type-property:checked-procedure>")
+              (equal? (format "~s" (make-pseudo-random-generator))
+                      "#<pseudo-random-generator>"))))
+ (list "format error messages render port, namespace, reflection, and random values"
+       (and
+        (catch-contract/contains?
+         (lambda () (format (current-input-port)))
+         "format" "string?" "given: #<input-port>")
+        (catch-contract/contains?
+         (lambda () (format (open-output-string)))
+         "format" "string?" "given: #<output-port>")
+        (catch-contract/contains?
+         (lambda () (format (current-namespace)))
+         "format" "string?" "given: #<namespace")
+        (catch-contract/contains?
+         (lambda () (format (#%variable-reference)))
+         "format" "string?" "given: #<variable-reference>")
+        (catch-contract/contains?
+         (lambda () (format prop:procedure))
+         "format" "string?" "given: #<struct-type-property:procedure>")
+        (catch-contract/contains?
+         (lambda () (format (make-pseudo-random-generator)))
+         "format" "string?" "given: #<pseudo-random-generator>")))
  (list "unquoted-printing-string-value errors are catchable with who"
        (catch-contract/contains?
         (lambda () (unquoted-printing-string-value 42))
