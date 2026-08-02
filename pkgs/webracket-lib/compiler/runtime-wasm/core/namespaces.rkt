@@ -211,7 +211,10 @@
                      (global.get $string:namespace?)
                      (local.get $ns))
                (unreachable)))
-          (call $call-thunk (local.get $thunk)))
+          (call $call-thunk/who
+                (global.get $symbol:namespace-call-with-registry-lock)
+                (global.get $string:procedure-arity-0)
+                (local.get $thunk)))
 
 
     (func $namespace-set-variable-value!
