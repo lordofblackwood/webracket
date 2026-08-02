@@ -369,6 +369,51 @@
            "struct-type-property-predicate-procedure?"
            "(or/c struct-type-property? #f)"
            "given: 42"))))
+ (list "checked-procedure extraction errors are catchable"
+       (let ()
+         (struct checked (ok proc)
+           #:property prop:checked-procedure #t)
+         (define (fallback v kws argc)
+           (list 'fallback v kws argc))
+         (define accepted-non-proc
+           (checked (lambda (kws argc) #t) 42))
+         (define rejected-non-proc
+           (checked (lambda (kws argc) #f) 42))
+         (and
+          (catch-contract/contains?
+           (lambda () (checked-procedure-check-and-extract 42 1 fallback null 0))
+           "checked-procedure-check-and-extract"
+           "struct-type?"
+           "given: 42")
+          (catch-contract/contains?
+           (lambda () (checked-procedure-check-and-extract struct:checked 1 42 null 0))
+           "checked-procedure-check-and-extract"
+           "procedure?"
+           "given: 42")
+          (catch-contract/contains?
+           (lambda ()
+             (checked-procedure-check-and-extract
+              struct:checked
+              (checked 42 (lambda args args))
+              fallback
+              null
+              0))
+           "application: not a procedure"
+           "given: 42")
+          (equal? (checked-procedure-check-and-extract
+                   struct:checked
+                   accepted-non-proc
+                   fallback
+                   null
+                   0)
+                  42)
+          (equal? (checked-procedure-check-and-extract
+                   struct:checked
+                   rejected-non-proc
+                   fallback
+                   null
+                   0)
+                  (list 'fallback rejected-non-proc null 0)))))
  (list "struct field accessor/mutator maker errors are catchable with who"
        (let-values ([(st make-p p? p-ref p-set!) (make-struct-type 'p #f 2 0)])
          (and

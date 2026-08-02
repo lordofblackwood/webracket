@@ -7963,6 +7963,7 @@
            (local $sentinel    (ref eq))
            (local $prop-val    (ref eq))
            (local $fields      (ref $Array))
+           (local $checker-raw (ref eq))
            (local $checker     (ref $Procedure))
            (local $extracted   (ref eq))
            (local $args2       (ref $Args))
@@ -8083,9 +8084,13 @@
                                  (struct.get $Procedure $invoke (local.get $fallback)))))
 
            (local.set $fields (struct.get $Struct $fields (local.get $struct)))
-           (local.set $checker
-                      (ref.cast (ref $Procedure)
-                                (array.get $Array (local.get $fields) (i32.const 0))))
+           (local.set $checker-raw
+                      (array.get $Array (local.get $fields) (i32.const 0)))
+           (if (ref.eq (call $procedure? (local.get $checker-raw))
+                       (global.get $false))
+               (then (call $raise-application-not-procedure (local.get $checker-raw))
+                     (unreachable)))
+           (local.set $checker (ref.cast (ref $Procedure) (local.get $checker-raw)))
            (local.set $extracted (array.get $Array (local.get $fields) (i32.const 1)))
            (local.set $args2 (array.new_fixed $Args 2
                                               (local.get $v1)
