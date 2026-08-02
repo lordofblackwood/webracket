@@ -70,6 +70,32 @@
          "date*-nanosecond"
          "date*?"
          "given: 42")))
+ (list "date and time contracts use error-value->string-handler"
+       (let ([old (error-value->string-handler)])
+         (error-value->string-handler
+          (lambda (v _width)
+            (cond
+              [(number? v) "CUSTOM-NUMBER"]
+              [(symbol? v) "CUSTOM-SYMBOL"]
+              [else "CUSTOM-VALUE"])))
+         (let ([ok (and
+                    (catch-contract/contains?
+                     (lambda () (date 61 0 0 1 1 2024 0 0 #f 0))
+                     "date"
+                     "(integer-in 0 60)"
+                     "given: CUSTOM-NUMBER")
+                    (catch-contract/contains?
+                     (lambda () (date-second 42))
+                     "date-second"
+                     "date?"
+                     "given: CUSTOM-NUMBER")
+                    (catch-contract/contains?
+                     (lambda () (current-process-milliseconds 'bad))
+                     "current-process-milliseconds"
+                     "(or/c #f thread? 'subprocesses)"
+                     "given: CUSTOM-SYMBOL"))])
+           (error-value->string-handler old)
+           ok)))
  (list "current-process-milliseconds rejects invalid scopes"
        (and
         (catch-contract/contains?
