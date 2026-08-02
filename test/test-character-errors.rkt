@@ -2,6 +2,18 @@
 ;;
 ;; Compile this file with `--no-stdlib`.
 
+(define (catch-contract/contains? thunk . needles)
+  (let ([message
+         (with-handlers ([exn:fail:contract?
+                          (lambda (exn)
+                            (exn-message exn))])
+           (thunk)
+           #f)])
+    (and message
+         (andmap (lambda (needle)
+                   (string-contains? message needle))
+                 needles))))
+
 (list
  (list "integer->char errors are catchable with who"
        (let ([catch-contract/who+expected+given?
@@ -80,3 +92,34 @@
               (string-contains? message "char-grapheme-step")
               (string-contains? message "grapheme-cluster-state?")
               (string-contains? message "given: #f")))))
+ (list "character contracts use error-value->string-handler"
+       (let ([old (error-value->string-handler)])
+         (error-value->string-handler
+          (lambda (v _width)
+            (cond
+              [(number? v) "CUSTOM-NUMBER"]
+              [(boolean? v) "CUSTOM-BOOLEAN"]
+              [else "CUSTOM-VALUE"])))
+         (let ([ok (and
+                    (catch-contract/contains?
+                     (lambda () (integer->char #f))
+                     "integer->char"
+                     "valid-unicode-scalar-value?"
+                     "given: CUSTOM-BOOLEAN")
+                    (catch-contract/contains?
+                     (lambda () (char-alphabetic? 42))
+                     "char-alphabetic?"
+                     "char?"
+                     "given: CUSTOM-NUMBER")
+                    (catch-contract/contains?
+                     (lambda () (char=? #\a 42))
+                     "char=?"
+                     "char?"
+                     "given: CUSTOM-NUMBER")
+                    (catch-contract/contains?
+                     (lambda () (char-grapheme-step #\a #f))
+                     "char-grapheme-step"
+                     "grapheme-cluster-state?"
+                     "given: CUSTOM-BOOLEAN"))])
+           (error-value->string-handler old)
+           ok)))

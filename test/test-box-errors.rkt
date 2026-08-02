@@ -61,6 +61,31 @@
          "box-cas!"
          "(and/c box? (not/c immutable?))"
          "given:")))
+ (list "box contracts use error-value->string-handler"
+       (let ([old (error-value->string-handler)])
+         (error-value->string-handler
+          (lambda (v _width)
+            (cond
+              [(number? v) "CUSTOM-NUMBER"]
+              [else "CUSTOM-VALUE"])))
+         (let ([ok (and
+                    (catch-contract/contains?
+                     (lambda () (unbox 42))
+                     "unbox"
+                     "box?"
+                     "given: CUSTOM-NUMBER")
+                    (catch-contract/contains?
+                     (lambda () (set-box! 42 'value))
+                     "set-box!"
+                     "(and/c box? (not/c immutable?))"
+                     "given: CUSTOM-NUMBER")
+                    (catch-contract/contains?
+                     (lambda () (box-cas! 42 'old 'new))
+                     "box-cas!"
+                     "(and/c box? (not/c immutable?))"
+                     "given: CUSTOM-NUMBER"))])
+           (error-value->string-handler old)
+           ok)))
  (list "weak-box-value rejects non-weak-boxes with who"
        (catch-contract/contains?
         (lambda () (weak-box-value 42))
