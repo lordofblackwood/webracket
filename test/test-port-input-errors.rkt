@@ -80,6 +80,37 @@
          "port-next-location"
          "port?"
          "given: 42")))
+ (list "basic input port contracts use error-value->string-handler"
+       (let ([old (error-value->string-handler)])
+         (error-value->string-handler
+          (lambda (v _width)
+            (cond
+              [(number? v) "CUSTOM-NUMBER"]
+              [(boolean? v) "CUSTOM-BOOLEAN"]
+              [else "CUSTOM-VALUE"])))
+         (let ([ok (and
+                    (catch-contract/contains?
+                     (lambda () (current-input-port 42))
+                     "current-input-port"
+                     "input-port?"
+                     "given: CUSTOM-NUMBER")
+                    (catch-contract/contains?
+                     (lambda () (close-input-port #f))
+                     "close-input-port"
+                     "input-port?"
+                     "given: CUSTOM-BOOLEAN")
+                    (catch-contract/contains?
+                     (lambda () (read-byte #f))
+                     "read-byte"
+                     "input-port?"
+                     "given: CUSTOM-BOOLEAN")
+                    (catch-contract/contains?
+                     (lambda () (read-char 42))
+                     "read-char"
+                     "input-port?"
+                     "given: CUSTOM-NUMBER"))])
+           (error-value->string-handler old)
+           ok)))
  (list "input string/byte port constructors reject bad source values"
        (and
         (catch-contract/contains?
