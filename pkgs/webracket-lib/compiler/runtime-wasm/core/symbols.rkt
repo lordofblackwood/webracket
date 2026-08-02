@@ -366,7 +366,8 @@
                (call $raise-argument-error1
                      (local.get $who)
                      (global.get $string:symbol?)
-                     (local.get $x)))
+                     (local.get $x))
+               (unreachable))
 
          (func $raise-string-expected/who
                (param $who (ref eq))
@@ -374,7 +375,8 @@
                (call $raise-argument-error1
                      (local.get $who)
                      (global.get $string:string?)
-                     (local.get $x)))
+                     (local.get $x))
+               (unreachable))
 
          (func $symbol=? (type $Prim2)
                (param $a (ref eq)) (param $b (ref eq))

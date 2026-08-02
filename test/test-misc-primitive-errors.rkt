@@ -95,6 +95,21 @@
  (list "keyword contract errors print symbolic values"
        (and
         (catch-contract/contains?
+         (lambda () (string->keyword 42))
+         "string->keyword"
+         "string?"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (keyword->string 42))
+         "keyword->string"
+         "keyword?"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (keyword->immutable-string 42))
+         "keyword->immutable-string"
+         "keyword?"
+         "given: 42")
+        (catch-contract/contains?
          (lambda () (keyword<? '#:a 'bad))
          "keyword<?"
          "keyword?"
@@ -142,6 +157,41 @@
                      (lambda () (string->symbol 42))
                      "string->symbol"
                      "string?"
+                     "given: CUSTOM-NUMBER")
+                    (catch-contract/contains?
+                     (lambda () (symbol->immutable-string 42))
+                     "symbol->immutable-string"
+                     "symbol?"
+                     "given: CUSTOM-NUMBER")
+                    (catch-contract/contains?
+                     (lambda () (string->uninterned-symbol 42))
+                     "string->uninterned-symbol"
+                     "string?"
+                     "given: CUSTOM-NUMBER")
+                    (catch-contract/contains?
+                     (lambda () (string->unreadable-symbol 42))
+                     "string->unreadable-symbol"
+                     "string?"
+                     "given: CUSTOM-NUMBER")
+                    (catch-contract/contains?
+                     (lambda () (symbol-interned? 42))
+                     "symbol-interned?"
+                     "symbol?"
+                     "given: CUSTOM-NUMBER")
+                    (catch-contract/contains?
+                     (lambda () (symbol-unreadable? 42))
+                     "symbol-unreadable?"
+                     "symbol?"
+                     "given: CUSTOM-NUMBER")
+                    (catch-contract/contains?
+                     (lambda () (symbol=? 42 'a))
+                     "symbol=?"
+                     "symbol?"
+                     "given: CUSTOM-NUMBER")
+                    (catch-contract/contains?
+                     (lambda () (symbol=? 'a 42))
+                     "symbol=?"
+                     "symbol?"
                      "given: CUSTOM-NUMBER")
                     (catch-contract/contains?
                      (lambda () (symbol<? 'a 42))
