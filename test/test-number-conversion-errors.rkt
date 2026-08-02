@@ -197,7 +197,11 @@
           (catch-contract/who+expected+given?
            "(or/c 2 8 10 16)"
            "given: 3"
-           (lambda () (number->string 1 3))))))
+           (lambda () (number->string 1 3)))
+          (catch-contract/who+expected+given?
+           "(or/c 2 8 10 16)"
+           "given: 2.0"
+           (lambda () (number->string 1 2.0))))))
  (list "string->number errors are catchable with who"
        (let ([catch-contract/who+expected+given?
               (lambda (expected given thunk)
@@ -227,7 +231,11 @@
           (catch-contract/who+expected+given?
            "(integer-in 2 16)"
            "given: 17"
-           (lambda () (string->number "1" 17))))))
+           (lambda () (string->number "1" 17)))
+          (catch-contract/who+expected+given?
+           "(integer-in 2 16)"
+           "given: 2.0"
+           (lambda () (string->number "1" 2.0))))))
  (list "number conversion contracts use error-value->string-handler"
        (let ([old (error-value->string-handler)])
          (error-value->string-handler
@@ -261,6 +269,11 @@
                        "(or/c 2 8 10 16)"
                        "given: CUSTOM-NUMBER")
                       (catch-contract/contains?
+                       (lambda () (number->string 1 2.0))
+                       "number->string"
+                       "(or/c 2 8 10 16)"
+                       "given: CUSTOM-NUMBER")
+                      (catch-contract/contains?
                        (lambda () (string->number 42))
                        "string->number"
                        "string?"
@@ -270,6 +283,11 @@
                        "string->number"
                        "(integer-in 2 16)"
                        "given: CUSTOM-BOOLEAN")
+                      (catch-contract/contains?
+                       (lambda () (string->number "1" 2.0))
+                       "string->number"
+                       "(integer-in 2 16)"
+                       "given: CUSTOM-NUMBER")
                       (catch-contract/contains?
                        (lambda () (real->floating-point-bytes #f 8))
                        "real->floating-point-bytes"

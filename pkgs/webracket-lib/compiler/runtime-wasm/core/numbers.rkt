@@ -3334,12 +3334,14 @@
            (call $raise-argument-error1
                  (global.get $symbol:number->string)
                  (global.get $string:number?)
-                 (local.get $bad)))
+                 (local.get $bad))
+           (unreachable))
      (func $raise-number->string-bad-radix (param $bad (ref eq))
            (call $raise-argument-error1
                  (global.get $symbol:number->string)
                  (global.get $string:number->string:radix)
-                 (local.get $bad)))
+                 (local.get $bad))
+           (unreachable))
 
      (func $number->string:check-radix (param $radix i32) (result i32)
            ; number->string accepts 2, 8, 10, or 16 as radix
@@ -3523,12 +3525,14 @@
            (call $raise-argument-error1
                  (global.get $symbol:string->number)
                  (global.get $string:string?)
-                 (local.get $bad)))
+                 (local.get $bad))
+           (unreachable))
      (func $raise-string->number:bad-radix (param $bad (ref eq))
            (call $raise-argument-error1
                  (global.get $symbol:string->number)
                  (global.get $string:string->number:radix)
-                 (local.get $bad)))
+                 (local.get $bad))
+           (unreachable))
 
      ;; string->number:parse-fractional-part : string? i32 -> f64 i32
      ;;   Parse decimal digits into an inexact fractional value.
