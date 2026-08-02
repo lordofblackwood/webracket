@@ -64,6 +64,43 @@
          "stencil-vector-set!"
          "stencil-vector?"
          "given: 'bad")))
+ (list "stencil-vector contracts use error-value->string-handler"
+       (let ([old (error-value->string-handler)])
+         (error-value->string-handler
+          (lambda (v _width)
+            (cond
+              [(number? v) "CUSTOM-NUMBER"]
+              [(symbol? v) "CUSTOM-SYMBOL"]
+              [else "CUSTOM-VALUE"])))
+         (let ([sv (stencil-vector #b11 'a 'b)])
+           (let ([ok (and
+                      (catch-contract/contains?
+                       (lambda () (stencil-vector 'bad))
+                       "stencil-vector"
+                       "(integer-in 0 (sub1 (expt 2 (stencil-vector-mask-width))))"
+                       "given: CUSTOM-SYMBOL")
+                      (catch-contract/contains?
+                       (lambda () (stencil-vector-length 'bad))
+                       "stencil-vector-length"
+                       "stencil-vector?"
+                       "given: CUSTOM-SYMBOL")
+                      (catch-contract/contains?
+                       (lambda () (stencil-vector-ref sv 'bad))
+                       "stencil-vector-ref"
+                       "exact-nonnegative-integer?"
+                       "given: CUSTOM-SYMBOL")
+                      (catch-contract/contains?
+                       (lambda () (stencil-vector-ref sv 3))
+                       "stencil-vector-ref"
+                       "valid vector index"
+                       "given: CUSTOM-NUMBER")
+                      (catch-contract/contains?
+                       (lambda () (stencil-vector-update sv 'bad #b0))
+                       "stencil-vector-update"
+                       "(integer-in 0 (sub1 (expt 2 (stencil-vector-mask-width))))"
+                       "given: CUSTOM-SYMBOL"))])
+             (error-value->string-handler old)
+             ok))))
  (list "stencil-vector index errors are catchable"
        (let ([sv (stencil-vector #b11 'a 'b)])
          (and
