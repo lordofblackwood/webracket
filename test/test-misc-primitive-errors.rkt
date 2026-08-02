@@ -66,6 +66,20 @@
         (lambda () (s-exp->fasl (lambda (x) x)))
         "s-exp->fasl"
         "unsupported value"))
+ (list "s-exp->fasl unsupported values use error-value->string-handler"
+       (let ([old (error-value->string-handler)])
+         (error-value->string-handler
+          (lambda (v _width)
+            (cond
+              [(procedure? v) "CUSTOM-PROCEDURE"]
+              [else "CUSTOM-VALUE"])))
+         (let ([ok (catch-unsupported/contains?
+                    (lambda () (s-exp->fasl (lambda (x) x)))
+                    "s-exp->fasl"
+                    "unsupported value"
+                    "CUSTOM-PROCEDURE")])
+           (error-value->string-handler old)
+           ok)))
  (list "external conversion argument errors are catchable"
        (and
         (catch-contract/contains?

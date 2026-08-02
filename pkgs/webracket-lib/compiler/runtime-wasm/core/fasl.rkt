@@ -141,7 +141,7 @@
                            (call $exn:fail:unsupported/make
                                  (call $string-append/2
                                        (global.get $string:s-exp->fasl-unsupported-prefix)
-                                       (call $format/display (local.get $v)))
+                                       (call $format/error-value->string (local.get $v)))
                                  (call $current-continuation-marks
                                        (global.get $missing)))
                            (global.get $true)))
