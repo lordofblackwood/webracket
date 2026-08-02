@@ -378,6 +378,7 @@ html.we-theme-light .we-button.we-menu-label[aria-expanded='true'] {
   background: var(--we-button-secondary-active-bg, var(--we-button-secondary-hover-bg));
   border-color: var(--we-button-secondary-active-border, var(--we-button-secondary-hover-border));
   color: var(--we-button-secondary-active-color, var(--we-button-secondary-hover-color));
+  box-shadow: var(--we-button-secondary-active-shadow, var(--we-button-secondary-shadow, none));
 }
 
 html.we-theme-light .we-menu-popup {
@@ -828,7 +829,7 @@ html.we-theme-light .we-feedback.is-invalid {
 html.we-theme-light button,
 html.we-theme-light .we-button {
   background: var(--we-surface-raised);
-  border: var(--we-button-border-width, 1px) solid var(--we-control-border);
+  border: var(--we-button-border-width, 1px) solid var(--we-button-border-color, var(--we-control-border));
   color: var(--we-fg);
   box-shadow: var(--we-button-shadow, none);
   border-radius: var(--we-button-radius);
@@ -843,9 +844,19 @@ html.we-theme-light .we-button {
 
 html.we-theme-light .we-button {
   display: inline-block;
+  margin:
+    var(--we-button-margin-top, 0)
+    var(--we-button-margin-right, 0)
+    var(--we-button-margin-bottom, 0)
+    var(--we-button-margin-left, 0);
   text-align: center;
   text-decoration: none;
+  transform: var(--we-button-transform, none);
   vertical-align: middle;
+}
+
+html.we-theme-light button:not(.we-button) {
+  box-shadow: none;
 }
 
 /* The close icon is CSS-driven; override this selector to use another glyph. */
@@ -875,14 +886,14 @@ html.we-theme-light .we-button:focus-visible {
 /* Button variants used by the public showcase page. */
 html.we-theme-light .we-button-primary {
   background: var(--we-primary);
-  border-color: var(--we-primary);
+  border-color: var(--we-button-primary-border, var(--we-primary));
   color: var(--we-primary-on);
   box-shadow: var(--we-button-primary-shadow, var(--we-button-shadow, none));
 }
 
 html.we-theme-light .we-button-primary:not(:disabled):hover {
   background: var(--we-primary-emphasis);
-  border-color: var(--we-primary-emphasis);
+  border-color: var(--we-button-primary-border, var(--we-primary-emphasis));
 }
 
 html.we-theme-light .we-button-secondary {
@@ -912,28 +923,28 @@ html.we-theme-light .we-button-ghost:not(:disabled):hover {
 /* Extended semantic button variants used by demos/tests. */
 html.we-theme-light .we-button-success {
   background: var(--we-success);
-  border-color: var(--we-success);
+  border-color: var(--we-button-success-border, var(--we-success));
   color: var(--we-button-success-color, var(--we-success-on));
   box-shadow: var(--we-button-success-shadow, var(--we-button-shadow, none));
 }
 
 html.we-theme-light .we-button-info {
   background: var(--we-info);
-  border-color: var(--we-info);
+  border-color: var(--we-button-info-border, var(--we-info));
   color: var(--we-button-info-color, var(--we-info-on));
   box-shadow: var(--we-button-info-shadow, var(--we-button-shadow, none));
 }
 
 html.we-theme-light .we-button-warning {
   background: var(--we-warning);
-  border-color: var(--we-warning);
+  border-color: var(--we-button-warning-border, var(--we-warning));
   color: var(--we-button-warning-color, var(--we-warning-on));
   box-shadow: var(--we-button-warning-shadow, var(--we-button-shadow, none));
 }
 
 html.we-theme-light .we-button-danger {
   background: var(--we-danger);
-  border-color: var(--we-danger);
+  border-color: var(--we-button-danger-border, var(--we-danger));
   color: var(--we-button-danger-color, var(--we-danger-on));
   box-shadow: var(--we-button-danger-shadow, var(--we-button-shadow, none));
 }
@@ -953,7 +964,7 @@ html.we-theme-light .we-button-light:not(:disabled):hover {
 
 html.we-theme-light .we-button-dark {
   background: var(--we-dark);
-  border-color: var(--we-dark);
+  border-color: var(--we-button-dark-border, var(--we-dark));
   color: var(--we-dark-on);
   box-shadow: var(--we-button-dark-shadow, var(--we-button-shadow, none));
 }
@@ -966,7 +977,7 @@ html.we-theme-light .we-button-link {
 }
 
 html.we-theme-light .we-button-outline-primary {
-  background: transparent;
+  background: var(--we-button-outline-primary-bg, transparent);
   border-color: var(--we-button-outline-primary-border, var(--we-primary));
   color: var(--we-button-outline-primary-color, var(--we-primary));
   box-shadow: var(--we-button-outline-primary-shadow, var(--we-button-primary-shadow, var(--we-button-shadow, none)));
@@ -974,7 +985,7 @@ html.we-theme-light .we-button-outline-primary {
 html.we-theme-light .we-button-outline-primary.is-active,
 html.we-theme-light .we-button-outline-primary[aria-pressed='true'] {
   background: var(--we-primary);
-  border-color: var(--we-primary);
+  border-color: var(--we-button-primary-border, var(--we-primary));
   color: var(--we-primary-on);
 }
 html.we-theme-light .we-button-outline-primary,
@@ -988,18 +999,18 @@ html.we-theme-light .we-button-outline-dark {
   border-width: var(--we-button-outline-border-width, var(--we-button-border-width, 1px));
 }
 html.we-theme-light .we-button-outline-secondary {
-  background: transparent;
+  background: var(--we-button-outline-secondary-bg, transparent);
   border-color: var(--we-button-outline-secondary-border);
   color: var(--we-button-outline-secondary-color);
   box-shadow: var(--we-button-outline-secondary-shadow, var(--we-button-secondary-shadow, var(--we-button-shadow, none)));
 }
 html.we-theme-light .we-button-outline-secondary:not(:disabled):hover { background: var(--we-button-outline-secondary-hover-bg); border-color: var(--we-button-outline-secondary-hover-border); color: var(--we-button-secondary-hover-color); }
-html.we-theme-light .we-button-outline-success { background: transparent; border-color: var(--we-success); color: var(--we-success-emphasis); box-shadow: var(--we-button-success-shadow, var(--we-button-shadow, none)); }
-html.we-theme-light .we-button-outline-info { background: transparent; border-color: var(--we-info); color: var(--we-info); box-shadow: var(--we-button-info-shadow, var(--we-button-shadow, none)); }
-html.we-theme-light .we-button-outline-warning { background: transparent; border-color: var(--we-warning); color: var(--we-warning-emphasis); box-shadow: var(--we-button-warning-shadow, var(--we-button-shadow, none)); }
-html.we-theme-light .we-button-outline-danger { background: transparent; border-color: var(--we-danger); color: var(--we-danger-emphasis); box-shadow: var(--we-button-danger-shadow, var(--we-button-shadow, none)); }
+html.we-theme-light .we-button-outline-success { background: transparent; border-color: var(--we-button-success-border, var(--we-success)); color: var(--we-success-emphasis); box-shadow: var(--we-button-success-shadow, var(--we-button-shadow, none)); }
+html.we-theme-light .we-button-outline-info { background: transparent; border-color: var(--we-button-info-border, var(--we-info)); color: var(--we-info); box-shadow: var(--we-button-info-shadow, var(--we-button-shadow, none)); }
+html.we-theme-light .we-button-outline-warning { background: transparent; border-color: var(--we-button-warning-border, var(--we-warning)); color: var(--we-warning-emphasis); box-shadow: var(--we-button-warning-shadow, var(--we-button-shadow, none)); }
+html.we-theme-light .we-button-outline-danger { background: transparent; border-color: var(--we-button-danger-border, var(--we-danger)); color: var(--we-danger-emphasis); box-shadow: var(--we-button-danger-shadow, var(--we-button-shadow, none)); }
 html.we-theme-light .we-button-outline-light { background: var(--we-surface); border-color: var(--we-light-border); color: var(--we-light-emphasis); box-shadow: var(--we-button-light-shadow, var(--we-button-shadow, none)); }
-html.we-theme-light .we-button-outline-dark { background: transparent; border-color: var(--we-dark); color: var(--we-dark); box-shadow: var(--we-button-dark-shadow, var(--we-button-shadow, none)); }
+html.we-theme-light .we-button-outline-dark { background: transparent; border-color: var(--we-button-dark-border, var(--we-dark)); color: var(--we-dark); box-shadow: var(--we-button-dark-shadow, var(--we-button-shadow, none)); }
 
 html.we-theme-light .we-button-lg {
   padding: var(--we-button-lg-padding-y, 0.5rem) var(--we-button-lg-padding-x, 1rem);
@@ -1100,7 +1111,7 @@ html.we-theme-light .we-alert {
   border:
     var(--we-alert-border-width, 1px)
     var(--we-alert-border-style, solid)
-    var(--we-control-border);
+    var(--we-alert-border-color, var(--we-control-border));
   border-radius: var(--we-alert-radius, 0);
   background: var(--we-surface-subtle);
   color: var(--we-fg);
@@ -1340,7 +1351,7 @@ html.we-theme-light .we-tab-btn {
   min-height: 0;
   padding: var(--we-tab-padding-y) var(--we-tab-padding-x);
   border: var(--we-tab-border-width, 1px) solid var(--we-tab-link-border-color, var(--we-tab-border-color));
-  border-radius: var(--we-tab-border-radius) var(--we-tab-border-radius) 0 0;
+  border-radius: var(--we-tab-border-radius) var(--we-tab-border-radius) var(--we-tab-border-bottom-right-radius, 0) var(--we-tab-border-bottom-left-radius, 0);
   border-bottom: var(--we-tab-border-width, 1px) solid var(--we-tab-link-border-color, var(--we-tab-border-color));
   background: var(--we-tab-bg);
   color: var(--we-tab-color);
@@ -1701,8 +1712,10 @@ html.we-theme-light .we-navigation-bar .we-menu-label {
   font-weight: var(--we-nav-font-weight);
   line-height: var(--we-nav-line-height, var(--we-line-height-base));
   letter-spacing: var(--we-nav-letter-spacing, var(--we-letter-spacing-base));
+  margin: 0;
   padding: var(--we-nav-link-padding-y) var(--we-nav-link-padding-x);
   text-transform: var(--we-nav-text-transform);
+  transform: none;
 }
 
 html.we-theme-light .we-navigation-bar .we-navigation-bar-items > .we-button:hover,
@@ -1930,6 +1943,7 @@ html.we-theme-light .we-card-text {
 }
 
 html.we-theme-light .we-card-body {
+  flex: 1 1 auto;
   padding: var(--we-card-body-padding-y) var(--we-card-body-padding-x);
   color: var(--we-card-color, inherit);
   font-size: var(--we-font-size-md);
@@ -2196,7 +2210,7 @@ html.we-theme-light .we-table > tbody > tr.we-table-row-dark > * {
 /* Badges: tone classes should be visually distinct in examples and apps. */
 html.we-theme-light .we-badge {
   display: inline-block;
-  border: 0;
+  border: var(--we-badge-border-width, 0) var(--we-badge-border-style, none) var(--we-badge-border-color, transparent);
   background: var(--we-surface-muted);
   color: var(--we-badge-color);
   font-family: var(--we-badge-font-family, var(--we-font-family-base));
@@ -2385,6 +2399,10 @@ html.we-theme-light .we-page-btn {
   text-transform: var(--we-pagination-text-transform, none);
 }
 
+html.we-theme-light .we-page-btn[href] {
+  font-weight: var(--we-pagination-link-font-weight, var(--we-link-font-weight, var(--we-pagination-font-weight, var(--we-font-weight-normal))));
+}
+
 html.we-theme-light .we-pagination .we-page-btn + .we-page-btn {
   margin-left: calc(-1 * var(--we-pagination-border-width));
 }
@@ -2433,7 +2451,10 @@ html.we-theme-light .we-button-group > .we-button,
 html.we-theme-light .we-toolbar-group > .we-button,
 html.we-theme-light .we-toggle-button-group > .we-button {
   position: relative;
-  margin: 0;
+  margin-top: var(--we-button-margin-top, 0);
+  margin-right: var(--we-button-margin-right, 0);
+  margin-bottom: var(--we-button-margin-bottom, 0);
+  margin-left: 0;
 }
 
 html.we-theme-light .we-button-group > .we-button + .we-button,
@@ -2472,9 +2493,14 @@ html.we-theme-light .we-button-group-vertical.we-stack {
 }
 
 html.we-theme-light .we-button-group-vertical > .we-button {
-  width: auto;
+  flex: 1 1 auto;
+  width: 100%;
   position: relative;
-  margin: 0;
+  margin:
+    var(--we-button-margin-top, 0)
+    var(--we-button-margin-right, 0)
+    var(--we-button-margin-bottom, 0)
+    var(--we-button-margin-left, 0);
 }
 
 html.we-theme-light .we-button-group-vertical > .we-button + .we-button {
@@ -2637,10 +2663,12 @@ html.we-theme-light .we-offcanvas-header .we-close-button {
 }
 
 html.we-theme-light .we-offcanvas-body {
+  flex: 1 1 auto;
   padding:
     var(--we-offcanvas-padding-y, var(--we-space-md, 8px))
     var(--we-offcanvas-padding-x, var(--we-space-md, 8px));
   color: var(--we-offcanvas-color, var(--we-fg));
+  overflow-y: auto;
 }
 
 html.we-theme-light .we-offcanvas-title,
@@ -3473,6 +3501,7 @@ html.we-theme-light .we-modal-actions {
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: var(--we-dialog-footer-gap, 0.5rem);
+  margin: var(--we-dialog-actions-margin, calc(var(--we-dialog-footer-gap, 0.5rem) * 0.5));
   width: auto;
 }
 
@@ -3539,9 +3568,9 @@ html.we-theme-light .we-popover-body {
 html.we-theme-light .we-dialog-close,
 html.we-theme-light .we-modal-close {
   margin-left: auto;
-  width: 1rem;
-  height: 1rem;
-  min-width: 1rem;
+  width: var(--we-close-button-size, 1em);
+  height: var(--we-close-button-size, 1em);
+  min-width: var(--we-close-button-size, 1em);
   min-height: auto;
   margin-top: calc(-0.5 * var(--we-dialog-header-padding-y));
   margin-right: calc(-0.5 * var(--we-dialog-header-padding-x));
@@ -3622,6 +3651,7 @@ html.we-theme-light .we-carousel-next {
   align-items: center;
   justify-content: center;
   width: 15%;
+  margin: 0;
   min-width: 0;
   min-height: 0;
   padding: 0;
@@ -3633,6 +3663,7 @@ html.we-theme-light .we-carousel-next {
   filter: var(--we-carousel-control-icon-filter, none);
   opacity: 0.5;
   font-size: 0;
+  transform: none;
 }
 
 html.we-theme-light .we-carousel-prev {
@@ -3786,6 +3817,7 @@ html.we-theme-light .we-card-media {
 html.we-theme-light .we-card-media-text,
 html.we-theme-light .we-card-action-text {
   color: var(--we-card-action-text-color, var(--we-primary));
+  font-weight: var(--we-card-action-text-font-weight, var(--we-link-font-weight, var(--we-font-weight-normal)));
 }
 
 html.we-theme-light .we-card-actions {

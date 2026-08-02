@@ -566,6 +566,7 @@
       <div class="controls">
         <strong>Theme</strong>
         <select id="theme-select" aria-label="Choose theme">
+          <option value="brite">Brite</option>
           <option value="superhero">Superhero</option>
           <option value="sketchy">Sketchy</option>
           <option value="lux">Lux</option>
@@ -1668,11 +1669,11 @@
                         <li class="we-breadcrumb-item is-current">Compare</li>
                       </ol>
                       <div class="we-pagination" aria-label="Pagination">
-                        <button class="we-page-btn is-disabled">Prev</button>
-                        <button class="we-page-btn is-current">1</button>
-                        <button class="we-page-btn">2</button>
-                        <button class="we-page-btn">3</button>
-                        <button class="we-page-btn">Next</button>
+                        <a class="we-page-btn is-disabled" href="#">Prev</a>
+                        <a class="we-page-btn is-current" href="#">1</a>
+                        <a class="we-page-btn" href="#">2</a>
+                        <a class="we-page-btn" href="#">3</a>
+                        <a class="we-page-btn" href="#">Next</a>
                       </div>
                     </div>
                   </div>
@@ -1835,19 +1836,19 @@
                   <div class="sample-body">
                     <div class="sample-stack">
                       <div class="we-pagination" aria-label="Pagination states">
-                        <button class="we-page-btn is-disabled">Prev</button>
-                        <button class="we-page-btn is-current">1</button>
-                        <button class="we-page-btn">2</button>
-                        <button class="we-page-btn">3</button>
-                        <button class="we-page-btn">Next</button>
+                        <span class="we-page-btn is-disabled">Prev</span>
+                        <span class="we-page-btn is-current">1</span>
+                        <a class="we-page-btn" href="#">2</a>
+                        <a class="we-page-btn" href="#">3</a>
+                        <a class="we-page-btn" href="#">Next</a>
                       </div>
                       <div class="we-pagination" aria-label="Long pagination">
-                        <button class="we-page-btn">First</button>
-                        <button class="we-page-btn">Prev</button>
-                        <button class="we-page-btn is-current">8</button>
-                        <button class="we-page-btn">9</button>
-                        <button class="we-page-btn">10</button>
-                        <button class="we-page-btn">Next</button>
+                        <a class="we-page-btn" href="#">First</a>
+                        <a class="we-page-btn" href="#">Prev</a>
+                        <span class="we-page-btn is-current">8</span>
+                        <a class="we-page-btn" href="#">9</a>
+                        <a class="we-page-btn" href="#">10</a>
+                        <a class="we-page-btn" href="#">Next</a>
                       </div>
                     </div>
                   </div>
@@ -2241,6 +2242,7 @@
   <script>
     const WE_CORE_SELECTOR = ".we-preview";
     const THEMES = {
+      brite: { bootstrap: "brite", web: "brite", label: "Brite" },
       superhero: { bootstrap: "superhero", web: "superhero", label: "Superhero" },
       sketchy: { bootstrap: "sketchy", web: "sketchy", label: "Sketchy" },
       lux: { bootstrap: "lux", web: "lux", label: "Lux" },

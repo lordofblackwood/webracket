@@ -160,6 +160,7 @@
       <div class="controls">
         <strong>Theme</strong>
         <select id="theme-select" aria-label="Choose generated theme">
+          <option value="brite">Brite</option>
           <option value="superhero">Superhero</option>
           <option value="sketchy">Sketchy</option>
           <option value="lux">Lux</option>
@@ -168,6 +169,7 @@
           <option value="sandstone-boost">Sandstone Boost</option>
           <option value="vapor">Vapor</option>
         </select>
+        <button id="btn-brite" type="button">Brite</button>
         <button id="btn-superhero" type="button">Superhero</button>
         <button id="btn-sketchy" type="button">Sketchy</button>
         <button id="btn-lux" type="button">Lux</button>
@@ -176,6 +178,7 @@
         <button id="btn-sandstone-boost" type="button">Sandstone Boost</button>
         <button id="btn-vapor" type="button">Vapor</button>
         <span id="current">(loading)</span>
+        <a href="./generated/thematic-brite.css" download>Download Brite CSS</a>
         <a href="./generated/thematic-superhero.css" download>Download Superhero CSS</a>
         <a href="./generated/thematic-sketchy.css" download>Download Sketchy CSS</a>
         <a href="./generated/thematic-lux.css" download>Download Lux CSS</a>
@@ -191,7 +194,7 @@
     <p class="lead">
       This page applies the generated `thematic` stylesheets to the existing widget gallery.
       Use it to compare cards, tabs, dialogs, controls, lists, and tables across the generated
-      Superhero, Sketchy, Lux, Lux Boost, Sandstone, Sandstone Boost, and Vapor themes.
+      Brite, Superhero, Sketchy, Lux, Lux Boost, Sandstone, Sandstone Boost, and Vapor themes.
     </p>
 
     <div id="gallery">
@@ -238,6 +241,7 @@
     const CORE_CSS = "../themes/web-easy-core.css";
 
     const THEMES = {
+      brite: "./thematic-brite.css",
       superhero: "./thematic-superhero.css",
       sketchy: "./thematic-sketchy.css",
       lux: "./thematic-lux.css",
@@ -298,6 +302,7 @@
       if (!frameDoc) return;
       frameDoc.documentElement.classList.remove(
         "we-theme-superhero",
+        "we-theme-brite",
         "we-theme-sketchy",
         "we-theme-lux",
         "we-theme-lux-boost",
@@ -327,6 +332,7 @@
       frame.addEventListener("load", () => applyThemeToFrame(frame, currentTheme));
     }
 
+    document.getElementById("btn-brite").addEventListener("click", () => applyTheme("brite"));
     document.getElementById("btn-superhero").addEventListener("click", () => applyTheme("superhero"));
     document.getElementById("btn-sketchy").addEventListener("click", () => applyTheme("sketchy"));
     document.getElementById("btn-lux").addEventListener("click", () => applyTheme("lux"));

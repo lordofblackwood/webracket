@@ -309,6 +309,22 @@
        (not (member (string-downcase (string-trim value))
                     '("initial" "inherit" "unset" "revert" "revert-layer")))))
 
+;; zero-css-length? : (or/c string? #f) -> boolean?
+;;   Check common serialized zero lengths without parsing full CSS math.
+(define (zero-css-length? value)
+  (and (string? value)
+       (member (string-downcase (string-trim value))
+               '("0" "0px" "0rem" "0em" "0%" "0vh" "0vw"))))
+
+;; transparent-color-value? : (or/c string? #f) -> boolean?
+;;   Detect transparent CSS colors that should not become visual overrides.
+(define (transparent-color-value? value)
+  (and value
+       (member (string-downcase (string-trim value))
+               '("transparent"
+                 "rgba(0, 0, 0, 0)"
+                 "rgba(0,0,0,0)"))))
+
 ;; resolved-concrete-css-value : string? (string? -> (or/c string? #f)) -> (or/c string? #f)
 ;;   Resolve vars in authored CSS and reject unresolved var(...) placeholders.
 (define (resolved-concrete-css-value value lookup)
@@ -374,6 +390,15 @@
                 #:when (border-width-token? part))
          part)))
 
+;; border-shorthand-style : (or/c string? #f) -> (or/c string? #f)
+;;   Extract a CSS border style token from a resolved border shorthand.
+(define (border-shorthand-style value)
+  (and (present-css-value? value)
+       (not (regexp-match? #px"[()]" value))
+       (for/or ([part (in-list (string-split (string-trim value)))]
+                #:when (border-style-token? part))
+         part)))
+
 ;; border-shorthand-color : (or/c string? #f) -> (or/c string? #f)
 ;;   Extract a simple color token from a resolved border shorthand.
 (define (border-shorthand-color value)
@@ -385,6 +410,27 @@
                             (string-split (string-trim value)))])
          (and (pair? parts)
               (string-join parts " ")))))
+
+;; border-radius-shorthand-corner : (or/c string? #f) symbol? -> (or/c string? #f)
+;;   Extract one physical corner from a simple border-radius shorthand.
+(define (border-radius-shorthand-corner value corner)
+  (and (present-css-value? value)
+       (not (regexp-match? #px"[()/]" value))
+       (let ([parts (string-split (string-trim value))])
+         (case (length parts)
+           [(1) (first parts)]
+           [(2) (case corner
+                  [(top-left bottom-right) (first parts)]
+                  [else (second parts)])]
+           [(3) (case corner
+                  [(top-left) (first parts)]
+                  [(top-right bottom-left) (second parts)]
+                  [else (third parts)])]
+           [else (case corner
+                   [(top-left) (first parts)]
+                   [(top-right) (second parts)]
+                   [(bottom-right) (third parts)]
+                   [else (fourth parts)])]))))
 
 ;; extract-component-styles : (hash/c string? string?) css-stylesheet? -> (hash/c symbol? string?)
 ;;   Extract component-level Bootstrap styles that need more than root token mapping.
@@ -404,6 +450,14 @@
     (or (nav-context-custom-ref selectors key)
         (present-ref (hash-ref props key #f))
         (present-ref (hash-ref bootstrap-defaults key #f))))
+  (define (global-direct-ref selectors property)
+    (last-direct-declaration-value
+     rules
+     selectors
+     property
+     (lambda (key) (bootstrap-context-ref selectors key))))
+  (define link-font-weight
+    (global-direct-ref '("a") "font-weight"))
   (define pill-context-selectors
     '(".nav-pills .nav-link" ".nav-pills" ".nav"))
   (define (pill-context-ref key)
@@ -759,10 +813,19 @@
         "none"))
   (define tab-link-selectors
     '(".nav-tabs .nav-link" ".nav-link"))
+  (define tab-active-selectors
+    '(".nav-tabs .nav-link.active"
+      ".nav-tabs .nav-link.active, .nav-tabs .nav-item.show .nav-link"
+      ".nav-tabs .nav-link.active, .nav-tabs .nav-link:hover"
+      ".nav-tabs .nav-link.active, .nav-tabs .nav-link:focus"))
   (define tab-padding-shorthand
     (tab-direct-ref tab-link-selectors "padding"))
   (define tab-border-shorthand
     (tab-direct-ref tab-link-selectors "border"))
+  (define tab-border-radius-shorthand
+    (tab-direct-ref tab-link-selectors "border-radius"))
+  (define tab-active-border-shorthand
+    (tab-direct-ref tab-active-selectors "border"))
   (define tab-border-color
     (or (nav-custom-ref ".nav-tabs" "--bs-nav-tabs-border-color")
         (nav-style-ref ".nav-tabs .nav-link" "border-color")))
@@ -787,24 +850,25 @@
         (nav-style-ref ".nav-link" "padding-top")))
   (define tab-font-size
     (or (tab-direct-ref tab-link-selectors "font-size")
-        (nav-style-ref ".nav-tabs .nav-link" "font-size")
         (tab-context-ref "--bs-nav-link-font-size")
-        (nav-style-ref ".nav-link" "font-size")
         (hash-ref props "--bs-body-font-size" #f)
+        (nav-style-ref ".nav-tabs .nav-link" "font-size")
+        (nav-style-ref ".nav-link" "font-size")
         "1rem"))
   (define tab-font-weight
     (or (tab-direct-ref tab-link-selectors "font-weight")
-        (nav-style-ref ".nav-tabs .nav-link" "font-weight")
+        (meaningful-style-ref ".nav-tabs" "font-weight")
         (tab-context-ref "--bs-nav-link-font-weight")
         (hash-ref props "--bs-body-font-weight" #f)
+        (nav-style-ref ".nav-tabs .nav-link" "font-weight")
         (nav-style-ref ".nav-link" "font-weight")
         "400"))
   (define tab-line-height
     (or (tab-direct-ref tab-link-selectors "line-height")
-        (nav-style-ref ".nav-tabs .nav-link" "line-height")
         (tab-context-ref "--bs-nav-link-line-height")
-        (nav-style-ref ".nav-link" "line-height")
         (hash-ref props "--bs-body-line-height" #f)
+        (nav-style-ref ".nav-tabs .nav-link" "line-height")
+        (nav-style-ref ".nav-link" "line-height")
         "1.5"))
   (define tab-letter-spacing
     (or (tab-direct-ref tab-link-selectors "letter-spacing")
@@ -820,6 +884,14 @@
         (nav-style-ref ".nav-tabs .nav-link.active" "border-radius")
         (nav-custom-ref ".nav-tabs" "--bs-nav-tabs-border-radius")
         (nav-style-ref ".nav-tabs .nav-link" "border-radius")))
+  (define tab-border-bottom-left-radius
+    (or (tab-direct-ref tab-link-selectors "border-bottom-left-radius")
+        (border-radius-shorthand-corner tab-border-radius-shorthand 'bottom-left)
+        (nav-style-ref ".nav-tabs .nav-link" "border-bottom-left-radius")))
+  (define tab-border-bottom-right-radius
+    (or (tab-direct-ref tab-link-selectors "border-bottom-right-radius")
+        (border-radius-shorthand-corner tab-border-radius-shorthand 'bottom-right)
+        (nav-style-ref ".nav-tabs .nav-link" "border-bottom-right-radius")))
   (define tab-hover-border
     (or (nav-custom-ref ".nav-tabs" "--bs-nav-tabs-link-hover-border-color")
         (nav-style-ref ".nav-tabs .nav-link:hover" "border-color")))
@@ -840,7 +912,9 @@
     (or (nav-custom-ref ".nav-tabs" "--bs-nav-tabs-link-active-bg")
         (nav-style-ref ".nav-tabs .nav-link.active" "background-color")))
   (define tab-active-border
-    (or (nav-custom-ref ".nav-tabs" "--bs-nav-tabs-link-active-border-color")
+    (or (border-shorthand-color tab-active-border-shorthand)
+        (tab-direct-ref tab-active-selectors "border-color")
+        (nav-custom-ref ".nav-tabs" "--bs-nav-tabs-link-active-border-color")
         (nav-style-ref ".nav-tabs .nav-link.active" "border-color")))
   (define tab-active-border-bottom
     (or (box-shorthand-side tab-active-border 'bottom)
@@ -858,6 +932,7 @@
         (hash-ref bootstrap-defaults "--bs-body-font-size" #f)))
   (define pill-font-weight
     (or (pill-direct-ref '(".nav-pills .nav-link" ".nav-link") "font-weight")
+        (meaningful-style-ref ".nav-pills" "font-weight")
         (pill-context-ref "--bs-nav-link-font-weight")
         (hash-ref props "--bs-body-font-weight" #f)
         (hash-ref bootstrap-defaults "--bs-body-font-weight" #f)))
@@ -1303,18 +1378,35 @@
         (button-style-ref ".btn" "border-width")
         (hash-ref props "--bs-border-width" #f)
         (hash-ref bootstrap-defaults "--bs-border-width" #f)))
+  (define btn-border-color-direct
+    (button-direct-ref '(".btn") "border-color"))
+  (define btn-border-color
+    (and (meaningful-css-value? btn-border-color-direct)
+         (not (transparent-color-value? btn-border-color-direct))
+         btn-border-color-direct))
+  (define btn-shadow
+    (button-direct-ref '(".btn") "box-shadow"))
   (define btn-radius
     (or (button-style-ref ".btn" "border-radius")
         (button-style-ref "button" "border-radius")))
   (define btn-text-transform
     (or (button-style-ref ".btn" "text-transform")
         "none"))
+  (define btn-margin-top
+    (button-style-ref ".btn" "margin-top"))
+  (define btn-margin-right
+    (button-style-ref ".btn" "margin-right"))
+  (define btn-margin-bottom
+    (button-style-ref ".btn" "margin-bottom"))
+  (define btn-margin-left
+    (button-style-ref ".btn" "margin-left"))
+  (define btn-transform
+    (button-style-ref ".btn" "transform"))
   (define (button-tone-selectors tone)
     (list (format ".btn-~a" tone)
           (format ".btn-outline-~a" tone)))
   (define (button-tone-shadow tone)
-    (or (button-direct-ref (button-tone-selectors tone) "box-shadow")
-        (selector-ref* button-style-ref (button-tone-selectors tone) "box-shadow")))
+    (button-direct-ref (list (format ".btn-~a" tone)) "box-shadow"))
   (define btn-primary-shadow (button-tone-shadow "primary"))
   (define btn-secondary-shadow (button-tone-shadow "secondary"))
   (define btn-success-shadow (button-tone-shadow "success"))
@@ -1413,6 +1505,17 @@
     (or (button-custom-ref ".btn-secondary" "--bs-btn-active-color")
         (button-style-ref ".btn-secondary.show" "color")
         (button-style-ref ".btn-secondary.active" "color")))
+  (define btn-secondary-active-shadow
+    (or (button-direct-ref '(".btn-secondary.show"
+                             ".btn-secondary.active"
+                             ".btn.show"
+                             ".btn.active"
+                             ".btn-check:checked + .btn, :not(.btn-check) + .btn:active, .btn:first-child:active, .btn.active, .btn.show")
+                           "box-shadow")
+        (button-style-ref ".btn-secondary.show" "box-shadow")
+        (button-style-ref ".btn-secondary.active" "box-shadow")
+        (button-style-ref ".btn.show" "box-shadow")
+        (button-style-ref ".btn.active" "box-shadow")))
   (define btn-primary-disabled-bg
     (or (button-custom-ref ".btn-primary" "--bs-btn-disabled-bg")
         (button-style-ref ".btn-primary:disabled" "background-color")))
@@ -1458,18 +1561,23 @@
     (or (button-direct-ref '(".btn-outline-primary") "color")
         (button-custom-ref ".btn-outline-primary" "--bs-btn-color")
         (button-style-ref ".btn-outline-primary" "color")))
+  (define btn-outline-primary-bg
+    (or (button-direct-ref '(".btn-outline-primary") "background-color")
+        (button-style-ref ".btn-outline-primary" "background-color")))
   (define btn-outline-primary-border
     (or (button-direct-ref '(".btn-outline-primary") "border-color")
         (button-custom-ref ".btn-outline-primary" "--bs-btn-border-color")
         (button-style-ref ".btn-outline-primary" "border-color")))
   (define btn-outline-primary-shadow
     (or (button-direct-ref '(".btn-outline-primary") "box-shadow")
-        btn-primary-shadow
-        (button-style-ref ".btn-outline-primary" "box-shadow")))
+        btn-primary-shadow))
   (define btn-outline-secondary-color
     (or (button-direct-ref '(".btn-outline-secondary") "color")
         (button-custom-ref ".btn-outline-secondary" "--bs-btn-color")
         (button-style-ref ".btn-outline-secondary" "color")))
+  (define btn-outline-secondary-bg
+    (or (button-direct-ref '(".btn-outline-secondary") "background-color")
+        (button-style-ref ".btn-outline-secondary" "background-color")))
   (define btn-outline-secondary-border
     (or (button-direct-ref '(".btn-outline-secondary") "border-color")
         (button-custom-ref ".btn-outline-secondary" "--bs-btn-border-color")
@@ -1494,8 +1602,7 @@
         (button-style-ref ".btn-outline-secondary:disabled" "color")))
   (define btn-outline-secondary-shadow
     (or (button-direct-ref '(".btn-outline-secondary") "box-shadow")
-        btn-secondary-shadow
-        (button-style-ref ".btn-outline-secondary" "box-shadow")))
+        btn-secondary-shadow))
   (define btn-success-color
     (or (button-custom-ref ".btn-success" "--bs-btn-color")
         (button-style-ref ".btn-success" "color")))
@@ -1663,6 +1770,11 @@
     (or (surface-style-ref "a.card-link" "color")
         (surface-style-ref ".card-link" "color")
         (hash-ref props "--bs-link-color" #f)))
+  (define card-action-text-font-weight
+    (or (surface-direct-ref '("a.card-link" ".card-link") "font-weight")
+        link-font-weight
+        (surface-style-ref "a.card-link" "font-weight")
+        (surface-style-ref ".card-link" "font-weight")))
   (define badge-padding-x
     (or (surface-custom-ref ".badge" "--bs-badge-padding-x")
         (surface-style-ref ".badge" "padding-left")))
@@ -1693,6 +1805,21 @@
     (surface-style-ref ".badge" "line-height"))
   (define badge-radius
     (surface-style-ref ".badge" "border-radius"))
+  (define badge-border-shorthand
+    (surface-direct-ref '(".badge") "border"))
+  (define badge-border-width
+    (or (border-shorthand-width badge-border-shorthand)
+        (surface-direct-ref '(".badge") "border-width")))
+  (define badge-border-style
+    (or (border-shorthand-style badge-border-shorthand)
+        (surface-direct-ref '(".badge") "border-style")))
+  (define badge-border-color-direct
+    (or (border-shorthand-color badge-border-shorthand)
+        (surface-direct-ref '(".badge") "border-color")))
+  (define badge-border-color
+    (and (meaningful-css-value? badge-border-color-direct)
+         (not (transparent-color-value? badge-border-color-direct))
+         badge-border-color-direct))
   (define badge-color
     (or (surface-custom-ref ".badge" "--bs-badge-color")
         (surface-style-ref ".badge" "color")))
@@ -1814,10 +1941,19 @@
     (or (navmetric-custom-ref ".pagination" "--bs-pagination-font-size")
         (navmetric-style-ref ".page-link" "font-size")))
   (define pagination-font-weight
-    (or (selector-ref* navmetric-style-ref
+    (or (pagination-direct-ref '(".pagination .page-link"
+                                  ".page-link"
+                                  ".pagination")
+                               "font-weight")
+        (selector-ref* navmetric-style-ref
                        '(".pagination .page-link" ".page-link" ".pagination")
                        "font-weight")
         (hash-ref props "--bs-body-font-weight" #f)))
+  (define pagination-link-font-weight
+    (or (pagination-direct-ref '(".pagination a.page-link"
+                                  "a.page-link")
+                               "font-weight")
+        link-font-weight))
   (define pagination-line-height
     (or (selector-ref* navmetric-style-ref
                        '(".pagination .page-link" ".page-link" ".pagination")
@@ -2324,6 +2460,14 @@
         (alert-style-ref ".alert" "border-width")))
   (define alert-border-style
     (alert-style-ref ".alert" "border-style"))
+  (define alert-border-color
+    (let ([value (or (border-shorthand-color alert-border-shorthand)
+                     (alert-direct-ref '(".alert") "border-color"))])
+      (and (meaningful-css-value? value)
+           (not (transparent-color-value? value))
+           value)))
+  (define alert-shadow
+    (alert-direct-ref '(".alert") "box-shadow"))
   (define alert-radius
     (alert-style-ref ".alert" "border-radius"))
   (define alert-title-font-family
@@ -2383,8 +2527,7 @@
         alert-link-color
         (alert-tone-color tone)))
   (define (alert-tone-shadow tone)
-    (or (alert-direct-ref (list (format ".alert-~a" tone)) "box-shadow")
-        (alert-style-ref (format ".alert-~a" tone) "box-shadow")))
+    (alert-direct-ref (list (format ".alert-~a" tone)) "box-shadow"))
   (define alert-primary-bg (alert-tone-bg "primary"))
   (define alert-primary-border (alert-tone-border "primary"))
   (define alert-primary-color (alert-tone-color "primary"))
@@ -2555,12 +2698,6 @@
   (define table-active-bg
     (or (list-table-custom-ref ".table" "--bs-table-active-bg")
         (list-table-style-ref ".table-active" "background-color")))
-  (define (transparent-color-value? value)
-    (and value
-         (member (string-downcase (string-trim value))
-                 '("transparent"
-                   "rgba(0, 0, 0, 0)"
-                   "rgba(0,0,0,0)"))))
   (define (table-tone-cell-bg tone)
     (for/or ([selector (in-list (list (format ".table-~a td" tone)
                                       (format ".table-~a th" tone)))])
@@ -3464,7 +3601,8 @@
         (selector-direct-style-ref ".modal-title" "text-shadow")
         (dialog-style-ref ".modal-title" "text-shadow")
         modal-text-shadow))
-  (hash 'nav-link-color nav-link-color
+  (hash 'link-font-weight link-font-weight
+        'nav-link-color nav-link-color
         'nav-link-hover nav-link-hover
         'nav-link-disabled nav-link-disabled
         'nav-font-size nav-font-size
@@ -3544,6 +3682,8 @@
         'tab-padding-x tab-padding-x
         'tab-padding-y tab-padding-y
         'tab-border-radius tab-border-radius
+        'tab-border-bottom-left-radius tab-border-bottom-left-radius
+        'tab-border-bottom-right-radius tab-border-bottom-right-radius
         'tab-font-size tab-font-size
         'tab-font-weight tab-font-weight
         'tab-line-height tab-line-height
@@ -3667,9 +3807,16 @@
         'btn-line-height btn-line-height
         'btn-letter-spacing btn-letter-spacing
         'btn-border-width btn-border-width
+        'btn-border-color btn-border-color
         'btn-outline-border-width btn-outline-border-width
         'btn-radius btn-radius
         'btn-text-transform btn-text-transform
+        'btn-margin-top btn-margin-top
+        'btn-margin-right btn-margin-right
+        'btn-margin-bottom btn-margin-bottom
+        'btn-margin-left btn-margin-left
+        'btn-transform btn-transform
+        'btn-shadow btn-shadow
         'btn-primary-shadow btn-primary-shadow
         'btn-secondary-shadow btn-secondary-shadow
         'btn-success-shadow btn-success-shadow
@@ -3695,6 +3842,7 @@
         'btn-secondary-active-bg btn-secondary-active-bg
         'btn-secondary-active-border btn-secondary-active-border
         'btn-secondary-active-color btn-secondary-active-color
+        'btn-secondary-active-shadow btn-secondary-active-shadow
         'btn-primary-disabled-bg btn-primary-disabled-bg
         'btn-primary-disabled-border btn-primary-disabled-border
         'btn-primary-disabled-color btn-primary-disabled-color
@@ -3705,9 +3853,11 @@
         'btn-light-hover-bg btn-light-hover-bg
         'btn-light-hover-border btn-light-hover-border
         'btn-outline-primary-color btn-outline-primary-color
+        'btn-outline-primary-bg btn-outline-primary-bg
         'btn-outline-primary-border btn-outline-primary-border
         'btn-outline-primary-shadow btn-outline-primary-shadow
         'btn-outline-secondary-color btn-outline-secondary-color
+        'btn-outline-secondary-bg btn-outline-secondary-bg
         'btn-outline-secondary-border btn-outline-secondary-border
         'btn-outline-secondary-hover-bg btn-outline-secondary-hover-bg
         'btn-outline-secondary-hover-border btn-outline-secondary-hover-border
@@ -3757,6 +3907,7 @@
         'card-subtitle-margin-top card-subtitle-margin-top
         'card-subtitle-margin-bottom card-subtitle-margin-bottom
         'card-action-text-color card-action-text-color
+        'card-action-text-font-weight card-action-text-font-weight
         'badge-padding-x badge-padding-x
         'badge-padding-y badge-padding-y
         'badge-padding-top badge-padding-top
@@ -3768,6 +3919,9 @@
         'badge-font-weight badge-font-weight
         'badge-line-height badge-line-height
         'badge-radius badge-radius
+        'badge-border-width badge-border-width
+        'badge-border-style badge-border-style
+        'badge-border-color badge-border-color
         'badge-color badge-color
         'badge-secondary-color badge-secondary-color
         'badge-light-color badge-light-color
@@ -3799,6 +3953,7 @@
         'pagination-padding-y pagination-padding-y
         'pagination-font-size pagination-font-size
         'pagination-font-weight pagination-font-weight
+        'pagination-link-font-weight pagination-link-font-weight
         'pagination-line-height pagination-line-height
         'pagination-letter-spacing pagination-letter-spacing
         'pagination-text-transform pagination-text-transform
@@ -3918,6 +4073,8 @@
         'alert-padding-y alert-padding-y
         'alert-border-width alert-border-width
         'alert-border-style alert-border-style
+        'alert-border-color alert-border-color
+        'alert-shadow alert-shadow
         'alert-radius alert-radius
         'alert-title-font-family alert-title-font-family
         'alert-title-font-weight alert-title-font-weight
@@ -4975,6 +5132,9 @@
   (define nav-link-color
     (or (theme-component-ref theme 'nav-link-color)
         fg-muted))
+  (define link-font-weight
+    (or (theme-component-ref theme 'link-font-weight)
+        (bootstrap-theme-font-weight-normal theme)))
   (define navbar-link-color
     (or (theme-component-ref theme 'navbar-link-color)
         nav-link-color))
@@ -5135,6 +5295,12 @@
   (define tab-border-radius
     (or (theme-component-ref theme 'tab-border-radius)
         (bootstrap-theme-radius-lg theme)))
+  (define tab-border-bottom-left-radius
+    (or (theme-component-ref theme 'tab-border-bottom-left-radius)
+        "0"))
+  (define tab-border-bottom-right-radius
+    (or (theme-component-ref theme 'tab-border-bottom-right-radius)
+        "0"))
   (define tab-hover-border
     (or (theme-component-ref theme 'tab-hover-border)
         tab-border-color))
@@ -5483,6 +5649,11 @@
   (define button-border-width
     (or (theme-component-ref theme 'btn-border-width)
         "1px"))
+  (define button-border-color-override
+    (theme-component-ref theme 'btn-border-color))
+  (define button-border-color
+    (or button-border-color-override
+        "var(--we-control-border)"))
   (define button-outline-border-width
     (or (theme-component-ref theme 'btn-outline-border-width)
         button-border-width))
@@ -5492,30 +5663,62 @@
   (define button-text-transform
     (or (theme-component-ref theme 'btn-text-transform)
         "none"))
+  (define button-margin-top
+    (or (theme-component-ref theme 'btn-margin-top)
+        "0"))
+  (define button-margin-right
+    (or (theme-component-ref theme 'btn-margin-right)
+        "0"))
+  (define button-margin-bottom
+    (or (theme-component-ref theme 'btn-margin-bottom)
+        "0"))
+  (define button-margin-left
+    (or (theme-component-ref theme 'btn-margin-left)
+        "0"))
+  (define button-transform
+    (or (theme-component-ref theme 'btn-transform)
+        "none"))
+  (define button-has-margin?
+    (for/or ([value (in-list (list button-margin-top
+                                   button-margin-right
+                                   button-margin-bottom
+                                   button-margin-left))])
+      (and (present-css-value? value)
+           (not (zero-css-length? value)))))
+  (define dialog-actions-margin
+    (if button-has-margin?
+        "0"
+        "calc(var(--we-dialog-footer-gap, 0.5rem) * 0.5)"))
+  (define button-shadow
+    (or (theme-component-ref theme 'btn-shadow)
+        "none"))
   (define button-primary-shadow
     (or (theme-component-ref theme 'btn-primary-shadow)
-        "none"))
+        "var(--we-button-shadow, none)"))
   (define button-secondary-shadow
     (or (theme-component-ref theme 'btn-secondary-shadow)
-        "none"))
+        "var(--we-button-shadow, none)"))
+  (define button-secondary-active-shadow
+    (or (theme-component-ref theme 'btn-secondary-active-shadow)
+        "var(--we-button-secondary-shadow, none)"))
   (define button-success-shadow
     (or (theme-component-ref theme 'btn-success-shadow)
-        "none"))
+        "var(--we-button-shadow, none)"))
   (define button-info-shadow
     (or (theme-component-ref theme 'btn-info-shadow)
-        "none"))
+        "var(--we-button-shadow, none)"))
   (define button-warning-shadow
     (or (theme-component-ref theme 'btn-warning-shadow)
-        "none"))
+        "var(--we-button-shadow, none)"))
   (define button-danger-shadow
     (or (theme-component-ref theme 'btn-danger-shadow)
-        "none"))
+        "var(--we-button-shadow, none)"))
   (define button-light-shadow
     (or (theme-component-ref theme 'btn-light-shadow)
-        "none"))
+        "var(--we-button-shadow, none)"))
   (define button-dark-shadow
     (or (theme-component-ref theme 'btn-dark-shadow)
-        "none"))
+        "var(--we-button-shadow, none)"))
   (define button-lg-padding-x
     (or (theme-component-ref theme 'btn-lg-padding-x)
         "1rem"))
@@ -5544,7 +5747,8 @@
     (or (theme-component-ref theme 'btn-secondary-bg)
         (rgb->css (or secondary-bg (mix-colors bg fg 0.08)))))
   (define button-secondary-border
-    (or (theme-component-ref theme 'btn-secondary-border)
+    (or button-border-color-override
+        (theme-component-ref theme 'btn-secondary-border)
         (theme-component-ref theme 'btn-outline-secondary-border)
         separator-strong))
   (define button-secondary-color
@@ -5555,7 +5759,8 @@
     (or (theme-component-ref theme 'btn-secondary-hover-bg)
         bg-hover))
   (define button-secondary-hover-border
-    (or (theme-component-ref theme 'btn-secondary-hover-border)
+    (or button-border-color-override
+        (theme-component-ref theme 'btn-secondary-hover-border)
         button-secondary-border))
   (define button-secondary-hover-color
     (or (theme-component-ref theme 'btn-outline-secondary-hover-color)
@@ -5564,7 +5769,8 @@
     (or (theme-component-ref theme 'btn-secondary-active-bg)
         button-secondary-hover-bg))
   (define button-secondary-active-border
-    (or (theme-component-ref theme 'btn-secondary-active-border)
+    (or button-border-color-override
+        (theme-component-ref theme 'btn-secondary-active-border)
         button-secondary-hover-border))
   (define button-secondary-active-color
     (or (theme-component-ref theme 'btn-secondary-active-color)
@@ -5585,7 +5791,8 @@
     (or (theme-component-ref theme 'btn-light-bg)
         (bootstrap-theme-light theme)))
   (define button-light-border
-    (or (theme-component-ref theme 'btn-light-border)
+    (or button-border-color-override
+        (theme-component-ref theme 'btn-light-border)
         (bootstrap-theme-light theme)))
   (define button-light-color
     (or (theme-component-ref theme 'btn-light-color)
@@ -5595,13 +5802,18 @@
     (or (theme-component-ref theme 'btn-light-hover-bg)
         button-light-bg))
   (define button-light-hover-border
-    (or (theme-component-ref theme 'btn-light-hover-border)
+    (or button-border-color-override
+        (theme-component-ref theme 'btn-light-hover-border)
         button-light-border))
   (define outline-primary-color
     (or (theme-component-ref theme 'btn-outline-primary-color)
         (bootstrap-theme-primary theme)))
+  (define outline-primary-bg
+    (or (theme-component-ref theme 'btn-outline-primary-bg)
+        "transparent"))
   (define outline-primary-border
-    (or (theme-component-ref theme 'btn-outline-primary-border)
+    (or button-border-color-override
+        (theme-component-ref theme 'btn-outline-primary-border)
         (bootstrap-theme-primary theme)))
   (define outline-primary-shadow
     (or (theme-component-ref theme 'btn-outline-primary-shadow)
@@ -5609,14 +5821,19 @@
   (define outline-secondary-color
     (or (theme-component-ref theme 'btn-outline-secondary-color)
         button-secondary-color))
+  (define outline-secondary-bg
+    (or (theme-component-ref theme 'btn-outline-secondary-bg)
+        "transparent"))
   (define outline-secondary-border
-    (or (theme-component-ref theme 'btn-outline-secondary-border)
+    (or button-border-color-override
+        (theme-component-ref theme 'btn-outline-secondary-border)
         button-secondary-border))
   (define outline-secondary-hover-bg
     (or (theme-component-ref theme 'btn-outline-secondary-hover-bg)
         button-secondary-bg))
   (define outline-secondary-hover-border
-    (or (theme-component-ref theme 'btn-outline-secondary-hover-border)
+    (or button-border-color-override
+        (theme-component-ref theme 'btn-outline-secondary-hover-border)
         button-secondary-border))
   (define outline-secondary-disabled-bg
     (or (theme-component-ref theme 'btn-outline-secondary-disabled-bg)
@@ -5633,6 +5850,24 @@
   (define button-success-color
     (or (theme-component-ref theme 'btn-success-color)
         (bootstrap-theme-success theme)))
+  (define button-primary-border
+    (or button-border-color-override
+        (bootstrap-theme-primary theme)))
+  (define button-success-border
+    (or button-border-color-override
+        (bootstrap-theme-success theme)))
+  (define button-info-border
+    (or button-border-color-override
+        (bootstrap-theme-info theme)))
+  (define button-warning-border
+    (or button-border-color-override
+        (bootstrap-theme-warning theme)))
+  (define button-danger-border
+    (or button-border-color-override
+        (bootstrap-theme-danger theme)))
+  (define button-dark-border
+    (or button-border-color-override
+        (bootstrap-theme-dark theme)))
   (define button-info-color
     (or (theme-component-ref theme 'btn-info-color)
         (bootstrap-theme-info theme)))
@@ -5751,6 +5986,9 @@
     (or (theme-component-ref theme 'card-action-text-color)
         (theme-prop-ref theme "--bs-link-color")
         (bootstrap-theme-primary theme)))
+  (define card-action-text-font-weight
+    (or (theme-component-ref theme 'card-action-text-font-weight)
+        link-font-weight))
   (define badge-padding-x
     (or (theme-component-ref theme 'badge-padding-x)
         "0.65em"))
@@ -5784,6 +6022,15 @@
   (define badge-radius
     (or (theme-component-ref theme 'badge-radius)
         "0"))
+  (define badge-border-width
+    (or (theme-component-ref theme 'badge-border-width)
+        "0"))
+  (define badge-border-style
+    (or (theme-component-ref theme 'badge-border-style)
+        "none"))
+  (define badge-border-color
+    (or (theme-component-ref theme 'badge-border-color)
+        "transparent"))
   (define badge-color
     (or (theme-component-ref theme 'badge-color)
         (rgb->css emphasis-fg)))
@@ -5877,6 +6124,10 @@
   (define pagination-font-weight
     (or (theme-component-ref theme 'pagination-font-weight)
         (bootstrap-theme-font-weight-normal theme)))
+  (define pagination-link-font-weight
+    (or (theme-component-ref theme 'pagination-link-font-weight)
+        pagination-font-weight
+        link-font-weight))
   (define pagination-line-height
     (or (theme-component-ref theme 'pagination-line-height)
         (bootstrap-theme-line-height-base theme)))
@@ -6217,8 +6468,11 @@
   (define offcanvas-title-text-shadow
     (or (theme-component-ref theme 'offcanvas-title-text-shadow)
         "var(--we-heading-text-shadow, var(--we-offcanvas-text-shadow, var(--we-text-shadow, none)))"))
+  (define alert-border-color-override
+    (theme-component-ref theme 'alert-border-color))
   (define (alert-token tone role fallback)
-    (or (theme-component-ref theme (string->symbol (format "alert-~a-~a" tone role)))
+    (or (and (equal? role "border") alert-border-color-override)
+        (theme-component-ref theme (string->symbol (format "alert-~a-~a" tone role)))
         fallback))
   (define alert-padding-x
     (or (theme-component-ref theme 'alert-padding-x)
@@ -6232,6 +6486,12 @@
   (define alert-border-style
     (or (theme-component-ref theme 'alert-border-style)
         "solid"))
+  (define alert-border-color
+    (or alert-border-color-override
+        "var(--we-control-border)"))
+  (define alert-shadow
+    (or (theme-component-ref theme 'alert-shadow)
+        "none"))
   (define alert-radius
     (or (theme-component-ref theme 'alert-radius)
         "0"))
@@ -6288,7 +6548,7 @@
         alert-primary-color))
   (define alert-primary-shadow
     (or (theme-component-ref theme 'alert-primary-shadow)
-        "none"))
+        "var(--we-alert-shadow, none)"))
   (define alert-secondary-bg
     (alert-token "secondary" "bg"
                  (or (theme-prop-ref theme "--bs-secondary-bg-subtle")
@@ -6306,7 +6566,7 @@
         alert-secondary-color))
   (define alert-secondary-shadow
     (or (theme-component-ref theme 'alert-secondary-shadow)
-        "none"))
+        "var(--we-alert-shadow, none)"))
   (define alert-success-bg
     (alert-token "success" "bg"
                  (or (theme-prop-ref theme "--bs-success-bg-subtle")
@@ -6324,7 +6584,7 @@
         alert-success-color))
   (define alert-success-shadow
     (or (theme-component-ref theme 'alert-success-shadow)
-        "none"))
+        "var(--we-alert-shadow, none)"))
   (define alert-info-bg
     (alert-token "info" "bg"
                  (or (theme-prop-ref theme "--bs-info-bg-subtle")
@@ -6342,7 +6602,7 @@
         alert-info-color))
   (define alert-info-shadow
     (or (theme-component-ref theme 'alert-info-shadow)
-        "none"))
+        "var(--we-alert-shadow, none)"))
   (define alert-warning-bg
     (alert-token "warning" "bg"
                  (or (theme-prop-ref theme "--bs-warning-bg-subtle")
@@ -6360,7 +6620,7 @@
         alert-warning-color))
   (define alert-warning-shadow
     (or (theme-component-ref theme 'alert-warning-shadow)
-        "none"))
+        "var(--we-alert-shadow, none)"))
   (define alert-danger-bg
     (alert-token "danger" "bg"
                  (or (theme-prop-ref theme "--bs-danger-bg-subtle")
@@ -6378,7 +6638,7 @@
         alert-danger-color))
   (define alert-danger-shadow
     (or (theme-component-ref theme 'alert-danger-shadow)
-        "none"))
+        "var(--we-alert-shadow, none)"))
   (define alert-light-bg
     (alert-token "light" "bg"
                  (or (theme-prop-ref theme "--bs-light-bg-subtle")
@@ -6396,7 +6656,7 @@
         alert-light-color))
   (define alert-light-shadow
     (or (theme-component-ref theme 'alert-light-shadow)
-        "none"))
+        "var(--we-alert-shadow, none)"))
   (define alert-dark-bg
     (alert-token "dark" "bg"
                  (or (theme-prop-ref theme "--bs-dark-bg-subtle")
@@ -6414,7 +6674,7 @@
         alert-dark-color))
   (define alert-dark-shadow
     (or (theme-component-ref theme 'alert-dark-shadow)
-        "none"))
+        "var(--we-alert-shadow, none)"))
   (define list-group-bg
     (or (theme-component-ref theme 'list-group-bg)
         (hash-ref surface-map 'surface)))
@@ -6901,7 +7161,9 @@
     (not (equal? check-before-display "none")))
   (define check-font-size
     (or (theme-component-ref theme 'check-font-size)
-        (if custom-check-pseudo? "inherit" "1rem")))
+        (if custom-check-pseudo?
+            "inherit"
+            (bootstrap-theme-font-size-md theme))))
   (define check-line-height
     (or (theme-component-ref theme 'check-line-height)
         (bootstrap-theme-line-height-base theme)))
@@ -7440,6 +7702,7 @@
     (cons "--we-navbar-brand-text-shadow" navbar-brand-text-shadow)
     (cons "--we-navbar-brand-padding-y" navbar-brand-padding-y)
     (cons "--we-navbar-brand-gap" navbar-brand-gap)
+    (cons "--we-link-font-weight" link-font-weight)
     (cons "--we-navbar-brand-heading-font-family" navbar-brand-heading-font-family)
     (cons "--we-navbar-brand-heading-font-weight" navbar-brand-heading-font-weight)
     (cons "--we-navbar-brand-heading-line-height" navbar-brand-heading-line-height)
@@ -7466,6 +7729,8 @@
     (cons "--we-tab-letter-spacing" tab-letter-spacing)
     (cons "--we-tab-text-transform" tab-text-transform)
     (cons "--we-tab-border-radius" tab-border-radius)
+    (cons "--we-tab-border-bottom-left-radius" tab-border-bottom-left-radius)
+    (cons "--we-tab-border-bottom-right-radius" tab-border-bottom-right-radius)
     (cons "--we-tab-hover-border-color" tab-hover-border)
     (cons "--we-tab-active-bg" tab-active-bg)
     (cons "--we-tab-active-color" tab-active-color)
@@ -7494,16 +7759,29 @@
     (cons "--we-button-line-height" button-line-height)
     (cons "--we-button-letter-spacing" button-letter-spacing)
     (cons "--we-button-border-width" button-border-width)
+    (cons "--we-button-border-color" button-border-color)
     (cons "--we-button-outline-border-width" button-outline-border-width)
     (cons "--we-button-radius" button-radius)
     (cons "--we-button-text-transform" button-text-transform)
+    (cons "--we-button-margin-top" button-margin-top)
+    (cons "--we-button-margin-right" button-margin-right)
+    (cons "--we-button-margin-bottom" button-margin-bottom)
+    (cons "--we-button-margin-left" button-margin-left)
+    (cons "--we-button-transform" button-transform)
+    (cons "--we-button-shadow" button-shadow)
+    (cons "--we-button-primary-border" button-primary-border)
     (cons "--we-button-primary-shadow" button-primary-shadow)
     (cons "--we-button-secondary-shadow" button-secondary-shadow)
+    (cons "--we-button-success-border" button-success-border)
     (cons "--we-button-success-shadow" button-success-shadow)
+    (cons "--we-button-info-border" button-info-border)
     (cons "--we-button-info-shadow" button-info-shadow)
+    (cons "--we-button-warning-border" button-warning-border)
     (cons "--we-button-warning-shadow" button-warning-shadow)
+    (cons "--we-button-danger-border" button-danger-border)
     (cons "--we-button-danger-shadow" button-danger-shadow)
     (cons "--we-button-light-shadow" button-light-shadow)
+    (cons "--we-button-dark-border" button-dark-border)
     (cons "--we-button-dark-shadow" button-dark-shadow)
     (cons "--we-button-lg-padding-x" button-lg-padding-x)
     (cons "--we-button-lg-padding-y" button-lg-padding-y)
@@ -7522,6 +7800,7 @@
     (cons "--we-button-secondary-active-bg" button-secondary-active-bg)
     (cons "--we-button-secondary-active-border" button-secondary-active-border)
     (cons "--we-button-secondary-active-color" button-secondary-active-color)
+    (cons "--we-button-secondary-active-shadow" button-secondary-active-shadow)
     (cons "--we-button-primary-disabled-bg" button-primary-disabled-bg)
     (cons "--we-button-primary-disabled-border" button-primary-disabled-border)
     (cons "--we-button-primary-disabled-color" button-primary-disabled-color)
@@ -7532,9 +7811,11 @@
     (cons "--we-button-light-hover-bg" button-light-hover-bg)
     (cons "--we-button-light-hover-border" button-light-hover-border)
     (cons "--we-button-outline-primary-color" outline-primary-color)
+    (cons "--we-button-outline-primary-bg" outline-primary-bg)
     (cons "--we-button-outline-primary-border" outline-primary-border)
     (cons "--we-button-outline-primary-shadow" outline-primary-shadow)
     (cons "--we-button-outline-secondary-color" outline-secondary-color)
+    (cons "--we-button-outline-secondary-bg" outline-secondary-bg)
     (cons "--we-button-outline-secondary-border" outline-secondary-border)
     (cons "--we-button-outline-secondary-hover-bg" outline-secondary-hover-bg)
     (cons "--we-button-outline-secondary-hover-border" outline-secondary-hover-border)
@@ -7582,6 +7863,7 @@
     (cons "--we-card-subtitle-margin-top" card-subtitle-margin-top)
     (cons "--we-card-subtitle-margin-bottom" card-subtitle-margin-bottom)
     (cons "--we-card-action-text-color" card-action-text-color)
+    (cons "--we-card-action-text-font-weight" card-action-text-font-weight)
     (cons "--we-badge-padding-x" badge-padding-x)
     (cons "--we-badge-padding-y" badge-padding-y)
     (cons "--we-badge-padding-top" badge-padding-top)
@@ -7593,6 +7875,9 @@
     (cons "--we-badge-font-weight" badge-font-weight)
     (cons "--we-badge-line-height" badge-line-height)
     (cons "--we-badge-radius" badge-radius)
+    (cons "--we-badge-border-width" badge-border-width)
+    (cons "--we-badge-border-style" badge-border-style)
+    (cons "--we-badge-border-color" badge-border-color)
     (cons "--we-badge-color" badge-color)
     (cons "--we-badge-secondary-color" badge-secondary-color)
     (cons "--we-badge-light-color" badge-light-color)
@@ -7624,6 +7909,7 @@
     (cons "--we-pagination-padding-y" pagination-padding-y)
     (cons "--we-pagination-font-size" pagination-font-size)
     (cons "--we-pagination-font-weight" pagination-font-weight)
+    (cons "--we-pagination-link-font-weight" pagination-link-font-weight)
     (cons "--we-pagination-line-height" pagination-line-height)
     (cons "--we-pagination-letter-spacing" pagination-letter-spacing)
     (cons "--we-pagination-text-transform" pagination-text-transform)
@@ -7791,6 +8077,8 @@
     (cons "--we-alert-padding-y" alert-padding-y)
     (cons "--we-alert-border-width" alert-border-width)
     (cons "--we-alert-border-style" alert-border-style)
+    (cons "--we-alert-border-color" alert-border-color)
+    (cons "--we-alert-shadow" alert-shadow)
     (cons "--we-alert-radius" alert-radius)
     (cons "--we-alert-title-font-family" alert-title-font-family)
     (cons "--we-alert-title-font-weight" alert-title-font-weight)
@@ -8122,6 +8410,7 @@
     (cons "--we-dialog-footer-padding-x" dialog-footer-padding-x)
     (cons "--we-dialog-footer-padding-y" dialog-footer-padding-y)
     (cons "--we-dialog-footer-gap" dialog-footer-gap)
+    (cons "--we-dialog-actions-margin" dialog-actions-margin)
     (cons "--we-dialog-footer-border-color" dialog-footer-border-color)
     (cons "--we-dialog-footer-border-width" dialog-footer-border-width)
     (cons "--we-dialog-footer-bg" dialog-footer-bg)
@@ -8728,7 +9017,9 @@
       "  --bs-btn-disabled-opacity: 0.65;\n"
       "  --bs-btn-border-radius: 0.375rem;\n"
       "  letter-spacing: 0.02em;\n"
+     "  margin: 3px 0 0 3px;\n"
      "  text-transform: uppercase;\n"
+     "  transform: translate(-3px, -3px);\n"
       "}\n"
      ".btn-lg {\n"
      "  --bs-btn-padding-y: 1rem;\n"
@@ -9786,6 +10077,12 @@
     (check-equal? (hash-ref token-map "--we-button-disabled-opacity") "0.65")
     (check-equal? (hash-ref token-map "--we-button-outline-border-width") "2px")
     (check-equal? (hash-ref token-map "--we-button-radius") "0")
+    (check-equal? (hash-ref token-map "--we-button-margin-top") "3px")
+    (check-equal? (hash-ref token-map "--we-button-margin-right") "0")
+    (check-equal? (hash-ref token-map "--we-button-margin-bottom") "0")
+    (check-equal? (hash-ref token-map "--we-button-margin-left") "3px")
+    (check-equal? (hash-ref token-map "--we-button-transform") "translate(-3px, -3px)")
+    (check-equal? (hash-ref token-map "--we-dialog-actions-margin") "0")
     (check-equal? (hash-ref token-map "--we-button-lg-padding-x") "2rem")
     (check-equal? (hash-ref token-map "--we-button-lg-padding-y") "1rem")
     (check-equal? (hash-ref token-map "--we-button-lg-font-size") "1.25rem")

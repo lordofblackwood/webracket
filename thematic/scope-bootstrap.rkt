@@ -127,10 +127,40 @@
 ;; scope-selector-prelude : string? string? -> string?
 ;;   Scope a full selector list under scope.
 (define (scope-selector-prelude selector-text scope)
-  (string-join
-   (for/list ([part (in-list (split-selector-list selector-text))])
-     (scope-one-selector part scope))
-   ", "))
+  (define-values (leading-trivia selector-body)
+    (split-leading-selector-trivia selector-text))
+  (if (string=? (string-trim selector-body) "")
+      leading-trivia
+      (string-append
+       leading-trivia
+       (string-join
+        (for/list ([part (in-list (split-selector-list selector-body))])
+          (scope-one-selector part scope))
+        ", "))))
+
+;; split-leading-selector-trivia : string? -> (values string? string?)
+;;   Separate leading whitespace/comments from the actual selector text.
+(define (split-leading-selector-trivia selector-text)
+  (define len (string-length selector-text))
+  (define (comment-start? i)
+    (and (< (add1 i) len)
+         (char=? (string-ref selector-text i) #\/)
+         (char=? (string-ref selector-text (add1 i)) #\*)))
+  (let loop ([i 0])
+    (cond
+      [(>= i len)
+       (values selector-text "")]
+      [(char-whitespace? (string-ref selector-text i))
+       (loop (add1 i))]
+      [(comment-start? i)
+       (define end-match (regexp-match-positions #px"\\*/" selector-text i))
+       (if end-match
+           (loop (cdar end-match))
+           (values (substring selector-text 0 i)
+                   (substring selector-text i)))]
+      [else
+       (values (substring selector-text 0 i)
+               (substring selector-text i))])))
 
 ;; at-rule-name : string? -> (or/c string? #f)
 ;;   Extract a lowercase at-rule name from prelude text.
@@ -282,4 +312,18 @@
     (check-true (regexp-match? #px"@media \\(min-width: 700px\\) \\{" css))
     (check-true (regexp-match? #px"\\.bs-preview \\.btn\\s*\\{\\s*color: blue;\\s*\\}" css))
     (check-true (regexp-match? #px"\\.bs-preview\\s*\\{\\s*--bs-body-bg: #eee;\\s*\\}" css))
-    (check-true (regexp-match? #px"@keyframes spin\\s*\\{\\s*from \\{ opacity: 0; \\} to \\{ opacity: 1; \\}\\s*\\}" css))))
+    (check-true (regexp-match? #px"@keyframes spin\\s*\\{\\s*from \\{ opacity: 0; \\} to \\{ opacity: 1; \\}\\s*\\}" css)))
+
+  (test-case "scope-bootstrap-css preserves comments before root rules"
+    (define css
+      (scope-bootstrap-css
+       (string-append
+        "@charset \"UTF-8\";\n"
+        "/* theme banner */\n"
+        "/*! bootstrap banner */\n"
+        ":root, [data-bs-theme=light] { --bs-body-color: #111; }\n")
+       ".bs-preview"))
+    (check-true (regexp-match? #px"/\\* theme banner \\*/" css))
+    (check-true (regexp-match? #px"/\\*! bootstrap banner \\*/" css))
+    (check-true (regexp-match? #px"\\.bs-preview, \\.bs-preview \\[data-bs-theme=light\\]\\s*\\{\\s*--bs-body-color: #111;\\s*\\}" css))
+    (check-false (regexp-match? #px"\\.bs-preview\\s+/\\*" css))))
