@@ -2219,12 +2219,16 @@ current-parameterization    ; poor-man dynamic parameterization overlay
 
 ; Added in version Racket 8.12.
 (define (vector-extend vec new-size [val 0])
+  (unless (vector? vec)
+    (raise-argument-error 'vector-extend "vector?" vec))
+  (unless (exact-nonnegative-integer? new-size)
+    (raise-argument-error 'vector-extend "exact-nonnegative-integer?" new-size))
   (define old-size (vector-length vec))
-  (unless (and (exact-nonnegative-integer? new-size)
-               (>= new-size old-size))
-    (raise-argument-error 'vector-extend
-                          "(and/c exact-nonnegative-integer? (>=/c (vector-length vec)))"
-                          new-size))
+  (when (< new-size old-size)
+    (raise-arguments-error 'vector-extend
+                           "new length is shorter than existing length"
+                           "new length" new-size
+                           "existing length" old-size))
   (define new-vec (make-vector new-size val))
   (for ([i (in-range old-size)])
     (vector-set! new-vec i (vector-ref vec i)))
