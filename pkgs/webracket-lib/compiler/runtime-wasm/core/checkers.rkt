@@ -85,9 +85,8 @@
                                 (global.get $string:match-error:prefix)))
 
                (local.set $val-str
-                          (call $format/print
-                                (local.get $val)
-                                (global.get $missing)))
+                          (call $format/error-value->string
+                                (local.get $val)))
 
                (call $raise
                      (call $exn:fail/make
