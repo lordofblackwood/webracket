@@ -166,6 +166,7 @@
           <option value="lux-boost">Lux Boost</option>
           <option value="sandstone">Sandstone</option>
           <option value="sandstone-boost">Sandstone Boost</option>
+          <option value="vapor">Vapor</option>
         </select>
         <button id="btn-superhero" type="button">Superhero</button>
         <button id="btn-sketchy" type="button">Sketchy</button>
@@ -173,6 +174,7 @@
         <button id="btn-lux-boost" type="button">Lux Boost</button>
         <button id="btn-sandstone" type="button">Sandstone</button>
         <button id="btn-sandstone-boost" type="button">Sandstone Boost</button>
+        <button id="btn-vapor" type="button">Vapor</button>
         <span id="current">(loading)</span>
         <a href="./generated/thematic-superhero.css" download>Download Superhero CSS</a>
         <a href="./generated/thematic-sketchy.css" download>Download Sketchy CSS</a>
@@ -180,6 +182,7 @@
         <a href="./generated/thematic-lux-boost.css" download>Download Lux Boost CSS</a>
         <a href="./generated/thematic-sandstone.css" download>Download Sandstone CSS</a>
         <a href="./generated/thematic-sandstone-boost.css" download>Download Sandstone Boost CSS</a>
+        <a href="./generated/thematic-vapor.css" download>Download Vapor CSS</a>
       </div>
     </div>
   </header>
@@ -188,7 +191,7 @@
     <p class="lead">
       This page applies the generated `thematic` stylesheets to the existing widget gallery.
       Use it to compare cards, tabs, dialogs, controls, lists, and tables across the generated
-      Superhero, Sketchy, Lux, Lux Boost, Sandstone, and Sandstone Boost themes.
+      Superhero, Sketchy, Lux, Lux Boost, Sandstone, Sandstone Boost, and Vapor themes.
     </p>
 
     <div id="gallery">
@@ -240,7 +243,8 @@
       lux: "./thematic-lux.css",
       "lux-boost": "./thematic-lux-boost.css",
       sandstone: "./thematic-sandstone.css",
-      "sandstone-boost": "./thematic-sandstone-boost.css"
+      "sandstone-boost": "./thematic-sandstone-boost.css",
+      vapor: "./thematic-vapor.css"
     };
 
     const FRAME_IDS = [
@@ -298,7 +302,8 @@
         "we-theme-lux",
         "we-theme-lux-boost",
         "we-theme-sandstone",
-        "we-theme-sandstone-boost"
+        "we-theme-sandstone-boost",
+        "we-theme-vapor"
       );
       frameDoc.documentElement.classList.add("we-theme-" + name);
       const coreLink = ensureCoreLink(frameDoc);
@@ -328,6 +333,7 @@
     document.getElementById("btn-lux-boost").addEventListener("click", () => applyTheme("lux-boost"));
     document.getElementById("btn-sandstone").addEventListener("click", () => applyTheme("sandstone"));
     document.getElementById("btn-sandstone-boost").addEventListener("click", () => applyTheme("sandstone-boost"));
+    document.getElementById("btn-vapor").addEventListener("click", () => applyTheme("vapor"));
     document.getElementById("theme-select").addEventListener("change", (e) => applyTheme(e.target.value));
 
     window.addEventListener("load", () => applyTheme(currentTheme));

@@ -69,6 +69,7 @@
       line-height: var(--we-navbar-brand-heading-line-height, var(--we-heading-line-height, var(--we-line-height-base)));
       letter-spacing: var(--we-navbar-brand-heading-letter-spacing, var(--we-heading-letter-spacing, var(--we-navbar-brand-letter-spacing, var(--we-letter-spacing-base))));
       text-transform: var(--we-navbar-brand-heading-text-transform, var(--we-heading-text-transform, var(--we-navbar-brand-text-transform, none)));
+      text-shadow: var(--we-navbar-brand-heading-text-shadow, var(--we-heading-text-shadow, var(--we-navbar-brand-text-shadow, var(--we-text-shadow, none))));
     }
 
     .we-preview.we-theme-lux .we-navigation-bar .we-navigation-bar-items > .we-button[aria-current="page"] {
@@ -221,22 +222,23 @@
       opacity: 0.82;
     }
 
-    .we-preview {
-      padding: 6px;
-      border-radius: 12px;
-    }
-
+    .bs-preview .sample-card,
     .we-preview .sample-card {
       border-color: rgba(120, 138, 160, 0.25);
       background: transparent;
       box-shadow: none;
     }
 
+    .bs-preview .sample-card > h3,
     .we-preview .sample-card > h3 {
       border-bottom-color: #dbe4ec;
       background: #f8fbfd;
       color: #5b6773;
       opacity: 1;
+    }
+
+    .we-preview .sample-card > h3 {
+      text-shadow: var(--we-heading-text-shadow, var(--we-text-shadow, none));
     }
 
     .compare-badges {
@@ -570,6 +572,7 @@
           <option value="lux-boost">Lux Boost</option>
           <option value="sandstone">Sandstone</option>
           <option value="sandstone-boost">Sandstone Boost</option>
+          <option value="vapor">Vapor</option>
         </select>
         <span id="current">current=lux</span>
         <a href="./test-browser-theme-thematic.html">Open Widget Preview</a>
@@ -2243,7 +2246,8 @@
       lux: { bootstrap: "lux", web: "lux", label: "Lux" },
       "lux-boost": { bootstrap: "lux", web: "lux-boost", label: "Lux Boost" },
       sandstone: { bootstrap: "sandstone", web: "sandstone", label: "Sandstone" },
-      "sandstone-boost": { bootstrap: "sandstone", web: "sandstone-boost", label: "Sandstone Boost" }
+      "sandstone-boost": { bootstrap: "sandstone", web: "sandstone-boost", label: "Sandstone Boost" },
+      vapor: { bootstrap: "vapor", web: "vapor", label: "Vapor" }
     };
 
     function webThemeNames(theme) {

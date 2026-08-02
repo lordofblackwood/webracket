@@ -23,6 +23,9 @@
 (struct bootstrap-theme
   (fg
    bg
+   bg-image
+   text-shadow
+   heading-text-shadow
    border
    border-soft
    primary
@@ -480,6 +483,8 @@
     (selector-ref* meaningful-style-ref '(".h1" "h1") "letter-spacing"))
   (define heading-text-transform
     (selector-ref* meaningful-style-ref '(".h1" "h1") "text-transform"))
+  (define heading-text-shadow
+    (selector-ref* meaningful-style-ref '(".h1" "h1") "text-shadow"))
   (define lead-color
     (selector-ref* meaningful-style-ref '(".lead") "color"))
   (define lead-font-size
@@ -492,6 +497,22 @@
     (selector-ref* meaningful-style-ref '(".lead") "letter-spacing"))
   (define lead-text-transform
     (selector-ref* meaningful-style-ref '(".lead") "text-transform"))
+  (define strong-selectors
+    '("strong" "b"))
+  (define (strong-ref property)
+    (selector-ref* meaningful-style-ref strong-selectors property))
+  (define strong-font-family
+    (strong-ref "font-family"))
+  (define strong-font-size
+    (strong-ref "font-size"))
+  (define strong-font-weight
+    (strong-ref "font-weight"))
+  (define strong-line-height
+    (strong-ref "line-height"))
+  (define strong-letter-spacing
+    (strong-ref "letter-spacing"))
+  (define strong-text-transform
+    (strong-ref "text-transform"))
   (define blockquote-selectors
     '(".blockquote" "blockquote"))
   (define blockquote-footer-selectors
@@ -646,6 +667,8 @@
     (meaningful-style-ref ".navbar-brand" "letter-spacing"))
   (define navbar-brand-text-transform
     (meaningful-style-ref ".navbar-brand" "text-transform"))
+  (define navbar-brand-text-shadow
+    (meaningful-style-ref ".navbar-brand" "text-shadow"))
   (define navbar-brand-padding-y
     (or (custom-direct-ref '(".navbar") "--bs-navbar-brand-padding-y")
         (navbar-direct-ref '(".navbar") "--bs-navbar-brand-padding-y")
@@ -675,6 +698,10 @@
   (define navbar-brand-heading-text-transform
     (or navbar-brand-text-transform
         heading-text-transform))
+  (define navbar-brand-heading-text-shadow
+    (or (meaningful-style-ref ".navbar-brand.h1" "text-shadow")
+        heading-text-shadow
+        navbar-brand-text-shadow))
   (define navbar-link-color
     (or (nav-custom-ref ".navbar" "--bs-navbar-color")
         nav-link-color))
@@ -891,6 +918,12 @@
         pill-active-color
         (or (nav-style-ref ".nav-pills .nav-link.active" "border-color")
             pill-border)))
+  (define pill-active-shadow
+    (or (pill-direct-ref '(".nav-pills .nav-link.active"
+                           ".nav-pills .show > .nav-link")
+                         "box-shadow")
+        (nav-style-ref ".nav-pills .nav-link.active" "box-shadow")
+        (nav-style-ref ".nav-pills .show > .nav-link" "box-shadow")))
   (define pill-radius
     (or (pill-direct-ref '(".nav-pills .nav-link") "border-radius")
         "0"))
@@ -1108,6 +1141,15 @@
     (computed-custom-ref ".tooltip" "--bs-tooltip-arrow-width"))
   (define tooltip-arrow-height
     (computed-custom-ref ".tooltip" "--bs-tooltip-arrow-height"))
+  (define (popover-context-ref key)
+    (or (computed-custom-ref ".popover" key)
+        (present-ref (hash-ref props key #f))
+        (present-ref (hash-ref bootstrap-defaults key #f))))
+  (define (popover-direct-ref selectors property)
+    (last-direct-declaration-value rules
+                                   selectors
+                                   property
+                                   popover-context-ref))
   (define popover-bg
     (or (computed-custom-ref ".popover" "--bs-popover-bg")
         (computed-style-ref ".popover" "background-color")))
@@ -1129,6 +1171,10 @@
     (or (computed-custom-ref ".popover" "--bs-popover-body-color")
         (computed-custom-ref ".popover" "--bs-popover-color")
         (computed-style-ref ".popover-body" "color")
+        (computed-style-ref ".popover" "color")))
+  (define popover-panel-color
+    (or (popover-direct-ref '(".popover") "color")
+        (hash-ref props "--bs-body-color" #f)
         (computed-style-ref ".popover" "color")))
   (define popover-border-color
     (or (computed-custom-ref ".popover" "--bs-popover-border-color")
@@ -1153,6 +1199,9 @@
     (if popover-shadow-authored?
         (computed-style-ref ".popover" "box-shadow")
         "none"))
+  (define popover-text-shadow
+    (or (computed-style-ref ".popover" "text-shadow")
+        (computed-style-ref ".popover-header" "text-shadow")))
   (define popover-arrow-width
     (or (computed-custom-ref ".popover" "--bs-popover-arrow-width")
         "1rem"))
@@ -1203,6 +1252,9 @@
     (popover-title-ref "letter-spacing"))
   (define popover-title-text-transform
     (popover-title-ref "text-transform"))
+  (define popover-title-text-shadow
+    (or (computed-style-ref ".popover-header" "text-shadow")
+        popover-text-shadow))
   (define-values (button-style-ref button-custom-ref)
     (make-computed-selector-refs props rules))
   (define button-context-selectors
@@ -1257,6 +1309,20 @@
   (define btn-text-transform
     (or (button-style-ref ".btn" "text-transform")
         "none"))
+  (define (button-tone-selectors tone)
+    (list (format ".btn-~a" tone)
+          (format ".btn-outline-~a" tone)))
+  (define (button-tone-shadow tone)
+    (or (button-direct-ref (button-tone-selectors tone) "box-shadow")
+        (selector-ref* button-style-ref (button-tone-selectors tone) "box-shadow")))
+  (define btn-primary-shadow (button-tone-shadow "primary"))
+  (define btn-secondary-shadow (button-tone-shadow "secondary"))
+  (define btn-success-shadow (button-tone-shadow "success"))
+  (define btn-info-shadow (button-tone-shadow "info"))
+  (define btn-warning-shadow (button-tone-shadow "warning"))
+  (define btn-danger-shadow (button-tone-shadow "danger"))
+  (define btn-light-shadow (button-tone-shadow "light"))
+  (define btn-dark-shadow (button-tone-shadow "dark"))
   (define btn-lg-padding-x
     (or (button-size-direct-ref ".btn-lg"
                                 '(".btn" ".btn-lg" ".btn-group-lg > .btn")
@@ -1388,6 +1454,18 @@
                        '(".btn-outline-primary" ".btn-outline-secondary" ".btn")
                        "border-width")
         btn-border-width))
+  (define btn-outline-primary-color
+    (or (button-direct-ref '(".btn-outline-primary") "color")
+        (button-custom-ref ".btn-outline-primary" "--bs-btn-color")
+        (button-style-ref ".btn-outline-primary" "color")))
+  (define btn-outline-primary-border
+    (or (button-direct-ref '(".btn-outline-primary") "border-color")
+        (button-custom-ref ".btn-outline-primary" "--bs-btn-border-color")
+        (button-style-ref ".btn-outline-primary" "border-color")))
+  (define btn-outline-primary-shadow
+    (or (button-direct-ref '(".btn-outline-primary") "box-shadow")
+        btn-primary-shadow
+        (button-style-ref ".btn-outline-primary" "box-shadow")))
   (define btn-outline-secondary-color
     (or (button-direct-ref '(".btn-outline-secondary") "color")
         (button-custom-ref ".btn-outline-secondary" "--bs-btn-color")
@@ -1414,6 +1492,10 @@
   (define btn-outline-secondary-disabled-color
     (or (button-custom-ref ".btn-outline-secondary" "--bs-btn-disabled-color")
         (button-style-ref ".btn-outline-secondary:disabled" "color")))
+  (define btn-outline-secondary-shadow
+    (or (button-direct-ref '(".btn-outline-secondary") "box-shadow")
+        btn-secondary-shadow
+        (button-style-ref ".btn-outline-secondary" "box-shadow")))
   (define btn-success-color
     (or (button-custom-ref ".btn-success" "--bs-btn-color")
         (button-style-ref ".btn-success" "color")))
@@ -1444,13 +1526,23 @@
                                    property
                                    surface-context-ref))
   (define card-bg
-    (or (surface-custom-ref ".card" "--bs-card-bg")
+    (or (surface-direct-ref '(".card") "background-color")
+        (surface-custom-ref ".card" "--bs-card-bg")
         (surface-style-ref ".card" "background-color")))
+  (define card-panel-color
+    (or (surface-direct-ref '(".card") "color")
+        (hash-ref props "--bs-body-color" #f)
+        (surface-style-ref ".card" "color")))
+  (define card-color
+    (or (surface-custom-ref/meaningful ".card" "--bs-card-color")
+        card-panel-color))
   (define card-radius
     (surface-style-ref ".card" "border-radius"))
   (define card-shadow
     (or (surface-custom-ref ".card" "--bs-card-box-shadow")
         (surface-style-ref ".card" "box-shadow")))
+  (define card-text-shadow
+    (surface-style-ref ".card" "text-shadow"))
   (define card-border-color
     (or (surface-custom-ref ".card" "--bs-card-border-color")
         (surface-style-ref ".card" "border-color")))
@@ -1526,6 +1618,11 @@
   (define card-title-text-transform
     (or (surface-style-ref ".card h5" "text-transform")
         (surface-style-ref "h5" "text-transform")))
+  (define card-title-text-shadow
+    (or (surface-style-ref ".card h5" "text-shadow")
+        (surface-style-ref "h5.card-title" "text-shadow")
+        (surface-style-ref ".card-title" "text-shadow")
+        card-text-shadow))
   (define card-subtitle-font-family
     (or (surface-style-ref "h6.card-subtitle" "font-family")
         (surface-style-ref ".card h6" "font-family")
@@ -1551,7 +1648,9 @@
         (surface-style-ref ".card h6" "text-transform")
         (surface-style-ref "h6" "text-transform")))
   (define card-subtitle-color
-    (or (surface-style-ref "h6.card-subtitle" "color")
+    (or (surface-direct-ref '("h6.card-subtitle" ".card-subtitle" ".card h6") "color")
+        card-color
+        (surface-style-ref "h6.card-subtitle" "color")
         (surface-style-ref ".card-subtitle" "color")
         (surface-style-ref ".card" "color")))
   (define card-subtitle-margin-top
@@ -1610,6 +1709,16 @@
         (surface-style-ref ".badge.bg-light" "color")))
   (define-values (navmetric-style-ref navmetric-custom-ref)
     (make-computed-selector-refs props rules))
+  (define (pagination-context-ref key)
+    (or (navmetric-custom-ref ".pagination" key)
+        (navmetric-custom-ref ".page-link" key)
+        (present-ref (hash-ref props key #f))
+        (present-ref (hash-ref bootstrap-defaults key #f))))
+  (define (pagination-direct-ref selectors property)
+    (last-direct-declaration-value rules
+                                   selectors
+                                   property
+                                   pagination-context-ref))
   (define (accordion-context-ref key)
     (or (navmetric-custom-ref ".accordion-button" key)
         (navmetric-custom-ref ".accordion" key)
@@ -1767,6 +1876,14 @@
     (or (navmetric-custom-ref ".pagination" "--bs-pagination-active-border-color")
         (navmetric-style-ref ".page-link.active" "border-color")
         (navmetric-style-ref ".active > .page-link" "border-color")))
+  (define pagination-active-shadow
+    (or (pagination-direct-ref '(".page-link.active"
+                                 ".active > .page-link"
+                                 ".page-item.active .page-link")
+                               "box-shadow")
+        (navmetric-style-ref ".page-link.active" "box-shadow")
+        (navmetric-style-ref ".active > .page-link" "box-shadow")
+        (navmetric-style-ref ".page-item.active .page-link" "box-shadow")))
   (define pagination-disabled-color
     (or (navmetric-custom-ref ".pagination" "--bs-pagination-disabled-color")
         (navmetric-style-ref ".page-link.disabled" "color")
@@ -1980,8 +2097,12 @@
          (not (regexp-match? css-var-regexp toast-radius-direct))
          toast-radius-direct))
   (define toast-shadow
-    (or (toast-custom-ref ".toast" "--bs-toast-box-shadow")
+    (or (toast-direct-ref '(".toast") "box-shadow")
+        (toast-custom-ref ".toast" "--bs-toast-box-shadow")
         (toast-style-ref ".toast" "box-shadow")))
+  (define toast-text-shadow
+    (or (toast-direct-ref '(".toast") "text-shadow")
+        (toast-style-ref ".toast" "text-shadow")))
   (define toast-header-color
     (or (toast-custom-ref ".toast" "--bs-toast-header-color")
         (toast-style-ref ".toast-header" "color")))
@@ -2013,6 +2134,9 @@
   (define toast-title-text-transform
     (or (toast-style-ref ".toast-header strong" "text-transform")
         (toast-style-ref "strong" "text-transform")))
+  (define toast-title-text-shadow
+    (or (toast-style-ref ".toast-header strong" "text-shadow")
+        toast-text-shadow))
   (define toast-meta-font-family
     (or (toast-style-ref ".toast-header small" "font-family")
         (toast-style-ref "small" "font-family")))
@@ -2095,6 +2219,8 @@
   (define offcanvas-shadow
     (or (offcanvas-custom-ref ".offcanvas" "--bs-offcanvas-box-shadow")
         (offcanvas-style-ref ".offcanvas" "box-shadow")))
+  (define offcanvas-text-shadow
+    (offcanvas-style-ref ".offcanvas" "text-shadow"))
   (define offcanvas-padding-x
     (or (offcanvas-custom-ref ".offcanvas" "--bs-offcanvas-padding-x")
         (offcanvas-style-ref ".offcanvas-header" "padding-left")
@@ -2141,6 +2267,10 @@
   (define offcanvas-title-font-weight
     (or (offcanvas-style-ref ".offcanvas-title" "font-weight")
         (offcanvas-style-ref "h5" "font-weight")))
+  (define offcanvas-title-text-shadow
+    (or (offcanvas-style-ref ".offcanvas h5" "text-shadow")
+        (offcanvas-style-ref ".offcanvas-title" "text-shadow")
+        offcanvas-text-shadow))
   (define-values (alert-style-ref alert-custom-ref)
     (make-computed-selector-refs props rules))
   (define (alert-context-ref key)
@@ -2211,6 +2341,9 @@
   (define alert-title-text-transform
     (or (alert-style-ref ".alert strong" "text-transform")
         (alert-style-ref "strong" "text-transform")))
+  (define alert-title-text-shadow
+    (or (alert-style-ref ".alert strong" "text-shadow")
+        (alert-style-ref ".alert" "text-shadow")))
   (define alert-link-color
     (or (alert-link-direct-ref "color")
         (alert-custom-ref ".alert" "--bs-alert-link-color")
@@ -2249,38 +2382,49 @@
         (alert-custom-ref (format ".alert-~a" tone) "--bs-alert-link-color")
         alert-link-color
         (alert-tone-color tone)))
+  (define (alert-tone-shadow tone)
+    (or (alert-direct-ref (list (format ".alert-~a" tone)) "box-shadow")
+        (alert-style-ref (format ".alert-~a" tone) "box-shadow")))
   (define alert-primary-bg (alert-tone-bg "primary"))
   (define alert-primary-border (alert-tone-border "primary"))
   (define alert-primary-color (alert-tone-color "primary"))
   (define alert-primary-link-color (alert-tone-link-color "primary"))
+  (define alert-primary-shadow (alert-tone-shadow "primary"))
   (define alert-secondary-bg (alert-tone-bg "secondary"))
   (define alert-secondary-border (alert-tone-border "secondary"))
   (define alert-secondary-color (alert-tone-color "secondary"))
   (define alert-secondary-link-color (alert-tone-link-color "secondary"))
+  (define alert-secondary-shadow (alert-tone-shadow "secondary"))
   (define alert-success-bg (alert-tone-bg "success"))
   (define alert-success-border (alert-tone-border "success"))
   (define alert-success-color (alert-tone-color "success"))
   (define alert-success-link-color (alert-tone-link-color "success"))
+  (define alert-success-shadow (alert-tone-shadow "success"))
   (define alert-info-bg (alert-tone-bg "info"))
   (define alert-info-border (alert-tone-border "info"))
   (define alert-info-color (alert-tone-color "info"))
   (define alert-info-link-color (alert-tone-link-color "info"))
+  (define alert-info-shadow (alert-tone-shadow "info"))
   (define alert-warning-bg (alert-tone-bg "warning"))
   (define alert-warning-border (alert-tone-border "warning"))
   (define alert-warning-color (alert-tone-color "warning"))
   (define alert-warning-link-color (alert-tone-link-color "warning"))
+  (define alert-warning-shadow (alert-tone-shadow "warning"))
   (define alert-danger-bg (alert-tone-bg "danger"))
   (define alert-danger-border (alert-tone-border "danger"))
   (define alert-danger-color (alert-tone-color "danger"))
   (define alert-danger-link-color (alert-tone-link-color "danger"))
+  (define alert-danger-shadow (alert-tone-shadow "danger"))
   (define alert-light-bg (alert-tone-bg "light"))
   (define alert-light-border (alert-tone-border "light"))
   (define alert-light-color (alert-tone-color "light"))
   (define alert-light-link-color (alert-tone-link-color "light"))
+  (define alert-light-shadow (alert-tone-shadow "light"))
   (define alert-dark-bg (alert-tone-bg "dark"))
   (define alert-dark-border (alert-tone-border "dark"))
   (define alert-dark-color (alert-tone-color "dark"))
   (define alert-dark-link-color (alert-tone-link-color "dark"))
+  (define alert-dark-shadow (alert-tone-shadow "dark"))
   (define-values (list-table-style-ref list-table-custom-ref)
     (make-computed-selector-refs props rules))
   (define (list-group-context-ref key)
@@ -3159,11 +3303,11 @@
                        '(".modal-content" ".modal")
                        "background")))
   (define modal-color
-    (or (selector-ref* dialog-style-ref
+    (or (dialog-custom-ref ".modal-content" "--bs-modal-color")
+        (dialog-custom-ref ".modal" "--bs-modal-color")
+        (selector-ref* dialog-style-ref
                        '(".modal-content" ".modal")
-                       "color")
-        (dialog-custom-ref ".modal-content" "--bs-modal-color")
-        (dialog-custom-ref ".modal" "--bs-modal-color")))
+                       "color")))
   (define modal-border-color
     (or (selector-ref* dialog-style-ref
                        '(".modal-content" ".modal")
@@ -3217,6 +3361,10 @@
     (selector-ref* dialog-style-ref
                    '(".modal-content" ".modal")
                    "box-shadow"))
+  (define modal-text-shadow
+    (selector-ref* dialog-style-ref
+                   '(".modal" ".modal-content")
+                   "text-shadow"))
   (define modal-header-padding-x
     (or (modal-context-ref "--bs-modal-header-padding-x")
         (dialog-style-ref ".modal-header" "padding-left")
@@ -3290,7 +3438,17 @@
         (dialog-style-ref "h5" property)
         (dialog-style-ref ".modal-title" property)))
   (define modal-title-color
-    (let ([title-color (modal-title-ref "color")])
+    (let ([title-color
+           (or (last-direct-declaration-value rules
+                                              '(".modal-title")
+                                              "color"
+                                              dialog-context-ref)
+               (last-direct-declaration-value rules
+                                              '("h5" ".h5")
+                                              "color"
+                                              dialog-context-ref)
+               modal-color
+               (dialog-style-ref ".modal-title" "color"))])
       (and (meaningful-css-value? title-color) title-color)))
   (define modal-title-font-size
     (modal-title-ref "font-size"))
@@ -3300,6 +3458,12 @@
     (modal-title-ref "letter-spacing"))
   (define modal-title-text-transform
     (modal-title-ref "text-transform"))
+  (define modal-title-text-shadow
+    (or (dialog-style-ref ".modal h5" "text-shadow")
+        (dialog-style-ref ".modal .h5" "text-shadow")
+        (selector-direct-style-ref ".modal-title" "text-shadow")
+        (dialog-style-ref ".modal-title" "text-shadow")
+        modal-text-shadow))
   (hash 'nav-link-color nav-link-color
         'nav-link-hover nav-link-hover
         'nav-link-disabled nav-link-disabled
@@ -3315,6 +3479,7 @@
         'navbar-brand-font-weight navbar-brand-font-weight
         'navbar-brand-letter-spacing navbar-brand-letter-spacing
         'navbar-brand-text-transform navbar-brand-text-transform
+        'navbar-brand-text-shadow navbar-brand-text-shadow
         'navbar-brand-padding-y navbar-brand-padding-y
         'navbar-brand-gap navbar-brand-gap
         'navbar-brand-color navbar-brand-color
@@ -3324,12 +3489,19 @@
         'navbar-brand-heading-line-height navbar-brand-heading-line-height
         'navbar-brand-heading-letter-spacing navbar-brand-heading-letter-spacing
         'navbar-brand-heading-text-transform navbar-brand-heading-text-transform
+        'navbar-brand-heading-text-shadow navbar-brand-heading-text-shadow
         'lead-color lead-color
         'lead-font-size lead-font-size
         'lead-font-weight lead-font-weight
         'lead-line-height lead-line-height
         'lead-letter-spacing lead-letter-spacing
         'lead-text-transform lead-text-transform
+        'strong-font-family strong-font-family
+        'strong-font-size strong-font-size
+        'strong-font-weight strong-font-weight
+        'strong-line-height strong-line-height
+        'strong-letter-spacing strong-letter-spacing
+        'strong-text-transform strong-text-transform
         'blockquote-color blockquote-color
         'blockquote-font-family blockquote-font-family
         'blockquote-font-size blockquote-font-size
@@ -3398,6 +3570,7 @@
         'pill-active-color pill-active-color
         'pill-active-bg pill-active-bg
         'pill-active-border pill-active-border
+        'pill-active-shadow pill-active-shadow
         'pill-radius pill-radius
         'dropdown-bg dropdown-bg
         'dropdown-color dropdown-color
@@ -3463,11 +3636,13 @@
         'popover-letter-spacing popover-letter-spacing
         'popover-text-transform popover-text-transform
         'popover-color popover-color
+        'popover-panel-color popover-panel-color
         'popover-border-color popover-border-color
         'popover-border-width popover-border-width
         'popover-arrow-border-color popover-arrow-border-color
         'popover-radius popover-radius
         'popover-shadow popover-shadow
+        'popover-text-shadow popover-text-shadow
         'popover-arrow-width popover-arrow-width
         'popover-arrow-height popover-arrow-height
         'popover-header-bg popover-header-bg
@@ -3484,6 +3659,7 @@
         'popover-title-line-height popover-title-line-height
         'popover-title-letter-spacing popover-title-letter-spacing
         'popover-title-text-transform popover-title-text-transform
+        'popover-title-text-shadow popover-title-text-shadow
         'btn-padding-x btn-padding-x
         'btn-padding-y btn-padding-y
         'btn-font-size btn-font-size
@@ -3494,6 +3670,14 @@
         'btn-outline-border-width btn-outline-border-width
         'btn-radius btn-radius
         'btn-text-transform btn-text-transform
+        'btn-primary-shadow btn-primary-shadow
+        'btn-secondary-shadow btn-secondary-shadow
+        'btn-success-shadow btn-success-shadow
+        'btn-info-shadow btn-info-shadow
+        'btn-warning-shadow btn-warning-shadow
+        'btn-danger-shadow btn-danger-shadow
+        'btn-light-shadow btn-light-shadow
+        'btn-dark-shadow btn-dark-shadow
         'btn-lg-padding-x btn-lg-padding-x
         'btn-lg-padding-y btn-lg-padding-y
         'btn-lg-font-size btn-lg-font-size
@@ -3520,6 +3704,9 @@
         'btn-light-color btn-light-color
         'btn-light-hover-bg btn-light-hover-bg
         'btn-light-hover-border btn-light-hover-border
+        'btn-outline-primary-color btn-outline-primary-color
+        'btn-outline-primary-border btn-outline-primary-border
+        'btn-outline-primary-shadow btn-outline-primary-shadow
         'btn-outline-secondary-color btn-outline-secondary-color
         'btn-outline-secondary-border btn-outline-secondary-border
         'btn-outline-secondary-hover-bg btn-outline-secondary-hover-bg
@@ -3528,14 +3715,18 @@
         'btn-outline-secondary-disabled-bg btn-outline-secondary-disabled-bg
         'btn-outline-secondary-disabled-border btn-outline-secondary-disabled-border
         'btn-outline-secondary-disabled-color btn-outline-secondary-disabled-color
+        'btn-outline-secondary-shadow btn-outline-secondary-shadow
         'btn-success-color btn-success-color
         'btn-info-color btn-info-color
         'btn-warning-color btn-warning-color
         'btn-danger-color btn-danger-color
         'btn-dark-color btn-dark-color
         'card-bg card-bg
+        'card-panel-color card-panel-color
+        'card-color card-color
         'card-radius card-radius
         'card-shadow card-shadow
+        'card-text-shadow card-text-shadow
         'card-border-color card-border-color
         'card-border-width card-border-width
         'card-cap-bg card-cap-bg
@@ -3555,6 +3746,7 @@
         'card-title-line-height card-title-line-height
         'card-title-letter-spacing card-title-letter-spacing
         'card-title-text-transform card-title-text-transform
+        'card-title-text-shadow card-title-text-shadow
         'card-subtitle-font-family card-subtitle-font-family
         'card-subtitle-font-size card-subtitle-font-size
         'card-subtitle-font-weight card-subtitle-font-weight
@@ -3622,6 +3814,7 @@
         'pagination-active-color pagination-active-color
         'pagination-active-bg pagination-active-bg
         'pagination-active-border-color pagination-active-border-color
+        'pagination-active-shadow pagination-active-shadow
         'pagination-disabled-color pagination-disabled-color
         'pagination-disabled-bg pagination-disabled-bg
         'pagination-disabled-border-color pagination-disabled-border-color
@@ -3675,6 +3868,7 @@
         'toast-border-color toast-border-color
         'toast-radius toast-radius
         'toast-shadow toast-shadow
+        'toast-text-shadow toast-text-shadow
         'toast-header-color toast-header-color
         'toast-header-bg toast-header-bg
         'toast-header-border-color toast-header-border-color
@@ -3686,6 +3880,7 @@
         'toast-title-line-height toast-title-line-height
         'toast-title-letter-spacing toast-title-letter-spacing
         'toast-title-text-transform toast-title-text-transform
+        'toast-title-text-shadow toast-title-text-shadow
         'toast-meta-font-family toast-meta-font-family
         'toast-meta-font-size toast-meta-font-size
         'toast-meta-font-weight toast-meta-font-weight
@@ -3708,6 +3903,7 @@
         'offcanvas-border-color offcanvas-border-color
         'offcanvas-border-width offcanvas-border-width
         'offcanvas-shadow offcanvas-shadow
+        'offcanvas-text-shadow offcanvas-text-shadow
         'offcanvas-padding-x offcanvas-padding-x
         'offcanvas-padding-y offcanvas-padding-y
         'offcanvas-title-font-family offcanvas-title-font-family
@@ -3717,6 +3913,7 @@
         'offcanvas-title-color offcanvas-title-color
         'offcanvas-title-font-size offcanvas-title-font-size
         'offcanvas-title-font-weight offcanvas-title-font-weight
+        'offcanvas-title-text-shadow offcanvas-title-text-shadow
         'alert-padding-x alert-padding-x
         'alert-padding-y alert-padding-y
         'alert-border-width alert-border-width
@@ -3727,6 +3924,7 @@
         'alert-title-line-height alert-title-line-height
         'alert-title-letter-spacing alert-title-letter-spacing
         'alert-title-text-transform alert-title-text-transform
+        'alert-title-text-shadow alert-title-text-shadow
         'alert-link-color alert-link-color
         'alert-link-font-family alert-link-font-family
         'alert-link-font-weight alert-link-font-weight
@@ -3737,34 +3935,42 @@
         'alert-primary-border alert-primary-border
         'alert-primary-color alert-primary-color
         'alert-primary-link-color alert-primary-link-color
+        'alert-primary-shadow alert-primary-shadow
         'alert-secondary-bg alert-secondary-bg
         'alert-secondary-border alert-secondary-border
         'alert-secondary-color alert-secondary-color
         'alert-secondary-link-color alert-secondary-link-color
+        'alert-secondary-shadow alert-secondary-shadow
         'alert-success-bg alert-success-bg
         'alert-success-border alert-success-border
         'alert-success-color alert-success-color
         'alert-success-link-color alert-success-link-color
+        'alert-success-shadow alert-success-shadow
         'alert-info-bg alert-info-bg
         'alert-info-border alert-info-border
         'alert-info-color alert-info-color
         'alert-info-link-color alert-info-link-color
+        'alert-info-shadow alert-info-shadow
         'alert-warning-bg alert-warning-bg
         'alert-warning-border alert-warning-border
         'alert-warning-color alert-warning-color
         'alert-warning-link-color alert-warning-link-color
+        'alert-warning-shadow alert-warning-shadow
         'alert-danger-bg alert-danger-bg
         'alert-danger-border alert-danger-border
         'alert-danger-color alert-danger-color
         'alert-danger-link-color alert-danger-link-color
+        'alert-danger-shadow alert-danger-shadow
         'alert-light-bg alert-light-bg
         'alert-light-border alert-light-border
         'alert-light-color alert-light-color
         'alert-light-link-color alert-light-link-color
+        'alert-light-shadow alert-light-shadow
         'alert-dark-bg alert-dark-bg
         'alert-dark-border alert-dark-border
         'alert-dark-color alert-dark-color
         'alert-dark-link-color alert-dark-link-color
+        'alert-dark-shadow alert-dark-shadow
         'list-group-bg list-group-bg
         'list-group-shell-bg list-group-shell-bg
         'list-group-shell-border-color list-group-shell-border-color
@@ -4049,6 +4255,7 @@
         'modal-border-width modal-border-width
         'modal-radius modal-radius
         'modal-shadow modal-shadow
+        'modal-text-shadow modal-text-shadow
         'modal-header-padding-x modal-header-padding-x
         'modal-header-padding-y modal-header-padding-y
         'modal-header-border-color modal-header-border-color
@@ -4070,7 +4277,8 @@
         'modal-title-font-size modal-title-font-size
         'modal-title-font-weight modal-title-font-weight
         'modal-title-letter-spacing modal-title-letter-spacing
-        'modal-title-text-transform modal-title-text-transform))
+        'modal-title-text-transform modal-title-text-transform
+        'modal-title-text-shadow modal-title-text-shadow))
 
 ;; bootstrap-props->theme-model : (hash/c string? string?) [(or/c css-stylesheet? #f)] -> bootstrap-theme?
 ;;   Normalize Bootstrap custom properties into a small semantic theme model.
@@ -4099,12 +4307,23 @@
     (or (theme-style-ref ".h1" "text-transform")
         (theme-style-ref "h1" "text-transform")
         "none"))
+  (define body-text-shadow
+    (or (theme-style-ref "body" "text-shadow")
+        "none"))
+  (define headings-text-shadow
+    (or (theme-style-ref ".h1" "text-shadow")
+        (theme-style-ref "h1" "text-shadow")
+        body-text-shadow))
   (define body-letter-spacing
     (or (theme-style-ref "body" "letter-spacing")
         "normal"))
   (bootstrap-theme
    (prop-ref* props "--bs-body-color")
    (prop-ref* props "--bs-body-bg")
+   (or (theme-style-ref "body" "background-image")
+       "none")
+   body-text-shadow
+   headings-text-shadow
    (prop-ref* props "--bs-border-color")
    (prop-ref* props "--bs-border-color-translucent" "--bs-border-color")
    (prop-ref* props "--bs-primary")
@@ -4637,6 +4856,24 @@
   (define lead-text-transform
     (or (theme-component-ref theme 'lead-text-transform)
         "none"))
+  (define strong-font-family
+    (or (theme-component-ref theme 'strong-font-family)
+        "inherit"))
+  (define strong-font-size
+    (or (theme-component-ref theme 'strong-font-size)
+        "inherit"))
+  (define strong-font-weight
+    (or (theme-component-ref theme 'strong-font-weight)
+        "bolder"))
+  (define strong-line-height
+    (or (theme-component-ref theme 'strong-line-height)
+        "inherit"))
+  (define strong-letter-spacing
+    (or (theme-component-ref theme 'strong-letter-spacing)
+        "inherit"))
+  (define strong-text-transform
+    (or (theme-component-ref theme 'strong-text-transform)
+        "inherit"))
   (define blockquote-color
     (or (theme-component-ref theme 'blockquote-color)
         (bootstrap-theme-fg theme)))
@@ -4806,6 +5043,9 @@
   (define navbar-brand-text-transform
     (or (theme-component-ref theme 'navbar-brand-text-transform)
         navbar-text-transform))
+  (define navbar-brand-text-shadow
+    (or (theme-component-ref theme 'navbar-brand-text-shadow)
+        "var(--we-text-shadow, none)"))
   (define navbar-brand-gap
     (or (theme-component-ref theme 'navbar-brand-gap)
         "1rem"))
@@ -4849,6 +5089,9 @@
   (define navbar-brand-heading-text-transform
     (or (theme-component-ref theme 'navbar-brand-heading-text-transform)
         (bootstrap-theme-heading-text-transform theme)))
+  (define navbar-brand-heading-text-shadow
+    (or (theme-component-ref theme 'navbar-brand-heading-text-shadow)
+        "var(--we-heading-text-shadow, var(--we-navbar-brand-text-shadow, var(--we-text-shadow, none)))"))
   (define tab-bg
     (or (theme-component-ref theme 'tab-bg)
         "transparent"))
@@ -4949,6 +5192,9 @@
   (define pill-active-border
     (or (theme-component-ref theme 'pill-active-border)
         pill-border))
+  (define pill-active-shadow
+    (or (theme-component-ref theme 'pill-active-shadow)
+        "none"))
   (define pill-radius
     (or (theme-component-ref theme 'pill-radius)
         (bootstrap-theme-radius-pill theme)))
@@ -5144,6 +5390,9 @@
   (define popover-color
     (or (theme-component-ref theme 'popover-color)
         (bootstrap-theme-fg theme)))
+  (define popover-panel-color
+    (or (theme-component-ref theme 'popover-panel-color)
+        popover-color))
   (define popover-border-color
     (or (theme-component-ref theme 'popover-border-color)
         popup-border))
@@ -5156,6 +5405,9 @@
   (define popover-shadow
     (or (theme-component-ref theme 'popover-shadow)
         "var(--we-shadow-md)"))
+  (define popover-text-shadow
+    (or (theme-component-ref theme 'popover-text-shadow)
+        "var(--we-text-shadow, none)"))
   (define popover-arrow-width
     (or (theme-component-ref theme 'popover-arrow-width)
         "1rem"))
@@ -5207,6 +5459,9 @@
   (define popover-title-text-transform
     (or (theme-component-ref theme 'popover-title-text-transform)
         "none"))
+  (define popover-title-text-shadow
+    (or (theme-component-ref theme 'popover-title-text-shadow)
+        "var(--we-popover-text-shadow, var(--we-text-shadow, none))"))
   (define button-padding-x
     (or (theme-component-ref theme 'btn-padding-x)
         "0.75rem"))
@@ -5236,6 +5491,30 @@
         "0"))
   (define button-text-transform
     (or (theme-component-ref theme 'btn-text-transform)
+        "none"))
+  (define button-primary-shadow
+    (or (theme-component-ref theme 'btn-primary-shadow)
+        "none"))
+  (define button-secondary-shadow
+    (or (theme-component-ref theme 'btn-secondary-shadow)
+        "none"))
+  (define button-success-shadow
+    (or (theme-component-ref theme 'btn-success-shadow)
+        "none"))
+  (define button-info-shadow
+    (or (theme-component-ref theme 'btn-info-shadow)
+        "none"))
+  (define button-warning-shadow
+    (or (theme-component-ref theme 'btn-warning-shadow)
+        "none"))
+  (define button-danger-shadow
+    (or (theme-component-ref theme 'btn-danger-shadow)
+        "none"))
+  (define button-light-shadow
+    (or (theme-component-ref theme 'btn-light-shadow)
+        "none"))
+  (define button-dark-shadow
+    (or (theme-component-ref theme 'btn-dark-shadow)
         "none"))
   (define button-lg-padding-x
     (or (theme-component-ref theme 'btn-lg-padding-x)
@@ -5318,6 +5597,15 @@
   (define button-light-hover-border
     (or (theme-component-ref theme 'btn-light-hover-border)
         button-light-border))
+  (define outline-primary-color
+    (or (theme-component-ref theme 'btn-outline-primary-color)
+        (bootstrap-theme-primary theme)))
+  (define outline-primary-border
+    (or (theme-component-ref theme 'btn-outline-primary-border)
+        (bootstrap-theme-primary theme)))
+  (define outline-primary-shadow
+    (or (theme-component-ref theme 'btn-outline-primary-shadow)
+        button-primary-shadow))
   (define outline-secondary-color
     (or (theme-component-ref theme 'btn-outline-secondary-color)
         button-secondary-color))
@@ -5339,6 +5627,9 @@
   (define outline-secondary-disabled-color
     (or (theme-component-ref theme 'btn-outline-secondary-disabled-color)
         outline-secondary-color))
+  (define outline-secondary-shadow
+    (or (theme-component-ref theme 'btn-outline-secondary-shadow)
+        button-secondary-shadow))
   (define button-success-color
     (or (theme-component-ref theme 'btn-success-color)
         (bootstrap-theme-success theme)))
@@ -5354,12 +5645,21 @@
   (define card-bg
     (or (theme-component-ref theme 'card-bg)
         (hash-ref surface-map 'surface)))
+  (define card-panel-color
+    (or (theme-component-ref theme 'card-panel-color)
+        (bootstrap-theme-fg theme)))
+  (define card-color
+    (or (theme-component-ref theme 'card-color)
+        card-panel-color))
   (define card-radius
     (or (theme-component-ref theme 'card-radius)
         "0"))
   (define card-shadow
     (or (theme-component-ref theme 'card-shadow)
         "none"))
+  (define card-text-shadow
+    (or (theme-component-ref theme 'card-text-shadow)
+        "var(--we-text-shadow, none)"))
   (define card-border-color
     (or (theme-component-ref theme 'card-border-color)
         separator))
@@ -5417,6 +5717,9 @@
   (define card-title-text-transform
     (or (theme-component-ref theme 'card-title-text-transform)
         "none"))
+  (define card-title-text-shadow
+    (or (theme-component-ref theme 'card-title-text-shadow)
+        "var(--we-heading-text-shadow, var(--we-card-text-shadow, var(--we-text-shadow, none)))"))
   (define card-subtitle-font-family
     (or (theme-component-ref theme 'card-subtitle-font-family)
         (bootstrap-theme-font-family-heading theme)))
@@ -5619,6 +5922,9 @@
   (define pagination-active-border-color
     (or (theme-component-ref theme 'pagination-active-border-color)
         pagination-active-bg))
+  (define pagination-active-shadow
+    (or (theme-component-ref theme 'pagination-active-shadow)
+        "none"))
   (define pagination-disabled-color
     (or (theme-component-ref theme 'pagination-disabled-color)
         fg-muted))
@@ -5779,6 +6085,9 @@
   (define toast-shadow
     (or (theme-component-ref theme 'toast-shadow)
         "var(--we-shadow-md)"))
+  (define toast-text-shadow
+    (or (theme-component-ref theme 'toast-text-shadow)
+        "var(--we-text-shadow, none)"))
   (define toast-header-color
     (or (theme-component-ref theme 'toast-header-color)
         fg-muted))
@@ -5812,6 +6121,9 @@
   (define toast-title-text-transform
     (or (theme-component-ref theme 'toast-title-text-transform)
         "inherit"))
+  (define toast-title-text-shadow
+    (or (theme-component-ref theme 'toast-title-text-shadow)
+        "var(--we-toast-text-shadow, var(--we-text-shadow, none))"))
   (define toast-meta-font-family
     (or (theme-component-ref theme 'toast-meta-font-family)
         "inherit"))
@@ -5872,6 +6184,9 @@
   (define offcanvas-shadow
     (or (theme-component-ref theme 'offcanvas-shadow)
         "var(--we-shadow-md)"))
+  (define offcanvas-text-shadow
+    (or (theme-component-ref theme 'offcanvas-text-shadow)
+        "var(--we-text-shadow, none)"))
   (define offcanvas-padding-x
     (or (theme-component-ref theme 'offcanvas-padding-x)
         "1rem"))
@@ -5899,6 +6214,9 @@
   (define offcanvas-title-font-weight
     (or (theme-component-ref theme 'offcanvas-title-font-weight)
         (bootstrap-theme-font-weight-semibold theme)))
+  (define offcanvas-title-text-shadow
+    (or (theme-component-ref theme 'offcanvas-title-text-shadow)
+        "var(--we-heading-text-shadow, var(--we-offcanvas-text-shadow, var(--we-text-shadow, none)))"))
   (define (alert-token tone role fallback)
     (or (theme-component-ref theme (string->symbol (format "alert-~a-~a" tone role)))
         fallback))
@@ -5931,6 +6249,9 @@
         "inherit"))
   (define alert-title-text-transform
     (or (theme-component-ref theme 'alert-title-text-transform)
+        "inherit"))
+  (define alert-title-text-shadow
+    (or (theme-component-ref theme 'alert-title-text-shadow)
         "inherit"))
   (define alert-link-color
     (or (theme-component-ref theme 'alert-link-color)
@@ -5965,6 +6286,9 @@
   (define alert-primary-link-color
     (or (theme-component-ref theme 'alert-primary-link-color)
         alert-primary-color))
+  (define alert-primary-shadow
+    (or (theme-component-ref theme 'alert-primary-shadow)
+        "none"))
   (define alert-secondary-bg
     (alert-token "secondary" "bg"
                  (or (theme-prop-ref theme "--bs-secondary-bg-subtle")
@@ -5980,6 +6304,9 @@
   (define alert-secondary-link-color
     (or (theme-component-ref theme 'alert-secondary-link-color)
         alert-secondary-color))
+  (define alert-secondary-shadow
+    (or (theme-component-ref theme 'alert-secondary-shadow)
+        "none"))
   (define alert-success-bg
     (alert-token "success" "bg"
                  (or (theme-prop-ref theme "--bs-success-bg-subtle")
@@ -5995,6 +6322,9 @@
   (define alert-success-link-color
     (or (theme-component-ref theme 'alert-success-link-color)
         alert-success-color))
+  (define alert-success-shadow
+    (or (theme-component-ref theme 'alert-success-shadow)
+        "none"))
   (define alert-info-bg
     (alert-token "info" "bg"
                  (or (theme-prop-ref theme "--bs-info-bg-subtle")
@@ -6010,6 +6340,9 @@
   (define alert-info-link-color
     (or (theme-component-ref theme 'alert-info-link-color)
         alert-info-color))
+  (define alert-info-shadow
+    (or (theme-component-ref theme 'alert-info-shadow)
+        "none"))
   (define alert-warning-bg
     (alert-token "warning" "bg"
                  (or (theme-prop-ref theme "--bs-warning-bg-subtle")
@@ -6025,6 +6358,9 @@
   (define alert-warning-link-color
     (or (theme-component-ref theme 'alert-warning-link-color)
         alert-warning-color))
+  (define alert-warning-shadow
+    (or (theme-component-ref theme 'alert-warning-shadow)
+        "none"))
   (define alert-danger-bg
     (alert-token "danger" "bg"
                  (or (theme-prop-ref theme "--bs-danger-bg-subtle")
@@ -6040,6 +6376,9 @@
   (define alert-danger-link-color
     (or (theme-component-ref theme 'alert-danger-link-color)
         alert-danger-color))
+  (define alert-danger-shadow
+    (or (theme-component-ref theme 'alert-danger-shadow)
+        "none"))
   (define alert-light-bg
     (alert-token "light" "bg"
                  (or (theme-prop-ref theme "--bs-light-bg-subtle")
@@ -6055,6 +6394,9 @@
   (define alert-light-link-color
     (or (theme-component-ref theme 'alert-light-link-color)
         alert-light-color))
+  (define alert-light-shadow
+    (or (theme-component-ref theme 'alert-light-shadow)
+        "none"))
   (define alert-dark-bg
     (alert-token "dark" "bg"
                  (or (theme-prop-ref theme "--bs-dark-bg-subtle")
@@ -6070,6 +6412,9 @@
   (define alert-dark-link-color
     (or (theme-component-ref theme 'alert-dark-link-color)
         alert-dark-color))
+  (define alert-dark-shadow
+    (or (theme-component-ref theme 'alert-dark-shadow)
+        "none"))
   (define list-group-bg
     (or (theme-component-ref theme 'list-group-bg)
         (hash-ref surface-map 'surface)))
@@ -6862,6 +7207,9 @@
   (define dialog-shadow
     (or (theme-component-ref theme 'modal-shadow)
         "none"))
+  (define dialog-text-shadow
+    (or (theme-component-ref theme 'modal-text-shadow)
+        "var(--we-text-shadow, none)"))
   (define dialog-header-padding-x
     (or (theme-component-ref theme 'modal-header-padding-x)
         "0.9rem"))
@@ -6929,6 +7277,9 @@
   (define dialog-title-text-transform
     (or (theme-component-ref theme 'modal-title-text-transform)
         "none"))
+  (define dialog-title-text-shadow
+    (or (theme-component-ref theme 'modal-title-text-shadow)
+        "var(--we-heading-text-shadow, var(--we-dialog-text-shadow, var(--we-text-shadow, none)))"))
   (define dialog-close-icon
     (or (theme-component-ref theme 'modal-close-bg)
         (theme-component-ref theme 'close-button-bg)
@@ -7005,6 +7356,9 @@
     (cons "--we-focus-tint" focus-tint)
     (cons "--we-fg" (bootstrap-theme-fg theme))
     (cons "--we-bg" (bootstrap-theme-bg theme))
+    (cons "--we-bg-image" (bootstrap-theme-bg-image theme))
+    (cons "--we-text-shadow" (bootstrap-theme-text-shadow theme))
+    (cons "--we-heading-text-shadow" (bootstrap-theme-heading-text-shadow theme))
     (cons "--we-bg-subtle" (hash-ref surface-map 'surface-subtle))
     (cons "--we-bg-selected" bg-selected)
     (cons "--we-bg-disabled" bg-disabled)
@@ -7083,6 +7437,7 @@
     (cons "--we-navbar-brand-font-weight" navbar-brand-font-weight)
     (cons "--we-navbar-brand-letter-spacing" navbar-brand-letter-spacing)
     (cons "--we-navbar-brand-text-transform" navbar-brand-text-transform)
+    (cons "--we-navbar-brand-text-shadow" navbar-brand-text-shadow)
     (cons "--we-navbar-brand-padding-y" navbar-brand-padding-y)
     (cons "--we-navbar-brand-gap" navbar-brand-gap)
     (cons "--we-navbar-brand-heading-font-family" navbar-brand-heading-font-family)
@@ -7090,6 +7445,7 @@
     (cons "--we-navbar-brand-heading-line-height" navbar-brand-heading-line-height)
     (cons "--we-navbar-brand-heading-letter-spacing" navbar-brand-heading-letter-spacing)
     (cons "--we-navbar-brand-heading-text-transform" navbar-brand-heading-text-transform)
+    (cons "--we-navbar-brand-heading-text-shadow" navbar-brand-heading-text-shadow)
     (cons "--we-nav-font-size" nav-font-size)
     (cons "--we-nav-font-weight" nav-font-weight)
     (cons "--we-nav-text-transform" nav-text-transform)
@@ -7129,6 +7485,7 @@
     (cons "--we-pill-active-color" pill-active-color)
     (cons "--we-pill-active-bg" pill-active-bg)
     (cons "--we-pill-active-border-color" pill-active-border)
+    (cons "--we-pill-active-shadow" pill-active-shadow)
     (cons "--we-pill-radius" pill-radius)
     (cons "--we-button-padding-x" button-padding-x)
     (cons "--we-button-padding-y" button-padding-y)
@@ -7140,6 +7497,14 @@
     (cons "--we-button-outline-border-width" button-outline-border-width)
     (cons "--we-button-radius" button-radius)
     (cons "--we-button-text-transform" button-text-transform)
+    (cons "--we-button-primary-shadow" button-primary-shadow)
+    (cons "--we-button-secondary-shadow" button-secondary-shadow)
+    (cons "--we-button-success-shadow" button-success-shadow)
+    (cons "--we-button-info-shadow" button-info-shadow)
+    (cons "--we-button-warning-shadow" button-warning-shadow)
+    (cons "--we-button-danger-shadow" button-danger-shadow)
+    (cons "--we-button-light-shadow" button-light-shadow)
+    (cons "--we-button-dark-shadow" button-dark-shadow)
     (cons "--we-button-lg-padding-x" button-lg-padding-x)
     (cons "--we-button-lg-padding-y" button-lg-padding-y)
     (cons "--we-button-lg-font-size" button-lg-font-size)
@@ -7166,6 +7531,9 @@
     (cons "--we-button-light-color" button-light-color)
     (cons "--we-button-light-hover-bg" button-light-hover-bg)
     (cons "--we-button-light-hover-border" button-light-hover-border)
+    (cons "--we-button-outline-primary-color" outline-primary-color)
+    (cons "--we-button-outline-primary-border" outline-primary-border)
+    (cons "--we-button-outline-primary-shadow" outline-primary-shadow)
     (cons "--we-button-outline-secondary-color" outline-secondary-color)
     (cons "--we-button-outline-secondary-border" outline-secondary-border)
     (cons "--we-button-outline-secondary-hover-bg" outline-secondary-hover-bg)
@@ -7173,13 +7541,17 @@
     (cons "--we-button-outline-secondary-disabled-bg" outline-secondary-disabled-bg)
     (cons "--we-button-outline-secondary-disabled-border" outline-secondary-disabled-border)
     (cons "--we-button-outline-secondary-disabled-color" outline-secondary-disabled-color)
+    (cons "--we-button-outline-secondary-shadow" outline-secondary-shadow)
     (cons "--we-button-success-color" button-success-color)
     (cons "--we-button-info-color" button-info-color)
     (cons "--we-button-warning-color" button-warning-color)
     (cons "--we-button-danger-color" button-danger-color)
     (cons "--we-card-bg" card-bg)
+    (cons "--we-card-panel-color" card-panel-color)
+    (cons "--we-card-color" card-color)
     (cons "--we-card-radius" card-radius)
     (cons "--we-card-shadow" card-shadow)
+    (cons "--we-card-text-shadow" card-text-shadow)
     (cons "--we-card-border-color" card-border-color)
     (cons "--we-card-border-width" card-border-width)
     (cons "--we-card-cap-bg" card-cap-bg)
@@ -7199,6 +7571,7 @@
     (cons "--we-card-title-line-height" card-title-line-height)
     (cons "--we-card-title-letter-spacing" card-title-letter-spacing)
     (cons "--we-card-title-text-transform" card-title-text-transform)
+    (cons "--we-card-title-text-shadow" card-title-text-shadow)
     (cons "--we-card-subtitle-font-family" card-subtitle-font-family)
     (cons "--we-card-subtitle-font-size" card-subtitle-font-size)
     (cons "--we-card-subtitle-font-weight" card-subtitle-font-weight)
@@ -7266,6 +7639,7 @@
     (cons "--we-pagination-active-color" pagination-active-color)
     (cons "--we-pagination-active-bg" pagination-active-bg)
     (cons "--we-pagination-active-border-color" pagination-active-border-color)
+    (cons "--we-pagination-active-shadow" pagination-active-shadow)
     (cons "--we-pagination-disabled-color" pagination-disabled-color)
     (cons "--we-pagination-disabled-bg" pagination-disabled-bg)
     (cons "--we-pagination-disabled-border-color" pagination-disabled-border-color)
@@ -7319,6 +7693,7 @@
     (cons "--we-toast-border-color" toast-border-color)
     (cons "--we-toast-radius" toast-radius)
     (cons "--we-toast-shadow" toast-shadow)
+    (cons "--we-toast-text-shadow" toast-text-shadow)
     (cons "--we-toast-header-color" toast-header-color)
     (cons "--we-toast-header-bg" toast-header-bg)
     (cons "--we-toast-header-border-color" toast-header-border-color)
@@ -7330,6 +7705,7 @@
     (cons "--we-toast-title-line-height" toast-title-line-height)
     (cons "--we-toast-title-letter-spacing" toast-title-letter-spacing)
     (cons "--we-toast-title-text-transform" toast-title-text-transform)
+    (cons "--we-toast-title-text-shadow" toast-title-text-shadow)
     (cons "--we-toast-meta-font-family" toast-meta-font-family)
     (cons "--we-toast-meta-font-size" toast-meta-font-size)
     (cons "--we-toast-meta-font-weight" toast-meta-font-weight)
@@ -7366,10 +7742,12 @@
     (cons "--we-popover-letter-spacing" popover-letter-spacing)
     (cons "--we-popover-text-transform" popover-text-transform)
     (cons "--we-popover-color" popover-color)
+    (cons "--we-popover-panel-color" popover-panel-color)
     (cons "--we-popover-border-color" popover-border-color)
     (cons "--we-popover-border-width" popover-border-width)
     (cons "--we-popover-radius" popover-radius)
     (cons "--we-popover-shadow" popover-shadow)
+    (cons "--we-popover-text-shadow" popover-text-shadow)
     (cons "--we-popover-arrow-width" popover-arrow-width)
     (cons "--we-popover-arrow-height" popover-arrow-height)
     (cons "--we-popover-arrow-border-color" popover-arrow-border-color)
@@ -7387,6 +7765,7 @@
     (cons "--we-popover-title-line-height" popover-title-line-height)
     (cons "--we-popover-title-letter-spacing" popover-title-letter-spacing)
     (cons "--we-popover-title-text-transform" popover-title-text-transform)
+    (cons "--we-popover-title-text-shadow" popover-title-text-shadow)
     (cons "--we-close-button-color" close-button-color)
     (cons "--we-close-glyph" close-button-glyph)
     (cons "--we-close-button-opacity" close-button-opacity)
@@ -7397,6 +7776,7 @@
     (cons "--we-offcanvas-border-color" offcanvas-border-color)
     (cons "--we-offcanvas-border-width" offcanvas-border-width)
     (cons "--we-offcanvas-shadow" offcanvas-shadow)
+    (cons "--we-offcanvas-text-shadow" offcanvas-text-shadow)
     (cons "--we-offcanvas-padding-x" offcanvas-padding-x)
     (cons "--we-offcanvas-padding-y" offcanvas-padding-y)
     (cons "--we-offcanvas-title-font-family" offcanvas-title-font-family)
@@ -7406,6 +7786,7 @@
     (cons "--we-offcanvas-title-color" offcanvas-title-color)
     (cons "--we-offcanvas-title-font-size" offcanvas-title-font-size)
     (cons "--we-offcanvas-title-font-weight" offcanvas-title-font-weight)
+    (cons "--we-offcanvas-title-text-shadow" offcanvas-title-text-shadow)
     (cons "--we-alert-padding-x" alert-padding-x)
     (cons "--we-alert-padding-y" alert-padding-y)
     (cons "--we-alert-border-width" alert-border-width)
@@ -7416,6 +7797,7 @@
     (cons "--we-alert-title-line-height" alert-title-line-height)
     (cons "--we-alert-title-letter-spacing" alert-title-letter-spacing)
     (cons "--we-alert-title-text-transform" alert-title-text-transform)
+    (cons "--we-alert-title-text-shadow" alert-title-text-shadow)
     (cons "--we-alert-link-color" alert-link-color)
     (cons "--we-alert-link-font-family" alert-link-font-family)
     (cons "--we-alert-link-font-weight" alert-link-font-weight)
@@ -7426,34 +7808,42 @@
     (cons "--we-alert-primary-border" alert-primary-border)
     (cons "--we-alert-primary-color" alert-primary-color)
     (cons "--we-alert-primary-link-color" alert-primary-link-color)
+    (cons "--we-alert-primary-shadow" alert-primary-shadow)
     (cons "--we-alert-secondary-bg" alert-secondary-bg)
     (cons "--we-alert-secondary-border" alert-secondary-border)
     (cons "--we-alert-secondary-color" alert-secondary-color)
     (cons "--we-alert-secondary-link-color" alert-secondary-link-color)
+    (cons "--we-alert-secondary-shadow" alert-secondary-shadow)
     (cons "--we-alert-success-bg" alert-success-bg)
     (cons "--we-alert-success-border" alert-success-border)
     (cons "--we-alert-success-color" alert-success-color)
     (cons "--we-alert-success-link-color" alert-success-link-color)
+    (cons "--we-alert-success-shadow" alert-success-shadow)
     (cons "--we-alert-info-bg" alert-info-bg)
     (cons "--we-alert-info-border" alert-info-border)
     (cons "--we-alert-info-color" alert-info-color)
     (cons "--we-alert-info-link-color" alert-info-link-color)
+    (cons "--we-alert-info-shadow" alert-info-shadow)
     (cons "--we-alert-warning-bg" alert-warning-bg)
     (cons "--we-alert-warning-border" alert-warning-border)
     (cons "--we-alert-warning-color" alert-warning-color)
     (cons "--we-alert-warning-link-color" alert-warning-link-color)
+    (cons "--we-alert-warning-shadow" alert-warning-shadow)
     (cons "--we-alert-danger-bg" alert-danger-bg)
     (cons "--we-alert-danger-border" alert-danger-border)
     (cons "--we-alert-danger-color" alert-danger-color)
     (cons "--we-alert-danger-link-color" alert-danger-link-color)
+    (cons "--we-alert-danger-shadow" alert-danger-shadow)
     (cons "--we-alert-light-bg" alert-light-bg)
     (cons "--we-alert-light-border" alert-light-border)
     (cons "--we-alert-light-color" alert-light-color)
     (cons "--we-alert-light-link-color" alert-light-link-color)
+    (cons "--we-alert-light-shadow" alert-light-shadow)
     (cons "--we-alert-dark-bg" alert-dark-bg)
     (cons "--we-alert-dark-border" alert-dark-border)
     (cons "--we-alert-dark-color" alert-dark-color)
     (cons "--we-alert-dark-link-color" alert-dark-link-color)
+    (cons "--we-alert-dark-shadow" alert-dark-shadow)
     (cons "--we-list-group-bg" list-group-bg)
     (cons "--we-list-group-shell-bg" list-group-shell-bg)
     (cons "--we-list-group-shell-border-color" list-group-shell-border-color)
@@ -7719,6 +8109,7 @@
     (cons "--we-dialog-border-width" dialog-border-width)
     (cons "--we-dialog-radius" dialog-radius)
     (cons "--we-dialog-shadow" dialog-shadow)
+    (cons "--we-dialog-text-shadow" dialog-text-shadow)
     (cons "--we-dialog-header-padding-x" dialog-header-padding-x)
     (cons "--we-dialog-header-padding-y" dialog-header-padding-y)
     (cons "--we-dialog-header-border-color" dialog-header-border-color)
@@ -7741,6 +8132,7 @@
     (cons "--we-dialog-title-font-weight" dialog-title-font-weight)
     (cons "--we-dialog-title-letter-spacing" dialog-title-letter-spacing)
     (cons "--we-dialog-title-text-transform" dialog-title-text-transform)
+    (cons "--we-dialog-title-text-shadow" dialog-title-text-shadow)
     (cons "--we-dialog-close-icon" dialog-close-icon)
     (cons "--we-input-placeholder" placeholder)
     (cons "--we-surface" (hash-ref surface-map 'surface))
@@ -7783,6 +8175,12 @@
     (cons "--we-lead-line-height" lead-line-height)
     (cons "--we-lead-letter-spacing" lead-letter-spacing)
     (cons "--we-lead-text-transform" lead-text-transform)
+    (cons "--we-strong-font-family" strong-font-family)
+    (cons "--we-strong-font-size" strong-font-size)
+    (cons "--we-strong-font-weight" strong-font-weight)
+    (cons "--we-strong-line-height" strong-line-height)
+    (cons "--we-strong-letter-spacing" strong-letter-spacing)
+    (cons "--we-strong-text-transform" strong-text-transform)
     (cons "--we-blockquote-color" blockquote-color)
     (cons "--we-blockquote-font-family" blockquote-font-family)
     (cons "--we-blockquote-font-size" blockquote-font-size)
@@ -7831,22 +8229,26 @@
           (for/list ([entry (in-list token-lines)])
             (format "  ~a: ~a;\n" (car entry) (cdr entry))))
    "  color: var(--we-fg);\n"
+   "  text-shadow: var(--we-text-shadow, none);\n"
    "}\n\n"
    selector
    " {\n"
-   "  background: var(--we-bg);\n"
+   "  background-color: var(--we-bg);\n"
+   "  background-image: var(--we-bg-image, none);\n"
    "  margin: 0;\n"
    "  padding: 0;\n"
    "}\n\n"
    selector
    " body {\n"
-   "  background: var(--we-bg);\n"
+   "  background-color: var(--we-bg);\n"
+   "  background-image: var(--we-bg-image, none);\n"
    "  color: var(--we-fg);\n"
    "  font-family: var(--we-font-family-base);\n"
    "  font-size: var(--we-font-size-md);\n"
    "  font-weight: var(--we-font-weight-normal);\n"
    "  line-height: var(--we-line-height-base);\n"
    "  letter-spacing: var(--we-letter-spacing-base);\n"
+   "  text-shadow: var(--we-text-shadow, none);\n"
    "  margin: 0;\n"
    "  padding: 0;\n"
    "}\n\n"))
@@ -9039,6 +9441,32 @@
        rules))
     (check-equal? (bootstrap-theme-font-family-heading theme)
                   "\"Cabin Sketch\", cursive"))
+
+  (test-case "authored strong typography feeds theme tokens"
+    (define rules
+      (read-css-rules
+       (string-append
+        ":root {\n"
+        "  --bs-body-color: #212529;\n"
+        "  --bs-body-bg: #fff;\n"
+        "  --bs-body-font-family: Neucha, sans-serif;\n"
+        "}\n"
+        "b, strong {\n"
+        "  font-family: \"Cabin Sketch\", cursive;\n"
+        "  font-weight: bolder;\n"
+        "  letter-spacing: 0.02em;\n"
+        "  text-transform: uppercase;\n"
+        "}\n")))
+    (define token-map
+      (bootstrap-rules->token-map rules))
+    (check-equal? (hash-ref token-map "--we-strong-font-family")
+                  "\"Cabin Sketch\", cursive")
+    (check-equal? (hash-ref token-map "--we-strong-font-weight")
+                  "bolder")
+    (check-equal? (hash-ref token-map "--we-strong-letter-spacing")
+                  "0.02em")
+    (check-equal? (hash-ref token-map "--we-strong-text-transform")
+                  "uppercase"))
 
   (test-case "authored body letter spacing feeds theme model"
     (define rules
