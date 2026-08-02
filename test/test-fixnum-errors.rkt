@@ -54,6 +54,26 @@
                          (lambda () (fxremainder 1.0 1)))
           (catch-fixnum? "fxmodulo"
                          (lambda () (fxmodulo 1.0 1))))))
+ (list "fixnum diagnostics use error-value->string-handler"
+       (let ([old (error-value->string-handler)])
+         (error-value->string-handler
+          (lambda (v _width)
+            (cond
+              [(number? v) "CUSTOM-NUMBER"]
+              [else "CUSTOM-VALUE"])))
+         (let ([ok (and
+                    (catch-contract/contains?
+                     (lambda () (fx+ 536870911 1))
+                     "fx+"
+                     "fixnum overflow"
+                     "CUSTOM-NUMBER and CUSTOM-NUMBER")
+                    (catch-contract/contains?
+                     (lambda () (fxquotient 1.0 1))
+                     "fxquotient"
+                     "fixnum"
+                     "CUSTOM-NUMBER"))])
+           (error-value->string-handler old)
+           ok)))
  (list "fx-/wraparound arity errors are catchable with who"
        (catch-contract/contains?
         (lambda () (fx-/wraparound 1 2 3))

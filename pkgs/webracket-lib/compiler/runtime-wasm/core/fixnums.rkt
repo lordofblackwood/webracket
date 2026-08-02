@@ -507,8 +507,8 @@
            (local $exn     (ref $Struct))
 
            (local.set $who-str (call $format/display (local.get $who)))
-           (local.set $x-str   (call $format/display (local.get $x)))
-           (local.set $y-str   (call $format/display (local.get $y)))
+           (local.set $x-str   (call $format/error-value->string (local.get $x)))
+           (local.set $y-str   (call $format/error-value->string (local.get $y)))
 
            (local.set $message (call $string-append/2
                                      (local.get $who-str)
@@ -545,7 +545,7 @@
            (if (i32.eqz (call $fixnum?/i32 (local.get $x)))
                (then
                 (local.set $who-str (call $format/display (local.get $who)))
-                (local.set $x-str   (call $format/display (local.get $x)))
+                (local.set $x-str   (call $format/error-value->string (local.get $x)))
 
                 (local.set $message (call $string-append/2
                                           (local.get $who-str)
