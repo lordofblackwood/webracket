@@ -256,9 +256,38 @@
                                                        #t)
                                                      (lambda (self recur)
                                                        0)
-                                                     (lambda (self recur)
-                                                       0)))))])
+                                               (lambda (self recur)
+                                                 0)))))])
           (procedure? make-p))
+        (let-values ([(st make-p p? p-ref p-set!)
+                      (make-struct-type 'checked-prop
+                                        #f
+                                        2
+                                        0
+                                        #f
+                                        (list (cons prop:checked-procedure
+                                                    #t)))])
+          (procedure? make-p))
+        (catch-contract/contains?
+         (lambda ()
+           (make-struct-type 'bad #f 0 0 #f
+                             (list (cons prop:checked-procedure #t))))
+         "prop:checked-procedure"
+         "need at least two fields in the structure type")
+        (catch-contract/contains?
+         (lambda ()
+           (make-struct-type 'bad #f 1 0 #f
+                             (list (cons prop:checked-procedure #t))))
+         "prop:checked-procedure"
+         "need at least two fields in the structure type")
+        (catch-contract/contains?
+         (lambda ()
+           (let-values ([(pst make-p p? p-ref p-set!)
+                         (make-struct-type 'parent #f 2 0)])
+             (make-struct-type 'child pst 0 0 #f
+                               (list (cons prop:checked-procedure #t)))))
+         "prop:checked-procedure"
+         "not allowed on a structure type with a supertype")
         (equal? (format "~a" (struct-writable)) "writable")
         (catch-contract/contains?
          (lambda ()

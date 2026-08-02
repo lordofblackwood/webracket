@@ -83,6 +83,10 @@
      ": field index >= initialized-field count for structure type\n  field index: ")
     (guard-for-prop:equal+hash-contract
      "(or/c (list/c (procedure-arity-includes/c 4) (procedure-arity-includes/c 3)) (list/c (procedure-arity-includes/c 3) (procedure-arity-includes/c 2) (procedure-arity-includes/c 2)))")
+    (prop:checked-procedure-too-few-fields
+     "prop:checked-procedure: need at least two fields in the structure type")
+    (prop:checked-procedure-supertype
+     "prop:checked-procedure: not allowed on a structure type with a supertype")
     (prop:procedure-contract
      "(or/c procedure? exact-nonnegative-integer?)")
     (make-struct-field-name
@@ -620,6 +624,7 @@
     $struct-type-property-table-copy
     $struct-type-property-merge-list!
     $struct-type-property-guard-apply
+    $raise-prop:checked-procedure-contract
     $struct-type-property-attach!
     $struct-type-property-table-has-name?/i32))
 
@@ -6848,6 +6853,17 @@
                      (local.get $args)
                      (local.get $inv)))
 
+     (func $raise-prop:checked-procedure-contract
+           (param $message (ref eq))
+
+           (drop (call $raise
+                       (call $exn:fail:contract/make
+                             (local.get $message)
+                             (call $current-continuation-marks
+                                   (global.get $missing)))
+                       (global.get $true)))
+           (unreachable))
+
      (func $struct-type-property-attach!
            (param $prop     (ref $StructTypeProperty))
            (param $value    (ref eq))
@@ -6884,6 +6900,9 @@
            (local $procedure-init-count-raw (ref eq))
            (local $procedure-init-count i32)
            (local $procedure-sti-tail (ref eq))
+           (local $checked-procedure-init-count-raw (ref eq))
+           (local $checked-procedure-init-count i32)
+           (local $checked-procedure-super (ref eq))
 
            (local.set $sealed (i32.const 0))
            (local.set $processed
@@ -7013,6 +7032,37 @@
                                      (global.get $string:prop:procedure-contract)
                                      (local.get $processed))
                                (unreachable)))))))
+
+           ;; --- prop:checked-procedure
+           (if (call $symbol=?/i32
+                     (struct.get $StructTypeProperty $name (local.get $prop))
+                     (global.get $symbol:checked-procedure))
+               (then
+                (local.set $checked-procedure-super
+                           (call $list-ref/checked
+                                 (ref.cast (ref $Pair) (local.get $sti))
+                                 (i32.const 6)))
+                (if (i32.eqz
+                     (ref.eq (local.get $checked-procedure-super)
+                             (global.get $false)))
+                    (then (call $raise-prop:checked-procedure-contract
+                                (global.get $string:prop:checked-procedure-supertype))
+                          (unreachable)))
+                (local.set $checked-procedure-init-count-raw
+                           (call $list-ref/checked
+                                 (ref.cast (ref $Pair) (local.get $sti))
+                                 (i32.const 1)))
+                (local.set $checked-procedure-init-count
+                           (i32.shr_u
+                            (i31.get_u
+                             (ref.cast (ref i31)
+                                       (local.get $checked-procedure-init-count-raw)))
+                            (i32.const 1)))
+                (if (i32.lt_u (local.get $checked-procedure-init-count)
+                              (i32.const 2))
+                    (then (call $raise-prop:checked-procedure-contract
+                                (global.get $string:prop:checked-procedure-too-few-fields))
+                          (unreachable)))))
 
            ;; --- prop:equal+hash
            (if (call $symbol=?/i32
