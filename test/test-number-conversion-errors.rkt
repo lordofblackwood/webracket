@@ -245,6 +245,43 @@
 	          "real?"
 	          "given: #f"
 	          (lambda () (real->floating-point-bytes #f 8)))))
+ (list "floating-point byte range errors use error-value->string-handler"
+       (let ([old (error-value->string-handler)])
+         (error-value->string-handler
+          (lambda (v _width)
+            (cond
+              [(bytes? v) "CUSTOM-BYTES"]
+              [else "CUSTOM-VALUE"])))
+         (let ([catch-contract/contains?
+                (lambda (thunk . needles)
+                  (let ([message
+                         (with-handlers ([exn:fail:contract?
+                                          (lambda (exn)
+                                            (exn-message exn))])
+                           (thunk)
+                           #f)])
+                    (and message
+                         (andmap (lambda (needle)
+                                   (string-contains? message needle))
+                                 needles))))])
+           (let ([ok (and
+                      (catch-contract/contains?
+                       (lambda () (floating-point-bytes->real #"abc" #t 4 8))
+                       "floating-point-bytes->real"
+                       "starting index is out of range"
+                       "index: CUSTOM-BYTES")
+                      (catch-contract/contains?
+                       (lambda () (floating-point-bytes->real #"abc" #t 0 4))
+                       "floating-point-bytes->real"
+                       "ending index is out of range"
+                       "index: CUSTOM-BYTES")
+                      (catch-contract/contains?
+                       (lambda () (floating-point-bytes->real #"abc" #t 2 1))
+                       "floating-point-bytes->real"
+                       "ending index is smaller than starting index"
+                       "index: CUSTOM-BYTES"))])
+             (error-value->string-handler old)
+             ok))))
  (list "real contract errors print non-self-rendering values"
        (let ([catch-contract/who+expected+given?
               (lambda (who expected given thunk)
