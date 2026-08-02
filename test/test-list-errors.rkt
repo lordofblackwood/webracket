@@ -30,6 +30,69 @@
 (define list-plain-given "given: #(struct list-plain)")
 
 (list
+   (list "mutable pair operations reject non-mpairs with who"
+         (and
+          (catch-contract/contains?
+           (lambda () (mcar 42))
+           "mcar"
+           "mpair?"
+           "given: 42")
+          (catch-contract/contains?
+           (lambda () (mcdr 42))
+           "mcdr"
+           "mpair?"
+           "given: 42")
+          (catch-contract/contains?
+           (lambda () (set-mcar! 42 'x))
+           "set-mcar!"
+           "mpair?"
+           "given: 42")
+          (catch-contract/contains?
+           (lambda () (set-mcdr! 42 'x))
+           "set-mcdr!"
+           "mpair?"
+           "given: 42")))
+   (list "mutable pair contracts use error-value->string-handler"
+         (let ([old (error-value->string-handler)])
+           (error-value->string-handler
+            (lambda (v _width)
+              (cond
+                [(number? v) "CUSTOM-NUMBER"]
+                [(boolean? v) "CUSTOM-BOOLEAN"]
+                [else "CUSTOM-VALUE"])))
+           (let ([ok (and
+                      (catch-contract/contains?
+                       (lambda () (mcar 42))
+                       "mcar"
+                       "mpair?"
+                       "given: CUSTOM-NUMBER")
+                      (catch-contract/contains?
+                       (lambda () (mcdr #f))
+                       "mcdr"
+                       "mpair?"
+                       "given: CUSTOM-BOOLEAN")
+                      (catch-contract/contains?
+                       (lambda () (set-mcar! 42 'x))
+                       "set-mcar!"
+                       "mpair?"
+                       "given: CUSTOM-NUMBER")
+                      (catch-contract/contains?
+                       (lambda () (set-mcdr! #f 'x))
+                       "set-mcdr!"
+                       "mpair?"
+                       "given: CUSTOM-BOOLEAN"))])
+             (error-value->string-handler old)
+             ok)))
+   (list "mutable pair success cases still work"
+         (let ([p (mcons 'a 'b)])
+           (and (mpair? p)
+                (not (mpair? '(a . b)))
+                (equal? (mcar p) 'a)
+                (equal? (mcdr p) 'b)
+                (void? (set-mcar! p 'c))
+                (void? (set-mcdr! p 'd))
+                (equal? (mcar p) 'c)
+                (equal? (mcdr p) 'd))))
    (list "make-list/build-list constructor errors preserve public contracts"
          (and
         (catch-contract/contains?
