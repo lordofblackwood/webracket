@@ -75,6 +75,37 @@
          "in-inclusive-range"
          "(and/c real? (not/c zero?))"
          "given: 0.0")))
+ (list "range errors use error-value->string-handler"
+       (let ([old (error-value->string-handler)])
+         (error-value->string-handler
+          (lambda (v _width)
+            (cond
+              [(number? v) "CUSTOM-NUMBER"]
+              [(symbol? v) "CUSTOM-SYMBOL"]
+              [else "CUSTOM-VALUE"])))
+         (let ([ok (and
+                    (catch-contract/contains?
+                     (lambda () (range 'bad 3))
+                     "in-range"
+                     "real?"
+                     "given: CUSTOM-SYMBOL")
+                    (catch-contract/contains?
+                     (lambda () (range 0 3 0))
+                     "in-range"
+                     "(and/c real? (not/c zero?))"
+                     "given: CUSTOM-NUMBER")
+                    (catch-contract/contains?
+                     (lambda () (inclusive-range 0 'bad))
+                     "in-inclusive-range"
+                     "real?"
+                     "given: CUSTOM-SYMBOL")
+                    (catch-contract/contains?
+                     (lambda () (inclusive-range 0.0 3.0 0.0))
+                     "in-inclusive-range"
+                     "(and/c real? (not/c zero?))"
+                     "given: CUSTOM-NUMBER"))])
+           (error-value->string-handler old)
+           ok)))
  (list "range success still works"
        (and (equal? (range 3) '(0 1 2))
             (equal? (range 1 5 2) '(1 3))
