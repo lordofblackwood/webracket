@@ -197,6 +197,32 @@
          "write-char"
          "output-port?"
          "given: 42")))
+ (list "basic output port contracts use error-value->string-handler"
+       (let ([old (error-value->string-handler)])
+         (error-value->string-handler
+          (lambda (v _width)
+            (cond
+              [(number? v) "CUSTOM-NUMBER"]
+              [(boolean? v) "CUSTOM-BOOLEAN"]
+              [else "CUSTOM-VALUE"])))
+         (let ([ok (and
+                    (catch-contract/contains?
+                     (lambda () (current-output-port 42))
+                     "current-output-port"
+                     "output-port?"
+                     "given: CUSTOM-NUMBER")
+                    (catch-contract/contains?
+                     (lambda () (write-byte 65 #f))
+                     "write-byte"
+                     "output-port?"
+                     "given: CUSTOM-BOOLEAN")
+                    (catch-contract/contains?
+                     (lambda () (write-char 65 (open-output-string)))
+                     "write-char"
+                     "char?"
+                     "given: CUSTOM-NUMBER"))])
+           (error-value->string-handler old)
+           ok)))
  (list "get-output-bytes errors are catchable with who"
        (and
         (catch-contract/contains?
