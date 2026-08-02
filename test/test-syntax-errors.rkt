@@ -57,6 +57,16 @@
          "srcloc?"
          "given: 42")
         (syntax-contract-error?
+         (lambda () (datum->syntax #f 'a (list 'src 0 2 3 4)))
+         "datum->syntax"
+         "list/c"
+         "given:")
+        (syntax-contract-error?
+         (lambda () (datum->syntax #f 'a (vector 'src 1 2 3)))
+         "datum->syntax"
+         "vector/c"
+         "given:")
+        (syntax-contract-error?
          (lambda () (datum->syntax #f 'a #f 42))
          "datum->syntax"
          "syntax?"
@@ -72,6 +82,22 @@
           (equal? (syntax-column stx) 2)
           (equal? (syntax-position stx) 3)
           (equal? (syntax-span stx) 4))))
+ (list "datum->syntax accepts list and vector source locations"
+       (let ([from-list (datum->syntax #f 'x (list 'src 1 2 3 4))]
+             [from-vector (datum->syntax #f 'x (vector 'src 5 6 7 8))])
+         (and
+          (equal? (list (syntax-source from-list)
+                        (syntax-line from-list)
+                        (syntax-column from-list)
+                        (syntax-position from-list)
+                        (syntax-span from-list))
+                  '(src 1 2 3 4))
+          (equal? (list (syntax-source from-vector)
+                        (syntax-line from-vector)
+                        (syntax-column from-vector)
+                        (syntax-position from-vector)
+                        (syntax-span from-vector))
+                  '(src 5 6 7 8)))))
  (list "syntax phase arguments reject non-phase values"
        (and
         (syntax-contract-error?

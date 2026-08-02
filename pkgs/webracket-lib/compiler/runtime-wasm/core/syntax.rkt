@@ -19,7 +19,16 @@
 ;;   Declare strings used by syntax and correlated syntax helpers.
 (define syntax-runtime-string-constants
   `((syntax-or-false            "(or/c syntax? #f)")
-    (datum->syntax-srcloc       "(or/c #f syntax? srcloc?)")
+    (datum->syntax-srcloc
+     ,(string-append "(or/c #f syntax? srcloc? "
+                     "(list/c any/c (or/c exact-positive-integer? #f) "
+                     "(or/c exact-nonnegative-integer? #f) "
+                     "(or/c exact-positive-integer? #f) "
+                     "(or/c exact-nonnegative-integer? #f)) "
+                     "(vector/c any/c (or/c exact-positive-integer? #f) "
+                     "(or/c exact-nonnegative-integer? #f) "
+                     "(or/c exact-positive-integer? #f) "
+                     "(or/c exact-nonnegative-integer? #f)))"))
 	    (syntax?                    "syntax?")
 	    (identifier?                "identifier?")
 	    (listof-identifier?         "(listof identifier?)")
@@ -157,6 +166,7 @@
     $make-syntax-introducer
     $make-syntax-delta-introducer
     $datum->syntax/convert
+    $datum->syntax-srcloc-vector
     $datum->syntax
     $syntax->datum/convert
     $syntax->datum))
@@ -2056,6 +2066,75 @@
 
     ;; ---------------------------------------------------------------
 
+    ;; datum->syntax-srcloc-vector : any/c vector? -> srcloc?
+    ;;   Decode a list/vector source-location argument with datum->syntax blame.
+    (func $datum->syntax-srcloc-vector
+          (param $original (ref eq))
+          (param $vec      (ref $Vector))
+          (result          (ref eq))
+
+          (local $arr (ref $Array))
+          (local $len i32)
+          (local $tmp (ref eq))
+
+          (local.set $arr (struct.get $Vector $arr (local.get $vec)))
+          (local.set $len (array.len (local.get $arr)))
+          (if (i32.ne (local.get $len) (i32.const 5))
+              (then (call $raise-argument-error1
+                          (global.get $symbol:datum->syntax)
+                          (global.get $string:datum->syntax-srcloc)
+                          (local.get $original))
+                    (unreachable)))
+
+          (local.set $tmp (array.get $Array (local.get $arr) (i32.const 1)))
+          (if (i32.eqz
+               (i32.or (ref.eq (local.get $tmp) (global.get $false))
+                       (ref.eq (call $exact-positive-integer? (local.get $tmp))
+                               (global.get $true))))
+              (then (call $raise-argument-error1
+                          (global.get $symbol:datum->syntax)
+                          (global.get $string:datum->syntax-srcloc)
+                          (local.get $original))
+                    (unreachable)))
+          (local.set $tmp (array.get $Array (local.get $arr) (i32.const 2)))
+          (if (i32.eqz
+               (i32.or (ref.eq (local.get $tmp) (global.get $false))
+                       (ref.eq (call $exact-nonnegative-integer? (local.get $tmp))
+                               (global.get $true))))
+              (then (call $raise-argument-error1
+                          (global.get $symbol:datum->syntax)
+                          (global.get $string:datum->syntax-srcloc)
+                          (local.get $original))
+                    (unreachable)))
+          (local.set $tmp (array.get $Array (local.get $arr) (i32.const 3)))
+          (if (i32.eqz
+               (i32.or (ref.eq (local.get $tmp) (global.get $false))
+                       (ref.eq (call $exact-positive-integer? (local.get $tmp))
+                               (global.get $true))))
+              (then (call $raise-argument-error1
+                          (global.get $symbol:datum->syntax)
+                          (global.get $string:datum->syntax-srcloc)
+                          (local.get $original))
+                    (unreachable)))
+          (local.set $tmp (array.get $Array (local.get $arr) (i32.const 4)))
+          (if (i32.eqz
+               (i32.or (ref.eq (local.get $tmp) (global.get $false))
+                       (ref.eq (call $exact-nonnegative-integer? (local.get $tmp))
+                               (global.get $true))))
+              (then (call $raise-argument-error1
+                          (global.get $symbol:datum->syntax)
+                          (global.get $string:datum->syntax-srcloc)
+                          (local.get $original))
+                    (unreachable)))
+
+          (call $srcloc-build
+                (global.get $symbol:datum->syntax)
+                (array.get $Array (local.get $arr) (i32.const 0))
+                (array.get $Array (local.get $arr) (i32.const 1))
+                (array.get $Array (local.get $arr) (i32.const 2))
+                (array.get $Array (local.get $arr) (i32.const 3))
+                (array.get $Array (local.get $arr) (i32.const 4))))
+
     ;; NOTE: This implementation currently supports recursive conversion of
     ;; pairs, vectors, and boxes. Immutable hash tables and prefab
     ;; structures are not yet converted and will be wrapped as-is.
@@ -2211,6 +2290,9 @@
           (local $default-props  (ref eq))
           (local $srcloc-checked (ref eq))
           (local $props-checked  (ref eq))
+          (local $srcloc-val     (ref eq))
+          (local $srcloc-original (ref eq))
+          (local $vec            (ref $Vector))
 
           ;; Initialize defaults.
           (local.set $scopes         (global.get $null))
@@ -2236,28 +2318,48 @@
                     (unreachable)))))
 
           ;; Decode srcloc argument.
-          (local.set $srcloc-checked
-                     (if (result (ref eq))
-                         (ref.eq (local.get $srcloc) (global.get $missing))
-                         (then (local.get $default-srcloc))
-                         (else
-                          (if (result (ref eq))
-                              (ref.eq (local.get $srcloc) (global.get $false))
-                              (then (global.get $false))
-                              (else
-                               (if (result (ref eq))
-                                   (ref.eq (call $syntax? (local.get $srcloc)) (global.get $true))
-                                   (then (call $syntax-srcloc (local.get $srcloc)))
-                                   (else
-                                    (if (result (ref eq))
-                                        (ref.eq (call $srcloc? (local.get $srcloc)) (global.get $true))
-                                        (then (local.get $srcloc))
-                                        (else
-                                         (call $raise-argument-error1
-                                               (global.get $symbol:datum->syntax)
-                                               (global.get $string:datum->syntax-srcloc)
-                                               (local.get $srcloc))
-                                         (unreachable))))))))))
+          (local.set $srcloc-checked (global.get $false))
+          (local.set $srcloc-val (local.get $srcloc))
+          (local.set $srcloc-original (local.get $srcloc-val))
+          (if (ref.eq (local.get $srcloc-val) (global.get $missing))
+              (then (local.set $srcloc-checked (local.get $default-srcloc)))
+              (else
+               (block $srcloc-done
+                      (if (ref.eq (local.get $srcloc-val) (global.get $false))
+                          (then
+                           (local.set $srcloc-checked (global.get $false))
+                           (br $srcloc-done)))
+                      (if (ref.eq (call $syntax? (local.get $srcloc-val)) (global.get $true))
+                          (then
+                           (local.set $srcloc-checked
+                                      (call $syntax-srcloc (local.get $srcloc-val)))
+                           (br $srcloc-done)))
+                      (if (ref.eq (call $srcloc? (local.get $srcloc-val)) (global.get $true))
+                          (then
+                           (local.set $srcloc-checked (local.get $srcloc-val))
+                           (br $srcloc-done)))
+                      (if (ref.test (ref $Vector) (local.get $srcloc-val))
+                          (then
+                           (local.set $vec (ref.cast (ref $Vector) (local.get $srcloc-val)))
+                           (local.set $srcloc-checked
+                                      (call $datum->syntax-srcloc-vector
+                                            (local.get $srcloc-original)
+                                            (local.get $vec)))
+                           (br $srcloc-done)))
+                      (if (ref.eq (call $list? (local.get $srcloc-val)) (global.get $true))
+                          (then
+                           (local.set $srcloc-val (call $list->vector (local.get $srcloc-val)))
+                           (local.set $vec (ref.cast (ref $Vector) (local.get $srcloc-val)))
+                           (local.set $srcloc-checked
+                                      (call $datum->syntax-srcloc-vector
+                                            (local.get $srcloc-original)
+                                            (local.get $vec)))
+                           (br $srcloc-done)))
+                      (call $raise-argument-error1
+                            (global.get $symbol:datum->syntax)
+                            (global.get $string:datum->syntax-srcloc)
+                            (local.get $srcloc-val))
+                      (unreachable))))
 
           ;; Decode properties argument.
           (local.set $props-checked
