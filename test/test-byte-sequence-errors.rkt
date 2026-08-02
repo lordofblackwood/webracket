@@ -90,6 +90,37 @@
          "list->bytes"
          "expected: (listof byte?)"
          "given: '(1 . 2)")))
+ (list "byte sequence contracts use error-value->string-handler"
+       (let ([old (error-value->string-handler)])
+         (error-value->string-handler
+          (lambda (v _width)
+            (cond
+              [(symbol? v) "CUSTOM-SYMBOL"]
+              [(list? v) "CUSTOM-LIST"]
+              [else "CUSTOM-VALUE"])))
+         (let ([ok (and
+                    (catch-contract/contains?
+                     (lambda () (bytes-append 'bad))
+                     "bytes-append"
+                     "expected: bytes?"
+                     "given: CUSTOM-SYMBOL")
+                    (catch-contract/contains?
+                     (lambda () (bytes-append* (list #"a" 'bad)))
+                     "bytes-append*"
+                     "expected: (listof bytes?)"
+                     "given: CUSTOM-LIST")
+                    (catch-contract/contains?
+                     (lambda () (bytes-join (list #"a") 'bad))
+                     "bytes-join"
+                     "expected: bytes?"
+                     "given: CUSTOM-SYMBOL")
+                    (catch-contract/contains?
+                     (lambda () (bytes->list 'bad))
+                     "bytevector->u8-list"
+                     "expected: bytes?"
+                     "given: CUSTOM-SYMBOL"))])
+           (error-value->string-handler old)
+           ok)))
  (list "byte sequence successes still work"
        (and (equal? (bytes-append #"foo" #"bar") #"foobar")
             (equal? (bytes-append* #"A" #"B" (list #"C" #"D")) #"ABCD")

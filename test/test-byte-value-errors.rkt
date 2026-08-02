@@ -71,6 +71,38 @@
          "list->bytes"
          "expected: (listof byte?)"
          "given: '(bad)")))
+ (list "byte value contracts use error-value->string-handler"
+       (let ([old (error-value->string-handler)])
+         (error-value->string-handler
+          (lambda (v _width)
+            (cond
+              [(number? v) "CUSTOM-NUMBER"]
+              [(symbol? v) "CUSTOM-SYMBOL"]
+              [(list? v) "CUSTOM-LIST"]
+              [else "CUSTOM-VALUE"])))
+         (let ([ok (and
+                    (catch-contract/contains?
+                     (lambda () (bytes -1))
+                     "bytes"
+                     "expected: byte?"
+                     "given: CUSTOM-NUMBER")
+                    (catch-contract/contains?
+                     (lambda () (bytes 'bad))
+                     "bytes"
+                     "expected: byte?"
+                     "given: CUSTOM-SYMBOL")
+                    (catch-contract/contains?
+                     (lambda () (bytes-fill! (bytes 1 2) -1))
+                     "bytes-fill!"
+                     "expected: byte?"
+                     "given: CUSTOM-NUMBER")
+                    (catch-contract/contains?
+                     (lambda () (list->bytes '(bad)))
+                     "list->bytes"
+                     "expected: (listof byte?)"
+                     "given: CUSTOM-LIST"))])
+           (error-value->string-handler old)
+           ok)))
  (list "byte-string value successes still work"
        (let ([bs (bytes 1 2 3)])
          (bytes-fill! bs 65)

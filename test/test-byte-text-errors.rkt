@@ -87,7 +87,23 @@
                      "bytes->string/utf-8"
                      "well-formed UTF-8"
                      "byte string:"
-                     "CUSTOM-BYTES"))])
+                     "CUSTOM-BYTES")
+                    (catch-contract/contains?
+                     (lambda () (bytes->string/utf-8 42))
+                     "bytes->string/utf-8"
+                     "bytes?"
+                     "given: CUSTOM-VALUE")
+                    (catch-contract/contains?
+                     (lambda () (bytes-open-converter 42 "UTF-8"))
+                     "bytes-open-converter"
+                     "string?"
+                     "given: CUSTOM-VALUE")
+                    (let ([converter (bytes-open-converter "UTF-8" "UTF-8")])
+                      (catch-contract/contains?
+                       (lambda () (bytes-convert converter 'bad))
+                       "bytes-convert"
+                       "bytes?"
+                       "given: CUSTOM-VALUE")))])
            (error-value->string-handler old)
            ok)))
  (list "bytes->string/utf-8/basic"

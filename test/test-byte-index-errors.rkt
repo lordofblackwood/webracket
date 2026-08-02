@@ -59,6 +59,37 @@
          "make-bytes"
          "byte?"
          "given: -1")))
+ (list "byte-string index contracts use error-value->string-handler"
+       (let ([old (error-value->string-handler)])
+         (error-value->string-handler
+          (lambda (v _width)
+            (cond
+              [(number? v) "CUSTOM-NUMBER"]
+              [(symbol? v) "CUSTOM-SYMBOL"]
+              [else "CUSTOM-VALUE"])))
+         (let ([ok (and
+                    (catch-contract/contains?
+                     (lambda () (bytes-length 'bad))
+                     "bytes-length"
+                     "bytes?"
+                     "given: CUSTOM-SYMBOL")
+                    (catch-contract/contains?
+                     (lambda () (make-bytes -1))
+                     "make-bytes"
+                     "exact-nonnegative-integer?"
+                     "given: CUSTOM-NUMBER")
+                    (catch-contract/contains?
+                     (lambda () (bytes-ref #"ab" -1))
+                     "bytes-ref"
+                     "exact-nonnegative-integer?"
+                     "given: CUSTOM-NUMBER")
+                    (catch-contract/contains?
+                     (lambda () (bytes-set! (bytes 1 2) 0 -1))
+                     "bytes-set!"
+                     "byte?"
+                     "given: CUSTOM-NUMBER"))])
+           (error-value->string-handler old)
+           ok)))
  (list "negative byte-string element indexes preserve the public contract"
        (and
         (catch-contract/contains?
