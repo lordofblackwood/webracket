@@ -305,7 +305,8 @@
            (local.set $args (array.new $Args (global.get $null) (i32.const 0)))
 
            ;; Step 1: type check generator
-           (if (i32.eqz (ref.test (ref $Procedure) (local.get $gen)))
+           (if (ref.eq (call $procedure? (local.get $gen))
+                         (global.get $false))
                (then (call $raise-argument-error:procedure-expected/who
                            (global.get $symbol:call-with-values)
                            (local.get $gen))
@@ -313,7 +314,8 @@
            (local.set $g    (ref.cast (ref $Procedure) (local.get $gen)))
 
            ;; Step 2: type check receiver
-           (if (i32.eqz (ref.test (ref $Procedure) (local.get $rec)))
+           (if (ref.eq (call $procedure? (local.get $rec))
+                         (global.get $false))
                (then (call $raise-argument-error:procedure-expected/who
                            (global.get $symbol:call-with-values)
                            (local.get $rec))
@@ -369,7 +371,8 @@
 
            (local $proc (ref $Procedure))
 
-           (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc-raw)))
+           (if (ref.eq (call $procedure? (local.get $proc-raw))
+                         (global.get $false))
                (then (call $raise-argument-error1
                            (local.get $who)
                            (local.get $expected)
@@ -418,7 +421,8 @@
            (local $thunk (ref $Procedure))
            (local $inv   (ref $ProcedureInvoker))
 
-           (if (i32.eqz (ref.test (ref $Procedure) (local.get $thunk-raw)))
+           (if (ref.eq (call $procedure? (local.get $thunk-raw))
+                         (global.get $false))
                (then (call $raise-argument-error:procedure-expected (local.get $thunk-raw))
                      (unreachable)))
            (local.set $thunk (ref.cast (ref $Procedure) (local.get $thunk-raw)))

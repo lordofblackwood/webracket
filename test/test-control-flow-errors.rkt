@@ -26,6 +26,10 @@
                    (string-contains? message needle))
                  needles))))
 
+(struct control-plain ())
+
+(define control-plain-given "given: #(struct control-plain)")
+
 (list
  (list "call-with-values procedure errors preserve who"
        (and
@@ -35,10 +39,20 @@
          "procedure?"
          "given: 42")
         (catch-contract/contains?
+         (lambda () (call-with-values (control-plain) values))
+         "call-with-values"
+         "procedure?"
+         control-plain-given)
+        (catch-contract/contains?
          (lambda () (call-with-values (lambda () 'ok) 42))
          "call-with-values"
          "procedure?"
-         "given: 42")))
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (call-with-values (lambda () 'ok) (control-plain)))
+         "call-with-values"
+         "procedure?"
+         control-plain-given)))
  (list "dynamic-wind thunk errors preserve who"
        (and
         (catch-contract/contains?
@@ -49,6 +63,13 @@
          "(procedure-arity-includes/c 0)"
          "given: 42")
         (catch-contract/contains?
+         (lambda () (dynamic-wind (control-plain)
+                                  (lambda () 'body)
+                                  (lambda () 'after)))
+         "dynamic-wind"
+         "(procedure-arity-includes/c 0)"
+         control-plain-given)
+        (catch-contract/contains?
          (lambda () (dynamic-wind (lambda () 'before)
                                   42
                                   (lambda () 'after)))
@@ -57,11 +78,25 @@
          "given: 42")
         (catch-contract/contains?
          (lambda () (dynamic-wind (lambda () 'before)
+                                  (control-plain)
+                                  (lambda () 'after)))
+         "dynamic-wind"
+         "(procedure-arity-includes/c 0)"
+         control-plain-given)
+        (catch-contract/contains?
+         (lambda () (dynamic-wind (lambda () 'before)
                                   (lambda () 'body)
                                   42))
          "dynamic-wind"
          "(procedure-arity-includes/c 0)"
-         "given: 42")))
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (dynamic-wind (lambda () 'before)
+                                  (lambda () 'body)
+                                  (control-plain)))
+         "dynamic-wind"
+         "(procedure-arity-includes/c 0)"
+         control-plain-given)))
  (list "continuation barrier checks zero-arity thunk contract"
        (and
         (catch-contract/contains?
@@ -69,6 +104,11 @@
          "call-with-continuation-barrier"
          "(procedure-arity-includes/c 0)"
          "given: 42")
+        (catch-contract/contains?
+         (lambda () (call-with-continuation-barrier (control-plain)))
+         "call-with-continuation-barrier"
+         "(procedure-arity-includes/c 0)"
+         control-plain-given)
         (catch-contract/contains?
          (lambda () (call-with-continuation-barrier add1))
          "call-with-continuation-barrier"
@@ -82,6 +122,11 @@
          "(procedure-arity-includes/c 1)"
          "given: 42")
         (catch-contract/contains?
+         (lambda () (call-with-escape-continuation (control-plain)))
+         "call-with-escape-continuation"
+         "(procedure-arity-includes/c 1)"
+         control-plain-given)
+        (catch-contract/contains?
          (lambda () (call-with-escape-continuation (lambda () 'bad)))
          "call-with-escape-continuation"
          "(procedure-arity-includes/c 1)"
@@ -93,6 +138,11 @@
          "call-with-immediate-continuation-mark"
          "(procedure-arity-includes/c 1)"
          "given: 42")
+        (catch-contract/contains?
+         (lambda () (call-with-immediate-continuation-mark 'key (control-plain)))
+         "call-with-immediate-continuation-mark"
+         "(procedure-arity-includes/c 1)"
+         control-plain-given)
         (catch-contract/contains?
          (lambda () (call-with-immediate-continuation-mark 'key (lambda () 'bad)))
          "call-with-immediate-continuation-mark"

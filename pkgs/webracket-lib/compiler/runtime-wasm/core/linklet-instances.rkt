@@ -580,7 +580,8 @@
 	                   (then (call $raise-instance-variable-not-found (local.get $sym))
 	                         (unreachable))
 	                   (else (if (result (ref eq))
-	                             (ref.test (ref $Procedure) (local.get $fail))
+	                             (ref.eq (call $procedure? (local.get $fail))
+                                         (global.get $true))
 	                             (then
 	                              (local.set $proc (ref.cast (ref $Procedure) (local.get $fail)))
 	                              (local.set $inv (struct.get $Procedure $invoke (local.get $proc)))

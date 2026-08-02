@@ -14,6 +14,8 @@
                    (string-contains? message needle))
                  needles))))
 
+(struct ffi-plain ())
+
 (list
  (list "procedure->external procedure errors preserve who"
        (catch-contract/contains?
@@ -21,6 +23,12 @@
         "procedure->external"
         "procedure?"
         "given: 42"))
+ (list "procedure->external rejects plain structs as non-procedures"
+       (catch-contract/contains?
+        (lambda () (procedure->external (ffi-plain)))
+        "procedure->external"
+        "procedure?"
+        "given: #(struct ffi-plain)"))
  (list "unsafe-ffi-primitive missing binding errors are catchable with who"
        (catch-contract/contains?
         (lambda () (unsafe-ffi-primitive 'missing-ffi-binding))

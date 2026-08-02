@@ -15,6 +15,66 @@
                  needles))))
 
 (list
+ (list "flonum arithmetic errors are catchable with who"
+       (and
+        (catch-contract/contains?
+         (lambda () (fl+ 1 2.0))
+         "fl+"
+         "flonum?"
+         "given: 1")
+        (catch-contract/contains?
+         (lambda () (fl- 1.0 2))
+         "fl-"
+         "flonum?"
+         "given: 2")
+        (catch-contract/contains?
+         (lambda () (fl* #f 2.0))
+         "fl*"
+         "flonum?"
+         "given: #f")
+        (catch-contract/contains?
+         (lambda () (fl/ 1.0 #f))
+         "fl/"
+         "flonum?"
+         "given: #f")))
+ (list "flonum conversion errors are catchable with who"
+       (and
+        (catch-contract/contains?
+         (lambda () (->fl #f))
+         "->fl"
+         "exact-integer?"
+         "given: #f")
+        (catch-contract/contains?
+         (lambda () (fl->fx #f))
+         "fl->fx"
+         "flonum?"
+         "given: #f")
+        (catch-contract/contains?
+         (lambda () (fl->fx +nan.0))
+         "fl->fx"
+         "outside of fixnum range")
+        (catch-contract/contains?
+         (lambda () (fl->exact-integer #f))
+         "fl->exact-integer"
+         "(and/c flonum? integer?)"
+         "given: #f")
+        (catch-contract/contains?
+         (lambda () (fl->exact-integer 1.5))
+         "fl->exact-integer"
+         "(and/c flonum? integer?)"
+         "given: 1.5")))
+ (list "flonum math errors are catchable with who"
+       (and
+        (catch-contract/contains?
+         (lambda () (flsin #f))
+         "flsin"
+         "flonum?"
+         "given: #f")
+        (catch-contract/contains?
+         (lambda () (flexpt 2.0 #f))
+         "flexpt"
+         "flonum?"
+         "given: #f")))
  (list "flbit-field rejects non-flonums with who"
        (catch-contract/contains?
         (lambda () (flbit-field 1 0 1))

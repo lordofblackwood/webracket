@@ -20,10 +20,11 @@
 (define syntax-runtime-string-constants
   `((syntax-or-false            "(or/c syntax? #f)")
     (datum->syntax-srcloc       "(or/c #f syntax? srcloc?)")
-    (syntax?                    "syntax?")
-    (identifier?                "identifier?")
-    (listof-identifier?         "(listof identifier?)")
-    (stx-list?                  "stx-list?")
+	    (syntax?                    "syntax?")
+	    (identifier?                "identifier?")
+	    (listof-identifier?         "(listof identifier?)")
+	    (phase?                     "phase?")
+	    (stx-list?                  "stx-list?")
     (syntax-introducer-mode?    "(or/c 'add 'remove 'flip)")
     (syntax-local-value-failure "(or/c (-> any/c) #f)")
     (syntax-local-value-binding "identifier with transformer binding")
@@ -137,10 +138,11 @@
     $module-path-fixup
     $syntax-line
     $syntax-column
-    $syntax-position
-    $syntax-span
-    $identifier?
-    $identifier-binding
+	    $syntax-position
+	    $syntax-span
+	    $identifier?
+	    $phase?/i32
+	    $identifier-binding
     $syntax-transforming?
     $syntax-local-phase-level
     $syntax-local-infer-name
@@ -1435,14 +1437,25 @@
                                         (global.get $symbol:identifier?)
                                         (local.get $v)))
                (local.set $datum (array.get $Array (local.get $fields) (i32.const 0)))
-               (if (result (ref eq))
-                   (ref.eq (call $symbol? (local.get $datum)) (global.get $true))
-                   (then (global.get $true))
-                   (else (global.get $false))))
-              (else (global.get $false))))
+	               (if (result (ref eq))
+	                   (ref.eq (call $symbol? (local.get $datum)) (global.get $true))
+	                   (then (global.get $true))
+	                   (else (global.get $false))))
+	              (else (global.get $false))))
 
-    ;; identifier-binding : identifier? [(or/c exact-integer? #f)] [any/c] [any/c] -> any/c
-    ;;   Racket reports lexical/module binding metadata here.
+	    ;; phase?/i32 : any/c -> i32
+	    ;;   Check WebRacket's current phase representation: exact integers
+	    ;;   and #f for the label phase.
+	    (func $phase?/i32
+	          (param $v (ref eq)) ;; candidate phase value
+	          (result   i32)
+	          (i32.or
+	           (ref.eq (local.get $v) (global.get $false))
+	           (ref.eq (call $exact-integer? (local.get $v))
+	                   (global.get $true))))
+
+	    ;; identifier-binding : identifier? [phase?] [any/c] [any/c] -> any/c
+	    ;;   Racket reports lexical/module binding metadata here.
     ;;   WebRacket runtime syntax objects do not retain binding
     ;;   tables yet, so validate the identifier and optional phase,
     ;;   then report no binding with #f.
@@ -1461,19 +1474,18 @@
                      (global.get $string:identifier?)
                      (local.get $id))
                (unreachable)))
-          (if (ref.eq (local.get $phase) (global.get $missing))
-              (then (local.set $phase (call $syntax-local-phase-level))))
-          (if (ref.eq (local.get $phase) (global.get $false))
-              (then (return (global.get $false))))
-          (if (result (ref eq))
-              (ref.eq (call $exact-integer? (local.get $phase)) (global.get $true))
-              (then (global.get $false))
-              (else
-               (call $raise-argument-error1
-                     (global.get $symbol:identifier-binding)
-                     (global.get $string:exact-integer?)
-                     (local.get $phase))
-               (unreachable))))
+	          (if (ref.eq (local.get $phase) (global.get $missing))
+	              (then (local.set $phase (call $syntax-local-phase-level))))
+	          (if (i32.eqz (call $phase?/i32 (local.get $phase)))
+	              (then
+	               (call $raise-argument-error1
+	                     (global.get $symbol:identifier-binding)
+	                     (global.get $string:phase?)
+	                     (local.get $phase))
+	               (unreachable)))
+	          (if (ref.eq (local.get $phase) (global.get $false))
+	              (then (return (global.get $false))))
+	          (global.get $false))
 
     ;; syntax-transforming? : -> boolean?
     ;;   WebRacket currently runs host-expanded modules and has no
@@ -1581,7 +1593,7 @@
                                      (struct.get $Procedure $invoke (local.get $proc)))))
           (local.get $result))
 
-    ;; free-identifier=? : identifier? identifier? [(or/c exact-integer? #f)] [(or/c exact-integer? #f)] -> boolean?
+	    ;; free-identifier=? : identifier? identifier? [phase?] [phase?] -> boolean?
     ;;   Compare lightweight WebRacket identifiers by datum. Full Racket also
     ;;   compares binding and phase information, which WebRacket syntax objects
     ;;   do not yet preserve.
@@ -1609,15 +1621,34 @@
           (if (ref.eq (call $identifier? (local.get $b)) (global.get $true))
               (then (nop))
               (else
-               (call $raise-argument-error1
-                     (global.get $symbol:free-identifier=?)
-                     (global.get $string:identifier?)
-                     (local.get $b))
-               (unreachable)))
+	               (call $raise-argument-error1
+	                     (global.get $symbol:free-identifier=?)
+	                     (global.get $string:identifier?)
+	                     (local.get $b))
+	               (unreachable)))
 
-          (local.set $a-fields (call $syntax-unwrap
-                                     (global.get $symbol:free-identifier=?)
-                                     (local.get $a)))
+	          (if (ref.eq (local.get $a-phase) (global.get $missing))
+	              (then (local.set $a-phase (call $syntax-local-phase-level))))
+	          (if (ref.eq (local.get $b-phase) (global.get $missing))
+	              (then (local.set $b-phase (local.get $a-phase))))
+	          (if (i32.eqz (call $phase?/i32 (local.get $a-phase)))
+	              (then
+	               (call $raise-argument-error1
+	                     (global.get $symbol:free-identifier=?)
+	                     (global.get $string:phase?)
+	                     (local.get $a-phase))
+	               (unreachable)))
+	          (if (i32.eqz (call $phase?/i32 (local.get $b-phase)))
+	              (then
+	               (call $raise-argument-error1
+	                     (global.get $symbol:free-identifier=?)
+	                     (global.get $string:phase?)
+	                     (local.get $b-phase))
+	               (unreachable)))
+
+	          (local.set $a-fields (call $syntax-unwrap
+	                                     (global.get $symbol:free-identifier=?)
+	                                     (local.get $a)))
           (local.set $b-fields (call $syntax-unwrap
                                      (global.get $symbol:free-identifier=?)
                                      (local.get $b)))
@@ -1625,7 +1656,7 @@
           (local.set $b-datum (array.get $Array (local.get $b-fields) (i32.const 0)))
           (call $symbol=? (local.get $a-datum) (local.get $b-datum)))
 
-    ;; bound-identifier=? : identifier? identifier? [(or/c exact-integer? #f)] -> boolean?
+	    ;; bound-identifier=? : identifier? identifier? [phase?] -> boolean?
     ;;   Compare lightweight WebRacket identifiers by datum. Full
     ;;   Racket compares local binding scopes, which WebRacket
     ;;   runtime syntax objects do not retain yet.
@@ -1633,30 +1664,28 @@
           (param $a     (ref eq)) ;; identifier?
           (param $b     (ref eq)) ;; identifier?
           (param $phase (ref eq)) ;; optional phase level, default = syntax-local-phase-level
-          (result       (ref eq))
+	          (result       (ref eq))
 
-          (if (ref.eq (local.get $phase) (global.get $missing))
-              (then (local.set $phase (call $syntax-local-phase-level))))
-          (if (ref.eq (local.get $phase) (global.get $false))
-              (then (return (call $free-identifier=?
-                                  (local.get $a)
-                                  (local.get $b)
-                                  (global.get $false)
-                                  (global.get $false)))))
-          (if (result (ref eq))
-              (ref.eq (call $exact-integer? (local.get $phase)) (global.get $true))
-              (then
-               (call $free-identifier=?
-                     (local.get $a)
-                     (local.get $b)
-                     (local.get $phase)
-                     (local.get $phase)))
-              (else
-               (call $raise-argument-error1
-                     (global.get $symbol:bound-identifier=?)
-                     (global.get $string:exact-integer?)
-                     (local.get $phase))
-               (unreachable))))
+	          (if (ref.eq (local.get $phase) (global.get $missing))
+	              (then (local.set $phase (call $syntax-local-phase-level))))
+	          (if (i32.eqz (call $phase?/i32 (local.get $phase)))
+	              (then
+	               (call $raise-argument-error1
+	                     (global.get $symbol:bound-identifier=?)
+	                     (global.get $string:phase?)
+	                     (local.get $phase))
+	               (unreachable)))
+	          (if (ref.eq (local.get $phase) (global.get $false))
+	              (then (return (call $free-identifier=?
+	                                  (local.get $a)
+	                                  (local.get $b)
+	                                  (global.get $false)
+	                                  (global.get $false)))))
+	          (call $free-identifier=?
+	                (local.get $a)
+	                (local.get $b)
+	                (local.get $phase)
+	                (local.get $phase)))
 
     ;; check-duplicate-identifier : (listof identifier?) -> (or/c identifier? #f)
     ;;   Return the first later identifier whose datum duplicates an earlier one.
@@ -1875,7 +1904,7 @@
                       (ref.func $syntax-introducer)
                       (global.get $false)))
 
-    ;; make-syntax-delta-introducer : syntax? (or/c syntax? #f) [(or/c #f exact-integer?)] -> procedure?
+	    ;; make-syntax-delta-introducer : syntax? (or/c syntax? #f) [phase?] -> procedure?
     ;;   The optional phase-level defaults to syntax-local-phase-level.
     ;;   The current runtime validates arguments but does not compute
     ;;   or preserve scope deltas, so it returns an identity
@@ -1883,7 +1912,7 @@
     (func $make-syntax-delta-introducer (type $Prim23)
           (param $ext-stx    (ref eq)) ;; syntax?
           (param $base-stx   (ref eq)) ;; syntax? or #f
-          (param $phase      (ref eq)) ;; optional exact-integer? or #f, default = syntax-local-phase-level
+	          (param $phase      (ref eq)) ;; optional phase?, default = syntax-local-phase-level
           (result            (ref eq))
 
           (if (ref.eq (call $syntax? (local.get $ext-stx)) (global.get $true))
@@ -1902,19 +1931,17 @@
                      (global.get $symbol:make-syntax-delta-introducer)
                      (global.get $string:syntax-or-false)
                      (local.get $base-stx))
-               (unreachable)))
-          (if (i32.or
-               (ref.eq (local.get $phase) (global.get $missing))
-               (i32.or
-                (ref.eq (local.get $phase) (global.get $false))
-                (ref.eq (call $exact-integer? (local.get $phase)) (global.get $true))))
-              (then (nop))
-              (else
-               (call $raise-argument-error1
-                     (global.get $symbol:make-syntax-delta-introducer)
-                     (global.get $string:exact-integer?)
-                     (local.get $phase))
-               (unreachable)))
+	               (unreachable)))
+	          (if (i32.or
+	               (ref.eq (local.get $phase) (global.get $missing))
+	               (call $phase?/i32 (local.get $phase)))
+	              (then (nop))
+	              (else
+	               (call $raise-argument-error1
+	                     (global.get $symbol:make-syntax-delta-introducer)
+	                     (global.get $string:phase?)
+	                     (local.get $phase))
+	               (unreachable)))
           (struct.new $PrimitiveProcedure
                       (i32.const 0)
                       (global.get $symbol:syntax-introducer)

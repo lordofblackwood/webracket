@@ -1170,7 +1170,8 @@
                                            (call $symbol->string (local.get $sym)))))
                               (else
                                (if (result (ref $Vector))
-                                   (ref.test (ref $Procedure) (local.get $val))
+                                   (ref.eq (call $procedure? (local.get $val))
+                                           (global.get $true))
                                    (then
                                     (call $wr-procedure-success
                                           (ref.cast (ref $Procedure)
@@ -1250,7 +1251,8 @@
                                            (call $symbol->string (local.get $sym)))))
                               (else
                                (if (result (ref $Vector))
-                                   (i32.eqz (ref.test (ref $Procedure) (local.get $val)))
+                                   (ref.eq (call $procedure? (local.get $val))
+                                           (global.get $false))
                                    (then
                                     (call $wr-failure
                                           (global.get $string:wr-kind:not-procedure)
@@ -1529,8 +1531,10 @@
                (local $id i32)
                (local $cb (ref extern))
 
-               ;; Fail-early type check
-               (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
+               ;; Fail-early semantic type check. Structs are represented under
+               ;; $Procedure, but only applicable structs are procedures.
+               (if (ref.eq (call $procedure? (local.get $proc))
+                           (global.get $false))
                    (then (call $raise-argument-error:procedure-expected/who
                                (global.get $symbol:procedure->external)
                                (local.get $proc))

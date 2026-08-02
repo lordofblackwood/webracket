@@ -9,10 +9,14 @@
                             (exn-message exn))])
            (thunk)
            #f)])
-    (and message
-         (andmap (lambda (needle)
-                   (string-contains? message needle))
-                 needles))))
+	    (and message
+	         (andmap (lambda (needle)
+	                   (string-contains? message needle))
+	                 needles))))
+
+(struct treelist-plain ())
+
+(define treelist-plain-given "given: #(struct treelist-plain)")
 
 (list
  (list "treelist index range errors are catchable with range details"
@@ -105,41 +109,79 @@
               (equal? (treelist-ref (treelist-set tl 1 'x) 1) 'x)
               (equal? (treelist-ref (treelist-insert tl 2 'x) 2) 'x)
               (equal? (treelist->list (treelist-delete tl 1)) '(1)))))
- (list "higher-order treelist procedure errors preserve who"
-       (let ([tl (treelist 1 2)])
+	 (list "higher-order treelist procedure errors preserve who"
+	       (let ([tl (treelist 1 2)])
          (and
           (catch-contract/contains?
            (lambda () (treelist-sort tl 42))
            "treelist-sort"
-           "procedure?"
+           "(procedure-arity-includes/c 2)"
            "given: 42")
           (catch-contract/contains?
            (lambda () (treelist-map tl 42))
            "treelist-map"
-           "procedure?"
+           "(procedure-arity-includes/c 1)"
            "given: 42")
           (catch-contract/contains?
            (lambda () (treelist-for-each tl 42))
            "treelist-for-each"
-           "procedure?"
+           "(procedure-arity-includes/c 1)"
            "given: 42")
           (catch-contract/contains?
            (lambda () (treelist-filter 42 tl))
            "treelist-filter"
-           "procedure?"
+           "(procedure-arity-includes/c 1)"
            "given: 42")
           (catch-contract/contains?
            (lambda () (treelist-find tl 42))
            "treelist-find"
-           "procedure?"
+           "(procedure-arity-includes/c 1)"
            "given: 42")
           (catch-contract/contains?
            (lambda () (treelist-member? tl 1 42))
            "treelist-member?"
-           "procedure?"
+           "(procedure-arity-includes/c 2)"
            "given: 42")
-          (catch-contract/contains?
-           (lambda () (treelist-index-of tl 1 42))
-           "treelist-index-of"
-           "procedure?"
-           "given: 42")))))
+	          (catch-contract/contains?
+	           (lambda () (treelist-index-of tl 1 42))
+		   "treelist-index-of"
+		   "(procedure-arity-includes/c 2)"
+		   "given: 42"))))
+	 (list "higher-order treelist procedure positions reject plain structs"
+	       (let ([tl (treelist 1 2)])
+	         (and
+	          (catch-contract/contains?
+	           (lambda () (treelist-sort tl (treelist-plain)))
+	           "treelist-sort"
+	           "(procedure-arity-includes/c 2)"
+	           treelist-plain-given)
+	          (catch-contract/contains?
+	           (lambda () (treelist-map tl (treelist-plain)))
+	           "treelist-map"
+	           "(procedure-arity-includes/c 1)"
+	           treelist-plain-given)
+	          (catch-contract/contains?
+	           (lambda () (treelist-for-each tl (treelist-plain)))
+	           "treelist-for-each"
+	           "(procedure-arity-includes/c 1)"
+	           treelist-plain-given)
+	          (catch-contract/contains?
+	           (lambda () (treelist-filter (treelist-plain) tl))
+	           "treelist-filter"
+	           "(procedure-arity-includes/c 1)"
+	           treelist-plain-given)
+	          (catch-contract/contains?
+	           (lambda () (treelist-find tl (treelist-plain)))
+	           "treelist-find"
+	           "(procedure-arity-includes/c 1)"
+	           treelist-plain-given)
+	          (catch-contract/contains?
+	           (lambda () (treelist-member? tl 1 (treelist-plain)))
+	           "treelist-member?"
+	           "(procedure-arity-includes/c 2)"
+	           treelist-plain-given)
+	          (catch-contract/contains?
+	           (lambda () (treelist-index-of tl 1 (treelist-plain)))
+	           "treelist-index-of"
+	           "(procedure-arity-includes/c 2)"
+	           treelist-plain-given)))))

@@ -14,6 +14,10 @@
                    (string-contains? message needle))
                  needles))))
 
+(struct regexp-plain ())
+
+(define regexp-plain-given "given: #(struct regexp-plain)")
+
 (list
  (list "byte regexp constructors reject non-bytes with who"
        (and
@@ -67,6 +71,11 @@
          "(or/c string? bytes? procedure?)"
          "given: 42")
         (catch-contract/contains?
+         (lambda () (regexp-replace #rx"a" "abc" (regexp-plain)))
+         "regexp-replace"
+         "(or/c string? bytes? procedure?)"
+         regexp-plain-given)
+        (catch-contract/contains?
          (lambda () (regexp-replace #rx"a" "abc" "x" 42))
          "regexp-replace"
          "bytes?"
@@ -87,7 +96,12 @@
          (lambda () (regexp-replace* #rx"a" "abc" 42))
          "regexp-replace*"
          "(or/c string? bytes? procedure?)"
-         "given: 42")))
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (regexp-replace* #rx"a" "abc" (regexp-plain)))
+         "regexp-replace*"
+         "(or/c string? bytes? procedure?)"
+         regexp-plain-given)))
  (list "byte regexp constructor success cases still work"
        (list "byte-regexp constructs byte-regexp?"
              (byte-regexp? (byte-regexp #"a")))

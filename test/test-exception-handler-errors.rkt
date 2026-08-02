@@ -14,6 +14,10 @@
                    (string-contains? message needle))
                  needles))))
 
+(struct exception-plain ())
+
+(define exception-plain-given "given: #(struct exception-plain)")
+
 (list
  (list "raise-argument-error positional messages are catchable"
        (and
@@ -102,10 +106,24 @@
          "procedure?"
          "given: 42")
         (catch-contract/contains?
+         (lambda () (call-with-exception-handler
+                     (exception-plain)
+                     (lambda () (raise 'boom))))
+         "call-with-exception-handler"
+         "procedure?"
+         exception-plain-given)
+        (catch-contract/contains?
          (lambda () (call-with-exception-handler (lambda (exn) exn) 42))
          "call-with-exception-handler"
          "procedure?"
-         "given: 42")))
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (call-with-exception-handler
+                     (lambda (exn) exn)
+                     (exception-plain)))
+         "call-with-exception-handler"
+         "procedure?"
+         exception-plain-given)))
  (list "catch procedure errors are catchable"
        (and
         (catch-contract/contains?
@@ -114,15 +132,30 @@
          "procedure?"
          "given: 42")
         (catch-contract/contains?
+         (lambda () (catch (exception-plain) (lambda (exn) exn) (lambda () 'ok)))
+         "catch"
+         "procedure?"
+         exception-plain-given)
+        (catch-contract/contains?
          (lambda () (catch exn? 42 (lambda () (raise 'boom))))
          "catch"
          "procedure?"
          "given: 42")
         (catch-contract/contains?
+         (lambda () (catch exn? (exception-plain) (lambda () (raise 'boom))))
+         "catch"
+         "procedure?"
+         exception-plain-given)
+        (catch-contract/contains?
          (lambda () (catch exn? (lambda (exn) exn) 42))
          "catch"
          "procedure?"
-         "given: 42")))
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (catch exn? (lambda (exn) exn) (exception-plain)))
+         "catch"
+         "procedure?"
+         exception-plain-given)))
  (list "catch* procedure errors are catchable"
        (and
         (catch-contract/contains?
@@ -133,6 +166,13 @@
          "procedure?"
          "given: 42")
         (catch-contract/contains?
+         (lambda () (catch* (list (exception-plain))
+                            (list (lambda (exn) exn))
+                            (lambda () 'ok)))
+         "catch*"
+         "procedure?"
+         exception-plain-given)
+        (catch-contract/contains?
          (lambda () (catch* (list exn?)
                             (list 42)
                             (lambda () (raise 'boom))))
@@ -141,11 +181,25 @@
          "given: 42")
         (catch-contract/contains?
          (lambda () (catch* (list exn?)
+                            (list (exception-plain))
+                            (lambda () (raise 'boom))))
+         "catch*"
+         "procedure?"
+         exception-plain-given)
+        (catch-contract/contains?
+         (lambda () (catch* (list exn?)
                             (list (lambda (exn) exn))
                             42))
          "catch*"
          "procedure?"
-         "given: 42")))
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (catch* (list exn?)
+                            (list (lambda (exn) exn))
+                            (exception-plain)))
+         "catch*"
+         "procedure?"
+         exception-plain-given)))
  (list "catch* malformed list errors preserve who"
        (and
         (catch-contract/contains?
@@ -191,7 +245,19 @@
          "given: 42")
         (catch-contract/contains?
          (lambda ()
+           (with-handlers ([(exception-plain) (lambda (exn) exn)])
+             (raise 'boom)))
+         "procedure?"
+         exception-plain-given)
+        (catch-contract/contains?
+         (lambda ()
            (with-handlers ([exn? 42])
              (raise 'boom)))
          "procedure?"
-         "given: 42"))))
+         "given: 42")
+        (catch-contract/contains?
+         (lambda ()
+           (with-handlers ([exn? (exception-plain)])
+             (raise 'boom)))
+         "procedure?"
+         exception-plain-given))))

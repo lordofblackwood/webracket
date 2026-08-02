@@ -695,7 +695,8 @@
                     (i32.or
                      (i32.or (ref.test (ref $String) (local.get $insert))
                              (ref.test (ref $Bytes) (local.get $insert)))
-                     (ref.test (ref $Procedure) (local.get $insert))))
+                     (ref.eq (call $procedure? (local.get $insert))
+                             (global.get $true))))
                    (then (call $raise-argument-error1
                                (global.get $symbol:regexp-replace)
                                (global.get $string:regexp-replace:insert-contract)
@@ -745,7 +746,8 @@
                     (i32.or
                      (i32.or (ref.test (ref $String) (local.get $insert))
                              (ref.test (ref $Bytes) (local.get $insert)))
-                     (ref.test (ref $Procedure) (local.get $insert))))
+                     (ref.eq (call $procedure? (local.get $insert))
+                             (global.get $true))))
                    (then (call $raise-argument-error1
                                (global.get $symbol:regexp-replace*)
                                (global.get $string:regexp-replace:insert-contract)

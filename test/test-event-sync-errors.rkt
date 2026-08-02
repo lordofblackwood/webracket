@@ -14,6 +14,8 @@
                    (string-contains? message needle))
                  needles))))
 
+(struct semaphore-plain ())
+
 (list
  (list "channel-get rejects non-channels with who"
        (catch-contract/contains?
@@ -69,24 +71,48 @@
         "sync/timeout"
         "(or/c #f (and/c real? (not/c negative?)) (-> any))"
         "given:"))
+ (list "sync/timeout rejects plain structs as non-timeouts"
+       (catch-contract/contains?
+        (lambda () (sync/timeout (semaphore-plain) always-evt))
+        "sync/timeout"
+        "(or/c #f (and/c real? (not/c negative?)) (-> any))"
+        "given: #(struct semaphore-plain)"))
  (list "handle-evt rejects non-procedures with who"
        (catch-contract/contains?
         (lambda () (handle-evt always-evt 42))
         "handle-evt"
         "procedure?"
         "given: 42"))
+ (list "handle-evt rejects plain structs as non-procedures"
+       (catch-contract/contains?
+        (lambda () (handle-evt always-evt (semaphore-plain)))
+        "handle-evt"
+        "procedure?"
+        "given: #(struct semaphore-plain)"))
  (list "call-with-semaphore rejects non-procedures with who"
        (catch-contract/contains?
         (lambda () (call-with-semaphore (make-semaphore 1) 42))
         "call-with-semaphore"
         "procedure?"
         "given: 42"))
+ (list "call-with-semaphore rejects plain structs as non-procedures"
+       (catch-contract/contains?
+        (lambda () (call-with-semaphore (make-semaphore 1) (semaphore-plain)))
+        "call-with-semaphore"
+        "procedure?"
+        "given: #(struct semaphore-plain)"))
  (list "call-with-semaphore validates try-fail thunk with who"
        (catch-contract/contains?
         (lambda () (call-with-semaphore (make-semaphore 1) values 42))
         "call-with-semaphore"
         "(or/c (procedure-arity-includes/c 0) #f)"
         "given: 42"))
+ (list "call-with-semaphore rejects plain structs as try-fail thunks"
+       (catch-contract/contains?
+        (lambda () (call-with-semaphore (make-semaphore 1) values (semaphore-plain)))
+        "call-with-semaphore"
+        "(or/c (procedure-arity-includes/c 0) #f)"
+        "given: #(struct semaphore-plain)"))
  (list "sync still selects ready events"
        (and (equal? (sync always-evt) always-evt)
             (let ([s (make-semaphore 1)])

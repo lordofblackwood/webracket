@@ -74,6 +74,7 @@
     (string-check:invalid-utf8-end "invalid UTF-8 ending index")
     (string-check:invalid-utf8-range "invalid UTF-8 range")
     (string-check:internal-invariant "internal string invariant failed")
+    (build-string-procedure "(exact-nonnegative-integer? . -> . char?)")
     (listof-string? "(listof string?)")
     (string-or-bytes "(or/c string? bytes?)")))
 
@@ -651,14 +652,24 @@
                (if (i32.lt_s (local.get $n) (i32.const 0))
                    (then (call $raise-build-string:bad-length (local.get $n-raw))
                          (unreachable)))
-	               (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
-	                   (then (call $raise-argument-error:procedure-expected/who
-	                               (global.get $symbol:build-string)
-	                               (local.get $proc))
-	                         (unreachable)))
+               (if (ref.eq (call $procedure? (local.get $proc))
+                           (global.get $false))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:build-string)
+                               (global.get $string:build-string-procedure)
+                               (local.get $proc))
+                         (unreachable)))
+               (local.set $f    (ref.cast (ref $Procedure) (local.get $proc)))
+               (if (i32.eqz (call $procedure-arity-includes?/checked/i32
+                                  (local.get $f)
+                                  (i32.const 1)))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:build-string)
+                               (global.get $string:build-string-procedure)
+                               (local.get $proc))
+                         (unreachable)))
 
                ;; --- Decode and prepare ---
-               (local.set $f    (ref.cast (ref $Procedure) (local.get $proc)))
                (local.set $finv (struct.get $Procedure $invoke (local.get $f)))
 
                (local.set $arr  (call $i32array-make (local.get $n) (i32.const 0)))

@@ -78,14 +78,15 @@
              (result              (ref eq))
              (local $executor (ref $WillExecutor))
              (local $proc     (ref $Procedure))
-       
+
              (if (i32.eqz (ref.test (ref $WillExecutor) (local.get $executor-raw)))
                  (then (call $raise-argument-error1
                              (global.get $symbol:will-register)
                              (global.get $string:will-executor?)
                              (local.get $executor-raw))
                        (unreachable)))
-             (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc-raw)))
+             (if (ref.eq (call $procedure? (local.get $proc-raw))
+                         (global.get $false))
                  (then (call $raise-argument-error1
                              (global.get $symbol:will-register)
                              (global.get $string:will-procedure-arity-1)

@@ -15,9 +15,18 @@
 (define reflection-runtime-string-constants
   '((variable-reference?           "variable-reference?")
     (module-path?                  "module-path?")
+    (module-path-or-false?         "(or/c #f module-path?)")
     (module-path-index?            "module-path-index?")
     (resolved-module-path?         "resolved-module-path?")
     (module-path-index-base        "(or/c #f resolved-module-path? module-path-index?)")
+    (module-path-index-submod      "(or/c #f (non-empty-listof symbol?))")
+    (module-path-index-combine-path-base
+     "cannot combine #f path with non-#f base")
+    (module-path-index-combine-path-submod
+     "cannot combine #f submodule list with non-#f module path")
+    (given-base                    "given base")
+    (given-module-path             "given module path")
+    (given-submodule-list          "given submodule list")
     (variable-reference->module-source "variable-reference->module-source")
     (variable-reference->resolved-module-path "variable-reference->resolved-module-path")))
 
@@ -147,6 +156,12 @@
         (func $syntax-original? (type $Prim1)
               (param $stx (ref eq)) ;; syntax?
               (result     (ref eq))
+              (if (ref.eq (call $syntax? (local.get $stx)) (global.get $false))
+                  (then (call $raise-argument-error1
+                              (global.get $symbol:syntax-original?)
+                              (global.get $string:syntax?)
+                              (local.get $stx))
+                        (unreachable)))
               (global.get $false))
 
         ;; syntax-tainted? : syntax? -> boolean?
@@ -156,6 +171,12 @@
         (func $syntax-tainted? (type $Prim1)
               (param $stx (ref eq)) ;; syntax?
               (result     (ref eq))
+              (if (ref.eq (call $syntax? (local.get $stx)) (global.get $false))
+                  (then (call $raise-argument-error1
+                              (global.get $symbol:syntax-tainted?)
+                              (global.get $string:syntax?)
+                              (local.get $stx))
+                        (unreachable)))
               (global.get $false))
 
         ;; internal-definition-context? : any/c -> boolean?
@@ -202,6 +223,34 @@
         (func $module-path-index? (type $Prim1)
               ,@(make-predicate-body '$ModulePathIndex))
 
+        ;; non-empty-listof-symbol?/i32 : any/c -> i32
+        ;;   Check the submodule-list contract for module-path-index-join.
+        (func $non-empty-listof-symbol?/i32
+              (param $v (ref eq))
+              (result   i32)
+              (local $cursor (ref eq))
+              (local $pair   (ref $Pair))
+              (if (i32.eqz (ref.test (ref $Pair) (local.get $v)))
+                  (then (return (i32.const 0))))
+              (local.set $cursor (local.get $v))
+              (block $done
+                     (loop $loop
+                           (br_if $done
+                                  (ref.eq (local.get $cursor)
+                                          (global.get $null)))
+                           (if (i32.eqz (ref.test (ref $Pair) (local.get $cursor)))
+                               (then (return (i32.const 0))))
+                           (local.set $pair
+                                      (ref.cast (ref $Pair) (local.get $cursor)))
+                           (if (i32.eqz
+                                (ref.test (ref $Symbol)
+                                          (struct.get $Pair $a (local.get $pair))))
+                               (then (return (i32.const 0))))
+                           (local.set $cursor
+                                      (struct.get $Pair $d (local.get $pair)))
+                           (br $loop)))
+              (i32.const 1))
+
         ;; module-path-index-join : (or/c module-path? #f) (or/c module-path-index? resolved-module-path? #f) [submod] -> module-path-index?
         ;;   Minimal MPI constructor for already-lowered module metadata. It
         ;;   preserves path/base/submodule fields but does not invoke a module
@@ -213,23 +262,15 @@
               (result        (ref eq))
               (if (ref.eq (local.get $submod) (global.get $missing))
                   (then (local.set $submod (global.get $false))))
-              (if (ref.eq (local.get $path) (global.get $false))
+              (if (i32.and
+                   (i32.eqz (ref.eq (local.get $path) (global.get $false)))
+                   (ref.eq (call $module-path? (local.get $path)) (global.get $false)))
                   (then
-                   (if (i32.eqz (ref.eq (local.get $base) (global.get $false)))
-                       (then
-                        (call $raise-argument-error1
-                              (global.get $symbol:module-path-index-join)
-                              (global.get $string:module-path?)
-                              (local.get $path))
-                        (unreachable))))
-                  (else
-                   (if (ref.eq (call $module-path? (local.get $path)) (global.get $false))
-                       (then
-                        (call $raise-argument-error1
-                              (global.get $symbol:module-path-index-join)
-                              (global.get $string:module-path?)
-                              (local.get $path))
-                        (unreachable)))))
+                   (call $raise-argument-error1
+                         (global.get $symbol:module-path-index-join)
+                         (global.get $string:module-path-or-false?)
+                         (local.get $path))
+                   (unreachable)))
               (if (i32.eqz
                    (i32.or
                     (ref.eq (local.get $base) (global.get $false))
@@ -244,16 +285,38 @@
                    (unreachable)))
               (if (i32.eqz (ref.eq (local.get $submod) (global.get $false)))
                   (then
-                   (if (i32.eqz
-                        (i32.and
-                         (ref.eq (local.get $path) (global.get $false))
-                         (ref.eq (local.get $base) (global.get $false))))
+                   (if (i32.eqz (call $non-empty-listof-symbol?/i32
+                                       (local.get $submod)))
                        (then
                         (call $raise-argument-error1
                               (global.get $symbol:module-path-index-join)
-                              (global.get $string:listof-symbol?)
+                              (global.get $string:module-path-index-submod)
                               (local.get $submod))
                         (unreachable)))))
+              (if (i32.and
+                   (ref.eq (local.get $path) (global.get $false))
+                   (i32.eqz (ref.eq (local.get $base) (global.get $false))))
+                  (then
+                   (call $raise-arguments-error
+                         (global.get $symbol:module-path-index-join)
+                         (global.get $string:module-path-index-combine-path-base)
+                         (array.new_fixed $Args 2
+                                          (global.get $string:given-base)
+                                          (local.get $base)))
+                   (unreachable)))
+              (if (i32.and
+                   (i32.eqz (ref.eq (local.get $path) (global.get $false)))
+                   (i32.eqz (ref.eq (local.get $submod) (global.get $false))))
+                  (then
+                   (call $raise-arguments-error
+                         (global.get $symbol:module-path-index-join)
+                         (global.get $string:module-path-index-combine-path-submod)
+                         (array.new_fixed $Args 4
+                                          (global.get $string:given-module-path)
+                                          (local.get $path)
+                                          (global.get $string:given-submodule-list)
+                                          (local.get $submod)))
+                   (unreachable)))
               (struct.new $ModulePathIndex
                           (i32.const 0)
                           (local.get $path)

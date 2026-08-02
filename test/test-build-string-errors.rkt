@@ -14,6 +14,8 @@
                    (string-contains? message needle))
                  needles))))
 
+(struct build-string-plain ())
+
 (list
  (list "build-string length errors are catchable with who"
        (and
@@ -27,6 +29,29 @@
          "build-string"
          "exact-nonnegative-integer?"
          "given: -1")))
+ (list "build-string procedure errors preserve public contract"
+       (and
+        (catch-contract/contains?
+         (lambda () (build-string 2 #f))
+         "build-string"
+         "(exact-nonnegative-integer? . -> . char?)"
+         "given: #f")
+        (catch-contract/contains?
+         (lambda () (build-string 2 (lambda () #\x)))
+         "build-string"
+         "(exact-nonnegative-integer? . -> . char?)"
+         "given:")
+        (catch-contract/contains?
+         (lambda () (build-string 2 (lambda (a b) #\x)))
+         "build-string"
+         "(exact-nonnegative-integer? . -> . char?)"
+         "given:")))
+ (list "build-string rejects plain structs as non-procedures"
+       (catch-contract/contains?
+        (lambda () (build-string 2 (build-string-plain)))
+        "build-string"
+        "(exact-nonnegative-integer? . -> . char?)"
+        "given: #(struct build-string-plain)"))
  (list "build-string result errors are catchable with who"
        (catch-contract/contains?
         (lambda () (build-string 1 (lambda (i) 42)))

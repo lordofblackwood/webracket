@@ -20,7 +20,9 @@
     (treelist-index "\n  index: ")
     (treelist-valid-range "\n  valid range: [0, ")
     (treelist-valid-range-close "]")
-    (treelist-length-line "\n  treelist length: ")))
+    (treelist-length-line "\n  treelist length: ")
+    (treelist-unary-procedure "(procedure-arity-includes/c 1)")
+    (treelist-binary-procedure "(procedure-arity-includes/c 2)")))
 
 ;; treelist-constant-global-forms : (listof datum?)
 ;;   Declare treelist radix constants.
@@ -4038,9 +4040,11 @@
                              (global.get $symbol:treelist-sort)
                              (local.get $v0))
                        (unreachable)))
-             (if (i32.eqz (ref.test (ref $Procedure) (local.get $v1)))
-                 (then (call $raise-argument-error:procedure-expected/who
+             (if (ref.eq (call $procedure? (local.get $v1))
+                         (global.get $false))
+                 (then (call $raise-argument-error1
                              (global.get $symbol:treelist-sort)
+                             (global.get $string:treelist-binary-procedure)
                              (local.get $v1))
                        (unreachable)))
              (call $treelist-sort/checked
@@ -4542,9 +4546,11 @@
                              (global.get $symbol:treelist-map)
                              (local.get $v0))
                        (unreachable)))
-             (if (i32.eqz (ref.test (ref $Procedure) (local.get $v1)))
-                 (then (call $raise-argument-error:procedure-expected/who
+             (if (ref.eq (call $procedure? (local.get $v1))
+                         (global.get $false))
+                 (then (call $raise-argument-error1
                              (global.get $symbol:treelist-map)
+                             (global.get $string:treelist-unary-procedure)
                              (local.get $v1))
                        (unreachable)))
              (local.set $f    (ref.cast (ref $Procedure) (local.get $v1)))
@@ -4587,9 +4593,11 @@
                              (global.get $symbol:treelist-for-each)
                              (local.get $v0))
                        (unreachable)))
-             (if (i32.eqz (ref.test (ref $Procedure) (local.get $v1)))
-                 (then (call $raise-argument-error:procedure-expected/who
+             (if (ref.eq (call $procedure? (local.get $v1))
+                         (global.get $false))
+                 (then (call $raise-argument-error1
                              (global.get $symbol:treelist-for-each)
+                             (global.get $string:treelist-unary-procedure)
                              (local.get $v1))
                        (unreachable)))
              (local.set $f    (ref.cast (ref $Procedure) (local.get $v1)))
@@ -4620,9 +4628,11 @@
              (local $ga   (ref $GrowableArray))
              (local $args (ref $Args))
              (local $len  i32)
-             (if (i32.eqz (ref.test (ref $Procedure) (local.get $v0)))
-                 (then (call $raise-argument-error:procedure-expected/who
+             (if (ref.eq (call $procedure? (local.get $v0))
+                         (global.get $false))
+                 (then (call $raise-argument-error1
                              (global.get $symbol:treelist-filter)
+                             (global.get $string:treelist-unary-procedure)
                              (local.get $v0))
                        (unreachable)))
              (local.set $f    (ref.cast (ref $Procedure) (local.get $v0)))
@@ -4670,9 +4680,11 @@
                              (global.get $symbol:treelist-find)
                              (local.get $v0))
                        (unreachable)))
-             (if (i32.eqz (ref.test (ref $Procedure) (local.get $v1)))
-                 (then (call $raise-argument-error:procedure-expected/who
+             (if (ref.eq (call $procedure? (local.get $v1))
+                         (global.get $false))
+                 (then (call $raise-argument-error1
                              (global.get $symbol:treelist-find)
+                             (global.get $string:treelist-unary-procedure)
                              (local.get $v1))
                        (unreachable)))
              (local.set $f    (ref.cast (ref $Procedure) (local.get $v1)))
@@ -4708,9 +4720,11 @@
              (if (ref.eq (local.get $same?) (global.get $missing))
                  (then (local.set $use-proc (i32.const 0)))
                  (else
-                  (if (i32.eqz (ref.test (ref $Procedure) (local.get $same?)))
-                      (then (call $raise-argument-error:procedure-expected/who
+                  (if (ref.eq (call $procedure? (local.get $same?))
+                              (global.get $false))
+                      (then (call $raise-argument-error1
                                   (global.get $symbol:treelist-member?)
+                                  (global.get $string:treelist-binary-procedure)
                                   (local.get $same?))
                             (unreachable)))
                   (local.set $use-proc (i32.const 1))))
@@ -4749,9 +4763,11 @@
              (if (ref.eq (local.get $same?) (global.get $missing))
                  (then (local.set $use-proc (i32.const 0)))
                  (else
-                  (if (i32.eqz (ref.test (ref $Procedure) (local.get $same?)))
-                      (then (call $raise-argument-error:procedure-expected/who
+                  (if (ref.eq (call $procedure? (local.get $same?))
+                              (global.get $false))
+                      (then (call $raise-argument-error1
                                   (global.get $symbol:treelist-index-of)
+                                  (global.get $string:treelist-binary-procedure)
                                   (local.get $same?))
                             (unreachable)))
                   (local.set $use-proc (i32.const 1))))

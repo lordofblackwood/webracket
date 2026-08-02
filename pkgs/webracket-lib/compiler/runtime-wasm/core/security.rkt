@@ -26,7 +26,10 @@
   '((security-guard? "security-guard?")
     (custodian?      "custodian?")
     (custodian-box?  "custodian-box?")
-    (inspector?      "inspector?")))
+    (inspector?      "inspector?")
+    (security-guard-file-hook "(procedure-arity-includes/c 3)")
+    (security-guard-network-hook "(procedure-arity-includes/c 4)")
+    (security-guard-link-hook "(or/c #f (procedure-arity-includes/c 3))")))
 
 ;; security-runtime-symbol-constants : (listof symbol?)
 ;;   Declare symbols used by security guard and custodian helpers.
@@ -179,20 +182,22 @@
          (func $security-guard? (type $Prim1)
                ,@(make-predicate-body '$SecurityGuard))
 
-         ;; $security-guard-procedure/arity : symbol? any/c exact-nonnegative-integer? -> procedure?
+         ;; $security-guard-procedure/arity : symbol? string? any/c exact-nonnegative-integer? -> procedure?
          ;;   Validate one access-check hook. WebRacket stores hooks for future
          ;;   VFS/network checks, but does not consult them yet.
          (func $security-guard-procedure/arity
-               (param $who (ref eq)) ;; symbol?
+               (param $who      (ref eq)) ;; symbol?
+               (param $expected (ref eq)) ;; contract string
                (param $proc-raw (ref eq)) ;; procedure?
-               (param $argc i32) ;; required argument count
-               (result (ref $Procedure))
+               (param $argc     i32) ;; required argument count
+               (result          (ref $Procedure))
                (local $proc (ref $Procedure))
 
-               (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc-raw)))
+               (if (ref.eq (call $procedure? (local.get $proc-raw))
+                           (global.get $false))
                    (then (call $raise-argument-error1
                                (local.get $who)
-                               (global.get $string:procedure?)
+                               (local.get $expected)
                                (local.get $proc-raw))
                          (unreachable)))
                (local.set $proc (ref.cast (ref $Procedure) (local.get $proc-raw)))
@@ -201,11 +206,11 @@
                                   (local.get $argc)))
                    (then (call $raise-argument-error1
                                (local.get $who)
-                               (global.get $string:procedure?)
+                               (local.get $expected)
                                (local.get $proc-raw))
                          (unreachable)))
                (local.get $proc))
-         ;; make-security-guard : security-guard? procedure? procedure? [procedure? or #f] -> security-guard?
+         ;; make-security-guard : security-guard? (procedure-arity-includes/c 3) (procedure-arity-includes/c 4) [(or/c #f (procedure-arity-includes/c 3))] -> security-guard?
          ;;   Create a minimal security guard. The file guard must accept 3
          ;;   arguments, the network guard must accept 4, and the optional
          ;;   link guard defaults to void and must accept 3 when provided.
@@ -228,11 +233,13 @@
                (local.set $file
                           (call $security-guard-procedure/arity
                                 (global.get $symbol:make-security-guard)
+                                (global.get $string:security-guard-file-hook)
                                 (local.get $file-raw)
                                 (i32.const 3)))
                (local.set $network
                           (call $security-guard-procedure/arity
                                 (global.get $symbol:make-security-guard)
+                                (global.get $string:security-guard-network-hook)
                                 (local.get $network-raw)
                                 (i32.const 4)))
                (if (ref.eq (local.get $link-raw) (global.get $missing))
@@ -242,6 +249,7 @@
                (local.set $link
                           (call $security-guard-procedure/arity
                                 (global.get $symbol:make-security-guard)
+                                (global.get $string:security-guard-link-hook)
                                 (local.get $link-raw)
                                 (i32.const 3)))
                (struct.new $SecurityGuard
@@ -476,7 +484,8 @@
                                              (local.set $fields (struct.get $Struct $fields (local.get $struct)))
                                              (local.set $abs-index (i32.add (local.get $super-count) (local.get $idx)))
                                              (return (array.get $Array (local.get $fields) (local.get $abs-index))))
-                                       (else (if (ref.test (ref $Procedure) (local.get $prop-val))
+                                       (else (if (ref.eq (call $procedure? (local.get $prop-val))
+                                                        (global.get $true))
                                                  (then
                                                   (local.set $prop-proc
                                                              (ref.cast (ref $Procedure) (local.get $prop-val)))
@@ -511,7 +520,8 @@
                     (local.set $rx (ref.cast (ref $Regexp) (local.get $v)))
                     (return (struct.get $Regexp $source (local.get $rx)))))
                ;; Procedures use the cached name field when available.
-               (if (ref.test (ref $Procedure) (local.get $v))
+               (if (ref.eq (call $procedure? (local.get $v))
+                           (global.get $true))
                    (then
                     (local.set $proc (ref.cast (ref $Procedure) (local.get $v)))
                     (local.set $name (struct.get $Procedure $name (local.get $proc)))

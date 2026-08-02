@@ -14,6 +14,11 @@
                    (string-contains? message needle))
                  needles))))
 
+(struct parameterization-plain ())
+
+(define parameterization-plain-given
+  "given: #(struct parameterization-plain)")
+
 (list
  (list "call-with-parameterization argument errors preserve who"
        (and
@@ -26,7 +31,14 @@
          (lambda () (call-with-parameterization (current-parameterization) 42))
          "call-with-parameterization"
          "procedure?"
-         "given: 42")))
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (call-with-parameterization
+                     (current-parameterization)
+                     (parameterization-plain)))
+         "call-with-parameterization"
+         "procedure?"
+         parameterization-plain-given)))
  (list "cache-configuration argument errors preserve who"
        (and
         (catch-contract/contains?
@@ -48,7 +60,12 @@
          (lambda () (cache-configuration 0 42))
          "cache-configuration"
          "procedure?"
-         "given: 42")))
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (cache-configuration 0 (parameterization-plain)))
+         "cache-configuration"
+         "procedure?"
+         parameterization-plain-given)))
  (list "cache-configuration caches successful thunk results"
        (let ([calls 0])
          (let ([first (cache-configuration 4
@@ -98,6 +115,11 @@
          "(procedure-arity-includes/c 1)"
          "given: 42")
         (catch-contract/contains?
+         (lambda () (current-print (parameterization-plain)))
+         "current-print"
+         "(procedure-arity-includes/c 1)"
+         parameterization-plain-given)
+        (catch-contract/contains?
          (lambda () (current-print (lambda () 'no-args)))
          "current-print"
          "(procedure-arity-includes/c 1)"
@@ -105,4 +127,31 @@
  (list "current-print accepts one-argument printers"
        (let ([old (current-print)])
          (and (void? (current-print (lambda (v) (void))))
-              (void? (current-print old))))))
+              (void? (current-print old)))))
+ (list "reader and error handler parameters reject plain structs"
+       (and
+        (catch-contract/contains?
+         (lambda () (current-read-interaction (parameterization-plain)))
+         "current-read-interaction"
+         "procedure?"
+         parameterization-plain-given)
+        (catch-contract/contains?
+         (lambda () (error-syntax->name-handler (parameterization-plain)))
+         "error-syntax->name-handler"
+         "procedure?"
+         parameterization-plain-given)
+        (catch-contract/contains?
+         (lambda () (error-value->string-handler (parameterization-plain)))
+         "error-value->string-handler"
+         "procedure?"
+         parameterization-plain-given)
+        (catch-contract/contains?
+         (lambda () (error-syntax->string-handler (parameterization-plain)))
+         "error-syntax->string-handler"
+         "procedure?"
+         parameterization-plain-given)
+        (catch-contract/contains?
+         (lambda () (error-module-path->string-handler (parameterization-plain)))
+         "error-module-path->string-handler"
+         "procedure?"
+         parameterization-plain-given))))

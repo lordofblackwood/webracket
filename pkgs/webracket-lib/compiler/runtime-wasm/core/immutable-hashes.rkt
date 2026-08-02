@@ -1178,7 +1178,8 @@
                        (unreachable))
                  (else
                   (if (result (ref eq))
-                      (ref.test (ref $Procedure) (local.get $fail))
+                      (ref.eq (call $procedure? (local.get $fail))
+                                  (global.get $true))
                       (then
                        (local.set $proc   (ref.cast (ref $Procedure) (local.get $fail)))
                        (local.set $inv    (struct.get $Procedure $invoke (local.get $proc)))
@@ -1230,7 +1231,8 @@
                        (unreachable))
                  (else
                   (if (result (ref eq))
-                      (ref.test (ref $Procedure) (local.get $fail))
+                      (ref.eq (call $procedure? (local.get $fail))
+                                  (global.get $true))
                       (then
                        (local.set $proc   (ref.cast (ref $Procedure) (local.get $fail)))
                        (local.set $inv    (struct.get $Procedure $invoke (local.get $proc)))
@@ -1308,7 +1310,8 @@
                        (unreachable))
                  (else
                   (if (result (ref eq))
-                      (ref.test (ref $Procedure) (local.get $fail))
+                      (ref.eq (call $procedure? (local.get $fail))
+                                  (global.get $true))
                       (then
                        (local.set $proc   (ref.cast (ref $Procedure) (local.get $fail)))
                        (local.set $inv    (struct.get $Procedure $invoke (local.get $proc)))
@@ -1358,7 +1361,8 @@
                        (unreachable))
                  (else
                   (if (result (ref eq))
-                      (ref.test (ref $Procedure) (local.get $fail))
+                      (ref.eq (call $procedure? (local.get $fail))
+                                  (global.get $true))
                       (then
                        (local.set $proc   (ref.cast (ref $Procedure) (local.get $fail)))
                        (local.set $inv    (struct.get $Procedure $invoke (local.get $proc)))
@@ -3113,7 +3117,8 @@
                        (unreachable))
                  (else
                   (if (result (ref eq))
-                      (ref.test (ref $Procedure) (local.get $fail))
+                      (ref.eq (call $procedure? (local.get $fail))
+                                  (global.get $true))
                       (then
                        (local.set $proc   (ref.cast (ref $Procedure) (local.get $fail)))
                        (local.set $inv    (struct.get $Procedure $invoke (local.get $proc)))
@@ -3165,7 +3170,8 @@
                        (unreachable))
                  (else
                   (if (result (ref eq))
-                      (ref.test (ref $Procedure) (local.get $fail))
+                      (ref.eq (call $procedure? (local.get $fail))
+                                  (global.get $true))
                       (then
                        (local.set $proc   (ref.cast (ref $Procedure) (local.get $fail)))
                        (local.set $inv    (struct.get $Procedure $invoke (local.get $proc)))
@@ -3247,7 +3253,8 @@
                        (unreachable))
                  (else
                   (if (result (ref eq))
-                      (ref.test (ref $Procedure) (local.get $fail))
+                      (ref.eq (call $procedure? (local.get $fail))
+                                  (global.get $true))
                       (then
                        (local.set $proc   (ref.cast (ref $Procedure) (local.get $fail)))
                        (local.set $inv    (struct.get $Procedure $invoke (local.get $proc)))
@@ -3299,7 +3306,8 @@
                        (unreachable))
                  (else
                   (if (result (ref eq))
-                      (ref.test (ref $Procedure) (local.get $fail))
+                      (ref.eq (call $procedure? (local.get $fail))
+                                  (global.get $true))
                       (then
                        (local.set $proc   (ref.cast (ref $Procedure) (local.get $fail)))
                        (local.set $inv    (struct.get $Procedure $invoke (local.get $proc)))
@@ -4267,18 +4275,28 @@
                                (global.get $string:immutable-hash?)
                                (local.get $ht))
                          (unreachable)))
-	               (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
-	                   (then (call $raise-argument-error:procedure-expected/who
-	                               (global.get $symbol:hash-update)
-	                               (local.get $proc))
-	                         (unreachable)))
+               (if (ref.eq (call $procedure? (local.get $proc))
+                              (global.get $false))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:hash-update)
+                               (global.get $string:hash-update-procedure)
+                               (local.get $proc))
+                         (unreachable)))
+               (local.set $f (ref.cast (ref $Procedure) (local.get $proc)))
+               (if (i32.eqz (call $procedure-arity-includes?/checked/i32
+                                  (local.get $f)
+                                  (i32.const 1)))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:hash-update)
+                               (global.get $string:hash-update-procedure)
+                               (local.get $proc))
+                         (unreachable)))
 
                (local.set $old-value
                           (call $hash-ref
                                 (local.get $ht)
                                 (local.get $key)
                                 (local.get $fail)))
-               (local.set $f    (ref.cast (ref $Procedure) (local.get $proc)))
                (local.set $finv (struct.get $Procedure $invoke (local.get $f)))
                (local.set $args (array.new $Args (global.get $null) (i32.const 1)))
                (array.set $Args (local.get $args) (i32.const 0) (local.get $old-value))

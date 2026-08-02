@@ -1235,7 +1235,8 @@
                            (global.get $string:parameterization?)
                            (local.get $paramz-raw))
                      (unreachable)))
-           (if (i32.eqz (ref.test (ref $Procedure) (local.get $thunk-raw)))
+           (if (ref.eq (call $procedure? (local.get $thunk-raw))
+                         (global.get $false))
                (then (call $raise-argument-error:procedure-expected/who
                            (global.get $symbol:call-with-parameterization)
                            (local.get $thunk-raw))
@@ -1319,7 +1320,8 @@
                            (global.get $string:cache-configuration-index)
                            (local.get $index-raw))
                      (unreachable)))
-           (if (i32.eqz (ref.test (ref $Procedure) (local.get $thunk-raw)))
+           (if (ref.eq (call $procedure? (local.get $thunk-raw))
+                         (global.get $false))
                (then (call $raise-argument-error:procedure-expected/who
                            (global.get $symbol:cache-configuration)
                            (local.get $thunk-raw))
@@ -1501,7 +1503,8 @@
                 (if (ref.eq (global.get $current-print-value) (global.get $false))
                     (then (return (global.get $prim:js-log)))
                     (else (return (global.get $current-print-value))))))
-           (if (i32.eqz (ref.test (ref $Procedure) (local.get $printer-raw)))
+           (if (ref.eq (call $procedure? (local.get $printer-raw))
+                         (global.get $false))
                (then (call $raise-argument-error1
                            (global.get $symbol:current-print)
                            (global.get $string:current-print:procedure-arity-1)
@@ -1554,7 +1557,8 @@
            (result (ref eq))
            (if (ref.eq (local.get $reader-raw) (global.get $missing))
                (then (return (global.get $current-read-interaction-value))))
-           (if (i32.eqz (ref.test (ref $Procedure) (local.get $reader-raw)))
+           (if (ref.eq (call $procedure? (local.get $reader-raw))
+                         (global.get $false))
                (then (call $raise-argument-error1
                            (global.get $symbol:current-read-interaction)
                            (global.get $string:procedure?)
@@ -1771,7 +1775,8 @@
            (result (ref eq))
            (if (ref.eq (local.get $handler-raw) (global.get $missing))
                (then (return (global.get $error-syntax->name-handler-value))))
-           (if (i32.eqz (ref.test (ref $Procedure) (local.get $handler-raw)))
+           (if (ref.eq (call $procedure? (local.get $handler-raw))
+                         (global.get $false))
                (then (call $raise-argument-error1
                            (global.get $symbol:error-syntax->name-handler)
                            (global.get $string:procedure?)
@@ -1787,7 +1792,8 @@
            (result (ref eq))
            (if (ref.eq (local.get $handler-raw) (global.get $missing))
                (then (return (global.get $error-value->string-handler-value))))
-           (if (i32.eqz (ref.test (ref $Procedure) (local.get $handler-raw)))
+           (if (ref.eq (call $procedure? (local.get $handler-raw))
+                         (global.get $false))
                (then (call $raise-argument-error1
                            (global.get $symbol:error-value->string-handler)
                            (global.get $string:procedure?)
@@ -1803,7 +1809,8 @@
            (result (ref eq))
            (if (ref.eq (local.get $handler-raw) (global.get $missing))
                (then (return (global.get $error-syntax->string-handler-value))))
-           (if (i32.eqz (ref.test (ref $Procedure) (local.get $handler-raw)))
+           (if (ref.eq (call $procedure? (local.get $handler-raw))
+                         (global.get $false))
                (then (call $raise-argument-error1
                            (global.get $symbol:error-syntax->string-handler)
                            (global.get $string:procedure?)
@@ -1819,7 +1826,8 @@
            (result (ref eq))
            (if (ref.eq (local.get $handler-raw) (global.get $missing))
                (then (return (global.get $error-module-path->string-handler-value))))
-           (if (i32.eqz (ref.test (ref $Procedure) (local.get $handler-raw)))
+           (if (ref.eq (call $procedure? (local.get $handler-raw))
+                         (global.get $false))
                (then (call $raise-argument-error1
                            (global.get $symbol:error-module-path->string-handler)
                            (global.get $string:procedure?)

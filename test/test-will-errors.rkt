@@ -14,6 +14,10 @@
                    (string-contains? message needle))
                  needles))))
 
+(struct will-plain ())
+
+(define will-plain-given "given: #(struct will-plain)")
+
 (list
  (list "will-executor argument errors are catchable with who"
        (and
@@ -40,6 +44,11 @@
            "will-register"
            "(procedure-arity-includes/c 1)"
            "given: 42")
+          (catch-contract/contains?
+           (lambda () (will-register executor 'value (will-plain)))
+           "will-register"
+           "(procedure-arity-includes/c 1)"
+           will-plain-given)
           (catch-contract/contains?
            (lambda () (will-register executor 'value (lambda () (void))))
            "will-register"

@@ -1413,7 +1413,8 @@
                             (br $exports-loop)))
 
                ;; Validate procedure argument.
-               (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
+               (if (ref.eq (call $procedure? (local.get $proc))
+                           (global.get $false))
                    (then (call $raise-argument-error:procedure-expected/who
                                (global.get $symbol:make-compiled-linklet)
                                (local.get $proc))

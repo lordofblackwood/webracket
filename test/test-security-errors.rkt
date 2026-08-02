@@ -14,6 +14,15 @@
                    (string-contains? message needle))
                  needles))))
 
+(struct security-plain ())
+(struct security-named-index (name)
+  #:property prop:object-name 0)
+(struct security-named-proc (payload)
+  #:property prop:object-name
+  (lambda (_self) 'from-procedure-property))
+
+(define security-plain-given "given: #(struct security-plain)")
+
 (list
  (list "inspector placeholder APIs reject non-inspectors"
        (and
@@ -67,6 +76,12 @@
          "custodian-box-value"
          "custodian-box?"
          "given: 42")))
+ (list "object-name structure properties still resolve"
+       (and
+        (equal? (object-name (security-named-index 'from-field))
+                'from-field)
+        (equal? (object-name (security-named-proc 'payload))
+                'from-procedure-property)))
  (list "security guard APIs reject invalid hooks"
        (and
         (catch-contract/contains?
@@ -77,8 +92,58 @@
         (catch-contract/contains?
          (lambda () (make-security-guard (current-security-guard) 42 void))
          "make-security-guard"
-         "procedure?"
+         "(procedure-arity-includes/c 3)"
          "given: 42")
+        (catch-contract/contains?
+         (lambda () (make-security-guard
+                     (current-security-guard)
+                     (lambda () 'bad)
+                     void))
+         "make-security-guard"
+         "(procedure-arity-includes/c 3)"
+         "given:")
+        (catch-contract/contains?
+         (lambda () (make-security-guard
+                     (current-security-guard)
+                     (security-plain)
+                     void))
+         "make-security-guard"
+         "(procedure-arity-includes/c 3)"
+         security-plain-given)
+        (catch-contract/contains?
+         (lambda () (make-security-guard
+                     (current-security-guard)
+                     void
+                     (lambda () 'bad)))
+         "make-security-guard"
+         "(procedure-arity-includes/c 4)"
+         "given:")
+        (catch-contract/contains?
+         (lambda () (make-security-guard
+                     (current-security-guard)
+                     void
+                     (security-plain)))
+         "make-security-guard"
+         "(procedure-arity-includes/c 4)"
+         security-plain-given)
+        (catch-contract/contains?
+         (lambda () (make-security-guard
+                     (current-security-guard)
+                     void
+                     void
+                     (lambda () 'bad)))
+         "make-security-guard"
+         "(or/c #f (procedure-arity-includes/c 3))"
+         "given:")
+        (catch-contract/contains?
+         (lambda () (make-security-guard
+                     (current-security-guard)
+                     void
+                     void
+                     (security-plain)))
+         "make-security-guard"
+         "(or/c #f (procedure-arity-includes/c 3))"
+         security-plain-given)
         (catch-contract/contains?
          (lambda () (current-security-guard 42))
          "current-security-guard"

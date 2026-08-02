@@ -26,6 +26,10 @@
                    (string-contains? message needle))
                  needles))))
 
+(struct hash-plain ())
+
+(define hash-plain-given "given: #(struct hash-plain)")
+
 (list
  (list "hash-ref missing key errors are catchable with key detail"
        (and
@@ -392,32 +396,32 @@
         (catch-contract/contains?
          (lambda () (hash-for-each (make-hash '((a . 1))) 42))
          "hash-for-each"
-         "procedure?"
+         "(procedure-arity-includes/c 2)"
          "given: 42")
         (catch-contract/contains?
          (lambda () (hash-for-each (hash 'a 1) 42))
          "hash-for-each"
-         "procedure?"
+         "(procedure-arity-includes/c 2)"
          "given: 42")
         (catch-contract/contains?
          (lambda () (hash-map (make-hash '((a . 1))) 42))
          "hash-map"
-         "procedure?"
+         "(procedure-arity-includes/c 2)"
          "given: 42")
         (catch-contract/contains?
          (lambda () (hash-map (hash 'a 1) 42))
          "hash-map"
-         "procedure?"
+         "(procedure-arity-includes/c 2)"
          "given: 42")
         (catch-contract/contains?
          (lambda () (hash-map/copy (make-hash '((a . 1))) 42))
          "hash-map/copy"
-         "procedure?"
+         "(procedure-arity-includes/c 2)"
          "given: 42")
         (catch-contract/contains?
          (lambda () (hash-map/copy (hash 'a 1) 42))
          "hash-map/copy"
-         "procedure?"
+         "(procedure-arity-includes/c 2)"
          "given: 42")
         (catch-contract/contains?
          (lambda () (hash-filter (make-hash '((a . 1))) 42))
@@ -439,18 +443,126 @@
          "hash-filter-values"
          "procedure?"
          "given: 42")))
+ (list "higher-order hash procedure positions reject plain structs"
+       (and
+        (catch-contract/contains?
+         (lambda () (hash-for-each (make-hash '((a . 1))) (hash-plain)))
+         "hash-for-each"
+         "(procedure-arity-includes/c 2)"
+         hash-plain-given)
+        (catch-contract/contains?
+         (lambda () (hash-for-each (hash 'a 1) (hash-plain)))
+         "hash-for-each"
+         "(procedure-arity-includes/c 2)"
+         hash-plain-given)
+        (catch-contract/contains?
+         (lambda () (hash-map (make-hash '((a . 1))) (hash-plain)))
+         "hash-map"
+         "(procedure-arity-includes/c 2)"
+         hash-plain-given)
+        (catch-contract/contains?
+         (lambda () (hash-map (hash 'a 1) (hash-plain)))
+         "hash-map"
+         "(procedure-arity-includes/c 2)"
+         hash-plain-given)
+        (catch-contract/contains?
+         (lambda () (hash-map/copy (make-hash '((a . 1))) (hash-plain)))
+         "hash-map/copy"
+         "(procedure-arity-includes/c 2)"
+         hash-plain-given)
+        (catch-contract/contains?
+         (lambda () (hash-map/copy (hash 'a 1) (hash-plain)))
+         "hash-map/copy"
+         "(procedure-arity-includes/c 2)"
+         hash-plain-given)
+        (catch-contract/contains?
+         (lambda () (hash-filter (make-hash '((a . 1))) (hash-plain)))
+         "hash-filter"
+         "procedure?"
+         hash-plain-given)
+        (catch-contract/contains?
+         (lambda () (hash-filter (hash 'a 1) (hash-plain)))
+         "hash-filter"
+         "procedure?"
+         hash-plain-given)
+        (catch-contract/contains?
+         (lambda () (hash-filter-keys (make-hash '((a . 1))) (hash-plain)))
+         "hash-filter-keys"
+         "procedure?"
+         hash-plain-given)
+        (catch-contract/contains?
+         (lambda () (hash-filter-values (hash 'a 1) (hash-plain)))
+         "hash-filter-values"
+         "procedure?"
+         hash-plain-given)))
+ (list "hash callback arity errors preserve who"
+       (and
+        (catch-contract/contains?
+         (lambda () (hash-for-each (hash 'a 1) (lambda (x) x)))
+         "hash-for-each"
+         "(procedure-arity-includes/c 2)"
+         "given:")
+        (catch-contract/contains?
+         (lambda () (hash-map (hash 'a 1) (lambda (x) x)))
+         "hash-map"
+         "(procedure-arity-includes/c 2)"
+         "given:")
+        (catch-contract/contains?
+         (lambda () (hash-map/copy (hash 'a 1) (lambda (x) x)))
+         "hash-map/copy"
+         "(procedure-arity-includes/c 2)"
+         "given:")))
  (list "hash update procedure errors preserve who"
        (and
         (catch-contract/contains?
          (lambda () (hash-update (hash 'a 1) 'a 42))
          "hash-update"
-         "procedure?"
+         "(any/c . -> . any/c)"
          "given: 42")
         (catch-contract/contains?
          (lambda () (hash-update! (make-hash '((a . 1))) 'a 42))
          "hash-update!"
-         "procedure?"
+         "(any/c . -> . any/c)"
          "given: 42")))
+ (list "hash update procedure positions reject plain structs"
+       (and
+        (catch-contract/contains?
+         (lambda () (hash-update (hash 'a 1) 'a (hash-plain)))
+         "hash-update"
+         "(any/c . -> . any/c)"
+         hash-plain-given)
+        (catch-contract/contains?
+         (lambda () (hash-update! (make-hash '((a . 1))) 'a (hash-plain)))
+         "hash-update!"
+         "(any/c . -> . any/c)"
+         hash-plain-given)))
+ (list "hash update callback arity errors preserve who"
+       (and
+        (catch-contract/contains?
+         (lambda () (hash-update (hash 'a 1) 'a (lambda () 2)))
+         "hash-update"
+         "(any/c . -> . any/c)"
+         "given:")
+        (catch-contract/contains?
+         (lambda () (hash-update! (make-hash '((a . 1))) 'a (lambda () 2)))
+         "hash-update!"
+         "(any/c . -> . any/c)"
+         "given:")))
+ (list "hash failure defaults treat plain structs as values"
+       (let ([m (make-hash)]
+             [plain (hash-plain)])
+         (and
+          (eq? (hash-ref m 'missing plain) plain)
+          (eq? (hash-ref (hash) 'missing plain) plain)
+          (eq? (hash-ref-key m 'missing plain) plain)
+          (eq? (hash-ref-key (hash) 'missing plain) plain)
+          (eq? (hash-ref! m 'inserted plain) plain)
+          (eq? (hash-ref m 'inserted) plain)
+          (let ([m2 (make-hash)])
+            (hash-update! m2 'x values plain)
+            (eq? (hash-ref m2 'x) plain))
+          (let ([h2 (hash-update (hash) 'x values plain)])
+            (eq? (hash-ref h2 'x) plain)))))
  (list "immutable hash operation mutability errors are catchable with who"
        (and
         (catch-contract/contains?

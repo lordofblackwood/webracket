@@ -29,6 +29,11 @@
 (define (p2 a b) 'ok)
 (define (p3 a b c) 'ok)
 
+(struct impersonator-plain ())
+
+(define (impersonator-plain-given)
+  (impersonator-plain))
+
 (list
  (list "impersonator-val unsupported path is catchable"
        (catch-unsupported/contains?
@@ -85,8 +90,40 @@
         (catch-contract/contains?
          (lambda () (unsafe-impersonate-procedure p2 42))
          "unsafe-impersonate-procedure"
+	         "procedure?"
+	         "given: 42")))
+ (list "chaperone validators reject plain structs as non-procedures"
+       (and
+        (catch-contract/contains?
+         (lambda () (chaperone-procedure (impersonator-plain-given) #f))
+         "chaperone-procedure"
          "procedure?"
-         "given: 42")))
+         "given:")
+        (catch-contract/contains?
+         (lambda () (chaperone-procedure p2 (impersonator-plain-given)))
+         "chaperone-procedure"
+         "(or/c procedure? #f)"
+         "given:")
+        (catch-contract/contains?
+         (lambda () (unsafe-chaperone-procedure (impersonator-plain-given) p2))
+         "unsafe-chaperone-procedure"
+         "procedure?"
+         "given:")
+        (catch-contract/contains?
+         (lambda () (chaperone-vector (vector 1) (impersonator-plain-given) #f))
+         "chaperone-vector"
+         "(or/c (procedure-arity-includes/c 3) #f)"
+         "given:")
+        (catch-contract/contains?
+         (lambda () (chaperone-box (box 1) (impersonator-plain-given) p2))
+         "chaperone-box"
+         "(procedure-arity-includes/c 2)"
+         "given:")
+        (catch-contract/contains?
+         (lambda () (chaperone-hash (hash) p2 (impersonator-plain-given) p3 p3))
+         "chaperone-hash"
+         "(procedure-arity-includes/c 3)"
+         "given:")))
  (list "chaperone-vector rejects invalid interposers"
        (and
         (catch-contract/contains?

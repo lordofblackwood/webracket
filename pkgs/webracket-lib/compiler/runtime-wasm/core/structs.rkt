@@ -53,6 +53,16 @@
      "\n  initialized-field count: ")
     (make-struct-type-field-count "\n  field count: ")
     (make-struct-type-in-list "\n  in list: ")
+    (make-struct-type:non-generative-supertype
+     ": generative supertype disallowed for non-generative structure type\n  structure type name: ")
+    (make-struct-type:non-generative-properties
+     ": properties disallowed for non-generative structure type\n  structure type name: ")
+    (make-struct-type:non-generative-proc-spec
+     ": procedure specification disallowed for non-generative structure type\n  structure type name: ")
+    (make-struct-type:non-generative-guard
+     ": guard disallowed for non-generative structure type\n  structure type name: ")
+    (make-struct-type:unsupported-prefab-auto-value
+     ": unsupported simple prefab auto value for non-generative structure type\n  structure type name: ")
     (make-struct-type-property-guard
      "(or/c (procedure-arity-includes/c 2) #f 'can-impersonate)")
     (make-struct-type-property-supers
@@ -65,6 +75,16 @@
      "(and/c struct-accessor-procedure? (procedure-arity-includes/c 2))")
     (make-struct-field-mutator-procedure
      "(and/c struct-mutator-procedure? (procedure-arity-includes/c 3))")
+    (guard-for-prop:custom-write-contract
+     "(procedure-arity-includes?/c 3)")
+    (guard-for-prop:object-name-contract
+     "(or/c exact-nonnegative-integer? (procedure-arity-includes/c 1))")
+    (guard-for-prop:object-name-field-index
+     ": field index >= initialized-field count for structure type\n  field index: ")
+    (guard-for-prop:equal+hash-contract
+     "(or/c (list/c (procedure-arity-includes/c 4) (procedure-arity-includes/c 3)) (list/c (procedure-arity-includes/c 3) (procedure-arity-includes/c 2) (procedure-arity-includes/c 2)))")
+    (prop:procedure-contract
+     "(or/c procedure? exact-nonnegative-integer?)")
     (make-struct-field-name
      "(or/c symbol? #f)")
     (make-struct-field-contract-str
@@ -146,6 +166,9 @@
     make-struct-type-property
     make-struct-field-accessor
     make-struct-field-mutator
+    guard-for-prop:custom-write
+    guard-for-prop:object-name
+    guard-for-prop:equal+hash
     make-prefab-struct
     prefab-struct-type-key+field-count
     accessor
@@ -611,6 +634,8 @@
     $raise-make-struct-type-property:accessor-name
     $raise-make-struct-type-property:contract-str
     $raise-make-struct-type-property:realm
+    $raise-guard-for-prop:object-name-field-index
+    $raise-guard-for-prop:equal+hash-contract
     $make-struct-type-property
     $unsafe-make-struct-type-property/guard-calls-no-arguments))
 
@@ -744,6 +769,7 @@
     $raise-make-struct-type:constructor-name
     $raise-make-struct-type:proc-spec
     $raise-make-struct-type:proc-spec-index
+    $raise-make-struct-type:non-generative
     $make-struct-type))
 
 ;; struct-accessor-runtime-only-helper-names : (listof symbol?)
@@ -4263,6 +4289,31 @@
                        (global.get $true)))
            (unreachable))
 
+     (func $raise-make-struct-type:non-generative
+           (param $detail (ref eq))
+           (param $name   (ref eq))
+
+           (local $out     (ref $GrowableArray))
+           (local $message (ref $String))
+
+           (local.set $out (call $make-growable-array (i32.const 4)))
+           (call $growable-array-add! (local.get $out)
+                 (call $format/display (global.get $symbol:make-struct-type)))
+           (call $growable-array-add! (local.get $out)
+                 (local.get $detail))
+           (call $growable-array-add! (local.get $out)
+                 (call $format/print
+                       (local.get $name)
+                       (global.get $missing)))
+           (local.set $message
+                      (call $growable-array-of-strings->string (local.get $out)))
+           (drop (call $raise
+                       (call $exn:fail:contract/make
+                             (local.get $message)
+                             (call $current-continuation-marks (global.get $missing)))
+                       (global.get $true)))
+           (unreachable))
+
      (func $make-struct-type
            ;; Parameters
            (param $name             (ref eq))  ;; (ref $Symbol)
@@ -4395,7 +4446,8 @@
                (then (local.set $guard-checked (global.get $false))))
            (if (i32.and
                 (i32.eqz (ref.eq (local.get $guard-checked) (global.get $false)))
-                (i32.eqz (ref.test (ref $Procedure) (local.get $guard-checked))))
+                (ref.eq (call $procedure? (local.get $guard-checked))
+                        (global.get $false)))
                (then (call $raise-make-struct-type:guard (local.get $guard-checked))
                      (unreachable)))
 
@@ -4480,7 +4532,8 @@
            (if (i32.and
                 (i32.eqz (ref.eq (local.get $proc-spec) (global.get $false)))
                 (i32.and
-                 (i32.eqz (ref.test (ref $Procedure) (local.get $proc-spec)))
+                 (ref.eq (call $procedure? (local.get $proc-spec))
+                         (global.get $false))
                  (ref.eq (call $exact-nonnegative-integer? (local.get $proc-spec))
                          (global.get $false))))
                (then (call $raise-make-struct-type:proc-spec
@@ -4568,7 +4621,9 @@
                                 (struct.get $StructType $immutables
                                             (ref.as_non_null (local.get $super-typed))))
                      (if (i32.eqz (call $prefab-metadata?/i32 (local.get $prefab-metadata)))
-                         (then (call $raise-argument-error/internal (local.get $super))
+                         (then (call $raise-make-struct-type:non-generative
+                                     (global.get $string:make-struct-type:non-generative-supertype)
+                                     (local.get $name))
                                (unreachable)))
                      (local.set $prefab-parent-key
                                 (struct.get $Pair $a
@@ -4606,13 +4661,26 @@
                                                                (local.get $prefab-metadata)))))
                                        (i32.const 1))
                                       (local.get $prefab-parent-auto)))))))
-                (if (i32.or
-                     (i32.eqz (call $simple-prefab-auto-value-supported?/i32
-                                    (local.get $auto-val)))
-                     (i32.or
-                      (i32.eqz (ref.eq (local.get $props-list) (global.get $null)))
-                      (i32.eqz (ref.eq (local.get $guard-checked) (global.get $false)))))
-                    (then (call $raise-argument-error/internal (local.get $inspector))
+                (if (i32.eqz (call $simple-prefab-auto-value-supported?/i32
+                                   (local.get $auto-val)))
+                    (then (call $raise-make-struct-type:non-generative
+                                (global.get $string:make-struct-type:unsupported-prefab-auto-value)
+                                (local.get $name))
+                          (unreachable)))
+                (if (i32.eqz (ref.eq (local.get $proc-spec) (global.get $false)))
+                    (then (call $raise-make-struct-type:non-generative
+                                (global.get $string:make-struct-type:non-generative-proc-spec)
+                                (local.get $name))
+                          (unreachable)))
+                (if (i32.eqz (ref.eq (local.get $props-list) (global.get $null)))
+                    (then (call $raise-make-struct-type:non-generative
+                                (global.get $string:make-struct-type:non-generative-properties)
+                                (local.get $name))
+                          (unreachable)))
+                (if (i32.eqz (ref.eq (local.get $guard-checked) (global.get $false)))
+                    (then (call $raise-make-struct-type:non-generative
+                                (global.get $string:make-struct-type:non-generative-guard)
+                                (local.get $name))
                           (unreachable)))))
 
 
@@ -6807,6 +6875,15 @@
            (local $equal+hash-count i32)
            (local $equal+hash-index i32)
            (local $equal+hash-proc  (ref eq))
+           (local $equal+hash-required-arity i32)
+           (local $object-name-index i32)
+           (local $object-name-init-count-raw (ref eq))
+           (local $object-name-init-count i32)
+           (local $object-name-sti-tail (ref eq))
+           (local $procedure-index i32)
+           (local $procedure-init-count-raw (ref eq))
+           (local $procedure-init-count i32)
+           (local $procedure-sti-tail (ref eq))
 
            (local.set $sealed (i32.const 0))
            (local.set $processed
@@ -6815,6 +6892,128 @@
                             (local.get $value)
                             (local.get $sti)))
 
+           ;; Built-in property guards live here because the runtime creates
+           ;; these property descriptors directly.
+           ;;
+           ;; --- prop:custom-write
+           (if (call $symbol=?/i32
+                     (struct.get $StructTypeProperty $name (local.get $prop))
+                     (global.get $symbol:prop:custom-write))
+               (then
+                (if (ref.eq (call $procedure? (local.get $processed))
+                            (global.get $false))
+                    (then (call $raise-argument-error1
+                                (global.get $symbol:guard-for-prop:custom-write)
+                                (global.get $string:guard-for-prop:custom-write-contract)
+                                (local.get $processed))
+                          (unreachable)))
+                (if (i32.eqz
+                     (call $procedure-arity-includes?/checked/i32
+                           (ref.cast (ref $Procedure) (local.get $processed))
+                           (i32.const 3)))
+                    (then (call $raise-argument-error1
+                                (global.get $symbol:guard-for-prop:custom-write)
+                                (global.get $string:guard-for-prop:custom-write-contract)
+                                (local.get $processed))
+                          (unreachable)))))
+
+           ;; --- prop:object-name
+           (if (call $symbol=?/i32
+                     (struct.get $StructTypeProperty $name (local.get $prop))
+                     (global.get $symbol:object-name))
+               (then
+                (if (ref.eq (call $exact-nonnegative-integer?
+                                  (local.get $processed))
+                            (global.get $true))
+                    (then
+                     (local.set $object-name-index
+                                (i32.shr_u
+                                 (i31.get_u
+                                  (ref.cast (ref i31) (local.get $processed)))
+                                 (i32.const 1)))
+                     ;; `sti` is the internal guard-info list:
+                     ;; (name init-count auto-count accessor mutator immutables super #f).
+                     (local.set $object-name-sti-tail
+                                (struct.get $Pair $d
+                                            (ref.cast (ref $Pair)
+                                                      (local.get $sti))))
+                     (local.set $object-name-init-count-raw
+                                (struct.get $Pair $a
+                                            (ref.cast (ref $Pair)
+                                                      (local.get $object-name-sti-tail))))
+                     (local.set $object-name-init-count
+                                (i32.shr_u
+                                 (i31.get_u
+                                  (ref.cast (ref i31)
+                                            (local.get $object-name-init-count-raw)))
+                                 (i32.const 1)))
+                     (if (i32.ge_u (local.get $object-name-index)
+                                   (local.get $object-name-init-count))
+                         (then (call $raise-guard-for-prop:object-name-field-index
+                                     (local.get $object-name-index)
+                                     (local.get $object-name-init-count))
+                               (unreachable))))
+                    (else
+                     (if (ref.eq (call $procedure? (local.get $processed))
+                                 (global.get $false))
+                         (then (call $raise-argument-error1
+                                     (global.get $symbol:guard-for-prop:object-name)
+                                     (global.get $string:guard-for-prop:object-name-contract)
+                                     (local.get $processed))
+                               (unreachable)))
+                     (if (i32.eqz
+                          (call $procedure-arity-includes?/checked/i32
+                                (ref.cast (ref $Procedure) (local.get $processed))
+                                (i32.const 1)))
+                         (then (call $raise-argument-error1
+                                     (global.get $symbol:guard-for-prop:object-name)
+                                     (global.get $string:guard-for-prop:object-name-contract)
+                                     (local.get $processed))
+                               (unreachable)))))))
+
+           ;; --- prop:procedure
+           (if (call $symbol=?/i32
+                     (struct.get $StructTypeProperty $name (local.get $prop))
+                     (global.get $symbol:procedure))
+               (then
+                (if (ref.eq (call $exact-nonnegative-integer?
+                                  (local.get $processed))
+                            (global.get $true))
+                    (then
+                     (local.set $procedure-index
+                                (i32.shr_u
+                                 (i31.get_u
+                                  (ref.cast (ref i31) (local.get $processed)))
+                                 (i32.const 1)))
+                     (local.set $procedure-sti-tail
+                                (struct.get $Pair $d
+                                            (ref.cast (ref $Pair)
+                                                      (local.get $sti))))
+                     (local.set $procedure-init-count-raw
+                                (struct.get $Pair $a
+                                            (ref.cast (ref $Pair)
+                                                      (local.get $procedure-sti-tail))))
+                     (local.set $procedure-init-count
+                                (i32.shr_u
+                                 (i31.get_u
+                                  (ref.cast (ref i31)
+                                            (local.get $procedure-init-count-raw)))
+                                 (i32.const 1)))
+                     (if (i32.ge_u (local.get $procedure-index)
+                                   (local.get $procedure-init-count))
+                         (then (call $raise-make-struct-type:proc-spec-index
+                                     (local.get $processed)
+                                     (local.get $procedure-init-count))
+                               (unreachable))))
+                    (else
+                     (if (ref.eq (call $procedure? (local.get $processed))
+                                 (global.get $false))
+                         (then (call $raise-argument-error1
+                                     (global.get $symbol:make-struct-type)
+                                     (global.get $string:prop:procedure-contract)
+                                     (local.get $processed))
+                               (unreachable)))))))
+
            ;; --- prop:equal+hash
            (if (call $symbol=?/i32
                      (struct.get $StructTypeProperty $name (local.get $prop))
@@ -6822,8 +7021,10 @@
                (then
                 (if (i32.eqz (ref.test (ref $Array) (local.get $processed)))
                     (then
-                     (if (i32.eqz (ref.test (ref $Pair) (local.get $processed)))
-                         (then (call $raise-argument-error/internal (local.get $value))
+                     (if (ref.eq (call $list? (local.get $processed))
+                                 (global.get $false))
+                         (then (call $raise-guard-for-prop:equal+hash-contract
+                                     (local.get $processed))
                                (unreachable)))
                      (local.set $equal+hash-array
                                 (ref.cast (ref $Array)
@@ -6831,7 +7032,8 @@
                      (local.set $equal+hash-count (array.len (local.get $equal+hash-array)))
                      (if (i32.or (i32.lt_s (local.get $equal+hash-count) (i32.const 2))
                                  (i32.gt_s (local.get $equal+hash-count) (i32.const 3)))
-                         (then (call $raise-argument-error/internal (local.get $value))
+                         (then (call $raise-guard-for-prop:equal+hash-contract
+                                     (local.get $processed))
                                (unreachable)))
                      (local.set $equal+hash-index (i32.const 0))
                      (block $done
@@ -6842,9 +7044,35 @@
                                              (array.get $Array
                                                         (local.get $equal+hash-array)
                                                         (local.get $equal+hash-index)))
-                                  (if (i32.eqz (ref.test (ref $Procedure)
-                                                         (local.get $equal+hash-proc)))
-                                      (then (call $raise-argument-error/internal (local.get $value))
+                                  (if (ref.eq (call $procedure?
+                                                    (local.get $equal+hash-proc))
+                                              (global.get $false))
+                                      (then (call $raise-guard-for-prop:equal+hash-contract
+                                                  (local.get $processed))
+                                            (unreachable)))
+                                  (local.set $equal+hash-required-arity
+                                             (if (result i32)
+                                                 (i32.eq (local.get $equal+hash-count)
+                                                         (i32.const 2))
+                                                 (then
+                                                  (if (result i32)
+                                                      (i32.eq (local.get $equal+hash-index)
+                                                              (i32.const 0))
+                                                      (then (i32.const 4))
+                                                      (else (i32.const 3))))
+                                                 (else
+                                                  (if (result i32)
+                                                      (i32.eq (local.get $equal+hash-index)
+                                                              (i32.const 0))
+                                                      (then (i32.const 3))
+                                                      (else (i32.const 2))))))
+                                  (if (i32.eqz
+                                       (call $procedure-arity-includes?/checked/i32
+                                             (ref.cast (ref $Procedure)
+                                                       (local.get $equal+hash-proc))
+                                             (local.get $equal+hash-required-arity)))
+                                      (then (call $raise-guard-for-prop:equal+hash-contract
+                                                  (local.get $processed))
                                             (unreachable)))
                                   (local.set $equal+hash-index
                                              (i32.add (local.get $equal+hash-index)
@@ -6873,7 +7101,8 @@
                                  (i32.const 1)))
                      (if (i32.or (i32.lt_s (local.get $equal+hash-count) (i32.const 2))
                                  (i32.gt_s (local.get $equal+hash-count) (i32.const 3)))
-                         (then (call $raise-argument-error/internal (local.get $value))
+                         (then (call $raise-guard-for-prop:equal+hash-contract
+                                     (local.get $value))
                                (unreachable)))))))
 
            ;; --- prop:authentic
@@ -6916,7 +7145,8 @@
                                         (ref.cast (ref $StructTypeProperty)
                                                   (struct.get $Pair $a (local.get $entry))))
                              (local.set $converter-raw (struct.get $Pair $d (local.get $entry)))
-                             (if (i32.eqz (ref.test (ref $Procedure) (local.get $converter-raw)))
+                             (if (ref.eq (call $procedure? (local.get $converter-raw))
+                                         (global.get $false))
                                  (then (call $raise-argument-error/internal (local.get $converter-raw))
                                        (unreachable)))
                              (local.set $converter (ref.cast (ref $Procedure) (local.get $converter-raw)))
@@ -7131,6 +7361,44 @@
                  (local.get $bad))
            (unreachable))
 
+     (func $raise-guard-for-prop:object-name-field-index
+           (param $field-index i32)
+           (param $init-count  i32)
+
+           (local $out     (ref $GrowableArray))
+           (local $message (ref $String))
+
+           (local.set $out (call $make-growable-array (i32.const 6)))
+           (call $growable-array-add! (local.get $out)
+                 (call $format/display
+                       (global.get $symbol:guard-for-prop:object-name)))
+           (call $growable-array-add! (local.get $out)
+                 (global.get $string:guard-for-prop:object-name-field-index))
+           (call $growable-array-add! (local.get $out)
+                 (call $format/display
+                       (ref.i31 (i32.shl (local.get $field-index) (i32.const 1)))))
+           (call $growable-array-add! (local.get $out)
+                 (global.get $string:make-struct-type-initialized-field-count))
+           (call $growable-array-add! (local.get $out)
+                 (call $format/display
+                       (ref.i31 (i32.shl (local.get $init-count) (i32.const 1)))))
+           (local.set $message
+                      (call $growable-array-of-strings->string (local.get $out)))
+           (drop (call $raise
+                       (call $exn:fail:contract/make
+                             (local.get $message)
+                             (call $current-continuation-marks (global.get $missing)))
+                       (global.get $true)))
+           (unreachable))
+
+     (func $raise-guard-for-prop:equal+hash-contract
+           (param $bad (ref eq))
+           (call $raise-argument-error1
+                 (global.get $symbol:guard-for-prop:equal+hash)
+                 (global.get $string:guard-for-prop:equal+hash-contract)
+                 (local.get $bad))
+           (unreachable))
+
      (func $make-struct-type-property
            (param $name               (ref eq))  ;; symbol
            ;; optional parameters (defaults in parentheses):
@@ -7204,7 +7472,8 @@
                                           (local.get $guard-info))
                                     (unreachable))))
                          (else
-                          (if (i32.eqz (ref.test (ref $Procedure) (local.get $guard-info)))
+                          (if (ref.eq (call $procedure? (local.get $guard-info))
+                                      (global.get $false))
                               (then (call $raise-make-struct-type-property:guard
                                           (local.get $guard-info))
                                     (unreachable)))
@@ -7258,7 +7527,8 @@
                                                        (local.get $super-prop-raw)))
                                   (local.set $super-proc-raw
                                              (struct.get $Pair $d (local.get $supers-entry)))
-                                  (if (i32.eqz (ref.test (ref $Procedure) (local.get $super-proc-raw)))
+                                  (if (ref.eq (call $procedure? (local.get $super-proc-raw))
+                                              (global.get $false))
                                       (then (call $raise-make-struct-type-property:supers
                                                   (local.get $supers-spec))
                                             (unreachable)))
@@ -7489,7 +7759,8 @@
                 (local.set $fields (struct.get $Struct $fields (local.get $struct)))
                 (local.set $abs-index (i32.add (local.get $super-count) (local.get $idx)))
                 (local.set $target (array.get $Array (local.get $fields) (local.get $abs-index)))
-                (if (i32.eqz (ref.test (ref $Procedure) (local.get $target)))
+                (if (ref.eq (call $procedure? (local.get $target))
+                            (global.get $false))
                     (then (call $raise-arity-mismatch/name+given
                                 (local.get $struct-name)
                                 (local.get $argc))
@@ -7502,7 +7773,8 @@
                                  (local.get $delegate-inv))))
 
            ;; Case 2: property supplies a procedure to receive the structure + arguments.
-           (if (i32.eqz (ref.test (ref $Procedure) (local.get $prop-val)))
+           (if (ref.eq (call $procedure? (local.get $prop-val))
+                       (global.get $false))
                (then (call $raise-arity-mismatch/name+given
                            (local.get $struct-name)
                            (local.get $argc))
@@ -7633,7 +7905,8 @@
                (then (return (global.get $false))))
            (local.set $target (array.get $Array (local.get $fields) (local.get $abs-index)))
            (if (result (ref eq))
-               (ref.test (ref $Procedure) (local.get $target))
+               (ref.eq (call $procedure? (local.get $target))
+                       (global.get $true))
                (then (local.get $target))
                (else (global.get $false))))
 
@@ -7705,7 +7978,8 @@
                      (unreachable)))
            (local.set $type (ref.cast (ref $StructType) (local.get $type-raw)))
 
-           (if (i32.eqz (ref.test (ref $Procedure) (local.get $fallback-raw)))
+           (if (ref.eq (call $procedure? (local.get $fallback-raw))
+                       (global.get $false))
                (then (call $raise-argument-error1
                            (global.get $symbol:checked-procedure-check-and-extract)
                            (global.get $string:procedure?)

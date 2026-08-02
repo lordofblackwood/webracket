@@ -638,7 +638,8 @@
                          (unreachable))
                    (else
                     (if (result (ref eq))
-                        (ref.test (ref $Procedure) (local.get $fail))
+                        (ref.eq (call $procedure? (local.get $fail))
+                                  (global.get $true))
                         (then
                          (local.set $proc   (ref.cast (ref $Procedure) (local.get $fail)))
                          (local.set $inv    (struct.get $Procedure $invoke (local.get $proc)))
@@ -827,7 +828,8 @@
                          (unreachable))
                    (else
                     (if (result (ref eq))
-                        (ref.test (ref $Procedure) (local.get $fail))
+                        (ref.eq (call $procedure? (local.get $fail))
+                                  (global.get $true))
                         (then
                          (local.set $proc   (ref.cast (ref $Procedure) (local.get $fail)))
                          (local.set $inv    (struct.get $Procedure $invoke (local.get $proc)))
@@ -1430,7 +1432,8 @@
 
                (local.set $value
                           (if (result (ref eq))
-                              (ref.test (ref $Procedure) (local.get $to-set))
+                              (ref.eq (call $procedure? (local.get $to-set))
+                                  (global.get $true))
                               (then
                                (local.set $proc   (ref.cast (ref $Procedure) (local.get $to-set)))
                                (local.set $inv    (struct.get $Procedure $invoke (local.get $proc)))
@@ -1462,20 +1465,33 @@
               (param $fail (ref eq))   ;; optional failure result (default = raises error)
               (result      (ref eq))
 
-              ;; Check type: must be (ref $Hash)
-	              (if (i32.eqz (ref.test (ref $Hash) (local.get $ht)))
-	                  (then (call $raise-argument-error1
-	                              (global.get $symbol:hash-update!)
-	                              (global.get $string:mutable-hash?)
-	                              (local.get $ht))
-	                        (unreachable)))
-	              (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
-	                  (then (call $raise-argument-error:procedure-expected/who
-	                              (global.get $symbol:hash-update!)
-	                              (local.get $proc))
-	                        (unreachable)))
+              (local $f (ref $Procedure))
 
-	              ;; Dispatch on table type
+              ;; Check type: must be (ref $Hash)
+              (if (i32.eqz (ref.test (ref $Hash) (local.get $ht)))
+                  (then (call $raise-argument-error1
+                              (global.get $symbol:hash-update!)
+                              (global.get $string:mutable-hash?)
+                              (local.get $ht))
+                        (unreachable)))
+              (if (ref.eq (call $procedure? (local.get $proc))
+                              (global.get $false))
+                  (then (call $raise-argument-error1
+                              (global.get $symbol:hash-update!)
+                              (global.get $string:hash-update-procedure)
+                              (local.get $proc))
+                        (unreachable)))
+              (local.set $f (ref.cast (ref $Procedure) (local.get $proc)))
+              (if (i32.eqz (call $procedure-arity-includes?/checked/i32
+                                 (local.get $f)
+                                 (i32.const 1)))
+                  (then (call $raise-argument-error1
+                              (global.get $symbol:hash-update!)
+                              (global.get $string:hash-update-procedure)
+                              (local.get $proc))
+                        (unreachable)))
+
+              ;; Dispatch on table type
               (if (ref.test (ref $HashEqMutable) (local.get $ht))
                   (then (return (call $hasheq-update!
                                       (local.get $ht)
@@ -1567,7 +1583,8 @@
                          (unreachable)))
 
                ;; Ensure updater is a procedure
-               (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
+               (if (ref.eq (call $procedure? (local.get $proc))
+                              (global.get $false))
                    (then (call $raise-argument-error:procedure-expected (local.get $proc))
                          (unreachable)))
 
@@ -1688,7 +1705,8 @@
 
                (local.set $default
                           (if (result (ref eq))
-                              (ref.test (ref $Procedure) (local.get $fail))
+                              (ref.eq (call $procedure? (local.get $fail))
+                                  (global.get $true))
                               (then
                                (local.set $fail-proc (ref.cast (ref $Procedure) (local.get $fail)))
                                (local.set $fail-inv  (struct.get $Procedure $invoke (local.get $fail-proc)))

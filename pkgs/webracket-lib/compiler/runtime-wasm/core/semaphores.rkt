@@ -177,7 +177,8 @@
                         (global.get $string:semaphore?)
                         (local.get $sema-raw))
                   (unreachable)))
-             (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc-raw)))
+             (if (ref.eq (call $procedure? (local.get $proc-raw))
+                         (global.get $false))
                  (then (call $raise-argument-error:procedure-expected/who
                              (global.get $symbol:call-with-semaphore)
                              (local.get $proc-raw))
@@ -200,13 +201,15 @@
                    (i32.eqz (ref.eq (local.get $try-fail) (global.get $undefined))))
                   (i32.and
                    (i32.eqz (ref.eq (local.get $try-fail) (global.get $unsafe-undefined)))
-                   (i32.eqz (ref.test (ref $Procedure) (local.get $try-fail)))))
+                   (ref.eq (call $procedure? (local.get $try-fail))
+                           (global.get $false))))
                  (then (call $raise-argument-error1
                              (global.get $symbol:call-with-semaphore)
                              (global.get $string:try-fail-thunk-or-false)
                              (local.get $try-fail))
                        (unreachable)))
-             (if (ref.test (ref $Procedure) (local.get $try-fail))
+             (if (ref.eq (call $procedure? (local.get $try-fail))
+                         (global.get $true))
                  (then
                   (if (i32.eqz
                        (call $procedure-arity-includes?/checked/i32

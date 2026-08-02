@@ -45,6 +45,10 @@
     (permissions-mode           "(or/c #f 'bits (integer-in 0 65535))")
     (input-file-mode-flag       "(or/c 'binary 'text)")
     (output-file-mode-flag      "(or/c 'binary 'text)")
+    (filesystem-input-port-procedure "(input-port? . -> . any)")
+    (filesystem-output-port-procedure "(output-port? . -> . any)")
+    (filesystem-thunk-procedure "(-> any)")
+    (filesystem-procedure-arity-0 "(procedure-arity-includes/c 0)")
     (output-file-exists-flag    "(or/c 'error 'append 'replace 'truncate 'must-truncate 'truncate/replace)")))
 
 ;; filesystem-runtime-symbol-constants : (listof symbol?)
@@ -67,6 +71,13 @@
     truncate/replace
     file
     directory
+    file-or-directory-modify-seconds
+    call-with-input-file
+    call-with-output-file
+    call-with-input-file*
+    call-with-output-file*
+    with-input-from-file
+    with-output-to-file
     error))
 
 ;; filesystem-runtime-bytes-constants : (listof (list/c symbol? bytes?))
@@ -93,7 +104,8 @@
 ;; filesystem-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for VFS and file-operation helpers.
 (define filesystem-runtime-only-helper-names
-  '($raise-vfs-file-error/path
+  '($check-filesystem-procedure-arity
+    $raise-vfs-file-error/path
     $raise-vfs-file-error/two-paths
     $raise-vfs-file-error/who-path
     $raise-vfs-path-too-long
@@ -174,6 +186,36 @@
 ;;   Enumerate VFS and file-operation helpers used by the monolithic runtime.
 (define filesystem-runtime-only-forms
   '(
+    ;; check-filesystem-procedure-arity : symbol? string? any/c exact-nonnegative-integer? -> procedure?
+    ;;   Validate a procedure-valued filesystem callback against an arity contract.
+    (func $check-filesystem-procedure-arity
+          (param $who      (ref eq))
+          (param $contract (ref eq))
+          (param $proc     (ref eq))
+          (param $arity    i32)
+          (result          (ref $Procedure))
+
+          (local $f (ref $Procedure))
+
+          (if (ref.eq (call $procedure? (local.get $proc))
+                      (global.get $false))
+              (then (call $raise-argument-error1
+                          (local.get $who)
+                          (local.get $contract)
+                          (local.get $proc))
+                    (unreachable)))
+          (local.set $f (ref.cast (ref $Procedure) (local.get $proc)))
+          (if (i32.eqz
+               (call $procedure-arity-includes?/checked/i32
+                     (local.get $f)
+                     (local.get $arity)))
+              (then (call $raise-argument-error1
+                          (local.get $who)
+                          (local.get $contract)
+                          (local.get $proc))
+                    (unreachable)))
+          (local.get $f))
+
     (func $raise-vfs-file-error/path
           (param $message  (ref eq))
           (param $path-raw (ref eq))
@@ -2280,14 +2322,12 @@
                                 (i32.const 1)))))))
           (if (i32.eqz (ref.eq (local.get $fail-raw) (global.get $missing)))
               (then
-               (if (i32.eqz (ref.test (ref $Procedure) (local.get $fail-raw)))
-                   (then (call $raise-argument-error1
-                               (global.get $symbol:file-or-directory-modify-seconds)
-                               (global.get $string:procedure?)
-                               (local.get $fail-raw))
-                         (unreachable)))
                (local.set $fail
-                          (ref.cast (ref $Procedure) (local.get $fail-raw)))
+                          (call $check-filesystem-procedure-arity
+                                (global.get $symbol:file-or-directory-modify-seconds)
+                                (global.get $string:filesystem-procedure-arity-0)
+                                (local.get $fail-raw)
+                                (i32.const 0)))
                (local.set $fail-inv
                           (struct.get $Procedure $invoke
                                       (ref.as_non_null (local.get $fail))))))
@@ -2588,7 +2628,7 @@
                 (local.get $file-bs)
                 (local.get $path)))
 
-    ;; $call-with-input-file : path-string? procedure? [(or/c 'binary 'text)] -> any
+    ;; $call-with-input-file : path-string? (input-port? . -> . any) [(or/c 'binary 'text)] -> any
     ;;   Open a VFS file, pass its input port to proc, and return proc's result.
     (func $call-with-input-file (type $Prim23)
           (param $path-raw (ref eq)) ;; path-string?
@@ -2602,17 +2642,18 @@
           (local $args (ref $Args))
           (local $res  (ref eq))
 
+          (local.set $f
+                     (call $check-filesystem-procedure-arity
+                           (global.get $symbol:call-with-input-file)
+                           (global.get $string:filesystem-input-port-procedure)
+                           (local.get $proc)
+                           (i32.const 1)))
+          (local.set $finv (struct.get $Procedure $invoke (local.get $f)))
           (local.set $port
                      (call $open-input-file
                            (local.get $path-raw)
                            (local.get $mode-raw)
                            (global.get $missing)))
-          (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
-              (then (call $raise-argument-error:procedure-expected
-                          (local.get $proc))
-                    (unreachable)))
-          (local.set $f    (ref.cast (ref $Procedure) (local.get $proc)))
-          (local.set $finv (struct.get $Procedure $invoke (local.get $f)))
           (local.set $args (array.new_fixed $Args 1 (local.get $port)))
           (local.set $res
                      (call_ref $ProcedureInvoker
@@ -2622,7 +2663,7 @@
           (drop (call $close-input-port (local.get $port)))
           (local.get $res))
 
-    ;; $call-with-output-file : path-string? procedure? [(or/c 'binary 'text)] [exists-mode] -> any
+    ;; $call-with-output-file : path-string? (output-port? . -> . any) [(or/c 'binary 'text)] [exists-mode] -> any
     ;;   Open a VFS output file, pass its output port to proc, close it,
     ;;   and return proc's result.
     (func $call-with-output-file (type $Prim24)
@@ -2638,17 +2679,18 @@
           (local $args (ref $Args))
           (local $res  (ref eq))
 
+          (local.set $f
+                     (call $check-filesystem-procedure-arity
+                           (global.get $symbol:call-with-output-file)
+                           (global.get $string:filesystem-output-port-procedure)
+                           (local.get $proc)
+                           (i32.const 1)))
+          (local.set $finv (struct.get $Procedure $invoke (local.get $f)))
           (local.set $port
                      (call $open-output-file
                            (local.get $path-raw)
                            (local.get $mode-raw)
                            (local.get $exists-raw)))
-          (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
-              (then (call $raise-argument-error:procedure-expected
-                          (local.get $proc))
-                    (unreachable)))
-          (local.set $f    (ref.cast (ref $Procedure) (local.get $proc)))
-          (local.set $finv (struct.get $Procedure $invoke (local.get $f)))
           (local.set $args (array.new_fixed $Args 1 (local.get $port)))
           (local.set $res
                      (call_ref $ProcedureInvoker
@@ -2672,7 +2714,8 @@
           (local $res     (ref eq))
           (local $exn-val (ref eq))
 
-          (if (i32.eqz (ref.test (ref $Procedure) (local.get $thunk)))
+          (if (ref.eq (call $procedure? (local.get $thunk))
+                      (global.get $false))
               (then (call $raise-argument-error:procedure-expected
                           (local.get $thunk))
                     (unreachable)))
@@ -2714,7 +2757,8 @@
           (local $res     (ref eq))
           (local $exn-val (ref eq))
 
-          (if (i32.eqz (ref.test (ref $Procedure) (local.get $thunk)))
+          (if (ref.eq (call $procedure? (local.get $thunk))
+                      (global.get $false))
               (then (call $raise-argument-error:procedure-expected
                           (local.get $thunk))
                     (unreachable)))
@@ -2742,7 +2786,7 @@
           (drop (call $current-output-port (local.get $old)))
           (local.get $res))
 
-    ;; $call-with-input-file* : path-string? procedure? [(or/c 'binary 'text)] -> any
+    ;; $call-with-input-file* : path-string? (input-port? . -> . any) [(or/c 'binary 'text)] -> any
     ;;   Open a VFS file, pass its input port to proc, and close it on return or exception.
     (func $call-with-input-file* (type $Prim23)
           (param $path-raw (ref eq)) ;; path-string?
@@ -2757,11 +2801,12 @@
           (local $res     (ref eq))
           (local $exn-val (ref eq))
 
-          (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
-              (then (call $raise-argument-error:procedure-expected
-                          (local.get $proc))
-                    (unreachable)))
-          (local.set $f    (ref.cast (ref $Procedure) (local.get $proc)))
+          (local.set $f
+                     (call $check-filesystem-procedure-arity
+                           (global.get $symbol:call-with-input-file*)
+                           (global.get $string:filesystem-input-port-procedure)
+                           (local.get $proc)
+                           (i32.const 1)))
           (local.set $finv (struct.get $Procedure $invoke (local.get $f)))
           (local.set $port
                      (call $open-input-file
@@ -2786,7 +2831,7 @@
           (drop (call $close-input-port (local.get $port)))
           (local.get $res))
 
-    ;; $call-with-output-file* : path-string? procedure? [(or/c 'binary 'text)] [exists-mode] -> any
+    ;; $call-with-output-file* : path-string? (output-port? . -> . any) [(or/c 'binary 'text)] [exists-mode] -> any
     ;;   Open a VFS file, pass its output port to proc, and close it on return or exception.
     (func $call-with-output-file* (type $Prim24)
           (param $path-raw   (ref eq)) ;; path-string?
@@ -2802,11 +2847,12 @@
           (local $res     (ref eq))
           (local $exn-val (ref eq))
 
-          (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
-              (then (call $raise-argument-error:procedure-expected
-                          (local.get $proc))
-                    (unreachable)))
-          (local.set $f    (ref.cast (ref $Procedure) (local.get $proc)))
+          (local.set $f
+                     (call $check-filesystem-procedure-arity
+                           (global.get $symbol:call-with-output-file*)
+                           (global.get $string:filesystem-output-port-procedure)
+                           (local.get $proc)
+                           (i32.const 1)))
           (local.set $finv (struct.get $Procedure $invoke (local.get $f)))
           (local.set $port
                      (call $open-output-file
@@ -2831,7 +2877,7 @@
           (drop (call $close-output-port (local.get $port)))
           (local.get $res))
 
-    ;; $with-input-from-file : path-string? procedure? [(or/c 'binary 'text)] -> any
+    ;; $with-input-from-file : path-string? (-> any) [(or/c 'binary 'text)] -> any
     ;;   Install a VFS input file as the current input port while thunk runs.
     (func $with-input-from-file (type $Prim23)
           (param $path-raw (ref eq)) ;; path-string?
@@ -2843,6 +2889,11 @@
           (local $res     (ref eq))
           (local $exn-val (ref eq))
 
+          (drop (call $check-filesystem-procedure-arity
+                      (global.get $symbol:with-input-from-file)
+                      (global.get $string:filesystem-thunk-procedure)
+                      (local.get $thunk)
+                      (i32.const 0)))
           (local.set $port
                      (call $open-input-file
                            (local.get $path-raw)
@@ -2865,7 +2916,7 @@
           (drop (call $close-input-port (local.get $port)))
           (local.get $res))
 
-    ;; $with-output-to-file : path-string? procedure? [(or/c 'binary 'text)] [exists-mode] -> any
+    ;; $with-output-to-file : path-string? (-> any) [(or/c 'binary 'text)] [exists-mode] -> any
     ;;   Install a VFS output file as the current output port while thunk runs.
     (func $with-output-to-file (type $Prim24)
           (param $path-raw   (ref eq)) ;; path-string?
@@ -2878,6 +2929,11 @@
           (local $res     (ref eq))
           (local $exn-val (ref eq))
 
+          (drop (call $check-filesystem-procedure-arity
+                      (global.get $symbol:with-output-to-file)
+                      (global.get $string:filesystem-thunk-procedure)
+                      (local.get $thunk)
+                      (i32.const 0)))
           (local.set $port
                      (call $open-output-file
                            (local.get $path-raw)

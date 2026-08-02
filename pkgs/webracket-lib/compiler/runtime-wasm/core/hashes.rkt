@@ -35,6 +35,8 @@
     (hash-ref!:no-value-found-key "hash-ref!: no value found for key: ")
     (hash-update!:no-value-found-key "hash-update!: no value found for key: ")
     (hash-iterate:no-element-at-index ": no element at index\n  index: ")
+    (hash-callback-arity-2 "(procedure-arity-includes/c 2)")
+    (hash-update-procedure "(any/c . -> . any/c)")
     (hash-table-full "WebRacket hash table insertion failed")))
 
 ;; hash-runtime-symbol-constants : (listof symbol?)
@@ -765,6 +767,8 @@
                (param $try  (ref eq))   ;; optional try-order? (default #f)
                (result      (ref eq))
 
+               (local $f (ref $Procedure))
+
                ;; Check type: must be (ref $Hash)
                (if (i32.eqz (ref.test (ref $Hash) (local.get $ht)))
                    (then (call $raise-argument-error1
@@ -772,9 +776,20 @@
                                (global.get $string:hash?)
                                (local.get $ht))
                          (unreachable)))
-               (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
-                   (then (call $raise-argument-error:procedure-expected/who
+               (if (ref.eq (call $procedure? (local.get $proc))
+                              (global.get $false))
+                   (then (call $raise-argument-error1
                                (global.get $symbol:hash-for-each)
+                               (global.get $string:hash-callback-arity-2)
+                               (local.get $proc))
+                         (unreachable)))
+               (local.set $f (ref.cast (ref $Procedure) (local.get $proc)))
+               (if (i32.eqz (call $procedure-arity-includes?/checked/i32
+                                  (local.get $f)
+                                  (i32.const 2)))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:hash-for-each)
+                               (global.get $string:hash-callback-arity-2)
                                (local.get $proc))
                          (unreachable)))
                ;; Optional for try-order
@@ -842,7 +857,8 @@
                          (unreachable)))
 
                ;; Ensure proc is a procedure
-               (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
+               (if (ref.eq (call $procedure? (local.get $proc))
+                              (global.get $false))
                    (then (call $raise-argument-error:procedure-expected (local.get $proc))
                          (unreachable)))
 
@@ -941,7 +957,8 @@
               (local $pos  (ref eq))
               (local $key  (ref eq))
               (local $val  (ref eq))
-              (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
+              (if (ref.eq (call $procedure? (local.get $proc))
+                              (global.get $false))
                   (then (call $raise-argument-error:procedure-expected (local.get $proc))
                         (unreachable)))
               (local.set $f    (ref.cast (ref $Procedure) (local.get $proc)))
@@ -990,6 +1007,8 @@
               (param $try  (ref eq))   ;; optional try-order? (default #f)
               (result      (ref eq))   ;; list of results
 
+              (local $f (ref $Procedure))
+
               ;; Check type: must be (ref $Hash)
               (if (i32.eqz (ref.test (ref $Hash) (local.get $ht)))
                   (then (call $raise-argument-error1
@@ -998,9 +1017,20 @@
                               (local.get $ht))
                         (unreachable)))
               ;; Validate procedure
-              (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
-                  (then (call $raise-argument-error:procedure-expected/who
+              (if (ref.eq (call $procedure? (local.get $proc))
+                              (global.get $false))
+                  (then (call $raise-argument-error1
                               (global.get $symbol:hash-map)
+                              (global.get $string:hash-callback-arity-2)
+                              (local.get $proc))
+                        (unreachable)))
+              (local.set $f (ref.cast (ref $Procedure) (local.get $proc)))
+              (if (i32.eqz (call $procedure-arity-includes?/checked/i32
+                                 (local.get $f)
+                                 (i32.const 2)))
+                  (then (call $raise-argument-error1
+                              (global.get $symbol:hash-map)
+                              (global.get $string:hash-callback-arity-2)
                               (local.get $proc))
                         (unreachable)))
               ;; Optional try-order?
@@ -1132,7 +1162,8 @@
                (local $acc     (ref eq))
 
                ;; Validate procedure
-               (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
+               (if (ref.eq (call $procedure? (local.get $proc))
+                              (global.get $false))
                    (then (call $raise-argument-error:procedure-expected (local.get $proc))
                          (unreachable)))
                (local.set $f    (ref.cast (ref $Procedure) (local.get $proc)))
@@ -1203,7 +1234,8 @@
               (local $val  (ref eq))
               (local $r    (ref eq))
               (local $acc  (ref eq))
-              (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
+              (if (ref.eq (call $procedure? (local.get $proc))
+                              (global.get $false))
                   (then (call $raise-argument-error:procedure-expected (local.get $proc))
                         (unreachable)))
               (local.set $f    (ref.cast (ref $Procedure) (local.get $proc)))
@@ -1262,6 +1294,8 @@
               (param $kind (ref eq))   ;; optional kind, default #f
               (result      (ref eq))
 
+              (local $f (ref $Procedure))
+
               ;; Validate argument is a hash table
               (if (i32.eqz (ref.test (ref $Hash) (local.get $ht)))
                   (then (call $raise-argument-error1
@@ -1269,9 +1303,20 @@
                               (global.get $string:hash?)
                               (local.get $ht))
                         (unreachable)))
-              (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
-                  (then (call $raise-argument-error:procedure-expected/who
+              (if (ref.eq (call $procedure? (local.get $proc))
+                              (global.get $false))
+                  (then (call $raise-argument-error1
                               (global.get $symbol:hash-map/copy)
+                              (global.get $string:hash-callback-arity-2)
+                              (local.get $proc))
+                        (unreachable)))
+              (local.set $f (ref.cast (ref $Procedure) (local.get $proc)))
+              (if (i32.eqz (call $procedure-arity-includes?/checked/i32
+                                 (local.get $f)
+                                 (i32.const 2)))
+                  (then (call $raise-argument-error1
+                              (global.get $symbol:hash-map/copy)
+                              (global.get $string:hash-callback-arity-2)
                               (local.get $proc))
                         (unreachable)))
 
@@ -1340,7 +1385,8 @@
               (local $nkey  (ref eq))
               (local $nval  (ref eq))
               (local $dst   (ref eq))
-              (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
+              (if (ref.eq (call $procedure? (local.get $proc))
+                              (global.get $false))
                   (then (call $raise-argument-error:procedure-expected/who
                               (global.get $symbol:hash-map/copy)
                               (local.get $proc))
@@ -1458,7 +1504,8 @@
                    (then (call ,raise-expected (local.get $ht))
                          (unreachable)))
                ;; Check procedure
-               (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
+               (if (ref.eq (call $procedure? (local.get $proc))
+                              (global.get $false))
                    (then (call $raise-argument-error:procedure-expected (local.get $proc))
                          (unreachable)))
 
@@ -1614,7 +1661,8 @@
                          (unreachable)))
 
                ;; Validate predicate
-               (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
+               (if (ref.eq (call $procedure? (local.get $proc))
+                              (global.get $false))
                    (then (call $raise-argument-error:procedure-expected/who
                                (global.get ,who-symbol)
                                (local.get $proc))
@@ -1686,7 +1734,8 @@
               (local $val   (ref eq))
               (local $res   (ref eq))
               (local $dst   (ref eq))
-              (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
+              (if (ref.eq (call $procedure? (local.get $proc))
+                              (global.get $false))
                   (then (call $raise-argument-error:procedure-expected/who
                               (local.get $who)
                               (local.get $proc))
@@ -1797,7 +1846,8 @@
                          (unreachable)))
 
                ;; Validate predicate
-               (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
+               (if (ref.eq (call $procedure? (local.get $proc))
+                              (global.get $false))
                    (then (call $raise-argument-error:procedure-expected (local.get $proc))
                          (unreachable)))
 

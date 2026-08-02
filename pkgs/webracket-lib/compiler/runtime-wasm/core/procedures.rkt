@@ -2958,7 +2958,7 @@
            ;; represented under $Procedure for fast application, but only
            ;; structs with prop:procedure are Racket procedures.
            (if (ref.eq (call $procedure? (local.get $proc)) (global.get $false))
-               (then (call $raise-argument-error:procedure-expected (local.get $proc))
+               (then (call $raise-application-not-procedure (local.get $proc))
                      (unreachable)))
            (local.set $p (ref.cast (ref $Procedure) (local.get $proc)))
 
@@ -3603,11 +3603,12 @@
            (block $done
                   (loop $loop
                         (br_if $done (i32.ge_u (local.get $i) (local.get $n)))
-                        (if (i32.eqz
-                             (ref.test (ref $Procedure)
-                                       (array.get $Array
-                                                  (local.get $procs)
-                                                  (local.get $i))))
+                        (if (ref.eq
+                             (call $procedure?
+                                   (array.get $Array
+                                              (local.get $procs)
+                                              (local.get $i)))
+                             (global.get $false))
                             (then
                              (call $raise-argument-error:procedure-expected/who
                                    (local.get $who)
@@ -3678,7 +3679,7 @@
            ;; whose prop:procedure value names a field. WebRacket does
            ;; not yet expose that internal target, so ordinary procedures
            ;; conservatively return #f for now.
-           (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
+           (if (ref.eq (call $procedure? (local.get $proc)) (global.get $false))
                (then (call $raise-argument-error:procedure-expected/who
                            (global.get $symbol:procedure-extract-target)
                            (local.get $proc))
@@ -3703,7 +3704,7 @@
            (local.set $new-arity (global.get $false))
            (local.set $new-name  (global.get $false))
            (local.set $new-realm (global.get $false))
-           (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
+           (if (ref.eq (call $procedure? (local.get $proc)) (global.get $false))
                (then (call $raise-argument-error:procedure-expected/who
                            (global.get $symbol:procedure-reduce-arity)
                            (local.get $proc))
@@ -3782,7 +3783,7 @@
            (local.set $new-arity (global.get $false))
            (local.set $new-name  (global.get $false))
            (local.set $new-realm (global.get $false))
-           (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
+           (if (ref.eq (call $procedure? (local.get $proc)) (global.get $false))
                (then (call $raise-argument-error:procedure-expected/who
                            (global.get $symbol:procedure-reduce-arity-mask)
                            (local.get $proc))
@@ -3843,18 +3844,22 @@
                        (local.get $free)))
 
      (func $procedure-arity (type $Prim1)
-           ; Wrapper: accepts any value, checks that it’s a procedure, then delegates
+           ; Wrapper: accepts procedures and non-applicable structs, then delegates
            ; to the checked version that expects (ref $Procedure).
            (param $proc (ref eq))
            (result      (ref eq))
-          ;; 1. Check that $proc is a semantic procedure. Structs are
-          ;; represented under $Procedure for fast application, but only
-          ;; structs with prop:procedure are Racket procedures.
-          (if (ref.eq (call $procedure? (local.get $proc)) (global.get $false))
-              (then (call $raise-argument-error:procedure-expected/who
-                          (global.get $symbol:procedure-arity)
-                          (local.get $proc))
-                    (unreachable)))
+
+           ;; Racket reports no accepted arities for a non-applicable struct
+           ;; instead of treating it like an ordinary non-procedure value.
+           (if (ref.test (ref $Struct) (local.get $proc))
+               (then
+                (if (ref.eq (call $procedure? (local.get $proc)) (global.get $false))
+                    (then (return (global.get $null))))))
+           (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
+               (then (call $raise-argument-error:procedure-expected/who
+                           (global.get $symbol:procedure-arity)
+                           (local.get $proc))
+                     (unreachable)))
            ;; 2. Delegate to the checked implementation
            (return_call $procedure-arity/checked
                         (ref.cast (ref $Procedure) (local.get $proc))))
@@ -3954,14 +3959,17 @@
            (local $p     (ref null $Procedure))
            (local $mask  i32)
 
-          ;; Step 1: type check and cast. Use semantic procedure-ness so
-          ;; plain structs do not expose their internal application fields.
-          (if (ref.eq (call $procedure? (local.get $proc)) (global.get $false))
-              (then (call $raise-argument-error:procedure-expected/who
-                          (global.get $symbol:procedure-arity-mask)
-                          (local.get $proc))
-                    (unreachable)))
-          (local.set $p (ref.cast (ref $Procedure) (local.get $proc)))
+           ;; Plain structs have an empty arity mask in Racket.
+           (if (ref.test (ref $Struct) (local.get $proc))
+               (then
+                (if (ref.eq (call $procedure? (local.get $proc)) (global.get $false))
+                    (then (return (ref.i31 (i32.const 0)))))))
+           (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
+               (then (call $raise-argument-error:procedure-expected/who
+                           (global.get $symbol:procedure-arity-mask)
+                           (local.get $proc))
+                     (unreachable)))
+           (local.set $p (ref.cast (ref $Procedure) (local.get $proc)))
            ;; Step 2: compute mask in checked helper
            (local.set $mask
                       (call $procedure-arity-mask/checked/i32
@@ -4061,8 +4069,10 @@
            (local $k-i32 i32)
            (local $mask  i32)
 
-           ;; Step 1: validate proc with the public function's `who`.
-           (if (ref.eq (call $procedure? (local.get $proc)) (global.get $false))
+           ;; Step 1: validate proc with the public function's `who`. Plain
+           ;; structs are procedure-shaped internally and have no accepted
+           ;; arities, so they are handled after the k check like Racket.
+           (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
                (then (call $raise-argument-error:procedure-expected/who
                            (global.get $symbol:procedure-arity-includes?)
                            (local.get $proc))
@@ -4073,6 +4083,8 @@
                      (unreachable)))
            (local.set $k-fx (ref.cast (ref i31) (local.get $k)))
            (local.set $k-i32 (i32.shr_u (i31.get_u (local.get $k-fx)) (i32.const 1)))
+           (if (ref.eq (call $procedure? (local.get $proc)) (global.get $false))
+               (then (return (global.get $false))))
            ;; Step 3: get the checked arity mask.
            (local.set $mask
                       (call $procedure-arity-mask/checked/i32

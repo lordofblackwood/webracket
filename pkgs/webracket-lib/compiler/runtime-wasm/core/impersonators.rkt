@@ -218,10 +218,10 @@
 
            (local $proc (ref $Procedure))
 
-           (if (i32.eqz (ref.test (ref $Procedure) (local.get $v)))
-               (then (call $raise-argument-error1
-                           (local.get $who)
-                           (local.get $expected)
+          (if (ref.eq (call $procedure? (local.get $v)) (global.get $false))
+              (then (call $raise-argument-error1
+                          (local.get $who)
+                          (local.get $expected)
                            (local.get $v))
                      (unreachable)))
            (local.set $proc (ref.cast (ref $Procedure) (local.get $v)))

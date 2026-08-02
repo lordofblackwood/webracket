@@ -8,6 +8,11 @@
 (define huge-vfs-path
   (string-append "/app/" (make-string 1048577 #\a)))
 
+(struct filesystem-plain ())
+
+(define filesystem-plain-given
+  "given: #(struct filesystem-plain)")
+
 (define (catch-fail/contains? thunk . needles)
   (let ([message
          (with-handlers ([exn:fail?
@@ -188,4 +193,103 @@
          (lambda () (file-or-directory-modify-seconds long-vfs-path))
          "file-or-directory-modify-seconds"
          "path is too long"
-         "path:"))))
+         "path:")))
+ (list "filesystem callbacks reject plain structs with callback contracts"
+       (let ([_ (webracket-vfs-write-file "/app/callback-source.txt" #"data")])
+         (and
+          (catch-fail/contains?
+           (lambda () (file-or-directory-modify-seconds
+                       "/app/missing-callback-mtime"
+                       #f
+                       (filesystem-plain)))
+           "file-or-directory-modify-seconds"
+           "(procedure-arity-includes/c 0)"
+           filesystem-plain-given)
+          (catch-fail/contains?
+           (lambda () (call-with-input-file
+                       "/app/callback-source.txt"
+                       (filesystem-plain)))
+           "call-with-input-file"
+           "(input-port? . -> . any)"
+           filesystem-plain-given)
+          (catch-fail/contains?
+           (lambda () (call-with-output-file
+                       "/app/callback-output.txt"
+                       (filesystem-plain)))
+           "call-with-output-file"
+           "(output-port? . -> . any)"
+           filesystem-plain-given)
+          (catch-fail/contains?
+           (lambda () (call-with-input-file*
+                       "/app/callback-source.txt"
+                       (filesystem-plain)))
+           "call-with-input-file*"
+           "(input-port? . -> . any)"
+           filesystem-plain-given)
+          (catch-fail/contains?
+           (lambda () (call-with-output-file*
+                       "/app/callback-output-star.txt"
+                       (filesystem-plain)))
+           "call-with-output-file*"
+           "(output-port? . -> . any)"
+           filesystem-plain-given)
+          (catch-fail/contains?
+           (lambda () (with-input-from-file
+                       "/app/callback-source.txt"
+                       (filesystem-plain)))
+           "with-input-from-file"
+           "(-> any)"
+           filesystem-plain-given)
+          (catch-fail/contains?
+           (lambda () (with-output-to-file
+                       "/app/callback-output-with.txt"
+                       (filesystem-plain)))
+           "with-output-to-file"
+           "(-> any)"
+           filesystem-plain-given))))
+ (list "filesystem callback arity contracts match Racket"
+       (let ([_ (webracket-vfs-write-file "/app/callback-arity-source.txt" #"data")])
+         (and
+          (catch-fail/contains?
+           (lambda () (file-or-directory-modify-seconds
+                       "/app/missing-callback-arity-mtime"
+                       #f
+                       (lambda (x) x)))
+           "file-or-directory-modify-seconds"
+           "(procedure-arity-includes/c 0)")
+          (catch-fail/contains?
+           (lambda () (call-with-input-file
+                       "/app/missing-callback-arity-input.txt"
+                       (lambda () 1)))
+           "call-with-input-file"
+           "(input-port? . -> . any)")
+          (catch-fail/contains?
+           (lambda () (call-with-output-file
+                       "/app/callback-arity-output.txt"
+                       (lambda () 1)))
+           "call-with-output-file"
+           "(output-port? . -> . any)")
+          (catch-fail/contains?
+           (lambda () (call-with-input-file*
+                       "/app/callback-arity-source.txt"
+                       (lambda () 1)))
+           "call-with-input-file*"
+           "(input-port? . -> . any)")
+          (catch-fail/contains?
+           (lambda () (call-with-output-file*
+                       "/app/callback-arity-output-star.txt"
+                       (lambda () 1)))
+           "call-with-output-file*"
+           "(output-port? . -> . any)")
+          (catch-fail/contains?
+           (lambda () (with-input-from-file
+                       "/app/missing-callback-arity-with-input.txt"
+                       (lambda (x) x)))
+           "with-input-from-file"
+           "(-> any)")
+          (catch-fail/contains?
+           (lambda () (with-output-to-file
+                       "/app/callback-arity-output-with.txt"
+                       (lambda (x) x)))
+           "with-output-to-file"
+           "(-> any)")))))

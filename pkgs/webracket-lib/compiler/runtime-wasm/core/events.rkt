@@ -285,7 +285,8 @@
                              (global.get $string:evt?)
                              (local.get $evt-raw))
                        (unreachable)))
-             (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc-raw)))
+             (if (ref.eq (call $procedure? (local.get $proc-raw))
+                         (global.get $false))
                  (then (call $raise-argument-error:procedure-expected/who
                              (global.get $symbol:handle-evt)
                              (local.get $proc-raw))
@@ -449,10 +450,14 @@
              (local $evt  (ref eq))
              (local $node (ref eq))
              (local $p    (ref $Pair))
+             (local $timeout-procedure? i32)
 
              (if (i32.eqz (ref.eq (local.get $timeout) (global.get $false)))
                  (then
-                  (if (i32.eqz (ref.test (ref $Procedure) (local.get $timeout)))
+                  (local.set $timeout-procedure?
+                             (ref.eq (call $procedure? (local.get $timeout))
+                                     (global.get $true)))
+                  (if (i32.eqz (local.get $timeout-procedure?))
                       (then
                        (if (ref.eq (call $real? (local.get $timeout)) (global.get $false))
                            (then (call $raise-argument-error1
@@ -466,7 +471,7 @@
                                        (global.get $string:sync-timeout-contract)
                                        (local.get $timeout))
                                  (unreachable)))))
-                  (if (ref.test (ref $Procedure) (local.get $timeout))
+                  (if (local.get $timeout-procedure?)
                       (then
                        (if (i32.eqz
                             (call $procedure-arity-includes?/checked/i32

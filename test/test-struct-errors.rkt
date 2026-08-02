@@ -14,6 +14,15 @@
                    (string-contains? message needle))
                  needles))))
 
+(struct struct-plain ())
+(struct struct-writable ()
+  #:property prop:custom-write
+  (lambda (_self out _mode)
+    (display "writable" out)))
+
+(define (struct-plain-given)
+  (struct-plain))
+
 (list
  (list "make-struct-type required argument errors are catchable with who"
        (and
@@ -60,6 +69,11 @@
          "make-struct-type"
          "(or/c #f procedure?)"
          "given: 42")
+        (catch-contract/contains?
+         (lambda () (make-struct-type 'bad #f 1 0 #f null #f #f null (struct-plain-given)))
+         "make-struct-type"
+         "(or/c #f procedure?)"
+         "given:")
         (catch-contract/contains?
          (lambda () (make-struct-type 'bad #f 1 0 #f null 42))
          "make-struct-type"
@@ -137,6 +151,11 @@
          "(or/c procedure? exact-nonnegative-integer? #f)"
          "given:")
         (catch-contract/contains?
+         (lambda () (make-struct-type 'bad #f 1 0 #f null #f (struct-plain-given)))
+         "make-struct-type"
+         "(or/c procedure? exact-nonnegative-integer? #f)"
+         "given:")
+        (catch-contract/contains?
          (lambda () (make-struct-type 'bad #f 1 0 #f null #f -1))
          "make-struct-type"
          "(or/c procedure? exact-nonnegative-integer? #f)"
@@ -160,6 +179,11 @@
          "procedure-arity-includes/c 2"
          "given: 42")
         (catch-contract/contains?
+         (lambda () (make-struct-type-property 'p (struct-plain-given)))
+         "make-struct-type-property"
+         "procedure-arity-includes/c 2"
+         "given:")
+        (catch-contract/contains?
          (lambda () (make-struct-type-property 'p (lambda (x) x)))
          "make-struct-type-property"
          "procedure-arity-includes/c 2"
@@ -175,6 +199,15 @@
          (lambda ()
            (let-values ([(prop:p p? p-ref) (make-struct-type-property 'p)])
              (make-struct-type-property 'q #f (list (cons prop:p (lambda (x y) x))))))
+         "make-struct-type-property"
+         "listof"
+         "struct-type-property?"
+         "procedure-arity-includes/c 1"
+         "given:")
+        (catch-contract/contains?
+         (lambda ()
+           (let-values ([(prop:p p? p-ref) (make-struct-type-property 'p)])
+             (make-struct-type-property 'q #f (list (cons prop:p (struct-plain-given))))))
          "make-struct-type-property"
          "listof"
          "struct-type-property?"
@@ -200,6 +233,126 @@
          "make-struct-type-property"
          "symbol?"
          "given: 42")))
+ (list "built-in struct property guards are catchable with who"
+       (and
+        (let-values ([(st make-p p? p-ref p-set!)
+                      (make-struct-type 'procedure-prop
+                                        #f
+                                        1
+                                        0
+                                        #f
+                                        (list (cons prop:procedure
+                                                    (lambda (self arg) arg))))])
+          (procedure? make-p))
+        (let-values ([(st make-p p? p-ref p-set!)
+                      (make-struct-type 'equal-hash-prop
+                                        #f
+                                        0
+                                        0
+                                        #f
+                                        (list (cons prop:equal+hash
+                                                    (list
+                                                     (lambda (self other recur)
+                                                       #t)
+                                                     (lambda (self recur)
+                                                       0)
+                                                     (lambda (self recur)
+                                                       0)))))])
+          (procedure? make-p))
+        (equal? (format "~a" (struct-writable)) "writable")
+        (catch-contract/contains?
+         (lambda ()
+           (make-struct-type 'bad #f 0 0 #f
+                             (list (cons prop:custom-write
+                                         (struct-plain-given)))))
+         "guard-for-prop:custom-write"
+         "(procedure-arity-includes?/c 3)"
+         "given:")
+        (catch-contract/contains?
+         (lambda ()
+           (make-struct-type 'bad #f 0 0 #f
+                             (list (cons prop:custom-write
+                                         (lambda (a b) (void))))))
+         "guard-for-prop:custom-write"
+         "(procedure-arity-includes?/c 3)"
+         "given:")
+        (catch-contract/contains?
+         (lambda ()
+           (make-struct-type 'bad #f 0 0 #f
+                             (list (cons prop:object-name
+                                         (struct-plain-given)))))
+         "guard-for-prop:object-name"
+         "(or/c exact-nonnegative-integer? (procedure-arity-includes/c 1))"
+         "given:")
+        (catch-contract/contains?
+         (lambda ()
+           (make-struct-type 'bad #f 0 0 #f
+                             (list (cons prop:object-name
+                                         (lambda (a b) 'bad)))))
+         "guard-for-prop:object-name"
+         "(or/c exact-nonnegative-integer? (procedure-arity-includes/c 1))"
+         "given:")
+        (catch-contract/contains?
+         (lambda ()
+           (make-struct-type 'bad #f 0 0 #f
+                             (list (cons prop:object-name 1))))
+         "guard-for-prop:object-name"
+         "field index >= initialized-field count"
+         "field index: 1"
+         "initialized-field count: 0")
+        (catch-contract/contains?
+         (lambda ()
+           (make-struct-type 'bad #f 0 0 #f
+                             (list (cons prop:procedure
+                                         (struct-plain-given)))))
+         "make-struct-type"
+         "(or/c procedure? exact-nonnegative-integer?)"
+         "given:")
+        (catch-contract/contains?
+         (lambda ()
+           (make-struct-type 'bad #f 0 0 #f
+                             (list (cons prop:procedure 1))))
+         "make-struct-type"
+         "index for procedure"
+         "index: 1"
+         "field count: 0")
+        (catch-contract/contains?
+         (lambda ()
+           (make-struct-type 'bad #f 0 0 #f
+                             (list (cons prop:equal+hash
+                                         (struct-plain-given)))))
+         "guard-for-prop:equal+hash"
+         "procedure-arity-includes/c 4"
+         "given:")
+        (catch-contract/contains?
+         (lambda ()
+           (make-struct-type 'bad #f 0 0 #f
+                             (list (cons prop:equal+hash
+                                         (list (lambda (self other recur equal?)
+                                                 #t))))))
+         "guard-for-prop:equal+hash"
+         "procedure-arity-includes/c 4"
+         "given:")
+        (catch-contract/contains?
+         (lambda ()
+           (make-struct-type 'bad #f 0 0 #f
+                             (list (cons prop:equal+hash
+                                         (list (lambda (self other recur equal?)
+                                                 #t)
+                                               42)))))
+         "guard-for-prop:equal+hash"
+         "procedure-arity-includes/c 4"
+         "given:")
+        (catch-contract/contains?
+         (lambda ()
+           (make-struct-type 'bad #f 0 0 #f
+                             (list (cons prop:equal+hash
+                                         (list (lambda (self) #t)
+                                               (lambda (self recur) 0)
+                                               (lambda (self recur) 0))))))
+         "guard-for-prop:equal+hash"
+         "procedure-arity-includes/c 4"
+         "given:")))
  (list "struct type property predicate procedure property errors are catchable with who"
        (let-values ([(prop:p p? p-ref) (make-struct-type-property 'p)])
          (and
@@ -504,4 +657,64 @@
          (lambda () (prefab-struct-type-key+field-count 42))
          "prefab-struct-type-key+field-count"
          "struct-type?"
-         "given: 42"))))
+         "given: 42")
+        (let-values ([(pst make-p p? p-ref p-set!)
+                      (make-struct-type 'prefab-parent #f 0 0)])
+          (catch-contract/contains?
+           (lambda () (make-struct-type 'prefab-child pst 0 0 #f null 'prefab))
+           "make-struct-type"
+           "generative supertype disallowed for non-generative structure type"
+           "structure type name: 'prefab-child"))
+        (catch-contract/contains?
+         (lambda ()
+           (make-struct-type 'prefab-with-property
+                             #f
+                             0
+                             0
+                             #f
+                             (list (cons prop:custom-write
+                                         (lambda (_self _out _mode) (void))))
+                             'prefab))
+         "make-struct-type"
+         "properties disallowed for non-generative structure type"
+         "structure type name: 'prefab-with-property")
+        (catch-contract/contains?
+         (lambda ()
+           (make-struct-type 'prefab-with-proc-spec
+                             #f
+                             0
+                             0
+                             #f
+                             null
+                             'prefab
+                             (lambda (_self) (void))))
+         "make-struct-type"
+         "procedure specification disallowed for non-generative structure type"
+         "structure type name: 'prefab-with-proc-spec")
+        (catch-contract/contains?
+         (lambda ()
+           (make-struct-type 'prefab-with-guard
+                             #f
+                             0
+                             0
+                             #f
+                             null
+                             'prefab
+                             #f
+                             null
+                             (lambda args args)))
+         "make-struct-type"
+         "guard disallowed for non-generative structure type"
+         "structure type name: 'prefab-with-guard")
+        (catch-contract/contains?
+         (lambda ()
+           (make-struct-type 'prefab-with-auto
+                             #f
+                             0
+                             1
+                             (lambda (x) x)
+                             null
+                             'prefab))
+         "make-struct-type"
+         "unsupported simple prefab auto value"
+         "structure type name: 'prefab-with-auto"))))
