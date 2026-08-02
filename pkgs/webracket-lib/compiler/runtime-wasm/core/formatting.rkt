@@ -137,7 +137,8 @@
 ;; formatting-runtime-symbol-constants : (listof symbol?)
 ;;   Declare symbols used by formatting and printer-extension helpers.
 (define formatting-runtime-symbol-constants
-  '(format))
+  '(format
+    fprintf))
 
 ;; formatting-runtime-string-constants : (listof (list/c symbol? string?))
 ;;   Declare string constants used by formatting and printer-extension helpers.
@@ -1208,6 +1209,13 @@
                (param $args    (ref eq)) ;; rest values
                (result         (ref eq))
 
+               (if (ref.eq (call $output-port? (local.get $out))
+                           (global.get $false))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:fprintf)
+                               (global.get $string:output-port?)
+                               (local.get $out))
+                         (unreachable)))
                (drop (call $write-string
                            (call $format
                                  (local.get $fmt-raw)

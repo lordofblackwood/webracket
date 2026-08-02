@@ -32,13 +32,19 @@
         "string?"
         "given: 42"))
  (list "fprintf string type errors are catchable with who"
-       (catch-contract/contains?
-        (lambda ()
-          (let ([out (open-output-string)])
-            (fprintf out 42)))
-        "fprintf"
-        "string?"
-        "given: 42"))
+       (and
+        (catch-contract/contains?
+         (lambda () (fprintf 42 "~a" 1))
+         "fprintf"
+         "output-port?"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda ()
+           (let ([out (open-output-string)])
+             (fprintf out 42)))
+         "fprintf"
+         "string?"
+         "given: 42")))
  (list "format argument count errors are catchable"
        (and
         (catch-contract/contains?
@@ -147,7 +153,12 @@
                      "format"
                      "requires a exact integer"
                      "bad argument: CUSTOM-BOOLEAN"
-                     "arguments were: CUSTOM-BOOLEAN"))])
+                     "arguments were: CUSTOM-BOOLEAN")
+                    (catch-contract/contains?
+                     (lambda () (fprintf 42 "~a" 1))
+                     "fprintf"
+                     "output-port?"
+                     "given: CUSTOM-NUMBER"))])
            (error-value->string-handler old)
            ok)))
  (list "format truncation directives use error-print-width"
