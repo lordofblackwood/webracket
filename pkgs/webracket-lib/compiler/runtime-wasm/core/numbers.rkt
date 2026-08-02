@@ -2258,9 +2258,7 @@
               (call $growable-array-add! (local.get $out)
                     (global.get $string:arity-error:given))
               (call $growable-array-add! (local.get $out)
-                    (call $format/print
-                          (local.get $x)
-                          (global.get $missing)))
+                    (call $format/error-value->string (local.get $x)))
               (local.set $message
                          (call $growable-array-of-strings->string (local.get $out)))
               (call $raise
@@ -2367,7 +2365,7 @@
               (call $growable-array-add! (local.get $out)
                     (global.get $string:inexact->exact:no-exact-representation))
               (call $growable-array-add! (local.get $out)
-                    (call $format/display (local.get $x)))
+                    (call $format/error-value->string (local.get $x)))
               (local.set $message
                          (call $growable-array-of-strings->string (local.get $out)))
 

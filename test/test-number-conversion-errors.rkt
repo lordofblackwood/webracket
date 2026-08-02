@@ -317,6 +317,36 @@
               (string-contains? message "exact->inexact")
               (string-contains? message "number?")
               (string-contains? message "given: #f"))))
+ (list "numeric diagnostics use error-value->string-handler for rendered values"
+       (let ([old (error-value->string-handler)])
+         (error-value->string-handler
+          (lambda (v _width)
+            (cond
+              [(number? v) "CUSTOM-NUMBER"]
+              [else "CUSTOM-VALUE"])))
+         (let ([ok
+                (and
+                 (let ([message
+                        (with-handlers ([exn:fail:contract?
+                                         (lambda (exn)
+                                           (exn-message exn))])
+                          (zero? #f)
+                          #f)])
+                   (and message
+                        (string-contains? message "number?")
+                        (string-contains? message "given: CUSTOM-VALUE")))
+                 (let ([message
+                        (with-handlers ([exn:fail:contract?
+                                         (lambda (exn)
+                                           (exn-message exn))])
+                          (inexact->exact +nan.0)
+                          #f)])
+                   (and message
+                        (string-contains? message "inexact->exact")
+                        (string-contains? message "no exact representation")
+                        (string-contains? message "CUSTOM-NUMBER"))))])
+           (error-value->string-handler old)
+           ok)))
  (list "exact->inexact accepts complex values"
        (equal? (number->string (exact->inexact 1+2i))
                "1.0+2.0i"))
