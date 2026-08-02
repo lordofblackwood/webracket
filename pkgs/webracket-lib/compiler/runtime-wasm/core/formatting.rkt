@@ -610,10 +610,9 @@
                                        (ref.cast (ref $String)
                                                  (global.get $string:space)))
                                  (call $growable-array-add! (local.get $out)
-                                       (call $format/print
+                                       (call $format/error-value->string
                                              (struct.get $Pair $a
-                                                         (local.get $arg-pair))
-                                             (global.get $missing)))
+                                                         (local.get $arg-pair))))
                                  (local.set $scan
                                             (struct.get $Pair $d
                                                         (local.get $arg-pair)))
@@ -701,9 +700,8 @@
                (call $growable-array-add! (local.get $out)
                      (local.get $prefix))
                (call $growable-array-add! (local.get $out)
-                     (call $format/print
-                           (local.get $bad)
-                           (global.get $missing)))
+                     (call $format/error-value->string
+                           (local.get $bad)))
                (call $format/add-arguments-summary!
                      (local.get $out)
                      (local.get $given)

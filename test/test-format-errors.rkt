@@ -117,6 +117,39 @@
          "requires a exact integer"
          "bad argument: #f"
          "arguments were: #f")))
+ (list "format diagnostics use error-value->string-handler"
+       (let ([old (error-value->string-handler)])
+         (error-value->string-handler
+          (lambda (v _width)
+            (cond
+              [(number? v) "CUSTOM-NUMBER"]
+              [(boolean? v) "CUSTOM-BOOLEAN"]
+              [else "CUSTOM-VALUE"])))
+         (let ([ok (and
+                    (catch-contract/contains?
+                     (lambda () (format "" 1))
+                     "format"
+                     "format string requires 0 arguments, given 1"
+                     "arguments were: CUSTOM-NUMBER")
+                    (catch-contract/contains?
+                     (lambda () (format "~a" 1 2))
+                     "format"
+                     "format string requires 1 arguments, given 2"
+                     "arguments were: CUSTOM-NUMBER CUSTOM-NUMBER")
+                    (catch-contract/contains?
+                     (lambda () (format "~c" 1))
+                     "format"
+                     "requires a character"
+                     "bad argument: CUSTOM-NUMBER"
+                     "arguments were: CUSTOM-NUMBER")
+                    (catch-contract/contains?
+                     (lambda () (format "~x" #f))
+                     "format"
+                     "requires a exact integer"
+                     "bad argument: CUSTOM-BOOLEAN"
+                     "arguments were: CUSTOM-BOOLEAN"))])
+           (error-value->string-handler old)
+           ok)))
  (list "format truncation directives use error-print-width"
        (let ([old (error-print-width)])
          (error-print-width 5)
