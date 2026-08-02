@@ -2,6 +2,18 @@
 ;;
 ;; Compile this file with `--no-stdlib`.
 
+(define (catch-contract/contains? thunk . needles)
+  (let ([message
+         (with-handlers ([exn:fail:contract?
+                          (lambda (exn)
+                            (exn-message exn))])
+           (thunk)
+           #f)])
+    (and message
+         (andmap (lambda (needle)
+                   (string-contains? message needle))
+                 needles))))
+
 (list
  (list "bytes->string/utf-8 errors are catchable with who"
        (let ([catch-contract/who+expected+given?
@@ -56,6 +68,28 @@
            "well-formed UTF-8"
            "byte string:"
            (lambda () (bytes->string/utf-8 (bytes 255) #f))))))
+ (list "byte text errors use error-value->string-handler for byte-string values"
+       (let ([old (error-value->string-handler)])
+         (error-value->string-handler
+          (lambda (v _width)
+            (cond
+              [(bytes? v) "CUSTOM-BYTES"]
+              [else "CUSTOM-VALUE"])))
+         (let ([ok (and
+                    (catch-contract/contains?
+                     (lambda () (bytes->string/utf-8 #"abc" #f 4))
+                     "bytes->string/utf-8"
+                     "starting index is out of range"
+                     "byte string:"
+                     "CUSTOM-BYTES")
+                    (catch-contract/contains?
+                     (lambda () (bytes->string/utf-8 (bytes 255) #f))
+                     "bytes->string/utf-8"
+                     "well-formed UTF-8"
+                     "byte string:"
+                     "CUSTOM-BYTES"))])
+           (error-value->string-handler old)
+           ok)))
  (list "bytes->string/utf-8/basic"
        (and (equal? (bytes->string/utf-8 (bytes 65 195 169))
                     (string #\A (integer->char 233)))

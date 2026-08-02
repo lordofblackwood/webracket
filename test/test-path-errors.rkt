@@ -101,6 +101,40 @@
          "bytes->path-element"
          "nul character"
          "byte string:")))
+ (list "path content errors use error-value->string-handler for rendered values"
+       (let ([old (error-value->string-handler)])
+         (error-value->string-handler
+          (lambda (v _width)
+            (cond
+              [(bytes? v) "CUSTOM-BYTES"]
+              [(string? v) "CUSTOM-STRING"]
+              [else "CUSTOM-VALUE"])))
+         (let ([ok (and
+                    (catch-contract/contains?
+                     (lambda () (bytes->path (bytes 97 0 98)))
+                     "bytes->path"
+                     "nul character"
+                     "byte string:"
+                     "CUSTOM-BYTES")
+                    (catch-contract/contains?
+                     (lambda () (string->path (string #\a #\nul #\b)))
+                     "string->path"
+                     "nul character"
+                     "path string:"
+                     "CUSTOM-STRING")
+                    (catch-contract/contains?
+                     (lambda () (path->complete-path ""))
+                     "path->complete-path"
+                     "given:"
+                     "CUSTOM-STRING")
+                    (catch-contract/contains?
+                     (lambda () (build-path "/app" "/abs"))
+                     "build-path"
+                     "absolute path cannot be added to a path"
+                     "absolute path:"
+                     "CUSTOM-STRING"))])
+           (error-value->string-handler old)
+           ok)))
  (list "bytes->path-element convention errors are catchable with who"
        (catch-contract/contains?
         (lambda () (bytes->path-element #"main.rkt" 42))

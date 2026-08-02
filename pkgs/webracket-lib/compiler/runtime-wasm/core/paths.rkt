@@ -615,7 +615,7 @@
           (call $growable-array-add! (local.get $out)
                 (global.get $string:bytes->path:nul))
           (call $growable-array-add! (local.get $out)
-                (call $format/write (local.get $bstr)))
+                (call $format/error-value->string (local.get $bstr)))
           (local.set $message
                      (call $growable-array-of-strings->string (local.get $out)))
           (call $raise
@@ -657,7 +657,7 @@
           (call $growable-array-add! (local.get $out)
                 (global.get $string:string->path:nul))
           (call $growable-array-add! (local.get $out)
-                (call $format/write (local.get $str)))
+                (call $format/error-value->string (local.get $str)))
           (local.set $message
                      (call $growable-array-of-strings->string (local.get $out)))
           (call $raise
@@ -694,7 +694,7 @@
           (call $growable-array-add! (local.get $out)
                 (global.get $string:arity-error:given))
           (call $growable-array-add! (local.get $out)
-                (call $format/write (local.get $bad)))
+                (call $format/error-value->string (local.get $bad)))
           (local.set $message
                      (call $growable-array-of-strings->string (local.get $out)))
           (call $raise
@@ -744,7 +744,7 @@
           (call $growable-array-add! (local.get $out)
                 (global.get $string:absolute-path-cannot-be-added))
           (call $growable-array-add! (local.get $out)
-                (call $format/write (local.get $bad)))
+                (call $format/error-value->string (local.get $bad)))
           (local.set $message
                      (call $growable-array-of-strings->string (local.get $out)))
           (call $raise
