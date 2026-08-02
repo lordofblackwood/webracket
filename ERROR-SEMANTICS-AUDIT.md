@@ -95,7 +95,7 @@ Status legend:
 | `time.rkt` | good for current time/date contract fixture | n/a | date/time diagnostics depend on formatter | n/a | internal time conversion trusted | `test/test-time-errors.rkt` |
 | `treelists.rkt` | good for current public treelist index/range fixture | callbacks, if any, need public arity checks | treelist formatting depends on formatter | n/a | checked tree navigation trusted | `test/test-treelist-errors.rkt` |
 | `unsafe.rkt` | deliberately trusted unsafe public surface | n/a | n/a | n/a | do not add defensive validation to unsafe fast paths unless a safe primitive reaches them | internal/trusted |
-| `vectors.rkt` | good for current public vector index/range/callback fixture | named-arity callbacks checked; map/count intentionally let application report arity | vector formatting depends on formatter | n/a | checked vector helpers trusted | `test/test-vector-errors.rkt` |
+| `vectors.rkt` | good for current public vector index/range/callback fixture; vector range diagnostics route rendered vector values through `error-value->string-handler` | named-arity callbacks checked; map/count intentionally let application report arity | vector formatting depends on formatter | n/a | checked vector helpers trusted | `test/test-vector-errors.rkt` |
 | `wills.rkt` | good for current will executor/register contract fixture | `will-register` callback checked | opaque will values print | n/a | will queue internals trusted | `test/test-will-errors.rkt` |
 
 ## Current Priorities

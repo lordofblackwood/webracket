@@ -229,7 +229,7 @@
               (call $growable-array-add! (local.get $out)
                     (global.get $string:vector-index))
               (call $growable-array-add! (local.get $out)
-                    (call $format/display
+                    (call $format/error-value->string
                           (ref.i31 (i32.shl (local.get $i) (i32.const 1)))))
               (if (i32.ne (local.get $len) (i32.const 0))
                   (then
@@ -246,7 +246,7 @@
               (call $growable-array-add! (local.get $out)
                     (global.get $string:vector-vector))
               (call $growable-array-add! (local.get $out)
-                    (call $format/write (local.get $v)))
+                    (call $format/error-value->string (local.get $v)))
               (local.set $message
                          (call $growable-array-of-strings->string (local.get $out)))
               (call $raise
@@ -360,7 +360,7 @@
                (call $growable-array-add! (local.get $out)
                      (global.get $string:vector-vector))
                (call $growable-array-add! (local.get $out)
-                     (call $format/write (local.get $v)))
+                     (call $format/error-value->string (local.get $v)))
                (local.set $message
                           (call $growable-array-of-strings->string (local.get $out)))
                (call $raise
@@ -429,7 +429,7 @@
                (call $growable-array-add! (local.get $out)
                      (global.get $string:vector-vector))
                (call $growable-array-add! (local.get $out)
-                     (call $format/write (local.get $v)))
+                     (call $format/error-value->string (local.get $v)))
                (local.set $message
                           (call $growable-array-of-strings->string (local.get $out)))
                (call $raise
@@ -500,7 +500,7 @@
                (call $growable-array-add! (local.get $out)
                      (global.get $string:vector-vector))
                (call $growable-array-add! (local.get $out)
-                     (call $format/write (local.get $v)))
+                     (call $format/error-value->string (local.get $v)))
                (local.set $message
                           (call $growable-array-of-strings->string (local.get $out)))
                (call $raise

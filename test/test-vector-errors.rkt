@@ -310,6 +310,35 @@
          "index: 2"
          "valid range: [0, 1]"
          "vector:")))
+ (list "vector range errors use error-value->string-handler for rendered values"
+       (let ([old (error-value->string-handler)])
+         (error-value->string-handler
+          (lambda (v _width)
+            (cond
+              [(vector? v) "CUSTOM-VECTOR"]
+              [(number? v) "CUSTOM-NUMBER"]
+              [else "CUSTOM-VALUE"])))
+         (let ([ok (and
+                    (catch-contract/contains?
+                     (lambda () (vector-ref '#(a b) 2))
+                     "vector-ref"
+                     "index is out of range"
+                     "index: CUSTOM-NUMBER"
+                     "vector: CUSTOM-VECTOR")
+                    (catch-contract/contains?
+                     (lambda () (vector-copy '#(a b) 3))
+                     "vector-copy"
+                     "starting index is out of range"
+                     "starting index: 3"
+                     "vector: CUSTOM-VECTOR")
+                    (catch-contract/contains?
+                     (lambda () (vector-take '#(a b) 3))
+                     "vector-take"
+                     "index is out of range"
+                     "index: 3"
+                     "vector: CUSTOM-VECTOR"))])
+           (error-value->string-handler old)
+           ok)))
   (list "negative vector range indexes preserve the public contract"
         (and
          (catch-contract/contains?
