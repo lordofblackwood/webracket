@@ -776,14 +776,12 @@
                (call $growable-array-add! (local.get $out)
                      (global.get $string:list-index))
                (call $growable-array-add! (local.get $out)
-                     (call $format/display
+                     (call $format/error-value->string
                            (ref.i31 (i32.shl (local.get $i) (i32.const 1)))))
                (call $growable-array-add! (local.get $out)
                      (global.get $string:list-in))
                (call $growable-array-add! (local.get $out)
-                     (call $format/print
-                           (local.get $xs)
-                           (global.get $missing)))
+                     (call $format/error-value->string (local.get $xs)))
                (local.set $message
                           (call $growable-array-of-strings->string (local.get $out)))
                (call $raise
@@ -855,9 +853,7 @@
                (call $growable-array-add! (local.get $out)
                      (global.get $string:arity-error:given))
                (call $growable-array-add! (local.get $out)
-                     (call $format/print
-                           (local.get $xs)
-                           (global.get $missing)))
+                     (call $format/error-value->string (local.get $xs)))
                (local.set $message
                           (call $growable-array-of-strings->string (local.get $out)))
                (call $raise

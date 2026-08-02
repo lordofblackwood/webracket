@@ -543,6 +543,29 @@
          "index reaches a non-pair"
          "index: 1"
          "in: 'bad")))
+ (list "list index errors use error-value->string-handler for rendered values"
+       (let ([old (error-value->string-handler)])
+         (error-value->string-handler
+          (lambda (v _width)
+            (cond
+              [(list? v) "CUSTOM-LIST"]
+              [(number? v) "CUSTOM-NUMBER"]
+              [else "CUSTOM-VALUE"])))
+         (let ([ok (and
+                    (catch-contract/contains?
+                     (lambda () (list-ref '(a b) 2))
+                     "list-ref"
+                     "index too large for list"
+                     "index: CUSTOM-NUMBER"
+                     "in: CUSTOM-LIST")
+                    (catch-contract/contains?
+                     (lambda () (list-tail 'bad 1))
+                     "list-tail"
+                     "index reaches a non-pair"
+                     "index: CUSTOM-NUMBER"
+                     "in: CUSTOM-VALUE"))])
+           (error-value->string-handler old)
+           ok)))
  (list "list-set/list-update index errors include range context"
        (and
         (catch-contract/contains?
@@ -579,6 +602,26 @@
          "drop-right"
          "a list with at least 3 elements"
          "given: '(a b)")))
+ (list "take/drop length errors use error-value->string-handler for given lists"
+       (let ([old (error-value->string-handler)])
+         (error-value->string-handler
+          (lambda (v _width)
+            (cond
+              [(list? v) "CUSTOM-LIST"]
+              [else "CUSTOM-VALUE"])))
+         (let ([ok (and
+                    (catch-contract/contains?
+                     (lambda () (take '(a b) 3))
+                     "take"
+                     "a list with at least 3 elements"
+                     "given: CUSTOM-LIST")
+                    (catch-contract/contains?
+                     (lambda () (drop 'bad 1))
+                     "drop"
+                     "a (possibly improper) list with at least 1 pairs"
+                     "given: CUSTOM-VALUE"))])
+           (error-value->string-handler old)
+           ok)))
  (list "take/drop improper-list errors report required pair count"
        (and
         (catch-contract/contains?
