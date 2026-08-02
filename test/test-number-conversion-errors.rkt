@@ -228,6 +228,60 @@
            "(integer-in 2 16)"
            "given: 17"
            (lambda () (string->number "1" 17))))))
+ (list "number conversion contracts use error-value->string-handler"
+       (let ([old (error-value->string-handler)])
+         (error-value->string-handler
+          (lambda (v _width)
+            (cond
+              [(number? v) "CUSTOM-NUMBER"]
+              [(boolean? v) "CUSTOM-BOOLEAN"]
+              [(string? v) "CUSTOM-STRING"]
+              [else "CUSTOM-VALUE"])))
+         (let ([catch-contract/contains?
+                (lambda (thunk . needles)
+                  (let ([message
+                         (with-handlers ([exn:fail:contract?
+                                          (lambda (exn)
+                                            (exn-message exn))])
+                           (thunk)
+                           #f)])
+                    (and message
+                         (andmap (lambda (needle)
+                                   (string-contains? message needle))
+                                 needles))))])
+           (let ([ok (and
+                      (catch-contract/contains?
+                       (lambda () (number->string #f))
+                       "number->string"
+                       "number?"
+                       "given: CUSTOM-BOOLEAN")
+                      (catch-contract/contains?
+                       (lambda () (number->string 1 3))
+                       "number->string"
+                       "(or/c 2 8 10 16)"
+                       "given: CUSTOM-NUMBER")
+                      (catch-contract/contains?
+                       (lambda () (string->number 42))
+                       "string->number"
+                       "string?"
+                       "given: CUSTOM-NUMBER")
+                      (catch-contract/contains?
+                       (lambda () (string->number "1" #f))
+                       "string->number"
+                       "(integer-in 2 16)"
+                       "given: CUSTOM-BOOLEAN")
+                      (catch-contract/contains?
+                       (lambda () (real->floating-point-bytes #f 8))
+                       "real->floating-point-bytes"
+                       "real?"
+                       "given: CUSTOM-BOOLEAN")
+                      (catch-contract/contains?
+                       (lambda () (real->double-flonum "x"))
+                       "real->double-flonum"
+                       "real?"
+                       "given: CUSTOM-STRING"))])
+             (error-value->string-handler old)
+             ok))))
  (list "floating-point byte conversion real errors preserve who"
        (let ([catch-contract/who+expected+given?
               (lambda (expected given thunk)

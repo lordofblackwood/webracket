@@ -132,6 +132,38 @@
               "integer-length"
               "exact-integer?"
               "given: #f")))
+ (list "numeric range and type errors use error-value->string-handler"
+       (let ([old (error-value->string-handler)])
+         (error-value->string-handler
+          (lambda (v _width)
+            (cond
+              [(number? v) "CUSTOM-NUMBER"]
+              [(boolean? v) "CUSTOM-BOOLEAN"]
+              [(symbol? v) "CUSTOM-SYMBOL"]
+              [else "CUSTOM-VALUE"])))
+         (let ([ok (and
+                    (catch-contract/contains?
+                     (lambda () (order-of-magnitude 'bad))
+                     "order-of-magnitude"
+                     "(and/c (>/c 0.0) (not/c +inf.0))"
+                     "given: CUSTOM-SYMBOL")
+                    (catch-contract/contains?
+                     (lambda () (bitwise-and #f))
+                     "bitwise-and"
+                     "exact-integer?"
+                     "given: CUSTOM-BOOLEAN")
+                    (catch-contract/contains?
+                     (lambda () (bitwise-bit-field 7 -1 2))
+                     "bitwise-bit-field"
+                     "exact-nonnegative-integer?"
+                     "given: CUSTOM-NUMBER")
+                    (catch-contract/contains?
+                     (lambda () (flbit-field 1.0 65 66))
+                     "flbit-field"
+                     "(integer-in 0 64)"
+                     "given: CUSTOM-NUMBER"))])
+           (error-value->string-handler old)
+           ok)))
  (list "flbit-field range errors are catchable with who"
        (and
         (catch-contract/contains?
