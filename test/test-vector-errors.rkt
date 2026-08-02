@@ -336,7 +336,13 @@
                      "vector-take"
                      "index is out of range"
                      "index: 3"
-                     "vector: CUSTOM-VECTOR"))])
+                     "vector: CUSTOM-VECTOR")
+                    (catch-contract/contains?
+                     (lambda () (vector-copy! (vector 'a) 0 '#(x y)))
+                     "vector-copy!"
+                     "not enough room in target vector"
+                     "target length: CUSTOM-NUMBER"
+                     "needed length: CUSTOM-NUMBER"))])
            (error-value->string-handler old)
            ok)))
   (list "negative vector range indexes preserve the public contract"

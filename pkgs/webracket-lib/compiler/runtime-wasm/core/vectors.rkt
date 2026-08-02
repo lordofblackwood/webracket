@@ -455,12 +455,12 @@
                (call $growable-array-add! (local.get $out)
                      (global.get $string:vector-target-length))
                (call $growable-array-add! (local.get $out)
-                     (call $format/display
+                     (call $format/error-value->string
                            (ref.i31 (i32.shl (local.get $target-len) (i32.const 1)))))
                (call $growable-array-add! (local.get $out)
                      (global.get $string:vector-needed-length))
                (call $growable-array-add! (local.get $out)
-                     (call $format/display
+                     (call $format/error-value->string
                            (ref.i31 (i32.shl (local.get $needed-len) (i32.const 1)))))
                (local.set $message
                           (call $growable-array-of-strings->string (local.get $out)))
