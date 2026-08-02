@@ -148,6 +148,12 @@
          "call-with-immediate-continuation-mark"
          "(procedure-arity-includes/c 1)"
          "given:")))
+ (list "make-continuation-mark-key accepts optional names"
+       (and
+        (continuation-mark-key? (make-continuation-mark-key))
+        (continuation-mark-key? (make-continuation-mark-key 'named))
+        (continuation-mark-key? (make-continuation-mark-key #f))
+        (continuation-mark-key? (make-continuation-mark-key 42))))
  (list "continuation prompt placeholder contracts are checked"
        (and
         (catch-contract/contains?

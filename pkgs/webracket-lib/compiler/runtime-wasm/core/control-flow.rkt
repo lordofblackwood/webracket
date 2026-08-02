@@ -618,20 +618,12 @@
                             (array.new_fixed $Args 1 (local.get $arg))
                             (local.get $inv)))
 
-     ;; make-continuation-mark-key : [symbol?] -> continuation-mark-key?
-     ;;   Allocate a fresh opaque key. The optional symbol defaults to #f
-     ;;   in WebRacket for now; Racket uses it only for printing.
+     ;; make-continuation-mark-key : [any/c] -> continuation-mark-key?
+     ;;   Allocate a fresh opaque key. Racket accepts any optional name
+     ;;   value and uses it only for printing.
      (func $make-continuation-mark-key (type $Prim01)
-           (param $name-raw (ref eq)) ;; optional symbol?, default = fresh print name
+           (param $name-raw (ref eq)) ;; optional any/c, default = fresh print name
            (result          (ref eq))
-           (if (i32.and
-                (i32.eqz (ref.eq (local.get $name-raw) (global.get $missing)))
-                (i32.eqz (ref.test (ref $Symbol) (local.get $name-raw))))
-               (then (call $raise-argument-error1
-                           (global.get $symbol:make-continuation-mark-key)
-                           (global.get $string:symbol?)
-                           (local.get $name-raw))
-                     (unreachable)))
            (struct.new $ContinuationMarkKey
                        (i32.const 0)
                        (if (result (ref eq))
