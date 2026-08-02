@@ -91,6 +91,36 @@
          "log-message"
          "(or/c string? symbol?)"
          "given: 42")))
+ (list "logger contract errors use error-value->string-handler"
+       (let ([old (error-value->string-handler)])
+         (error-value->string-handler
+          (lambda (v _width)
+            (cond
+              [(number? v) "CUSTOM-NUMBER"]
+              [else "CUSTOM-VALUE"])))
+         (let ([ok (and
+                    (catch-contract/contains?
+                     (lambda () (make-logger 42))
+                     "make-logger"
+                     "(or/c symbol? #f)"
+                     "given: CUSTOM-NUMBER")
+                    (catch-contract/contains?
+                     (lambda () (make-log-receiver 42 'info))
+                     "make-log-receiver"
+                     "logger?"
+                     "given: CUSTOM-NUMBER")
+                    (catch-contract/contains?
+                     (lambda () (make-log-receiver (current-logger) 42))
+                     "make-log-receiver"
+                     "(or/c 'none 'fatal 'error 'warning 'info 'debug)"
+                     "given: CUSTOM-NUMBER")
+                    (catch-contract/contains?
+                     (lambda () (log-message (current-logger) 'info 42 1))
+                     "log-message"
+                     "(or/c string? symbol?)"
+                     "given: CUSTOM-NUMBER"))])
+           (error-value->string-handler old)
+           ok)))
  (list "logger success cases still work"
        (let* ([logger (make-logger 'goal)]
               [recv   (make-log-receiver logger 'info)]
