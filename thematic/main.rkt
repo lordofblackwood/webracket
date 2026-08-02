@@ -2748,6 +2748,18 @@
   (define table-font-size
     (or (table-direct-ref '(".table") "font-size")
         (list-table-style-ref ".table" "font-size")))
+  (define table-shell-border-width
+    (or (list-table-style-ref ".table" "border-top-width")
+        "0px"))
+  (define table-shell-border-style
+    (or (list-table-style-ref ".table" "border-top-style")
+        "none"))
+  (define table-shell-border-color
+    (or (list-table-style-ref ".table" "border-top-color")
+        table-border-color))
+  (define table-shell-shadow
+    (or (table-direct-ref '(".table") "box-shadow")
+        (list-table-style-ref ".table" "box-shadow")))
   (define table-cell-selector
     ".table > :not(caption) > * > *")
   (define table-sm-cell-selector
@@ -4203,6 +4215,10 @@
         'table-dark-border-color table-dark-border-color
         'table-cell-shadow table-cell-shadow
         'table-font-size table-font-size
+        'table-shell-border-width table-shell-border-width
+        'table-shell-border-style table-shell-border-style
+        'table-shell-border-color table-shell-border-color
+        'table-shell-shadow table-shell-shadow
         'table-cell-padding-x table-cell-padding-x
         'table-cell-padding-y table-cell-padding-y
         'table-sm-cell-padding-x table-sm-cell-padding-x
@@ -6821,6 +6837,18 @@
   (define table-font-size
     (or (theme-component-ref theme 'table-font-size)
         (bootstrap-theme-font-size-md theme)))
+  (define table-shell-border-width
+    (or (theme-component-ref theme 'table-shell-border-width)
+        "0px"))
+  (define table-shell-border-style
+    (or (theme-component-ref theme 'table-shell-border-style)
+        "none"))
+  (define table-shell-border-color
+    (or (theme-component-ref theme 'table-shell-border-color)
+        table-border-color))
+  (define table-shell-shadow
+    (or (theme-component-ref theme 'table-shell-shadow)
+        "none"))
   (define table-cell-padding-x
     (or (theme-component-ref theme 'table-cell-padding-x)
         "0.75rem"))
@@ -8183,6 +8211,10 @@
     (cons "--we-table-active-bg" table-active-bg)
     (cons "--we-table-cell-shadow" table-cell-shadow)
     (cons "--we-table-font-size" table-font-size)
+    (cons "--we-table-shell-border-width" table-shell-border-width)
+    (cons "--we-table-shell-border-style" table-shell-border-style)
+    (cons "--we-table-shell-border-color" table-shell-border-color)
+    (cons "--we-table-shell-shadow" table-shell-shadow)
     (cons "--we-table-cell-padding-x" table-cell-padding-x)
     (cons "--we-table-cell-padding-y" table-cell-padding-y)
     (cons "--we-table-sm-cell-padding-x" table-sm-cell-padding-x)
@@ -9202,6 +9234,8 @@
      "  --bs-table-active-bg: rgba(26, 26, 26, 0.1);\n"
      "  --bs-table-hover-bg: rgba(26, 26, 26, 0.075);\n"
      "  --bs-table-accent-bg: rgba(26, 26, 26, 0.02);\n"
+     "  border: 2px solid #000;\n"
+     "  box-shadow: 0 0 0 1px #111;\n"
      "  font-size: 0.875rem;\n"
      "}\n"
      ".table th,\n"
@@ -10157,6 +10191,10 @@
     (check-equal? (hash-ref token-map "--we-table-cell-shadow")
                   "inset 0 0 0 9999px rgba(26, 26, 26, 0.02)")
     (check-equal? (hash-ref token-map "--we-table-font-size") "0.875rem")
+    (check-equal? (hash-ref token-map "--we-table-shell-border-width") "2px")
+    (check-equal? (hash-ref token-map "--we-table-shell-border-style") "solid")
+    (check-equal? (hash-ref token-map "--we-table-shell-border-color") "#000")
+    (check-equal? (hash-ref token-map "--we-table-shell-shadow") "0 0 0 1px #111")
     (check-equal? (hash-ref token-map "--we-table-cell-padding-x") "1.5rem")
     (check-equal? (hash-ref token-map "--we-table-cell-padding-y") "1.5rem")
     (check-equal? (hash-ref token-map "--we-table-sm-cell-padding-x") "0.75rem")

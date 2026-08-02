@@ -2105,11 +2105,17 @@ html.we-theme-light .we-list-group-item .we-badge {
 
 html.we-theme-light .we-table {
   width: 100%;
-  border: 0;
+  border:
+    var(--we-table-shell-border-width, 0)
+    var(--we-table-shell-border-style, none)
+    var(--we-table-shell-border-color, var(--we-table-border-color));
   border-collapse: collapse;
+  caption-side: bottom;
   background: var(--we-table-bg);
   color: var(--we-table-color);
   font-size: var(--we-table-font-size, var(--we-font-size-md));
+  box-shadow: var(--we-table-shell-shadow, none);
+  vertical-align: top;
 }
 
 html.we-theme-light .we-table th,
