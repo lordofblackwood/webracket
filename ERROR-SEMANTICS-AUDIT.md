@@ -78,7 +78,7 @@ Status legend:
 | `random.rkt` | good for current public `random` contract shapes; two-argument diagnostics route rendered bad/other values through `error-value->string-handler` | n/a | pseudo-random generators print opaquely | n/a | generator internals trusted | `test/test-random-errors.rkt` |
 | `realms.rkt` | internal realm constants/helpers | n/a | n/a | n/a | no direct public primitive surface | internal |
 | `reflection.rkt` | partial/good for current module-path/syntax metadata contracts | n/a | opaque reflection values now print | unsupported reflection metadata should be conservative/catchable | representation details trusted after validation | `test/test-reflection-errors.rkt` |
-| `regexps.rkt` | partial; regexp constructor/match contracts have focused coverage | n/a | compact regexp values print from stored source | unsupported regexp features should raise unsupported/contract, not trap | staged provider/runtime regexp internals remain trusted | `test/test-regexp-errors.rkt` |
+| `regexps.rkt` | partial/good; regexp constructor, replacement, and match contract boundaries have focused coverage, including raw helper `who`/input-contract fixes | n/a | compact regexp values print from stored source | unsupported regexp features should raise unsupported/contract, not trap | staged provider/runtime regexp internals remain trusted; full regexp semantics still belong to the demodded regexp library | `test/test-regexp-errors.rkt` |
 | `runtime-bytes-constants.rkt` | constants only | n/a | n/a | n/a | no public surface | internal |
 | `runtime-constants.rkt` | constants/globals only | n/a | n/a | n/a | no public surface | internal |
 | `runtime-string-constants.rkt` | constants only | n/a | n/a | n/a | no public surface | internal |

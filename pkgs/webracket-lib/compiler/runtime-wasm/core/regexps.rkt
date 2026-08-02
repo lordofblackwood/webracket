@@ -21,6 +21,7 @@
     (id                 "id")
     (regexp?            "regexp?")
     (regexp-replace:pattern-contract "(or/c regexp? byte-regexp? string? bytes?)")
+    (regexp-match:input-contract "(or/c string? bytes? path? input-port?)")
     (regexp-replace:input-contract "(or/c string? bytes?)")
     (regexp-replace:insert-contract "(or/c string? bytes? procedure?)")
     (regexp-replace     "regexp-replace")
@@ -595,12 +596,16 @@
                (result        (ref eq))
                (if (i32.eqz (ref.test (ref $Regexp) (local.get $rx-raw)))
                    (then (call $raise-argument-error1
-                               (global.get $symbol:regexp-match?)
-                               (global.get $string:regexp?)
+                               (global.get $symbol:regexp-match)
+                               (global.get $string:regexp-replace:pattern-contract)
                                (local.get $rx-raw))
                          (unreachable)))
                (if (i32.eqz (ref.test (ref $Bytes) (local.get $s-raw)))
-                   (then (return (global.get $false))))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:regexp-match)
+                               (global.get $string:regexp-match:input-contract)
+                               (local.get $s-raw))
+                         (unreachable)))
                (return_call $regexp-match/bytes-subset
                             (ref.cast (ref $Regexp) (local.get $rx-raw))
                             (ref.cast (ref $Bytes) (local.get $s-raw))))
@@ -616,7 +621,7 @@
                (if (i32.eqz (ref.test (ref $Regexp) (local.get $rx-raw)))
                    (then (call $raise-argument-error1
                                (global.get $symbol:regexp-match?)
-                               (global.get $string:regexp?)
+                               (global.get $string:regexp-replace:pattern-contract)
                                (local.get $rx-raw))
                          (unreachable)))
                (if (ref.test (ref $Bytes) (local.get $s-raw))
@@ -624,7 +629,11 @@
                                       (ref.cast (ref $Regexp) (local.get $rx-raw))
                                       (ref.cast (ref $Bytes) (local.get $s-raw)))))
                (if (i32.eqz (ref.test (ref $String) (local.get $s-raw)))
-                   (then (return (global.get $false))))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:regexp-match?)
+                               (global.get $string:regexp-match:input-contract)
+                               (local.get $s-raw))
+                         (unreachable)))
                (return_call $regexp-match?/string-subset
                             (ref.cast (ref $Regexp) (local.get $rx-raw))
                             (ref.cast (ref $String) (local.get $s-raw))))

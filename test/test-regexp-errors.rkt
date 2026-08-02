@@ -19,6 +19,18 @@
 (define regexp-plain-given "given: #(struct regexp-plain)")
 
 (list
+ (list "regexp constructors reject non-strings with who"
+       (and
+        (catch-contract/contains?
+         (lambda () (regexp 42))
+         "regexp: contract violation"
+         "string?"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (pregexp 42))
+         "pregexp: contract violation"
+         "string?"
+         "given: 42")))
  (list "byte regexp constructors reject non-bytes with who"
        (and
         (catch-contract/contains?
@@ -102,6 +114,30 @@
          "regexp-replace*"
          "(or/c string? bytes? procedure?)"
          regexp-plain-given)))
+ (list "regexp-match rejects bad argument types with who"
+       (and
+        (catch-contract/contains?
+         (lambda () (regexp-match 42 #"abc"))
+         "regexp-match: contract violation"
+         "(or/c regexp? byte-regexp? string? bytes?)"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (regexp-match #rx"a" 42))
+         "regexp-match: contract violation"
+         "(or/c string? bytes? path? input-port?)"
+         "given: 42")))
+ (list "regexp-match? rejects bad argument types with who"
+       (and
+        (catch-contract/contains?
+         (lambda () (regexp-match? 42 "abc"))
+         "regexp-match?: contract violation"
+         "(or/c regexp? byte-regexp? string? bytes?)"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (regexp-match? #rx"a" 42))
+         "regexp-match?: contract violation"
+         "(or/c string? bytes? path? input-port?)"
+         "given: 42")))
  (list "byte regexp constructor success cases still work"
        (list "byte-regexp constructs byte-regexp?"
              (byte-regexp? (byte-regexp #"a")))
