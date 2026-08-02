@@ -2219,12 +2219,21 @@
           (local.set $default-props  (global.get $missing))
 
           ;; Extract lexical context from the context syntax when available.
-          (if (ref.eq (call $syntax? (local.get $ctxt)) (global.get $true))
-              (then
-               (local.set $scopes         (call $syntax-scopes (local.get $ctxt)))
-               (local.set $shifted        (call $syntax-shifted-multi-scopes (local.get $ctxt)))
-               (local.set $default-srcloc (call $syntax-srcloc (local.get $ctxt)))
-               (local.set $default-props  (call $syntax-props (local.get $ctxt)))))
+          (if (ref.eq (local.get $ctxt) (global.get $false))
+              (then (nop))
+              (else
+               (if (ref.eq (call $syntax? (local.get $ctxt)) (global.get $true))
+                   (then
+                    (local.set $scopes         (call $syntax-scopes (local.get $ctxt)))
+                    (local.set $shifted        (call $syntax-shifted-multi-scopes (local.get $ctxt)))
+                    (local.set $default-srcloc (call $syntax-srcloc (local.get $ctxt)))
+                    (local.set $default-props  (call $syntax-props (local.get $ctxt))))
+                   (else
+                    (call $raise-argument-error1
+                          (global.get $symbol:datum->syntax)
+                          (global.get $string:syntax-or-false)
+                          (local.get $ctxt))
+                    (unreachable)))))
 
           ;; Decode srcloc argument.
           (local.set $srcloc-checked

@@ -21,6 +21,57 @@
 (define id-b (datum->syntax #f 'b))
 
 (list
+ (list "syntax accessors reject non-syntax values with who"
+       (and
+        (syntax-contract-error?
+         (lambda () (syntax-e 42))
+         "syntax-e"
+         "syntax?"
+         "given: 42")
+        (syntax-contract-error?
+         (lambda () (syntax->datum 42))
+         "syntax->datum"
+         "syntax?"
+         "given: 42")
+        (syntax-contract-error?
+         (lambda () (syntax-source 42))
+         "syntax-source"
+         "syntax?"
+         "given: 42")
+        (syntax-contract-error?
+         (lambda () (syntax-property 42 'k))
+         "syntax-property"
+         "syntax?"
+         "given: 42")))
+ (list "datum->syntax rejects bad context and optional sources"
+       (and
+        (syntax-contract-error?
+         (lambda () (datum->syntax 42 'a))
+         "datum->syntax"
+         "syntax?"
+         "#f"
+         "given: 42")
+        (syntax-contract-error?
+         (lambda () (datum->syntax #f 'a 42))
+         "datum->syntax"
+         "srcloc?"
+         "given: 42")
+        (syntax-contract-error?
+         (lambda () (datum->syntax #f 'a #f 42))
+         "datum->syntax"
+         "syntax?"
+         "#f"
+         "given: 42")))
+ (list "datum->syntax copies context syntax metadata"
+       (let* ([ctx (datum->syntax #f 'ctx (srcloc 'src 1 2 3 4))]
+              [stx (datum->syntax ctx 'x)])
+         (and
+          (equal? (syntax-e stx) 'x)
+          (equal? (syntax-source stx) 'src)
+          (equal? (syntax-line stx) 1)
+          (equal? (syntax-column stx) 2)
+          (equal? (syntax-position stx) 3)
+          (equal? (syntax-span stx) 4))))
  (list "syntax phase arguments reject non-phase values"
        (and
         (syntax-contract-error?
