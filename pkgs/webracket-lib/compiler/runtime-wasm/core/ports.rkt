@@ -2358,7 +2358,7 @@
                 (call $growable-array-add! (local.get $out)
                       (global.get $string:string-utf8:byte-string))
                 (call $growable-array-add! (local.get $out)
-                      (call $format/write (local.get $x)))
+                      (call $format/error-value->string (local.get $x)))
                 (local.set $message
                            (call $growable-array-of-strings->string (local.get $out)))
                 (call $raise
@@ -2391,7 +2391,7 @@
                 (call $growable-array-add! (local.get $out)
                       (global.get $string:string-utf8:byte-string))
                 (call $growable-array-add! (local.get $out)
-                      (call $format/write (local.get $x)))
+                      (call $format/error-value->string (local.get $x)))
                 (local.set $message
                            (call $growable-array-of-strings->string (local.get $out)))
                 (call $raise
@@ -2427,7 +2427,7 @@
            (call $growable-array-add! (local.get $out)
                  (global.get $string:string-utf8:byte-string))
            (call $growable-array-add! (local.get $out)
-                 (call $format/write (local.get $x)))
+                 (call $format/error-value->string (local.get $x)))
            (local.set $message
                       (call $growable-array-of-strings->string (local.get $out)))
            (call $raise
@@ -5095,7 +5095,7 @@
                 (call $growable-array-add! (local.get $out)
                       (global.get $string:string-utf8:byte-string))
                 (call $growable-array-add! (local.get $out)
-                      (call $format/write (local.get $x)))
+                      (call $format/error-value->string (local.get $x)))
                 (local.set $message
                            (call $growable-array-of-strings->string (local.get $out)))
                 (call $raise
@@ -5128,7 +5128,7 @@
                 (call $growable-array-add! (local.get $out)
                       (global.get $string:string-utf8:byte-string))
                 (call $growable-array-add! (local.get $out)
-                      (call $format/write (local.get $x)))
+                      (call $format/error-value->string (local.get $x)))
                 (local.set $message
                            (call $growable-array-of-strings->string (local.get $out)))
                 (call $raise
@@ -5164,7 +5164,7 @@
            (call $growable-array-add! (local.get $out)
                  (global.get $string:string-utf8:byte-string))
            (call $growable-array-add! (local.get $out)
-                 (call $format/write (local.get $x)))
+                 (call $format/error-value->string (local.get $x)))
            (local.set $message
                       (call $growable-array-of-strings->string (local.get $out)))
            (call $raise

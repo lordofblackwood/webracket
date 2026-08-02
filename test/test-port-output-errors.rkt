@@ -237,6 +237,29 @@
         (lambda () (write-bytes #"abc" (sink 42) 4))
         "write-bytes"
         "starting index is out of range"))
+ (list "output byte/string range errors use error-value->string-handler"
+       (let ([old (error-value->string-handler)])
+         (error-value->string-handler
+          (lambda (v _width)
+            (cond
+              [(bytes? v) "CUSTOM-BYTES"]
+              [(string? v) "CUSTOM-STRING"]
+              [else "CUSTOM-VALUE"])))
+         (let ([ok (and
+                    (catch-contract/contains?
+                     (lambda () (write-bytes #"abc" (sink 42) 4))
+                     "write-bytes"
+                     "starting index is out of range"
+                     "byte string:"
+                     "CUSTOM-BYTES")
+                    (catch-contract/contains?
+                     (lambda () (write-string "abc" (open-output-string) 4))
+                     "write-string"
+                     "starting index is out of range"
+                     "byte string:"
+                     "CUSTOM-STRING"))])
+           (error-value->string-handler old)
+           ok)))
  (list "write-bytes resolves prop:output-port wrappers with real targets"
        (let* ([underlying (open-output-bytes)]
               [wrapped (sink underlying)])

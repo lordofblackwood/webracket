@@ -242,6 +242,24 @@
          "peek-bytes-avail!*"
          "(or/c #f progress-evt?)"
          "given: 'progress")))
+ (list "input byte range errors use error-value->string-handler"
+       (let ([old (error-value->string-handler)])
+         (error-value->string-handler
+          (lambda (v _width)
+            (cond
+              [(bytes? v) "CUSTOM-BYTES"]
+              [else "CUSTOM-VALUE"])))
+         (let ([ok (catch-contract/contains?
+                    (lambda ()
+                      (read-bytes! (make-bytes 3 0)
+                                   (open-input-bytes #"abc")
+                                   4))
+                    "read-bytes!"
+                    "starting index is out of range"
+                    "byte string:"
+                    "CUSTOM-BYTES")])
+           (error-value->string-handler old)
+           ok)))
  (list "custom input-port peek backends are catchable unsupported errors"
        (and
         (catch-unsupported/contains?
