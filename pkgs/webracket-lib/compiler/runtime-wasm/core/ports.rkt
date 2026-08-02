@@ -42,6 +42,12 @@
     (input-port-peek-contract   "(or/c (procedure-arity-includes/c 3) input-port? #f)")
     (output-port-write-contract "(or/c output-port? (procedure-arity-includes/c 5))")
     (port-procedure-arity-0     "(procedure-arity-includes/c 0)")
+    (port-procedure-arity-0-or-false "(or/c (procedure-arity-includes/c 0) #f)")
+    (port-procedure-arity-3-or-false "(or/c (procedure-arity-includes/c 3) #f)")
+    (port-procedure-arity-1-or-false "(or/c #f (procedure-arity-includes/c 1))")
+    (port-init-position-contract "(or/c exact-positive-integer? port? #f (procedure-arity-includes/c 0))")
+    (port-buffer-mode-contract "(or/c #f (and/c (procedure-arity-includes/c 0) (procedure-arity-includes/c 1)))")
+    (output-port-write-special-contract "(or/c #f output-port? (procedure-arity-includes/c 3))")
     (port-or-false-contract     "(or/c port? #f)")
     (progress-or-false-contract "(or/c #f progress-evt?)")
     (evt-or-false-contract      "(or/c #f evt?)")
@@ -258,7 +264,11 @@
 ;; port-custom-constructor-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for custom input/output port constructors.
 (define port-custom-constructor-runtime-only-helper-names
-  '($make-input-port
+  '($check-port-procedure-or-false/who
+    $check-port-init-position/who
+    $check-port-buffer-mode/who
+    $check-output-write-special/who
+    $make-input-port
     $make-output-port))
 
 ;; port-event-runtime-only-helper-names : (listof symbol?)
@@ -1453,6 +1463,86 @@
   (function-forms->runtime-helpers
    'port-custom-constructor-runtime-only-helpers
    '(
+     (func $check-port-procedure-or-false/who
+           (param $who      (ref eq))
+           (param $expected (ref eq))
+           (param $v        (ref eq))
+           (param $arity    i32)
+
+           (if (ref.eq (local.get $v) (global.get $false))
+               (then)
+               (else
+                (drop (call $check-procedure-arity/who
+                            (local.get $who)
+                            (local.get $expected)
+                            (local.get $v)
+                            (local.get $arity))))))
+
+     (func $check-port-init-position/who
+           (param $who (ref eq))
+           (param $v   (ref eq))
+
+           (if (ref.eq (local.get $v) (global.get $false))
+               (then (return)))
+           (if (call $port-like?/i32 (local.get $v))
+               (then (return)))
+           (if (ref.eq (call $exact-positive-integer? (local.get $v))
+                       (global.get $true))
+               (then (return)))
+           (if (ref.eq (call $procedure? (local.get $v))
+                       (global.get $true))
+               (then (drop (call $check-procedure-arity/who
+                                  (local.get $who)
+                                  (global.get $string:port-init-position-contract)
+                                  (local.get $v)
+                                  (i32.const 0)))
+                     (return)))
+           (call $raise-argument-error1
+                 (local.get $who)
+                 (global.get $string:port-init-position-contract)
+                 (local.get $v))
+           (unreachable))
+
+     (func $check-port-buffer-mode/who
+           (param $who (ref eq))
+           (param $v   (ref eq))
+
+           (if (ref.eq (local.get $v) (global.get $false))
+               (then)
+               (else
+                (drop (call $check-procedure-arity/who
+                            (local.get $who)
+                            (global.get $string:port-buffer-mode-contract)
+                            (local.get $v)
+                            (i32.const 0)))
+                (drop (call $check-procedure-arity/who
+                            (local.get $who)
+                            (global.get $string:port-buffer-mode-contract)
+                            (local.get $v)
+                            (i32.const 1))))))
+
+     (func $check-output-write-special/who
+           (param $who (ref eq))
+           (param $v   (ref eq))
+
+           (if (ref.eq (local.get $v) (global.get $false))
+               (then (return)))
+           (if (call $output-port-like?/i32 (local.get $v))
+               (then (return)))
+           (if (ref.eq (call $procedure? (local.get $v))
+                       (global.get $true))
+               (then (drop (call $check-procedure-arity/who
+                                  (local.get $who)
+                                  (global.get $string:output-port-write-special-contract)
+                                  (local.get $v)
+                                  (i32.const 3)))
+                     (return)))
+           (call $raise-argument-error1
+                 (local.get $who)
+                 (global.get $string:output-port-write-special-contract)
+                 (local.get $v))
+           (unreachable))
+
      ;; NOTE: Procedure-based custom ports currently support only immediate
      ;;       byte operations without events or special results.
      (func $make-input-port (type $Prim>=4)
@@ -1559,6 +1649,38 @@
                        (global.get $string:port-procedure-arity-0)
                        (local.get $close)
                        (i32.const 0)))
+           (if (i32.ge_u (local.get $count) (i32.const 1))
+               (then (call $check-port-procedure-or-false/who
+                           (global.get $symbol:make-input-port)
+                           (global.get $string:port-procedure-arity-0-or-false)
+                           (local.get $progress-evt)
+                           (i32.const 0))))
+           (if (i32.ge_u (local.get $count) (i32.const 2))
+               (then (call $check-port-procedure-or-false/who
+                           (global.get $symbol:make-input-port)
+                           (global.get $string:port-procedure-arity-3-or-false)
+                           (local.get $commit-proc)
+                           (i32.const 3))))
+           (if (i32.ge_u (local.get $count) (i32.const 3))
+               (then (call $check-port-procedure-or-false/who
+                           (global.get $symbol:make-input-port)
+                           (global.get $string:port-procedure-arity-0-or-false)
+                           (local.get $get-location)
+                           (i32.const 0))))
+           (if (i32.ge_u (local.get $count) (i32.const 4))
+               (then (call $check-port-procedure-or-false/who
+                           (global.get $symbol:make-input-port)
+                           (global.get $string:port-procedure-arity-0-or-false)
+                           (local.get $count-lines!)
+                           (i32.const 0))))
+           (if (i32.ge_u (local.get $count) (i32.const 5))
+               (then (call $check-port-init-position/who
+                           (global.get $symbol:make-input-port)
+                           (local.get $init-position))))
+           (if (i32.ge_u (local.get $count) (i32.const 6))
+               (then (call $check-port-buffer-mode/who
+                           (global.get $symbol:make-input-port)
+                           (local.get $buffer-mode))))
 
            (local.set $bytes (ref.cast (ref $Bytes)    (global.get $bytes:empty)))
            (local.set $loc   (ref.cast (ref $Location) (call $make-initial-location)))
@@ -1653,6 +1775,13 @@
                                                      (else (local.set $buffer-mode (local.get $arg))))))))))))))
                         (br $loop)))
 
+           (if (ref.eq (call $evt? (local.get $evt))
+                       (global.get $false))
+               (then (call $raise-argument-error1
+                           (global.get $symbol:make-output-port)
+                           (global.get $string:evt?)
+                           (local.get $evt))
+                     (unreachable)))
            (if (i32.eqz (i32.or (ref.test (ref $OutputPort) (local.get $write))
                                 (ref.eq (call $procedure? (local.get $write))
                                         (global.get $true))))
@@ -1673,6 +1802,42 @@
                        (global.get $string:port-procedure-arity-0)
                        (local.get $close)
                        (i32.const 0)))
+           (if (i32.ge_u (local.get $count) (i32.const 1))
+               (then (call $check-output-write-special/who
+                           (global.get $symbol:make-output-port)
+                           (local.get $write-special))))
+           (if (i32.ge_u (local.get $count) (i32.const 2))
+               (then (call $check-port-procedure-or-false/who
+                           (global.get $symbol:make-output-port)
+                           (global.get $string:port-procedure-arity-3-or-false)
+                           (local.get $get-write-evt)
+                           (i32.const 3))))
+           (if (i32.ge_u (local.get $count) (i32.const 3))
+               (then (call $check-port-procedure-or-false/who
+                           (global.get $symbol:make-output-port)
+                           (global.get $string:port-procedure-arity-1-or-false)
+                           (local.get $get-write-special)
+                           (i32.const 1))))
+           (if (i32.ge_u (local.get $count) (i32.const 4))
+               (then (call $check-port-procedure-or-false/who
+                           (global.get $symbol:make-output-port)
+                           (global.get $string:port-procedure-arity-0-or-false)
+                           (local.get $get-location)
+                           (i32.const 0))))
+           (if (i32.ge_u (local.get $count) (i32.const 5))
+               (then (drop (call $check-procedure-arity/who
+                                  (global.get $symbol:make-output-port)
+                                  (global.get $string:port-procedure-arity-0)
+                                  (local.get $count-lines!)
+                                  (i32.const 0)))))
+           (if (i32.ge_u (local.get $count) (i32.const 6))
+               (then (call $check-port-init-position/who
+                           (global.get $symbol:make-output-port)
+                           (local.get $init-position))))
+           (if (i32.ge_u (local.get $count) (i32.const 7))
+               (then (call $check-port-buffer-mode/who
+                           (global.get $symbol:make-output-port)
+                           (local.get $buffer-mode))))
 
            (local.set $bytes (ref.cast (ref $Bytes)    (global.get $bytes:empty)))
            (local.set $loc   (ref.cast (ref $Location) (call $make-initial-location)))

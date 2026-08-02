@@ -122,6 +122,63 @@
          (lambda () (make-output-port 'custom always-evt (lambda (bs start end nonblock? breakable?) 0) (lambda (x) (void))))
          "make-output-port"
          "(procedure-arity-includes/c 0)"
+         "given:")
+        (catch-contract/contains?
+         (lambda () (make-output-port 'custom 42 (lambda (bs start end nonblock? breakable?) 0) (lambda () (void))))
+         "make-output-port"
+         "evt?"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (make-output-port 'custom always-evt (lambda (bs start end nonblock? breakable?) 0) (lambda () (void)) 42))
+         "make-output-port"
+         "output-port?"
+         "(procedure-arity-includes/c 3)"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (make-output-port 'custom always-evt (lambda (bs start end nonblock? breakable?) 0) (lambda () (void)) #f 42))
+         "make-output-port"
+         "(procedure-arity-includes/c 3)"
+         "#f"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (make-output-port 'custom always-evt (lambda (bs start end nonblock? breakable?) 0) (lambda () (void)) #f #f 42))
+         "make-output-port"
+         "(procedure-arity-includes/c 1)"
+         "#f"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (make-output-port 'custom always-evt (lambda (bs start end nonblock? breakable?) 0) (lambda () (void)) #f #f #f 42))
+         "make-output-port"
+         "(procedure-arity-includes/c 0)"
+         "#f"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (make-output-port 'custom always-evt (lambda (bs start end nonblock? breakable?) 0) (lambda () (void)) #f #f #f #f #f))
+         "make-output-port"
+         "(procedure-arity-includes/c 0)"
+         "given: #f")
+        (catch-contract/contains?
+         (lambda () (make-output-port 'custom always-evt (lambda (bs start end nonblock? breakable?) 0) (lambda () (void)) #f #f #f #f void #t))
+         "make-output-port"
+         "exact-positive-integer?"
+         "port?"
+         "(procedure-arity-includes/c 0)"
+         "given: #t")
+        (catch-contract/contains?
+         (lambda () (make-output-port 'custom
+                                      always-evt
+                                      (lambda (bs start end nonblock? breakable?) 0)
+                                      (lambda () (void))
+                                      #f
+                                      #f
+                                      #f
+                                      #f
+                                      void
+                                      1
+                                      (lambda () 'block)))
+         "make-output-port"
+         "(procedure-arity-includes/c 0)"
+         "(procedure-arity-includes/c 1)"
          "given:")))
  (list "default output handlers validate output ports with who"
        (and

@@ -177,6 +177,52 @@
          (lambda () (make-input-port 'custom (lambda (bs) 0) #f (lambda (x) (void))))
          "make-input-port"
          "(procedure-arity-includes/c 0)"
+         "given:")
+        (catch-contract/contains?
+         (lambda () (make-input-port 'custom (lambda (bs) 0) #f (lambda () (void)) 42))
+         "make-input-port"
+         "(procedure-arity-includes/c 0)"
+         "#f"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (make-input-port 'custom (lambda (bs) 0) #f (lambda () (void)) #f 42))
+         "make-input-port"
+         "(procedure-arity-includes/c 3)"
+         "#f"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (make-input-port 'custom (lambda (bs) 0) #f (lambda () (void)) #f #f 42))
+         "make-input-port"
+         "(procedure-arity-includes/c 0)"
+         "#f"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (make-input-port 'custom (lambda (bs) 0) #f (lambda () (void)) #f #f #f 42))
+         "make-input-port"
+         "(procedure-arity-includes/c 0)"
+         "#f"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (make-input-port 'custom (lambda (bs) 0) #f (lambda () (void)) #f #f #f void #t))
+         "make-input-port"
+         "exact-positive-integer?"
+         "port?"
+         "(procedure-arity-includes/c 0)"
+         "given: #t")
+        (catch-contract/contains?
+         (lambda () (make-input-port 'custom
+                                     (lambda (bs) 0)
+                                     #f
+                                     (lambda () (void))
+                                     #f
+                                     #f
+                                     #f
+                                     void
+                                     1
+                                     (lambda () 'block)))
+         "make-input-port"
+         "(procedure-arity-includes/c 0)"
+         "(procedure-arity-includes/c 1)"
          "given:")))
  (list "single byte and char readers reject non-input ports with who"
        (and
