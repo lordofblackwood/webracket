@@ -50,8 +50,60 @@
          "string-replace"
          "string?"
          "given: 42")))
+ (list "string case conversion errors are catchable with who"
+       (and
+        (catch-contract/contains?
+         (lambda () (string-upcase 42))
+         "string-upcase"
+         "string?"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (string-downcase 42))
+         "string-downcase"
+         "string?"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (string-foldcase 42))
+         "string-foldcase"
+         "string?"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (string-titlecase 42))
+         "string-titlecase"
+         "string?"
+         "given: 42")))
+ (list "string/list conversion errors are catchable with who"
+       (and
+        (catch-contract/contains?
+         (lambda () (string->list 42))
+         "string->list"
+         "string?"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (list->string 42))
+         "list->string"
+         "list?"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (list->string (list #\a 42)))
+         "list->string"
+         "char?"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (list->string (cons #\a 42)))
+         "list->string"
+         "list?"
+         "given: '(#\\a . 42)")))
  (list "string->immutable-string success still works"
        (equal? (string->immutable-string "abc") "abc"))
+ (list "string case conversion success still works"
+       (and (equal? (string-upcase "aB") "AB")
+            (equal? (string-downcase "aB") "ab")
+            (equal? (string-foldcase "aB") "ab")
+            (equal? (string-titlecase "hello world") "Hello World")))
+ (list "string/list conversion success still works"
+       (and (equal? (string->list "ab") (list #\a #\b))
+            (equal? (list->string (list #\a #\b)) "ab")))
  (list "string-split success still works"
        (equal? (string-split "a b") (list "a" "b")))
  (list "string-replace success still works"
