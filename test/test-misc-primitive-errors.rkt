@@ -104,6 +104,27 @@
          "keyword<?"
          "keyword?"
          "given: \"bad\"")))
+ (list "keyword contract errors use error-value->string-handler"
+       (let ([old (error-value->string-handler)])
+         (error-value->string-handler
+          (lambda (v _width)
+            (cond
+              [(symbol? v) "CUSTOM-SYMBOL"]
+              [(string? v) "CUSTOM-STRING"]
+              [else "CUSTOM-VALUE"])))
+         (let ([ok (and
+                    (catch-contract/contains?
+                     (lambda () (keyword<? '#:a 'bad))
+                     "keyword<?"
+                     "keyword?"
+                     "given: CUSTOM-SYMBOL")
+                    (catch-contract/contains?
+                     (lambda () (keyword<? '#:a "bad"))
+                     "keyword<?"
+                     "keyword?"
+                     "given: CUSTOM-STRING"))])
+           (error-value->string-handler old)
+           ok)))
  (list "internal boxed accessor and mutation argument errors are catchable"
        (and
         (catch-contract/contains?
