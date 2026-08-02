@@ -148,6 +148,57 @@
          "call-with-immediate-continuation-mark"
          "(procedure-arity-includes/c 1)"
          "given:")))
+ (list "continuation prompt placeholder contracts are checked"
+       (and
+        (catch-contract/contains?
+         (lambda () (current-continuation-marks 42))
+         "current-continuation-marks"
+         "continuation-prompt-tag?"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (current-continuation-marks #f))
+         "current-continuation-marks"
+         "continuation-prompt-tag?"
+         "given: #f")
+        (catch-contract/contains?
+         (lambda () (continuation-prompt-available? 42))
+         "continuation-prompt-available?"
+         "continuation-prompt-tag?"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda ()
+           (continuation-prompt-available?
+            (unsafe-root-continuation-prompt-tag)
+            42))
+         "continuation-prompt-available?"
+         "continuation?"
+         "given: 42")
+        (equal? (continuation-prompt-available?
+                 (unsafe-root-continuation-prompt-tag))
+                #t)))
+ (list "continuation-mark-set-first placeholder contracts are checked"
+       (and
+        (catch-contract/contains?
+         (lambda () (continuation-mark-set-first 42 'key))
+         "continuation-mark-set-first"
+         "(or/c continuation-mark-set? #f)"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (continuation-mark-set-first #f 'key 'none 42))
+         "continuation-mark-set-first"
+         "continuation-prompt-tag?"
+         "given: 42")
+        (catch-contract/contains?
+         (lambda () (continuation-mark-set-first #f 'key 'none #f))
+         "continuation-mark-set-first"
+         "continuation-prompt-tag?"
+         "given: #f")
+        (equal? (continuation-mark-set-first
+                 (current-continuation-marks)
+                 'missing
+                 'none
+                 (unsafe-root-continuation-prompt-tag))
+                'none)))
  (list "dynamic-require checks failure thunk contract"
        (and
         (catch-contract/contains?

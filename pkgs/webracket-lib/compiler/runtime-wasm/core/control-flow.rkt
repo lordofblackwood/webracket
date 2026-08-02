@@ -17,6 +17,9 @@
 (define control-flow-runtime-string-constants
   '((dynamic-require-unsupported "dynamic-require: dynamic module loading is not supported")
     (dynamic-require-failure-thunk "(or/c 'error (-> any))")
+    (continuation-mark-set-or-false "(or/c continuation-mark-set? #f)")
+    (continuation-prompt-tag? "continuation-prompt-tag?")
+    (continuation? "continuation?")
     (procedure-arity-0 "(procedure-arity-includes/c 0)")
     (procedure-arity-1 "(procedure-arity-includes/c 1)")
     (value-result-arity-error:start
@@ -73,6 +76,8 @@
 ;;   Declare symbols used by continuation and continuation-mark helpers.
 (define continuation-runtime-symbol-constants
   '(continuation-mark-set?
+    continuation-mark-set-first
+    current-continuation-marks
     continuation-prompt-available?
     continuation-prompt-tag?
     continuation?
@@ -652,6 +657,15 @@
            ;; matters for mark-sensitive error reporting and protocols.
            (param $prompt-tag (ref eq))
            (result            (ref eq))
+           (if (i32.and
+                (i32.eqz (ref.eq (local.get $prompt-tag) (global.get $missing)))
+                (ref.eq (call $continuation-prompt-tag? (local.get $prompt-tag))
+                        (global.get $false)))
+               (then (call $raise-argument-error1
+                           (global.get $symbol:current-continuation-marks)
+                           (global.get $string:continuation-prompt-tag?)
+                           (local.get $prompt-tag))
+                     (unreachable)))
            (struct.new $ContinuationMarkSet (i32.const 0)))
 
      ;; continuation-mark-set? : any/c -> boolean?
@@ -669,9 +683,25 @@
      ;;   the permissive bootstrap choice for libraries that merely check
      ;;   whether an exception/control prompt is installed before raising.
      (func $continuation-prompt-available? (type $Prim12)
-           (param $prompt-tag (ref eq)) ;; continuation-prompt-tag?, currently unchecked
-           (param $cont       (ref eq)) ;; optional continuation?, currently ignored
+           (param $prompt-tag (ref eq)) ;; continuation-prompt-tag?
+           (param $cont       (ref eq)) ;; optional continuation?
            (result            (ref eq))
+           (if (ref.eq (call $continuation-prompt-tag? (local.get $prompt-tag))
+                       (global.get $false))
+               (then (call $raise-argument-error1
+                           (global.get $symbol:continuation-prompt-available?)
+                           (global.get $string:continuation-prompt-tag?)
+                           (local.get $prompt-tag))
+                     (unreachable)))
+           (if (i32.and
+                (i32.eqz (ref.eq (local.get $cont) (global.get $missing)))
+                (ref.eq (call $continuation? (local.get $cont))
+                        (global.get $false)))
+               (then (call $raise-argument-error1
+                           (global.get $symbol:continuation-prompt-available?)
+                           (global.get $string:continuation?)
+                           (local.get $cont))
+                     (unreachable)))
            (global.get $true))
 
      ;; continuation-prompt-tag? : any/c -> boolean?
@@ -706,6 +736,24 @@
            (param $none-v     (ref eq)) ;; optional any/c, default = #f
            (param $prompt-tag (ref eq)) ;; optional continuation-prompt-tag?
            (result            (ref eq))
+           (if (i32.and
+                (i32.eqz (ref.eq (local.get $marks) (global.get $false)))
+                (ref.eq (call $continuation-mark-set? (local.get $marks))
+                        (global.get $false)))
+               (then (call $raise-argument-error1
+                           (global.get $symbol:continuation-mark-set-first)
+                           (global.get $string:continuation-mark-set-or-false)
+                           (local.get $marks))
+                     (unreachable)))
+           (if (i32.and
+                (i32.eqz (ref.eq (local.get $prompt-tag) (global.get $missing)))
+                (ref.eq (call $continuation-prompt-tag? (local.get $prompt-tag))
+                        (global.get $false)))
+               (then (call $raise-argument-error1
+                           (global.get $symbol:continuation-mark-set-first)
+                           (global.get $string:continuation-prompt-tag?)
+                           (local.get $prompt-tag))
+                     (unreachable)))
            (if (ref.eq (local.get $key) (global.get $parameterization-key))
                (then (return (global.get $current-parameterization-value))))
            (if (result (ref eq))
