@@ -94,7 +94,8 @@
  (list "format print mode quotes expressions"
        (and (equal? (format "~v" '(1 2)) "'(1 2)")
             (equal? (format "~v" 'sample) "'sample")
-            (equal? (format "~v" (box "x")) "'#&\"x\"")))
+            (equal? (format "~v" (box "x")) "'#&\"x\"")
+            (equal? (format "~v" (mcons 'x 'y)) "(mcons 'x 'y)")))
  (list "format accepts uppercase value directives"
        (and (equal? (format "~A" 'sample) "sample")
             (equal? (format "~S" "x") "\"x\"")
@@ -177,7 +178,9 @@
        (and (equal? (format "~e" "abcdef") "\"abcdef\"")
             (equal? (format "~E" (string->symbol "a b")) "'|a b|")
             (equal? (format "~e" '(1 "x" #:k)) "'(1 \"x\" #:k)")
-            (equal? (format "~e" (box "x")) "'#&\"x\"")))
+            (equal? (format "~e" (box "x")) "'#&\"x\"")
+            (equal? (format "~e" (mcons 1 (mcons 2 '())))
+                    "(mcons 1 (mcons 2 '()))")))
  (list "format error-value directive uses error-print-width"
        (let ([old (error-print-width)])
          (error-print-width 5)
@@ -220,6 +223,18 @@
        (and (equal? (format "~a" (mcons 'x 'y)) "{x . y}")
             (equal? (format "~s" (mcons 'x 'y)) "{x . y}")
             (equal? (format "~a" (mcons 1 (mcons 2 '()))) "{1 2}")))
+ (list "format error messages render mutable pairs"
+       (catch-contract/contains?
+        (lambda () (format (mcons 'x 'y)))
+        "format" "string?" "given: (mcons 'x 'y)"))
+ (list "format error messages render byte converters"
+       (catch-contract/contains?
+        (lambda () (format (bytes-open-converter "UTF-8" "UTF-8")))
+        "format" "string?" "given: #<bytes-converter>"))
+ (list "format error messages render uninterruptible locks"
+       (catch-contract/contains?
+        (lambda () (format (unsafe-make-uninterruptible-lock)))
+        "format" "string?" "given: #<uninterruptible-lock>"))
  (list "format renders opaque runtime values without traps"
        (let ([sema (make-semaphore)]
              [will (make-will-executor)]

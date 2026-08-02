@@ -151,6 +151,7 @@
     (close-paren                ")")
     (open-brace                 "{")
     (close-brace                "}")
+    (mcons-prefix               "(mcons ")
     (dot-space                  ". ")
     (space-dot-space            " . ")
     (date-prefix                "#(struct:date ")
@@ -1950,6 +1951,9 @@
                                             (local.get $struct)
                                             (local.get $cw-proc)
                                             ,(Imm 0)))))))))
+               (if (ref.test (ref $MPair) (local.get $v))
+                   (then (return (call $format/print:mpair
+                                       (ref.cast (ref $MPair) (local.get $v))))))
                (local.set $text (call $format/write (local.get $v)))
                (if (i32.and
                     (local.get $quote?)
@@ -1962,12 +1966,10 @@
                        (i32.or
                         (ref.test (ref $Pair) (local.get $v))
                         (i32.or
-                         (ref.test (ref $MPair) (local.get $v))
+                         (ref.test (ref $Vector) (local.get $v))
                          (i32.or
-                          (ref.test (ref $Vector) (local.get $v))
-                          (i32.or
-                           (ref.test (ref $Hash) (local.get $v))
-                           (ref.test (ref $Box) (local.get $v))))))))))
+                          (ref.test (ref $Hash) (local.get $v))
+                          (ref.test (ref $Box) (local.get $v)))))))))
                    (then
                     (return
                      (call $string-append/2
@@ -2470,6 +2472,33 @@
                                  (unreachable)))
                             (br $walk)))
                (call $growable-array-add! (local.get $out) (local.get $close))
+               (call $growable-array-of-strings->string (local.get $out)))
+
+         ;; format/print:mpair : mpair? -> string?
+         ;;   Render mutable pairs in Racket's print/error-value form.
+         (func $format/print:mpair (param $v (ref $MPair)) (result (ref $String))
+               (local $out (ref $GrowableArray))
+
+               (local.set $out (call $make-growable-array (i32.const 5)))
+               (call $growable-array-add! (local.get $out)
+                     (ref.cast (ref $String)
+                               (global.get $string:mcons-prefix)))
+               (call $growable-array-add!
+                     (local.get $out)
+                     (call $format/print
+                           (struct.get $MPair $a (local.get $v))
+                           (global.get $missing)))
+               (call $growable-array-add! (local.get $out)
+                     (ref.cast (ref $String)
+                               (global.get $string:space)))
+               (call $growable-array-add!
+                     (local.get $out)
+                     (call $format/print
+                           (struct.get $MPair $d (local.get $v))
+                           (global.get $missing)))
+               (call $growable-array-add! (local.get $out)
+                     (ref.cast (ref $String)
+                               (global.get $string:close-paren)))
                (call $growable-array-of-strings->string (local.get $out)))
 
          ;; format/write:vector : vector? -> string?
