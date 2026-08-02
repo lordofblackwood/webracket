@@ -2899,9 +2899,7 @@
            (result   (ref eq))
            (if (ref.test (ref $Struct) (local.get $v))
                (then (return (if (result (ref eq))
-                                 (i32.or
-                                  (call $applicable-struct?/i32 (local.get $v))
-                                  (call $checked-procedure-struct?/i32 (local.get $v)))
+                                 (call $applicable-struct?/i32 (local.get $v))
                                  (then (global.get $true))
                                  (else (global.get $false))))))
            (if (result (ref eq))

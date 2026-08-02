@@ -84,6 +84,24 @@
          "procedure-result-arity"
          "procedure?"
          "given:")))
+ (list "procedure reflection rejects checked-procedure-only structs"
+       (let ()
+         (struct checked (ok proc)
+           #:property prop:checked-procedure #t)
+         (define c
+           (checked (lambda (kws argc) #t)
+                    (lambda args args)))
+         (and
+          (equal? (procedure? c) #f)
+          (catch-contract/contains?
+           (lambda () (procedure-specialize c))
+           "procedure-specialize"
+           "procedure?"
+           "given:")
+          (catch-contract/contains?
+           (lambda () (apply c '(1 2)))
+           "application: not a procedure"
+           "given:"))))
  (list "procedure arity queries treat plain structs as accepting no arguments"
        (and
         (equal? (procedure-arity (procedure-plain-given)) '())

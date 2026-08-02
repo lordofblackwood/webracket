@@ -7879,10 +7879,9 @@
            (i32.eqz (ref.eq (local.get $prop-val) (local.get $sentinel))))
 
      ;; checked-procedure-struct?/i32 : any/c -> i32
-     ;;   Check whether a struct instance has prop:checked-procedure. Racket
-     ;;   CS uses this property for keyword-procedure records, which are
-     ;;   procedures even though they do not carry an ordinary prop:procedure
-     ;;   association.
+     ;;   Check whether a struct instance has prop:checked-procedure. This is
+     ;;   a keyword-procedure protocol marker, not enough by itself to make
+     ;;   a structure an ordinary Racket procedure.
      (func $checked-procedure-struct?/i32
            (param $v (ref eq)) ;; candidate value
            (result   i32)
