@@ -293,17 +293,13 @@
               (call $growable-array-add! (local.get $out)
                     (global.get $string:arity-error:given))
               (call $growable-array-add! (local.get $out)
-                    (call $format/print
-                          (local.get $bad)
-                          (global.get $missing)))
+                    (call $format/error-value->string (local.get $bad)))
               (call $growable-array-add! (local.get $out)
                     (local.get $position))
               (call $growable-array-add! (local.get $out)
                     (global.get $string:random:other-arguments))
               (call $growable-array-add! (local.get $out)
-                    (call $format/print
-                          (local.get $other)
-                          (global.get $missing)))
+                    (call $format/error-value->string (local.get $other)))
               (local.set $message
                          (call $growable-array-of-strings->string
                                (local.get $out)))

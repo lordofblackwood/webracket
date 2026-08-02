@@ -64,6 +64,30 @@
             "given: 0"
             "argument position: 1st"
             "other arguments...")))))
+ (list "random two-argument errors use error-value->string-handler"
+       (let ([old (error-value->string-handler)])
+         (error-value->string-handler
+          (lambda (v _width)
+            (cond
+              [(number? v) "CUSTOM-NUMBER"]
+              [else "CUSTOM-VALUE"])))
+         (let ([ok (and
+                    (catch-contract/contains?
+                     (lambda () (random 10 1))
+                     "random"
+                     "expected: (>/c 10)"
+                     "given: CUSTOM-NUMBER"
+                     "other arguments...:"
+                     "CUSTOM-NUMBER")
+                    (catch-contract/contains?
+                     (lambda () (random #f 10))
+                     "random"
+                     "exact-integer?"
+                     "given: CUSTOM-VALUE"
+                     "other arguments...:"
+                     "CUSTOM-NUMBER"))])
+           (error-value->string-handler old)
+           ok)))
  (list "random-seed errors are catchable with who"
        (and
         (catch-contract/contains?
