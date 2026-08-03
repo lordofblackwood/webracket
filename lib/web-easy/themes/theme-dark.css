@@ -606,6 +606,9 @@ html.we-theme-dark .we-input-group {
   flex-wrap: nowrap;
   align-items: stretch;
   width: 100%;
+  background: var(--we-input-group-bg, transparent);
+  border-radius: var(--we-input-group-radius, 0);
+  box-shadow: var(--we-input-group-shadow, none);
 }
 
 html.we-theme-dark .we-input-group > .we-input,
@@ -617,6 +620,20 @@ html.we-theme-dark .we-input-group > textarea {
   position: relative;
   flex: 1 1 auto;
   width: 1%;
+  background: var(--we-input-group-control-bg, var(--we-field-bg));
+}
+
+html.we-theme-dark .we-input-group > input.we-input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+html.we-theme-dark .we-input-group > input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+html.we-theme-dark .we-input-group > textarea.we-input,
+html.we-theme-dark .we-input-group > textarea {
+  background: var(--we-input-group-control-bg, var(--we-field-bg));
+}
+
+html.we-theme-dark .we-input-group > select.we-input,
+html.we-theme-dark .we-input-group > select,
+html.we-theme-dark .we-input-group > .we-choice {
+  background: var(--we-input-group-select-bg, var(--we-field-bg));
 }
 
 html.we-theme-dark .we-input-group.we-input-group-sm > .we-input,
@@ -732,10 +749,26 @@ html.we-theme-dark .we-input-group > .we-button {
   z-index: 1;
   display: block;
   text-align: center;
+  border: var(--we-input-group-button-border-width, var(--we-button-border-width, 1px)) var(--we-input-group-button-border-style, var(--we-button-border-style, solid)) var(--we-input-group-button-border-color, var(--we-button-border-color));
 }
 
 html.we-theme-dark .we-input-group > .we-button:not(:first-child) {
   border-left: var(--we-input-group-button-left-border-width, var(--we-button-outline-border-width, var(--we-button-border-width, 1px))) var(--we-input-group-button-left-border-style, solid) var(--we-input-group-button-left-border-color, var(--we-button-secondary-border));
+}
+
+html.we-theme-dark .we-input-group > .we-button:last-child:not(:first-child) {
+  border-top-right-radius: var(--we-input-group-button-last-radius-top-right, var(--we-input-group-radius, var(--we-field-radius)));
+  border-bottom-right-radius: var(--we-input-group-button-last-radius-bottom-right, var(--we-input-group-radius, var(--we-field-radius)));
+}
+
+html.we-theme-dark .we-input-group-sm > .we-button:last-child:not(:first-child) {
+  border-top-right-radius: var(--we-input-group-sm-button-last-radius-top-right, var(--we-input-group-button-last-radius-top-right, var(--we-input-group-sm-radius, var(--we-field-sm-radius, var(--we-field-radius)))));
+  border-bottom-right-radius: var(--we-input-group-sm-button-last-radius-bottom-right, var(--we-input-group-button-last-radius-bottom-right, var(--we-input-group-sm-radius, var(--we-field-sm-radius, var(--we-field-radius)))));
+}
+
+html.we-theme-dark .we-input-group-lg > .we-button:last-child:not(:first-child) {
+  border-top-right-radius: var(--we-input-group-lg-button-last-radius-top-right, var(--we-input-group-button-last-radius-top-right, var(--we-input-group-lg-radius, var(--we-field-lg-radius, var(--we-field-radius)))));
+  border-bottom-right-radius: var(--we-input-group-lg-button-last-radius-bottom-right, var(--we-input-group-button-last-radius-bottom-right, var(--we-input-group-lg-radius, var(--we-field-lg-radius, var(--we-field-radius)))));
 }
 
 html.we-theme-dark input::placeholder,
@@ -804,6 +837,7 @@ html.we-theme-dark textarea.we-input.is-valid,
 html.we-theme-dark .we-input.is-valid {
   border-color: var(--we-field-valid-border-color);
   background-image: var(--we-field-valid-icon);
+  padding-right: var(--we-field-valid-padding-right, calc(1.5em + var(--we-field-padding-x)));
 }
 
 html.we-theme-dark input.we-input.is-invalid:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
@@ -812,6 +846,7 @@ html.we-theme-dark textarea.we-input.is-invalid,
 html.we-theme-dark .we-input.is-invalid {
   border-color: var(--we-field-invalid-border-color);
   background-image: var(--we-field-invalid-icon);
+  padding-right: var(--we-field-invalid-padding-right, var(--we-field-valid-padding-right, calc(1.5em + var(--we-field-padding-x))));
 }
 
 html.we-theme-dark .we-feedback {
@@ -835,9 +870,10 @@ html.we-theme-dark .we-feedback.is-invalid {
 html.we-theme-dark button,
 html.we-theme-dark .we-button {
   background: var(--we-surface-raised);
-  border: var(--we-button-border-width, 1px) solid var(--we-button-border-color, var(--we-control-border));
+  border: var(--we-button-border-width, 1px) var(--we-button-border-style, solid) var(--we-button-border-color, var(--we-control-border));
   color: var(--we-fg);
-  box-shadow: var(--we-button-shadow, none);
+  --we-button-variant-shadow: var(--we-button-shadow, none);
+  box-shadow: var(--we-button-shadow-current, var(--we-button-variant-shadow));
   border-radius: var(--we-button-radius);
   padding: var(--we-button-padding-y) var(--we-button-padding-x);
   font-family: var(--we-font-family-base);
@@ -889,6 +925,7 @@ html.we-theme-dark .we-button:disabled {
   background: var(--we-bg-disabled);
   border-color: var(--we-control-border-disabled);
   color: var(--we-fg-muted);
+  box-shadow: var(--we-button-disabled-shadow, none);
   opacity: var(--we-button-disabled-opacity, 0.65);
   cursor: not-allowed;
 }
@@ -897,21 +934,24 @@ html.we-theme-dark .we-button-primary:disabled {
   background: var(--we-button-primary-disabled-bg, var(--we-bg-disabled));
   border-color: var(--we-button-primary-disabled-border, var(--we-control-border-disabled));
   color: var(--we-button-primary-disabled-color, var(--we-fg-muted));
+  box-shadow: var(--we-button-primary-disabled-shadow, var(--we-button-disabled-shadow, none));
 }
 
 html.we-theme-dark .we-button-outline-secondary:disabled {
   background: var(--we-button-outline-secondary-disabled-bg, var(--we-bg-disabled));
   border-color: var(--we-button-outline-secondary-disabled-border, var(--we-control-border-disabled));
   color: var(--we-button-outline-secondary-disabled-color, var(--we-fg-muted));
+  box-shadow: var(--we-button-outline-secondary-disabled-shadow, var(--we-button-disabled-shadow, none));
 }
 
 
 /* Button variants used by the public showcase page. */
 html.we-theme-dark .we-button-primary {
-  background: var(--we-primary);
+  background: var(--we-button-primary-bg, var(--we-primary));
   border-color: var(--we-button-primary-border, var(--we-primary));
-  color: var(--we-primary-on);
-  box-shadow: var(--we-button-primary-shadow, var(--we-button-shadow, none));
+  color: var(--we-button-primary-color, var(--we-primary-on));
+  --we-button-variant-shadow: var(--we-button-primary-shadow, var(--we-button-shadow, none));
+  box-shadow: var(--we-button-shadow-current, var(--we-button-variant-shadow));
 }
 
 html.we-theme-dark .we-button-primary:not(:disabled):hover {
@@ -925,7 +965,8 @@ html.we-theme-dark .we-button-secondary {
   border-style: var(--we-button-secondary-border-style, solid);
   border-color: var(--we-button-secondary-border);
   color: var(--we-button-secondary-color);
-  box-shadow: var(--we-button-secondary-shadow, var(--we-button-shadow, none));
+  --we-button-variant-shadow: var(--we-button-secondary-shadow, var(--we-button-shadow, none));
+  box-shadow: var(--we-button-shadow-current, var(--we-button-variant-shadow));
 }
 
 html.we-theme-dark .we-button-secondary:not(:disabled):hover {
@@ -951,35 +992,40 @@ html.we-theme-dark .we-button-success {
   background: var(--we-success);
   border-color: var(--we-button-success-border, var(--we-success));
   color: var(--we-button-success-color, var(--we-success-on));
-  box-shadow: var(--we-button-success-shadow, var(--we-button-shadow, none));
+  --we-button-variant-shadow: var(--we-button-success-shadow, var(--we-button-shadow, none));
+  box-shadow: var(--we-button-shadow-current, var(--we-button-variant-shadow));
 }
 
 html.we-theme-dark .we-button-info {
   background: var(--we-info);
   border-color: var(--we-button-info-border, var(--we-info));
   color: var(--we-button-info-color, var(--we-info-on));
-  box-shadow: var(--we-button-info-shadow, var(--we-button-shadow, none));
+  --we-button-variant-shadow: var(--we-button-info-shadow, var(--we-button-shadow, none));
+  box-shadow: var(--we-button-shadow-current, var(--we-button-variant-shadow));
 }
 
 html.we-theme-dark .we-button-warning {
   background: var(--we-warning);
   border-color: var(--we-button-warning-border, var(--we-warning));
   color: var(--we-button-warning-color, var(--we-warning-on));
-  box-shadow: var(--we-button-warning-shadow, var(--we-button-shadow, none));
+  --we-button-variant-shadow: var(--we-button-warning-shadow, var(--we-button-shadow, none));
+  box-shadow: var(--we-button-shadow-current, var(--we-button-variant-shadow));
 }
 
 html.we-theme-dark .we-button-danger {
   background: var(--we-danger);
   border-color: var(--we-button-danger-border, var(--we-danger));
   color: var(--we-button-danger-color, var(--we-danger-on));
-  box-shadow: var(--we-button-danger-shadow, var(--we-button-shadow, none));
+  --we-button-variant-shadow: var(--we-button-danger-shadow, var(--we-button-shadow, none));
+  box-shadow: var(--we-button-shadow-current, var(--we-button-variant-shadow));
 }
 
 html.we-theme-dark .we-button-light {
   background: var(--we-button-light-bg);
   border-color: var(--we-button-light-border);
   color: var(--we-button-light-color);
-  box-shadow: var(--we-button-light-shadow, var(--we-button-shadow, none));
+  --we-button-variant-shadow: var(--we-button-light-shadow, var(--we-button-shadow, none));
+  box-shadow: var(--we-button-shadow-current, var(--we-button-variant-shadow));
 }
 
 html.we-theme-dark .we-button-light:not(:disabled):hover {
@@ -992,7 +1038,8 @@ html.we-theme-dark .we-button-dark {
   background: var(--we-dark);
   border-color: var(--we-button-dark-border, var(--we-dark));
   color: var(--we-dark-on);
-  box-shadow: var(--we-button-dark-shadow, var(--we-button-shadow, none));
+  --we-button-variant-shadow: var(--we-button-dark-shadow, var(--we-button-shadow, none));
+  box-shadow: var(--we-button-shadow-current, var(--we-button-variant-shadow));
 }
 
 html.we-theme-dark .we-button-link {
@@ -1006,13 +1053,15 @@ html.we-theme-dark .we-button-outline-primary {
   background: var(--we-button-outline-primary-bg, transparent);
   border-color: var(--we-button-outline-primary-border, var(--we-primary));
   color: var(--we-button-outline-primary-color, var(--we-primary-emphasis));
-  box-shadow: var(--we-button-outline-primary-shadow, var(--we-button-primary-shadow, var(--we-button-shadow, none)));
+  --we-button-variant-shadow: var(--we-button-outline-primary-shadow, var(--we-button-primary-shadow, var(--we-button-shadow, none)));
+  box-shadow: var(--we-button-shadow-current, var(--we-button-variant-shadow));
 }
 html.we-theme-dark .we-button-outline-primary.is-active,
 html.we-theme-dark .we-button-outline-primary[aria-pressed='true'] {
-  background: var(--we-primary);
-  border-color: var(--we-button-primary-border, var(--we-primary));
-  color: var(--we-primary-on);
+  background: var(--we-button-outline-primary-active-bg, var(--we-primary));
+  border-color: var(--we-button-outline-primary-active-border, var(--we-button-primary-border, var(--we-primary)));
+  color: var(--we-button-outline-primary-active-color, var(--we-primary-on));
+  --we-button-variant-shadow: var(--we-button-outline-primary-active-shadow, var(--we-button-outline-primary-shadow, var(--we-button-primary-shadow, var(--we-button-shadow, none))));
 }
 html.we-theme-dark .we-button-outline-primary,
 html.we-theme-dark .we-button-outline-secondary,
@@ -1028,15 +1077,16 @@ html.we-theme-dark .we-button-outline-secondary {
   background: var(--we-button-outline-secondary-bg, transparent);
   border-color: var(--we-button-outline-secondary-border);
   color: var(--we-button-outline-secondary-color);
-  box-shadow: var(--we-button-outline-secondary-shadow, var(--we-button-secondary-shadow, var(--we-button-shadow, none)));
+  --we-button-variant-shadow: var(--we-button-outline-secondary-shadow, var(--we-button-secondary-shadow, var(--we-button-shadow, none)));
+  box-shadow: var(--we-button-shadow-current, var(--we-button-variant-shadow));
 }
 html.we-theme-dark .we-button-outline-secondary:not(:disabled):hover { background: var(--we-button-outline-secondary-hover-bg); border-color: var(--we-button-outline-secondary-hover-border); color: var(--we-button-secondary-hover-color); }
-html.we-theme-dark .we-button-outline-success { background: transparent; border-color: var(--we-button-success-border, var(--we-success)); color: var(--we-success-emphasis); box-shadow: var(--we-button-success-shadow, var(--we-button-shadow, none)); }
-html.we-theme-dark .we-button-outline-info { background: transparent; border-color: var(--we-button-info-border, var(--we-info)); color: var(--we-info-emphasis); box-shadow: var(--we-button-info-shadow, var(--we-button-shadow, none)); }
-html.we-theme-dark .we-button-outline-warning { background: transparent; border-color: var(--we-button-warning-border, var(--we-warning)); color: var(--we-warning-emphasis); box-shadow: var(--we-button-warning-shadow, var(--we-button-shadow, none)); }
-html.we-theme-dark .we-button-outline-danger { background: transparent; border-color: var(--we-button-danger-border, var(--we-danger)); color: var(--we-danger-emphasis); box-shadow: var(--we-button-danger-shadow, var(--we-button-shadow, none)); }
-html.we-theme-dark .we-button-outline-light { background: transparent; border-color: var(--we-light); color: var(--we-light-on); box-shadow: var(--we-button-light-shadow, var(--we-button-shadow, none)); }
-html.we-theme-dark .we-button-outline-dark { background: transparent; border-color: var(--we-button-dark-border, var(--we-dark-border)); color: var(--we-dark-border); box-shadow: var(--we-button-dark-shadow, var(--we-button-shadow, none)); }
+html.we-theme-dark .we-button-outline-success { background: transparent; border-color: var(--we-button-success-border, var(--we-success)); color: var(--we-success-emphasis); --we-button-variant-shadow: var(--we-button-success-shadow, var(--we-button-shadow, none)); box-shadow: var(--we-button-shadow-current, var(--we-button-variant-shadow)); }
+html.we-theme-dark .we-button-outline-info { background: transparent; border-color: var(--we-button-info-border, var(--we-info)); color: var(--we-info-emphasis); --we-button-variant-shadow: var(--we-button-info-shadow, var(--we-button-shadow, none)); box-shadow: var(--we-button-shadow-current, var(--we-button-variant-shadow)); }
+html.we-theme-dark .we-button-outline-warning { background: transparent; border-color: var(--we-button-warning-border, var(--we-warning)); color: var(--we-warning-emphasis); --we-button-variant-shadow: var(--we-button-warning-shadow, var(--we-button-shadow, none)); box-shadow: var(--we-button-shadow-current, var(--we-button-variant-shadow)); }
+html.we-theme-dark .we-button-outline-danger { background: transparent; border-color: var(--we-button-danger-border, var(--we-danger)); color: var(--we-danger-emphasis); --we-button-variant-shadow: var(--we-button-danger-shadow, var(--we-button-shadow, none)); box-shadow: var(--we-button-shadow-current, var(--we-button-variant-shadow)); }
+html.we-theme-dark .we-button-outline-light { background: transparent; border-color: var(--we-light); color: var(--we-light-on); --we-button-variant-shadow: var(--we-button-light-shadow, var(--we-button-shadow, none)); box-shadow: var(--we-button-shadow-current, var(--we-button-variant-shadow)); }
+html.we-theme-dark .we-button-outline-dark { background: transparent; border-color: var(--we-button-dark-border, var(--we-dark-border)); color: var(--we-dark-border); --we-button-variant-shadow: var(--we-button-dark-shadow, var(--we-button-shadow, none)); box-shadow: var(--we-button-shadow-current, var(--we-button-variant-shadow)); }
 
 html.we-theme-dark .we-button-lg {
   padding: var(--we-button-lg-padding-y, 0.5rem) var(--we-button-lg-padding-x, 1rem);
@@ -1400,6 +1450,11 @@ html.we-theme-dark .we-tab-btn + .we-tab-btn {
   margin-left: -1px;
 }
 
+html.we-theme-dark .we-tab-list > .we-tab-btn:first-child {
+  border-top-left-radius: var(--we-tab-first-border-top-left-radius, var(--we-tab-border-radius));
+  border-bottom-left-radius: var(--we-tab-first-border-bottom-left-radius, var(--we-tab-border-bottom-left-radius, 0));
+}
+
 html.we-theme-dark .we-tab-btn:hover,
 html.we-theme-dark .we-tab-btn:focus-visible {
   border-color: var(--we-tab-hover-border-color, var(--we-tab-border-color));
@@ -1414,12 +1469,18 @@ html.we-theme-dark .we-tab-btn.is-selected {
   border-radius: var(--we-tab-active-border-radius, var(--we-tab-border-radius) var(--we-tab-border-radius) var(--we-tab-border-bottom-right-radius, 0) var(--we-tab-border-bottom-left-radius, 0));
   /* Active tab sits in front and merges into the content panel. */
   border-bottom: var(--we-tab-active-border-width, var(--we-tab-border-width, 1px)) var(--we-tab-active-border-style, solid) var(--we-tab-active-border-bottom-color, var(--we-tab-active-bg));
+  border-bottom-style: var(--we-tab-active-border-style, solid);
   background: var(--we-tab-active-bg);
   color: var(--we-tab-active-color);
   box-shadow: var(--we-tab-active-shadow, none);
   font-weight: var(--we-tab-font-weight, var(--we-nav-font-weight));
   transform: var(--we-tab-active-transform, none);
   z-index: 1;
+}
+
+html.we-theme-dark .we-tab-list > .we-tab-btn.is-selected:first-child {
+  border-top-left-radius: var(--we-tab-first-border-top-left-radius, var(--we-tab-border-radius));
+  border-bottom-left-radius: var(--we-tab-first-border-bottom-left-radius, var(--we-tab-border-bottom-left-radius, 0));
 }
 
 html.we-theme-dark .we-tab-btn.is-disabled {
@@ -1445,6 +1506,14 @@ html.we-theme-dark .we-tab-panel > .we-tab-list + .we-tab-content {
 html.we-theme-dark .we-tab-style-pills .we-tab-list {
   align-items: center;
   border-bottom: 0;
+  padding: var(--we-pill-list-padding-y, 0) var(--we-pill-list-padding-x, 0);
+  border:
+    var(--we-pill-list-border-width, 0)
+    var(--we-pill-list-border-style, none)
+    var(--we-pill-list-border-color, transparent);
+  border-radius: var(--we-pill-list-radius, 0);
+  background: var(--we-pill-list-bg, transparent);
+  box-shadow: var(--we-pill-list-shadow, none);
 }
 
 html.we-theme-dark .we-tab-style-pills .we-tab-btn {
@@ -1493,6 +1562,12 @@ html.we-theme-dark .we-tab-style-pills .we-tab-btn[aria-selected="true"] {
   box-shadow: var(--we-pill-active-shadow, none);
   font-weight: var(--we-pill-font-weight, var(--we-tab-font-weight, var(--we-nav-font-weight)));
   transform: var(--we-pill-active-transform, none);
+}
+
+html.we-theme-dark .we-tab-style-pills .we-tab-list > .we-tab-btn.is-selected:first-child,
+html.we-theme-dark .we-tab-style-pills .we-tab-list > .we-tab-btn[aria-selected="true"]:first-child {
+  border-top-left-radius: var(--we-pill-border-top-left-radius, var(--we-pill-radius, var(--we-radius-md)));
+  border-bottom-left-radius: var(--we-pill-border-bottom-left-radius, var(--we-pill-radius, var(--we-radius-md)));
 }
 
 /* Dialog surface colors are theme-owned, so theme switching updates overlays. */
@@ -2478,6 +2553,11 @@ html.we-theme-dark .we-toggle-button-group {
   flex-wrap: nowrap;
   align-items: stretch;
   gap: 0;
+  background: var(--we-button-group-bg, transparent);
+  border: var(--we-button-group-border-width, 0) var(--we-button-group-border-style, none) var(--we-button-group-border-color, transparent);
+  border-radius: var(--we-button-group-radius, var(--we-button-radius));
+  box-shadow: var(--we-button-group-shadow, none);
+  --we-button-shadow-current: var(--we-button-group-button-shadow, var(--we-button-variant-shadow));
 }
 
 html.we-theme-dark .we-toggle-button-group {
@@ -2505,6 +2585,7 @@ html.we-theme-dark .we-toggle-button-group > .we-button + .we-button {
 html.we-theme-dark .we-button-group > .we-button:not(:first-child),
 html.we-theme-dark .we-toolbar-group > .we-button:not(:first-child),
 html.we-theme-dark .we-toggle-button-group > .we-button:not(:first-child) {
+  border-left: var(--we-button-group-separator-width, var(--we-button-border-width, var(--we-border-width))) var(--we-button-group-separator-style, var(--we-button-border-style, solid)) var(--we-button-group-separator-color, var(--we-button-border-color));
   border-top-left-radius: 0;
   border-bottom-left-radius: 0;
 }
@@ -2529,12 +2610,18 @@ html.we-theme-dark .we-button-group-vertical.we-stack {
   flex-direction: column;
   align-self: flex-start;
   gap: 0;
+  background: var(--we-button-group-bg, transparent);
+  border: var(--we-button-group-border-width, 0) var(--we-button-group-border-style, none) var(--we-button-group-border-color, transparent);
+  border-radius: var(--we-button-group-vertical-radius, var(--we-button-group-radius, var(--we-button-radius)));
+  box-shadow: var(--we-button-group-shadow, none);
+  --we-button-shadow-current: var(--we-button-group-button-shadow, var(--we-button-variant-shadow));
 }
 
 html.we-theme-dark .we-button-group-vertical > .we-button {
   flex: 1 1 auto;
   width: 100%;
   position: relative;
+  border-radius: var(--we-button-group-vertical-button-radius, var(--we-button-radius));
   margin:
     var(--we-button-margin-top, 0)
     var(--we-button-margin-right, 0)
@@ -2547,6 +2634,7 @@ html.we-theme-dark .we-button-group-vertical > .we-button + .we-button {
 }
 
 html.we-theme-dark .we-button-group-vertical > .we-button:not(:first-child) {
+  border-top: var(--we-button-group-vertical-separator-width, var(--we-button-border-width, var(--we-border-width))) var(--we-button-group-vertical-separator-style, var(--we-button-border-style, solid)) var(--we-button-group-vertical-separator-color, var(--we-button-border-color));
   border-top-left-radius: 0;
   border-top-right-radius: 0;
 }
@@ -3032,6 +3120,7 @@ html.we-theme-dark .we-checkbox:not(.we-switch-control) {
   background-size: contain;
   border: var(--we-check-border-width) var(--we-check-border-style, solid) var(--we-check-border-color);
   border-radius: var(--we-check-radius);
+  box-shadow: var(--we-check-shadow, none);
   vertical-align: top;
 }
 
@@ -3083,6 +3172,7 @@ html.we-theme-dark .we-checkbox:not(.we-switch-control):checked {
   background-color: var(--we-check-checked-bg);
   background-image: var(--we-check-checked-icon);
   border-color: var(--we-check-checked-border-color);
+  box-shadow: var(--we-check-checked-shadow, var(--we-check-shadow, none));
 }
 
 html.we-theme-dark .we-checkbox:not(.we-switch-control):disabled {
@@ -3124,6 +3214,7 @@ html.we-theme-dark .we-radio-input {
   background-size: contain;
   border: var(--we-check-border-width) var(--we-check-border-style, solid) var(--we-check-border-color);
   border-radius: var(--we-radio-radius, 50%);
+  box-shadow: var(--we-check-shadow, none);
   vertical-align: top;
   accent-color: #5f9cd8;
 }
@@ -3138,6 +3229,7 @@ html.we-theme-dark .we-radio-input:checked {
   background-color: var(--we-check-checked-bg);
   background-image: var(--we-radio-checked-icon, none);
   border-color: var(--we-check-checked-border-color);
+  box-shadow: var(--we-check-checked-shadow, var(--we-check-shadow, none));
 }
 
 html.we-theme-dark .we-radio-input:disabled {
@@ -3277,6 +3369,7 @@ html.we-theme-dark .we-switch-control {
   background-size: contain;
   background-repeat: no-repeat;
   background-position: left center;
+  box-shadow: var(--we-check-shadow, none);
   transition: background-position 0.18s ease-in-out,
               background-color 0.18s ease-in-out,
               border-color 0.18s ease-in-out;
@@ -3315,6 +3408,7 @@ html.we-theme-dark .we-switch-control:checked {
   border-color: var(--we-check-checked-border-color);
   background-image: var(--we-switch-checked-icon);
   background-position: right center;
+  box-shadow: var(--we-check-checked-shadow, var(--we-check-shadow, none));
 }
 
 html.we-theme-dark .we-switch-control:checked::after {
@@ -3809,13 +3903,18 @@ html.we-theme-dark .we-scrollspy-nav {
   flex-direction: column;
   gap: 4px;
   align-items: stretch;
-  border-bottom: 0;
-  padding-bottom: 0;
+  padding: var(--we-pill-list-padding-y, 0) var(--we-pill-list-padding-x, 0);
+  border:
+    var(--we-pill-list-border-width, 0)
+    var(--we-pill-list-border-style, none)
+    var(--we-pill-list-border-color, transparent);
+  border-radius: var(--we-pill-list-radius, 0);
+  background: var(--we-pill-list-bg, transparent);
+  box-shadow: var(--we-pill-list-shadow, none);
 }
 
 html.we-theme-dark .we-scrollspy-item {
   display: block;
-  width: 100%;
   min-width: 0;
   min-height: auto;
   margin: 0;
