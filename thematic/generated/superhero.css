@@ -142,6 +142,17 @@ html.we-theme-superhero {
   --we-tab-active-border-radius: 0 0 0 0;
   --we-tab-active-shadow: none;
   --we-tab-active-transform: none;
+  --we-tab-content-padding-x: 1rem;
+  --we-tab-content-padding-y: 1rem;
+  --we-tab-content-bg: transparent;
+  --we-tab-content-border-color: #ced4da;
+  --we-tab-content-border-width: 1px;
+  --we-tab-content-border-style: solid;
+  --we-tab-content-border-top-width: 0;
+  --we-tab-content-radius-top-left: 0;
+  --we-tab-content-radius-top-right: 0;
+  --we-tab-content-radius-bottom-left: 0;
+  --we-tab-content-radius-bottom-right: 0;
   --we-pill-color: #ebebeb;
   --we-pill-font-size: 1rem;
   --we-pill-font-weight: 400;
@@ -965,6 +976,7 @@ html.we-theme-superhero {
   --we-space-sm: 4px;
   --we-space-md: 8px;
   --we-space-lg: 10px;
+  --we-space-3: 1rem;
   --we-radius-sm: 0;
   --we-radius-md: 0;
   --we-radius-lg: 0;
@@ -2162,16 +2174,17 @@ html.we-theme-superhero .we-tab-btn.is-disabled {
 }
 
 html.we-theme-superhero .we-tab-content {
-  border: var(--we-tab-border-width, 1px) solid var(--we-tab-border-color);
-  border-top: none;
-  border-radius: 0 0 var(--we-tab-border-radius) var(--we-tab-border-radius);
-  background: var(--we-surface);
-  padding: 10px;
+  border: var(--we-tab-content-border-width, var(--we-tab-border-width, 1px)) var(--we-tab-content-border-style, solid) var(--we-tab-content-border-color, var(--we-tab-border-color));
+  border-top-width: var(--we-tab-content-border-top-width, 0);
+  border-top-style: none;
+  border-radius: var(--we-tab-content-radius-top-left, 0) var(--we-tab-content-radius-top-right, 0) var(--we-tab-content-radius-bottom-right, var(--we-tab-border-radius)) var(--we-tab-content-radius-bottom-left, var(--we-tab-border-radius));
+  background: var(--we-tab-content-bg, var(--we-surface));
+  padding: var(--we-tab-content-padding-y, 10px) var(--we-tab-content-padding-x, 10px);
 }
 
 html.we-theme-superhero .we-tab-panel > .we-tab-list + .we-tab-content {
-  border-top-left-radius: 0;
-  border-top-right-radius: 0;
+  border-top-left-radius: var(--we-tab-content-radius-top-left, 0);
+  border-top-right-radius: var(--we-tab-content-radius-top-right, 0);
 }
 
 html.we-theme-superhero .we-tab-style-pills .we-tab-list {
@@ -2266,7 +2279,6 @@ html.we-theme-lux .we-tab-btn:not(.is-selected):focus-visible {
 
 html.we-theme-lux .we-tab-content {
   border-width: 0;
-  border-radius: 0;
 }
 
 html.we-theme-lux .we-pagination {

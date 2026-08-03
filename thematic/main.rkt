@@ -513,6 +513,9 @@
                                    selectors
                                    property
                                    tab-context-ref))
+  (define (utility-style-ref selector property)
+    (or (meaningful-style-ref selector property)
+        (nav-style-ref selector property)))
   (define (custom-direct-ref selectors key)
     (and (css-stylesheet? rules)
          (present-ref
@@ -983,6 +986,58 @@
     (or (tab-direct-ref tab-active-selectors "transform")
         (nav-style-ref ".nav-tabs .nav-link.active" "transform")
         (nav-style-ref ".nav-tabs .nav-item .nav-link.active" "transform")))
+  (define tab-content-selector
+    ".tab-content.border.border-top-0.rounded-bottom.p-3")
+  (define tab-content-padding-x
+    (or (utility-style-ref tab-content-selector "padding-left")
+        (utility-style-ref ".p-3" "padding-left")))
+  (define tab-content-padding-y
+    (or (utility-style-ref tab-content-selector "padding-top")
+        (utility-style-ref ".p-3" "padding-top")))
+  (define tab-content-bg
+    (or (nav-style-ref tab-content-selector "background-color")
+        "transparent"))
+  (define tab-content-border-color
+    (or (utility-style-ref tab-content-selector "border-right-color")
+        (utility-style-ref ".border" "border-right-color")
+        (border-shorthand-color (utility-style-ref ".border" "border"))
+        (hash-ref props "--bs-border-color" #f)))
+  (define tab-content-border-width
+    (or (utility-style-ref tab-content-selector "border-right-width")
+        (utility-style-ref ".border" "border-right-width")
+        (border-shorthand-width* (utility-style-ref ".border" "border"))
+        (hash-ref props "--bs-border-width" #f)))
+  (define tab-content-border-style
+    (or (utility-style-ref tab-content-selector "border-right-style")
+        (utility-style-ref ".border" "border-right-style")
+        (border-shorthand-style (utility-style-ref ".border" "border"))
+        (hash-ref props "--bs-border-style" #f)))
+  (define tab-content-border-top-width
+    (or (utility-style-ref tab-content-selector "border-top-width")
+        (utility-style-ref ".border-top-0" "border-top-width")
+        "0"))
+  (define tab-content-radius-shorthand
+    (or (utility-style-ref tab-content-selector "border-radius")
+        (utility-style-ref ".tab-content" "border-radius")))
+  (define tab-content-radius-top-left
+    (or (utility-style-ref tab-content-selector "border-top-left-radius")
+        (border-radius-shorthand-corner tab-content-radius-shorthand 'top-left)
+        "0"))
+  (define tab-content-radius-top-right
+    (or (utility-style-ref tab-content-selector "border-top-right-radius")
+        (border-radius-shorthand-corner tab-content-radius-shorthand 'top-right)
+        "0"))
+  (define tab-content-radius-bottom-left
+    (or (utility-style-ref tab-content-selector "border-bottom-left-radius")
+        (utility-style-ref ".rounded-bottom" "border-bottom-left-radius")
+        (border-radius-shorthand-corner tab-content-radius-shorthand 'bottom-left)))
+  (define tab-content-radius-bottom-right
+    (or (utility-style-ref tab-content-selector "border-bottom-right-radius")
+        (utility-style-ref ".rounded-bottom" "border-bottom-right-radius")
+        (border-radius-shorthand-corner tab-content-radius-shorthand 'bottom-right)))
+  (define space-3
+    (or (utility-style-ref ".p-3" "padding-left")
+        (utility-style-ref ".mb-3" "margin-bottom")))
   (define pill-color
     (or (pill-direct-ref '(".nav-pills .nav-link" ".nav-link") "color")
         (pill-context-ref "--bs-nav-link-color")
@@ -3999,6 +4054,18 @@
         'tab-active-border-radius tab-active-border-radius
         'tab-active-shadow tab-active-shadow
         'tab-active-transform tab-active-transform
+        'tab-content-padding-x tab-content-padding-x
+        'tab-content-padding-y tab-content-padding-y
+        'tab-content-bg tab-content-bg
+        'tab-content-border-color tab-content-border-color
+        'tab-content-border-width tab-content-border-width
+        'tab-content-border-style tab-content-border-style
+        'tab-content-border-top-width tab-content-border-top-width
+        'tab-content-radius-top-left tab-content-radius-top-left
+        'tab-content-radius-top-right tab-content-radius-top-right
+        'tab-content-radius-bottom-left tab-content-radius-bottom-left
+        'tab-content-radius-bottom-right tab-content-radius-bottom-right
+        'space-3 space-3
         'pill-color pill-color
         'pill-font-size pill-font-size
         'pill-font-weight pill-font-weight
@@ -5691,6 +5758,42 @@
   (define tab-active-transform
     (or (theme-component-ref theme 'tab-active-transform)
         "none"))
+  (define tab-content-padding-x
+    (or (theme-component-ref theme 'tab-content-padding-x)
+        "10px"))
+  (define tab-content-padding-y
+    (or (theme-component-ref theme 'tab-content-padding-y)
+        "10px"))
+  (define tab-content-bg
+    (or (theme-component-ref theme 'tab-content-bg)
+        "transparent"))
+  (define tab-content-border-color
+    (or (theme-component-ref theme 'tab-content-border-color)
+        tab-border-color))
+  (define tab-content-border-width
+    (or (theme-component-ref theme 'tab-content-border-width)
+        tab-border-width))
+  (define tab-content-border-style
+    (or (theme-component-ref theme 'tab-content-border-style)
+        "solid"))
+  (define tab-content-border-top-width
+    (or (theme-component-ref theme 'tab-content-border-top-width)
+        "0"))
+  (define tab-content-radius-top-left
+    (or (theme-component-ref theme 'tab-content-radius-top-left)
+        "0"))
+  (define tab-content-radius-top-right
+    (or (theme-component-ref theme 'tab-content-radius-top-right)
+        "0"))
+  (define tab-content-radius-bottom-left
+    (or (theme-component-ref theme 'tab-content-radius-bottom-left)
+        tab-border-radius))
+  (define tab-content-radius-bottom-right
+    (or (theme-component-ref theme 'tab-content-radius-bottom-right)
+        tab-border-radius))
+  (define space-3
+    (or (theme-component-ref theme 'space-3)
+        "1rem"))
   (define pill-color
     (or (theme-component-ref theme 'pill-color)
         navbar-link-color))
@@ -8269,6 +8372,17 @@
     (cons "--we-tab-active-border-radius" tab-active-border-radius)
     (cons "--we-tab-active-shadow" tab-active-shadow)
     (cons "--we-tab-active-transform" tab-active-transform)
+    (cons "--we-tab-content-padding-x" tab-content-padding-x)
+    (cons "--we-tab-content-padding-y" tab-content-padding-y)
+    (cons "--we-tab-content-bg" tab-content-bg)
+    (cons "--we-tab-content-border-color" tab-content-border-color)
+    (cons "--we-tab-content-border-width" tab-content-border-width)
+    (cons "--we-tab-content-border-style" tab-content-border-style)
+    (cons "--we-tab-content-border-top-width" tab-content-border-top-width)
+    (cons "--we-tab-content-radius-top-left" tab-content-radius-top-left)
+    (cons "--we-tab-content-radius-top-right" tab-content-radius-top-right)
+    (cons "--we-tab-content-radius-bottom-left" tab-content-radius-bottom-left)
+    (cons "--we-tab-content-radius-bottom-right" tab-content-radius-bottom-right)
     (cons "--we-pill-color" pill-color)
     (cons "--we-pill-font-size" pill-font-size)
     (cons "--we-pill-font-weight" pill-font-weight)
@@ -9032,6 +9146,7 @@
     (cons "--we-space-sm" "4px")
     (cons "--we-space-md" "8px")
     (cons "--we-space-lg" "10px")
+    (cons "--we-space-3" space-3)
     (cons "--we-radius-sm" (bootstrap-theme-radius-sm theme))
     (cons "--we-radius-md" (bootstrap-theme-radius-md theme))
     (cons "--we-radius-lg" (bootstrap-theme-radius-lg theme))
@@ -9308,8 +9423,21 @@
      ".border {\n"
      "  border: var(--bs-border-width) var(--bs-border-style) var(--bs-border-color);\n"
      "}\n"
+     ".border-top-0 {\n"
+     "  border-top: 0;\n"
+     "}\n"
      ".rounded {\n"
      "  border-radius: var(--bs-border-radius);\n"
+     "}\n"
+     ".rounded-bottom {\n"
+     "  border-bottom-right-radius: var(--bs-border-radius);\n"
+     "  border-bottom-left-radius: var(--bs-border-radius);\n"
+     "}\n"
+     ".mb-3 {\n"
+     "  margin-bottom: 1rem;\n"
+     "}\n"
+     ".p-3 {\n"
+     "  padding: 1rem;\n"
      "}\n"
      ".px-3 {\n"
      "  padding-left: 1rem;\n"
@@ -10539,6 +10667,25 @@
     (check-equal? (hash-ref token-map "--we-tab-line-height") "1.4")
     (check-equal? (hash-ref token-map "--we-tab-letter-spacing") "0.5px")
     (check-equal? (hash-ref token-map "--we-tab-text-transform") "uppercase")
+    (check-equal? (hash-ref token-map "--we-tab-content-padding-x") "1rem")
+    (check-equal? (hash-ref token-map "--we-tab-content-padding-y") "1rem")
+    (check-equal? (hash-ref token-map "--we-tab-content-bg") "transparent")
+    (check-equal? (hash-ref token-map "--we-tab-content-border-color")
+                  "#e0e1e2")
+    (check-equal? (hash-ref token-map "--we-tab-content-border-width") "2px")
+    (check-equal? (hash-ref token-map "--we-tab-content-border-style")
+                  "solid")
+    (check-equal? (hash-ref token-map "--we-tab-content-border-top-width")
+                  "0")
+    (check-equal? (hash-ref token-map "--we-tab-content-radius-top-left")
+                  "0")
+    (check-equal? (hash-ref token-map "--we-tab-content-radius-top-right")
+                  "0")
+    (check-equal? (hash-ref token-map "--we-tab-content-radius-bottom-left")
+                  "0.375rem")
+    (check-equal? (hash-ref token-map "--we-tab-content-radius-bottom-right")
+                  "0.375rem")
+    (check-equal? (hash-ref token-map "--we-space-3") "1rem")
     (check-equal? (hash-ref token-map "--we-pill-font-size") "1rem")
     (check-equal? (hash-ref token-map "--we-pill-font-weight") "300")
     (check-equal? (hash-ref token-map "--we-pill-line-height") "1.5")
