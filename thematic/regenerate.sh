@@ -16,7 +16,7 @@ run_racket_tool() {
 mkdir -p "$OUT_DIR"
 mkdir -p "$SMOKE_OUT_DIR"
 
-for theme in superhero sketchy lux sandstone vapor brite quartz morph
+for theme in superhero sketchy lux sandstone vapor brite quartz morph materia
 do
   run_racket_tool "$ROOT_DIR/tools/thematic" \
     --input "$ROOT_DIR/thematic/original/$theme/bootstrap.css" \

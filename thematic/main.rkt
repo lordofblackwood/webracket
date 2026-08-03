@@ -85,6 +85,7 @@
    "--bs-body-font-weight" "400"
    "--bs-body-line-height" "1.5"
    "--bs-border-width" "1px"
+   "--bs-border-style" "solid"
    "--bs-border-radius-sm" "0.25rem"
    "--bs-border-radius" "0.375rem"
    "--bs-border-radius-lg" "0.5rem"
@@ -325,6 +326,12 @@
                  "rgba(0, 0, 0, 0)"
                  "rgba(0,0,0,0)"))))
 
+;; normal-css-value? : (or/c string? #f) -> boolean?
+;;   Detect CSS normal values that may be computed defaults rather than authored overrides.
+(define (normal-css-value? value)
+  (and value
+       (string-ci=? (string-trim value) "normal")))
+
 ;; resolved-concrete-css-value : string? (string? -> (or/c string? #f)) -> (or/c string? #f)
 ;;   Resolve vars in authored CSS and reject unresolved var(...) placeholders.
 (define (resolved-concrete-css-value value lookup)
@@ -539,6 +546,8 @@
      (lambda (key) (bootstrap-context-ref selectors key))))
   (define link-font-weight
     (global-direct-ref '("a") "font-weight"))
+  (define control-letter-spacing
+    (global-direct-ref '("button") "letter-spacing"))
   (define pill-context-selectors
     '(".nav-pills .nav-link" ".nav-pills" ".nav"))
   (define (pill-context-ref key)
@@ -818,7 +827,8 @@
                        '(".navbar-nav .nav-link" ".nav-link")
                        "padding-left")))
   (define navbar-brand-size
-    (or (nav-custom-ref ".navbar" "--bs-navbar-brand-font-size")
+    (or (navbar-direct-ref '(".navbar-brand") "font-size")
+        (nav-custom-ref ".navbar" "--bs-navbar-brand-font-size")
         (nav-style-ref ".navbar-brand" "font-size")))
   (define navbar-brand-font-family
     (meaningful-style-ref ".navbar-brand" "font-family"))
@@ -878,16 +888,35 @@
   (define navbar-link-disabled
     (or (nav-custom-ref ".navbar" "--bs-navbar-disabled-color")
         nav-link-disabled))
+  (define navbar-border-shorthand
+    (or (last-important-direct-declaration-value rules
+                                                 '(".navbar.border" ".border")
+                                                 "border"
+                                                 navbar-context-ref)
+        (navbar-direct-ref '(".navbar") "border")))
   (define navbar-border-width
-    (or (selector-ref* nav-style-ref
+    (or (border-shorthand-width* navbar-border-shorthand)
+        (last-important-direct-declaration-value rules
+                                                 '(".navbar.border" ".border")
+                                                 "border-width"
+                                                 navbar-context-ref)
+        (selector-ref* nav-style-ref
                        '(".navbar.border" ".border" ".navbar")
                        "border-width")
         (hash-ref props "--bs-border-width" #f)))
   (define navbar-border-style
-    (or (selector-ref* nav-style-ref
+    (or (border-shorthand-style navbar-border-shorthand)
+        (last-important-direct-declaration-value rules
+                                                 '(".navbar.border" ".border")
+                                                 "border-style"
+                                                 navbar-context-ref)
+        (selector-ref* nav-style-ref
                        '(".navbar.border" ".border" ".navbar")
                        "border-style")
         (hash-ref props "--bs-border-style" #f)))
+  (define navbar-shadow
+    (or (navbar-direct-ref '(".navbar") "box-shadow")
+        (nav-style-ref ".navbar" "box-shadow")))
   (define navbar-radius
     (or (selector-ref* nav-style-ref
                        '(".navbar.rounded" ".rounded" ".navbar")
@@ -922,6 +951,8 @@
         "none"))
   (define tab-link-selectors
     '(".nav-tabs .nav-link" ".nav-link"))
+  (define tab-border-selectors
+    '(".nav-tabs .nav-link"))
   (define tab-active-selectors
     '(".nav-tabs .nav-item .nav-link.active"
       ".nav-tabs .nav-item.show .nav-link"
@@ -933,7 +964,7 @@
   (define tab-padding-shorthand
     (tab-direct-ref tab-link-selectors "padding"))
   (define tab-border-shorthand
-    (tab-direct-ref tab-link-selectors "border"))
+    (tab-direct-ref tab-border-selectors "border"))
   (define tab-border-radius-shorthand
     (tab-direct-ref tab-link-selectors "border-radius"))
   (define tab-first-radius-shorthand
@@ -950,10 +981,20 @@
         (border-shorthand-color tab-border-shorthand)
         "transparent"))
   (define tab-border-width
-    (or (nav-custom-ref ".nav-tabs" "--bs-nav-tabs-border-width")
+    (or (border-shorthand-width* tab-border-shorthand)
+        (nav-custom-ref ".nav-tabs" "--bs-nav-tabs-border-width")
         (nav-style-ref ".nav-tabs .nav-link" "border-width")
         (nav-style-ref ".nav-link" "border-width")
         (hash-ref props "--bs-border-width" #f)))
+  (define tab-border-style
+    (or (tab-direct-ref tab-border-selectors "border-style")
+        (border-shorthand-style tab-border-shorthand)
+        "solid"))
+  (define tab-shadow
+    (or (tab-direct-ref '(".nav-tabs .nav-link, .nav-tabs .nav-link:focus"
+                          ".nav-tabs .nav-link")
+                        "box-shadow")
+        (nav-style-ref ".nav-tabs .nav-link" "box-shadow")))
   (define tab-padding-x
     (or (meaningful-style-ref ".nav-tabs .nav-link" "padding-left")
         (box-shorthand-side tab-padding-shorthand 'left)
@@ -1035,8 +1076,9 @@
         (nav-style-ref ".nav-link" "color")
         nav-link-color))
   (define tab-active-color
-    (or (nav-custom-ref ".nav-tabs" "--bs-nav-tabs-link-active-color")
-        (nav-style-ref ".nav-tabs .nav-link.active" "color")))
+    (or (tab-direct-ref tab-active-selectors "color")
+        (nav-style-ref ".nav-tabs .nav-link.active" "color")
+        (nav-custom-ref ".nav-tabs" "--bs-nav-tabs-link-active-color")))
   (define tab-active-bg
     (or (tab-direct-ref tab-active-selectors "background-color")
         (nav-custom-ref ".nav-tabs" "--bs-nav-tabs-link-active-bg")
@@ -1143,8 +1185,7 @@
         (hash-ref bootstrap-defaults "--bs-body-line-height" #f)))
   (define pill-letter-spacing
     (or (pill-direct-ref '(".nav-pills .nav-link" ".nav-link") "letter-spacing")
-        (meaningful-style-ref ".nav-pills .nav-link" "letter-spacing")
-        "normal"))
+        (meaningful-style-ref ".nav-pills .nav-link" "letter-spacing")))
   (define pill-text-transform
     (or (pill-direct-ref '(".nav-pills .nav-link" ".nav-link") "text-transform")
         "none"))
@@ -1690,6 +1731,12 @@
     (button-direct-ref '(".btn-group" ".btn-group-vertical") "border-radius"))
   (define btn-group-button-shadow
     (button-direct-ref '(".btn-group .btn" ".btn-group-vertical .btn") "box-shadow"))
+  (define btn-group-adjacent-button-shadow
+    (or (button-direct-ref
+         '(".btn-group .btn + .btn, .btn-group .btn + .btn-group > .dropdown-toggle"
+           ".btn-group .btn + .btn")
+         "box-shadow")
+        (button-style-ref ".btn-group .btn + .btn" "box-shadow")))
   (define btn-group-separator-border
     (button-direct-ref '(".btn-group > .btn:nth-child(n+3)"
                          ".btn-group > :not(.btn-check) + .btn"
@@ -2958,14 +3005,26 @@
     (or (and (meaningful-css-value? alert-base-color-direct)
              alert-base-color-direct)
         alert-base-color-var))
+  (define alert-padding-shorthand
+    (alert-direct-ref '(".alert") "padding"))
   (define alert-padding-x
     (or (alert-custom-ref ".alert" "--bs-alert-padding-x")
+        (box-shorthand-side alert-padding-shorthand 'left)
         (alert-style-ref ".alert" "padding-left")))
   (define alert-padding-y
     (or (alert-custom-ref ".alert" "--bs-alert-padding-y")
+        (box-shorthand-side alert-padding-shorthand 'top)
         (alert-style-ref ".alert" "padding-top")))
+  (define alert-padding-right
+    (or (alert-direct-ref '(".alert") "padding-right")
+        (box-shorthand-side alert-padding-shorthand 'right)
+        alert-padding-x))
   (define alert-dismissible-padding-right
-    (or (alert-direct-ref '(".alert-dismissible") "padding-right")
+    (or (last-direct-declaration-value rules
+                                       '(".alert-dismissible" ".alert")
+                                       "padding-right"
+                                       alert-context-ref)
+        (alert-direct-ref '(".alert-dismissible") "padding-right")
         (alert-style-ref ".alert-dismissible" "padding-right")))
   (define alert-dismiss-padding-shorthand
     (alert-direct-ref '(".alert-dismissible .btn-close") "padding"))
@@ -3030,6 +3089,12 @@
         (alert-style-ref ".alert-link" "text-transform")))
   (define (alert-tone-bg tone)
     (or (last-concrete-authored-declaration-value
+         rules
+         (list ".alert" (format ".alert-~a" tone))
+         "background"
+         (lambda (key)
+           (alert-tone-context-ref tone key)))
+        (last-concrete-authored-declaration-value
          rules
          (list ".alert" (format ".alert-~a" tone))
          "background-color"
@@ -3505,19 +3570,37 @@
   (define field-focus-border-color
     (or (field-style-ref ".form-control:focus" "border-color")
         (field-style-ref ".form-select:focus" "border-color")))
+  (define field-disabled-selectors
+    '(".form-control:disabled"
+      ".form-control[disabled]"
+      "input.form-control[disabled]"
+      "textarea.form-control[disabled]"
+      "input[type=text][disabled]"
+      "[type=text].form-control[disabled]"))
+  (define field-disabled-border-bottom
+    (field-direct-ref field-disabled-selectors "border-bottom"))
   (define field-disabled-bg
-    (or (field-direct-ref '(".form-control:disabled") "background-color")
+    (or (field-direct-ref field-disabled-selectors "background-color")
         (field-style-ref ".form-control:disabled" "background-color")
         (field-style-ref ".form-select:disabled" "background-color")))
   (define field-disabled-color
-    (or (field-direct-ref '(".form-control:disabled") "color")
+    (or (field-direct-ref field-disabled-selectors "color")
         field-color))
   (define field-disabled-border-color
-    (or (field-direct-ref '(".form-control:disabled") "border-color")
+    (or (field-direct-ref field-disabled-selectors "border-color")
         (field-style-ref ".form-control:disabled" "border-color")
         field-border-color))
+  (define field-disabled-border-bottom-width
+    (or (field-direct-ref field-disabled-selectors "border-bottom-width")
+        (border-shorthand-width* field-disabled-border-bottom)))
+  (define field-disabled-border-bottom-style
+    (or (field-direct-ref field-disabled-selectors "border-bottom-style")
+        (border-shorthand-style field-disabled-border-bottom)))
+  (define field-disabled-border-bottom-color
+    (or (field-direct-ref field-disabled-selectors "border-bottom-color")
+        (border-shorthand-color field-disabled-border-bottom)))
   (define field-disabled-opacity
-    (or (field-direct-ref '(".form-control:disabled") "opacity")
+    (or (field-direct-ref field-disabled-selectors "opacity")
         (field-style-ref ".form-control:disabled" "opacity")
         (field-style-ref ".form-select:disabled" "opacity")))
   (define field-select-disabled-bg
@@ -3526,11 +3609,33 @@
         field-disabled-bg))
   (define field-select-disabled-color
     (or (field-direct-ref '(".form-select:disabled") "color")
+        (field-style-ref ".form-select:disabled" "color")
+        (field-style-ref ".form-select" "color")
         field-disabled-color))
   (define field-select-disabled-border-color
     (or (field-direct-ref '(".form-select:disabled") "border-color")
         (field-style-ref ".form-select:disabled" "border-color")
         field-disabled-border-color))
+  (define field-select-disabled-border-bottom
+    (field-direct-ref '(".form-select:disabled") "border-bottom"))
+  (define field-select-disabled-border-bottom-width
+    (or (field-direct-ref '(".form-select:disabled") "border-bottom-width")
+        (border-shorthand-width* field-select-disabled-border-bottom)
+        (field-style-ref ".form-select:disabled" "border-bottom-width")
+        (field-style-ref ".form-select" "border-bottom-width")
+        field-disabled-border-bottom-width))
+  (define field-select-disabled-border-bottom-style
+    (or (field-direct-ref '(".form-select:disabled") "border-bottom-style")
+        (border-shorthand-style field-select-disabled-border-bottom)
+        (field-style-ref ".form-select:disabled" "border-bottom-style")
+        (field-style-ref ".form-select" "border-bottom-style")
+        field-disabled-border-bottom-style))
+  (define field-select-disabled-border-bottom-color
+    (or (field-direct-ref '(".form-select:disabled") "border-bottom-color")
+        (border-shorthand-color field-select-disabled-border-bottom)
+        (field-style-ref ".form-select:disabled" "border-bottom-color")
+        (field-style-ref ".form-select" "border-bottom-color")
+        field-select-disabled-border-color))
   (define field-select-disabled-opacity
     (or (field-direct-ref '(".form-select:disabled") "opacity")
         (field-style-ref ".form-select:disabled" "opacity")
@@ -3970,12 +4075,32 @@
     (check-style-ref ".form-check .form-check-input" "margin-left"))
   (define switch-width
     (check-style-ref ".form-switch .form-check-input" "width"))
+  (define switch-height
+    (check-style-ref ".form-switch .form-check-input" "height"))
   (define switch-radius
     (check-style-ref ".form-switch .form-check-input" "border-radius"))
   (define switch-position
     (check-style-ref ".form-switch .form-check-input" "position"))
+  (define switch-margin-top
+    (check-style-ref ".form-switch .form-check-input" "margin-top"))
   (define switch-margin-left
     (check-style-ref ".form-switch .form-check-input" "margin-left"))
+  (define switch-bg
+    (check-style-ref ".form-switch .form-check-input" "background-color"))
+  (define switch-border-color
+    (check-style-ref ".form-switch .form-check-input" "border-color"))
+  (define switch-border-width
+    (check-style-ref ".form-switch .form-check-input" "border-width"))
+  (define switch-border-style
+    (check-style-ref ".form-switch .form-check-input" "border-style"))
+  (define switch-shadow
+    (check-style-ref ".form-switch .form-check-input" "box-shadow"))
+  (define switch-checked-bg
+    (check-style-ref ".form-switch .form-check-input:checked" "background-color"))
+  (define switch-checked-border-color
+    (check-style-ref ".form-switch .form-check-input:checked" "border-color"))
+  (define switch-checked-shadow
+    (check-style-ref ".form-switch .form-check-input:checked" "box-shadow"))
   (define switch-bg-icon
     (or (check-custom-ref ".form-switch .form-check-input" "--bs-form-switch-bg")
         (check-style-ref ".form-switch .form-check-input" "background-image")))
@@ -4005,6 +4130,12 @@
     (check-style-ref ".form-switch .form-check-input::before" "border-color"))
   (define switch-before-radius
     (check-style-ref ".form-switch .form-check-input::before" "border-radius"))
+  (define switch-before-bg
+    (check-style-ref ".form-switch .form-check-input::before" "background-color"))
+  (define switch-before-shadow
+    (check-style-ref ".form-switch .form-check-input::before" "box-shadow"))
+  (define switch-before-transition
+    (check-style-ref ".form-switch .form-check-input::before" "transition"))
   (define switch-after-display
     (check-style-ref ".form-switch .form-check-input::after" "display"))
   (define switch-after-position
@@ -4029,12 +4160,16 @@
     (check-style-ref ".form-switch .form-check-input::after" "border-radius"))
   (define switch-after-transition
     (check-style-ref ".form-switch .form-check-input::after" "transition"))
+  (define switch-after-shadow
+    (check-style-ref ".form-switch .form-check-input::after" "box-shadow"))
   (define switch-after-checked-top
     (check-style-ref ".form-switch .form-check-input:checked::after" "top"))
   (define switch-after-checked-left
     (check-style-ref ".form-switch .form-check-input:checked::after" "left"))
   (define switch-after-checked-bg
     (check-style-ref ".form-switch .form-check-input:checked::after" "background-color"))
+  (define switch-after-checked-shadow
+    (check-style-ref ".form-switch .form-check-input:checked::after" "box-shadow"))
   (define switch-label-margin-left
     (check-style-ref ".form-switch .form-check-label" "margin-left"))
   (define-values (range-style-ref range-custom-ref)
@@ -4332,12 +4467,14 @@
         'blockquote-footer-margin-right blockquote-footer-margin-right
         'blockquote-footer-margin-bottom blockquote-footer-margin-bottom
         'blockquote-footer-margin-left blockquote-footer-margin-left
+        'control-letter-spacing control-letter-spacing
         'navbar-link-color navbar-link-color
         'navbar-link-hover navbar-link-hover
         'navbar-link-active navbar-link-active
         'navbar-link-disabled navbar-link-disabled
         'navbar-border-width navbar-border-width
         'navbar-border-style navbar-border-style
+        'navbar-shadow navbar-shadow
         'navbar-radius navbar-radius
         'navbar-padding-x navbar-padding-x
         'navbar-padding-y navbar-padding-y
@@ -4349,6 +4486,8 @@
         'tab-border-color tab-border-color
         'tab-link-border-color tab-link-border-color
         'tab-border-width tab-border-width
+        'tab-border-style tab-border-style
+        'tab-shadow tab-shadow
         'tab-padding-x tab-padding-x
         'tab-padding-y tab-padding-y
         'tab-border-radius tab-border-radius
@@ -4531,6 +4670,7 @@
         'btn-group-shadow btn-group-shadow
         'btn-group-radius btn-group-radius
         'btn-group-button-shadow btn-group-button-shadow
+        'btn-group-adjacent-button-shadow btn-group-adjacent-button-shadow
         'btn-group-separator-width btn-group-separator-width
         'btn-group-separator-style btn-group-separator-style
         'btn-group-separator-color btn-group-separator-color
@@ -4826,6 +4966,7 @@
         'offcanvas-title-text-shadow offcanvas-title-text-shadow
         'alert-padding-x alert-padding-x
         'alert-padding-y alert-padding-y
+        'alert-padding-right alert-padding-right
         'alert-dismissible-padding-right alert-dismissible-padding-right
         'alert-dismiss-padding-top (alert-dismiss-padding "top")
         'alert-dismiss-padding-right (alert-dismiss-padding "right")
@@ -5016,10 +5157,16 @@
         'field-disabled-bg field-disabled-bg
         'field-disabled-color field-disabled-color
         'field-disabled-border-color field-disabled-border-color
+        'field-disabled-border-bottom-width field-disabled-border-bottom-width
+        'field-disabled-border-bottom-style field-disabled-border-bottom-style
+        'field-disabled-border-bottom-color field-disabled-border-bottom-color
         'field-disabled-opacity field-disabled-opacity
         'field-select-disabled-bg field-select-disabled-bg
         'field-select-disabled-color field-select-disabled-color
         'field-select-disabled-border-color field-select-disabled-border-color
+        'field-select-disabled-border-bottom-width field-select-disabled-border-bottom-width
+        'field-select-disabled-border-bottom-style field-select-disabled-border-bottom-style
+        'field-select-disabled-border-bottom-color field-select-disabled-border-bottom-color
         'field-select-disabled-opacity field-select-disabled-opacity
         'floating-control-height floating-control-height
         'floating-control-min-height floating-control-min-height
@@ -5153,9 +5300,19 @@
         'form-check-padding-left form-check-padding-left
         'form-check-input-margin-left form-check-input-margin-left
         'switch-width switch-width
+        'switch-height switch-height
         'switch-radius switch-radius
         'switch-position switch-position
+        'switch-margin-top switch-margin-top
         'switch-margin-left switch-margin-left
+        'switch-bg switch-bg
+        'switch-border-color switch-border-color
+        'switch-border-width switch-border-width
+        'switch-border-style switch-border-style
+        'switch-shadow switch-shadow
+        'switch-checked-bg switch-checked-bg
+        'switch-checked-border-color switch-checked-border-color
+        'switch-checked-shadow switch-checked-shadow
         'switch-bg-icon switch-bg-icon
         'switch-focus-icon switch-focus-icon
         'switch-checked-icon switch-checked-icon
@@ -5169,6 +5326,9 @@
         'switch-before-border-width switch-before-border-width
         'switch-before-border-color switch-before-border-color
         'switch-before-radius switch-before-radius
+        'switch-before-bg switch-before-bg
+        'switch-before-shadow switch-before-shadow
+        'switch-before-transition switch-before-transition
         'switch-after-display switch-after-display
         'switch-after-position switch-after-position
         'switch-after-content switch-after-content
@@ -5181,9 +5341,11 @@
         'switch-after-border-color switch-after-border-color
         'switch-after-radius switch-after-radius
         'switch-after-transition switch-after-transition
+        'switch-after-shadow switch-after-shadow
         'switch-after-checked-top switch-after-checked-top
         'switch-after-checked-left switch-after-checked-left
         'switch-after-checked-bg switch-after-checked-bg
+        'switch-after-checked-shadow switch-after-checked-shadow
         'switch-label-margin-left switch-label-margin-left
         'range-height range-height
         'range-radius range-radius
@@ -5927,6 +6089,9 @@
   (define link-font-weight
     (or (theme-component-ref theme 'link-font-weight)
         (bootstrap-theme-font-weight-normal theme)))
+  (define control-letter-spacing
+    (or (theme-component-ref theme 'control-letter-spacing)
+        "normal"))
   (define navbar-link-color
     (or (theme-component-ref theme 'navbar-link-color)
         nav-link-color))
@@ -5950,6 +6115,9 @@
     (or (theme-component-ref theme 'navbar-border-style)
         (theme-prop-ref theme "--bs-border-style")
         "solid"))
+  (define navbar-shadow
+    (or (theme-component-ref theme 'navbar-shadow)
+        "none"))
   (define navbar-radius
     (or (theme-component-ref theme 'navbar-radius)
         (bootstrap-theme-radius-md theme)))
@@ -6036,8 +6204,13 @@
     (or (theme-component-ref theme 'navbar-brand-heading-line-height)
         (bootstrap-theme-heading-line-height theme)))
   (define navbar-brand-heading-letter-spacing
-    (or (theme-component-ref theme 'navbar-brand-heading-letter-spacing)
-        (bootstrap-theme-heading-letter-spacing theme)))
+    (let ([value (theme-component-ref theme 'navbar-brand-heading-letter-spacing)])
+      (if (and (normal-css-value? value)
+               (not (normal-css-value? navbar-brand-letter-spacing)))
+          navbar-brand-letter-spacing
+          (or value
+              navbar-brand-letter-spacing
+              (bootstrap-theme-heading-letter-spacing theme)))))
   (define navbar-brand-heading-text-transform
     (or (theme-component-ref theme 'navbar-brand-heading-text-transform)
         (bootstrap-theme-heading-text-transform theme)))
@@ -6061,6 +6234,12 @@
     (or (theme-component-ref theme 'tab-border-width)
         (hash-ref bootstrap-defaults "--bs-border-width" #f)
         "1px"))
+  (define tab-border-style
+    (or (theme-component-ref theme 'tab-border-style)
+        "solid"))
+  (define tab-shadow
+    (or (theme-component-ref theme 'tab-shadow)
+        "none"))
   (define tab-padding-x
     (or (theme-component-ref theme 'tab-padding-x)
         nav-link-padding-x))
@@ -6187,7 +6366,7 @@
         (bootstrap-theme-line-height-base theme)))
   (define pill-letter-spacing
     (or (theme-component-ref theme 'pill-letter-spacing)
-        "normal"))
+        control-letter-spacing))
   (define pill-text-transform
     (or (theme-component-ref theme 'pill-text-transform)
         "none"))
@@ -6549,7 +6728,7 @@
         "1.25"))
   (define button-letter-spacing
     (or (theme-component-ref theme 'btn-letter-spacing)
-        "revert"))
+        control-letter-spacing))
   (define button-border-width
     (or (theme-component-ref theme 'btn-border-width)
         "1px"))
@@ -6627,6 +6806,9 @@
   (define button-group-button-shadow
     (or (theme-component-ref theme 'btn-group-button-shadow)
         "var(--we-button-variant-shadow)"))
+  (define button-group-adjacent-button-shadow
+    (or (theme-component-ref theme 'btn-group-adjacent-button-shadow)
+        "var(--we-button-shadow-current, var(--we-button-variant-shadow))"))
   (define button-group-separator-width
     (or (theme-component-ref theme 'btn-group-separator-width)
         button-outline-border-width))
@@ -7113,7 +7295,7 @@
         "1.2"))
   (define accordion-button-letter-spacing
     (or (theme-component-ref theme 'accordion-button-letter-spacing)
-        "normal"))
+        control-letter-spacing))
   (define accordion-button-text-transform
     (or (theme-component-ref theme 'accordion-button-text-transform)
         "none"))
@@ -7516,7 +7698,7 @@
         (bootstrap-theme-font-family-heading theme)))
   (define offcanvas-title-letter-spacing
     (or (theme-component-ref theme 'offcanvas-title-letter-spacing)
-        "normal"))
+        (bootstrap-theme-letter-spacing-base theme)))
   (define offcanvas-title-text-transform
     (or (theme-component-ref theme 'offcanvas-title-text-transform)
         "none"))
@@ -7547,8 +7729,12 @@
   (define alert-padding-y
     (or (theme-component-ref theme 'alert-padding-y)
         "1rem"))
+  (define alert-padding-right
+    (or (theme-component-ref theme 'alert-padding-right)
+        alert-padding-x))
   (define alert-dismissible-padding-right
     (or (theme-component-ref theme 'alert-dismissible-padding-right)
+        alert-padding-right
         "3rem"))
   (define alert-dismiss-padding-top
     (or (theme-component-ref theme 'alert-dismiss-padding-top)
@@ -7864,8 +8050,11 @@
     (or (theme-component-ref theme 'list-group-line-height)
         (bootstrap-theme-line-height-base theme)))
   (define list-group-letter-spacing
-    (or (theme-component-ref theme 'list-group-letter-spacing)
-        "normal"))
+    (let ([value (theme-component-ref theme 'list-group-letter-spacing)])
+      (if (normal-css-value? value)
+          control-letter-spacing
+          (or value
+              control-letter-spacing))))
   (define list-group-text-transform
     (or (theme-component-ref theme 'list-group-text-transform)
         "none"))
@@ -8062,6 +8251,15 @@
   (define field-disabled-border-color
     (or (theme-component-ref theme 'field-disabled-border-color)
         field-border-color))
+  (define field-disabled-border-bottom-width
+    (or (theme-component-ref theme 'field-disabled-border-bottom-width)
+        field-border-width))
+  (define field-disabled-border-bottom-style
+    (or (theme-component-ref theme 'field-disabled-border-bottom-style)
+        "solid"))
+  (define field-disabled-border-bottom-color
+    (or (theme-component-ref theme 'field-disabled-border-bottom-color)
+        field-disabled-border-color))
   (define field-disabled-opacity
     (or (theme-component-ref theme 'field-disabled-opacity)
         "1"))
@@ -8074,6 +8272,15 @@
   (define field-select-disabled-border-color
     (or (theme-component-ref theme 'field-select-disabled-border-color)
         field-disabled-border-color))
+  (define field-select-disabled-border-bottom-width
+    (or (theme-component-ref theme 'field-select-disabled-border-bottom-width)
+        field-disabled-border-bottom-width))
+  (define field-select-disabled-border-bottom-style
+    (or (theme-component-ref theme 'field-select-disabled-border-bottom-style)
+        field-disabled-border-bottom-style))
+  (define field-select-disabled-border-bottom-color
+    (or (theme-component-ref theme 'field-select-disabled-border-bottom-color)
+        field-select-disabled-border-color))
   (define field-select-disabled-opacity
     (or (theme-component-ref theme 'field-select-disabled-opacity)
         field-disabled-opacity))
@@ -8260,28 +8467,32 @@
         outline-secondary-border))
   (define input-group-button-last-radius-top-right
     (or (theme-component-ref theme 'input-group-button-last-radius-top-right)
-        (border-radius-shorthand-corner field-radius 'top-right)
-        field-radius))
+        (border-radius-shorthand-corner button-radius 'top-right)
+        button-radius))
   (define input-group-button-last-radius-bottom-right
     (or (theme-component-ref theme 'input-group-button-last-radius-bottom-right)
-        (border-radius-shorthand-corner field-radius 'bottom-right)
-        field-radius))
+        (border-radius-shorthand-corner button-radius 'bottom-right)
+        button-radius))
   (define input-group-sm-button-last-radius-top-right
     (or (theme-component-ref theme 'input-group-sm-button-last-radius-top-right)
         (theme-component-ref theme 'input-group-button-last-radius-top-right)
-        input-group-sm-radius))
+        (border-radius-shorthand-corner button-sm-radius 'top-right)
+        button-sm-radius))
   (define input-group-sm-button-last-radius-bottom-right
     (or (theme-component-ref theme 'input-group-sm-button-last-radius-bottom-right)
         (theme-component-ref theme 'input-group-button-last-radius-bottom-right)
-        input-group-sm-radius))
+        (border-radius-shorthand-corner button-sm-radius 'bottom-right)
+        button-sm-radius))
   (define input-group-lg-button-last-radius-top-right
     (or (theme-component-ref theme 'input-group-lg-button-last-radius-top-right)
         (theme-component-ref theme 'input-group-button-last-radius-top-right)
-        input-group-lg-radius))
+        (border-radius-shorthand-corner button-lg-radius 'top-right)
+        button-lg-radius))
   (define input-group-lg-button-last-radius-bottom-right
     (or (theme-component-ref theme 'input-group-lg-button-last-radius-bottom-right)
         (theme-component-ref theme 'input-group-button-last-radius-bottom-right)
-        input-group-lg-radius))
+        (border-radius-shorthand-corner button-lg-radius 'bottom-right)
+        button-lg-radius))
   (define field-valid-color
     (or (theme-component-ref theme 'field-valid-color)
         (bootstrap-theme-success theme)))
@@ -8514,15 +8725,49 @@
   (define switch-width
     (or (theme-component-ref theme 'switch-width)
         "2em"))
+  (define switch-height
+    (or (theme-component-ref theme 'switch-height)
+        check-height
+        check-size))
   (define switch-radius
     (or (theme-component-ref theme 'switch-radius)
         check-radius))
   (define switch-position
     (or (theme-component-ref theme 'switch-position)
         "static"))
+  (define switch-margin-top
+    (or (theme-component-ref theme 'switch-margin-top)
+        "0.25em"))
   (define switch-margin-left
     (or (theme-component-ref theme 'switch-margin-left)
         "0"))
+  (define switch-bg
+    (or (theme-component-ref theme 'switch-bg)
+        check-bg))
+  (define switch-border-color
+    (or (theme-component-ref theme 'switch-border-color)
+        check-border-color))
+  (define switch-border-width
+    (or (theme-component-ref theme 'switch-border-width)
+        check-border-width))
+  (define switch-border-style
+    (or (theme-component-ref theme 'switch-border-style)
+        check-border-style
+        "solid"))
+  (define switch-shadow
+    (or (theme-component-ref theme 'switch-shadow)
+        check-shadow
+        "none"))
+  (define switch-checked-bg
+    (or (theme-component-ref theme 'switch-checked-bg)
+        check-checked-bg))
+  (define switch-checked-border-color
+    (or (theme-component-ref theme 'switch-checked-border-color)
+        check-checked-border-color))
+  (define switch-checked-shadow
+    (or (theme-component-ref theme 'switch-checked-shadow)
+        check-checked-shadow
+        switch-shadow))
   (define switch-bg-icon
     (or (theme-component-ref theme 'switch-bg-icon)
         "none"))
@@ -8534,6 +8779,7 @@
         switch-bg-icon))
   (define switch-before-display
     (or (theme-component-ref theme 'switch-before-display)
+        (and (theme-component-ref theme 'switch-before-content) "block")
         check-before-display))
   (define switch-before-position
     (or (theme-component-ref theme 'switch-before-position)
@@ -8562,8 +8808,18 @@
   (define switch-before-radius
     (or (theme-component-ref theme 'switch-before-radius)
         switch-radius))
+  (define switch-before-bg
+    (or (theme-component-ref theme 'switch-before-bg)
+        "transparent"))
+  (define switch-before-shadow
+    (or (theme-component-ref theme 'switch-before-shadow)
+        "none"))
+  (define switch-before-transition
+    (or (theme-component-ref theme 'switch-before-transition)
+        "none"))
   (define switch-after-display
     (or (theme-component-ref theme 'switch-after-display)
+        (and (theme-component-ref theme 'switch-after-content) "block")
         check-after-display))
   (define switch-after-position
     (or (theme-component-ref theme 'switch-after-position)
@@ -8598,6 +8854,9 @@
   (define switch-after-transition
     (or (theme-component-ref theme 'switch-after-transition)
         "none"))
+  (define switch-after-shadow
+    (or (theme-component-ref theme 'switch-after-shadow)
+        "none"))
   (define switch-after-checked-top
     (or (theme-component-ref theme 'switch-after-checked-top)
         switch-after-top))
@@ -8607,6 +8866,9 @@
   (define switch-after-checked-bg
     (or (theme-component-ref theme 'switch-after-checked-bg)
         switch-after-bg))
+  (define switch-after-checked-shadow
+    (or (theme-component-ref theme 'switch-after-checked-shadow)
+        switch-after-shadow))
   (define switch-label-margin-left
     (or (theme-component-ref theme 'switch-label-margin-left)
         "0"))
@@ -8884,6 +9146,7 @@
     (cons "--we-navbar-link-disabled-color" navbar-link-disabled)
     (cons "--we-navbar-border-width" navbar-border-width)
     (cons "--we-navbar-border-style" navbar-border-style)
+    (cons "--we-navbar-shadow" navbar-shadow)
     (cons "--we-navbar-radius" navbar-radius)
     (cons "--we-navbar-padding-x" navbar-padding-x)
     (cons "--we-navbar-padding-y" navbar-padding-y)
@@ -8921,6 +9184,8 @@
     (cons "--we-tab-border-color" tab-border-color)
     (cons "--we-tab-link-border-color" tab-link-border-color)
     (cons "--we-tab-border-width" tab-border-width)
+    (cons "--we-tab-border-style" tab-border-style)
+    (cons "--we-tab-shadow" tab-shadow)
     (cons "--we-tab-padding-x" tab-padding-x)
     (cons "--we-tab-padding-y" tab-padding-y)
     (cons "--we-tab-font-size" tab-font-size)
@@ -9008,6 +9273,7 @@
     (cons "--we-button-group-shadow" button-group-shadow)
     (cons "--we-button-group-radius" button-group-radius)
     (cons "--we-button-group-button-shadow" button-group-button-shadow)
+    (cons "--we-button-group-adjacent-button-shadow" button-group-adjacent-button-shadow)
     (cons "--we-button-group-separator-width" button-group-separator-width)
     (cons "--we-button-group-separator-style" button-group-separator-style)
     (cons "--we-button-group-separator-color" button-group-separator-color)
@@ -9358,6 +9624,7 @@
     (cons "--we-offcanvas-title-text-shadow" offcanvas-title-text-shadow)
     (cons "--we-alert-padding-x" alert-padding-x)
     (cons "--we-alert-padding-y" alert-padding-y)
+    (cons "--we-alert-padding-right" alert-padding-right)
     (cons "--we-alert-dismissible-padding-right" alert-dismissible-padding-right)
     (cons "--we-alert-dismiss-padding-top" alert-dismiss-padding-top)
     (cons "--we-alert-dismiss-padding-right" alert-dismiss-padding-right)
@@ -9527,10 +9794,16 @@
     (cons "--we-field-disabled-bg" field-disabled-bg)
     (cons "--we-field-disabled-color" field-disabled-color)
     (cons "--we-field-disabled-border-color" field-disabled-border-color)
+    (cons "--we-field-disabled-border-bottom-width" field-disabled-border-bottom-width)
+    (cons "--we-field-disabled-border-bottom-style" field-disabled-border-bottom-style)
+    (cons "--we-field-disabled-border-bottom-color" field-disabled-border-bottom-color)
     (cons "--we-field-disabled-opacity" field-disabled-opacity)
     (cons "--we-field-select-disabled-bg" field-select-disabled-bg)
     (cons "--we-field-select-disabled-color" field-select-disabled-color)
     (cons "--we-field-select-disabled-border-color" field-select-disabled-border-color)
+    (cons "--we-field-select-disabled-border-bottom-width" field-select-disabled-border-bottom-width)
+    (cons "--we-field-select-disabled-border-bottom-style" field-select-disabled-border-bottom-style)
+    (cons "--we-field-select-disabled-border-bottom-color" field-select-disabled-border-bottom-color)
     (cons "--we-field-select-disabled-opacity" field-select-disabled-opacity)
     (cons "--we-floating-control-height" floating-control-height)
     (cons "--we-floating-control-min-height" floating-control-min-height)
@@ -9669,9 +9942,19 @@
     (cons "--we-form-check-padding-left" form-check-padding-left)
     (cons "--we-form-check-input-margin-left" form-check-input-margin-left)
     (cons "--we-switch-width" switch-width)
+    (cons "--we-switch-height" switch-height)
     (cons "--we-switch-radius" switch-radius)
     (cons "--we-switch-position" switch-position)
+    (cons "--we-switch-margin-top" switch-margin-top)
     (cons "--we-switch-margin-left" switch-margin-left)
+    (cons "--we-switch-bg" switch-bg)
+    (cons "--we-switch-border-color" switch-border-color)
+    (cons "--we-switch-border-width" switch-border-width)
+    (cons "--we-switch-border-style" switch-border-style)
+    (cons "--we-switch-shadow" switch-shadow)
+    (cons "--we-switch-checked-bg" switch-checked-bg)
+    (cons "--we-switch-checked-border-color" switch-checked-border-color)
+    (cons "--we-switch-checked-shadow" switch-checked-shadow)
     (cons "--we-switch-bg-icon" switch-bg-icon)
     (cons "--we-switch-focus-icon" switch-focus-icon)
     (cons "--we-switch-checked-icon" switch-checked-icon)
@@ -9685,6 +9968,9 @@
     (cons "--we-switch-before-border-width" switch-before-border-width)
     (cons "--we-switch-before-border-color" switch-before-border-color)
     (cons "--we-switch-before-radius" switch-before-radius)
+    (cons "--we-switch-before-bg" switch-before-bg)
+    (cons "--we-switch-before-shadow" switch-before-shadow)
+    (cons "--we-switch-before-transition" switch-before-transition)
     (cons "--we-switch-after-display" switch-after-display)
     (cons "--we-switch-after-position" switch-after-position)
     (cons "--we-switch-after-content" switch-after-content)
@@ -9697,9 +9983,11 @@
     (cons "--we-switch-after-border-color" switch-after-border-color)
     (cons "--we-switch-after-radius" switch-after-radius)
     (cons "--we-switch-after-transition" switch-after-transition)
+    (cons "--we-switch-after-shadow" switch-after-shadow)
     (cons "--we-switch-after-checked-top" switch-after-checked-top)
     (cons "--we-switch-after-checked-left" switch-after-checked-left)
     (cons "--we-switch-after-checked-bg" switch-after-checked-bg)
+    (cons "--we-switch-after-checked-shadow" switch-after-checked-shadow)
     (cons "--we-switch-label-margin-left" switch-label-margin-left)
     (cons "--we-range-height" range-height)
     (cons "--we-range-radius" range-radius)

@@ -169,6 +169,7 @@
           <option value="sandstone-boost">Sandstone Boost</option>
           <option value="vapor">Vapor</option>
           <option value="morph">Morph</option>
+          <option value="materia">Materia</option>
         </select>
         <button id="btn-brite" type="button">Brite</button>
         <button id="btn-superhero" type="button">Superhero</button>
@@ -179,6 +180,7 @@
         <button id="btn-sandstone-boost" type="button">Sandstone Boost</button>
         <button id="btn-vapor" type="button">Vapor</button>
         <button id="btn-morph" type="button">Morph</button>
+        <button id="btn-materia" type="button">Materia</button>
         <span id="current">(loading)</span>
         <a href="./generated/thematic-brite.css" download>Download Brite CSS</a>
         <a href="./generated/thematic-superhero.css" download>Download Superhero CSS</a>
@@ -189,6 +191,7 @@
         <a href="./generated/thematic-sandstone-boost.css" download>Download Sandstone Boost CSS</a>
         <a href="./generated/thematic-vapor.css" download>Download Vapor CSS</a>
         <a href="./generated/thematic-morph.css" download>Download Morph CSS</a>
+        <a href="./generated/thematic-materia.css" download>Download Materia CSS</a>
       </div>
     </div>
   </header>
@@ -252,7 +255,8 @@
       sandstone: "./thematic-sandstone.css",
       "sandstone-boost": "./thematic-sandstone-boost.css",
       vapor: "./thematic-vapor.css",
-      morph: "./thematic-morph.css"
+      morph: "./thematic-morph.css",
+      materia: "./thematic-materia.css"
     };
 
     const FRAME_IDS = [
@@ -313,7 +317,8 @@
         "we-theme-sandstone",
         "we-theme-sandstone-boost",
         "we-theme-vapor",
-        "we-theme-morph"
+        "we-theme-morph",
+        "we-theme-materia"
       );
       frameDoc.documentElement.classList.add("we-theme-" + name);
       const coreLink = ensureCoreLink(frameDoc);
@@ -346,6 +351,7 @@
     document.getElementById("btn-sandstone-boost").addEventListener("click", () => applyTheme("sandstone-boost"));
     document.getElementById("btn-vapor").addEventListener("click", () => applyTheme("vapor"));
     document.getElementById("btn-morph").addEventListener("click", () => applyTheme("morph"));
+    document.getElementById("btn-materia").addEventListener("click", () => applyTheme("materia"));
     document.getElementById("theme-select").addEventListener("change", (e) => applyTheme(e.target.value));
 
     window.addEventListener("load", () => applyTheme(currentTheme));
